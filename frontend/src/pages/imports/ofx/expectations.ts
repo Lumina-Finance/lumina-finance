@@ -11,10 +11,11 @@ const ALREADY_IMPORTED_SOURCE = 'A transaction an earlier OFX import brought int
  * Every claim is one the import enforces: a statement goes into the account chosen for it and is
  * refused when that account is kept in another currency, money out files under the seeded
  * Miscellaneous category and money in under Other Income, the bank's stated balance is not read,
- * investment and loan statements are counted and left out, and a transaction whose date or amount
- * cannot be read, whose amount is in another currency than the statement, whose amount has more decimal places than the currency, whose payee name or
- * memo is over the limit, or whose bank transaction ID an earlier transaction of the same file or an
- * earlier file of the same import already has is listed and skipped. The save then skips a
+ * a loan statement goes into a loan or mortgage account like any other, investment statements are
+ * counted and left out, and a transaction whose date or amount cannot be read, whose amount is in
+ * another currency than the statement, whose amount has more decimal places than the currency, whose
+ * payee name or memo is over the limit, or whose bank transaction ID an earlier transaction of the
+ * same file or an earlier file of the same import already has is listed and skipped. The save then skips a
  * transaction whose bank transaction ID its account already holds from an earlier import, and a
  * deleted one holds none
  */
@@ -43,6 +44,10 @@ export const OFX_EXPECTATIONS: ImportExpectations = {
       lumina: "Refused, since a transaction takes its account's currency. Choose an account in the statement's currency",
     },
     {
+      source: 'A loan statement',
+      lumina: 'Imported like a bank statement, into the loan or mortgage account you match it to',
+    },
+    {
       source: 'A new account',
       lumina: 'No opening balance or credit limit until you add them',
     },
@@ -52,7 +57,6 @@ export const OFX_EXPECTATIONS: ImportExpectations = {
       group: 'Statements',
       items: [
         'Investment',
-        'Loan',
       ],
     },
     {

@@ -1,8 +1,8 @@
 import { expect, test, type Page } from '@playwright/test'
 
-import { asUser, countLedgerTransactions, createAccount, signUpUser, type TestUser } from '../support/api'
+import { asUser, countLedgerTransactions, createAccount, findReferenceId, signUpUser, type TestUser } from '../support/api'
 import { chooseFromDropdown, commitImport, logInViaApi, openPage, showImportSetup, waitPastMotion } from '../support/app'
-import { buildBankMessageSet, buildCardMessageSet, buildFile, CAFE, PAYROLL, statementFile } from '../support/ofx'
+import { buildBankMessageSet, buildCardMessageSet, buildFile, buildInvestmentMessageSet, buildLoanMessageSet, CAFE, PAYROLL, statementFile } from '../support/ofx'
 import { API_BASE_URL } from '../support/target'
 
 // Runs on desktop only: what the import writes is the same at every size, and the tests of the notice
@@ -10,6 +10,7 @@ import { API_BASE_URL } from '../support/target'
 
 const ACCOUNT_LABEL = 'Checking ending 6789'
 const CARD_LABEL = 'Credit card ending 1111'
+const LOAN_LABEL = 'Loan ending 6777'
 
 async function openOfxImport(page: Page, user: TestUser) {
   await logInViaApi(page, user)
@@ -113,24 +114,48 @@ async function settleSetupPanel(page: Page) {
   await waitPastMotion(page)
 }
 
-test('tells the user which investment and loan statements the file holds are not imported', async ({ page, request }) => {
+test('tells the user how many investment statements the file holds are not imported', async ({ page, request }) => {
   const user = await signUpUser(request)
-  await uploadStatement(page, user, buildFile([
-    buildBankMessageSet('CAD', [CAFE]),
-    ['<INVSTMTMSGSRSV1><INVSTMTTRNRS><TRNUID>2001</INVSTMTTRNRS><INVSTMTTRNRS><TRNUID>2002</INVSTMTTRNRS></INVSTMTMSGSRSV1>'],
-    ['<LOANMSGSRSV1><LOANTRNRS><TRNUID>3001</LOANTRNRS></LOANMSGSRSV1>'],
-  ]))
+  await uploadStatement(page, user, buildFile([buildBankMessageSet('CAD', [CAFE]), buildInvestmentMessageSet(2)]))
 
   await settleSetupPanel(page)
   await expect(page.getByRole('button', { name: 'Collapse import setup', exact: true })).toHaveAttribute('aria-expanded', 'true')
   await expect(page.getByText('Statements left out', { exact: true })).toBeVisible()
-  await expect(page.getByText("2 investment statements and 1 loan statement in this file aren't imported, because only bank and credit card statements can be imported.", { exact: true })).toBeVisible()
+  await expect(page.getByText("2 investment statements in this file aren't imported: only bank, credit card and loan statements are supported.", { exact: true })).toBeVisible()
+})
+
+test('imports a loan statement into a new loan account without a notice', async ({ page, request }) => {
+  const user = await signUpUser(request)
+  await uploadStatement(page, user, buildFile([buildLoanMessageSet('CAD', [
+    { posted: '20240115120000', amount: '450.00', fitId: 'L1', name: 'Loan payment' },
+    { posted: '20240131120000', amount: '-35.00', fitId: 'L2', name: 'Interest' },
+  ])]))
+
+  await expect(page.getByRole('combobox', { name: `Existing account ${LOAN_LABEL}` })).toHaveText('Create new account')
+  await expect(page.getByText('Loan payment', { exact: true }).first()).toBeVisible()
+  await expect(page.getByText('Statements left out', { exact: true })).toBeHidden()
+
+  const response = await commitImport(page)
+  expect(response.status()).toBe(201)
+
+  expect(await countLedgerTransactions(request, user)).toBe(2)
+  const accounts = await request.get(`${API_BASE_URL}/accounts`, { headers: asUser(user) })
+  const [account] = await accounts.json() as { name: string; account_type: string; current_balance: number }[]
+  expect(account).toMatchObject({ name: LOAN_LABEL, account_type: 'loan', current_balance: 41500 })
+
+  // The payment comes in and files under Other Income, the interest goes out under Miscellaneous
+  const saved = await request.get(`${API_BASE_URL}/transactions`, { headers: asUser(user) })
+  const rows = (await saved.json() as { amount: number; category_id: string }[]).map((row) => [row.amount, row.category_id]).sort()
+  expect(rows).toEqual([
+    [-3500, await findReferenceId(request, user, 'categories', 'Miscellaneous')],
+    [45000, await findReferenceId(request, user, 'categories', 'Other Income')],
+  ])
 })
 
 // Each file leaves out one statement of its own, so the first file alone would give a different count
 const LEAVING_OUT_FILES = [
-  { name: 'with-investment.ofx', body: [buildBankMessageSet('CAD', [CAFE]), ['<INVSTMTMSGSRSV1><INVSTMTTRNRS><TRNUID>2001</INVSTMTTRNRS></INVSTMTMSGSRSV1>']] },
-  { name: 'with-loan.ofx', body: [buildBankMessageSet('CAD', [PAYROLL]), ['<LOANMSGSRSV1><LOANTRNRS><TRNUID>3001</LOANTRNRS></LOANMSGSRSV1>']] },
+  { name: 'first-with-investment.ofx', body: [buildBankMessageSet('CAD', [CAFE]), buildInvestmentMessageSet(1)] },
+  { name: 'second-with-investment.ofx', body: [buildBankMessageSet('CAD', [PAYROLL]), buildInvestmentMessageSet(1)] },
 ].map(({ name, body }) => ({ name, mimeType: 'application/octet-stream', buffer: Buffer.from(buildFile(body)) }))
 
 // The setup column scrolls on its own at this size, so a notice at the foot of two staged files
@@ -141,14 +166,14 @@ test('keeps the left-out notice of every staged file in view, counting them toge
   await upload.setInputFiles(LEAVING_OUT_FILES)
 
   await settleSetupPanel(page)
-  const notice = page.getByText("1 investment statement and 1 loan statement in these files aren't imported, because only bank and credit card statements can be imported.", { exact: true })
+  const notice = page.getByText("2 investment statements in these files aren't imported: only bank, credit card and loan statements are supported.", { exact: true })
   await expect(notice).toBeVisible()
   await expect(notice).toBeInViewport({ ratio: 1 })
 
-  await page.getByRole('button', { name: 'Remove with-investment.ofx', exact: true }).click()
-  await expect(page.getByText("1 loan statement in this file isn't imported, because only bank and credit card statements can be imported.", { exact: true })).toBeVisible()
+  await page.getByRole('button', { name: 'Remove first-with-investment.ofx', exact: true }).click()
+  await expect(page.getByText("1 investment statement in this file isn't imported: only bank, credit card and loan statements are supported.", { exact: true })).toBeVisible()
 
-  await page.getByRole('button', { name: 'Remove with-loan.ofx', exact: true }).click()
+  await page.getByRole('button', { name: 'Remove second-with-investment.ofx', exact: true }).click()
   await expect(page.getByText('Statements left out', { exact: true })).toBeHidden()
   await expect(page.getByRole('button', { name: 'Collapse import setup', exact: true })).toHaveAttribute('aria-expanded', 'true')
 })

@@ -8,7 +8,7 @@ import type { OfxStagedFile } from '@/pages/imports/ofx/types'
 import { describeOfxSavedEarlier } from '@/pages/imports/ofx/utils/savedEarlier'
 
 function stagedFile(name: string, id = name): OfxStagedFile {
-  return { id, name, size: 1, lastModified: 1, file: { statements: [], leftOut: { investment: 0, loan: 0 } } }
+  return { id, name, size: 1, lastModified: 1, file: { statements: [], leftOut: { investment: 0 } } }
 }
 
 const [JAN, FEB, MAR, APR] = ['2024-01.qfx', '2024-02.qfx', '2024-03.qfx', '2024-04.qfx'].map((name) => stagedFile(name))

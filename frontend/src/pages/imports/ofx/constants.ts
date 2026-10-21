@@ -12,8 +12,8 @@ export const OFX_FILE_GUIDANCE = 'Choose an OFX or QFX statement from your bank.
 export const OFX_NOT_READABLE_REASON = `This isn't an OFX or QFX statement. ${OFX_FILE_GUIDANCE}`
 export const OFX_TOO_LARGE_REASON = `This file is larger than ${MAX_OFX_FILE_BYTES / MIB} MB, which is more than a statement holds. ${OFX_FILE_GUIDANCE}`
 export const OFX_STATEMENT_INCOMPLETE_REASON = "A statement in this file has no account number or currency, so it can't be imported."
-export const OFX_ONLY_LEFT_OUT_REASON = "This file only holds investment or loan statements, which aren't imported."
-export const OFX_NO_STATEMENTS_REASON = `This file has no bank or credit card statements. ${OFX_FILE_GUIDANCE}`
+export const OFX_ONLY_LEFT_OUT_REASON = "This file only holds investment statements, which aren't imported."
+export const OFX_NO_STATEMENTS_REASON = `This file has no bank, credit card or loan statements. ${OFX_FILE_GUIDANCE}`
 
 export const OFX_IMPORT_FILE_TYPE: ImportFileType = {
   matches: (file) => /\.(ofx|qfx)$/i.test(file.name),
@@ -44,6 +44,10 @@ export const OFX_BANK_ACCOUNT_TYPES: Record<string, { type: AccountType; label: 
 export const OFX_DEFAULT_BANK_ACCOUNT = { type: 'checking', label: 'Bank account' } as const
 
 export const OFX_CREDIT_CARD_ACCOUNT = { type: 'credit_card', label: 'Credit card' } as const
+
+/** The account type a loan statement proposes: a mortgage where the statement says so, otherwise a loan */
+export const OFX_LOAN_ACCOUNT = { type: 'loan', label: 'Loan' } as const
+export const OFX_MORTGAGE_ACCOUNT = { type: 'mortgage', label: 'Mortgage' } as const
 
 /** How many trailing characters of the account number tell two accounts apart in a name */
 export const OFX_ACCOUNT_NUMBER_TAIL_LENGTH = 4
@@ -89,10 +93,8 @@ export function getOfxMultipleStatementsReason(statementCount: number) {
 }
 
 /** Says what the files hold that the import leaves out */
-export function getOfxLeftOutNotice({ investment, loan }: { investment: number; loan: number }, fileCount: number) {
-  const parts = [
-    investment > 0 ? `${investment} investment ${investment === 1 ? 'statement' : 'statements'}` : null,
-    loan > 0 ? `${loan} loan ${loan === 1 ? 'statement' : 'statements'}` : null,
-  ].filter((part): part is string => part !== null)
-  return parts.length === 0 ? null : `${parts.join(' and ')} in ${fileCount === 1 ? 'this file' : 'these files'} ${investment + loan === 1 ? "isn't" : "aren't"} imported, because only bank and credit card statements can be imported.`
+export function getOfxLeftOutNotice({ investment }: { investment: number }, fileCount: number) {
+  if (investment === 0) return null
+
+  return `${investment} investment ${investment === 1 ? 'statement' : 'statements'} in ${fileCount === 1 ? 'this file' : 'these files'} ${investment === 1 ? "isn't" : "aren't"} imported: only bank, credit card and loan statements are supported.`
 }

@@ -4,6 +4,8 @@ import {
   OFX_BANK_ACCOUNT_TYPES,
   OFX_CREDIT_CARD_ACCOUNT,
   OFX_DEFAULT_BANK_ACCOUNT,
+  OFX_LOAN_ACCOUNT,
+  OFX_MORTGAGE_ACCOUNT,
   OFX_NO_STATEMENTS_REASON,
   OFX_NOT_READABLE_REASON,
   OFX_ONLY_LEFT_OUT_REASON,
@@ -22,13 +24,21 @@ const AMOUNT_PATTERN = /^([+-]?)(\d+)(?:[.,](\d+))?$/
 
 const CURRENCY_PATTERN = /^[A-Z]{3}$/
 
-// The message sets whose statements the import leaves out, each holding one response per statement
-const LEFT_OUT_MESSAGE_SETS = { investment: 'INVSTMTMSGSRSV1', loan: 'LOANMSGSRSV1' } as const
+// The message set whose statements the import leaves out, holding one response per statement
+const INVESTMENT_MESSAGE_SET = 'INVSTMTMSGSRSV1'
+
+// The elements each kind of statement is read from. A loan statement states its transactions and
+// account number under names of its own, and otherwise reads like a bank statement
+const STATEMENT_ELEMENTS: Record<OfxStatementKind, { response: string; account: string; accountNumber: string; transaction: string }> = {
+  bank: { response: 'STMTRS', account: 'BANKACCTFROM', accountNumber: 'ACCTID', transaction: 'STMTTRN' },
+  creditCard: { response: 'CCSTMTRS', account: 'CCACCTFROM', accountNumber: 'ACCTID', transaction: 'STMTTRN' },
+  loan: { response: 'LOANSTMTRS', account: 'LOANACCTFROM', accountNumber: 'LOANACCTID', transaction: 'LOANSTMTTRN' },
+}
 
 /**
- * Reads an OFX file into the bank and credit card statements it holds
+ * Reads an OFX file into the bank, credit card and loan statements it holds
  *
- * Investment and loan statements are counted and left out. A statement with no account number or
+ * Investment statements are counted and left out. A statement with no account number or
  * currency refuses the file, since it could not be matched to an account or kept in the right
  * currency. A transaction whose date or amount cannot be read is kept with that value null, so the
  * import lists it as skipped instead of refusing the file
@@ -66,14 +76,10 @@ function readOfxStatements(text: string, origin: OfxFileOrigin): OfxFileRead {
   const root = parseOfxMarkup(text)
   if (!root) return { status: 'refused', reason: OFX_NOT_READABLE_REASON }
 
-  const leftOut = {
-    investment: countStatementResponses(root, LEFT_OUT_MESSAGE_SETS.investment),
-    loan: countStatementResponses(root, LEFT_OUT_MESSAGE_SETS.loan),
-  }
-  const sections: Array<{ kind: OfxStatementKind; node: OfxNode }> = [
-    ...findAllDescendants(root, 'STMTRS').map((node) => ({ kind: 'bank' as const, node })),
-    ...findAllDescendants(root, 'CCSTMTRS').map((node) => ({ kind: 'creditCard' as const, node })),
-  ]
+  const leftOut = { investment: countStatementResponses(root, INVESTMENT_MESSAGE_SET) }
+  const sections = (Object.keys(STATEMENT_ELEMENTS) as OfxStatementKind[]).flatMap((kind) => (
+    findAllDescendants(root, STATEMENT_ELEMENTS[kind].response).map((node) => ({ kind, node }))
+  ))
 
   const statements: OfxStatement[] = []
   for (const { kind, node } of sections) {
@@ -83,8 +89,7 @@ function readOfxStatements(text: string, origin: OfxFileOrigin): OfxFileRead {
   }
 
   if (statements.length === 0) {
-    const holdsLeftOut = leftOut.investment + leftOut.loan > 0
-    return { status: 'refused', reason: holdsLeftOut ? OFX_ONLY_LEFT_OUT_REASON : OFX_NO_STATEMENTS_REASON }
+    return { status: 'refused', reason: leftOut.investment > 0 ? OFX_ONLY_LEFT_OUT_REASON : OFX_NO_STATEMENTS_REASON }
   }
 
   return { status: 'read', file: { statements: nameStatements(statements), leftOut } }
@@ -118,14 +123,12 @@ function countStatementResponses(root: OfxNode, messageSetName: string) {
 
 function readStatement(kind: OfxStatementKind, node: OfxNode, origin: OfxFileOrigin): OfxStatement | null {
   const currency = readLeaf(node, 'CURDEF')?.toUpperCase()
-  const account = findChild(node, kind === 'bank' ? 'BANKACCTFROM' : 'CCACCTFROM')
-  const accountNumber = account && readLeaf(account, 'ACCTID')
+  const elements = STATEMENT_ELEMENTS[kind]
+  const account = findChild(node, elements.account)
+  const accountNumber = account && readLeaf(account, elements.accountNumber)
   if (!currency || !CURRENCY_PATTERN.test(currency) || !account || !accountNumber) return null
 
-  const typeName = (kind === 'bank' ? readLeaf(account, 'ACCTTYPE') : null)?.toUpperCase() ?? ''
-  const accountKind = kind === 'creditCard'
-    ? OFX_CREDIT_CARD_ACCOUNT
-    : OFX_BANK_ACCOUNT_TYPES[typeName] ?? OFX_DEFAULT_BANK_ACCOUNT
+  const accountKind = readAccountKind(kind, account)
   const bankId = kind === 'bank' ? readLeaf(account, 'BANKID') : null
   const tail = accountNumber.replace(/[^A-Za-z0-9]/g, '').slice(-OFX_ACCOUNT_NUMBER_TAIL_LENGTH)
   const name = `${accountKind.label} ending ${tail || accountNumber}`
@@ -134,7 +137,7 @@ function readStatement(kind: OfxStatementKind, node: OfxNode, origin: OfxFileOri
   // goes to the server with each transaction's bank ID, which hashes the pair before keeping anything.
   // The statement itself is sent under its position, so no account number names an answer
   const accountKey = [kind, bankId, accountNumber].filter(Boolean).join(':')
-  const transactions = findAllDescendants(node, 'STMTTRN')
+  const transactions = findAllDescendants(node, elements.transaction)
   return {
     id: accountKey,
     kind,
@@ -144,6 +147,14 @@ function readStatement(kind: OfxStatementKind, node: OfxNode, origin: OfxFileOri
     currency,
     transactions: transactions.map((transaction, index) => readTransaction(transaction, index + 1, currency, accountKey, origin)),
   }
+}
+
+/** The kind of account a statement proposes, from the account type it states where this app has a type for it */
+function readAccountKind(kind: OfxStatementKind, account: OfxNode) {
+  if (kind === 'creditCard') return OFX_CREDIT_CARD_ACCOUNT
+  if (kind === 'loan') return readLeaf(account, 'LOANACCTTYPE')?.toUpperCase() === 'MORTGAGE' ? OFX_MORTGAGE_ACCOUNT : OFX_LOAN_ACCOUNT
+
+  return OFX_BANK_ACCOUNT_TYPES[readLeaf(account, 'ACCTTYPE')?.toUpperCase() ?? ''] ?? OFX_DEFAULT_BANK_ACCOUNT
 }
 
 /**

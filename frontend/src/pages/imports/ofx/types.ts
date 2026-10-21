@@ -1,7 +1,7 @@
 import type { AccountType } from '@/api/accounts'
 
-/** Which kind of statement an OFX file holds: a bank account's or a credit card's */
-export type OfxStatementKind = 'bank' | 'creditCard'
+/** Which kind of statement an OFX file holds: a bank account's, a credit card's or a loan's */
+export type OfxStatementKind = 'bank' | 'creditCard' | 'loan'
 
 /**
  * One transaction of a statement, read the way the file states it
@@ -24,7 +24,7 @@ export interface OfxTransaction {
 
   /**
    * The bank account the statement names, as "bank:" and its routing ID and account number joined
-   * by colons, or "creditCard:" and the card number. Sent with the bank's ID, so the server can
+   * by colons, "creditCard:" and the card number, or "loan:" and the loan account number. Sent with the bank's ID, so the server can
    * hash the pair, and never kept
    */
   bankAccountKey: string
@@ -59,7 +59,7 @@ export interface OfxTransaction {
   otherCurrency: string | null
 }
 
-/** One bank or credit card statement of an OFX file */
+/** One bank, credit card or loan statement of an OFX file */
 export interface OfxStatement {
   /** Identifies the statement within the file, which the account answers are filed under */
   id: string
@@ -84,7 +84,7 @@ export interface OfxFile {
   statements: OfxStatement[]
 
   /** Statements the import does not bring in, counted by what they hold */
-  leftOut: { investment: number; loan: number }
+  leftOut: { investment: number }
 }
 
 /** A statement file the flow has read, listed in the files step */

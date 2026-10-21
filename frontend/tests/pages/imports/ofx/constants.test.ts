@@ -35,15 +35,14 @@ describe('choosing several statement files at once', () => {
 
 describe('the notice for the statements left out', () => {
   it.each([
-    [{ investment: 1, loan: 0 }, 1, "1 investment statement in this file isn't imported, because only bank and credit card statements can be imported."],
-    [{ investment: 0, loan: 2 }, 1, "2 loan statements in this file aren't imported, because only bank and credit card statements can be imported."],
-    [{ investment: 2, loan: 1 }, 1, "2 investment statements and 1 loan statement in this file aren't imported, because only bank and credit card statements can be imported."],
-    [{ investment: 2, loan: 1 }, 3, "2 investment statements and 1 loan statement in these files aren't imported, because only bank and credit card statements can be imported."],
-  ])('says what %o holds in %i files', (counts, fileCount, notice) => {
-    expect(getOfxLeftOutNotice(counts, fileCount)).toBe(notice)
+    [1, 1, "1 investment statement in this file isn't imported: only bank, credit card and loan statements are supported."],
+    [2, 1, "2 investment statements in this file aren't imported: only bank, credit card and loan statements are supported."],
+    [2, 3, "2 investment statements in these files aren't imported: only bank, credit card and loan statements are supported."],
+  ])('says what %i investment statements in %i files', (investment, fileCount, notice) => {
+    expect(getOfxLeftOutNotice({ investment }, fileCount)).toBe(notice)
   })
 
   it('says nothing when nothing is left out', () => {
-    expect(getOfxLeftOutNotice({ investment: 0, loan: 0 }, 2)).toBeNull()
+    expect(getOfxLeftOutNotice({ investment: 0 }, 2)).toBeNull()
   })
 })
