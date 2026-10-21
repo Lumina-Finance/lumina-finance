@@ -2207,6 +2207,15 @@
     outline-offset: var(--app-focus-offset);
   }
 
+  /* The same ring drawn inside the control's edge instead of around it, for a control with no border
+     whose scrolling or clipping box leaves no room outside it, such as a row in a scrolling list or a
+     chart in a card that clips. A chart's own svg takes it too, so every chart keeps a whole ring */
+  .app-focus-inset:focus-visible,
+  svg.recharts-surface:focus-visible {
+    outline: var(--app-focus-outline);
+    outline-offset: calc(var(--app-focus-offset) * -1);
+  }
+
   /* A transaction row is focused through the button inside it, or its checkbox while selecting, and
      neither fills the row, so the ring goes around the row itself, drawn inside the row's edges where
      the next row and the list's own edge cannot cover it. The row also shows the hover look while its

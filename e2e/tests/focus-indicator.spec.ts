@@ -10,9 +10,10 @@ import {
 import { logInViaApi, openModal, openPage } from '../support/app'
 import { AT_EVERY_SIZE } from '../support/sizes'
 
-// Runs on desktop only, apart from three groups that run at every size. The focus ring on each kind
-// of control does so because the toolbar changes below 750px, and the Settings section menu and
-// card row tests because the menu and the card change with the width too. The date-range control
+// Runs on desktop only, apart from four groups that run at every size. The focus ring on each kind
+// of control does so because the toolbar changes below 750px, the Settings section menu and
+// card row tests because the menu and the card change with the width too, and the whole-ring test
+// because the filters, charts and rows are laid out differently at each size. The date-range control
 // tests set their own sizes.
 
 /**
@@ -35,7 +36,7 @@ type FocusRing = {
  * Reads the focus drawn for the focused element, from the element itself or the nearest frame around it
  * that draws it, such as a date field around its day box. A field draws its border in the focus colour,
  * doubled from the inside by a shadow of the same colour, so its width is the two together. Anything
- * else, such as a row or a button without a border, draws an outline. The contrast is against the page, worked out from the colours
+ * else, such as a row or a button without a border, draws an outline. The contrast is against what the ring is drawn on, worked out from the colours
  * the browser resolved and any fade around the frame, so it is the ratio on screen. Null when nothing
  * draws focus
  */
@@ -54,11 +55,22 @@ async function readFocusRing(element: Locator): Promise<FocusRing | null> {
     const border = style.outlineStyle === 'none' ? doubling(style) : null
     const colour = border ? border.colour : style.outlineColor
 
+    // What the ring is drawn on: the page, then every fill down to the frame's parent, and the frame's own
+    // fill too when the ring is drawn inside its edge, where the frame is what sits behind it. The layers
+    // are blended on a canvas so the ratio is the one on screen, whatever colour format the browser resolved
     const probe = document.createElement('div')
     probe.style.background = 'var(--app-bg)'
     document.body.append(probe)
-    const page = getComputedStyle(probe).backgroundColor
+    const fills = [getComputedStyle(probe).backgroundColor]
     probe.remove()
+    const drawnInside = Boolean(border) || parseFloat(style.outlineOffset) < 0
+    for (let box: Element | null = drawnInside ? frame : frame.parentElement; box; box = box.parentElement) fills.splice(1, 0, getComputedStyle(box).backgroundColor)
+    const context = document.createElement('canvas').getContext('2d', { willReadFrequently: true })!
+    for (const fill of fills) {
+      context.fillStyle = fill
+      context.fillRect(0, 0, 1, 1)
+    }
+    const page = `rgb(${Array.from(context.getImageData(0, 0, 1, 1).data.slice(0, 3)).join(', ')})`
 
     // A faded frame, such as a dialog fading in, fades its ring with it, so the ring on screen is its
     // colour mixed into the page by however much the frame and everything around it are faded
@@ -79,11 +91,14 @@ async function readFocusRing(element: Locator): Promise<FocusRing | null> {
     // that clips its contents and doesn't hold all of that cuts it off
     const reach = border ? 0 : parseFloat(style.outlineOffset) + parseFloat(style.outlineWidth)
     const ring = frame.getBoundingClientRect()
+    // A ring drawn inside the control's edge and a box around it can differ by a fraction of a pixel once
+    // layout rounds them, which cuts nothing. A ring drawn outside keeps no such allowance
+    const slack = drawnInside && !border ? 0.5 : 0
     let clipped = false
     for (let box = frame.parentElement; box; box = box.parentElement) {
       if (getComputedStyle(box).overflow === 'visible') continue
       const edge = box.getBoundingClientRect()
-      if (ring.left - reach < edge.left || ring.top - reach < edge.top || ring.right + reach > edge.right || ring.bottom + reach > edge.bottom) clipped = true
+      if (ring.left - reach < edge.left - slack || ring.top - reach < edge.top - slack || ring.right + reach > edge.right + slack || ring.bottom + reach > edge.bottom + slack) clipped = true
     }
 
     return {
@@ -450,6 +465,88 @@ test('shows every Tab stop with a whole ring or a visible hover look', async ({ 
   expect(switchStops, 'the toggle switch was reached by Tab').toBeGreaterThan(0)
   expect([...problems]).toEqual([])
 })
+
+/**
+ * Expects the shared focus on an element to be whole: drawn, at least 3:1 against the page, and not cut
+ * by any scrolling or clipping box around it. Read until it holds, since a card fades its content in
+ */
+async function expectWholeRing(element: Locator) {
+  await expect.poll(async () => {
+    const ring = await readFocusRing(element)
+    return ring && { drawn: true, clipped: ring.clipped, contrast: ring.contrast >= 3 }
+  }, { message: `focus on ${element}` }).toEqual({ drawn: true, clipped: false, contrast: true })
+}
+
+// A control without a border draws the ring outside its edge, which a box around it that scrolls or
+// clips cuts off: a transaction row, the charts, and an option in the filters' scrolling account list.
+// Each keeps its whole ring, on every screen and in both themes
+for (const colorScheme of ['light', 'dark'] as const) {
+  test(`keeps the whole ring on rows, charts and filter options in the ${colorScheme} theme`, AT_EVERY_SIZE, async ({ page, request }) => {
+    await page.emulateMedia({ colorScheme, reducedMotion: 'reduce' })
+    const user = await signUpUser(request)
+    const account = await createAccount(request, user, { name: 'Chequing' })
+    await createAccount(request, user, { name: 'Savings' })
+    const rows = [
+      await createTransaction(request, user, { accountId: account.id, categoryName: 'Groceries', amount: -4250, date: daysFromTodayInTestTimezone(-1) }),
+      await createTransaction(request, user, { accountId: account.id, categoryName: 'Groceries', amount: -1875, date: daysFromTodayInTestTimezone(-1) }),
+    ]
+    await logInViaApi(page, user)
+    const charts = page.locator('svg.recharts-surface[tabindex="0"]').filter({ visible: true })
+    const expectEveryChart = async () => {
+      // A chart that mounts late is counted too: the count is read until two reads in a row agree
+      let previous = 0
+      await expect.poll(async () => {
+        const count = await charts.count()
+        const settled = count > 0 && count === previous
+        previous = count
+        return settled
+      }).toBe(true)
+      for (let index = 0; index < await charts.count(); index++) {
+        await focusFromKeyboard(page, charts.nth(index))
+        await expectWholeRing(charts.nth(index))
+      }
+    }
+
+    await openPage(page, '/transactions')
+    await expect(page.locator('html')).toHaveClass(colorScheme === 'dark' ? /\bdark\b/ : /^(?!.*\bdark\b)/)
+    // The rows are already covered on desktop by the row test above, so this adds the tablet and phone
+    // sizes for the issue's two row examples
+    for (const id of rows) {
+      const row = page.getByTestId(`transaction-row-${id}`)
+      await focusFromKeyboard(page, row)
+      await expectWholeRing(row)
+    }
+    await expectEveryChart()
+
+    const mobile = page.viewportSize()!.width < 750
+    await page.getByRole('button', { name: mobile ? /^Filters/ : 'Transaction filters', exact: !mobile }).click()
+    const panel = mobile ? page.getByRole('dialog', { name: 'Transaction filters', exact: true }) : page.locator('.app-range-glass').filter({ has: page.getByRole('button', { name: 'Transaction filters', exact: true }) })
+    // The accounts list is the shared checklist and the merchants list the server-searched one, and each
+    // keeps its whole ring. A selected option sits on the accent tint, which the ring must still reach 3:1 against
+    for (const { facet, name } of [{ facet: 'Accounts', name: 'Chequing' }, { facet: 'Merchant', name: 'Unknown' }]) {
+      if (mobile) {
+        await panel.getByRole('combobox', { name: 'Filters', exact: true }).click()
+        await page.getByRole('option', { name: new RegExp(`^${facet}`) }).click()
+      } else await panel.getByRole('tab', { name: new RegExp(`^${facet}`) }).click()
+      const option = panel.getByRole('checkbox', { name, exact: true })
+      await focusFromKeyboard(page, option)
+      await expectWholeRing(option)
+
+      await option.click()
+      await expect(option).toBeChecked()
+      await page.mouse.move(0, 0)
+      await focusFromKeyboard(page, option)
+      // The tint is dropped while the row has keyboard focus, so the ring is measured on the plain surface
+      await expect.poll(() => option.evaluate((node) => getComputedStyle(node).backgroundColor)).toBe('rgba(0, 0, 0, 0)')
+      await expectWholeRing(option)
+    }
+
+    await openPage(page, '/dashboard')
+    await expectEveryChart()
+    await openPage(page, `/accounts/${account.id}`)
+    await expectEveryChart()
+  })
+}
 
 // The date-range controls built on the glass pill, the Insights one on a wide page and a dashboard
 // widget's on a phone, have a press animation that used to put their frame in the Tab order as a
