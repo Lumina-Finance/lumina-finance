@@ -4,7 +4,9 @@ import type { OptionItem } from '@/components/filters/OptionList'
 import { ActiveFilterChips } from '@/components/filters/ActiveFilterChips'
 import { MultiSelectChecklist } from '@/components/filters/MultiSelectChecklist'
 import { FacetSelectDropdown } from '@/components/list-controls/FacetSelectDropdown'
+import { CLEAR_FILTERS_DISABLED_REASON } from '@/components/list-controls/filterReasons'
 import { FILTER_GLASS_SPRING } from '@/components/list-controls/toolbarStyles'
+import { DisabledReasonButton } from '@/components/tooltips/DisabledReasonButton'
 import { joinClassNames } from '@/utils/classNames'
 import {
   FILTER_FACETS,
@@ -151,14 +153,13 @@ export function FilterPanelBody({
 
       {showFooter && (
         <motion.div layout={blockLayout} transition={transition} className="mt-3 flex items-center justify-between">
-          <button
-            type="button"
+          <DisabledReasonButton
             className="app-secondary-button"
-            disabled={draft.activeFacetCount === 0}
+            disabledReason={draft.activeFacetCount === 0 ? CLEAR_FILTERS_DISABLED_REASON : undefined}
             onClick={draft.clearAll}
           >
             Clear all
-          </button>
+          </DisabledReasonButton>
           <button type="button" className="app-glass-button-primary" onClick={draft.applyFilters}>
             Apply filters
           </button>

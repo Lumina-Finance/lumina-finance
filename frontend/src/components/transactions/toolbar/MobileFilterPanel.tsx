@@ -49,7 +49,7 @@ export function MobileFilterPanel({
       activeFacetCount={draft.activeFacetCount}
       clearAll={draft.clearAll}
       applyFilters={draft.applyFilters}
-      isApplyDisabled={draft.isApplyBlocked}
+      applyDisabledReason={draft.applyBlockedReason}
     >
       {(headingId) => (
         <FilterPanelBody

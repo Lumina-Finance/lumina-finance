@@ -4,7 +4,9 @@ import { AnimatePresence, motion, useReducedMotion } from 'motion/react'
 import { X } from 'lucide-react'
 import { useMobileFilterSheetEffects } from '@/components/filters/hooks/useMobileSheetEffects'
 import { useModalScrollGuard } from '@/components/filters/hooks/useModalScrollGuard'
+import { CLEAR_FILTERS_DISABLED_REASON } from '@/components/list-controls/filterReasons'
 import { useDialogFocus } from '@/components/modal/focus'
+import { DisabledReasonButton } from '@/components/tooltips/DisabledReasonButton'
 import { isModalCovered, registerOpenModal, subscribeToModalStack, unregisterOpenModal } from '@/components/modal/stack'
 
 type MobileFilterSheetProps = {
@@ -18,9 +20,9 @@ type MobileFilterSheetProps = {
   clearAll: () => void
   applyFilters: () => void
 
-  // Greys out Apply while the body holds an entry the draft will refuse, so the button never looks
-  // live for a commit that cannot happen
-  isApplyDisabled?: boolean
+  // Greys out Apply, with this as its reason, while the body holds an entry the draft will refuse, so
+  // the button never looks live for a commit that cannot happen
+  applyDisabledReason?: string
   children: (headingId: string) => ReactNode
 }
 
@@ -39,7 +41,7 @@ export function MobileFilterSheet({
   activeFacetCount,
   clearAll,
   applyFilters,
-  isApplyDisabled = false,
+  applyDisabledReason,
   children,
 }: MobileFilterSheetProps) {
   const panelRef = useMobileFilterSheetEffects({ isOpen, onClose, lockScroll: false })
@@ -108,17 +110,16 @@ export function MobileFilterSheet({
           </div>
 
           <div className="flex items-center justify-between gap-3 border-t px-5 py-4" style={{ borderColor: 'var(--app-border)' }}>
-            <button
-              type="button"
+            <DisabledReasonButton
               className="app-secondary-button"
-              disabled={activeFacetCount === 0}
+              disabledReason={activeFacetCount === 0 ? CLEAR_FILTERS_DISABLED_REASON : undefined}
               onClick={clearAll}
             >
               Clear all
-            </button>
-            <button type="button" className="app-glass-button-primary" disabled={isApplyDisabled} onClick={applyFilters}>
+            </DisabledReasonButton>
+            <DisabledReasonButton className="app-glass-button-primary" disabledReason={applyDisabledReason} onClick={applyFilters}>
               Apply filters
-            </button>
+            </DisabledReasonButton>
           </div>
         </motion.div>
       )}

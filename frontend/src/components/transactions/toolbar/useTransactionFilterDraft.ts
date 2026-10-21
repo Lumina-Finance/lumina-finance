@@ -22,6 +22,12 @@ import { useRestoreAmountRange } from '@/components/transactions/toolbar/hooks/u
 import type { TransactionListFilters } from '@/components/transactions/types/transactionList'
 import type { TransactionFilterSetter } from '@/components/transactions/toolbar/types'
 
+/** What the panel says, and Apply gives as its reason, while the minimum is above the maximum */
+export const CROSSED_AMOUNT_RANGE_MESSAGE = 'Enter a minimum at or below the maximum'
+
+/** What the panel says, and Apply gives as its reason, while the From date is after the To date */
+export const CROSSED_DATE_RANGE_MESSAGE = 'The From date must be on or before the To date'
+
 export type FacetKind = 'multi' | 'amount' | 'date'
 
 export type FacetConfig = {
@@ -144,6 +150,13 @@ export function useTransactionFilterDraft({
   // Either range excluding itself blocks the whole commit, since no transaction can satisfy it and
   // applying it would close the panel on an empty list
   const isApplyBlocked = hasCrossedAmountBounds || hasCrossedDateRange
+
+  // The first reason, when both ranges cross. The panel's own line lists every one
+  const applyBlockedReason = hasCrossedAmountBounds
+    ? CROSSED_AMOUNT_RANGE_MESSAGE
+    : hasCrossedDateRange
+      ? CROSSED_DATE_RANGE_MESSAGE
+      : undefined
 
   /**
    * Counts the live selections on a facet so its tab can show a badge and the pill can show a total
@@ -294,6 +307,7 @@ export function useTransactionFilterDraft({
     hasCrossedAmountBounds,
     hasCrossedDateRange,
     isApplyBlocked,
+    applyBlockedReason,
     currencyLocked,
     getFacetOptions,
     countFacet,
