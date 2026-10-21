@@ -640,8 +640,10 @@
 
   .app-nav-link {
     @apply relative flex w-full items-center gap-3 rounded-xl px-3 py-2.5
-           font-medium no-underline transition-all duration-200;
+           font-medium no-underline;
     font-size: 0.9375rem;
+    transition: color 200ms cubic-bezier(0.4, 0, 0.2, 1), background-color 200ms cubic-bezier(0.4, 0, 0.2, 1),
+      border-color 200ms cubic-bezier(0.4, 0, 0.2, 1), var(--app-focus-fade);
     color: var(--app-text-muted);
     border: 1px solid transparent;
   }
