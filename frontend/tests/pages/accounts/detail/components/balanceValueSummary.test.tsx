@@ -6,9 +6,19 @@
 import { renderToStaticMarkup } from 'react-dom/server'
 import { describe, expect, it, vi } from 'vitest'
 
-vi.mock('@/hooks/useMoneyFormatters', () => ({
-  useMoneyFormatters: () => ({ formatCurrency: (amount: number) => `CA$${(amount / 100).toFixed(2)}` }),
-}))
+const currencies = [
+  { id: 'CAD', name: 'Canadian Dollar', symbol: '$', minor_unit_exponent: 2 },
+]
+
+vi.mock('@/hooks/useMoneyFormatters', async () => {
+  const { formatCurrency, formatMovedCurrency } = await import('@/utils/formatCurrency')
+  return {
+    useMoneyFormatters: () => ({
+      formatCurrency: (amount: number, currency: string) => formatCurrency(amount, currency, currencies),
+      formatMovedCurrency: (amount: number, currency: string) => formatMovedCurrency(amount, currency, currencies),
+    }),
+  }
+})
 
 import { BalanceValueSummary } from '@/pages/accounts/detail/components/balance-chart/ValueSummary'
 import { getBalanceChartSnapshot } from '@/pages/accounts/detail/utils/balanceChartViewModel'

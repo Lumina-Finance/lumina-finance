@@ -74,7 +74,7 @@ function getDailyCashFlowTooltipKey(point: DailyCashFlowPoint) {
 /**
  * Renders daily cash flow values with shared chart tooltip typography
  */
-function DailyCashFlowTooltipContent({
+export function DailyCashFlowTooltipContent({
   point,
   displayCurrency,
   mode,
@@ -83,7 +83,7 @@ function DailyCashFlowTooltipContent({
   displayCurrency: string
   mode: DailyCashFlowChartMode
 }) {
-  const { formatCurrency } = useMoneyFormatters()
+  const { formatCurrency, formatMovedCurrency } = useMoneyFormatters()
 
   return (
     <>
@@ -91,7 +91,7 @@ function DailyCashFlowTooltipContent({
       {mode === 'net' && (
         <ChartTooltipRow
           label="Net"
-          value={formatCurrency(point.net, displayCurrency)}
+          value={formatMovedCurrency(point.net, displayCurrency)}
           financialValue
         />
       )}

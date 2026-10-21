@@ -1,10 +1,8 @@
 import type { InsightsBreakdownCategoryKind } from '@/api/insights'
-import type { Currency } from '@/api/currency'
 import type {
   BreakdownEntry,
   CategoryTrendSection,
 } from '@/pages/insights/types/incomeExpenseBreakdown'
-import { formatCurrency } from '@/utils/formatCurrency'
 
 const PIE_LEGEND_LIMIT = 5
 const PIE_LEGEND_ROW_HEIGHT = 20
@@ -26,14 +24,6 @@ export function getBreakdownTotal(entries: BreakdownEntry[]) {
 export function getBreakdownPercent(amount: number, total: number) {
   if (total <= 0) return 0
   return Math.round((amount / total) * 100)
-}
-
-/**
- * Formats signed currency changes without showing a sign for unchanged values
- */
-export function formatSignedBreakdownCurrency(amount: number, currency: string, currencies: Currency[]) {
-  if (amount === 0) return formatCurrency(amount, currency, currencies)
-  return `${amount > 0 ? '+' : '-'}${formatCurrency(Math.abs(amount), currency, currencies)}`
 }
 
 /**

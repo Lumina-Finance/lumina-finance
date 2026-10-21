@@ -74,7 +74,7 @@ for (const { profileZone, browserZone, dates } of DATE_CASES) {
         await expect(preview.getByText(`March ${day}, 2024`, { exact: true })).toBeVisible()
       }
       for (const amount of ['12.34', '23.45', '34.56', '45.67', '56.78']) {
-        await expect(preview.getByText(`-$${amount}`, { exact: true }).filter({ visible: true })).toBeVisible()
+        await expect(preview.getByText(`−$${amount}`, { exact: true }).filter({ visible: true })).toBeVisible()
       }
 
       const submitted: { dt: string; amount: string; notes: string; category_source: string }[] = []

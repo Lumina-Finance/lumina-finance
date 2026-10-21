@@ -1,7 +1,7 @@
 import type { Currency } from '@/api/currency'
 import type { TransactionAmountPresentation } from '@/components/transactions/Row'
 import { createMoneyFormatter } from '@/utils/formatCurrency'
-import { signTransactionAmount } from '@/utils/signedTransactionAmount'
+import { getAmountSign, signMovedAmount } from '@/utils/negativeAmount'
 import { DEFAULT_MINOR_UNIT_EXPONENT, findCurrencyExponent } from '@/utils/moneyInput'
 
 /**
@@ -23,6 +23,6 @@ export function formatPreviewMoney(amount: bigint, currency: string, currencies:
   }).format(remainder)
   const magnitude = createMoneyFormatter(currency, exponent).formatToParts(whole)
     .map((part) => part.type === 'fraction' ? fraction : part.value).join('')
-  const sign = amount < 0n ? -1 : amount > 0n ? 1 : 0
-  return { text: signTransactionAmount(sign, magnitude), sign }
+  const sign = getAmountSign(amount)
+  return { text: signMovedAmount(sign, magnitude), sign }
 }

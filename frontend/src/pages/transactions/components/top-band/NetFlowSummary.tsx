@@ -29,10 +29,10 @@ export default function NetFlowSummary({
   const containerRef = useRef<HTMLDivElement>(null)
   const measurementRef = useRef<HTMLSpanElement>(null)
   const [netFlowFontSize, setNetFlowFontSize] = useState(MAX_NET_FLOW_FONT_SIZE)
-  const { formatCurrency } = useMoneyFormatters()
+  const { formatCurrency, formatMovedCurrency } = useMoneyFormatters()
   const netFlow = inflow + outflow
   const netColor = netFlow >= 0 ? 'var(--app-positive)' : 'var(--app-negative)'
-  const formattedNetFlow = `${netFlow >= 0 ? '+' : ''}${formatCurrency(netFlow, displayCurrency)}`
+  const formattedNetFlow = formatMovedCurrency(netFlow, displayCurrency)
 
   useLayoutEffect(() => {
     const container = containerRef.current

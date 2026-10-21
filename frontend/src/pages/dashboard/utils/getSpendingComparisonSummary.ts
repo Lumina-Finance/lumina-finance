@@ -1,5 +1,6 @@
 import type { SpendingComparisonResponse, SpendingRange } from '@/api/dashboard'
 import type { SpendingComparisonSeriesPoint } from '@/pages/dashboard/types/dashboard'
+import { formatMovedPercent } from '@/utils/negativeAmount'
 import { getSpendingComparisonSeries } from '@/pages/dashboard/utils/getSpendingComparisonSeries'
 
 export type SpendingComparisonSummary = {
@@ -75,6 +76,6 @@ export function getSpendingComparisonSummary(
     spendingDeltaPct,
     spendingDeltaText: spendingDeltaPct == null
       ? '+00.0%'
-      : `${spendingDeltaPct >= 0 ? '+' : ''}${spendingDeltaPct.toFixed(1)}%`,
+      : formatMovedPercent(spendingDeltaPct, 1),
   }
 }

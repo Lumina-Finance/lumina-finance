@@ -34,7 +34,6 @@ export type BalanceChartSnapshot = {
   periodDelta: BalanceChartPeriodDelta | null
   trend: BalanceTrend
   /** A plus or a true minus before the change, empty for a flat period since zero is unsigned */
-  deltaSign: '+' | '−' | ''
   deltaColor: string
   chartLineColor: string
   chartSeries: BalanceChartDataPoint[]
@@ -154,7 +153,6 @@ export function getBalanceChartSnapshot({
     currency,
     periodDelta,
     trend,
-    deltaSign: trend === 'up' ? '+' : trend === 'down' ? '−' : '',
     deltaColor,
     chartLineColor: chartMode === 'change' && trend !== 'flat' ? deltaMarkColor : lineColor,
     chartSeries,

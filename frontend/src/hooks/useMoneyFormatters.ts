@@ -1,7 +1,7 @@
 import { useMemo } from 'react'
 import { useCurrencies } from '@/api/currency'
 import type { Currency } from '@/api/currency'
-import { formatCurrency } from '@/utils/formatCurrency'
+import { formatCurrency, formatMovedCurrency } from '@/utils/formatCurrency'
 
 // Only reached if this is somehow called above the gate in App.tsx that waits for the list, since no
 // screen below that gate renders before the list is in hand. It is a stable reference rather than a
@@ -9,7 +9,8 @@ import { formatCurrency } from '@/utils/formatCurrency'
 const NO_CURRENCIES: Currency[] = []
 
 /**
- * Reads the currency list and returns the money formatter already bound to it
+ * Reads the currency list and returns the money formatters already bound to it, `formatCurrency` for
+ * held amounts and `formatMovedCurrency` for amounts that moved
  *
  * Each currency's decimal places live in that list rather than in the browser, whose own figures
  * disagree with it for 16 codes, so a formatter cannot render an amount correctly without it. The
@@ -25,6 +26,8 @@ export function useMoneyFormatters() {
       currencies,
       formatCurrency: (minorUnits: number, currency: string) =>
         formatCurrency(minorUnits, currency, currencies),
+      formatMovedCurrency: (minorUnits: number, currency: string) =>
+        formatMovedCurrency(minorUnits, currency, currencies),
     }),
     [currencies],
   )

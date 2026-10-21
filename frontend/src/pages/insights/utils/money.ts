@@ -1,5 +1,4 @@
-import type { Currency } from '@/api/currency'
-import { formatCurrency } from '@/utils/formatCurrency'
+import { formatRatePercent } from '@/utils/negativeAmount'
 
 /**
  * Returns the share of income left after expenses, as a whole percentage, or null when there was
@@ -19,17 +18,7 @@ export function getSavingsRate(income: number, expenses: number) {
  */
 export function formatSavingsRateValue(rate: number | null) {
   if (rate === null) return 'N/A'
-  if (!Number.isFinite(rate)) return rate < 0 ? '−∞%' : '∞%'
-  return `${rate}%`
-}
-
-/**
- * Formats an amount with a leading plus or minus so a movement reads as a direction, while zero
- * is shown plainly with no sign at all
- */
-export function formatSignedCurrency(amount: number, currency: string, currencies: Currency[]) {
-  if (amount === 0) return formatCurrency(amount, currency, currencies)
-  return `${amount > 0 ? '+' : '-'}${formatCurrency(Math.abs(amount), currency, currencies)}`
+  return formatRatePercent(rate)
 }
 
 /**

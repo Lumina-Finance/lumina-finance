@@ -17,7 +17,7 @@ describe('spending comparison summary', () => {
     expect(summary.previousHasData).toBe(true)
     expect(summary.spentToDate).toBe(600)
     expect(summary.spendingDeltaPct).toBeCloseTo(-33.333, 3)
-    expect(summary.spendingDeltaText).toBe('-33.3%')
+    expect(summary.spendingDeltaText).toBe('−33.3%')
   })
 
   it.each([28, 29, 30, 31])(

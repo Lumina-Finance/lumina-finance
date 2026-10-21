@@ -30,6 +30,44 @@ describe('account metric display helpers', () => {
     })
   })
 
+  it.each([
+    [-5_000, '−$50.00'],
+    [5_000, '+$50.00'],
+  ])('signs the savings caption\'s net of %s as %s, like the period glance headline', (net, expected) => {
+    const savingsRate: AccountsMetricsViewModel['savingsRate'] = {
+      value: 10,
+      hasExpenses: true,
+      isLoading: false,
+      net,
+      income: 20_000,
+      progress: 0,
+      color: 'var(--app-text)',
+      barColor: 'var(--app-text)',
+      fxStatus: undefined,
+    }
+
+    expect(getSavingsRateDisplay(savingsRate, 'USD', testCurrencies).caption).toBe(`${expected} of $200.00 this month`)
+  })
+
+  it.each([
+    [-20, '−20%'],
+    [20, '20%'],
+  ])('writes a savings rate of %s as %s, with a true minus when negative', (value, expected) => {
+    const savingsRate: AccountsMetricsViewModel['savingsRate'] = {
+      value,
+      hasExpenses: true,
+      isLoading: false,
+      net: 0,
+      income: 20_000,
+      progress: 0,
+      color: 'var(--app-text)',
+      barColor: 'var(--app-text)',
+      fxStatus: undefined,
+    }
+
+    expect(getSavingsRateDisplay(savingsRate, 'USD', testCurrencies).value).toBe(expected)
+  })
+
   it('explains credit usage gaps caused by unavailable FX conversion', () => {
     const creditUsage: AccountsMetricsViewModel['creditUsage'] = {
       hasCreditAccounts: true,

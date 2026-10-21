@@ -1,5 +1,5 @@
 import type { Currency } from '@/api/currency'
-import { createMoneyFormatter, formatCurrency, formatMajorUnits, toMajorUnits } from '@/utils/formatCurrency'
+import { formatCurrency, formatMajorUnits, formatMoneyParts, toMajorUnits } from '@/utils/formatCurrency'
 
 export type CompactMoneyRule = {
   threshold: number
@@ -24,7 +24,7 @@ function formatCurrencyWithSuffix(
   suffix: CompactMoneyRule['suffix'],
   fractionDigits: number,
 ) {
-  const parts = createMoneyFormatter(currency, fractionDigits).formatToParts(value)
+  const parts = formatMoneyParts(value, currency, fractionDigits)
   const numberPartTypes = new Set(['integer', 'group', 'decimal', 'fraction'])
   const suffixIndex = parts.findLastIndex((part) => numberPartTypes.has(part.type))
 

@@ -27,10 +27,10 @@ const PERIOD_GLANCE_FULL_FONT_SIZE_PX = 48
 const PERIOD_GLANCE_DESKTOP_MIN_FONT_SIZE_PX = 30
 
 const CASES = [
-  { name: 'a very large negative total on a phone', currency: 'IQD', categoryName: 'Groceries', minorUnits: -1_246_913_569_001, text: /^-IQD\s1,246,913,569\.001$/, viewport: PHONE, fullSize: false },
-  { name: 'an ordinary negative total on a phone', currency: 'CAD', categoryName: 'Groceries', minorUnits: -520_000, text: /^-\S*\$5,200\.00$/, viewport: PHONE, fullSize: true },
+  { name: 'a very large negative total on a phone', currency: 'IQD', categoryName: 'Groceries', minorUnits: -1_246_913_569_001, text: /^−IQD\s1,246,913,569\.001$/, viewport: PHONE, fullSize: false },
+  { name: 'an ordinary negative total on a phone', currency: 'CAD', categoryName: 'Groceries', minorUnits: -520_000, text: /^−\S*\$5,200\.00$/, viewport: PHONE, fullSize: true },
   { name: 'a very large positive total on a phone', currency: 'IQD', categoryName: 'Salary', minorUnits: 1_246_913_569_001, text: /^\+IQD\s1,246,913,569\.001$/, viewport: PHONE, fullSize: false },
-  { name: 'a very large negative total on a desktop', currency: 'IQD', categoryName: 'Groceries', minorUnits: -1_246_913_569_001, text: /^-IQD\s1,246,913,569\.001$/, viewport: DESKTOP, fullSize: true },
+  { name: 'a very large negative total on a desktop', currency: 'IQD', categoryName: 'Groceries', minorUnits: -1_246_913_569_001, text: /^−IQD\s1,246,913,569\.001$/, viewport: DESKTOP, fullSize: true },
 ]
 
 /**
@@ -87,18 +87,18 @@ for (const example of CASES) {
 }
 
 // A balance the account opens with, which is not cash flow, so the Net worth card's "Ending Net
-// Worth" figure differs from the Period Glance headline. The signed net worth changes can't match,
-// since no headline pattern allows a plus sign
+// Worth" figure differs from the Period Glance headline. The signed net worth changes can't match
+// either, since the starting balance is part of what the net worth changed by
 const PERIOD_GLANCE_STARTING_BALANCE = 100_000
 
 // The headline is income minus expenses. Each pair differs from its headline, so neither the Income
 // nor the Expenses figure can match the headline's text. The smallest size each headline may settle
 // at is its full size where the amount fits, and the old smallest size on a desktop
 const PERIOD_GLANCE_CASES = [
-  { name: 'a very large total on a phone', currency: 'IQD', income: 1_246_913_569_002, expense: 1, text: /^IQD\s1,246,913,569\.001$/, viewport: PHONE, minFontSizePx: undefined },
-  { name: 'a very large overspend on a phone', currency: 'IQD', income: 1, expense: 1_246_913_569_002, text: /^\(IQD\s1,246,913,569\.001\)$/, viewport: PHONE, minFontSizePx: undefined },
-  { name: 'an ordinary total on a phone', currency: 'CAD', income: 525_000, expense: 5_000, text: /^(CA)?\$5,200\.00$/, viewport: PHONE, minFontSizePx: PERIOD_GLANCE_FULL_FONT_SIZE_PX },
-  { name: 'a very large total on a desktop', currency: 'IQD', income: 1_246_913_569_002, expense: 1, text: /^IQD\s1,246,913,569\.001$/, viewport: DESKTOP, minFontSizePx: PERIOD_GLANCE_DESKTOP_MIN_FONT_SIZE_PX },
+  { name: 'a very large total on a phone', currency: 'IQD', income: 1_246_913_569_002, expense: 1, text: /^\+IQD\s1,246,913,569\.001$/, viewport: PHONE, minFontSizePx: undefined },
+  { name: 'a very large overspend on a phone', currency: 'IQD', income: 1, expense: 1_246_913_569_002, text: /^−IQD\s1,246,913,569\.001$/, viewport: PHONE, minFontSizePx: undefined },
+  { name: 'an ordinary total on a phone', currency: 'CAD', income: 525_000, expense: 5_000, text: /^\+(CA)?\$5,200\.00$/, viewport: PHONE, minFontSizePx: PERIOD_GLANCE_FULL_FONT_SIZE_PX },
+  { name: 'a very large total on a desktop', currency: 'IQD', income: 1_246_913_569_002, expense: 1, text: /^\+IQD\s1,246,913,569\.001$/, viewport: DESKTOP, minFontSizePx: PERIOD_GLANCE_DESKTOP_MIN_FONT_SIZE_PX },
 ]
 
 // The Income and Expenses figures' full size, `text-lg`, which an ordinary amount keeps
@@ -163,7 +163,7 @@ for (const example of PERIOD_GLANCE_CASES) {
     await expectSignedIn(page)
     await navigate(page, 'Insights')
 
-    const headline = page.getByRole('paragraph').filter({ hasText: example.text })
+    const headline = periodGlance(page).getByRole('paragraph').filter({ hasText: example.text })
     await expect.poll(() => measureHeadline(page, headline)).toEqual({ lines: 1, overflows: false })
 
     if (example.minFontSizePx !== undefined) {
@@ -195,7 +195,7 @@ test('net cash flow headline is fitted when its card recovers from a failed firs
 
   const cashFlow = card(page, 1)
   await cashFlow.scrollIntoViewIfNeeded()
-  const text = /^-IQD\s12,469,135,690\.010$/
+  const text = /^−IQD\s12,469,135,690\.010$/
   const headline = cashFlow.getByRole('paragraph').filter({ hasText: text })
   await expect(cashFlow.getByRole('heading', { name: 'Cash flow could not load', exact: true })).toBeVisible()
   await expect(headline).toHaveCount(0)
@@ -203,7 +203,7 @@ test('net cash flow headline is fitted when its card recovers from a failed firs
   // The card recovers without a reload when the connection comes back. The headline's element is new
   // and the fitting has measured none before it, so only the element appearing tells it to measure,
   // and no frame may show the total at full size before it does
-  const readFrames = await recordFrames(page, text)
+  const readFrames = await recordFrames(page, text, 'cashFlow')
   failLoad = false
   await page.context().setOffline(true)
   await page.context().setOffline(false)
@@ -216,6 +216,22 @@ test('net cash flow headline is fitted when its card recovers from a failed firs
 
 type FrameSample = { size: number; overflows: boolean; windowWidth: number }
 
+// Both headlines read an amount that moved over the same period, so a total reads the same in each.
+// A paragraph is told apart by the card holding it
+type HeadlineOwner = 'periodGlance' | 'cashFlow'
+const OWNER_TITLES = {
+  periodGlance: { has: 'This period at a glance', lacks: 'Net cash flow' },
+  cashFlow: { has: 'Net cash flow', lacks: 'This period at a glance' },
+} as const
+
+/**
+ * Finds the Period Glance card by its title, so its headline is not confused with the Net cash flow
+ * headline that reads the same total
+ */
+function periodGlance(page: Page): Locator {
+  return page.locator('section').filter({ hasText: 'This period at a glance' })
+}
+
 /**
  * Records the font size of each paragraph reading `text`, whether it runs past its own width, and the
  * window's width, in every frame from now on in which it shows on screen. Each frame is read in its
@@ -225,17 +241,28 @@ type FrameSample = { size: number; overflows: boolean; windowWidth: number }
  * frame drawn before that effect
  * @returns A reader for the frames recorded so far
  */
-async function recordFrames(page: Page, text: RegExp) {
-  const key = `frames:${text.source}`
-  await page.evaluate(({ key, source, flags }) => {
+async function recordFrames(page: Page, text: RegExp, owner: HeadlineOwner) {
+  const key = `frames:${owner}:${text.source}`
+  const { has, lacks } = OWNER_TITLES[owner]
+  await page.evaluate(({ key, source, flags, has, lacks }) => {
     const pattern = new RegExp(source, flags)
     const frames: FrameSample[] = []
     Object.assign(window, { [key]: frames })
+
+    // The two headlines read the same total, so the paragraph is told apart by the card it is in:
+    // some ancestor holds the owner's title and none of those holding it holds the other's
+    function belongsToOwner(element: Element) {
+      for (let ancestor = element.parentElement; ancestor; ancestor = ancestor.parentElement) {
+        const content = ancestor.textContent ?? ''
+        if (content.includes(has) && !content.includes(lacks)) return true
+      }
+      return false
+    }
     function sample() {
       for (const element of document.querySelectorAll('p')) {
         const box = element.getBoundingClientRect()
         const onScreen = box.width > 0 && box.bottom > 0 && box.top < window.innerHeight
-        if (onScreen && pattern.test(element.textContent ?? '')) {
+        if (onScreen && pattern.test(element.textContent ?? '') && belongsToOwner(element)) {
           const range = document.createRange()
           range.selectNodeContents(element)
           frames.push({
@@ -248,7 +275,7 @@ async function recordFrames(page: Page, text: RegExp) {
       requestAnimationFrame(sample)
     }
     requestAnimationFrame(sample)
-  }, { key, source: text.source, flags: text.flags })
+  }, { key, source: text.source, flags: text.flags, has, lacks })
   return () => page.evaluate((key) => (window as unknown as Record<string, FrameSample[]>)[key], key)
 }
 
@@ -308,9 +335,10 @@ async function expectNoFrameAboveSettledSize(
   expect(sizes.filter((size) => size > settled)).toEqual([])
 }
 
-// The Period Glance and Net cash flow headlines for one very large income. The Income figure and
-// the account's ending balance each differ from them, so neither can match
-const LARGE_PERIOD_GLANCE_TEXT = /^IQD\s1,246,913,569\.001$/
+// The Period Glance and Net cash flow headlines for one very large income, which read the same total
+// in the same way. The Income figure and the account's ending balance each differ from them, so
+// neither can match, and each test finds a headline inside its own card
+const LARGE_PERIOD_GLANCE_TEXT = /^\+IQD\s1,246,913,569\.001$/
 const LARGE_NET_CASH_FLOW_TEXT = /^\+IQD\s1,246,913,569\.001$/
 
 /**
@@ -337,13 +365,13 @@ test('headlines show a very large total at its fitted size from the first frame 
   await expectSignedIn(page)
   await loadFigureFont(page, '+IQD 1,246,913,569.001')
 
-  const readPeriodGlanceFrames = await recordFrames(page, LARGE_PERIOD_GLANCE_TEXT)
-  const readNetCashFlowFrames = await recordFrames(page, LARGE_NET_CASH_FLOW_TEXT)
+  const readPeriodGlanceFrames = await recordFrames(page, LARGE_PERIOD_GLANCE_TEXT, 'periodGlance')
+  const readNetCashFlowFrames = await recordFrames(page, LARGE_NET_CASH_FLOW_TEXT, 'cashFlow')
   await navigate(page, 'Insights')
 
   await expectNoFrameAboveSettledSize(
     page,
-    page.getByRole('paragraph').filter({ hasText: LARGE_PERIOD_GLANCE_TEXT }),
+    periodGlance(page).getByRole('paragraph').filter({ hasText: LARGE_PERIOD_GLANCE_TEXT }),
     readPeriodGlanceFrames,
     PERIOD_GLANCE_FULL_FONT_SIZE_PX,
   )
@@ -366,11 +394,11 @@ test('period glance headline stays inside its panel in every frame and raises no
   await expectSignedIn(page)
   await navigate(page, 'Insights')
 
-  const headline = page.getByRole('paragraph').filter({ hasText: LARGE_PERIOD_GLANCE_TEXT })
+  const headline = periodGlance(page).getByRole('paragraph').filter({ hasText: LARGE_PERIOD_GLANCE_TEXT })
   await expect.poll(() => measureHeadline(page, headline)).toEqual({ lines: 1, overflows: false })
   const desktopSize = await readSettledFontSize(page, headline)
 
-  const readFrames = await recordFrames(page, LARGE_PERIOD_GLANCE_TEXT)
+  const readFrames = await recordFrames(page, LARGE_PERIOD_GLANCE_TEXT, 'periodGlance')
   // A refit that resizes what a resize observer watches, inside its own callback, reports an error
   const readErrors = await collectPageErrors(page)
   await page.setViewportSize(PHONE)
@@ -406,17 +434,17 @@ test('period glance headline shrinks a very large total without a full-size fram
   await expectSignedIn(page)
   await navigate(page, 'Insights')
 
-  const shortHeadline = page.getByRole('paragraph').filter({ hasText: /^IQD\s5\.001$/ })
+  const shortHeadline = periodGlance(page).getByRole('paragraph').filter({ hasText: /^\+IQD\s5\.001$/ })
   await expect.poll(() => measureHeadline(page, shortHeadline)).toEqual({ lines: 1, overflows: false })
   expect(await readSettledFontSize(page, shortHeadline)).toBe(PERIOD_GLANCE_FULL_FONT_SIZE_PX)
 
-  const readFrames = await recordFrames(page, LARGE_PERIOD_GLANCE_TEXT)
+  const readFrames = await recordFrames(page, LARGE_PERIOD_GLANCE_TEXT, 'periodGlance')
   await page.getByRole('button', { name: /^Insights date range: / }).filter({ visible: true }).click()
   await page.getByRole('tab', { name: '90D', exact: true }).filter({ visible: true }).click()
 
   await expectNoFrameAboveSettledSize(
     page,
-    page.getByRole('paragraph').filter({ hasText: LARGE_PERIOD_GLANCE_TEXT }),
+    periodGlance(page).getByRole('paragraph').filter({ hasText: LARGE_PERIOD_GLANCE_TEXT }),
     readFrames,
     PERIOD_GLANCE_FULL_FONT_SIZE_PX,
   )
@@ -505,7 +533,7 @@ test('headlines refit to the figures font when it arrives after they are drawn',
     await fontHeld
     await route.continue()
   })
-  const headline = page.getByRole('paragraph').filter({ hasText: LARGE_PERIOD_GLANCE_TEXT })
+  const headline = periodGlance(page).getByRole('paragraph').filter({ hasText: LARGE_PERIOD_GLANCE_TEXT })
   try {
     await logIn(page, user)
     await expectSignedIn(page)

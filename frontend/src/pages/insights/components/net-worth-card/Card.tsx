@@ -15,7 +15,6 @@ import { InsightActionButton } from '@/pages/insights/components/ActionButton'
 import { NetWorthChart } from './Chart'
 import { InsightSectionHeader } from '@/pages/insights/components/SectionHeader'
 import {
-  formatSignedNetWorthCurrency,
   getNetWorthChartData,
   getNetWorthChartItems,
   type NetWorthGroup,
@@ -84,7 +83,7 @@ export function NetWorthCard({
   loading = false,
   transitionKey,
 }: NetWorthCardProps) {
-  const { currencies, formatCurrency } = useMoneyFormatters()
+  const { formatCurrency, formatMovedCurrency } = useMoneyFormatters()
   // The failure travels in the snapshot rather than beside it, so the box arrives with the reveal
   // instead of growing the card while the spinner is still turning
   const incomingSnapshot = useMemo<NetWorthSnapshot>(() => ({
@@ -187,7 +186,7 @@ export function NetWorthCard({
                     </p>
                     <div className="flex items-center gap-1.5 text-sm font-medium leading-none" style={{ color: netWorthTrendColor }}>
                       <NetWorthTrendIcon size={14} aria-hidden />
-                      <span className="font-financial">{formatSignedNetWorthCurrency(latestChange, displaySnapshot.displayCurrency, currencies)}</span>
+                      <span className="font-financial">{formatMovedCurrency(latestChange, displaySnapshot.displayCurrency)}</span>
                       <span style={{ color: 'var(--app-text-subtle)' }}>since start</span>
                     </div>
                   </div>

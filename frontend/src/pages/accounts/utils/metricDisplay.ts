@@ -1,6 +1,7 @@
 import type { AccountsMetricsViewModel } from '@/pages/accounts/types/accounts'
 import type { Currency } from '@/api/currency'
-import { formatCurrency } from '@/utils/formatCurrency'
+import { formatCurrency, formatMovedCurrency } from '@/utils/formatCurrency'
+import { formatRatePercent } from '@/utils/negativeAmount'
 
 export type MetricDisplay = {
   value: string
@@ -17,14 +18,14 @@ export function getSavingsRateDisplay(
 ): MetricDisplay {
   const value =
     !savingsRate.isLoading && savingsRate.value !== null
-      ? `${savingsRate.value}%`
+      ? formatRatePercent(savingsRate.value)
       : savingsRate.hasExpenses
-        ? '−∞%'
+        ? formatRatePercent(-Infinity)
         : 'N/A'
   const caption = savingsRate.isLoading
     ? 'Loading savings rate'
     : savingsRate.value !== null
-      ? `${formatCurrency(savingsRate.net, displayCurrency, currencies)} of ${formatCurrency(savingsRate.income, displayCurrency, currencies)} this month`
+      ? `${formatMovedCurrency(savingsRate.net, displayCurrency, currencies)} of ${formatCurrency(savingsRate.income, displayCurrency, currencies)} this month`
       : savingsRate.hasExpenses
         ? 'No income this month'
         : 'No data this month'

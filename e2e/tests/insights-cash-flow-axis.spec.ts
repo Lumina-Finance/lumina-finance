@@ -56,7 +56,7 @@ const TICK_CASES = [
 // A net is an amount that moved, so its labels are signed like the card's headline, never written in
 // the parentheses a held balance takes
 const SIGN_CASES = [
-  { name: 'a net of minus 1,250 dollars', minorUnits: -125_000, sign: '-', extreme: '-$1,250.00' },
+  { name: 'a net of minus 1,250 dollars', minorUnits: -125_000, sign: '−', extreme: '−$1,250.00' },
   { name: 'a net of plus 1,250 dollars', minorUnits: 125_000, sign: '+', extreme: '+$1,250.00' },
 ]
 

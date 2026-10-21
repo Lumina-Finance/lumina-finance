@@ -1,4 +1,5 @@
 import type { SavingsRateSeriesPoint } from '@/components/charts/types'
+import { formatRatePercent } from '@/utils/negativeAmount'
 
 export type SavingsRateChartPoint = SavingsRateSeriesPoint & {
   chartRate: number | null
@@ -31,9 +32,9 @@ function shouldShowSavingsRatePoint(point: SavingsRateSeriesPoint) {
  */
 export function getSavingsRateDisplay(point: SavingsRateChartPoint) {
   if (point.income === 0 && point.expenses === 0) return null
-  return point.income > 0
-    ? `${Math.round(((point.income - point.expenses) / point.income) * 100)}%`
-    : '−∞%'
+  return formatRatePercent(
+    point.income > 0 ? Math.round(((point.income - point.expenses) / point.income) * 100) : -Infinity,
+  )
 }
 
 /**

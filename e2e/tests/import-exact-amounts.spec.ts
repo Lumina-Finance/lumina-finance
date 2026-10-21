@@ -42,7 +42,7 @@ for (const example of CASES) {
       const place = (numeric: string) => parts.map((part) => part.type === 'integer' ? numeric : part.value).join('')
       return { large: place(digits), small: place(smallDigits) }
     }, example)
-    const expected = [`-${magnitudes.large}`, `+${magnitudes.large}`, `-${magnitudes.small}`, `+${magnitudes.small}`]
+    const expected = [`−${magnitudes.large}`, `+${magnitudes.large}`, `−${magnitudes.small}`, `+${magnitudes.small}`]
     const rows = preview.getByTestId(/^transaction-row-import-preview-/)
     await expect(rows).toHaveCount(4)
     for (let index = 0; index < expected.length; index += 1) {

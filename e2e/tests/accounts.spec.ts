@@ -64,8 +64,8 @@ test('records an expense through the modal and shows it as money out', async ({ 
   const row = page.getByTestId(/^transaction-row-/)
   await expect(row).toHaveCount(1)
   await expect(row).toHaveRole('button')
-  await expect(row).toHaveAccessibleName(/-\$42\.50/)
-  await expect(row.getByTestId('transaction-amount').filter({ visible: true })).toHaveText('-$42.50')
+  await expect(row).toHaveAccessibleName(/−\$42\.50/)
+  await expect(row.getByTestId('transaction-amount').filter({ visible: true })).toHaveText('−$42.50')
 })
 
 test('keeps the account save action named while an edit is pending', async ({ page, request }) => {

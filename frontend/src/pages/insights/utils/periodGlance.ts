@@ -1,13 +1,13 @@
 import type { InsightsPeriodGlanceResponse } from '@/api/insights'
 import type { Currency } from '@/api/currency'
-import { formatCurrency } from '@/utils/formatCurrency'
+import { formatMovedCurrency } from '@/utils/formatCurrency'
+import { formatMovedPercent } from '@/utils/negativeAmount'
 import type {
   PeriodGlancePrimaryMetric,
   PeriodGlanceSupportItem,
 } from '@/pages/insights/types/periodGlance'
 import {
   formatSavingsRateValue,
-  formatSignedCurrency,
   getSavingsRate,
 } from './money'
 import {
@@ -34,7 +34,6 @@ type PeriodBrief = {
     detail: string
     calculation?: string
     tone: PeriodGlancePrimaryMetric['tone']
-    signed?: boolean
     fxStatus?: PeriodGlanceSupportItem['fxStatus']
     getFxStatusMessage?: PeriodGlanceSupportItem['getFxStatusMessage']
   }>
@@ -61,11 +60,11 @@ function getPeriodGlanceChangeDetail(
   displayCurrency: string,
   currencies: Currency[],
 ) {
-  const amount = formatSignedCurrency(changeAmount, displayCurrency, currencies)
+  const amount = formatMovedCurrency(changeAmount, displayCurrency, currencies)
   if (changePct === undefined) {
     return `${amount} vs previous matching period`
   }
-  return `${amount} (${changePct > 0 ? '+' : ''}${changePct}%) vs previous matching period`
+  return `${amount} (${formatMovedPercent(changePct)}) vs previous matching period`
 }
 
 function getPeriodGlanceBrief(
@@ -93,7 +92,6 @@ function getPeriodGlanceBrief(
         detail: 'Across all accounts',
         calculation: 'End-of-range account balances minus balances from the day before the range',
         tone: data.net_worth_change >= 0 ? 'positive' : 'negative',
-        signed: true,
         fxStatus: data.net_worth_change_fx_status,
         getFxStatusMessage: getNetWorthChangeFxStatusMessage,
       },
@@ -147,7 +145,6 @@ function getLoadingPeriodGlanceBrief(): PeriodBrief {
         value: 0,
         detail: 'Loading tracked balance movement',
         tone: 'neutral',
-        signed: true,
       },
     ],
     signals: [
@@ -170,16 +167,6 @@ function getLoadingPeriodGlanceBrief(): PeriodBrief {
   }
 }
 
-function formatBriefMetricValue(
-  metric: PeriodBrief['metrics'][number],
-  displayCurrency: string,
-  currencies: Currency[],
-) {
-  return metric.signed
-    ? formatSignedCurrency(metric.value, displayCurrency, currencies)
-    : formatCurrency(metric.value, displayCurrency, currencies)
-}
-
 function getSupportItems(
   secondaryMetric: PeriodBrief['metrics'][number],
   signals: PeriodBrief['signals'],
@@ -188,7 +175,7 @@ function getSupportItems(
 ) {
   const secondarySignal: InsightSignal = {
     label: secondaryMetric.label,
-    value: formatBriefMetricValue(secondaryMetric, displayCurrency, currencies),
+    value: formatMovedCurrency(secondaryMetric.value, displayCurrency, currencies),
     detail: secondaryMetric.detail,
     calculation: secondaryMetric.calculation,
     tone: secondaryMetric.tone,
@@ -228,7 +215,7 @@ export function getPeriodGlanceCardData(
   return {
     primaryMetric: {
       label: primaryMetric.label,
-      value: formatBriefMetricValue(primaryMetric, displayCurrency, currencies),
+      value: formatMovedCurrency(primaryMetric.value, displayCurrency, currencies),
       detail: primaryMetric.detail,
       calculation: primaryMetric.calculation,
       tone: primaryMetric.tone,

@@ -99,7 +99,7 @@ export default function TransactionDateGroupList({
   buildHeadingSelection?: (shownTransactionIds: string[]) => TransactionDateHeadingSelection
   onEditTransaction: (transaction: Transaction) => void
 }) {
-  const { formatCurrency } = useMoneyFormatters()
+  const { formatMovedCurrency } = useMoneyFormatters()
   const [dayHeadingHeight, setDayHeadingHeight] = useState(0)
 
   // Every pinned heading is the same height, so the first one stands for them all. Measured rather than
@@ -122,7 +122,10 @@ export default function TransactionDateGroupList({
       <AnimatePresence initial={false}>
         {groups.map(({ dateLabel, transactions }, index) => {
           const dailyTotal = getTransactionDateGroupTotal(transactions, fixedAccount)
-          let dailyColor = dailyTotal >= 0 ? 'var(--app-positive)' : 'var(--app-negative)'
+          // A day that netted to zero moved nothing, so it takes the neutral colour rather than the positive colour
+          let dailyColor = 'var(--app-text)'
+          if (dailyTotal > 0) dailyColor = 'var(--app-positive)'
+          else if (dailyTotal < 0) dailyColor = 'var(--app-negative)'
           if (isUpcoming) dailyColor = UPCOMING_DAY_TOTAL_COLOUR
           const headingSelection = buildHeadingSelection?.(transactions.map((transaction) => transaction.id))
           return (
@@ -200,9 +203,10 @@ export default function TransactionDateGroupList({
               </p>
               <p
                 className="font-financial text-sm font-medium"
+                data-testid="day-total"
                 style={{ color: dailyColor }}
               >
-                {formatCurrency(dailyTotal, currency)}
+                {formatMovedCurrency(dailyTotal, currency)}
               </p>
             </div>
 
