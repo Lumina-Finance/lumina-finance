@@ -4,6 +4,7 @@ Thin orchestrator that composes per-widget service helpers into dashboard
 response payloads. The heavy SQL, date math, and widget-specific computation
 live in service modules, while this file wires the results together
 """
+
 from datetime import datetime as DateTime
 from typing import Annotated
 

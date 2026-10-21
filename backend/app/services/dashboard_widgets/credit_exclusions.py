@@ -1,4 +1,5 @@
 """Storage for the credit accounts a user leaves out of the dashboard credit widget"""
+
 import uuid
 
 from fastapi import HTTPException, status

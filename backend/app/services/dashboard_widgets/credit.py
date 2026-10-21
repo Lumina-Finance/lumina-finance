@@ -1,4 +1,5 @@
 """Credit dashboard widget service"""
+
 import uuid
 from datetime import date
 
@@ -21,10 +22,7 @@ def get_credit_widget_accounts(accounts: list[Account]) -> list[Account]:
     Returns:
         Revolving accounts that have a credit limit
     """
-    eligible = [
-        account for account in accounts
-        if account.account_kind == AccountKind.REVOLVING and account.credit_limit is not None
-    ]
+    eligible = [account for account in accounts if account.account_kind == AccountKind.REVOLVING and account.credit_limit is not None]
     return sorted(eligible, key=lambda account: (account.name.casefold(), account.id))
 
 
@@ -47,10 +45,7 @@ async def get_credit_widget(
     Returns:
         Credit limit total, used credit total, and FX conversion status
     """
-    credit_accounts = [
-        account for account in get_credit_widget_accounts(accounts)
-        if account.id not in excluded_account_ids
-    ]
+    credit_accounts = [account for account in get_credit_widget_accounts(accounts) if account.id not in excluded_account_ids]
     if not credit_accounts:
         fx_status = FxStatus()
         return 0, 0, fx_status
