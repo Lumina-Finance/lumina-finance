@@ -195,7 +195,7 @@ export function useDisabledReason(reason: string | null | undefined, shownById?:
         }}
       >
         {tooltipItem && (
-          <span aria-hidden className="block max-w-72 text-left" style={{ color: 'var(--app-text)' }}>
+          <span aria-hidden className="block max-w-72 text-left text-pretty" style={{ color: 'var(--app-text)' }}>
             {tooltipItem}
           </span>
         )}
