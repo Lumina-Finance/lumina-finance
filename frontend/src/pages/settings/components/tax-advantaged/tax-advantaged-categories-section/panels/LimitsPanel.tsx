@@ -5,6 +5,7 @@ import type {
   TaxAdvantagedCategory,
   TaxAdvantagedCategoryLimit,
 } from '@/api/tax-advantaged-categories'
+import { DisabledReasonButton } from '@/components/tooltips/DisabledReasonButton'
 import { useMoneyFormatters } from '@/hooks/useMoneyFormatters'
 import { LIMIT_DELETE_BUTTON_TRANSITION } from '@/pages/settings/components/tax-advantaged/tax-advantaged-categories-section/constants'
 import TaxAdvantagedOpeningUsageLabel from '@/pages/settings/components/tax-advantaged/tax-advantaged-categories-section/controls/OpeningUsageLabel'
@@ -86,15 +87,14 @@ export default function TaxAdvantagedLimitsPanel({
             Configure annual contribution and withdrawal limits.
           </p>
         </div>
-        <button
-          type="button"
+        <DisabledReasonButton
           className="app-secondary-button w-full shrink-0 justify-center min-[750px]:w-auto"
           onClick={onStartNewLimitForm}
-          disabled={showAddTaxYear}
+          disabledReason={showAddTaxYear ? 'A new year is already being added' : undefined}
         >
           <Plus size={15} aria-hidden />
           Add year
-        </button>
+        </DisabledReasonButton>
       </div>
 
       <div>

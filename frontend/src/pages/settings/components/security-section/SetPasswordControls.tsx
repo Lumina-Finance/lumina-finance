@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router';
 import { useRefreshOidcIdentities } from '@/api/oidc';
+import { DisabledReasonButton } from '@/components/tooltips/DisabledReasonButton';
 import { ProviderReauthModal } from '@/pages/settings/components/security-section/ProviderReauthModal';
 import { SetPasswordModal } from '@/pages/settings/components/security-section/SetPasswordModal';
 import { useProviderReauth } from '@/pages/settings/hooks/useProviderReauth';
@@ -48,14 +49,14 @@ export function SetPasswordControls() {
         This account signs in only through a provider. Set a password to sign in without one. You'll
         re-confirm it's you with a provider first.
       </p>
-      <button
-        type="button"
+      <DisabledReasonButton
         className="app-secondary-button"
-        disabled={reauth.busySlug !== null || reauth.linkedProviders.length === 0}
+        disabled={reauth.busySlug !== null}
+        disabledReason={reauth.linkedProviders.length === 0 ? 'No sign-in provider is linked to this account' : undefined}
         onClick={() => reauth.start({ kind: 'set-password' })}
       >
         {reauth.busySlug !== null ? <div className="app-spinner" /> : 'Set up a password'}
-      </button>
+      </DisabledReasonButton>
 
       <ProviderReauthModal
         open={reauth.chooserOpen}

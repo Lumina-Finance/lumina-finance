@@ -5,6 +5,7 @@ import { MODAL_INSET_CLASS_NAME } from '@/components/modal/inset';
 import { PasskeyRow } from '@/components/passkeys/PasskeyRow';
 import { ModalContentPanel } from '@/components/modal/ContentPanel';
 import { ModalTitledPanel } from '@/components/modal/TitledPanel';
+import { DisabledReasonButton } from '@/components/tooltips/DisabledReasonButton';
 import { RecoveryCodesModal } from '@/components/two-factor/RecoveryCodesModal';
 import { StepUpModal, type StepUpCredentials } from '@/components/two-factor/StepUpModal';
 import { TotpEnrollmentModal } from '@/components/two-factor/TotpEnrollmentModal';
@@ -235,14 +236,14 @@ export function MultiFactorModal({ open, onClose }: MultiFactorModalProps) {
                     autoFocus
                     aria-label="New passkey name"
                   />
-                  <button
-                    type="button"
+                  <DisabledReasonButton
                     onClick={handleAddPasskey}
-                    disabled={passkey.isRegistering || !passkeyName.trim()}
+                    disabled={passkey.isRegistering}
+                    disabledReason={!passkey.isRegistering && !passkeyName.trim() ? 'Name the passkey first' : undefined}
                     className="app-primary-button shrink-0"
                   >
                     {passkey.isRegistering ? 'Waiting…' : 'Add'}
-                  </button>
+                  </DisabledReasonButton>
                   <button type="button" onClick={resetAddForm} disabled={passkey.isRegistering} className="app-secondary-button shrink-0">
                     Cancel
                   </button>
@@ -287,15 +288,14 @@ export function MultiFactorModal({ open, onClose }: MultiFactorModalProps) {
               One-time codes to get back in if you lose your authenticator and passkeys.
             </p>
           </div>
-          <button
-            type="button"
+          <DisabledReasonButton
             onClick={totp.showRegenerate}
-            disabled={!hasAnyFactor}
+            disabledReason={hasAnyFactor ? undefined : 'Turn on two-factor authentication or add a passkey first'}
             className="app-secondary-button flex shrink-0 items-center gap-1"
           >
             <RefreshCw size={15} aria-hidden />
             Regenerate
-          </button>
+          </DisabledReasonButton>
         </div>
       </ModalTitledPanel>
 
