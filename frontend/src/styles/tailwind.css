@@ -2270,6 +2270,10 @@
      neither fills the row, so the ring goes around the row itself, drawn inside the row's edges where
      the next row and the list's own edge cannot cover it. The row also shows the hover look while its
      button is focused */
+  .app-transaction-row {
+    transition: background-color 100ms cubic-bezier(0.4, 0, 0.2, 1), var(--app-focus-fade);
+  }
+
   .app-transaction-row:has(:focus-visible) {
     outline: var(--app-focus-outline);
     outline-offset: calc(var(--app-focus-offset) * -1);

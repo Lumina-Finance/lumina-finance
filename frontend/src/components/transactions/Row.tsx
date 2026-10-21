@@ -293,7 +293,7 @@ export function TransactionRowView({
       transition={{ duration: prefersReducedMotion ? 0 : 0.24, ease: ROW_EXIT_EASE }}
       onAnimationStart={() => setIsAnimatingHeight(true)}
       onAnimationComplete={() => setIsAnimatingHeight(false)}
-      className="app-transaction-row relative flex items-center transition-colors duration-100 hover:bg-[var(--app-hover-soft)] min-[750px]:col-span-full min-[750px]:grid min-[750px]:grid-cols-subgrid min-[750px]:items-center min-[750px]:gap-x-3 min-[1300px]:gap-x-4"
+      className="app-transaction-row relative flex items-center hover:bg-[var(--app-hover-soft)] min-[750px]:col-span-full min-[750px]:grid min-[750px]:grid-cols-subgrid min-[750px]:items-center min-[750px]:gap-x-3 min-[1300px]:gap-x-4"
       style={{
         borderBottom: '1px solid var(--app-border)',
         overflow: isAnimatingHeight ? 'hidden' : 'visible',
