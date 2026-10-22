@@ -116,14 +116,14 @@ export function CreditAccountsModal({ open, accounts, onClose }: CreditAccountsM
       <div className="flex h-full flex-col">
         <div className="flex h-4 shrink-0 items-center justify-between gap-4">
           <p className="text-base font-bold leading-none" style={{ color: 'var(--app-accent)' }}>
-            Accounts included
+            Choose accounts
           </p>
           <span className="shrink-0 text-sm leading-none" style={{ color: 'var(--app-text-subtle)' }}>
             {includedIds.length} selected
           </span>
         </div>
         <p id="credit-accounts-description" className="mt-4 shrink-0 text-sm" style={{ color: 'var(--app-text-subtle)' }}>
-          Choose the credit accounts that make up your utilization.
+          Choose the credit accounts that will be included in calculating your credit usage and utilization rates.
         </p>
         <div className="mt-3 flex min-h-0 flex-1 flex-col">
           <MultiSelectChecklist
