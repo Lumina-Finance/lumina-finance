@@ -11,7 +11,7 @@ on:
   workflow_dispatch:
     inputs:
       actual_version:
-        description: Actual version to check, such as 26.9.0. Empty checks the latest release
+        description: Actual version to check, such as 26.10.0. Empty checks the latest release
         required: false
         default: ""
       image_tag:
@@ -114,7 +114,7 @@ jobs:
 
           if [ -n "${REQUESTED}" ]; then
             if ! [[ "${REQUESTED}" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
-              echo "actual_version must look like 26.9.0, got '${REQUESTED}'"
+              echo "actual_version must look like 26.10.0, got '${REQUESTED}'"
               exit 1
             fi
             candidates="${REQUESTED}"
