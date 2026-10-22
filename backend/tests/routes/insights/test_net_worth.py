@@ -42,14 +42,16 @@ async def test_net_worth_returns_compact_daily_signed_group_series(client):
 
     cash_account = (await _create_account(client, headers, name="CAD Cash")).json()
     savings_account = (await _create_account(client, headers, account_type="savings", name="CAD Savings")).json()
-    card_account = (await _create_account(
-        client,
-        headers,
-        account_kind="revolving",
-        account_type="credit_card",
-        name="CAD Card",
-        credit_limit=500_000,
-    )).json()
+    card_account = (
+        await _create_account(
+            client,
+            headers,
+            account_kind="revolving",
+            account_type="credit_card",
+            name="CAD Card",
+            credit_limit=500_000,
+        )
+    ).json()
     archived_account = (await _create_account(client, headers, name="Archived Cash", is_archived=True)).json()
     cash_account_id = UUID(cash_account["id"])
     savings_account_id = UUID(savings_account["id"])
@@ -57,15 +59,17 @@ async def test_net_worth_returns_compact_daily_signed_group_series(client):
     archived_account_id = UUID(archived_account["id"])
 
     async with TestSession() as session:
-        session.add_all([
-            _snapshot(cash_account_id, date(2026, 4, 30), 100_000),
-            _snapshot(cash_account_id, date(2026, 5, 2), 120_000),
-            _snapshot(savings_account_id, date(2026, 4, 30), 20_000),
-            _snapshot(savings_account_id, date(2026, 5, 2), 30_000),
-            _snapshot(card_account_id, date(2026, 4, 30), -50_000),
-            _snapshot(card_account_id, date(2026, 5, 3), -80_000),
-            _snapshot(archived_account_id, date(2026, 5, 2), 9_000_000),
-        ])
+        session.add_all(
+            [
+                _snapshot(cash_account_id, date(2026, 4, 30), 100_000),
+                _snapshot(cash_account_id, date(2026, 5, 2), 120_000),
+                _snapshot(savings_account_id, date(2026, 4, 30), 20_000),
+                _snapshot(savings_account_id, date(2026, 5, 2), 30_000),
+                _snapshot(card_account_id, date(2026, 4, 30), -50_000),
+                _snapshot(card_account_id, date(2026, 5, 3), -80_000),
+                _snapshot(archived_account_id, date(2026, 5, 2), 9_000_000),
+            ]
+        )
         await session.commit()
 
     resp = await client.get(
@@ -94,26 +98,32 @@ async def test_net_worth_groups_tax_advantaged_assets_by_account_type(client):
     signup_resp = await _create_user(client)
     headers = _get_auth_header(signup_resp)
     tax_advantaged_category_id = (await _create_tax_advantaged_category(client, headers)).json()["id"]
-    savings_account = (await _create_account(
-        client,
-        headers,
-        account_type="savings",
-        name="TFSA Savings",
-        tax_advantaged_category_id=tax_advantaged_category_id,
-    )).json()
-    investment_account = (await _create_account(
-        client,
-        headers,
-        account_type="investment",
-        name="TFSA Investment",
-        tax_advantaged_category_id=tax_advantaged_category_id,
-    )).json()
+    savings_account = (
+        await _create_account(
+            client,
+            headers,
+            account_type="savings",
+            name="TFSA Savings",
+            tax_advantaged_category_id=tax_advantaged_category_id,
+        )
+    ).json()
+    investment_account = (
+        await _create_account(
+            client,
+            headers,
+            account_type="investment",
+            name="TFSA Investment",
+            tax_advantaged_category_id=tax_advantaged_category_id,
+        )
+    ).json()
 
     async with TestSession() as session:
-        session.add_all([
-            _snapshot(UUID(savings_account["id"]), date(2026, 5, 1), 25_000),
-            _snapshot(UUID(investment_account["id"]), date(2026, 5, 1), 175_000),
-        ])
+        session.add_all(
+            [
+                _snapshot(UUID(savings_account["id"]), date(2026, 5, 1), 25_000),
+                _snapshot(UUID(investment_account["id"]), date(2026, 5, 1), 175_000),
+            ]
+        )
         await session.commit()
 
     resp = await client.get(
@@ -142,7 +152,7 @@ async def test_net_worth_converts_foreign_balances_by_bucket_value_date(client, 
         assert (base, quote, start_date, end_date) == (
             "USD",
             "CAD",
-            date(2026, 4, 30),
+            date(2026, 4, 23),
             date(2026, 5, 3),
         )
         return {
@@ -160,24 +170,30 @@ async def test_net_worth_converts_foreign_balances_by_bucket_value_date(client, 
 
     cad_account_id = UUID((await _create_account(client, headers, name="CAD Cash")).json()["id"])
     usd_cash_id = UUID((await _create_account(client, headers, name="USD Cash", currency="USD")).json()["id"])
-    usd_card_id = UUID((await _create_account(
-        client,
-        headers,
-        account_kind="revolving",
-        account_type="credit_card",
-        name="USD Card",
-        currency="USD",
-        credit_limit=500_000,
-    )).json()["id"])
+    usd_card_id = UUID(
+        (
+            await _create_account(
+                client,
+                headers,
+                account_kind="revolving",
+                account_type="credit_card",
+                name="USD Card",
+                currency="USD",
+                credit_limit=500_000,
+            )
+        ).json()["id"]
+    )
 
     async with TestSession() as session:
-        session.add_all([
-            _snapshot(cad_account_id, date(2026, 4, 30), 100_000),
-            _snapshot(usd_cash_id, date(2026, 4, 30), 10_000),
-            _snapshot(usd_cash_id, date(2026, 5, 2), 20_000),
-            _snapshot(usd_card_id, date(2026, 4, 30), -4_000),
-            _snapshot(usd_card_id, date(2026, 5, 3), -8_000),
-        ])
+        session.add_all(
+            [
+                _snapshot(cad_account_id, date(2026, 4, 30), 100_000),
+                _snapshot(usd_cash_id, date(2026, 4, 30), 10_000),
+                _snapshot(usd_cash_id, date(2026, 5, 2), 20_000),
+                _snapshot(usd_card_id, date(2026, 4, 30), -4_000),
+                _snapshot(usd_card_id, date(2026, 5, 3), -8_000),
+            ]
+        )
         await session.commit()
 
     resp = await client.get(
@@ -219,10 +235,12 @@ async def test_net_worth_reports_incomplete_fx_with_missing_pairs(client, monkey
     abc_account_id = UUID((await _create_account(client, headers, name="ABC Cash", currency="ABC")).json()["id"])
 
     async with TestSession() as session:
-        session.add_all([
-            _snapshot(cad_account_id, date(2026, 5, 1), 100_000),
-            _snapshot(abc_account_id, date(2026, 5, 1), 70_000),
-        ])
+        session.add_all(
+            [
+                _snapshot(cad_account_id, date(2026, 5, 1), 100_000),
+                _snapshot(abc_account_id, date(2026, 5, 1), 70_000),
+            ]
+        )
         await session.commit()
 
     resp = await client.get(
@@ -251,13 +269,13 @@ async def test_net_worth_returns_previous_day_baseline_for_first_day_activity(cl
 
     async with TestSession() as session:
         await session.execute(
-            update(AccountBalanceSnapshot)
-            .where(AccountBalanceSnapshot.account_id == account_id)
-            .values(dt=date(2026, 5, 31), balance=0),
+            update(AccountBalanceSnapshot).where(AccountBalanceSnapshot.account_id == account_id).values(dt=date(2026, 5, 31), balance=0),
         )
-        session.add_all([
-            _snapshot(account_id, date(2026, 6, 1), 100_000),
-        ])
+        session.add_all(
+            [
+                _snapshot(account_id, date(2026, 6, 1), 100_000),
+            ]
+        )
         await session.commit()
 
     resp = await client.get(
@@ -281,12 +299,14 @@ async def test_net_worth_uses_weekly_buckets_for_mid_length_ranges(client):
     account_id = UUID((await _create_account(client, headers, name="Weekly Cash")).json()["id"])
 
     async with TestSession() as session:
-        session.add_all([
-            _snapshot(account_id, date(2026, 3, 1), 10_000),
-            _snapshot(account_id, date(2026, 3, 12), 20_000),
-            _snapshot(account_id, date(2026, 3, 30), 40_000),
-            _snapshot(account_id, date(2026, 4, 20), 50_000),
-        ])
+        session.add_all(
+            [
+                _snapshot(account_id, date(2026, 3, 1), 10_000),
+                _snapshot(account_id, date(2026, 3, 12), 20_000),
+                _snapshot(account_id, date(2026, 3, 30), 40_000),
+                _snapshot(account_id, date(2026, 4, 20), 50_000),
+            ]
+        )
         await session.commit()
 
     resp = await client.get(
@@ -315,9 +335,7 @@ async def test_net_worth_uses_weekly_buckets_through_183_day_ranges(client):
 
     async with TestSession() as session:
         await session.execute(
-            update(AccountBalanceSnapshot)
-            .where(AccountBalanceSnapshot.account_id == account_id)
-            .values(dt=date(2025, 12, 31), balance=1_000),
+            update(AccountBalanceSnapshot).where(AccountBalanceSnapshot.account_id == account_id).values(dt=date(2025, 12, 31), balance=1_000),
         )
         session.add(_snapshot(account_id, date(2026, 7, 2), 2_000))
         await session.commit()
@@ -343,14 +361,14 @@ async def test_net_worth_uses_monthly_buckets_for_long_ranges(client):
 
     async with TestSession() as session:
         await session.execute(
-            update(AccountBalanceSnapshot)
-            .where(AccountBalanceSnapshot.account_id == account_id)
-            .values(dt=date(2025, 12, 31), balance=1_000),
+            update(AccountBalanceSnapshot).where(AccountBalanceSnapshot.account_id == account_id).values(dt=date(2025, 12, 31), balance=1_000),
         )
-        session.add_all([
-            _snapshot(account_id, date(2026, 2, 10), 2_000),
-            _snapshot(account_id, date(2026, 5, 20), 3_000),
-        ])
+        session.add_all(
+            [
+                _snapshot(account_id, date(2026, 2, 10), 2_000),
+                _snapshot(account_id, date(2026, 5, 20), 3_000),
+            ]
+        )
         await session.commit()
 
     resp = await client.get(

@@ -1,4 +1,5 @@
 """Transaction overview aggregation service"""
+
 import uuid
 from datetime import date
 
@@ -18,7 +19,6 @@ from app.services.transactions.overview.cash_flow import (
 )
 from app.services.transactions.overview.categories import convert_overview_top_categories
 from app.services.transactions.overview.conversion import (
-    clone_overview_converter,
     get_overview_accounts_by_id,
     prefetch_overview_rates,
 )
@@ -105,13 +105,13 @@ async def get_transactions_overview(
     top_categories, top_categories_fx_status = await convert_overview_top_categories(
         category_total_rows=category_total_rows,
         accounts_by_id=accounts_by_id,
-        converter=clone_overview_converter(shared_converter),
+        converter=shared_converter.clone(),
         base_currency=user.base_currency,
     )
     daily_cash_flow, daily_cash_flow_fx_status = await convert_overview_daily_cash_flow(
         cash_flow_rows=cash_flow_rows,
         accounts_by_id=accounts_by_id,
-        converter=clone_overview_converter(shared_converter),
+        converter=shared_converter.clone(),
         base_currency=user.base_currency,
         from_date=from_date,
         to_date=to_date,
@@ -120,7 +120,7 @@ async def get_transactions_overview(
     outliers, outliers_fx_status = await convert_overview_outliers(
         outlier_candidate_rows=outlier_candidate_rows,
         accounts_by_id=accounts_by_id,
-        converter=clone_overview_converter(shared_converter),
+        converter=shared_converter.clone(),
         base_currency=user.base_currency,
     )
 

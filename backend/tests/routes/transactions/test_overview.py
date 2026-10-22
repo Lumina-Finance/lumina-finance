@@ -80,10 +80,20 @@ async def test_transactions_overview_net_flow_excludes_balance_adjustments(clien
     await _create_transaction(client, headers, account_id, category_id, amount=10_000)
     await _create_transaction(client, headers, account_id, category_id, amount=-4_000)
     await _create_transaction(
-        client, headers, account_id, transfer_id, amount=2_500, counterparty_account_scope="outside",
+        client,
+        headers,
+        account_id,
+        transfer_id,
+        amount=2_500,
+        counterparty_account_scope="outside",
     )
     await _create_transaction(
-        client, headers, account_id, transfer_id, amount=-1_500, counterparty_account_scope="outside",
+        client,
+        headers,
+        account_id,
+        transfer_id,
+        amount=-1_500,
+        counterparty_account_scope="outside",
     )
     await _create_transaction(client, headers, account_id, balance_adjustment_id, amount=99_999)
     await _create_transaction(client, headers, account_id, balance_adjustment_id, amount=-88_888)
@@ -117,12 +127,14 @@ async def test_transactions_overview_net_flow_converts_foreign_accounts(client, 
 
     await _seed_usd_currency()
     headers, cad_account_id, category_id = await _setup_user_with_deps(client)
-    usd_account_id = (await _create_account(
-        client,
-        headers,
-        name="USD Chequing",
-        currency="USD",
-    )).json()["id"]
+    usd_account_id = (
+        await _create_account(
+            client,
+            headers,
+            name="USD Chequing",
+            currency="USD",
+        )
+    ).json()["id"]
 
     await _create_transaction(client, headers, cad_account_id, category_id, amount=2_000, dt="2026-03-14")
     await _create_transaction(client, headers, cad_account_id, category_id, amount=-1_000, dt="2026-03-14")
@@ -155,7 +167,7 @@ async def test_transactions_overview_net_flow_converts_foreign_accounts(client, 
     assert data["net_flow_fx_status"] == data["daily_cash_flow_fx_status"]
     assert data["total_inflow"] == sum(day["inflow"] for day in data["daily_cash_flow"])
     assert data["total_outflow"] == sum(day["outflow"] for day in data["daily_cash_flow"])
-    assert ("USD", "CAD", date(2026, 3, 14), date(2026, 3, 15)) in calls
+    assert ("USD", "CAD", date(2026, 3, 7), date(2026, 3, 15)) in calls
 
 
 async def test_transactions_overview_net_flow_reports_incomplete_fx(client, monkeypatch):
@@ -170,25 +182,31 @@ async def test_transactions_overview_net_flow_reports_incomplete_fx(client, monk
     monkeypatch.setattr(FrankfurterProvider, "get_rates", fake_get_rates)
 
     async with TestSession() as session:
-        session.add_all([
-            Currency(id="USD", name="US Dollar", symbol="$", minor_unit_exponent=2),
-            Currency(id="ABC", name="Unsupported Test Currency", symbol="A", minor_unit_exponent=2),
-        ])
+        session.add_all(
+            [
+                Currency(id="USD", name="US Dollar", symbol="$", minor_unit_exponent=2),
+                Currency(id="ABC", name="Unsupported Test Currency", symbol="A", minor_unit_exponent=2),
+            ]
+        )
         await session.commit()
 
     headers, _, category_id = await _setup_user_with_deps(client)
-    usd_account_id = (await _create_account(
-        client,
-        headers,
-        name="USD Chequing",
-        currency="USD",
-    )).json()["id"]
-    abc_account_id = (await _create_account(
-        client,
-        headers,
-        name="ABC Chequing",
-        currency="ABC",
-    )).json()["id"]
+    usd_account_id = (
+        await _create_account(
+            client,
+            headers,
+            name="USD Chequing",
+            currency="USD",
+        )
+    ).json()["id"]
+    abc_account_id = (
+        await _create_account(
+            client,
+            headers,
+            name="ABC Chequing",
+            currency="ABC",
+        )
+    ).json()["id"]
 
     await _create_transaction(
         client,
@@ -238,12 +256,14 @@ async def test_transactions_overview_daily_cash_flow_converts_foreign_accounts(c
 
     await _seed_usd_currency()
     headers, cad_account_id, category_id = await _setup_user_with_deps(client)
-    usd_account_id = (await _create_account(
-        client,
-        headers,
-        name="USD Chequing",
-        currency="USD",
-    )).json()["id"]
+    usd_account_id = (
+        await _create_account(
+            client,
+            headers,
+            name="USD Chequing",
+            currency="USD",
+        )
+    ).json()["id"]
 
     await _create_transaction(client, headers, cad_account_id, category_id, amount=2_000, dt="2026-03-14")
     await _create_transaction(client, headers, cad_account_id, category_id, amount=-1_000, dt="2026-03-14")
@@ -289,25 +309,31 @@ async def test_transactions_overview_daily_cash_flow_reports_incomplete_fx(clien
     monkeypatch.setattr(FrankfurterProvider, "get_rates", fake_get_rates)
 
     async with TestSession() as session:
-        session.add_all([
-            Currency(id="USD", name="US Dollar", symbol="$", minor_unit_exponent=2),
-            Currency(id="ABC", name="Unsupported Test Currency", symbol="A", minor_unit_exponent=2),
-        ])
+        session.add_all(
+            [
+                Currency(id="USD", name="US Dollar", symbol="$", minor_unit_exponent=2),
+                Currency(id="ABC", name="Unsupported Test Currency", symbol="A", minor_unit_exponent=2),
+            ]
+        )
         await session.commit()
 
     headers, _, category_id = await _setup_user_with_deps(client)
-    usd_account_id = (await _create_account(
-        client,
-        headers,
-        name="USD Chequing",
-        currency="USD",
-    )).json()["id"]
-    abc_account_id = (await _create_account(
-        client,
-        headers,
-        name="ABC Chequing",
-        currency="ABC",
-    )).json()["id"]
+    usd_account_id = (
+        await _create_account(
+            client,
+            headers,
+            name="USD Chequing",
+            currency="USD",
+        )
+    ).json()["id"]
+    abc_account_id = (
+        await _create_account(
+            client,
+            headers,
+            name="ABC Chequing",
+            currency="ABC",
+        )
+    ).json()["id"]
 
     await _create_transaction(
         client,
@@ -434,7 +460,12 @@ async def test_transactions_overview_top_categories_cover_expense_categories_onl
     over_refund_category_id = (await _create_category(client, headers, name="Over Refund", kind="expense")).json()["id"]
 
     await _create_transaction(
-        client, headers, account_id, transfer_category_id, amount=-20_000, counterparty_account_scope="outside",
+        client,
+        headers,
+        account_id,
+        transfer_category_id,
+        amount=-20_000,
+        counterparty_account_scope="outside",
     )
     await _create_transaction(client, headers, account_id, income_category_id, amount=-15_000)
     await _create_transaction(client, headers, account_id, expense_category_id, amount=-4_000)
@@ -544,12 +575,14 @@ async def test_transactions_overview_unconvertible_income_row_leaves_top_categor
 
     headers, cad_account_id, category_id = await _setup_user_with_deps(client)
     income_category_id = (await _create_category(client, headers, name="Main Income", kind="income")).json()["id"]
-    abc_account_id = (await _create_account(
-        client,
-        headers,
-        name="ABC Chequing",
-        currency="ABC",
-    )).json()["id"]
+    abc_account_id = (
+        await _create_account(
+            client,
+            headers,
+            name="ABC Chequing",
+            currency="ABC",
+        )
+    ).json()["id"]
 
     await _create_transaction(client, headers, cad_account_id, category_id, amount=-5_000)
     await _create_transaction(
@@ -590,12 +623,14 @@ async def test_transactions_overview_panels_report_fx_status_for_their_own_conve
         await session.commit()
 
     headers, cad_account_id, category_id = await _setup_user_with_deps(client)
-    abc_account_id = (await _create_account(
-        client,
-        headers,
-        name="ABC Chequing",
-        currency="ABC",
-    )).json()["id"]
+    abc_account_id = (
+        await _create_account(
+            client,
+            headers,
+            name="ABC Chequing",
+            currency="ABC",
+        )
+    ).json()["id"]
 
     await _create_transaction(client, headers, cad_account_id, category_id, amount=-5_000)
     await _create_transaction(
@@ -633,12 +668,14 @@ async def test_transactions_overview_top_categories_convert_and_rank_foreign_acc
 
     await _seed_usd_currency()
     headers, cad_account_id, cad_category_id = await _setup_user_with_deps(client)
-    usd_account_id = (await _create_account(
-        client,
-        headers,
-        name="USD Chequing",
-        currency="USD",
-    )).json()["id"]
+    usd_account_id = (
+        await _create_account(
+            client,
+            headers,
+            name="USD Chequing",
+            currency="USD",
+        )
+    ).json()["id"]
     usd_category_id = (await _create_category(client, headers, name="USD Expenses")).json()["id"]
 
     await _create_transaction(client, headers, cad_account_id, cad_category_id, amount=-8_500)
@@ -674,25 +711,31 @@ async def test_transactions_overview_top_categories_report_incomplete_fx(client,
     monkeypatch.setattr(FrankfurterProvider, "get_rates", fake_get_rates)
 
     async with TestSession() as session:
-        session.add_all([
-            Currency(id="USD", name="US Dollar", symbol="$", minor_unit_exponent=2),
-            Currency(id="ABC", name="Unsupported Test Currency", symbol="A", minor_unit_exponent=2),
-        ])
+        session.add_all(
+            [
+                Currency(id="USD", name="US Dollar", symbol="$", minor_unit_exponent=2),
+                Currency(id="ABC", name="Unsupported Test Currency", symbol="A", minor_unit_exponent=2),
+            ]
+        )
         await session.commit()
 
     headers, _, category_id = await _setup_user_with_deps(client)
-    usd_account_id = (await _create_account(
-        client,
-        headers,
-        name="USD Chequing",
-        currency="USD",
-    )).json()["id"]
-    abc_account_id = (await _create_account(
-        client,
-        headers,
-        name="ABC Chequing",
-        currency="ABC",
-    )).json()["id"]
+    usd_account_id = (
+        await _create_account(
+            client,
+            headers,
+            name="USD Chequing",
+            currency="USD",
+        )
+    ).json()["id"]
+    abc_account_id = (
+        await _create_account(
+            client,
+            headers,
+            name="ABC Chequing",
+            currency="ABC",
+        )
+    ).json()["id"]
 
     await _create_transaction(
         client,
@@ -733,7 +776,12 @@ async def test_transactions_overview_outliers_rank_by_each_transactions_own_outf
     over_refund_category_id = (await _create_category(client, headers, name="Over-refunded Expense", kind="expense")).json()["id"]
 
     await _create_transaction(
-        client, headers, account_id, transfer_category_id, amount=-20_000, counterparty_account_scope="outside",
+        client,
+        headers,
+        account_id,
+        transfer_category_id,
+        amount=-20_000,
+        counterparty_account_scope="outside",
     )
     await _create_transaction(client, headers, account_id, income_category_id, amount=-15_000)
     await _create_transaction(client, headers, account_id, refunded_category_id, amount=-10_000)
@@ -759,8 +807,12 @@ async def test_transactions_overview_outliers_break_amount_ties_by_recency(clien
     tied_dates = [date(2026, 3, 12), date(2026, 3, 13), date(2026, 3, 14), date(2026, 3, 15)]
     for tied_date in tied_dates:
         await _create_transaction(
-            client, headers, account_id, category_id,
-            dt=tied_date.isoformat(), amount=-10_000,
+            client,
+            headers,
+            account_id,
+            category_id,
+            dt=tied_date.isoformat(),
+            amount=-10_000,
         )
 
     resp = await client.get("/transactions/overview", headers=headers)
@@ -776,8 +828,12 @@ async def test_transactions_overview_outliers_break_same_day_ties_by_id(client):
 
     for _ in range(3):
         await _create_transaction(
-            client, headers, account_id, category_id,
-            dt="2026-03-15", amount=-10_000,
+            client,
+            headers,
+            account_id,
+            category_id,
+            dt="2026-03-15",
+            amount=-10_000,
         )
 
     first = await client.get("/transactions/overview", headers=headers)
@@ -804,21 +860,32 @@ async def test_transactions_overview_outliers_break_converted_ties_by_recency(cl
 
     await _seed_usd_currency()
     headers, cad_account_id, category_id = await _setup_user_with_deps(client)
-    usd_account_id = (await _create_account(
-        client,
-        headers,
-        name="USD Chequing",
-        currency="USD",
-    )).json()["id"]
+    usd_account_id = (
+        await _create_account(
+            client,
+            headers,
+            name="USD Chequing",
+            currency="USD",
+        )
+    ).json()["id"]
 
     # -6,000 USD converts to -9,000 CAD, the same outflow as the CAD row, on a later date
     cad_txn = await _create_transaction(
-        client, headers, cad_account_id, category_id,
-        dt="2026-03-14", amount=-9_000,
+        client,
+        headers,
+        cad_account_id,
+        category_id,
+        dt="2026-03-14",
+        amount=-9_000,
     )
     usd_txn = await _create_transaction(
-        client, headers, usd_account_id, category_id,
-        dt="2026-03-15", amount=-6_000, currency="USD",
+        client,
+        headers,
+        usd_account_id,
+        category_id,
+        dt="2026-03-15",
+        amount=-6_000,
+        currency="USD",
     )
 
     resp = await client.get("/transactions/overview", headers=headers)
@@ -842,12 +909,14 @@ async def test_transactions_overview_outliers_convert_and_rank_foreign_accounts(
 
     await _seed_usd_currency()
     headers, cad_account_id, category_id = await _setup_user_with_deps(client)
-    usd_account_id = (await _create_account(
-        client,
-        headers,
-        name="USD Chequing",
-        currency="USD",
-    )).json()["id"]
+    usd_account_id = (
+        await _create_account(
+            client,
+            headers,
+            name="USD Chequing",
+            currency="USD",
+        )
+    ).json()["id"]
 
     cad_txn = await _create_transaction(client, headers, cad_account_id, category_id, amount=-8_500)
     usd_txn = await _create_transaction(
@@ -882,25 +951,31 @@ async def test_transactions_overview_outliers_report_incomplete_fx(client, monke
     monkeypatch.setattr(FrankfurterProvider, "get_rates", fake_get_rates)
 
     async with TestSession() as session:
-        session.add_all([
-            Currency(id="USD", name="US Dollar", symbol="$", minor_unit_exponent=2),
-            Currency(id="ABC", name="Unsupported Test Currency", symbol="A", minor_unit_exponent=2),
-        ])
+        session.add_all(
+            [
+                Currency(id="USD", name="US Dollar", symbol="$", minor_unit_exponent=2),
+                Currency(id="ABC", name="Unsupported Test Currency", symbol="A", minor_unit_exponent=2),
+            ]
+        )
         await session.commit()
 
     headers, _, category_id = await _setup_user_with_deps(client)
-    usd_account_id = (await _create_account(
-        client,
-        headers,
-        name="USD Chequing",
-        currency="USD",
-    )).json()["id"]
-    abc_account_id = (await _create_account(
-        client,
-        headers,
-        name="ABC Chequing",
-        currency="ABC",
-    )).json()["id"]
+    usd_account_id = (
+        await _create_account(
+            client,
+            headers,
+            name="USD Chequing",
+            currency="USD",
+        )
+    ).json()["id"]
+    abc_account_id = (
+        await _create_account(
+            client,
+            headers,
+            name="ABC Chequing",
+            currency="ABC",
+        )
+    ).json()["id"]
 
     usd_txn = await _create_transaction(
         client,

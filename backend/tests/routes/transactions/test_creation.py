@@ -82,7 +82,12 @@ async def test_create_transaction_accepts_debit_and_credit_for_all_category_kind
         counterparty_kwargs = {"counterparty_account_scope": "outside"} if kind == "transfer" else {}
         for amount in (-1234, 5678):
             resp = await _create_transaction(
-                client, headers, account_id, category_id, amount=amount, **counterparty_kwargs,
+                client,
+                headers,
+                account_id,
+                category_id,
+                amount=amount,
+                **counterparty_kwargs,
             )
 
             assert resp.status_code == 201
@@ -99,7 +104,10 @@ async def test_create_transaction_with_all_optional_fields(client):
     tag2_resp = await _create_tag(client, headers, name="travel")
 
     resp = await _create_transaction(
-        client, headers, account_id, category_id,
+        client,
+        headers,
+        account_id,
+        category_id,
         merchant_id=merchant_resp.json()["id"],
         notes="Business lunch",
         tag_ids=[tag1_resp.json()["id"], tag2_resp.json()["id"]],
@@ -169,13 +177,17 @@ async def test_create_transaction_without_a_merchant_returns_422(client):
     """Every transaction created through the route has to carry a merchant."""
     headers, account_id, category_id = await _setup_user_with_deps(client)
 
-    resp = await client.post("/transactions", json={
-        "account_id": account_id,
-        "category_id": category_id,
-        "dt": "2026-03-15",
-        "amount": -5000,
-        "currency": "CAD",
-    }, headers=headers)
+    resp = await client.post(
+        "/transactions",
+        json={
+            "account_id": account_id,
+            "category_id": category_id,
+            "dt": "2026-03-15",
+            "amount": -5000,
+            "currency": "CAD",
+        },
+        headers=headers,
+    )
 
     assert resp.status_code == 422
 
@@ -226,15 +238,17 @@ async def test_list_transactions_returns_account_amount_for_foreign_currency(cli
 
     async with TestSession() as session:
         account = await session.get(Account, uuid.UUID(account_id))
-        session.add(Transaction(
-            created_by_user_id=account.owner_id,
-            account_id=uuid.UUID(account_id),
-            category_id=uuid.UUID(category_id),
-            dt=date(2026, 3, 15),
-            amount=-10_00,
-            currency="USD",
-            fx_rate=None,
-        ))
+        session.add(
+            Transaction(
+                created_by_user_id=account.owner_id,
+                account_id=uuid.UUID(account_id),
+                category_id=uuid.UUID(category_id),
+                dt=date(2026, 3, 15),
+                amount=-10_00,
+                currency="USD",
+                fx_rate=None,
+            )
+        )
         await session.commit()
 
     list_resp = await client.get("/transactions", headers=headers)
@@ -263,12 +277,14 @@ async def test_list_transactions_returns_per_day_base_currency_amount_for_foreig
     monkeypatch.setattr(FrankfurterProvider, "get_rates", fake_get_rates)
     headers, _, category_id = await _setup_user_with_deps(client)
     await _seed_usd_currency()
-    usd_account_id = (await _create_account(
-        client,
-        headers,
-        name="USD Chequing",
-        currency="USD",
-    )).json()["id"]
+    usd_account_id = (
+        await _create_account(
+            client,
+            headers,
+            name="USD Chequing",
+            currency="USD",
+        )
+    ).json()["id"]
 
     await _create_transaction(
         client,
@@ -287,7 +303,7 @@ async def test_list_transactions_returns_per_day_base_currency_amount_for_foreig
     assert transaction["amount"] == -10_00
     assert transaction["account_amount"] == -10_00
     assert transaction["base_currency_amount"] == -15_00
-    assert calls == [("USD", "CAD", date(2026, 3, 15), date(2026, 3, 15))]
+    assert calls == [("USD", "CAD", date(2026, 3, 8), date(2026, 3, 15))]
 
 
 async def test_create_transaction_duplicate_tags_deduplicated(client):

@@ -161,12 +161,12 @@ async def test_income_expense_breakdown_converts_foreign_entries_by_transaction_
     async def fake_get_rates(self, base, quote, start_date, end_date):
         assert base == "USD"
         assert quote == "CAD"
-        if (start_date, end_date) == (date(2026, 5, 1), date(2026, 5, 2)):
+        if (start_date, end_date) == (date(2026, 4, 24), date(2026, 5, 2)):
             return {
                 date(2026, 5, 1): Decimal("1.5"),
                 date(2026, 5, 2): Decimal("2"),
             }
-        if (start_date, end_date) == (date(2026, 4, 30), date(2026, 4, 30)):
+        if (start_date, end_date) == (date(2026, 4, 23), date(2026, 4, 30)):
             return {
                 date(2026, 4, 30): Decimal("1.2"),
             }

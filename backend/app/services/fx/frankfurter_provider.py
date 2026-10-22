@@ -13,12 +13,9 @@ import httpx
 from app.config.fx import FRANKFURTER_URL
 from app.http_client import build_http_client
 from app.services.fx.errors import FxProviderUnavailableError
-from app.services.fx.frankfurter_request_helpers import (
-    request_frankfurter_rate_response,
-    request_frankfurter_rates_response,
-)
+from app.services.fx.frankfurter_request_helpers import request_frankfurter_rates_response
 from app.services.fx.lookup_budget import get_current_lookup_budget
-from app.services.fx.rate_parser_helpers import parse_rate, parse_rates
+from app.services.fx.rate_parser_helpers import parse_rates
 
 DEFAULT_FX_PROVIDER_RETRY_ATTEMPTS = 3
 DEFAULT_FX_PROVIDER_RETRY_DELAY_SECONDS = 0.5
@@ -51,47 +48,6 @@ class FrankfurterProvider:
         self.timeout = timeout
         self.retry_attempts = retry_attempts
         self.retry_delay_seconds = retry_delay_seconds
-
-    async def get_rate(self, base: str, quote: str, rate_date: date) -> Decimal:
-        """Return quote currency units per one base currency unit
-
-        Args:
-            base: Source currency code
-            quote: Target currency code
-            rate_date: Date for the requested rate
-
-        Returns:
-            Quote currency units per one base currency unit
-        """
-        normalized_base = base.upper()
-        normalized_quote = quote.upper()
-        if self.client is not None:
-            return await self._get_rate(self.client, normalized_base, normalized_quote, rate_date)
-
-        async with build_http_client(timeout=self.timeout) as client:
-            return await self._get_rate(client, normalized_base, normalized_quote, rate_date)
-
-    async def _get_rate(
-        self,
-        client: httpx.AsyncClient,
-        base: str,
-        quote: str,
-        rate_date: date,
-    ) -> Decimal:
-        """Return one parsed FX rate using an HTTP client
-
-        Args:
-            client: HTTP client used for the provider request
-            base: Normalized source currency code
-            quote: Normalized target currency code
-            rate_date: Date for the requested rate
-
-        Returns:
-            Quote currency units per one base currency unit
-        """
-        return await self._run_provider_lookup_with_retries(
-            partial(self._request_and_parse_rate, client, base, quote, rate_date),
-        )
 
     async def get_rates(self, base: str, quote: str, start_date: date, end_date: date) -> dict[date, Decimal]:
         """Return quote currency units per one base currency unit over a date range
@@ -186,30 +142,6 @@ class FrankfurterProvider:
         if last_error is not None:
             raise last_error
         raise RuntimeError("FX provider retry attempts ended before a lookup was attempted")
-
-    async def _request_and_parse_rate(
-        self,
-        client: httpx.AsyncClient,
-        base: str,
-        quote: str,
-        rate_date: date,
-        timeout: float,
-    ) -> Decimal:
-        """Request and parse one FX rate response
-
-        Args:
-            client: HTTP client used for the provider request
-            base: Normalized source currency code
-            quote: Normalized target currency code
-            rate_date: Date for the requested rate
-            timeout: Seconds this attempt may take
-
-        Returns:
-            Quote currency units per one base currency unit
-        """
-        response = await request_frankfurter_rate_response(client, self.url, base, quote, rate_date, timeout)
-        rate = parse_rate(response.json(), expected_base=base, expected_quote=quote)
-        return rate
 
     async def _request_and_parse_rates(
         self,

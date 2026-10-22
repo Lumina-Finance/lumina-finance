@@ -1,14 +1,11 @@
 import uuid
 from dataclasses import dataclass
 from datetime import date
-from decimal import Decimal
 
 from app.services.budgets.utilization.conversion_helpers import (
-    create_converter_with_cached_rates,
     get_spend_rows_by_budget,
     prefetch_budget_rates,
 )
-from app.services.fx import FxConverter, FxRateKey
 
 BUDGET_A_ID = uuid.UUID("00000000-0000-0000-0000-000000000001")
 BUDGET_B_ID = uuid.UUID("00000000-0000-0000-0000-000000000002")
@@ -34,24 +31,6 @@ class _FakeConverter:
     async def prefetch_rates(self, *, base: str, quote: str, start_date: date, end_date: date) -> None:
         """Record a prefetch call without hitting an FX provider"""
         self.calls.append((base, quote, start_date, end_date))
-
-
-def test_create_converter_with_cached_rates_returns_independent_converter():
-    """Budget converter copies shared FX cache state without sharing mutable dictionaries"""
-    shared_converter = FxConverter(currency_exponents={"USD": 2, "CAD": 2})
-    rate_key = FxRateKey(date(2026, 3, 15), "USD", "CAD")
-    failed_key = FxRateKey(date(2026, 3, 16), "USD", "CAD")
-    shared_converter.rates[rate_key] = Decimal("1.35")
-    shared_converter.failed_rates[failed_key] = "rate_not_found"
-
-    budget_converter = create_converter_with_cached_rates(shared_converter)
-
-    assert budget_converter.provider is shared_converter.provider
-    assert budget_converter.currency_exponents == shared_converter.currency_exponents
-    assert budget_converter.rates == shared_converter.rates
-    assert budget_converter.failed_rates == shared_converter.failed_rates
-    assert budget_converter.rates is not shared_converter.rates
-    assert budget_converter.failed_rates is not shared_converter.failed_rates
 
 
 async def test_prefetch_budget_rates_groups_date_windows_by_currency_pair():

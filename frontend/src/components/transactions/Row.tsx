@@ -79,6 +79,8 @@ interface TransactionRowProps {
   category: Category | undefined
   currency: string
   readOnlyReason?: string
+  // The amount could not be converted into the currency the list totals in, so the day's total leaves it out
+  isFxUnavailable?: boolean
   transaction: Transaction
   // Skips the height collapse on removal so a deletion just fades when the viewer prefers reduced motion
   prefersReducedMotion?: boolean | null
@@ -203,6 +205,17 @@ function NoteAndTagIcons({ hasNotes, tagCount, className = '' }: { hasNotes: boo
 }
 
 /**
+ * Says under an amount that it has no exchange rate, in the look the accounts list gives a balance it could not convert
+ */
+function FxUnavailableNote() {
+  return (
+    <span className="block text-right text-xs font-normal leading-4" style={{ color: 'var(--app-negative)' }}>
+      FX unavailable
+    </span>
+  )
+}
+
+/**
  * Renders one transaction as a clickable row, showing its category, account, notes, tags, and signed
  * amount, and calling `onOpen` when clicked
  *
@@ -224,6 +237,7 @@ export function TransactionRowView({
   accountInstitution,
   category,
   readOnlyReason,
+  isFxUnavailable = false,
   transaction,
   amountPresentation,
   prefersReducedMotion,
@@ -464,6 +478,7 @@ export function TransactionRowView({
         style={{ color: transactionAmountColor }}
       >
         {formattedAmount}
+        {isFxUnavailable && <FxUnavailableNote />}
       </span>
 
       {/* Three lines on a phone: merchant and amount, category, then account. Set close together, and
@@ -487,11 +502,18 @@ export function TransactionRowView({
         </span>
 
         <span
-          className="col-start-2 col-span-2 row-start-2 min-w-0 truncate text-sm leading-[1.125rem]"
+          className={`col-start-2 row-start-2 min-w-0 truncate text-sm leading-[1.125rem] ${isFxUnavailable ? '' : 'col-span-2'}`}
           style={{ color: 'var(--app-text-muted)' }}
         >
           {categoryName}
         </span>
+
+        {/* In the category line's own row beside it, so the marker never moves the lines in the left column */}
+        {isFxUnavailable && (
+          <span className="col-start-3 row-start-2 ml-2 justify-self-end">
+            <FxUnavailableNote />
+          </span>
+        )}
 
         {(hasAccountMeta || hasSupplementalMeta) && (
           <span

@@ -1,7 +1,7 @@
 """Foreign exchange conversion service"""
 
 from dataclasses import dataclass
-from datetime import date
+from datetime import date, timedelta
 from decimal import Decimal
 
 from app.schemas.fx import FxIssueReason, FxRateIssue, FxStatus
@@ -11,6 +11,11 @@ from app.services.fx.provider import FxRateProvider
 from app.services.fx.rate_cache import CachedFxRateProvider
 from app.utils.dates import get_dates_in_range
 from app.utils.money import convert_minor_units_between_currencies as convert_minor_units
+
+# How far back a date with no published rate looks for one. Today's rate is not published until the
+# afternoon in Europe, so a conversion uses the latest rate published on or before its date, if that
+# is within this long before it
+RATE_LOOKBACK = timedelta(days=7)
 
 
 @dataclass(frozen=True)
@@ -46,6 +51,16 @@ class FxConverter:
         self.used_fx = False
         self.success_count = 0
         self.missing_pairs: list[FxRateIssue] = []
+
+    def clone(self) -> FxConverter:
+        """Return an independent converter that starts with this one's loaded rates and failures
+
+        Lets several metrics of one request share a prefetch while each reports its own status
+        """
+        cloned = FxConverter(provider=self.provider, currency_exponents=self.currency_exponents)
+        cloned.rates = self.rates.copy()
+        cloned.failed_rates = self.failed_rates.copy()
+        return cloned
 
     async def convert_minor_units(
         self,
@@ -114,7 +129,7 @@ class FxConverter:
 
         dates = get_dates_in_range(start_date, end_date)
         try:
-            rates = await self.provider.get_rates(normalized_base, normalized_quote, start_date, end_date)
+            rates = await self._fetch_latest_rates(normalized_base, normalized_quote, start_date, end_date)
         except FxRateNotFoundError:
             for rate_date in dates:
                 self.failed_rates[FxRateKey(rate_date, normalized_base, normalized_quote)] = "rate_not_found"
@@ -158,11 +173,44 @@ class FxConverter:
 
         Returns:
             Quote currency units per one base currency unit
+
+        Raises:
+            FxRateNotFoundError: No rate was published on the date or within the lookback before it
+            FxProviderUnavailableError: The provider couldn't be reached
         """
         if key not in self.rates:
-            self.rates[key] = await self.provider.get_rate(key.base, key.quote, key.date)
+            rates = await self._fetch_latest_rates(key.base, key.quote, key.date, key.date)
+            if key.date not in rates:
+                raise FxRateNotFoundError(f"No FX rate found for {key.base}/{key.quote} on {key.date.isoformat()}")
+            self.rates[key] = rates[key.date]
         self.success_count += 1
         return self.rates[key]
+
+    async def _fetch_latest_rates(self, base: str, quote: str, start_date: date, end_date: date) -> dict[date, Decimal]:
+        """Return each date's rate, which is the latest published on or before it within the lookback
+
+        Asks the provider for the lookback before the first date as well, since a date with no rate of
+        its own, such as today before the afternoon in Europe, takes the one before it
+
+        Args:
+            base: Normalized source currency code
+            quote: Normalized target currency code
+            start_date: First date in the requested range
+            end_date: Last date in the requested range
+
+        Returns:
+            Rates keyed by calendar date, leaving out dates with none inside the lookback
+        """
+        published = await self.provider.get_rates(base, quote, start_date - RATE_LOOKBACK, end_date)
+
+        rates: dict[date, Decimal] = {}
+        latest_date: date | None = None
+        for rate_date in get_dates_in_range(start_date - RATE_LOOKBACK, end_date):
+            if rate_date in published:
+                latest_date = rate_date
+            if rate_date >= start_date and latest_date is not None and rate_date - latest_date <= RATE_LOOKBACK:
+                rates[rate_date] = published[latest_date]
+        return rates
 
     def _record_missing_pair(self, key: FxRateKey, reason: FxIssueReason) -> None:
         """Record a failed currency pair once for the converter status

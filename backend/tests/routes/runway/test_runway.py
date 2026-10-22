@@ -32,13 +32,16 @@ async def _seed_usd():
 
 async def _signup_second_user(client):
     """Sign up a second user and return auth headers"""
-    resp = await client.post("/auth/signup", json={
-        "email": "other@example.com",
-        "password": "SecurePassword123!",
-        "first_name": "Other",
-        "tz": "America/Toronto",
-        "base_currency": "CAD",
-    })
+    resp = await client.post(
+        "/auth/signup",
+        json={
+            "email": "other@example.com",
+            "password": "SecurePassword123!",
+            "first_name": "Other",
+            "tz": "America/Toronto",
+            "base_currency": "CAD",
+        },
+    )
     return _get_auth_header(resp)
 
 
@@ -286,26 +289,28 @@ async def test_archived_runway_selection_excludes_current_balance_but_keeps_hist
         category = Category(owner_id=user_id, name="Test Expense", kind=CategoryKind.EXPENSE)
         session.add(category)
         await session.flush()
-        session.add_all([
-            Transaction(
-                created_by_user_id=user_id,
-                account_id=UUID(visible_account_id),
-                category_id=category.id,
-                dt=date(2026, 3, 1),
-                amount=-12_000,
-                currency="CAD",
-            ),
-            Transaction(
-                created_by_user_id=user_id,
-                account_id=UUID(archived_account_id),
-                category_id=category.id,
-                dt=date(2026, 3, 2),
-                amount=-24_000,
-                currency="CAD",
-            ),
-            AccountBalanceSnapshot(account_id=UUID(visible_account_id), dt=date(2026, 4, 15), balance=120_000),
-            AccountBalanceSnapshot(account_id=UUID(archived_account_id), dt=date(2026, 4, 15), balance=48_000),
-        ])
+        session.add_all(
+            [
+                Transaction(
+                    created_by_user_id=user_id,
+                    account_id=UUID(visible_account_id),
+                    category_id=category.id,
+                    dt=date(2026, 3, 1),
+                    amount=-12_000,
+                    currency="CAD",
+                ),
+                Transaction(
+                    created_by_user_id=user_id,
+                    account_id=UUID(archived_account_id),
+                    category_id=category.id,
+                    dt=date(2026, 3, 2),
+                    amount=-24_000,
+                    currency="CAD",
+                ),
+                AccountBalanceSnapshot(account_id=UUID(visible_account_id), dt=date(2026, 4, 15), balance=120_000),
+                AccountBalanceSnapshot(account_id=UUID(archived_account_id), dt=date(2026, 4, 15), balance=48_000),
+            ]
+        )
         for account, balance in [(visible_account, 120_000), (archived_account, 48_000)]:
             await session.execute(
                 update(AccountBalanceSnapshot)
@@ -357,10 +362,13 @@ async def test_archived_runway_selection_excludes_current_balance_but_keeps_hist
     # The fixed Runway date is before the archive adjustment's real date, so restoring
     # the account makes its earlier balance visible again in that historical view.
     assert restored_runway["liquid_balance"] == 168_000
-    assert sorted(restored_runway["account_balances"], key=lambda item: item["account_id"]) == sorted([
-        {"account_id": visible_account_id, "balance": 120_000},
-        {"account_id": archived_account_id, "balance": 48_000},
-    ], key=lambda item: item["account_id"])
+    assert sorted(restored_runway["account_balances"], key=lambda item: item["account_id"]) == sorted(
+        [
+            {"account_id": visible_account_id, "balance": 120_000},
+            {"account_id": archived_account_id, "balance": 48_000},
+        ],
+        key=lambda item: item["account_id"],
+    )
     assert restored_runway["months_covered"] == 1
     assert restored_runway["avg_monthly_expense"] == 36_000
 
@@ -386,40 +394,42 @@ async def test_get_runway_excludes_current_partial_month_from_average(client, mo
         category = Category(owner_id=user_id, name="Test Expense", kind=CategoryKind.EXPENSE)
         session.add(category)
         await session.flush()
-        session.add_all([
-            Transaction(
-                created_by_user_id=user_id,
-                account_id=account_id,
-                category_id=category.id,
-                dt=date(2025, 3, 31),
-                amount=-48_000,
-                currency="CAD",
-            ),
-            Transaction(
-                created_by_user_id=user_id,
-                account_id=account_id,
-                category_id=category.id,
-                dt=date(2025, 4, 1),
-                amount=-12_000,
-                currency="CAD",
-            ),
-            Transaction(
-                created_by_user_id=user_id,
-                account_id=account_id,
-                category_id=category.id,
-                dt=date(2026, 3, 31),
-                amount=-24_000,
-                currency="CAD",
-            ),
-            Transaction(
-                created_by_user_id=user_id,
-                account_id=account_id,
-                category_id=category.id,
-                dt=date(2026, 4, 1),
-                amount=-96_000,
-                currency="CAD",
-            ),
-        ])
+        session.add_all(
+            [
+                Transaction(
+                    created_by_user_id=user_id,
+                    account_id=account_id,
+                    category_id=category.id,
+                    dt=date(2025, 3, 31),
+                    amount=-48_000,
+                    currency="CAD",
+                ),
+                Transaction(
+                    created_by_user_id=user_id,
+                    account_id=account_id,
+                    category_id=category.id,
+                    dt=date(2025, 4, 1),
+                    amount=-12_000,
+                    currency="CAD",
+                ),
+                Transaction(
+                    created_by_user_id=user_id,
+                    account_id=account_id,
+                    category_id=category.id,
+                    dt=date(2026, 3, 31),
+                    amount=-24_000,
+                    currency="CAD",
+                ),
+                Transaction(
+                    created_by_user_id=user_id,
+                    account_id=account_id,
+                    category_id=category.id,
+                    dt=date(2026, 4, 1),
+                    amount=-96_000,
+                    currency="CAD",
+                ),
+            ]
+        )
         session.add(AccountBalanceSnapshot(account_id=account_id, dt=date(2026, 4, 15), balance=180_000))
         await session.commit()
 
@@ -463,72 +473,74 @@ async def test_get_runway_handles_refunds_and_excludes_income_losses_and_transfe
         transfer_category = Category(owner_id=user_id, name="Transfer", kind=CategoryKind.TRANSFER)
         session.add_all([expense_category, over_refunded_category, income_category, transfer_category])
         await session.flush()
-        session.add_all([
-            Transaction(
-                created_by_user_id=user_id,
-                account_id=account_id,
-                category_id=expense_category.id,
-                dt=date(2026, 3, 1),
-                amount=-12_000,
-                currency="CAD",
-            ),
-            Transaction(
-                created_by_user_id=user_id,
-                account_id=account_id,
-                category_id=income_category.id,
-                dt=date(2026, 3, 2),
-                amount=-6_000,
-                currency="CAD",
-            ),
-            Transaction(
-                created_by_user_id=user_id,
-                account_id=account_id,
-                category_id=expense_category.id,
-                dt=date(2026, 3, 3),
-                amount=4_000,
-                currency="CAD",
-            ),
-            Transaction(
-                created_by_user_id=user_id,
-                account_id=account_id,
-                category_id=income_category.id,
-                dt=date(2026, 3, 3),
-                amount=1_000,
-                currency="CAD",
-            ),
-            Transaction(
-                created_by_user_id=user_id,
-                account_id=account_id,
-                category_id=over_refunded_category.id,
-                dt=date(2026, 3, 3),
-                amount=-5_000,
-                currency="CAD",
-            ),
-            Transaction(
-                created_by_user_id=user_id,
-                account_id=account_id,
-                category_id=over_refunded_category.id,
-                dt=date(2026, 3, 3),
-                amount=7_000,
-                currency="CAD",
-            ),
-            Transaction(
-                created_by_user_id=user_id,
-                account_id=account_id,
-                category_id=transfer_category.id,
-                dt=date(2026, 3, 4),
-                amount=-99_000,
-                currency="CAD",
-            ),
-            Transaction(
-                created_by_user_id=user_id,
-                account_id=account_id,
-                category_id=expense_category.id,
-                dt=date(2026, 4, 1),
-                amount=-48_000,
-                currency="CAD",
-            ),
-        ])
+        session.add_all(
+            [
+                Transaction(
+                    created_by_user_id=user_id,
+                    account_id=account_id,
+                    category_id=expense_category.id,
+                    dt=date(2026, 3, 1),
+                    amount=-12_000,
+                    currency="CAD",
+                ),
+                Transaction(
+                    created_by_user_id=user_id,
+                    account_id=account_id,
+                    category_id=income_category.id,
+                    dt=date(2026, 3, 2),
+                    amount=-6_000,
+                    currency="CAD",
+                ),
+                Transaction(
+                    created_by_user_id=user_id,
+                    account_id=account_id,
+                    category_id=expense_category.id,
+                    dt=date(2026, 3, 3),
+                    amount=4_000,
+                    currency="CAD",
+                ),
+                Transaction(
+                    created_by_user_id=user_id,
+                    account_id=account_id,
+                    category_id=income_category.id,
+                    dt=date(2026, 3, 3),
+                    amount=1_000,
+                    currency="CAD",
+                ),
+                Transaction(
+                    created_by_user_id=user_id,
+                    account_id=account_id,
+                    category_id=over_refunded_category.id,
+                    dt=date(2026, 3, 3),
+                    amount=-5_000,
+                    currency="CAD",
+                ),
+                Transaction(
+                    created_by_user_id=user_id,
+                    account_id=account_id,
+                    category_id=over_refunded_category.id,
+                    dt=date(2026, 3, 3),
+                    amount=7_000,
+                    currency="CAD",
+                ),
+                Transaction(
+                    created_by_user_id=user_id,
+                    account_id=account_id,
+                    category_id=transfer_category.id,
+                    dt=date(2026, 3, 4),
+                    amount=-99_000,
+                    currency="CAD",
+                ),
+                Transaction(
+                    created_by_user_id=user_id,
+                    account_id=account_id,
+                    category_id=expense_category.id,
+                    dt=date(2026, 4, 1),
+                    amount=-48_000,
+                    currency="CAD",
+                ),
+            ]
+        )
         session.add(AccountBalanceSnapshot(account_id=account_id, dt=date(2026, 4, 15), balance=180_000))
         await session.commit()
 
@@ -581,34 +593,36 @@ async def test_get_runway_converts_foreign_currency_balances_and_daily_expenses(
         category = Category(owner_id=user_id, name="Test Expense", kind=CategoryKind.EXPENSE)
         session.add(category)
         await session.flush()
-        session.add_all([
-            Transaction(
-                created_by_user_id=user_id,
-                account_id=UUID(cad_account_id),
-                category_id=category.id,
-                dt=date(2026, 3, 13),
-                amount=-12_000,
-                currency="CAD",
-            ),
-            Transaction(
-                created_by_user_id=user_id,
-                account_id=UUID(usd_account_id),
-                category_id=category.id,
-                dt=date(2026, 3, 13),
-                amount=-10_000,
-                currency="USD",
-            ),
-            Transaction(
-                created_by_user_id=user_id,
-                account_id=UUID(usd_account_id),
-                category_id=category.id,
-                dt=date(2026, 3, 14),
-                amount=-10_000,
-                currency="USD",
-            ),
-            AccountBalanceSnapshot(account_id=UUID(cad_account_id), dt=date(2026, 4, 15), balance=100_000),
-            AccountBalanceSnapshot(account_id=UUID(usd_account_id), dt=date(2026, 4, 15), balance=20_000),
-        ])
+        session.add_all(
+            [
+                Transaction(
+                    created_by_user_id=user_id,
+                    account_id=UUID(cad_account_id),
+                    category_id=category.id,
+                    dt=date(2026, 3, 13),
+                    amount=-12_000,
+                    currency="CAD",
+                ),
+                Transaction(
+                    created_by_user_id=user_id,
+                    account_id=UUID(usd_account_id),
+                    category_id=category.id,
+                    dt=date(2026, 3, 13),
+                    amount=-10_000,
+                    currency="USD",
+                ),
+                Transaction(
+                    created_by_user_id=user_id,
+                    account_id=UUID(usd_account_id),
+                    category_id=category.id,
+                    dt=date(2026, 3, 14),
+                    amount=-10_000,
+                    currency="USD",
+                ),
+                AccountBalanceSnapshot(account_id=UUID(cad_account_id), dt=date(2026, 4, 15), balance=100_000),
+                AccountBalanceSnapshot(account_id=UUID(usd_account_id), dt=date(2026, 4, 15), balance=20_000),
+            ]
+        )
         for account, balance in [(cad_account, 100_000), (usd_account, 20_000)]:
             await session.execute(
                 update(AccountBalanceSnapshot)
@@ -635,7 +649,7 @@ async def test_get_runway_converts_foreign_currency_balances_and_daily_expenses(
     assert data["avg_monthly_expense"] == 42_000
     assert data["months"] == pytest.approx(130_000 / 42_000)
     assert data["fx_status"] == {"state": "complete", "missing_pairs": []}
-    assert calls == [("USD", "CAD", date(2025, 4, 1), date(2026, 4, 15))]
+    assert calls == [("USD", "CAD", date(2025, 3, 25), date(2026, 4, 15))]
 
 
 async def test_get_runway_reports_incomplete_fx_with_missing_pairs(client, monkeypatch):
@@ -661,10 +675,12 @@ async def test_get_runway_reports_incomplete_fx_with_missing_pairs(client, monke
     headers = _get_auth_header(signup_resp)
     user_id = signup_resp.json()["user"]["id"]
     async with TestSession() as session:
-        session.add_all([
-            Currency(id="USD", name="US Dollar", symbol="$", minor_unit_exponent=2),
-            Currency(id="ABC", name="Unsupported Test Currency", symbol="A", minor_unit_exponent=2),
-        ])
+        session.add_all(
+            [
+                Currency(id="USD", name="US Dollar", symbol="$", minor_unit_exponent=2),
+                Currency(id="ABC", name="Unsupported Test Currency", symbol="A", minor_unit_exponent=2),
+            ]
+        )
         await session.commit()
 
     cad_account = (await _create_account(client, headers, name="CAD Cash")).json()
@@ -676,25 +692,27 @@ async def test_get_runway_reports_incomplete_fx_with_missing_pairs(client, monke
         category = Category(owner_id=user_id, name="Test Expense", kind=CategoryKind.EXPENSE)
         session.add(category)
         await session.flush()
-        session.add_all([
-            Transaction(
-                created_by_user_id=user_id,
-                account_id=UUID(usd_account_id),
-                category_id=category.id,
-                dt=date(2026, 3, 13),
-                amount=-20_000,
-                currency="USD",
-            ),
-            Transaction(
-                created_by_user_id=user_id,
-                account_id=UUID(abc_account_id),
-                category_id=category.id,
-                dt=date(2026, 3, 13),
-                amount=-90_000,
-                currency="ABC",
-            ),
-            AccountBalanceSnapshot(account_id=UUID(cad_account_id), dt=date(2026, 4, 15), balance=120_000),
-        ])
+        session.add_all(
+            [
+                Transaction(
+                    created_by_user_id=user_id,
+                    account_id=UUID(usd_account_id),
+                    category_id=category.id,
+                    dt=date(2026, 3, 13),
+                    amount=-20_000,
+                    currency="USD",
+                ),
+                Transaction(
+                    created_by_user_id=user_id,
+                    account_id=UUID(abc_account_id),
+                    category_id=category.id,
+                    dt=date(2026, 3, 13),
+                    amount=-90_000,
+                    currency="ABC",
+                ),
+                AccountBalanceSnapshot(account_id=UUID(cad_account_id), dt=date(2026, 4, 15), balance=120_000),
+            ]
+        )
         await session.execute(
             update(AccountBalanceSnapshot)
             .where(
@@ -751,17 +769,19 @@ async def test_get_runway_reports_unavailable_fx(client, monkeypatch):
         category = Category(owner_id=user_id, name="Test Expense", kind=CategoryKind.EXPENSE)
         session.add(category)
         await session.flush()
-        session.add_all([
-            Transaction(
-                created_by_user_id=user_id,
-                account_id=UUID(usd_account_id),
-                category_id=category.id,
-                dt=date(2026, 3, 13),
-                amount=-20_000,
-                currency="USD",
-            ),
-            AccountBalanceSnapshot(account_id=UUID(usd_account_id), dt=date(2026, 4, 15), balance=20_000),
-        ])
+        session.add_all(
+            [
+                Transaction(
+                    created_by_user_id=user_id,
+                    account_id=UUID(usd_account_id),
+                    category_id=category.id,
+                    dt=date(2026, 3, 13),
+                    amount=-20_000,
+                    currency="USD",
+                ),
+                AccountBalanceSnapshot(account_id=UUID(usd_account_id), dt=date(2026, 4, 15), balance=20_000),
+            ]
+        )
         await session.execute(
             update(AccountBalanceSnapshot)
             .where(
@@ -813,14 +833,16 @@ async def test_get_runway_uses_viewer_timezone_for_window_start(client, monkeypa
         category = Category(owner_id=user_id, name="Test Expense", kind=CategoryKind.EXPENSE)
         session.add(category)
         await session.flush()
-        session.add(Transaction(
-            created_by_user_id=user_id,
-            account_id=account_id,
-            category_id=category.id,
-            dt=date(2025, 1, 1),
-            amount=-12000,
-            currency="CAD",
-        ))
+        session.add(
+            Transaction(
+                created_by_user_id=user_id,
+                account_id=account_id,
+                category_id=category.id,
+                dt=date(2025, 1, 1),
+                amount=-12000,
+                currency="CAD",
+            )
+        )
         session.add(AccountBalanceSnapshot(account_id=account_id, dt=date(2026, 12, 31), balance=120000))
         await session.commit()
 
@@ -855,14 +877,16 @@ async def test_get_runway_uses_calendar_months_for_window_start(client, monkeypa
         category = Category(owner_id=user_id, name="Test Expense", kind=CategoryKind.EXPENSE)
         session.add(category)
         await session.flush()
-        session.add(Transaction(
-            created_by_user_id=user_id,
-            account_id=account_id,
-            category_id=category.id,
-            dt=date(2024, 2, 29),
-            amount=-12000,
-            currency="CAD",
-        ))
+        session.add(
+            Transaction(
+                created_by_user_id=user_id,
+                account_id=account_id,
+                category_id=category.id,
+                dt=date(2024, 2, 29),
+                amount=-12000,
+                currency="CAD",
+            )
+        )
         session.add(AccountBalanceSnapshot(account_id=account_id, dt=date(2025, 2, 28), balance=120000))
         await session.commit()
 

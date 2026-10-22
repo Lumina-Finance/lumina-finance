@@ -4,8 +4,10 @@
 import { describe, expect, it } from 'vitest'
 import type { Transaction } from '@/api/transactions'
 import {
+  getTransactionDateGroupFxStatus,
   getTransactionDateGroupTotal,
   groupTransactionsByDate,
+  isTransactionAmountUnconverted,
 } from '@/components/transactions/utils/transactionDateGroups'
 import type { TransactionListAccount } from '@/components/transactions/types/transactionList'
 
@@ -76,5 +78,43 @@ describe('transaction date-group helpers', () => {
 
     expect(getTransactionDateGroupTotal(transactions)).toBe(750)
     expect(getTransactionDateGroupTotal(transactions, fixedAccount)).toBe(600)
+  })
+
+  it('flags a transaction whose amount in the shown currency is missing, not one that converted to zero', () => {
+    const fixedAccount: TransactionListAccount = { id: 'account', name: 'Checking', can_write: true, group_id: null }
+    const unconvertedInBase = createTransaction({ base_currency_amount: null, account_amount: 1000 })
+    const zeroInBase = createTransaction({ base_currency_amount: 0, account_amount: 0 })
+
+    expect(isTransactionAmountUnconverted(unconvertedInBase)).toBe(true)
+    expect(isTransactionAmountUnconverted(unconvertedInBase, fixedAccount)).toBe(false)
+    expect(isTransactionAmountUnconverted(zeroInBase)).toBe(false)
+  })
+
+  it('gives a day an FX status naming the missing currency pairs only when one of its amounts is missing', () => {
+    const converted = createTransaction({ base_currency_amount: 1200 })
+    const missingUsd = createTransaction({ base_currency_amount: null, currency: 'USD' })
+    const missingEur = createTransaction({ base_currency_amount: null, currency: 'EUR' })
+    const missingUsdAgain = createTransaction({ base_currency_amount: null, currency: 'USD' })
+
+    expect(getTransactionDateGroupFxStatus([converted], 'CAD')).toBeNull()
+    expect(getTransactionDateGroupFxStatus([converted, missingUsd, missingEur, missingUsdAgain], 'CAD')).toEqual({
+      state: 'incomplete',
+      missing_pairs: [
+        { base: 'USD', quote: 'CAD' },
+        { base: 'EUR', quote: 'CAD' },
+      ],
+    })
+  })
+
+  it('reads the account amount for the day status on an account list, quoting the account currency', () => {
+    const fixedAccount: TransactionListAccount = { id: 'account', name: 'Checking', can_write: true, group_id: null }
+    const missingInAccount = createTransaction({ account_amount: null, base_currency_amount: 1200, currency: 'EUR' })
+    const missingOnlyInBase = createTransaction({ account_amount: 1000, base_currency_amount: null })
+
+    expect(getTransactionDateGroupFxStatus([missingOnlyInBase], 'USD', fixedAccount)).toBeNull()
+    expect(getTransactionDateGroupFxStatus([missingInAccount], 'USD', fixedAccount)).toEqual({
+      state: 'incomplete',
+      missing_pairs: [{ base: 'EUR', quote: 'USD' }],
+    })
   })
 })

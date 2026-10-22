@@ -141,7 +141,7 @@ async def test_fund_flow_converts_foreign_entries_by_transaction_date(client, mo
         assert (base, quote, start_date, end_date) == (
             "USD",
             "CAD",
-            date(2026, 5, 1),
+            date(2026, 4, 24),
             date(2026, 5, 2),
         )
         return {

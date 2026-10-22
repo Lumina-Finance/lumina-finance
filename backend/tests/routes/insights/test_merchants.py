@@ -109,12 +109,12 @@ async def test_merchants_converts_foreign_entries_by_transaction_date(client, mo
 
     async def fake_get_rates(self, base, quote, start_date, end_date):
         assert (base, quote) == ("USD", "CAD")
-        if (start_date, end_date) == (date(2026, 5, 1), date(2026, 5, 2)):
+        if (start_date, end_date) == (date(2026, 4, 24), date(2026, 5, 2)):
             return {
                 date(2026, 5, 1): Decimal("1.5"),
                 date(2026, 5, 2): Decimal("2"),
             }
-        if (start_date, end_date) == (date(2026, 4, 30), date(2026, 4, 30)):
+        if (start_date, end_date) == (date(2026, 4, 23), date(2026, 4, 30)):
             return {date(2026, 4, 30): Decimal("1.25")}
         raise AssertionError(f"unexpected FX range: {start_date} to {end_date}")
 

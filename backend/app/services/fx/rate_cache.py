@@ -15,45 +15,45 @@ logger = logging.getLogger(__name__)
 # blends central banks that publish at different times, so a recent day's answer can still change
 SETTLED_RATE_AGE = timedelta(days=7)
 
-# How long a rate that isn't settled is reused before the provider is asked again
+# How long a rate, or the provider having none, for a date that isn't settled is reused before the
+# provider is asked again
 RECENT_RATE_TTL = timedelta(hours=1)
 
 # A settled rate no longer changes, but it still expires, so a rate nobody asks for again leaves
 # the cache by itself and a corrected one is picked up within half a year
 SETTLED_RATE_TTL = timedelta(days=180)
 
-# How long the provider having no rate for a date that isn't settled is remembered. Such a rate is
-# often only unpublished yet, so it is asked about again soon
-RECENT_MISSING_RATE_TTL = timedelta(minutes=5)
-
 # How long the provider having no rate for a settled date is remembered. The provider can later add
 # a currency or fill in past dates, so it is asked about again weekly
 SETTLED_MISSING_RATE_TTL = timedelta(days=7)
-
-# Single-date and range lookups are cached apart because Frankfurter answers a future date
-# differently in each, so a rate fetched one way never stands in for the other
-DATE_LOOKUP = "d"
-RANGE_LOOKUP = "r"
 
 # Stored in place of a rate when the provider said it has none. Never a number, so it cannot be
 # read as one
 MISSING_RATE = b"missing"
 
 # Changing how a key or value is written starts the cache clean without a flush
-_KEY_VERSION = "v1"
+_KEY_VERSION = "v2"
 
 
-def _key(lookup: str, base: str, quote: str, rate_date: date) -> str:
-    """Return the key one pair's rate for one date is stored under"""
-    return f"fx:{_KEY_VERSION}:{lookup}:{base}:{quote}:{rate_date.isoformat()}"
+def _key(base: str, quote: str, rate_date: date) -> str:
+    """Return the key one pair's rate for one date is stored under
+
+    A rate is only ever stored under the date the provider published it for
+    """
+    return f"fx:{_KEY_VERSION}:{base}:{quote}:{rate_date.isoformat()}"
 
 
 def _ttl(rate_date: date, now: datetime, *, is_missing: bool) -> timedelta:
-    """Return how long an answer about a date lives, by how settled the date is on the day it is fetched"""
+    """Return how long an answer about a date lives, by how settled the date is on the day it is fetched
+
+    A recent missing date lives as long as a recent rate. A lookup reads a week of dates, so a shorter
+    life for the weekend days in it would have every lookup ask the provider again within minutes, and
+    fail during a short outage even though every rate it needs is cached
+    """
     is_settled = rate_date <= now.date() - SETTLED_RATE_AGE
-    if is_missing:
-        return SETTLED_MISSING_RATE_TTL if is_settled else RECENT_MISSING_RATE_TTL
-    return SETTLED_RATE_TTL if is_settled else RECENT_RATE_TTL
+    if is_settled:
+        return SETTLED_MISSING_RATE_TTL if is_missing else SETTLED_RATE_TTL
+    return RECENT_RATE_TTL
 
 
 def _parse_rate(value: bytes) -> Decimal | None:
@@ -90,45 +90,6 @@ class CachedFxRateProvider:
         """
         self.provider = provider
 
-    async def get_rate(self, base: str, quote: str, rate_date: date) -> Decimal:
-        """Return quote currency units per one base currency unit on one date
-
-        Args:
-            base: Source currency code
-            quote: Target currency code
-            rate_date: Date for the requested rate
-
-        Returns:
-            Quote currency units per one base currency unit
-
-        Raises:
-            FxRateNotFoundError: The provider has no rate, now or when the cache last asked
-            FxProviderUnavailableError: The provider couldn't be reached for a rate the cache lacks
-        """
-        base, quote = base.upper(), quote.upper()
-        store = get_valkey()
-        if store is None:
-            return await self.provider.get_rate(base, quote, rate_date)
-
-        answers = await _read(store, DATE_LOOKUP, base, quote, [rate_date])
-        if rate_date in answers:
-            cached = answers[rate_date]
-            if cached is None:
-                raise FxRateNotFoundError(f"No FX rate found for {base}/{quote} on {rate_date.isoformat()}")
-            return cached
-
-        now = datetime.now(UTC)
-        try:
-            rate = await self.provider.get_rate(base, quote, rate_date)
-        except FxRateRejectedError:
-            raise
-        except FxRateNotFoundError:
-            await _store(store, DATE_LOOKUP, base, quote, {rate_date: None}, now)
-            raise
-
-        await _store(store, DATE_LOOKUP, base, quote, {rate_date: rate}, now)
-        return rate
-
     async def get_rates(self, base: str, quote: str, start_date: date, end_date: date) -> dict[date, Decimal]:
         """Return quote currency units per one base currency unit over a date range
 
@@ -154,7 +115,7 @@ class CachedFxRateProvider:
             return await self.provider.get_rates(base, quote, start_date, end_date)
 
         dates = get_dates_in_range(start_date, end_date)
-        answers = await _read(store, RANGE_LOOKUP, base, quote, dates)
+        answers = await _read(store, base, quote, dates)
         rates = {rate_date: rate for rate_date, rate in answers.items() if rate is not None}
         uncached_dates = [rate_date for rate_date in dates if rate_date not in answers]
         if not uncached_dates:
@@ -172,18 +133,18 @@ class CachedFxRateProvider:
             fetched = {}
 
         span_rates = {rate_date: fetched.get(rate_date) for rate_date in span}
-        await _store(store, RANGE_LOOKUP, base, quote, span_rates, now)
+        await _store(store, base, quote, span_rates, now)
         rates.update({rate_date: rate for rate_date, rate in span_rates.items() if rate is not None})
         return rates
 
 
-async def _read(store: ValkeyStore, lookup: str, base: str, quote: str, dates: list[date]) -> dict[date, Decimal | None]:
+async def _read(store: ValkeyStore, base: str, quote: str, dates: list[date]) -> dict[date, Decimal | None]:
     """Return the stored answers for some dates, leaving out the dates with none
 
     Returns:
         A rate for a date with one, None for a date the provider had no rate for
     """
-    keys = {rate_date: _key(lookup, base, quote, rate_date) for rate_date in dates}
+    keys = {rate_date: _key(base, quote, rate_date) for rate_date in dates}
     stored = await store.get_many(list(keys.values()))
 
     answers: dict[date, Decimal | None] = {}
@@ -205,7 +166,6 @@ async def _read(store: ValkeyStore, lookup: str, base: str, quote: str, dates: l
 
 async def _store(
     store: ValkeyStore,
-    lookup: str,
     base: str,
     quote: str,
     answers: dict[date, Decimal | None],
@@ -217,12 +177,12 @@ async def _store(
     already stored is never replaced by the provider now having none
     """
     found = [
-        ValkeyEntry(_key(lookup, base, quote, rate_date), str(rate).encode(), _ttl(rate_date, fetched_at, is_missing=False))
+        ValkeyEntry(_key(base, quote, rate_date), str(rate).encode(), _ttl(rate_date, fetched_at, is_missing=False))
         for rate_date, rate in answers.items()
         if rate is not None
     ]
     missing = [
-        ValkeyEntry(_key(lookup, base, quote, rate_date), MISSING_RATE, _ttl(rate_date, fetched_at, is_missing=True))
+        ValkeyEntry(_key(base, quote, rate_date), MISSING_RATE, _ttl(rate_date, fetched_at, is_missing=True))
         for rate_date, rate in answers.items()
         if rate is None
     ]

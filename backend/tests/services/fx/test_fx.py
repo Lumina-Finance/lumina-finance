@@ -1,5 +1,5 @@
 import asyncio
-from datetime import date
+from datetime import date, timedelta
 from decimal import Decimal
 
 import httpx
@@ -10,38 +10,47 @@ from app.services.fx import (
     FrankfurterProvider,
     FxConverter,
     FxProviderUnavailableError,
+    FxRateKey,
     FxRateNotFoundError,
     FxRateRejectedError,
     FxRateResponseError,
     convert_minor_units,
 )
+from app.services.fx.converter import RATE_LOOKBACK
 from app.services.fx.frankfurter_provider import DEFAULT_FX_PROVIDER_RETRY_DELAY_SECONDS
 from app.services.fx.lookup_budget import FxLookupBudget, use_lookup_budget
 from tests.services.fx.fakes import FakeProvider
 
 
+def _converter(provider: FakeProvider) -> FxConverter:
+    """Return a USD to CAD converter over a provider"""
+    return FxConverter(provider=provider, currency_exponents={"USD": 2, "CAD": 2})
+
+
+def _series(*items: tuple[str, float]) -> list[dict]:
+    """Return a Frankfurter range payload for USD to CAD from date and rate pairs"""
+    return [{"date": rate_date, "base": "USD", "quote": "CAD", "rate": rate} for rate_date, rate in items]
+
+
 async def test_converter_reuses_rate_within_one_request():
     """Repeated pair/date conversions fetch the provider rate once."""
     rate_date = date(2026, 5, 30)
-    provider = FakeProvider({("USD", "CAD", rate_date): Decimal("1.375")})
-    converter = FxConverter(
-        provider=provider,
-        currency_exponents={"USD": 2, "CAD": 2},
-    )
+    provider = FakeProvider({("USD", "CAD"): {rate_date: Decimal("1.375")}})
+    converter = _converter(provider)
 
     first = await converter.convert_minor_units(10_00, base="USD", quote="CAD", rate_date=rate_date)
     second = await converter.convert_minor_units(20_00, base="USD", quote="CAD", rate_date=rate_date)
 
     assert first == 13_75
     assert second == 27_50
-    assert provider.calls == [("USD", "CAD", rate_date)]
+    assert provider.calls == [("USD", "CAD", rate_date - RATE_LOOKBACK, rate_date)]
     assert converter.get_status().state == "complete"
 
 
 async def test_converter_reports_missing_pair_once():
     """Missing rates are memoized as failures and reported in detail."""
     rate_date = date(2026, 5, 30)
-    provider = FakeProvider(errors={("ABC", "CAD", rate_date): FxRateNotFoundError()})
+    provider = FakeProvider(errors={("ABC", "CAD"): FxRateNotFoundError()})
     converter = FxConverter(
         provider=provider,
         currency_exponents={"ABC": 2, "CAD": 2},
@@ -52,7 +61,7 @@ async def test_converter_reports_missing_pair_once():
 
     assert first is None
     assert second is None
-    assert provider.calls == [("ABC", "CAD", rate_date)]
+    assert len(provider.calls) == 1
     assert converter.get_status() == FxStatus(
         state="incomplete",
         missing_pairs=[FxRateIssue(base="ABC", quote="CAD")],
@@ -61,14 +70,10 @@ async def test_converter_reports_missing_pair_once():
 
 async def test_converter_reports_provider_unavailable_when_all_fx_fails():
     """Provider failures mark the whole FX calculation unavailable when nothing converts."""
-    rate_date = date(2026, 5, 30)
-    provider = FakeProvider(errors={("USD", "CAD", rate_date): FxProviderUnavailableError()})
-    converter = FxConverter(
-        provider=provider,
-        currency_exponents={"USD": 2, "CAD": 2},
-    )
+    provider = FakeProvider(errors={("USD", "CAD"): FxProviderUnavailableError()})
+    converter = _converter(provider)
 
-    converted = await converter.convert_minor_units(10_00, base="USD", quote="CAD", rate_date=rate_date)
+    converted = await converter.convert_minor_units(10_00, base="USD", quote="CAD", rate_date=date(2026, 5, 30))
 
     assert converted is None
     assert converter.get_status() == FxStatus(
@@ -81,18 +86,8 @@ async def test_converter_prefetches_range_rates_once():
     """Prefetched date-window rates avoid per-day provider lookups."""
     start_date = date(2026, 5, 29)
     end_date = date(2026, 5, 30)
-    provider = FakeProvider(
-        rate_ranges={
-            ("USD", "CAD", start_date, end_date): {
-                start_date: Decimal("1.37"),
-                end_date: Decimal("1.375"),
-            },
-        },
-    )
-    converter = FxConverter(
-        provider=provider,
-        currency_exponents={"USD": 2, "CAD": 2},
-    )
+    provider = FakeProvider({("USD", "CAD"): {start_date: Decimal("1.37"), end_date: Decimal("1.375")}})
+    converter = _converter(provider)
 
     await converter.prefetch_rates(base="USD", quote="CAD", start_date=start_date, end_date=end_date)
     first = await converter.convert_minor_units(10_00, base="USD", quote="CAD", rate_date=start_date)
@@ -100,25 +95,15 @@ async def test_converter_prefetches_range_rates_once():
 
     assert first == 13_70
     assert second == 13_75
-    assert provider.range_calls == [("USD", "CAD", start_date, end_date)]
-    assert provider.calls == []
+    assert provider.calls == [("USD", "CAD", start_date - RATE_LOOKBACK, end_date)]
 
 
 async def test_converter_reports_missing_prefetched_dates_when_used():
-    """Missing dates from a prefetched range are reported only when conversion needs them."""
+    """Dates with no rate in a prefetched range are reported only when conversion needs them."""
     start_date = date(2026, 5, 29)
     end_date = date(2026, 5, 30)
-    provider = FakeProvider(
-        rate_ranges={
-            ("USD", "CAD", start_date, end_date): {
-                end_date: Decimal("1.375"),
-            },
-        },
-    )
-    converter = FxConverter(
-        provider=provider,
-        currency_exponents={"USD": 2, "CAD": 2},
-    )
+    provider = FakeProvider({("USD", "CAD"): {end_date: Decimal("1.375")}})
+    converter = _converter(provider)
 
     await converter.prefetch_rates(base="USD", quote="CAD", start_date=start_date, end_date=end_date)
     unused_missing = await converter.convert_minor_units(0, base="USD", quote="CAD", rate_date=start_date)
@@ -129,58 +114,125 @@ async def test_converter_reports_missing_prefetched_dates_when_used():
     assert converter.get_status() == FxStatus(state="complete")
 
 
-@pytest.mark.parametrize("lookup", ["rate", "rates"])
+@pytest.mark.parametrize("lookup", ["convert", "prefetch"])
 async def test_converter_reports_a_rejected_lookup_as_a_missing_pair(lookup):
     """A request the provider refused leaves the amount out as a missing pair, never failing the panel"""
     rate_date = date(2026, 5, 30)
-    provider = FakeProvider(
-        errors={("USD", "CAD", rate_date): FxRateRejectedError()},
-        range_errors={("USD", "CAD", rate_date, rate_date): FxRateRejectedError()},
-    )
-    converter = FxConverter(
-        provider=provider,
-        currency_exponents={"USD": 2, "CAD": 2},
-    )
+    provider = FakeProvider(errors={("USD", "CAD"): FxRateRejectedError()})
+    converter = _converter(provider)
 
-    if lookup == "rates":
+    if lookup == "prefetch":
         await converter.prefetch_rates(base="USD", quote="CAD", start_date=rate_date, end_date=rate_date)
     converted = await converter.convert_minor_units(10_00, base="USD", quote="CAD", rate_date=rate_date)
 
     assert converted is None
-    assert len(provider.calls) + len(provider.range_calls) == 1
+    assert len(provider.calls) == 1
     assert converter.get_status() == FxStatus(
         state="incomplete",
         missing_pairs=[FxRateIssue(base="USD", quote="CAD")],
     )
 
 
+@pytest.mark.parametrize("lookup", ["convert", "prefetch"])
+async def test_converter_converts_a_day_with_no_rate_at_the_latest_earlier_rate(lookup):
+    """Today's rate is not published until the afternoon in Europe, so it takes the latest one before it
+
+    The day before has none either, so the rate two days back is the latest, not the older one
+    """
+    rate_date = date(2026, 5, 30)
+    provider = FakeProvider({("USD", "CAD"): {rate_date - timedelta(days=3): Decimal("1.20"), rate_date - timedelta(days=2): Decimal("1.30")}})
+    converter = _converter(provider)
+
+    if lookup == "prefetch":
+        await converter.prefetch_rates(base="USD", quote="CAD", start_date=rate_date - timedelta(days=1), end_date=rate_date)
+    converted = await converter.convert_minor_units(10_00, base="USD", quote="CAD", rate_date=rate_date)
+
+    assert converted == 13_00
+    assert converter.get_status() == FxStatus(state="complete")
+
+
+@pytest.mark.parametrize("lookup", ["convert", "prefetch"])
+@pytest.mark.parametrize(("days_back", "is_converted"), [(7, True), (8, False)])
+async def test_converter_looks_back_a_week_and_no_further(lookup, days_back, is_converted):
+    """A rate published 7 days before the day is used, and one 8 days before is a missing rate"""
+    rate_date = date(2026, 5, 30)
+    provider = FakeProvider({("USD", "CAD"): {rate_date - timedelta(days=days_back): Decimal("1.30")}})
+    converter = _converter(provider)
+
+    if lookup == "prefetch":
+        await converter.prefetch_rates(base="USD", quote="CAD", start_date=rate_date, end_date=rate_date)
+    converted = await converter.convert_minor_units(10_00, base="USD", quote="CAD", rate_date=rate_date)
+
+    assert converted == (13_00 if is_converted else None)
+    assert converter.get_status() == (
+        FxStatus(state="complete") if is_converted else FxStatus(state="incomplete", missing_pairs=[FxRateIssue(base="USD", quote="CAD")])
+    )
+
+
+async def test_converter_never_uses_a_rate_published_after_the_day():
+    """A day before the first published rate has none, even with a rate published the next day"""
+    rate_date = date(2026, 5, 30)
+    provider = FakeProvider({("USD", "CAD"): {rate_date - timedelta(days=1): Decimal("1.30")}})
+    converter = _converter(provider)
+
+    await converter.prefetch_rates(base="USD", quote="CAD", start_date=rate_date - timedelta(days=2), end_date=rate_date)
+    before_rate = await converter.convert_minor_units(10_00, base="USD", quote="CAD", rate_date=rate_date - timedelta(days=2))
+    on_rate = await converter.convert_minor_units(10_00, base="USD", quote="CAD", rate_date=rate_date - timedelta(days=1))
+
+    assert before_rate is None
+    assert on_rate == 13_00
+
+
+async def test_converter_measures_the_lookback_from_each_day_of_a_range():
+    """In one range the earlier day is 7 days after the rate and converts, the later is 8 days after and does not"""
+    end_date = date(2026, 5, 30)
+    provider = FakeProvider({("USD", "CAD"): {end_date - timedelta(days=8): Decimal("1.30")}})
+    converter = _converter(provider)
+
+    await converter.prefetch_rates(base="USD", quote="CAD", start_date=end_date - timedelta(days=1), end_date=end_date)
+    earlier = await converter.convert_minor_units(10_00, base="USD", quote="CAD", rate_date=end_date - timedelta(days=1))
+    later = await converter.convert_minor_units(10_00, base="USD", quote="CAD", rate_date=end_date)
+
+    assert earlier == 13_00
+    assert later is None
+
+
+def test_converter_clone_copies_loaded_rates_and_failures_without_sharing_them():
+    """A clone starts with the loaded rates and failures, and later changes to either converter stay apart"""
+    shared = _converter(FakeProvider())
+    rate_key = FxRateKey(date(2026, 3, 15), "USD", "CAD")
+    failed_key = FxRateKey(date(2026, 3, 16), "USD", "CAD")
+    shared.rates[rate_key] = Decimal("1.35")
+    shared.failed_rates[failed_key] = "rate_not_found"
+
+    clone = shared.clone()
+
+    assert clone.provider is shared.provider
+    assert clone.currency_exponents == shared.currency_exponents
+    assert clone.rates == {rate_key: Decimal("1.35")}
+    assert clone.failed_rates == {failed_key: "rate_not_found"}
+
+    clone.rates.clear()
+    clone.failed_rates.clear()
+
+    assert shared.rates == {rate_key: Decimal("1.35")}
+    assert shared.failed_rates == {failed_key: "rate_not_found"}
+
+
+async def test_converter_clone_starts_with_its_own_status():
+    """A metric's missing pair does not leak into the status of a converter cloned from the same prefetch"""
+    shared = _converter(FakeProvider(errors={("USD", "CAD"): FxRateNotFoundError()}))
+    await shared.convert_minor_units(10_00, base="USD", quote="CAD", rate_date=date(2026, 5, 30))
+
+    clone = shared.clone()
+
+    assert shared.get_status().state == "incomplete"
+    assert clone.get_status() == FxStatus(state="none")
+
+
 def test_convert_minor_units_handles_currency_exponents_and_rounding():
     """Minor-unit conversion respects source and target currency exponents."""
     assert convert_minor_units(123, rate=Decimal("0.0091"), base_exponent=0, quote_exponent=2) == 112
-
-
-async def test_frankfurter_provider_uses_configured_url_and_date():
-    """FrankfurterProvider calls the configured single-pair endpoint."""
-    seen_url = None
-
-    def handler(request: httpx.Request) -> httpx.Response:
-        nonlocal seen_url
-        seen_url = request.url
-        return httpx.Response(200, json={"date": "2026-05-30", "base": "USD", "quote": "CAD", "rate": 1.375})
-
-    async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as client:
-        rate = await FrankfurterProvider(url="https://fx.example.test/v2/", client=client).get_rate(
-            "usd",
-            "cad",
-            date(2026, 5, 30),
-        )
-
-    assert rate == Decimal("1.375")
-    assert seen_url is not None
-    assert seen_url.scheme == "https"
-    assert seen_url.host == "fx.example.test"
-    assert seen_url.path == "/v2/rate/USD/CAD"
-    assert seen_url.params["date"] == "2026-05-30"
 
 
 async def test_frankfurter_provider_uses_configured_url_for_rate_range():
@@ -190,13 +242,7 @@ async def test_frankfurter_provider_uses_configured_url_for_rate_range():
     def handler(request: httpx.Request) -> httpx.Response:
         nonlocal seen_url
         seen_url = request.url
-        return httpx.Response(
-            200,
-            json=[
-                {"date": "2026-05-29", "base": "USD", "quote": "CAD", "rate": 1.37},
-                {"date": "2026-05-30", "base": "USD", "quote": "CAD", "rate": 1.375},
-            ],
-        )
+        return httpx.Response(200, json=_series(("2026-05-29", 1.37), ("2026-05-30", 1.375)))
 
     async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as client:
         rates = await FrankfurterProvider(url="https://fx.example.test/v2/", client=client).get_rates(
@@ -220,36 +266,6 @@ async def test_frankfurter_provider_uses_configured_url_for_rate_range():
     assert seen_url.params["to"] == "2026-05-30"
 
 
-async def test_frankfurter_provider_retries_single_rate_failure(monkeypatch):
-    """FrankfurterProvider retries a failed single-rate lookup before returning a successful rate"""
-    calls = 0
-    sleep_calls: list[float] = []
-
-    async def fake_sleep(delay: float) -> None:
-        """Record retry delays without waiting"""
-        sleep_calls.append(delay)
-
-    def handler(request: httpx.Request) -> httpx.Response:
-        nonlocal calls
-        calls += 1
-        if calls == 1:
-            return httpx.Response(503)
-        return httpx.Response(200, json={"date": "2026-05-30", "base": "USD", "quote": "CAD", "rate": 1.375})
-
-    monkeypatch.setattr("app.services.fx.frankfurter_provider.asyncio.sleep", fake_sleep)
-
-    async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as client:
-        rate = await FrankfurterProvider(url="https://fx.example.test/v2/", client=client).get_rate(
-            "USD",
-            "CAD",
-            date(2026, 5, 30),
-        )
-
-    assert rate == Decimal("1.375")
-    assert calls == 2
-    assert sleep_calls == [DEFAULT_FX_PROVIDER_RETRY_DELAY_SECONDS]
-
-
 async def test_frankfurter_provider_retries_rate_range_failure(monkeypatch):
     """FrankfurterProvider retries failed range lookups before returning successful rates"""
     calls = 0
@@ -264,13 +280,7 @@ async def test_frankfurter_provider_retries_rate_range_failure(monkeypatch):
         calls += 1
         if calls < 3:
             return httpx.Response(503)
-        return httpx.Response(
-            200,
-            json=[
-                {"date": "2026-05-29", "base": "USD", "quote": "CAD", "rate": 1.37},
-                {"date": "2026-05-30", "base": "USD", "quote": "CAD", "rate": 1.375},
-            ],
-        )
+        return httpx.Response(200, json=_series(("2026-05-29", 1.37), ("2026-05-30", 1.375)))
 
     monkeypatch.setattr("app.services.fx.frankfurter_provider.asyncio.sleep", fake_sleep)
 
@@ -311,9 +321,10 @@ async def test_frankfurter_provider_surfaces_final_lookup_error_after_three_atte
 
     async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as client:
         with pytest.raises(FxProviderUnavailableError):
-            await FrankfurterProvider(url="https://fx.example.test/v2/", client=client).get_rate(
+            await FrankfurterProvider(url="https://fx.example.test/v2/", client=client).get_rates(
                 "USD",
                 "CAD",
+                date(2026, 5, 29),
                 date(2026, 5, 30),
             )
 
@@ -328,26 +339,25 @@ async def test_frankfurter_provider_rejects_invalid_payload():
     """FrankfurterProvider does not accept malformed rate payloads."""
 
     def handler(request: httpx.Request) -> httpx.Response:
-        return httpx.Response(200, json={"date": "2026-05-30", "base": "EUR", "quote": "CAD", "rate": 1.375})
+        return httpx.Response(200, json=[{"date": "2026-05-30", "base": "EUR", "quote": "CAD", "rate": 1.375}])
 
     async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as client:
         with pytest.raises(FxRateResponseError):
-            await FrankfurterProvider(client=client, retry_delay_seconds=0).get_rate("USD", "CAD", date(2026, 5, 30))
+            await FrankfurterProvider(client=client, retry_delay_seconds=0).get_rates("USD", "CAD", date(2026, 5, 30), date(2026, 5, 30))
 
 
 async def test_frankfurter_provider_rejects_invalid_rate():
     """FrankfurterProvider requires a finite positive rate."""
 
     def handler(request: httpx.Request) -> httpx.Response:
-        return httpx.Response(200, json={"date": "2026-05-30", "base": "USD", "quote": "CAD", "rate": 0})
+        return httpx.Response(200, json=_series(("2026-05-30", 0)))
 
     async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as client:
         with pytest.raises(FxRateResponseError):
-            await FrankfurterProvider(client=client, retry_delay_seconds=0).get_rate("USD", "CAD", date(2026, 5, 30))
+            await FrankfurterProvider(client=client, retry_delay_seconds=0).get_rates("USD", "CAD", date(2026, 5, 30), date(2026, 5, 30))
 
 
-@pytest.mark.parametrize("lookup", ["rate", "rates"])
-async def test_frankfurter_provider_asks_once_for_an_unknown_pair(lookup):
+async def test_frankfurter_provider_asks_once_for_an_unknown_pair():
     """An unknown currency is a final answer, so one bad pair costs one request, not three"""
     calls = 0
 
@@ -359,17 +369,13 @@ async def test_frankfurter_provider_asks_once_for_an_unknown_pair(lookup):
     async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as client:
         provider = FrankfurterProvider(url="https://fx.example.test/v2/", client=client, retry_delay_seconds=0)
         with pytest.raises(FxRateNotFoundError):
-            if lookup == "rate":
-                await provider.get_rate("ABC", "CAD", date(2026, 5, 30))
-            else:
-                await provider.get_rates("ABC", "CAD", date(2026, 5, 29), date(2026, 5, 30))
+            await provider.get_rates("ABC", "CAD", date(2026, 5, 29), date(2026, 5, 30))
 
     assert calls == 1
 
 
-@pytest.mark.parametrize("lookup", ["rate", "rates"])
 @pytest.mark.parametrize("status_code", [400, 403, 422])
-async def test_frankfurter_provider_tells_a_rejected_request_from_a_missing_rate(lookup, status_code):
+async def test_frankfurter_provider_tells_a_rejected_request_from_a_missing_rate(status_code):
     """Only a 404 is the provider saying it has no rate. Any other client error is a rejection
 
     Callers still read a rejection as a missing rate, since it is a kind of one, but the cache must
@@ -383,14 +389,10 @@ async def test_frankfurter_provider_tells_a_rejected_request_from_a_missing_rate
     async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as client:
         provider = FrankfurterProvider(url="https://fx.example.test/v2/", client=client, retry_delay_seconds=0)
         with pytest.raises(FxRateRejectedError):
-            if lookup == "rate":
-                await provider.get_rate("USD", "CAD", date(2026, 5, 30))
-            else:
-                await provider.get_rates("USD", "CAD", date(2026, 5, 29), date(2026, 5, 30))
+            await provider.get_rates("USD", "CAD", date(2026, 5, 29), date(2026, 5, 30))
 
 
-@pytest.mark.parametrize("lookup", ["rate", "rates"])
-async def test_frankfurter_provider_reports_a_404_as_a_plain_missing_rate(lookup):
+async def test_frankfurter_provider_reports_a_404_as_a_plain_missing_rate():
     """A 404 raises the missing-rate error itself, not the rejection that subclasses it"""
 
     def handler(request: httpx.Request) -> httpx.Response:
@@ -399,10 +401,7 @@ async def test_frankfurter_provider_reports_a_404_as_a_plain_missing_rate(lookup
     async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as client:
         provider = FrankfurterProvider(url="https://fx.example.test/v2/", client=client, retry_delay_seconds=0)
         with pytest.raises(FxRateNotFoundError) as raised:
-            if lookup == "rate":
-                await provider.get_rate("USD", "CAD", date(2026, 5, 30))
-            else:
-                await provider.get_rates("USD", "CAD", date(2026, 5, 29), date(2026, 5, 30))
+            await provider.get_rates("USD", "CAD", date(2026, 5, 29), date(2026, 5, 30))
 
     assert type(raised.value) is FxRateNotFoundError
 
@@ -418,7 +417,7 @@ async def test_frankfurter_provider_treats_rate_limiting_as_unavailable():
 
     async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as client:
         with pytest.raises(FxProviderUnavailableError):
-            await FrankfurterProvider(client=client, retry_delay_seconds=0).get_rate("USD", "CAD", date(2026, 5, 30))
+            await FrankfurterProvider(client=client, retry_delay_seconds=0).get_rates("USD", "CAD", date(2026, 5, 30), date(2026, 5, 30))
 
     assert calls == 3
 
@@ -447,7 +446,7 @@ async def test_frankfurter_provider_stops_retrying_once_the_request_budget_is_sp
 
     async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as client:
         with use_lookup_budget(budget), pytest.raises(FxProviderUnavailableError):
-            await FrankfurterProvider(client=client).get_rate("USD", "CAD", date(2026, 5, 30))
+            await FrankfurterProvider(client=client).get_rates("USD", "CAD", date(2026, 5, 30), date(2026, 5, 30))
 
     # 2 s, a 0.5 s pause, then 2 s of the 2.5 s left, leaving no room for another pause and try
     assert attempt_timeouts == [5.0, 2.5]
@@ -461,14 +460,14 @@ async def test_frankfurter_provider_makes_no_request_once_the_budget_is_spent():
     def handler(request: httpx.Request) -> httpx.Response:
         nonlocal calls
         calls += 1
-        return httpx.Response(200, json={"date": "2026-05-30", "base": "USD", "quote": "CAD", "rate": 1.375})
+        return httpx.Response(200, json=_series(("2026-05-30", 1.375)))
 
     budget = FxLookupBudget()
     budget.charge(budget.seconds)
 
     async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as client:
         with use_lookup_budget(budget), pytest.raises(FxProviderUnavailableError):
-            await FrankfurterProvider(client=client).get_rate("USD", "CAD", date(2026, 5, 30))
+            await FrankfurterProvider(client=client).get_rates("USD", "CAD", date(2026, 5, 30), date(2026, 5, 30))
 
     assert calls == 0
 
@@ -479,9 +478,9 @@ async def test_frankfurter_provider_gives_up_on_an_answer_slower_than_the_attemp
     async def handler(request: httpx.Request) -> httpx.Response:
         # The mock transport ignores httpx's own timeouts, as a slowly trickling answer can
         await asyncio.sleep(0.5)
-        return httpx.Response(200, json={"date": "2026-05-30", "base": "USD", "quote": "CAD", "rate": 1.375})
+        return httpx.Response(200, json=_series(("2026-05-30", 1.375)))
 
     async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as client:
         provider = FrankfurterProvider(client=client, timeout=0.05, retry_attempts=1)
         with pytest.raises(FxProviderUnavailableError):
-            await provider.get_rate("USD", "CAD", date(2026, 5, 30))
+            await provider.get_rates("USD", "CAD", date(2026, 5, 30), date(2026, 5, 30))

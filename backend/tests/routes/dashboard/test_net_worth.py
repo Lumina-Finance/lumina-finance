@@ -128,7 +128,7 @@ async def test_dashboard_net_worth_converts_foreign_currency_accounts(client, mo
     assert data["current_net_worth"] == 400_00
     assert data["net_worth_history"] == [0, 400_00]
     assert data["fx_status"] == {"state": "complete", "missing_pairs": []}
-    assert calls == [("USD", "CAD", date(2026, 3, 19), date(2026, 3, 20))]
+    assert calls == [("USD", "CAD", date(2026, 3, 12), date(2026, 3, 20))]
 
 
 async def test_dashboard_net_worth_reports_incomplete_fx_with_missing_pairs(client, monkeypatch):
