@@ -5,7 +5,8 @@
  * figures were cut off at the panel's edge with a very large amount. The Net cash flow and Period
  * Glance headlines also showed a very large total at full size for a frame on first load before
  * shrinking it to fit, and the Period Glance headline did the same after a range change. A window
- * narrowed under a fitted headline could also show it running past its panel for a frame
+ * narrowed under a fitted headline could also show it running past its panel for a frame. The Income
+ * and Expenses figures also ran past their half of the panel at 360px wide and narrower
  */
 import { expect, test, type APIRequestContext, type Locator, type Page } from '@playwright/test'
 
@@ -16,6 +17,10 @@ import { card, matchesApi, navigate } from '../support/insights'
 // Runs on desktop only: each case sets the width it checks itself
 
 const PHONE = { width: 390, height: 844 }
+
+// A common Android width, narrower than the two halves of the Income and Expenses row can fit the
+// longest amount in, so the figures stack and keep their full size
+const SMALL_PHONE = { width: 360, height: 800 }
 const DESKTOP = { width: 1280, height: 800 }
 
 // The size the Net cash flow headline takes whenever its total fits, `text-3xl`
@@ -113,6 +118,7 @@ const PERIOD_GLANCE_SPLIT = { width: 750, height: 1024 }
 const PERIOD_GLANCE_FIGURE_CASES = [
   { name: 'very large amounts on a phone', currency: 'IQD', income: 1_246_913_569_002, expense: 1_246_913_569_001, incomeText: /^IQD\s1,246,913,569\.002$/, expensesText: /^IQD\s1,246,913,569\.001$/, viewport: PHONE, fullSize: false },
   { name: 'very large expenses beside ordinary income on a phone', currency: 'IQD', income: 5_000, expense: 1_246_913_569_001, incomeText: /^IQD\s5\.000$/, expensesText: /^IQD\s1,246,913,569\.001$/, viewport: PHONE, fullSize: false },
+  { name: 'very large amounts on a small phone', currency: 'IQD', income: 1_246_913_569_002, expense: 1_246_913_569_001, incomeText: /^IQD\s1,246,913,569\.002$/, expensesText: /^IQD\s1,246,913,569\.001$/, viewport: SMALL_PHONE, fullSize: true },
   { name: 'ordinary amounts on a phone', currency: 'CAD', income: 125_000, expense: 5_000, incomeText: /^(CA)?\$1,250\.00$/, expensesText: /^(CA)?\$50\.00$/, viewport: PHONE, fullSize: true },
   { name: 'very large amounts where the panel splits', currency: 'IQD', income: 1_246_913_569_002, expense: 1_246_913_569_001, incomeText: /^IQD\s1,246,913,569\.002$/, expensesText: /^IQD\s1,246,913,569\.001$/, viewport: PERIOD_GLANCE_SPLIT, fullSize: true },
 ]
