@@ -102,7 +102,12 @@ const ROW_CLASS_NAME =
 
 // A row with details is a grid, since a flex row would size itself to the full width of its text and
 // push the dialog wider than its panel, where a grid track that may shrink to nothing lets the text cut off
-const DETAILS_ROW_CLASS_NAME = 'grid grid-cols-[1.25rem_minmax(0,1fr)_1rem] gap-x-2'
+const DETAILS_ROW_CLASS_NAME = 'grid grid-cols-[2.25rem_minmax(0,1fr)_1rem] gap-x-2'
+
+// The logo of a row with details is as tall as the two lines beside it, a 1.25rem label line and a 1rem
+// type line, and stays square
+const LOGO_CLASS_NAME = 'h-5 w-5 rounded-md'
+const DETAILS_LOGO_CLASS_NAME = 'h-9 w-9 rounded-lg'
 
 /**
  * Renders one checklist row, showing the option icon, its label, and a trailing check when selected,
@@ -120,6 +125,8 @@ function ChecklistRow({
   onToggle: (value: string) => void
 }) {
   const { details } = option
+  const rowStyle = getFilterOptionStyle(selected, hasDetails)
+  const logoClassName = hasDetails ? DETAILS_LOGO_CLASS_NAME : LOGO_CLASS_NAME
 
   return (
     <li>
@@ -130,7 +137,7 @@ function ChecklistRow({
         onClick={() => onToggle(option.value)}
         className={joinClassNames(ROW_CLASS_NAME, hasDetails ? DETAILS_ROW_CLASS_NAME : 'flex gap-2')}
         // A list with details sits straight on its dialog's page colour, where the selected tint needs the darker text
-        style={getFilterOptionStyle(selected, hasDetails)}
+        style={rowStyle}
       >
         {option.imageUrl ? (
           <img
@@ -138,11 +145,11 @@ function ChecklistRow({
             alt=""
             aria-hidden
             loading="lazy"
-            className="h-5 w-5 shrink-0 rounded-md object-contain"
+            className={joinClassNames('shrink-0 object-contain', logoClassName)}
           />
         ) : hasDetails ? (
           <span
-            className="flex h-5 w-5 shrink-0 items-center justify-center rounded-md text-xs font-semibold"
+            className={joinClassNames('flex shrink-0 items-center justify-center text-sm font-semibold', logoClassName)}
             style={{ background: 'var(--app-accent-soft)', border: '1px solid var(--app-border)', color: 'var(--app-accent-on-page-tint)' }}
             aria-hidden
           >
@@ -162,7 +169,7 @@ function ChecklistRow({
                 inherits the row's colour when selected would jump to the row's colour as it was before easing from it */}
             <span
               className="block truncate text-xs transition-colors duration-150"
-              style={{ color: selected ? getFilterOptionStyle(true, hasDetails).color : 'var(--app-text-muted)' }}
+              style={{ color: selected ? rowStyle.color : 'var(--app-text-muted)' }}
             >
               {details.institution ? `${details.type} · ${details.institution}` : details.type}
             </span>
