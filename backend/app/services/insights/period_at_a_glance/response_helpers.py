@@ -28,15 +28,17 @@ def build_period_at_a_glance_response(
         Period At A Glance response payload
     """
     top_category_name = None
-    top_category_share_pct = None
+    top_category_amount = None
+    top_category_expense_total = None
     if category_highlights.top_category is not None:
-        top_category_name, top_category_share_pct = category_highlights.top_category
+        top_category_name, top_category_amount, top_category_expense_total = category_highlights.top_category
 
     biggest_change_name = None
     biggest_change_amount = None
-    biggest_change_pct = None
+    biggest_change_basis = None
+    biggest_change_kind = None
     if category_highlights.biggest_change is not None:
-        biggest_change_name, biggest_change_amount, biggest_change_pct = category_highlights.biggest_change
+        biggest_change_name, biggest_change_amount, biggest_change_basis, biggest_change_kind = category_highlights.biggest_change
 
     return InsightsPeriodAtAGlanceResponse(
         income=income,
@@ -45,10 +47,12 @@ def build_period_at_a_glance_response(
         net_worth_change=net_worth_change,
         net_worth_change_fx_status=net_worth_change_fx_status,
         top_category_name=top_category_name,
-        top_category_share_pct=top_category_share_pct,
+        top_category_amount=top_category_amount,
+        top_category_expense_total=top_category_expense_total,
         top_category_fx_status=category_highlights.top_category_fx_status,
         biggest_change_name=biggest_change_name,
         biggest_change_amount=biggest_change_amount,
-        biggest_change_pct=biggest_change_pct,
+        biggest_change_basis=biggest_change_basis,
+        biggest_change_kind=biggest_change_kind,
         biggest_change_fx_status=category_highlights.biggest_change_fx_status,
     )

@@ -3,7 +3,22 @@
  * for from whole minor units, and an exact value is never moved by a floating-point quotient
  */
 import { describe, expect, it } from 'vitest'
-import { divideRounded, getRoundedPercent } from '@/utils/rounding'
+import { divideRounded, getChangePercent, getRoundedPercent } from '@/utils/rounding'
+
+describe('change in percent', () => {
+  it('rounds a rise and a fall by the direction given, working from the signed change', () => {
+    // 1,001 against 1,000 is +0.1%, and 995 against 1,000 is -0.5%
+    expect(getChangePercent(1_001, 1_000, 'up')).toBe(1)
+    expect(getChangePercent(1_001, 1_000, 'down')).toBe(0)
+    expect(getChangePercent(995, 1_000, 'up')).toBe(0)
+    expect(getChangePercent(995, 1_000, 'down')).toBe(-1)
+  })
+
+  it('has no change to give when there is nothing to compare with', () => {
+    expect(getChangePercent(500, 0, 'up')).toBeNull()
+    expect(getChangePercent(500, -100, 'down')).toBeNull()
+  })
+})
 
 describe('rounded division', () => {
   it('rounds a negative quotient by its signed value', () => {

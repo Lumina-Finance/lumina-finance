@@ -28,8 +28,8 @@ afterEach(() => {
 /** Creates the combined distribution and ranking response using CAD minor units */
 function createMerchantSummary(amount = 10000): InsightsMerchantsResponse {
   return {
-    distribution: [['costco', 'Costco', amount, null, null]],
-    ranking: [['costco', 'Costco', amount, 1, null]],
+    distribution: [['costco', 'Costco', amount, amount]],
+    ranking: [['costco', 'Costco', amount, 1, 0]],
     fx_status: { state: 'complete', missing_pairs: [] },
   };
 }

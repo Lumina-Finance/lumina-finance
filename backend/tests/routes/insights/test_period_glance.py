@@ -124,11 +124,13 @@ async def test_period_glance_returns_compact_period_summary(client):
         "net_worth_change": 6_320_000,
         "net_worth_change_fx_status": {"state": "none", "missing_pairs": []},
         "top_category_name": "Groceries",
-        "top_category_share_pct": 88,
+        "top_category_amount": 420_000,
+        "top_category_expense_total": 480_000,
         "top_category_fx_status": {"state": "none", "missing_pairs": []},
         "biggest_change_name": "Groceries",
         "biggest_change_amount": 380_000,
-        "biggest_change_pct": 950,
+        "biggest_change_basis": 40_000,
+        "biggest_change_kind": "expense",
         "biggest_change_fx_status": {"state": "none", "missing_pairs": []},
     }
 
@@ -207,12 +209,13 @@ async def test_period_glance_converts_foreign_income_and_expenses_and_signs_liab
     assert data["net_worth_change"] == 6_050_000
     assert data["net_worth_change_fx_status"] == {"state": "complete", "missing_pairs": []}
     assert data["top_category_name"] == "Food"
-    assert data["top_category_share_pct"] == 100
+    assert data["top_category_amount"] == 1_070_000
+    assert data["top_category_expense_total"] == 1_070_000
     assert data["top_category_fx_status"] == {"state": "complete", "missing_pairs": []}
     assert data["biggest_change_name"] == "Food"
     assert data["biggest_change_amount"] == 1_070_000
     assert data["biggest_change_fx_status"] == {"state": "complete", "missing_pairs": []}
-    assert "biggest_change_pct" not in data
+    assert "biggest_change_basis" not in data
 
 
 async def test_period_glance_income_expenses_report_incomplete_fx(client, monkeypatch):
@@ -311,7 +314,8 @@ async def test_period_glance_top_category_uses_converted_expense_totals(client, 
     assert resp.status_code == 200
     data = resp.json()
     assert data["top_category_name"] == "Travel"
-    assert data["top_category_share_pct"] == 57
+    assert data["top_category_amount"] == 135_000
+    assert data["top_category_expense_total"] == 235_000
     assert data["top_category_fx_status"] == {"state": "complete", "missing_pairs": []}
 
 
@@ -513,10 +517,11 @@ async def test_period_glance_handles_one_day_range_no_income_and_flat_category_c
     data = resp.json()
     assert data["income"] == 0
     assert data["expenses"] == 5_000
-    assert data["top_category_share_pct"] == 100
+    assert data["top_category_amount"] == 5_000
+    assert data["top_category_expense_total"] == 5_000
     assert data["biggest_change_name"] == "Utilities"
     assert data["biggest_change_amount"] == 0
-    assert data["biggest_change_pct"] == 0
+    assert data["biggest_change_basis"] == 5_000
 
 
 async def test_period_glance_nets_expense_refunds(client):
@@ -551,7 +556,8 @@ async def test_period_glance_nets_expense_refunds(client):
     assert data["income"] == 10_000
     assert data["expenses"] == 25_000
     assert data["top_category_name"] == "Medical"
-    assert data["top_category_share_pct"] == 100
+    assert data["top_category_amount"] == 25_000
+    assert data["top_category_expense_total"] == 25_000
 
 
 async def test_period_glance_routes_flipped_categories_to_opposite_side(client):
@@ -592,10 +598,11 @@ async def test_period_glance_routes_flipped_categories_to_opposite_side(client):
     assert data["income"] == 220_000
     assert data["expenses"] == 65_000
     assert data["top_category_name"] == "Groceries"
-    assert data["top_category_share_pct"] == 92
+    assert data["top_category_amount"] == 60_000
+    assert data["top_category_expense_total"] == 65_000
     assert data["biggest_change_name"] == "Groceries"
     assert data["biggest_change_amount"] == 60_000
-    assert "biggest_change_pct" not in data
+    assert "biggest_change_basis" not in data
 
 
 async def test_period_glance_counts_net_negative_income_categories_as_expenses(client):
@@ -629,10 +636,13 @@ async def test_period_glance_counts_net_negative_income_categories_as_expenses(c
     assert data["income"] == 300_000
     assert data["expenses"] == 80_000
     assert data["top_category_name"] == "Capital Gains"
-    assert data["top_category_share_pct"] == 100
+    assert data["top_category_amount"] == 80_000
+    assert data["top_category_expense_total"] == 80_000
     assert data["biggest_change_name"] == "Capital Gains"
     assert data["biggest_change_amount"] == -80_000
-    assert "biggest_change_pct" not in data
+    assert "biggest_change_basis" not in data
+    # A reversed income category is the one case the client must round the other way
+    assert data["biggest_change_kind"] == "income"
 
 
 async def test_period_glance_excludes_converted_resolved_income_loss(client, monkeypatch):
@@ -673,7 +683,7 @@ async def test_period_glance_excludes_converted_resolved_income_loss(client, mon
     assert data["biggest_change_fx_status"] == {"state": "complete", "missing_pairs": []}
     assert "biggest_change_name" not in data
     assert "biggest_change_amount" not in data
-    assert "biggest_change_pct" not in data
+    assert "biggest_change_basis" not in data
 
 
 async def test_period_glance_reports_vanished_over_refund_as_negative_change(client):
@@ -705,7 +715,7 @@ async def test_period_glance_reports_vanished_over_refund_as_negative_change(cli
     assert data["expenses"] == 0
     assert data["biggest_change_name"] == "Shopping"
     assert data["biggest_change_amount"] == -25_000
-    assert data["biggest_change_pct"] == -100
+    assert data["biggest_change_basis"] == 25_000
 
 
 async def test_period_glance_uses_stable_tie_breakers(client):
@@ -738,7 +748,8 @@ async def test_period_glance_uses_stable_tie_breakers(client):
     data = resp.json()
     assert data["expenses"] == 100_000
     assert data["top_category_name"] == "Alpha"
-    assert data["top_category_share_pct"] == 50
+    assert data["top_category_amount"] == 50_000
+    assert data["top_category_expense_total"] == 100_000
     assert data["biggest_change_name"] == "Alpha"
     assert data["biggest_change_amount"] == 50_000
 
@@ -771,10 +782,10 @@ async def test_period_glance_reports_previous_only_category_as_decrease(client):
     assert data["income"] == 0
     assert data["expenses"] == 0
     assert "top_category_name" not in data
-    assert "top_category_share_pct" not in data
+    assert "top_category_amount" not in data
     assert data["biggest_change_name"] == "Travel"
     assert data["biggest_change_amount"] == -90_000
-    assert data["biggest_change_pct"] == -100
+    assert data["biggest_change_basis"] == 90_000
 
 
 async def test_period_glance_returns_net_worth_change_without_period_transactions(client):
@@ -846,7 +857,8 @@ async def test_period_glance_compares_previous_calendar_year(client):
     data = resp.json()
     assert data["biggest_change_name"] == "Groceries"
     assert data["biggest_change_amount"] == 60_000
-    assert data["biggest_change_pct"] == 150
+    assert data["biggest_change_basis"] == 40_000
+    assert data["biggest_change_kind"] == "expense"
 
 
 async def test_period_glance_rejects_invalid_date_range(client):

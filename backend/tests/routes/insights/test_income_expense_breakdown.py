@@ -135,20 +135,20 @@ async def test_income_expense_breakdown_returns_limited_period_payload(client):
         "expense_total": 1_320_000,
         "income_total": 1_380_000,
         "expense_increases": [
-            [str(housing_id), "Housing", 880_000, 200_000, 340, 2],
-            [str(shopping_id), "Shopping", 70_000, 0, None, 1],
-            [str(groceries_id), "Groceries", 90_000, 30_000, 200, 1],
+            [str(housing_id), "Housing", 880_000, 200_000, 2],
+            [str(shopping_id), "Shopping", 70_000, 0, 1],
+            [str(groceries_id), "Groceries", 90_000, 30_000, 1],
         ],
         "expense_decreases": [
-            [str(old_utilities_id), "Old Utilities", 0, 55_000, -100, 0],
-            [str(dining_id), "Dining", 80_000, 120_000, -33, 1],
+            [str(old_utilities_id), "Old Utilities", 0, 55_000, 0],
+            [str(dining_id), "Dining", 80_000, 120_000, 1],
         ],
         "income_increases": [
-            [str(salary_id), "Salary", 1_200_000, 450_000, 167, 2],
-            [str(bonus_id), "Bonus", 80_000, 0, None, 1],
+            [str(salary_id), "Salary", 1_200_000, 450_000, 2],
+            [str(bonus_id), "Bonus", 80_000, 0, 1],
         ],
         "income_decreases": [
-            [str(freelance_id), "Freelance", 100_000, 120_000, -17, 1],
+            [str(freelance_id), "Freelance", 100_000, 120_000, 1],
         ],
         "fx_status": {"state": "none", "missing_pairs": []},
     }
@@ -212,9 +212,9 @@ async def test_income_expense_breakdown_converts_foreign_entries_by_transaction_
         "income": [[str(salary_id), "Salary", "income", 13_500]],
         "expense_total": 11_000,
         "income_total": 13_500,
-        "expense_increases": [[str(food_id), "Food", 11_000, 2_400, 358, 2]],
+        "expense_increases": [[str(food_id), "Food", 11_000, 2_400, 2]],
         "expense_decreases": [],
-        "income_increases": [[str(salary_id), "Salary", 13_500, 6_000, 125, 3]],
+        "income_increases": [[str(salary_id), "Salary", 13_500, 6_000, 3]],
         "income_decreases": [],
         "fx_status": {"state": "complete", "missing_pairs": []},
     }
@@ -264,7 +264,7 @@ async def test_income_expense_breakdown_reports_incomplete_fx_with_missing_pairs
         "income_total": 100_000,
         "expense_increases": [],
         "expense_decreases": [],
-        "income_increases": [[str(salary_id), "Salary", 100_000, 0, None, 1]],
+        "income_increases": [[str(salary_id), "Salary", 100_000, 0, 1]],
         "income_decreases": [],
         "fx_status": {
             "state": "incomplete",
@@ -324,9 +324,9 @@ async def test_income_expense_breakdown_counts_category_crossovers_by_sign(clien
     ]
     assert data["expense_total"] == 120_000
     assert data["income_total"] == 240_000
-    assert data["income_decreases"] == [[str(capital_gains_id), "Capital Gains", 0, 20_000, -100, 2]]
-    assert data["expense_increases"] == [[str(groceries_id), "Groceries", 60_000, 0, None, 2]]
-    assert data["expense_decreases"] == [[str(over_refund_id), "Over-refunded", 0, 30_000, -100, 2]]
+    assert data["income_decreases"] == [[str(capital_gains_id), "Capital Gains", 0, 20_000, 2]]
+    assert data["expense_increases"] == [[str(groceries_id), "Groceries", 60_000, 0, 2]]
+    assert data["expense_decreases"] == [[str(over_refund_id), "Over-refunded", 0, 30_000, 2]]
 
 
 async def test_income_expense_breakdown_does_not_emit_other_for_exact_limit(client):
@@ -393,7 +393,7 @@ async def test_income_expense_breakdown_one_day_range_compares_previous_one_day(
     assert resp.status_code == 200
     data = resp.json()
     assert data["expense"] == [[str(dining_id), "Dining", "expense", 70_000]]
-    assert data["expense_increases"] == [[str(dining_id), "Dining", 70_000, 20_000, 250, 1]]
+    assert data["expense_increases"] == [[str(dining_id), "Dining", 70_000, 20_000, 1]]
     assert data["expense_decreases"] == []
 
 
@@ -497,8 +497,8 @@ async def test_income_expense_breakdown_uses_stable_tie_breakers(client):
         [str(beta_id), "Beta", "expense", 50_000],
     ]
     assert data["expense_increases"] == [
-        [str(alpha_id), "Alpha", 50_000, 0, None, 1],
-        [str(beta_id), "Beta", 50_000, 0, None, 1],
+        [str(alpha_id), "Alpha", 50_000, 0, 1],
+        [str(beta_id), "Beta", 50_000, 0, 1],
     ]
 
 
@@ -533,7 +533,7 @@ async def test_income_expense_breakdown_compares_previous_calendar_month(client)
 
     assert resp.status_code == 200
     data = resp.json()
-    assert data["expense_increases"] == [[str(groceries_id), "Groceries", 100_000, 40_000, 150, 1]]
+    assert data["expense_increases"] == [[str(groceries_id), "Groceries", 100_000, 40_000, 1]]
 
 
 async def test_income_expense_breakdown_rejects_invalid_date_range(client):
@@ -618,7 +618,7 @@ async def test_income_expense_breakdown_compares_only_with_days_up_to_the_profil
     )
 
     assert resp.status_code == 200
-    assert resp.json()["expense_decreases"] == [[str(rent_id), "Rent", 0, 30_000, -100, 0]]
+    assert resp.json()["expense_decreases"] == [[str(rent_id), "Rent", 0, 30_000, 0]]
 
 
 async def test_income_expense_breakdown_requires_auth(client):

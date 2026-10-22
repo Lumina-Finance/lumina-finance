@@ -9,25 +9,8 @@ MERCHANT_DISTRIBUTION_LIMIT = 8
 MERCHANT_RANKING_LIMIT = 10
 
 
-MerchantDistributionRow = tuple[str, str, int, int | None, int | None]
-MerchantRankingRow = tuple[str, str, int, int, int | None]
-
-
-def _get_change_pct(current_amount: int, previous_amount: int) -> int | None:
-    """Return the rounded percent change when comparison spend exists
-
-    Args:
-        current_amount: Current-period merchant spend
-        previous_amount: Comparison-period merchant spend
-
-    Returns:
-        Rounded percentage change, or None when there is no positive previous amount
-    """
-    if previous_amount <= 0:
-        return None
-
-    change_pct = round(((current_amount - previous_amount) / previous_amount) * 100)
-    return change_pct
+MerchantDistributionRow = tuple[str, str, int, int | None]
+MerchantRankingRow = tuple[str, str, int, int, int]
 
 
 def get_merchant_distribution_rows(
@@ -60,14 +43,13 @@ def get_merchant_distribution_rows(
                 str(merchant_id),
                 stats.name,
                 stats.amount,
-                _get_change_pct(stats.amount, previous_amount),
                 stats.amount - previous_amount,
             )
         )
 
     other_amount = sum(stats.amount for _merchant_id, stats in remaining_entries)
     if other_amount > 0:
-        rows.append(("other-merchants", "Other", other_amount, None, None))
+        rows.append(("other-merchants", "Other", other_amount, None))
 
     return rows
 
@@ -92,7 +74,7 @@ def get_merchant_ranking_rows(
 
     rows: list[MerchantRankingRow] = []
 
-    # Build capped ranking rows with transaction counts and comparison percentage
+    # Build capped ranking rows with transaction counts and the comparison-period spend
     for merchant_id, stats in ranked_entries[:MERCHANT_RANKING_LIMIT]:
         previous_amount = previous_stats_by_id.get(merchant_id, MerchantSpendStats("", 0, 0)).amount
         rows.append(
@@ -101,7 +83,7 @@ def get_merchant_ranking_rows(
                 stats.name,
                 stats.amount,
                 stats.transaction_count,
-                _get_change_pct(stats.amount, previous_amount),
+                previous_amount,
             )
         )
     return rows

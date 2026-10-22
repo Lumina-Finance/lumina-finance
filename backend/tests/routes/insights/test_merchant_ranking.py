@@ -110,14 +110,14 @@ async def test_merchant_ranking_returns_ranked_rows_with_counts_and_changes(clie
     assert resp.status_code == 200
     assert resp.json() == {
         "merchants": [
-            [str(merchant_ids["Archived Merchant"]), "Archived Merchant", 999_999, 1, None],
-            [str(merchant_ids["Alpha Market"]), "Alpha Market", 100_000, 2, 100],
-            [str(merchant_ids["Beta Grocer"]), "Beta Grocer", 90_000, 1, -10],
-            [str(merchant_ids["Cafe Delta"]), "Cafe Delta", 80_000, 1, None],
-            [str(merchant_ids["Diner Echo"]), "Diner Echo", 70_000, 1, -22],
-            [str(merchant_ids["Fitness Foxtrot"]), "Fitness Foxtrot", 60_000, 1, None],
-            [str(merchant_ids["Gas Gamma"]), "Gas Gamma", 50_000, 1, None],
-            [str(merchant_ids["Hotel Indigo"]), "Hotel Indigo", 40_000, 1, None],
+            [str(merchant_ids["Archived Merchant"]), "Archived Merchant", 999_999, 1, 0],
+            [str(merchant_ids["Alpha Market"]), "Alpha Market", 100_000, 2, 50_000],
+            [str(merchant_ids["Beta Grocer"]), "Beta Grocer", 90_000, 1, 100_000],
+            [str(merchant_ids["Cafe Delta"]), "Cafe Delta", 80_000, 1, 0],
+            [str(merchant_ids["Diner Echo"]), "Diner Echo", 70_000, 1, 90_000],
+            [str(merchant_ids["Fitness Foxtrot"]), "Fitness Foxtrot", 60_000, 1, 0],
+            [str(merchant_ids["Gas Gamma"]), "Gas Gamma", 50_000, 1, 0],
+            [str(merchant_ids["Hotel Indigo"]), "Hotel Indigo", 40_000, 1, 0],
         ],
     }
 
@@ -152,7 +152,7 @@ async def test_merchant_ranking_does_not_emit_more_than_ten_rows(client):
 
     assert resp.status_code == 200
     assert resp.json()["merchants"] == [
-        [str(merchant_id), f"Merchant {index}", 10_000 * index, 1, None]
+        [str(merchant_id), f"Merchant {index}", 10_000 * index, 1, 0]
         for index, (merchant_id, _merchant_row) in list(reversed(list(enumerate(merchant_rows, start=1))))[:10]
     ]
 
@@ -187,8 +187,8 @@ async def test_merchant_ranking_uses_stable_tie_breakers(client):
 
     assert resp.status_code == 200
     assert resp.json()["merchants"] == [
-        [str(alpha_id), "Alpha Store", 50_000, 1, None],
-        [str(beta_id), "Beta Store", 50_000, 1, None],
+        [str(alpha_id), "Alpha Store", 50_000, 1, 0],
+        [str(beta_id), "Beta Store", 50_000, 1, 0],
     ]
 
 
@@ -221,7 +221,7 @@ async def test_merchant_ranking_one_day_range_compares_previous_one_day(client):
 
     assert resp.status_code == 200
     assert resp.json()["merchants"] == [
-        [str(merchant_id), "Cafe Delta", 50_000, 1, 150],
+        [str(merchant_id), "Cafe Delta", 50_000, 1, 20_000],
     ]
 
 

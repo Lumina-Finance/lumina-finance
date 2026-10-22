@@ -32,3 +32,19 @@ export function getRoundedPercent(
   const scale = 10 ** fractionDigits
   return divideRounded(Math.round(part) * 100 * scale, Math.round(whole), direction) / scale
 }
+
+/**
+ * Returns how far an amount moved from the amount it is compared with, as a percentage rounded in the
+ * given direction, or null when there is no positive amount to compare with
+ *
+ * The server sends the two amounts rather than a percentage, so the rounding follows the figure shown
+ * (a rise in spending rounds up, a rise in income down) instead of a nearest rounding made upstream
+ */
+export function getChangePercent(
+  current: number,
+  previous: number,
+  direction: RoundingDirection,
+): number | null {
+  if (previous <= 0) return null
+  return getRoundedPercent(current - previous, previous, direction)
+}
