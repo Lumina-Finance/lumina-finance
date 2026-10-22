@@ -19,7 +19,7 @@ services:
   # Installs the chosen @actual-app/api beside the seed, then runs it inside the compose network,
   # writing the exports, manifests and run details to output/
   seed:
-    image: node:26-slim
+    image: node:26.12.1-slim
     profiles: [seed]
     depends_on:
       actual:
