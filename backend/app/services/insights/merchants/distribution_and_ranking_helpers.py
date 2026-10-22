@@ -55,13 +55,15 @@ def get_merchant_distribution_rows(
     # Build visible merchant rows with comparison movement values
     for merchant_id, stats in visible_entries:
         previous_amount = previous_stats_by_id.get(merchant_id, MerchantSpendStats("", 0, 0)).amount
-        rows.append((
-            str(merchant_id),
-            stats.name,
-            stats.amount,
-            _get_change_pct(stats.amount, previous_amount),
-            stats.amount - previous_amount,
-        ))
+        rows.append(
+            (
+                str(merchant_id),
+                stats.name,
+                stats.amount,
+                _get_change_pct(stats.amount, previous_amount),
+                stats.amount - previous_amount,
+            )
+        )
 
     other_amount = sum(stats.amount for _merchant_id, stats in remaining_entries)
     if other_amount > 0:
@@ -93,11 +95,13 @@ def get_merchant_ranking_rows(
     # Build capped ranking rows with transaction counts and comparison percentage
     for merchant_id, stats in ranked_entries[:MERCHANT_RANKING_LIMIT]:
         previous_amount = previous_stats_by_id.get(merchant_id, MerchantSpendStats("", 0, 0)).amount
-        rows.append((
-            str(merchant_id),
-            stats.name,
-            stats.amount,
-            stats.transaction_count,
-            _get_change_pct(stats.amount, previous_amount),
-        ))
+        rows.append(
+            (
+                str(merchant_id),
+                stats.name,
+                stats.amount,
+                stats.transaction_count,
+                _get_change_pct(stats.amount, previous_amount),
+            )
+        )
     return rows

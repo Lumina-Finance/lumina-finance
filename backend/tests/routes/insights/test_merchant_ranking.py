@@ -74,29 +74,31 @@ async def test_merchant_ranking_returns_ranked_rows_with_counts_and_changes(clie
     merchant_ids = {merchant.name: merchant_id for merchant_id, merchant in merchant_rows}
 
     async with TestSession() as session:
-        session.add_all([
-            expense,
-            income,
-            transfer,
-            *(merchant for _merchant_id, merchant in merchant_rows),
-            _transaction(user_id, account_id, expense_id, date(2026, 4, 10), -120_000, merchant_ids["Alpha Market"]),
-            _transaction(user_id, account_id, expense_id, date(2026, 4, 11), 20_000, merchant_ids["Alpha Market"]),
-            _transaction(user_id, account_id, expense_id, date(2026, 4, 10), -90_000, merchant_ids["Beta Grocer"]),
-            _transaction(user_id, account_id, expense_id, date(2026, 4, 10), -80_000, merchant_ids["Cafe Delta"]),
-            _transaction(user_id, account_id, expense_id, date(2026, 4, 10), -70_000, merchant_ids["Diner Echo"]),
-            _transaction(user_id, account_id, expense_id, date(2026, 4, 10), -60_000, merchant_ids["Fitness Foxtrot"]),
-            _transaction(user_id, account_id, expense_id, date(2026, 4, 10), -50_000, merchant_ids["Gas Gamma"]),
-            _transaction(user_id, account_id, expense_id, date(2026, 4, 10), -40_000, merchant_ids["Hotel Indigo"]),
-            _transaction(user_id, account_id, expense_id, date(2026, 4, 10), 30_000, merchant_ids["Refund Only"]),
-            _transaction(user_id, account_id, income_id, date(2026, 4, 10), -999_999, merchant_ids["Income Merchant"]),
-            _transaction(user_id, account_id, transfer_id, date(2026, 4, 10), -999_999, merchant_ids["Transfer Merchant"]),
-            _transaction(user_id, account_id, expense_id, date(2026, 4, 10), -999_999, None),
-            _transaction(user_id, archived_account_id, expense_id, date(2026, 4, 10), -999_999, merchant_ids["Archived Merchant"]),
-            _transaction(user_id, account_id, expense_id, date(2026, 3, 20), -50_000, merchant_ids["Alpha Market"]),
-            _transaction(user_id, account_id, expense_id, date(2026, 3, 20), -100_000, merchant_ids["Beta Grocer"]),
-            _transaction(user_id, account_id, expense_id, date(2026, 3, 20), -90_000, merchant_ids["Diner Echo"]),
-            _transaction(user_id, account_id, expense_id, date(2026, 3, 1), -999_999, merchant_ids["Alpha Market"]),
-        ])
+        session.add_all(
+            [
+                expense,
+                income,
+                transfer,
+                *(merchant for _merchant_id, merchant in merchant_rows),
+                _transaction(user_id, account_id, expense_id, date(2026, 4, 10), -120_000, merchant_ids["Alpha Market"]),
+                _transaction(user_id, account_id, expense_id, date(2026, 4, 11), 20_000, merchant_ids["Alpha Market"]),
+                _transaction(user_id, account_id, expense_id, date(2026, 4, 10), -90_000, merchant_ids["Beta Grocer"]),
+                _transaction(user_id, account_id, expense_id, date(2026, 4, 10), -80_000, merchant_ids["Cafe Delta"]),
+                _transaction(user_id, account_id, expense_id, date(2026, 4, 10), -70_000, merchant_ids["Diner Echo"]),
+                _transaction(user_id, account_id, expense_id, date(2026, 4, 10), -60_000, merchant_ids["Fitness Foxtrot"]),
+                _transaction(user_id, account_id, expense_id, date(2026, 4, 10), -50_000, merchant_ids["Gas Gamma"]),
+                _transaction(user_id, account_id, expense_id, date(2026, 4, 10), -40_000, merchant_ids["Hotel Indigo"]),
+                _transaction(user_id, account_id, expense_id, date(2026, 4, 10), 30_000, merchant_ids["Refund Only"]),
+                _transaction(user_id, account_id, income_id, date(2026, 4, 10), -999_999, merchant_ids["Income Merchant"]),
+                _transaction(user_id, account_id, transfer_id, date(2026, 4, 10), -999_999, merchant_ids["Transfer Merchant"]),
+                _transaction(user_id, account_id, expense_id, date(2026, 4, 10), -999_999, None),
+                _transaction(user_id, archived_account_id, expense_id, date(2026, 4, 10), -999_999, merchant_ids["Archived Merchant"]),
+                _transaction(user_id, account_id, expense_id, date(2026, 3, 20), -50_000, merchant_ids["Alpha Market"]),
+                _transaction(user_id, account_id, expense_id, date(2026, 3, 20), -100_000, merchant_ids["Beta Grocer"]),
+                _transaction(user_id, account_id, expense_id, date(2026, 3, 20), -90_000, merchant_ids["Diner Echo"]),
+                _transaction(user_id, account_id, expense_id, date(2026, 3, 1), -999_999, merchant_ids["Alpha Market"]),
+            ]
+        )
         await session.commit()
 
     resp = await client.get(
@@ -130,14 +132,16 @@ async def test_merchant_ranking_does_not_emit_more_than_ten_rows(client):
     merchant_rows = [_merchant(user_id, f"Merchant {index}") for index in range(1, 12)]
 
     async with TestSession() as session:
-        session.add_all([
-            expense,
-            *(merchant for _merchant_id, merchant in merchant_rows),
-            *(
-                _transaction(user_id, account_id, expense_id, date(2026, 5, index), -(10_000 * index), merchant_id)
-                for index, (merchant_id, _merchant_row) in enumerate(merchant_rows, start=1)
-            ),
-        ])
+        session.add_all(
+            [
+                expense,
+                *(merchant for _merchant_id, merchant in merchant_rows),
+                *(
+                    _transaction(user_id, account_id, expense_id, date(2026, 5, index), -(10_000 * index), merchant_id)
+                    for index, (merchant_id, _merchant_row) in enumerate(merchant_rows, start=1)
+                ),
+            ]
+        )
         await session.commit()
 
     resp = await client.get(
@@ -164,13 +168,15 @@ async def test_merchant_ranking_uses_stable_tie_breakers(client):
     alpha_id, alpha = _merchant(user_id, "Alpha Store")
 
     async with TestSession() as session:
-        session.add_all([
-            expense,
-            beta,
-            alpha,
-            _transaction(user_id, account_id, expense_id, date(2026, 6, 3), -50_000, beta_id),
-            _transaction(user_id, account_id, expense_id, date(2026, 6, 4), -50_000, alpha_id),
-        ])
+        session.add_all(
+            [
+                expense,
+                beta,
+                alpha,
+                _transaction(user_id, account_id, expense_id, date(2026, 6, 3), -50_000, beta_id),
+                _transaction(user_id, account_id, expense_id, date(2026, 6, 4), -50_000, alpha_id),
+            ]
+        )
         await session.commit()
 
     resp = await client.get(
@@ -196,13 +202,15 @@ async def test_merchant_ranking_one_day_range_compares_previous_one_day(client):
     merchant_id, merchant = _merchant(user_id, "Cafe Delta")
 
     async with TestSession() as session:
-        session.add_all([
-            expense,
-            merchant,
-            _transaction(user_id, account_id, expense_id, date(2026, 7, 15), -50_000, merchant_id),
-            _transaction(user_id, account_id, expense_id, date(2026, 7, 14), -20_000, merchant_id),
-            _transaction(user_id, account_id, expense_id, date(2026, 7, 13), -900_000, merchant_id),
-        ])
+        session.add_all(
+            [
+                expense,
+                merchant,
+                _transaction(user_id, account_id, expense_id, date(2026, 7, 15), -50_000, merchant_id),
+                _transaction(user_id, account_id, expense_id, date(2026, 7, 14), -20_000, merchant_id),
+                _transaction(user_id, account_id, expense_id, date(2026, 7, 13), -900_000, merchant_id),
+            ]
+        )
         await session.commit()
 
     resp = await client.get(
@@ -227,13 +235,15 @@ async def test_merchant_ranking_omits_zero_net_current_merchants(client):
     merchant_id, merchant = _merchant(user_id, "Refunded Store")
 
     async with TestSession() as session:
-        session.add_all([
-            expense,
-            merchant,
-            _transaction(user_id, account_id, expense_id, date(2026, 8, 10), -40_000, merchant_id),
-            _transaction(user_id, account_id, expense_id, date(2026, 8, 11), 40_000, merchant_id),
-            _transaction(user_id, account_id, expense_id, date(2026, 7, 20), -80_000, merchant_id),
-        ])
+        session.add_all(
+            [
+                expense,
+                merchant,
+                _transaction(user_id, account_id, expense_id, date(2026, 8, 10), -40_000, merchant_id),
+                _transaction(user_id, account_id, expense_id, date(2026, 8, 11), 40_000, merchant_id),
+                _transaction(user_id, account_id, expense_id, date(2026, 7, 20), -80_000, merchant_id),
+            ]
+        )
         await session.commit()
 
     resp = await client.get(
