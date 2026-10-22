@@ -13,6 +13,9 @@ if (configuredWorkers !== undefined && (!/^[1-9]\d*$/.test(configuredWorkers) ||
   throw new Error('E2E_WORKERS must be a positive integer')
 }
 
+// What Playwright's headless Chromium passes as `--blink-settings` to report a mouse that hovers
+const PLAYWRIGHT_HEADLESS_BLINK_SETTINGS = 'primaryHoverType=2,availableHoverTypes=2,primaryPointerType=4,availablePointerTypes=4'
+
 // The three sizes the screenshot captures use, so the suite checks the layouts the captures
 // show. Copied by value from dev/demo/capture/shared.mjs rather than imported: that file is
 // JavaScript in the internal repository and this one is TypeScript in this one, so an import
@@ -61,10 +64,13 @@ export default defineConfig({
     trace: { mode: 'retain-on-failure', screenshots: false },
     screenshot: 'only-on-failure',
 
-    // The captures pass this for the same reason: Chromium on Linux otherwise draws a classic
-    // scrollbar that takes fifteen pixels out of the page, so the widest project would lay out
-    // at 2185 and stop being the size it says it is
-    launchOptions: { args: ['--enable-features=OverlayScrollbar'] },
+    // Chromium otherwise reserves fifteen pixels for a classic scrollbar beside the root's
+    // `scrollbar-gutter: stable`, so the widest project would lay out at 2185 and a phone width
+    // 15 narrower than it says. The `OverlayScrollbar` feature the captures pass stopped doing this in
+    // Chromium 156, and this setting draws the overlay scrollbars a phone has. A second
+    // `--blink-settings` replaces the one Playwright's headless mode passes, so that one is repeated
+    // here, or hover and fine pointer would stop matching
+    launchOptions: { args: [`--blink-settings=${PLAYWRIGHT_HEADLESS_BLINK_SETTINGS},forceAndroidOverlayScrollbar=true`] },
   },
 
   // Leave one available CPU for the application and operating system
