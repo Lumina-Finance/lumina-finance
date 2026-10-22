@@ -14,9 +14,11 @@ const PRIMARY_AMOUNT_MAX_REM = 3
 const PRIMARY_AMOUNT_MIN_REM = 1.125
 
 // The Income and Expenses figures' `text-lg` size, and the smallest they shrink to, `text-xs`, the
-// smallest named type size. Checked at 390px wide only, where it keeps an amount as long as
-// "IQD 1,246,913,569.001" inside its half of the panel. The figures' `leading-7` is `text-lg`'s own
-// line height, fixed so the row keeps its height when a long amount shrinks them
+// smallest named type size, which keeps an amount as long as "IQD 1,246,913,569.001" inside its half
+// of the panel. That amount fits its half at `text-xs` only in a panel at least 17.5rem wide, twice
+// its width at that size plus the gap, so a narrower panel stacks the figures instead, each on a row
+// of its own at full size. The figures' `leading-7` is `text-lg`'s own line height, fixed so the row
+// keeps its height when a long amount shrinks them
 const FIGURE_MAX_REM = 1.125
 const FIGURE_MIN_REM = 0.75
 
@@ -58,7 +60,7 @@ export function PeriodGlancePrimaryPanel({
   const figureStyle = getFittedAmountStyle(figureFillRatio, FIGURE_MAX_REM, FIGURE_MIN_REM)
 
   return (
-    <div className="grid gap-5 rounded-xl border border-[var(--app-accent-border)] bg-[var(--app-accent-soft)] p-4 min-[750px]:grid-cols-[minmax(0,60fr)_minmax(0,40fr)] min-[750px]:items-center min-[1500px]:flex min-[1500px]:min-h-52 min-[1500px]:flex-col min-[1500px]:items-stretch min-[1500px]:justify-between">
+    <div className="@container grid gap-5 rounded-xl border border-[var(--app-accent-border)] bg-[var(--app-accent-soft)] p-4 min-[750px]:grid-cols-[minmax(0,60fr)_minmax(0,40fr)] min-[750px]:items-center min-[1500px]:flex min-[1500px]:min-h-52 min-[1500px]:flex-col min-[1500px]:items-stretch min-[1500px]:justify-between">
       <div className="min-w-0 [container-type:inline-size]">
         <p className="app-label inline-flex items-center gap-2">
           {primaryMetric.label}
@@ -89,7 +91,7 @@ export function PeriodGlancePrimaryPanel({
         </p>
       </div>
 
-      <div className="grid grid-cols-2 gap-4 border-t border-[var(--app-border)] pt-3 min-[750px]:grid-cols-1 min-[750px]:border-l min-[750px]:border-t-0 min-[750px]:pl-5 min-[750px]:pt-0 min-[1500px]:mt-5 min-[1500px]:grid-cols-2 min-[1500px]:border-l-0 min-[1500px]:border-t min-[1500px]:pl-0 min-[1500px]:pt-3">
+      <div className="grid grid-cols-2 gap-4 border-t border-[var(--app-border)] pt-3 @max-[17.5rem]:grid-cols-1 min-[750px]:grid-cols-1 min-[750px]:border-l min-[750px]:border-t-0 min-[750px]:pl-5 min-[750px]:pt-0 min-[1500px]:mt-5 min-[1500px]:grid-cols-2 min-[1500px]:border-l-0 min-[1500px]:border-t min-[1500px]:pl-0 min-[1500px]:pt-3">
         <div className="min-w-0 [container-type:inline-size]">
           <p className="app-label app-label-compact inline-flex items-center gap-2">
             Income
