@@ -228,6 +228,24 @@ describe('tinted state contrast', () => {
       fill: (tokens) => washOver(tokens, '--app-hover-soft', surfaces(tokens).page),
     },
     {
+      // .app-nav-link under the pointer or keyboard focus, and the selected item at rest, in the main sidebar
+      name: 'a menu item on the sidebar',
+      text: ['--app-accent-nav-text'],
+      fill: (tokens) => solid(tokens, '--app-accent-soft', solid(tokens, '--app-nav-bg')),
+    },
+    {
+      // The same item in the settings sidebar, which sits on the page
+      name: 'a menu item on the page',
+      text: ['--app-accent-nav-text'],
+      fill: (tokens) => solid(tokens, '--app-accent-soft', solid(tokens, '--app-bg')),
+    },
+    {
+      // The same item in the phone's settings menu, which sits on the shaded surface
+      name: 'a menu item on the shaded surface',
+      text: ['--app-accent-nav-text'],
+      fill: (tokens) => solid(tokens, '--app-accent-soft', solid(tokens, '--app-surface-soft')),
+    },
+    {
       // IMPORT_EXCLUDED_ROW_BACKGROUND, 12% of the text colour into the page, whose faint text is drawn in muted
       name: 'an excluded Imports row',
       text: ['--app-text-muted'],
