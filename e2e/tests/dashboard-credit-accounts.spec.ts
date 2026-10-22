@@ -113,3 +113,65 @@ test('cuts a long card name off inside the chooser instead of widening it past i
   const overflow = await dialog.evaluate((panel) => ({ width: panel.scrollWidth - panel.clientWidth, left: panel.scrollLeft }))
   expect(overflow).toEqual({ width: 0, left: 0 })
 })
+
+test('eases every text colour of a chooser row straight from its old value to its new one', async ({ page, request }) => {
+  const user = await signUpUser(request)
+  await createCard(request, user, 'Card A', 50_000, 500_000)
+
+  await logInViaApi(page, user)
+  await openPage(page, '/dashboard')
+  const dialog = await openChooser(page)
+  const row = dialog.getByRole('checkbox', { name: 'Card A' })
+  await expect(row).toBeVisible()
+
+  // Samples the name line and the type line on every frame of a click, as red, green and blue
+  const sampleToggle = async () => {
+    await row.evaluate((button) => {
+      const lines = [...button.querySelectorAll('span > span')] as HTMLElement[]
+      const toByte = (linear: number) => 255 * (linear <= 0.0031308 ? 12.92 * linear : 1.055 * linear ** (1 / 2.4) - 0.055)
+      // A colour in the middle of a transition reads back as oklab() or color(srgb), a settled one as rgb()
+      const read = (line: HTMLElement) => {
+        const color = getComputedStyle(line).color
+        const numbers = (color.match(/-?\d*\.?\d+(?:e-?\d+)?/g) ?? []).map(Number)
+        if (color.startsWith('oklab')) {
+          const [lightness, a, b] = numbers
+          const [l, m, s] = [lightness + 0.3963377774 * a + 0.2158037573 * b, lightness - 0.1055613458 * a - 0.0638541728 * b, lightness - 0.0894841775 * a - 1.291485548 * b].map((value) => value ** 3)
+          return [4.0767416621 * l - 3.3077115913 * m + 0.2309699292 * s, -1.2684380046 * l + 2.6097574011 * m - 0.3413193965 * s, -0.0041960863 * l - 0.7034186147 * m + 1.707614701 * s].map(toByte)
+        }
+        return color.startsWith('color(srgb') ? numbers.slice(0, 3).map((value) => value * 255) : numbers.slice(0, 3)
+      }
+      const frames: number[][][] = []
+      const start = performance.now()
+      const tick = () => {
+        frames.push(lines.map(read))
+        if (performance.now() - start < 500) requestAnimationFrame(tick)
+      }
+      Object.assign(window, { __frames: frames })
+      requestAnimationFrame(tick)
+    })
+    await row.click()
+    await page.mouse.move(0, 0)
+    await page.waitForTimeout(700)
+    return page.evaluate(() => (window as unknown as { __frames: number[][][] }).__frames)
+  }
+
+  // The card starts selected, so the first click deselects it and the second selects it again
+  for (let click = 0; click < 2; click++) {
+    const frames = await sampleToggle()
+    const first = frames[0]
+    const last = frames[frames.length - 1]
+    for (const [line, from] of first.entries()) {
+      const to = last[line]
+      // Every channel stays between its old and new value, give or take rounding, so no line passes through another colour
+      for (const frame of frames) {
+        frame[line].forEach((channel, index) => {
+          expect(channel).toBeGreaterThanOrEqual(Math.min(from[index], to[index]) - 2)
+          expect(channel).toBeLessThanOrEqual(Math.max(from[index], to[index]) + 2)
+        })
+      }
+      // And the change is eased, so some frame sits between the two colours
+      expect(frames.some((frame) => frame[line].some((channel, index) => channel !== from[index] && channel !== to[index]))).toBe(true)
+    }
+    await page.waitForTimeout(300)
+  }
+})
