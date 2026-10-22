@@ -42,7 +42,7 @@ services:
 
   # Runs the seed inside the compose network, writing the exports and manifest to output/
   seed:
-    image: node:26-slim
+    image: node:26.12.1-slim
     profiles: [seed]
     depends_on:
       firefly:
