@@ -10,6 +10,11 @@ registries:
 updates:
   - package-ecosystem: uv
     directory: /backend
+    cooldown:
+      default-days: 14
+      semver-patch-days: 7
+      semver-minor-days: 14
+      semver-major-days: 14
     schedule:
       interval: weekly
       day: monday
@@ -29,6 +34,9 @@ updates:
       - /e2e
     cooldown:
       default-days: 14
+      semver-patch-days: 7
+      semver-minor-days: 14
+      semver-major-days: 14
     schedule:
       interval: weekly
       day: monday
@@ -46,6 +54,8 @@ updates:
     directory: /docker
     registries:
       - docker-hardened-images
+    cooldown:
+      default-days: 14
     schedule:
       interval: weekly
       day: monday
@@ -65,6 +75,8 @@ updates:
       - /.github/actions/docker-build-setup
       - /.github/actions/e2e-image
       - /.github/actions/e2e-browser
+    cooldown:
+      default-days: 14
     schedule:
       interval: weekly
       day: monday
