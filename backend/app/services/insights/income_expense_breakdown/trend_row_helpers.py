@@ -33,7 +33,6 @@ class CategoryTrend:
         name: Category display name
         current_amount: Positive display amount for the selected period
         previous_amount: Positive display amount for the comparison period
-        change_pct: Percentage change from the comparison period
         transaction_count: Number of selected-period transactions
         change_amount: Amount movement between periods
     """
@@ -42,13 +41,12 @@ class CategoryTrend:
     name: str
     current_amount: int
     previous_amount: int
-    change_pct: int | None
     transaction_count: int
     change_amount: int
 
 
 CategoryStatsById = dict[uuid.UUID, CategoryStats]
-CategoryTrendRow = tuple[str, str, int, int, int | None, int]
+CategoryTrendRow = tuple[str, str, int, int, int]
 
 
 def get_income_expense_breakdown_category_stats(
@@ -106,7 +104,6 @@ def get_income_expense_breakdown_trend_rows(
             name=current_stats.name or previous_stats.name,
             current_amount=current_stats.amount,
             previous_amount=previous_stats.amount,
-            change_pct=_get_change_pct(current_stats.amount, previous_stats.amount),
             transaction_count=current_stats.transaction_count,
             change_amount=change_amount,
         )
@@ -119,21 +116,6 @@ def get_income_expense_breakdown_trend_rows(
     decreases.sort(key=lambda trend: (trend.change_amount, trend.name))
 
     return _get_trend_response_rows(increases), _get_trend_response_rows(decreases)
-
-
-def _get_change_pct(current_amount: int, previous_amount: int) -> int | None:
-    """Return percentage change from a previous amount
-
-    Args:
-        current_amount: Current-period display amount
-        previous_amount: Comparison-period display amount
-
-    Returns:
-        Rounded percentage change, or None when there is no positive previous amount
-    """
-    if previous_amount <= 0:
-        return None
-    return round(((current_amount - previous_amount) / previous_amount) * 100)
 
 
 def _get_trend_response_rows(trends: list[CategoryTrend]) -> list[CategoryTrendRow]:
@@ -151,7 +133,6 @@ def _get_trend_response_rows(trends: list[CategoryTrend]) -> list[CategoryTrendR
             trend.name,
             trend.current_amount,
             trend.previous_amount,
-            trend.change_pct,
             trend.transaction_count,
         )
         for trend in trends[:CATEGORY_TREND_LIMIT]

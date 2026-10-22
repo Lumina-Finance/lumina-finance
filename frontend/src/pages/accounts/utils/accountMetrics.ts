@@ -7,6 +7,8 @@ import type { RunwayResult } from '@/api/user'
 import type { Currency } from '@/api/currency'
 import type { AccountsMetricsViewModel } from '@/pages/accounts/types/accounts'
 import { formatCurrency } from '@/utils/formatCurrency'
+import { getRoundedPercent } from '@/utils/rounding'
+import { getSavingsRate } from '@/utils/savingsRate'
 import { getSavingsRateTier } from '@/utils/savingsRateTier'
 import { getValueMarkColor, type ValueMarkTone } from '@/utils/valueMarkColor'
 import {
@@ -53,7 +55,7 @@ export function getSavingsRateMetric(
   const income = savingsRatePeriod?.income ?? 0
   const expenses = savingsRatePeriod?.expenses ?? 0
   const net = income - expenses
-  const value = income > 0 ? Math.round((net / income) * 100) : null
+  const value = getSavingsRate(income, expenses)
   const hasExpenses = expenses > 0
   const progress =
     isLoading
@@ -99,7 +101,7 @@ export function getCreditUsageMetric(
   const totalUsed = dashboardCredit?.credit_used ?? 0
   const totalLimit = dashboardCredit?.credit_limit_total ?? 0
   const hasCreditData = Boolean(dashboardCredit) && totalLimit > 0
-  const utilization = totalLimit > 0 ? Math.round((totalUsed / totalLimit) * 100) : 0
+  const utilization = totalLimit > 0 ? getRoundedPercent(totalUsed, totalLimit, 'up') : 0
   const tone = isLoading || !hasCreditData
     ? null
     : utilization <= 30

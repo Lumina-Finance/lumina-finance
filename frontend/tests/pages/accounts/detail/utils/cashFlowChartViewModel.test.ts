@@ -40,6 +40,14 @@ describe('monthly cash flow view model helpers', () => {
     })
   })
 
+  it('rounds the average income down and the average expense up to whole minor units', () => {
+    expect(getCompletedCashFlowAverage([
+      { month: '2026-04-01', income: 100, expenses: 100 },
+      { month: '2026-05-01', income: 101, expenses: 101 },
+      { month: '2026-06-01', income: 900, expenses: 900 },
+    ])).toEqual({ avgIn: 100, avgOut: 101 })
+  })
+
   it('keeps chart domain above zero and shared across monthly and average bars', () => {
     expect(getCashFlowDomainMax([], { avgIn: 0, avgOut: 0 })).toBe(1)
     expect(getCashFlowDomainMax(getMonthlyCashFlowBars(rows), { avgIn: 1_500, avgOut: 2_500 })).toBe(2_500)

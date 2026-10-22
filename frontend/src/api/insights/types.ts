@@ -17,11 +17,13 @@ export interface InsightsPeriodGlanceResponse {
   net_worth_change: number;
   net_worth_change_fx_status: FxStatus;
   top_category_name?: string;
-  top_category_share_pct?: number;
+  top_category_amount?: number;
+  top_category_expense_total?: number;
   top_category_fx_status: FxStatus;
   biggest_change_name?: string;
   biggest_change_amount?: number;
-  biggest_change_pct?: number;
+  biggest_change_basis?: number;
+  biggest_change_kind?: InsightsBreakdownCategoryKind;
   biggest_change_fx_status: FxStatus;
 }
 
@@ -39,7 +41,7 @@ export interface InsightsFundFlowResponse {
 
 export type InsightsBreakdownCategoryKind = 'expense' | 'income';
 export type InsightsBreakdownEntry = [string, string, InsightsBreakdownCategoryKind, number];
-export type InsightsCategoryTrendEntry = [string, string, number, number, number | null, number];
+export type InsightsCategoryTrendEntry = [string, string, number, number, number];
 
 export interface InsightsIncomeExpenseBreakdownResponse {
   expense: InsightsBreakdownEntry[];
@@ -77,9 +79,9 @@ export interface InsightsSavingsRateTrendResponse {
   fx_status: FxStatus;
 }
 
-export type InsightsMerchantDistributionEntry = [string, string, number, number | null, number | null];
+export type InsightsMerchantDistributionEntry = [string, string, number, number | null];
 
-export type InsightsMerchantRankingEntry = [string, string, number, number, number | null];
+export type InsightsMerchantRankingEntry = [string, string, number, number, number];
 
 export interface InsightsMerchantsResponse {
   distribution: InsightsMerchantDistributionEntry[];

@@ -1,4 +1,5 @@
 import type { CreditWidgetResponse } from '@/api/dashboard'
+import { getRoundedPercent, type RoundingDirection } from '@/utils/rounding'
 
 export type CreditMode = 'used' | 'available'
 
@@ -11,6 +12,9 @@ export type CreditUsageSummary = {
   remainingPct: number
   displayPct: number
   displayAmount: number
+
+  // Credit used rounds up and credit left rounds down, so neither reads better than it is
+  displayAmountRounding: RoundingDirection
   hasCredit: boolean
   tier: CreditUsageTier
   tierColor: string
@@ -37,7 +41,7 @@ export function getCreditUsageSummary(
 ): CreditUsageSummary {
   const creditLimit = dashboardCredit?.credit_limit_total ?? 0
   const creditUsed = dashboardCredit?.credit_used ?? 0
-  const utilization = creditLimit > 0 ? Math.round((creditUsed / creditLimit) * 100) : 0
+  const utilization = creditLimit > 0 ? getRoundedPercent(creditUsed, creditLimit, 'up') : 0
   const hasCredit = creditLimit > 0
   const creditAvailable = creditLimit
   const creditRemaining = creditAvailable - creditUsed
@@ -55,6 +59,7 @@ export function getCreditUsageSummary(
     remainingPct,
     displayPct,
     displayAmount,
+    displayAmountRounding: creditMode === 'used' ? 'up' : 'down',
     hasCredit,
     tier,
     tierColor: `var(--app-${tier})`,

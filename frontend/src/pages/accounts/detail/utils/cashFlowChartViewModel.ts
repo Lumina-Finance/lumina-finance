@@ -1,5 +1,6 @@
 import type { AccountMonthlyCashFlow } from '@/api/accounts'
 import { DATE_FORMATS, formatDate, parseYmd } from '@/utils/date'
+import { divideRounded } from '@/utils/rounding'
 
 // One extra month keeps the current partial month visible while averages use completed months only
 export const CASH_FLOW_AVG_MONTHS = 6
@@ -36,7 +37,8 @@ export function getMonthlyCashFlowBars(rows: AccountMonthlyCashFlow[] | undefine
 }
 
 /**
- * Averages completed months only so the current partial month does not skew the benchmark
+ * Averages completed months only so the current partial month does not skew the benchmark. The income
+ * average rounds down and the expense average up, to whole minor units
  */
 export function getCompletedCashFlowAverage(
   rows: AccountMonthlyCashFlow[] | undefined,
@@ -47,8 +49,8 @@ export function getCompletedCashFlowAverage(
   const totalOut = completed.reduce((sum, row) => sum + row.expenses, 0)
 
   return {
-    avgIn: Math.round(totalIn / completed.length),
-    avgOut: Math.round(totalOut / completed.length),
+    avgIn: divideRounded(totalIn, completed.length, 'down'),
+    avgOut: divideRounded(totalOut, completed.length, 'up'),
   }
 }
 

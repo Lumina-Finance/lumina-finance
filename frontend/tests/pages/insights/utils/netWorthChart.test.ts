@@ -1,9 +1,11 @@
 /**
  * Covers how the net worth chart turns each point's date into the position it is plotted at, which
- * is the one reader with no label to fall back to when the date is not a real one
+ * is the one reader with no label to fall back to when the date is not a real one, and how its axis
+ * writes an amount, whole on both sides of the first threshold
  */
 import { describe, expect, it } from 'vitest';
 import {
+  formatNetWorthAxisMoney,
   getNetWorthChartData,
   getNetWorthChartItems,
   type NetWorthPoint,
@@ -37,5 +39,16 @@ describe('net worth chart positions', () => {
     const items = getNetWorthChartItems(GROUPS, 'overview');
 
     expect(() => getNetWorthChartData([createPoint('March 9, 2026')], items, 'overview')).toThrow();
+  });
+});
+
+describe('net worth axis money', () => {
+  const currencies = [{ id: 'CAD', name: 'Canadian Dollar', symbol: '$', minor_unit_exponent: 2 }];
+
+  it('writes ticks whole on both sides of the first threshold, to the nearest and without a decimal', () => {
+    // An axis tick is a round step, so it is exempt from the rounding rule and reads 3K, not 3.0K
+    expect(formatNetWorthAxisMoney(50_000, 'CAD', currencies)).toBe('CA$500');
+    expect(formatNetWorthAxisMoney(99_999, 'CAD', currencies)).toBe('CA$1K');
+    expect(formatNetWorthAxisMoney(300_000, 'CAD', currencies)).toBe('CA$3K');
   });
 });

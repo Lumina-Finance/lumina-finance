@@ -17,4 +17,17 @@ describe('savings rate series', () => {
     expect(point.fullLabel).toBe('2026-02-31')
     expect(point.rate).toBe(50)
   })
+
+  it('rounds a month\'s rate down, so an exact 14.5% reads 14% and -14.5% reads -15%', () => {
+    const rates = getSavingsRateSeries({
+      savings_rate_history: [
+        { month: '2026-03-01', income: 200_000, expenses: 171_000 },
+        { month: '2026-04-01', income: 200_000, expenses: 229_000 },
+        { month: '2026-05-01', income: 10_000, expenses: 8_501 },
+      ],
+      fx_status: fxStatus,
+    }).map((point) => point.rate)
+
+    expect(rates).toEqual([14, -15, 14])
+  })
 })

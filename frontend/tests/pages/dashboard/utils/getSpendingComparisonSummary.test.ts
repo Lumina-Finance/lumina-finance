@@ -16,8 +16,18 @@ describe('spending comparison summary', () => {
     expect(summary.currentHasData).toBe(true)
     expect(summary.previousHasData).toBe(true)
     expect(summary.spentToDate).toBe(600)
-    expect(summary.spendingDeltaPct).toBeCloseTo(-33.333, 3)
+    expect(summary.spendingDeltaPct).toBe(-33.3)
     expect(summary.spendingDeltaText).toBe('−33.3%')
+  })
+
+  it('rounds the change in spending up, so growth reads larger and a fall reads smaller', () => {
+    const grown = getSpendingComparisonSummary({ ...comparison, current: [100, 100, 1000], previous: [200, 400, 900] }, 'MTD')
+    // 1000 against 900 is +11.11%
+    expect(grown.spendingDeltaText).toBe('+11.2%')
+
+    const fallen = getSpendingComparisonSummary({ ...comparison, current: [100, 100, 700], previous: [200, 400, 900] }, 'MTD')
+    // 700 against 900 is -22.22%
+    expect(fallen.spendingDeltaText).toBe('−22.2%')
   })
 
   it.each([28, 29, 30, 31])(

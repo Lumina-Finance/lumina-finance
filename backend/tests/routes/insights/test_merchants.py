@@ -92,12 +92,12 @@ async def test_merchants_returns_distribution_and_ranking_payloads(client):
     assert resp.status_code == 200
     assert resp.json() == {
         "distribution": [
-            [str(alpha_id), "Alpha Market", 80_000, 100, 40_000],
-            [str(beta_id), "Beta Grocer", 50_000, None, 50_000],
+            [str(alpha_id), "Alpha Market", 80_000, 40_000],
+            [str(beta_id), "Beta Grocer", 50_000, 50_000],
         ],
         "ranking": [
-            [str(alpha_id), "Alpha Market", 80_000, 2, 100],
-            [str(beta_id), "Beta Grocer", 50_000, 1, None],
+            [str(alpha_id), "Alpha Market", 80_000, 2, 40_000],
+            [str(beta_id), "Beta Grocer", 50_000, 1, 0],
         ],
         "fx_status": {"state": "none", "missing_pairs": []},
     }
@@ -155,12 +155,12 @@ async def test_merchants_converts_foreign_entries_by_transaction_date(client, mo
     assert resp.status_code == 200
     assert resp.json() == {
         "distribution": [
-            [str(alpha_id), "Alpha Market", 13_000, 160, 8_000],
-            [str(beta_id), "Beta Grocer", 5_000, None, 5_000],
+            [str(alpha_id), "Alpha Market", 13_000, 8_000],
+            [str(beta_id), "Beta Grocer", 5_000, 5_000],
         ],
         "ranking": [
-            [str(alpha_id), "Alpha Market", 13_000, 3, 160],
-            [str(beta_id), "Beta Grocer", 5_000, 1, None],
+            [str(alpha_id), "Alpha Market", 13_000, 3, 5_000],
+            [str(beta_id), "Beta Grocer", 5_000, 1, 0],
         ],
         "fx_status": {"state": "complete", "missing_pairs": []},
     }
@@ -210,10 +210,10 @@ async def test_merchants_reports_incomplete_fx_with_missing_pairs(client, monkey
     assert resp.status_code == 200
     assert resp.json() == {
         "distribution": [
-            [str(alpha_id), "Alpha Market", 15_000, None, 15_000],
+            [str(alpha_id), "Alpha Market", 15_000, 15_000],
         ],
         "ranking": [
-            [str(alpha_id), "Alpha Market", 15_000, 1, None],
+            [str(alpha_id), "Alpha Market", 15_000, 1, 0],
         ],
         "fx_status": {
             "state": "incomplete",
@@ -256,10 +256,10 @@ async def test_merchants_compare_previous_calendar_month(client):
     assert resp.status_code == 200
     assert resp.json() == {
         "distribution": [
-            [str(alpha_id), "Alpha Market", 100_000, 150, 60_000],
+            [str(alpha_id), "Alpha Market", 100_000, 60_000],
         ],
         "ranking": [
-            [str(alpha_id), "Alpha Market", 100_000, 1, 150],
+            [str(alpha_id), "Alpha Market", 100_000, 1, 40_000],
         ],
         "fx_status": {"state": "none", "missing_pairs": []},
     }
@@ -295,8 +295,8 @@ async def test_merchants_leave_out_days_after_the_profile_date(client, freeze_no
     )
 
     assert resp.status_code == 200
-    assert resp.json()["distribution"] == [[str(alpha_id), "Alpha Market", 10_000, None, 10_000]]
-    assert resp.json()["ranking"] == [[str(alpha_id), "Alpha Market", 10_000, 1, None]]
+    assert resp.json()["distribution"] == [[str(alpha_id), "Alpha Market", 10_000, 10_000]]
+    assert resp.json()["ranking"] == [[str(alpha_id), "Alpha Market", 10_000, 1, 0]]
 
 
 async def test_merchants_rejects_invalid_date_range(client):

@@ -44,7 +44,7 @@ describe('period glance amounts that moved', () => {
 
   it('signs the net worth change and the biggest change with a true minus', () => {
     const { supportItems } = getPeriodGlanceCardData(
-      respond({ net_worth_change: -4_200, biggest_change_name: 'Dining', biggest_change_amount: -1_000, biggest_change_pct: -10 }),
+      respond({ net_worth_change: -4_200, biggest_change_name: 'Dining', biggest_change_amount: -1_000, biggest_change_basis: 10_000 }),
       'USD',
       currencies,
     )
@@ -52,5 +52,60 @@ describe('period glance amounts that moved', () => {
     expect(supportItems.find((item) => item.label === 'Net worth changed by')?.value).toBe('−$42.00')
     expect(supportItems.find((item) => item.label === 'Biggest change')?.detail)
       .toBe('−$10.00 (−10%) vs previous matching period')
+  })
+
+  it('rounds the top category share and the biggest change up, like any spending figure', () => {
+    // 410,000 of 480,000 is 85.4%, and a 1,001 rise on a 100,000 basis is 1.001%
+    const items = getPeriodGlanceCardData(
+      respond({
+        top_category_name: 'Groceries',
+        top_category_amount: 410_000,
+        top_category_expense_total: 480_000,
+        biggest_change_name: 'Groceries',
+        biggest_change_amount: 1_001,
+        biggest_change_basis: 100_000,
+        biggest_change_kind: 'expense',
+      }),
+      'USD',
+      currencies,
+    ).supportItems
+
+    expect(items.find((item) => item.label === 'Top category')?.detail).toBe('86% of recorded expenses')
+    expect(items.find((item) => item.label === 'Biggest change')?.detail)
+      .toBe('+$10.01 (+2%) vs previous matching period')
+  })
+
+  it('rounds a reversed income category down, so its loss never reads smaller than it is', () => {
+    // Income of 300 that became a 100 reversal moved by -400, which is -133.33% of the 300
+    const detailOf = (kind: 'expense' | 'income') =>
+      getPeriodGlanceCardData(
+        respond({ biggest_change_name: 'Capital Gains', biggest_change_amount: -400, biggest_change_basis: 300, biggest_change_kind: kind }),
+        'USD',
+        currencies,
+      ).supportItems.find((item) => item.label === 'Biggest change')?.detail
+
+    expect(detailOf('income')).toBe('−$4.00 (−134%) vs previous matching period')
+    expect(detailOf('expense')).toBe('−$4.00 (−133%) vs previous matching period')
+  })
+
+  it('leaves the percentages out when there is nothing to divide by', () => {
+    const items = getPeriodGlanceCardData(
+      respond({ biggest_change_name: 'Dining', biggest_change_amount: 500 }),
+      'USD',
+      currencies,
+    ).supportItems
+
+    expect(items.find((item) => item.label === 'Top category')?.detail).toBe('No recorded expenses in this range')
+    expect(items.find((item) => item.label === 'Biggest change')?.detail)
+      .toBe('+$5.00 vs previous matching period')
+  })
+
+  it('rounds the savings rate down, so an exact 14.5% reads 14% and -14.5% reads -15%', () => {
+    const savingsRateOf = (income: number, expenses: number) =>
+      getPeriodGlanceCardData(respond({ income, expenses }), 'USD', currencies)
+        .supportItems.find((item) => item.label === 'Savings rate')?.value
+
+    expect(savingsRateOf(200_000, 171_000)).toBe('14%')
+    expect(savingsRateOf(200_000, 229_000)).toBe('−15%')
   })
 })

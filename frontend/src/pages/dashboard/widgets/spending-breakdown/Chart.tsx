@@ -138,7 +138,7 @@ export function SpendingBreakdownChart({
           Total {breakdownMode === 'spending' ? 'expense' : 'income'}
         </span>
         <span className="font-financial mt-1 text-3xl font-normal tracking-tight max-[1000px]:text-[1.6875rem]">
-          <AppScrambledNumber text={formatDashboardMoney(total, displayCurrency, 'breakdown', currencies)} />
+          <AppScrambledNumber text={formatDashboardMoney(total, displayCurrency, 'breakdown', currencies, breakdownMode === 'spending' ? 'up' : 'down')} />
         </span>
       </div>
       <AnimatePresence initial={false}>

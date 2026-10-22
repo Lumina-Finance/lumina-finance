@@ -2,6 +2,7 @@ import { useMoneyFormatters } from '@/hooks/useMoneyFormatters'
 import {
   getTaxAdvantagedUsageBarColor,
   getTaxAdvantagedUsageColor,
+  getTaxAdvantagedUsageLabelPercent,
   getTaxAdvantagedUsagePercent,
 } from '@/pages/accounts/utils/taxAdvantagedLimits'
 
@@ -50,7 +51,7 @@ export function DetailLimitUsage({
           {label}
         </p>
         <p className="font-financial text-sm font-semibold tabular-nums" style={{ color }}>
-          {Math.round(usagePercent)}%
+          {getTaxAdvantagedUsageLabelPercent(used, limit)}%
         </p>
       </div>
       <div className="relative mt-1">

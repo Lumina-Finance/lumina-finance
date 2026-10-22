@@ -8,8 +8,9 @@ import type {
 } from '@/pages/insights/types/periodGlance'
 import {
   formatSavingsRateValue,
-  getSavingsRate,
 } from './money'
+import { getRoundedPercent } from '@/utils/rounding'
+import { getSavingsRate } from '@/utils/savingsRate'
 import {
   getBiggestChangeFxStatusMessage,
   getNetWorthChangeFxStatusMessage,
@@ -54,17 +55,28 @@ export type PeriodGlanceCardData = {
   expenses: number
 }
 
+// The change is the category's signed movement, so a reversed income category counts its loss the other
+// way round: spending rounds up and income rounds down, so the percentage never reads better than it is
 function getPeriodGlanceChangeDetail(
   changeAmount: number,
-  changePct: number | undefined,
+  changeBasis: number | undefined,
+  kind: InsightsPeriodGlanceResponse['biggest_change_kind'],
   displayCurrency: string,
   currencies: Currency[],
 ) {
   const amount = formatMovedCurrency(changeAmount, displayCurrency, currencies)
-  if (changePct === undefined) {
+  if (changeBasis === undefined) {
     return `${amount} vs previous matching period`
   }
+  const changePct = getRoundedPercent(changeAmount, changeBasis, kind === 'income' ? 'down' : 'up')
   return `${amount} (${formatMovedPercent(changePct)}) vs previous matching period`
+}
+
+function getTopCategoryDetail(amount: number | undefined, expenseTotal: number | undefined) {
+  if (amount === undefined || expenseTotal === undefined || expenseTotal <= 0) {
+    return 'No recorded expenses in this range'
+  }
+  return `${getRoundedPercent(amount, expenseTotal, 'up')}% of recorded expenses`
 }
 
 function getPeriodGlanceBrief(
@@ -101,7 +113,7 @@ function getPeriodGlanceBrief(
         label: 'Biggest change',
         value: data.biggest_change_name ?? 'N/A',
         detail: data.biggest_change_name && data.biggest_change_amount !== undefined
-          ? getPeriodGlanceChangeDetail(data.biggest_change_amount, data.biggest_change_pct, displayCurrency, currencies)
+          ? getPeriodGlanceChangeDetail(data.biggest_change_amount, data.biggest_change_basis, data.biggest_change_kind, displayCurrency, currencies)
           : 'No comparable category movement in this range',
         calculation: 'Category with the largest dollar change from the previous matching period',
         fxStatus: data.biggest_change_fx_status,
@@ -110,9 +122,7 @@ function getPeriodGlanceBrief(
       {
         label: 'Top category',
         value: data.top_category_name ?? 'N/A',
-        detail: data.top_category_share_pct === undefined
-          ? 'No recorded expenses in this range'
-          : `${data.top_category_share_pct}% of recorded expenses`,
+        detail: getTopCategoryDetail(data.top_category_amount, data.top_category_expense_total),
         calculation: 'Top spending category divided by total spending for this range',
         fxStatus: data.top_category_fx_status,
         getFxStatusMessage: getPeriodTopCategoryFxStatusMessage,

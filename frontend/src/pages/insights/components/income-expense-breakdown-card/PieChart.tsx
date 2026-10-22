@@ -270,7 +270,7 @@ export function IncomeExpensePieChart({
                   {renderCrossoverBadge(entry, mode)}
                 </span>
                 <span className="font-financial">
-                  {getBreakdownPercent(entry.amount, sliceTotal)}%
+                  {getBreakdownPercent(entry.amount, sliceTotal, mode)}%
                 </span>
               </motion.div>
             ))}

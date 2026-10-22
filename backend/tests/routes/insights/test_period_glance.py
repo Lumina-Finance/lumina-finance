@@ -83,28 +83,30 @@ async def test_period_glance_returns_compact_period_summary(client):
     balance_adjustment_id, balance_adjustment = _category(user_id, "Balance Adjustment", CategoryKind.TRANSFER)
 
     async with TestSession() as session:
-        session.add_all([
-            salary,
-            groceries,
-            dining,
-            transfer,
-            balance_adjustment,
-            _transaction(user_id, visible_account_id, salary_id, date(2026, 3, 11), 500_000),
-            _transaction(user_id, visible_account_id, groceries_id, date(2026, 3, 12), -120_000),
-            _transaction(user_id, visible_account_id, dining_id, date(2026, 3, 13), -60_000),
-            _transaction(user_id, visible_account_id, transfer_id, date(2026, 3, 14), 50_000),
-            _transaction(user_id, visible_account_id, transfer_id, date(2026, 3, 15), -30_000),
-            _transaction(user_id, visible_account_id, balance_adjustment_id, date(2026, 3, 15), 999_999),
-            _transaction(user_id, visible_account_id, groceries_id, date(2026, 3, 4), -40_000),
-            _transaction(user_id, visible_account_id, dining_id, date(2026, 3, 5), -100_000),
-            _transaction(user_id, archived_account_id, salary_id, date(2026, 3, 12), 700_000),
-            _transaction(user_id, archived_account_id, groceries_id, date(2026, 3, 13), -300_000),
-            _snapshot(visible_account_id, date(2026, 3, 9), 1_000_000),
-            _snapshot(visible_account_id, date(2026, 3, 10), 1_000_000),
-            _snapshot(visible_account_id, date(2026, 3, 16), 1_320_000),
-            _snapshot(archived_account_id, date(2026, 3, 10), 5_000_000),
-            _snapshot(archived_account_id, date(2026, 3, 16), 6_000_000),
-        ])
+        session.add_all(
+            [
+                salary,
+                groceries,
+                dining,
+                transfer,
+                balance_adjustment,
+                _transaction(user_id, visible_account_id, salary_id, date(2026, 3, 11), 500_000),
+                _transaction(user_id, visible_account_id, groceries_id, date(2026, 3, 12), -120_000),
+                _transaction(user_id, visible_account_id, dining_id, date(2026, 3, 13), -60_000),
+                _transaction(user_id, visible_account_id, transfer_id, date(2026, 3, 14), 50_000),
+                _transaction(user_id, visible_account_id, transfer_id, date(2026, 3, 15), -30_000),
+                _transaction(user_id, visible_account_id, balance_adjustment_id, date(2026, 3, 15), 999_999),
+                _transaction(user_id, visible_account_id, groceries_id, date(2026, 3, 4), -40_000),
+                _transaction(user_id, visible_account_id, dining_id, date(2026, 3, 5), -100_000),
+                _transaction(user_id, archived_account_id, salary_id, date(2026, 3, 12), 700_000),
+                _transaction(user_id, archived_account_id, groceries_id, date(2026, 3, 13), -300_000),
+                _snapshot(visible_account_id, date(2026, 3, 9), 1_000_000),
+                _snapshot(visible_account_id, date(2026, 3, 10), 1_000_000),
+                _snapshot(visible_account_id, date(2026, 3, 16), 1_320_000),
+                _snapshot(archived_account_id, date(2026, 3, 10), 5_000_000),
+                _snapshot(archived_account_id, date(2026, 3, 16), 6_000_000),
+            ]
+        )
         await session.commit()
 
     resp = await client.get(
@@ -122,11 +124,13 @@ async def test_period_glance_returns_compact_period_summary(client):
         "net_worth_change": 6_320_000,
         "net_worth_change_fx_status": {"state": "none", "missing_pairs": []},
         "top_category_name": "Groceries",
-        "top_category_share_pct": 88,
+        "top_category_amount": 420_000,
+        "top_category_expense_total": 480_000,
         "top_category_fx_status": {"state": "none", "missing_pairs": []},
         "biggest_change_name": "Groceries",
         "biggest_change_amount": 380_000,
-        "biggest_change_pct": 950,
+        "biggest_change_basis": 40_000,
+        "biggest_change_kind": "expense",
         "biggest_change_fx_status": {"state": "none", "missing_pairs": []},
     }
 
@@ -152,14 +156,16 @@ async def test_period_glance_converts_foreign_income_and_expenses_and_signs_liab
     await _seed_usd_currency()
 
     cash_account = (await _create_account(client, headers, name="CAD Cash")).json()
-    card_account = (await _create_account(
-        client,
-        headers,
-        account_kind="revolving",
-        account_type="credit_card",
-        name="CAD Card",
-        credit_limit=500_000,
-    )).json()
+    card_account = (
+        await _create_account(
+            client,
+            headers,
+            account_kind="revolving",
+            account_type="credit_card",
+            name="CAD Card",
+            credit_limit=500_000,
+        )
+    ).json()
     usd_account = (await _create_account(client, headers, name="USD Cash", currency="USD")).json()
     cash_account_id = UUID(cash_account["id"])
     card_account_id = UUID(card_account["id"])
@@ -168,23 +174,25 @@ async def test_period_glance_converts_foreign_income_and_expenses_and_signs_liab
     food_id, food = _category(user_id, "Food", CategoryKind.EXPENSE)
 
     async with TestSession() as session:
-        session.add_all([
-            salary,
-            food,
-            _transaction(user_id, cash_account_id, salary_id, date(2026, 5, 2), 100_000),
-            _transaction(user_id, cash_account_id, food_id, date(2026, 5, 3), -20_000),
-            _transaction(user_id, usd_account_id, salary_id, date(2026, 5, 2), 900_000, "USD"),
-            _transaction(user_id, usd_account_id, food_id, date(2026, 5, 3), -700_000, "USD"),
-            _snapshot(cash_account_id, date(2026, 4, 30), 100_000),
-            _snapshot(cash_account_id, date(2026, 5, 1), 100_000),
-            _snapshot(cash_account_id, date(2026, 5, 7), 200_000),
-            _snapshot(card_account_id, date(2026, 4, 30), -40_000),
-            _snapshot(card_account_id, date(2026, 5, 1), -40_000),
-            _snapshot(card_account_id, date(2026, 5, 7), -90_000),
-            _snapshot(usd_account_id, date(2026, 4, 30), 5_000_000),
-            _snapshot(usd_account_id, date(2026, 5, 1), 5_000_000),
-            _snapshot(usd_account_id, date(2026, 5, 7), 9_000_000),
-        ])
+        session.add_all(
+            [
+                salary,
+                food,
+                _transaction(user_id, cash_account_id, salary_id, date(2026, 5, 2), 100_000),
+                _transaction(user_id, cash_account_id, food_id, date(2026, 5, 3), -20_000),
+                _transaction(user_id, usd_account_id, salary_id, date(2026, 5, 2), 900_000, "USD"),
+                _transaction(user_id, usd_account_id, food_id, date(2026, 5, 3), -700_000, "USD"),
+                _snapshot(cash_account_id, date(2026, 4, 30), 100_000),
+                _snapshot(cash_account_id, date(2026, 5, 1), 100_000),
+                _snapshot(cash_account_id, date(2026, 5, 7), 200_000),
+                _snapshot(card_account_id, date(2026, 4, 30), -40_000),
+                _snapshot(card_account_id, date(2026, 5, 1), -40_000),
+                _snapshot(card_account_id, date(2026, 5, 7), -90_000),
+                _snapshot(usd_account_id, date(2026, 4, 30), 5_000_000),
+                _snapshot(usd_account_id, date(2026, 5, 1), 5_000_000),
+                _snapshot(usd_account_id, date(2026, 5, 7), 9_000_000),
+            ]
+        )
         await session.commit()
 
     resp = await client.get(
@@ -201,12 +209,13 @@ async def test_period_glance_converts_foreign_income_and_expenses_and_signs_liab
     assert data["net_worth_change"] == 6_050_000
     assert data["net_worth_change_fx_status"] == {"state": "complete", "missing_pairs": []}
     assert data["top_category_name"] == "Food"
-    assert data["top_category_share_pct"] == 100
+    assert data["top_category_amount"] == 1_070_000
+    assert data["top_category_expense_total"] == 1_070_000
     assert data["top_category_fx_status"] == {"state": "complete", "missing_pairs": []}
     assert data["biggest_change_name"] == "Food"
     assert data["biggest_change_amount"] == 1_070_000
     assert data["biggest_change_fx_status"] == {"state": "complete", "missing_pairs": []}
-    assert "biggest_change_pct" not in data
+    assert "biggest_change_basis" not in data
 
 
 async def test_period_glance_income_expenses_report_incomplete_fx(client, monkeypatch):
@@ -231,12 +240,14 @@ async def test_period_glance_income_expenses_report_incomplete_fx(client, monkey
     food_id, food = _category(user_id, "Food", CategoryKind.EXPENSE)
 
     async with TestSession() as session:
-        session.add_all([
-            salary,
-            food,
-            _transaction(user_id, cad_account_id, salary_id, date(2026, 5, 2), 100_000),
-            _transaction(user_id, abc_account_id, food_id, date(2026, 5, 3), -70_000, "ABC"),
-        ])
+        session.add_all(
+            [
+                salary,
+                food,
+                _transaction(user_id, cad_account_id, salary_id, date(2026, 5, 2), 100_000),
+                _transaction(user_id, abc_account_id, food_id, date(2026, 5, 3), -70_000, "ABC"),
+            ]
+        )
         await session.commit()
 
     resp = await client.get(
@@ -284,12 +295,14 @@ async def test_period_glance_top_category_uses_converted_expense_totals(client, 
     travel_id, travel = _category(user_id, "Travel", CategoryKind.EXPENSE)
 
     async with TestSession() as session:
-        session.add_all([
-            food,
-            travel,
-            _transaction(user_id, cad_account_id, food_id, date(2026, 5, 3), -100_000),
-            _transaction(user_id, usd_account_id, travel_id, date(2026, 5, 3), -90_000, "USD"),
-        ])
+        session.add_all(
+            [
+                food,
+                travel,
+                _transaction(user_id, cad_account_id, food_id, date(2026, 5, 3), -100_000),
+                _transaction(user_id, usd_account_id, travel_id, date(2026, 5, 3), -90_000, "USD"),
+            ]
+        )
         await session.commit()
 
     resp = await client.get(
@@ -301,7 +314,8 @@ async def test_period_glance_top_category_uses_converted_expense_totals(client, 
     assert resp.status_code == 200
     data = resp.json()
     assert data["top_category_name"] == "Travel"
-    assert data["top_category_share_pct"] == 57
+    assert data["top_category_amount"] == 135_000
+    assert data["top_category_expense_total"] == 235_000
     assert data["top_category_fx_status"] == {"state": "complete", "missing_pairs": []}
 
 
@@ -325,10 +339,12 @@ async def test_period_glance_biggest_change_reports_incomplete_fx(client, monkey
     food_id, food = _category(user_id, "Food", CategoryKind.EXPENSE)
 
     async with TestSession() as session:
-        session.add_all([
-            food,
-            _transaction(user_id, abc_account_id, food_id, date(2026, 4, 29), -70_000, "ABC"),
-        ])
+        session.add_all(
+            [
+                food,
+                _transaction(user_id, abc_account_id, food_id, date(2026, 4, 29), -70_000, "ABC"),
+            ]
+        )
         await session.commit()
 
     resp = await client.get(
@@ -357,15 +373,15 @@ async def test_period_glance_net_worth_change_includes_first_day_balance_activit
 
     async with TestSession() as session:
         await session.execute(
-            update(AccountBalanceSnapshot)
-            .where(AccountBalanceSnapshot.account_id == account_id)
-            .values(dt=date(2026, 5, 31), balance=0),
+            update(AccountBalanceSnapshot).where(AccountBalanceSnapshot.account_id == account_id).values(dt=date(2026, 5, 31), balance=0),
         )
-        session.add_all([
-            transfer,
-            _transaction(user_id, account_id, transfer_id, date(2026, 6, 1), 100_000),
-            _snapshot(account_id, date(2026, 6, 1), 100_000),
-        ])
+        session.add_all(
+            [
+                transfer,
+                _transaction(user_id, account_id, transfer_id, date(2026, 6, 1), 100_000),
+                _snapshot(account_id, date(2026, 6, 1), 100_000),
+            ]
+        )
         await session.commit()
 
     resp = await client.get(
@@ -445,14 +461,16 @@ async def test_period_glance_net_worth_change_reports_incomplete_fx(client, monk
     abc_account_id = UUID((await _create_account(client, headers, name="ABC Cash", currency="ABC")).json()["id"])
 
     async with TestSession() as session:
-        session.add_all([
-            _snapshot(cad_account_id, date(2026, 4, 30), 100_000),
-            _snapshot(cad_account_id, date(2026, 5, 1), 100_000),
-            _snapshot(cad_account_id, date(2026, 5, 7), 150_000),
-            _snapshot(abc_account_id, date(2026, 4, 30), 500_000),
-            _snapshot(abc_account_id, date(2026, 5, 1), 500_000),
-            _snapshot(abc_account_id, date(2026, 5, 7), 900_000),
-        ])
+        session.add_all(
+            [
+                _snapshot(cad_account_id, date(2026, 4, 30), 100_000),
+                _snapshot(cad_account_id, date(2026, 5, 1), 100_000),
+                _snapshot(cad_account_id, date(2026, 5, 7), 150_000),
+                _snapshot(abc_account_id, date(2026, 4, 30), 500_000),
+                _snapshot(abc_account_id, date(2026, 5, 1), 500_000),
+                _snapshot(abc_account_id, date(2026, 5, 7), 900_000),
+            ]
+        )
         await session.commit()
 
     resp = await client.get(
@@ -480,11 +498,13 @@ async def test_period_glance_handles_one_day_range_no_income_and_flat_category_c
     utilities_id, utilities = _category(user_id, "Utilities", CategoryKind.EXPENSE)
 
     async with TestSession() as session:
-        session.add_all([
-            utilities,
-            _transaction(user_id, account_id, utilities_id, date(2026, 6, 15), -5_000),
-            _transaction(user_id, account_id, utilities_id, date(2026, 6, 14), -5_000),
-        ])
+        session.add_all(
+            [
+                utilities,
+                _transaction(user_id, account_id, utilities_id, date(2026, 6, 15), -5_000),
+                _transaction(user_id, account_id, utilities_id, date(2026, 6, 14), -5_000),
+            ]
+        )
         await session.commit()
 
     resp = await client.get(
@@ -497,10 +517,11 @@ async def test_period_glance_handles_one_day_range_no_income_and_flat_category_c
     data = resp.json()
     assert data["income"] == 0
     assert data["expenses"] == 5_000
-    assert data["top_category_share_pct"] == 100
+    assert data["top_category_amount"] == 5_000
+    assert data["top_category_expense_total"] == 5_000
     assert data["biggest_change_name"] == "Utilities"
     assert data["biggest_change_amount"] == 0
-    assert data["biggest_change_pct"] == 0
+    assert data["biggest_change_basis"] == 5_000
 
 
 async def test_period_glance_nets_expense_refunds(client):
@@ -513,13 +534,15 @@ async def test_period_glance_nets_expense_refunds(client):
     medical_id, medical = _category(user_id, "Medical", CategoryKind.EXPENSE)
 
     async with TestSession() as session:
-        session.add_all([
-            income,
-            medical,
-            _transaction(user_id, account_id, income_id, date(2026, 9, 3), 10_000),
-            _transaction(user_id, account_id, medical_id, date(2026, 9, 4), -30_000),
-            _transaction(user_id, account_id, medical_id, date(2026, 9, 5), 5_000),
-        ])
+        session.add_all(
+            [
+                income,
+                medical,
+                _transaction(user_id, account_id, income_id, date(2026, 9, 3), 10_000),
+                _transaction(user_id, account_id, medical_id, date(2026, 9, 4), -30_000),
+                _transaction(user_id, account_id, medical_id, date(2026, 9, 5), 5_000),
+            ]
+        )
         await session.commit()
 
     resp = await client.get(
@@ -533,7 +556,8 @@ async def test_period_glance_nets_expense_refunds(client):
     assert data["income"] == 10_000
     assert data["expenses"] == 25_000
     assert data["top_category_name"] == "Medical"
-    assert data["top_category_share_pct"] == 100
+    assert data["top_category_amount"] == 25_000
+    assert data["top_category_expense_total"] == 25_000
 
 
 async def test_period_glance_routes_flipped_categories_to_opposite_side(client):
@@ -548,17 +572,19 @@ async def test_period_glance_routes_flipped_categories_to_opposite_side(client):
     over_refund_id, over_refund = _category(user_id, "Over-refunded", CategoryKind.EXPENSE)
 
     async with TestSession() as session:
-        session.add_all([
-            salary,
-            income_reversal,
-            groceries,
-            over_refund,
-            _transaction(user_id, account_id, salary_id, date(2025, 10, 2), 200_000),
-            _transaction(user_id, account_id, income_reversal_id, date(2025, 10, 3), -5_000),
-            _transaction(user_id, account_id, groceries_id, date(2025, 10, 4), -100_000),
-            _transaction(user_id, account_id, groceries_id, date(2025, 10, 5), 40_000),
-            _transaction(user_id, account_id, over_refund_id, date(2025, 10, 6), 20_000),
-        ])
+        session.add_all(
+            [
+                salary,
+                income_reversal,
+                groceries,
+                over_refund,
+                _transaction(user_id, account_id, salary_id, date(2025, 10, 2), 200_000),
+                _transaction(user_id, account_id, income_reversal_id, date(2025, 10, 3), -5_000),
+                _transaction(user_id, account_id, groceries_id, date(2025, 10, 4), -100_000),
+                _transaction(user_id, account_id, groceries_id, date(2025, 10, 5), 40_000),
+                _transaction(user_id, account_id, over_refund_id, date(2025, 10, 6), 20_000),
+            ]
+        )
         await session.commit()
 
     resp = await client.get(
@@ -572,10 +598,11 @@ async def test_period_glance_routes_flipped_categories_to_opposite_side(client):
     assert data["income"] == 220_000
     assert data["expenses"] == 65_000
     assert data["top_category_name"] == "Groceries"
-    assert data["top_category_share_pct"] == 92
+    assert data["top_category_amount"] == 60_000
+    assert data["top_category_expense_total"] == 65_000
     assert data["biggest_change_name"] == "Groceries"
     assert data["biggest_change_amount"] == 60_000
-    assert "biggest_change_pct" not in data
+    assert "biggest_change_basis" not in data
 
 
 async def test_period_glance_counts_net_negative_income_categories_as_expenses(client):
@@ -588,12 +615,14 @@ async def test_period_glance_counts_net_negative_income_categories_as_expenses(c
     salary_id, salary = _category(user_id, "Salary", CategoryKind.INCOME)
 
     async with TestSession() as session:
-        session.add_all([
-            capital_gains,
-            salary,
-            _transaction(user_id, account_id, capital_gains_id, date(2025, 12, 4), -80_000),
-            _transaction(user_id, account_id, salary_id, date(2025, 12, 5), 300_000),
-        ])
+        session.add_all(
+            [
+                capital_gains,
+                salary,
+                _transaction(user_id, account_id, capital_gains_id, date(2025, 12, 4), -80_000),
+                _transaction(user_id, account_id, salary_id, date(2025, 12, 5), 300_000),
+            ]
+        )
         await session.commit()
 
     resp = await client.get(
@@ -607,10 +636,13 @@ async def test_period_glance_counts_net_negative_income_categories_as_expenses(c
     assert data["income"] == 300_000
     assert data["expenses"] == 80_000
     assert data["top_category_name"] == "Capital Gains"
-    assert data["top_category_share_pct"] == 100
+    assert data["top_category_amount"] == 80_000
+    assert data["top_category_expense_total"] == 80_000
     assert data["biggest_change_name"] == "Capital Gains"
     assert data["biggest_change_amount"] == -80_000
-    assert "biggest_change_pct" not in data
+    assert "biggest_change_basis" not in data
+    # A reversed income category is the one case the client must round the other way
+    assert data["biggest_change_kind"] == "income"
 
 
 async def test_period_glance_excludes_converted_resolved_income_loss(client, monkeypatch):
@@ -630,10 +662,12 @@ async def test_period_glance_excludes_converted_resolved_income_loss(client, mon
     capital_gains_id, capital_gains = _category(user_id, "Capital Gains", CategoryKind.INCOME)
 
     async with TestSession() as session:
-        session.add_all([
-            capital_gains,
-            _transaction(user_id, account_id, capital_gains_id, date(2026, 1, 4), -466_541, "USD"),
-        ])
+        session.add_all(
+            [
+                capital_gains,
+                _transaction(user_id, account_id, capital_gains_id, date(2026, 1, 4), -466_541, "USD"),
+            ]
+        )
         await session.commit()
 
     resp = await client.get(
@@ -649,7 +683,7 @@ async def test_period_glance_excludes_converted_resolved_income_loss(client, mon
     assert data["biggest_change_fx_status"] == {"state": "complete", "missing_pairs": []}
     assert "biggest_change_name" not in data
     assert "biggest_change_amount" not in data
-    assert "biggest_change_pct" not in data
+    assert "biggest_change_basis" not in data
 
 
 async def test_period_glance_reports_vanished_over_refund_as_negative_change(client):
@@ -661,10 +695,12 @@ async def test_period_glance_reports_vanished_over_refund_as_negative_change(cli
     shopping_id, shopping = _category(user_id, "Shopping", CategoryKind.EXPENSE)
 
     async with TestSession() as session:
-        session.add_all([
-            shopping,
-            _transaction(user_id, account_id, shopping_id, date(2026, 2, 4), 25_000),
-        ])
+        session.add_all(
+            [
+                shopping,
+                _transaction(user_id, account_id, shopping_id, date(2026, 2, 4), 25_000),
+            ]
+        )
         await session.commit()
 
     resp = await client.get(
@@ -679,7 +715,7 @@ async def test_period_glance_reports_vanished_over_refund_as_negative_change(cli
     assert data["expenses"] == 0
     assert data["biggest_change_name"] == "Shopping"
     assert data["biggest_change_amount"] == -25_000
-    assert data["biggest_change_pct"] == -100
+    assert data["biggest_change_basis"] == 25_000
 
 
 async def test_period_glance_uses_stable_tie_breakers(client):
@@ -692,12 +728,14 @@ async def test_period_glance_uses_stable_tie_breakers(client):
     alpha_id, alpha = _category(user_id, "Alpha", CategoryKind.EXPENSE)
 
     async with TestSession() as session:
-        session.add_all([
-            beta,
-            alpha,
-            _transaction(user_id, account_id, beta_id, date(2025, 11, 4), -50_000),
-            _transaction(user_id, account_id, alpha_id, date(2025, 11, 5), -50_000),
-        ])
+        session.add_all(
+            [
+                beta,
+                alpha,
+                _transaction(user_id, account_id, beta_id, date(2025, 11, 4), -50_000),
+                _transaction(user_id, account_id, alpha_id, date(2025, 11, 5), -50_000),
+            ]
+        )
         await session.commit()
 
     resp = await client.get(
@@ -710,7 +748,8 @@ async def test_period_glance_uses_stable_tie_breakers(client):
     data = resp.json()
     assert data["expenses"] == 100_000
     assert data["top_category_name"] == "Alpha"
-    assert data["top_category_share_pct"] == 50
+    assert data["top_category_amount"] == 50_000
+    assert data["top_category_expense_total"] == 100_000
     assert data["biggest_change_name"] == "Alpha"
     assert data["biggest_change_amount"] == 50_000
 
@@ -724,10 +763,12 @@ async def test_period_glance_reports_previous_only_category_as_decrease(client):
     travel_id, travel = _category(user_id, "Travel", CategoryKind.EXPENSE)
 
     async with TestSession() as session:
-        session.add_all([
-            travel,
-            _transaction(user_id, account_id, travel_id, date(2026, 7, 5), -90_000),
-        ])
+        session.add_all(
+            [
+                travel,
+                _transaction(user_id, account_id, travel_id, date(2026, 7, 5), -90_000),
+            ]
+        )
         await session.commit()
 
     resp = await client.get(
@@ -741,10 +782,10 @@ async def test_period_glance_reports_previous_only_category_as_decrease(client):
     assert data["income"] == 0
     assert data["expenses"] == 0
     assert "top_category_name" not in data
-    assert "top_category_share_pct" not in data
+    assert "top_category_amount" not in data
     assert data["biggest_change_name"] == "Travel"
     assert data["biggest_change_amount"] == -90_000
-    assert data["biggest_change_pct"] == -100
+    assert data["biggest_change_basis"] == 90_000
 
 
 async def test_period_glance_returns_net_worth_change_without_period_transactions(client):
@@ -761,10 +802,12 @@ async def test_period_glance_returns_net_worth_change_without_period_transaction
     quiet_month_start = quiet_month_end.replace(day=1)
 
     async with TestSession() as session:
-        session.add_all([
-            _snapshot(account_id, quiet_month_start - timedelta(days=16), 1_000_000),
-            _snapshot(account_id, quiet_month_start + timedelta(days=19), 1_125_000),
-        ])
+        session.add_all(
+            [
+                _snapshot(account_id, quiet_month_start - timedelta(days=16), 1_000_000),
+                _snapshot(account_id, quiet_month_start + timedelta(days=19), 1_125_000),
+            ]
+        )
         await session.commit()
 
     resp = await client.get(
@@ -791,11 +834,13 @@ async def test_period_glance_compares_previous_calendar_year(client):
     groceries_id, groceries = _category(user_id, "Groceries", CategoryKind.EXPENSE)
 
     async with TestSession() as session:
-        session.add_all([
-            groceries,
-            _transaction(user_id, account_id, groceries_id, date(2026, 2, 15), -100_000),
-            _transaction(user_id, account_id, groceries_id, date(2025, 2, 15), -40_000),
-        ])
+        session.add_all(
+            [
+                groceries,
+                _transaction(user_id, account_id, groceries_id, date(2026, 2, 15), -100_000),
+                _transaction(user_id, account_id, groceries_id, date(2025, 2, 15), -40_000),
+            ]
+        )
         await session.commit()
 
     resp = await client.get(
@@ -812,7 +857,8 @@ async def test_period_glance_compares_previous_calendar_year(client):
     data = resp.json()
     assert data["biggest_change_name"] == "Groceries"
     assert data["biggest_change_amount"] == 60_000
-    assert data["biggest_change_pct"] == 150
+    assert data["biggest_change_basis"] == 40_000
+    assert data["biggest_change_kind"] == "expense"
 
 
 async def test_period_glance_rejects_invalid_date_range(client):

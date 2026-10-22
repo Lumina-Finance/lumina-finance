@@ -7,6 +7,7 @@ from datetime import date
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.account import Account
+from app.models.base import CategoryKind
 from app.schemas.fx import FxStatus
 from app.services.fx import FxConverter
 from app.services.fx.currency_exponent_helpers import get_currency_exponents
@@ -23,15 +24,16 @@ class PeriodAtAGlanceCategoryHighlights:
     """Store category highlights and FX statuses for the Period At A Glance response
 
     Attributes:
-        top_category: Largest current expense category and percentage share
+        top_category: Largest current expense category, its amount and the total expenses
         top_category_fx_status: FX status for top-category conversion
-        biggest_change: Category with the largest comparable amount change
+        biggest_change: Category with the largest comparable amount change and the previous amount
+            it is measured against
         biggest_change_fx_status: FX status for biggest-change conversion
     """
 
-    top_category: tuple[str, int | None] | None
+    top_category: tuple[str, int, int] | None
     top_category_fx_status: FxStatus
-    biggest_change: tuple[str, int, int | None] | None
+    biggest_change: tuple[str, int, int | None, CategoryKind] | None  # name, change amount, basis, kind
     biggest_change_fx_status: FxStatus
 
 
@@ -103,14 +105,15 @@ async def get_period_at_a_glance_category_highlights(
 
 def get_period_at_a_glance_top_category(
     category_net_totals: CategoryNetTotals,
-) -> tuple[str, int | None] | None:
-    """Return the largest current expense category and its expense share
+) -> tuple[str, int, int] | None:
+    """Return the largest current expense category and the expenses it is a share of
 
     Args:
         category_net_totals: Signed category totals keyed by category ID
 
     Returns:
-        Category name and percentage share, or None when no expense category exists
+        Category name, its amount and the total of all expense categories, or None when no expense
+        category exists. The share is left for the client to round
     """
     expense_totals = _get_expense_totals_from_category_net_totals(category_net_totals)
     if not expense_totals:
@@ -118,8 +121,7 @@ def get_period_at_a_glance_top_category(
 
     total_positive_expenses = sum(amount for _name, amount in expense_totals.values())
     name, amount = sorted(expense_totals.values(), key=lambda item: (-item[1], item[0]))[0]
-    expense_share = round((amount / total_positive_expenses) * 100) if total_positive_expenses > 0 else None
-    top_category = (name, expense_share)
+    top_category = (name, amount, total_positive_expenses)
     return top_category
 
 

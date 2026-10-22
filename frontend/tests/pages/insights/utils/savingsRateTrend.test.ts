@@ -16,6 +16,15 @@ describe('getSavingsRateHistory', () => {
     expect(point.fullLabel).toBe('March 2026');
   });
 
+  it('rounds a month\'s rate down, so an exact 14.5% reads 14% and -14.5% reads -15%', () => {
+    const rates = getSavingsRateHistory({
+      points: [['2026-03-01', 200_000, 171_000], ['2026-04-01', 200_000, 229_000]],
+      fx_status: FX_STATUS,
+    }).map((point) => point.rate);
+
+    expect(rates).toEqual([14, -15]);
+  });
+
   it('marks the first month of a year with its two-digit year', () => {
     const [point] = getSavingsRateHistory({ points: [['2026-01-01', 100, 40]], fx_status: FX_STATUS });
 

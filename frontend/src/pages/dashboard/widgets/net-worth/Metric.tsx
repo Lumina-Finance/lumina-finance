@@ -11,9 +11,13 @@ type NetWorthMetricProps = {
 
 /**
  * Formats dashboard net worth movement with an explicit positive or negative sign
+ *
+ * The sign is written apart from the magnitude, so a gain rounds its magnitude down and a loss rounds
+ * its magnitude up, which reads the change as the less favourable of the two neighbouring figures
  */
 function formatNetWorthChange(amount: number, currency: string, currencies: Currency[]) {
-  return signMovedAmount(getAmountSign(amount), formatDashboardMoney(Math.abs(amount), currency, 'netWorth', currencies))
+  const magnitude = formatDashboardMoney(Math.abs(amount), currency, 'netWorth', currencies, amount < 0 ? 'up' : 'down')
+  return signMovedAmount(getAmountSign(amount), magnitude)
 }
 
 /**
@@ -39,7 +43,7 @@ export function NetWorthMetric({
         className="min-w-0 font-financial font-normal tracking-tight leading-none text-3xl max-[1000px]:text-[1.6875rem]"
         style={{ color: netWorthColor }}
       >
-        {formatDashboardMoney(netWorth, displayCurrency, 'netWorth', currencies)}
+        {formatDashboardMoney(netWorth, displayCurrency, 'netWorth', currencies, 'down')}
       </p>
       {netWorthChange != null && (
         <p

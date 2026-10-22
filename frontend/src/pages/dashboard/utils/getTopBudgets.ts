@@ -1,4 +1,5 @@
 import type { LatestBudgetUtilization } from '@/api/budgets'
+import { getBudgetUtilizationLabelPercent } from '@/pages/budgets/utils/utilization'
 import type { TopBudget } from '@/pages/dashboard/types/dashboard'
 
 /**
@@ -13,7 +14,7 @@ export function getTopBudgets(
       const usageRatio = utilization.overall_limit > 0
         ? utilization.total_spent / utilization.overall_limit
         : 0
-      const usagePct = Math.round(usageRatio * 100)
+      const usagePct = getBudgetUtilizationLabelPercent(utilization.total_spent, utilization.overall_limit)
 
       return {
         budget_id: utilization.budget_id,

@@ -9,7 +9,7 @@ from app.services.insights.period_at_a_glance.category_total_helpers import Cate
 def get_period_at_a_glance_biggest_category_change(
     current_totals: CategoryNetTotals,
     previous_totals: CategoryNetTotals,
-) -> tuple[str, int, int | None] | None:
+) -> tuple[str, int, int | None, CategoryKind] | None:
     """Return the tracked category with the largest comparable amount change
 
     Args:
@@ -17,7 +17,9 @@ def get_period_at_a_glance_biggest_category_change(
         previous_totals: Signed category totals for the comparison period
 
     Returns:
-        Category name, amount change, and percentage change, or None when no category can be compared
+        Category name, amount change, the previous amount the change is measured against (None
+        when it is zero) and the category kind, or None when no category can be compared. The
+        percentage is left for the client to round, and the kind tells it which way
     """
     # Filter to categories that have comparable activity before ranking the largest absolute change
     category_ids = [
@@ -36,9 +38,9 @@ def get_period_at_a_glance_biggest_category_change(
     current_amount = current_totals.get(category_id, ("", kind, 0))[2]
     previous_amount = previous_totals.get(category_id, ("", kind, 0))[2]
     change_amount = _get_category_change_amount(kind, current_amount, previous_amount)
+    # Only expense and income categories are tracked, and the client rounds each its own way
     previous_basis = _get_category_change_basis(kind, current_amount, previous_amount)
-    change_pct = round((change_amount / previous_basis) * 100) if previous_basis > 0 else None
-    biggest_change = (name, change_amount, change_pct)
+    biggest_change = (name, change_amount, previous_basis if previous_basis > 0 else None, kind)
     return biggest_change
 
 

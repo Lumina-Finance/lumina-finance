@@ -27,6 +27,7 @@ export function CreditUsageBody({
   const {
     creditAvailable,
     displayAmount,
+    displayAmountRounding,
     displayPct,
     hasCredit,
     tierColor,
@@ -97,10 +98,10 @@ export function CreditUsageBody({
       </div>
       <div className="min-w-0">
         <p className="font-financial text-3xl font-normal leading-none tracking-tight max-[1000px]:text-[1.6875rem]">
-          <AppScrambledNumber text={formatDashboardMoney(displayAmount, displayCurrency, 'credit', currencies)} />
+          <AppScrambledNumber text={formatDashboardMoney(displayAmount, displayCurrency, 'credit', currencies, displayAmountRounding)} />
         </p>
         <p className="font-financial mt-1.5 text-sm max-[1000px]:text-[0.7875rem]" style={{ color: 'var(--app-text-muted)' }}>
-          of <AppScrambledNumber text={formatDashboardMoney(creditAvailable, displayCurrency, 'credit', currencies)} />
+          of <AppScrambledNumber text={formatDashboardMoney(creditAvailable, displayCurrency, 'credit', currencies, 'down')} />
         </p>
       </div>
     </div>

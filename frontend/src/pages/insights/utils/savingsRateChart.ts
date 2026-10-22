@@ -43,7 +43,7 @@ export function getSavingsRateSummary(series: SavingsRateHistoryPoint[]): Saving
   const completedRatedPoints = ratedPoints.filter((point) => !point.isCurrent)
   const completedAveragePoints = completedRatedPoints.filter(hasFiniteSavingsRate)
   const averageRate = completedAveragePoints.length > 0
-    ? Math.round(completedAveragePoints.reduce((sum, point) => sum + point.rate, 0) / completedAveragePoints.length)
+    ? Math.floor(completedAveragePoints.reduce((sum, point) => sum + point.rate, 0) / completedAveragePoints.length)
     : null
   const bestPoint = completedRatedPoints.reduce<SavingsRateHistoryPoint | null>(
     (best, point) => (best === null || (point.rate ?? -Infinity) > (best.rate ?? -Infinity) ? point : best),

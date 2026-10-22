@@ -3,6 +3,7 @@
  * spend against each limit, rather than the rounded figure shown
  */
 import { describe, expect, it } from 'vitest'
+import { getTopBudgetAttentionState } from '@/pages/dashboard/utils/getTopBudgetAttentionState'
 import { getTopBudgets } from '@/pages/dashboard/utils/getTopBudgets'
 import { createBudget } from './fixtures'
 
@@ -30,6 +31,16 @@ describe('top budgets', () => {
     ])
 
     expect(budgets.map((budget) => budget.budget_id)).toEqual(['watch', 'rounded-high', 'rounded-low'])
-    expect(budgets.map((budget) => budget.usagePct)).toEqual([80, 50, 50])
+    // 50.4% and 49.6% round up, so neither reads as less spent than it is
+    expect(budgets.map((budget) => budget.usagePct)).toEqual([80, 51, 50])
+  })
+
+  it('keeps the exact usage for the status while the label rounds up', () => {
+    const [budget] = getTopBudgets([createBudget({ budget_id: 'near', total_spent: 994 })])
+
+    // 99.4% reads 100% but is not yet over, so the status reads the exact figure
+    expect(budget.usagePct).toBe(100)
+    expect(getTopBudgetAttentionState(budget.usageRatio * 100).label).toBe('Watch')
+    expect(getTopBudgetAttentionState(budget.usagePct).label).toBe('Needs attention')
   })
 })

@@ -4,6 +4,8 @@ import type {
   CategoryTrendSection,
 } from '@/pages/insights/types/incomeExpenseBreakdown'
 
+import { getRoundedPercent } from '@/utils/rounding'
+
 const PIE_LEGEND_LIMIT = 5
 const PIE_LEGEND_ROW_HEIGHT = 20
 const PIE_LEGEND_ROW_GAP = 8
@@ -19,11 +21,12 @@ export function getBreakdownTotal(entries: BreakdownEntry[]) {
 }
 
 /**
- * Returns a whole-number slice percentage while treating empty totals as zero
+ * Returns a whole-number slice percentage while treating empty totals as zero. A slice of expenses
+ * rounds up and a slice of income rounds down, like the amounts they are shares of
  */
-export function getBreakdownPercent(amount: number, total: number) {
+export function getBreakdownPercent(amount: number, total: number, mode: InsightsBreakdownCategoryKind) {
   if (total <= 0) return 0
-  return Math.round((amount / total) * 100)
+  return getRoundedPercent(amount, total, mode === 'expense' ? 'up' : 'down')
 }
 
 /**

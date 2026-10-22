@@ -9,7 +9,7 @@ import {
 import { useMoneyFormatters } from '@/hooks/useMoneyFormatters'
 import {
   clampTaxAdvantagedPercent,
-  formatTaxAdvantagedMeterMoney,
+  getTaxAdvantagedMeterLabels,
   getTaxAdvantagedRemainingColor,
   getTaxAdvantagedUsageBarColor,
   getTaxAdvantagedUsagePercent,
@@ -68,12 +68,8 @@ export function TaxAdvantagedCompactLimitMeter({
 
   const color = getTaxAdvantagedUsageBarColor(used, limit)
   const barWidth = getTaxAdvantagedUsagePercent(used, limit)
-  const usageLabel = `${formatTaxAdvantagedMeterMoney(used, currency, currencies)} / ${formatTaxAdvantagedMeterMoney(limit, currency, currencies)}`
+  const { usageLabel, remainingLabel } = getTaxAdvantagedMeterLabels(used, limit, currency, currencies)
   const remaining = limit - used
-  const remainingLabel =
-    remaining < 0
-      ? `${formatTaxAdvantagedMeterMoney(Math.abs(remaining), currency, currencies)} over`
-      : formatTaxAdvantagedMeterMoney(remaining, currency, currencies)
   const valueLabel = valueMode === 'remaining' ? remainingLabel : usageLabel
   const availablePercent =
     availableBoundary === null ? 0 : getTaxAdvantagedUsagePercent(availableBoundary, limit)

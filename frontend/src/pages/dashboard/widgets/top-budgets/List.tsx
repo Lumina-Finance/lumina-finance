@@ -25,8 +25,11 @@ function getBudgetProgressWidth(usagePct: number) {
  */
 function TopBudgetRow({ budget, showDivider }: TopBudgetRowProps) {
   const { formatCurrency } = useMoneyFormatters()
-  const attention = getTopBudgetAttentionState(budget.usagePct)
-  const barPct = getBudgetProgressWidth(budget.usagePct)
+  // The status and the bar read the exact usage, as the budgets page does, because the shown percent
+  // rounds up and would call a budget at 99.4% needing attention
+  const exactPct = budget.usageRatio * 100
+  const attention = getTopBudgetAttentionState(exactPct)
+  const barPct = getBudgetProgressWidth(exactPct)
 
   return (
     <Link

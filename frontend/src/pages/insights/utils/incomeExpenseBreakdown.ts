@@ -4,6 +4,7 @@ import type {
   InsightsCategoryTrendEntry,
   InsightsIncomeExpenseBreakdownResponse,
 } from '@/api/insights'
+import { getChangePercent } from '@/utils/rounding'
 import type {
   BreakdownEntry,
   CategoryDriver,
@@ -19,13 +20,17 @@ function getBreakdownEntries(entries: InsightsBreakdownEntry[] | undefined): Bre
   }))
 }
 
-function getCategoryDrivers(entries: InsightsCategoryTrendEntry[] | undefined): CategoryDriver[] {
-  return (entries ?? []).map(([id, name, amount, previousAmount, changePct, transactionCount]) => ({
+// A rise in spending rounds up and a rise in income rounds down, so a change never reads better than it is
+function getCategoryDrivers(
+  entries: InsightsCategoryTrendEntry[] | undefined,
+  mode: InsightsBreakdownCategoryKind,
+): CategoryDriver[] {
+  return (entries ?? []).map(([id, name, amount, previousAmount, transactionCount]) => ({
     id,
     name,
     amount,
     previousAmount,
-    changePct,
+    changePct: getChangePercent(amount, previousAmount, mode === 'expense' ? 'up' : 'down'),
     transactionCount,
   }))
 }
@@ -68,12 +73,12 @@ export function getCategoryTrendSections(
     {
       id: 'increases',
       label: 'Top increases',
-      drivers: getCategoryDrivers(mode === 'expense' ? data?.expense_increases : data?.income_increases),
+      drivers: getCategoryDrivers(mode === 'expense' ? data?.expense_increases : data?.income_increases, mode),
     },
     {
       id: 'decreases',
       label: 'Top decreases',
-      drivers: getCategoryDrivers(mode === 'expense' ? data?.expense_decreases : data?.income_decreases),
+      drivers: getCategoryDrivers(mode === 'expense' ? data?.expense_decreases : data?.income_decreases, mode),
     },
   ]
 }

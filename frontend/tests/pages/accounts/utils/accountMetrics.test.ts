@@ -47,6 +47,22 @@ describe('account metric helpers', () => {
     })
   })
 
+  it('rounds the savings rate tile down, so an exact 14.5% reads 14%', () => {
+    const rateOf = (income: number, expenses: number) => getSavingsRateMetric({
+      savings_rate_history: [{ month: '2026-06-01', income, expenses }],
+      fx_status: { state: 'complete', missing_pairs: [] },
+    }, false).value
+
+    expect(rateOf(200_000, 171_000)).toBe(14)
+    expect(rateOf(200_000, 229_000)).toBe(-15)
+  })
+
+  it('rounds credit utilization up', () => {
+    const metric = getCreditUsageMetric([], { credit_limit_total: 300_000, credit_used: 100_000, fx_status: { state: 'complete', missing_pairs: [] } }, false)
+
+    expect(metric.utilization).toBe(34)
+  })
+
   it('leaves an empty or still-loading savings rate tile grey rather than red', () => {
     expect(getSavingsRateMetric({
       savings_rate_history: [{ month: '2026-06-01', income: 0, expenses: 0 }],
