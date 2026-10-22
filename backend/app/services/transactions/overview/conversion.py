@@ -1,4 +1,5 @@
 """Transaction overview currency conversion setup"""
+
 import uuid
 
 from sqlalchemy import select
@@ -25,11 +26,7 @@ async def get_overview_accounts_by_id(db: AsyncSession, conversion_rows) -> dict
     account_ids = {row.account_id for row in conversion_rows}
 
     # Fetch accounts referenced by aggregate rows so conversion uses the account currency
-    accounts = (
-        (await db.execute(select(Account).where(Account.id.in_(account_ids)))).scalars().all()
-        if account_ids
-        else []
-    )
+    accounts = (await db.execute(select(Account).where(Account.id.in_(account_ids)))).scalars().all() if account_ids else []
     return {account.id: account for account in accounts}
 
 
@@ -58,11 +55,9 @@ async def prefetch_overview_rates(
     end_date = max(row.date for row in conversion_rows)
 
     # Prefetch each distinct account-currency to base-currency range once for the overview
-    for currency in sorted({
-        accounts_by_id[row.account_id].currency
-        for row in conversion_rows
-        if accounts_by_id[row.account_id].currency != base_currency
-    }):
+    for currency in sorted(
+        {accounts_by_id[row.account_id].currency for row in conversion_rows if accounts_by_id[row.account_id].currency != base_currency}
+    ):
         await converter.prefetch_rates(
             base=currency,
             quote=base_currency,

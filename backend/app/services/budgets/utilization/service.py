@@ -113,10 +113,7 @@ async def _get_budget_utilization_response(
         Utilization response with spend totals and FX status for one budget
     """
     budget_converter = create_converter_with_cached_rates(shared_converter)
-    spend_by_category = {
-        category_id: 0
-        for category_id in tracked_category_ids
-    }
+    spend_by_category = {category_id: 0 for category_id in tracked_category_ids}
 
     # Store debits as positive spend in the budget currency
     for row in spend_rows:
