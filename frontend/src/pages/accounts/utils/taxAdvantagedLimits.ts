@@ -2,7 +2,7 @@ import type { AccountsOverview } from '@/api/accounts'
 import type { Currency } from '@/api/currency'
 import type { TaxAdvantagedCategory } from '@/api/tax-advantaged-categories'
 import type { TaxAdvantagedLimitSummary } from '@/pages/accounts/types/accounts'
-import { type CompactMoneyRule, formatCompactMoney, formatRoundedMoney } from '@/utils/formatCompactMoney'
+import { type CompactMoneyRule, formatCompactMoney } from '@/utils/formatCompactMoney'
 import { getRoundedPercent, type RoundingDirection } from '@/utils/rounding'
 import { getValueMarkColor, type ValueMarkTone } from '@/utils/valueMarkColor'
 
@@ -104,19 +104,6 @@ export function getTaxAdvantagedMeterLabels(
       ? `${formatTaxAdvantagedMeterMoney(Math.abs(remaining), currency, currencies, 'up')} over`
       : formatTaxAdvantagedMeterMoney(remaining, currency, currencies, 'down'),
   }
-}
-
-/**
- * Formats full tax-advantaged limit amounts for tooltip rows, whole dollars rounded the way the
- * meter rounds the same figure
- */
-export function formatTaxAdvantagedRawMoney(
-  amount: number,
-  currency: string,
-  currencies: Currency[],
-  rounding: RoundingDirection,
-): string {
-  return formatRoundedMoney(amount, currency, currencies, 0, rounding)
 }
 
 /**

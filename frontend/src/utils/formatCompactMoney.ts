@@ -91,7 +91,7 @@ function promoteRounded(
  * Formats an amount in a currency's minor units whole or to a fixed number of decimal places,
  * rounded in the direction the figure calls for (`utils/rounding.ts`)
  */
-export function formatRoundedMoney(
+function formatRoundedMoney(
   minorUnits: number,
   currency: string,
   currencies: Currency[],

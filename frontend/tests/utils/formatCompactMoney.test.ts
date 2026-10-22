@@ -10,7 +10,7 @@
  */
 import { describe, expect, it } from 'vitest'
 import type { Currency } from '@/api/currency'
-import { type CompactMoneyRule, formatCompactMoney, formatRoundedMoney } from '@/utils/formatCompactMoney'
+import { type CompactMoneyRule, formatCompactMoney } from '@/utils/formatCompactMoney'
 import { DASHBOARD_MONEY_RULES } from '@/pages/dashboard/constants/moneyRules'
 import { formatCurrency } from '@/utils/formatCurrency'
 
@@ -99,7 +99,7 @@ describe('compact money formatting', () => {
     expect(formatCompactMoney(2_841, 'JPY', RULES, currencies, 'down')).toBe('≈¥2.8K')
     // Whole amounts below the first threshold take the same exponent
     expect(formatCompactMoney(500_001, 'IQD', RULES, currencies, 'up', { plainFractionDigits: 0 })).toBe('IQD 501')
-    expect(formatRoundedMoney(500_001, 'IQD', currencies, 0, 'down')).toBe('IQD 500')
+    expect(formatCompactMoney(500_001, 'IQD', RULES, currencies, 'down', { plainFractionDigits: 0 })).toBe('IQD 500')
   })
 
   it('rounds a negative axis tick to the nearest', () => {
@@ -120,9 +120,12 @@ describe('compact money formatting', () => {
 })
 
 describe('rounded money', () => {
+  const read = (minorUnits: number, rounding: 'up' | 'down') =>
+    formatCompactMoney(minorUnits, 'CAD', [], currencies, rounding, { plainFractionDigits: 0 })
+
   it('writes an amount whole, up or down', () => {
-    expect(formatRoundedMoney(1_234_50, 'CAD', currencies, 0, 'up')).toBe('CA$1,235')
-    expect(formatRoundedMoney(1_234_50, 'CAD', currencies, 0, 'down')).toBe('CA$1,234')
-    expect(formatRoundedMoney(-1_234_50, 'CAD', currencies, 0, 'down')).toBe('(CA$1,235)')
+    expect(read(1_234_50, 'up')).toBe('CA$1,235')
+    expect(read(1_234_50, 'down')).toBe('CA$1,234')
+    expect(read(-1_234_50, 'down')).toBe('(CA$1,235)')
   })
 })

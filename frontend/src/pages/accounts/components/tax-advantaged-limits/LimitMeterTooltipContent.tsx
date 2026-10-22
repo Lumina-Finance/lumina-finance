@@ -3,7 +3,6 @@ import {
   ChartTooltipTitle,
 } from '@/components/charts/TooltipContent'
 import { useMoneyFormatters } from '@/hooks/useMoneyFormatters'
-import { formatTaxAdvantagedRawMoney } from '@/pages/accounts/utils/taxAdvantagedLimits'
 
 type TaxAdvantagedLimitMeterTooltipContentProps = {
   label: string
@@ -13,7 +12,9 @@ type TaxAdvantagedLimitMeterTooltipContentProps = {
 }
 
 /**
- * Renders used and remaining limit values inside a tax-advantaged meter tooltip
+ * Renders used and remaining limit values inside a tax-advantaged meter tooltip, as exact amounts at
+ * the currency's own decimal places. Unlike the meter's compact labels, a tooltip never rounds or
+ * abbreviates
  */
 export function TaxAdvantagedLimitMeterTooltipContent({
   label,
@@ -21,20 +22,20 @@ export function TaxAdvantagedLimitMeterTooltipContent({
   remaining,
   currency,
 }: TaxAdvantagedLimitMeterTooltipContentProps) {
-  const { currencies } = useMoneyFormatters()
+  const { formatCurrency } = useMoneyFormatters()
 
   return (
     <>
       <ChartTooltipTitle className="font-medium">{label}</ChartTooltipTitle>
       <ChartTooltipRow
         label="Used"
-        value={formatTaxAdvantagedRawMoney(used, currency, currencies, 'up')}
+        value={formatCurrency(used, currency)}
         valueClassName="text-right"
         financialValue
       />
       <ChartTooltipRow
         label="Remaining"
-        value={formatTaxAdvantagedRawMoney(remaining, currency, currencies, 'down')}
+        value={formatCurrency(remaining, currency)}
         valueClassName="text-right"
         valueStyle={remaining < 0 ? { color: 'var(--app-negative)' } : undefined}
         financialValue

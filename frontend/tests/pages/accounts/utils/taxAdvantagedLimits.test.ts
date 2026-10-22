@@ -11,7 +11,6 @@ import { describe, expect, it } from 'vitest'
 import { getFilteredRows } from '@/pages/accounts/utils/filters'
 import {
   formatTaxAdvantagedMeterMoney,
-  formatTaxAdvantagedRawMoney,
   getLifetimeAvailableBoundary,
   getTaxAdvantagedMeterLabels,
   getTaxAdvantagedUsageLabelPercent,
@@ -55,14 +54,11 @@ describe('tax-advantaged limit helpers', () => {
     // The meter renders no decimals, and accounting style decides to wrap a negative before it
     // rounds, so being 40 cents over a limit would otherwise read as (CA$0)
     expect(formatTaxAdvantagedMeterMoney(-40, 'CAD', testCurrencies, 'up')).toBe('CA$0')
-    expect(formatTaxAdvantagedRawMoney(-40, 'CAD', testCurrencies, 'up')).toBe('CA$0')
     // Far enough from zero to keep its sign
-    expect(formatTaxAdvantagedRawMoney(-60, 'CAD', testCurrencies, 'down')).toBe('(CA$1)')
+    expect(formatTaxAdvantagedMeterMoney(-60, 'CAD', testCurrencies, 'down')).toBe('(CA$1)')
   })
 
-  it('rounds room used up and room left down, in the tooltip and on the meter', () => {
-    expect(formatTaxAdvantagedRawMoney(123_456, 'CAD', testCurrencies, 'up')).toBe('CA$1,235')
-    expect(formatTaxAdvantagedRawMoney(123_456, 'CAD', testCurrencies, 'down')).toBe('CA$1,234')
+  it('rounds a negative meter amount down to a larger size', () => {
     expect(formatTaxAdvantagedMeterMoney(-12_300_000, 'USD', testCurrencies, 'down')).toBe('($123.0K)')
   })
 
