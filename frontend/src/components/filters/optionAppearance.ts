@@ -7,10 +7,13 @@ import type { CSSProperties } from 'react'
  *
  * The control that chooses which filter tab is showing no longer takes its selected look from here,
  * since it is drawn by the shared dropdown, which carries the same colours in its own styles
+ *
+ * A list whose rows sit straight on the page colour rather than on a filter panel passes `onPageTint`
+ * for the selected text that stays readable on the tint there
  */
-export function getFilterOptionStyle(selected: boolean): CSSProperties {
+export function getFilterOptionStyle(selected: boolean, onPageTint = false): CSSProperties {
   return {
-    color: selected ? 'var(--app-accent)' : 'var(--app-text)',
+    color: selected ? (onPageTint ? 'var(--app-accent-on-page-tint)' : 'var(--app-accent)') : 'var(--app-text)',
     fontWeight: selected ? 500 : 400,
     background: selected ? 'var(--app-accent-soft)' : undefined,
   }

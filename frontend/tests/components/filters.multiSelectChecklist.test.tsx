@@ -6,6 +6,7 @@ import { renderToStaticMarkup } from 'react-dom/server'
 import { describe, expect, it, vi } from 'vitest'
 import { filterChecklistOptions } from '@/components/filters/filterChecklistOptions'
 import { MultiSelectChecklist } from '@/components/filters/MultiSelectChecklist'
+import { getFilterOptionStyle } from '@/components/filters/optionAppearance'
 import type { OptionItem } from '@/components/filters/OptionList'
 
 function render(options: OptionItem[]): string {
@@ -46,6 +47,17 @@ describe('multi-select checklist details', () => {
     expect(filterChecklistOptions(options, 'line of').map((option) => option.value)).toEqual(['b'])
     expect(filterChecklistOptions(options, 'credit card').map((option) => option.value)).toEqual(['a'])
     expect(filterChecklistOptions(options, '  ')).toBe(options)
+  })
+
+  it('keeps the filter panels on the plain accent and gives only a list with details the darker selected text', () => {
+    expect(getFilterOptionStyle(true).color).toBe('var(--app-accent)')
+    expect(getFilterOptionStyle(true, true).color).toBe('var(--app-accent-on-page-tint)')
+    expect(getFilterOptionStyle(false, true).color).toBe(getFilterOptionStyle(false).color)
+
+    const withDetails = render([{ value: 'a', label: 'Travel Card', details: { type: 'Credit card', institution: null } }])
+    const filterRow = render([{ value: 'a', label: 'Travel Card' }])
+    expect(withDetails).toContain('color:var(--app-accent-on-page-tint)')
+    expect(filterRow).toContain('color:var(--app-accent)')
   })
 
   it('draws a filter row as a label and a check only', () => {

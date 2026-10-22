@@ -131,7 +131,8 @@ function ChecklistRow({
         aria-checked={selected}
         onClick={() => onToggle(option.value)}
         className={joinClassNames(ROW_CLASS_NAME, hasDetails ? DETAILS_ROW_CLASS_NAME : 'flex items-center gap-2')}
-        style={getFilterOptionStyle(selected)}
+        // A list with details sits straight on its dialog's page colour, where the selected tint needs the darker text
+        style={getFilterOptionStyle(selected, hasDetails)}
       >
         {option.imageUrl ? (
           <img
@@ -147,7 +148,7 @@ function ChecklistRow({
         ) : hasDetails ? (
           <span
             className="col-start-1 row-span-2 row-start-1 flex h-5 w-5 items-center justify-center rounded-md text-xs font-semibold min-[750px]:row-span-1"
-            style={{ background: 'var(--app-accent-soft)', border: '1px solid var(--app-border)', color: 'var(--app-accent)' }}
+            style={{ background: 'var(--app-accent-soft)', border: '1px solid var(--app-border)', color: 'var(--app-accent-on-page-tint)' }}
             aria-hidden
           >
             $
