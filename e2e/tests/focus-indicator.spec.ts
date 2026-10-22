@@ -675,8 +675,8 @@ test('shows a visible hover look on keyboard focus on the buttons that had none'
 })
 
 // A menu item's hover look adds a border, so keyboard focus shows exactly that look and no ring: the
-// Settings menu on the left and the sidebar items. The selected item already rests in that look, so
-// focus changes nothing on it
+// Settings menu on the left and the sidebar items. The selected item already rests in that look, so its
+// border turns stronger on focus instead
 test('shows the hover look and no ring on keyboard focus on menu items', async ({ page, request }) => {
   await page.emulateMedia({ reducedMotion: 'reduce' })
   const user = await signUpUser(request)
@@ -684,8 +684,22 @@ test('shows the hover look and no ring on keyboard focus on menu items', async (
 
   await openPage(page, '/settings')
   await expectVisibleHoverLook(page, page.getByRole('navigation', { name: 'Settings sections' }).getByRole('button', { name: 'Security', exact: true }))
-  await expectHoverLook(page, page.getByRole('navigation', { name: 'Settings sections' }).getByRole('button', { name: 'Profile', exact: true }))
   await expectVisibleHoverLook(page, page.getByRole('link', { name: 'Accounts', exact: true }))
+
+  // The selected item rests in the hover look, so keyboard focus strengthens its border and the pointer
+  // leaves it alone
+  const selected = page.getByRole('navigation', { name: 'Settings sections' }).getByRole('button', { name: 'Profile', exact: true })
+  await page.mouse.move(0, 0)
+  const rest = await settledLook(selected)
+  await focusFromKeyboard(page, selected)
+  const focused = await settledLook(selected)
+  expect(await selected.evaluate((node) => getComputedStyle(node).outlineStyle)).toBe('none')
+  expect(focused.button.borderTopColor).not.toBe(rest.button.borderTopColor)
+  expect({ ...focused.button, borderTopColor: '', borderRightColor: '', borderBottomColor: '', borderLeftColor: '' })
+    .toEqual({ ...rest.button, borderTopColor: '', borderRightColor: '', borderBottomColor: '', borderLeftColor: '' })
+  await selected.evaluate((node) => (node as HTMLElement).blur())
+  await selected.hover()
+  expect(await settledLook(selected)).toEqual(rest)
 })
 
 // A control without a border keeps the ring on top of its hover look: a filled button and the filled

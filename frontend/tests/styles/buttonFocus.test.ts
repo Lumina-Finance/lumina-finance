@@ -235,14 +235,35 @@ describe('button keyboard focus', () => {
     }
   })
 
-  it('gives the selected menu item no look of its own under the pointer or on keyboard focus', () => {
+  // The selected item rests in the accent look, so keyboard focus can only show on its border, which turns
+  // stronger than its resting one. The pointer leaves it as it is
+  it('strengthens only the selected menu item\'s border on keyboard focus', () => {
     const [selected] = rulesListing('.app-nav-link-active')
-    const [focus] = rulesListing('.app-nav-link:focus-visible')
-    for (const property of ['color', 'background', 'border-color']) {
-      expect(declared(focus, property)).toBe(declared(selected, property))
-    }
+    const [focus] = rulesListing('.app-nav-link-active:focus-visible')
+    expect(declarationsOf(focus)).toEqual(['border-color: var(--app-accent-nav-focus-border)'])
+    expect(declared(focus, 'border-color')).not.toBe(declared(selected, 'border-color'))
     expect(rulesListing('.app-nav-link-active:hover')).toHaveLength(0)
-    expect(rulesListing('.app-nav-link-active:focus-visible')).toHaveLength(0)
+  })
+
+  // The focused border reads at 3:1 against the border it replaces and the surface it sits on, as the focus
+  // colour does, and turns darker in the light theme and lighter in the dark one
+  describe.each(['light', 'dark'] as const)('selected menu item focus border in the %s theme', (theme) => {
+    const focusBorder = resolveColour('var(--app-accent-nav-focus-border)', theme).rgb
+    const surfaces = ['--app-nav-bg', '--app-bg', '--app-surface-soft'].map((name) => ({ name, rgb: resolveColour(`var(${name})`, theme).rgb }))
+
+    it.each(surfaces)('reads at 3:1 or better against the resting border and $name', ({ rgb }) => {
+      const fill = resolveColour('var(--app-accent-soft)', theme)
+      const border = resolveColour('var(--app-accent-border)', theme)
+      const resting = paint(border.rgb, border.alpha, paint(fill.rgb, fill.alpha, rgb))
+      expect(contrast(focusBorder, resting)).toBeGreaterThanOrEqual(3)
+      expect(contrast(focusBorder, rgb)).toBeGreaterThanOrEqual(3)
+    })
+
+    it('moves away from the surface, darker in the light theme and lighter in the dark one', () => {
+      const surface = resolveColour('var(--app-bg)', theme).rgb
+      const sum = (colour: Rgb) => colour[0] + colour[1] + colour[2]
+      expect(Math.sign(sum(focusBorder) - sum(surface))).toBe(theme === 'light' ? -1 : 1)
+    })
   })
 
   // A filled button's hover fill used to land on the same colour as its rest fill in the light theme, so

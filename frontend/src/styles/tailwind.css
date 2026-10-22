@@ -45,6 +45,10 @@
     /* A menu item's text on the soft accent tint. The accent itself reads 4.28:1 there on the page, where
        the settings sidebar sits, so the light theme draws it a little toward the page text colour */
     --app-accent-nav-text: color-mix(in srgb, var(--app-text) 10%, var(--app-accent));
+    /* The selected menu item's border on keyboard focus, drawn from the accent toward the text colour so it
+       turns darker in the light theme and lighter in the dark one. It reaches 3:1 against the resting
+       accent border and the surface in both themes */
+    --app-accent-nav-focus-border: color-mix(in srgb, var(--app-text) 40%, var(--app-accent));
     /* The border a bordered button takes under the pointer or keyboard focus, the full accent so it shows
        against both themes' hairline borders as clearly as the doubled focus colour border it replaced */
     --app-hover-border: var(--app-accent);
@@ -186,6 +190,7 @@
     --app-accent-soft: #c9a96a1f;
     --app-accent-border: #c9a96a38;
     --app-accent-nav-text: var(--app-accent);
+    --app-accent-nav-focus-border: color-mix(in srgb, var(--app-text) 40%, var(--app-accent));
     /* The subtle colour falls short on the accent tint here too, so faint text there is drawn the same way partway
        toward muted */
     --app-text-subtle-on-accent: color-mix(in srgb, var(--app-text-subtle) 60%, var(--app-text-muted));
@@ -652,9 +657,9 @@
     border: 1px solid transparent;
   }
 
-  /* An item under the pointer or keyboard focus takes the accent look the selected item rests in, so the
-     selected one shows no change. Keyboard focus shows that look with no ring. The pointer look is kept
-     off touch screens, where a tapped item would otherwise hold it */
+  /* An item under the pointer or keyboard focus takes the accent look the selected item rests in. Keyboard
+     focus shows that look with no ring. The pointer look is kept off touch screens, where a tapped item
+     would otherwise hold it */
   .app-nav-link:focus-visible {
     color: var(--app-accent-nav-text);
     background: var(--app-accent-soft);
@@ -665,6 +670,11 @@
     background: var(--app-accent-soft);
     border-color: var(--app-accent-border);
     color: var(--app-accent-nav-text);
+  }
+
+  /* The selected item already rests in the accent look, so keyboard focus shows a stronger border instead */
+  .app-nav-link-active:focus-visible {
+    border-color: var(--app-accent-nav-focus-border);
   }
 
   @media (hover: hover) {
