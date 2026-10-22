@@ -1,3 +1,4 @@
+import type { FxStatus } from '@/api/shared/fx'
 import type { Transaction } from '@/api/transactions'
 import type { TransactionDateGroup, TransactionListAccount } from '@/components/transactions/types/transactionList'
 import { DATE_FORMATS, formatDate, parseYmd } from '@/utils/date'
@@ -26,14 +27,49 @@ export function groupTransactionsByDate(transactions: Transaction[]): Transactio
 }
 
 /**
+ * Returns a transaction's amount in the currency its list totals in, which is the account's on an
+ * account-scoped list and the base currency otherwise, or null when the backend had no exchange rate
+ */
+function getDisplayAmount(transaction: Transaction, fixedAccount?: TransactionListAccount) {
+  return fixedAccount ? transaction.account_amount : transaction.base_currency_amount
+}
+
+/**
+ * Whether a transaction's amount could not be converted into the currency its list totals in
+ */
+export function isTransactionAmountUnconverted(transaction: Transaction, fixedAccount?: TransactionListAccount) {
+  return getDisplayAmount(transaction, fixedAccount) === null
+}
+
+/**
  * Sums the displayed amount for one date group using account currency on account-scoped lists and base currency otherwise
+ *
+ * An amount with no rate is left out of the sum, which the day's FX status says
  */
 export function getTransactionDateGroupTotal(
   transactions: Transaction[],
   fixedAccount?: TransactionListAccount,
 ) {
-  return transactions.reduce((sum, transaction) => {
-    const displayAmount = fixedAccount ? transaction.account_amount : transaction.base_currency_amount
-    return sum + (displayAmount ?? 0)
-  }, 0)
+  return transactions.reduce((sum, transaction) => sum + (getDisplayAmount(transaction, fixedAccount) ?? 0), 0)
+}
+
+/**
+ * Returns the FX status of a day's total, naming each currency pair it left out, or null when every
+ * amount converted so the day shows no badge
+ */
+export function getTransactionDateGroupFxStatus(
+  transactions: Transaction[],
+  currency: string,
+  fixedAccount?: TransactionListAccount,
+): FxStatus | null {
+  const missingCurrencies = new Set(
+    transactions
+      .filter((transaction) => isTransactionAmountUnconverted(transaction, fixedAccount))
+      .map((transaction) => transaction.currency),
+  )
+  if (missingCurrencies.size === 0) return null
+  return {
+    state: 'incomplete',
+    missing_pairs: Array.from(missingCurrencies, (base) => ({ base, quote: currency })),
+  }
 }

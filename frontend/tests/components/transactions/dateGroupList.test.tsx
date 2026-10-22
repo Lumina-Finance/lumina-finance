@@ -100,3 +100,58 @@ describe('day heading net total', () => {
     expect(dayTotal(markup)).toEqual({ colour: UPCOMING_DAY_TOTAL_COLOUR, text: '−$500.00' })
   })
 })
+
+describe('a transaction with no exchange rate', () => {
+  const converted = transaction('converted', -1_000)
+  const unconverted = { ...transaction('unconverted', -2_000), currency: 'EUR', base_currency_amount: null }
+  const zero = { ...transaction('zero', 0), base_currency_amount: 0 }
+
+  function renderDay(transactions: Transaction[], extra: object = {}) {
+    return renderToStaticMarkup(
+      <TransactionDateGroupList
+        dateGroups={[{ dateLabel: 'Oct 3, 2026', transactions }]}
+        categoryMap={new Map()}
+        accountMap={new Map([[account.id, account]])}
+        currency="USD"
+        listRevealKey={0}
+        stickyTop={0}
+        prefersReducedMotion
+        skipEnterAnimation
+        onEditTransaction={() => {}}
+        {...extra}
+      />,
+    )
+  }
+
+  const unavailableCount = (markup: string) => markup.split('FX unavailable').length - 1
+
+  it('marks only the unconverted row and gives its day one FX badge, leaving it out of the total', () => {
+    const markup = renderDay([converted, unconverted, zero])
+
+    expect(unavailableCount(markup)).toBe(2)
+    expect(markup.split('FX status for Oct 3, 2026').length - 1).toBe(1)
+    expect(dayTotal(markup).text).toBe('−$10.00')
+  })
+
+  it('shows neither marker nor badge on a day where every amount converted', () => {
+    const markup = renderDay([converted, zero])
+
+    expect(unavailableCount(markup)).toBe(0)
+    expect(markup).not.toContain('FX status for')
+  })
+
+  it('reads the account amount on an account list, where a missing base amount is no problem', () => {
+    const markup = renderDay([unconverted], { fixedAccount: account })
+
+    expect(unavailableCount(markup)).toBe(0)
+    expect(markup).not.toContain('FX status for')
+  })
+
+  it('marks a row missing its account amount on an account list even when the base amount exists', () => {
+    const missingInAccount = { ...transaction('missing', -2_000), account_amount: null }
+    const markup = renderDay([missingInAccount], { fixedAccount: account })
+
+    expect(unavailableCount(markup)).toBe(2)
+    expect(markup.split('FX status for Oct 3, 2026').length - 1).toBe(1)
+  })
+})

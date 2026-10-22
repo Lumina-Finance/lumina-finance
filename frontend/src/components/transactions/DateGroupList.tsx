@@ -5,6 +5,7 @@ import type { Category } from '@/api/categories'
 import type { Transaction } from '@/api/transactions'
 import { useMoneyFormatters } from '@/hooks/useMoneyFormatters'
 import { Checkbox } from '@/components/forms/Checkbox'
+import { FxStatusBadge } from '@/components/tooltips/FxStatusBadge'
 import TransactionRow, { type TransactionRowSelection } from '@/components/transactions/Row'
 import { TRANSACTION_LIST_COLUMNS, TRANSACTION_LIST_SUBGRID } from '@/components/transactions/listLayout'
 import { UPCOMING_DAY_TOTAL_COLOUR, UpcomingSection } from '@/components/transactions/UpcomingSection'
@@ -20,7 +21,11 @@ import {
   TRANSACTION_ROW_SCROLL_MARGIN_VARIABLE,
 } from '@/components/transactions/constants/transactionList'
 import type { TransactionDateGroup, TransactionListAccount } from '@/components/transactions/types/transactionList'
-import { getTransactionDateGroupTotal } from '@/components/transactions/utils/transactionDateGroups'
+import {
+  getTransactionDateGroupFxStatus,
+  getTransactionDateGroupTotal,
+  isTransactionAmountUnconverted,
+} from '@/components/transactions/utils/transactionDateGroups'
 import { getTransactionReadOnlyReason } from '@/components/transactions/utils/rowEditability'
 
 /**
@@ -41,6 +46,13 @@ export interface TransactionDateHeadingSelection {
   onToggle: (clearsHover: boolean) => void
   onPointerMove: () => void
   onPointerLeave: () => void
+}
+
+/**
+ * Explains a day total that leaves out amounts with no exchange rate
+ */
+function getDayTotalFxStatusMessage() {
+  return 'Some amounts on this day could not be converted, so this total leaves them out'
 }
 
 /**
@@ -122,6 +134,7 @@ export default function TransactionDateGroupList({
       <AnimatePresence initial={false}>
         {groups.map(({ dateLabel, transactions }, index) => {
           const dailyTotal = getTransactionDateGroupTotal(transactions, fixedAccount)
+          const dayFxStatus = getTransactionDateGroupFxStatus(transactions, currency, fixedAccount)
           // A day that netted to zero moved nothing, so it takes the neutral colour rather than the positive colour
           let dailyColor = 'var(--app-text)'
           if (dailyTotal > 0) dailyColor = 'var(--app-positive)'
@@ -201,13 +214,22 @@ export default function TransactionDateGroupList({
               >
                 {dateLabel}
               </p>
-              <p
-                className="font-financial text-sm font-medium"
-                data-testid="day-total"
-                style={{ color: dailyColor }}
-              >
-                {formatMovedCurrency(dailyTotal, currency)}
-              </p>
+              <div className="flex items-center gap-1.5">
+                {dayFxStatus && (
+                  <FxStatusBadge
+                    label={`FX status for ${dateLabel}`}
+                    fxStatus={dayFxStatus}
+                    getMessage={getDayTotalFxStatusMessage}
+                  />
+                )}
+                <p
+                  className="font-financial text-sm font-medium"
+                  data-testid="day-total"
+                  style={{ color: dailyColor }}
+                >
+                  {formatMovedCurrency(dailyTotal, currency)}
+                </p>
+              </div>
             </div>
 
             <AnimatePresence initial={false}>
@@ -231,6 +253,7 @@ export default function TransactionDateGroupList({
                     category={category}
                     currency={transaction.currency}
                     readOnlyReason={readOnlyReason}
+                    isFxUnavailable={isTransactionAmountUnconverted(transaction, fixedAccount)}
                     transaction={transaction}
                     prefersReducedMotion={prefersReducedMotion}
                     skipEnterAnimation={skipEnterAnimation}
