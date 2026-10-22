@@ -3,7 +3,7 @@ name: lumina-firefly-check
 
 services:
   firefly-db:
-    image: mariadb:11.8
+    image: mariadb:12.3.3
     environment:
       MARIADB_DATABASE: firefly
       MARIADB_USER: firefly
