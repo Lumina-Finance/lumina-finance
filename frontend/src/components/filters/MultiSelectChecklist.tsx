@@ -103,13 +103,13 @@ const ROW_CLASS_NAME =
 
 // A row with details is a grid, since a flex row would size itself to the full width of its text and
 // push the dialog wider than its panel, where a grid track that may shrink to nothing lets the text cut off
-const DETAILS_ROW_CLASS_NAME = 'grid grid-cols-[1.875rem_minmax(0,1fr)_1rem] gap-x-2'
+const DETAILS_ROW_CLASS_NAME = 'grid grid-cols-[1.6875rem_minmax(0,1fr)_1rem] gap-x-2'
 
 // The logo of a row with details is a square as tall as the text it sits beside as drawn, which runs from
-// the top of the label's capitals to the bottom of the type line's descenders, 30px in the 14px and 12px
-// text, and lies 2px below the centre of the two lines' boxes since the letters sit low in them
+// the top of the label's capitals to the baseline of the type line, 27px in the 14px and 12px text, and
+// starts 5px below the top of the row's content since the letters sit low in the line boxes
 const LOGO_CLASS_NAME = 'h-5 w-5 rounded-md'
-const DETAILS_LOGO_CLASS_NAME = 'h-7.5 w-7.5 translate-y-0.5 rounded-lg'
+const DETAILS_LOGO_CLASS_NAME = 'mt-1.25 h-6.75 w-6.75 self-start rounded-lg'
 
 /**
  * Renders one checklist row, showing the option icon, its label, and a trailing check when selected,
