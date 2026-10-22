@@ -13,6 +13,7 @@ import {
   OFX_TOO_LARGE_REASON,
 } from '@/pages/imports/ofx/constants'
 import type { OfxFileRead, OfxStatement, OfxStatementKind, OfxTransaction } from '@/pages/imports/ofx/types'
+import { createRandomId } from '@/utils/randomId'
 import { findAllDescendants, findChild, parseOfxMarkup, readLeaf, type OfxNode } from './markup'
 
 // The 1.x header is plain ASCII lines before the markup, so a prefix is enough to find its charset
@@ -47,7 +48,7 @@ const STATEMENT_ELEMENTS: Record<OfxStatementKind, { response: string; account: 
  * and bank ID it names, which the import sends to the server to be hashed there
  * @param fileId - What tells this file's transactions from those of another file of the same name
  */
-export async function readOfxFile(file: File, fileId: string = createOfxFileId()): Promise<OfxFileRead> {
+export async function readOfxFile(file: File, fileId: string = createRandomId()): Promise<OfxFileRead> {
   if (file.size > MAX_OFX_FILE_BYTES) return { status: 'refused', reason: OFX_TOO_LARGE_REASON }
 
   // A file the reader cannot get through is refused as not a statement, as a crash would otherwise
@@ -61,16 +62,6 @@ export async function readOfxFile(file: File, fileId: string = createOfxFileId()
 
 /** The file a statement is read from, which each of its transactions records */
 type OfxFileOrigin = Pick<OfxTransaction, 'fileId' | 'fileName'>
-
-/**
- * Makes an id that tells a file from the others staged with it, including one of the same name
- *
- * Uses getRandomValues, which a page on plain HTTP has, rather than crypto.randomUUID, which a
- * browser offers only on HTTPS or localhost
- */
-export function createOfxFileId() {
-  return Array.from(crypto.getRandomValues(new Uint8Array(16)), (byte) => byte.toString(16).padStart(2, '0')).join('')
-}
 
 function readOfxStatements(text: string, origin: OfxFileOrigin): OfxFileRead {
   const root = parseOfxMarkup(text)

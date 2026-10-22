@@ -2,6 +2,7 @@ import { useCallback, useMemo, useState } from 'react'
 import { useAuth } from '@/hooks/useAuth'
 import { getTodayYmd, resolveTimeZone } from '@/utils/date'
 import { findCurrencyExponent } from '@/utils/moneyInput'
+import { createRandomId } from '@/utils/randomId'
 import {
   CREATE_ACCOUNT_VALUE,
   CREATE_CATEGORY_VALUE,
@@ -511,7 +512,7 @@ export function useActualImportWorkflow() {
 
     setBudget(read.budget)
     setStagedFile({
-      id: crypto.randomUUID(),
+      id: createRandomId(),
       name: file.name,
       size: file.size,
       budgetName: read.budget.budgetName,
