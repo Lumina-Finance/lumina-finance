@@ -17,7 +17,7 @@ services:
       retries: 30
 
   firefly:
-    image: fireflyiii/core:${FIREFLY_VERSION:-version-6.7.3}
+    image: fireflyiii/core:${FIREFLY_VERSION:-version-6.7.9}
     depends_on:
       firefly-db:
         condition: service_healthy

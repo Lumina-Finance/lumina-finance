@@ -10,7 +10,7 @@ on:
   workflow_dispatch:
     inputs:
       firefly_version:
-        description: Firefly III version to check, such as 6.7.3. Empty checks the latest release
+        description: Firefly III version to check, such as 6.7.9. Empty checks the latest release
         required: false
         default: ""
 
@@ -91,7 +91,7 @@ jobs:
         run: |
           if [ -n "${REQUESTED}" ]; then
             if ! [[ "${REQUESTED}" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
-              echo "firefly_version must look like 6.7.3, got '${REQUESTED}'"
+              echo "firefly_version must look like 6.7.9, got '${REQUESTED}'"
               exit 1
             fi
             candidates="${REQUESTED}"
