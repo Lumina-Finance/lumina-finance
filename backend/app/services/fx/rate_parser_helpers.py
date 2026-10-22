@@ -7,21 +7,6 @@ from typing import Any
 from app.services.fx.errors import FxRateResponseError
 
 
-def parse_rate(payload: dict[str, Any], *, expected_base: str, expected_quote: str) -> Decimal:
-    """Return a validated provider rate from a single-rate payload
-
-    Args:
-        payload: Raw provider response payload
-        expected_base: Expected source currency code
-        expected_quote: Expected target currency code
-
-    Returns:
-        Quote currency units per one base currency unit
-    """
-    _, rate = _parse_rate_record(payload, expected_base=expected_base, expected_quote=expected_quote)
-    return rate
-
-
 def parse_rates(payload: Any, *, expected_base: str, expected_quote: str) -> dict[date, Decimal]:
     """Return validated provider rates from a date-series payload
 

@@ -303,7 +303,7 @@ async def test_list_transactions_returns_per_day_base_currency_amount_for_foreig
     assert transaction["amount"] == -10_00
     assert transaction["account_amount"] == -10_00
     assert transaction["base_currency_amount"] == -15_00
-    assert calls == [("USD", "CAD", date(2026, 3, 15), date(2026, 3, 15))]
+    assert calls == [("USD", "CAD", date(2026, 3, 8), date(2026, 3, 15))]
 
 
 async def test_create_transaction_duplicate_tags_deduplicated(client):

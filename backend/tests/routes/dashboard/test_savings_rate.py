@@ -137,7 +137,7 @@ async def test_dashboard_savings_rate_converts_foreign_currency_accounts(client,
         "expenses": 55_000,
     }
     assert data["fx_status"] == {"state": "complete", "missing_pairs": []}
-    assert calls == [("USD", "CAD", date(2025, 9, 1), date(2026, 3, 20))]
+    assert calls == [("USD", "CAD", date(2025, 8, 25), date(2026, 3, 20))]
 
 
 async def test_dashboard_savings_rate_leaves_out_days_after_the_profile_date(client, freeze_now):

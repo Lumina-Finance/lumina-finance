@@ -12,6 +12,7 @@ from app.models.base import CategoryKind
 from app.models.category import Category
 from app.models.currency import Currency
 from app.models.transaction import Transaction
+from app.services.fx.converter import RATE_LOOKBACK
 from tests.conftest import TestSession
 from tests.routes.accounts._account_helpers import (
     _created_at_in_tz,
@@ -254,13 +255,13 @@ async def test_list_accounts_converts_current_balance_to_user_base_currency(clie
 
     calls = []
 
-    async def fake_get_rate(self, base, quote, rate_date):
-        calls.append((base, quote, rate_date))
-        return Decimal("1.5")
+    async def fake_get_rates(self, base, quote, start_date, end_date):
+        calls.append((base, quote, start_date, end_date))
+        return {end_date: Decimal("1.5")}
 
     now = datetime.now(UTC)
     monkeypatch.setattr(account_routes, "datetime", _FixedClock(now))
-    monkeypatch.setattr(FrankfurterProvider, "get_rate", fake_get_rate)
+    monkeypatch.setattr(FrankfurterProvider, "get_rates", fake_get_rates)
 
     signup_resp = await _create_user(client)
     headers = _get_auth_header(signup_resp)
@@ -290,7 +291,8 @@ async def test_list_accounts_converts_current_balance_to_user_base_currency(clie
     assert rows["USD Cash"]["current_balance"] == 200_00
     assert rows["USD Cash"]["base_currency_current_balance"] == 300_00
     assert rows["USD Cash"]["current_balance_fx_status"] == {"state": "complete", "missing_pairs": []}
-    assert calls == [("USD", "CAD", now.astimezone(ZoneInfo("America/Toronto")).date())]
+    today = now.astimezone(ZoneInfo("America/Toronto")).date()
+    assert calls == [("USD", "CAD", today - RATE_LOOKBACK, today)]
 
 
 async def test_list_accounts_reports_current_balance_fx_failure(client, monkeypatch):
@@ -298,11 +300,11 @@ async def test_list_accounts_reports_current_balance_fx_failure(client, monkeypa
     account_routes = importlib.import_module("app.routes.accounts.router")
     from app.services.fx import FrankfurterProvider, FxRateNotFoundError
 
-    async def fake_get_rate(self, base, quote, rate_date):
+    async def fake_get_rates(self, base, quote, start_date, end_date):
         raise FxRateNotFoundError()
 
     monkeypatch.setattr(account_routes, "datetime", _FixedClock(datetime.now(UTC)))
-    monkeypatch.setattr(FrankfurterProvider, "get_rate", fake_get_rate)
+    monkeypatch.setattr(FrankfurterProvider, "get_rates", fake_get_rates)
 
     signup_resp = await _create_user(client)
     headers = _get_auth_header(signup_resp)

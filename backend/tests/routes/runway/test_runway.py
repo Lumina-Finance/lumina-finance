@@ -649,7 +649,7 @@ async def test_get_runway_converts_foreign_currency_balances_and_daily_expenses(
     assert data["avg_monthly_expense"] == 42_000
     assert data["months"] == pytest.approx(130_000 / 42_000)
     assert data["fx_status"] == {"state": "complete", "missing_pairs": []}
-    assert calls == [("USD", "CAD", date(2025, 4, 1), date(2026, 4, 15))]
+    assert calls == [("USD", "CAD", date(2025, 3, 25), date(2026, 4, 15))]
 
 
 async def test_get_runway_reports_incomplete_fx_with_missing_pairs(client, monkeypatch):

@@ -152,7 +152,7 @@ async def test_net_worth_converts_foreign_balances_by_bucket_value_date(client, 
         assert (base, quote, start_date, end_date) == (
             "USD",
             "CAD",
-            date(2026, 4, 30),
+            date(2026, 4, 23),
             date(2026, 5, 3),
         )
         return {

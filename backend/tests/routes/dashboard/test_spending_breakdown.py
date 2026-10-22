@@ -115,7 +115,7 @@ async def test_dashboard_spending_breakdown_converts_foreign_currency_accounts(c
     assert data["expense_total"] == 40_000
     assert data["income_total"] == 62_500
     assert data["fx_status"] == {"state": "complete", "missing_pairs": []}
-    assert calls == [("USD", "CAD", date(2026, 3, 1), date(2026, 3, 20))]
+    assert calls == [("USD", "CAD", date(2026, 2, 22), date(2026, 3, 20))]
 
 
 async def test_dashboard_spending_breakdown_loaded_twice_asks_the_rate_provider_once(client, monkeypatch, published_valkey):

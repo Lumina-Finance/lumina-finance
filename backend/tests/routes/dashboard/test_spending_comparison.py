@@ -79,8 +79,8 @@ async def test_dashboard_spending_comparison_converts_foreign_currency_accounts(
     assert data["previous"][-1] == 30_000
     assert data["fx_status"] == {"state": "complete", "missing_pairs": []}
     assert calls == [
-        ("USD", "CAD", date(2026, 3, 1), date(2026, 3, 20)),
-        ("USD", "CAD", date(2026, 2, 1), date(2026, 2, 28)),
+        ("USD", "CAD", date(2026, 2, 22), date(2026, 3, 20)),
+        ("USD", "CAD", date(2026, 1, 25), date(2026, 2, 28)),
     ]
 
 
