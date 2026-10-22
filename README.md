@@ -13,7 +13,7 @@
 </p>
 
 <p align="center">
-  <a href="https://www.buymeacoffee.com/lumina.finance"><img alt="Buy Me a Coffee" src="https://cdn.buymeacoffee.com/buttons/v2/default-yellow.png" height="48"></a>
+  <a href="https://github.com/sponsors/Lumina-Finance"><picture><source media="(prefers-color-scheme: dark)" srcset="docs/sponsor_dark.svg"><img alt="Sponsor on GitHub" src="docs/sponsor_light.svg" height="40"></picture></a>&nbsp;&nbsp;<a href="https://www.buymeacoffee.com/lumina.finance"><img alt="Buy Me a Coffee" src="https://cdn.buymeacoffee.com/buttons/v2/default-yellow.png" height="40"></a>
 </p>
 
 <!-- markdownlint-enable MD033 -->
@@ -197,7 +197,7 @@ Setup, configuration and answers to common questions are on the docs site at [do
 Lumina Finance is fully bootstrapped. If you would like to support its development, please consider donating to the project.
 
 <!-- markdownlint-disable MD033 -->
-<a href="https://www.buymeacoffee.com/lumina.finance"><img alt="Buy Me a Coffee" src="https://cdn.buymeacoffee.com/buttons/v2/default-yellow.png" height="48"></a>
+<a href="https://github.com/sponsors/Lumina-Finance"><picture><source media="(prefers-color-scheme: dark)" srcset="docs/sponsor_dark.svg"><img alt="Sponsor on GitHub" src="docs/sponsor_light.svg" height="40"></picture></a>&nbsp;&nbsp;<a href="https://www.buymeacoffee.com/lumina.finance"><img alt="Buy Me a Coffee" src="https://cdn.buymeacoffee.com/buttons/v2/default-yellow.png" height="40"></a>
 <!-- markdownlint-enable MD033 -->
 
 You can also show your support by starring the project on GitHub!
