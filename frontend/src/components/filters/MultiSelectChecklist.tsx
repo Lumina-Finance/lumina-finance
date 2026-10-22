@@ -55,7 +55,7 @@ export function MultiSelectChecklist({ options, selectedValues, searchPlaceholde
         />
       </div>
 
-      <ul className={getFilterOptionListClass(fillHeight)}>
+      <ul className={getFilterOptionListClass(fillHeight, hasDetails)}>
         {filtered.length === 0 ? (
           <li className="px-2 py-2 text-xs" style={{ color: 'var(--app-text-subtle)' }}>
             No matches
@@ -69,7 +69,7 @@ export function MultiSelectChecklist({ options, selectedValues, searchPlaceholde
               >
                 {group.label}
               </div>
-              <ul className="space-y-1">
+              <ul className={hasDetails ? 'space-y-1.5' : 'space-y-1'}>
                 {group.items.map((option) => (
                   <ChecklistRow
                     key={option.value}

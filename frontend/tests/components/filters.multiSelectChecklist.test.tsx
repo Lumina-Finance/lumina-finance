@@ -69,5 +69,14 @@ describe('multi-select checklist details', () => {
     expect(markup).toContain('Travel Card')
     expect(markup).not.toContain(' · ')
     expect(markup).not.toContain('>$<')
+    expect(markup).toContain('space-y-1 ')
+    expect(markup).not.toContain('space-y-1.5')
+  })
+
+  it('spaces the rows of a list with details one step wider than the filter panels', () => {
+    const markup = render([{ value: 'a', label: 'Travel Card', details: { type: 'Credit card', institution: null } }])
+
+    expect(markup).toContain('space-y-1.5')
+    expect(markup).not.toContain('space-y-1 ')
   })
 })

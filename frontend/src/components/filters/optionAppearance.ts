@@ -21,10 +21,10 @@ export function getFilterOptionStyle(selected: boolean, onPageTint = false): CSS
 
 /**
  * Returns the scroll container classes shared by the filter option lists, switching between the
- * capped desktop height and the fill height the mobile sheet gives the list
+ * capped desktop height and the fill height the mobile sheet gives the list, with a wider gap between
+ * rows for the list that shows details under each label
  */
-export function getFilterOptionListClass(fillHeight: boolean): string {
-  return fillHeight
-    ? 'min-h-12 flex-1 space-y-1 overflow-auto py-2'
-    : 'max-h-56 space-y-1 overflow-auto py-2'
+export function getFilterOptionListClass(fillHeight: boolean, roomy = false): string {
+  const gap = roomy ? 'space-y-1.5' : 'space-y-1'
+  return fillHeight ? `min-h-12 flex-1 ${gap} overflow-auto py-2` : `max-h-56 ${gap} overflow-auto py-2`
 }
