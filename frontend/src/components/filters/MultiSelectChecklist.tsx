@@ -125,6 +125,7 @@ function ChecklistRow({
   onToggle: (value: string) => void
 }) {
   const { details } = option
+  // A list with details sits straight on its dialog's page colour, where the selected tint needs the darker text
   const rowStyle = getFilterOptionStyle(selected, hasDetails)
   const logoClassName = hasDetails ? DETAILS_LOGO_CLASS_NAME : LOGO_CLASS_NAME
 
@@ -136,7 +137,6 @@ function ChecklistRow({
         aria-checked={selected}
         onClick={() => onToggle(option.value)}
         className={joinClassNames(ROW_CLASS_NAME, hasDetails ? DETAILS_ROW_CLASS_NAME : 'flex gap-2')}
-        // A list with details sits straight on its dialog's page colour, where the selected tint needs the darker text
         style={rowStyle}
       >
         {option.imageUrl ? (

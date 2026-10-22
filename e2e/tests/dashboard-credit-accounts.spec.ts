@@ -142,22 +142,29 @@ test('eases every text colour of a chooser row straight from its old value to it
       }
       const frames: number[][][] = []
       const start = performance.now()
+      const sampled = { frames, done: false }
+      // Samples until the colours have changed and then held still for ten frames, or for a few seconds at most
       const tick = () => {
         frames.push(lines.map(read))
-        if (performance.now() - start < 500) requestAnimationFrame(tick)
+        const changed = frames.some((frame) => JSON.stringify(frame) !== JSON.stringify(frames[0]))
+        const still = frames.length > 10 && frames.slice(-10).every((frame) => JSON.stringify(frame) === JSON.stringify(frames[frames.length - 1]))
+        if ((changed && still) || performance.now() - start > 4000) sampled.done = true
+        else requestAnimationFrame(tick)
       }
-      Object.assign(window, { __frames: frames })
+      Object.assign(window, { __sampled: sampled })
       requestAnimationFrame(tick)
     })
     await row.click()
     await page.mouse.move(0, 0)
-    await page.waitForTimeout(700)
-    return page.evaluate(() => (window as unknown as { __frames: number[][][] }).__frames)
+    await page.waitForFunction(() => (window as unknown as { __sampled: { done: boolean } }).__sampled.done)
+    return page.evaluate(() => (window as unknown as { __sampled: { frames: number[][][] } }).__sampled.frames)
   }
 
   // The card starts selected, so the first click deselects it and the second selects it again
-  for (let click = 0; click < 2; click++) {
+  await expect(row).toHaveAttribute('aria-checked', 'true')
+  for (const checked of ['false', 'true']) {
     const frames = await sampleToggle()
+    await expect(row).toHaveAttribute('aria-checked', checked)
     const first = frames[0]
     const last = frames[frames.length - 1]
     for (const [line, from] of first.entries()) {
@@ -172,6 +179,5 @@ test('eases every text colour of a chooser row straight from its old value to it
       // And the change is eased, so some frame sits between the two colours
       expect(frames.some((frame) => frame[line].some((channel, index) => channel !== from[index] && channel !== to[index]))).toBe(true)
     }
-    await page.waitForTimeout(300)
   }
 })
