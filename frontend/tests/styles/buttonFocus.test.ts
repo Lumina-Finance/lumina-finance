@@ -212,6 +212,7 @@ describe('button keyboard focus', () => {
   const POINTER_ONLY_HOVER = [
     ...SELECTED_OPTIONS.map((name) => (GUARDED_SELECTED_OPTIONS.includes(name) ? `${name}:not(:disabled):hover` : `${name}:hover`)),
     '.app-nav-link:hover',
+    '.app-nav-link-active:hover',
     '.app-calendar-day[data-selected]:hover',
     '.app-range-glass:has(> .app-range-glass-head:hover)',
   ]
@@ -236,13 +237,15 @@ describe('button keyboard focus', () => {
   })
 
   // The selected item rests in the accent look, so keyboard focus can only show on its border, which turns
-  // stronger than its resting one. The pointer leaves it as it is
-  it('strengthens only the selected menu item\'s border on keyboard focus', () => {
+  // stronger than its resting one, and the pointer shows the same border
+  it('strengthens only the selected menu item\'s border on keyboard focus and under the pointer', () => {
     const [selected] = rulesListing('.app-nav-link-active')
     const [focus] = rulesListing('.app-nav-link-active:focus-visible')
-    expect(declarationsOf(focus)).toEqual(['border-color: var(--app-accent-nav-focus-border)'])
-    expect(declared(focus, 'border-color')).not.toBe(declared(selected, 'border-color'))
-    expect(rulesListing('.app-nav-link-active:hover')).toHaveLength(0)
+    const [hover] = rulesListing('.app-nav-link-active:hover')
+    for (const rule of [focus, hover]) {
+      expect(declarationsOf(rule)).toEqual(['border-color: var(--app-accent-nav-focus-border)'])
+      expect(declared(rule, 'border-color')).not.toBe(declared(selected, 'border-color'))
+    }
   })
 
   // The focused border reads at 3:1 against the border it replaces and the surface it sits on, as the focus

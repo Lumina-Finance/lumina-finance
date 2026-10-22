@@ -676,7 +676,7 @@ test('shows a visible hover look on keyboard focus on the buttons that had none'
 
 // A menu item's hover look adds a border, so keyboard focus shows exactly that look and no ring: the
 // Settings menu on the left and the sidebar items. The selected item already rests in that look, so its
-// border turns stronger on focus instead
+// border turns stronger on focus and under the pointer instead
 test('shows the hover look and no ring on keyboard focus on menu items', async ({ page, request }) => {
   await page.emulateMedia({ reducedMotion: 'reduce' })
   const user = await signUpUser(request)
@@ -686,8 +686,8 @@ test('shows the hover look and no ring on keyboard focus on menu items', async (
   await expectVisibleHoverLook(page, page.getByRole('navigation', { name: 'Settings sections' }).getByRole('button', { name: 'Security', exact: true }))
   await expectVisibleHoverLook(page, page.getByRole('link', { name: 'Accounts', exact: true }))
 
-  // The selected item rests in the hover look, so keyboard focus strengthens its border and the pointer
-  // leaves it alone
+  // The selected item rests in the hover look, so keyboard focus and the pointer both strengthen its
+  // border to the same colour, and nothing else changes
   const selected = page.getByRole('navigation', { name: 'Settings sections' }).getByRole('button', { name: 'Profile', exact: true })
   await page.mouse.move(0, 0)
   const rest = await settledLook(selected)
@@ -699,7 +699,9 @@ test('shows the hover look and no ring on keyboard focus on menu items', async (
     .toEqual({ ...rest.button, borderTopColor: '', borderRightColor: '', borderBottomColor: '', borderLeftColor: '' })
   await selected.evaluate((node) => (node as HTMLElement).blur())
   await selected.hover()
-  expect(await settledLook(selected)).toEqual(rest)
+  const hovered = await settledLook(selected)
+  expect(hovered.button.borderTopColor).not.toBe(rest.button.borderTopColor)
+  expect(hovered).toEqual(focused)
 })
 
 // A control without a border keeps the ring on top of its hover look: a filled button and the filled

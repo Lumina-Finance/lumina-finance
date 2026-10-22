@@ -672,7 +672,8 @@
     color: var(--app-accent-nav-text);
   }
 
-  /* The selected item already rests in the accent look, so keyboard focus shows a stronger border instead */
+  /* The selected item already rests in the accent look, so keyboard focus and the pointer show a stronger
+     border instead */
   .app-nav-link-active:focus-visible {
     border-color: var(--app-accent-nav-focus-border);
   }
@@ -682,6 +683,10 @@
       color: var(--app-accent-nav-text);
       background: var(--app-accent-soft);
       border-color: var(--app-accent-border);
+    }
+
+    .app-nav-link-active:hover {
+      border-color: var(--app-accent-nav-focus-border);
     }
   }
 
