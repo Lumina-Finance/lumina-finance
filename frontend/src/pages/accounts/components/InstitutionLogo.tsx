@@ -1,4 +1,5 @@
 import type { Institution } from '@/api/institutions'
+import { useUsableLogo } from '@/hooks/useUsableLogo'
 import { resolveInstitutionLogoUrl } from '@/utils/institutionLogo'
 
 type InstitutionLogoProps = {
@@ -28,7 +29,8 @@ export function InstitutionLogo({
   institution,
   variant = 'row',
 }: InstitutionLogoProps) {
-  const faviconUrl = resolveInstitutionLogoUrl(institution)
+  const logo = useUsableLogo(resolveInstitutionLogoUrl(institution))
+  const faviconUrl = logo.src
   const classNames = variantClassName[variant]
 
   return (
@@ -49,6 +51,7 @@ export function InstitutionLogo({
           alt={`${institution!.name} logo`}
           className="h-full w-full object-contain"
           loading="lazy"
+          {...logo.imageProps}
         />
       ) : (
         <span

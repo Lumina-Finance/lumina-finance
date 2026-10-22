@@ -3,6 +3,7 @@ import { Check, Search } from 'lucide-react'
 import { filterChecklistOptions } from '@/components/filters/filterChecklistOptions'
 import type { OptionItem } from '@/components/filters/OptionList'
 import { getFilterOptionListClass, getFilterOptionStyle } from '@/components/filters/optionAppearance'
+import { useUsableLogo } from '@/hooks/useUsableLogo'
 import { joinClassNames } from '@/utils/classNames'
 
 type MultiSelectChecklistProps = {
@@ -125,6 +126,7 @@ function ChecklistRow({
   onToggle: (value: string) => void
 }) {
   const { details } = option
+  const logo = useUsableLogo(option.imageUrl)
   // A list with details sits straight on its dialog's page colour, where the selected tint needs the darker text
   const rowStyle = getFilterOptionStyle(selected, hasDetails)
   const logoClassName = hasDetails ? DETAILS_LOGO_CLASS_NAME : LOGO_CLASS_NAME
@@ -139,12 +141,13 @@ function ChecklistRow({
         className={joinClassNames(ROW_CLASS_NAME, hasDetails ? DETAILS_ROW_CLASS_NAME : 'flex gap-2')}
         style={rowStyle}
       >
-        {option.imageUrl ? (
+        {logo.src ? (
           <img
-            src={option.imageUrl}
+            src={logo.src}
             alt=""
             aria-hidden
             loading="lazy"
+            {...logo.imageProps}
             className={joinClassNames('shrink-0 object-contain', logoClassName)}
           />
         ) : hasDetails ? (
