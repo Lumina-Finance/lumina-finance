@@ -114,7 +114,7 @@ test('cuts a long card name off inside the chooser instead of widening it past i
   expect(overflow).toEqual({ width: 0, left: 0 })
 })
 
-test('eases every text colour of a chooser row straight from its old value to its new one', async ({ page, request }) => {
+test('eases the name of a chooser row straight to its new colour and leaves the type line as it was', async ({ page, request }) => {
   const user = await signUpUser(request)
   await createCard(request, user, 'Card A', 50_000, 500_000)
 
@@ -167,17 +167,17 @@ test('eases every text colour of a chooser row straight from its old value to it
     await expect(row).toHaveAttribute('aria-checked', checked)
     const first = frames[0]
     const last = frames[frames.length - 1]
-    for (const [line, from] of first.entries()) {
-      const to = last[line]
-      // Every channel stays between its old and new value, give or take rounding, so no line passes through another colour
-      for (const frame of frames) {
-        frame[line].forEach((channel, index) => {
-          expect(channel).toBeGreaterThanOrEqual(Math.min(from[index], to[index]) - 2)
-          expect(channel).toBeLessThanOrEqual(Math.max(from[index], to[index]) + 2)
-        })
-      }
-      // And the change is eased, so some frame sits between the two colours
-      expect(frames.some((frame) => frame[line].some((channel, index) => channel !== from[index] && channel !== to[index]))).toBe(true)
+    const [from, to] = [first[0], last[0]]
+    // The name's channels stay between its old and new value, give or take rounding, so it passes through no other colour
+    for (const frame of frames) {
+      frame[0].forEach((channel, index) => {
+        expect(channel).toBeGreaterThanOrEqual(Math.min(from[index], to[index]) - 2)
+        expect(channel).toBeLessThanOrEqual(Math.max(from[index], to[index]) + 2)
+      })
     }
+    // And the change is eased, so some frame sits between the two colours
+    expect(frames.some((frame) => frame[0].some((channel, index) => channel !== from[index] && channel !== to[index]))).toBe(true)
+    // The type line is the same colour on every frame, selected or not
+    expect(frames.every((frame) => frame[1].every((channel, index) => channel === first[1][index]))).toBe(true)
   }
 })

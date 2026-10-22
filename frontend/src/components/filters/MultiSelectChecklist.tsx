@@ -174,12 +174,8 @@ function ChecklistRow({
         {details ? (
           <span className="min-w-0 flex-1">
             <span className="block truncate">{option.label}</span>
-            {/* Both states name their colour and the line eases between them in step with the row, since a line that
-                inherits the row's colour when selected would jump to the row's colour as it was before easing from it */}
-            <span
-              className="block truncate text-xs transition-colors duration-150"
-              style={{ color: selected ? rowStyle.color : 'var(--app-text-muted)' }}
-            >
+            {/* Only the name takes the selected look, so the line keeps the muted colour and the regular weight */}
+            <span className="block truncate text-xs" style={{ color: 'var(--app-text-muted)', fontWeight: 400 }}>
               {details.institution ? `${details.type} · ${details.institution}` : details.type}
             </span>
           </span>
