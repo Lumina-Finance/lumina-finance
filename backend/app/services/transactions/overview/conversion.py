@@ -64,21 +64,3 @@ async def prefetch_overview_rates(
             start_date=start_date,
             end_date=end_date,
         )
-
-
-def clone_overview_converter(converter: FxConverter) -> FxConverter:
-    """Clone a converter's cached state for an overview metric
-
-    Args:
-        converter: Shared overview converter with prefetched rates
-
-    Returns:
-        New converter instance with copied rate and failure caches
-    """
-    cloned_converter = FxConverter(
-        provider=converter.provider,
-        currency_exponents=converter.currency_exponents,
-    )
-    cloned_converter.rates = converter.rates.copy()
-    cloned_converter.failed_rates = converter.failed_rates.copy()
-    return cloned_converter

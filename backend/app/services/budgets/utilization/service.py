@@ -7,7 +7,6 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.models.budget import BaseBudget, Budget
 from app.schemas.budget import BudgetCategoryUtilization, BudgetUtilizationResponse, LatestBudgetUtilizationResponse
 from app.services.budgets.utilization.conversion_helpers import (
-    create_converter_with_cached_rates,
     get_spend_rows_by_budget,
     prefetch_budget_rates,
 )
@@ -112,7 +111,7 @@ async def _get_budget_utilization_response(
     Returns:
         Utilization response with spend totals and FX status for one budget
     """
-    budget_converter = create_converter_with_cached_rates(shared_converter)
+    budget_converter = shared_converter.clone()
     spend_by_category = {category_id: 0 for category_id in tracked_category_ids}
 
     # Store debits as positive spend in the budget currency

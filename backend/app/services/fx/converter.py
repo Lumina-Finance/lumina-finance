@@ -52,6 +52,16 @@ class FxConverter:
         self.success_count = 0
         self.missing_pairs: list[FxRateIssue] = []
 
+    def clone(self) -> FxConverter:
+        """Return an independent converter that starts with this one's loaded rates and failures
+
+        Lets several metrics of one request share a prefetch while each reports its own status
+        """
+        cloned = FxConverter(provider=self.provider, currency_exponents=self.currency_exponents)
+        cloned.rates = self.rates.copy()
+        cloned.failed_rates = self.failed_rates.copy()
+        return cloned
+
     async def convert_minor_units(
         self,
         amount: int,

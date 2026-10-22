@@ -10,6 +10,7 @@ from app.services.fx import (
     FrankfurterProvider,
     FxConverter,
     FxProviderUnavailableError,
+    FxRateKey,
     FxRateNotFoundError,
     FxRateRejectedError,
     FxRateResponseError,
@@ -194,6 +195,39 @@ async def test_converter_measures_the_lookback_from_each_day_of_a_range():
 
     assert earlier == 13_00
     assert later is None
+
+
+def test_converter_clone_copies_loaded_rates_and_failures_without_sharing_them():
+    """A clone starts with the loaded rates and failures, and later changes to either converter stay apart"""
+    shared = _converter(FakeProvider())
+    rate_key = FxRateKey(date(2026, 3, 15), "USD", "CAD")
+    failed_key = FxRateKey(date(2026, 3, 16), "USD", "CAD")
+    shared.rates[rate_key] = Decimal("1.35")
+    shared.failed_rates[failed_key] = "rate_not_found"
+
+    clone = shared.clone()
+
+    assert clone.provider is shared.provider
+    assert clone.currency_exponents == shared.currency_exponents
+    assert clone.rates == {rate_key: Decimal("1.35")}
+    assert clone.failed_rates == {failed_key: "rate_not_found"}
+
+    clone.rates.clear()
+    clone.failed_rates.clear()
+
+    assert shared.rates == {rate_key: Decimal("1.35")}
+    assert shared.failed_rates == {failed_key: "rate_not_found"}
+
+
+async def test_converter_clone_starts_with_its_own_status():
+    """A metric's missing pair does not leak into the status of a converter cloned from the same prefetch"""
+    shared = _converter(FakeProvider(errors={("USD", "CAD"): FxRateNotFoundError()}))
+    await shared.convert_minor_units(10_00, base="USD", quote="CAD", rate_date=date(2026, 5, 30))
+
+    clone = shared.clone()
+
+    assert shared.get_status().state == "incomplete"
+    assert clone.get_status() == FxStatus(state="none")
 
 
 def test_convert_minor_units_handles_currency_exponents_and_rounding():

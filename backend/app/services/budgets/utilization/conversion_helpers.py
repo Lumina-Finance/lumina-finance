@@ -7,24 +7,6 @@ from typing import Any
 from app.services.fx import FxConverter
 
 
-def create_converter_with_cached_rates(converter: FxConverter) -> FxConverter:
-    """Return a converter with copied FX cache state
-
-    Args:
-        converter: Converter whose cached rates should be reused
-
-    Returns:
-        Independent converter with copied rates and failure tracking
-    """
-    budget_converter = FxConverter(
-        provider=converter.provider,
-        currency_exponents=converter.currency_exponents,
-    )
-    budget_converter.rates = converter.rates.copy()
-    budget_converter.failed_rates = converter.failed_rates.copy()
-    return budget_converter
-
-
 async def prefetch_budget_rates(converter: FxConverter, spend_rows: list[Any]) -> None:
     """Prefetch FX rates needed for budget spend rows
 
