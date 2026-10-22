@@ -76,6 +76,9 @@ export function StepUpModal({
   const totpStatus = useTotpStatus();
   const [password, setPassword] = useState('');
   const [otp, setOtp] = useState('');
+  // Counts refused codes, so the code boxes remount focused on the first one: a disabled input drops
+  // focus while the code is checked, and the user's next digit should land without a click
+  const [refusedCodes, setRefusedCodes] = useState(0);
   const [error, setError] = useState('');
   // Holds the attempts left before the lockout after a failed try, shown as a callout so the user is
   // warned before the entry that signs them out everywhere
@@ -115,6 +118,7 @@ export function StepUpModal({
   const reset = () => {
     setPassword('');
     setOtp('');
+    setRefusedCodes(0);
     setError('');
     setLockoutRemaining(null);
     setConfirmingReset(false);
@@ -151,6 +155,7 @@ export function StepUpModal({
         setError(GENERIC_STEP_UP_ERROR);
       }
       setOtp('');
+      if (path === 'code') setRefusedCodes((count) => count + 1);
     } finally {
       setVerifyingPath(null);
     }
@@ -354,7 +359,13 @@ export function StepUpModal({
               )}
 
               {showCodeEntry && (
-                <OtpInput value={otp} onChange={setOtp} disabled={verifying} autoFocus={!canUsePasskey} />
+                <OtpInput
+                  key={refusedCodes}
+                  value={otp}
+                  onChange={setOtp}
+                  disabled={verifying}
+                  autoFocus={!canUsePasskey || refusedCodes > 0}
+                />
               )}
 
               {feedback}
