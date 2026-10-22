@@ -5,7 +5,7 @@ name: lumina-actual-check
 services:
   actual:
     # From GitHub's registry rather than Docker Hub, so pulling it counts against no pull limit
-    image: ${ACTUAL_IMAGE:-ghcr.io/actualbudget/actual}:${ACTUAL_IMAGE_TAG:-26.9.0}
+    image: ${ACTUAL_IMAGE:-ghcr.io/actualbudget/actual}:${ACTUAL_IMAGE_TAG:-26.10.0}
     volumes:
       - actual-data:/data
     ports:
@@ -35,7 +35,7 @@ services:
       # npm needs a writable home for its cache under a user the image doesn't know
       HOME: /tmp
       ACTUAL_URL: http://actual:5006
-      ACTUAL_API_VERSION: ${ACTUAL_API_VERSION:-26.9.0}
+      ACTUAL_API_VERSION: ${ACTUAL_API_VERSION:-26.10.0}
       ACTUAL_SESSION_TOKEN:
       ACTUAL_ZERO_DECIMAL_CURRENCIES:
     # Retried, since a registry hiccup would otherwise fail the week's check. better-sqlite3's
