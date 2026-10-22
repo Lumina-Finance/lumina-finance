@@ -9,4 +9,6 @@ export interface OptionItem {
   icon?: string | null
   // Logo or image source shown in place of the text icon, used by the institution filter options
   imageUrl?: string | null
+  // A checklist whose options carry details shows them under the label, and searches them too. The filter panels leave it out
+  details?: { type: string; institution: string | null }
 }

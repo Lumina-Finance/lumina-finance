@@ -59,6 +59,10 @@
        4.5:1 on it in the light theme and on the deepest surfaces in the dark one, and this clears 4.7:1
        on every surface in both. The chip in the Filters panel takes it on its 22% hover tint too */
     --app-accent-on-hover-fill: color-mix(in srgb, var(--app-text) 60%, var(--app-accent));
+    /* The text of a selected row whose soft tint sits straight on the page colour, such as the credit accounts
+       list in its dialog. The accent itself reads 4.28:1 on that tint here, so it is drawn a little toward the
+       page text colour, which keeps it bronze and clears 4.5:1 */
+    --app-accent-on-page-tint: color-mix(in srgb, var(--app-accent) 85%, var(--app-text));
     /* The gold gradient behind a user's initials and the initials on it, the same in both themes. The end stop is
        the darkest point the initials sit on, kept light enough for them to read at 4.5:1 */
     --app-avatar-start: #C9A96A;
@@ -191,6 +195,7 @@
     --app-accent-border: #c9a96a38;
     --app-accent-nav-text: var(--app-accent);
     --app-accent-nav-focus-border: color-mix(in srgb, var(--app-text) 40%, var(--app-accent));
+    --app-accent-on-page-tint: var(--app-accent);
     /* The subtle colour falls short on the accent tint here too, so faint text there is drawn the same way partway
        toward muted */
     --app-text-subtle-on-accent: color-mix(in srgb, var(--app-text-subtle) 60%, var(--app-text-muted));
@@ -2736,16 +2741,14 @@
 
   .app-selection-list {
     @apply mt-3 max-h-60 space-y-1 overflow-y-auto rounded-xl p-1;
-    /* No panel of its own: the rows sit on the modal's background, and the padding keeps their outlines and focus rings from being clipped. The border stays transparent so an invalid list can still tint it */
-    border: 1px solid transparent;
-    /* Pulls the box out by its own padding and border so the rows line up with the search field above */
-    margin-inline: calc(-1 * (0.25rem + 1px));
+    background: var(--app-input-bg);
+    border: 1px solid var(--app-input-border);
   }
 
   .app-selection-option {
     @apply grid w-full grid-cols-[1.25rem_minmax(0,1fr)] items-center gap-3 rounded-lg px-3 py-2 text-left text-sm transition-colors duration-150;
     background: transparent;
-    border: 1px solid var(--app-input-border);
+    border: 1px solid transparent;
     color: var(--app-text-muted);
     font-weight: 400;
   }

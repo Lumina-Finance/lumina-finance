@@ -98,3 +98,86 @@ test('shows its own empty state once every card is left out, and brings a card b
   await expect(dashboardContent(page)).toContainText('75%')
   await expect(page.getByText('No accounts selected')).toBeHidden()
 })
+
+test('cuts a long card name off inside the chooser instead of widening it past its panel', AT_EVERY_SIZE, async ({ page, request }) => {
+  const user = await signUpUser(request)
+  const longName = 'A card named for the whole product design and research team across all travel and events in a very long year'
+  await createCard(request, user, longName, 50_000, 500_000)
+
+  await logInViaApi(page, user)
+  await openPage(page, '/dashboard')
+  const dialog = await openChooser(page)
+  await expect(dialog.getByRole('checkbox', { name: longName })).toBeVisible()
+
+  // A row that sized itself to its text would push the panel's content wider than the panel and scroll its rail away
+  const overflow = await dialog.evaluate((panel) => ({ width: panel.scrollWidth - panel.clientWidth, left: panel.scrollLeft }))
+  expect(overflow).toEqual({ width: 0, left: 0 })
+})
+
+test('eases the name of a chooser row straight to its new colour and leaves the type line as it was', async ({ page, request }) => {
+  const user = await signUpUser(request)
+  await createCard(request, user, 'Card A', 50_000, 500_000)
+
+  await logInViaApi(page, user)
+  await openPage(page, '/dashboard')
+  const dialog = await openChooser(page)
+  const row = dialog.getByRole('checkbox', { name: 'Card A' })
+  await expect(row).toBeVisible()
+
+  // Samples the name line and the type line on every frame of a click, as red, green and blue
+  const sampleToggle = async () => {
+    await row.evaluate((button) => {
+      const lines = [...button.querySelectorAll('span > span')] as HTMLElement[]
+      const toByte = (linear: number) => 255 * (linear <= 0.0031308 ? 12.92 * linear : 1.055 * linear ** (1 / 2.4) - 0.055)
+      // A colour in the middle of a transition reads back as oklab() or color(srgb), a settled one as rgb()
+      const read = (line: HTMLElement) => {
+        const color = getComputedStyle(line).color
+        const numbers = (color.match(/-?\d*\.?\d+(?:e-?\d+)?/g) ?? []).map(Number)
+        if (color.startsWith('oklab')) {
+          const [lightness, a, b] = numbers
+          const [l, m, s] = [lightness + 0.3963377774 * a + 0.2158037573 * b, lightness - 0.1055613458 * a - 0.0638541728 * b, lightness - 0.0894841775 * a - 1.291485548 * b].map((value) => value ** 3)
+          return [4.0767416621 * l - 3.3077115913 * m + 0.2309699292 * s, -1.2684380046 * l + 2.6097574011 * m - 0.3413193965 * s, -0.0041960863 * l - 0.7034186147 * m + 1.707614701 * s].map(toByte)
+        }
+        return color.startsWith('color(srgb') ? numbers.slice(0, 3).map((value) => value * 255) : numbers.slice(0, 3)
+      }
+      const frames: number[][][] = []
+      const start = performance.now()
+      const sampled = { frames, done: false }
+      // Samples until the colours have changed and then held still for ten frames, or for a few seconds at most
+      const tick = () => {
+        frames.push(lines.map(read))
+        const changed = frames.some((frame) => JSON.stringify(frame) !== JSON.stringify(frames[0]))
+        const still = frames.length > 10 && frames.slice(-10).every((frame) => JSON.stringify(frame) === JSON.stringify(frames[frames.length - 1]))
+        if ((changed && still) || performance.now() - start > 4000) sampled.done = true
+        else requestAnimationFrame(tick)
+      }
+      Object.assign(window, { __sampled: sampled })
+      requestAnimationFrame(tick)
+    })
+    await row.click()
+    await page.mouse.move(0, 0)
+    await page.waitForFunction(() => (window as unknown as { __sampled: { done: boolean } }).__sampled.done)
+    return page.evaluate(() => (window as unknown as { __sampled: { frames: number[][][] } }).__sampled.frames)
+  }
+
+  // The card starts selected, so the first click deselects it and the second selects it again
+  await expect(row).toHaveAttribute('aria-checked', 'true')
+  for (const checked of ['false', 'true']) {
+    const frames = await sampleToggle()
+    await expect(row).toHaveAttribute('aria-checked', checked)
+    const first = frames[0]
+    const last = frames[frames.length - 1]
+    const [from, to] = [first[0], last[0]]
+    // The name's channels stay between its old and new value, give or take rounding, so it passes through no other colour
+    for (const frame of frames) {
+      frame[0].forEach((channel, index) => {
+        expect(channel).toBeGreaterThanOrEqual(Math.min(from[index], to[index]) - 2)
+        expect(channel).toBeLessThanOrEqual(Math.max(from[index], to[index]) + 2)
+      })
+    }
+    // And the change is eased, so some frame sits between the two colours
+    expect(frames.some((frame) => frame[0].some((channel, index) => channel !== from[index] && channel !== to[index]))).toBe(true)
+    // The type line is the same colour on every frame, selected or not
+    expect(frames.every((frame) => frame[1].every((channel, index) => channel === first[1][index]))).toBe(true)
+  }
+})

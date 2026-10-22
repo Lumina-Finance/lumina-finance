@@ -359,3 +359,19 @@ describe('avatar initials contrast', () => {
     expect(contrast(solid(tokens, '--app-avatar-text'), solid(tokens, stop))).toBeGreaterThanOrEqual(MINIMUM_TEXT_CONTRAST)
   })
 })
+
+describe('selected row text on the page colour', () => {
+  // A selected row of a list drawn straight on a dialog's page colour, such as the credit accounts list, takes
+  // the accent tint over the page, with the darker accent text for its name, while its type and institution
+  // keep the muted text
+  it.each(Object.keys(THEMES) as Theme[])('reads at 4.5:1 or better in the %s theme', (theme) => {
+    const tokens = THEMES[theme]
+    const tint = solid(tokens, '--app-accent-soft', solid(tokens, '--app-bg'))
+    expect(contrast(resolve(tokens, '--app-accent-on-page-tint'), tint)).toBeGreaterThanOrEqual(MINIMUM_TEXT_CONTRAST)
+    expect(contrast(solid(tokens, '--app-text-muted', tint), tint)).toBeGreaterThanOrEqual(MINIMUM_TEXT_CONTRAST)
+  })
+
+  it('keeps the dark theme on the plain accent, which already passes', () => {
+    expect(resolve(THEMES.dark, '--app-accent-on-page-tint')).toEqual(resolve(THEMES.dark, '--app-accent'))
+  })
+})

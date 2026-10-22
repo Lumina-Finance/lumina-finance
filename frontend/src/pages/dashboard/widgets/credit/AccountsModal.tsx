@@ -1,10 +1,10 @@
 import { useMemo, useState } from 'react'
-import { Check, CreditCard } from 'lucide-react'
+import { CreditCard } from 'lucide-react'
 import { useReplaceCreditExcludedAccounts, type CreditUtilizationAccount } from '@/api/dashboard'
-import { GlassSearchField } from '@/components/list-controls/GlassSearchField'
+import { MultiSelectChecklist } from '@/components/filters/MultiSelectChecklist'
 import { ModalFormFooter } from '@/components/modal/FormFooter'
 import { ModalTitledPanel } from '@/components/modal/TitledPanel'
-import { InstitutionLogo } from '@/pages/accounts/components/InstitutionLogo'
+import { resolveInstitutionLogoUrl } from '@/utils/institutionLogo'
 import { humanizeAccountType } from '@/pages/accounts/detail/utils/formatAccountType'
 import {
   getExcludedAccountIds,
@@ -32,15 +32,23 @@ export function CreditAccountsModal({ open, accounts, onClose }: CreditAccountsM
   const [saveError, setSaveError] = useState<string | null>(null)
   const serverExcluded = useMemo(() => getExcludedAccountIds(accounts), [accounts])
   const excluded = draft ?? serverExcluded
-  const [search, setSearch] = useState('')
-  const includedCount = accounts.filter((account) => !excluded.has(account.id)).length
-  const visibleAccounts = useMemo(() => {
-    const query = search.trim().toLowerCase()
-    if (!query) return accounts
-    return accounts.filter((account) =>
-      `${account.name} ${account.institution?.name ?? ''}`.toLowerCase().includes(query),
-    )
-  }, [accounts, search])
+  const includedIds = useMemo(
+    () => accounts.filter((account) => !excluded.has(account.id)).map((account) => account.id),
+    [accounts, excluded],
+  )
+  const options = useMemo(
+    () =>
+      accounts.map((account) => ({
+        value: account.id,
+        label: account.name,
+        imageUrl: resolveInstitutionLogoUrl(account.institution),
+        details: {
+          type: humanizeAccountType(account.account_type),
+          institution: account.institution?.name ?? null,
+        },
+      })),
+    [accounts],
+  )
 
   /**
    * Checks or unchecks one account in the draft, starting from what the server leaves out
@@ -90,7 +98,6 @@ export function CreditAccountsModal({ open, accounts, onClose }: CreditAccountsM
       // The draft is dropped once the modal has left the screen, so it never empties while fading out
       onExitComplete={() => {
         setDraft(null)
-        setSearch('')
         setSaveError(null)
       }}
       footer={
@@ -104,78 +111,30 @@ export function CreditAccountsModal({ open, accounts, onClose }: CreditAccountsM
         />
       }
     >
-      <div className="flex h-4 items-center justify-between gap-4">
-        <p className="text-base font-bold leading-none" style={{ color: 'var(--app-accent)' }}>
-          Accounts included
+      {/* The list takes the room left in a full-screen dialog and scrolls within it. Where the dialog is sized by its
+          content it grows with the list up to the panel's own height limit, and then the body scrolls */}
+      <div className="flex h-full flex-col">
+        <div className="flex h-4 shrink-0 items-center justify-between gap-4">
+          <p className="text-base font-bold leading-none" style={{ color: 'var(--app-accent)' }}>
+            Choose accounts
+          </p>
+          <span className="shrink-0 text-sm leading-none" style={{ color: 'var(--app-text-subtle)' }}>
+            {includedIds.length} selected
+          </span>
+        </div>
+        <p id="credit-accounts-description" className="mt-4 shrink-0 text-sm" style={{ color: 'var(--app-text-subtle)' }}>
+          Choose the credit accounts that will be included in calculating your credit usage and utilization rates.
         </p>
-        <span className="shrink-0 text-sm leading-none" style={{ color: 'var(--app-text-subtle)' }}>
-          {includedCount} selected
-        </span>
-      </div>
-      <p id="credit-accounts-description" className="mt-4 text-sm" style={{ color: 'var(--app-text-subtle)' }}>
-        Choose the credit accounts that make up your utilization.
-      </p>
-      <GlassSearchField
-        value={search}
-        onValueChange={setSearch}
-        placeholder="Search accounts..."
-        wrapperClassName="mt-3"
-      />
-      <div className="app-selection-list">
-        {visibleAccounts.map((account) => (
-          <CreditAccountOption
-            key={account.id}
-            account={account}
-            selected={!excluded.has(account.id)}
+        <div className="mt-3 flex min-h-0 flex-1 flex-col">
+          <MultiSelectChecklist
+            options={options}
+            selectedValues={includedIds}
+            searchPlaceholder="Search accounts"
+            fillHeight
             onToggle={toggleAccount}
           />
-        ))}
-        {visibleAccounts.length === 0 && (
-          <p className="px-3 py-2 text-sm" style={{ color: 'var(--app-text-subtle)' }}>
-            No matching accounts.
-          </p>
-        )}
+        </div>
       </div>
     </ModalTitledPanel>
-  )
-}
-
-/**
- * Renders one selectable credit account with its institution logo, name and type, cutting long text
- * off with an ellipsis so every row keeps one height
- */
-function CreditAccountOption({
-  account,
-  selected,
-  onToggle,
-}: {
-  account: CreditUtilizationAccount
-  selected: boolean
-  onToggle: (accountId: string) => void
-}) {
-  const metadata = `${humanizeAccountType(account.account_type)}${account.institution ? ` · ${account.institution.name}` : ''}`
-
-  return (
-    <button
-      type="button"
-      role="checkbox"
-      aria-checked={selected}
-      className={`app-selection-option grid-cols-[1.25rem_1.5rem_minmax(0,1fr)] py-1 ${selected ? 'app-selection-option-active' : ''}`}
-      onClick={() => onToggle(account.id)}
-    >
-      <span className={`app-selection-check ${selected ? 'app-selection-check-active' : ''}`}>
-        <Check size={13} strokeWidth={3} aria-hidden />
-      </span>
-      {/* Decoration, so the row is named by the account and its type alone */}
-      <span className="flex" aria-hidden>
-        <InstitutionLogo institution={account.institution} variant="compact" />
-      </span>
-      <span className="min-w-0">
-        <span className="block truncate leading-5">{account.name}</span>
-        <span className="block truncate text-xs font-normal leading-4" style={{ color: 'var(--app-text-muted)' }}>
-          {metadata}
-        </span>
-      </span>
-    </button>
   )
 }

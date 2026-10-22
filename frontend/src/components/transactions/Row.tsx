@@ -17,6 +17,7 @@ import {
 import { useMoneyFormatters } from '@/hooks/useMoneyFormatters'
 import { FADED_ROW_COLOURS, FadedRowsContext } from '@/contexts/FadedRowsContext'
 import { getAmountSign } from '@/utils/negativeAmount'
+import { useUsableLogo } from '@/hooks/useUsableLogo'
 import { resolveInstitutionLogoUrl } from '@/utils/institutionLogo'
 
 const MAX_VISIBLE_TAGS = 1
@@ -110,7 +111,8 @@ function AccountLogo({
   accountName: string | undefined
   institution: Institution | null | undefined
 }) {
-  const logoSrc = resolveInstitutionLogoUrl(institution)
+  const logo = useUsableLogo(resolveInstitutionLogoUrl(institution))
+  const logoSrc = logo.src
   const fallback = accountName?.trim().charAt(0).toUpperCase() || '$'
 
   return (
@@ -127,6 +129,7 @@ function AccountLogo({
           alt={`${institution?.name ?? accountName ?? 'Account'} logo`}
           className="h-full w-full object-contain"
           loading="lazy"
+          {...logo.imageProps}
         />
       ) : (
         <span
