@@ -132,6 +132,14 @@ const restrictedQueryFns = [
   },
 ]
 
+// crypto.randomUUID is missing on a page opened over plain HTTP, such as a self-hosted app at a LAN address
+const RANDOM_UUID_MESSAGE = 'crypto.randomUUID is missing on pages opened over plain HTTP. Use createRandomId from @/utils/randomId'
+const restrictedProperties = ['crypto', 'window.crypto', 'globalThis.crypto', 'self.crypto'].map((object) => ({
+  object,
+  property: 'randomUUID',
+  message: RANDOM_UUID_MESSAGE,
+}))
+
 export default defineConfig([
   globalIgnores(['dist']),
   {
@@ -154,6 +162,7 @@ export default defineConfig([
   {
     files: ['src/**/*.{ts,tsx}'],
     rules: {
+      'no-restricted-properties': ['error', ...restrictedProperties],
       'no-restricted-syntax': ['error', ...restrictedStackingLevels, ...restrictedObserverEntries, ...restrictedQueryFns],
     },
   },
