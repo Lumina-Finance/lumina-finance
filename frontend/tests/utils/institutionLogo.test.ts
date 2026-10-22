@@ -18,6 +18,11 @@ describe('isLogoTooSmall', () => {
     expect(isLogoTooSmall(152, 36, 3)).toBe(false)
   })
 
+  it('counts a pixel ratio up to 2, so a 152px favicon stays in the 56px detail logo on a 3x screen', () => {
+    expect(isLogoTooSmall(152, 56, 3)).toBe(false)
+    expect(isLogoTooSmall(100, 56, 3)).toBe(true)
+  })
+
   it('keeps a logo whose size the browser does not report, as for an SVG, or whose box is not laid out yet', () => {
     expect(isLogoTooSmall(0, 36, 2)).toBe(false)
     expect(isLogoTooSmall(16, 0, 2)).toBe(false)

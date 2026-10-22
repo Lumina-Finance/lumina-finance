@@ -150,10 +150,15 @@ function ChecklistRow({
             {...logo.imageProps}
             className={joinClassNames('shrink-0 object-contain', logoClassName)}
           />
-        ) : hasDetails ? (
+        ) : hasDetails || option.imageUrl ? (
+          // A row whose logo was dropped keeps its slot, so its label starts where the other rows' labels do
           <span
-            className={joinClassNames('flex shrink-0 items-center justify-center text-sm font-semibold', logoClassName)}
-            style={{ background: 'var(--app-accent-soft)', border: '1px solid var(--app-border)', color: 'var(--app-accent-on-page-tint)' }}
+            className={joinClassNames('flex shrink-0 items-center justify-center font-semibold', hasDetails ? 'text-sm' : 'text-xs', logoClassName)}
+            style={{
+              background: 'var(--app-accent-soft)',
+              border: '1px solid var(--app-border)',
+              color: hasDetails ? 'var(--app-accent-on-page-tint)' : 'var(--app-accent)',
+            }}
             aria-hidden
           >
             $
