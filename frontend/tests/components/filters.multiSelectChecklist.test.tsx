@@ -6,7 +6,7 @@ import { renderToStaticMarkup } from 'react-dom/server'
 import { describe, expect, it, vi } from 'vitest'
 import { filterChecklistOptions } from '@/components/filters/filterChecklistOptions'
 import { MultiSelectChecklist } from '@/components/filters/MultiSelectChecklist'
-import { getFilterOptionStyle } from '@/components/filters/optionAppearance'
+import { getFilterOptionGapClass, getFilterOptionListClass, getFilterOptionStyle } from '@/components/filters/optionAppearance'
 import type { OptionItem } from '@/components/filters/OptionList'
 
 function render(options: OptionItem[]): string {
@@ -69,14 +69,11 @@ describe('multi-select checklist details', () => {
     expect(markup).toContain('Travel Card')
     expect(markup).not.toContain(' · ')
     expect(markup).not.toContain('>$<')
-    expect(markup).toContain('space-y-1 ')
-    expect(markup).not.toContain('space-y-1.5')
   })
 
-  it('spaces the rows of a list with details one step wider than the filter panels', () => {
-    const markup = render([{ value: 'a', label: 'Travel Card', details: { type: 'Credit card', institution: null } }])
-
-    expect(markup).toContain('space-y-1.5')
-    expect(markup).not.toContain('space-y-1 ')
+  it('spaces the rows of a list with details apart from the filter panels, by the same gap in the outer and grouped lists', () => {
+    expect(getFilterOptionListClass(false, true)).not.toBe(getFilterOptionListClass(false))
+    expect(getFilterOptionListClass(false, true)).toContain(getFilterOptionGapClass(true))
+    expect(getFilterOptionListClass(false)).toContain(getFilterOptionGapClass(false))
   })
 })

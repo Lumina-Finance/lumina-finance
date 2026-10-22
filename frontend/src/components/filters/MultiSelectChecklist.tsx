@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { Check, Search } from 'lucide-react'
 import { filterChecklistOptions } from '@/components/filters/filterChecklistOptions'
 import type { OptionItem } from '@/components/filters/OptionList'
-import { getFilterOptionListClass, getFilterOptionStyle } from '@/components/filters/optionAppearance'
+import { getFilterOptionGapClass, getFilterOptionListClass, getFilterOptionStyle } from '@/components/filters/optionAppearance'
 import { useUsableLogo } from '@/hooks/useUsableLogo'
 import { joinClassNames } from '@/utils/classNames'
 
@@ -69,7 +69,7 @@ export function MultiSelectChecklist({ options, selectedValues, searchPlaceholde
               >
                 {group.label}
               </div>
-              <ul className={hasDetails ? 'space-y-1.5' : 'space-y-1'}>
+              <ul className={getFilterOptionGapClass(hasDetails)}>
                 {group.items.map((option) => (
                   <ChecklistRow
                     key={option.value}
