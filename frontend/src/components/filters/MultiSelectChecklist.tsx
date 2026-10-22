@@ -98,7 +98,11 @@ export function MultiSelectChecklist({ options, selectedValues, searchPlaceholde
 }
 
 const ROW_CLASS_NAME =
-  'app-focus-inset flex focus-visible:bg-transparent! w-full items-center gap-2 rounded-lg px-2 py-1.5 text-left text-sm hover:bg-[var(--app-accent-soft)]'
+  'app-focus-inset focus-visible:bg-transparent! w-full items-center rounded-lg px-2 py-1.5 text-left text-sm hover:bg-[var(--app-accent-soft)]'
+
+// A row with details is a grid, since a flex row would size itself to the full width of its text and
+// push the dialog wider than its panel, where a grid track that may shrink to nothing lets the text cut off
+const DETAILS_ROW_CLASS_NAME = 'grid grid-cols-[1.25rem_minmax(0,1fr)_1rem] gap-x-2'
 
 /**
  * Renders one checklist row, showing the option icon, its label, and a trailing check when selected,
@@ -124,7 +128,7 @@ function ChecklistRow({
         role="checkbox"
         aria-checked={selected}
         onClick={() => onToggle(option.value)}
-        className={ROW_CLASS_NAME}
+        className={joinClassNames(ROW_CLASS_NAME, hasDetails ? DETAILS_ROW_CLASS_NAME : 'flex gap-2')}
         // A list with details sits straight on its dialog's page colour, where the selected tint needs the darker text
         style={getFilterOptionStyle(selected, hasDetails)}
       >

@@ -1,5 +1,5 @@
 /**
- * Guards the checklist's opt-in detail columns: the credit utilization chooser shows each account's type
+ * Guards the checklist's opt-in details: the credit utilization chooser shows each account's type
  * and institution in its row, while the filter panels' rows stay a label and a check
  */
 import { renderToStaticMarkup } from 'react-dom/server'
@@ -32,7 +32,7 @@ describe('multi-select checklist details', () => {
     expect(markup).toContain('Harbor Credit Union')
     expect(markup).toContain('Line of credit')
     expect(markup.match(/ · /g)).toHaveLength(1)
-    // The row with no logo keeps the logo column, so its text lines up with the rows that have one
+    // The row with no logo keeps a logo slot, so its text starts where the other rows' text does
     expect(markup.match(/>\$</g)).toHaveLength(2)
   })
 

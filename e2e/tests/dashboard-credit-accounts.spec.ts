@@ -98,3 +98,18 @@ test('shows its own empty state once every card is left out, and brings a card b
   await expect(dashboardContent(page)).toContainText('75%')
   await expect(page.getByText('No accounts selected')).toBeHidden()
 })
+
+test('cuts a long card name off inside the chooser instead of widening it past its panel', AT_EVERY_SIZE, async ({ page, request }) => {
+  const user = await signUpUser(request)
+  const longName = 'A card named for the whole product design and research team across all travel and events in a very long year'
+  await createCard(request, user, longName, 50_000, 500_000)
+
+  await logInViaApi(page, user)
+  await openPage(page, '/dashboard')
+  const dialog = await openChooser(page)
+  await expect(dialog.getByRole('checkbox', { name: longName })).toBeVisible()
+
+  // A row that sized itself to its text would push the panel's content wider than the panel and scroll its rail away
+  const overflow = await dialog.evaluate((panel) => ({ width: panel.scrollWidth - panel.clientWidth, left: panel.scrollLeft }))
+  expect(overflow).toEqual({ width: 0, left: 0 })
+})
