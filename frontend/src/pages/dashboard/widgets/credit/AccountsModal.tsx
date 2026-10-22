@@ -111,7 +111,8 @@ export function CreditAccountsModal({ open, accounts, onClose }: CreditAccountsM
         />
       }
     >
-      {/* The list takes the room left in the full-screen phone dialog and scrolls within it, and keeps a capped height once the dialog is sized by its content */}
+      {/* The list takes the room left in a full-screen dialog and scrolls within it. Where the dialog is sized by its
+          content it grows with the list up to the panel's own height limit, and then the body scrolls */}
       <div className="flex h-full flex-col">
         <div className="flex h-4 shrink-0 items-center justify-between gap-4">
           <p className="text-base font-bold leading-none" style={{ color: 'var(--app-accent)' }}>
@@ -124,7 +125,7 @@ export function CreditAccountsModal({ open, accounts, onClose }: CreditAccountsM
         <p id="credit-accounts-description" className="mt-4 shrink-0 text-sm" style={{ color: 'var(--app-text-subtle)' }}>
           Choose the credit accounts that make up your utilization.
         </p>
-        <div className="mt-3 flex min-h-0 flex-1 flex-col min-[750px]:max-h-72 min-[750px]:flex-none">
+        <div className="mt-3 flex min-h-0 flex-1 flex-col">
           <MultiSelectChecklist
             options={options}
             selectedValues={includedIds}
