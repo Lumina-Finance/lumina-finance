@@ -29,11 +29,9 @@
        taking this token, since pointing that rule at this token would carry the flat light value
        below into the dropdown and lose the mix it depends on there */
     --app-hover-soft: #FBF8F0;
-    /* Hover feedback on a surface shaded --app-surface-soft, which the flat value above matches, and on a
-       navigation item, which sits on the page in the settings sidebar, on --app-nav-bg in the main sidebar
-       and on --app-surface-soft in the phone's settings menu. The wash shows the same on each, where the
-       flat value nearly vanishes on the last two. A wash of the text colour, light enough that subtle text
-       on it keeps its contrast */
+    /* Hover feedback on a surface shaded --app-surface-soft, which the flat value above matches. The wash
+       shows the same on it, where the flat value nearly vanishes. A wash of the text colour, light enough
+       that subtle text on it keeps its contrast */
     --app-hover-on-surface-soft: color-mix(in srgb, var(--app-text) 5%, transparent);
 
     --app-border: #4b37231c;
@@ -44,6 +42,9 @@
     --app-accent: #8A5F25;
     --app-accent-soft: #9b6c2c1a;
     --app-accent-border: #9b6c2c38;
+    /* A menu item's text on the soft accent tint. The accent itself reads 4.28:1 there on the page, where
+       the settings sidebar sits, so the light theme draws it a little toward the page text colour */
+    --app-accent-nav-text: color-mix(in srgb, var(--app-text) 10%, var(--app-accent));
     /* The border a bordered button takes under the pointer or keyboard focus, the full accent so it shows
        against both themes' hairline borders as clearly as the doubled focus colour border it replaced */
     --app-hover-border: var(--app-accent);
@@ -184,6 +185,7 @@
     --app-accent: #C9A96A;
     --app-accent-soft: #c9a96a1f;
     --app-accent-border: #c9a96a38;
+    --app-accent-nav-text: var(--app-accent);
     /* The subtle colour falls short on the accent tint here too, so faint text there is drawn the same way partway
        toward muted */
     --app-text-subtle-on-accent: color-mix(in srgb, var(--app-text-subtle) 60%, var(--app-text-muted));
@@ -308,15 +310,17 @@
 
   /* A button with a border of its own, such as an outlined button or a pill, never draws a ring around
      it. Reached by keyboard it looks as it does hovered, which each hover rule also lists under
-     :focus-visible, so the two can't drift apart. One without a border, such as a filled button, an icon
-     button or a menu item, keeps the ring above on top of its hover look. A border is the shared classes
-     that draw one, and the border utility unless it is transparent */
+     :focus-visible, so the two can't drift apart. One without a border, such as a filled button or an icon
+     button, keeps the ring above on top of its hover look. A menu item counts as bordered, since its
+     hover look adds a border. A border is the shared classes that draw one, and the border utility
+     unless it is transparent */
   :is(a, button, [role="button"], [role="tab"], [role="radio"], [role="menuitem"]):is(
     .app-secondary-button,
     .app-glass-button,
     .app-glass-icon-button,
     .app-range-glass-head,
     .app-card,
+    .app-nav-link,
     .border:not(.border-transparent)
   ):not(svg *):not([aria-disabled="true"]):focus-visible {
     outline: none;
@@ -643,42 +647,30 @@
            font-medium no-underline;
     font-size: 0.9375rem;
     transition: color 200ms cubic-bezier(0.4, 0, 0.2, 1), background-color 200ms cubic-bezier(0.4, 0, 0.2, 1),
-      border-color 200ms cubic-bezier(0.4, 0, 0.2, 1), var(--app-focus-fade);
+      border-color 200ms cubic-bezier(0.4, 0, 0.2, 1);
     color: var(--app-text-muted);
     border: 1px solid transparent;
   }
 
-  /* An item under the pointer or keyboard focus takes a neutral wash, so it never reads as a second
-     selected item. The selected one takes a deeper tint instead, so its focus shows too. The pointer
-     looks are kept off touch screens, where a tapped item would otherwise hold them */
+  /* An item under the pointer or keyboard focus takes the accent look the selected item rests in, so the
+     selected one shows no change. Keyboard focus shows that look with no ring. The pointer look is kept
+     off touch screens, where a tapped item would otherwise hold it */
   .app-nav-link:focus-visible {
-    color: var(--app-text);
-    background: var(--app-hover-on-surface-soft);
-    border-color: var(--app-border);
+    color: var(--app-accent-nav-text);
+    background: var(--app-accent-soft);
+    border-color: var(--app-accent-border);
   }
 
   .app-nav-link-active {
     background: var(--app-accent-soft);
     border-color: var(--app-accent-border);
-    color: var(--app-accent);
-  }
-
-  .app-nav-link-active:focus-visible {
-    color: var(--app-accent-on-hover-fill);
-    background: var(--app-accent-hover-fill);
-    border-color: var(--app-accent-border);
+    color: var(--app-accent-nav-text);
   }
 
   @media (hover: hover) {
     .app-nav-link:hover {
-      color: var(--app-text);
-      background: var(--app-hover-on-surface-soft);
-      border-color: var(--app-border);
-    }
-
-    .app-nav-link-active:hover {
-      color: var(--app-accent-on-hover-fill);
-      background: var(--app-accent-hover-fill);
+      color: var(--app-accent-nav-text);
+      background: var(--app-accent-soft);
       border-color: var(--app-accent-border);
     }
   }

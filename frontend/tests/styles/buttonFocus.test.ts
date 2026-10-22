@@ -35,7 +35,7 @@ const SELECTED_OPTIONS = [
 const GUARDED_SELECTED_OPTIONS = SELECTED_OPTIONS.slice(1)
 
 // Buttons whose hover change used to be too faint, or missing, to tell keyboard focus from rest
-const BORDER_CHANGING = ['.app-secondary-button', '.app-glass-button', '.app-glass-icon-button']
+const BORDER_CHANGING = ['.app-secondary-button', '.app-glass-button', '.app-glass-icon-button', '.app-nav-link']
 
 // Filled buttons, whose hover look is a change of fill alone
 const FILLED_BUTTONS = ['.app-primary-button', '.app-glass-button-primary', '.app-danger-button']
@@ -211,6 +211,7 @@ describe('button keyboard focus', () => {
   // Hover looks added by this change, which a touch screen would otherwise keep showing after a tap
   const POINTER_ONLY_HOVER = [
     ...SELECTED_OPTIONS.map((name) => (GUARDED_SELECTED_OPTIONS.includes(name) ? `${name}:not(:disabled):hover` : `${name}:hover`)),
+    '.app-nav-link:hover',
     '.app-calendar-day[data-selected]:hover',
     '.app-range-glass:has(> .app-range-glass-head:hover)',
   ]
@@ -222,24 +223,26 @@ describe('button keyboard focus', () => {
     })
   }
 
-  // A navigation item that isn't selected used to take the selected item's own fill and colour under the
-  // pointer and on keyboard focus, so a focused item read as a second selected one, and the selected item
-  // showed no change at all
-  it('tells a hovered or focused navigation item apart from the selected one', () => {
-    const [hover] = rulesListing('.app-nav-link:focus-visible')
-    const [selected] = rulesListing('.app-nav-link-active')
-    expect(declared(hover, 'background')).toBeDefined()
-    expect(declared(hover, 'background')).not.toBe(declared(selected, 'background'))
-    expect(declared(hover, 'color')).not.toBe(declared(selected, 'color'))
+  // A menu item under the pointer or on keyboard focus takes the accent look the selected item rests in,
+  // selected or not, and keyboard focus shows exactly that look
+  it('gives a hovered or focused menu item the accent text, soft fill and border', () => {
+    const [focus] = rulesListing('.app-nav-link:focus-visible')
+    const [hover] = rulesListing('.app-nav-link:hover')
+    for (const rule of [focus, hover]) {
+      expect(declared(rule, 'color')).toBe('var(--app-accent-nav-text)')
+      expect(declared(rule, 'background')).toBe('var(--app-accent-soft)')
+      expect(declared(rule, 'border-color')).toBe('var(--app-accent-border)')
+    }
   })
 
-  it('tints the selected navigation item further under the pointer and on keyboard focus', () => {
+  it('gives the selected menu item no look of its own under the pointer or on keyboard focus', () => {
     const [selected] = rulesListing('.app-nav-link-active')
-    const [hover] = rulesListing('.app-nav-link-active:focus-visible')
-    expect(hover).toBeDefined()
-    expect(declared(hover, 'background')).toBe('var(--app-accent-hover-fill)')
-    expect(declared(hover, 'background')).not.toBe(declared(selected, 'background'))
-    expect(declared(hover, 'color')).toBe('var(--app-accent-on-hover-fill)')
+    const [focus] = rulesListing('.app-nav-link:focus-visible')
+    for (const property of ['color', 'background', 'border-color']) {
+      expect(declared(focus, property)).toBe(declared(selected, property))
+    }
+    expect(rulesListing('.app-nav-link-active:hover')).toHaveLength(0)
+    expect(rulesListing('.app-nav-link-active:focus-visible')).toHaveLength(0)
   })
 
   // A filled button's hover fill used to land on the same colour as its rest fill in the light theme, so
@@ -350,11 +353,11 @@ describe('button keyboard focus', () => {
   })
 
   // A control with a border of its own shows its hover look and no ring, since a second outline would sit
-  // around the border it already has. Every other button, filled buttons and menu items included, keeps
-  // the base ring on top of its hover look
+  // around the border it already has, and a menu item counts as one since its hover look adds a border.
+  // Every other button, filled buttons included, keeps the base ring on top of its hover look
   describe('ring', () => {
     const optOut = rulesListing(
-      ':is(a, button, [role="button"], [role="tab"], [role="radio"], [role="menuitem"]):is(.app-secondary-button, .app-glass-button, .app-glass-icon-button, .app-range-glass-head, .app-card, .border:not(.border-transparent)):not(svg *):not([aria-disabled="true"]):focus-visible',
+      ':is(a, button, [role="button"], [role="tab"], [role="radio"], [role="menuitem"]):is(.app-secondary-button, .app-glass-button, .app-glass-icon-button, .app-range-glass-head, .app-card, .app-nav-link, .border:not(.border-transparent)):not(svg *):not([aria-disabled="true"]):focus-visible',
     )
 
     it('is dropped only from buttons that draw a border of their own', () => {
@@ -362,13 +365,11 @@ describe('button keyboard focus', () => {
       expect(optOut[0].nodes.map((node) => node.toString())).toEqual(['outline: none'])
     })
 
-    // The filled buttons, the icon button, the menu items and the segmented options have no border at
+    // The filled buttons, the icon button and the segmented options have no border at
     // rest, so no rule of their own may switch the ring off
     const BORDERLESS = [
       ...FILLED_BUTTONS,
       '.app-icon-button',
-      '.app-nav-link',
-      '.app-nav-link-active',
       '.app-segmented-option',
       '.app-segmented-option-active',
       '.app-calendar-day',

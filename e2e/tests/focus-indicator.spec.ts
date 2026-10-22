@@ -169,7 +169,7 @@ async function settledLook(element: Locator) {
 /**
  * Expects a button reached by keyboard to look exactly as it does under the pointer, and returns the look
  * so a caller can also compare it with the button at rest. A button with a border of its own draws no
- * outline. One without, such as a filled button, an icon button, a menu item or a segmented option, also
+ * outline. One without, such as a filled button, an icon button or a segmented option, also
  * draws the shared ring at the given gap
  */
 async function expectHoverLook(page: Page, element: Locator, ring: { offset: string } | null = null) {
@@ -674,20 +674,28 @@ test('shows a visible hover look on keyboard focus on the buttons that had none'
   await expectVisibleHoverLook(page, calendar.locator('[data-iso][data-selected]'), { offset: '2px' })
 })
 
-// A control without a border keeps the ring on top of its hover look: the Settings menu on the left, the
-// sidebar items, a filled button and the filled danger circle in the Edit account window. The ring is
-// whole and at least 3:1 against the page, and the hover look shows with it
+// A menu item's hover look adds a border, so keyboard focus shows exactly that look and no ring: the
+// Settings menu on the left and the sidebar items. The selected item already rests in that look, so
+// focus changes nothing on it
+test('shows the hover look and no ring on keyboard focus on menu items', async ({ page, request }) => {
+  await page.emulateMedia({ reducedMotion: 'reduce' })
+  const user = await signUpUser(request)
+  await logInViaApi(page, user)
+
+  await openPage(page, '/settings')
+  await expectVisibleHoverLook(page, page.getByRole('navigation', { name: 'Settings sections' }).getByRole('button', { name: 'Security', exact: true }))
+  await expectHoverLook(page, page.getByRole('navigation', { name: 'Settings sections' }).getByRole('button', { name: 'Profile', exact: true }))
+  await expectVisibleHoverLook(page, page.getByRole('link', { name: 'Accounts', exact: true }))
+})
+
+// A control without a border keeps the ring on top of its hover look: a filled button and the filled
+// danger circle in the Edit account window. The ring is whole and at least 3:1 against the page, and the
+// hover look shows with it
 test('keeps the ring and the hover look on keyboard focus on controls without a border', async ({ page, request }) => {
   await page.emulateMedia({ reducedMotion: 'reduce' })
   const user = await signUpUser(request)
   const account = await createAccount(request, user, { name: 'Everyday' })
   await logInViaApi(page, user)
-
-  await openPage(page, '/settings')
-  await expectVisibleHoverLook(page, page.getByRole('navigation', { name: 'Settings sections' }).getByRole('button', { name: 'Security', exact: true }), { offset: '2px' })
-  // The selected item takes the ring as well as its deeper tint
-  await expectVisibleHoverLook(page, page.getByRole('navigation', { name: 'Settings sections' }).getByRole('button', { name: 'Profile', exact: true }), { offset: '2px' })
-  await expectVisibleHoverLook(page, page.getByRole('link', { name: 'Accounts', exact: true }), { offset: '2px' })
 
   await openPage(page, `/accounts/${account.id}`)
   await page.getByRole('button', { name: 'Edit account', exact: true }).click()
@@ -908,20 +916,14 @@ test('fades the keyboard focus ring in and out', async ({ page, request }) => {
   await page.getByRole('tab', { name: /^Accounts/ }).click()
   const option = page.getByRole('checkbox', { name: 'Everyday', exact: true })
   await expectFades('filter option', option, option, '-2px')
-
-  await openPage(page, '/settings')
-  const security = page.getByRole('navigation', { name: 'Settings sections' }).getByRole('button', { name: 'Security', exact: true })
-  await expectFades('section list item', security, security, '2px')
 })
 
 // With reduced motion the ring is the focus colour from the start and only its style switches, so it
 // appears and goes at once. Removing the reduced-motion override of the rest outline fails this
 test('shows the keyboard focus ring at once with reduced motion', async ({ page, request }) => {
   await page.emulateMedia({ reducedMotion: 'reduce' })
-  await seedOneTransaction(page, request)
-  await openPage(page, '/settings')
-  const security = page.getByRole('navigation', { name: 'Settings sections' }).getByRole('button', { name: 'Security', exact: true })
-  expect(await readRingFades(page, security, security)).toEqual({ atOnce: 1, fadeIn: null, fadeOut: null })
+  const rowButton = await seedOneTransaction(page, request)
+  expect(await readRingFades(page, rowButton, rowButton.locator('..'))).toEqual({ atOnce: 1, fadeIn: null, fadeOut: null })
 })
 
 // Forced colours would draw the clear outline a control holds at rest, so none is held there
