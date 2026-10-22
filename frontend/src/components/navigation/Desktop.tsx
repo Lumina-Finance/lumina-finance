@@ -70,7 +70,12 @@ export function DesktopNavigation({
         className="app-desktop-nav-toggle app-icon-button"
         aria-label={navExpanded ? 'Collapse sidebar' : 'Keep sidebar expanded'}
         aria-pressed={navExpanded}
-        onClick={toggleNavExpanded}
+        onClick={() => {
+          // The pointer or focus is still on the button, so end the preview or the click would change
+          // nothing. A new preview starts when the pointer re-enters or focus moves to another item
+          setPreviewing(false)
+          toggleNavExpanded()
+        }}
       >
         {navExpanded ? <PanelLeftClose size={16} aria-hidden /> : <PanelLeftOpen size={16} aria-hidden />}
       </button>
