@@ -25,7 +25,7 @@ import {
   type OfxImportBuild,
 } from '@/pages/imports/ofx/utils/payload'
 import { buildOfxPreviewRows } from '@/pages/imports/ofx/utils/preview'
-import { createOfxFileId, readOfxFile } from '@/pages/imports/ofx/utils/readFile'
+import { readOfxFile } from '@/pages/imports/ofx/utils/readFile'
 import { describeOfxSavedEarlier } from '@/pages/imports/ofx/utils/savedEarlier'
 import { combineOfxFiles, stageOfxFiles } from '@/pages/imports/ofx/utils/stagedFiles'
 import type { ImportAccountCreateDetails } from '@/pages/imports/types'
@@ -38,6 +38,7 @@ import {
   labelStagedFiles,
   type ImportFileAcquisition,
 } from '@/pages/imports/utils'
+import { createRandomId } from '@/utils/randomId'
 
 // Every file is a statement, so the refusals are kept under one kind
 const OFX_FILE_KINDS = ['statement'] as const
@@ -246,7 +247,7 @@ export function useOfxImportWorkflow(fixedAccount: AccountsOverview | null = nul
       unavailableReason: uploadBlockReason?.message ?? null,
       fileType: OFX_IMPORT_FILE_TYPE,
       read: (files) => Promise.all(files.map(async (source) => {
-        const id = createOfxFileId()
+        const id = createRandomId()
         return { id, name: source.name, size: source.size, lastModified: source.lastModified, read: await readOfxFile(source, id) }
       })),
     })
