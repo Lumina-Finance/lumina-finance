@@ -100,10 +100,12 @@ async def test_dashboard_spending_comparison_reports_incomplete_fx_with_missing_
     signup_resp = await _create_user(client)
     headers = _get_auth_header(signup_resp)
     async with TestSession() as session:
-        session.add_all([
-            Currency(id="USD", name="US Dollar", symbol="$", minor_unit_exponent=2),
-            Currency(id="ABC", name="Unsupported Test Currency", symbol="A", minor_unit_exponent=2),
-        ])
+        session.add_all(
+            [
+                Currency(id="USD", name="US Dollar", symbol="$", minor_unit_exponent=2),
+                Currency(id="ABC", name="Unsupported Test Currency", symbol="A", minor_unit_exponent=2),
+            ]
+        )
         await session.commit()
 
     usd_account_id = (await _create_account(client, headers, name="USD Cash", currency="USD")).json()["id"]

@@ -141,9 +141,7 @@ async def test_dashboard_spending_breakdown_loaded_twice_asks_the_rate_provider_
     usd_account_id = (await _create_account(client, headers, name="USD Cash", currency="USD")).json()["id"]
     expense_id = (await _create_category(client, headers, name="Test Groceries", kind="expense")).json()["id"]
     for day in ("2026-03-13", "2026-03-14"):
-        await _create_transaction(
-            client, headers, usd_account_id, expense_id, dt=day, amount=-10_000, currency="USD"
-        )
+        await _create_transaction(client, headers, usd_account_id, expense_id, dt=day, amount=-10_000, currency="USD")
 
     first = await client.get("/dashboard/spending-breakdown", params={"range": "MTD"}, headers=headers)
     second = await client.get("/dashboard/spending-breakdown", params={"range": "MTD"}, headers=headers)
@@ -170,10 +168,12 @@ async def test_dashboard_spending_breakdown_reports_incomplete_fx_with_missing_p
     signup_resp = await _create_user(client)
     headers = _get_auth_header(signup_resp)
     async with TestSession() as session:
-        session.add_all([
-            Currency(id="USD", name="US Dollar", symbol="$", minor_unit_exponent=2),
-            Currency(id="ABC", name="Unsupported Test Currency", symbol="A", minor_unit_exponent=2),
-        ])
+        session.add_all(
+            [
+                Currency(id="USD", name="US Dollar", symbol="$", minor_unit_exponent=2),
+                Currency(id="ABC", name="Unsupported Test Currency", symbol="A", minor_unit_exponent=2),
+            ]
+        )
         await session.commit()
 
     usd_account_id = (await _create_account(client, headers, name="USD Cash", currency="USD")).json()["id"]

@@ -62,44 +62,75 @@ async def test_list_accounts_keeps_write_capabilities_bound_to_the_caller_and_gr
     """Admin access in one group does not raise a read grant from another group to write."""
     await _seed_currency()
     alice = await _signup_user(
-        client, email="capability-alice@example.com", first_name="Alice", tz="America/Toronto",
+        client,
+        email="capability-alice@example.com",
+        first_name="Alice",
+        tz="America/Toronto",
     )
     assert alice.status_code == 201, alice.json()
     alice_headers = _get_auth_header(alice)
     alice_id = alice.json()["user"]["id"]
-    household_a = (await client.post(
-        "/groups", json={"name": "Household A"}, headers=alice_headers,
-    )).json()["id"]
-    account_a = (await _create_account(
-        client, alice_headers, name="Household A Chequing", group_id=household_a,
-    )).json()["id"]
+    household_a = (
+        await client.post(
+            "/groups",
+            json={"name": "Household A"},
+            headers=alice_headers,
+        )
+    ).json()["id"]
+    account_a = (
+        await _create_account(
+            client,
+            alice_headers,
+            name="Household A Chequing",
+            group_id=household_a,
+        )
+    ).json()["id"]
 
     bob = await _signup_user(
-        client, email="capability-bob@example.com", first_name="Bob", tz="America/Toronto",
+        client,
+        email="capability-bob@example.com",
+        first_name="Bob",
+        tz="America/Toronto",
     )
     assert bob.status_code == 201, bob.json()
     bob_headers = _get_auth_header(bob)
-    household_b = (await client.post(
-        "/groups", json={"name": "Household B"}, headers=bob_headers,
-    )).json()["id"]
+    household_b = (
+        await client.post(
+            "/groups",
+            json={"name": "Household B"},
+            headers=bob_headers,
+        )
+    ).json()["id"]
     await client.post(
-        f"/groups/{household_b}/members", json={"user_id": alice_id}, headers=bob_headers,
+        f"/groups/{household_b}/members",
+        json={"user_id": alice_id},
+        headers=bob_headers,
     )
-    account_b = (await _create_account(
-        client, bob_headers, name="Household B Chequing", group_id=household_b,
-    )).json()["id"]
+    account_b = (
+        await _create_account(
+            client,
+            bob_headers,
+            name="Household B Chequing",
+            group_id=household_b,
+        )
+    ).json()["id"]
     await client.post(
         f"/accounts/{account_b}/permissions",
         json={"user_id": alice_id, "level": "read"},
         headers=bob_headers,
     )
     charlie = await _signup_user(
-        client, email="capability-charlie@example.com", first_name="Charlie", tz="America/Toronto",
+        client,
+        email="capability-charlie@example.com",
+        first_name="Charlie",
+        tz="America/Toronto",
     )
     assert charlie.status_code == 201, charlie.json()
     charlie_id = charlie.json()["user"]["id"]
     await client.post(
-        f"/groups/{household_b}/members", json={"user_id": charlie_id}, headers=bob_headers,
+        f"/groups/{household_b}/members",
+        json={"user_id": charlie_id},
+        headers=bob_headers,
     )
     await client.post(
         f"/accounts/{account_b}/permissions",
@@ -145,10 +176,21 @@ async def test_list_accounts_returns_overview_shape(client):
         assert field not in row
     # Overview fields are present
     for field in (
-        "id", "owner_id", "group_id", "account_kind", "account_type", "name",
-        "tax_advantaged_category_id", "currency", "institution", "current_balance",
-        "base_currency_current_balance", "current_balance_fx_status", "credit_limit",
-        "can_write", "is_archived",
+        "id",
+        "owner_id",
+        "group_id",
+        "account_kind",
+        "account_type",
+        "name",
+        "tax_advantaged_category_id",
+        "currency",
+        "institution",
+        "current_balance",
+        "base_currency_current_balance",
+        "current_balance_fx_status",
+        "credit_limit",
+        "can_write",
+        "is_archived",
     ):
         assert field in row, f"missing overview field: {field}"
 
@@ -183,16 +225,20 @@ async def test_list_accounts_current_balance_uses_latest_snapshot(client, monkey
     account_routes = importlib.import_module("app.routes.accounts.router")
     monkeypatch.setattr(account_routes, "datetime", _FixedClock(datetime.now(UTC) + timedelta(days=90)))
     async with TestSession() as session:
-        session.add(AccountBalanceSnapshot(
-            account_id=account_id,
-            dt=older_dt,
-            balance=12345,
-        ))
-        session.add(AccountBalanceSnapshot(
-            account_id=account_id,
-            dt=newer_dt,
-            balance=98765,
-        ))
+        session.add(
+            AccountBalanceSnapshot(
+                account_id=account_id,
+                dt=older_dt,
+                balance=12345,
+            )
+        )
+        session.add(
+            AccountBalanceSnapshot(
+                account_id=account_id,
+                dt=newer_dt,
+                balance=98765,
+            )
+        )
         await session.commit()
 
     resp = await client.get("/accounts", headers=headers)
@@ -227,14 +273,10 @@ async def test_list_accounts_converts_current_balance_to_user_base_currency(clie
 
     async with TestSession() as session:
         await session.execute(
-            update(AccountBalanceSnapshot)
-            .where(AccountBalanceSnapshot.account_id == UUID(cad_account["id"]))
-            .values(balance=100_00),
+            update(AccountBalanceSnapshot).where(AccountBalanceSnapshot.account_id == UUID(cad_account["id"])).values(balance=100_00),
         )
         await session.execute(
-            update(AccountBalanceSnapshot)
-            .where(AccountBalanceSnapshot.account_id == UUID(usd_account["id"]))
-            .values(balance=200_00),
+            update(AccountBalanceSnapshot).where(AccountBalanceSnapshot.account_id == UUID(usd_account["id"])).values(balance=200_00),
         )
         await session.commit()
 
@@ -272,9 +314,7 @@ async def test_list_accounts_reports_current_balance_fx_failure(client, monkeypa
 
     async with TestSession() as session:
         await session.execute(
-            update(AccountBalanceSnapshot)
-            .where(AccountBalanceSnapshot.account_id == UUID(account["id"]))
-            .values(balance=200_00),
+            update(AccountBalanceSnapshot).where(AccountBalanceSnapshot.account_id == UUID(account["id"])).values(balance=200_00),
         )
         await session.commit()
 

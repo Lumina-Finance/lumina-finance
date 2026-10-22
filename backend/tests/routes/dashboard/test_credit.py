@@ -36,23 +36,27 @@ async def test_dashboard_credit_converts_foreign_currency_accounts(client, monke
         session.add(Currency(id="USD", name="US Dollar", symbol="$", minor_unit_exponent=2))
         await session.commit()
 
-    cad_card = (await _create_account(
-        client,
-        headers,
-        account_kind="revolving",
-        account_type="credit_card",
-        name="CAD Card",
-        credit_limit=100_000,
-    )).json()
-    usd_card = (await _create_account(
-        client,
-        headers,
-        account_kind="revolving",
-        account_type="credit_card",
-        name="USD Card",
-        currency="USD",
-        credit_limit=20_000,
-    )).json()
+    cad_card = (
+        await _create_account(
+            client,
+            headers,
+            account_kind="revolving",
+            account_type="credit_card",
+            name="CAD Card",
+            credit_limit=100_000,
+        )
+    ).json()
+    usd_card = (
+        await _create_account(
+            client,
+            headers,
+            account_kind="revolving",
+            account_type="credit_card",
+            name="USD Card",
+            currency="USD",
+            credit_limit=20_000,
+        )
+    ).json()
 
     async with TestSession() as session:
         for account, balance in [(cad_card, -30_000), (usd_card, -5_000)]:
@@ -80,6 +84,7 @@ async def test_dashboard_credit_reports_incomplete_fx_with_missing_pairs(client,
     """Credit usage skips unconverted foreign cards and reports the missing pair."""
     from app.routes import dashboard as dashboard_routes
     from app.services.fx import FrankfurterProvider, FxRateNotFoundError
+
     today = datetime.now(ZoneInfo("America/Toronto")).date()
 
     async def fake_get_rates(self, base, quote, start_date, end_date):
@@ -93,38 +98,46 @@ async def test_dashboard_credit_reports_incomplete_fx_with_missing_pairs(client,
     signup_resp = await _create_user(client)
     headers = _get_auth_header(signup_resp)
     async with TestSession() as session:
-        session.add_all([
-            Currency(id="USD", name="US Dollar", symbol="$", minor_unit_exponent=2),
-            Currency(id="ABC", name="Unsupported Test Currency", symbol="A", minor_unit_exponent=2),
-        ])
+        session.add_all(
+            [
+                Currency(id="USD", name="US Dollar", symbol="$", minor_unit_exponent=2),
+                Currency(id="ABC", name="Unsupported Test Currency", symbol="A", minor_unit_exponent=2),
+            ]
+        )
         await session.commit()
 
-    cad_card = (await _create_account(
-        client,
-        headers,
-        account_kind="revolving",
-        account_type="credit_card",
-        name="CAD Card",
-        credit_limit=100_000,
-    )).json()
-    usd_card = (await _create_account(
-        client,
-        headers,
-        account_kind="revolving",
-        account_type="credit_card",
-        name="USD Card",
-        currency="USD",
-        credit_limit=20_000,
-    )).json()
-    abc_card = (await _create_account(
-        client,
-        headers,
-        account_kind="revolving",
-        account_type="credit_card",
-        name="ABC Card",
-        currency="ABC",
-        credit_limit=90_000,
-    )).json()
+    cad_card = (
+        await _create_account(
+            client,
+            headers,
+            account_kind="revolving",
+            account_type="credit_card",
+            name="CAD Card",
+            credit_limit=100_000,
+        )
+    ).json()
+    usd_card = (
+        await _create_account(
+            client,
+            headers,
+            account_kind="revolving",
+            account_type="credit_card",
+            name="USD Card",
+            currency="USD",
+            credit_limit=20_000,
+        )
+    ).json()
+    abc_card = (
+        await _create_account(
+            client,
+            headers,
+            account_kind="revolving",
+            account_type="credit_card",
+            name="ABC Card",
+            currency="ABC",
+            credit_limit=90_000,
+        )
+    ).json()
 
     async with TestSession() as session:
         for account, balance in [(cad_card, -30_000), (usd_card, -5_000), (abc_card, -10_000)]:
@@ -172,15 +185,17 @@ async def test_dashboard_credit_reports_unavailable_fx(client, monkeypatch):
         session.add(Currency(id="USD", name="US Dollar", symbol="$", minor_unit_exponent=2))
         await session.commit()
 
-    usd_card = (await _create_account(
-        client,
-        headers,
-        account_kind="revolving",
-        account_type="credit_card",
-        name="USD Card",
-        currency="USD",
-        credit_limit=20_000,
-    )).json()
+    usd_card = (
+        await _create_account(
+            client,
+            headers,
+            account_kind="revolving",
+            account_type="credit_card",
+            name="USD Card",
+            currency="USD",
+            credit_limit=20_000,
+        )
+    ).json()
 
     async with TestSession() as session:
         await session.execute(
@@ -218,18 +233,23 @@ async def test_dashboard_credit_used_ignores_positive_card_balances(client, monk
 
     signup_resp = await _create_user(client)
     headers = _get_auth_header(signup_resp)
-    credit_card = (await _create_account(
-        client, headers,
-        account_kind="revolving",
-        account_type="credit_card",
-        name="Credit Balance Card",
-        credit_limit=1_500_000,
-    )).json()
+    credit_card = (
+        await _create_account(
+            client,
+            headers,
+            account_kind="revolving",
+            account_type="credit_card",
+            name="Credit Balance Card",
+            credit_limit=1_500_000,
+        )
+    ).json()
 
     async with TestSession() as session:
-        session.add_all([
-            AccountBalanceSnapshot(account_id=UUID(credit_card["id"]), dt=date(2026, 3, 20), balance=42_604),
-        ])
+        session.add_all(
+            [
+                AccountBalanceSnapshot(account_id=UUID(credit_card["id"]), dt=date(2026, 3, 20), balance=42_604),
+            ]
+        )
         await session.execute(
             update(AccountBalanceSnapshot)
             .where(
