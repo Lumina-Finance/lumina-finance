@@ -4,6 +4,10 @@
  */
 export type ImportOriginState = { importOrigin: string }
 
+// A stand-in for this app's own origin, which an address read against it keeps only when it names a
+// page of the app rather than another site. The reserved .invalid name can never be a real site
+const ADDRESS_CHECK_ORIGIN = 'https://app.invalid'
+
 /**
  * The router state an opener passes to the import page, naming the address it is opening from
  */
@@ -17,7 +21,9 @@ export function buildImportOriginState(origin: { pathname: string; search: strin
 export function readImportOrigin(state: unknown): string | null {
   if (typeof state !== 'object' || state === null || !('importOrigin' in state)) return null
   const { importOrigin } = state
-  // A double slash would read as another site's address rather than a page of this app
-  const isAppPath = typeof importOrigin === 'string' && importOrigin.startsWith('/') && !importOrigin.startsWith('//')
+  if (typeof importOrigin !== 'string' || !importOrigin.startsWith('/')) return null
+  // Read the way the browser reads an address, which takes a backslash as a slash and drops tabs and
+  // line breaks, so "/\evil.example" and "/\t/evil.example" both name another site as "//" does
+  const isAppPath = new URL(importOrigin, ADDRESS_CHECK_ORIGIN).origin === ADDRESS_CHECK_ORIGIN
   return isAppPath ? importOrigin : null
 }
