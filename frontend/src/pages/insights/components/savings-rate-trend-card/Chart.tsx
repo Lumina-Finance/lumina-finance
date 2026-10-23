@@ -24,6 +24,7 @@ import type { SavingsRateHistoryPoint } from '@/pages/insights/types/savingsRate
 import {
   getSavingsRateAxisConfig,
   getSavingsRateChartPoints,
+  getSavingsRateTooltipPoint,
   type SavingsRateChartPoint,
 } from '@/pages/insights/utils/savingsRateChart'
 import {
@@ -183,10 +184,7 @@ export function SavingsRateChart({
     state: SavingsRateTooltipState,
     event: ReactMouseEvent<SVGGraphicsElement>,
   ) {
-    const activeIndex = Number(state.activeTooltipIndex)
-    const point = Number.isInteger(activeIndex)
-      ? series[activeIndex]
-      : series.find((item) => item.monthKey === String(state.activeLabel))
+    const point = getSavingsRateTooltipPoint(state, series)
     const pointer = getSavingsRateTooltipPointer(state, event)
     if (!point) {
       tooltipRef.current?.show(null, pointer)

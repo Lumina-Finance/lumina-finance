@@ -1,8 +1,23 @@
 import type { InsightsCashFlowResponse } from '@/api/insights'
+import { getRechartsTooltipPoint, type RechartsTooltipState } from '@/components/charts/rechartsTooltip'
 import type { CashFlowBarBucket } from '@/pages/insights/types/cashFlow'
 import { DATE_FORMATS, formatDate, parseYmd } from '@/utils/date'
 import { getChartGranularity } from '@/utils/chartGranularity'
 import { getCustomRangeDays } from './range'
+
+/**
+ * Finds the bar the pointer is over, or nothing when the chart reports no active bar
+ */
+export function getCashFlowTooltipBucket(
+  state: RechartsTooltipState<CashFlowBarBucket>,
+  buckets: CashFlowBarBucket[],
+) {
+  return getRechartsTooltipPoint({
+    state,
+    data: buckets,
+    resolveLabel: (label) => buckets.find((bucket) => bucket.label === label),
+  })
+}
 
 /**
  * Turns the cash flow response into labelled bars, choosing daily, weekly, or monthly buckets from
