@@ -5,6 +5,9 @@ export interface ImportRun {
   id: string;
 }
 
+/** Called with the run's ID once everything is staged, before the commit starts */
+export type OnImportStaged = (runId: string) => Promise<void>;
+
 /**
  * What opening a run states: how many rows it will write, and, for an import from another app,
  * which app, since a run takes requests only from the importer that opened it

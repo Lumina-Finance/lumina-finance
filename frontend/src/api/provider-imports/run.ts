@@ -1,5 +1,5 @@
 import { commitStagedRun, runImport } from '@/api/import-runs/run';
-import type { ImportRunRoutes } from '@/api/import-runs/types';
+import type { ImportRunRoutes, OnImportStaged } from '@/api/import-runs/types';
 import { buildJournalStageBatches } from '@/api/provider-imports/batching';
 import { putImportRunArchive, putImportRunBudgets } from '@/api/provider-imports/requests';
 import type {
@@ -43,7 +43,7 @@ export interface JournalImportRequest {
 export function runJournalImport(
   { source, payload, budgets, archiveAccountSources, fileName }: JournalImportRequest,
   signal?: AbortSignal,
-  onStaged?: () => Promise<void>,
+  onStaged?: OnImportStaged,
 ): Promise<JournalImportRunResponse> {
   return runImport<JournalImportRunResponse>({
     open: { expected_transaction_count: payload.rows.length, source, file_name: fileName },

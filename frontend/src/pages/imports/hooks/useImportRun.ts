@@ -158,6 +158,15 @@ export function useImportRun<TResult, TSkipped>({
       importOverlayTitle: overlayFailureCopy?.overlayTitle ?? undefined,
       importOverlayNote: overlayFailureCopy?.overlayNote ?? undefined,
       importResult,
+
+      /** The run the finished import was saved under, which undoing the import names */
+      committedRunId: completedImport?.runId ?? null,
+
+      /**
+       * Opens the finished import again as it was before Commit import: its files and answers stay
+       * and unlock, and only the run's result goes
+       */
+      reopenImport: resetImportRun,
       importOverlayPhase: overlayPhase,
       importOverlayOpen,
       importOverlaySteps,

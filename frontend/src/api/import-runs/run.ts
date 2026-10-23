@@ -5,7 +5,7 @@ import {
   openImportRun,
   stageImportRunRows,
 } from '@/api/import-runs/requests';
-import type { ImportRunRoutes, OpenImportRunRequest } from '@/api/import-runs/types';
+import type { ImportRunRoutes, OnImportStaged, OpenImportRunRequest } from '@/api/import-runs/types';
 import { getImportFailureMessage } from '@/utils/importFailure';
 
 /** Which half of the upload an import stopped in, which decides what can be done about it */
@@ -72,12 +72,13 @@ export interface ImportRunUpload {
  * @param signal - Abandons the upload. The run is dropped when this fires during staging, while
  *   during the commit it only stops waiting, since the commit may already have landed
  * @param onStaged - Runs once everything is staged, before the commit starts, so the screen can
- *   show the upload finishing. Stopping while it runs still counts as stopping during staging
+ *   show the upload finishing and learn which run it is. Stopping while it runs still counts as
+ *   stopping during staging
  */
 export async function runImport<TResponse>(
   { open, routes, buildBatches, stageExtras }: ImportRunUpload,
   signal?: AbortSignal,
-  onStaged?: () => Promise<void>,
+  onStaged?: OnImportStaged,
 ): Promise<TResponse> {
   const batches = await buildBatches();
   const run = await openImportRun(open, signal);
@@ -85,7 +86,7 @@ export async function runImport<TResponse>(
   try {
     for (const batch of batches) await stageImportRunRows(run.id, routes, batch, signal);
     await stageExtras?.(run.id, signal);
-    await onStaged?.();
+    await onStaged?.(run.id);
     signal?.throwIfAborted();
   } catch (error) {
     await discardStagedRun(run.id);

@@ -1,4 +1,4 @@
-import { ImportRunError, type StagedRunSettlement } from '@/api/import-runs'
+import { ImportRunError, type OnImportStaged, type StagedRunSettlement } from '@/api/import-runs'
 import { STEP_DOT_WAVE_MS } from '@/pages/imports/components/ProgressOverlay'
 import { getRowsOutsideDateRangeExplanation } from '@/pages/imports/constants'
 import type { ImportOverlayPhase } from '@/pages/imports/types'
@@ -74,6 +74,9 @@ export const IMPORT_SAVED_EARLIER_MESSAGE = 'Your earlier import was saved, so t
 /** What one completed import wrote, with the rows it left out, captured when it started */
 export interface CompletedImport<TResult, TSkipped> {
   result: TResult
+
+  /** The run the import was saved under, which is what undoing it names, null if its upload never reported one */
+  runId: string | null
   skippedRowsAtCommit: TSkipped[]
 
   /** How many rows the import left out for being dated outside its chosen dates */
@@ -133,7 +136,7 @@ interface ImportRunDependencies<TResult, TSkipped> {
 /** How one attempt reaches the server: by uploading the whole import, or by saving a kept upload */
 export interface ImportRunRequests<TResult> {
   /** Sends the import, calling its second argument once everything is staged */
-  upload: (signal: AbortSignal, onStaged: () => Promise<void>) => Promise<TResult>
+  upload: (signal: AbortSignal, onStaged: OnImportStaged) => Promise<TResult>
   commit: (runId: string, signal: AbortSignal) => Promise<TResult>
 }
 
@@ -227,7 +230,9 @@ export function createImportRunController<TResult, TSkipped>({
 
     // Nothing is saved until the upload has finished, so the stage list hands over to saving
     // before the save starts, and stopping is no longer offered from there
-    const handOverToSaving = async () => {
+    let uploadedRunId: string | null = null
+    const handOverToSaving: OnImportStaged = async (runId) => {
+      uploadedRunId = runId
       await uploadMinimum
       if (controller.signal.aborted) return
       await showStage('uploading', true)
@@ -244,6 +249,7 @@ export function createImportRunController<TResult, TSkipped>({
     try {
       let result: TResult
       let savedEarlier = false
+      let committedRunId: string | null = keptRunId
       if (keptRunId && savingKeptUpload) {
         result = await requests.commit(keptRunId, controller.signal)
       } else {
@@ -260,6 +266,7 @@ export function createImportRunController<TResult, TSkipped>({
           runSkippedRows = skippedRowsAtCommit
           runOutsideRangeCount = outsideRangeCountAtCommit
           result = await requests.upload(controller.signal, handOverToSaving)
+          committedRunId = uploadedRunId
         }
       }
       if (attemptId !== currentAttemptId) return
@@ -271,6 +278,7 @@ export function createImportRunController<TResult, TSkipped>({
         stagedRunId: null,
         completedImport: {
           result,
+          runId: committedRunId,
           skippedRowsAtCommit: runSkippedRows,
           outsideRangeCountAtCommit: runOutsideRangeCount,
           savedEarlier,

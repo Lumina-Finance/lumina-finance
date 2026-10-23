@@ -1,5 +1,5 @@
 import { commitStagedRun, runImport } from '@/api/import-runs/run';
-import type { ImportRunRoutes } from '@/api/import-runs/types';
+import type { ImportRunRoutes, OnImportStaged } from '@/api/import-runs/types';
 import { buildStagedImportBatches } from '@/api/transaction-imports/batching';
 import type {
   CsvImportLayout,
@@ -24,7 +24,7 @@ const TRANSACTION_IMPORT_ROUTES: ImportRunRoutes = { rows: 'rows', commit: 'comm
 export function runTransactionImport(
   payload: TransactionImportPayload,
   signal?: AbortSignal,
-  onStaged?: () => Promise<void>,
+  onStaged?: OnImportStaged,
   fileName?: string,
   csvLayout?: CsvImportLayout,
   source?: TransactionImportSource,

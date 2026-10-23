@@ -5,7 +5,7 @@
  */
 import { describe, expect, it, vi } from 'vitest'
 import type { JournalImportRunResponse } from '@/api/provider-imports'
-import { ImportRunError, type StagedRunSettlement } from '@/api/import-runs'
+import { ImportRunError, type OnImportStaged, type StagedRunSettlement } from '@/api/import-runs'
 import type { FireflySkippedRowDetail } from '@/pages/imports/firefly/utils'
 import {
   canStartImport,
@@ -48,8 +48,8 @@ function createHarness(settlement: StagedRunSettlement = 'discarded') {
 /** Requests whose upload succeeds and whose save of a kept upload answers with what was saved */
 function createRequests(result: JournalImportRunResponse = RESULT) {
   return {
-    upload: vi.fn(async (_signal: AbortSignal, onStaged: () => Promise<void>) => {
-      await onStaged()
+    upload: vi.fn(async (_signal: AbortSignal, onStaged: OnImportStaged) => {
+      await onStaged('run-new')
       return result
     }),
     commit: vi.fn().mockResolvedValue(RESULT),
@@ -60,7 +60,7 @@ function createRequests(result: JournalImportRunResponse = RESULT) {
 async function failWhileSaving(controller: ReturnType<typeof createHarness>['controller'], answers: object) {
   const requests = createRequests()
   requests.upload.mockImplementation(async (_signal, onStaged) => {
-    await onStaged()
+    await onStaged('run-1')
     throw new ImportRunError('The server went away', 'commit', 'run-1')
   })
   await controller.start(SKIPPED_AT_START, OUTSIDE_RANGE_AT_START, answers, requests)
@@ -76,7 +76,7 @@ describe('import run', () => {
     const running = controller.start(SKIPPED_AT_START, OUTSIDE_RANGE_AT_START, {}, {
       upload: async (_signal, onStaged) => {
         await staged.promise
-        await onStaged()
+        await onStaged('run-7')
         return saved.promise
       },
       commit: vi.fn(),
@@ -93,6 +93,7 @@ describe('import run', () => {
       overlayPhase: 'success',
       completedImport: {
         result: RESULT,
+        runId: 'run-7',
         skippedRowsAtCommit: SKIPPED_AT_START,
         outsideRangeCountAtCommit: OUTSIDE_RANGE_AT_START,
         savedEarlier: false,
@@ -135,6 +136,7 @@ describe('import run', () => {
       stagedRunId: null,
       completedImport: {
         result: RESULT,
+        runId: 'run-1',
         skippedRowsAtCommit: SKIPPED_AT_START,
         outsideRangeCountAtCommit: OUTSIDE_RANGE_AT_START,
         savedEarlier: false,
@@ -171,6 +173,7 @@ describe('import run', () => {
     expect(requests.commit).toHaveBeenCalledWith('run-1', expect.any(AbortSignal))
     expect(settleStagedRun).not.toHaveBeenCalled()
     expect(controller.getState().completedImport).toMatchObject({
+      runId: 'run-1',
       skippedRowsAtCommit: SKIPPED_AT_START,
       outsideRangeCountAtCommit: OUTSIDE_RANGE_AT_START,
     })
@@ -190,7 +193,7 @@ describe('import run', () => {
     expect(controller.getState()).toMatchObject({
       overlayPhase: 'success',
       stagedRunId: null,
-      completedImport: { savedEarlier: false, skippedRowsAtCommit: [], outsideRangeCountAtCommit: 0 },
+      completedImport: { runId: 'run-new', savedEarlier: false, skippedRowsAtCommit: [], outsideRangeCountAtCommit: 0 },
     })
   })
 
@@ -200,7 +203,7 @@ describe('import run', () => {
     controller.close()
     const requests = createRequests()
     requests.upload.mockImplementation(async (_signal, onStaged) => {
-      await onStaged()
+      await onStaged('run-2')
       throw new ImportRunError('The server went away', 'commit', 'run-2')
     })
 
@@ -214,7 +217,7 @@ describe('import run', () => {
     expect(requests.commit).toHaveBeenCalledWith('run-2', expect.any(AbortSignal))
     expect(controller.getState()).toMatchObject({
       overlayPhase: 'success',
-      completedImport: { savedEarlier: false, skippedRowsAtCommit: [] },
+      completedImport: { runId: 'run-2', savedEarlier: false, skippedRowsAtCommit: [] },
     })
   })
 
@@ -236,6 +239,7 @@ describe('import run', () => {
       stagedRunId: null,
       completedImport: {
         result: RESULT,
+        runId: 'run-1',
         skippedRowsAtCommit: SKIPPED_AT_START,
         outsideRangeCountAtCommit: OUTSIDE_RANGE_AT_START,
         savedEarlier: true,
@@ -354,7 +358,7 @@ describe('the rows an import leaves out', () => {
 
     expect(getSkippedRowsDisplay({
       liveForecastRows: liveRows,
-      completedImport: { result: RESULT, skippedRowsAtCommit: SKIPPED_AT_START, outsideRangeCountAtCommit: 0, savedEarlier: false, answers: {} },
+      completedImport: { result: RESULT, runId: 'run-1', skippedRowsAtCommit: SKIPPED_AT_START, outsideRangeCountAtCommit: 0, savedEarlier: false, answers: {} },
     })).toEqual({
       rows: SKIPPED_AT_START,
       totalCount: 1,
@@ -367,7 +371,7 @@ describe('the rows an import leaves out', () => {
   it('says how many rows the chosen dates left out, in the past tense, once the import has run', () => {
     expect(getOutsideRangeRowsNote({
       liveCount: 7,
-      completedImport: { result: RESULT, skippedRowsAtCommit: [], outsideRangeCountAtCommit: OUTSIDE_RANGE_AT_START, savedEarlier: false, answers: {} },
+      completedImport: { result: RESULT, runId: 'run-1', skippedRowsAtCommit: [], outsideRangeCountAtCommit: OUTSIDE_RANGE_AT_START, savedEarlier: false, answers: {} },
     })).toBe('3 rows were dated outside the chosen dates, so they weren\'t imported.')
   })
 

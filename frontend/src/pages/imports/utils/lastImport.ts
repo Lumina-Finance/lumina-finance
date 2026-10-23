@@ -12,6 +12,35 @@ export const IMPORT_SOURCE_LABELS: Record<LastImport['source'], string> = {
 /** Shown for an import saved without a file name */
 export const UNNAMED_IMPORT_FILE = 'Unnamed file'
 
+/** Said when the importer that ran the undone import is open again with its files and answers */
+export const IMPORT_UNDONE_REOPENED_MESSAGE = 'Import undone. Your files and answers are back, so you can change anything and import again.'
+
+/** Said when the undone import's files and answers are not on this screen to return to */
+export const IMPORT_UNDONE_EMPTY_MESSAGE = 'Import undone. Upload the files again to import them.'
+
+/** What an undo does to one importer on the page */
+export type ImportUndoOutcome = 'reopen' | 'reset' | 'keep'
+
+/**
+ * Decides what undoing an import does to an importer
+ *
+ * The importer that saved the undone import gets its files and answers back, unlocked. Any other
+ * finished importer is a record of an import that is no longer the last, so it is emptied for a
+ * fresh start. One still being filled in has nothing to do with the undone import and is left alone
+ *
+ * @param committedRunId - The run the importer saved, null while it has saved none
+ * @param isFinished - Whether the importer holds a finished import
+ * @param undoneRunId - The run that was undone
+ */
+export function chooseImportUndoOutcome({ committedRunId, isFinished, undoneRunId }: {
+  committedRunId: string | null
+  isFinished: boolean
+  undoneRunId: string
+}): ImportUndoOutcome {
+  if (committedRunId === undoneRunId) return 'reopen'
+  return isFinished ? 'reset' : 'keep'
+}
+
 /**
  * Counts transactions in words, with the singular for one, kept on one line with its number
  */

@@ -3,6 +3,7 @@ import { useLocation, useNavigate } from 'react-router'
 import { readImportOrigin } from '@/utils/importOrigin'
 import { useQueryClient } from '@tanstack/react-query'
 import { useMinimumVisibleFlag } from '@/hooks/useMinimumVisibleFlag'
+import { useToast } from '@/hooks/useToast'
 import { LOADING_ANIMATION_MIN_MS } from '@/utils/timing'
 import { Upload, X } from 'lucide-react'
 import { TAB_OPENED_AT } from '@/api/cache/persistence'
@@ -50,6 +51,11 @@ import {
   getRememberedDataSource,
 } from './utils'
 import {
+  chooseImportUndoOutcome,
+  IMPORT_UNDONE_EMPTY_MESSAGE,
+  IMPORT_UNDONE_REOPENED_MESSAGE,
+} from './utils/lastImport'
+import {
   ImportAccountMappingStep,
   ImportAutoCreateStep,
   ImportMerchantMatchingStep,
@@ -88,6 +94,7 @@ export default function ImportsPage() {
   const navigate = useNavigate()
   const location = useLocation()
   const queryClient = useQueryClient()
+  const { showToast } = useToast()
   const [dataSource, setDataSource] = useState<ImportDataSource>(DEFAULT_DATA_SOURCE)
   const accountScope = useImportAccountScope()
 
@@ -196,6 +203,7 @@ export default function ImportsPage() {
   // Counted once the overlay has gone, when the page can scroll and the overlay has handed focus back, so
   // the skipped rows list that answers it can take both
   const [skippedReviewCount, setSkippedReviewCount] = useState(0)
+  const [undoCount, setUndoCount] = useState(0)
   const reviewsSkippedOnClose = useRef(false)
   if (importOverlayOpen && !overlayOnScreen) {
     setOverlayOpener(document.activeElement instanceof HTMLElement ? document.activeElement : null)
@@ -255,6 +263,44 @@ export default function ImportsPage() {
       setDataSource(next)
     }
   }
+
+  // Puts every importer right once an import is undone, whichever one saved it. The one that did gets
+  // its files and answers back, unlocked. Another finished one is a record of an import that is no
+  // longer the last, so it starts over empty. One still being filled in is left as it is
+  const handleImportUndone = (undoneRunId: string) => {
+    const resets = {
+      generic: workflow.resetImportWorkflow,
+      firefly: fireflyWorkflow.resetFireflyWorkflow,
+      actual: actualWorkflow.resetActualWorkflow,
+      ofx: ofxWorkflow.resetOfxWorkflow,
+    }
+    let isReopened = false
+    for (const flow of Object.keys(overlayWorkflows) as ImportDataSource[]) {
+      const importer = overlayWorkflows[flow]
+      const outcome = chooseImportUndoOutcome({
+        committedRunId: importer.committedRunId,
+        isFinished: importer.importResult !== null,
+        undoneRunId,
+      })
+      if (outcome === 'reopen') {
+        importer.reopenImport()
+        isReopened = true
+      } else if (outcome === 'reset') {
+        resets[flow]()
+      }
+    }
+    showToast({ status: 'success', text: isReopened ? IMPORT_UNDONE_REOPENED_MESSAGE : IMPORT_UNDONE_EMPTY_MESSAGE })
+    setUndoCount((count) => count + 1)
+  }
+
+  // The undo button leaves with its import, and the confirmation hands focus back to it, so focus
+  // would end on the document. It is put on the page instead, a frame after the confirmation has
+  // done so, which keeps a keyboard user's place instead of sending them back to the top
+  useEffect(() => {
+    if (undoCount === 0) return
+    const frame = window.requestAnimationFrame(() => pageRef.current?.focus({ preventScroll: true }))
+    return () => window.cancelAnimationFrame(frame)
+  }, [undoCount])
 
   const handleDone = () => {
     navigate(originPath ?? '/')
@@ -373,7 +419,7 @@ export default function ImportsPage() {
             >
               <ImportSetupPanel hasFile={hasStagedFile} onPointerInsideChange={workflow.setIsPointerInDatePanel}>
                 {/* First, so the way to undo the last import is in view without scrolling the steps below */}
-                <LastImportCard />
+                <LastImportCard onUndone={handleImportUndone} />
                 {/* An import started from an account offers the sources that write to one account */}
                 {/* Ends where the files step below it does, which keeps a gutter beside its scrolling box */}
                 <div className="xl:pr-1">

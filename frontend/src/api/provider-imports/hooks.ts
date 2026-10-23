@@ -1,4 +1,5 @@
 import { useImportRunMutation } from '@/api/import-runs/hooks';
+import type { OnImportStaged } from '@/api/import-runs/types';
 import { commitStagedJournalRun, runJournalImport, type JournalImportRequest } from '@/api/provider-imports/run';
 
 /**
@@ -8,7 +9,7 @@ export function useImportJournal() {
   return useImportRunMutation(({ request, signal, onStaged }: {
     request: JournalImportRequest;
     signal?: AbortSignal;
-    onStaged?: () => Promise<void>;
+    onStaged?: OnImportStaged;
   }) => runJournalImport(request, signal, onStaged));
 }
 

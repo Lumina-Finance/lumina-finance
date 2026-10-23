@@ -1,6 +1,7 @@
 import { useQuery } from '@tanstack/react-query';
 import { heldBankTransactionKeys, importLayoutKeys, importSourceKeys } from '@/api/cache/queryKeys';
 import { useImportRunMutation } from '@/api/import-runs/hooks';
+import type { OnImportStaged } from '@/api/import-runs/types';
 import { fetchHeldBankTransactions, fetchImportLayouts, fetchImportSources } from '@/api/transaction-imports/requests';
 import { commitStagedImportRun, runTransactionImport } from '@/api/transaction-imports/run';
 import type {
@@ -21,7 +22,7 @@ export function useImportTransactions() {
   return useImportRunMutation(({ payload, signal, onStaged, fileName, csvLayout, source }: {
     payload: TransactionImportPayload;
     signal?: AbortSignal;
-    onStaged?: () => Promise<void>;
+    onStaged?: OnImportStaged;
     fileName?: string;
     csvLayout?: CsvImportLayout;
     source?: TransactionImportSource;

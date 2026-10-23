@@ -4,6 +4,7 @@ export type {
   ImportRun,
   ImportRunRoutes,
   ImportUndoResult,
+  OnImportStaged,
   OpenImportRunRequest,
 } from '@/api/import-runs/types';
 
