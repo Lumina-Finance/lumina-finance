@@ -4,10 +4,16 @@
  * range leaves out are unknown rather than none while it cannot be applied
  */
 import { describe, expect, it } from 'vitest'
-import { EMPTY_COLUMN_MAP, getRowsOutsideDateRangeExplanation } from '@/pages/imports/constants'
+import {
+  EMPTY_COLUMN_MAP,
+  getRowsOutsideDateRangeExplanation,
+  IMPORT_DATE_RANGE_CROSSED_ERROR,
+  IMPORT_DATE_RANGE_INCOMPLETE_ERROR,
+} from '@/pages/imports/constants'
 import type { ImportDateRange, ImportFileDraft } from '@/pages/imports/types'
 import {
   countImportRowsOutsideDateRange,
+  getImportDateRangeBlockReason,
   getImportDateRangeFilter,
   getLatestStartSuggestion,
   getLatestTransactionFilters,
@@ -103,6 +109,21 @@ describe('offering the day after the latest transaction as the start', () => {
   it('offers nothing without a latest transaction', () => {
     expect(getLatestStartSuggestion(undefined)).toBeNull()
     expect(getLatestStartSuggestion(null)).toBeNull()
+  })
+})
+
+describe('the reason the chosen dates hold Commit import off', () => {
+  it('names a date only partly typed, a start after the end, and nothing otherwise', () => {
+    expect(getImportDateRangeBlockReason(COLUMN_MAP, { from: null, to: '' })).toBe(IMPORT_DATE_RANGE_INCOMPLETE_ERROR)
+    expect(getImportDateRangeBlockReason(COLUMN_MAP, { from: '2025-03-31', to: null })).toBe(IMPORT_DATE_RANGE_INCOMPLETE_ERROR)
+    expect(getImportDateRangeBlockReason(COLUMN_MAP, { from: '2025-03-31', to: '2025-03-01' })).toBe(IMPORT_DATE_RANGE_CROSSED_ERROR)
+    expect(getImportDateRangeBlockReason(COLUMN_MAP, { from: '2025-03-01', to: '2025-03-31' })).toBeNull()
+    expect(getImportDateRangeBlockReason(COLUMN_MAP, WHOLE_FILE_DATE_RANGE)).toBeNull()
+  })
+
+  it('holds nothing off while no date column is mapped, since the fields are not shown', () => {
+    expect(getImportDateRangeBlockReason(EMPTY_COLUMN_MAP, { from: null, to: '' })).toBeNull()
+    expect(getImportDateRangeBlockReason(EMPTY_COLUMN_MAP, { from: '2025-03-31', to: '2025-03-01' })).toBeNull()
   })
 })
 

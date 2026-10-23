@@ -353,6 +353,50 @@ test('puts the dates in the File section after Skip last rows and blocks the imp
   }
 })
 
+// The page takes the dates only once editing ends, but Commit import is greyed out from the moment a
+// date is wrong, with its reason, while the user is still in the field and presses Enter there
+test('keeps Commit import greyed out with its reason while a wrong date is still being edited', async ({ page, request }) => {
+  await uploadYear(page, request)
+  const commit = page.getByRole('button', { name: 'Commit import', exact: true })
+  await expect(commit).toBeEnabled()
+
+  const start = page.getByRole('group', { name: 'Start date', exact: true })
+  const year = start.getByRole('textbox', { name: 'Year', exact: true })
+  await year.fill('2025')
+  await year.press('Enter')
+  await expect(year).toBeFocused()
+  await expect(year).toHaveAttribute('aria-invalid', 'true')
+  await expect(commit).toBeDisabled()
+  await expect(page.getByText('Finish the chosen dates, or clear any you don\'t need.', { exact: true }).first()).toBeVisible()
+
+  // Crossed dates hold it off the same way
+  await typeDate(page, 'Start date', '2025-03-31')
+  await typeDate(page, 'End date', '2025-03-01')
+  await page.getByRole('group', { name: 'End date', exact: true }).getByRole('textbox', { name: 'Day', exact: true }).press('Enter')
+  await expect(commit).toBeDisabled()
+  await expect(page.getByText('Choose a start date on or before the end date.', { exact: true }).first()).toBeVisible()
+
+  // And it is usable again as soon as the dates are right, still without leaving the field
+  await typeDate(page, 'End date', '2025-04-30')
+  await expect(commit).toBeEnabled()
+})
+
+// The range belongs to the files it was chosen for, so it does not carry over to the next file
+test('clears the dates when the last file is removed', async ({ page, request }) => {
+  await uploadYear(page, request)
+  await typeDate(page, 'Start date', '2025-03-01')
+  await applyImportDates(page)
+
+  await showImportSetup(page)
+  await page.getByRole('button', { name: 'Remove year.csv', exact: true }).click()
+  await page.locator('input[type="file"][accept=".csv,text/csv"]').setInputFiles({ name: 'year.csv', mimeType: 'text/csv', buffer: Buffer.from(CSV) })
+  await showImportSetup(page)
+
+  const start = page.getByRole('group', { name: 'Start date', exact: true })
+  await expect(start.getByRole('textbox', { name: 'Year', exact: true })).toHaveValue('')
+  await expect(page.getByRole('button', { name: 'Commit import', exact: true })).toBeEnabled()
+})
+
 // The widths the messages were seen to wrap at, and the ones either side of them
 const LAYOUT_WIDTHS = [375, 390, 768, 1024, 1280]
 

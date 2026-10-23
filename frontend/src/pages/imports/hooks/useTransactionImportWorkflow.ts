@@ -38,6 +38,7 @@ import {
   getStatedCurrencyByAccountSource,
   getColumnValues,
   countImportRowsOutsideDateRange,
+  getImportDateRangeBlockReason,
   getImportDateRangeFilter,
   getLatestStartSuggestion,
   getLatestTransactionFilters,
@@ -213,6 +214,10 @@ export function useTransactionImportWorkflow(fixedAccount: AccountsOverview | nu
     [dateRangeFilter, files],
   )
   const isDateRangeCrossed = isImportDateRangeCrossed(columnMap, shownDateRange)
+
+  // Read from the dates on screen, not the ones the page has taken, so Commit import is greyed out
+  // for as long as a date is wrong, including while the user is still in the field
+  const dateRangeBlockReason = getImportDateRangeBlockReason(columnMap, shownDateRange)
 
   // Offered rather than filled in, so the start stays empty unless the user asks for it
   const todayYmd = useTodayYmd()
@@ -917,7 +922,11 @@ export function useTransactionImportWorkflow(fixedAccount: AccountsOverview | nu
       ? getImportLayoutsUploadBlockReason(importLayouts.isError || (importLayouts.isFetchedAfterMount && !importLayouts.isStale))
       : null)
 
-  const canCommitImport = run.canCommit({ hasPayload: importBuild.payload !== null, isProcessingFile: isProcessingFiles })
+  const canCommitImport = run.canCommit({
+    hasPayload: importBuild.payload !== null,
+    isProcessingFile: isProcessingFiles,
+    blockReason: dateRangeBlockReason,
+  })
 
   const syncAutoMatchKeys = (
     nextColumnMap: ColumnMap,
@@ -1096,7 +1105,9 @@ export function useTransactionImportWorkflow(fixedAccount: AccountsOverview | nu
     setIsProcessingFiles(false)
     sourceFilesRef.current.delete(fileId)
     const remainingFiles = removeStagedFile(files, fileId)
-    // With no file left the layout is cleared, so the next file's columns are read as on a first upload
+    // With no file left the layout and the chosen dates are cleared, so the next file is read as on a
+    // first upload and no range carries over to it
+    if (remainingFiles.length === 0) resetDateRange()
     applyStagedFiles(remainingFiles, { startFresh: remainingFiles.length === 0 })
   }
 
@@ -1297,6 +1308,7 @@ export function useTransactionImportWorkflow(fixedAccount: AccountsOverview | nu
     setDateFormat,
     dateRange: shownDateRange,
     isDateRangeCrossed,
+    dateRangeBlockReason,
     outsideRangeRowCount,
     setDateRangeEnd,
     setIsPointerInDatePanel,
