@@ -1,4 +1,4 @@
-import type { CreditUtilizationAccount } from '@/api/dashboard'
+import type { CreditUtilizationAccount, CreditUtilizationResponse } from '@/api/dashboard'
 
 /**
  * Returns the IDs of the credit accounts the server currently leaves out
@@ -34,4 +34,17 @@ export function isExclusionChanged(saved: ReadonlySet<string>, draft: ReadonlySe
  */
 export function areAllAccountsLeftOut(accounts: CreditUtilizationAccount[]): boolean {
   return accounts.length > 0 && accounts.every((account) => !account.is_counted)
+}
+
+/**
+ * Reports whether the user counts credit accounts whose limits add up to nothing, so the widget says
+ * no limit is set rather than that there are no accounts
+ *
+ * A limit with no exchange rate also adds nothing, which is a missing rate rather than an unset
+ * limit, so a total missing a conversion does not count
+ */
+export function isCreditLimitUnset(credit: CreditUtilizationResponse | undefined): boolean {
+  if (!credit || credit.credit_limit_total > 0) return false
+  const isConversionMissing = credit.fx_status.state === 'incomplete' || credit.fx_status.state === 'unavailable'
+  return !isConversionMissing && credit.accounts.some((account) => account.is_counted)
 }

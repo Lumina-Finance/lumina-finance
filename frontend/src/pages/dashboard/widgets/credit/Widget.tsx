@@ -5,7 +5,7 @@ import { CreditAccountsModal } from './AccountsModal'
 import { CreditHeader } from './Header'
 import { CreditUsageBody } from './UsageBody'
 import { DashboardWidgetLoadingBody } from '@/pages/dashboard/components/WidgetLoadingBody'
-import { areAllAccountsLeftOut } from '@/pages/dashboard/utils/creditAccountChoice'
+import { areAllAccountsLeftOut, isCreditLimitUnset } from '@/pages/dashboard/utils/creditAccountChoice'
 import {
   getCreditUsageSummary,
   type CreditMode,
@@ -74,6 +74,7 @@ export function CreditWidget({ displayCurrency }: CreditWidgetProps) {
           summary={creditSummary}
           displayCurrency={displayCurrency}
           allLeftOut={areAllAccountsLeftOut(creditAccounts)}
+          limitUnset={isCreditLimitUnset(dashboardCredit)}
           onChooseAccounts={() => setAccountsModalOpen(true)}
         />
       </DashboardWidgetLoadingBody>

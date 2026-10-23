@@ -10,18 +10,22 @@ type CreditUsageBodyProps = {
   // The user has credit accounts but counts none, which reads differently from having none
   allLeftOut: boolean
 
+  // The user counts credit accounts, but their limits add up to nothing
+  limitUnset: boolean
+
   // Opens the account chooser from the empty state that asks the user to pick accounts
   onChooseAccounts: () => void
 }
 
 /**
- * Renders the credit progress ring, active mode amount, and the empty states for no credit accounts
- * and for every one left out
+ * Renders the credit progress ring, active mode amount, and the empty states for no credit accounts,
+ * for counted accounts with no limit set and for every one left out
  */
 export function CreditUsageBody({
   summary,
   displayCurrency,
   allLeftOut,
+  limitUnset,
   onChooseAccounts,
 }: CreditUsageBodyProps) {
   const {
@@ -64,7 +68,7 @@ export function CreditUsageBody({
         className="flex h-full items-center justify-center text-center text-sm italic max-[1000px]:text-[0.7875rem]"
         style={{ color: 'var(--app-text-subtle)' }}
       >
-        No credit accounts
+        {limitUnset ? 'No credit limit set' : 'No credit accounts'}
       </p>
     )
   }
