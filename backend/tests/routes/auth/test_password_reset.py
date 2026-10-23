@@ -7,9 +7,11 @@ from types import SimpleNamespace
 
 import pyotp
 import pytest
+from httpx import ASGITransport, AsyncClient
 from sqlalchemy import func, select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.main import app
 from app.models.auth import PasswordCredential, PasswordResetToken
 from app.services.auth import password_reset
 from tests.conftest import TestSession
@@ -157,21 +159,31 @@ async def test_forgot_password_drops_the_token_when_the_email_fails(client, monk
     assert sent_reset_emails == [SIGNUP_PAYLOAD["email"]]
 
 
-async def test_forgot_password_leaves_the_email_until_after_the_response(client, monkeypatch):
-    """Issuing the link sends nothing, so a registered address answers as fast as an unknown one"""
+async def test_forgot_password_sends_the_email_once_the_response_has_started(client, monkeypatch):
+    """The route answers before it waits on the mail server, so its timing can't tell an address apart"""
     await _create_user(client)
+    events = []
 
-    async def send_during_request(*_args, **_kwargs):
-        """Fail if the request itself waits on the mail server"""
-        raise AssertionError("the email went out before the response")
+    async def record_send(_email, _message):
+        """Note the send in order with the response"""
+        events.append("email")
 
-    monkeypatch.setattr(password_reset, "get_email_sender", lambda: SimpleNamespace(send=send_during_request))
-    async with TestSession() as db:
-        pending = await password_reset.request_password_reset(db, SIGNUP_PAYLOAD["email"])
+    async def tracked_app(scope, receive, send):
+        """Run the app, noting when its response starts"""
 
-    assert pending is not None
-    assert pending.recipient == SIGNUP_PAYLOAD["email"]
-    assert "/reset-password?token=" in pending.message.text_body
+        async def tracked_send(message):
+            if message["type"] == "http.response.start":
+                events.append("response")
+            await send(message)
+
+        await app(scope, receive, tracked_send)
+
+    monkeypatch.setattr(password_reset, "get_email_sender", lambda: SimpleNamespace(send=record_send))
+    async with AsyncClient(transport=ASGITransport(app=tracked_app), base_url="http://test") as tracked_client:
+        resp = await tracked_client.post("/auth/password/forgot", json={"email": SIGNUP_PAYLOAD["email"]})
+
+    assert resp.status_code == 204
+    assert events == ["response", "email"]
 
 
 @pytest.mark.parametrize("prior_sends", [0, 2])
@@ -216,8 +228,8 @@ async def test_forgot_password_unknown_email_creates_no_token(client):
         assert token_count == 0
 
 
-async def test_forgot_password_keeps_the_live_link_and_sends_nothing_new(client):
-    """Requesting again while the earlier link still works issues no new token"""
+async def test_forgot_password_keeps_the_live_link_and_sends_nothing_new(client, sent_reset_emails):
+    """Requesting again while the earlier link still works issues no new token and sends no email"""
     signup = await _create_user(client)
     user_id = uuid.UUID(signup.json()["user"]["id"])
 
@@ -230,6 +242,7 @@ async def test_forgot_password_keeps_the_live_link_and_sends_nothing_new(client)
     assert resp.status_code == 204
     assert len(rows) == 1
     assert rows[0].token_hash == first_hash
+    assert sent_reset_emails == [SIGNUP_PAYLOAD["email"]]
 
 
 async def test_forgot_password_sends_again_after_the_link_expires(client):

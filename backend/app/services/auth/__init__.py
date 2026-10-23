@@ -26,7 +26,6 @@ from app.services.auth.password_reset import (
     complete_password_reset,
     ensure_reset_token_active,
     request_password_reset,
-    send_password_reset_email,
 )
 from app.services.auth.registration import is_registration_open
 from app.services.auth.sessions import delete_expired_auth_sessions, delete_expired_auth_tokens
@@ -113,7 +112,6 @@ __all__ = [
     "remove_passkey_with_step_up",
     "rename_passkey",
     "request_password_reset",
-    "send_password_reset_email",
     "set_first_password",
     "signup",
     "sync_oidc_providers",

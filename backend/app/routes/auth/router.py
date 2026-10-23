@@ -61,7 +61,6 @@ from app.services.auth import (
     prune_stale_factor_staging,
     regenerate_recovery_codes,
     request_password_reset,
-    send_password_reset_email,
     set_first_password,
     signup,
 )
@@ -235,9 +234,7 @@ async def forgot_password_route(
         session_factory: Opens the session the send uses after the response
         background_tasks: Runs the send once the response is out
     """
-    pending = await request_password_reset(db, data.email)
-    if pending is not None:
-        background_tasks.add_task(send_password_reset_email, pending, session_factory)
+    await request_password_reset(db, data.email, background_tasks, session_factory)
 
 
 @router.post("/password/reset", response_model=MfaRequiredResponse | None)

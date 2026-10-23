@@ -7,7 +7,7 @@ import uuid
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 
-from fastapi import HTTPException, status
+from fastapi import BackgroundTasks, HTTPException, status
 from sqlalchemy import delete, select, update
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 from sqlalchemy.sql import func as sa_func
@@ -79,14 +79,35 @@ class PendingResetEmail:
     message: RenderedEmail
 
 
-async def request_password_reset(db: AsyncSession, email: str) -> PendingResetEmail | None:
-    """Issue a single-use reset token for the email and return the email carrying its link
+async def request_password_reset(
+    db: AsyncSession,
+    email: str,
+    background_tasks: BackgroundTasks,
+    session_factory: async_sessionmaker[AsyncSession],
+) -> None:
+    """Issue a single-use reset token for the email and send its link once the response is out
 
     The caller always reports success so the endpoint never reveals whether an email is
-    registered or was throttled, and sends the email only after answering, since the time a
-    send takes would otherwise tell a registered address apart. No email is due while the last
-    link still works, and at most the configured number go out per account per rolling day, so
-    an unauthenticated requester cannot drain the operator's mail quota
+    registered or was throttled, and the send waits until after the answer, since the time it
+    takes would otherwise tell a registered address apart
+
+    Args:
+        db: Active database session
+        email: Email address requesting the reset
+        background_tasks: Runs the send once the response is out
+        session_factory: Opens the session the send uses after the response
+    """
+    pending = await _issue_password_reset(db, email)
+    if pending is not None:
+        background_tasks.add_task(send_password_reset_email, pending, session_factory)
+
+
+async def _issue_password_reset(db: AsyncSession, email: str) -> PendingResetEmail | None:
+    """Store a reset token for the email and return the email carrying its link
+
+    No email is due while the last link still works, and at most the configured number go out
+    per account per rolling day, so an unauthenticated requester cannot drain the operator's
+    mail quota
 
     Args:
         db: Active database session
