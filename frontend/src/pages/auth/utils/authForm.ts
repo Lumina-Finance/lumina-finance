@@ -3,7 +3,7 @@ import type { Currency } from '@/api/currency'
 import type { DropdownOption } from '@/components/dropdown/Dropdown'
 import { formatCurrencyLabel } from '@/utils/formatCurrency'
 import { isNewPasswordValid } from '@/utils/passwordPolicy'
-import { SERVER_UNREACHABLE_MESSAGE } from '@/utils/setupFailure'
+import { SERVER_UNREACHABLE_MESSAGE } from '@/api/server'
 
 export type AuthMode = 'login' | 'signup' | 'forgot'
 

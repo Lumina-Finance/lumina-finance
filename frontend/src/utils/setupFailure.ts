@@ -7,9 +7,6 @@
  */
 import { ApiError } from '@/api/auth'
 
-// Shown above the final button when its request didn't get a usable answer, so trying again can work
-export const SERVER_UNREACHABLE_MESSAGE = "Couldn't reach the server. Please try again."
-
 const TOO_MANY_REQUESTS_STATUS = 429
 
 /**

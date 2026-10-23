@@ -20,7 +20,8 @@ import { RecoveryCodesPanel } from '@/components/two-factor/RecoveryCodesPanel';
 import { SetupRestart } from '@/components/two-factor/SetupRestart';
 import { StepTransition } from '@/components/two-factor/StepTransition';
 import { copyText } from '@/utils/clipboard';
-import { isSetupRefused, SERVER_UNREACHABLE_MESSAGE } from '@/utils/setupFailure';
+import { SERVER_UNREACHABLE_MESSAGE } from '@/api/server';
+import { isSetupRefused } from '@/utils/setupFailure';
 import { delayToMinimum, LOADING_ANIMATION_MIN_MS, MFA_LOADING_MIN_MS } from '@/utils/timing';
 
 // How long the copied confirmation stays before reverting to the copy affordance

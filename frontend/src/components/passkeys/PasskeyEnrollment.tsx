@@ -8,7 +8,8 @@ import { RecoveryCodesPanel } from '@/components/two-factor/RecoveryCodesPanel';
 import { SetupRestart } from '@/components/two-factor/SetupRestart';
 import { StepTransition } from '@/components/two-factor/StepTransition';
 import { getPasskeyRegistrationMessage, isPasskeyCeremonyCancelled } from '@/utils/passkeyErrors';
-import { isSetupRefused, SERVER_UNREACHABLE_MESSAGE } from '@/utils/setupFailure';
+import { SERVER_UNREACHABLE_MESSAGE } from '@/api/server';
+import { isSetupRefused } from '@/utils/setupFailure';
 
 interface PasskeyEnrollmentProps {
   /** Called once the passkey is active and, for a first passkey, its recovery codes are acknowledged */

@@ -112,7 +112,7 @@ export function StepUpModal({
   // other loading buttons
   // A stacked step-up can open over another, so each form's id is its own
   const codeFormId = useId();
-  const actionButtonClass =`${danger ? 'app-danger-button' : 'app-primary-button'} transition-all duration-300 ${verifyingPath === 'code' ? 'app-primary-button-loading' : 'w-full'}`;
+  const actionButtonClass = `${danger ? 'app-danger-button' : 'app-primary-button'} transition-all duration-300 ${verifyingPath === 'code' ? 'app-primary-button-loading' : 'w-full'}`;
 
   /**
    * Clears the transient inputs so the modal opens clean next time

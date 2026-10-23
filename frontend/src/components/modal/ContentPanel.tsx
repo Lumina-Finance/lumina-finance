@@ -4,9 +4,10 @@ import { ModalShell, type ModalLevel } from '@/components/modal/Shell'
 
 // Capped at the viewport so the body scrolls when the content runs tall, such as a long batch of recovery
 // codes. The bottom padding clears the device safe area, since viewport-fit=cover lets content sit under
-// the home indicator. Below 1050px the close button's row sits above the body, so the body starts closer
+// the home indicator, and is set in app-modal-body so a footer can take it over. Below 1050px the close
+// button's row sits above the body, so the body starts closer
 const PANEL_CLASS_NAME = 'flex max-h-[86vh] w-full max-w-sm flex-col'
-const BODY_CLASS_NAME = 'app-modal-body min-h-0 flex-1 space-y-5 overflow-y-auto overscroll-contain px-6 pt-2 pb-[calc(1.5rem+env(safe-area-inset-bottom))] min-[1050px]:pt-6'
+const BODY_CLASS_NAME = 'app-modal-body min-h-0 flex-1 space-y-5 overflow-y-auto overscroll-contain px-6 pt-2 min-[1050px]:pt-6'
 
 interface ModalContentPanelProps {
   open: boolean

@@ -2698,6 +2698,10 @@
      so Done is in view on a short screen. The footer reaches the body's side edges so nothing scrolls
      past beside it, and takes over the body's bottom padding and the device safe area. Outside a dialog,
      such as the forced re-enrolment page, it stays in the flow */
+  .app-modal-body {
+    padding-bottom: calc(1.5rem + env(safe-area-inset-bottom));
+  }
+
   .app-modal-body:has(.app-modal-footer) {
     padding-bottom: 0;
   }

@@ -4,7 +4,8 @@ import { RecoveryCodesPanel, type RecoveryFactors } from '@/components/two-facto
 import { SetupRestart } from '@/components/two-factor/SetupRestart';
 import { ModalContentFooter, ModalContentPanel } from '@/components/modal/ContentPanel';
 import type { ModalLevel } from '@/components/modal/Shell';
-import { isSetupRefused, SERVER_UNREACHABLE_MESSAGE } from '@/utils/setupFailure';
+import { SERVER_UNREACHABLE_MESSAGE } from '@/api/server';
+import { isSetupRefused } from '@/utils/setupFailure';
 import { delayToMinimum } from '@/utils/timing';
 
 const DEFAULT_DESCRIPTION =
