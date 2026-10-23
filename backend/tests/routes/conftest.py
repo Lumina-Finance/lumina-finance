@@ -4,7 +4,7 @@ import pytest
 from fastapi import Depends
 from httpx import ASGITransport, AsyncClient
 
-from app.database import current_user_id_ctx, get_db
+from app.database import current_user_id_ctx, get_db, get_session_factory
 from app.dependencies import get_current_user
 from app.main import app
 from app.models.user import User
@@ -28,6 +28,9 @@ async def _override_get_db():
 
 
 app.dependency_overrides[get_db] = _override_get_db
+
+# Work a route runs after its response opens its sessions from this factory instead of get_db
+app.dependency_overrides[get_session_factory] = lambda: ScopedSession
 
 
 # Test-only route to exercise the get_current_user dependency

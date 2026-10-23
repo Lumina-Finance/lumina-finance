@@ -157,6 +157,23 @@ async def test_forgot_password_drops_the_token_when_the_email_fails(client, monk
     assert sent_reset_emails == [SIGNUP_PAYLOAD["email"]]
 
 
+async def test_forgot_password_leaves_the_email_until_after_the_response(client, monkeypatch):
+    """Issuing the link sends nothing, so a registered address answers as fast as an unknown one"""
+    await _create_user(client)
+
+    async def send_during_request(*_args, **_kwargs):
+        """Fail if the request itself waits on the mail server"""
+        raise AssertionError("the email went out before the response")
+
+    monkeypatch.setattr(password_reset, "get_email_sender", lambda: SimpleNamespace(send=send_during_request))
+    async with TestSession() as db:
+        pending = await password_reset.request_password_reset(db, SIGNUP_PAYLOAD["email"])
+
+    assert pending is not None
+    assert pending.recipient == SIGNUP_PAYLOAD["email"]
+    assert "/reset-password?token=" in pending.message.text_body
+
+
 @pytest.mark.parametrize("prior_sends", [0, 2])
 async def test_overlapping_reset_requests_share_the_allowance(client, monkeypatch, sent_reset_emails, prior_sends):
     """Concurrent requests cannot duplicate a live link or exceed the last daily allowance"""

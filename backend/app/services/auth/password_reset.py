@@ -9,7 +9,7 @@ from datetime import UTC, datetime, timedelta
 
 from fastapi import HTTPException, status
 from sqlalchemy import delete, select, update
-from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 from sqlalchemy.sql import func as sa_func
 from starlette.concurrency import run_in_threadpool
 
@@ -26,7 +26,7 @@ from app.services.auth.token_hashing import hash_token
 from app.services.auth.totp import is_totp_enabled
 from app.services.auth.user_lookup import find_user_id_by_email
 from app.services.auth.webauthn import is_passkey_registered
-from app.services.email import get_email_sender, render_reset_email
+from app.services.email import RenderedEmail, get_email_sender, render_reset_email
 
 logger = logging.getLogger(__name__)
 
@@ -70,23 +70,36 @@ async def delete_stale_password_reset_tokens(db: AsyncSession) -> None:
     await db.execute(stale_delete_query)
 
 
-async def request_password_reset(db: AsyncSession, email: str) -> None:
-    """Issue a single-use reset token for the email and send the reset link
+@dataclass(frozen=True)
+class PendingResetEmail:
+    """A reset link stored and waiting to be emailed"""
+
+    recipient: str
+    token_id: uuid.UUID
+    message: RenderedEmail
+
+
+async def request_password_reset(db: AsyncSession, email: str) -> PendingResetEmail | None:
+    """Issue a single-use reset token for the email and return the email carrying its link
 
     The caller always reports success so the endpoint never reveals whether an email is
-    registered or was throttled. No email is sent while the last link still works, and at
-    most the configured number of emails go out per account per rolling day, so an
-    unauthenticated requester cannot drain the operator's mail quota
+    registered or was throttled, and sends the email only after answering, since the time a
+    send takes would otherwise tell a registered address apart. No email is due while the last
+    link still works, and at most the configured number go out per account per rolling day, so
+    an unauthenticated requester cannot drain the operator's mail quota
 
     Args:
         db: Active database session
         email: Email address requesting the reset
+
+    Returns:
+        The email to send, or None when no account matches or none is due
     """
     user_id = await find_user_id_by_email(db, email)
     await delete_stale_password_reset_tokens(db)
     if user_id is None:
         await db.commit()
-        return
+        return None
 
     # Hold this user's allowance until the new token commits, including when no prior rows exist
     lock_digest = hashlib.blake2b(_ISSUANCE_LOCK_NAMESPACE + user_id.bytes, digest_size=8).digest()
@@ -101,7 +114,7 @@ async def request_password_reset(db: AsyncSession, email: str) -> None:
     has_live_link = any(row.used_at is None and row.expires_at > now for row in recent_tokens)
     if has_live_link or len(recent_tokens) >= PASSWORD_RESET_DAILY_EMAIL_LIMIT:
         await db.commit()
-        return
+        return None
 
     raw_token = secrets.token_urlsafe(_TOKEN_BYTES)
     expires_at = now + timedelta(seconds=PASSWORD_RESET_TOKEN_EXPIRE_SECONDS)
@@ -112,15 +125,27 @@ async def request_password_reset(db: AsyncSession, email: str) -> None:
     # The raw token only ever leaves the server inside the emailed link
     reset_link = f"{APP_URL}{_RESET_PATH}?token={raw_token}"
     expiry_minutes = PASSWORD_RESET_TOKEN_EXPIRE_SECONDS // 60
-    message = render_reset_email(reset_link, expiry_minutes)
+    return PendingResetEmail(recipient=email, token_id=reset_token.id, message=render_reset_email(reset_link, expiry_minutes))
+
+
+async def send_password_reset_email(pending: PendingResetEmail, session_factory: async_sessionmaker[AsyncSession]) -> None:
+    """Email a stored reset link, dropping its token when the send fails
+
+    Runs after the response, so the request's own session has closed and the drop opens one
+    from the factory
+
+    Args:
+        pending: The email request_password_reset returned
+        session_factory: Opens the session that drops the token after a failed send
+    """
     try:
-        await get_email_sender().send(email, message)
+        await get_email_sender().send(pending.recipient, pending.message)
     except Exception:
         # A failed send must drop the token it just stored, otherwise the one-live-link throttle would
-        # suppress every retry until the token expires, and the failure must stay invisible to the caller
-        # so a broken mail server cannot become an account-existence oracle
-        await db.delete(reset_token)
-        await db.commit()
+        # suppress every retry until the token expires
+        async with session_factory() as db:
+            await db.execute(delete(PasswordResetToken).where(PasswordResetToken.id == pending.token_id))
+            await db.commit()
         logger.warning("Password reset email failed to send", exc_info=True)
 
 

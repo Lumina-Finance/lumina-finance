@@ -57,6 +57,18 @@ async def get_db():
         yield session
 
 
+def get_session_factory() -> async_sessionmaker[AsyncSession]:
+    """Return the session factory for work a route leaves to run after its response
+
+    A FastAPI dependency, so tests can point that work at their own database the way they replace
+    get_db
+
+    Returns:
+        The factory get_db opens its sessions from
+    """
+    return async_session
+
+
 async def verify_app_role_is_unprivileged() -> None:
     """Fail startup unless requests run as the unprivileged app role
 
@@ -69,11 +81,13 @@ async def verify_app_role_is_unprivileged() -> None:
     """
     async with engine.connect() as connection:
         role_name, is_superuser, bypasses_rls = (
-            await connection.execute(text(
-                "SELECT current_user, "
-                "current_setting('is_superuser') = 'on', "
-                "(SELECT rolbypassrls FROM pg_roles WHERE rolname = current_user)"
-            ))
+            await connection.execute(
+                text(
+                    "SELECT current_user, "
+                    "current_setting('is_superuser') = 'on', "
+                    "(SELECT rolbypassrls FROM pg_roles WHERE rolname = current_user)"
+                )
+            )
         ).one()
 
     if role_name != APP_DB_USER or is_superuser or bypasses_rls:

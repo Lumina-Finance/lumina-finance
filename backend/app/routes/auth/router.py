@@ -2,11 +2,11 @@
 
 from typing import Annotated
 
-from fastapi import APIRouter, Cookie, Depends, Request, Response, status
+from fastapi import APIRouter, BackgroundTasks, Cookie, Depends, Request, Response, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
-from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
-from app.database import get_db
+from app.database import get_db, get_session_factory
 from app.dependencies import get_authenticated_user, get_current_session_id, get_current_user
 from app.models.user import User
 from app.routes.auth.cookie_helpers import OIDC_REAUTH_STEPUP_COOKIE_KEY
@@ -61,6 +61,7 @@ from app.services.auth import (
     prune_stale_factor_staging,
     regenerate_recovery_codes,
     request_password_reset,
+    send_password_reset_email,
     set_first_password,
     signup,
 )
@@ -220,16 +221,23 @@ async def set_password_route(
 async def forgot_password_route(
     data: ForgotPasswordRequest,
     db: Annotated[AsyncSession, Depends(get_db)],
+    session_factory: Annotated[async_sessionmaker[AsyncSession], Depends(get_session_factory)],
+    background_tasks: BackgroundTasks,
 ):
     """Send a password reset link when the email matches an account
 
-    The response is always 204 so the endpoint never reveals whether an email is registered
+    The response is always 204 so the endpoint never reveals whether an email is registered, and the
+    email goes out after it so the response takes as long either way
 
     Args:
         data: Forgot-password payload with the account email
         db: Active database session
+        session_factory: Opens the session the send uses after the response
+        background_tasks: Runs the send once the response is out
     """
-    await request_password_reset(db, data.email)
+    pending = await request_password_reset(db, data.email)
+    if pending is not None:
+        background_tasks.add_task(send_password_reset_email, pending, session_factory)
 
 
 @router.post("/password/reset", response_model=MfaRequiredResponse | None)
