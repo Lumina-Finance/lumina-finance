@@ -33,6 +33,7 @@ import {
 import { getValueMarkColor } from '@/utils/valueMarkColor'
 import { formatSavingsRateValue } from '@/pages/insights/utils/money'
 import { useMoneyFormatters } from '@/hooks/useMoneyFormatters'
+import { formatRatePercent } from '@/utils/negativeAmount'
 
 type SavingsRateTooltipState = {
   activeLabel?: string | number
@@ -115,7 +116,7 @@ function SavingsRateHistoryTooltipContent({
 /**
  * Renders a savings-rate Y-axis tick with emphasis for the cap boundary
  */
-function SavingsRateYAxisTick({
+export function SavingsRateYAxisTick({
   x = 0,
   y = 0,
   payload,
@@ -132,7 +133,7 @@ function SavingsRateYAxisTick({
       fontWeight={500}
       fill="var(--app-text-subtle)"
     >
-      {Number.isFinite(value) ? `${value}%` : ''}
+      {Number.isFinite(value) ? formatRatePercent(value) : ''}
     </text>
   )
 }
