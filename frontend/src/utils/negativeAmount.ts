@@ -68,12 +68,21 @@ export function signMovedAmount(sign: AmountSign, magnitude: string): string {
   return `${prefix}${magnitude}${suffix}`
 }
 
+// A savings rate with income near zero runs into the millions, which says nothing a reader can use
+// and overflows the places it is shown, so a rate past this many percent is written as beyond it
+const SAVINGS_RATE_DISPLAY_LIMIT = 999
+
 /**
  * Formats a savings rate, which is unsigned when it is positive and written with the same negative
  * as an amount that moved when spending outran income. Minus infinity, the rate of spending with no
- * income behind it, is written the same way
+ * income behind it, is written the same way. A finite rate beyond 999% either way is written as
+ * "above 999%" or "below −999%"
  */
 export function formatRatePercent(rate: number): string {
+  if (rate > SAVINGS_RATE_DISPLAY_LIMIT) return `above ${SAVINGS_RATE_DISPLAY_LIMIT}%`
+  if (rate < -SAVINGS_RATE_DISPLAY_LIMIT && Number.isFinite(rate)) {
+    return `below ${signMovedAmount(-1, `${SAVINGS_RATE_DISPLAY_LIMIT}%`)}`
+  }
   const magnitude = Number.isFinite(rate) ? Math.abs(rate).toString() : '∞'
   return rate < 0 ? signMovedAmount(-1, `${magnitude}%`) : `${magnitude}%`
 }
