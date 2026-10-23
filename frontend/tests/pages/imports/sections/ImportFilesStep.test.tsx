@@ -73,12 +73,16 @@ const IMPORT_RESULT: TransactionImportResponse = {
 /**
  * Renders the File step with the files given and nothing else going on, or with a finished import
  */
-function renderStep(files: ImportFileDraft[], importResult: TransactionImportResponse | null = null) {
+function renderStep(
+  files: ImportFileDraft[],
+  importResult: TransactionImportResponse | null = null,
+  isProcessingFiles = false,
+) {
   return renderToStaticMarkup(
     <ImportFilesStep
       inputRef={{ current: null }}
       files={files}
-      isProcessingFiles={false}
+      isProcessingFiles={isProcessingFiles}
       fileIntakeError={null}
       totalRows={0}
       mappedFieldCount={0}
@@ -139,6 +143,16 @@ describe('the upload card in the File step', () => {
 
     // Removing is what a file still waiting to be imported offers
     expect(renderStep([GOOD_FILE])).toContain('Remove Savings.csv')
+  })
+})
+
+describe('the empty state in the File step', () => {
+  it('shows with no file staged, and gives way to the processing state while a file is read', () => {
+    expect(renderStep([])).toContain('No files staged')
+
+    const reading = renderStep([], null, true)
+    expect(reading).toContain('Processing CSV')
+    expect(reading).not.toContain('No files staged')
   })
 })
 

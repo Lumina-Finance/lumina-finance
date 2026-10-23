@@ -94,6 +94,23 @@ describe('the files step', () => {
     expect(markup).toContain('Add more statements')
   })
 
+  it('says no files are staged only while none is being read', () => {
+    const render = (isProcessingFile: boolean) => renderToStaticMarkup(createElement(OfxFilesStep, {
+      stagedFiles: [],
+      leftOutNotice: null,
+      isProcessingFile,
+      fileIntakeError: null,
+      handleOfxFileChange: async () => undefined,
+      removeOfxFile: () => undefined,
+      uploadBlockReason: null,
+      importResult: null,
+    } as unknown as Parameters<typeof OfxFilesStep>[0]))
+
+    expect(render(false)).toContain('No files staged')
+    expect(render(true)).toContain('Reading statements')
+    expect(render(true)).not.toContain('No files staged')
+  })
+
   it('shows no such notice for a file that holds only the statements it imports', async () => {
     expect(await renderFilesStep([])).not.toContain('Statements left out')
   })
