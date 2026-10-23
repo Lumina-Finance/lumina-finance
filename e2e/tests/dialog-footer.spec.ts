@@ -44,17 +44,20 @@ for (const size of [{ width: 390, height: 667 }, { width: 1280, height: 800 }]) 
     const done = codes.getByRole('button', { name: 'Done' })
     await expect(done).toBeInViewport({ ratio: 1 })
 
-    // The first code scrolls out of view under the footer, while Done stays where it is
+    // The codes scroll under the footer, while Done stays where it is
     const doneTop = (await done.boundingBox())!.y
     await codes.getByText(RECOVERY_CODES[0]).hover()
     await page.mouse.wheel(0, 400)
+    // The content ran taller than the panel, so the body really scrolled
+    await expect.poll(() => codes.locator('.app-modal-body').evaluate((body) => body.scrollTop)).toBeGreaterThan(0)
     await expect(done).toBeInViewport({ ratio: 1 })
     expect((await done.boundingBox())!.y).toBeCloseTo(doneTop, 0)
 
     // On a phone the close button has a row of its own, so the heading starts below it, and scrolling
     // takes the heading out of view rather than under the button
     const close = codes.getByRole('button', { name: 'Close' })
-    if (await close.isVisible()) {
+    if (size.width < 1050) {
+      await expect(close).toBeVisible()
       await page.mouse.wheel(0, -400)
       const closeBox = (await close.boundingBox())!
       const headingTop = async () =>

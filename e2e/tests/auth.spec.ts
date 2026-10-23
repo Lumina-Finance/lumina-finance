@@ -80,22 +80,34 @@ test('opens and signs in when the browser blocks storage', async ({ page, reques
 // banner above the form sat out of view and screen readers were not told. Every auth page shares
 // the banner, so the sign-in page stands for them all
 test('brings a sign-in error into view and announces it on a small phone', async ({ page }) => {
-  await page.setViewportSize({ width: 390, height: 667 })
-  await page.route(/\/auth\/login$/, (route) => route.fulfill({
-    status: 500,
-    headers: {
-      'Access-Control-Allow-Origin': route.request().headers()['origin'],
-      'Access-Control-Allow-Credentials': 'true',
-    },
-    contentType: 'application/json',
-    body: JSON.stringify({ detail: 'Internal Server Error' }),
-  }))
+  // The smallest common phone, so the login form runs taller than the screen and the page can scroll
+  // away from where the banner opens
+  await page.setViewportSize({ width: 320, height: 480 })
+  let release!: () => void
+  const released = new Promise<void>((resolve) => { release = resolve })
+  await page.route(/\/auth\/login$/, async (route) => {
+    await released
+    await route.fulfill({
+      status: 500,
+      headers: {
+        'Access-Control-Allow-Origin': route.request().headers()['origin'],
+        'Access-Control-Allow-Credentials': 'true',
+      },
+      contentType: 'application/json',
+      body: JSON.stringify({ detail: 'Internal Server Error' }),
+    })
+  })
   await page.goto('/login')
   await page.getByLabel('Email').fill(`e2e-${crypto.randomUUID()}@example.com`)
   await page.getByLabel('Password', { exact: true }).fill(TEST_PASSWORD)
   await page.getByRole('button', { name: 'Log in' }).click()
 
-  const banner = page.getByRole('alert').filter({ hasText: 'Something went wrong. Please try again.' })
+  // Scrolled to the bottom while the answer is held, so the banner opens above the screen
+  await page.evaluate(() => window.scrollTo(0, document.documentElement.scrollHeight))
+  await expect.poll(() => page.evaluate(() => window.scrollY)).toBeGreaterThan(0)
+  release()
+
+  const banner = page.getByRole('alert').filter({ hasText: /^Oops, something went wrong\. Please try again\.$/ })
   await expect(banner).toBeVisible()
   // Nearly all of it, since smooth scrolling can stop a fraction of a pixel short
   await expect(banner).toBeInViewport({ ratio: 0.9 })
