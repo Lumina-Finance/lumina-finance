@@ -73,6 +73,7 @@ export default function BudgetCreateModal({
   const [formError, setFormError] = useState<string | null>(null)
   const [fieldErrors, setFieldErrors] = useState<BudgetFormFieldErrors>({})
   const [touched, setTouched] = useState<Record<string, boolean>>({})
+  const [changed, setChanged] = useState<Record<string, boolean>>({})
   const [categorySearch, setCategorySearch] = useState('')
   const [form, setForm] = useState<BudgetFormState>(initialForm)
   const [createInProgress, setCreateInProgress] = useState(false)
@@ -104,6 +105,7 @@ export default function BudgetCreateModal({
     setForm(initialForm)
     setFieldErrors({})
     setTouched({})
+    setChanged({})
     setFormError(null)
     setCategorySearch('')
     setCreateInProgress(false)
@@ -143,6 +145,7 @@ export default function BudgetCreateModal({
    */
   const setField = <K extends keyof BudgetFormState>(key: K, value: BudgetFormState[K]) => {
     setForm((current) => ({ ...current, [key]: value }))
+    setChanged((current) => ({ ...current, [key]: true }))
     if (key === 'name') clearError('name')
     if (key === 'currency') clearError('currency')
     if (key === 'limit') clearError('limit')
@@ -177,9 +180,11 @@ export default function BudgetCreateModal({
   }
 
   /**
-   * Validates touched fields without surfacing untouched form errors
+   * Validates a field the user has changed once they leave it, so the focus the dialog gives Name on
+   * opening never flags a field nobody typed in. Create still validates every field
    */
   const handleBlur = (field: keyof BudgetFormFieldErrors) => {
+    if (!changed[field]) return
     setTouched((current) => ({ ...current, [field]: true }))
     const errors = validateBudgetCreateForm(form, currencies, expenseCategories)
     setFieldErrors((current) => ({ ...current, [field]: errors[field] }))

@@ -255,6 +255,35 @@ test('brings the missing category message into view when Create budget is refuse
   }
 })
 
+test('shows no Name error when Add budget opens or Name is left unchanged, and shows it once a changed Name is emptied', async ({ page, request }) => {
+  const user = await signUpUser(request)
+  await logInViaApi(page, user)
+  await openPage(page, '/budgets')
+  const dialog = await openModal(page, ['New budget'], 'Add budget')
+  const name = dialog.getByLabel('Name', { exact: true })
+  const nameError = dialog.getByText('Name is required', { exact: true })
+
+  // The dialog focuses Name, so leaving it by Tab or mouse must not flag a name nobody touched
+  await expect(name).toBeFocused()
+  await expect(nameError).toHaveCount(0)
+  await page.keyboard.press('Tab')
+  await expect(name).not.toBeFocused()
+  await expect(nameError).toHaveCount(0)
+  await dialog.getByLabel('Limit', { exact: true }).click()
+  await expect(nameError).toHaveCount(0)
+
+  await name.fill('Groceries budget')
+  await name.fill('')
+  await page.keyboard.press('Tab')
+  await expect(nameError).toBeVisible()
+  await expect(name).toHaveAttribute('aria-invalid', 'true')
+
+  // Create still validates every field, including the ones never visited
+  await dialog.getByTestId('budget-submit').click()
+  await expect(dialog.getByText('Limit must be greater than zero', { exact: true })).toBeVisible()
+  await expect(dialog.getByText('Select at least one category', { exact: true })).toBeVisible()
+})
+
 test('brings the first refused field into view when Create budget is refused for several', async ({ page, request }) => {
   const user = await signUpUser(request)
   await page.setViewportSize(PHONE_SIZE)
