@@ -147,3 +147,25 @@ export type SavedAccountImportSource = {
   account_id: string;
   source: 'generic' | 'firefly' | 'actual_budget' | 'ofx';
 };
+
+/** One OFX transaction asked about, with the account it would go into. Mirrors the API's held-bank-transactions item */
+export type HeldBankTransactionItem = {
+  account_id: string;
+  bank_account: string;
+  bank_transaction: string;
+};
+
+/** The positions among the asked items that their account already holds */
+export type HeldBankTransactionsResponse = {
+  held: number[];
+};
+
+/**
+ * What the answer to a held-bank-transactions check depends on besides the bank values: the staged
+ * files, and each statement's position with the account it goes into. It is the query's cache key,
+ * so it never holds a bank account or a bank ID
+ */
+export type HeldBankTransactionsScope = {
+  fileIds: string[];
+  statements: Array<[position: number, accountId: string]>;
+};

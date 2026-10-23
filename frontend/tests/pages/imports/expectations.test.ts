@@ -75,6 +75,7 @@ describe('the card saying what an import does with its data', () => {
           'With more decimal places than their currency allows',
           'With a payee name or memo over the limits this app takes',
           'Already in an earlier file of the same import, by the bank\'s transaction ID',
+          'Already in the account from an earlier import, by the bank\'s transaction ID',
           'Listed twice in the same file',
         ],
       },

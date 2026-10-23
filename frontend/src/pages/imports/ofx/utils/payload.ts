@@ -12,6 +12,7 @@ import {
   ROW_AMOUNT_TOO_LARGE_REASON,
 } from '@/pages/imports/constants'
 import {
+  getOfxAlreadyInAccountReason,
   getOfxAmountTooPreciseReason,
   getOfxCurrencyMismatchError,
   getOfxFixedAccountCurrencyError,
@@ -39,6 +40,12 @@ export interface OfxImportAnswers {
   /** Undefined while the categories are still loading */
   categories: Category[] | undefined
   currencies: Currency[]
+
+  /**
+   * The skipped-row ids of the transactions the server says their account already holds, left out
+   * like a repeat within the import. Undefined where nothing is known to be held
+   */
+  heldRowIds?: ReadonlySet<string>
 }
 
 export interface OfxImportBuild {
@@ -82,10 +89,11 @@ export function getOfxSkippedRowId(statement: OfxStatement, transaction: OfxTran
  *
  * A statement is written to the account its answer names, in that account's currency, so one whose
  * currency differs is refused rather than converted. Transactions the file leaves unreadable, that
- * the importer could not store, or whose bank ID an earlier transaction of the import already has,
- * are left out and listed with the reason, and the rest import with the hash of their bank IDs,
- * which the save uses to leave out what the account already holds. Nothing sent names the account
- * number: each statement's answer goes by its position in the import.
+ * the importer could not store, whose bank ID an earlier transaction of the import already has, or
+ * that the server says their account already holds, are left out and listed with the reason. The
+ * rest import with their bank IDs, which the save hashes and again leaves out what the account holds
+ * by then. Nothing sent names the account number: each statement's answer goes by its position in
+ * the import.
  * A statement carries no categories, so money out is filed under the seeded Miscellaneous category
  * and money in under the seeded Other Income one, as a CSV row with no category is
  */
@@ -160,6 +168,12 @@ export function buildOfxImportPayload(file: OfxFile, answers: OfxImportAnswers):
       const firstCopy = repeatKey === null ? undefined : firstCopies.get(repeatKey)
       if (firstCopy !== undefined && firstCopy !== transaction) {
         skip(firstCopy.fileId === transaction.fileId ? OFX_REPEATED_IN_FILE_REASON : getOfxRepeatedTransactionReason(firstCopy.fileName))
+        continue
+      }
+
+      // Checked after the repeats, so only the copy the import keeps is judged against the account
+      if (answers.heldRowIds?.has(getOfxSkippedRowId(statement, transaction))) {
+        skip(getOfxAlreadyInAccountReason(built?.account?.name ?? statement.name))
         continue
       }
 

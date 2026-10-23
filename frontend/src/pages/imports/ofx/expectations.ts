@@ -2,7 +2,7 @@ import type { ImportExpectations } from '@/pages/imports/types'
 
 // What the save does with a transaction whose bank ID the account already holds, which a deleted
 // transaction no longer does
-const ALREADY_IMPORTED_CHANGE = "Skipped, so a statement that overlaps an earlier one adds only what's new. One you deleted comes back"
+const ALREADY_IMPORTED_CHANGE = "Skipped and listed before you commit, so a statement that overlaps an earlier one adds only what's new. One you deleted comes back"
 const ALREADY_IMPORTED_SOURCE = 'A transaction an earlier OFX import brought into the account'
 
 /**
@@ -15,9 +15,9 @@ const ALREADY_IMPORTED_SOURCE = 'A transaction an earlier OFX import brought int
  * counted and left out, and a transaction whose date or amount cannot be read, whose amount is in
  * another currency than the statement, whose amount has more decimal places than the currency, whose
  * payee name or memo is over the limit, or whose bank transaction ID an earlier transaction of the
- * same file or an earlier file of the same import already has is listed and skipped. The save then skips a
- * transaction whose bank transaction ID its account already holds from an earlier import, and a
- * deleted one holds none
+ * same file or an earlier file of the same import already has, or whose bank transaction ID its
+ * account already holds from an earlier import, is listed and skipped before the commit, and a
+ * deleted one holds none. The save skips what its account holds by then too
  */
 export const OFX_EXPECTATIONS: ImportExpectations = {
   intro: 'Each transaction in your statements becomes one transaction in the account you match them to, so one file can fill several accounts and several files can fill one.',
@@ -67,6 +67,7 @@ export const OFX_EXPECTATIONS: ImportExpectations = {
         'With more decimal places than their currency allows',
         'With a payee name or memo over the limits this app takes',
         'Already in an earlier file of the same import, by the bank\'s transaction ID',
+        'Already in the account from an earlier import, by the bank\'s transaction ID',
         'Listed twice in the same file',
       ],
     },
