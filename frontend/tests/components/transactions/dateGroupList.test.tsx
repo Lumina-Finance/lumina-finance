@@ -129,6 +129,7 @@ describe('a transaction with no exchange rate', () => {
     const markup = renderDay([converted, unconverted, zero])
 
     expect(unavailableCount(markup)).toBe(2)
+    expect(markup).not.toContain('Rate not published yet')
     expect(markup.split('FX status for Oct 3, 2026').length - 1).toBe(1)
     expect(dayTotal(markup).text).toBe('−$10.00')
   })
@@ -143,6 +144,33 @@ describe('a transaction with no exchange rate', () => {
   it('reads the account amount on an account list, where a missing base amount is no problem', () => {
     const markup = renderDay([unconverted], { fixedAccount: account })
 
+    expect(unavailableCount(markup)).toBe(0)
+    expect(markup).not.toContain('FX status for')
+  })
+
+  // A future-dated row has no rate because none is published yet, which is no failure, so inside the
+  // Upcoming section it says so in the neutral colour, with no badge on its day heading
+  it('says the rate is not published yet on an upcoming row, with no red note and no heading badge', () => {
+    const markup = renderToStaticMarkup(
+      <TransactionDateGroupList
+        dateGroups={[]}
+        upcomingDateGroups={[{ dateLabel: 'Oct 9, 2026', transactions: [unconverted] }]}
+        today="2026-10-01"
+        isUpcomingExpanded
+        onToggleUpcoming={() => {}}
+        categoryMap={new Map()}
+        accountMap={new Map([[account.id, account]])}
+        currency="USD"
+        listRevealKey={0}
+        stickyTop={0}
+        prefersReducedMotion
+        skipEnterAnimation
+        onEditTransaction={() => {}}
+      />,
+    )
+
+    const note = /<span[^>]*style="[^"]*color:([^;"]*)[^"]*"[^>]*>Rate not published yet<\/span>/.exec(markup)
+    expect(note?.[1]).toBe('var(--app-text-muted)')
     expect(unavailableCount(markup)).toBe(0)
     expect(markup).not.toContain('FX status for')
   })

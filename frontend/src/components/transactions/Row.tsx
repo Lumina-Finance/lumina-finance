@@ -29,7 +29,9 @@ export type TransactionRowMetadata = Pick<Transaction, 'id' | 'dt' | 'merchant_n
  * Supplies already signed and formatted amount text, with the amount's sign controlling color
  * and transfer direction independently of its numeric representation
  */
-export type TransactionAmountPresentation = { text: string; sign: -1 | 0 | 1 }
+export type TransactionFxNote = 'unavailable' | 'rateNotPublished'
+
+export type TransactionAmountPresentation ={ text: string; sign: -1 | 0 | 1 }
 
 /**
  * Describes the counterparty of a transfer for the line that shows a merchant on other kinds
@@ -80,7 +82,7 @@ interface TransactionRowProps {
   currency: string
   readOnlyReason?: string
   // The amount could not be converted into the currency the list totals in, so the day's total leaves it out
-  isFxUnavailable?: boolean
+  fxNote?: TransactionFxNote
   transaction: Transaction
   // Skips the height collapse on removal so a deletion just fades when the viewer prefers reduced motion
   prefersReducedMotion?: boolean | null
@@ -204,13 +206,22 @@ function NoteAndTagIcons({ hasNotes, tagCount, className = '' }: { hasNotes: boo
   )
 }
 
+const FX_NOTES: Record<TransactionFxNote, { text: string; color: string }> = {
+  // The look the accounts list gives a balance it could not convert
+  unavailable: { text: 'FX unavailable', color: 'var(--app-negative)' },
+  // A future-dated amount has no rate because none is published yet, which is no failure
+  rateNotPublished: { text: 'Rate not published yet', color: 'var(--app-text-muted)' },
+}
+
 /**
- * Says under an amount that it has no exchange rate, in the look the accounts list gives a balance it could not convert
+ * Says under an amount that it has no exchange rate, and whether that is a failure or only a rate
+ * that is not published yet
  */
-function FxUnavailableNote() {
+function FxNote({ note }: { note: TransactionFxNote }) {
+  const { text, color } = FX_NOTES[note]
   return (
-    <span className="block text-right text-xs font-normal leading-4" style={{ color: 'var(--app-negative)' }}>
-      FX unavailable
+    <span className="block text-right text-xs font-normal leading-4" style={{ color }}>
+      {text}
     </span>
   )
 }
@@ -237,7 +248,7 @@ export function TransactionRowView({
   accountInstitution,
   category,
   readOnlyReason,
-  isFxUnavailable = false,
+  fxNote,
   transaction,
   amountPresentation,
   prefersReducedMotion,
@@ -478,7 +489,7 @@ export function TransactionRowView({
         style={{ color: transactionAmountColor }}
       >
         {formattedAmount}
-        {isFxUnavailable && <FxUnavailableNote />}
+        {fxNote && <FxNote note={fxNote} />}
       </span>
 
       {/* Three lines on a phone: merchant and amount, category, then account. Set close together, and
@@ -502,16 +513,16 @@ export function TransactionRowView({
         </span>
 
         <span
-          className={`col-start-2 row-start-2 min-w-0 truncate text-sm leading-[1.125rem] ${isFxUnavailable ? '' : 'col-span-2'}`}
+          className={`col-start-2 row-start-2 min-w-0 truncate text-sm leading-[1.125rem] ${fxNote ? '' : 'col-span-2'}`}
           style={{ color: 'var(--app-text-muted)' }}
         >
           {categoryName}
         </span>
 
         {/* In the category line's own row beside it, so the marker never moves the lines in the left column */}
-        {isFxUnavailable && (
+        {fxNote && (
           <span className="col-start-3 row-start-2 ml-2 justify-self-end">
-            <FxUnavailableNote />
+            <FxNote note={fxNote} />
           </span>
         )}
 
