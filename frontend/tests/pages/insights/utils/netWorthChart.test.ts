@@ -1,11 +1,11 @@
 /**
  * Covers how the net worth chart turns each point's date into the position it is plotted at, which
- * is the one reader with no label to fall back to when the date is not a real one, and how its axis
- * writes an amount, whole on both sides of the first threshold
+ * is the one reader with no label to fall back to when the date is not a real one, and how its
+ * starting label writes the first net worth, which rounds down so it never sits above the value
  */
 import { describe, expect, it } from 'vitest';
 import {
-  formatNetWorthAxisMoney,
+  formatNetWorthStartLabel,
   getNetWorthChartData,
   getNetWorthChartItems,
   type NetWorthPoint,
@@ -42,13 +42,20 @@ describe('net worth chart positions', () => {
   });
 });
 
-describe('net worth axis money', () => {
+describe('net worth start label', () => {
   const currencies = [{ id: 'CAD', name: 'Canadian Dollar', symbol: '$', minor_unit_exponent: 2 }];
 
-  it('writes ticks whole on both sides of the first threshold, to the nearest and without a decimal', () => {
-    // An axis tick is a round step, so it is exempt from the rounding rule and reads 3K, not 3.0K
-    expect(formatNetWorthAxisMoney(50_000, 'CAD', currencies)).toBe('CA$500');
-    expect(formatNetWorthAxisMoney(99_999, 'CAD', currencies)).toBe('CA$1K');
-    expect(formatNetWorthAxisMoney(300_000, 'CAD', currencies)).toBe('CA$3K');
+  // The label above the first bar is a net worth figure, so it rounds down and never reads above the
+  // first value. 2,960.00 is 3.0K to the nearest and 2.9K rounded down
+  it('rounds down and keeps one decimal in K and M', () => {
+    expect(formatNetWorthStartLabel(296_000, 'CAD', currencies)).toBe('CA$2.9K');
+    expect(formatNetWorthStartLabel(100_000, 'CAD', currencies)).toBe('CA$1.0K');
+    expect(formatNetWorthStartLabel(99_999_999, 'CAD', currencies)).toBe('CA$999.9K');
+    expect(formatNetWorthStartLabel(1_250_000_00, 'CAD', currencies)).toBe('CA$1.2M');
+  });
+
+  it('reads below 1K for 999.99, and rounds a negative net worth down, away from zero', () => {
+    expect(formatNetWorthStartLabel(99_999, 'CAD', currencies)).toBe('CA$999');
+    expect(formatNetWorthStartLabel(-296_000, 'CAD', currencies)).toBe('(CA$3.0K)');
   });
 });

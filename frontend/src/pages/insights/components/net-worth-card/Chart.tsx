@@ -30,7 +30,7 @@ import { useMoneyFormatters } from '@/hooks/useMoneyFormatters'
 import {
   NET_WORTH_AXIS_TICK_COUNT,
   formatNetWorthAxisDate,
-  formatNetWorthAxisMoney,
+  formatNetWorthStartLabel,
   getChangeKey,
   getChartKey,
   getNetWorthDateAxisTicks,
@@ -239,7 +239,7 @@ export function NetWorthChart({
     () => new Map(deltaSeries.map((point) => [point.dateMs, point])),
     [deltaSeries],
   )
-  const startNetWorthAxisLabel = formatNetWorthAxisMoney(deltaSeries[0]?.startTotal ?? 0, displayCurrency, currencies)
+  const startNetWorthAxisLabel = formatNetWorthStartLabel(deltaSeries[0]?.startTotal ?? 0, displayCurrency, currencies)
   const startNetWorthLabelPoint = mode === 'overview' ? deltaSeries[0] : undefined
   const startNetWorthLabelY = startNetWorthLabelPoint
     ? getNetWorthFirstBarLabelY(startNetWorthLabelPoint, chartItems)
