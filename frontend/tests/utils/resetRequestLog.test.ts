@@ -42,6 +42,20 @@ describe('recordResetRequest', () => {
     expect(recordResetRequest()).toBe(1)
   })
 
+  // A browser blocking site data throws as soon as the store is touched, which once broke the
+  // forgot-password confirmation
+  it('reports a first request when the browser blocks storage', () => {
+    const blocked = {}
+    Object.defineProperty(blocked, 'localStorage', {
+      get() {
+        throw new DOMException('The operation is insecure.', 'SecurityError')
+      },
+    })
+    vi.stubGlobal('window', blocked)
+
+    expect(recordResetRequest(1_000)).toBe(1)
+  })
+
   it('recovers from corrupted stored state', () => {
     const storage = createStorageMock()
     storage.setItem('lumina:reset_request_log', 'not-json')

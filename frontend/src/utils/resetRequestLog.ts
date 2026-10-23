@@ -1,3 +1,5 @@
+import { readStoredValue, writeStoredValue } from '@/utils/browserStorage'
+
 const STORAGE_KEY = 'lumina:reset_request_log'
 const ROLLING_DAY_MS = 24 * 60 * 60 * 1000
 
@@ -8,17 +10,17 @@ const ROLLING_DAY_MS = 24 * 60 * 60 * 1000
  * backend enforces the real limits. Storage being unavailable simply reports a first request
  */
 export function recordResetRequest(now = Date.now()): number {
-  if (typeof window === 'undefined' || !window.localStorage) return 1
+  if (typeof window === 'undefined') return 1
 
+  let timestamps: number[] = []
   try {
-    const stored = window.localStorage.getItem(STORAGE_KEY)
+    const stored = readStoredValue(STORAGE_KEY)
     const parsed: unknown = stored ? JSON.parse(stored) : []
-    const timestamps = Array.isArray(parsed) ? parsed.filter((entry): entry is number => typeof entry === 'number') : []
-    const recent = timestamps.filter((timestamp) => now - timestamp < ROLLING_DAY_MS)
-    recent.push(now)
-    window.localStorage.setItem(STORAGE_KEY, JSON.stringify(recent))
-    return recent.length
+    if (Array.isArray(parsed)) timestamps = parsed.filter((entry): entry is number => typeof entry === 'number')
   } catch {
     return 1
   }
+  const recent = timestamps.filter((timestamp) => now - timestamp < ROLLING_DAY_MS)
+  recent.push(now)
+  return writeStoredValue(STORAGE_KEY, JSON.stringify(recent)) ? recent.length : 1
 }

@@ -1,3 +1,5 @@
+import { readStoredValue, removeStoredValue, writeStoredValue } from '@/utils/browserStorage'
+
 const OIDC_INTENT_KEY = 'oidc-signed-in-intent'
 
 /** What a passwordless account resumes once its reauth step-up completes */
@@ -19,15 +21,15 @@ export type OidcSignedInIntent = { flow: 'link' } | { flow: 'reauth'; action: Oi
  * survives the trip out to the provider and back
  */
 export function markOidcIntent(intent: OidcSignedInIntent): void {
-  sessionStorage.setItem(OIDC_INTENT_KEY, JSON.stringify(intent))
+  writeStoredValue(OIDC_INTENT_KEY, JSON.stringify(intent), 'session')
 }
 
 /**
  * Reads and clears the signed-in intent, returning null when none was set, as for an anonymous sign-in
  */
 export function consumeOidcIntent(): OidcSignedInIntent | null {
-  const raw = sessionStorage.getItem(OIDC_INTENT_KEY)
-  sessionStorage.removeItem(OIDC_INTENT_KEY)
+  const raw = readStoredValue(OIDC_INTENT_KEY, 'session')
+  removeStoredValue(OIDC_INTENT_KEY, 'session')
   if (!raw) return null
   try {
     return JSON.parse(raw) as OidcSignedInIntent
