@@ -90,7 +90,7 @@ class CreditWidgetResponse(BaseModel):
     """Credit usage totals across every readable credit account
 
     - `credit_limit_total` sums `credit_limit` across readable revolving-credit
-      accounts, archived ones included, converted to the user's base currency when needed
+      accounts that are not archived, converted to the user's base currency when needed
     - `credit_used` flips negative account balances into positive usage and
       treats positive stored-credit balances as zero used
     - `fx_status` reports whether foreign-currency conversions were complete,

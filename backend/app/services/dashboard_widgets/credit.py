@@ -20,9 +20,14 @@ def get_credit_widget_accounts(accounts: list[Account]) -> list[Account]:
         accounts: Accounts included in the dashboard scope
 
     Returns:
-        Revolving accounts that have a credit limit
+        Revolving accounts that have a credit limit and are not archived, since a closed card no
+        longer lends anything
     """
-    eligible = [account for account in accounts if account.account_kind == AccountKind.REVOLVING and account.credit_limit is not None]
+    eligible = [
+        account
+        for account in accounts
+        if account.account_kind == AccountKind.REVOLVING and account.credit_limit is not None and not account.is_archived
+    ]
     return sorted(eligible, key=lambda account: (account.name.casefold(), account.id))
 
 

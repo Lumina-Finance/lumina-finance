@@ -203,3 +203,31 @@ async def test_credit_utilization_lists_each_card_with_its_type_and_institution(
     assert rows[with_institution["id"]]["institution"]["logo_url"] == "https://testbank.example.com/logo.png"
     assert rows[without_institution["id"]]["account_type"] == "credit_card"
     assert rows[without_institution["id"]]["institution"] is None
+
+
+async def test_credit_widget_leaves_out_archived_cards_and_keeps_their_choice(client):
+    """An archived card is neither offered nor counted, and its left-out choice returns when it is unarchived."""
+    headers = _get_auth_header(await _create_user(client))
+    card = await _create_card(client, headers, "Card A", 500_000, 50_000)
+    archived = await _create_card(client, headers, "Card B", 200_000, 150_000)
+    left_out = await client.put(
+        "/dashboard/credit-utilization/excluded-accounts",
+        json={"account_ids": [archived["id"]]},
+        headers=headers,
+    )
+    assert left_out.status_code == 200
+
+    archive = await client.patch(f"/accounts/{archived['id']}", json={"is_archived": True}, headers=headers)
+    assert archive.status_code == 200
+    # A save made while the card is archived lists only the cards still offered
+    resave = await client.put("/dashboard/credit-utilization/excluded-accounts", json={"account_ids": []}, headers=headers)
+    assert resave.status_code == 200
+
+    utilization = (await client.get("/dashboard/credit-utilization", headers=headers)).json()
+    assert (utilization["credit_limit_total"], utilization["credit_used"]) == (500_000, 50_000)
+    assert [a["id"] for a in utilization["accounts"]] == [card["id"]]
+
+    unarchive = await client.patch(f"/accounts/{archived['id']}", json={"is_archived": False}, headers=headers)
+    assert unarchive.status_code == 200
+    restored = (await client.get("/dashboard/credit-utilization", headers=headers)).json()
+    assert [(a["id"], a["is_counted"]) for a in restored["accounts"]] == [(card["id"], True), (archived["id"], False)]
