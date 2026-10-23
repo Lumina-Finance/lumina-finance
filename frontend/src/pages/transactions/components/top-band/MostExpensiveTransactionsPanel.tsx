@@ -104,10 +104,7 @@ export default function MostExpensiveTransactionsPanel({
                       style={{ width: 16, height: 16, borderWidth: 2 }}
                     />
                   ) : (
-                    <p
-                      className="font-financial text-sm font-medium shrink-0"
-                      style={{ color: 'var(--app-negative)' }}
-                    >
+                    <p className="font-financial text-sm font-medium shrink-0">
                       {formatCurrency(Math.abs(transaction.amount), transaction.currency)}
                     </p>
                   )}
