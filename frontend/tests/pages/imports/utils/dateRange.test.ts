@@ -88,9 +88,11 @@ describe('counting the rows outside the chosen dates', () => {
 })
 
 describe('offering the day after the latest transaction as the start', () => {
-  it('looks for the newest transaction in the account, or in every account on an ordinary import', () => {
-    expect(getLatestTransactionFilters('acc-1')).toEqual({ account_id: ['acc-1'], sort_by: 'dt', sort_order: 'desc', limit: 1 })
-    expect(getLatestTransactionFilters(null)).toEqual({ sort_by: 'dt', sort_order: 'desc', limit: 1 })
+  it('looks for the newest transaction up to today, in the account or in every account on an ordinary import', () => {
+    // A future-dated transaction would start the import after rows already past
+    const latest = { sort_by: 'dt', sort_order: 'desc', limit: 1, to_date: '2026-10-23' }
+    expect(getLatestTransactionFilters('acc-1', '2026-10-23')).toEqual({ account_id: ['acc-1'], ...latest })
+    expect(getLatestTransactionFilters(null, '2026-10-23')).toEqual(latest)
   })
 
   it('starts the day after the latest transaction, across a month and year end', () => {

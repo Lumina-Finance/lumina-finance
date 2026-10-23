@@ -96,13 +96,19 @@ export function getNextImportDateRange(
 
 /**
  * Builds the list query that finds the newest transaction in one account, or in every account
+ *
+ * Only transactions dated today or earlier count, since a future-dated one has not happened yet and
+ * would start the import after rows the file holds for days already past
+ *
+ * @param todayYmd - Today in the profile's timezone
  */
-export function getLatestTransactionFilters(accountId: string | null): TransactionFilters {
+export function getLatestTransactionFilters(accountId: string | null, todayYmd: string): TransactionFilters {
   return {
     ...(accountId ? { account_id: [accountId] } : {}),
     sort_by: 'dt',
     sort_order: 'desc',
     limit: 1,
+    to_date: todayYmd,
   }
 }
 

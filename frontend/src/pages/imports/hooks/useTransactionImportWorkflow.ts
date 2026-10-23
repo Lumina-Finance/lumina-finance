@@ -10,6 +10,7 @@ import {
 } from '@/api/transaction-imports'
 import { EMPTY_COLUMN_MAP } from '@/pages/imports/constants'
 import { useAuth } from '@/hooks/useAuth'
+import { useTodayYmd } from '@/hooks/useTodayYmd'
 import { OUTSIDE_ACCOUNT_LABEL, OUTSIDE_ACCOUNT_VALUE } from '@/utils/transfers'
 import { LOADING_ANIMATION_MIN_MS } from '@/utils/timing'
 import type { ColumnMap, ColumnTarget, ColumnValidationErrors, CsvReadingChoices, ImportAmountDirection, ImportCategoryKind, ImportFileDraft, ImportRowProblem, PreviewTransactionRow } from '@/pages/imports/types'
@@ -214,7 +215,8 @@ export function useTransactionImportWorkflow(fixedAccount: AccountsOverview | nu
   const isDateRangeCrossed = isImportDateRangeCrossed(columnMap, shownDateRange)
 
   // Offered rather than filled in, so the start stays empty unless the user asks for it
-  const { data: latestTransactions } = useTransactions(getLatestTransactionFilters(fixedAccount?.id ?? null))
+  const todayYmd = useTodayYmd()
+  const { data: latestTransactions } = useTransactions(getLatestTransactionFilters(fixedAccount?.id ?? null, todayYmd))
   const latestStartSuggestion = getLatestStartSuggestion(latestTransactions?.[0]?.dt)
 
   const accountMappingSources = useMemo(
