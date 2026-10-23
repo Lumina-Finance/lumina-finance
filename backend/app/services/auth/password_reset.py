@@ -63,9 +63,7 @@ async def delete_stale_password_reset_tokens(db: AsyncSession) -> None:
     Args:
         db: Active database session
     """
-    stale_delete_query = delete(PasswordResetToken).where(
-        PasswordResetToken.created_at < datetime.now(UTC) - _SEND_LOG_RETENTION
-    )
+    stale_delete_query = delete(PasswordResetToken).where(PasswordResetToken.created_at < datetime.now(UTC) - _SEND_LOG_RETENTION)
 
     # The scheduled cleanup prunes these too. A reset request still prunes first, since the email
     # limit counts the rows left

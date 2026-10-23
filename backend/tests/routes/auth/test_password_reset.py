@@ -75,9 +75,7 @@ async def _overlap_reset_requests(client, monkeypatch, first_email, second_email
             else:
                 async with TestSession() as observer:
                     while not second.done():
-                        blockers = await observer.scalar(
-                            text("SELECT pg_blocking_pids(:pid)"), {"pid": request_pids[1]}
-                        )
+                        blockers = await observer.scalar(text("SELECT pg_blocking_pids(:pid)"), {"pid": request_pids[1]})
                         if request_pids[0] in blockers:
                             break
                         await asyncio.sleep(0.01)
@@ -167,9 +165,7 @@ async def test_overlapping_reset_requests_share_the_allowance(client, monkeypatc
     for index in range(prior_sends):
         await _seed_reset_token(user_id, raw_token=f"expired-{index}", expires_in_seconds=-60)
 
-    responses = await _overlap_reset_requests(
-        client, monkeypatch, SIGNUP_PAYLOAD["email"], SIGNUP_PAYLOAD["email"]
-    )
+    responses = await _overlap_reset_requests(client, monkeypatch, SIGNUP_PAYLOAD["email"], SIGNUP_PAYLOAD["email"])
 
     assert [response.status_code for response in responses] == [204, 204]
     rows = await _reset_tokens_for(user_id)
@@ -185,9 +181,7 @@ async def test_overlapping_reset_requests_for_different_users_are_independent(cl
     second = await client.post("/auth/signup", json={**SIGNUP_PAYLOAD, "email": second_email})
     assert second.status_code == 201
 
-    responses = await _overlap_reset_requests(
-        client, monkeypatch, SIGNUP_PAYLOAD["email"], second_email, independent=True
-    )
+    responses = await _overlap_reset_requests(client, monkeypatch, SIGNUP_PAYLOAD["email"], second_email, independent=True)
 
     assert [response.status_code for response in responses] == [204, 204]
     assert len(await _reset_tokens_for(uuid.UUID(first.json()["user"]["id"]))) == 1
@@ -272,7 +266,8 @@ async def test_reset_password_sets_new_password_and_consumes_token(client):
     assert resp.status_code == 204
 
     login = await client.post(
-        "/auth/login", json={"email": SIGNUP_PAYLOAD["email"], "password": _NEW_PASSWORD},
+        "/auth/login",
+        json={"email": SIGNUP_PAYLOAD["email"], "password": _NEW_PASSWORD},
     )
     assert login.status_code == 200
 
@@ -409,9 +404,7 @@ async def test_reset_during_reenrollment_requires_a_remaining_recovery_code(clie
     signup, _, recovery_codes = await _enroll_totp(client)
     user_id = uuid.UUID(signup.json()["user"]["id"])
 
-    login = await client.post(
-        "/auth/login", json={"email": SIGNUP_PAYLOAD["email"], "password": SIGNUP_PAYLOAD["password"]}
-    )
+    login = await client.post("/auth/login", json={"email": SIGNUP_PAYLOAD["email"], "password": SIGNUP_PAYLOAD["password"]})
     recovery_login = await client.post(
         "/auth/2fa/verify",
         json={"mfa_token": login.json()["mfa_token"], "code": recovery_codes[0]},
@@ -479,9 +472,7 @@ async def test_reset_verify_rejects_a_login_challenge(client):
     user_id = uuid.UUID(signup.json()["user"]["id"])
     raw_token = await _seed_reset_token(user_id)
 
-    login = await client.post(
-        "/auth/login", json={"email": SIGNUP_PAYLOAD["email"], "password": SIGNUP_PAYLOAD["password"]}
-    )
+    login = await client.post("/auth/login", json={"email": SIGNUP_PAYLOAD["email"], "password": SIGNUP_PAYLOAD["password"]})
     login_mfa_token = login.json()["mfa_token"]
 
     verify = await client.post(
@@ -575,14 +566,10 @@ async def test_reset_sets_first_password_for_provider_account(client):
     assert resp.status_code == 204
 
     async with TestSession() as session:
-        credential = (
-            await session.execute(select(PasswordCredential).where(PasswordCredential.user_id == user_id))
-        ).scalar_one()
+        credential = (await session.execute(select(PasswordCredential).where(PasswordCredential.user_id == user_id))).scalar_one()
         password_identity = (
             await session.execute(
-                select(AuthIdentity).where(
-                    AuthIdentity.user_id == user_id, AuthIdentity.auth_provider == AuthProvider.PASSWORD
-                )
+                select(AuthIdentity).where(AuthIdentity.user_id == user_id, AuthIdentity.auth_provider == AuthProvider.PASSWORD)
             )
         ).scalar_one()
     assert credential.password_hash != _NEW_PASSWORD
