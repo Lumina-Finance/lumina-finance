@@ -1,12 +1,12 @@
 import { KeyRound } from 'lucide-react';
 import { DisabledReasonButton } from '@/components/tooltips/DisabledReasonButton';
-import { useState, type FormEvent, type MouseEvent } from 'react';
+import { useId, useState, type FormEvent, type MouseEvent } from 'react';
 import type { AuthenticationResponseJSON } from '@simplewebauthn/browser';
 import { requestPasskeyStepUpAssertion, usePasskeyConfig, usePasskeys } from '@/api/passkeys';
 import { useTotpStatus } from '@/api/two-factor';
 import { OtpInput, OTP_LENGTH } from '@/components/OtpInput';
 import { StepTransition } from '@/components/two-factor/StepTransition';
-import { ModalContentPanel } from '@/components/modal/ContentPanel';
+import { ModalContentFooter, ModalContentPanel } from '@/components/modal/ContentPanel';
 import type { ModalLevel } from '@/components/modal/Shell';
 import { WarningCallout } from '@/components/WarningCallout';
 import { useAuth } from '@/hooks/useAuth';
@@ -110,7 +110,9 @@ export function StepUpModal({
   const canSubmitCode = otp.length === OTP_LENGTH;
   // Shrink the confirm control to a spinner circle while its own path verifies, matching the app's
   // other loading buttons
-  const actionButtonClass = `${danger ? 'app-danger-button' : 'app-primary-button'} transition-all duration-300 ${verifyingPath === 'code' ? 'app-primary-button-loading' : 'w-full'}`;
+  // A stacked step-up can open over another, so each form's id is its own
+  const codeFormId = useId();
+  const actionButtonClass =`${danger ? 'app-danger-button' : 'app-primary-button'} transition-all duration-300 ${verifyingPath === 'code' ? 'app-primary-button-loading' : 'w-full'}`;
 
   /**
    * Clears the transient inputs so the modal opens clean next time
@@ -233,14 +235,17 @@ export function StepUpModal({
   };
 
   // A lockout countdown pairs with the failure message in one callout, so the neutral "password or
-  // factor" reminder and the attempts left are shown together rather than one hiding the other
+  // factor" reminder and the attempts left are shown together rather than one hiding the other. Announced
+  // as it appears, since focus stays in the field the person was typing in
   const feedback =
     lockoutRemaining !== null ? (
-      <WarningCallout>
-        {error ? `${error} ${buildLockoutWarning(lockoutRemaining)}` : buildLockoutWarning(lockoutRemaining)}
-      </WarningCallout>
+      <div role="alert">
+        <WarningCallout>
+          {error ? `${error} ${buildLockoutWarning(lockoutRemaining)}` : buildLockoutWarning(lockoutRemaining)}
+        </WarningCallout>
+      </div>
     ) : error ? (
-      <p className="text-center text-sm" style={{ color: 'var(--app-negative)' }}>
+      <p role="alert" className="text-center text-sm" style={{ color: 'var(--app-negative)' }}>
         {error}
       </p>
     ) : null;
@@ -308,30 +313,32 @@ export function StepUpModal({
               autoFocus
             />
             {feedback}
-            {passwordOnly ? (
-              <div className="flex justify-center">
+            <ModalContentFooter>
+              {passwordOnly ? (
+                <div className="flex justify-center">
+                  <DisabledReasonButton
+                    type="submit"
+                    disabled={verifying}
+                    disabledReason={!verifying && !password ? 'Enter your password first' : undefined}
+                    className={`${danger ? 'app-danger-button' : 'app-primary-button'} transition-all duration-300 ${verifyingPath === 'code' ? 'app-primary-button-loading' : 'w-full'}`}
+                  >
+                    {verifyingPath === 'code' ? <div className="app-spinner" /> : confirmLabel}
+                  </DisabledReasonButton>
+                </div>
+              ) : (
                 <DisabledReasonButton
                   type="submit"
-                  disabled={verifying}
-                  disabledReason={!verifying && !password ? 'Enter your password first' : undefined}
-                  className={`${danger ? 'app-danger-button' : 'app-primary-button'} transition-all duration-300 ${verifyingPath === 'code' ? 'app-primary-button-loading' : 'w-full'}`}
+                  disabledReason={!password ? 'Enter your password first' : undefined}
+                  className="app-primary-button w-full"
                 >
-                  {verifyingPath === 'code' ? <div className="app-spinner" /> : confirmLabel}
+                  Continue
                 </DisabledReasonButton>
-              </div>
-            ) : (
-              <DisabledReasonButton
-                type="submit"
-                disabledReason={!password ? 'Enter your password first' : undefined}
-                className="app-primary-button w-full"
-              >
-                Continue
-              </DisabledReasonButton>
-            )}
+              )}
+            </ModalContentFooter>
           </form>
         ) : (
           <div className="space-y-5">
-            <form onSubmit={handleSubmit} className="space-y-5">
+            <form id={codeFormId} onSubmit={handleSubmit} className="space-y-5">
               {canUsePasskey && (
                 <div className="flex justify-center">
                   <button
@@ -369,50 +376,58 @@ export function StepUpModal({
               )}
 
               {feedback}
-
-              {showCodeEntry && (
-                <div className="flex justify-center">
-                  <DisabledReasonButton
-                    type="submit"
-                    disabled={verifying}
-                    disabledReason={!verifying && !canSubmitCode ? 'Enter the full code first' : undefined}
-                    className={actionButtonClass}
-                  >
-                    {verifyingPath === 'code' ? <div className="app-spinner" /> : confirmLabel}
-                  </DisabledReasonButton>
-                </div>
-              )}
             </form>
 
-            {/* Links sit outside the form so a password manager's autofill-and-submit cannot land on them */}
-            {requirePassword && (
-              <button
-                type="button"
-                onClick={onUserPress(() => {
-                  // Drop the entered password when stepping back so it is not held while the user is away
-                  setStep('password');
-                  setPassword('');
-                  setOtp('');
-                  setError('');
-                  setLockoutRemaining(null);
-                })}
-                disabled={verifying}
-                className="block w-full text-center text-sm underline underline-offset-2"
-                style={{ color: 'var(--app-text-muted)' }}
-              >
-                Back
-              </button>
-            )}
-            {allowRecoveryReset && (
-              <button
-                type="button"
-                onClick={onUserPress(() => setConfirmingReset(true))}
-                disabled={verifying}
-                className="block w-full text-center text-sm font-medium underline underline-offset-2"
-                style={{ color: 'var(--app-text-muted)' }}
-              >
-                Lost your authenticator?
-              </button>
+            {(showCodeEntry || requirePassword || allowRecoveryReset) && (
+              <ModalContentFooter>
+                <div className="space-y-5">
+                  {/* Submits the form above from the footer, which sits outside it with the links */}
+                  {showCodeEntry && (
+                    <div className="flex justify-center">
+                      <DisabledReasonButton
+                        type="submit"
+                        form={codeFormId}
+                        disabled={verifying}
+                        disabledReason={!verifying && !canSubmitCode ? 'Enter the full code first' : undefined}
+                        className={actionButtonClass}
+                      >
+                        {verifyingPath === 'code' ? <div className="app-spinner" /> : confirmLabel}
+                      </DisabledReasonButton>
+                    </div>
+                  )}
+
+                  {/* Links sit outside the form so a password manager's autofill-and-submit cannot land on them */}
+                  {requirePassword && (
+                    <button
+                      type="button"
+                      onClick={onUserPress(() => {
+                        // Drop the entered password when stepping back so it is not held while the user is away
+                        setStep('password');
+                        setPassword('');
+                        setOtp('');
+                        setError('');
+                        setLockoutRemaining(null);
+                      })}
+                      disabled={verifying}
+                      className="block w-full text-center text-sm underline underline-offset-2"
+                      style={{ color: 'var(--app-text-muted)' }}
+                    >
+                      Back
+                    </button>
+                  )}
+                  {allowRecoveryReset && (
+                    <button
+                      type="button"
+                      onClick={onUserPress(() => setConfirmingReset(true))}
+                      disabled={verifying}
+                      className="block w-full text-center text-sm font-medium underline underline-offset-2"
+                      style={{ color: 'var(--app-text-muted)' }}
+                    >
+                      Lost your authenticator?
+                    </button>
+                  )}
+                </div>
+              </ModalContentFooter>
             )}
           </div>
         )}

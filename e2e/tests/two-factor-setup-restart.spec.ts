@@ -96,6 +96,59 @@ test('reopens the settings step-up when finishing authenticator setup fails', as
   await expect(page.getByPlaceholder('Current password')).toHaveValue('')
 })
 
+// A dropped request or a server error says nothing about the staged setup, which the server may still
+// hold, so the person keeps Done and the setup they have already confirmed
+test('keeps Done for another try when finishing authenticator setup gets no answer', async ({ page, request }) => {
+  const user = await signUpUser(request)
+  await logInViaApi(page, user)
+  await openPage(page, '/settings#security')
+  await page.locator('#security').getByRole('button', { name: 'Manage' }).click()
+  await page.getByRole('button', { name: 'Enable' }).click()
+  await page.getByPlaceholder('Current password').fill(user.password)
+  await page.getByRole('button', { name: 'Continue' }).click()
+
+  const setup = page.getByRole('dialog', { name: /Set up two-factor authentication|Save your recovery codes/ })
+  await failFinishingAuthenticatorSetup(page)
+  let finishes = 0
+  await page.route(`${API_BASE_URL}/auth/2fa/complete`, (route) => {
+    finishes += 1
+    return finishes === 1 ? route.fulfill({ status: 500, body: '' }) : route.fulfill({ status: 204 })
+  })
+  await expect(setup.getByRole('button', { name: 'Copy key' })).toBeVisible()
+  await setup.getByLabel('One-time code').pressSequentially('123456')
+  await setup.getByRole('button', { name: 'Confirm' }).click()
+  await setup.getByLabel("I've saved my recovery codes").check()
+  await setup.getByLabel(/I understand I may be permanently locked out/).check()
+  await setup.getByRole('button', { name: 'Done' }).click()
+
+  await expect(setup.getByRole('alert')).toHaveText("Couldn't reach the server. Please try again.")
+  await expect(setup.getByRole('button', { name: 'Start again' })).toHaveCount(0)
+  await setup.getByRole('button', { name: 'Done' }).click()
+  await expect(setup).toHaveCount(0)
+  expect(finishes).toBe(2)
+})
+
+// Focus stays in the code field after a wrong code, so the failure is announced rather than only shown
+test('announces a wrong authenticator code during setup', async ({ page, request }) => {
+  const user = await signUpUser(request)
+  await logInViaApi(page, user)
+  await openPage(page, '/settings#security')
+  await page.locator('#security').getByRole('button', { name: 'Manage' }).click()
+  await page.getByRole('button', { name: 'Enable' }).click()
+  await page.getByPlaceholder('Current password').fill(user.password)
+  await page.getByRole('button', { name: 'Continue' }).click()
+
+  // Refused here rather than left to the real check, which a guessed code could pass
+  await page.route(`${API_BASE_URL}/auth/2fa/confirm`, (route) =>
+    route.fulfill({ status: 400, json: { detail: 'Invalid code' } }))
+  const setup = page.getByRole('dialog', { name: 'Set up two-factor authentication' })
+  await expect(setup.getByRole('button', { name: 'Copy key' })).toBeVisible()
+  await setup.getByLabel('One-time code').pressSequentially('123456')
+  await setup.getByRole('button', { name: 'Confirm' }).click()
+
+  await expect(setup.getByRole('alert')).toHaveText('That code was incorrect. Try again.')
+})
+
 test('reopens the regenerate step-up when saving new recovery codes fails', async ({ page, request }) => {
   const user = await signUpUser(request)
 

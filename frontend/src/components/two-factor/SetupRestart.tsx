@@ -6,7 +6,7 @@ interface SetupRestartProps {
 }
 
 /**
- * Replaces a setup's final button once that step fails. The server answers an expired setup the same
+ * Replaces a setup's final button once the server refuses that step. It answers an expired setup the same
  * as a missing one, so retrying can't work, and the copy never says why so a stolen session learns
  * nothing from it
  */

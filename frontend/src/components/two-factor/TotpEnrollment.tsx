@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { Check, Copy } from 'lucide-react';
 import { QRCodeSVG } from 'qrcode.react';
 import { DisabledReasonButton } from '@/components/tooltips/DisabledReasonButton';
+import { ModalContentFooter } from '@/components/modal/ContentPanel';
 import {
   useCompleteTotp,
   useConfirmTotp,
@@ -19,6 +20,7 @@ import { RecoveryCodesPanel } from '@/components/two-factor/RecoveryCodesPanel';
 import { SetupRestart } from '@/components/two-factor/SetupRestart';
 import { StepTransition } from '@/components/two-factor/StepTransition';
 import { copyText } from '@/utils/clipboard';
+import { isSetupRefused, SERVER_UNREACHABLE_MESSAGE } from '@/utils/setupFailure';
 import { delayToMinimum, LOADING_ANIMATION_MIN_MS, MFA_LOADING_MIN_MS } from '@/utils/timing';
 
 // How long the copied confirmation stays before reverting to the copy affordance
@@ -148,9 +150,10 @@ export function TotpEnrollment({ onComplete, onSkip, onSwitchToPasskey, initialS
       await complete.mutateAsync();
       await delayToMinimum(start, MFA_LOADING_MIN_MS);
       onComplete();
-    } catch {
+    } catch (failure) {
       await delayToMinimum(start, MFA_LOADING_MIN_MS);
-      setFinishFailed(true);
+      if (isSetupRefused(failure)) setFinishFailed(true);
+      else setError(SERVER_UNREACHABLE_MESSAGE);
       setCompleting(false);
     }
   };
@@ -222,20 +225,29 @@ export function TotpEnrollment({ onComplete, onSkip, onSwitchToPasskey, initialS
             </label>
           </div>
 
-          {finishFailed ? (
-            <SetupRestart onStartAgain={startAgain} />
-          ) : (
-            <div className="flex justify-center">
-              <DisabledReasonButton
-                onClick={handleComplete}
-                disabled={completing}
-                disabledReason={!savedAcknowledged || !lockoutAcknowledged ? 'Tick both boxes first' : undefined}
-                className={`app-primary-button transition-all duration-300 ${completing ? 'app-primary-button-loading' : 'w-full'}`}
-              >
-                {completing ? <div className="app-spinner" /> : 'Done'}
-              </DisabledReasonButton>
-            </div>
-          )}
+          <ModalContentFooter>
+            {finishFailed ? (
+              <SetupRestart onStartAgain={startAgain} />
+            ) : (
+              <div className="space-y-3">
+                {error && (
+                  <p role="alert" className="text-center text-sm" style={{ color: 'var(--app-negative)' }}>
+                    {error}
+                  </p>
+                )}
+                <div className="flex justify-center">
+                  <DisabledReasonButton
+                    onClick={handleComplete}
+                    disabled={completing}
+                    disabledReason={!savedAcknowledged || !lockoutAcknowledged ? 'Tick both boxes first' : undefined}
+                    className={`app-primary-button transition-all duration-300 ${completing ? 'app-primary-button-loading' : 'w-full'}`}
+                  >
+                    {completing ? <div className="app-spinner" /> : 'Done'}
+                  </DisabledReasonButton>
+                </div>
+              </div>
+            )}
+          </ModalContentFooter>
         </div>
       ) : (
         <div className="space-y-5">
@@ -290,7 +302,7 @@ export function TotpEnrollment({ onComplete, onSkip, onSwitchToPasskey, initialS
           <OtpInput value={code} onChange={setCode} disabled={confirming} autoFocus />
 
           {error && (
-            <p className="text-center text-sm" style={{ color: 'var(--app-negative)' }}>
+            <p role="alert" className="text-center text-sm" style={{ color: 'var(--app-negative)' }}>
               {error}
             </p>
           )}
