@@ -45,7 +45,7 @@ test('says the email address is the problem when signup refuses it', async ({ pa
   await page.getByRole('button', { name: 'Sign up' }).click()
 
   await expect(page.getByText('Enter a valid email address', { exact: true })).toBeVisible()
-  await expect(page.getByText('Something went wrong. Please try again.', { exact: true })).toHaveCount(0)
+  await expect(page.getByText('Oops, something went wrong. Please try again.', { exact: true })).toHaveCount(0)
 })
 
 // A browser set to block all site data throws on any touch of its storage, which once left the page

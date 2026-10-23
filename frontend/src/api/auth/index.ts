@@ -3,6 +3,7 @@ export {
   buildApiError,
   getSessionRestoreFailure,
   isRefreshAlreadyRotatedError,
+  NO_EXPLANATION_MESSAGE,
   type ApiFieldError,
 } from '@/api/auth/errors';
 
