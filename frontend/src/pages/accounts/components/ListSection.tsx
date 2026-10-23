@@ -4,6 +4,7 @@ import type { TaxAdvantagedCategory } from '@/api/tax-advantaged-categories'
 import { useMoneyFormatters } from '@/hooks/useMoneyFormatters'
 import AccountRow from '@/pages/accounts/components/Row'
 import type { AccountAccent } from '@/pages/accounts/types/accounts'
+import { getSignedAmountColor } from '@/utils/negativeAmount'
 
 const ACCOUNT_ROW_EASE = [0.25, 0.1, 0.25, 1] as const
 
@@ -35,7 +36,7 @@ export default function AccountListSection({
   const { formatCurrency } = useMoneyFormatters()
   const titleColor = accent === 'positive' ? 'var(--app-positive)' : 'var(--app-negative)'
   const subtotalColor = accent === 'positive'
-    ? subtotal >= 0 ? 'var(--app-positive)' : 'var(--app-negative)'
+    ? getSignedAmountColor(subtotal)
     : subtotal < 0 ? 'var(--app-negative)' : 'var(--app-text)'
 
   return (

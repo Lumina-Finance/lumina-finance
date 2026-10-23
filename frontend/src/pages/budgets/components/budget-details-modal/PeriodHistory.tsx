@@ -1,6 +1,7 @@
 import { useMoneyFormatters } from '@/hooks/useMoneyFormatters'
 import { formatBudgetPeriod } from '@/pages/budgets/utils/budgetPeriods'
 import type { BudgetPeriodHistoryEntry } from '@/pages/budgets/utils/budgetDetails'
+import { getSignedAmountColor } from '@/utils/negativeAmount'
 
 type BudgetPeriodHistoryProps = {
   periodHistory: BudgetPeriodHistoryEntry[]
@@ -38,7 +39,7 @@ export default function BudgetPeriodHistory({
               <p className="text-sm font-medium" style={{ color: 'var(--app-text)' }}>
                 {formatBudgetPeriod(period)}
               </p>
-              <p className="shrink-0 text-right text-sm font-semibold" style={{ color: remaining < 0 ? 'var(--app-negative)' : 'var(--app-positive)' }}>
+              <p className="shrink-0 text-right text-sm font-semibold" style={{ color: getSignedAmountColor(remaining) }}>
                 {remaining < 0 ? 'Over ' : 'Left '}
                 {formatCurrency(Math.abs(remaining), currency)}
               </p>
@@ -94,7 +95,7 @@ export default function BudgetPeriodHistory({
                   <td className="px-4 py-3 text-right" style={{ color: 'var(--app-text-muted)' }}>
                     {formatCurrency(period.overall_limit, currency)}
                   </td>
-                  <td className="px-4 py-3 text-right" style={{ color: remaining < 0 ? 'var(--app-negative)' : 'var(--app-positive)' }}>
+                  <td className="px-4 py-3 text-right" style={{ color: getSignedAmountColor(remaining) }}>
                     {remaining < 0 ? 'Over ' : 'Left '}
                     {formatCurrency(Math.abs(remaining), currency)}
                   </td>

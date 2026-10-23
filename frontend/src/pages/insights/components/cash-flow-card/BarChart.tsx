@@ -25,7 +25,7 @@ import {
 import { CHART_X_AXIS_TICK_FONT_SIZE } from '@/components/charts/constants'
 import { useMoneyFormatters } from '@/hooks/useMoneyFormatters'
 import type { CashFlowBarBucket } from '@/pages/insights/types/cashFlow'
-import { getSignedAmountColor } from '@/pages/insights/utils/money'
+import { getSignedAmountColor } from '@/utils/negativeAmount'
 import {
   useFittedYAxisWidth,
   Y_AXIS_LABEL_CLASS_NAME,

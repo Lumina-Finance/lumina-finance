@@ -14,7 +14,14 @@ const styles = vi.hoisted(() => ({ held: 'brackets', moved: 'minus' }) as Record
 vi.mock('@/utils/negativeStyle', () => ({ getNegativeStyle: (kind: MoneyKind) => styles[kind] }))
 
 import { formatCurrency, formatMovedCurrency } from '@/utils/formatCurrency'
-import { getAmountSign, getShownAmountSign, formatMovedPercent, signMovedAmount } from '@/utils/negativeAmount'
+import {
+  getAmountSign,
+  getAmountSignColor,
+  getShownAmountSign,
+  getSignedAmountColor,
+  formatMovedPercent,
+  signMovedAmount,
+} from '@/utils/negativeAmount'
 
 const currencies: Currency[] = [
   { id: 'CAD', name: 'Canadian Dollar', symbol: '$', minor_unit_exponent: 2 },
@@ -92,6 +99,23 @@ describe('an amount that moved', () => {
     expect([formatMovedPercent(12), formatMovedPercent(-12), formatMovedPercent(0)]).toEqual(['+12%', `${MINUS}12%`, '0%'])
     expect(formatMovedPercent(-25, 1)).toBe(`${MINUS}25.0%`)
     expect(formatMovedPercent(-0.04, 1)).toBe('0.0%')
+  })
+})
+
+describe('the colour of an amount', () => {
+  it('colours each direction, and zero and an amount that shows as zero in the neutral text colour', () => {
+    expect([getSignedAmountColor(500), getSignedAmountColor(-500)]).toEqual(['var(--app-positive)', 'var(--app-negative)'])
+    expect([getSignedAmountColor(0), getSignedAmountColor(-0), getSignedAmountColor(0.4), getSignedAmountColor(-0.4)]).toEqual(
+      Array(4).fill('var(--app-text)'),
+    )
+  })
+
+  it('colours a direction on its own, for a figure whose colour is the other way round', () => {
+    expect([getAmountSignColor(1), getAmountSignColor(0), getAmountSignColor(-1)]).toEqual([
+      'var(--app-positive)',
+      'var(--app-text)',
+      'var(--app-negative)',
+    ])
   })
 })
 

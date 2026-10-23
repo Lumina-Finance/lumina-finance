@@ -5,10 +5,9 @@ import { FxStatusBadge } from '@/components/tooltips/FxStatusBadge'
 import IconTooltip from '@/components/tooltips/IconTooltip'
 import { getCashFlowFxStatusMessage } from '@/pages/transactions/utils/fxTooltipMessages'
 import { useMoneyFormatters } from '@/hooks/useMoneyFormatters'
-import { getShownAmountSign } from '@/utils/negativeAmount'
+import { getSignedAmountColor } from '@/utils/negativeAmount'
 
 const MAX_NET_FLOW_FONT_SIZE = 60
-const NET_COLORS = { [-1]: 'var(--app-negative)', 0: 'var(--app-text)', 1: 'var(--app-positive)' } as const
 const netFlowCalculation =
   'Money in minus money out for this period. Transfers count except Balance Adjustment.'
 
@@ -34,7 +33,7 @@ export default function NetFlowSummary({
   const { formatCurrency, formatMovedCurrency } = useMoneyFormatters()
   const netFlow = inflow + outflow
   // The colour follows the same sign as the text, so a net that shows as zero is neutral too
-  const netColor = NET_COLORS[getShownAmountSign(netFlow)]
+  const netColor = getSignedAmountColor(netFlow)
   const formattedNetFlow = formatMovedCurrency(netFlow, displayCurrency)
 
   useLayoutEffect(() => {

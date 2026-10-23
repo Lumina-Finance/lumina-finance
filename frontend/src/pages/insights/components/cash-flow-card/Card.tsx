@@ -12,7 +12,7 @@ import { getFittedAmountStyle, useFittedAmount } from '@/pages/insights/hooks/us
 import { CashFlowBarChart } from './BarChart'
 import type { CashFlowBarBucket, CashFlowGranularity } from '@/pages/insights/types/cashFlow'
 import { getInsightsCashFlowFxStatusMessage } from '@/pages/insights/utils/fxTooltipMessages'
-import { getSignedAmountColor } from '@/pages/insights/utils/money'
+import { getSignedAmountColor } from '@/utils/negativeAmount'
 import { FxStatusBadge } from '@/components/tooltips/FxStatusBadge'
 import { InsightCalculationTooltip } from '@/pages/insights/components/CalculationTooltip'
 import { InsightSectionHeader } from '@/pages/insights/components/SectionHeader'

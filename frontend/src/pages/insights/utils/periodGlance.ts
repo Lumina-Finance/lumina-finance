@@ -1,9 +1,10 @@
 import type { InsightsPeriodGlanceResponse } from '@/api/insights'
 import type { Currency } from '@/api/currency'
 import { formatMovedCurrency } from '@/utils/formatCurrency'
-import { formatMovedPercent } from '@/utils/negativeAmount'
+import { formatMovedPercent, getShownAmountSign, type AmountSign } from '@/utils/negativeAmount'
 import type {
   PeriodGlancePrimaryMetric,
+  PeriodGlanceTone,
   PeriodGlanceSupportItem,
 } from '@/pages/insights/types/periodGlance'
 import {
@@ -17,6 +18,15 @@ import {
   getPeriodSavingsRateFxStatusMessage,
   getPeriodTopCategoryFxStatusMessage,
 } from './fxTooltipMessages'
+
+const AMOUNT_SIGN_TONES: Record<AmountSign, PeriodGlanceTone> = { [-1]: 'negative', 0: 'neutral', 1: 'positive' }
+
+/**
+ * Returns the tone of an amount that moved, which is neutral when it shows as zero
+ */
+function getAmountTone(amount: number): PeriodGlanceTone {
+  return AMOUNT_SIGN_TONES[getShownAmountSign(amount)]
+}
 
 type InsightSignal = {
   label: string
@@ -96,14 +106,14 @@ function getPeriodGlanceBrief(
           ? 'Recorded income exceeds recorded expenses in the selected range, excluding transfers'
           : 'Recorded expenses exceed recorded income in the selected range, excluding transfers',
         calculation: 'Income - expenses for this range. Transfers are excluded',
-        tone: netSavings >= 0 ? 'positive' : 'negative',
+        tone: getAmountTone(netSavings),
       },
       {
         label: 'Net worth changed by',
         value: data.net_worth_change,
         detail: 'Across all accounts',
         calculation: 'End-of-range account balances minus balances from the day before the range',
-        tone: data.net_worth_change >= 0 ? 'positive' : 'negative',
+        tone: getAmountTone(data.net_worth_change),
         fxStatus: data.net_worth_change_fx_status,
         getFxStatusMessage: getNetWorthChangeFxStatusMessage,
       },

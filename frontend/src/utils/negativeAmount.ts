@@ -33,6 +33,28 @@ export function getShownAmountSign(amount: number): AmountSign {
   return Math.round(Math.abs(amount)) === 0 ? 0 : getAmountSign(amount)
 }
 
+const AMOUNT_SIGN_COLORS: Record<AmountSign, string> = {
+  [-1]: 'var(--app-negative)',
+  0: 'var(--app-text)',
+  1: 'var(--app-positive)',
+}
+
+/**
+ * Returns the text colour for an amount's direction, with zero in the neutral text colour. Every
+ * amount that is coloured by its direction reads this, so no screen colours a zero as a gain
+ */
+export function getAmountSignColor(sign: AmountSign): string {
+  return AMOUNT_SIGN_COLORS[sign]
+}
+
+/**
+ * Returns the text colour for an amount in minor units, read in the direction it is shown in, so an
+ * amount that shows as zero is neutral just as its text is unsigned
+ */
+export function getSignedAmountColor(amount: number): string {
+  return getAmountSignColor(getShownAmountSign(amount))
+}
+
 /**
  * Puts an amount's direction in front of its already formatted magnitude
  *

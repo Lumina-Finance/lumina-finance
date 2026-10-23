@@ -4,6 +4,7 @@ import { AnimatePresence, motion } from 'motion/react'
 import type { Category } from '@/api/categories'
 import type { Transaction } from '@/api/transactions'
 import { useMoneyFormatters } from '@/hooks/useMoneyFormatters'
+import { getSignedAmountColor } from '@/utils/negativeAmount'
 import { Checkbox } from '@/components/forms/Checkbox'
 import { FxStatusBadge } from '@/components/tooltips/FxStatusBadge'
 import TransactionRow, { type TransactionRowSelection } from '@/components/transactions/Row'
@@ -136,10 +137,7 @@ export default function TransactionDateGroupList({
           const dailyTotal = getTransactionDateGroupTotal(transactions, fixedAccount)
           const dayFxStatus = getTransactionDateGroupFxStatus(transactions, currency, fixedAccount)
           // A day that netted to zero moved nothing, so it takes the neutral colour rather than the positive colour
-          let dailyColor = 'var(--app-text)'
-          if (dailyTotal > 0) dailyColor = 'var(--app-positive)'
-          else if (dailyTotal < 0) dailyColor = 'var(--app-negative)'
-          if (isUpcoming) dailyColor = UPCOMING_DAY_TOTAL_COLOUR
+          const dailyColor = isUpcoming ? UPCOMING_DAY_TOTAL_COLOUR : getSignedAmountColor(dailyTotal)
           const headingSelection = buildHeadingSelection?.(transactions.map((transaction) => transaction.id))
           return (
             <motion.div
