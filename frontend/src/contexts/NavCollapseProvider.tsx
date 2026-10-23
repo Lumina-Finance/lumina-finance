@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState, type ReactNode } from 'react'
 import { NavCollapseContext, type NavCollapseValue } from '@/contexts/NavCollapseContext'
+import { readStoredValue, writeStoredValue } from '@/utils/browserStorage'
 
 const NAV_EXPANDED_KEY = 'lumina:settings:navExpanded'
 
@@ -8,7 +9,7 @@ const NAV_EXPANDED_KEY = 'lumina:settings:navExpanded'
  * the full sidebar
  */
 function readStoredNavExpanded(): boolean {
-  return localStorage.getItem(NAV_EXPANDED_KEY) !== 'false'
+  return readStoredValue(NAV_EXPANDED_KEY) !== 'false'
 }
 
 /**
@@ -19,7 +20,7 @@ export function NavCollapseProvider({ children }: { children: ReactNode }) {
   const [navExpanded, setNavExpanded] = useState(readStoredNavExpanded)
 
   useEffect(() => {
-    localStorage.setItem(NAV_EXPANDED_KEY, String(navExpanded))
+    writeStoredValue(NAV_EXPANDED_KEY, String(navExpanded))
   }, [navExpanded])
 
   const value = useMemo<NavCollapseValue>(

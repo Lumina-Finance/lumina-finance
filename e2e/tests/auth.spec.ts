@@ -48,6 +48,34 @@ test('says the email address is the problem when signup refuses it', async ({ pa
   await expect(page.getByText('Something went wrong. Please try again.', { exact: true })).toHaveCount(0)
 })
 
+// A browser set to block all site data throws on any touch of its storage, which once left the page
+// blank before anything rendered
+test('opens and signs in when the browser blocks storage', async ({ page, request }) => {
+  const user = await signUpUser(request)
+  await page.addInitScript(() => {
+    for (const name of ['localStorage', 'sessionStorage']) {
+      Object.defineProperty(window, name, {
+        get() {
+          throw new DOMException('The operation is insecure.', 'SecurityError')
+        },
+      })
+    }
+  })
+
+  await page.goto('/login')
+  const isStorageBlocked = await page.evaluate(() => {
+    try {
+      return window.localStorage === undefined
+    } catch {
+      return true
+    }
+  })
+  expect(isStorageBlocked).toBe(true)
+
+  await logIn(page, user)
+  await expectSignedIn(page)
+})
+
 test('refuses a wrong password before accepting the right one', async ({ page, request }) => {
   const user = await signUpUser(request)
 

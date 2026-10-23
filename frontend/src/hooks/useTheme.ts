@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import type { Theme } from '@/types';
+import { readStoredValue, writeStoredValue } from '@/utils/browserStorage';
 
 const THEME_KEY = 'lumina:settings:theme';
 
@@ -12,7 +13,7 @@ const THEME_KEY = 'lumina:settings:theme';
  */
 export function useTheme() {
   const [theme, setTheme] = useState<Theme>(
-    () => (localStorage.getItem(THEME_KEY) as Theme) || 'system'
+    () => (readStoredValue(THEME_KEY) as Theme) || 'system'
   );
 
   useEffect(() => {
@@ -26,7 +27,7 @@ export function useTheme() {
     };
 
     apply();
-    localStorage.setItem(THEME_KEY, theme);
+    writeStoredValue(THEME_KEY, theme);
 
     if (theme === 'system') {
       darkQuery.addEventListener('change', apply);
