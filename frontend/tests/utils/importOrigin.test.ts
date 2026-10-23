@@ -21,7 +21,7 @@ describe('import origin', () => {
 
   // Browsers read a backslash in an address as a slash and drop tabs and line breaks, so these lead to
   // another site as "//" does
-  it.each(['/\\other.example', '/\t/other.example', '/\n/other.example'])('reads the address %j as no origin', (importOrigin) => {
+  it.each(['/\\other.example', '/\t/other.example', '/\n/other.example', '/\\['])('reads the address %j as no origin', (importOrigin) => {
     expect(readImportOrigin({ importOrigin })).toBeNull()
   })
 })

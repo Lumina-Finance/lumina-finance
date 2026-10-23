@@ -24,6 +24,11 @@ export function readImportOrigin(state: unknown): string | null {
   if (typeof importOrigin !== 'string' || !importOrigin.startsWith('/')) return null
   // Read the way the browser reads an address, which takes a backslash as a slash and drops tabs and
   // line breaks, so "/\evil.example" and "/\t/evil.example" both name another site as "//" does
-  const isAppPath = new URL(importOrigin, ADDRESS_CHECK_ORIGIN).origin === ADDRESS_CHECK_ORIGIN
-  return isAppPath ? importOrigin : null
+  // An address the browser can't read at all, such as "/\[", names no page here either
+  try {
+    const isAppPath = new URL(importOrigin, ADDRESS_CHECK_ORIGIN).origin === ADDRESS_CHECK_ORIGIN
+    return isAppPath ? importOrigin : null
+  } catch {
+    return null
+  }
 }
