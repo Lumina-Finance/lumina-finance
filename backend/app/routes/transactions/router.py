@@ -1,4 +1,5 @@
 """Transaction API routes"""
+
 import uuid
 from datetime import date
 from typing import Annotated
@@ -205,7 +206,12 @@ async def open_transaction_import_run(
         The opened run, which every later call for this file quotes
     """
     run = await open_import_run(
-        db, user, data.expected_transaction_count, ImportRunSource(data.source), data.file_name, data.csv_layout,
+        db,
+        user,
+        data.expected_transaction_count,
+        ImportRunSource(data.source),
+        data.file_name,
+        data.csv_layout,
     )
     return TransactionImportRunResponse(id=run.id)
 
