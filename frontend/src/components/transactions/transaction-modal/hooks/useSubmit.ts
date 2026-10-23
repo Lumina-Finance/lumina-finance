@@ -6,6 +6,7 @@ import {
   useUpdateTransaction,
   type Transaction,
 } from '@/api/transactions'
+import { getCreateFailureMessage } from '@/utils/createFailure'
 import { LOADING_ANIMATION_MIN_MS, waitForMilliseconds } from '@/utils/timing'
 import {
   INITIAL_TRANSACTION_FORM,
@@ -219,7 +220,8 @@ export function useTransactionSubmit({
       }
 
       if (failedLegs.length === legs.length) {
-        setSubmitError('Something went wrong. Please try again.')
+        const firstFailure = results.find((result) => result.status === 'rejected')
+        setSubmitError(getCreateFailureMessage(firstFailure?.reason, 'transaction'))
         return
       }
 
@@ -270,7 +272,7 @@ export function useTransactionSubmit({
       resetFormAfterCreate({ keepTransferPair: false })
     } catch (err) {
       await minimumLoading
-      setSubmitError(err instanceof ApiError ? err.message : 'Something went wrong. Please try again.')
+      setSubmitError(getCreateFailureMessage(err, 'transaction'))
     } finally {
       setCreateDelayPending(false)
     }
