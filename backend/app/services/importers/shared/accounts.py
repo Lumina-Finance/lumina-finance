@@ -141,7 +141,7 @@ async def _get_or_create_import_account_for_mapping(
         account = (
             await _get_counterparty_import_account(db, user, mapping.account_id, access_lookup)
             if is_counterparty_only
-            else await _get_existing_import_account(db, user, mapping.account_id, access_lookup)
+            else await get_existing_import_account(db, user, mapping.account_id, access_lookup)
         )
         stats.reused_account_ids.add(account.id)
         return account
@@ -154,7 +154,7 @@ async def _get_or_create_import_account_for_mapping(
     return account
 
 
-async def _get_existing_import_account(
+async def get_existing_import_account(
     db: AsyncSession,
     user: User,
     account_id: uuid.UUID,
