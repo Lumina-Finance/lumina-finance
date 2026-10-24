@@ -1,3 +1,4 @@
+import { useLayoutEffect, useRef, useState } from 'react'
 import { AppScrambledNumber } from '@/components/display/ScrambledNumber'
 import { useMoneyFormatters } from '@/hooks/useMoneyFormatters'
 import { formatDashboardMoney } from '@/pages/dashboard/utils/formatDashboardMoney'
@@ -38,6 +39,24 @@ export function CreditUsageBody({
   } = summary
   const { currencies } = useMoneyFormatters()
 
+  // The width the amount may take, which is what the ring and the gap leave of the row. The amount
+  // steps its font size down to it rather than overflow the widget and lose a digit
+  const rowRef = useRef<HTMLDivElement>(null)
+  const ringRef = useRef<HTMLDivElement>(null)
+  const [amountWidth, setAmountWidth] = useState<number>()
+  useLayoutEffect(() => {
+    const row = rowRef.current
+    const ring = ringRef.current
+    if (!row || !ring) return
+
+    const measure = () => setAmountWidth(row.getBoundingClientRect().width - ring.getBoundingClientRect().width - parseFloat(getComputedStyle(row).columnGap))
+    measure()
+    const observer = new ResizeObserver(measure)
+    observer.observe(row)
+    observer.observe(ring)
+    return () => observer.disconnect()
+  }, [allLeftOut, hasCredit])
+
   const size = 120
   const strokeWidth = 10
   const radius = (size - strokeWidth) / 2
@@ -74,8 +93,8 @@ export function CreditUsageBody({
   }
 
   return (
-    <div className="flex h-full min-h-0 items-center justify-center gap-4">
-      <div className="relative aspect-square h-full shrink-0">
+    <div ref={rowRef} className="flex h-full min-h-0 items-center justify-center gap-4">
+      <div ref={ringRef} className="relative aspect-square h-full shrink-0">
         <svg viewBox={`0 0 ${size} ${size}`} className="h-full w-full -rotate-90">
           <circle
             cx={size / 2} cy={size / 2} r={radius}
@@ -102,7 +121,7 @@ export function CreditUsageBody({
       </div>
       <div className="min-w-0">
         <p className="font-financial text-3xl font-normal leading-none tracking-tight max-[1000px]:text-[1.6875rem]">
-          <AppScrambledNumber text={formatDashboardMoney(displayAmount, displayCurrency, 'credit', currencies, displayAmountRounding)} />
+          <AppScrambledNumber text={formatDashboardMoney(displayAmount, displayCurrency, 'credit', currencies, displayAmountRounding)} maxWidth={amountWidth} />
         </p>
         <p className="font-financial mt-1.5 text-sm max-[1000px]:text-[0.7875rem]" style={{ color: 'var(--app-text-muted)' }}>
           of <AppScrambledNumber text={formatDashboardMoney(creditAvailable, displayCurrency, 'credit', currencies, 'down')} />

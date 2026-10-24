@@ -181,3 +181,37 @@ test('eases the name of a chooser row straight to its new colour and leaves the 
     expect(frames.every((frame) => frame[1].every((channel, index) => channel === first[1][index]))).toBe(true)
   }
 })
+
+for (const reducedMotion of ['no-preference', 'reduce'] as const) {
+  test(`keeps every digit of the credit amount inside the widget with ${reducedMotion} motion`, async ({ page, request }) => {
+    const user = await signUpUser(request, { baseCurrency: 'USD' })
+    await createAccount(request, user, {
+      name: 'Card A',
+      accountKind: 'revolving',
+      accountType: 'credit_card',
+      currency: 'USD',
+      startingBalance: -320_000,
+      creditLimit: 800_000,
+    })
+    await page.emulateMedia({ reducedMotion })
+    await logInViaApi(page, user)
+
+    // A wide desktop, a tablet and a phone, where the amount's column is narrow enough to cut a digit
+    for (const width of [1920, 768, 390]) {
+      await page.setViewportSize({ width, height: 900 })
+      await openPage(page, '/dashboard')
+      const amount = page.locator('p.font-financial.text-3xl:has(span.sr-only)').filter({ hasText: 'US$3,200.00' })
+      await expect(amount).toBeVisible()
+
+      // The box animates its width, so poll until it has settled. It must then be as wide as its whole
+      // text and end inside the row the widget draws it in
+      await expect.poll(() => amount.evaluate((paragraph) => {
+        const box = paragraph.firstElementChild as HTMLElement
+        const row = paragraph.parentElement!.parentElement as HTMLElement
+        const textWidth = box.querySelector('.invisible')!.getBoundingClientRect().width
+        return box.getBoundingClientRect().width >= textWidth - 0.5
+          && box.getBoundingClientRect().right <= row.getBoundingClientRect().right + 0.5
+      }), `amount at ${width}`).toBe(true)
+    }
+  })
+}
