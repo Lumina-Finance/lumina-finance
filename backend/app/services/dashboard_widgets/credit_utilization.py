@@ -55,6 +55,9 @@ async def replace_credit_utilization_exclusions(
     Raises:
         HTTPException: A requested account is not a readable credit account with a limit
     """
+    # Two saves racing would each delete and insert, so the user's row is locked first and the later save waits and
+    # wins. A lock that leaves the key alone, so the foreign key checks of the user's other writes don't wait on it
+    await db.execute(select(User.id).where(User.id == user.id).with_for_update(key_share=True))
     accounts = await get_accessible_accounts(db, user)
     await replace_excluded_credit_account_ids(db, user, accounts, set(account_ids))
     await mark_user_cache_changed(db, user.id)

@@ -1,13 +1,14 @@
 """Route tests for choosing which credit accounts count toward the dashboard credit widget."""
 
+import asyncio
 from uuid import UUID
 
-from sqlalchemy import func, select, update
+from sqlalchemy import func, select, text, update
 
 from app.models.account import AccountBalanceSnapshot
 from app.models.base import InstitutionStatus
 from app.models.institution import Institution
-from app.models.user import UserCreditExcludedAccount
+from app.models.user import User, UserCreditExcludedAccount
 from tests.conftest import TestSession
 from tests.routes.dashboard._helpers import _owner_local_creation_day
 from tests.routes.support import _create_account, _create_user, _get_auth_header, sign_up_confirmed
@@ -255,3 +256,41 @@ async def test_saving_the_choice_refuses_an_account_that_is_not_a_credit_account
 
     assert resp.status_code == 422
     assert resp.json()["detail"] == "Only credit accounts with a limit count toward credit utilization"
+
+
+async def test_saving_the_choice_waits_for_the_user_row_so_the_later_save_wins(client):
+    """A save queues behind a holder of the user's row, so it runs after that holder's change rather than beside it."""
+    headers = _get_auth_header(await _create_user(client))
+    card = await _create_card(client, headers, "Card A", 500_000, 50_000)
+    user_id = UUID((await client.get("/me", headers=headers)).json()["id"])
+
+    request = None
+    async with TestSession() as holder:
+        # FOR NO KEY UPDATE is the strength the save takes, and it conflicts with itself only. The foreign key
+        # checks of the save's own inserts take a weaker lock, so they cannot stand in for the explicit one:
+        # a save without it runs straight through
+        await holder.execute(select(User.id).where(User.id == user_id).with_for_update(key_share=True))
+        try:
+            async with asyncio.timeout(10), TestSession() as observer:
+                request = asyncio.create_task(
+                    client.put(
+                        "/dashboard/credit-utilization/excluded-accounts",
+                        json={"account_ids": [card["id"]]},
+                        headers=headers,
+                    )
+                )
+                while not request.done() and not await observer.scalar(
+                    text("SELECT count(*) FROM pg_stat_activity WHERE cardinality(pg_blocking_pids(pid)) > 0")
+                ):
+                    await asyncio.sleep(0.01)
+                assert not request.done()
+                await holder.rollback()
+                resp = await request
+        finally:
+            await holder.rollback()
+            if request is not None and not request.done():
+                request.cancel()
+                await asyncio.gather(request, return_exceptions=True)
+
+    assert resp.status_code == 200
+    assert await _count_exclusion_rows() == 1
