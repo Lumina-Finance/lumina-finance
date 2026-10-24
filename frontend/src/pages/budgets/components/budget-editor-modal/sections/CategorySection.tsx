@@ -1,3 +1,4 @@
+import { useState } from 'react'
 import { motion, useReducedMotion } from 'motion/react'
 import { Check } from 'lucide-react'
 import { FieldError } from '@/components/forms/FieldError'
@@ -43,6 +44,13 @@ export default function BudgetEditorModalCategorySection({
   const categoryIdsError = showError('categoryIds')
   const shouldReduceMotion = useReducedMotion() ?? false
   const errorId = budgetFieldErrorId(ids.categorySearch)
+  // False from the moment a message shows until it has finished leaving
+  const [messageGone, setMessageGone] = useState(!categoryIdsError)
+  const [shownError, setShownError] = useState(categoryIdsError)
+  if (categoryIdsError !== shownError) {
+    setShownError(categoryIdsError)
+    if (categoryIdsError) setMessageGone(false)
+  }
 
   const categoryOptions = filteredCategories.map((category) => (
     <BudgetCategoryOption
@@ -74,12 +82,19 @@ export default function BudgetEditorModalCategorySection({
             <p className="shrink-0 whitespace-nowrap text-base font-bold leading-none" style={{ color: 'var(--app-accent)' }}>Tracked categories</p>
             {/* The problem takes the count's place on the heading row, so it sits opposite the label like
                 every other field's and fits on one line, the count being zero whenever it shows */}
-            {categoryIdsError ? (
-              <FieldError message={categoryIdsError} id={errorId} className="min-w-0 shrink -mt-0.5" />
-            ) : (
-              <span className="shrink-0 text-sm leading-none" style={{ color: 'var(--app-text-subtle)' }}>
+            {/* The message stays mounted so it fades in and out like every other field's, and the count
+                waits until it has left so the two never squeeze each other */}
+            <FieldError message={categoryIdsError} id={errorId} className="min-w-0 shrink" collapse onExitComplete={() => setMessageGone(true)} />
+            {!categoryIdsError && messageGone && (
+              <motion.span
+                className="shrink-0 text-sm leading-none"
+                style={{ color: 'var(--app-text-subtle)' }}
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                transition={{ duration: 0.15 }}
+              >
                 {form.categoryIds.length} selected
-              </span>
+              </motion.span>
             )}
           </div>
 

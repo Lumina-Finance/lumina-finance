@@ -306,8 +306,8 @@ test('shows no Name error when Add budget opens or Name is left unchanged, and s
 
   // Create still validates every field, including the ones never visited
   await dialog.getByTestId('budget-submit').click()
-  await expect(dialog.getByText('Limit must be greater than zero', { exact: true })).toBeVisible()
-  await expect(dialog.getByText('Select at least one category', { exact: true })).toBeVisible()
+  await expect(dialog.getByRole('alert').filter({ hasText: 'Limit must be greater than zero' })).toBeVisible()
+  await expect(dialog.getByRole('alert').filter({ hasText: 'Select at least one category' })).toBeVisible()
 })
 
 test('brings the first refused field into view when Create budget is refused for several', async ({ page, request }) => {
@@ -330,15 +330,21 @@ test('brings the first refused field into view when Create budget is refused for
   await expect(name).toHaveAccessibleDescription('Name is required')
   await expect(dialog.getByRole('alert').filter({ hasText: 'Name is required' })).toBeInViewport({ ratio: 1 })
 
-  // With the name given, an empty limit comes before the missing category
-  await name.fill('Groceries budget')
-  await limit.fill('')
-  await search.focus()
-  await expect(limit).not.toBeInViewport()
-  await dialog.getByTestId('budget-submit').click()
-  await expect(limit).toBeFocused()
-  await expect(limit).toHaveAccessibleDescription('Limit must be greater than zero')
-  await expect(dialog.getByRole('alert').filter({ hasText: 'Limit must be greater than zero' })).toBeInViewport({ ratio: 1 })
+  // With the name given, an empty limit comes before the missing category. A refused Create budget
+  // stays faded until every problem is fixed, so this starts again from a fresh dialog
+  await page.keyboard.press('Escape')
+  await expect(dialog).toBeHidden()
+  const reopened = await openModal(page, ['New budget'], 'Add budget')
+  const reopenedName = reopened.getByLabel('Name', { exact: true })
+  const reopenedLimit = reopened.getByLabel('Limit', { exact: true })
+  const reopenedSearch = reopened.getByPlaceholder('Search categories...', { exact: true })
+  await reopenedName.fill('Groceries budget')
+  await reopenedSearch.focus()
+  await expect(reopenedLimit).not.toBeInViewport()
+  await reopened.getByTestId('budget-submit').click()
+  await expect(reopenedLimit).toBeFocused()
+  await expect(reopenedLimit).toHaveAccessibleDescription('Limit must be greater than zero')
+  await expect(reopened.getByRole('alert').filter({ hasText: 'Limit must be greater than zero' })).toBeInViewport({ ratio: 1 })
 })
 
 test('creates a valid budget on a phone without scrolling the dialog', async ({ page, request }) => {
