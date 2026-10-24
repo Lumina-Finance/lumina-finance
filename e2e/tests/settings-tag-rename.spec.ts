@@ -1,7 +1,7 @@
 import { expect, test } from '@playwright/test'
 
-import { asUser, signUpUser } from '../support/api'
-import { logInViaApi, openPage } from '../support/app'
+import { asUser, createAccount, signUpUser } from '../support/api'
+import { chooseFromDropdown, logInViaApi, openModal, openPage } from '../support/app'
 import { API_BASE_URL } from '../support/target'
 
 // Runs on desktop only: renaming a tag gives the same result at every size
@@ -100,4 +100,46 @@ test('says something went wrong when creating a tag fails with no explanation', 
   await dialog.getByRole('button', { name: 'Create', exact: true }).click()
 
   await expect(dialog.getByRole('alert')).toHaveText('Oops, something went wrong. Please try again.')
+})
+
+// The Add tag modal opened from a transaction's Tags dropdown is a separate component from the settings
+// one, with the same rule: a name problem sits above the field, any other failure down with the actions
+test('puts a name problem above the field and another failure with the actions in Add tag', async ({ page, request }) => {
+  const user = await signUpUser(request)
+  await createAccount(request, user, { name: 'Everyday' })
+  const name = `Holiday ${crypto.randomUUID()}`
+  const created = await request.post(`${API_BASE_URL}/tags`, { headers: asUser(user), data: { name } })
+  expect(created.status()).toBe(201)
+
+  await logInViaApi(page, user)
+  await openPage(page, '/transactions')
+  const transaction = await openModal(page, ['Add transaction'], 'Add transaction')
+  await chooseFromDropdown(transaction, 'Account', 'Everyday')
+  await transaction.getByRole('combobox', { name: 'Tags', exact: true }).click()
+  await page.getByPlaceholder('Search tags...').fill('Fresh tag')
+  await page.getByRole('button', { name: 'Create tag "Fresh tag"' }).click()
+
+  const dialog = page.getByRole('dialog', { name: 'Add tag' })
+  const field = dialog.getByRole('textbox', { name: 'Tag name', exact: true })
+  await field.fill('')
+  await dialog.getByRole('button', { name: 'Create', exact: true }).click()
+  await expect(field).toHaveAccessibleDescription('Name is required')
+
+  await field.fill(name)
+  await dialog.getByRole('button', { name: 'Create', exact: true }).click()
+  await expect(field).toHaveAccessibleDescription('Tag with this name already exists')
+  const [alert, fieldBox] = [await dialog.getByRole('alert').boundingBox(), await field.boundingBox()]
+  expect(alert!.y + alert!.height).toBeLessThanOrEqual(fieldBox!.y)
+
+  // Anything else is not about the name, so the field is not marked and the message joins the actions
+  await page.route(`${API_BASE_URL}/tags`, (route) =>
+    route.request().method() === 'POST' ? route.fulfill({ status: 500, body: '' }) : route.continue())
+  await field.fill('Fresh tag')
+  await dialog.getByRole('button', { name: 'Create', exact: true }).click()
+  const failure = dialog.getByRole('alert')
+  await expect(failure).toHaveText('Oops, something went wrong. Please try again.')
+  await expect(field).not.toHaveAttribute('aria-invalid', 'true')
+  const [failureBox, createBox] = [await failure.boundingBox(), await dialog.getByRole('button', { name: 'Create', exact: true }).boundingBox()]
+  expect(failureBox!.y).toBeGreaterThanOrEqual(fieldBox!.y + fieldBox!.height)
+  expect(Math.abs((failureBox!.y + failureBox!.height / 2) - (createBox!.y + createBox!.height / 2))).toBeLessThan(createBox!.height)
 })
