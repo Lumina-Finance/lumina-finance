@@ -24,13 +24,31 @@ export const ACCOUNT_SKELETON_FADE_MS = 220
 
 export const EDIT_ACCOUNT_IDENTITY_FIELD_IDS = {
   name: 'edit-account-name',
+  nameError: 'edit-account-name-error',
   institution: 'edit-account-institution',
   taxAdvantagedCategory: 'edit-account-tax-advantaged-category',
   creditLimit: 'edit-credit-limit',
+  creditLimitError: 'edit-credit-limit-error',
   archive: 'edit-account-archived',
   archiveBlockedReason: 'edit-account-archive-blocked-reason',
   deleteName: 'delete-account-name',
+  deleteNameError: 'delete-account-name-error',
 } as const
+
+// The edit form's fields that can be wrong, in the order the modal draws them, and the control
+// that takes focus for each
+export const EDIT_ACCOUNT_IDENTITY_FIELDS = ['name', 'credit_limit'] as const
+export const EDIT_ACCOUNT_IDENTITY_CONTROL_IDS = {
+  name: EDIT_ACCOUNT_IDENTITY_FIELD_IDS.name,
+  credit_limit: EDIT_ACCOUNT_IDENTITY_FIELD_IDS.creditLimit,
+} as const
+
+// The delete step's one field, which a press of Delete account refuses until it matches the account's name
+export const DELETE_ACCOUNT_FIELDS = ['deleteName'] as const
+export const DELETE_ACCOUNT_CONTROL_IDS = {
+  deleteName: EDIT_ACCOUNT_IDENTITY_FIELD_IDS.deleteName,
+} as const
+export const DELETE_ACCOUNT_NAME_MISMATCH_MESSAGE = "Type the account's name to confirm"
 
 // Archiving zeroes the balance on today's date and freezes the account's transactions, so a
 // later-dated row would move the balance off zero with no way to remove it. The server refuses

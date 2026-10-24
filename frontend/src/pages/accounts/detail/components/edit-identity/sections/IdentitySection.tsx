@@ -32,10 +32,15 @@ export function AccountIdentitySection({
   return (
     <EditModalSection number="01" title="Identity">
       <div>
-        <AccountIdentityFieldLabelRow htmlFor={EDIT_ACCOUNT_IDENTITY_FIELD_IDS.name} label="Account name" error={fieldErrors.name} />
+        <AccountIdentityFieldLabelRow htmlFor={EDIT_ACCOUNT_IDENTITY_FIELD_IDS.name} label="Account name"
+          error={fieldErrors.name}
+          errorId={EDIT_ACCOUNT_IDENTITY_FIELD_IDS.nameError}
+        />
         <input
           id={EDIT_ACCOUNT_IDENTITY_FIELD_IDS.name}
           className={`app-input ${fieldErrors.name ? 'app-input-error' : ''}`}
+          aria-invalid={fieldErrors.name ? true : undefined}
+          aria-describedby={fieldErrors.name ? EDIT_ACCOUNT_IDENTITY_FIELD_IDS.nameError : undefined}
           value={form.name}
           onChange={(event) => setField('name', event.target.value)}
           maxLength={256}

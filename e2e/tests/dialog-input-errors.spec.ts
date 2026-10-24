@@ -1,6 +1,6 @@
 import { expect, test, type Locator, type Page } from '@playwright/test'
 
-import { signUpUser } from '../support/api'
+import { createAccount, signUpUser } from '../support/api'
 import { chooseFromDropdown, logInViaApi, openModal, openPage } from '../support/app'
 import { AT_EVERY_SIZE } from '../support/sizes'
 import { API_BASE_URL } from '../support/target'
@@ -167,5 +167,84 @@ test.describe('dialog input errors', () => {
     await chooseFromDropdown(dialog, 'Country', 'Canada')
     await expect(dialog.getByRole('alert')).toHaveCount(0)
     await expect(create).not.toHaveAttribute('aria-disabled', 'true')
+  })
+
+  test('marks the missing type and name in the Add account dialogue and says the type first on the button', AT_EVERY_SIZE, async ({ page, request }) => {
+    const user = await signUpUser(request)
+    await logInViaApi(page, user)
+    await openPage(page, '/accounts')
+    const dialog = await openModal(page, ['Add account'], 'Add account')
+    const create = dialog.getByRole('button', { name: 'Create account', exact: true })
+    const name = dialog.getByRole('textbox', { name: 'Account name', exact: true })
+    const type = dialog.getByRole('combobox', { name: 'Account type', exact: true })
+
+    await expect(create).not.toHaveAttribute('aria-disabled', 'true')
+    await create.click()
+    await expect(dialog.getByRole('alert')).toHaveCount(2)
+    await expect(type).toHaveAttribute('aria-invalid', 'true')
+    await expect(type).toHaveAccessibleDescription('Select an account type')
+    await expect(name).toHaveAttribute('aria-invalid', 'true')
+    await expect(name).toHaveAccessibleDescription('Name is required')
+    await expect(create).toHaveAttribute('aria-disabled', 'true')
+    await expect(create).toHaveAccessibleDescription('Select an account type')
+
+    await name.fill('Everyday')
+    await expect(create).toHaveAttribute('aria-disabled', 'true')
+    await chooseFromDropdown(dialog, 'Account type', 'Checking')
+    await expect(dialog.getByRole('alert')).toHaveCount(0)
+    await expect(create).not.toHaveAttribute('aria-disabled', 'true')
+  })
+
+  test('marks the emptied name in the Edit account dialogue and keeps Save held off while deleting', AT_EVERY_SIZE, async ({ page, request }) => {
+    const user = await signUpUser(request)
+    const account = await createAccount(request, user, { name: 'Everyday' })
+    await logInViaApi(page, user)
+    await openPage(page, `/accounts/${account.id}`)
+    await page.getByRole('button', { name: 'Edit account', exact: true }).click()
+    const dialog = page.getByRole('dialog', { name: 'Edit account', exact: true })
+    const name = dialog.getByRole('textbox', { name: 'Account name', exact: true })
+    const save = dialog.getByRole('button', { name: 'Save changes', exact: true })
+
+    await expect(save).not.toHaveAttribute('aria-disabled', 'true')
+    await name.fill('')
+    await save.click()
+    await expect(name).toHaveAttribute('aria-invalid', 'true')
+    await expect(name).toHaveAccessibleDescription('Name is required.')
+    await expect(save).toHaveAttribute('aria-disabled', 'true')
+    await expect(save).toHaveAccessibleDescription('Name is required.')
+
+    await name.fill('Everyday')
+    await expect(name).not.toHaveAttribute('aria-invalid', 'true')
+    await expect(save).not.toHaveAttribute('aria-disabled', 'true')
+
+    // An open delete step holds Save off with its own reason, whatever the form holds
+    await dialog.getByRole('button', { name: 'Delete account', exact: true }).click()
+    await expect(save).toHaveAttribute('aria-disabled', 'true')
+    await expect(save).toHaveAccessibleDescription('Finish or cancel deleting the account first')
+  })
+
+  test('marks a wrong name in the delete step and returns Delete account once it matches', AT_EVERY_SIZE, async ({ page, request }) => {
+    const user = await signUpUser(request)
+    const account = await createAccount(request, user, { name: 'Everyday' })
+    await logInViaApi(page, user)
+    await openPage(page, `/accounts/${account.id}`)
+    await page.getByRole('button', { name: 'Edit account', exact: true }).click()
+    const dialog = page.getByRole('dialog', { name: 'Edit account', exact: true })
+    await dialog.getByRole('button', { name: 'Delete account', exact: true }).click()
+    await dialog.getByRole('button', { name: 'Continue', exact: true }).click()
+    const typedName = dialog.getByRole('textbox', { name: 'Type "Everyday" to delete.', exact: true })
+    const clickable = dialog.getByRole('button', { name: 'Delete account', exact: true, disabled: false })
+
+    await expect(typedName).toBeVisible()
+    await expect(clickable).toBeVisible()
+    await typedName.fill('Every')
+    await clickable.click()
+    await expect(typedName).toHaveAccessibleDescription("Type the account's name to confirm")
+    await expect(typedName).toHaveAttribute('aria-invalid', 'true')
+    await expect(clickable).toHaveCount(0)
+
+    await typedName.fill('Everyday')
+    await expect(typedName).not.toHaveAttribute('aria-invalid', 'true')
+    await expect(clickable).toBeVisible()
   })
 })

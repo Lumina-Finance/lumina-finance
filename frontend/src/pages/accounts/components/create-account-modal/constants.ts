@@ -1,11 +1,14 @@
 import type { DropdownOption } from '@/components/dropdown/Dropdown'
-import type { CreateAccountFieldErrors, CreateAccountForm } from '@/pages/accounts/components/create-account-modal/types'
+import type { CreateAccountForm, CreateAccountValidatedField } from '@/pages/accounts/components/create-account-modal/types'
 
 export const CREATE_ACCOUNT_EASE = [0.25, 0.1, 0.25, 1] as const
 
 export const CREATE_ACCOUNT_MODAL_FIELD_IDS = {
   accountType: 'account-type',
+  name: 'account-name',
   currency: 'account-currency',
+  startingBalance: 'starting-balance',
+  creditLimit: 'credit-limit',
   institution: 'account-institution',
   taxAdvantagedCategory: 'account-tax-advantaged-category',
 } as const
@@ -33,10 +36,29 @@ export const INITIAL_CREATE_ACCOUNT_FORM: CreateAccountForm = {
   starting_balance: '',
 }
 
-export const ALL_CREATE_ACCOUNT_FIELDS_TOUCHED: Record<keyof CreateAccountFieldErrors, boolean> = {
-  account_type: true,
-  name: true,
-  currency: true,
-  credit_limit: true,
-  starting_balance: true,
+// The validated fields in the order the modal draws them
+export const CREATE_ACCOUNT_VALIDATED_FIELDS: readonly CreateAccountValidatedField[] = [
+  'account_type',
+  'name',
+  'currency',
+  'starting_balance',
+  'credit_limit',
+]
+
+// The control that takes focus for each validated field
+export const CREATE_ACCOUNT_CONTROL_IDS: Record<CreateAccountValidatedField, string> = {
+  account_type: CREATE_ACCOUNT_MODAL_FIELD_IDS.accountType,
+  name: CREATE_ACCOUNT_MODAL_FIELD_IDS.name,
+  currency: CREATE_ACCOUNT_MODAL_FIELD_IDS.currency,
+  starting_balance: CREATE_ACCOUNT_MODAL_FIELD_IDS.startingBalance,
+  credit_limit: CREATE_ACCOUNT_MODAL_FIELD_IDS.creditLimit,
+}
+
+// The id of each validated field's message, which the field points to as its description
+export const CREATE_ACCOUNT_ERROR_IDS: Record<CreateAccountValidatedField, string> = {
+  account_type: 'account-type-error',
+  name: 'account-name-error',
+  currency: 'account-currency-error',
+  starting_balance: 'starting-balance-error',
+  credit_limit: 'credit-limit-error',
 }

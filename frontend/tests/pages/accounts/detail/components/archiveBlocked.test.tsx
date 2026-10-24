@@ -32,7 +32,6 @@ function renderDeletePanel(isArchiveBlocked: boolean) {
       deleteError={null}
       deleteLoading={false}
       isBusy={false}
-      canDelete={false}
       isArchiveBlocked={isArchiveBlocked}
       onArchiveInstead={() => {}}
       onContinue={() => {}}

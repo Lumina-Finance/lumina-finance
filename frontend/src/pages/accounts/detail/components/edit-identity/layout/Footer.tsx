@@ -7,6 +7,9 @@ type EditModalFooterProps = {
   deleteStage: DeleteStage
   isBusy: boolean
   saveLoading: boolean
+
+  /** Why the form can't be saved, once a press found a problem, which fades Save until it is fixed */
+  saveBlockedReason?: string
   onCancel: () => void
   onStartDelete: () => void
 }
@@ -18,6 +21,7 @@ export function EditModalFooter({
   deleteStage,
   isBusy,
   saveLoading,
+  saveBlockedReason,
   onCancel,
   onStartDelete,
 }: EditModalFooterProps) {
@@ -52,7 +56,7 @@ export function EditModalFooter({
           aria-busy={saveLoading}
           className={`app-primary-button overflow-hidden whitespace-nowrap duration-300 ${saveLoading ? 'app-primary-button-loading' : 'w-36'}`}
           disabled={isBusy}
-          disabledReason={deleteInProgressReason}
+          disabledReason={deleteInProgressReason ?? (isBusy ? undefined : saveBlockedReason)}
         >
           {saveLoading ? <span className="app-spinner" /> : 'Save changes'}
         </DisabledReasonButton>

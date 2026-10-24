@@ -112,10 +112,18 @@ test('brings the delete confirmation into view and moves focus through its steps
   await expect(confirmation).toBeInViewport({ ratio: 1 })
   const typedNamePanel = await readSettledScrollingBox(dialog.getByRole('group', { name: `Delete ${ACCOUNT_NAME}?`, exact: true }))
   expect(roomBelow(typedNamePanel), 'room below the panel after Continue').toBeGreaterThanOrEqual(typedNamePanel.paddingBottom)
+  // The panel's button is clickable on open, and the footer's trash button is the other one with this name
   const enabledDelete = dialog.getByRole('button', { name: 'Delete account', exact: true, disabled: false })
+  await expect(enabledDelete).toBeVisible()
+  await enabledDelete.click()
+  await expect(confirmation).toHaveAccessibleDescription("Type the account's name to confirm")
+  await expect(confirmation).toHaveAttribute('aria-invalid', 'true')
   await expect(enabledDelete).toHaveCount(0)
+  // The refused press moved focus to the field, so typing carries on there
+  await expect(confirmation).toBeFocused()
   await page.keyboard.type(ACCOUNT_NAME)
   await expect(enabledDelete).toBeVisible()
+  await expect(confirmation).not.toHaveAttribute('aria-invalid', 'true')
 })
 
 test('focuses Continue when the account is already archived', async ({ page, request }) => {
