@@ -14,6 +14,10 @@ import { contrastRatio, shownFill } from '../support/paint'
 
 const NAV_EXPANDED_KEY = 'lumina:settings:navExpanded'
 
+// The sidebar's widths, as the sidebar spec has them, which a spec cannot import
+const RAIL_WIDTH = 74
+const EXPANDED_WIDTH = 240
+
 // The smallest step between a surface and the same surface under the pointer that shows
 const MINIMUM_HOVER_STEP = 1.05
 
@@ -50,6 +54,27 @@ async function expectFocusBorder(search: Locator) {
     return style.borderTopColor === ring && style.boxShadow.startsWith(ring)
   })).toBe(true)
 }
+
+test('moves focus to a menu item that stays on screen when the sidebar is collapsed from the keyboard', async ({ page, request }) => {
+  await openAs(page, request, 'light', '/accounts')
+  const navigation = page.getByRole('navigation', { name: 'Primary', exact: true })
+  await page.mouse.move(page.viewportSize()!.width - 10, page.viewportSize()!.height - 10)
+
+  await navigation.getByRole('button', { name: 'Collapse sidebar', exact: true }).focus()
+  await page.keyboard.press('Enter')
+  await expect.poll(() => navigation.evaluate((node) => Math.round(node.getBoundingClientRect().width))).toBe(RAIL_WIDTH)
+
+  // Focus is on the first menu item, whose icon shows in the rail with the focus ring, not on the pin
+  // button, which fades out of the rail
+  const focused = navigation.getByRole('link').first()
+  await expect(focused).toBeFocused()
+  expect(await focused.evaluate((node) => node.matches(':focus-visible') && getComputedStyle(node).opacity)).toBe('1')
+  await expect(navigation.getByRole('button', { name: 'Keep sidebar expanded', exact: true })).not.toBeFocused()
+
+  // Moving on to the next menu item previews the full menu again
+  await page.keyboard.press('Tab')
+  await expect.poll(() => navigation.evaluate((node) => Math.round(node.getBoundingClientRect().width))).toBe(EXPANDED_WIDTH)
+})
 
 for (const colorScheme of ['light', 'dark'] as const) {
   test(`turns the checklist search field's border the focus colour in the ${colorScheme} theme`, async ({ page, request }) => {
