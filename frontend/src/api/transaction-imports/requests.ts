@@ -1,4 +1,11 @@
 import { authenticatedFetch } from '@/api/client';
+import {
+  MAX_IMPORT_BATCH_BYTES,
+  MAX_IMPORT_BATCH_ROWS,
+  TARGET_IMPORT_BATCH_BYTES,
+  getJsonByteSize,
+  getNextArrayItemByteSize,
+} from '@/api/shared/importBatchSize';
 import type {
   HeldBankTransactionItem,
   HeldBankTransactionsResponse,
@@ -20,9 +27,36 @@ export function fetchImportSources(signal?: AbortSignal) {
   return authenticatedFetch<SavedAccountImportSource[]>('/transactions/import/sources', { signal });
 }
 
-// Transactions asked about in one request, within the most the API takes and far enough under the
-// request body limit that long bank IDs still fit
-export const HELD_CHECK_REQUEST_ITEMS = 2_000;
+/**
+ * Splits the transactions to ask about into requests that each fit the import request budget
+ *
+ * A part is closed on the row count the API takes and on the bytes of its encoded body, as the
+ * staged batches are, because a bank ID may be up to 100,000 characters and a count alone could
+ * build a body the server refuses
+ */
+export function splitHeldCheckItems(items: HeldBankTransactionItem[]) {
+  const emptyBytes = getJsonByteSize({ items: [] });
+  const parts: HeldBankTransactionItem[][] = [];
+  let part: HeldBankTransactionItem[] = [];
+  let bytes = emptyBytes;
+
+  for (const item of items) {
+    let itemBytes = getNextArrayItemByteSize(part.length, item);
+    if (part.length > 0 && (bytes + itemBytes > TARGET_IMPORT_BATCH_BYTES || part.length >= MAX_IMPORT_BATCH_ROWS)) {
+      parts.push(part);
+      part = [];
+      bytes = emptyBytes;
+      itemBytes = getNextArrayItemByteSize(0, item);
+    }
+    if (part.length === 0 && bytes + itemBytes > MAX_IMPORT_BATCH_BYTES) {
+      throw new Error('One imported row is too large to check safely.');
+    }
+    part.push(item);
+    bytes += itemBytes;
+  }
+  if (part.length > 0) parts.push(part);
+  return parts;
+}
 
 /**
  * Asks which OFX transactions their account already holds, by position in the list sent
@@ -32,13 +66,15 @@ export const HELD_CHECK_REQUEST_ITEMS = 2_000;
  */
 export async function fetchHeldBankTransactions(items: HeldBankTransactionItem[], signal?: AbortSignal) {
   const held: number[] = [];
-  for (let start = 0; start < items.length; start += HELD_CHECK_REQUEST_ITEMS) {
-    const part = await authenticatedFetch<HeldBankTransactionsResponse>('/transactions/import/held-bank-transactions', {
+  let start = 0;
+  for (const part of splitHeldCheckItems(items)) {
+    const answer = await authenticatedFetch<HeldBankTransactionsResponse>('/transactions/import/held-bank-transactions', {
       method: 'POST',
-      body: JSON.stringify({ items: items.slice(start, start + HELD_CHECK_REQUEST_ITEMS) }),
+      body: JSON.stringify({ items: part }),
       signal,
     });
-    held.push(...part.held.map((position) => start + position));
+    held.push(...answer.held.map((position) => start + position));
+    start += part.length;
   }
   return { held };
 }
