@@ -5,12 +5,12 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.bank_transaction_key import seal_bank_transaction_hash
 from app.models.user import User
 from app.permissions.accounts import load_account_access_lookup
-from app.schemas.import_run import HeldBankTransactionsRequest
+from app.schemas.import_run import CheckHeldBankTransactionsRequest
 from app.services.importers.shared.accounts import get_existing_import_account
 from app.services.transactions.bank_transaction_ids import BankTransactionKey, find_held_bank_transactions
 
 
-async def find_held_import_rows(db: AsyncSession, user: User, data: HeldBankTransactionsRequest) -> list[int]:
+async def find_held_import_rows(db: AsyncSession, user: User, data: CheckHeldBankTransactionsRequest) -> list[int]:
     """Return the positions of the transactions whose account already holds their bank transaction
 
     The accounts must be ones the commit would write to, checked the way the commit checks them, so

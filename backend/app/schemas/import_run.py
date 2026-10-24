@@ -209,10 +209,12 @@ class HeldBankTransactionItem(BaseModel):
     bank_transaction: str = Field(min_length=1, max_length=MAX_IMPORT_BANK_TRANSACTION_ID_LENGTH)
 
 
-class HeldBankTransactionsRequest(BaseModel):
-    """The transactions of an OFX import that carry a bank ID, asked about before anything is staged."""
+class CheckHeldBankTransactionsRequest(BaseModel):
+    """A part of the transactions of an OFX import that carry a bank ID, asked about before anything is staged."""
 
-    items: list[HeldBankTransactionItem] = Field(max_length=MAX_IMPORT_ROWS)
+    # One request is bounded as a staged batch is, since 100,000 bank IDs would pass the request body
+    # limit. The page asks about a larger import in parts
+    items: list[HeldBankTransactionItem] = Field(max_length=MAX_IMPORT_BATCH_ROWS)
 
 
 class HeldBankTransactionsResponse(BaseModel):

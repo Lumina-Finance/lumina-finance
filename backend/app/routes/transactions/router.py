@@ -13,8 +13,8 @@ from app.models.import_run import ImportRunSource
 from app.models.user import User
 from app.schemas.import_run import (
     AccountImportSourceResponse,
+    CheckHeldBankTransactionsRequest,
     CsvImportLayoutResponse,
-    HeldBankTransactionsRequest,
     HeldBankTransactionsResponse,
     ImportRunArchiveRequest,
     ImportRunBudgetsRequest,
@@ -190,8 +190,8 @@ async def get_transaction(
 
 
 @router.post("/import/held-bank-transactions", response_model=HeldBankTransactionsResponse)
-async def get_held_bank_transactions(
-    data: HeldBankTransactionsRequest,
+async def check_held_bank_transactions(
+    data: CheckHeldBankTransactionsRequest,
     user: Annotated[User, Depends(get_current_user)],
     db: Annotated[AsyncSession, Depends(get_db)],
 ):
