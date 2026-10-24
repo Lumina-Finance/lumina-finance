@@ -125,10 +125,13 @@ describe('a transaction with no exchange rate', () => {
   }
 
   /** The tone the badge on a day's heading is drawn in, which the badge states on its button */
-  const badgeTone = (markup: string, dateLabel: string) =>
-    new RegExp(`aria-label="FX status for ${dateLabel}"[^>]*data-fx-tone="(\\w+)"`).exec(markup)?.[1]
+  // Reads the tone from the badge's own tag, whatever order its attributes come in
+  const badgeTone = (markup: string, dateLabel: string) => {
+    const tag = new RegExp(`<[^>]*aria-label="FX status for ${dateLabel}"[^>]*>`).exec(markup)?.[0]
+    return tag && /data-fx-tone="(\w+)"/.exec(tag)?.[1]
+  }
 
-  const unavailableCount =(markup: string) => markup.split('FX unavailable').length - 1
+  const unavailableCount = (markup: string) => markup.split('FX unavailable').length - 1
 
   it('marks only the unconverted row and gives its day one FX badge, leaving it out of the total', () => {
     const markup = renderDay([converted, unconverted, zero])
