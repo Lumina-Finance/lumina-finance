@@ -58,16 +58,21 @@ async def replace_excluded_credit_account_ids(
     if requested_ids - readable_account_ids:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Account not found")
     # A card archived since the user opened the list is a different mistake from a chequing account
-    if any(
-        account.id in requested_ids
-        and account.is_archived
-        and account.account_kind == AccountKind.REVOLVING
-        and account.credit_limit is not None
-        for account in accounts
-    ):
+    archived_card = next(
+        (
+            account
+            for account in accounts
+            if account.id in requested_ids
+            and account.is_archived
+            and account.account_kind == AccountKind.REVOLVING
+            and account.credit_limit is not None
+        ),
+        None,
+    )
+    if archived_card is not None:
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
-            detail="This credit account is archived, so it can't count toward credit utilization",
+            detail=f"{archived_card.name} is archived, so it can't count toward credit utilization",
         )
     if requested_ids - credit_account_ids:
         raise HTTPException(

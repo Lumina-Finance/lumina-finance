@@ -242,7 +242,7 @@ async def test_saving_the_choice_refuses_a_card_archived_since_the_list_was_open
     resp = await client.put("/dashboard/credit-utilization/excluded-accounts", json={"account_ids": [archived["id"]]}, headers=headers)
 
     assert resp.status_code == 422
-    assert resp.json()["detail"] == "This credit account is archived, so it can't count toward credit utilization"
+    assert resp.json()["detail"] == "Card A is archived, so it can't count toward credit utilization"
     assert await _count_exclusion_rows() == 0
 
 
