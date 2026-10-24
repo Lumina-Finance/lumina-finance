@@ -1,6 +1,6 @@
 import { X } from 'lucide-react'
 import type { AccountType } from '@/api/accounts'
-import { humanizeAccountType } from '@/pages/accounts/detail/utils/formatAccountType'
+import { humanizeAccountType } from '@/utils/formatAccountType'
 
 type EditModalHeaderProps = {
   accountType: AccountType

@@ -5,7 +5,7 @@ import { MultiSelectChecklist } from '@/components/filters/MultiSelectChecklist'
 import { ModalFormFooter } from '@/components/modal/FormFooter'
 import { ModalTitledPanel } from '@/components/modal/TitledPanel'
 import { resolveInstitutionLogoUrl } from '@/utils/institutionLogo'
-import { humanizeAccountType } from '@/pages/accounts/detail/utils/formatAccountType'
+import { humanizeAccountType } from '@/utils/formatAccountType'
 import {
   getExcludedAccountIds,
   isExclusionChanged,

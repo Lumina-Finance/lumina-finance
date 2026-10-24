@@ -1,3 +1,4 @@
+import { readdirSync } from 'node:fs'
 import js from '@eslint/js'
 import globals from 'globals'
 import reactHooks from 'eslint-plugin-react-hooks'
@@ -39,6 +40,16 @@ const crossFolderRelativeImport = {
   group: ['../*', '../**'],
   message: 'Import through the @/ alias rather than a relative path that leaves the folder',
 }
+
+// A page never imports another page, and shared code never imports a page, so what two pages use lives
+// in shared code. One block per page folder, since a flat config block names the files it covers and a
+// pattern can only exempt the page's own folder by its name
+const pageFolders = readdirSync(new URL('./src/pages', import.meta.url), { withFileTypes: true })
+  .filter((entry) => entry.isDirectory())
+  .map((entry) => entry.name)
+
+const PAGE_IMPORT_MESSAGE = 'A page never imports another page. Move what both use into shared code, such as @/utils or @/components'
+const SHARED_PAGE_IMPORT_MESSAGE = 'Shared code never imports a page. Move what the page owns into shared code, or pass it in'
 
 // Flat config replaces a rule outright rather than merging it, so a block that sets
 // no-restricted-imports has to restate every pattern that should still apply to its files
@@ -164,6 +175,29 @@ export default defineConfig([
     rules: {
       'no-restricted-properties': ['error', ...restrictedProperties],
       'no-restricted-syntax': ['error', ...restrictedStackingLevels, ...restrictedObserverEntries, ...restrictedQueryFns],
+    },
+  },
+  ...pageFolders.map((page) => ({
+    files: [`src/pages/${page}/**/*.{ts,tsx}`],
+    rules: {
+      'no-restricted-imports': [
+        'error',
+        {
+          patterns: [
+            ...restrictedImportPatterns,
+            { group: ['@/pages/*', `!@/pages/${page}`], message: PAGE_IMPORT_MESSAGE },
+          ],
+        },
+      ],
+    },
+  })),
+  {
+    files: ['src/{components,hooks,utils,contexts,constants}/**/*.{ts,tsx}'],
+    rules: {
+      'no-restricted-imports': [
+        'error',
+        { patterns: [...restrictedImportPatterns, { group: ['@/pages/*'], message: SHARED_PAGE_IMPORT_MESSAGE }] },
+      ],
     },
   },
   {

@@ -1,5 +1,5 @@
 import type { LatestBudgetUtilization } from '@/api/budgets'
-import { getBudgetUtilizationLabelPercent } from '@/pages/budgets/utils/utilization'
+import { getBudgetUtilizationLabelPercent } from '@/utils/budgetUtilization'
 import type { TopBudget } from '@/pages/dashboard/types/dashboard'
 
 /**

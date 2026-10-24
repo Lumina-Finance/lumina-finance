@@ -3,7 +3,7 @@ import type { Category } from '@/api/categories'
 import type { BudgetChartPoint } from '@/pages/budgets/components/budget-details-modal/ChartTooltip'
 import { nextRecurringPeriodStart } from '@/pages/budgets/utils/budgetPeriods'
 import { DATE_FORMATS, formatDate, getIsoWeek, getIsoWeekYear, getYmdTime, parseYmd } from '@/utils/date'
-import { getBudgetUtilizationLabelPercent, getBudgetUtilizationPercent } from '@/pages/budgets/utils/utilization'
+import { getBudgetUtilizationLabelPercent, getBudgetUtilizationPercent } from '@/utils/budgetUtilization'
 import { getCategoryColorMap } from '@/utils/chartColor'
 
 const BUDGET_CHART_MAX_PERIODS = 12
