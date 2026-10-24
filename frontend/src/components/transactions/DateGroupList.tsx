@@ -50,6 +50,11 @@ export interface TransactionDateHeadingSelection {
   onPointerLeave: () => void
 }
 
+// A pinned heading is a stacking context of its own, which keeps the FX badge's tooltip inside it, under
+// the list toolbar that sticks above the headings. While a tooltip shows, whether from hover, keyboard
+// focus or a tap that opened it, the heading rises over the toolbar so the tooltip is drawn whole
+const DAY_HEADING_STICKY_CLASS = 'sticky z-20 hover:z-40 focus-within:z-40 has-[[aria-expanded=true]]:z-40'
+
 /**
  * Returns whether a click came from an actual mouse, which is the only input that leaves a pointer
  * resting on the heading afterward for a later move to clear the hover preview. A touch tap and a
@@ -154,8 +159,9 @@ export default function TransactionDateGroupList({
               transition={{ duration: prefersReducedMotion ? 0 : 0.28, ease: TRANSACTION_LIST_EASE }}
             >
             <div
+              data-testid="day-heading"
               ref={!isUpcoming && index === 0 ? measureDayHeading : undefined}
-              className={`${isUpcoming ? 'relative' : 'sticky z-20'} flex items-center justify-between rounded-lg py-2 pr-3 min-[750px]:col-span-full`}
+              className={`${isUpcoming ? 'relative' : DAY_HEADING_STICKY_CLASS} flex items-center justify-between rounded-lg py-2 pr-3 min-[750px]:col-span-full`}
               style={{
                 top: isUpcoming ? undefined : stickyTop,
                 background: 'var(--app-input-bg)',
