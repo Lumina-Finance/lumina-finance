@@ -2,7 +2,7 @@ import { useLayoutEffect, useRef, useState, type RefObject } from 'react'
 import { flushSync } from 'react-dom'
 
 /** Marks the axis labels the width is measured from */
-export const Y_AXIS_LABEL_CLASS_NAME = 'cash-flow-y-axis-label'
+export const Y_AXIS_LABEL_CLASS_NAME = 'insights-y-axis-label'
 
 // Recharts draws each label this far left of the axis line, tick length plus margin, even with the
 // tick lines hidden, so the axis has to be this much wider than its widest label

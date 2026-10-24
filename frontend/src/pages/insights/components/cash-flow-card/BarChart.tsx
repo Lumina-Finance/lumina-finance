@@ -32,7 +32,7 @@ import {
   Y_AXIS_LABEL_CLASS_NAME,
   Y_AXIS_TICK_MARGIN_PX,
   Y_AXIS_TICK_SIZE_PX,
-} from './useFittedYAxisWidth'
+} from '@/pages/insights/hooks/useFittedYAxisWidth'
 
 type CashFlowTooltipState = {
   activeLabel?: string | number

@@ -38,7 +38,7 @@ import { formatRatePercent } from '@/utils/negativeAmount'
 import {
   useFittedYAxisWidth,
   Y_AXIS_LABEL_CLASS_NAME,
-} from '@/pages/insights/components/cash-flow-card/useFittedYAxisWidth'
+} from '@/pages/insights/hooks/useFittedYAxisWidth'
 
 type SavingsRateTooltipState = {
   activeLabel?: string | number

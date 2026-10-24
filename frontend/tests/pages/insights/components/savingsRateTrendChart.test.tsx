@@ -5,7 +5,7 @@
 import { createElement } from 'react'
 import { renderToStaticMarkup } from 'react-dom/server'
 import { describe, expect, it } from 'vitest'
-import { Y_AXIS_LABEL_CLASS_NAME } from '@/pages/insights/components/cash-flow-card/useFittedYAxisWidth'
+import { Y_AXIS_LABEL_CLASS_NAME } from '@/pages/insights/hooks/useFittedYAxisWidth'
 import { SavingsRateYAxisTick } from '@/pages/insights/components/savings-rate-trend-card/Chart'
 
 /** Renders the tick the axis draws for a value */
