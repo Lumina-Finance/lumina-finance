@@ -5,8 +5,8 @@ import { test } from 'node:test'
 // Match Playwright's extensionless TypeScript imports in the native Node contract runner
 registerHooks({
   resolve(specifier, context, nextResolve) {
-    if (specifier === './target' && context.parentURL?.endsWith('/support/api.ts')) {
-      return nextResolve(new URL('./target.ts', context.parentURL).href, context)
+    if (/^\.\/[a-z]+$/.test(specifier) && context.parentURL?.includes('/support/')) {
+      return nextResolve(new URL(`${specifier}.ts`, context.parentURL).href, context)
     }
     return nextResolve(specifier, context)
   },

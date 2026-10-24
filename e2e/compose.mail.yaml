@@ -1,0 +1,21 @@
+# Layered over docker/compose.yml by the pipelines that run the browser suite, so the packaged app
+# delivers its email to a mail catcher the suite can read. Sign-up creates no account until the
+# emailed link is opened, and the suite reads that link from the catcher's API on port 8025.
+# Nothing here is part of the shipped stack.
+services:
+  app:
+    depends_on:
+      mailpit:
+        condition: service_started
+    environment:
+      EMAIL_BACKEND: smtp
+      SMTP_HOST: mailpit
+      SMTP_PORT: "1025"
+      SMTP_USE_TLS: "false"
+      MAIL_FROM: e2e@example.com
+
+  mailpit:
+    image: axllent/mailpit:v1.21
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:8025:8025"

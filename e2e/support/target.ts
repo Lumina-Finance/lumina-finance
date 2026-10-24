@@ -23,6 +23,11 @@ if (configuredApi === '') {
 }
 export const API_BASE_URL = (configuredApi ?? `${BASE_URL}/api`).replace(/\/+$/, '')
 
+// The mail catcher the instance sends its email to, which the suite reads the sign-up confirmation
+// links from. Only specs that sign a user up need it, so it is checked where one asks for it
+const configuredMail = process.env.E2E_MAIL_API_URL
+export const MAIL_API_URL = configuredMail === undefined || configuredMail === '' ? undefined : configuredMail.replace(/\/+$/, '')
+
 for (const [name, value] of [['E2E_BASE_URL', BASE_URL], ['E2E_API_BASE_URL', API_BASE_URL]] as const) {
   try {
     const url = new URL(value)

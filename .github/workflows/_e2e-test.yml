@@ -53,7 +53,7 @@ jobs:
           registry-token: ${{ secrets.DOCKERHUB_TOKEN }}
 
       - name: Start the stack
-        run: docker compose -f docker/compose.yml up -d
+        run: docker compose -f docker/compose.yml -f e2e/compose.mail.yaml up -d
 
       # Overlap E2E setup with application migrations and seeding
       - name: Set up the browser suite
@@ -66,19 +66,20 @@ jobs:
         uses: ./.github/actions/e2e-health
         with:
           health-url: http://localhost:8080/api/health
-          compose-files: -f docker/compose.yml
+          compose-files: -f docker/compose.yml -f e2e/compose.mail.yaml
 
       - name: Run E2E tests
         id: e2e-tests
         working-directory: e2e
         env:
           E2E_BASE_URL: http://localhost:8080
+          E2E_MAIL_API_URL: http://127.0.0.1:8025
         run: npm test -- --project=${{ matrix.project }} --shard=${{ matrix.shard }}/${{ matrix.project == 'desktop' && 4 || 1 }}
 
       # The report shows only what the browser saw, so a failed request is explained by the app's own log
       - name: Dump container logs
         if: failure()
-        run: docker compose -f docker/compose.yml logs || true
+        run: docker compose -f docker/compose.yml -f e2e/compose.mail.yaml logs || true
 
       # Setup failures do not produce an E2E report
       - name: Keep the report from a failed run
@@ -91,7 +92,7 @@ jobs:
 
       - name: Tear down the stack
         if: always()
-        run: docker compose -f docker/compose.yml down -v
+        run: docker compose -f docker/compose.yml -f e2e/compose.mail.yaml down -v
 
   # The packaged image serves the app and the API from one origin, so the tests that need two run
   # here. The frontend is built a second time to reach the API at another address of the same stack,
@@ -157,13 +158,13 @@ jobs:
           EOF
 
       - name: Start the stack
-        run: docker compose -f docker/compose.yml -f docker/compose.cross-origin.yml up -d
+        run: docker compose -f docker/compose.yml -f e2e/compose.mail.yaml -f docker/compose.cross-origin.yml up -d
 
       - name: Wait for the stack
         uses: ./.github/actions/e2e-health
         with:
           health-url: ${{ env.API_URL }}/health
-          compose-files: -f docker/compose.yml -f docker/compose.cross-origin.yml
+          compose-files: -f docker/compose.yml -f e2e/compose.mail.yaml -f docker/compose.cross-origin.yml
 
       - name: Run E2E tests
         id: e2e-tests
@@ -171,11 +172,12 @@ jobs:
         env:
           E2E_BASE_URL: ${{ env.APP_ORIGIN }}
           E2E_API_BASE_URL: ${{ env.API_URL }}
+          E2E_MAIL_API_URL: http://127.0.0.1:8025
         run: npx playwright test --project=cross-origin
 
       - name: Dump container logs
         if: failure()
-        run: docker compose -f docker/compose.yml -f docker/compose.cross-origin.yml logs || true
+        run: docker compose -f docker/compose.yml -f e2e/compose.mail.yaml -f docker/compose.cross-origin.yml logs || true
 
       - name: Keep the report from a failed run
         if: ${{ failure() && steps.e2e-tests.outcome == 'failure' }}
@@ -187,4 +189,4 @@ jobs:
 
       - name: Tear down the stack
         if: always()
-        run: docker compose -f docker/compose.yml -f docker/compose.cross-origin.yml down -v
+        run: docker compose -f docker/compose.yml -f e2e/compose.mail.yaml -f docker/compose.cross-origin.yml down -v

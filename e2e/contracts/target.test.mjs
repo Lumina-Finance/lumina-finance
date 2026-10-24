@@ -11,8 +11,8 @@ const apiBase = 'http://api.example:8000/api'
 // while resolving the extensionless imports used by Playwright's TypeScript loader
 registerHooks({
   resolve(specifier, context, nextResolve) {
-    if (specifier === './target' && context.parentURL?.endsWith('/support/api.ts')) {
-      return nextResolve(new URL('./target.ts', context.parentURL).href, context)
+    if (/^\.\/[a-z]+$/.test(specifier) && context.parentURL?.includes('/support/')) {
+      return nextResolve(new URL(`${specifier}.ts`, context.parentURL).href, context)
     }
     return nextResolve(specifier, context)
   },
@@ -60,6 +60,8 @@ test('missing frontend and invalid supplied targets fail before a run', () => {
 
 process.env.E2E_BASE_URL = frontend
 process.env.E2E_API_BASE_URL = apiBase
+const mailApi = 'http://mail.example:8025'
+process.env.E2E_MAIL_API_URL = mailApi
 const target = await import(targetUrl.href)
 const support = await import('../support/api.ts')
 
@@ -104,7 +106,7 @@ test('readiness refuses API success responses without healthy JSON', async (cont
   await assert.rejects(target.requireAppReachable(), /API not healthy.*health answered "starting"/)
 })
 
-test('every API seeding helper overrides the request context frontend base URL', async () => {
+test('every API seeding helper overrides the request context frontend base URL', async (context) => {
   const calls = []
 
   /** Emulate request URL resolution and server responses without creating application data. */
@@ -112,17 +114,24 @@ test('every API seeding helper overrides the request context frontend base URL',
     const resolved = new URL(url, frontend)
     calls.push({ method, url: resolved.href, options })
     const path = resolved.pathname
-    const body = path.endsWith('/auth/signup') ? { access_token: 'contract-token' }
+    const body = path.endsWith('/auth/signup/confirm') ? { access_token: 'contract-token' }
+      : path.endsWith('/auth/signup') ? null
       : path.endsWith('/categories') ? [{ id: 'category-id', name: 'Groceries' }]
       : path.endsWith('/merchants') ? [{ id: 'merchant-id', name: 'Unknown' }]
       : { id: `${path.split('/').at(-1)}-id` }
     return {
-      status: () => method === 'POST' ? 201 : 200,
+      status: () => path.endsWith('/auth/signup') ? 204 : method === 'POST' ? 201 : 200,
       ok: () => true,
       json: async () => body,
       text: async () => JSON.stringify(body),
     }
   }
+
+  // The mail catcher lists the sign-up email by recipient, with the confirmation link in its text
+  context.mock.method(globalThis, 'fetch', async (url) => new Response(JSON.stringify(
+    url.includes('/api/v1/search') ? { messages: [{ ID: 'mail-id' }] }
+      : { Text: `Confirm: ${frontend}/confirm-email?token=link-token` },
+  )))
 
   const request = {
     get: (url, options) => send('GET', url, options),
@@ -139,6 +148,7 @@ test('every API seeding helper overrides the request context frontend base URL',
 
   assert.deepEqual(calls.map(({ method, url }) => [method, url]), [
     ['POST', `${apiBase}/auth/signup`],
+    ['POST', `${apiBase}/auth/signup/confirm`],
     ['POST', `${apiBase}/accounts`],
     ['GET', `${apiBase}/categories`],
     ['GET', `${apiBase}/merchants`],
@@ -146,7 +156,8 @@ test('every API seeding helper overrides the request context frontend base URL',
     ['GET', `${apiBase}/categories`],
     ['POST', `${apiBase}/base-budgets`],
   ])
-  for (const { options } of calls.slice(1)) {
+  assert.equal(calls[1].options.data.token, 'link-token')
+  for (const { options } of calls.slice(2)) {
     assert.equal(options.headers.Authorization, 'Bearer contract-token')
   }
   assert.equal(calls.at(-1).options.data.recurs, true)

@@ -17,8 +17,6 @@ const RECOVERY_CODE = 'aaaa-bbbb-cccc-dddd-0000'
 async function reachChallenge(page: Page, user: TestUser): Promise<void> {
   await page.goto('/login')
   await page.getByLabel('Email').fill(user.email)
-
-  // Exact, or it also matches the "Confirm password" field the signup form carries
   await page.getByLabel('Password', { exact: true }).fill(user.password)
   await page.getByRole('button', { name: 'Log in' }).click()
   await expect(page.getByLabel('One-time code')).toBeVisible()
