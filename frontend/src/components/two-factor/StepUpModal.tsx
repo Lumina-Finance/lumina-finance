@@ -18,6 +18,9 @@ import { markRecoveryIntent } from '@/utils/recoveryIntent';
 import { delayToMinimum, MFA_LOADING_MIN_MS } from '@/utils/timing';
 import { onUserPress } from '@/utils/userPress';
 
+// Any count of two or more gives the countdown its longest wording, which the lockout allows at most four of
+const LONGEST_COUNTDOWN = 4;
+
 export interface StepUpCredentials {
   /** Empty when the modal does not collect a password */
   password: string;
@@ -384,7 +387,17 @@ export function StepUpModal({
                 />
               )}
 
-              {feedback}
+              {showCodeEntry ? (
+                // The panel is centred, so a message growing the form would move the whole modal. The
+                // longest message this step can show is laid out unseen in the same cell, which keeps the
+                // room for it reserved at every width
+                <div className="grid">
+                  <div aria-hidden className="invisible col-start-1 row-start-1">
+                    <WarningCallout>{`${describeStepUpFailure('passkey', false)} ${buildLockoutWarning(LONGEST_COUNTDOWN)}`}</WarningCallout>
+                  </div>
+                  <div className="col-start-1 row-start-1">{feedback}</div>
+                </div>
+              ) : feedback}
             </form>
 
             {(showCodeEntry || requirePassword || allowRecoveryReset) && (
