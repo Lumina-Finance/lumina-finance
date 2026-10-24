@@ -24,6 +24,11 @@ export default {
       // reachable two ways, z-30 and z-page-overlay among them, which is why the page content is
       // isolated: an in-page number cannot compete with a named level whatever it is set to
       zIndex: toTailwindZIndexTheme(),
+      // The app's ease-out curve for what a shared button changes under the pointer, which Tailwind's default
+      // curve would otherwise carry, as the dropdowns, tooltips and rows do through their own rules
+      transitionTimingFunction: {
+        app: 'cubic-bezier(0.22, 1, 0.36, 1)',
+      },
       colors: {
         gold: '#C9A96A',
         'gold-bright': '#E4C17A',

@@ -55,6 +55,46 @@ async function expectFocusBorder(search: Locator) {
   })).toBe(true)
 }
 
+// The app's ease-out curve, as the browser writes it
+const APP_EASE = 'cubic-bezier(0.22, 1, 0.36, 1)'
+
+// Every shared button class, and the ones that change their width into a spinner and back at 300ms
+const SHARED_BUTTON_CLASSES = [
+  'app-primary-button',
+  'app-secondary-button',
+  'app-danger-button',
+  'app-glass-button',
+  'app-glass-button-primary',
+  'app-glass-icon-button',
+  'app-icon-button',
+  'app-primary-button duration-300',
+  'app-secondary-button duration-300',
+  'app-danger-button duration-300',
+]
+
+test('eases every shared button on the app curve, and not on Tailwind\'s default', async ({ page, request }) => {
+  await openAs(page, request, 'light', '/transactions')
+
+  // A button of each shared class on the page's own stylesheet, and the real Add transaction button
+  const curves = await page.evaluate((classes) => {
+    const read = (node: Element) => getComputedStyle(node).transitionTimingFunction.split(/(?<=\)),\s*/)
+    const found: Record<string, string[]> = {}
+    for (const name of classes) {
+      const button = document.createElement('button')
+      button.className = name
+      document.body.append(button)
+      found[name] = read(button)
+      button.remove()
+    }
+    return found
+  }, SHARED_BUTTON_CLASSES)
+  for (const [name, list] of Object.entries(curves)) expect(new Set(list), name).toEqual(new Set([APP_EASE]))
+
+  const add = page.getByRole('button', { name: 'Add transaction', exact: true }).first()
+  const real = await add.evaluate((node) => getComputedStyle(node).transitionTimingFunction)
+  expect(new Set(real.split(/(?<=\)),\s*/))).toEqual(new Set([APP_EASE]))
+})
+
 test('moves focus to a menu item that stays on screen when the sidebar is collapsed from the keyboard', async ({ page, request }) => {
   await openAs(page, request, 'light', '/accounts')
   const navigation = page.getByRole('navigation', { name: 'Primary', exact: true })
