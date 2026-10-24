@@ -283,7 +283,7 @@ export function StepUpModal({
             <label className="flex items-start gap-2 text-sm" style={{ color: 'var(--app-text-muted)' }}>
               <input
                 type="checkbox"
-                className="mt-0.5 shrink-0"
+                className="app-checkbox mt-0.5 shrink-0"
                 checked={recoveryAcknowledged}
                 onChange={(event) => setRecoveryAcknowledged(event.target.checked)}
                 disabled={resetting}

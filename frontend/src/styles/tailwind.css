@@ -710,6 +710,11 @@
     }
   }
 
+  /* A native checkbox ticks in the accent colour rather than the browser's own blue */
+  .app-checkbox {
+    accent-color: var(--app-accent);
+  }
+
   .app-input {
     @apply h-10 min-w-0 w-full rounded-lg border px-4 py-0 outline-none transition-colors duration-200;
     font-size: 0.9375rem;

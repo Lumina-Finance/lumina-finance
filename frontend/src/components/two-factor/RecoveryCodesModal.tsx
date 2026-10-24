@@ -122,6 +122,7 @@ export function RecoveryCodesModal({
         <label className="flex items-center gap-2 text-sm" style={{ color: 'var(--app-text-muted)' }}>
           <input
             type="checkbox"
+            className="app-checkbox"
             checked={acknowledged}
             onChange={(event) => setAcknowledged(event.target.checked)}
           />
@@ -131,7 +132,7 @@ export function RecoveryCodesModal({
         <label className="flex items-start gap-2 text-sm" style={{ color: 'var(--app-text-muted)' }}>
           <input
             type="checkbox"
-            className="mt-0.5 shrink-0"
+            className="app-checkbox mt-0.5 shrink-0"
             checked={lockoutAcknowledged}
             onChange={(event) => setLockoutAcknowledged(event.target.checked)}
           />

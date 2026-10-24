@@ -51,5 +51,11 @@ test('draws the rail and serif title on the recovery codes dialog', async ({ pag
   await stepUp.getByLabel('One-time code').pressSequentially('123456')
   await stepUp.getByRole('button', { name: 'Regenerate' }).click()
 
-  await expectRailAndSerifTitle(page.getByRole('dialog', { name: 'Your new recovery codes' }), 'Recovery')
+  const codes = page.getByRole('dialog', { name: 'Your new recovery codes' })
+  await expectRailAndSerifTitle(codes, 'Recovery')
+
+  // The browser's own blue tick would be the one colour on the dialog outside the app's palette
+  for (const box of await codes.getByRole('checkbox').all()) {
+    expect(await box.evaluate((input) => getComputedStyle(input).accentColor)).not.toBe('auto')
+  }
 })

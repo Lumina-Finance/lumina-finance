@@ -105,6 +105,7 @@ export function PasskeyEnrollment({ onComplete, onSkip, onSwitchToTotp, setupSte
             <label className="flex items-center gap-2 text-sm" style={{ color: 'var(--app-text-muted)' }}>
               <input
                 type="checkbox"
+                className="app-checkbox"
                 checked={savedAcknowledged}
                 onChange={(event) => setSavedAcknowledged(event.target.checked)}
               />
@@ -114,7 +115,7 @@ export function PasskeyEnrollment({ onComplete, onSkip, onSwitchToTotp, setupSte
             <label className="flex items-start gap-2 text-sm" style={{ color: 'var(--app-text-muted)' }}>
               <input
                 type="checkbox"
-                className="mt-1 shrink-0"
+                className="app-checkbox mt-1 shrink-0"
                 checked={lockoutAcknowledged}
                 onChange={(event) => setLockoutAcknowledged(event.target.checked)}
               />
