@@ -43,12 +43,12 @@ function renderDirections(disabled: boolean) {
   } as unknown as Parameters<typeof ImportDirectionValueTable>[0]))
 }
 
-/** Renders the category table with one row filled in for the user */
-function renderCategories(disabled: boolean) {
+/** Renders the category table with one row filled in for the user, in its answer or only its type */
+function renderCategories(disabled: boolean, filled: 'autoFilled' | 'detailAutoFilled' = 'autoFilled') {
   return renderToStaticMarkup(createElement(ImportValueMatchTable, {
     sourceLabel: 'Category from export',
     targetLabel: 'Existing category',
-    rows: [{ id: 'Food', source: 'Food', value: '', autoFilled: true, onChange: () => undefined }],
+    rows: [{ id: 'Food', source: 'Food', value: '', [filled]: true, onChange: () => undefined }],
     options: [],
     disabled,
   } as unknown as Parameters<typeof ImportValueMatchTable>[0]))
@@ -104,6 +104,11 @@ describe('the glow on a row the table filled in for the user', () => {
 
   it('stays off a category row while the answers are held', () => {
     expect(renderCategories(true)).not.toContain('import-auto-fill')
+  })
+
+  it('shows on a category row whose type alone was filled in, and stays off while the answers are held', () => {
+    expect(renderCategories(false, 'detailAutoFilled')).toContain('import-auto-fill-row')
+    expect(renderCategories(true, 'detailAutoFilled')).not.toContain('import-auto-fill')
   })
 
   it('shows on an account row while the step is open', () => {

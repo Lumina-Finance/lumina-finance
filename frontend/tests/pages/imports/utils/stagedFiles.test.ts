@@ -164,6 +164,31 @@ describe('checking the staged files again after they are read with new choices',
     ])
   })
 
+  // The limit is on all the files held together, so a file that fits beside the first can still be
+  // the one that pushes a later file over it
+  it('counts every file held before a file against the limit, not only the first', () => {
+    const rows = (count: number) => Array.from({ length: count }, () => ({ Date: '2024-03-01', Amount: '-1.00' }))
+
+    const restaged = restageImportFiles([
+      candidate('a.csv', { rows: rows(MAX_IMPORT_ROWS / 2) }),
+      candidate('b.csv', { rows: rows(MAX_IMPORT_ROWS / 2) }),
+      candidate('c.csv'),
+    ])
+
+    expect(errorsOf(restaged)).toEqual([
+      ['a.csv', null],
+      ['b.csv', null],
+      ['c.csv', 'Together the files would have 100,001 rows, and the importer reads up to 100,000.'],
+    ])
+  })
+
+  it('keeps the file that pushes the total size over the limit staged, with the reason as its error', () => {
+    const restaged = restageImportFiles([candidate('a.csv', { size: MAX_IMPORT_FILE_BYTES }), candidate('b.csv')])
+
+    expect(restaged[0].draft.error).toBeNull()
+    expect(restaged[1].draft.error).toMatch(/^Together the files would be .+, and the importer reads up to .+\.$/)
+  })
+
   it('leaves every file as it was when the first one is still unreadable, so its reading can be changed', () => {
     const files = [candidate('a.csv', { error: 'No transactions.' }), candidate('b.csv')]
 
