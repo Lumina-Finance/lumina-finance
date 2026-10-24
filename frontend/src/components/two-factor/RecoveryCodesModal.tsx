@@ -1,8 +1,10 @@
 import { useState } from 'react';
+import { KeyRound } from 'lucide-react';
 import { DisabledReasonButton } from '@/components/tooltips/DisabledReasonButton';
 import { RecoveryCodesPanel, type RecoveryFactors } from '@/components/two-factor/RecoveryCodesPanel';
 import { SetupRestart } from '@/components/two-factor/SetupRestart';
 import { ModalContentFooter, ModalContentPanel } from '@/components/modal/ContentPanel';
+import { MODAL_TITLE_CLASS_NAME } from '@/components/modal/Rail';
 import type { ModalLevel } from '@/components/modal/Shell';
 import { SERVER_UNREACHABLE_MESSAGE } from '@/api/server';
 import { isSetupRefused } from '@/utils/setupFailure';
@@ -98,9 +100,17 @@ export function RecoveryCodesModal({
   };
 
   return (
-    <ModalContentPanel open={open} onClose={handleClose} closeDisabled={confirming} titleId="recovery-codes-title" level={level}>
+    <ModalContentPanel
+      open={open}
+      onClose={handleClose}
+      closeDisabled={confirming}
+      titleId="recovery-codes-title"
+      level={level}
+      RailIcon={KeyRound}
+      railLabel="Recovery"
+    >
       <div className="space-y-1">
-        <h3 id="recovery-codes-title" className="text-base font-semibold">Your new recovery codes</h3>
+        <h3 id="recovery-codes-title" className={MODAL_TITLE_CLASS_NAME}>Your new recovery codes</h3>
         <p className="text-sm" style={{ color: 'var(--app-text-muted)' }}>
           {description}
         </p>

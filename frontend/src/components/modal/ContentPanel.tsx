@@ -1,5 +1,6 @@
 import type { ReactNode } from 'react'
-import { X } from 'lucide-react'
+import { X, type LucideIcon } from 'lucide-react'
+import { ModalRail } from '@/components/modal/Rail'
 import { ModalShell, type ModalLevel } from '@/components/modal/Shell'
 
 // Capped at the viewport so the body scrolls when the content runs tall, such as a long batch of recovery
@@ -8,12 +9,23 @@ import { ModalShell, type ModalLevel } from '@/components/modal/Shell'
 const PANEL_CLASS_NAME = 'flex max-h-[86vh] w-full max-w-sm flex-col'
 const BODY_CLASS_NAME = 'app-modal-body min-h-0 flex-1 space-y-5 overflow-y-auto overscroll-contain px-6 pt-6'
 
+// With a rail the panel is widened by the rail's own width, so the content keeps the room it has without
+// one. The rail clips to the panel's corners
+const RAILED_PANEL_CLASS_NAME = 'flex max-h-[86vh] w-full overflow-hidden'
+const RAILED_WIDTH_CLASS_NAME: Record<ModalLevel, string> = {
+  page: 'max-w-md',
+  stacked: 'max-w-[27rem]',
+}
+
 interface ModalContentPanelProps {
   open: boolean
   onClose: () => void
   /** Id given to the heading inside the content, which is what the dialog is labelled by */
   titleId: string
   level?: ModalLevel
+  /** Icon and label for the rail along the panel's left edge. Left out together by a panel with no rail */
+  RailIcon?: LucideIcon
+  railLabel?: string
   /** Blocks dismissal while an action is in flight */
   closeDisabled?: boolean
   /** Runs once the exit animation has finished, for work that must wait until the modal is fully gone */
@@ -23,27 +35,23 @@ interface ModalContentPanelProps {
 
 /**
  * A modal holding arbitrary content rather than a form, scrolling its body and supplying nothing but the
- * close button
+ * close button and, when asked for, the labelled rail
  */
 export function ModalContentPanel({
   open,
   onClose,
   titleId,
   level = 'page',
+  RailIcon,
+  railLabel,
   closeDisabled = false,
   onExitComplete,
   children,
 }: ModalContentPanelProps) {
-  return (
-    <ModalShell
-      open={open}
-      onClose={onClose}
-      titleId={titleId}
-      panelClassName={`relative ${PANEL_CLASS_NAME}`}
-      level={level}
-      closeDisabled={closeDisabled}
-      onExitComplete={onExitComplete}
-    >
+  const hasRail = Boolean(RailIcon && railLabel)
+
+  const content = (
+    <>
       {/* Backdrop tap and Escape close the modal on desktop, but it goes fullscreen below 1050px where
           neither is reachable, so the close button only shows at that width. It floats over the body on
           the frosted glass of the phone menu button, so the content scrolling under it blurs */}
@@ -58,6 +66,27 @@ export function ModalContentPanel({
       </button>
 
       <div className={BODY_CLASS_NAME}>{children}</div>
+    </>
+  )
+
+  return (
+    <ModalShell
+      open={open}
+      onClose={onClose}
+      titleId={titleId}
+      panelClassName={hasRail
+        ? `relative ${RAILED_PANEL_CLASS_NAME} ${RAILED_WIDTH_CLASS_NAME[level]}`
+        : `relative ${PANEL_CLASS_NAME}`}
+      level={level}
+      closeDisabled={closeDisabled}
+      onExitComplete={onExitComplete}
+    >
+      {RailIcon && railLabel ? (
+        <>
+          <ModalRail level={level} Icon={RailIcon} label={railLabel} />
+          <div className="relative flex min-h-0 min-w-0 flex-1 flex-col">{content}</div>
+        </>
+      ) : content}
     </ModalShell>
   )
 }

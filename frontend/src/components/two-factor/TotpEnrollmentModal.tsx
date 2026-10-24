@@ -1,5 +1,7 @@
+import { ShieldCheck } from 'lucide-react';
 import { TotpEnrollment, TOTP_ENROLLMENT_TITLE_ID } from '@/components/two-factor/TotpEnrollment';
 import { ModalContentPanel } from '@/components/modal/ContentPanel';
+import { MODAL_TITLE_CLASS_NAME } from '@/components/modal/Rail';
 import type { ModalLevel } from '@/components/modal/Shell';
 import type { TotpSetupResponse } from '@/api/two-factor';
 
@@ -21,8 +23,20 @@ interface TotpEnrollmentModalProps {
  */
 export function TotpEnrollmentModal({ open, onClose, onRestart, initialSetup, level = 'page' }: TotpEnrollmentModalProps) {
   return (
-    <ModalContentPanel open={open} onClose={onClose} titleId={TOTP_ENROLLMENT_TITLE_ID} level={level}>
-      <TotpEnrollment onComplete={onClose} onRestart={onRestart} initialSetup={initialSetup} />
+    <ModalContentPanel
+      open={open}
+      onClose={onClose}
+      titleId={TOTP_ENROLLMENT_TITLE_ID}
+      level={level}
+      RailIcon={ShieldCheck}
+      railLabel="Two-factor"
+    >
+      <TotpEnrollment
+        onComplete={onClose}
+        onRestart={onRestart}
+        initialSetup={initialSetup}
+        titleClassName={MODAL_TITLE_CLASS_NAME}
+      />
     </ModalContentPanel>
   );
 }
