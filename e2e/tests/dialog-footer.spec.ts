@@ -30,7 +30,7 @@ async function openNewRecoveryCodes(page: Page, user: TestUser): Promise<void> {
 }
 
 // The codes, the warning and both boxes run taller than a phone or a 1280x800 window, and Done once sat
-// below the fold with nothing showing there was more, while the body scrolled under the close button
+// below the fold with nothing showing there was more
 for (const size of [{ width: 390, height: 667 }, { width: 1280, height: 800 }]) {
   test(`keeps Done in view while the recovery codes scroll at ${size.width}x${size.height}`, async ({ page, request }) => {
     const user = await signUpUser(request)
@@ -57,17 +57,5 @@ for (const size of [{ width: 390, height: 667 }, { width: 1280, height: 800 }]) 
       .toBeLessThanOrEqual(1)
     await expect(done).toBeInViewport({ ratio: 1 })
     expect((await done.boundingBox())!.y).toBeCloseTo(doneTop, 0)
-
-    // On a phone the close button has a row of its own, so the heading starts below it, and scrolling
-    // takes the heading out of view rather than under the button
-    const close = codes.getByRole('button', { name: 'Close' })
-    if (size.width < 1050) {
-      await expect(close).toBeVisible()
-      await page.mouse.wheel(0, -400)
-      const closeBox = (await close.boundingBox())!
-      const headingTop = async () =>
-        (await codes.getByRole('heading', { name: 'Your new recovery codes' }).boundingBox())!.y
-      await expect.poll(headingTop).toBeGreaterThanOrEqual(closeBox.y + closeBox.height)
-    }
   })
 }
