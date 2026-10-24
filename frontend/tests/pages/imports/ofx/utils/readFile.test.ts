@@ -176,6 +176,20 @@ describe('reading a bank statement', () => {
     expect((await readFile(bytes)).statements[0].transactions[0]).toMatchObject({ payee: 'Dépanneur', memo: 'Crème' })
   })
 
+  // An empty tag starting with LOAN is a leaf like any other, so the fields after it stay its siblings
+  it('reads the fields after an empty loan transaction type', async () => {
+    const markup = buildSgmlOfx([{ kind: 'loan', transactions: [{ name: 'Loan payment', amount: '450.00', posted: '20240115120000' }] }])
+      .replace('<LOANTRNTYPE>PAYMENT', '<LOANTRNTYPE>')
+
+    expect((await readFile(markup)).statements[0].transactions[0]).toMatchObject({ date: '2024-01-15', amount: '450.00', payee: 'Loan payment' })
+  })
+
+  it('reads a loan statement whose account type is empty', async () => {
+    const markup = buildSgmlOfx([{ kind: 'loan', transactions: [{}] }]).replace('<LOANACCTTYPE>AUTO', '<LOANACCTTYPE>')
+
+    expect((await readFile(markup)).statements[0].name).toBe('Loan ending 6777')
+  })
+
   it('reads the date a stamp starts with, the amount with a comma decimal, and entities in names', async () => {
     const file = await readFile(buildSgmlOfx([{
       transactions: [{ posted: '20240229235959.000[-5:EST]', amount: '-1234,50', name: 'Fish &amp; Chips &amp;lt;', memo: 'Table &#35;4' }],
