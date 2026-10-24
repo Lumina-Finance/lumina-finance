@@ -103,14 +103,14 @@ export default function NetFlowSummary({
       <div className="mt-3 flex items-center gap-4">
         <span
           className="inline-flex items-center gap-1 font-financial text-sm font-medium"
-          style={{ color: 'var(--app-positive)' }}
+          style={{ color: getSignedAmountColor(inflow) }}
         >
           <ArrowDownLeft size={14} aria-hidden />
           {formatCurrency(inflow, displayCurrency)}
         </span>
         <span
           className="inline-flex items-center gap-1 font-financial text-sm font-medium"
-          style={{ color: 'var(--app-negative)' }}
+          style={{ color: getSignedAmountColor(outflow) }}
         >
           <ArrowUpRight size={14} aria-hidden />
           {formatCurrency(Math.abs(outflow), displayCurrency)}
