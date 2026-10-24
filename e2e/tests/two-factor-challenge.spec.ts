@@ -125,3 +125,20 @@ test('finishes a password reset once the code is filled', async ({ page }) => {
   await expect(page.getByText('Your password has been reset.')).toBeVisible()
   expect(verifyBodies).toEqual([expect.objectContaining({ mfa_token: 'reset-challenge', code: '123456' })])
 })
+
+// The longest link's words take about half the row, so a link at full width is told apart from one hugging them
+const MAX_LINK_SHARE_OF_ROW = 0.75
+
+// A link filling its row draws its keyboard focus ring across the whole row instead of around its words
+test('keeps the links under Verify as wide as their words', async ({ page, request }) => {
+  const user = await signUpUser(request)
+  await enrollTotp(request, user)
+  await reachTwoFactorChallenge(page, user)
+
+  const verifyWidth = (await page.getByRole('button', { name: 'Verify' }).boundingBox())!.width
+  for (const name of ['Enter a recovery code instead', 'Back to login']) {
+    const link = page.getByRole('button', { name })
+    await expect(link).toBeVisible()
+    expect((await link.boundingBox())!.width).toBeLessThan(verifyWidth * MAX_LINK_SHARE_OF_ROW)
+  }
+})
