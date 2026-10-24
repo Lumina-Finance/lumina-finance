@@ -37,7 +37,7 @@ THIS APPLICATION IS PROVIDED “AS IS” AND “AS AVAILABLE,” WITHOUT WARRANT
 
 <!-- markdownlint-disable MD033 -->
 
-https://github.com/user-attachments/assets/ff25a063-eec5-4069-b019-3e0ebb8c7ed9
+https://github.com/user-attachments/assets/de14da6a-c15c-4dfc-ba02-81a9c7140cee
 
 <!-- markdownlint-enable MD033 -->
 
