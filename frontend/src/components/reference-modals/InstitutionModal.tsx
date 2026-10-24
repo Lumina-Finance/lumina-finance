@@ -1,15 +1,20 @@
 import { useState, type FormEvent } from 'react'
-import { AnimatePresence, motion } from 'motion/react'
 import { Building2 } from 'lucide-react'
 import { ApiError } from '@/api/auth'
 import { useCreateInstitution, useUpdateInstitution, type Institution } from '@/api/institutions'
 import Dropdown from '@/components/dropdown/Dropdown'
 import CreateModalFieldLabelRow from '@/components/create-modal/FieldLabelRow'
 import CreateModalSectionFrame from '@/components/create-modal/SectionFrame'
+import { FormError } from '@/components/forms/FormError'
 import { ModalTitledPanel } from '@/components/modal/TitledPanel'
 import { ModalFormFooter } from '@/components/modal/FormFooter'
-import { INSTITUTION_FIELD_IDS } from '@/components/reference-modals/institutionModalConstants'
+import {
+  INSTITUTION_CONTROL_IDS,
+  INSTITUTION_FIELD_IDS,
+  INSTITUTION_FIELDS,
+} from '@/components/reference-modals/institutionModalConstants'
 import { COUNTRY_OPTIONS } from '@/constants/countries'
+import { useRefusedSubmit } from '@/hooks/useRefusedSubmit'
 import { LOADING_ANIMATION_MIN_MS, waitForMilliseconds } from '@/utils/timing'
 
 const INITIAL_FORM = {
@@ -33,12 +38,6 @@ interface InstitutionModalProps {
   institution?: Institution | null
   onClose: () => void
   onSaved: (institution: Institution) => void
-}
-
-const ALL_INSTITUTION_FIELDS_TOUCHED: Record<InstitutionField, boolean> = {
-  name: true,
-  country_code: true,
-  website: true,
 }
 
 /**
@@ -80,34 +79,20 @@ export default function InstitutionModal({
         }
       : { ...INITIAL_FORM, name: initialName }
   ))
-  const [fieldErrors, setFieldErrors] = useState<InstitutionFieldErrors>({})
-  const [touched, setTouched] = useState<Partial<Record<InstitutionField, boolean>>>({})
   const [submitError, setSubmitError] = useState('')
   const [saveInProgress, setSaveInProgress] = useState(false)
   const isSaving = createMutation.isPending || updateMutation.isPending || saveInProgress
+  const refusal = useRefusedSubmit(validateInstitutionForm(form), INSTITUTION_FIELDS, INSTITUTION_CONTROL_IDS)
+  const errors = refusal.errors
 
   const handleChange = (field: InstitutionField, value: string) => {
     setForm((current) => ({ ...current, [field]: value }))
-    if (fieldErrors[field]) {
-      setFieldErrors((current) => ({ ...current, [field]: undefined }))
-    }
     setSubmitError('')
-  }
-
-  const handleBlur = (field: InstitutionField) => {
-    setTouched((current) => ({ ...current, [field]: true }))
-    const errors = validateInstitutionForm(form)
-    setFieldErrors((current) => ({ ...current, [field]: errors[field] }))
   }
 
   const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
-    if (isSaving) return
-
-    const errors = validateInstitutionForm(form)
-    setFieldErrors(errors)
-    setTouched(ALL_INSTITUTION_FIELDS_TOUCHED)
-    if (Object.keys(errors).length > 0) return
+    if (isSaving || !refusal.guard()) return
 
     setSaveInProgress(true)
     const minimumLoading = waitForMilliseconds(LOADING_ANIMATION_MIN_MS)
@@ -130,8 +115,6 @@ export default function InstitutionModal({
     })
   }
 
-  const showError = (field: InstitutionField) => touched[field] && fieldErrors[field]
-
   return (
     <ModalTitledPanel
       open={open}
@@ -152,6 +135,7 @@ export default function InstitutionModal({
         <ModalFormFooter
           submitLabel={isCorrection ? 'Save' : 'Create'}
           submitDisabled={isSaving}
+          submitBlockedReason={refusal.blockedReason}
           submitWidthClassName="w-full sm:w-32"
           level="stacked"
           onCancel={onClose}
@@ -170,26 +154,29 @@ export default function InstitutionModal({
             <p className="flex h-4 items-center text-base font-bold leading-none" style={{ color: 'var(--app-accent)' }}>Identity</p>
 
             <div>
-              <CreateModalFieldLabelRow htmlFor={INSTITUTION_FIELD_IDS.name} label="Name" error={showError('name') || undefined} />
+              <CreateModalFieldLabelRow htmlFor={INSTITUTION_FIELD_IDS.name} label="Name" error={errors.name} errorId={INSTITUTION_FIELD_IDS.nameError} />
               <input
                 id={INSTITUTION_FIELD_IDS.name}
                 type="text"
-                className={`app-input ${showError('name') ? 'app-input-error' : ''}`}
+                className={`app-input ${errors.name ? 'app-input-error' : ''}`}
+                aria-invalid={errors.name ? true : undefined}
+                aria-describedby={errors.name ? INSTITUTION_FIELD_IDS.nameError : undefined}
                 value={form.name}
                 onChange={(event) => handleChange('name', event.target.value)}
-                onBlur={() => handleBlur('name')}
+                onBlur={() => refusal.touch('name')}
                 maxLength={256}
               />
             </div>
 
             <div>
-              <CreateModalFieldLabelRow htmlFor={INSTITUTION_FIELD_IDS.country} label="Country" error={showError('country_code') || undefined} />
+              <CreateModalFieldLabelRow htmlFor={INSTITUTION_FIELD_IDS.country} label="Country" error={errors.country_code} errorId={INSTITUTION_FIELD_IDS.countryError} />
               <Dropdown
                 id={INSTITUTION_FIELD_IDS.country}
                 options={COUNTRY_OPTIONS}
                 value={form.country_code}
                 onChange={(value) => handleChange('country_code', value)}
-                hasError={Boolean(showError('country_code'))}
+                hasError={Boolean(errors.country_code)}
+                describedBy={errors.country_code ? INSTITUTION_FIELD_IDS.countryError : undefined}
                 placeholder="Select country..."
                 searchable
                 searchPlaceholder="Search countries..."
@@ -203,34 +190,23 @@ export default function InstitutionModal({
             <p className="flex h-4 items-center text-base font-bold leading-none" style={{ color: 'var(--app-accent)' }}>Reference</p>
 
             <div>
-              <CreateModalFieldLabelRow htmlFor={INSTITUTION_FIELD_IDS.website} label="Website" error={showError('website') || undefined} />
+              <CreateModalFieldLabelRow htmlFor={INSTITUTION_FIELD_IDS.website} label="Website" error={errors.website} errorId={INSTITUTION_FIELD_IDS.websiteError} />
               <input
                 id={INSTITUTION_FIELD_IDS.website}
                 type="url"
-                className={`app-input ${showError('website') ? 'app-input-error' : ''}`}
+                className={`app-input ${errors.website ? 'app-input-error' : ''}`}
+                aria-invalid={errors.website ? true : undefined}
+                aria-describedby={errors.website ? INSTITUTION_FIELD_IDS.websiteError : undefined}
                 placeholder="https://example.com"
                 value={form.website}
                 onChange={(event) => handleChange('website', event.target.value)}
-                onBlur={() => handleBlur('website')}
+                onBlur={() => refusal.touch('website')}
               />
             </div>
           </div>
         </CreateModalSectionFrame>
 
-        <AnimatePresence>
-          {submitError && (
-            <motion.p
-              className="text-sm font-medium"
-              style={{ color: 'var(--app-negative)' }}
-              initial={{ opacity: 0, y: -4 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -4 }}
-              transition={{ duration: 0.15 }}
-            >
-              {submitError}
-            </motion.p>
-          )}
-        </AnimatePresence>
+        <FormError message={submitError} />
       </div>
     </ModalTitledPanel>
   )

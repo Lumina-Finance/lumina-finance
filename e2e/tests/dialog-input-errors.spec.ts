@@ -1,7 +1,7 @@
 import { expect, test, type Locator, type Page } from '@playwright/test'
 
 import { signUpUser } from '../support/api'
-import { logInViaApi, openPage } from '../support/app'
+import { chooseFromDropdown, logInViaApi, openModal, openPage } from '../support/app'
 import { AT_EVERY_SIZE } from '../support/sizes'
 import { API_BASE_URL } from '../support/target'
 
@@ -78,5 +78,94 @@ test.describe('dialog input errors', () => {
     await field.press('Enter')
     await expect(create).toHaveAttribute('aria-disabled', 'true')
     expect(creations()).toBe(0)
+  })
+
+  test('marks the empty name in the Create merchant dialogue and returns the button once it is filled', AT_EVERY_SIZE, async ({ page, request }) => {
+    const user = await signUpUser(request)
+    await logInViaApi(page, user)
+    await openPage(page, '/settings#merchants')
+    await page.locator('#merchants').getByRole('button', { name: 'Create merchant', exact: true }).click()
+    const dialog = page.getByRole('dialog', { name: 'Create merchant' })
+    const field = dialog.getByRole('textbox', { name: 'Merchant name', exact: true })
+    const create = dialog.getByRole('button', { name: 'Create merchant', exact: true })
+
+    await expect(create).not.toHaveAttribute('aria-disabled', 'true')
+    await expect(dialog.getByRole('alert')).toHaveCount(0)
+
+    await create.click()
+    await expect(dialog.getByRole('alert')).toHaveText('Name is required')
+    await expect(field).toHaveAttribute('aria-invalid', 'true')
+    await expect(field).toHaveAccessibleDescription('Name is required')
+    await expect(create).toHaveAttribute('aria-disabled', 'true')
+
+    await field.fill('Costco')
+    await expect(dialog.getByRole('alert')).toHaveCount(0)
+    await expect(field).not.toHaveAttribute('aria-invalid', 'true')
+    await expect(create).not.toHaveAttribute('aria-disabled', 'true')
+  })
+
+  test('marks the missing icon and name in the Create category dialogue and says the icon first on the button', AT_EVERY_SIZE, async ({ page, request }) => {
+    const user = await signUpUser(request)
+    await logInViaApi(page, user)
+    await openPage(page, '/settings#categories')
+    await page.locator('#categories').getByRole('button', { name: 'Create category', exact: true }).click()
+    const dialog = page.getByRole('dialog', { name: 'Create category' })
+    // Named after the typed category name, so it is found by the words around it
+    const iconBox = dialog.getByRole('button', { name: /^Select .* icon$/ })
+    const name = dialog.getByRole('textbox', { name: 'Category name', exact: true })
+    const create = dialog.getByRole('button', { name: 'Create category', exact: true })
+
+    await expect(create).not.toHaveAttribute('aria-disabled', 'true')
+    await create.click()
+    await expect(iconBox).toHaveAttribute('aria-invalid', 'true')
+    await expect(iconBox).toHaveAccessibleDescription('Choose an icon')
+    await expect(name).toHaveAttribute('aria-invalid', 'true')
+    await expect(name).toHaveAccessibleDescription('Name is required')
+    await expect(create).toHaveAttribute('aria-disabled', 'true')
+    await expect(create).toHaveAccessibleDescription('Choose an icon')
+
+    // Fixing the name alone leaves the icon problem, so the button stays faded
+    await name.fill('Groceries')
+    await expect(name).not.toHaveAttribute('aria-invalid', 'true')
+    await expect(create).toHaveAttribute('aria-disabled', 'true')
+
+    await iconBox.click()
+    await page.getByRole('dialog', { name: 'Select Groceries icon' }).getByRole('button', { name: '😀', exact: true }).click()
+    await expect(iconBox).not.toHaveAttribute('aria-invalid')
+    await expect(create).not.toHaveAttribute('aria-disabled', 'true')
+  })
+
+  test('marks the missing name, country and website in the Add institution dialogue', AT_EVERY_SIZE, async ({ page, request }) => {
+    const user = await signUpUser(request)
+    await logInViaApi(page, user)
+    await openPage(page, '/accounts')
+    const account = await openModal(page, ['Add account'], 'Add account')
+    await account.getByRole('combobox', { name: 'Institution', exact: true }).click()
+    await account.getByRole('button', { name: 'Create institution', exact: true }).click()
+    const dialog = page.getByRole('dialog', { name: 'Add institution' })
+    const create = dialog.getByRole('button', { name: 'Create', exact: true })
+    const name = dialog.getByRole('textbox', { name: 'Name', exact: true })
+    const country = dialog.getByRole('combobox', { name: 'Country', exact: true })
+    const website = dialog.getByRole('textbox', { name: 'Website', exact: true })
+
+    await expect(create).not.toHaveAttribute('aria-disabled', 'true')
+    await expect(dialog.getByRole('alert')).toHaveCount(0)
+
+    await create.click()
+    await expect(dialog.getByRole('alert')).toHaveCount(3)
+    await expect(name).toHaveAccessibleDescription('Name is required')
+    await expect(country).toHaveAttribute('aria-invalid', 'true')
+    await expect(country).toHaveAccessibleDescription('Select a country')
+    await expect(website).toHaveAccessibleDescription('Website is required')
+    await expect(create).toHaveAttribute('aria-disabled', 'true')
+
+    // Each field clears on its own, and the button waits for the last
+    await name.fill('Maple Bank')
+    await website.fill('https://example.com')
+    await expect(dialog.getByRole('alert')).toHaveCount(1)
+    await expect(create).toHaveAttribute('aria-disabled', 'true')
+    await chooseFromDropdown(dialog, 'Country', 'Canada')
+    await expect(dialog.getByRole('alert')).toHaveCount(0)
+    await expect(create).not.toHaveAttribute('aria-disabled', 'true')
   })
 })

@@ -7,8 +7,8 @@ import { AT_EVERY_SIZE } from '../support/sizes'
 // Runs at every size: the Icon box sits beside the name field at every width, a phone included
 
 const LANGUAGES = {
-  English: { icon: 'Icon', name: 'Category name', nameError: 'Name is required', iconError: 'Required' },
-  German: { icon: 'Symbol', name: 'Kategoriename', nameError: 'Name ist erforderlich', iconError: 'Erforderlich' },
+  English: { icon: 'Icon', name: 'Category name', nameError: 'Name is required', iconError: 'Choose an icon' },
+  German: { icon: 'Symbol', name: 'Kategoriename', nameError: 'Name ist erforderlich', iconError: 'Symbol wählen' },
 } as const
 
 async function readBox(locator: Locator) {
@@ -26,7 +26,7 @@ async function translateToGerman(page: Page) {
     swap('label', 'Icon', words.icon)
     swap('label', 'Category name', words.name)
     swap('p', 'Name is required', words.nameError)
-    swap('p', 'Required', words.iconError)
+    swap('p', 'Choose an icon', words.iconError)
   }, german)
 }
 
@@ -58,7 +58,7 @@ for (const [language, words] of Object.entries(LANGUAGES)) {
 
     await dialog.getByRole('button', { name: 'Create category', exact: true }).click()
     await expect(iconBox).toHaveAttribute('aria-invalid', 'true')
-    await expect(iconBox).toHaveAccessibleDescription('Required')
+    await expect(iconBox).toHaveAccessibleDescription('Choose an icon')
     await expect(dialog.getByText('Name is required', { exact: true })).toBeVisible()
     // The errors slide in and fade, so read the boxes once the name error has settled in place
     await expect.poll(() => dialog.getByText('Name is required', { exact: true }).evaluate((node) => getComputedStyle(node).opacity)).toBe('1')
@@ -66,7 +66,8 @@ for (const [language, words] of Object.entries(LANGUAGES)) {
     if (language === 'German') await translateToGerman(page)
 
     // Screen readers get the message, and nothing of it shows: its box is the clipped one-pixel box
-    const iconMessage = dialog.getByText(words.iconError, { exact: true })
+    // The faded Create button's tooltip repeats the first problem, so look only at the alert
+    const iconMessage = dialog.getByRole('alert').getByText(words.iconError, { exact: true })
     await expect(iconMessage).toHaveCount(1)
     const message = await readBox(iconMessage)
     expect(message.width).toBeLessThanOrEqual(1)
