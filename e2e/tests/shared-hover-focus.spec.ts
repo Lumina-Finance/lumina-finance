@@ -36,7 +36,41 @@ async function hoverStep(page: Page, element: Locator): Promise<number> {
   return contrastRatio(rest, await shownFill(element))
 }
 
+/** Waits for a field's frame to turn the focus colour, doubled by an inner shadow, as it does once its input is focused */
+async function expectFocusBorder(search: Locator) {
+  const frame = search.locator('xpath=..')
+  await search.focus()
+  await expect.poll(() => frame.evaluate((node) => {
+    const probe = document.createElement('i')
+    probe.style.color = 'var(--app-focus-ring)'
+    document.body.append(probe)
+    const ring = getComputedStyle(probe).color
+    probe.remove()
+    const style = getComputedStyle(node)
+    return style.borderTopColor === ring && style.boxShadow.startsWith(ring)
+  })).toBe(true)
+}
+
 for (const colorScheme of ['light', 'dark'] as const) {
+  test(`turns the checklist search field's border the focus colour in the ${colorScheme} theme`, async ({ page, request }) => {
+    await page.emulateMedia({ colorScheme })
+    const user = await signUpUser(request)
+    await createAccount(request, user, { name: 'Card A', accountKind: 'revolving', accountType: 'credit_card', startingBalance: -50_000, creditLimit: 500_000 })
+    await logInViaApi(page, user)
+
+    // The credit picker's checklist, and the transaction filters' checklist and merchant search
+    await openPage(page, '/dashboard')
+    await page.getByRole('button', { name: 'Choose credit accounts' }).click()
+    await expectFocusBorder(page.getByRole('dialog', { name: 'Credit utilization' }).getByPlaceholder('Search accounts'))
+
+    await openPage(page, '/transactions')
+    await page.getByRole('button', { name: 'Transaction filters' }).click()
+    await page.getByRole('tab', { name: 'Category' }).click()
+    await expectFocusBorder(page.getByPlaceholder('Search category'))
+    await page.getByRole('tab', { name: 'Merchant' }).click()
+    await expectFocusBorder(page.getByPlaceholder('Search merchant'))
+  })
+
   test(`shows a hover on the Insights category list in the ${colorScheme} theme`, async ({ page, request }) => {
     await page.emulateMedia({ colorScheme })
     const user = await signUpUser(request)

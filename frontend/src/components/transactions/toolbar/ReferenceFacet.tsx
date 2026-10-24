@@ -1,6 +1,7 @@
-import { Check, Search } from 'lucide-react'
+import { Check } from 'lucide-react'
 import { useInfiniteMerchants } from '@/api/merchants'
 import { useInfiniteTags } from '@/api/tags'
+import { SearchField } from '@/components/filters/SearchField'
 import { getFilterOptionListClass, getFilterOptionStyle } from '@/components/filters/optionAppearance'
 import { joinClassNames } from '@/utils/classNames'
 import { useDebouncedReferenceSearch } from '@/components/transactions/transaction-modal/hooks/useDebouncedReferenceSearch'
@@ -42,18 +43,7 @@ export function ReferenceFacet({ kind, selectedValues, selectedLabels, searchPla
 
   return (
     <div className={joinClassNames('flex flex-col gap-1', fillHeight && 'min-h-0 flex-1')}>
-      <div className="app-input grid grid-cols-[2.25rem_minmax(0,1fr)] items-center overflow-hidden px-0 py-0">
-        <span className="pointer-events-none flex h-9 w-9 items-center justify-center">
-          <Search size={14} style={{ color: 'var(--app-text-subtle)' }} aria-hidden />
-        </span>
-        <input
-          type="text"
-          className="h-9 min-w-0 bg-transparent pr-3 text-[0.8125rem] outline-none"
-          placeholder={searchPlaceholder}
-          value={search}
-          onChange={(event) => setSearch(event.target.value)}
-        />
-      </div>
+      <SearchField value={search} placeholder={searchPlaceholder} onChange={setSearch} />
 
       <ul className={getFilterOptionListClass(fillHeight)}>
         {query.isPending ? (
