@@ -5,6 +5,7 @@
 import { createElement } from 'react'
 import { renderToStaticMarkup } from 'react-dom/server'
 import { describe, expect, it } from 'vitest'
+import { Y_AXIS_LABEL_CLASS_NAME } from '@/pages/insights/components/cash-flow-card/useFittedYAxisWidth'
 import { SavingsRateYAxisTick } from '@/pages/insights/components/savings-rate-trend-card/Chart'
 
 /** Renders the tick the axis draws for a value */
@@ -20,5 +21,10 @@ describe('savings rate axis ticks', () => {
     [50, '50%'],
   ])('writes a tick of %s as %s', (value, text) => {
     expect(renderTick(value)).toContain(`>${text}</text>`)
+  })
+
+  // The axis is sized from the drawn labels carrying this class, so "below −999%" is never cut off
+  it('marks each tick as a label the axis width is measured from', () => {
+    expect(renderTick(-1000)).toContain(`class="${Y_AXIS_LABEL_CLASS_NAME}"`)
   })
 })
