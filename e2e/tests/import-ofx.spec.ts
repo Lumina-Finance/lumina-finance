@@ -378,7 +378,7 @@ test('keeps Commit import off while the held-rows check runs or has failed, unti
 
   release()
   const failed = page.getByRole('alert').filter({ hasText: "Couldn't check which transactions are already in the account. Please try again." })
-  await expect(failed).toBeVisible({ timeout: 20_000 })
+  await expect(failed).toBeVisible()
   await expect(commit).toHaveAttribute('aria-disabled', 'true')
   await expect(commit).toHaveAttribute('aria-describedby', (await failed.getAttribute('id'))!)
   await commit.press('Enter')
@@ -392,4 +392,49 @@ test('keeps Commit import off while the held-rows check runs or has failed, unti
   expect(runs).toBe(0)
   expect((await commitImport(page)).status()).toBe(201)
   expect(await countLedgerTransactions(request, user)).toBe(3)
+})
+
+// The rows an import has just saved are in the account, so asking again would flag them all and the
+// finished screen would no longer match what was saved. Undoing the import reopens it, which asks again
+test('keeps the finished import as saved, and asks again once its undo reopens the importer', async ({ page, request }) => {
+  const user = await signUpUser(request)
+  const hardware = { posted: '20240201120000', amount: '-20.00', name: 'Hardware' }
+  await uploadStatement(page, user, buildFile([buildBankMessageSet('CAD', [PAYROLL, { ...hardware, fitId: 'H1' }])]))
+  expect((await commitImport(page)).status()).toBe(201)
+
+  await openPage(page, '/settings/imports')
+  await chooseFromDropdown(page.locator('body'), 'Data source', 'OFX/QFX')
+  let heldChecks = 0
+  page.on('request', (sent) => {
+    if (sent.method() === 'POST' && /\/transactions\/import\/held-bank-transactions$/.test(sent.url())) heldChecks += 1
+  })
+  await page.locator('input[type="file"][accept*=".ofx"]').setInputFiles(statementFile('second.qfx', [PAYROLL, { ...hardware, fitId: 'H2' }]))
+  const alreadyIn = page.getByText(`This transaction is already in ${ACCOUNT_LABEL}.`, { exact: true })
+  await expect(alreadyIn).toBeVisible()
+  const preview = page.locator('section').filter({ has: page.getByText('Preview and commit', { exact: true }) })
+  const figures = preview.getByRole('paragraph').filter({ hasText: /^(Rows|Will create|New accounts|New categories|\d+)$/ })
+  await expect(figures).toHaveText(['Rows', '1', 'Will create', '1', 'New accounts', '0', 'New categories', '0'])
+  expect(heldChecks).toBe(1)
+
+  expect((await commitImport(page)).status()).toBe(201)
+  await page.getByRole('dialog').getByRole('button', { name: 'Review skipped rows', exact: true }).click()
+
+  // The last import card reading the saved import is a fence: the refresh that brought it in would have
+  // asked again at the same time if the importer had not been holding the check off
+  const lastImport = page.getByRole('region', { name: 'Last import' })
+  await expect(lastImport).toContainText('1 transaction')
+  await expect(alreadyIn).toHaveCount(1)
+  await expect(figures).toHaveText(['Rows', '1', 'Will create', '1', 'New accounts', '0', 'New categories', '0'])
+  expect(heldChecks).toBe(1)
+
+  await page.getByRole('button', { name: 'Undo import of second.qfx', exact: true }).click()
+  await page.getByRole('dialog', { name: 'Undo this import?' }).getByRole('button', { name: 'Undo import', exact: true }).click()
+
+  // The importer is back with its files, asks again and is answered: the hardware row is new again
+  // and the payroll one is still held by the first import
+  await expect.poll(() => heldChecks).toBe(2)
+  await expect(alreadyIn).toHaveCount(1)
+  await expect(figures).toHaveText(['Rows', '1', 'Will create', '1', 'New accounts', '0', 'New categories', '0'])
+  await expect(page.getByRole('button', { name: 'Commit import', exact: true })).toBeEnabled()
+  expect(await countLedgerTransactions(request, user)).toBe(2)
 })

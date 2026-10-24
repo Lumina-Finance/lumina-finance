@@ -92,10 +92,6 @@ export function useOfxImportWorkflow(fixedAccount: AccountsOverview | null = nul
   const isProcessingFile = fileIntake.processingKind !== null
   const fileIntakeError = fileIntake.intakeErrors.statement
   const [accountMappings, setAccountMappings] = useState<Record<string, string>>({})
-
-  // Set as an import starts, so the held-rows check stops being asked the moment the import it
-  // belongs to begins writing, and the rows it just saved are never read back as already held
-  const [hasStartedImport, setHasStartedImport] = useState(false)
   const {
     accountCreateTypes,
     accountCreateCurrencies,
@@ -205,7 +201,10 @@ export function useOfxImportWorkflow(fixedAccount: AccountsOverview | null = nul
     () => (ofxFile ? buildOfxHeldCheck(ofxFile, stagedFiles.map(({ id }) => id), resolvedAccountMappings, accountById) : null),
     [accountById, ofxFile, resolvedAccountMappings, stagedFiles],
   )
-  const isHeldCheckPaused = hasStartedImport && (run.workflow.importOverlayOpen || run.workflow.isImportInFlight || run.workflow.importResult !== null)
+  // Not asked from the moment an import starts until it is reopened or replaced, so the rows it just
+  // saved are never read back as already held. The run state turns on as the import starts, before
+  // anything is saved, and undoing the import reopens it, which asks again
+  const isHeldCheckPaused = run.workflow.importOverlayOpen || run.workflow.isImportInFlight || run.workflow.importResult !== null
   const heldQuery = useHeldBankTransactions(heldCheck?.scope ?? null, heldCheck?.items ?? [], isHeldCheckPaused)
   const isHeldCheckAsked = heldCheck?.scope != null && !isHeldCheckPaused
   const heldRowIds = useMemo(
@@ -284,7 +283,6 @@ export function useOfxImportWorkflow(fixedAccount: AccountsOverview | null = nul
 
   const resetAnswers = () => {
     setAccountMappings({})
-    setHasStartedImport(false)
     resetAccountCreateState()
     run.resetImportRun()
   }
@@ -338,7 +336,6 @@ export function useOfxImportWorkflow(fixedAccount: AccountsOverview | null = nul
     const payload = importBuild.payload
     if (!payload || !canCommitImport) return
 
-    setHasStartedImport(true)
     await run.startImport(importBuild.skippedRows, 0, {
       upload: (signal, onStaged) => importTransactions.mutateAsync({
         payload,
