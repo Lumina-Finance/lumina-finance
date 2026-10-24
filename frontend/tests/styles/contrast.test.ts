@@ -4,7 +4,8 @@
  */
 import { describe, expect, it } from 'vitest'
 import { FX_TONE_CLASS } from '@/components/tooltips/fxToneClass'
-import { contrast, paint, THEMES, type Rgb, type Theme, type Tokens } from './fixtures'
+import { IMPORT_INSET_STYLE } from '@/pages/imports/constants'
+import { contrast, paint, stylesheet, THEMES, type Rgb, type Theme, type Tokens } from './fixtures'
 
 // WCAG AA for text under 18.66px bold or 24px regular, which covers every label this file checks
 const MINIMUM_TEXT_CONTRAST = 4.5
@@ -373,5 +374,43 @@ describe('selected row text on the page colour', () => {
 
   it('keeps the dark theme on the plain accent, which already passes', () => {
     expect(resolve(THEMES.dark, '--app-accent-on-page-tint')).toEqual(resolve(THEMES.dark, '--app-accent'))
+  })
+})
+
+describe('hover on shaded surfaces', () => {
+  // The smallest step between a surface and the same surface under the pointer that shows, where the flat light
+  // hover colour is 1.0 on the card and about 1.01 on the import panel
+  const MINIMUM_HOVER_STEP = 1.05
+
+  /** The token a rule's hover fill points at, which everything inside the rule takes under the pointer */
+  function hoverFillOf(selector: string): string {
+    let found: string | undefined
+    stylesheet.walkRules(selector, (rule) => rule.walkDecls('--app-hover-fill', (declaration) => { found = declaration.value }))
+    return /^var\((--[\w-]+)\)$/.exec(found ?? '')![1]
+  }
+
+  const SHADED = [
+    { surface: 'card', token: hoverFillOf('.app-card'), backdrop: (tokens: Tokens) => solid(tokens, '--app-surface-soft') },
+    { surface: 'sidebar', token: hoverFillOf('.app-desktop-nav'), backdrop: (tokens: Tokens) => solid(tokens, '--app-nav-bg') },
+    {
+      surface: 'import panel',
+      token: /^var\((--[\w-]+)\)$/.exec(String((IMPORT_INSET_STYLE as Record<string, unknown>)['--app-hover-fill']))![1],
+      backdrop: (tokens: Tokens) => surfaces(tokens)['import panel'],
+    },
+  ]
+
+  const cases = (Object.keys(THEMES) as Theme[]).flatMap((theme) => SHADED.map((shaded) => ({ theme, ...shaded })))
+
+  it.each(cases)('shows against the $surface in the $theme theme', ({ theme, token, backdrop }) => {
+    const tokens = THEMES[theme]
+    expect(contrast(washOver(tokens, token, backdrop(tokens)), backdrop(tokens))).toBeGreaterThanOrEqual(MINIMUM_HOVER_STEP)
+  })
+
+  it('has the shared icon button take the fill of the surface it sits on', () => {
+    let background: string | undefined
+    stylesheet.walkRules((rule) => {
+      if (rule.selectors.includes('.app-icon-button:hover')) rule.walkDecls('background', (declaration) => { background = declaration.value })
+    })
+    expect(background).toBe('var(--app-hover-fill)')
   })
 })

@@ -33,6 +33,10 @@
        shows the same on it, where the flat value nearly vanishes. A wash of the text colour, light enough
        that subtle text on it keeps its contrast */
     --app-hover-on-surface-soft: color-mix(in srgb, var(--app-text) 5%, transparent);
+    /* What a control or row takes under the pointer: the flat hover colour on the page, where it shows, and
+       the wash on a surface shaded like the card, which a surface sets for what it holds. Kept apart from
+       --app-hover-soft so the loading skeletons' shimmer, which reads that one, is unchanged on a card */
+    --app-hover-fill: var(--app-hover-soft);
 
     --app-border: #4b37231c;
     --app-border-strong: #4b372333;
@@ -384,6 +388,7 @@
     height: calc(100vh - 2.5rem);
     overflow: hidden;
     background: var(--app-nav-bg);
+    --app-hover-fill: var(--app-hover-on-surface-soft);
     border: 1px solid var(--app-border);
     box-shadow: var(--app-shadow-soft);
     /* A resting zero blur so the frosted collapsed state can ease its blur in and out rather than
@@ -2313,7 +2318,7 @@
   .app-icon-button:hover,
   .app-icon-button:focus-visible {
     color: var(--app-text);
-    background: var(--app-hover-soft);
+    background: var(--app-hover-fill);
     border-color: var(--app-border);
   }
 
@@ -2482,6 +2487,7 @@
     @apply rounded-2xl border p-4;
     background: var(--app-surface-soft);
     border-color: var(--app-border);
+    --app-hover-fill: var(--app-hover-on-surface-soft);
   }
 
   .app-marquee-text-track {

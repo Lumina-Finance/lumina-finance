@@ -46,7 +46,7 @@ export default function CategorySettingsGroup({
     <div>
       <button
         type="button"
-        className="flex h-11 w-full items-center gap-3 rounded-md text-left transition-colors hover:bg-[var(--app-hover-soft)] motion-reduce:transition-none"
+        className="flex h-11 w-full items-center gap-3 rounded-md text-left transition-colors hover:bg-[var(--app-hover-fill)] motion-reduce:transition-none"
         onClick={onToggle}
         aria-expanded={expanded}
       >

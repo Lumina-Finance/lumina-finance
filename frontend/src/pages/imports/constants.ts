@@ -752,9 +752,11 @@ export const ACCOUNT_TYPE_OPTIONS: DropdownOption[] = [
   { value: 'mortgage', label: 'Mortgage', group: 'Amortizing debt' },
 ]
 
-export const IMPORT_INSET_STYLE: CSSProperties = {
+// The panel is nearly the colour of the flat light hover, so what it holds takes the hover made for a shaded surface
+export const IMPORT_INSET_STYLE = {
   background: 'color-mix(in srgb, var(--app-input-bg) 58%, var(--app-bg))',
-}
+  '--app-hover-fill': 'var(--app-hover-on-surface-soft)',
+} as CSSProperties
 
 // The shade of a table row the import leaves out, which stays listed so it can be brought back
 export const IMPORT_EXCLUDED_ROW_BACKGROUND = 'color-mix(in srgb, var(--app-bg) 88%, var(--app-text) 12%)'
