@@ -521,7 +521,7 @@ describe('a transaction that its account already holds from an earlier import', 
     expect(build.skippedRows.map(({ payee, reason }) => ({ payee, reason }))).toEqual([
       { payee: 'Payroll', reason: getOfxAlreadyInAccountReason('Chequing') },
     ])
-    expect(getOfxAlreadyInAccountReason('Chequing')).toBe('Already in Chequing')
+    expect(getOfxAlreadyInAccountReason('Chequing')).toBe('This transaction is already in Chequing.')
   })
 
   it('is left out of the sample rows the preview shows', async () => {

@@ -76,7 +76,7 @@ export function getOfxRepeatedTransactionReason(fileName: string) {
 
 /** Says why a transaction is left out when its account already holds it from an earlier import */
 export function getOfxAlreadyInAccountReason(accountName: string) {
-  return `Already in ${accountName}`
+  return `This transaction is already in ${accountName}.`
 }
 
 /** Said beside Commit import while the server is asked which transactions the accounts already hold */

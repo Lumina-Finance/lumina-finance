@@ -333,7 +333,7 @@ test('flags a transaction the account already holds in the preview, and the save
   const preview = page.locator('section').filter({ has: page.getByText('Preview and commit', { exact: true }) })
   await expect(preview.getByRole('paragraph').filter({ hasText: /^(Rows|Will create|New accounts|New categories|\d+)$/ }))
     .toHaveText(['Rows', '1', 'Will create', '1', 'New accounts', '0', 'New categories', '0'])
-  await expect(page.getByText(`Already in ${ACCOUNT_LABEL}`, { exact: true })).toBeVisible()
+  await expect(page.getByText(`This transaction is already in ${ACCOUNT_LABEL}.`, { exact: true })).toBeVisible()
   await expect(page.getByText('Payroll', { exact: true }).first()).toBeVisible()
 
   expect((await commitImport(page)).status()).toBe(201)
@@ -385,7 +385,7 @@ test('keeps Commit import off while the held-rows check runs or has failed, unti
 
   await page.unroute(heldPath)
   await page.getByRole('button', { name: 'Try again', exact: true }).click()
-  await expect(page.getByText(`Already in ${ACCOUNT_LABEL}`, { exact: true })).toBeVisible()
+  await expect(page.getByText(`This transaction is already in ${ACCOUNT_LABEL}.`, { exact: true })).toBeVisible()
   await expect(commit).toBeEnabled()
 
   // The presses while it was off started nothing, and the first import that does start leaves the held row out
