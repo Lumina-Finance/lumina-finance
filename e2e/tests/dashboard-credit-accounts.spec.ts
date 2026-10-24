@@ -99,6 +99,24 @@ test('shows its own empty state once every card is left out, and brings a card b
   await expect(page.getByText('No accounts selected')).toBeHidden()
 })
 
+test('keeps the chooser its height while a search matches no card', async ({ page, request }) => {
+  const user = await signUpUser(request)
+  for (const name of ['Card A', 'Card B', 'Card C']) await createCard(request, user, name, 50_000, 500_000)
+
+  await logInViaApi(page, user)
+  await openPage(page, '/dashboard')
+  const dialog = await openChooser(page)
+  await expect(dialog.getByRole('checkbox', { name: 'Card C' })).toBeVisible()
+  // The layout height, which the dialog's entrance scaling does not change
+  const heightOf = () => dialog.evaluate((panel) => (panel as HTMLElement).offsetHeight)
+  const full = await heightOf()
+  expect(full).toBeGreaterThan(300)
+
+  await dialog.getByPlaceholder('Search accounts').fill('zzzz')
+  await expect(dialog.getByText('No matches')).toBeVisible()
+  await expect.poll(heightOf).toBe(full)
+})
+
 test('cuts a long card name off inside the chooser instead of widening it past its panel', AT_EVERY_SIZE, async ({ page, request }) => {
   const user = await signUpUser(request)
   const longName = 'A card named for the whole product design and research team across all travel and events in a very long year'

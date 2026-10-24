@@ -4,6 +4,7 @@ import { useReplaceCreditExcludedAccounts, type CreditUtilizationAccount } from 
 import { MultiSelectChecklist } from '@/components/filters/MultiSelectChecklist'
 import { ModalFormFooter } from '@/components/modal/FormFooter'
 import { ModalTitledPanel } from '@/components/modal/TitledPanel'
+import { useHeldMinHeight } from '@/hooks/useHeldMinHeight'
 import { resolveInstitutionLogoUrl } from '@/utils/institutionLogo'
 import { humanizeAccountType } from '@/utils/formatAccountType'
 import {
@@ -30,6 +31,9 @@ export function CreditAccountsModal({ open, accounts, onClose }: CreditAccountsM
   const [draft, setDraft] = useState<Set<string> | null>(null)
   const [isSaving, setIsSaving] = useState(false)
   const [saveError, setSaveError] = useState<string | null>(null)
+
+  // A search that matches nothing empties the list, which would shrink a dialog sized by it
+  const [listBoxRef, listBoxMinHeight] = useHeldMinHeight<HTMLDivElement>()
   const serverExcluded = useMemo(() => getExcludedAccountIds(accounts), [accounts])
   const excluded = draft ?? serverExcluded
   const includedIds = useMemo(
@@ -113,7 +117,7 @@ export function CreditAccountsModal({ open, accounts, onClose }: CreditAccountsM
     >
       {/* The list takes the room left in a full-screen dialog and scrolls within it. Where the dialog is sized by its
           content it grows with the list up to the panel's own height limit, and then the body scrolls */}
-      <div className="flex h-full flex-col">
+      <div ref={listBoxRef} className="flex h-full flex-col" style={{ minHeight: listBoxMinHeight }}>
         <div className="flex h-4 shrink-0 items-center justify-between gap-4">
           <p className="text-base font-bold leading-none" style={{ color: 'var(--app-accent)' }}>
             Choose accounts
