@@ -40,16 +40,17 @@ export function getCashFlowBarData(
     buckets: (response?.points ?? []).map(([bucketStart, bucketEnd, inflow, outflow]): CashFlowBarBucket => {
       const firstDate = parseYmd(bucketStart)
       const lastDate = parseYmd(bucketEnd)
-      // Weekly bars are labelled by their month too, since a week number is hard to place. The
-      // tooltip's range gives each bar's dates
-      const label = granularity === 'day'
-        ? (firstDate ? formatDate(firstDate, DATE_FORMATS.monthDay) : bucketStart)
-        : firstDate ? formatDate(firstDate, DATE_FORMATS.month) : bucketStart
+      // Weekly bars are labelled by the day their week starts, since a week number is hard to place and
+      // several weeks of one month would repeat its name, which the tooltip lookup by label also needs to
+      // be unique. The tooltip's range gives each bar's dates
+      const label = granularity === 'month'
+        ? (firstDate ? formatDate(firstDate, DATE_FORMATS.month) : bucketStart)
+        : (firstDate ? formatDate(firstDate, DATE_FORMATS.monthDay) : bucketStart)
       const rangeLabel = firstDate && lastDate && firstDate.getTime() === lastDate.getTime()
         ? formatDate(firstDate, DATE_FORMATS.monthDay)
         : firstDate && lastDate
-          ? `${formatDate(firstDate, DATE_FORMATS.monthDay)}-${formatDate(lastDate, DATE_FORMATS.monthDay)}`
-          : `${bucketStart}-${bucketEnd}`
+          ? `${formatDate(firstDate, DATE_FORMATS.monthDay)}–${formatDate(lastDate, DATE_FORMATS.monthDay)}`
+          : `${bucketStart}–${bucketEnd}`
 
       return {
         label,
