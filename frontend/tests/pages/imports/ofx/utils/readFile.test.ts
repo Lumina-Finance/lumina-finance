@@ -180,6 +180,27 @@ describe('reading a bank statement', () => {
     })
   })
 
+  // A dash taken for text would leave the amount unreadable or bring money out in as money in
+  it.each([
+    ['a Unicode hyphen', '‐', '-5.00'],
+    ['an en dash', '–', '-5.00'],
+    ['an em dash', '—', '-5.00'],
+    ['a true minus', '−', '-5.00'],
+    ['a fullwidth hyphen-minus', '－', '-5.00'],
+    ['a plus sign', '+', '5.00'],
+  ])('reads %s before an amount as its sign', async (_name, sign, expected) => {
+    // Version 2 is UTF-8, where these characters survive decoding that 1.x's Windows-1252 would mangle
+    const file = await readFile(buildXmlOfx([{ transactions: [{ amount: `${sign}5.00` }] }]))
+
+    expect(file.statements[0].transactions[0].amount).toBe(expected)
+  })
+
+  it('leaves an amount with a dash anywhere but first unreadable', async () => {
+    const file = await readFile(buildXmlOfx([{ transactions: [{ amount: '5–5.00' }, { amount: '5.00−' }] }]))
+
+    expect(file.statements[0].transactions.map(({ amount }) => amount)).toEqual([null, null])
+  })
+
   it('keeps a transaction with an unreadable date or amount, with that value left null', async () => {
     const file = await readFile(buildSgmlOfx([{
       transactions: [

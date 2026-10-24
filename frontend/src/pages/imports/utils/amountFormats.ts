@@ -48,7 +48,7 @@ const ALL_SPACE_GROUPING_PATTERN = /[ \u00a0\u202f]/g
 // Every character a bank or a spreadsheet writes as a minus: the hyphen-minus, the Unicode hyphens,
 // the figure, en and em dashes, the horizontal bar, the minus sign and their small and fullwidth
 // forms. Each reads as a minus, since one taken for text would bring money out in as money in
-const MINUS_CHARACTERS = '\\-\\u2010-\\u2015\\u2212\\uFE58\\uFE63\\uFF0D'
+export const MINUS_CHARACTERS ='\\-\\u2010-\\u2015\\u2212\\uFE58\\uFE63\\uFF0D'
 const MINUS_PATTERN = new RegExp(`^[${MINUS_CHARACTERS}]$`, 'u')
 const SIGN_CHARACTERS = `+${MINUS_CHARACTERS}`
 const EXTRA_SIGN_PATTERN = new RegExp(`[${SIGN_CHARACTERS}]`, 'u')
