@@ -10,10 +10,11 @@ import BudgetEditorModalScopeSection from '@/pages/budgets/components/budget-edi
 import BudgetEditorModalShell from '@/pages/budgets/components/budget-editor-modal/layout/Shell'
 import type { BudgetEditorModalErrorGetter, BudgetEditorModalFieldIds, BudgetEditorModalHandlers, BudgetEditorModalOptions, BudgetEditorModalViewState } from '@/pages/budgets/components/budget-editor-modal/types'
 import { CREATE_BUDGET_MIN_LOADING_MS, MODAL_SURFACE_TRANSITION_MS } from '@/pages/budgets/constants'
-import { useRevealFirstRefusedField } from '@/pages/budgets/hooks/useRevealFirstRefusedField'
-import type { BudgetFormFieldErrors, BudgetFormState } from '@/pages/budgets/types'
+import { useRefusedSubmit } from '@/hooks/useRefusedSubmit'
+import type { BudgetFormState } from '@/pages/budgets/types'
 import { recurrenceAnchorsFromStart } from '@/pages/budgets/utils/budgetPeriods'
 import { validateBudgetCreateForm } from '@/pages/budgets/utils/budgetCreateValidation'
+import { BUDGET_FORM_FIELD_ORDER, getBudgetControlIds } from '@/pages/budgets/utils/form'
 import { getTodayYmd } from '@/utils/date'
 import { currencySymbol, toMinorUnits } from '@/pages/budgets/utils/money'
 import { waitForMilliseconds } from '@/utils/timing'
@@ -28,7 +29,6 @@ const CREATE_FIELD_IDS: BudgetEditorModalFieldIds = {
   frequency: 'budget-frequency',
   periodStart: 'budget-period-start',
   categorySearch: 'budget-category-search',
-  categoryError: 'categoryIds-error',
 }
 
 /**
@@ -52,7 +52,6 @@ export default function BudgetCreateModal({
   onCreated: () => void
 }) {
   const createBaseBudget = useCreateBaseBudget()
-  const revealFirstRefusedField = useRevealFirstRefusedField(CREATE_FIELD_IDS)
 
   const initialForm = useMemo<BudgetFormState>(() => ({
     name: '',
@@ -71,12 +70,17 @@ export default function BudgetCreateModal({
     [categories],
   )
   const [formError, setFormError] = useState<string | null>(null)
-  const [fieldErrors, setFieldErrors] = useState<BudgetFormFieldErrors>({})
-  const [touched, setTouched] = useState<Record<string, boolean>>({})
+  // The fields the user has changed, so leaving one the dialog only focused, such as Name on opening, never flags it
   const [changed, setChanged] = useState<Record<string, boolean>>({})
   const [categorySearch, setCategorySearch] = useState('')
   const [form, setForm] = useState<BudgetFormState>(initialForm)
   const [createInProgress, setCreateInProgress] = useState(false)
+  const refusal = useRefusedSubmit(
+    validateBudgetCreateForm(form, currencies, expenseCategories),
+    BUDGET_FORM_FIELD_ORDER,
+    getBudgetControlIds(CREATE_FIELD_IDS),
+  )
+  const resetRefusal = refusal.reset
 
   const isPending = createBaseBudget.isPending || createInProgress
   const filteredExpenseCategories = useMemo(() => {
@@ -87,29 +91,25 @@ export default function BudgetCreateModal({
   const limitMinorUnits = toMinorUnits(form.limit, currencies, form.currency)
   const isLimitLocked = findCurrencyExponent(currencies, form.currency) === null
   const instanceLength = form.recurs ? Number(form.instanceLength) : 1
-  const hasSelectedExpenseCategory = form.categoryIds.some((categoryId) =>
-    expenseCategories.some((category) => category.id === categoryId),
-  )
-  const state: BudgetEditorModalViewState = { form, formError, fieldErrors, touched, categorySearch }
+  const state: BudgetEditorModalViewState = { form, categorySearch }
   const options: BudgetEditorModalOptions = {
     categories: expenseCategories,
     filteredCategories: filteredExpenseCategories,
     currencies,
   }
-  const showError: BudgetEditorModalErrorGetter = (field) => touched[field] ? fieldErrors[field] : undefined
+  const showError: BudgetEditorModalErrorGetter = (field) => refusal.errors[field]
 
   /**
    * Restores the create form to the latest default currency and local start date
    */
   const resetFormState = useCallback(() => {
     setForm(initialForm)
-    setFieldErrors({})
-    setTouched({})
+    resetRefusal()
     setChanged({})
     setFormError(null)
     setCategorySearch('')
     setCreateInProgress(false)
-  }, [initialForm])
+  }, [initialForm, resetRefusal])
 
   /**
    * Delays reset until the modal exit animation finishes so fields do not flash
@@ -133,25 +133,12 @@ export default function BudgetCreateModal({
   }, [closeAndReset, open])
 
   /**
-   * Clears field and form-level errors after a user changes the related input
-   */
-  const clearError = (field: keyof BudgetFormFieldErrors) => {
-    setFieldErrors((current) => ({ ...current, [field]: undefined }))
-    setFormError(null)
-  }
-
-  /**
-   * Updates a form field and clears validation errors tied to that field
+   * Updates a form field and clears the failure of an earlier save, which the change may have fixed
    */
   const setField = <K extends keyof BudgetFormState>(key: K, value: BudgetFormState[K]) => {
     setForm((current) => ({ ...current, [key]: value }))
     setChanged((current) => ({ ...current, [key]: true }))
-    if (key === 'name') clearError('name')
-    if (key === 'currency') clearError('currency')
-    if (key === 'limit') clearError('limit')
-    if (key === 'instanceLength') clearError('instanceLength')
-    if (key === 'periodStart') clearError('periodStart')
-    if (key === 'recurs') clearError('instanceLength')
+    setFormError(null)
   }
 
   /**
@@ -163,11 +150,11 @@ export default function BudgetCreateModal({
       return
     }
     setForm((current) => ({ ...current, recurs: false, instanceLength: '1' }))
-    clearError('instanceLength')
+    setFormError(null)
   }
 
   /**
-   * Toggles tracked categories and clears category validation once the user acts
+   * Toggles tracked categories
    */
   const toggleCategory = (categoryId: string) => {
     setForm((current) => ({
@@ -176,18 +163,8 @@ export default function BudgetCreateModal({
         ? current.categoryIds.filter((id) => id !== categoryId)
         : [...current.categoryIds, categoryId],
     }))
-    clearError('categoryIds')
-  }
-
-  /**
-   * Validates a field the user has changed once they leave it, so the focus the dialog gives Name on
-   * opening never flags a field nobody typed in. Create still validates every field
-   */
-  const handleBlur = (field: keyof BudgetFormFieldErrors) => {
-    if (!changed[field]) return
-    setTouched((current) => ({ ...current, [field]: true }))
-    const errors = validateBudgetCreateForm(form, currencies, expenseCategories)
-    setFieldErrors((current) => ({ ...current, [field]: errors[field] }))
+    setChanged((current) => ({ ...current, categoryIds: true }))
+    setFormError(null)
   }
 
   /**
@@ -197,20 +174,8 @@ export default function BudgetCreateModal({
     event.preventDefault()
     setFormError(null)
 
-    const errors = validateBudgetCreateForm(form, currencies, expenseCategories)
-    setFieldErrors(errors)
-    setTouched({
-      name: true,
-      currency: true,
-      limit: true,
-      instanceLength: true,
-      periodStart: true,
-      categoryIds: true,
-    })
-    if (Object.keys(errors).length > 0 || limitMinorUnits === null || !hasSelectedExpenseCategory) {
-      revealFirstRefusedField(errors)
-      return
-    }
+    // A limit that reads as nothing is already a problem the guard refuses, this only narrows its type
+    if (!refusal.guard() || limitMinorUnits === null) return
 
     setCreateInProgress(true)
 
@@ -249,7 +214,9 @@ export default function BudgetCreateModal({
     onRecursChange: setRecurs,
     onCategorySearchChange: setCategorySearch,
     onCategoryToggle: toggleCategory,
-    onBlur: handleBlur,
+    onBlur: (field) => {
+      if (changed[field]) refusal.touch(field)
+    },
   }
 
   return (
@@ -268,6 +235,7 @@ export default function BudgetCreateModal({
           level="page"
           isPending={isPending}
           submitDisabled={isPending}
+          submitDisabledReason={refusal.blockedReason}
           submitLabel="Create budget"
           onClose={closeAndReset}
         />

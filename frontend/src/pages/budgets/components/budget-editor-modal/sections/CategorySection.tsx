@@ -1,14 +1,12 @@
-import { AnimatePresence, motion, useReducedMotion } from 'motion/react'
+import { motion, useReducedMotion } from 'motion/react'
 import { Check } from 'lucide-react'
+import { FieldError } from '@/components/forms/FieldError'
 import { GlassSearchField } from '@/components/list-controls/GlassSearchField'
 import type { Category } from '@/api/categories'
 import type { BudgetEditorModalErrorGetter, BudgetEditorModalFieldIds, BudgetEditorModalHandlers, BudgetEditorModalOptions, BudgetEditorModalViewState } from '@/pages/budgets/components/budget-editor-modal/types'
 import { EASE } from '@/pages/budgets/constants'
 import { categoryIcon } from '@/pages/budgets/utils/category'
-
-// The message grows from and shrinks to zero height, ease-out, and is instant under reduced motion
-const ERROR_DURATION_S = 0.22
-const ERROR_EASE = [0.22, 1, 0.36, 1] as const
+import { budgetFieldErrorId } from '@/pages/budgets/utils/form'
 
 interface BudgetEditorModalCategorySectionProps {
   state: BudgetEditorModalViewState
@@ -44,6 +42,7 @@ export default function BudgetEditorModalCategorySection({
   const { categories, filteredCategories } = options
   const categoryIdsError = showError('categoryIds')
   const shouldReduceMotion = useReducedMotion() ?? false
+  const errorId = budgetFieldErrorId(ids.categorySearch)
 
   const categoryOptions = filteredCategories.map((category) => (
     <BudgetCategoryOption
@@ -71,37 +70,23 @@ export default function BudgetEditorModalCategorySection({
         </div>
 
         <div className="flex min-h-0 min-w-0 flex-col">
-          <div className="flex h-4 items-center justify-between gap-4">
-            <p className="text-base font-bold leading-none" style={{ color: 'var(--app-accent)' }}>Tracked categories</p>
-            <span className="shrink-0 text-sm leading-none" style={{ color: 'var(--app-text-subtle)' }}>
-              {form.categoryIds.length} selected
-            </span>
+          <div className="flex min-h-4 items-start justify-between gap-4">
+            <p className="shrink-0 whitespace-nowrap text-base font-bold leading-none" style={{ color: 'var(--app-accent)' }}>Tracked categories</p>
+            {/* The problem takes the count's place on the heading row, so it sits opposite the label like
+                every other field's and fits on one line, the count being zero whenever it shows */}
+            {categoryIdsError ? (
+              <FieldError message={categoryIdsError} id={errorId} className="min-w-0 shrink -mt-0.5" />
+            ) : (
+              <span className="shrink-0 text-sm leading-none" style={{ color: 'var(--app-text-subtle)' }}>
+                {form.categoryIds.length} selected
+              </span>
+            )}
           </div>
 
           <div className="mt-4 flex min-h-0 flex-col min-[1050px]:flex-1">
-            <div className="flex items-start">
-              <div className="min-w-0 flex-1">
-                <AnimatePresence initial={false}>
-                  {categoryIdsError && (
-                    <motion.div
-                      key={ids.categoryError}
-                      className="overflow-hidden"
-                      initial={{ height: 0, opacity: 0 }}
-                      animate={{ height: 'auto', opacity: 1 }}
-                      exit={{ height: 0, opacity: 0 }}
-                      transition={shouldReduceMotion ? { duration: 0 } : { duration: ERROR_DURATION_S, ease: ERROR_EASE }}
-                    >
-                      <p id={ids.categoryError} className="mb-1.5 text-xs font-medium leading-5" style={{ color: 'var(--app-negative)' }}>
-                        {categoryIdsError}
-                      </p>
-                    </motion.div>
-                  )}
-                </AnimatePresence>
-                <p className="text-sm" style={{ color: 'var(--app-text-subtle)' }}>
-                  Pick the categories this budget should track.
-                </p>
-              </div>
-            </div>
+            <p className="min-w-0 text-sm" style={{ color: 'var(--app-text-subtle)' }}>
+              Pick the categories this budget should track.
+            </p>
             <GlassSearchField
               inputId={ids.categorySearch}
               value={categorySearch}
@@ -110,7 +95,7 @@ export default function BudgetEditorModalCategorySection({
               wrapperClassName="mt-3"
               disabled={fieldsLocked}
               invalid={Boolean(categoryIdsError)}
-              describedBy={categoryIdsError ? ids.categoryError : undefined}
+              describedBy={categoryIdsError ? errorId : undefined}
             />
             <div className="relative mb-1 mt-3 min-h-0 min-[1050px]:flex-1">
               <motion.div

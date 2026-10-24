@@ -1,12 +1,12 @@
 import { expect, test, type Locator, type Page } from '@playwright/test'
 
-import { createAccount, signUpUser } from '../support/api'
+import { budgetPeriodStart, createAccount, createMonthlyBudget, signUpUser } from '../support/api'
 import { chooseFromDropdown, logInViaApi, openModal, openPage } from '../support/app'
 import { AT_EVERY_SIZE } from '../support/sizes'
 import { API_BASE_URL } from '../support/target'
 
-// Runs at every size: the message sits on the field's label row, which stacks differently on a phone, and the
-// button is reached by tap there
+// Runs at every size, apart from the Edit budget test: the message sits on the field's label row, which stacks
+// differently on a phone, and the button is reached by tap there
 
 /** Open the Create tag dialog from Settings, a dialog with one required field */
 async function openCreateTag(page: Page): Promise<{ dialog: Locator; field: Locator; create: Locator }> {
@@ -246,5 +246,85 @@ test.describe('dialog input errors', () => {
     await typedName.fill('Everyday')
     await expect(typedName).not.toHaveAttribute('aria-invalid', 'true')
     await expect(clickable).toBeVisible()
+  })
+
+  test('marks the missing name, limit and category in the Add budget dialogue and returns the button once each is fixed', AT_EVERY_SIZE, async ({ page, request }) => {
+    const user = await signUpUser(request)
+    await logInViaApi(page, user)
+    await openPage(page, '/budgets')
+    const dialog = await openModal(page, ['New budget'], 'Add budget')
+    const create = dialog.getByTestId('budget-submit')
+    const name = dialog.getByLabel('Name', { exact: true })
+    const limit = dialog.getByLabel('Limit', { exact: true })
+    const search = dialog.getByPlaceholder('Search categories...', { exact: true })
+
+    await expect(create).not.toHaveAttribute('aria-disabled', 'true')
+    await expect(dialog.getByRole('alert')).toHaveCount(0)
+
+    await create.click()
+    await expect(dialog.getByRole('alert')).toHaveCount(3)
+    await expect(name).toHaveAttribute('aria-invalid', 'true')
+    await expect(name).toHaveAccessibleDescription('Name is required')
+    await expect(limit).toHaveAttribute('aria-invalid', 'true')
+    await expect(limit).toHaveAccessibleDescription('Limit must be greater than zero')
+    await expect(search).toHaveAttribute('aria-invalid', 'true')
+    await expect(search).toHaveAccessibleDescription('Select at least one category')
+    await expect(create).toHaveAttribute('aria-disabled', 'true')
+    await expect(create).toHaveAccessibleDescription('Name is required')
+
+    // The category message is on the label row above its search field, not down with the actions
+    const message = dialog.getByRole('alert').filter({ hasText: 'Select at least one category' })
+    const [messageBox, searchBox] = [await message.boundingBox(), await search.boundingBox()]
+    expect(messageBox!.y + messageBox!.height).toBeLessThanOrEqual(searchBox!.y)
+
+    // Each field clears on its own, and the button waits for the last
+    await name.fill('Groceries budget')
+    await expect(dialog.getByRole('alert')).toHaveCount(2)
+    await expect(create).toHaveAccessibleDescription('Limit must be greater than zero')
+    await limit.fill('500')
+    await expect(dialog.getByRole('alert')).toHaveCount(1)
+    await expect(create).toHaveAttribute('aria-disabled', 'true')
+    await dialog.getByRole('button', { name: 'Groceries', exact: true }).click()
+    await expect(dialog.getByRole('alert')).toHaveCount(0)
+    await expect(search).not.toHaveAttribute('aria-invalid', 'true')
+    await expect(create).not.toHaveAttribute('aria-disabled', 'true')
+  })
+
+  test('keeps Save changes faded without changes in the Edit budget dialogue and marks an emptied name when it is pressed', async ({ page, request }) => {
+    // Runs on desktop only: the details dialog's Edit button is covered when opened at phone width
+    const user = await signUpUser(request)
+    const id = await createMonthlyBudget(request, user, {
+      name: 'Edit errors budget',
+      categoryNames: ['Groceries'],
+      overallLimit: 50_000,
+      periodStart: budgetPeriodStart(),
+    })
+    await logInViaApi(page, user)
+    await openPage(page, '/budgets')
+    await page.getByTestId(`budget-card-${id}`).click()
+    await page.getByRole('dialog', { name: 'Edit errors budget', exact: true }).getByRole('button', { name: 'Edit', exact: true }).click()
+    const edit = page.getByRole('dialog', { name: 'Edit budget', exact: true })
+    const name = edit.getByLabel('Name', { exact: true })
+    const save = edit.getByTestId('budget-submit')
+
+    // Nothing to save is not an input problem, so Save changes is faded from the start with its reason
+    await expect(save).toHaveAttribute('aria-disabled', 'true')
+    await expect(save).toHaveAccessibleDescription('There are no changes to save')
+    await expect(edit.getByRole('alert')).toHaveCount(0)
+
+    await name.fill('')
+    await expect(save).not.toHaveAttribute('aria-disabled', 'true')
+    await expect(edit.getByRole('alert')).toHaveCount(0)
+
+    await save.click()
+    await expect(edit.getByRole('alert')).toHaveText('Name is required')
+    await expect(name).toHaveAttribute('aria-invalid', 'true')
+    await expect(name).toHaveAccessibleDescription('Name is required')
+    await expect(save).toHaveAttribute('aria-disabled', 'true')
+    await expect(save).toHaveAccessibleDescription('Name is required')
+
+    await name.fill('Renamed budget')
+    await expect(edit.getByRole('alert')).toHaveCount(0)
+    await expect(save).not.toHaveAttribute('aria-disabled', 'true')
   })
 })

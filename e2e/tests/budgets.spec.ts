@@ -156,7 +156,7 @@ test('shows the Edit budget Cancel and Save changes buttons in one row, as halve
 
 const NO_CATEGORY_MESSAGE = 'Select at least one category'
 
-test('explains the disabled Save changes of Edit budget as soon as the last category is deselected', async ({ page, request }) => {
+test('shows the missing category of Edit budget at once and fades Save changes when it is pressed', async ({ page, request }) => {
   const user = await signUpUser(request)
   const id = await createMonthlyBudget(request, user, {
     name: 'Two categories',
@@ -173,7 +173,8 @@ test('explains the disabled Save changes of Edit budget as soon as the last cate
   // Resized once the dialog is open, so the stacked layout puts the categories below the first fields
   await page.setViewportSize({ width: 393, height: 852 })
   const save = edit.getByTestId('budget-submit')
-  const message = edit.getByText(NO_CATEGORY_MESSAGE, { exact: true })
+  // By role, since the faded Save changes repeats the message as its tooltip
+  const message = edit.getByRole('alert').filter({ hasText: NO_CATEGORY_MESSAGE })
   const groceries = edit.getByRole('button', { name: /Groceries/ })
   const dining = edit.getByRole('button', { name: /Dining/ })
 
@@ -182,15 +183,20 @@ test('explains the disabled Save changes of Edit budget as soon as the last cate
   await groceries.click()
   await expect(message).toHaveCount(0)
 
-  // The last one going says why Save changes is disabled, in view beside the categories
+  // The last one going shows the problem in view beside the categories, while Save changes stays
+  // pressable until it is pressed
   await dining.click()
-  await expect(save).toBeDisabled()
   await expect(message).toBeInViewport({ ratio: 1 })
   await expect(edit.getByPlaceholder('Search categories...', { exact: true })).toHaveAccessibleDescription(NO_CATEGORY_MESSAGE)
+  await expect(save).not.toHaveAttribute('aria-disabled', 'true')
+
+  await save.click()
+  await expect(save).toHaveAttribute('aria-disabled', 'true')
+  await expect(save).toHaveAccessibleDescription(NO_CATEGORY_MESSAGE)
 
   await groceries.click()
   await expect(message).toHaveCount(0)
-  await expect(save).toBeEnabled()
+  await expect(save).not.toHaveAttribute('aria-disabled', 'true')
 })
 
 test('numbers the Edit budget sections in the order they read, on desktop and on a phone', AT_EVERY_SIZE, async ({ page, request }) => {
@@ -263,12 +269,13 @@ test('brings the missing category message into view when Create budget is refuse
     await dialog.getByTestId('budget-submit').click()
 
     // The scrolling body ends at the footer, so a message under the footer is cut off and not on screen
-    const message = dialog.getByText('Select at least one category', { exact: true })
+    // By role, since the faded Create budget repeats the message as its tooltip
+    const message = dialog.getByRole('alert').filter({ hasText: 'Select at least one category' })
     await expect.soft(message, `message at ${at}`).toBeInViewport({ ratio: 1 })
     await expect.soft(search, `focus at ${at}`).toBeFocused()
     await expect.soft(search, `description at ${at}`).toHaveAccessibleDescription('Select at least one category')
     // Still all on screen once the message has grown to its full height and the scroll has ended
-    await expect.poll(() => message.evaluate((element) => getComputedStyle(element.parentElement!).opacity)).toBe('1')
+    await expect.poll(() => message.evaluate((element) => getComputedStyle(element).opacity)).toBe('1')
     await readSettledScrollingBox(message)
     await expect.soft(message, `message at ${at} once settled`).toBeInViewport({ ratio: 1 })
   }
@@ -321,7 +328,7 @@ test('brings the first refused field into view when Create budget is refused for
   await dialog.getByTestId('budget-submit').click()
   await expect(name).toBeFocused()
   await expect(name).toHaveAccessibleDescription('Name is required')
-  await expect(dialog.getByText('Name is required', { exact: true })).toBeInViewport({ ratio: 1 })
+  await expect(dialog.getByRole('alert').filter({ hasText: 'Name is required' })).toBeInViewport({ ratio: 1 })
 
   // With the name given, an empty limit comes before the missing category
   await name.fill('Groceries budget')
@@ -331,7 +338,7 @@ test('brings the first refused field into view when Create budget is refused for
   await dialog.getByTestId('budget-submit').click()
   await expect(limit).toBeFocused()
   await expect(limit).toHaveAccessibleDescription('Limit must be greater than zero')
-  await expect(dialog.getByText('Limit must be greater than zero', { exact: true })).toBeInViewport({ ratio: 1 })
+  await expect(dialog.getByRole('alert').filter({ hasText: 'Limit must be greater than zero' })).toBeInViewport({ ratio: 1 })
 })
 
 test('creates a valid budget on a phone without scrolling the dialog', async ({ page, request }) => {

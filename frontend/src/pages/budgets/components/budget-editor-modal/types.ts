@@ -5,9 +5,6 @@ import type { BudgetFormFieldErrors, BudgetFormState } from '@/pages/budgets/typ
 
 export interface BudgetEditorModalViewState {
   form: BudgetFormState
-  formError: string | null
-  fieldErrors: BudgetFormFieldErrors
-  touched: Record<string, boolean>
   categorySearch: string
 }
 
@@ -36,7 +33,6 @@ export interface BudgetEditorModalFieldIds {
   frequency: string
   periodStart: string
   categorySearch: string
-  categoryError: string
 }
 
 export type BudgetEditorModalErrorGetter = (field: keyof BudgetFormFieldErrors) => string | undefined

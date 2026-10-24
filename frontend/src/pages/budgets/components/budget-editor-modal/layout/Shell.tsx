@@ -1,6 +1,6 @@
 import { type FormEvent, type ReactNode } from 'react'
-import { AnimatePresence, motion } from 'motion/react'
 import { CircleAlert, PiggyBank } from 'lucide-react'
+import { FormError } from '@/components/forms/FormError'
 import { ModalTitledPanel } from '@/components/modal/TitledPanel'
 import type { ModalLevel } from '@/components/modal/Shell'
 
@@ -26,8 +26,8 @@ interface BudgetEditorModalShellProps {
 }
 
 /**
- * The modal shared by the create and edit budget forms, adding the warning banner and the form-level error
- * that both of them show around their fields
+ * The modal shared by the create and edit budget forms, adding the warning banner and the failure of the
+ * request that both of them show around their fields
  */
 export default function BudgetEditorModalShell({
   open,
@@ -75,20 +75,7 @@ export default function BudgetEditorModalShell({
 
       {children}
 
-      <AnimatePresence>
-        {formError && (
-          <motion.p
-            className="mt-4 text-sm font-medium"
-            style={{ color: 'var(--app-negative)' }}
-            initial={{ opacity: 0, y: -4 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -4 }}
-            transition={{ duration: 0.15 }}
-          >
-            {formError}
-          </motion.p>
-        )}
-      </AnimatePresence>
+      <FormError message={formError} className="mt-4" />
     </ModalTitledPanel>
   )
 }
