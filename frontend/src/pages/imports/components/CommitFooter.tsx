@@ -46,18 +46,18 @@ export function ImportCommitFooter({
   return (
     <div className={`flex flex-col items-end gap-3 ${className}`}>
       {buildError && (
-        <p id={reasonId} className="max-w-xl text-right text-sm font-medium" style={{ color: 'var(--app-negative)' }}>
+        <p id={reasonId} className="max-w-xl text-pretty text-right text-sm font-medium" style={{ color: 'var(--app-negative)' }}>
           {buildError}
         </p>
       )}
       {shownCheck?.state === 'running' && (
-        <p id={reasonId} role="status" className="max-w-xl text-right text-sm font-medium" style={{ color: 'var(--app-text-muted)' }}>
+        <p id={reasonId} role="status" className="max-w-xl text-pretty text-right text-sm font-medium" style={{ color: 'var(--app-text-muted)' }}>
           {shownCheck.message}
         </p>
       )}
       {shownCheck?.state === 'failed' && (
         <div className="flex flex-wrap items-center justify-end gap-3">
-          <p id={reasonId} role="alert" className="max-w-xl text-right text-sm font-medium" style={{ color: 'var(--app-negative)' }}>
+          <p id={reasonId} role="alert" className="max-w-xl text-pretty text-right text-sm font-medium" style={{ color: 'var(--app-negative)' }}>
             {shownCheck.message}
           </p>
           <button type="button" className="app-secondary-button h-9" onClick={shownCheck.onRetry}>
@@ -66,7 +66,7 @@ export function ImportCommitFooter({
         </div>
       )}
       {importError && (
-        <p role="alert" className="max-w-xl text-right text-sm font-medium" style={{ color: 'var(--app-negative)' }}>
+        <p role="alert" className="max-w-xl text-pretty text-right text-sm font-medium" style={{ color: 'var(--app-negative)' }}>
           {importError}
         </p>
       )}
