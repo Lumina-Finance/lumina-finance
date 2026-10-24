@@ -236,9 +236,10 @@ test('imports a statement overlapping an earlier one into the account, adding on
   expect((await commitImport(page)).status()).toBe(201)
 
   await expect(page.getByRole('dialog').getByText(
-    '1 transaction imported · 0 accounts created · 0 categories created · 2 already in the account',
+    '1 transaction imported · 0 accounts created · 0 categories created · 2 skipped',
     { exact: true },
   )).toBeVisible()
+  await expect(page.getByRole('rowheader', { name: 'Reason: This transaction is already in Checking.' })).toBeVisible()
   expect(await countLedgerTransactions(request, user)).toBe(3)
   const accounts = await request.get(`${API_BASE_URL}/accounts`, { headers: asUser(user) })
   expect((await accounts.json() as { id: string; current_balance: number }[]).filter((account) => account.id === checking.id))
@@ -267,7 +268,8 @@ test('keeps a staged statement on screen when the saved sources are read again',
   // Read once rather than retried, since a spinner that shows and then goes is the failure
   expect(await page.getByRole('status', { name: 'Loading' }).count()).toBe(0)
   expect(await staged.isVisible()).toBe(true)
-  expect(await staged.isEnabled()).toBe(true)
+  // Commit waits while the account is checked again for transactions it already holds
+  await expect(staged).toBeEnabled()
 })
 
 test('refuses a statement file holding several statements on an account\'s page and stages nothing', async ({ page, request }) => {
