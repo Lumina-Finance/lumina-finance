@@ -1,6 +1,9 @@
 import { useState } from 'react';
 import { Fingerprint, KeyRound, Plus, RefreshCw, ShieldCheck, Smartphone } from 'lucide-react';
 import { AnimatePresence, motion } from 'motion/react';
+import { FieldLabelRow } from '@/components/forms/FieldLabelRow';
+import { FormError } from '@/components/forms/FormError';
+import { useRefusedSubmit } from '@/hooks/useRefusedSubmit';
 import { MODAL_INSET_CLASS_NAME } from '@/components/modal/inset';
 import { PasskeyRow } from '@/components/passkeys/PasskeyRow';
 import { ModalContentPanel } from '@/components/modal/ContentPanel';
@@ -42,6 +45,10 @@ const OFF_BADGE_STYLE = {
 const FIRST_PASSKEY_CODES_DESCRIPTION =
   "Save these recovery codes. They're the only way back into your account if you lose your passkey. You won't see them again.";
 
+const ADD_PASSKEY_FIELDS = ['name'] as const;
+const PASSKEY_NAME_ID = 'add-passkey-name';
+const PASSKEY_NAME_ERROR_ID = 'add-passkey-name-error';
+
 interface MultiFactorModalProps {
   open: boolean;
   onClose: () => void;
@@ -62,6 +69,12 @@ export function MultiFactorModal({ open, onClose }: MultiFactorModalProps) {
   const [isTotpEnableStepUpOpen, setIsTotpEnableStepUpOpen] = useState(false);
   const [totpSetup, setTotpSetup] = useState<TotpSetupResponse | null>(null);
 
+  const addRefusal = useRefusedSubmit(
+    { name: passkeyName.trim() ? undefined : 'Name is required' },
+    ADD_PASSKEY_FIELDS,
+    { name: PASSKEY_NAME_ID },
+  );
+
   const hasPasskeys = passkey.passkeys.length > 0;
   const hasAnyFactor = totp.isEnabled || hasPasskeys;
   const canRegisterPasskey = passkey.support?.supported === true;
@@ -79,6 +92,7 @@ export function MultiFactorModal({ open, onClose }: MultiFactorModalProps) {
     setIsAddingPasskey(false);
     setPasskeyName('');
     setAddError(null);
+    addRefusal.reset();
   };
 
   const handleClose = () => {
@@ -91,8 +105,8 @@ export function MultiFactorModal({ open, onClose }: MultiFactorModalProps) {
    * Opens the step-up prompt for the typed label, since adding a passkey now reauthorizes first
    */
   function handleAddPasskey() {
+    if (!addRefusal.guard()) return;
     const trimmed = passkeyName.trim();
-    if (!trimmed) return;
 
     setAddError(null);
     setPendingPasskeyName(trimmed);
@@ -225,21 +239,32 @@ export function MultiFactorModal({ open, onClose }: MultiFactorModalProps) {
 
           <AnimatePresence initial={false}>
             {isAddingPasskey && canRegisterPasskey && (
-              <motion.div key="add-passkey-form" style={{ overflow: 'hidden' }} {...LIST_ITEM_MOTION}>
+              // The side padding gives the message's 4 px slide room inside the clipped height animation
+              <motion.div key="add-passkey-form" className="-mx-1 px-1" style={{ overflow: 'hidden' }} {...LIST_ITEM_MOTION}>
+                <FieldLabelRow
+                  label="Passkey name"
+                  htmlFor={PASSKEY_NAME_ID}
+                  error={addRefusal.errors.name}
+                  errorId={PASSKEY_NAME_ERROR_ID}
+                  compact
+                />
                 <div className="flex items-center gap-2">
                   <input
-                    className="app-input flex-1"
+                    id={PASSKEY_NAME_ID}
+                    className={`app-input flex-1 ${addRefusal.errors.name ? 'app-input-error' : ''}`}
                     placeholder="Name this passkey"
                     value={passkeyName}
                     onChange={(event) => setPasskeyName(event.target.value)}
                     disabled={passkey.isRegistering}
                     autoFocus
                     aria-label="New passkey name"
+                    aria-invalid={addRefusal.errors.name ? true : undefined}
+                    aria-describedby={addRefusal.errors.name ? PASSKEY_NAME_ERROR_ID : undefined}
                   />
                   <DisabledReasonButton
                     onClick={handleAddPasskey}
                     disabled={passkey.isRegistering}
-                    disabledReason={!passkey.isRegistering && !passkeyName.trim() ? 'Name the passkey first' : undefined}
+                    disabledReason={passkey.isRegistering ? undefined : addRefusal.blockedReason}
                     className="app-primary-button shrink-0"
                   >
                     {passkey.isRegistering ? 'Waiting…' : 'Add'}
@@ -252,11 +277,8 @@ export function MultiFactorModal({ open, onClose }: MultiFactorModalProps) {
             )}
           </AnimatePresence>
 
-          {addError && (
-            <p className="text-xs" style={{ color: 'var(--app-negative)' }}>
-              {addError}
-            </p>
-          )}
+          <FormError message={addError} />
+
 
           <AnimatePresence initial={false}>
             {hasPasskeys && (

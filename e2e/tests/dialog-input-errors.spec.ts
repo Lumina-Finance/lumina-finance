@@ -13,7 +13,7 @@ import { chooseFromDropdown, logInViaApi, openModal, openPage } from '../support
 import { AT_EVERY_SIZE } from '../support/sizes'
 import { API_BASE_URL } from '../support/target'
 
-// Runs at every size, apart from the Edit budget, keep-open, annual limit and Replace & Delete tests, whose behaviour does not change with the
+// Runs at every size, apart from the Edit budget, keep-open, annual limit, Replace & Delete and passkey name tests, whose behaviour does not change with the
 // width: the message sits on the field's label row, which stacks
 // differently on a phone, and the button is reached by tap there
 
@@ -534,5 +534,31 @@ test.describe('dialog input errors', () => {
     await expect(existingSave).toHaveAttribute('aria-disabled', 'true')
     await expect(existingSave).toHaveAccessibleDescription('There are no changes to save')
     await expect(existing.getByRole('alert')).toHaveCount(0)
+  })
+
+  test('marks an unnamed passkey on its label row and returns Add once it is named', async ({ page, request }) => {
+    const user = await signUpUser(request)
+    await logInViaApi(page, user)
+    await openPage(page, '/settings#security')
+    await page.locator('#security').getByRole('button', { name: 'Manage' }).click()
+    const dialog = page.getByRole('dialog', { name: 'Multi-factor authentication' })
+    await dialog.getByRole('button', { name: 'Add passkey', exact: true }).click()
+    const name = dialog.getByRole('textbox', { name: 'New passkey name', exact: true })
+    const add = dialog.getByRole('button', { name: 'Add', exact: true })
+
+    await expect(add).not.toHaveAttribute('aria-disabled', 'true')
+    await expect(dialog.getByRole('alert')).toHaveCount(0)
+
+    await add.click()
+    await expect(dialog.getByRole('alert')).toHaveText('Name is required')
+    await expect(name).toHaveAttribute('aria-invalid', 'true')
+    await expect(name).toHaveAccessibleDescription('Name is required')
+    await expect(add).toHaveAttribute('aria-disabled', 'true')
+    await expect(add).toHaveAccessibleDescription('Name is required')
+
+    await name.fill('Laptop')
+    await expect(dialog.getByRole('alert')).toHaveCount(0)
+    await expect(name).not.toHaveAttribute('aria-invalid', 'true')
+    await expect(add).not.toHaveAttribute('aria-disabled', 'true')
   })
 })

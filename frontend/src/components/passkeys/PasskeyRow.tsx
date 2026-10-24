@@ -1,14 +1,20 @@
 import { Check, KeyRound, Pencil, Trash2, X } from 'lucide-react';
-import { useState } from 'react';
+import { useId, useState } from 'react';
 import { AnimatePresence, motion } from 'motion/react';
 import type { Passkey } from '@/api/passkeys';
+import { FieldLabelRow } from '@/components/forms/FieldLabelRow';
+import { FormError } from '@/components/forms/FormError';
 import { OverflowMenu } from '@/components/passkeys/OverflowMenu';
+import { DisabledReasonButton } from '@/components/tooltips/DisabledReasonButton';
 import { useAuth } from '@/hooks/useAuth';
+import { useRefusedSubmit } from '@/hooks/useRefusedSubmit';
 import { useRelativeTime } from '@/hooks/useRelativeTime';
 import { DATE_FORMATS, formatDate } from '@/utils/date';
 
 // Crossfade the card between its resting details and the rename fields so neither state snaps in
 const FIELD_TRANSITION = { duration: 0.18, ease: [0.25, 0.1, 0.25, 1] as const };
+
+const RENAME_FIELDS = ['name'] as const;
 
 interface PasskeyRowProps {
   passkey: Passkey;
@@ -29,13 +35,20 @@ export function PasskeyRow({ passkey, onRename, onRemove, disabled }: PasskeyRow
   const [draftName, setDraftName] = useState(passkey.name);
   const [error, setError] = useState<string | null>(null);
   const lastUsed = useRelativeTime(passkey.last_used_at);
+  const nameId = useId();
+  const nameErrorId = `${nameId}-error`;
+  const renameRefusal = useRefusedSubmit(
+    { name: draftName.trim() ? undefined : 'Name is required' },
+    RENAME_FIELDS,
+    { name: nameId },
+  );
 
   /**
    * Saves a trimmed, non-empty new label and returns the card to its resting state
    */
   async function saveRename() {
+    if (!renameRefusal.guard()) return;
     const trimmed = draftName.trim();
-    if (!trimmed) return;
 
     setError(null);
     try {
@@ -77,35 +90,70 @@ export function PasskeyRow({ passkey, onRename, onRemove, disabled }: PasskeyRow
             {isRenaming ? (
               <motion.div
                 key="rename"
-                className="flex items-center gap-2"
+                className="min-w-0"
                 style={{ gridArea: '1 / 1' }}
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
                 exit={{ opacity: 0 }}
                 transition={FIELD_TRANSITION}
               >
-                <input
-                  className="app-input min-w-0 flex-1"
-                  value={draftName}
-                  onChange={(event) => setDraftName(event.target.value)}
-                  autoFocus
-                  aria-label="Passkey name"
-                />
-                <button type="button" onClick={saveRename} disabled={disabled} className="app-secondary-button shrink-0" aria-label="Save name">
-                  <Check size={16} aria-hidden />
-                </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setDraftName(passkey.name);
-                    setError(null);
-                    setIsRenaming(false);
-                  }}
-                  className="app-secondary-button shrink-0"
-                  aria-label="Cancel rename"
-                >
-                  <X size={16} aria-hidden />
-                </button>
+                {/* The label row only takes room while there is a problem to show, so the resting rename stays one line */}
+                <AnimatePresence initial={false}>
+                  {renameRefusal.errors.name && (
+                    <motion.div
+                      key="rename-label"
+                      className="overflow-hidden"
+                      initial={{ opacity: 0, height: 0 }}
+                      animate={{ opacity: 1, height: 'auto' }}
+                      exit={{ opacity: 0, height: 0 }}
+                      transition={FIELD_TRANSITION}
+                    >
+                      <FieldLabelRow
+                        label="Passkey name"
+                        htmlFor={nameId}
+                        error={renameRefusal.errors.name}
+                        errorId={nameErrorId}
+                        compact
+                        spacingClassName="mb-1"
+                      />
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+                <div className="flex items-center gap-2">
+                  <input
+                    id={nameId}
+                    className={`app-input min-w-0 flex-1 ${renameRefusal.errors.name ? 'app-input-error' : ''}`}
+                    value={draftName}
+                    onChange={(event) => setDraftName(event.target.value)}
+                    autoFocus
+                    aria-label="Passkey name"
+                    aria-invalid={renameRefusal.errors.name ? true : undefined}
+                    aria-describedby={renameRefusal.errors.name ? nameErrorId : undefined}
+                  />
+                  <DisabledReasonButton
+                    type="button"
+                    onClick={saveRename}
+                    disabled={disabled}
+                    disabledReason={disabled ? undefined : renameRefusal.blockedReason}
+                    className="app-secondary-button shrink-0"
+                    aria-label="Save name"
+                  >
+                    <Check size={16} aria-hidden />
+                  </DisabledReasonButton>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setDraftName(passkey.name);
+                      setError(null);
+                      renameRefusal.reset();
+                      setIsRenaming(false);
+                    }}
+                    className="app-secondary-button shrink-0"
+                    aria-label="Cancel rename"
+                  >
+                    <X size={16} aria-hidden />
+                  </button>
+                </div>
               </motion.div>
             ) : (
               <motion.div
@@ -136,6 +184,7 @@ export function PasskeyRow({ passkey, onRename, onRemove, disabled }: PasskeyRow
                       onSelect: () => {
                         setDraftName(passkey.name);
                         setError(null);
+                        renameRefusal.reset();
                         setIsRenaming(true);
                       },
                     },
@@ -148,11 +197,7 @@ export function PasskeyRow({ passkey, onRename, onRemove, disabled }: PasskeyRow
         </div>
       </div>
 
-      {error && (
-        <p className="mt-2 text-xs" style={{ color: 'var(--app-negative)' }}>
-          {error}
-        </p>
-      )}
+      <FormError message={error} className="mt-2 text-xs" />
     </div>
   );
 }
