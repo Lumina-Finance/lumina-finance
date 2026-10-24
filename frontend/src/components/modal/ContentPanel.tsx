@@ -45,13 +45,14 @@ export function ModalContentPanel({
       onExitComplete={onExitComplete}
     >
       {/* Backdrop tap and Escape close the modal on desktop, but it goes fullscreen below 1050px where
-          neither is reachable, so the close button only shows at that width */}
+          neither is reachable, so the close button only shows at that width. It floats over the body on
+          the frosted glass of the phone menu button, so the content scrolling under it blurs */}
       <button
         type="button"
         onClick={onClose}
         disabled={closeDisabled}
         aria-label="Close"
-        className="app-icon-button absolute right-4 top-4 z-10 min-[1050px]:hidden"
+        className="app-glass-icon-button absolute right-4 top-4 z-10 h-8 w-8 min-[1050px]:hidden"
       >
         <X size={18} aria-hidden />
       </button>
