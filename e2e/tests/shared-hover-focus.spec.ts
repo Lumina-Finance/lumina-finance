@@ -1,6 +1,6 @@
 import { expect, test, type Locator, type Page } from '@playwright/test'
 
-import { signUpUser } from '../support/api'
+import { createAccount, createTransaction, signUpUser } from '../support/api'
 import { logInViaApi, openPage } from '../support/app'
 import { contrastRatio, shownFill } from '../support/paint'
 
@@ -37,6 +37,23 @@ async function hoverStep(page: Page, element: Locator): Promise<number> {
 }
 
 for (const colorScheme of ['light', 'dark'] as const) {
+  test(`shows a hover on the Insights category list in the ${colorScheme} theme`, async ({ page, request }) => {
+    await page.emulateMedia({ colorScheme })
+    const user = await signUpUser(request)
+    const account = await createAccount(request, user, { name: 'Everyday chequing', startingBalance: 100_000 })
+    await createTransaction(request, user, { accountId: account.id, categoryName: 'Salary', amount: 300_000 })
+    await createTransaction(request, user, { accountId: account.id, categoryName: 'Groceries', amount: -20_000 })
+    await logInViaApi(page, user)
+    await openPage(page, '/insights')
+
+    // The list's header, and a category row once it opens, sit on the card
+    const header = page.getByRole('button', { name: /^Toggle / }).first()
+    await header.click()
+    const row = page.locator(`#${await header.getAttribute('aria-controls')}`).getByText(/^(Salary|Groceries)$/).first()
+    expect(await hoverStep(page, header)).toBeGreaterThanOrEqual(MINIMUM_HOVER_STEP)
+    expect(await hoverStep(page, row)).toBeGreaterThanOrEqual(MINIMUM_HOVER_STEP)
+  })
+
   test(`shows a hover on the sidebar's log out button and a settings card row in the ${colorScheme} theme`, async ({ page, request }) => {
     await openAs(page, request, colorScheme, '/settings')
 
