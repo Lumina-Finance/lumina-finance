@@ -382,8 +382,8 @@ describe('a transaction that an earlier file of the import already holds', () =>
     ])
   })
 
-  // A file that holds one account as two statements, such as split over two date ranges, gives the
-  // second the suffix #2, though both are for the same bank account
+  // A file that holds one account as two statements, such as split over two date ranges, reads as
+  // one statement, so a later file's repeat of either is found
   it('is skipped when an earlier file holds it under the same account in another of its statements', async () => {
     const month = (name: string, fitId: string) => ({ transactions: [{ posted: '20240110', amount: '-5.00', fitId, name }] })
     const file = await readFiles([

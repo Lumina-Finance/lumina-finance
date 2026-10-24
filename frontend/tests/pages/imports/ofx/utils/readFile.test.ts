@@ -149,22 +149,30 @@ describe('reading a bank statement', () => {
     expect(await readReason(buildSgmlOfx([{ kind: 'loan', accountId: null, transactions: [{}] }]))).toBe(OFX_STATEMENT_INCOMPLETE_REASON)
   })
 
-  it('keeps two statements of one account apart so each can be answered', async () => {
-    const file = await readFile(buildSgmlOfx([CHECKING, CHECKING]))
+  // One account's statement split over two date ranges is one statement to answer, so an account's
+  // page takes the file and the Imports page asks for one account
+  it('joins two statements of one account and currency into one, numbering its transactions afresh', async () => {
+    const second: FixtureStatement = { transactions: [{ fitId: 'X', name: 'Late' }] }
+    const file = await readFile(buildSgmlOfx([CHECKING, second]))
 
-    expect(new Set(file.statements.map((statement) => statement.id)).size).toBe(2)
-    expect(file.statements.map((statement) => statement.name)).toEqual(['Checking ending 6789', 'Checking ending 6789 (2)'])
+    expect(file.statements).toHaveLength(1)
+    expect(file.statements[0].name).toBe('Checking ending 6789')
+    expect(file.statements[0].transactions.map(({ index, bankTransactionId, payee }) => [index, bankTransactionId, payee])).toEqual([
+      [1, 'A1', 'Corner Cafe'],
+      [2, 'A2', 'Payroll'],
+      [3, 'X', 'Late'],
+    ])
   })
 
-  // What sets the second statement apart on the page must stay out of the account key, or its
-  // transactions would never match the same ones imported from a file holding that statement alone
-  it('keys a transaction of the second statement of one account as it would alone', async () => {
-    const second: FixtureStatement = { transactions: [{ fitId: 'X' }] }
-    const [, split] = (await readFile(buildSgmlOfx([CHECKING, second]))).statements
-    const [alone] = (await readFile(buildSgmlOfx([second]))).statements
+  // Combining the files tells the two apart, so a later file finds the currency it belongs to by the id
+  // the account has in every file
+  it('keeps one account id in two currencies as two statements, each under the account id', async () => {
+    const file = await readFile(buildSgmlOfx([CHECKING, { ...CHECKING, currency: 'USD' }]))
 
-    expect(alone.transactions[0].bankAccountKey).toBe('bank:123000456:000123456789')
-    expect(split.transactions[0].bankAccountKey).toBe(alone.transactions[0].bankAccountKey)
+    expect(file.statements.map((statement) => [statement.currency, statement.id])).toEqual([
+      ['CAD', 'bank:123000456:000123456789'],
+      ['USD', 'bank:123000456:000123456789'],
+    ])
   })
 
   it('decodes a 2.x file that declares ISO-8859-1 in its XML declaration', async () => {
@@ -184,12 +192,6 @@ describe('reading a bank statement', () => {
     expect((await readFile(markup)).statements[0].transactions[0]).toMatchObject({ date: '2024-01-15', amount: '450.00', payee: 'Loan payment' })
   })
 
-  it('reads a loan statement whose account type is empty', async () => {
-    const markup = buildSgmlOfx([{ kind: 'loan', transactions: [{}] }]).replace('<LOANACCTTYPE>AUTO', '<LOANACCTTYPE>')
-
-    expect((await readFile(markup)).statements[0].name).toBe('Loan ending 6777')
-  })
-
   // A lone surrogate is no character, and the server refuses text holding one
   it.each(['&#xD800;', '&#55296;', '&#xDFFF;'])('leaves the entity %s in a name as written', async (entity) => {
     const file = await readFile(buildSgmlOfx([{ transactions: [{ name: `Cafe ${entity}`, memo: 'Tea &#x1F375;' }] }]))
@@ -197,6 +199,12 @@ describe('reading a bank statement', () => {
 
     expect(payee).toBe(`Cafe ${entity}`)
     expect(memo).toBe('Tea 🍵')
+  })
+
+  it('reads a loan statement whose account type is empty', async () => {
+    const markup = buildSgmlOfx([{ kind: 'loan', transactions: [{}] }]).replace('<LOANACCTTYPE>AUTO', '<LOANACCTTYPE>')
+
+    expect((await readFile(markup)).statements[0].name).toBe('Loan ending 6777')
   })
 
   it('reads the date a stamp starts with, the amount with a comma decimal, and entities in names', async () => {

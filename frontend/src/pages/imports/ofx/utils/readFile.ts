@@ -89,7 +89,7 @@ function readOfxStatements(text: string, origin: OfxFileOrigin): OfxFileRead {
     return { status: 'refused', reason: leftOut.investment > 0 ? OFX_ONLY_LEFT_OUT_REASON : OFX_NO_STATEMENTS_REASON }
   }
 
-  return { status: 'read', file: { statements: nameStatements(statements), leftOut } }
+  return { status: 'read', file: { statements: mergeStatements(statements), leftOut } }
 }
 
 /**
@@ -155,17 +155,28 @@ function readAccountKind(kind: OfxStatementKind, account: OfxNode) {
 }
 
 /**
- * Tells apart statements the file gives the same name and id, such as one account's statement split
- * over two date ranges, so each keeps its own account answer and its own line in the account step
+ * Joins the statements a file gives the same account id and currency into one, such as one account's
+ * statement split over two date ranges, so the account is answered once and counts as one statement,
+ * as `combineOfxFiles` treats the same account in several files. The transactions are numbered afresh
+ * in the order the file lists them
+ *
+ * A statement in another currency keeps the account's id, since `combineOfxFiles` tells the currencies
+ * apart once the files are joined, and a later file finds its own by that id
  */
-function nameStatements(statements: OfxStatement[]) {
-  const seen = new Map<string, number>()
-  return statements.map((statement) => {
-    const count = (seen.get(statement.id) ?? 0) + 1
-    seen.set(statement.id, count)
-    if (count === 1) return statement
-    return { ...statement, id: `${statement.id}#${count}`, name: `${statement.name} (${count})`, label: `${statement.label} (${count})` }
-  })
+function mergeStatements(statements: OfxStatement[]) {
+  const merged = new Map<string, OfxStatement>()
+  for (const statement of statements) {
+    const key = `${statement.id}|${statement.currency}`
+    const existing = merged.get(key)
+    if (existing) {
+      const after = existing.transactions.length
+      existing.transactions.push(...statement.transactions.map((transaction, position) => ({ ...transaction, index: after + position + 1 })))
+      continue
+    }
+
+    merged.set(key, statement)
+  }
+  return [...merged.values()]
 }
 
 /**
