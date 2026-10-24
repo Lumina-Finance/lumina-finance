@@ -129,7 +129,8 @@ export function ImportHeaderMappingTable({
             const isIgnored = selectedTarget === ''
             const validationError = validationErrors[header]
             const rowIcon = getRowIcon(header)
-            const autoFilled = Boolean(selectedTarget && autoFilledHeaders.has(header))
+            // The glow asks the user to check an answer, which means nothing on a finished import's record
+            const autoFilled = !disabled && Boolean(selectedTarget && autoFilledHeaders.has(header))
             const formatControl = selectedTarget === 'dt'
               ? (
                 <ImportDateFormatControl

@@ -37,7 +37,8 @@ export function ImportDirectionValueTable({
         </thead>
         <tbody>
           {values.map((value) => {
-            const autoFilled = autoFilledValues.has(value.key)
+            // The glow asks the user to check an answer, which means nothing on a finished import's record
+            const autoFilled = !disabled && autoFilledValues.has(value.key)
 
             return (
               <tr key={value.key} className={autoFilled ? 'import-auto-fill-row' : undefined}>

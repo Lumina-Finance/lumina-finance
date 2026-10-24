@@ -174,7 +174,9 @@ export function ImportAccountMappingTable({
     const sourceLabelId = `${labelNamespace}-source-${index}`
 
     return (
-      <tr key={row.id} className={row.autoFilled ? 'import-auto-fill-row' : undefined}>
+      // The glow asks the user to check an answer, which means nothing while every answer is held, as
+      // on a finished import's record or while the accounts load
+      <tr key={row.id} className={!disabled && row.autoFilled ? 'import-auto-fill-row' : undefined}>
         <td className="px-4 py-3 align-middle">
           <span className="flex justify-center">
             <Checkbox
@@ -212,7 +214,7 @@ export function ImportAccountMappingTable({
             searchable
             blankWhenEmpty
             size="compact"
-            className={row.autoFilled ? 'import-auto-fill-field' : undefined}
+            className={!disabled && row.autoFilled ? 'import-auto-fill-field' : undefined}
             disabled={disabled}
           />
         </td>
@@ -228,7 +230,7 @@ export function ImportAccountMappingTable({
             blankWhenEmpty={!creating}
             placeholder="Type"
             size="compact"
-            className={row.autoFilled && !creating ? 'import-auto-fill-field' : undefined}
+            className={!disabled && row.autoFilled && !creating ? 'import-auto-fill-field' : undefined}
             disabled={disabled || !creating}
           />
         </td>
@@ -242,7 +244,7 @@ export function ImportAccountMappingTable({
             blankWhenEmpty={!creating}
             placeholder="Currency"
             size="compact"
-            className={row.autoFilled && !creating ? 'import-auto-fill-field' : undefined}
+            className={!disabled && row.autoFilled && !creating ? 'import-auto-fill-field' : undefined}
             disabled={disabled || !creating || currenciesDisabled}
           />
         </td>
@@ -258,7 +260,7 @@ export function ImportAccountMappingTable({
             blankWhenEmpty={!creating}
             placeholder="Institution"
             size="compact"
-            className={row.autoFilled && !creating ? 'import-auto-fill-field' : undefined}
+            className={!disabled && row.autoFilled && !creating ? 'import-auto-fill-field' : undefined}
             disabled={disabled || !creating || institutionsDisabled}
             onCreateNew={(query) => onCreateInstitution(query, row.id)}
             createNewLabel={(query) => query ? `Create institution "${query}"` : 'Create institution'}
