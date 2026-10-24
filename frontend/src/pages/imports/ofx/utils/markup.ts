@@ -23,12 +23,22 @@ const TOKEN_PATTERN = /<(\/?)([A-Za-z][\w.-]*)\s*>|<[?!][^>]*>|([^<]+)|</g
 const ENTITY_PATTERN = /&(?:#(\d+)|#x([0-9a-f]+)|(amp|lt|gt|quot|apos));/gi
 const NAMED_ENTITIES: Record<string, string> = { amp: '&', lt: '<', gt: '>', quot: '"', apos: "'" }
 
-/** Decodes the entities in one pass, so a decoded ampersand is never decoded a second time */
+// The code points reserved for halves of a UTF-16 pair, which are no character on their own and which
+// the server's text columns refuse
+const SURROGATE_CODE_POINTS = { first: 0xd800, last: 0xdfff }
+
+/**
+ * Decodes the entities in one pass, so a decoded ampersand is never decoded a second time
+ *
+ * An entity naming no character, such as zero, a surrogate or a number past the last code point, is
+ * left as the file wrote it
+ */
 function decodeEntities(text: string) {
   return text.replace(ENTITY_PATTERN, (match, decimal?: string, hex?: string, named?: string) => {
     if (named) return NAMED_ENTITIES[named.toLowerCase()]
     const codePoint = decimal ? Number(decimal) : parseInt(hex ?? '', 16)
-    return codePoint > 0 && codePoint <= 0x10ffff ? String.fromCodePoint(codePoint) : match
+    const isSurrogate = codePoint >= SURROGATE_CODE_POINTS.first && codePoint <= SURROGATE_CODE_POINTS.last
+    return codePoint > 0 && codePoint <= 0x10ffff && !isSurrogate ? String.fromCodePoint(codePoint) : match
   })
 }
 

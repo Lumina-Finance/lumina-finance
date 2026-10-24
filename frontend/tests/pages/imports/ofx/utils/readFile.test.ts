@@ -190,6 +190,15 @@ describe('reading a bank statement', () => {
     expect((await readFile(markup)).statements[0].name).toBe('Loan ending 6777')
   })
 
+  // A lone surrogate is no character, and the server refuses text holding one
+  it.each(['&#xD800;', '&#55296;', '&#xDFFF;'])('leaves the entity %s in a name as written', async (entity) => {
+    const file = await readFile(buildSgmlOfx([{ transactions: [{ name: `Cafe ${entity}`, memo: 'Tea &#x1F375;' }] }]))
+    const { payee, memo } = file.statements[0].transactions[0]
+
+    expect(payee).toBe(`Cafe ${entity}`)
+    expect(memo).toBe('Tea 🍵')
+  })
+
   it('reads the date a stamp starts with, the amount with a comma decimal, and entities in names', async () => {
     const file = await readFile(buildSgmlOfx([{
       transactions: [{ posted: '20240229235959.000[-5:EST]', amount: '-1234,50', name: 'Fish &amp; Chips &amp;lt;', memo: 'Table &#35;4' }],
