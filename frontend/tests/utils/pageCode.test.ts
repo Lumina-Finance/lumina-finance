@@ -74,3 +74,23 @@ it('shows the error without reloading when storage cannot hold the reload marker
   await expect(loadPageCode(() => Promise.reject(MISSING), environment)).rejects.toBe(MISSING);
   expect(reload).not.toHaveBeenCalled();
 });
+
+// The browser's own environment once threw on touching blocked storage, before the failure could reach
+// the error screen
+it('leaves a missing page to the error screen without reloading when the browser blocks storage', async () => {
+  const reload = vi.fn();
+  const blockedWindow = { location: { reload } };
+  Object.defineProperty(blockedWindow, 'sessionStorage', {
+    get() {
+      throw new DOMException('The operation is insecure.', 'SecurityError');
+    },
+  });
+  vi.stubGlobal('window', blockedWindow);
+  vi.stubGlobal('navigator', { onLine: true });
+  try {
+    await expect(loadPageCode(() => Promise.reject(MISSING))).rejects.toBe(MISSING);
+    expect(reload).not.toHaveBeenCalled();
+  } finally {
+    vi.unstubAllGlobals();
+  }
+});

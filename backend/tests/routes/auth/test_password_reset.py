@@ -14,6 +14,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.main import app
 from app.models.auth import PasswordCredential, PasswordResetToken
 from app.services.auth import password_reset
+from app.services.auth.token_hashing import hash_token
 from tests.conftest import TestSession
 from tests.routes.support import SIGNUP_PAYLOAD, _create_user, _fresh_totp_code, _get_auth_header, _seed_reset_token
 
@@ -161,12 +162,15 @@ async def test_forgot_password_drops_the_token_when_the_email_fails(client, monk
 
 async def test_forgot_password_sends_the_email_once_the_response_has_started(client, monkeypatch):
     """The route answers before it waits on the mail server, so its timing can't tell an address apart"""
-    await _create_user(client)
+    signup = await _create_user(client)
+    user_id = uuid.UUID(signup.json()["user"]["id"])
     events = []
+    sent = []
 
-    async def record_send(_email, _message):
-        """Note the send in order with the response"""
+    async def record_send(email, message):
+        """Note the send in order with the response, with the link it carries"""
         events.append("email")
+        sent.append((email, message.text_body))
 
     async def tracked_app(scope, receive, send):
         """Run the app, noting when its response starts"""
@@ -184,6 +188,11 @@ async def test_forgot_password_sends_the_email_once_the_response_has_started(cli
 
     assert resp.status_code == 204
     assert events == ["response", "email"]
+    # The link carries the raw token whose hash was stored, so it can finish the reset
+    [(recipient, body)] = sent
+    raw_token = body.split("/reset-password?token=", 1)[1].split()[0]
+    assert recipient == SIGNUP_PAYLOAD["email"]
+    assert [row.token_hash for row in await _reset_tokens_for(user_id)] == [hash_token(raw_token)]
 
 
 @pytest.mark.parametrize("prior_sends", [0, 2])
