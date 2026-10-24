@@ -11,9 +11,20 @@ import type {
   TaxPlanLimitDraftState,
   TaxPlanLimitFormState,
 } from '@/pages/settings/components/tax-advantaged/types'
+import { FieldLabelRow } from '@/components/forms/FieldLabelRow'
+import { FormError } from '@/components/forms/FormError'
 import { CompactCurrencyInput } from '@/pages/settings/components/tax-advantaged/tax-advantaged-categories-section/controls/FormControls'
+import { getCompactFieldFrameStyle } from '@/pages/settings/components/tax-advantaged/tax-advantaged-categories-section/utils/compactFieldStyle'
+import {
+  EXISTING_LIMIT_CONTROL_IDS,
+  NEW_LIMIT_CONTROL_IDS,
+  type LimitField,
+} from '@/pages/settings/components/tax-advantaged/tax-advantaged-categories-section/modalFieldIds'
+import type { FieldProblems } from '@/utils/refusedSubmit'
 
 interface TaxAdvantagedLimitDetailsModalProps {
+  /** Why Save is held off once a press found something missing or wrong, or nothing while it is not */
+  blockedReason?: string
   creatingLimit: boolean
   currencies: Currency[]
   limitError: string | null
@@ -25,23 +36,23 @@ interface TaxAdvantagedLimitDetailsModalProps {
   onNewLimitFieldChange: <K extends keyof TaxPlanLimitFormState>(key: K, value: TaxPlanLimitFormState[K]) => void
   onSaveLimit: (year: number) => void
   plan: TaxAdvantagedCategory
+  /** The fields marked as wrong right now */
+  problems: FieldProblems<LimitField>
   selectedLimit: TaxAdvantagedCategoryLimit | null
   selectedLimitDeleteConfirming: boolean
   selectedLimitDeleting: boolean
-  selectedLimitDirty: boolean
   selectedSavingLimit: boolean
   selectedDraft: TaxPlanLimitDraftState | null
   showAddTaxYear: boolean
 }
 
-// Each field's id comes from its limit key alone. The add and edit forms never show together and each
-// holds one year, so no two fields on the page share a key
-const NEW_TAX_YEAR_FIELD_ID = 'tac-new-limit-year'
+const getLimitErrorId = (controlId: string) => `${controlId}-error`
 
 /**
  * Renders the add and edit dialogs for annual TAC limits
  */
 export default function TaxAdvantagedLimitDetailsModal({
+  blockedReason,
   creatingLimit,
   currencies,
   limitError,
@@ -53,10 +64,10 @@ export default function TaxAdvantagedLimitDetailsModal({
   onNewLimitFieldChange,
   onSaveLimit,
   plan,
+  problems,
   selectedLimit,
   selectedLimitDeleteConfirming,
   selectedLimitDeleting,
-  selectedLimitDirty,
   selectedSavingLimit,
   selectedDraft,
   showAddTaxYear,
@@ -94,14 +105,23 @@ export default function TaxAdvantagedLimitDetailsModal({
         {showAddTaxYear ? (
           <div className="space-y-4">
             <div>
-              <label htmlFor={NEW_TAX_YEAR_FIELD_ID} className="app-label mb-1 block text-xs">Year</label>
+              <FieldLabelRow
+                compact
+                htmlFor={NEW_LIMIT_CONTROL_IDS.year}
+                label="Year"
+                error={problems.year}
+                errorId={getLimitErrorId(NEW_LIMIT_CONTROL_IDS.year)}
+                spacingClassName="mb-1"
+              />
               <div
                 className="group flex h-9 w-full items-center gap-1.5 rounded-md border border-transparent px-2 transition-colors duration-150 hover:border-[var(--app-border)] app-field-focus"
-                style={{ background: 'color-mix(in srgb, var(--app-input-bg) 55%, var(--app-bg))' }}
+                style={getCompactFieldFrameStyle(!!problems.year)}
               >
                 <input
                   aria-label="New tax year"
-                  id={NEW_TAX_YEAR_FIELD_ID}
+                  aria-describedby={problems.year ? getLimitErrorId(NEW_LIMIT_CONTROL_IDS.year) : undefined}
+                  aria-invalid={problems.year ? true : undefined}
+                  id={NEW_LIMIT_CONTROL_IDS.year}
                   className="block h-8 min-w-0 flex-1 bg-transparent text-[0.9375rem] font-medium leading-8 outline-none"
                   inputMode="numeric"
                   pattern="[0-9]*"
@@ -121,44 +141,36 @@ export default function TaxAdvantagedLimitDetailsModal({
             <div className="space-y-2">
               <p className="text-sm font-medium">Contribution</p>
               <div className="grid grid-cols-2 gap-3">
-                {renderNewLimitEditorField('contribution_limit', 'Limit', 'New tax-year contribution limit', currencies, plan, newLimitForm, onNewLimitFieldChange, 'Required')}
-                {renderNewLimitEditorField('accrued_contributions', 'Opening', 'New tax-year opening contributions', currencies, plan, newLimitForm, onNewLimitFieldChange)}
+                {renderNewLimitEditorField('contribution_limit', 'Limit', 'New tax-year contribution limit', currencies, plan, newLimitForm, problems, onNewLimitFieldChange, 'Required')}
+                {renderNewLimitEditorField('accrued_contributions', 'Opening', 'New tax-year opening contributions', currencies, plan, newLimitForm, problems, onNewLimitFieldChange)}
               </div>
             </div>
             <div className="space-y-2">
               <p className="text-sm font-medium">Withdrawal</p>
               <div className="grid grid-cols-2 gap-3">
-                {renderNewLimitEditorField('withdrawal_limit', 'Limit', 'New tax-year withdrawal limit', currencies, plan, newLimitForm, onNewLimitFieldChange, 'Optional')}
-                {renderNewLimitEditorField('accrued_withdrawals', 'Opening', 'New tax-year opening withdrawals', currencies, plan, newLimitForm, onNewLimitFieldChange)}
+                {renderNewLimitEditorField('withdrawal_limit', 'Limit', 'New tax-year withdrawal limit', currencies, plan, newLimitForm, problems, onNewLimitFieldChange, 'Optional')}
+                {renderNewLimitEditorField('accrued_withdrawals', 'Opening', 'New tax-year opening withdrawals', currencies, plan, newLimitForm, problems, onNewLimitFieldChange)}
               </div>
             </div>
-            {limitError && (
-              <p className="text-sm" style={{ color: 'var(--app-negative)' }}>
-                {limitError}
-              </p>
-            )}
+            <FormError message={limitError} />
           </div>
         ) : selectedLimit && selectedDraft ? (
           <div className="space-y-4">
             <div className="space-y-2">
               <p className="text-sm font-medium">Contribution</p>
               <div className="grid grid-cols-2 gap-3">
-                {renderLimitEditorField(selectedLimit.year, 'contribution_limit', 'Limit', 'Contribution limit', selectedDraft.contribution_limit, currencies, plan, onLimitFieldChange, 'Required')}
-                {renderLimitEditorField(selectedLimit.year, 'accrued_contributions', 'Opening', 'Opening contributions', selectedDraft.accrued_contributions, currencies, plan, onLimitFieldChange)}
+                {renderLimitEditorField(selectedLimit.year, 'contribution_limit', 'Limit', 'Contribution limit', selectedDraft.contribution_limit, currencies, plan, problems, onLimitFieldChange, 'Required')}
+                {renderLimitEditorField(selectedLimit.year, 'accrued_contributions', 'Opening', 'Opening contributions', selectedDraft.accrued_contributions, currencies, plan, problems, onLimitFieldChange)}
               </div>
             </div>
             <div className="space-y-2">
               <p className="text-sm font-medium">Withdrawal</p>
               <div className="grid grid-cols-2 gap-3">
-                {renderLimitEditorField(selectedLimit.year, 'withdrawal_limit', 'Limit', 'Withdrawal limit', selectedDraft.withdrawal_limit, currencies, plan, onLimitFieldChange, 'Optional')}
-                {renderLimitEditorField(selectedLimit.year, 'accrued_withdrawals', 'Opening', 'Opening withdrawals', selectedDraft.accrued_withdrawals, currencies, plan, onLimitFieldChange)}
+                {renderLimitEditorField(selectedLimit.year, 'withdrawal_limit', 'Limit', 'Withdrawal limit', selectedDraft.withdrawal_limit, currencies, plan, problems, onLimitFieldChange, 'Optional')}
+                {renderLimitEditorField(selectedLimit.year, 'accrued_withdrawals', 'Opening', 'Opening withdrawals', selectedDraft.accrued_withdrawals, currencies, plan, problems, onLimitFieldChange)}
               </div>
             </div>
-            {limitError && (
-              <p className="text-sm" style={{ color: 'var(--app-negative)' }}>
-                {limitError}
-              </p>
-            )}
+            <FormError message={limitError} />
           </div>
         ) : null}
       </div>
@@ -173,14 +185,14 @@ export default function TaxAdvantagedLimitDetailsModal({
             >
               Cancel
             </button>
-            <button
-              type="button"
+            <DisabledReasonButton
               className="app-primary-button justify-center"
               onClick={onCreateLimit}
               disabled={creatingLimit}
+              disabledReason={creatingLimit ? undefined : blockedReason}
             >
               {creatingLimit ? <div className="app-spinner" aria-label="Saving" /> : 'Save'}
-            </button>
+            </DisabledReasonButton>
           </div>
         ) : selectedLimit ? (
           <div className="space-y-2">
@@ -214,7 +226,7 @@ export default function TaxAdvantagedLimitDetailsModal({
                 className="app-primary-button justify-center"
                 onClick={() => onSaveLimit(selectedLimit.year)}
                 disabled={selectedSavingLimit}
-                disabledReason={!selectedSavingLimit && !selectedLimitDirty ? 'There are no changes to save' : undefined}
+                disabledReason={selectedSavingLimit ? undefined : blockedReason}
               >
                 {selectedSavingLimit ? <div className="app-spinner" aria-label="Saving" /> : 'Save'}
               </DisabledReasonButton>
@@ -237,16 +249,20 @@ function renderLimitEditorField(
   value: string,
   currencies: Currency[],
   plan: TaxAdvantagedCategory,
+  problems: FieldProblems<LimitField>,
   onLimitFieldChange: (year: number, key: TaxPlanLimitDraftField, value: string) => void,
   placeholder?: string,
 ) {
-  const id = `tac-limit-${key}`
+  const id = EXISTING_LIMIT_CONTROL_IDS[key]
+  const errorId = getLimitErrorId(id)
 
   return (
     <div className="min-w-0">
-      <label htmlFor={id} className="app-label mb-1 block text-xs">{label}</label>
+      <FieldLabelRow compact htmlFor={id} label={label} error={problems[key]} errorId={errorId} spacingClassName="mb-1" />
       <CompactCurrencyInput
         ariaLabel={`${year} ${ariaLabel.toLowerCase()}`}
+        hasError={!!problems[key]}
+        errorId={errorId}
         id={id}
         currencies={currencies}
         currency={plan.currency}
@@ -268,16 +284,20 @@ function renderNewLimitEditorField(
   currencies: Currency[],
   plan: TaxAdvantagedCategory,
   newLimitForm: TaxPlanLimitFormState,
+  problems: FieldProblems<LimitField>,
   onNewLimitFieldChange: <K extends keyof TaxPlanLimitFormState>(key: K, value: TaxPlanLimitFormState[K]) => void,
   placeholder?: string,
 ) {
-  const id = `tac-new-limit-${key}`
+  const id = NEW_LIMIT_CONTROL_IDS[key]
+  const errorId = getLimitErrorId(id)
 
   return (
     <div className="min-w-0">
-      <label htmlFor={id} className="app-label mb-1 block text-xs">{label}</label>
+      <FieldLabelRow compact htmlFor={id} label={label} error={problems[key]} errorId={errorId} spacingClassName="mb-1" />
       <CompactCurrencyInput
         ariaLabel={ariaLabel}
+        hasError={!!problems[key]}
+        errorId={errorId}
         id={id}
         currencies={currencies}
         currency={plan.currency}

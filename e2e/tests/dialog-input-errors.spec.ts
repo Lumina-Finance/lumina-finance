@@ -1,11 +1,18 @@
 import { expect, test, type Locator, type Page } from '@playwright/test'
 
-import { budgetPeriodStart, createAccount, createMonthlyBudget, signUpUser } from '../support/api'
+import {
+  asUser,
+  budgetPeriodStart,
+  createAccount,
+  createMonthlyBudget,
+  createTaxAdvantagedCategory,
+  signUpUser,
+} from '../support/api'
 import { chooseFromDropdown, logInViaApi, openModal, openPage } from '../support/app'
 import { AT_EVERY_SIZE } from '../support/sizes'
 import { API_BASE_URL } from '../support/target'
 
-// Runs at every size, apart from the Edit budget and keep-open tests, whose behaviour does not change with the
+// Runs at every size, apart from the Edit budget, keep-open and annual limit tests, whose behaviour does not change with the
 // width: the message sits on the field's label row, which stacks
 // differently on a phone, and the button is reached by tap there
 
@@ -391,5 +398,99 @@ test.describe('dialog input errors', () => {
     await expect(dialog.getByRole('alert')).toHaveCount(0)
     await expect(amount).not.toHaveAttribute('aria-invalid', 'true')
     await expect(add).not.toHaveAttribute('aria-disabled', 'true')
+  })
+
+  test('marks the empty name in the Create category dialogue of Settings and returns the button once it is filled', AT_EVERY_SIZE, async ({ page, request }) => {
+    const user = await signUpUser(request)
+    await logInViaApi(page, user)
+    await openPage(page, '/settings#tax-advantaged-categories')
+    await page.locator('#tax-advantaged-categories').getByRole('button', { name: 'Create category', exact: true }).click()
+    const dialog = page.getByRole('dialog', { name: 'Create category', exact: true })
+    const name = dialog.getByRole('textbox', { name: 'Category name', exact: true })
+    const create = dialog.getByRole('button', { name: 'Create category', exact: true })
+
+    await expect(create).not.toHaveAttribute('aria-disabled', 'true')
+    await expect(dialog.getByRole('alert')).toHaveCount(0)
+
+    await create.click()
+    await expect(dialog.getByRole('alert')).toHaveText('Name is required')
+    await expect(name).toHaveAttribute('aria-invalid', 'true')
+    await expect(name).toHaveAccessibleDescription('Name is required')
+    await expect(create).toHaveAttribute('aria-disabled', 'true')
+    await expect(create).toHaveAccessibleDescription('Name is required')
+
+    await name.fill('TFSA')
+    await expect(dialog.getByRole('alert')).toHaveCount(0)
+    await expect(name).not.toHaveAttribute('aria-invalid', 'true')
+    await expect(create).not.toHaveAttribute('aria-disabled', 'true')
+  })
+
+  test('marks an emptied name in the Category details dialogue and returns Save once it is filled', AT_EVERY_SIZE, async ({ page, request }) => {
+    const user = await signUpUser(request)
+    await createTaxAdvantagedCategory(request, user, 'Retirement Savings')
+    await logInViaApi(page, user)
+    await openPage(page, '/settings#tax-advantaged-categories')
+    await page.getByRole('row').filter({ hasText: 'Retirement Savings' }).click()
+    await page.getByRole('dialog', { name: 'Retirement Savings', exact: true }).getByRole('button', { name: 'Edit', exact: true }).click()
+    const dialog = page.getByRole('dialog', { name: 'Category details', exact: true })
+    const name = dialog.getByRole('textbox', { name: 'Category name', exact: true })
+    const save = dialog.getByRole('button', { name: 'Save', exact: true })
+
+    await expect(save).not.toHaveAttribute('aria-disabled', 'true')
+    await name.fill('')
+    await save.click()
+    await expect(dialog.getByRole('alert')).toHaveText('Name is required')
+    await expect(name).toHaveAttribute('aria-invalid', 'true')
+    await expect(name).toHaveAccessibleDescription('Name is required')
+    await expect(save).toHaveAttribute('aria-disabled', 'true')
+
+    await name.fill('Retirement')
+    await expect(dialog.getByRole('alert')).toHaveCount(0)
+    await expect(name).not.toHaveAttribute('aria-invalid', 'true')
+    await expect(save).not.toHaveAttribute('aria-disabled', 'true')
+  })
+
+  test('marks the missing limit and the taken year when adding a year, and fades Save on an unchanged year', async ({ page, request }) => {
+    const user = await signUpUser(request)
+    const categoryId = await createTaxAdvantagedCategory(request, user, 'Retirement Savings')
+    const seeded = await request.post(`${API_BASE_URL}/tax-advantaged-categories/${categoryId}/limits`, {
+      headers: asUser(user),
+      data: { year: 2020, contribution_limit: 700000 },
+    })
+    expect(seeded.status()).toBe(201)
+    await logInViaApi(page, user)
+    await openPage(page, '/settings#tax-advantaged-categories')
+    const category = page.getByRole('dialog', { name: 'Retirement Savings', exact: true })
+    await page.getByRole('row').filter({ hasText: 'Retirement Savings' }).click()
+    await category.getByRole('button', { name: 'Add year', exact: true }).click()
+    const dialog = page.getByRole('dialog', { name: 'New year', exact: true })
+    const year = dialog.getByRole('textbox', { name: 'New tax year', exact: true })
+    const limit = dialog.getByRole('textbox', { name: 'New tax-year contribution limit', exact: true })
+    const save = dialog.getByRole('button', { name: 'Save', exact: true })
+
+    // A taken year and the missing contribution limit are two problems, the year first
+    await year.fill('2020')
+    await save.click()
+    await expect(dialog.getByRole('alert')).toHaveCount(2)
+    await expect(year).toHaveAccessibleDescription('A limit for 2020 already exists')
+    await expect(limit).toHaveAccessibleDescription('Limit is required')
+    await expect(save).toHaveAttribute('aria-disabled', 'true')
+    await expect(save).toHaveAccessibleDescription('A limit for 2020 already exists')
+
+    await limit.fill('5000')
+    await year.fill('2019')
+    await expect(dialog.getByRole('alert')).toHaveCount(0)
+    await expect(year).not.toHaveAttribute('aria-invalid', 'true')
+    await expect(save).not.toHaveAttribute('aria-disabled', 'true')
+    await dialog.getByRole('button', { name: 'Cancel', exact: true }).click()
+    await expect(dialog).toBeHidden()
+
+    // An existing year with nothing changed is a state, not an input problem: Save is faded from open with its reason
+    await category.getByRole('row').filter({ hasText: '2020' }).click()
+    const existing = page.getByRole('dialog', { name: '2020', exact: true })
+    const existingSave = existing.getByRole('button', { name: 'Save', exact: true })
+    await expect(existingSave).toHaveAttribute('aria-disabled', 'true')
+    await expect(existingSave).toHaveAccessibleDescription('There are no changes to save')
+    await expect(existing.getByRole('alert')).toHaveCount(0)
   })
 })

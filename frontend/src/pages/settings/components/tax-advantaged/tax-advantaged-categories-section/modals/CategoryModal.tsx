@@ -47,7 +47,9 @@ export default function TaxAdvantagedCategoryModal({
     confirmingDelete: confirmingPlanDelete,
     deleteCategory: handleDeletePlan,
     deletePending: deletePlanPending,
+    detailsBlockedReason,
     detailsOpen: categoryEditOpen,
+    detailsProblems,
     openDetails,
     planError,
     planForm,
@@ -92,7 +94,9 @@ export default function TaxAdvantagedCategoryModal({
     deleteSelectedLimit: handleDeleteLimit,
     hasLifetimePriorActivity,
     hasScrollableLimitRows,
+    limitBlockedReason,
     limitError,
+    limitProblems,
     limitsLoading,
     newLimitForm,
     pendingDeleteLimitYear,
@@ -103,7 +107,6 @@ export default function TaxAdvantagedCategoryModal({
     selectedLimit,
     selectedLimitDeleteConfirming,
     selectedLimitDeleting,
-    selectedLimitDirty,
     selectedSavingLimit,
     setLimitField,
     setNewLimitField,
@@ -415,6 +418,7 @@ export default function TaxAdvantagedCategoryModal({
       </ModalShell>
 
       <TaxAdvantagedCategoryDetailsModal
+        blockedReason={detailsBlockedReason}
         currencies={currencies}
         onClose={closeCategoryDetailsModal}
         onPlanFieldChange={setPlanField}
@@ -423,14 +427,17 @@ export default function TaxAdvantagedCategoryModal({
         plan={plan}
         planError={planError}
         planForm={planForm}
+        problems={detailsProblems}
         planSaveStatus={planSaveStatus}
         updatePending={updatePlanPending}
       />
 
       <TaxAdvantagedLimitDetailsModal
+        blockedReason={limitBlockedReason}
         creatingLimit={creatingLimit}
         currencies={currencies}
         limitError={limitError}
+        problems={limitProblems}
         newLimitForm={newLimitForm}
         onClose={closeLimitDetailsModal}
         onCreateLimit={() => { void handleCreateLimit() }}
@@ -443,7 +450,6 @@ export default function TaxAdvantagedCategoryModal({
         selectedLimit={selectedLimit}
         selectedLimitDeleteConfirming={selectedLimitDeleteConfirming}
         selectedLimitDeleting={selectedLimitDeleting}
-        selectedLimitDirty={selectedLimitDirty}
         selectedSavingLimit={selectedSavingLimit}
         showAddTaxYear={showAddTaxYear}
       />

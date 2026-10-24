@@ -8,10 +8,15 @@ import {
 import type { TaxPlanFormState } from '@/pages/settings/components/tax-advantaged/types'
 import { DELETE_TAX_CATEGORY_MIN_LOADING_MS } from '@/pages/settings/components/tax-advantaged/tax-advantaged-categories-section/constants'
 import {
+  CATEGORY_DETAILS_CONTROL_IDS,
+  CATEGORY_DETAILS_VALIDATED_FIELDS,
+} from '@/pages/settings/components/tax-advantaged/tax-advantaged-categories-section/modalFieldIds'
+import { getCategoryDetailsProblems } from '@/pages/settings/components/tax-advantaged/tax-advantaged-categories-section/utils/categoryFormProblems'
+import {
   fromMinorUnits,
-  isValidMoneyInput,
   toMinorUnits,
 } from '@/pages/settings/components/tax-advantaged/tax-advantaged-categories-section/utils/categoryUtils'
+import { useRefusedSubmit } from '@/hooks/useRefusedSubmit'
 import { ACTION_LOADING_MIN_MS, waitForMilliseconds } from '@/utils/timing'
 
 interface UseTaxAdvantagedCategoryDetailsFormParams {
@@ -44,9 +49,14 @@ export function useTaxAdvantagedCategoryDetailsForm({
   }
   const [planOverrides, setPlanOverrides] = useState<Partial<TaxPlanFormState>>({})
   const planForm: TaxPlanFormState = { ...planBase, ...planOverrides }
+  const refusal = useRefusedSubmit(
+    getCategoryDetailsProblems(planForm),
+    CATEGORY_DETAILS_VALIDATED_FIELDS,
+    CATEGORY_DETAILS_CONTROL_IDS,
+  )
 
   /**
-   * Updates a TAC details draft field and clears validation tied to the previous value
+   * Updates a TAC details draft field and clears the failure of the previous attempt
    */
   function setPlanField<K extends keyof TaxPlanFormState>(key: K, value: TaxPlanFormState[K]) {
     setPlanOverrides((current) => ({ ...current, [key]: value }))
@@ -60,6 +70,7 @@ export function useTaxAdvantagedCategoryDetailsForm({
     if (planSaveStatus !== 'idle') return false
     setPlanOverrides({})
     setPlanError(null)
+    refusal.reset()
     setDetailsOpen(true)
 
     return true
@@ -73,18 +84,14 @@ export function useTaxAdvantagedCategoryDetailsForm({
     setDetailsOpen(false)
     setPlanOverrides({})
     setPlanError(null)
+    refusal.reset()
   }
 
   /**
-   * Validates and saves TAC identity and lifetime contribution room edits
+   * Saves TAC identity and lifetime contribution room edits once the form has nothing missing or wrong
    */
   async function saveDetails() {
-    if (updatePlan.isPending || planSaveStatus !== 'idle') return
-    const validationError = validatePlanForm(planForm)
-    if (validationError) {
-      setPlanError(validationError)
-      return
-    }
+    if (updatePlan.isPending || planSaveStatus !== 'idle' || !refusal.guard()) return
 
     const { dirty, nextAccruedContributions, nextLifetimeLimit } = getPlanUpdateState(planForm, currencies, plan)
     setPlanSaveStatus('loading')
@@ -132,7 +139,9 @@ export function useTaxAdvantagedCategoryDetailsForm({
     confirmingDelete,
     deleteCategory,
     deletePending: deletePlan.isPending,
+    detailsBlockedReason: refusal.blockedReason,
     detailsOpen,
+    detailsProblems: refusal.errors,
     openDetails,
     planError,
     planForm,
@@ -161,21 +170,4 @@ function getPlanUpdateState(
     || form.counts_internal_transfers !== plan.counts_internal_transfers
 
   return { dirty, nextAccruedContributions, nextLifetimeLimit }
-}
-
-/**
- * Validates TAC details before sending values that the backend stores as minor units
- */
-function validatePlanForm(form: TaxPlanFormState) {
-  if (!form.name.trim()) {
-    return 'Name is required.'
-  }
-  if (!isValidMoneyInput(form.lifetime_contribution_limit)) {
-    return 'Lifetime limit must be zero or higher.'
-  }
-  if (!isValidMoneyInput(form.accrued_contributions)) {
-    return 'Opening usage must be zero or higher.'
-  }
-
-  return null
 }
