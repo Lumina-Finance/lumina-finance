@@ -231,3 +231,27 @@ async def test_credit_widget_leaves_out_archived_cards_and_keeps_their_choice(cl
     assert unarchive.status_code == 200
     restored = (await client.get("/dashboard/credit-utilization", headers=headers)).json()
     assert [(a["id"], a["is_counted"]) for a in restored["accounts"]] == [(card["id"], True), (archived["id"], False)]
+
+
+async def test_saving_the_choice_refuses_a_card_archived_since_the_list_was_opened(client):
+    """A card archived in another tab is refused with its own reason, and the stored choice is untouched."""
+    headers = _get_auth_header(await _create_user(client))
+    archived = await _create_card(client, headers, "Card A", 500_000, 50_000)
+    await client.patch(f"/accounts/{archived['id']}", json={"is_archived": True}, headers=headers)
+
+    resp = await client.put("/dashboard/credit-utilization/excluded-accounts", json={"account_ids": [archived["id"]]}, headers=headers)
+
+    assert resp.status_code == 422
+    assert resp.json()["detail"] == "This credit account is archived, so it can't count toward credit utilization"
+    assert await _count_exclusion_rows() == 0
+
+
+async def test_saving_the_choice_refuses_an_account_that_is_not_a_credit_account(client):
+    """A chequing account cannot be left out, since it never counts in the first place."""
+    headers = _get_auth_header(await _create_user(client))
+    chequing = (await _create_account(client, headers, name="Chequing")).json()
+
+    resp = await client.put("/dashboard/credit-utilization/excluded-accounts", json={"account_ids": [chequing["id"]]}, headers=headers)
+
+    assert resp.status_code == 422
+    assert resp.json()["detail"] == "Only credit accounts with a limit count toward credit utilization"
