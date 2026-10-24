@@ -91,7 +91,8 @@ async def _count_unlinked_rows(account_id):
     """Return how many of an account's transactions are linked to no import"""
     async with TestSession() as session:
         return await session.scalar(
-            text("SELECT count(*) FROM transactions WHERE account_id = :id AND import_run_id IS NULL"), {"id": account_id},
+            text("SELECT count(*) FROM transactions WHERE account_id = :id AND import_run_id IS NULL"),
+            {"id": account_id},
         )
 
 
@@ -123,8 +124,10 @@ async def test_undo_deletes_everything_the_import_wrote_and_keeps_what_it_reused
     assert resp.json()["transactions_deleted"] == 2
 
     for table, field in (
-        ("accounts", "created_account_ids"), ("categories", "created_category_ids"),
-        ("merchants", "created_merchant_ids"), ("tags", "created_tag_ids"),
+        ("accounts", "created_account_ids"),
+        ("categories", "created_category_ids"),
+        ("merchants", "created_merchant_ids"),
+        ("tags", "created_tag_ids"),
     ):
         for record_id in summary[field]:
             assert await _count(table, record_id) == 0, table
@@ -185,17 +188,24 @@ async def test_undo_deletes_a_provider_import_with_the_accounts_it_archived_and_
     }
     budgets = {
         "categories": [_GROCERIES],
-        "budgets": [{
-            "name": "Groceries",
-            "currency": "CAD",
-            "category_sources": ["Groceries"],
-            "limits": [{"start": "2026-04-01", "end": "2026-04-30", "amount": "300.00"}],
-            "recurrence": None,
-        }],
+        "budgets": [
+            {
+                "name": "Groceries",
+                "currency": "CAD",
+                "category_sources": ["Groceries"],
+                "limits": [{"start": "2026-04-01", "end": "2026-04-30", "amount": "300.00"}],
+                "recurrence": None,
+            }
+        ],
     }
     committed = await _import_run(
-        client, headers, payload, source="firefly", budgets=budgets,
-        archive={"account_sources": ["Everyday Chequing", "Savings"]}, file_name="firefly-export.csv",
+        client,
+        headers,
+        payload,
+        source="firefly",
+        budgets=budgets,
+        archive={"account_sources": ["Everyday Chequing", "Savings"]},
+        file_name="firefly-export.csv",
     )
     assert committed.status_code == 201, committed.text
     summary = committed.json()
@@ -411,8 +421,12 @@ async def test_a_group_transaction_referencing_what_the_import_created_makes_und
     else:
         transfer_category = await _get_system_category_id(client, headers, "Transfer")
         group_row = await _create_transaction(
-            client, headers, joint_id, transfer_category,
-            counterparty_account_id=everyday_id, counterparty_account_scope="tracked",
+            client,
+            headers,
+            joint_id,
+            transfer_category,
+            counterparty_account_id=everyday_id,
+            counterparty_account_scope="tracked",
         )
     assert group_row.status_code == 201, group_row.text
 
