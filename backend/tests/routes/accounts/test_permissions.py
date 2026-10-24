@@ -16,13 +16,16 @@ async def _create_second_user(client):
     Returns:
         Tuple of (auth_headers, user_id)
     """
-    resp = await client.post("/auth/signup", json={
-        "email": "other@example.com",
-        "password": "SecurePassword123!",
-        "first_name": "Other",
-        "tz": "America/Toronto",
-        "base_currency": "CAD",
-    })
+    resp = await client.post(
+        "/auth/signup",
+        json={
+            "email": "other@example.com",
+            "password": "SecurePassword123!",
+            "first_name": "Other",
+            "tz": "America/Toronto",
+            "base_currency": "CAD",
+        },
+    )
     return _get_auth_header(resp), resp.json()["user"]["id"]
 
 
@@ -51,13 +54,17 @@ async def _create_group_account(client, headers, group_id):
     Returns:
         The created account's ID
     """
-    resp = await client.post("/accounts", json={
-        "account_kind": "asset",
-        "account_type": "checking",
-        "name": "Joint Checking",
-        "currency": "CAD",
-        "group_id": group_id,
-    }, headers=headers)
+    resp = await client.post(
+        "/accounts",
+        json={
+            "account_kind": "asset",
+            "account_type": "checking",
+            "name": "Joint Checking",
+            "currency": "CAD",
+            "group_id": group_id,
+        },
+        headers=headers,
+    )
     return resp.json()["id"]
 
 
@@ -230,9 +237,16 @@ async def test_grant_account_permission_personal_account_returns_404(client):
     """Granting permission on a personal account returns 404 to avoid leaking existence."""
     admin_headers, _, member_user_id, _, _ = await _setup_group_with_member_and_account(client)
 
-    personal_resp = await client.post("/accounts", json={
-        "account_kind": "asset", "account_type": "checking", "name": "Personal", "currency": "CAD",
-    }, headers=admin_headers)
+    personal_resp = await client.post(
+        "/accounts",
+        json={
+            "account_kind": "asset",
+            "account_type": "checking",
+            "name": "Personal",
+            "currency": "CAD",
+        },
+        headers=admin_headers,
+    )
     personal_account_id = personal_resp.json()["id"]
 
     resp = await client.post(
@@ -276,10 +290,16 @@ async def test_grant_account_permission_by_non_member_returns_404(client):
     """Non-member cannot grant permissions."""
     _, _, member_user_id, _, account_id = await _setup_group_with_member_and_account(client)
 
-    third_resp = await client.post("/auth/signup", json={
-        "email": "third@example.com", "password": "SecurePassword123!",
-        "first_name": "Third", "tz": "America/Toronto", "base_currency": "CAD",
-    })
+    third_resp = await client.post(
+        "/auth/signup",
+        json={
+            "email": "third@example.com",
+            "password": "SecurePassword123!",
+            "first_name": "Third",
+            "tz": "America/Toronto",
+            "base_currency": "CAD",
+        },
+    )
     third_headers = _get_auth_header(third_resp)
 
     resp = await client.post(
@@ -470,10 +490,16 @@ async def test_list_account_permissions_multiple_ordered_by_created_at(client):
     """Multiple permissions are returned ordered by created_at."""
     admin_headers, _, member_user_id, group_id, account_id = await _setup_group_with_member_and_account(client)
 
-    third_resp = await client.post("/auth/signup", json={
-        "email": "third@example.com", "password": "SecurePassword123!",
-        "first_name": "Third", "tz": "America/Toronto", "base_currency": "CAD",
-    })
+    third_resp = await client.post(
+        "/auth/signup",
+        json={
+            "email": "third@example.com",
+            "password": "SecurePassword123!",
+            "first_name": "Third",
+            "tz": "America/Toronto",
+            "base_currency": "CAD",
+        },
+    )
     third_user_id = third_resp.json()["user"]["id"]
     await client.post(f"/groups/{group_id}/members", json={"user_id": third_user_id}, headers=admin_headers)
 
@@ -567,9 +593,7 @@ async def test_write_or_admin_permission_reports_write_capability(client, level)
 
 async def test_group_admin_reports_write_capability_despite_an_explicit_read_grant(client):
     """Group administrator access overrides the lower explicit account grant."""
-    admin_headers, member_headers, member_user_id, group_id, account_id = (
-        await _setup_group_with_member_and_account(client)
-    )
+    admin_headers, member_headers, member_user_id, group_id, account_id = await _setup_group_with_member_and_account(client)
     await _grant_account_permission(client, admin_headers, account_id, member_user_id, "read")
     promote = await client.patch(
         f"/groups/{group_id}/members/{member_user_id}",
@@ -604,7 +628,9 @@ async def test_archive_state_does_not_change_write_capability(
     admin_headers, member_headers, member_user_id, _, account_id = await _setup_group_with_member_and_account(client)
     await _grant_account_permission(client, admin_headers, account_id, member_user_id, level)
     update_resp = await client.patch(
-        f"/accounts/{account_id}", json=account_patch, headers=admin_headers,
+        f"/accounts/{account_id}",
+        json=account_patch,
+        headers=admin_headers,
     )
     assert update_resp.status_code == 200
 

@@ -31,13 +31,16 @@ async def _create_second_user(client):
     Returns:
         Tuple of (auth_headers, user_id)
     """
-    resp = await client.post("/auth/signup", json={
-        "email": "other@example.com",
-        "password": "SecurePassword123!",
-        "first_name": "Other",
-        "tz": "America/Toronto",
-        "base_currency": "CAD",
-    })
+    resp = await client.post(
+        "/auth/signup",
+        json={
+            "email": "other@example.com",
+            "password": "SecurePassword123!",
+            "first_name": "Other",
+            "tz": "America/Toronto",
+            "base_currency": "CAD",
+        },
+    )
     return _get_auth_header(resp), resp.json()["user"]["id"]
 
 
@@ -528,10 +531,16 @@ async def test_add_member_by_non_owner_admin_returns_201(client):
     await client.post(f"/groups/{group_id}/members", json={"user_id": other_user_id}, headers=headers)
     await client.patch(f"/groups/{group_id}/members/{other_user_id}", json={"is_admin": True}, headers=headers)
 
-    third_resp = await client.post("/auth/signup", json={
-        "email": "third@example.com", "password": "SecurePassword123!",
-        "first_name": "Third", "tz": "America/Toronto", "base_currency": "CAD",
-    })
+    third_resp = await client.post(
+        "/auth/signup",
+        json={
+            "email": "third@example.com",
+            "password": "SecurePassword123!",
+            "first_name": "Third",
+            "tz": "America/Toronto",
+            "base_currency": "CAD",
+        },
+    )
     third_user_id = third_resp.json()["user"]["id"]
 
     resp = await client.post(
@@ -675,10 +684,16 @@ async def test_non_owner_admin_cannot_promote_returns_403(client):
     await client.patch(f"/groups/{group_id}/members/{other_user_id}", json={"is_admin": True}, headers=headers)
 
     # Create a third user to be the target
-    third_resp = await client.post("/auth/signup", json={
-        "email": "third@example.com", "password": "SecurePassword123!",
-        "first_name": "Third", "tz": "America/Toronto", "base_currency": "CAD",
-    })
+    third_resp = await client.post(
+        "/auth/signup",
+        json={
+            "email": "third@example.com",
+            "password": "SecurePassword123!",
+            "first_name": "Third",
+            "tz": "America/Toronto",
+            "base_currency": "CAD",
+        },
+    )
     third_user_id = third_resp.json()["user"]["id"]
     await client.post(f"/groups/{group_id}/members", json={"user_id": third_user_id}, headers=headers)
 
@@ -811,13 +826,16 @@ async def test_remove_member_non_admin_cannot_remove_others_returns_403(client):
     await client.post(f"/groups/{group_id}/members", json={"user_id": other_user_id}, headers=headers)
 
     # Create a third user to be the removal target
-    third_resp = await client.post("/auth/signup", json={
-        "email": "third@example.com",
-        "password": "SecurePassword123!",
-        "first_name": "Third",
-        "tz": "America/Toronto",
-        "base_currency": "CAD",
-    })
+    third_resp = await client.post(
+        "/auth/signup",
+        json={
+            "email": "third@example.com",
+            "password": "SecurePassword123!",
+            "first_name": "Third",
+            "tz": "America/Toronto",
+            "base_currency": "CAD",
+        },
+    )
     third_user_id = third_resp.json()["user"]["id"]
     await client.post(f"/groups/{group_id}/members", json={"user_id": third_user_id}, headers=headers)
 
@@ -864,27 +882,49 @@ async def test_delete_group_whose_account_a_transfer_records_returns_409(client)
     headers = _get_auth_header(signup_resp)
     group_id = (await _create_group(client, headers)).json()["id"]
 
-    group_account_id = (await client.post("/accounts", json={
-        "account_kind": "asset", "account_type": "savings", "name": "Shared Savings",
-        "currency": "CAD", "group_id": group_id,
-    }, headers=headers)).json()["id"]
-    personal_account_id = (await client.post("/accounts", json={
-        "account_kind": "asset", "account_type": "checking", "name": "Chequing", "currency": "CAD",
-    }, headers=headers)).json()["id"]
+    group_account_id = (
+        await client.post(
+            "/accounts",
+            json={
+                "account_kind": "asset",
+                "account_type": "savings",
+                "name": "Shared Savings",
+                "currency": "CAD",
+                "group_id": group_id,
+            },
+            headers=headers,
+        )
+    ).json()["id"]
+    personal_account_id = (
+        await client.post(
+            "/accounts",
+            json={
+                "account_kind": "asset",
+                "account_type": "checking",
+                "name": "Chequing",
+                "currency": "CAD",
+            },
+            headers=headers,
+        )
+    ).json()["id"]
 
     categories = await client.get("/categories", headers=headers)
     transfer_id = next(category["id"] for category in categories.json() if category["name"] == "Transfer")
 
-    created = await client.post("/transactions", json={
-        "account_id": personal_account_id,
-        "category_id": transfer_id,
-        "dt": "2026-03-15",
-        "amount": -5000,
-        "currency": "CAD",
-        "counterparty_account_scope": "tracked",
-        "counterparty_account_id": group_account_id,
-        "merchant_id": await _get_system_merchant_id(client, headers),
-    }, headers=headers)
+    created = await client.post(
+        "/transactions",
+        json={
+            "account_id": personal_account_id,
+            "category_id": transfer_id,
+            "dt": "2026-03-15",
+            "amount": -5000,
+            "currency": "CAD",
+            "counterparty_account_scope": "tracked",
+            "counterparty_account_id": group_account_id,
+            "merchant_id": await _get_system_merchant_id(client, headers),
+        },
+        headers=headers,
+    )
     assert created.status_code == 201
 
     resp = await client.delete(f"/groups/{group_id}", headers=headers)
@@ -900,28 +940,50 @@ async def test_delete_group_with_a_transfer_between_its_own_accounts_returns_204
 
     # The recorded account is created first, so the cascade can reach it before the transaction
     # recording it has been removed. The other order passes whatever the foreign key does
-    recorded_id = (await client.post("/accounts", json={
-        "account_kind": "asset", "account_type": "savings", "name": "Shared Savings",
-        "currency": "CAD", "group_id": group_id,
-    }, headers=headers)).json()["id"]
-    holder_id = (await client.post("/accounts", json={
-        "account_kind": "asset", "account_type": "checking", "name": "Shared Chequing",
-        "currency": "CAD", "group_id": group_id,
-    }, headers=headers)).json()["id"]
+    recorded_id = (
+        await client.post(
+            "/accounts",
+            json={
+                "account_kind": "asset",
+                "account_type": "savings",
+                "name": "Shared Savings",
+                "currency": "CAD",
+                "group_id": group_id,
+            },
+            headers=headers,
+        )
+    ).json()["id"]
+    holder_id = (
+        await client.post(
+            "/accounts",
+            json={
+                "account_kind": "asset",
+                "account_type": "checking",
+                "name": "Shared Chequing",
+                "currency": "CAD",
+                "group_id": group_id,
+            },
+            headers=headers,
+        )
+    ).json()["id"]
 
     categories = await client.get("/categories", headers=headers)
     transfer_id = next(category["id"] for category in categories.json() if category["name"] == "Transfer")
 
-    created = await client.post("/transactions", json={
-        "account_id": holder_id,
-        "category_id": transfer_id,
-        "dt": "2026-03-15",
-        "amount": -5000,
-        "currency": "CAD",
-        "counterparty_account_scope": "tracked",
-        "counterparty_account_id": recorded_id,
-        "merchant_id": await _get_system_merchant_id(client, headers),
-    }, headers=headers)
+    created = await client.post(
+        "/transactions",
+        json={
+            "account_id": holder_id,
+            "category_id": transfer_id,
+            "dt": "2026-03-15",
+            "amount": -5000,
+            "currency": "CAD",
+            "counterparty_account_scope": "tracked",
+            "counterparty_account_id": recorded_id,
+            "merchant_id": await _get_system_merchant_id(client, headers),
+        },
+        headers=headers,
+    )
     assert created.status_code == 201
 
     resp = await client.delete(f"/groups/{group_id}", headers=headers)

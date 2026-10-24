@@ -14,13 +14,16 @@ async def _create_second_user(client):
     Returns:
         Authorization header for the second user
     """
-    resp = await client.post("/auth/signup", json={
-        "email": "second@example.com",
-        "password": "SecurePassword123!",
-        "first_name": "Second",
-        "tz": "America/Toronto",
-        "base_currency": "CAD",
-    })
+    resp = await client.post(
+        "/auth/signup",
+        json={
+            "email": "second@example.com",
+            "password": "SecurePassword123!",
+            "first_name": "Second",
+            "tz": "America/Toronto",
+            "base_currency": "CAD",
+        },
+    )
     return _get_auth_header(resp)
 
 

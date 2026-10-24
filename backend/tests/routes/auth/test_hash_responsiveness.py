@@ -40,9 +40,14 @@ async def test_currency_request_completes_while_auth_hash_is_pending(
         return original(*args)
 
     monkeypatch.setattr(module, primitive, held_hash)
-    payload = SIGNUP_PAYLOAD if service == "signup" else {
-        "email": SIGNUP_PAYLOAD["email"], "password": SIGNUP_PAYLOAD["password"],
-    }
+    payload = (
+        SIGNUP_PAYLOAD
+        if service == "signup"
+        else {
+            "email": SIGNUP_PAYLOAD["email"],
+            "password": SIGNUP_PAYLOAD["password"],
+        }
+    )
     request = asyncio.create_task(client.post(path, json=payload))
     waiting = asyncio.create_task(entered.wait())
     try:

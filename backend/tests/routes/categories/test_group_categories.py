@@ -36,10 +36,16 @@ async def test_create_group_category_non_member_returns_404(client):
     """Non-member cannot create a category in a group."""
     _, _, _, group_id = await _setup_group_with_member(client)
 
-    outsider_resp = await client.post("/auth/signup", json={
-        "email": "outsider@example.com", "password": "SecurePassword123!",
-        "first_name": "Outsider", "tz": "America/Toronto", "base_currency": "CAD",
-    })
+    outsider_resp = await client.post(
+        "/auth/signup",
+        json={
+            "email": "outsider@example.com",
+            "password": "SecurePassword123!",
+            "first_name": "Outsider",
+            "tz": "America/Toronto",
+            "base_currency": "CAD",
+        },
+    )
     outsider_headers = _get_auth_header(outsider_resp)
 
     resp = await _create_category(client, outsider_headers, group_id=group_id)
@@ -142,10 +148,16 @@ async def test_list_categories_group_filter_non_member_returns_404(client):
     """Non-member passing group_id filter returns 404."""
     _, _, _, group_id = await _setup_group_with_member(client)
 
-    outsider_resp = await client.post("/auth/signup", json={
-        "email": "outsider@example.com", "password": "SecurePassword123!",
-        "first_name": "Outsider", "tz": "America/Toronto", "base_currency": "CAD",
-    })
+    outsider_resp = await client.post(
+        "/auth/signup",
+        json={
+            "email": "outsider@example.com",
+            "password": "SecurePassword123!",
+            "first_name": "Outsider",
+            "tz": "America/Toronto",
+            "base_currency": "CAD",
+        },
+    )
     outsider_headers = _get_auth_header(outsider_resp)
 
     resp = await client.get(f"/categories?group_id={group_id}", headers=outsider_headers)
@@ -174,10 +186,16 @@ async def test_get_group_category_non_member_returns_404(client):
     create_resp = await _create_category(client, admin_headers, name="Shared", group_id=group_id)
     category_id = create_resp.json()["id"]
 
-    outsider_resp = await client.post("/auth/signup", json={
-        "email": "outsider@example.com", "password": "SecurePassword123!",
-        "first_name": "Outsider", "tz": "America/Toronto", "base_currency": "CAD",
-    })
+    outsider_resp = await client.post(
+        "/auth/signup",
+        json={
+            "email": "outsider@example.com",
+            "password": "SecurePassword123!",
+            "first_name": "Outsider",
+            "tz": "America/Toronto",
+            "base_currency": "CAD",
+        },
+    )
     outsider_headers = _get_auth_header(outsider_resp)
 
     resp = await client.get(f"/categories/{category_id}", headers=outsider_headers)
@@ -260,10 +278,16 @@ async def test_patch_group_category_non_member_returns_404(client):
     create_resp = await _create_category(client, admin_headers, name="Shared", group_id=group_id)
     category_id = create_resp.json()["id"]
 
-    outsider_resp = await client.post("/auth/signup", json={
-        "email": "outsider@example.com", "password": "SecurePassword123!",
-        "first_name": "Outsider", "tz": "America/Toronto", "base_currency": "CAD",
-    })
+    outsider_resp = await client.post(
+        "/auth/signup",
+        json={
+            "email": "outsider@example.com",
+            "password": "SecurePassword123!",
+            "first_name": "Outsider",
+            "tz": "America/Toronto",
+            "base_currency": "CAD",
+        },
+    )
     outsider_headers = _get_auth_header(outsider_resp)
 
     resp = await client.patch(f"/categories/{category_id}", json={"name": "Hacked"}, headers=outsider_headers)
@@ -328,10 +352,16 @@ async def test_delete_group_category_non_member_returns_404(client):
     create_resp = await _create_category(client, admin_headers, name="Shared", group_id=group_id)
     category_id = create_resp.json()["id"]
 
-    outsider_resp = await client.post("/auth/signup", json={
-        "email": "outsider@example.com", "password": "SecurePassword123!",
-        "first_name": "Outsider", "tz": "America/Toronto", "base_currency": "CAD",
-    })
+    outsider_resp = await client.post(
+        "/auth/signup",
+        json={
+            "email": "outsider@example.com",
+            "password": "SecurePassword123!",
+            "first_name": "Outsider",
+            "tz": "America/Toronto",
+            "base_currency": "CAD",
+        },
+    )
     outsider_headers = _get_auth_header(outsider_resp)
 
     resp = await client.delete(f"/categories/{category_id}", headers=outsider_headers)
@@ -349,19 +379,30 @@ async def test_delete_category_referenced_by_transaction_returns_409(client):
     cat_resp = await _create_category(client, headers, name="Test Deletable")
     category_id = cat_resp.json()["id"]
 
-    acct_resp = await client.post("/accounts", json={
-        "account_kind": "asset", "account_type": "checking", "name": "Chequing", "currency": "CAD",
-    }, headers=headers)
+    acct_resp = await client.post(
+        "/accounts",
+        json={
+            "account_kind": "asset",
+            "account_type": "checking",
+            "name": "Chequing",
+            "currency": "CAD",
+        },
+        headers=headers,
+    )
     account_id = acct_resp.json()["id"]
 
-    await client.post("/transactions", json={
-        "account_id": account_id,
-        "category_id": category_id,
-        "dt": "2026-03-15",
-        "amount": -5000,
-        "currency": "CAD",
-        "merchant_id": await _get_system_merchant_id(client, headers),
-    }, headers=headers)
+    await client.post(
+        "/transactions",
+        json={
+            "account_id": account_id,
+            "category_id": category_id,
+            "dt": "2026-03-15",
+            "amount": -5000,
+            "currency": "CAD",
+            "merchant_id": await _get_system_merchant_id(client, headers),
+        },
+        headers=headers,
+    )
 
     resp = await client.delete(f"/categories/{category_id}", headers=headers)
 

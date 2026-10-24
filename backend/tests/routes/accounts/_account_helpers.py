@@ -13,6 +13,7 @@ from tests.conftest import TestSession
 
 NONEXISTENT_ID = "00000000-0000-0000-0000-000000000000"
 
+
 class _FixedClock:
     """Fixed clock used to make account lifecycle dates deterministic"""
 
@@ -35,7 +36,6 @@ async def _seed_institution(logo_url: str | None = None):
         The persisted Institution ORM instance
     """
     async with TestSession() as session:
-
         # Insert a canonical institution row for account FK validation
         inst = Institution(
             status=InstitutionStatus.CANONICAL,
@@ -59,24 +59,30 @@ async def _create_second_user(client):
     Returns:
         The HTTP response from the signup endpoint
     """
-    return await client.post("/auth/signup", json={
-        "email": "other@example.com",
-        "password": "SecurePassword123!",
-        "first_name": "Other",
-        "tz": "America/Toronto",
-        "base_currency": "CAD",
-    })
+    return await client.post(
+        "/auth/signup",
+        json={
+            "email": "other@example.com",
+            "password": "SecurePassword123!",
+            "first_name": "Other",
+            "tz": "America/Toronto",
+            "base_currency": "CAD",
+        },
+    )
 
 
 async def _signup_user(client, *, email: str, first_name: str, tz: str):
     """Sign up a user with caller-provided identity and timezone details"""
-    return await client.post("/auth/signup", json={
-        "email": email,
-        "password": "SecurePassword123!",
-        "first_name": first_name,
-        "tz": tz,
-        "base_currency": "CAD",
-    })
+    return await client.post(
+        "/auth/signup",
+        json={
+            "email": email,
+            "password": "SecurePassword123!",
+            "first_name": first_name,
+            "tz": tz,
+            "base_currency": "CAD",
+        },
+    )
 
 
 def _created_at_in_tz(account_data: dict, tz: str) -> date:
@@ -93,23 +99,23 @@ def _clock_on_account_day(account_data: dict, tz: str) -> _FixedClock:
 async def _archive_adjustment_rows(account_id: str):
     """Return archive balance adjustment transactions for an account"""
     async with TestSession() as session:
-
         # Fetch archive balance adjustments and their categories in creation order
-        return (await session.execute(
-            select(Transaction, Category)
-            .join(Category, Category.id == Transaction.category_id)
-            .where(
-                Transaction.account_id == UUID(account_id),
-                Transaction.notes == "Account archived",
+        return (
+            await session.execute(
+                select(Transaction, Category)
+                .join(Category, Category.id == Transaction.category_id)
+                .where(
+                    Transaction.account_id == UUID(account_id),
+                    Transaction.notes == "Account archived",
+                )
+                .order_by(Transaction.created_at),
             )
-            .order_by(Transaction.created_at),
-        )).all()
+        ).all()
 
 
 async def _latest_snapshot_balance(account_id: str) -> int:
     """Return the latest balance snapshot amount for an account"""
     async with TestSession() as session:
-
         # Read the newest balance snapshot for the account
         balance = await session.scalar(
             select(AccountBalanceSnapshot.balance)

@@ -126,13 +126,16 @@ async def _setup_group_with_two_members(client):
     group_id = group_resp.json()["id"]
 
     # User 2 — group member
-    signup2 = await client.post("/auth/signup", json={
-        "email": "other@example.com",
-        "password": "SecurePassword123!",
-        "first_name": "Other",
-        "tz": "America/Toronto",
-        "base_currency": "CAD",
-    })
+    signup2 = await client.post(
+        "/auth/signup",
+        json={
+            "email": "other@example.com",
+            "password": "SecurePassword123!",
+            "first_name": "Other",
+            "tz": "America/Toronto",
+            "base_currency": "CAD",
+        },
+    )
     headers2 = _get_auth_header(signup2)
     user2_id = signup2.json()["user"]["id"]
     acct2 = await _create_account(client, headers2, name="User2 Chequing")
@@ -146,8 +149,12 @@ async def _setup_group_with_two_members(client):
     )
 
     return (
-        headers1, acct1.json()["id"], cat1.json()["id"],
-        headers2, acct2.json()["id"], cat2.json()["id"],
+        headers1,
+        acct1.json()["id"],
+        cat1.json()["id"],
+        headers2,
+        acct2.json()["id"],
+        cat2.json()["id"],
         group_id,
     )
 
@@ -255,10 +262,16 @@ async def _setup_group_with_shared_account(client):
     group_resp = await _create_group(client, admin_headers)
     group_id = group_resp.json()["id"]
 
-    signup2 = await client.post("/auth/signup", json={
-        "email": "member@example.com", "password": "SecurePassword123!",
-        "first_name": "Member", "tz": "America/Toronto", "base_currency": "CAD",
-    })
+    signup2 = await client.post(
+        "/auth/signup",
+        json={
+            "email": "member@example.com",
+            "password": "SecurePassword123!",
+            "first_name": "Member",
+            "tz": "America/Toronto",
+            "base_currency": "CAD",
+        },
+    )
     member_headers = _get_auth_header(signup2)
     member_user_id = signup2.json()["user"]["id"]
     await client.post(
@@ -298,12 +311,14 @@ async def _grant_account_permission(client, admin_headers, account_id, user_id, 
 
 async def test_create_transaction_on_group_account_as_admin(client):
     """Admin can create a transaction on a group account with group category and merchant."""
-    admin_headers, _, _, _, account_id, category_id, merchant_id = (
-        await _setup_group_with_shared_account(client)
-    )
+    admin_headers, _, _, _, account_id, category_id, merchant_id = await _setup_group_with_shared_account(client)
 
     resp = await _create_transaction(
-        client, admin_headers, account_id, category_id, merchant_id=merchant_id,
+        client,
+        admin_headers,
+        account_id,
+        category_id,
+        merchant_id=merchant_id,
     )
 
     assert resp.status_code == 201
@@ -314,13 +329,15 @@ async def test_create_transaction_on_group_account_as_admin(client):
 
 async def test_create_transaction_on_group_account_with_write_permission(client):
     """Member with write permission can create a transaction on a group account."""
-    admin_headers, member_headers, member_user_id, _, account_id, category_id, merchant_id = (
-        await _setup_group_with_shared_account(client)
-    )
+    admin_headers, member_headers, member_user_id, _, account_id, category_id, merchant_id = await _setup_group_with_shared_account(client)
     await _grant_account_permission(client, admin_headers, account_id, member_user_id, "write")
 
     resp = await _create_transaction(
-        client, member_headers, account_id, category_id, merchant_id=merchant_id,
+        client,
+        member_headers,
+        account_id,
+        category_id,
+        merchant_id=merchant_id,
     )
 
     assert resp.status_code == 201
@@ -329,9 +346,7 @@ async def test_create_transaction_on_group_account_with_write_permission(client)
 
 async def test_create_transaction_on_group_account_read_only_returns_403(client):
     """Member with read-only permission cannot create a transaction."""
-    admin_headers, member_headers, member_user_id, _, account_id, category_id, _ = (
-        await _setup_group_with_shared_account(client)
-    )
+    admin_headers, member_headers, member_user_id, _, account_id, category_id, _ = await _setup_group_with_shared_account(client)
     await _grant_account_permission(client, admin_headers, account_id, member_user_id, "read")
 
     resp = await _create_transaction(client, member_headers, account_id, category_id)
@@ -342,9 +357,7 @@ async def test_create_transaction_on_group_account_read_only_returns_403(client)
 
 async def test_create_transaction_on_group_account_no_permission_returns_404(client):
     """Member with no permission cannot create a transaction on a group account."""
-    _, member_headers, _, _, account_id, category_id, _ = (
-        await _setup_group_with_shared_account(client)
-    )
+    _, member_headers, _, _, account_id, category_id, _ = await _setup_group_with_shared_account(client)
 
     resp = await _create_transaction(client, member_headers, account_id, category_id)
 
@@ -354,9 +367,7 @@ async def test_create_transaction_on_group_account_no_permission_returns_404(cli
 
 async def test_create_transaction_with_group_category(client):
     """Transaction on a group account accepts group-scoped categories."""
-    admin_headers, member_headers, member_user_id, group_id, account_id, _, _ = (
-        await _setup_group_with_shared_account(client)
-    )
+    admin_headers, member_headers, member_user_id, group_id, account_id, _, _ = await _setup_group_with_shared_account(client)
     await _grant_account_permission(client, admin_headers, account_id, member_user_id, "write")
 
     # Create a different group category as the member
@@ -371,9 +382,7 @@ async def test_create_transaction_with_group_category(client):
 
 async def test_create_transaction_with_system_category_on_group_account(client):
     """Transaction on a group account accepts system categories."""
-    admin_headers, member_headers, member_user_id, _, account_id, _, _ = (
-        await _setup_group_with_shared_account(client)
-    )
+    admin_headers, member_headers, member_user_id, _, account_id, _, _ = await _setup_group_with_shared_account(client)
     await _grant_account_permission(client, admin_headers, account_id, member_user_id, "write")
     category_id = await _get_system_category_id(client, member_headers)
 
@@ -385,13 +394,15 @@ async def test_create_transaction_with_system_category_on_group_account(client):
 
 async def test_create_transaction_with_group_merchant(client):
     """Transaction on a group account accepts group-scoped merchants."""
-    admin_headers, member_headers, member_user_id, _, account_id, category_id, merchant_id = (
-        await _setup_group_with_shared_account(client)
-    )
+    admin_headers, member_headers, member_user_id, _, account_id, category_id, merchant_id = await _setup_group_with_shared_account(client)
     await _grant_account_permission(client, admin_headers, account_id, member_user_id, "write")
 
     resp = await _create_transaction(
-        client, member_headers, account_id, category_id, merchant_id=merchant_id,
+        client,
+        member_headers,
+        account_id,
+        category_id,
+        merchant_id=merchant_id,
     )
 
     assert resp.status_code == 201
@@ -400,9 +411,7 @@ async def test_create_transaction_with_group_merchant(client):
 
 async def test_create_transaction_with_group_tag(client):
     """Transaction on a group account accepts group-scoped tags."""
-    admin_headers, member_headers, member_user_id, group_id, account_id, category_id, _ = (
-        await _setup_group_with_shared_account(client)
-    )
+    admin_headers, member_headers, member_user_id, group_id, account_id, category_id, _ = await _setup_group_with_shared_account(client)
     await _grant_account_permission(client, admin_headers, account_id, member_user_id, "write")
 
     tag_resp = await _create_tag(client, admin_headers, name="Shared Trip", group_id=group_id)
@@ -436,9 +445,7 @@ async def test_create_transaction_with_group_tag_on_personal_account_returns_422
 
 async def test_list_transactions_includes_group_account_transactions(client):
     """Member with read permission sees transactions on group accounts."""
-    admin_headers, member_headers, member_user_id, _, account_id, category_id, _ = (
-        await _setup_group_with_shared_account(client)
-    )
+    admin_headers, member_headers, member_user_id, _, account_id, category_id, _ = await _setup_group_with_shared_account(client)
     await _grant_account_permission(client, admin_headers, account_id, member_user_id, "read")
 
     # Admin creates a transaction on the group account
@@ -455,9 +462,7 @@ async def test_list_transactions_includes_group_account_transactions(client):
 
 async def test_update_transaction_on_group_account_requires_write(client):
     """Member with read-only permission cannot update a group transaction."""
-    admin_headers, member_headers, member_user_id, _, account_id, category_id, _ = (
-        await _setup_group_with_shared_account(client)
-    )
+    admin_headers, member_headers, member_user_id, _, account_id, category_id, _ = await _setup_group_with_shared_account(client)
     await _grant_account_permission(client, admin_headers, account_id, member_user_id, "read")
 
     create_resp = await _create_transaction(client, admin_headers, account_id, category_id)
@@ -471,9 +476,7 @@ async def test_update_transaction_on_group_account_requires_write(client):
 
 async def test_delete_transaction_on_group_account_requires_write(client):
     """Member with read-only permission cannot delete a group transaction."""
-    admin_headers, member_headers, member_user_id, _, account_id, category_id, _ = (
-        await _setup_group_with_shared_account(client)
-    )
+    admin_headers, member_headers, member_user_id, _, account_id, category_id, _ = await _setup_group_with_shared_account(client)
     await _grant_account_permission(client, admin_headers, account_id, member_user_id, "read")
 
     create_resp = await _create_transaction(client, admin_headers, account_id, category_id)
@@ -487,9 +490,7 @@ async def test_delete_transaction_on_group_account_requires_write(client):
 
 async def test_update_transaction_on_group_account_with_write_permission(client):
     """Member with write permission can update a group transaction."""
-    admin_headers, member_headers, member_user_id, _, account_id, category_id, _ = (
-        await _setup_group_with_shared_account(client)
-    )
+    admin_headers, member_headers, member_user_id, _, account_id, category_id, _ = await _setup_group_with_shared_account(client)
     await _grant_account_permission(client, admin_headers, account_id, member_user_id, "write")
 
     create_resp = await _create_transaction(client, admin_headers, account_id, category_id)
@@ -503,9 +504,7 @@ async def test_update_transaction_on_group_account_with_write_permission(client)
 
 async def test_delete_transaction_on_group_account_with_write_permission(client):
     """Member with write permission can delete a group transaction."""
-    admin_headers, member_headers, member_user_id, _, account_id, category_id, _ = (
-        await _setup_group_with_shared_account(client)
-    )
+    admin_headers, member_headers, member_user_id, _, account_id, category_id, _ = await _setup_group_with_shared_account(client)
     await _grant_account_permission(client, admin_headers, account_id, member_user_id, "write")
 
     create_resp = await _create_transaction(client, admin_headers, account_id, category_id)
@@ -521,9 +520,7 @@ async def test_delete_transaction_on_group_account_with_write_permission(client)
 
 async def test_create_transaction_with_other_users_personal_category_returns_422(client):
     """Cannot use another member's personal category on a group account."""
-    admin_headers, member_headers, member_user_id, _, account_id, _, _ = (
-        await _setup_group_with_shared_account(client)
-    )
+    admin_headers, member_headers, member_user_id, _, account_id, _, _ = await _setup_group_with_shared_account(client)
     await _grant_account_permission(client, admin_headers, account_id, member_user_id, "write")
 
     # Admin's personal category (not group-scoped)
@@ -542,9 +539,7 @@ async def test_create_transaction_with_other_users_personal_category_returns_422
 
 async def test_create_transaction_on_archived_group_account_returns_422(client):
     """Admin cannot create a transaction on an archived group account."""
-    admin_headers, _, _, _, account_id, category_id, _ = (
-        await _setup_group_with_shared_account(client)
-    )
+    admin_headers, _, _, _, account_id, category_id, _ = await _setup_group_with_shared_account(client)
 
     archive_resp = await client.patch(
         f"/accounts/{account_id}",
@@ -561,9 +556,7 @@ async def test_create_transaction_on_archived_group_account_returns_422(client):
 
 async def test_create_transaction_on_archived_group_account_with_write_permission_returns_422(client):
     """A write-granted member cannot create on an archived group account."""
-    admin_headers, member_headers, member_user_id, _, account_id, category_id, _ = (
-        await _setup_group_with_shared_account(client)
-    )
+    admin_headers, member_headers, member_user_id, _, account_id, category_id, _ = await _setup_group_with_shared_account(client)
     await _grant_account_permission(client, admin_headers, account_id, member_user_id, "write")
 
     archive_resp = await client.patch(
@@ -581,12 +574,13 @@ async def test_create_transaction_on_archived_group_account_with_write_permissio
 
 async def test_move_transaction_to_archived_group_account_returns_422(client):
     """Moving a transaction onto an archived group account is rejected."""
-    admin_headers, _, _, group_id, account_id, category_id, _ = (
-        await _setup_group_with_shared_account(client)
-    )
+    admin_headers, _, _, group_id, account_id, category_id, _ = await _setup_group_with_shared_account(client)
 
     second_acct = await _create_account(
-        client, admin_headers, name="Joint Savings", group_id=group_id,
+        client,
+        admin_headers,
+        name="Joint Savings",
+        group_id=group_id,
     )
     archived_account_id = second_acct.json()["id"]
     archive_resp = await client.patch(
@@ -614,23 +608,19 @@ async def test_move_transaction_to_archived_group_account_returns_422(client):
 
 async def test_bulk_update_on_group_account_requires_write(client):
     """One read-only group row refuses the whole request before a writable row changes."""
-    admin_headers, member_headers, member_user_id, _, account_id, category_id, _ = (
-        await _setup_group_with_shared_account(client)
-    )
+    admin_headers, member_headers, member_user_id, _, account_id, category_id, _ = await _setup_group_with_shared_account(client)
     await _grant_account_permission(client, admin_headers, account_id, member_user_id, "read")
 
-    read_only_id = (
-        await _create_transaction(client, admin_headers, account_id, category_id, amount=-1200)
-    ).json()["id"]
-    personal_account_id = (
-        await _create_account(client, member_headers, name="Member Chequing")
-    ).json()["id"]
-    personal_category_id = (
-        await _create_category(client, member_headers, name="Member Groceries", kind="expense")
-    ).json()["id"]
+    read_only_id = (await _create_transaction(client, admin_headers, account_id, category_id, amount=-1200)).json()["id"]
+    personal_account_id = (await _create_account(client, member_headers, name="Member Chequing")).json()["id"]
+    personal_category_id = (await _create_category(client, member_headers, name="Member Groceries", kind="expense")).json()["id"]
     writable_id = (
         await _create_transaction(
-            client, member_headers, personal_account_id, personal_category_id, amount=-1200,
+            client,
+            member_headers,
+            personal_account_id,
+            personal_category_id,
+            amount=-1200,
         )
     ).json()["id"]
 
@@ -648,19 +638,17 @@ async def test_bulk_update_on_group_account_requires_write(client):
 
 async def test_bulk_update_refuses_a_move_into_a_read_only_group_account(client):
     """A readable account cannot receive a transaction without write permission."""
-    admin_headers, member_headers, member_user_id, _, group_account_id, _, _ = (
-        await _setup_group_with_shared_account(client)
-    )
+    admin_headers, member_headers, member_user_id, _, group_account_id, _, _ = await _setup_group_with_shared_account(client)
     await _grant_account_permission(client, admin_headers, group_account_id, member_user_id, "read")
-    personal_account_id = (
-        await _create_account(client, member_headers, name="Member Chequing")
-    ).json()["id"]
-    personal_category_id = (
-        await _create_category(client, member_headers, name="Member Groceries", kind="expense")
-    ).json()["id"]
+    personal_account_id = (await _create_account(client, member_headers, name="Member Chequing")).json()["id"]
+    personal_category_id = (await _create_category(client, member_headers, name="Member Groceries", kind="expense")).json()["id"]
     transaction_id = (
         await _create_transaction(
-            client, member_headers, personal_account_id, personal_category_id, amount=-1200,
+            client,
+            member_headers,
+            personal_account_id,
+            personal_category_id,
+            amount=-1200,
         )
     ).json()["id"]
 
@@ -678,13 +666,9 @@ async def test_bulk_update_refuses_a_move_into_a_read_only_group_account(client)
 
 async def test_bulk_update_allows_a_read_only_group_account_as_the_far_side(client):
     """A readable account may be recorded as From when the writable row remains where it is."""
-    admin_headers, member_headers, member_user_id, _, group_account_id, _, _ = (
-        await _setup_group_with_shared_account(client)
-    )
+    admin_headers, member_headers, member_user_id, _, group_account_id, _, _ = await _setup_group_with_shared_account(client)
     await _grant_account_permission(client, admin_headers, group_account_id, member_user_id, "read")
-    personal_account_id = (
-        await _create_account(client, member_headers, name="Member Chequing")
-    ).json()["id"]
+    personal_account_id = (await _create_account(client, member_headers, name="Member Chequing")).json()["id"]
     transfer_category_id = await _get_system_category_id(client, member_headers, "Transfer")
     transaction_id = (
         await _create_transaction(
@@ -715,15 +699,9 @@ async def test_bulk_update_allows_a_read_only_group_account_as_the_far_side(clie
 async def test_bulk_update_with_group_category_on_personal_transaction_returns_422(client):
     """A group category does not reach a transaction recorded in a personal account."""
     admin_headers, _, _, _, _, group_category_id, _ = await _setup_group_with_shared_account(client)
-    personal_account_id = (
-        await _create_account(client, admin_headers, name="Personal Chequing")
-    ).json()["id"]
-    personal_category_id = (
-        await _create_category(client, admin_headers, name="Personal Groceries", kind="expense")
-    ).json()["id"]
-    txn_id = (
-        await _create_transaction(client, admin_headers, personal_account_id, personal_category_id)
-    ).json()["id"]
+    personal_account_id = (await _create_account(client, admin_headers, name="Personal Chequing")).json()["id"]
+    personal_category_id = (await _create_category(client, admin_headers, name="Personal Groceries", kind="expense")).json()["id"]
+    txn_id = (await _create_transaction(client, admin_headers, personal_account_id, personal_category_id)).json()["id"]
 
     resp = await client.patch(
         "/transactions/bulk",
@@ -737,16 +715,10 @@ async def test_bulk_update_with_group_category_on_personal_transaction_returns_4
 
 async def test_bulk_update_refuses_a_row_using_a_category_the_caller_cannot_read(client):
     """A shared row can carry the personal category of whoever recorded it, which nobody else reads."""
-    admin_headers, member_headers, member_user_id, _, account_id, _, _ = (
-        await _setup_group_with_shared_account(client)
-    )
+    admin_headers, member_headers, member_user_id, _, account_id, _, _ = await _setup_group_with_shared_account(client)
     await _grant_account_permission(client, admin_headers, account_id, member_user_id, "write")
-    admin_personal_category = (
-        await _create_category(client, admin_headers, name="Admin Only", kind="expense")
-    ).json()["id"]
-    txn_id = (
-        await _create_transaction(client, admin_headers, account_id, admin_personal_category)
-    ).json()["id"]
+    admin_personal_category = (await _create_category(client, admin_headers, name="Admin Only", kind="expense")).json()["id"]
+    txn_id = (await _create_transaction(client, admin_headers, account_id, admin_personal_category)).json()["id"]
     merchant_id = (await _create_merchant(client, member_headers, name="Member Costco")).json()["id"]
 
     resp = await client.patch(
@@ -761,15 +733,9 @@ async def test_bulk_update_refuses_a_row_using_a_category_the_caller_cannot_read
 
 async def test_bulk_update_validates_the_chosen_category_against_the_account_moved_into(client):
     """After a move the rows sit in the target's scope, so that is what the category has to reach."""
-    admin_headers, _, _, _, group_account_id, group_category_id, _ = (
-        await _setup_group_with_shared_account(client)
-    )
-    personal_account_id = (
-        await _create_account(client, admin_headers, name="Personal Chequing")
-    ).json()["id"]
-    txn_id = (
-        await _create_transaction(client, admin_headers, group_account_id, group_category_id)
-    ).json()["id"]
+    admin_headers, _, _, _, group_account_id, group_category_id, _ = await _setup_group_with_shared_account(client)
+    personal_account_id = (await _create_account(client, admin_headers, name="Personal Chequing")).json()["id"]
+    txn_id = (await _create_transaction(client, admin_headers, group_account_id, group_category_id)).json()["id"]
 
     # The group's own category does not reach a personal account, which is where the move lands it
     resp = await client.patch(
@@ -788,13 +754,9 @@ async def test_bulk_update_validates_the_chosen_category_against_the_account_mov
 
 async def test_bulk_update_refuses_a_transfer_recording_an_account_now_out_of_reach(client):
     """Losing access to the account a transfer records refuses the edit, as a single edit does."""
-    admin_headers, member_headers, member_user_id, group_id, group_account_id, _, _ = (
-        await _setup_group_with_shared_account(client)
-    )
+    admin_headers, member_headers, member_user_id, group_id, group_account_id, _, _ = await _setup_group_with_shared_account(client)
     await _grant_account_permission(client, admin_headers, group_account_id, member_user_id, "read")
-    member_account_id = (
-        await _create_account(client, member_headers, name="Member Chequing")
-    ).json()["id"]
+    member_account_id = (await _create_account(client, member_headers, name="Member Chequing")).json()["id"]
     categories = await client.get("/categories", headers=member_headers)
     transfer_id = next(row["id"] for row in categories.json() if row["name"] == "Transfer")
     txn_id = (
@@ -810,7 +772,8 @@ async def test_bulk_update_refuses_a_transfer_recording_an_account_now_out_of_re
     merchant_id = (await _create_merchant(client, member_headers, name="Member Costco")).json()["id"]
 
     remove_resp = await client.delete(
-        f"/groups/{group_id}/members/{member_user_id}", headers=admin_headers,
+        f"/groups/{group_id}/members/{member_user_id}",
+        headers=admin_headers,
     )
     assert remove_resp.status_code in (200, 204)
 

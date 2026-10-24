@@ -1,4 +1,5 @@
 """JWT token creation helpers"""
+
 import uuid
 from datetime import UTC, datetime, timedelta
 

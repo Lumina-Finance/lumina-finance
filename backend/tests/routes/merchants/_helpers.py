@@ -21,6 +21,7 @@ def _own_merchant_names(response):
     """
     return [merchant["name"] for merchant in response.json() if not merchant["is_system"]]
 
+
 async def _create_merchant(client, headers, **overrides):
     """Create a merchant via POST /merchants
 
@@ -36,6 +37,7 @@ async def _create_merchant(client, headers, **overrides):
     """
     payload = {**MERCHANT_PAYLOAD, **overrides}
     return await client.post("/merchants", json=payload, headers=headers)
+
 
 async def _create_category(client, headers, **overrides):
     """Create a category via POST /categories
@@ -53,10 +55,12 @@ async def _create_category(client, headers, **overrides):
     payload = {"name": "Test Groceries", "kind": "expense", **overrides}
     return await client.post("/categories", json=payload, headers=headers)
 
+
 async def _get_system_category_id(client, headers, name="Groceries"):
     """Return the ID for a seeded system category"""
     resp = await client.get("/categories", headers=headers)
     return next(category["id"] for category in resp.json() if category["name"] == name)
+
 
 async def _create_second_user(client):
     """Sign up a second user for ownership-isolation tests
@@ -67,13 +71,17 @@ async def _create_second_user(client):
     Returns:
         The HTTP response from the signup endpoint
     """
-    return await client.post("/auth/signup", json={
-        "email": "other@example.com",
-        "password": "SecurePassword123!",
-        "first_name": "Other",
-        "tz": "America/Toronto",
-        "base_currency": "CAD",
-    })
+    return await client.post(
+        "/auth/signup",
+        json={
+            "email": "other@example.com",
+            "password": "SecurePassword123!",
+            "first_name": "Other",
+            "tz": "America/Toronto",
+            "base_currency": "CAD",
+        },
+    )
+
 
 async def _create_group(client, headers):
     """Create a group and return its ID
@@ -87,6 +95,7 @@ async def _create_group(client, headers):
     """
     resp = await client.post("/groups", json={"name": "Smith Family"}, headers=headers)
     return resp.json()["id"]
+
 
 async def _setup_group_with_member(client):
     """Create a group with an admin (owner) and a regular member
@@ -102,13 +111,16 @@ async def _setup_group_with_member(client):
 
     group_id = await _create_group(client, admin_headers)
 
-    member_resp = await client.post("/auth/signup", json={
-        "email": "member@example.com",
-        "password": "SecurePassword123!",
-        "first_name": "Member",
-        "tz": "America/Toronto",
-        "base_currency": "CAD",
-    })
+    member_resp = await client.post(
+        "/auth/signup",
+        json={
+            "email": "member@example.com",
+            "password": "SecurePassword123!",
+            "first_name": "Member",
+            "tz": "America/Toronto",
+            "base_currency": "CAD",
+        },
+    )
     member_headers = _get_auth_header(member_resp)
     member_user_id = member_resp.json()["user"]["id"]
 

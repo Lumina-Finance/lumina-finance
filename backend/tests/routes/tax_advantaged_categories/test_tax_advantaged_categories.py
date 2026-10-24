@@ -14,13 +14,16 @@ NONEXISTENT_ID = "00000000-0000-0000-0000-000000000000"
 
 async def _create_second_user(client):
     """Sign up a second user."""
-    return await client.post("/auth/signup", json={
-        "email": "other@example.com",
-        "password": "SecurePassword123!",
-        "first_name": "Other",
-        "tz": "America/Toronto",
-        "base_currency": "CAD",
-    })
+    return await client.post(
+        "/auth/signup",
+        json={
+            "email": "other@example.com",
+            "password": "SecurePassword123!",
+            "first_name": "Other",
+            "tz": "America/Toronto",
+            "base_currency": "CAD",
+        },
+    )
 
 
 async def _create_group(client, headers, **overrides):
@@ -89,16 +92,18 @@ async def _seed_transaction(
         counterparty_account_scope: Where the counterparty sits, or None for a transfer that recorded no answer
     """
     async with TestSession() as session:
-        session.add(Transaction(
-            created_by_user_id=created_by_user_id,
-            account_id=account_id,
-            category_id=category_id,
-            dt=dt,
-            amount=amount,
-            currency="CAD",
-            counterparty_account_id=counterparty_account_id,
-            counterparty_account_scope=counterparty_account_scope,
-        ))
+        session.add(
+            Transaction(
+                created_by_user_id=created_by_user_id,
+                account_id=account_id,
+                category_id=category_id,
+                dt=dt,
+                amount=amount,
+                currency="CAD",
+                counterparty_account_id=counterparty_account_id,
+                counterparty_account_scope=counterparty_account_scope,
+            )
+        )
         await session.commit()
 
 
@@ -359,12 +364,12 @@ async def test_tax_advantaged_category_detail_aggregates_transfer_activity_acros
     headers = _get_auth_header(signup_resp)
     user_id = signup_resp.json()["user"]["id"]
     tax_advantaged_category_id = (await _create_tax_advantaged_category(client, headers)).json()["id"]
-    first_account_id = (
-        await _create_account(client, headers, name="TFSA A", tax_advantaged_category_id=tax_advantaged_category_id)
-    ).json()["id"]
-    second_account_id = (
-        await _create_account(client, headers, name="TFSA B", tax_advantaged_category_id=tax_advantaged_category_id)
-    ).json()["id"]
+    first_account_id = (await _create_account(client, headers, name="TFSA A", tax_advantaged_category_id=tax_advantaged_category_id)).json()[
+        "id"
+    ]
+    second_account_id = (await _create_account(client, headers, name="TFSA B", tax_advantaged_category_id=tax_advantaged_category_id)).json()[
+        "id"
+    ]
     transfer_id = await _get_system_category_id("Transfer")
     expense_id = await _seed_category(user_id, CategoryKind.EXPENSE, "Plan Groceries")
     income_id = await _seed_category(user_id, CategoryKind.INCOME, "Plan Salary")
@@ -425,9 +430,9 @@ async def test_tax_advantaged_category_detail_includes_archived_linked_account_a
     headers = _get_auth_header(signup_resp)
     user_id = signup_resp.json()["user"]["id"]
     tax_advantaged_category_id = (await _create_tax_advantaged_category(client, headers)).json()["id"]
-    account_id = (
-        await _create_account(client, headers, name="Archived TFSA", tax_advantaged_category_id=tax_advantaged_category_id)
-    ).json()["id"]
+    account_id = (await _create_account(client, headers, name="Archived TFSA", tax_advantaged_category_id=tax_advantaged_category_id)).json()[
+        "id"
+    ]
     transfer_id = await _get_system_category_id("Transfer")
     current_year = datetime.now(UTC).year
 
@@ -549,9 +554,7 @@ async def test_update_without_the_setting_leaves_it_alone(client):
     """An unsent flag keeps the stored value rather than resetting it to the default."""
     signup_resp = await _create_user(client)
     headers = _get_auth_header(signup_resp)
-    category_id = (
-        await _create_tax_advantaged_category(client, headers, counts_internal_transfers=True)
-    ).json()["id"]
+    category_id = (await _create_tax_advantaged_category(client, headers, counts_internal_transfers=True)).json()["id"]
 
     resp = await client.patch(
         f"/tax-advantaged-categories/{category_id}",
@@ -589,12 +592,8 @@ async def _setup_category_with_two_accounts(client, headers, **overrides):
         Tuple of category ID, first account ID and second account ID
     """
     category_id = (await _create_tax_advantaged_category(client, headers, **overrides)).json()["id"]
-    first_account_id = (
-        await _create_account(client, headers, name="TFSA Cash", tax_advantaged_category_id=category_id)
-    ).json()["id"]
-    second_account_id = (
-        await _create_account(client, headers, name="TFSA Investing", tax_advantaged_category_id=category_id)
-    ).json()["id"]
+    first_account_id = (await _create_account(client, headers, name="TFSA Cash", tax_advantaged_category_id=category_id)).json()["id"]
+    second_account_id = (await _create_account(client, headers, name="TFSA Investing", tax_advantaged_category_id=category_id)).json()["id"]
     return category_id, first_account_id, second_account_id
 
 
@@ -608,15 +607,29 @@ async def test_internal_transfer_is_left_out_of_both_totals(client):
     current_year = datetime.now(UTC).year
 
     await _seed_transaction(
-        first_account_id, transfer_id, user_id, -20_000, date(current_year, 2, 1),
-        counterparty_account_id=second_account_id, counterparty_account_scope=TransferCounterpartyScope.TRACKED,
+        first_account_id,
+        transfer_id,
+        user_id,
+        -20_000,
+        date(current_year, 2, 1),
+        counterparty_account_id=second_account_id,
+        counterparty_account_scope=TransferCounterpartyScope.TRACKED,
     )
     await _seed_transaction(
-        second_account_id, transfer_id, user_id, 20_000, date(current_year, 2, 2),
-        counterparty_account_id=first_account_id, counterparty_account_scope=TransferCounterpartyScope.TRACKED,
+        second_account_id,
+        transfer_id,
+        user_id,
+        20_000,
+        date(current_year, 2, 2),
+        counterparty_account_id=first_account_id,
+        counterparty_account_scope=TransferCounterpartyScope.TRACKED,
     )
     await _seed_transaction(
-        first_account_id, transfer_id, user_id, 50_000, date(current_year, 3, 1),
+        first_account_id,
+        transfer_id,
+        user_id,
+        50_000,
+        date(current_year, 3, 1),
         counterparty_account_scope=TransferCounterpartyScope.OUTSIDE,
     )
 
@@ -635,21 +648,37 @@ async def test_internal_transfer_counts_when_the_category_counts_them(client):
     headers = _get_auth_header(signup_resp)
     user_id = signup_resp.json()["user"]["id"]
     category_id, first_account_id, second_account_id = await _setup_category_with_two_accounts(
-        client, headers, counts_internal_transfers=True,
+        client,
+        headers,
+        counts_internal_transfers=True,
     )
     transfer_id = await _get_system_category_id("Transfer")
     current_year = datetime.now(UTC).year
 
     await _seed_transaction(
-        first_account_id, transfer_id, user_id, -20_000, date(current_year, 2, 1),
-        counterparty_account_id=second_account_id, counterparty_account_scope=TransferCounterpartyScope.TRACKED,
+        first_account_id,
+        transfer_id,
+        user_id,
+        -20_000,
+        date(current_year, 2, 1),
+        counterparty_account_id=second_account_id,
+        counterparty_account_scope=TransferCounterpartyScope.TRACKED,
     )
     await _seed_transaction(
-        second_account_id, transfer_id, user_id, 20_000, date(current_year, 2, 2),
-        counterparty_account_id=first_account_id, counterparty_account_scope=TransferCounterpartyScope.TRACKED,
+        second_account_id,
+        transfer_id,
+        user_id,
+        20_000,
+        date(current_year, 2, 2),
+        counterparty_account_id=first_account_id,
+        counterparty_account_scope=TransferCounterpartyScope.TRACKED,
     )
     await _seed_transaction(
-        first_account_id, transfer_id, user_id, 50_000, date(current_year, 3, 1),
+        first_account_id,
+        transfer_id,
+        user_id,
+        50_000,
+        date(current_year, 3, 1),
         counterparty_account_scope=TransferCounterpartyScope.OUTSIDE,
     )
 
@@ -667,30 +696,42 @@ async def test_transfer_between_two_tax_advantaged_categories_counts_on_both_sid
     signup_resp = await _create_user(client)
     headers = _get_auth_header(signup_resp)
     user_id = signup_resp.json()["user"]["id"]
-    excluding_category_id = (
-        await _create_tax_advantaged_category(client, headers, name="TFSA")
-    ).json()["id"]
+    excluding_category_id = (await _create_tax_advantaged_category(client, headers, name="TFSA")).json()["id"]
     counting_category_id = (
         await _create_tax_advantaged_category(
-            client, headers, name="RRSP", tax_treatment="tax_deferred", counts_internal_transfers=True,
+            client,
+            headers,
+            name="RRSP",
+            tax_treatment="tax_deferred",
+            counts_internal_transfers=True,
         )
     ).json()["id"]
-    excluding_account_id = (
-        await _create_account(client, headers, name="TFSA Cash", tax_advantaged_category_id=excluding_category_id)
-    ).json()["id"]
-    counting_account_id = (
-        await _create_account(client, headers, name="RRSP Cash", tax_advantaged_category_id=counting_category_id)
-    ).json()["id"]
+    excluding_account_id = (await _create_account(client, headers, name="TFSA Cash", tax_advantaged_category_id=excluding_category_id)).json()[
+        "id"
+    ]
+    counting_account_id = (await _create_account(client, headers, name="RRSP Cash", tax_advantaged_category_id=counting_category_id)).json()[
+        "id"
+    ]
     transfer_id = await _get_system_category_id("Transfer")
     current_year = datetime.now(UTC).year
 
     await _seed_transaction(
-        excluding_account_id, transfer_id, user_id, -20_000, date(current_year, 2, 1),
-        counterparty_account_id=counting_account_id, counterparty_account_scope=TransferCounterpartyScope.TRACKED,
+        excluding_account_id,
+        transfer_id,
+        user_id,
+        -20_000,
+        date(current_year, 2, 1),
+        counterparty_account_id=counting_account_id,
+        counterparty_account_scope=TransferCounterpartyScope.TRACKED,
     )
     await _seed_transaction(
-        counting_account_id, transfer_id, user_id, 20_000, date(current_year, 2, 2),
-        counterparty_account_id=excluding_account_id, counterparty_account_scope=TransferCounterpartyScope.TRACKED,
+        counting_account_id,
+        transfer_id,
+        user_id,
+        20_000,
+        date(current_year, 2, 2),
+        counterparty_account_id=excluding_account_id,
+        counterparty_account_scope=TransferCounterpartyScope.TRACKED,
     )
 
     resp = await client.get("/tax-advantaged-categories", headers=headers)
@@ -709,14 +750,16 @@ async def test_transfer_recorded_as_leaving_the_tracked_accounts_counts(client):
     headers = _get_auth_header(signup_resp)
     user_id = signup_resp.json()["user"]["id"]
     category_id = (await _create_tax_advantaged_category(client, headers)).json()["id"]
-    account_id = (
-        await _create_account(client, headers, tax_advantaged_category_id=category_id)
-    ).json()["id"]
+    account_id = (await _create_account(client, headers, tax_advantaged_category_id=category_id)).json()["id"]
     transfer_id = await _get_system_category_id("Transfer")
     current_year = datetime.now(UTC).year
 
     await _seed_transaction(
-        account_id, transfer_id, user_id, -20_000, date(current_year, 2, 1),
+        account_id,
+        transfer_id,
+        user_id,
+        -20_000,
+        date(current_year, 2, 1),
         counterparty_account_scope=TransferCounterpartyScope.OUTSIDE,
     )
 
@@ -733,9 +776,7 @@ async def test_transfer_with_no_recorded_counterparty_account_counts(client):
     headers = _get_auth_header(signup_resp)
     user_id = signup_resp.json()["user"]["id"]
     category_id = (await _create_tax_advantaged_category(client, headers)).json()["id"]
-    account_id = (
-        await _create_account(client, headers, tax_advantaged_category_id=category_id)
-    ).json()["id"]
+    account_id = (await _create_account(client, headers, tax_advantaged_category_id=category_id)).json()["id"]
     transfer_id = await _get_system_category_id("Transfer")
     current_year = datetime.now(UTC).year
 

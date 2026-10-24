@@ -139,9 +139,7 @@ async def test_registration_options_persist_single_challenge(client):
     auth = _get_auth_header(signup)
     user_id = signup.json()["user"]["id"]
 
-    response = await client.post(
-        "/auth/passkeys/register/options", headers=auth, json={"step_up": {"password": SIGNUP_PAYLOAD["password"]}}
-    )
+    response = await client.post("/auth/passkeys/register/options", headers=auth, json={"step_up": {"password": SIGNUP_PAYLOAD["password"]}})
     assert response.status_code == 200
 
     options = response.json()
@@ -163,9 +161,7 @@ async def test_registration_options_exclude_existing_passkeys(client, monkeypatc
 
     # The existing passkey is a factor now, so starting another registration steps up with it
     step_up = await _step_up_with_passkey(client, auth, monkeypatch, user_id, credential_id)
-    options = (
-        await client.post("/auth/passkeys/register/options", headers=auth, json={"step_up": step_up})
-    ).json()
+    options = (await client.post("/auth/passkeys/register/options", headers=auth, json={"step_up": step_up})).json()
 
     excluded = {entry["id"] for entry in options["excludeCredentials"]}
     assert bytes_to_base64url(credential_id) in excluded
@@ -266,12 +262,8 @@ async def test_totp_setup_supersedes_an_abandoned_staged_passkey(client, monkeyp
 
     # Enrol TOTP: setup supersedes the staged passkey and its batch, confirm stages a fresh one that
     # belongs to the authenticator, not the abandoned passkey
-    secret = (
-        await client.post("/auth/2fa/setup", headers=auth, json={"step_up": {"password": SIGNUP_PAYLOAD["password"]}})
-    ).json()["secret"]
-    totp_batch = (
-        await client.post("/auth/2fa/confirm", headers=auth, json={"code": pyotp.TOTP(secret).now()})
-    ).json()["recovery_codes"]
+    secret = (await client.post("/auth/2fa/setup", headers=auth, json={"step_up": {"password": SIGNUP_PAYLOAD["password"]}})).json()["secret"]
+    totp_batch = (await client.post("/auth/2fa/confirm", headers=auth, json={"code": pyotp.TOTP(secret).now()})).json()["recovery_codes"]
     assert len(totp_batch) == 10
 
     # The staged passkey is gone, so confirming it is refused and it never becomes a live factor
@@ -294,12 +286,8 @@ async def test_registering_a_passkey_supersedes_an_abandoned_staged_totp(client,
     password = SIGNUP_PAYLOAD["password"]
 
     # Stage a first authenticator with its own pending batch, but do not complete enrolment
-    secret = (await client.post("/auth/2fa/setup", headers=auth, json={"step_up": {"password": password}})).json()[
-        "secret"
-    ]
-    totp_batch = (
-        await client.post("/auth/2fa/confirm", headers=auth, json={"code": pyotp.TOTP(secret).now()})
-    ).json()["recovery_codes"]
+    secret = (await client.post("/auth/2fa/setup", headers=auth, json={"step_up": {"password": password}})).json()["secret"]
+    totp_batch = (await client.post("/auth/2fa/confirm", headers=auth, json={"code": pyotp.TOTP(secret).now()})).json()["recovery_codes"]
     assert len(totp_batch) == 10
 
     # Registering a passkey supersedes the staged authenticator and stages the passkey's own batch
@@ -364,9 +352,7 @@ async def test_register_rejects_unknown_challenge(client):
 
     # Registration is ungated because the options step already stepped up, so the unknown challenge is
     # what fails here
-    response = await client.post(
-        "/auth/passkeys/register", headers=auth, json={"name": "Key", "credential": credential}
-    )
+    response = await client.post("/auth/passkeys/register", headers=auth, json={"name": "Key", "credential": credential})
     assert response.status_code == 400
 
 
@@ -376,9 +362,7 @@ async def test_register_rejects_malformed_response(client):
 
     # Registration is ungated because the options step already stepped up, so the malformed attestation
     # is what fails here
-    response = await client.post(
-        "/auth/passkeys/register", headers=auth, json={"name": "Key", "credential": {"id": "x"}}
-    )
+    response = await client.post("/auth/passkeys/register", headers=auth, json={"name": "Key", "credential": {"id": "x"}})
     assert response.status_code == 400
 
 
@@ -396,9 +380,7 @@ async def test_registration_options_reject_a_wrong_password(client):
     """A wrong step-up password is refused before any registration challenge is issued"""
     auth = _get_auth_header(await _create_user(client))
 
-    response = await client.post(
-        "/auth/passkeys/register/options", headers=auth, json={"step_up": {"password": "WrongPassword123!"}}
-    )
+    response = await client.post("/auth/passkeys/register/options", headers=auth, json={"step_up": {"password": "WrongPassword123!"}})
     assert response.status_code == 401
 
 
@@ -409,9 +391,7 @@ async def test_adding_a_second_passkey_requires_the_existing_factor(client):
     await _seed_passkey(signup.json()["user"]["id"], b"existing-factor-key")
 
     # Password alone no longer suffices once a factor exists, the current factor must be presented
-    response = await client.post(
-        "/auth/passkeys/register/options", headers=auth, json={"step_up": {"password": SIGNUP_PAYLOAD["password"]}}
-    )
+    response = await client.post("/auth/passkeys/register/options", headers=auth, json={"step_up": {"password": SIGNUP_PAYLOAD["password"]}})
     assert response.status_code == 400
 
 
@@ -421,9 +401,7 @@ async def test_rename_passkey_updates_label(client):
     auth = _get_auth_header(signup)
     passkey_id = await _seed_passkey(signup.json()["user"]["id"], b"rename-credential")
 
-    response = await client.patch(
-        f"/auth/passkeys/{passkey_id}", headers=auth, json={"name": "Renamed key"}
-    )
+    response = await client.patch(f"/auth/passkeys/{passkey_id}", headers=auth, json={"name": "Renamed key"})
     assert response.status_code == 200
     assert response.json()["name"] == "Renamed key"
 
@@ -434,9 +412,7 @@ async def test_rename_rejects_another_users_passkey(client):
     other = await _create_second_user(client)
     other_passkey = await _seed_passkey(other.json()["user"]["id"], b"other-credential")
 
-    response = await client.patch(
-        f"/auth/passkeys/{other_passkey}", headers=auth, json={"name": "Hijack"}
-    )
+    response = await client.patch(f"/auth/passkeys/{other_passkey}", headers=auth, json={"name": "Hijack"})
     assert response.status_code == 404
 
 
@@ -444,9 +420,7 @@ async def _step_up_with_passkey(client, auth, monkeypatch, user_id: str, credent
     """Run a passkey step-up ceremony and return the step-up request body for a sensitive action"""
     options = (await client.post("/auth/passkeys/step-up/options", headers=auth)).json()
     assertion = _build_assertion(options["challenge"], credential_id, user_id)
-    monkeypatch.setattr(
-        webauthn_service, "verify_authentication_response", lambda **_: SimpleNamespace(new_sign_count=1)
-    )
+    monkeypatch.setattr(webauthn_service, "verify_authentication_response", lambda **_: SimpleNamespace(new_sign_count=1))
     return {"password": SIGNUP_PAYLOAD["password"], "passkey": assertion}
 
 
@@ -488,9 +462,7 @@ async def test_remove_passkey_rejects_a_wrong_password(client):
     auth = _get_auth_header(signup)
     passkey_id = await _seed_passkey(signup.json()["user"]["id"], b"protected-credential")
 
-    rejected = await client.post(
-        f"/auth/passkeys/{passkey_id}/remove", headers=auth, json={"password": "WrongPass123!", "code": "000000"}
-    )
+    rejected = await client.post(f"/auth/passkeys/{passkey_id}/remove", headers=auth, json={"password": "WrongPass123!", "code": "000000"})
     assert rejected.status_code == 401
     assert len((await client.get("/auth/passkeys", headers=auth)).json()) == 1
 
@@ -516,12 +488,10 @@ async def test_removing_passkey_keeps_recovery_codes_when_totp_survives(client, 
 
     async with TestSession() as db:
         active = (
-            await db.execute(
-                select(RecoveryCode).where(
-                    RecoveryCode.user_id == uuid.UUID(user_id), RecoveryCode.pending.is_(False)
-                )
-            )
-        ).scalars().all()
+            (await db.execute(select(RecoveryCode).where(RecoveryCode.user_id == uuid.UUID(user_id), RecoveryCode.pending.is_(False))))
+            .scalars()
+            .all()
+        )
     assert len(active) == 10
 
 
@@ -542,9 +512,7 @@ async def test_removing_the_last_factor_clears_recovery_codes(client, monkeypatc
     assert removed.status_code == 204
 
     async with TestSession() as db:
-        remaining = (
-            await db.execute(select(RecoveryCode).where(RecoveryCode.user_id == uuid.UUID(user_id)))
-        ).scalars().all()
+        remaining = (await db.execute(select(RecoveryCode).where(RecoveryCode.user_id == uuid.UUID(user_id)))).scalars().all()
     assert remaining == []
 
 
@@ -578,9 +546,7 @@ def _build_assertion(challenge: str, credential_id: bytes, user_id: str) -> dict
 async def _read_passkey(credential_id: bytes) -> WebauthnCredential | None:
     """Return a stored passkey by its raw credential id"""
     async with TestSession() as db:
-        return await db.scalar(
-            select(WebauthnCredential).where(WebauthnCredential.credential_id == credential_id)
-        )
+        return await db.scalar(select(WebauthnCredential).where(WebauthnCredential.credential_id == credential_id))
 
 
 async def test_authentication_options_persist_unscoped_challenge(client):
@@ -594,11 +560,7 @@ async def test_authentication_options_persist_unscoped_challenge(client):
     assert options["rpId"] == WEBAUTHN_RP_ID
 
     async with TestSession() as db:
-        rows = list(
-            await db.scalars(
-                select(WebauthnChallenge).where(WebauthnChallenge.purpose == "authentication")
-            )
-        )
+        rows = list(await db.scalars(select(WebauthnChallenge).where(WebauthnChallenge.purpose == "authentication")))
     assert len(rows) == 1
     assert rows[0].user_id is None
 
@@ -669,15 +631,17 @@ async def _seed_stale_staged_passkey(user_id: str, credential_id: bytes) -> None
     """Insert a staged passkey and a pending recovery code old enough to be pruned"""
     stale = datetime.now(UTC) - timedelta(seconds=TWO_FACTOR_STAGING_EXPIRE_SECONDS + 60)
     async with TestSession() as db:
-        db.add(WebauthnCredential(
-            user_id=uuid.UUID(user_id),
-            credential_id=credential_id,
-            public_key=b"public-key-bytes",
-            sign_count=0,
-            name="Staged",
-            confirmed_at=None,
-            created_at=stale,
-        ))
+        db.add(
+            WebauthnCredential(
+                user_id=uuid.UUID(user_id),
+                credential_id=credential_id,
+                public_key=b"public-key-bytes",
+                sign_count=0,
+                name="Staged",
+                confirmed_at=None,
+                created_at=stale,
+            )
+        )
         db.add(RecoveryCode(user_id=uuid.UUID(user_id), code_hash="stale-hash", pending=True, created_at=stale))
         await db.commit()
 
@@ -685,14 +649,16 @@ async def _seed_stale_staged_passkey(user_id: str, credential_id: bytes) -> None
 async def _stage_passkey_with_pending_codes(user_id: str, credential_id: bytes) -> None:
     """Stage an unconfirmed passkey with a pending recovery batch, as a first-factor registration leaves it"""
     async with TestSession() as db:
-        db.add(WebauthnCredential(
-            user_id=uuid.UUID(user_id),
-            credential_id=credential_id,
-            public_key=b"public-key-bytes",
-            sign_count=0,
-            name="Staged",
-            confirmed_at=None,
-        ))
+        db.add(
+            WebauthnCredential(
+                user_id=uuid.UUID(user_id),
+                credential_id=credential_id,
+                public_key=b"public-key-bytes",
+                sign_count=0,
+                name="Staged",
+                confirmed_at=None,
+            )
+        )
         await generate_recovery_codes(db, uuid.UUID(user_id), pending=True)
         await db.commit()
 
@@ -722,16 +688,10 @@ async def test_concurrent_passkey_confirmation_keeps_the_recovery_codes(client):
 
     async with TestSession() as check:
         active_passkeys = await check.execute(
-            select(WebauthnCredential).where(
-                WebauthnCredential.user_id == user_uuid, WebauthnCredential.confirmed_at.is_not(None)
-            )
+            select(WebauthnCredential).where(WebauthnCredential.user_id == user_uuid, WebauthnCredential.confirmed_at.is_not(None))
         )
-        active_codes = await check.execute(
-            select(RecoveryCode).where(RecoveryCode.user_id == user_uuid, RecoveryCode.pending.is_(False))
-        )
-        pending_codes = await check.execute(
-            select(RecoveryCode).where(RecoveryCode.user_id == user_uuid, RecoveryCode.pending.is_(True))
-        )
+        active_codes = await check.execute(select(RecoveryCode).where(RecoveryCode.user_id == user_uuid, RecoveryCode.pending.is_(False)))
+        pending_codes = await check.execute(select(RecoveryCode).where(RecoveryCode.user_id == user_uuid, RecoveryCode.pending.is_(True)))
 
     # The passkey is active and still backed by its promoted batch, never left enforced with no codes
     assert len(active_passkeys.scalars().all()) == 1
@@ -752,14 +712,8 @@ async def test_login_prunes_stale_passkey_staging(client):
     assert login.status_code == 200
 
     async with TestSession() as db:
-        staged = await db.scalar(
-            select(WebauthnCredential).where(WebauthnCredential.credential_id == b"stale-staged-key")
-        )
-        pending = await db.scalar(
-            select(RecoveryCode).where(
-                RecoveryCode.user_id == uuid.UUID(user_id), RecoveryCode.pending.is_(True)
-            )
-        )
+        staged = await db.scalar(select(WebauthnCredential).where(WebauthnCredential.credential_id == b"stale-staged-key"))
+        pending = await db.scalar(select(RecoveryCode).where(RecoveryCode.user_id == uuid.UUID(user_id), RecoveryCode.pending.is_(True)))
     assert staged is None
     assert pending is None
 
@@ -844,9 +798,7 @@ async def test_passkey_second_factor_completes_login(client, monkeypatch):
         lambda **_: SimpleNamespace(new_sign_count=9),
     )
 
-    verified = await client.post(
-        "/auth/passkeys/mfa/verify", json={"mfa_token": mfa_token, "credential": assertion}
-    )
+    verified = await client.post("/auth/passkeys/mfa/verify", json={"mfa_token": mfa_token, "credential": assertion})
     assert verified.status_code == 200
     assert verified.json()["user"]["id"] == user_id
 
@@ -871,13 +823,9 @@ async def test_disable_totp_via_passkey_step_up(client, monkeypatch):
 
     options = (await client.post("/auth/passkeys/step-up/options", headers=auth)).json()
     assertion = _build_assertion(options["challenge"], credential_id, user_id)
-    monkeypatch.setattr(
-        webauthn_service, "verify_authentication_response", lambda **_: SimpleNamespace(new_sign_count=3)
-    )
+    monkeypatch.setattr(webauthn_service, "verify_authentication_response", lambda **_: SimpleNamespace(new_sign_count=3))
 
-    disabled = await client.post(
-        "/auth/2fa/disable", headers=auth, json={"password": SIGNUP_PAYLOAD["password"], "passkey": assertion}
-    )
+    disabled = await client.post("/auth/2fa/disable", headers=auth, json={"password": SIGNUP_PAYLOAD["password"], "passkey": assertion})
     assert disabled.status_code == 204
     assert (await client.get("/auth/2fa/status", headers=auth)).json()["totp_enabled"] is False
 
@@ -899,23 +847,17 @@ async def test_disabling_totp_keeps_recovery_codes_when_a_passkey_survives(clien
 
     options = (await client.post("/auth/passkeys/step-up/options", headers=auth)).json()
     assertion = _build_assertion(options["challenge"], credential_id, user_id)
-    monkeypatch.setattr(
-        webauthn_service, "verify_authentication_response", lambda **_: SimpleNamespace(new_sign_count=2)
-    )
-    disabled = await client.post(
-        "/auth/2fa/disable", headers=auth, json={"password": SIGNUP_PAYLOAD["password"], "passkey": assertion}
-    )
+    monkeypatch.setattr(webauthn_service, "verify_authentication_response", lambda **_: SimpleNamespace(new_sign_count=2))
+    disabled = await client.post("/auth/2fa/disable", headers=auth, json={"password": SIGNUP_PAYLOAD["password"], "passkey": assertion})
     assert disabled.status_code == 204
 
     # The batch survives because the passkey still depends on it
     async with TestSession() as db:
         active = (
-            await db.execute(
-                select(RecoveryCode).where(
-                    RecoveryCode.user_id == uuid.UUID(user_id), RecoveryCode.pending.is_(False)
-                )
-            )
-        ).scalars().all()
+            (await db.execute(select(RecoveryCode).where(RecoveryCode.user_id == uuid.UUID(user_id), RecoveryCode.pending.is_(False))))
+            .scalars()
+            .all()
+        )
     assert len(active) == 10
 
 
@@ -929,9 +871,7 @@ async def test_regenerate_recovery_codes_via_passkey_step_up(client, monkeypatch
 
     options = (await client.post("/auth/passkeys/step-up/options", headers=auth)).json()
     assertion = _build_assertion(options["challenge"], credential_id, user_id)
-    monkeypatch.setattr(
-        webauthn_service, "verify_authentication_response", lambda **_: SimpleNamespace(new_sign_count=4)
-    )
+    monkeypatch.setattr(webauthn_service, "verify_authentication_response", lambda **_: SimpleNamespace(new_sign_count=4))
 
     regenerated = await client.post(
         "/auth/2fa/recovery-codes", headers=auth, json={"password": SIGNUP_PAYLOAD["password"], "passkey": assertion}
@@ -958,15 +898,11 @@ async def test_passkey_step_up_protocol_error_does_not_lock(client, monkeypatch)
     # An assertion whose challenge was never issued is a 400 protocol error, not a factor failure
     bogus = _build_assertion(bytes_to_base64url(b"never-issued-challenge"), credential_id, user_id)
     for _ in range(6):
-        rejected = await client.post(
-            "/auth/2fa/disable", headers=auth, json={"password": SIGNUP_PAYLOAD["password"], "passkey": bogus}
-        )
+        rejected = await client.post("/auth/2fa/disable", headers=auth, json={"password": SIGNUP_PAYLOAD["password"], "passkey": bogus})
         assert rejected.status_code == 400
 
     # Six protocol errors did not trip the lockout, so a password login is still accepted
-    login = await client.post(
-        "/auth/login", json={"email": SIGNUP_PAYLOAD["email"], "password": SIGNUP_PAYLOAD["password"]}
-    )
+    login = await client.post("/auth/login", json={"email": SIGNUP_PAYLOAD["email"], "password": SIGNUP_PAYLOAD["password"]})
     assert login.status_code == 200
 
 
@@ -989,12 +925,10 @@ async def test_removing_passkey_keeps_recovery_codes_when_another_passkey_surviv
 
     async with TestSession() as db:
         active = (
-            await db.execute(
-                select(RecoveryCode).where(
-                    RecoveryCode.user_id == uuid.UUID(user_id), RecoveryCode.pending.is_(False)
-                )
-            )
-        ).scalars().all()
+            (await db.execute(select(RecoveryCode).where(RecoveryCode.user_id == uuid.UUID(user_id), RecoveryCode.pending.is_(False))))
+            .scalars()
+            .all()
+        )
     assert len(active) == 10
 
 
@@ -1031,9 +965,7 @@ async def test_passkey_second_factor_rejects_another_users_passkey(client):
 
     # Present the other user's credential against this user's challenge
     assertion = _build_assertion(options["challenge"], b"foreign-key", user_id)
-    response = await client.post(
-        "/auth/passkeys/mfa/verify", json={"mfa_token": mfa_token, "credential": assertion}
-    )
+    response = await client.post("/auth/passkeys/mfa/verify", json={"mfa_token": mfa_token, "credential": assertion})
     assert response.status_code == 401
 
 
@@ -1089,13 +1021,17 @@ async def test_restricted_session_reestablishes_with_passkey(client, monkeypatch
     # The passkey is active on the account, ready for the user's fresh login
     async with TestSession() as db:
         active = (
-            await db.execute(
-                select(WebauthnCredential).where(
-                    WebauthnCredential.user_id == uuid.UUID(user_id),
-                    WebauthnCredential.confirmed_at.is_not(None),
+            (
+                await db.execute(
+                    select(WebauthnCredential).where(
+                        WebauthnCredential.user_id == uuid.UUID(user_id),
+                        WebauthnCredential.confirmed_at.is_not(None),
+                    )
                 )
             )
-        ).scalars().all()
+            .scalars()
+            .all()
+        )
     assert [passkey.name for passkey in active] == ["Recovery key"]
 
 
@@ -1117,9 +1053,7 @@ async def test_recovery_code_login_wipes_all_passkeys(client, monkeypatch):
 
     # The passkey rows and the WebAuthn identity are gone, leaving only the forced re-enrol path
     async with TestSession() as db:
-        remaining = (
-            await db.execute(select(WebauthnCredential).where(WebauthnCredential.user_id == uuid.UUID(user_id)))
-        ).scalars().all()
+        remaining = (await db.execute(select(WebauthnCredential).where(WebauthnCredential.user_id == uuid.UUID(user_id)))).scalars().all()
         assert remaining == []
     assert await _has_webauthn_identity(user_id) is False
 
@@ -1197,13 +1131,7 @@ class _SoftwareAuthenticator:
         Returns:
             The body a browser would send back to finish registration
         """
-        flags = (
-            _FLAG_USER_PRESENT
-            | _FLAG_USER_VERIFIED
-            | _FLAG_BACKUP_ELIGIBLE
-            | _FLAG_BACKED_UP
-            | _FLAG_ATTESTED_CREDENTIAL
-        )
+        flags = _FLAG_USER_PRESENT | _FLAG_USER_VERIFIED | _FLAG_BACKUP_ELIGIBLE | _FLAG_BACKED_UP | _FLAG_ATTESTED_CREDENTIAL
         authenticator_data = self._build_authenticator_data(flags, sign_count=0)
 
         # A passkey with no hardware attestation to offer reports the "none" format and an empty statement
@@ -1237,9 +1165,7 @@ class _SoftwareAuthenticator:
         client_data = self._build_client_data(challenge, "webauthn.get")
 
         # The signature covers the authenticator data followed by the hash of the client data
-        signature = self._private_key.sign(
-            authenticator_data + hashlib.sha256(client_data).digest(), ec.ECDSA(hashes.SHA256())
-        )
+        signature = self._private_key.sign(authenticator_data + hashlib.sha256(client_data).digest(), ec.ECDSA(hashes.SHA256()))
 
         return {
             "id": bytes_to_base64url(self.credential_id),
@@ -1259,13 +1185,7 @@ class _SoftwareAuthenticator:
         header = hashlib.sha256(WEBAUTHN_RP_ID.encode()).digest() + struct.pack(">BI", flags, sign_count)
         if not flags & _FLAG_ATTESTED_CREDENTIAL:
             return header
-        return (
-            header
-            + _TEST_AAGUID
-            + struct.pack(">H", len(self.credential_id))
-            + self.credential_id
-            + self._encode_cose_public_key()
-        )
+        return header + _TEST_AAGUID + struct.pack(">H", len(self.credential_id)) + self.credential_id + self._encode_cose_public_key()
 
     def _encode_cose_public_key(self) -> bytes:
         """Encode this authenticator's public key in the COSE form the library reads"""
@@ -1273,29 +1193,31 @@ class _SoftwareAuthenticator:
 
         # COSE labels: 1 is the key type where 2 means elliptic curve, 3 is the algorithm where -7
         # means ES256, -1 is the curve where 1 means P-256, and -2 and -3 hold the point coordinates
-        return cbor2.dumps({
-            1: 2,
-            3: -7,
-            -1: 1,
-            -2: numbers.x.to_bytes(_P256_COORDINATE_BYTES, "big"),
-            -3: numbers.y.to_bytes(_P256_COORDINATE_BYTES, "big"),
-        })
+        return cbor2.dumps(
+            {
+                1: 2,
+                3: -7,
+                -1: 1,
+                -2: numbers.x.to_bytes(_P256_COORDINATE_BYTES, "big"),
+                -3: numbers.y.to_bytes(_P256_COORDINATE_BYTES, "big"),
+            }
+        )
 
     @staticmethod
     def _build_client_data(challenge: str, ceremony_type: str) -> bytes:
         """Assemble the client data a browser echoes back for a ceremony"""
-        return json.dumps({
-            "type": ceremony_type,
-            "challenge": challenge,
-            "origin": WEBAUTHN_ORIGINS[0],
-        }).encode()
+        return json.dumps(
+            {
+                "type": ceremony_type,
+                "challenge": challenge,
+                "origin": WEBAUTHN_ORIGINS[0],
+            }
+        ).encode()
 
 
 async def _request_registration_options(client, auth) -> dict:
     """Return registration ceremony options, reauthorizing with the account password"""
-    response = await client.post(
-        "/auth/passkeys/register/options", headers=auth, json={"step_up": {"password": SIGNUP_PAYLOAD["password"]}}
-    )
+    response = await client.post("/auth/passkeys/register/options", headers=auth, json={"step_up": {"password": SIGNUP_PAYLOAD["password"]}})
     return response.json()
 
 
@@ -1353,9 +1275,7 @@ async def test_real_ceremony_rejects_a_damaged_attestation(client):
     credential = authenticator.build_registration_response(options["challenge"])
     credential["response"]["attestationObject"] = bytes_to_base64url(b"not-an-attestation-object")
 
-    response = await client.post(
-        "/auth/passkeys/register", headers=auth, json={"name": "Damaged", "credential": credential}
-    )
+    response = await client.post("/auth/passkeys/register", headers=auth, json={"name": "Damaged", "credential": credential})
     assert response.status_code == 400
 
 

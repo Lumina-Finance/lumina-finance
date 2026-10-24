@@ -27,7 +27,6 @@ async def _store_unresolvable_timezone(email: str = SIGNUP_PAYLOAD["email"]):
         None
     """
     async with TestSession() as session:
-
         # Replace the user's timezone with one no zone database resolves
         await session.execute(update(User).where(User.email == email).values(tz=UNRESOLVABLE_IDENTIFIER))
         await session.commit()
@@ -86,7 +85,6 @@ async def test_account_creation_writes_nothing_when_the_stored_timezone_is_unres
     assert create_resp.status_code == status.HTTP_422_UNPROCESSABLE_CONTENT
     assert OWN_PROFILE in create_resp.json()["detail"]
     async with TestSession() as session:
-
         # Count every account row, since a refusal after the commit would leave one behind
         account_count = await session.scalar(select(func.count()).select_from(Account))
     assert account_count == 0
@@ -103,7 +101,6 @@ async def test_category_creation_writes_nothing_when_the_stored_timezone_is_unre
     assert create_resp.status_code == status.HTTP_422_UNPROCESSABLE_CONTENT
     assert UNRESOLVABLE_IDENTIFIER in create_resp.json()["detail"]
     async with TestSession() as session:
-
         # Count every tax-advantaged category row, since a refusal after the commit would leave one behind
         category_count = await session.scalar(select(func.count()).select_from(TaxAdvantagedCategory))
     assert category_count == 0
@@ -125,7 +122,6 @@ async def test_category_update_writes_nothing_when_the_stored_timezone_is_unreso
     assert update_resp.status_code == status.HTTP_422_UNPROCESSABLE_CONTENT
     assert UNRESOLVABLE_IDENTIFIER in update_resp.json()["detail"]
     async with TestSession() as session:
-
         # Read the stored name back, since a refusal after the commit would have saved the new one
         stored_name = await session.scalar(
             select(TaxAdvantagedCategory.name).where(TaxAdvantagedCategory.id == uuid.UUID(category_id)),

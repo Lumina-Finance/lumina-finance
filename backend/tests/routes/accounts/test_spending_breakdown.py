@@ -1,4 +1,5 @@
 """Route tests for GET /accounts/{account_id}/spending-breakdown."""
+
 import asyncio
 import importlib
 import uuid
@@ -79,13 +80,16 @@ async def _create_transaction(client, headers, account_id, category_id, **overri
 
 async def _create_second_user(client):
     """Sign up a second user and return (auth_headers, user_id)."""
-    resp = await client.post("/auth/signup", json={
-        "email": "other@example.com",
-        "password": "SecurePassword123!",
-        "first_name": "Other",
-        "tz": "America/Toronto",
-        "base_currency": "CAD",
-    })
+    resp = await client.post(
+        "/auth/signup",
+        json={
+            "email": "other@example.com",
+            "password": "SecurePassword123!",
+            "first_name": "Other",
+            "tz": "America/Toronto",
+            "base_currency": "CAD",
+        },
+    )
     return _get_auth_header(resp), resp.json()["user"]["id"]
 
 
@@ -112,6 +116,7 @@ async def _seed_usd_currency():
     """
     from app.models.currency import Currency
     from tests.conftest import TestSession
+
     async with TestSession() as session:
         session.add(Currency(id="USD", name="US Dollar", symbol="$", minor_unit_exponent=2))
         await session.commit()
@@ -187,13 +192,22 @@ async def test_concurrent_full_refund_keeps_one_spending_snapshot(client, monkey
     category = (await _create_category(client, headers)).json()
     merchant = (await _create_merchant(client, headers)).json()
     purchase = await _create_transaction(
-        client, headers, account_id, category["id"], amount=-1000, merchant_id=merchant["id"],
+        client,
+        headers,
+        account_id,
+        category["id"],
+        amount=-1000,
+        merchant_id=merchant["id"],
     )
     assert purchase.status_code == 201
     refund = Transaction(
-        created_by_user_id=uuid.UUID(user_id), account_id=uuid.UUID(account_id), dt=_today_utc(),
-        category_id=uuid.UUID(category["id"]), merchant_id=uuid.UUID(merchant["id"]),
-        amount=1000, currency="CAD",
+        created_by_user_id=uuid.UUID(user_id),
+        account_id=uuid.UUID(account_id),
+        dt=_today_utc(),
+        category_id=uuid.UUID(category["id"]),
+        merchant_id=uuid.UUID(merchant["id"]),
+        amount=1000,
+        currency="CAD",
     )
 
     original, during, after = await _read_across_committed_write(monkeypatch, user_id, account_id, refund)
@@ -202,9 +216,13 @@ async def test_concurrent_full_refund_keeps_one_spending_snapshot(client, monkey
     assert len(original["top_categories"]) == len(original["top_merchants"]) == 1
     assert during == original
     assert after == {
-        "range": "MTD", "top_categories": [], "top_merchants": [],
-        "categories_total_spend": 0, "merchants_total_spend": 0,
-        "other_categories_count": 0, "other_merchants_count": 0,
+        "range": "MTD",
+        "top_categories": [],
+        "top_merchants": [],
+        "categories_total_spend": 0,
+        "merchants_total_spend": 0,
+        "other_categories_count": 0,
+        "other_merchants_count": 0,
     }
 
 
@@ -218,16 +236,24 @@ async def test_concurrent_new_group_keeps_totals_rankings_and_hidden_counts_cons
         category = (await _create_category(client, headers, name=f"Test Snapshot {index}")).json()
         merchant = (await _create_merchant(client, headers, name=f"Snapshot Merchant {index}")).json()
         purchase = await _create_transaction(
-            client, headers, account_id, category["id"],
-            amount=-(600 - index * 100), merchant_id=merchant["id"],
+            client,
+            headers,
+            account_id,
+            category["id"],
+            amount=-(600 - index * 100),
+            merchant_id=merchant["id"],
         )
         assert purchase.status_code == 201
     new_category = (await _create_category(client, headers, name="Test Snapshot New")).json()
     new_merchant = (await _create_merchant(client, headers, name="Snapshot Merchant New")).json()
     expense = Transaction(
-        created_by_user_id=uuid.UUID(user_id), account_id=uuid.UUID(account_id), dt=_today_utc(),
-        category_id=uuid.UUID(new_category["id"]), merchant_id=uuid.UUID(new_merchant["id"]),
-        amount=-1000, currency="CAD",
+        created_by_user_id=uuid.UUID(user_id),
+        account_id=uuid.UUID(account_id),
+        dt=_today_utc(),
+        category_id=uuid.UUID(new_category["id"]),
+        merchant_id=uuid.UUID(new_merchant["id"]),
+        amount=-1000,
+        currency="CAD",
     )
 
     original, during, after = await _read_across_committed_write(monkeypatch, user_id, account_id, expense)
@@ -253,8 +279,12 @@ async def test_spending_snapshot_uses_one_execute_and_returns_at_most_ten_rows(c
         category = (await _create_category(client, headers, name=f"Test Bounded {index}")).json()
         merchant = (await _create_merchant(client, headers, name=f"Bounded Merchant {index}")).json()
         purchase = await _create_transaction(
-            client, headers, account_id, category["id"],
-            amount=-(800 - index * 100), merchant_id=merchant["id"],
+            client,
+            headers,
+            account_id,
+            category["id"],
+            amount=-(800 - index * 100),
+            merchant_id=merchant["id"],
         )
         assert purchase.status_code == 201
     executions = 0
@@ -280,7 +310,10 @@ async def test_spending_snapshot_uses_one_execute_and_returns_at_most_ten_rows(c
 
             monkeypatch.setattr(reader, "execute", record_execute)
             breakdown = await get_account_spending_breakdown(
-                reader, uuid.UUID(account_id), "MTD", datetime.now(ZoneInfo("America/Toronto")),
+                reader,
+                uuid.UUID(account_id),
+                "MTD",
+                datetime.now(ZoneInfo("America/Toronto")),
             )
     finally:
         current_user_id_ctx.reset(identity_token)
@@ -306,12 +339,20 @@ async def test_wtd_includes_transactions_since_monday_and_excludes_earlier(clien
 
     # In-range (today) and out-of-range (day before Monday)
     await _create_transaction(
-        client, headers, account_id, category_id,
-        dt=today.isoformat(), amount=-1000,
+        client,
+        headers,
+        account_id,
+        category_id,
+        dt=today.isoformat(),
+        amount=-1000,
     )
     await _create_transaction(
-        client, headers, account_id, category_id,
-        dt=(monday - timedelta(days=1)).isoformat(), amount=-9999,
+        client,
+        headers,
+        account_id,
+        category_id,
+        dt=(monday - timedelta(days=1)).isoformat(),
+        amount=-9999,
     )
 
     resp = await client.get(
@@ -336,12 +377,20 @@ async def test_mtd_includes_transactions_since_first_of_month_and_excludes_earli
     month_start = _range_start("MTD", today)
 
     await _create_transaction(
-        client, headers, account_id, category_id,
-        dt=month_start.isoformat(), amount=-2000,
+        client,
+        headers,
+        account_id,
+        category_id,
+        dt=month_start.isoformat(),
+        amount=-2000,
     )
     await _create_transaction(
-        client, headers, account_id, category_id,
-        dt=(month_start - timedelta(days=1)).isoformat(), amount=-9999,
+        client,
+        headers,
+        account_id,
+        category_id,
+        dt=(month_start - timedelta(days=1)).isoformat(),
+        amount=-9999,
     )
 
     resp = await client.get(
@@ -394,12 +443,20 @@ async def test_qtd_includes_transactions_since_first_of_quarter_and_excludes_ear
     quarter_start = _range_start("QTD", today)
 
     await _create_transaction(
-        client, headers, account_id, category_id,
-        dt=quarter_start.isoformat(), amount=-3000,
+        client,
+        headers,
+        account_id,
+        category_id,
+        dt=quarter_start.isoformat(),
+        amount=-3000,
     )
     await _create_transaction(
-        client, headers, account_id, category_id,
-        dt=(quarter_start - timedelta(days=1)).isoformat(), amount=-9999,
+        client,
+        headers,
+        account_id,
+        category_id,
+        dt=(quarter_start - timedelta(days=1)).isoformat(),
+        amount=-9999,
     )
 
     resp = await client.get(
@@ -424,12 +481,20 @@ async def test_ytd_includes_transactions_since_january_first_and_excludes_earlie
     year_start = _range_start("YTD", today)
 
     await _create_transaction(
-        client, headers, account_id, category_id,
-        dt=year_start.isoformat(), amount=-4000,
+        client,
+        headers,
+        account_id,
+        category_id,
+        dt=year_start.isoformat(),
+        amount=-4000,
     )
     await _create_transaction(
-        client, headers, account_id, category_id,
-        dt=(year_start - timedelta(days=1)).isoformat(), amount=-9999,
+        client,
+        headers,
+        account_id,
+        category_id,
+        dt=(year_start - timedelta(days=1)).isoformat(),
+        amount=-9999,
     )
 
     resp = await client.get(
@@ -463,18 +528,33 @@ async def test_transfer_and_income_transactions_do_not_contribute(client):
     today = _today_utc().isoformat()
     # Real expense that should count
     await _create_transaction(
-        client, headers, account_id, expense_cat["id"],
-        dt=today, amount=-1500, merchant_id=merchant_expense["id"],
+        client,
+        headers,
+        account_id,
+        expense_cat["id"],
+        dt=today,
+        amount=-1500,
+        merchant_id=merchant_expense["id"],
     )
     # Transfer — stored negative, but should never contribute to spending breakdown
     await _create_transaction(
-        client, headers, account_id, transfer_cat["id"],
-        dt=today, amount=-5000, merchant_id=merchant_transfer["id"],
+        client,
+        headers,
+        account_id,
+        transfer_cat["id"],
+        dt=today,
+        amount=-5000,
+        merchant_id=merchant_transfer["id"],
     )
     # Income — positive amount, also excluded
     await _create_transaction(
-        client, headers, account_id, income_cat["id"],
-        dt=today, amount=200_000, merchant_id=merchant_income["id"],
+        client,
+        headers,
+        account_id,
+        income_cat["id"],
+        dt=today,
+        amount=200_000,
+        merchant_id=merchant_income["id"],
     )
 
     resp = await client.get(
@@ -510,22 +590,29 @@ async def test_expense_without_merchant_stays_out_of_the_merchants_total(client)
     today = _today_utc()
     # One expense with a merchant, one without
     with_merchant = await _create_transaction(
-        client, headers, account_id, category["id"],
-        dt=today.isoformat(), amount=-1000, merchant_id=merchant["id"],
+        client,
+        headers,
+        account_id,
+        category["id"],
+        dt=today.isoformat(),
+        amount=-1000,
+        merchant_id=merchant["id"],
     )
 
     # Inserted past the route, which now requires a merchant, since what is under test is how the
     # breakdown reports the transactions recorded before that rule
     async with TestSession() as session:
-        session.add(Transaction(
-            created_by_user_id=uuid.UUID(with_merchant.json()["created_by_user_id"]),
-            account_id=uuid.UUID(account_id),
-            dt=today,
-            category_id=uuid.UUID(category["id"]),
-            merchant_id=None,
-            amount=-400,
-            currency="CAD",
-        ))
+        session.add(
+            Transaction(
+                created_by_user_id=uuid.UUID(with_merchant.json()["created_by_user_id"]),
+                account_id=uuid.UUID(account_id),
+                dt=today,
+                category_id=uuid.UUID(category["id"]),
+                merchant_id=None,
+                amount=-400,
+                currency="CAD",
+            )
+        )
         await session.commit()
 
     resp = await client.get(
@@ -573,8 +660,13 @@ async def test_top_five_cap_with_seven_categories_and_nine_merchants(client):
         # Largest-first: Category 0 has -100_000, then 60_000 → 10_000 for 1..6
         base = 100_000 if i == 0 else (70_000 - i * 10_000)
         await _create_transaction(
-            client, headers, account_id, cat["id"],
-            dt=today, amount=-base, merchant_id=base_merchant["id"],
+            client,
+            headers,
+            account_id,
+            cat["id"],
+            dt=today,
+            amount=-base,
+            merchant_id=base_merchant["id"],
         )
 
     # 8 distinct merchants attached to the LAST of the 7 categories — that way
@@ -585,8 +677,12 @@ async def test_top_five_cap_with_seven_categories_and_nine_merchants(client):
         merch = (await _create_merchant(client, headers, name=f"Test Merchant {i}")).json()
         merchants.append(merch)
         await _create_transaction(
-            client, headers, account_id, merchant_bucket_cat["id"],
-            dt=today, amount=-(8000 - i * 100),  # -8000, -7900, ..., -7300
+            client,
+            headers,
+            account_id,
+            merchant_bucket_cat["id"],
+            dt=today,
+            amount=-(8000 - i * 100),  # -8000, -7900, ..., -7300
             merchant_id=merch["id"],
         )
 
@@ -626,8 +722,12 @@ async def test_exactly_five_entries_yields_zero_other_counts(client):
         cat = (await _create_category(client, headers, name=f"Test Cat {i}")).json()
         merch = (await _create_merchant(client, headers, name=f"Test Merchant {i}")).json()
         await _create_transaction(
-            client, headers, account_id, cat["id"],
-            dt=today, amount=-(500 - i * 50),
+            client,
+            headers,
+            account_id,
+            cat["id"],
+            dt=today,
+            amount=-(500 - i * 50),
             merchant_id=merch["id"],
         )
 
@@ -661,13 +761,23 @@ async def test_positive_amount_on_expense_category_subtracts_from_total(client):
 
     today = _today_utc().isoformat()
     await _create_transaction(
-        client, headers, account_id, category["id"],
-        dt=today, amount=-1000, merchant_id=merchant["id"],
+        client,
+        headers,
+        account_id,
+        category["id"],
+        dt=today,
+        amount=-1000,
+        merchant_id=merchant["id"],
     )
     # Refund on the same expense category
     await _create_transaction(
-        client, headers, account_id, category["id"],
-        dt=today, amount=200, merchant_id=merchant["id"],
+        client,
+        headers,
+        account_id,
+        category["id"],
+        dt=today,
+        amount=200,
+        merchant_id=merchant["id"],
     )
 
     resp = await client.get(
@@ -692,16 +802,31 @@ async def test_zero_sum_category_and_merchant_are_excluded(client):
 
     today = _today_utc().isoformat()
     await _create_transaction(
-        client, headers, account_id, zero_category["id"],
-        dt=today, amount=-500, merchant_id=zero_merchant["id"],
+        client,
+        headers,
+        account_id,
+        zero_category["id"],
+        dt=today,
+        amount=-500,
+        merchant_id=zero_merchant["id"],
     )
     await _create_transaction(
-        client, headers, account_id, zero_category["id"],
-        dt=today, amount=500, merchant_id=zero_merchant["id"],
+        client,
+        headers,
+        account_id,
+        zero_category["id"],
+        dt=today,
+        amount=500,
+        merchant_id=zero_merchant["id"],
     )
     await _create_transaction(
-        client, headers, account_id, spend_category["id"],
-        dt=today, amount=-1200, merchant_id=spend_merchant["id"],
+        client,
+        headers,
+        account_id,
+        spend_category["id"],
+        dt=today,
+        amount=-1200,
+        merchant_id=spend_merchant["id"],
     )
 
     resp = await client.get(
@@ -730,16 +855,31 @@ async def test_over_refunded_category_and_merchant_are_excluded(client):
 
     today = _today_utc().isoformat()
     await _create_transaction(
-        client, headers, account_id, groceries["id"],
-        dt=today, amount=-10_000, merchant_id=grocer["id"],
+        client,
+        headers,
+        account_id,
+        groceries["id"],
+        dt=today,
+        amount=-10_000,
+        merchant_id=grocer["id"],
     )
     await _create_transaction(
-        client, headers, account_id, groceries["id"],
-        dt=today, amount=15_000, merchant_id=grocer["id"],
+        client,
+        headers,
+        account_id,
+        groceries["id"],
+        dt=today,
+        amount=15_000,
+        merchant_id=grocer["id"],
     )
     await _create_transaction(
-        client, headers, account_id, rent["id"],
-        dt=today, amount=-200_000, merchant_id=landlord["id"],
+        client,
+        headers,
+        account_id,
+        rent["id"],
+        dt=today,
+        amount=-200_000,
+        merchant_id=landlord["id"],
     )
 
     resp = await client.get(
@@ -766,16 +906,31 @@ async def test_over_refunded_merchant_inside_a_spending_category_is_excluded(cli
 
     today = _today_utc().isoformat()
     await _create_transaction(
-        client, headers, account_id, dining["id"],
-        dt=today, amount=-5_000, merchant_id=refunded_merchant["id"],
+        client,
+        headers,
+        account_id,
+        dining["id"],
+        dt=today,
+        amount=-5_000,
+        merchant_id=refunded_merchant["id"],
     )
     await _create_transaction(
-        client, headers, account_id, dining["id"],
-        dt=today, amount=8_000, merchant_id=refunded_merchant["id"],
+        client,
+        headers,
+        account_id,
+        dining["id"],
+        dt=today,
+        amount=8_000,
+        merchant_id=refunded_merchant["id"],
     )
     await _create_transaction(
-        client, headers, account_id, dining["id"],
-        dt=today, amount=-20_000, merchant_id=kept_merchant["id"],
+        client,
+        headers,
+        account_id,
+        dining["id"],
+        dt=today,
+        amount=-20_000,
+        merchant_id=kept_merchant["id"],
     )
 
     resp = await client.get(
@@ -799,16 +954,31 @@ async def test_merchant_is_judged_on_its_own_net_across_categories(client):
 
     today = _today_utc().isoformat()
     await _create_transaction(
-        client, headers, account_id, groceries["id"],
-        dt=today, amount=-10_000, merchant_id=merchant["id"],
+        client,
+        headers,
+        account_id,
+        groceries["id"],
+        dt=today,
+        amount=-10_000,
+        merchant_id=merchant["id"],
     )
     await _create_transaction(
-        client, headers, account_id, groceries["id"],
-        dt=today, amount=15_000, merchant_id=merchant["id"],
+        client,
+        headers,
+        account_id,
+        groceries["id"],
+        dt=today,
+        amount=15_000,
+        merchant_id=merchant["id"],
     )
     await _create_transaction(
-        client, headers, account_id, dining["id"],
-        dt=today, amount=-20_000, merchant_id=merchant["id"],
+        client,
+        headers,
+        account_id,
+        dining["id"],
+        dt=today,
+        amount=-20_000,
+        merchant_id=merchant["id"],
     )
 
     resp = await client.get(
@@ -839,12 +1009,22 @@ async def test_both_cards_are_empty_when_everything_is_refunded_past_zero(client
 
     today = _today_utc().isoformat()
     await _create_transaction(
-        client, headers, account_id, groceries["id"],
-        dt=today, amount=-10_000, merchant_id=grocer["id"],
+        client,
+        headers,
+        account_id,
+        groceries["id"],
+        dt=today,
+        amount=-10_000,
+        merchant_id=grocer["id"],
     )
     await _create_transaction(
-        client, headers, account_id, groceries["id"],
-        dt=today, amount=15_000, merchant_id=grocer["id"],
+        client,
+        headers,
+        account_id,
+        groceries["id"],
+        dt=today,
+        amount=15_000,
+        merchant_id=grocer["id"],
     )
 
     resp = await client.get(
@@ -872,21 +1052,28 @@ async def test_merchant_card_survives_a_category_refunded_past_zero(client):
 
     today = _today_utc()
     purchase = await _create_transaction(
-        client, headers, account_id, groceries["id"],
-        dt=today.isoformat(), amount=-10_000, merchant_id=merchant["id"],
+        client,
+        headers,
+        account_id,
+        groceries["id"],
+        dt=today.isoformat(),
+        amount=-10_000,
+        merchant_id=merchant["id"],
     )
 
     # The refund carries no merchant, so it lands on the category without touching the merchant
     async with TestSession() as session:
-        session.add(Transaction(
-            created_by_user_id=uuid.UUID(purchase.json()["created_by_user_id"]),
-            account_id=uuid.UUID(account_id),
-            dt=today,
-            category_id=uuid.UUID(groceries["id"]),
-            merchant_id=None,
-            amount=15_000,
-            currency="CAD",
-        ))
+        session.add(
+            Transaction(
+                created_by_user_id=uuid.UUID(purchase.json()["created_by_user_id"]),
+                account_id=uuid.UUID(account_id),
+                dt=today,
+                category_id=uuid.UUID(groceries["id"]),
+                merchant_id=None,
+                amount=15_000,
+                currency="CAD",
+            )
+        )
         await session.commit()
 
     resp = await client.get(
@@ -944,19 +1131,34 @@ async def test_hidden_merchant_count_excludes_over_refunded_merchants(client):
     for index, amount in enumerate((-8_000, -7_000, -6_000, -5_000, -4_000, -3_000, -2_000, -1_000)):
         merchant = (await _create_merchant(client, headers, name=f"Spender {index}")).json()
         await _create_transaction(
-            client, headers, account_id, category["id"],
-            dt=today, amount=amount, merchant_id=merchant["id"],
+            client,
+            headers,
+            account_id,
+            category["id"],
+            dt=today,
+            amount=amount,
+            merchant_id=merchant["id"],
         )
 
     for index in range(2):
         refunded = (await _create_merchant(client, headers, name=f"Returner {index}")).json()
         await _create_transaction(
-            client, headers, account_id, category["id"],
-            dt=today, amount=-100, merchant_id=refunded["id"],
+            client,
+            headers,
+            account_id,
+            category["id"],
+            dt=today,
+            amount=-100,
+            merchant_id=refunded["id"],
         )
         await _create_transaction(
-            client, headers, account_id, category["id"],
-            dt=today, amount=500, merchant_id=refunded["id"],
+            client,
+            headers,
+            account_id,
+            category["id"],
+            dt=today,
+            amount=500,
+            merchant_id=refunded["id"],
         )
 
     resp = await client.get(
@@ -992,12 +1194,23 @@ async def test_mixed_currency_transactions_are_summed_as_raw_minor_units(client)
 
     today = _today_utc().isoformat()
     await _create_transaction(
-        client, headers, account_id, category["id"],
-        dt=today, amount=-1000, currency="CAD",
+        client,
+        headers,
+        account_id,
+        category["id"],
+        dt=today,
+        amount=-1000,
+        currency="CAD",
     )
     await _create_transaction(
-        client, headers, account_id, category["id"],
-        dt=today, amount=-500, currency="USD", fx_rate=1.37,
+        client,
+        headers,
+        account_id,
+        category["id"],
+        dt=today,
+        amount=-500,
+        currency="USD",
+        fx_rate=1.37,
     )
 
     resp = await client.get(
@@ -1022,13 +1235,21 @@ async def test_future_dated_transaction_is_excluded_from_range(client):
 
     today = _today_utc()
     await _create_transaction(
-        client, headers, account_id, category["id"],
-        dt=today.isoformat(), amount=-1000,
+        client,
+        headers,
+        account_id,
+        category["id"],
+        dt=today.isoformat(),
+        amount=-1000,
     )
     # Tomorrow — must be excluded regardless of how wide the range is
     await _create_transaction(
-        client, headers, account_id, category["id"],
-        dt=(today + timedelta(days=1)).isoformat(), amount=-9999,
+        client,
+        headers,
+        account_id,
+        category["id"],
+        dt=(today + timedelta(days=1)).isoformat(),
+        amount=-9999,
     )
 
     resp = await client.get(
@@ -1048,22 +1269,36 @@ async def test_future_dated_transaction_is_excluded_from_range(client):
 async def test_transactions_on_other_accounts_are_excluded(client):
     """Only the queried account's expenses contribute — a sibling account's rows don't leak."""
     headers, account_id = await _setup_account(client)
-    other_account_id = (await _create_account(
-        client, headers, name="Secondary Chequing",
-    )).json()["id"]
+    other_account_id = (
+        await _create_account(
+            client,
+            headers,
+            name="Secondary Chequing",
+        )
+    ).json()["id"]
     category = (await _create_category(client, headers)).json()
     merchant = (await _create_merchant(client, headers)).json()
 
     today = _today_utc().isoformat()
     # Transaction on the queried account
     await _create_transaction(
-        client, headers, account_id, category["id"],
-        dt=today, amount=-1000, merchant_id=merchant["id"],
+        client,
+        headers,
+        account_id,
+        category["id"],
+        dt=today,
+        amount=-1000,
+        merchant_id=merchant["id"],
     )
     # Transaction on the other account — same user, same category, same merchant
     await _create_transaction(
-        client, headers, other_account_id, category["id"],
-        dt=today, amount=-8888, merchant_id=merchant["id"],
+        client,
+        headers,
+        other_account_id,
+        category["id"],
+        dt=today,
+        amount=-8888,
+        merchant_id=merchant["id"],
     )
 
     resp = await client.get(
@@ -1086,16 +1321,29 @@ async def test_transactions_on_other_accounts_are_excluded(client):
 async def test_unicode_category_and_merchant_names_round_trip(client):
     """Non-ASCII characters in category and merchant names are preserved in the response."""
     headers, account_id = await _setup_account(client)
-    category = (await _create_category(
-        client, headers, name="Épicerie Métro 🛒",
-    )).json()
-    merchant = (await _create_merchant(
-        client, headers, name="Café Noir ☕",
-    )).json()
+    category = (
+        await _create_category(
+            client,
+            headers,
+            name="Épicerie Métro 🛒",
+        )
+    ).json()
+    merchant = (
+        await _create_merchant(
+            client,
+            headers,
+            name="Café Noir ☕",
+        )
+    ).json()
 
     await _create_transaction(
-        client, headers, account_id, category["id"],
-        dt=_today_utc().isoformat(), amount=-1000, merchant_id=merchant["id"],
+        client,
+        headers,
+        account_id,
+        category["id"],
+        dt=_today_utc().isoformat(),
+        amount=-1000,
+        merchant_id=merchant["id"],
     )
 
     resp = await client.get(
@@ -1127,16 +1375,31 @@ async def test_categories_and_merchants_are_ordered_largest_spend_first(client):
 
     # Insert in a scrambled order to make sure ordering is from SQL, not insertion order
     await _create_transaction(
-        client, headers, account_id, medium_cat["id"],
-        dt=today, amount=-2000, merchant_id=medium_merch["id"],
+        client,
+        headers,
+        account_id,
+        medium_cat["id"],
+        dt=today,
+        amount=-2000,
+        merchant_id=medium_merch["id"],
     )
     await _create_transaction(
-        client, headers, account_id, small_cat["id"],
-        dt=today, amount=-500, merchant_id=small_merch["id"],
+        client,
+        headers,
+        account_id,
+        small_cat["id"],
+        dt=today,
+        amount=-500,
+        merchant_id=small_merch["id"],
     )
     await _create_transaction(
-        client, headers, account_id, large_cat["id"],
-        dt=today, amount=-5000, merchant_id=large_merch["id"],
+        client,
+        headers,
+        account_id,
+        large_cat["id"],
+        dt=today,
+        amount=-5000,
+        merchant_id=large_merch["id"],
     )
 
     resp = await client.get(
@@ -1227,32 +1490,34 @@ async def test_equal_spending_rows_with_equal_names_use_ids(client):
     higher_merchant_id = uuid.UUID("20000000-0000-0000-0000-000000000002")
 
     async with TestSession() as session:
-        session.add_all([
-            Category(
-                id=lower_category_id,
-                owner_id=user_id,
-                name="Equal Category",
-                kind=CategoryKind.EXPENSE,
-                is_system=False,
-            ),
-            Category(
-                id=higher_category_id,
-                name="Equal Category",
-                kind=CategoryKind.EXPENSE,
-                is_system=True,
-            ),
-            Merchant(
-                id=lower_merchant_id,
-                owner_id=user_id,
-                name="Equal Merchant",
-                is_system=False,
-            ),
-            Merchant(
-                id=higher_merchant_id,
-                name="Equal Merchant",
-                is_system=True,
-            ),
-        ])
+        session.add_all(
+            [
+                Category(
+                    id=lower_category_id,
+                    owner_id=user_id,
+                    name="Equal Category",
+                    kind=CategoryKind.EXPENSE,
+                    is_system=False,
+                ),
+                Category(
+                    id=higher_category_id,
+                    name="Equal Category",
+                    kind=CategoryKind.EXPENSE,
+                    is_system=True,
+                ),
+                Merchant(
+                    id=lower_merchant_id,
+                    owner_id=user_id,
+                    name="Equal Merchant",
+                    is_system=False,
+                ),
+                Merchant(
+                    id=higher_merchant_id,
+                    name="Equal Merchant",
+                    is_system=True,
+                ),
+            ]
+        )
         await session.commit()
 
     for category_id, merchant_id in (
@@ -1322,15 +1587,23 @@ async def test_missing_range_param_defaults_to_mtd(client):
     month_start = _range_start("MTD", today)
     # In-range today
     await _create_transaction(
-        client, headers, account_id, category["id"],
-        dt=today.isoformat(), amount=-1000,
+        client,
+        headers,
+        account_id,
+        category["id"],
+        dt=today.isoformat(),
+        amount=-1000,
     )
     # Out of MTD but within YTD — a prior-month transaction. If the default
     # were YTD this would be included; MTD default should exclude it
     prior_month_day = month_start - timedelta(days=1)
     await _create_transaction(
-        client, headers, account_id, category["id"],
-        dt=prior_month_day.isoformat(), amount=-9999,
+        client,
+        headers,
+        account_id,
+        category["id"],
+        dt=prior_month_day.isoformat(),
+        amount=-9999,
     )
 
     resp = await client.get(f"/accounts/{account_id}/spending-breakdown", headers=headers)
@@ -1428,7 +1701,11 @@ async def test_group_member_with_explicit_read_permission_succeeds(client):
         headers=admin_headers,
     )
     grant_resp = await _grant_account_permission(
-        client, admin_headers, account_id, member_user_id, "read",
+        client,
+        admin_headers,
+        account_id,
+        member_user_id,
+        "read",
     )
     assert grant_resp.status_code == 201
 
@@ -1456,8 +1733,13 @@ async def test_merchant_total_leaves_out_a_merchant_the_viewer_cannot_see(client
     # A merchant the admin owns personally, which row-level security keeps from the member
     private_merchant = (await _create_merchant(client, admin_headers, name="Private Diner")).json()
     create_resp = await _create_transaction(
-        client, admin_headers, account_id, shared_category["id"],
-        dt=_today_utc().isoformat(), amount=-5_000, merchant_id=private_merchant["id"],
+        client,
+        admin_headers,
+        account_id,
+        shared_category["id"],
+        dt=_today_utc().isoformat(),
+        amount=-5_000,
+        merchant_id=private_merchant["id"],
     )
     assert create_resp.status_code == 201
 
@@ -1492,8 +1774,12 @@ async def test_archived_account_still_returns_breakdown(client):
     category = (await _create_category(client, headers)).json()
 
     await _create_transaction(
-        client, headers, account_id, category["id"],
-        dt=_today_utc().isoformat(), amount=-1000,
+        client,
+        headers,
+        account_id,
+        category["id"],
+        dt=_today_utc().isoformat(),
+        amount=-1000,
     )
 
     archive_resp = await client.patch(

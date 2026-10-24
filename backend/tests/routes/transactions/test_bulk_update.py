@@ -37,24 +37,46 @@ from tests.routes.transactions._import_helpers import _import_run
 async def test_bulk_update_clears_only_selected_transaction_tags(client):
     """Clearing preserves the registry, unrelated rows and financial fields"""
     headers, account_id, category_id = await _setup_user_with_deps(client)
-    holiday, family, work = [
-        (await _create_tag(client, headers, name=name)).json()["id"]
-        for name in ("Holiday", "Family", "Work")
-    ]
-    first = (await _create_transaction(
-        client, headers, account_id, category_id, tag_ids=[holiday, family], notes="Family visit",
-    )).json()["id"]
-    second = (await _create_transaction(
-        client, headers, account_id, category_id, tag_ids=[holiday, work], amount=-7500,
-    )).json()["id"]
-    unrelated = (await _create_transaction(
-        client, headers, account_id, category_id, tag_ids=[holiday],
-    )).json()["id"]
+    holiday, family, work = [(await _create_tag(client, headers, name=name)).json()["id"] for name in ("Holiday", "Family", "Work")]
+    first = (
+        await _create_transaction(
+            client,
+            headers,
+            account_id,
+            category_id,
+            tag_ids=[holiday, family],
+            notes="Family visit",
+        )
+    ).json()["id"]
+    second = (
+        await _create_transaction(
+            client,
+            headers,
+            account_id,
+            category_id,
+            tag_ids=[holiday, work],
+            amount=-7500,
+        )
+    ).json()["id"]
+    unrelated = (
+        await _create_transaction(
+            client,
+            headers,
+            account_id,
+            category_id,
+            tag_ids=[holiday],
+        )
+    ).json()["id"]
     before = [(await client.get(f"/transactions/{identifier}", headers=headers)).json() for identifier in (first, second)]
     snapshots = await _read_snapshots(account_id)
-    response = await client.patch("/transactions/bulk", headers=headers, json={
-        "transaction_ids": [first, second], "override_tags": True,
-    })
+    response = await client.patch(
+        "/transactions/bulk",
+        headers=headers,
+        json={
+            "transaction_ids": [first, second],
+            "override_tags": True,
+        },
+    )
     assert response.status_code == 200
     assert response.json()["transactions_updated"] == 2
     assert response.json()["affected_account_ids"] == [account_id]
@@ -79,18 +101,29 @@ async def test_bulk_update_clears_tags_across_personal_and_group_scopes(client):
     shared_tag = (await _create_tag(client, headers, name="Shared holiday", group_id=group)).json()["id"]
     first = (await _create_transaction(client, headers, personal, category, tag_ids=[personal_tag])).json()["id"]
     second = (await _create_transaction(client, headers, shared, shared_category, tag_ids=[shared_tag])).json()["id"]
-    response = await client.patch("/transactions/bulk", headers=headers, json={
-        "transaction_ids": [first, second], "override_tags": True,
-    })
+    response = await client.patch(
+        "/transactions/bulk",
+        headers=headers,
+        json={
+            "transaction_ids": [first, second],
+            "override_tags": True,
+        },
+    )
     assert response.status_code == 200
     assert response.json()["transactions_updated"] == 2
     for identifier in (first, second):
         assert (await client.get(f"/transactions/{identifier}", headers=headers)).json()["tag_ids"] == []
 
 
-@pytest.mark.parametrize("failure, expected_status", [
-    ("archived", 422), ("other_user", 404), ("read_only", 403), ("invalid_category", 422),
-])
+@pytest.mark.parametrize(
+    "failure, expected_status",
+    [
+        ("archived", 422),
+        ("other_user", 404),
+        ("read_only", 403),
+        ("invalid_category", 422),
+    ],
+)
 async def test_bulk_tag_override_is_atomic_when_a_selected_row_or_detail_refuses(client, failure, expected_status):
     """Permission, archive and combined-detail failures leave every assignment intact."""
     headers, account, category = await _setup_user_with_deps(client)
@@ -101,7 +134,9 @@ async def test_bulk_tag_override_is_atomic_when_a_selected_row_or_detail_refuses
     fields = {}
     if failure in ("other_user", "read_only"):
         second_headers, second_account, second_category = await _setup_user_with_deps(
-            client, email="other@example.com", name_prefix="Other",
+            client,
+            email="other@example.com",
+            name_prefix="Other",
         )
         second_tag = (await _create_tag(client, second_headers, name="Holiday")).json()["id"]
         if failure == "read_only":
@@ -112,23 +147,40 @@ async def test_bulk_tag_override_is_atomic_when_a_selected_row_or_detail_refuses
             user_id = (await client.get("/me", headers=headers)).json()["id"]
             membership = await client.post(f"/groups/{group}/members", headers=second_headers, json={"user_id": user_id})
             assert membership.status_code == 201
-            permission = await client.post(f"/accounts/{second_account}/permissions", headers=second_headers, json={
-                "user_id": user_id, "level": "read",
-            })
+            permission = await client.post(
+                f"/accounts/{second_account}/permissions",
+                headers=second_headers,
+                json={
+                    "user_id": user_id,
+                    "level": "read",
+                },
+            )
             assert permission.status_code == 201
     else:
         second_account = (await _create_account(client, headers, name="Second")).json()["id"]
         second_category = category
-    second = (await _create_transaction(
-        client, second_headers, second_account, second_category, tag_ids=[second_tag],
-    )).json()["id"]
+    second = (
+        await _create_transaction(
+            client,
+            second_headers,
+            second_account,
+            second_category,
+            tag_ids=[second_tag],
+        )
+    ).json()["id"]
     if failure == "archived":
         assert (await client.patch(f"/accounts/{second_account}", headers=headers, json={"is_archived": True})).status_code == 200
     if failure == "invalid_category":
         fields["category_id"] = str(uuid.uuid4())
-    response = await client.patch("/transactions/bulk", headers=headers, json={
-        "transaction_ids": [first, second], "override_tags": True, **fields,
-    })
+    response = await client.patch(
+        "/transactions/bulk",
+        headers=headers,
+        json={
+            "transaction_ids": [first, second],
+            "override_tags": True,
+            **fields,
+        },
+    )
     assert response.status_code == expected_status
     assert (await client.get(f"/transactions/{first}", headers=headers)).json()["tag_ids"] == [tag]
     assert (await client.get(f"/transactions/{second}", headers=second_headers)).json()["tag_ids"] == [second_tag]
@@ -138,17 +190,19 @@ async def test_bulk_tag_override_is_atomic_when_a_selected_row_or_detail_refuses
 async def test_bulk_update_adds_or_replaces_tags(client, override):
     """Duplicate selections produce one assignment and override produces the same set on every row"""
     headers, account_id, category_id = await _setup_user_with_deps(client)
-    first, second, added = [
-        (await _create_tag(client, headers, name=name)).json()["id"]
-        for name in ("First", "Second", "Added")
-    ]
+    first, second, added = [(await _create_tag(client, headers, name=name)).json()["id"] for name in ("First", "Second", "Added")]
     transactions = [
-        (await _create_transaction(client, headers, account_id, category_id, tag_ids=tags)).json()["id"]
-        for tags in ([first], [second], [])
+        (await _create_transaction(client, headers, account_id, category_id, tag_ids=tags)).json()["id"] for tags in ([first], [second], [])
     ]
-    response = await client.patch("/transactions/bulk", headers=headers, json={
-        "transaction_ids": transactions, "override_tags": override, "add_tag_ids": [added, added],
-    })
+    response = await client.patch(
+        "/transactions/bulk",
+        headers=headers,
+        json={
+            "transaction_ids": transactions,
+            "override_tags": override,
+            "add_tag_ids": [added, added],
+        },
+    )
     assert response.status_code == 200
     assert response.json()["transactions_updated"] == 3
     for transaction, existing in zip(transactions, ({first}, {second}, set()), strict=True):
@@ -160,30 +214,44 @@ async def test_bulk_update_clearing_untagged_transaction_counts_selection(client
     """An intentional clear counts selected rows even when their tags are already empty"""
     headers, account_id, category_id = await _setup_user_with_deps(client)
     transaction = (await _create_transaction(client, headers, account_id, category_id)).json()["id"]
-    response = await client.patch("/transactions/bulk", headers=headers, json={
-        "transaction_ids": [transaction], "override_tags": True, "add_tag_ids": [],
-    })
+    response = await client.patch(
+        "/transactions/bulk",
+        headers=headers,
+        json={
+            "transaction_ids": [transaction],
+            "override_tags": True,
+            "add_tag_ids": [],
+        },
+    )
     assert response.status_code == 200
     assert response.json()["transactions_updated"] == 1
     assert (await client.get(f"/transactions/{transaction}", headers=headers)).json()["tag_ids"] == []
 
 
-@pytest.mark.parametrize("fields", [
-    {"override_tags": False},
-    {"override_tags": False, "add_tag_ids": []},
-    {"override_tags": None},
-    {"override_tags": "true"},
-    {"override_tags": True, "add_tag_ids": None},
-    {"override_tags": True, "add_tag_ids": ["malformed"]},
-    {"override_tags": True, "add_tag_ids": [str(uuid.uuid4()) for _ in range(33)]},
-])
+@pytest.mark.parametrize(
+    "fields",
+    [
+        {"override_tags": False},
+        {"override_tags": False, "add_tag_ids": []},
+        {"override_tags": None},
+        {"override_tags": "true"},
+        {"override_tags": True, "add_tag_ids": None},
+        {"override_tags": True, "add_tag_ids": ["malformed"]},
+        {"override_tags": True, "add_tag_ids": [str(uuid.uuid4()) for _ in range(33)]},
+    ],
+)
 async def test_bulk_update_rejects_invalid_override_requests(client, fields):
     """A no-op flag or malformed replacement must not be reported as an applied edit"""
     headers, account_id, category_id = await _setup_user_with_deps(client)
     transaction = (await _create_transaction(client, headers, account_id, category_id)).json()["id"]
-    response = await client.patch("/transactions/bulk", headers=headers, json={
-        "transaction_ids": [transaction], **fields,
-    })
+    response = await client.patch(
+        "/transactions/bulk",
+        headers=headers,
+        json={
+            "transaction_ids": [transaction],
+            **fields,
+        },
+    )
     assert response.status_code == 422
 
 
@@ -192,9 +260,16 @@ async def test_bulk_update_validates_replacement_tags_before_clearing(client, re
     """Invalid replacement access leaves both the old tags and combined detail changes untouched"""
     headers, account_id, category_id = await _setup_user_with_deps(client)
     original = (await _create_tag(client, headers, name="Original")).json()["id"]
-    transaction = (await _create_transaction(
-        client, headers, account_id, category_id, tag_ids=[original], notes="Original",
-    )).json()["id"]
+    transaction = (
+        await _create_transaction(
+            client,
+            headers,
+            account_id,
+            category_id,
+            tag_ids=[original],
+            notes="Original",
+        )
+    ).json()["id"]
     if replacement_scope == "other_user":
         other, _, _ = await _setup_user_with_deps(client, email="other@example.com", name_prefix="Other")
         replacement = (await _create_tag(client, other, name="Private")).json()["id"]
@@ -203,9 +278,16 @@ async def test_bulk_update_validates_replacement_tags_before_clearing(client, re
         replacement = (await _create_tag(client, headers, name="Shared", group_id=group)).json()["id"]
     else:
         replacement = str(uuid.uuid4())
-    response = await client.patch("/transactions/bulk", headers=headers, json={
-        "transaction_ids": [transaction], "override_tags": True, "add_tag_ids": [replacement], "notes": "Changed",
-    })
+    response = await client.patch(
+        "/transactions/bulk",
+        headers=headers,
+        json={
+            "transaction_ids": [transaction],
+            "override_tags": True,
+            "add_tag_ids": [replacement],
+            "notes": "Changed",
+        },
+    )
     assert response.status_code == 422
     detail = (await client.get(f"/transactions/{transaction}", headers=headers)).json()
     assert detail["tag_ids"] == [original]
@@ -218,9 +300,15 @@ async def test_bulk_update_omitted_or_false_override_leaves_tags_alone(client, f
     headers, account_id, category_id = await _setup_user_with_deps(client)
     tag = (await _create_tag(client, headers, name="Holiday")).json()["id"]
     transaction = (await _create_transaction(client, headers, account_id, category_id, tag_ids=[tag])).json()["id"]
-    response = await client.patch("/transactions/bulk", headers=headers, json={
-        "transaction_ids": [transaction], "notes": "Changed", **fields,
-    })
+    response = await client.patch(
+        "/transactions/bulk",
+        headers=headers,
+        json={
+            "transaction_ids": [transaction],
+            "notes": "Changed",
+            **fields,
+        },
+    )
     assert response.status_code == 200
     detail = (await client.get(f"/transactions/{transaction}", headers=headers)).json()
     assert detail["tag_ids"] == [tag]
@@ -304,11 +392,15 @@ async def _run_bulk_with_blocked_writer(
     requests = []
     try:
         async with asyncio.timeout(10):
-            requests.append(asyncio.create_task(client.patch(
-                "/transactions/bulk",
-                json={"transaction_ids": [transaction_id], "direction": "credit"},
-                headers=headers,
-            )))
+            requests.append(
+                asyncio.create_task(
+                    client.patch(
+                        "/transactions/bulk",
+                        json={"transaction_ids": [transaction_id], "direction": "credit"},
+                        headers=headers,
+                    )
+                )
+            )
             await first_rebuilt.wait()
             requests.append(asyncio.create_task(writer_request()))
             await writer_started.wait()
@@ -407,9 +499,7 @@ async def test_bulk_update_setting_a_merchant_leaves_a_transfer_counterparty_alo
 async def test_bulk_update_refuses_a_transfer_that_records_no_other_account(client):
     """Setting only a merchant still answers the transfer question, as a single edit does."""
     headers, account_id, _, _, transfer_id = await _setup_transfer_user(client)
-    transfer = (
-        await _create_transaction(client, headers, account_id, transfer_id, counterparty_account_scope="outside")
-    ).json()["id"]
+    transfer = (await _create_transaction(client, headers, account_id, transfer_id, counterparty_account_scope="outside")).json()["id"]
     await _clear_counterparty(transfer)
     merchant_before = (await _read_transaction(transfer)).merchant_id
     merchant_id = (await _create_merchant(client, headers, name="Costco")).json()["id"]
@@ -493,11 +583,11 @@ async def test_bulk_update_rejects_a_transaction_belonging_to_another_user(clien
     headers, account_id, category_id = await _setup_user_with_deps(client)
     mine = (await _create_transaction(client, headers, account_id, category_id)).json()["id"]
     other_headers, other_account_id, other_category_id = await _setup_user_with_deps(
-        client, email="stranger@example.com", name_prefix="Stranger",
+        client,
+        email="stranger@example.com",
+        name_prefix="Stranger",
     )
-    theirs = (
-        await _create_transaction(client, other_headers, other_account_id, other_category_id)
-    ).json()["id"]
+    theirs = (await _create_transaction(client, other_headers, other_account_id, other_category_id)).json()["id"]
     dining_id = (await _create_category(client, headers, name="Bulk Dining", kind="expense")).json()["id"]
 
     resp = await client.patch(
@@ -518,7 +608,9 @@ async def test_bulk_update_refuses_a_set_holding_an_archived_account(client):
     kept = (await _create_transaction(client, headers, account_id, category_id)).json()["id"]
     archived = (await _create_transaction(client, headers, archived_account_id, category_id)).json()["id"]
     archive_resp = await client.patch(
-        f"/accounts/{archived_account_id}", json={"is_archived": True}, headers=headers,
+        f"/accounts/{archived_account_id}",
+        json={"is_archived": True},
+        headers=headers,
     )
     assert archive_resp.status_code == 200
     dining_id = (await _create_category(client, headers, name="Bulk Dining", kind="expense")).json()["id"]
@@ -538,9 +630,7 @@ async def test_bulk_update_adds_a_tag_without_disturbing_the_tags_already_there(
     headers, account_id, category_id = await _setup_user_with_deps(client)
     travel_id = (await _create_tag(client, headers, name="travel")).json()["id"]
     reimbursable_id = (await _create_tag(client, headers, name="reimbursable")).json()["id"]
-    txn = (
-        await _create_transaction(client, headers, account_id, category_id, tag_ids=[travel_id])
-    ).json()["id"]
+    txn = (await _create_transaction(client, headers, account_id, category_id, tag_ids=[travel_id])).json()["id"]
 
     resp = await client.patch(
         "/transactions/bulk",
@@ -557,9 +647,7 @@ async def test_bulk_update_adding_a_tag_the_transaction_already_has_changes_noth
     """A tag already attached is left as it is rather than failing the request."""
     headers, account_id, category_id = await _setup_user_with_deps(client)
     travel_id = (await _create_tag(client, headers, name="travel")).json()["id"]
-    txn = (
-        await _create_transaction(client, headers, account_id, category_id, tag_ids=[travel_id])
-    ).json()["id"]
+    txn = (await _create_transaction(client, headers, account_id, category_id, tag_ids=[travel_id])).json()["id"]
 
     resp = await client.patch(
         "/transactions/bulk",
@@ -786,9 +874,7 @@ async def test_bulk_update_accepts_a_note_only_edit_on_a_row_with_no_stored_rate
     await _seed_usd_currency()
     headers, _account_id, category_id = await _setup_user_with_deps(client)
     usd_account_id = (await _create_account(client, headers, name="US Savings", currency="USD")).json()["id"]
-    txn = (
-        await _create_transaction(client, headers, usd_account_id, category_id, currency="CAD", fx_rate=1.35)
-    ).json()["id"]
+    txn = (await _create_transaction(client, headers, usd_account_id, category_id, currency="CAD", fx_rate=1.35)).json()["id"]
     cleared = await client.patch(f"/transactions/{txn}", json={"fx_rate": None}, headers=headers)
     assert cleared.status_code == 200
 
@@ -812,12 +898,8 @@ async def test_bulk_update_moves_transactions_and_rebuilds_both_accounts(client)
 
     # Stays behind, so the source account still has history after the move
     await _create_transaction(client, headers, source_id, category_id, dt="2026-07-15", amount=-400)
-    first = (
-        await _create_transaction(client, headers, source_id, category_id, dt="2026-08-01", amount=-1000)
-    ).json()["id"]
-    second = (
-        await _create_transaction(client, headers, source_id, category_id, dt="2026-08-20", amount=-2500)
-    ).json()["id"]
+    first = (await _create_transaction(client, headers, source_id, category_id, dt="2026-08-01", amount=-1000)).json()["id"]
+    second = (await _create_transaction(client, headers, source_id, category_id, dt="2026-08-20", amount=-2500)).json()["id"]
 
     # Already in the target, bracketing the arrival date, so its later balances have to be rebuilt
     await _create_transaction(client, headers, target_id, category_id, dt="2026-08-10", amount=-800)
@@ -845,12 +927,8 @@ async def test_bulk_update_rebuilds_every_account_a_date_change_touches(client):
     """A selection spans accounts, so a date change rebuilds each one it reaches."""
     headers, first_account, category_id = await _setup_user_with_deps(client)
     second_account = (await _create_account(client, headers, name="Savings")).json()["id"]
-    first = (
-        await _create_transaction(client, headers, first_account, category_id, dt="2026-08-20", amount=-1000)
-    ).json()["id"]
-    second = (
-        await _create_transaction(client, headers, second_account, category_id, dt="2026-08-20", amount=-2000)
-    ).json()["id"]
+    first = (await _create_transaction(client, headers, first_account, category_id, dt="2026-08-20", amount=-1000)).json()["id"]
+    second = (await _create_transaction(client, headers, second_account, category_id, dt="2026-08-20", amount=-2000)).json()["id"]
 
     resp = await client.patch(
         "/transactions/bulk",
@@ -869,12 +947,8 @@ async def test_bulk_update_rebuilds_the_target_from_a_row_that_was_already_there
     """A row already in the target account contributes its own earlier date to the rebuild."""
     headers, source_id, category_id = await _setup_user_with_deps(client)
     target_id = (await _create_account(client, headers, name="Savings")).json()["id"]
-    moving = (
-        await _create_transaction(client, headers, source_id, category_id, dt="2026-08-20", amount=-1000)
-    ).json()["id"]
-    already_there = (
-        await _create_transaction(client, headers, target_id, category_id, dt="2026-08-01", amount=-500)
-    ).json()["id"]
+    moving = (await _create_transaction(client, headers, source_id, category_id, dt="2026-08-20", amount=-1000)).json()["id"]
+    already_there = (await _create_transaction(client, headers, target_id, category_id, dt="2026-08-01", amount=-500)).json()["id"]
 
     resp = await client.patch(
         "/transactions/bulk",
@@ -895,9 +969,7 @@ async def test_bulk_update_refuses_a_move_that_leaves_a_row_without_an_exchange_
     await _seed_usd_currency()
     headers, source_id, category_id = await _setup_user_with_deps(client)
     target_id = (await _create_account(client, headers, name="US Savings", currency="USD")).json()["id"]
-    txn = (
-        await _create_transaction(client, headers, source_id, category_id, currency="CAD")
-    ).json()["id"]
+    txn = (await _create_transaction(client, headers, source_id, category_id, currency="CAD")).json()["id"]
 
     resp = await client.patch(
         "/transactions/bulk",
@@ -915,9 +987,7 @@ async def test_bulk_update_moves_a_row_that_carries_an_exchange_rate(client):
     await _seed_usd_currency()
     headers, source_id, category_id = await _setup_user_with_deps(client)
     target_id = (await _create_account(client, headers, name="US Savings", currency="USD")).json()["id"]
-    txn = (
-        await _create_transaction(client, headers, source_id, category_id, currency="CAD", fx_rate=1.35)
-    ).json()["id"]
+    txn = (await _create_transaction(client, headers, source_id, category_id, currency="CAD", fx_rate=1.35)).json()["id"]
 
     resp = await client.patch(
         "/transactions/bulk",
@@ -979,9 +1049,16 @@ async def test_bulk_transfer_to_answers_a_transfer_category_change(client):
 async def test_bulk_transfer_to_outside_over_a_mixed_selection_counts_only_the_transfer(client):
     """A count built from a plain rowcount would report every selected row, not just the one written."""
     headers, chequing_id, category_id, savings_id, transfer_id = await _setup_transfer_user(client)
-    transfer = (await _make_transfer(
-        client, headers, chequing_id, transfer_id, savings_id, amount=-1000,
-    )).json()["id"]
+    transfer = (
+        await _make_transfer(
+            client,
+            headers,
+            chequing_id,
+            transfer_id,
+            savings_id,
+            amount=-1000,
+        )
+    ).json()["id"]
     first_expense = (await _create_transaction(client, headers, chequing_id, category_id)).json()["id"]
     second_expense = (await _create_transaction(client, headers, chequing_id, category_id)).json()["id"]
 
@@ -1003,12 +1080,26 @@ async def test_bulk_transfer_to_reports_the_previous_and_new_far_side_accounts(c
     """Moving a transfer's far side affects both the account it left and the one it now records."""
     headers, chequing_id, _category_id, savings_id, transfer_id = await _setup_transfer_user(client)
     rrsp_id = (await _create_account(client, headers, name="RRSP")).json()["id"]
-    first = (await _make_transfer(
-        client, headers, chequing_id, transfer_id, savings_id, amount=-2000,
-    )).json()["id"]
-    second = (await _make_transfer(
-        client, headers, chequing_id, transfer_id, savings_id, amount=-3000,
-    )).json()["id"]
+    first = (
+        await _make_transfer(
+            client,
+            headers,
+            chequing_id,
+            transfer_id,
+            savings_id,
+            amount=-2000,
+        )
+    ).json()["id"]
+    second = (
+        await _make_transfer(
+            client,
+            headers,
+            chequing_id,
+            transfer_id,
+            savings_id,
+            amount=-3000,
+        )
+    ).json()["id"]
 
     resp = await client.patch(
         "/transactions/bulk",
@@ -1040,9 +1131,7 @@ async def test_bulk_transfer_from_refuses_a_selection_with_no_transfer(client):
     )
 
     assert resp.status_code == 422
-    assert resp.json()["detail"] == (
-        "From and To apply to transfers only, and none of the selected transactions end up as one"
-    )
+    assert resp.json()["detail"] == ("From and To apply to transfers only, and none of the selected transactions end up as one")
 
 
 async def test_bulk_transfer_to_refuses_a_selection_with_no_transfer(client):
@@ -1062,9 +1151,7 @@ async def test_bulk_transfer_to_refuses_a_selection_with_no_transfer(client):
     )
 
     assert resp.status_code == 422
-    assert resp.json()["detail"] == (
-        "From and To apply to transfers only, and none of the selected transactions end up as one"
-    )
+    assert resp.json()["detail"] == ("From and To apply to transfers only, and none of the selected transactions end up as one")
 
 
 async def test_bulk_transfer_from_reads_each_rows_resulting_category_not_its_stored_one(client):
@@ -1085,9 +1172,7 @@ async def test_bulk_transfer_from_reads_each_rows_resulting_category_not_its_sto
     )
 
     assert resp.status_code == 422
-    assert resp.json()["detail"] == (
-        "From and To apply to transfers only, and none of the selected transactions end up as one"
-    )
+    assert resp.json()["detail"] == ("From and To apply to transfers only, and none of the selected transactions end up as one")
 
 
 async def test_bulk_update_refuses_a_move_into_the_account_a_transfer_already_records(client):
@@ -1186,12 +1271,28 @@ async def _make_transfer(client, headers, account_id, transfer_id, other_account
 
 async def _make_transfer_pair(client, headers, chequing_id, savings_id, transfer_id):
     """Create both rows of one transfer: money out of Chequing, money in to Savings, on 2026-08-23."""
-    out_id = (await _make_transfer(
-        client, headers, chequing_id, transfer_id, savings_id, dt="2026-08-23", amount=-20000,
-    )).json()["id"]
-    in_id = (await _make_transfer(
-        client, headers, savings_id, transfer_id, chequing_id, dt="2026-08-23", amount=20000,
-    )).json()["id"]
+    out_id = (
+        await _make_transfer(
+            client,
+            headers,
+            chequing_id,
+            transfer_id,
+            savings_id,
+            dt="2026-08-23",
+            amount=-20000,
+        )
+    ).json()["id"]
+    in_id = (
+        await _make_transfer(
+            client,
+            headers,
+            savings_id,
+            transfer_id,
+            chequing_id,
+            dt="2026-08-23",
+            amount=20000,
+        )
+    ).json()["id"]
     return out_id, in_id
 
 
@@ -1257,12 +1358,24 @@ async def test_bulk_transfer_from_alone_moves_the_money_out_half_and_records_on_
 async def test_bulk_transfer_to_alone_answers_two_money_out_rows_recording_outside(client):
     """Only To answered: it records on rows that recorded outside, without moving either."""
     headers, chequing_id, _category_id, savings_id, transfer_id = await _setup_transfer_user(client)
-    first = (await _create_transaction(
-        client, headers, chequing_id, transfer_id, counterparty_account_scope="outside",
-    )).json()["id"]
-    second = (await _create_transaction(
-        client, headers, chequing_id, transfer_id, counterparty_account_scope="outside",
-    )).json()["id"]
+    first = (
+        await _create_transaction(
+            client,
+            headers,
+            chequing_id,
+            transfer_id,
+            counterparty_account_scope="outside",
+        )
+    ).json()["id"]
+    second = (
+        await _create_transaction(
+            client,
+            headers,
+            chequing_id,
+            transfer_id,
+            counterparty_account_scope="outside",
+        )
+    ).json()["id"]
 
     resp = await client.patch(
         "/transactions/bulk",
@@ -1377,9 +1490,16 @@ async def test_bulk_transfer_from_outside_refuses_a_money_out_row(client):
 async def test_bulk_transfer_from_outside_on_a_money_in_row_records_outside(client):
     """Outside is valid as a far end, so it is only refused when a row's direction makes it own."""
     headers, chequing_id, _category_id, savings_id, transfer_id = await _setup_transfer_user(client)
-    transfer = (await _make_transfer(
-        client, headers, savings_id, transfer_id, chequing_id, amount=4000,
-    )).json()["id"]
+    transfer = (
+        await _make_transfer(
+            client,
+            headers,
+            savings_id,
+            transfer_id,
+            chequing_id,
+            amount=4000,
+        )
+    ).json()["id"]
 
     resp = await client.patch(
         "/transactions/bulk",
@@ -1426,9 +1546,15 @@ async def test_bulk_transfer_to_alone_leaves_a_selected_balance_adjustment_untou
     headers, chequing_id, _category_id, savings_id, transfer_id = await _setup_transfer_user(client)
     adjustment_id = await _get_system_category_id(client, headers, "Balance Adjustment")
     adjustment = (await _create_transaction(client, headers, chequing_id, adjustment_id)).json()["id"]
-    transfer = (await _create_transaction(
-        client, headers, chequing_id, transfer_id, counterparty_account_scope="outside",
-    )).json()["id"]
+    transfer = (
+        await _create_transaction(
+            client,
+            headers,
+            chequing_id,
+            transfer_id,
+            counterparty_account_scope="outside",
+        )
+    ).json()["id"]
 
     resp = await client.patch(
         "/transactions/bulk",
@@ -1473,9 +1599,16 @@ async def test_bulk_transfer_from_moves_a_row_that_carries_an_exchange_rate(clie
     await _seed_usd_currency()
     headers, chequing_id, _category_id, savings_id, transfer_id = await _setup_transfer_user(client)
     us_savings_id = (await _create_account(client, headers, name="US Savings", currency="USD")).json()["id"]
-    transfer = (await _make_transfer(
-        client, headers, chequing_id, transfer_id, savings_id, fx_rate=1.35,
-    )).json()["id"]
+    transfer = (
+        await _make_transfer(
+            client,
+            headers,
+            chequing_id,
+            transfer_id,
+            savings_id,
+            fx_rate=1.35,
+        )
+    ).json()["id"]
 
     resp = await client.patch(
         "/transactions/bulk",
@@ -1557,9 +1690,16 @@ async def test_bulk_transfer_from_on_a_zero_amount_row_records_it_as_the_far_sid
     """Zero is money in, so a zero-amount transfer records From rather than moving into it."""
     headers, chequing_id, _category_id, savings_id, transfer_id = await _setup_transfer_user(client)
     cash_id = (await _create_account(client, headers, name="Cash")).json()["id"]
-    transfer = (await _make_transfer(
-        client, headers, chequing_id, transfer_id, savings_id, amount=0,
-    )).json()["id"]
+    transfer = (
+        await _make_transfer(
+            client,
+            headers,
+            chequing_id,
+            transfer_id,
+            savings_id,
+            amount=0,
+        )
+    ).json()["id"]
 
     resp = await client.patch(
         "/transactions/bulk",
@@ -1586,9 +1726,16 @@ async def test_bulk_zero_amount_keeps_credit_end_resolution_with_a_direction(
     """Debit and reverse leave zero credit for resolving From, whichever direction field carries it."""
     headers, chequing_id, _category_id, savings_id, transfer_id = await _setup_transfer_user(client)
     cash_id = (await _create_account(client, headers, name="Cash")).json()["id"]
-    transfer = (await _make_transfer(
-        client, headers, chequing_id, transfer_id, savings_id, amount=0,
-    )).json()["id"]
+    transfer = (
+        await _make_transfer(
+            client,
+            headers,
+            chequing_id,
+            transfer_id,
+            savings_id,
+            amount=0,
+        )
+    ).json()["id"]
 
     resp = await client.patch(
         "/transactions/bulk",
@@ -1619,22 +1766,30 @@ async def test_bulk_zero_and_positive_transfers_apply_their_own_resulting_ends(
     """A batched end write keeps each row's result when zero and positive started as credit."""
     headers, chequing_id, _category_id, savings_id, transfer_id = await _setup_transfer_user(client)
     cash_id = (await _create_account(client, headers, name="Cash")).json()["id"]
-    zero_id = (await _make_transfer(
-        client, headers, chequing_id, transfer_id, savings_id, amount=0,
-    )).json()["id"]
-    positive_id = (await _make_transfer(
-        client, headers, chequing_id, transfer_id, savings_id, amount=4000,
-    )).json()["id"]
-    case_offset = (
-        (0 if direction_field == "direction" else 4)
-        + (0 if direction == "debit" else 2)
-        + (0 if zero_sorts_first else 1)
-    )
+    zero_id = (
+        await _make_transfer(
+            client,
+            headers,
+            chequing_id,
+            transfer_id,
+            savings_id,
+            amount=0,
+        )
+    ).json()["id"]
+    positive_id = (
+        await _make_transfer(
+            client,
+            headers,
+            chequing_id,
+            transfer_id,
+            savings_id,
+            amount=4000,
+        )
+    ).json()["id"]
+    case_offset = (0 if direction_field == "direction" else 4) + (0 if direction == "debit" else 2) + (0 if zero_sorts_first else 1)
     low_id = uuid.UUID(int=10_000 + case_offset)
     high_id = uuid.UUID(int=20_000 + case_offset)
-    fixed_zero_id, fixed_positive_id = (
-        (low_id, high_id) if zero_sorts_first else (high_id, low_id)
-    )
+    fixed_zero_id, fixed_positive_id = (low_id, high_id) if zero_sorts_first else (high_id, low_id)
     async with TestSession() as session:
         zero_row = await session.get(Transaction, uuid.UUID(zero_id))
         positive_row = await session.get(Transaction, uuid.UUID(positive_id))
@@ -1669,9 +1824,16 @@ async def test_bulk_transfer_to_on_a_zero_amount_row_moves_it_and_keeps_its_far_
     """Zero is money in, so To changes its own account and leaves the recorded From account alone."""
     headers, chequing_id, _category_id, savings_id, transfer_id = await _setup_transfer_user(client)
     cash_id = (await _create_account(client, headers, name="Cash")).json()["id"]
-    transfer = (await _make_transfer(
-        client, headers, chequing_id, transfer_id, savings_id, amount=0,
-    )).json()["id"]
+    transfer = (
+        await _make_transfer(
+            client,
+            headers,
+            chequing_id,
+            transfer_id,
+            savings_id,
+            amount=0,
+        )
+    ).json()["id"]
 
     resp = await client.patch(
         "/transactions/bulk",
@@ -1696,13 +1858,16 @@ async def test_bulk_transfer_from_records_a_read_only_account_without_moving_int
     group_id = (await client.post("/groups", json={"name": "Household"}, headers=admin_headers)).json()["id"]
     cash_id = (await _create_account(client, admin_headers, name="Cash", group_id=group_id)).json()["id"]
 
-    member_signup = await client.post("/auth/signup", json={
-        "email": "member@example.com",
-        "password": "SecurePassword123!",
-        "first_name": "Member",
-        "tz": "America/Toronto",
-        "base_currency": "CAD",
-    })
+    member_signup = await client.post(
+        "/auth/signup",
+        json={
+            "email": "member@example.com",
+            "password": "SecurePassword123!",
+            "first_name": "Member",
+            "tz": "America/Toronto",
+            "base_currency": "CAD",
+        },
+    )
     member_headers = _get_auth_header(member_signup)
     member_id = member_signup.json()["user"]["id"]
     await client.post(f"/groups/{group_id}/members", json={"user_id": member_id}, headers=admin_headers)
@@ -1715,9 +1880,16 @@ async def test_bulk_transfer_from_records_a_read_only_account_without_moving_int
     chequing_id = (await _create_account(client, member_headers, name="Member Chequing")).json()["id"]
     savings_id = (await _create_account(client, member_headers, name="Member Savings")).json()["id"]
     transfer_id = await _get_system_category_id(client, member_headers, "Transfer")
-    transfer = (await _make_transfer(
-        client, member_headers, savings_id, transfer_id, chequing_id, amount=4000,
-    )).json()["id"]
+    transfer = (
+        await _make_transfer(
+            client,
+            member_headers,
+            savings_id,
+            transfer_id,
+            chequing_id,
+            amount=4000,
+        )
+    ).json()["id"]
 
     resp = await client.patch(
         "/transactions/bulk",
@@ -1741,13 +1913,16 @@ async def test_bulk_transfer_from_leaves_an_expense_out_of_the_group_write_check
     group_id = (await client.post("/groups", json={"name": "Household"}, headers=admin_headers)).json()["id"]
     cash_id = (await _create_account(client, admin_headers, name="Cash", group_id=group_id)).json()["id"]
 
-    member_signup = await client.post("/auth/signup", json={
-        "email": "member2@example.com",
-        "password": "SecurePassword123!",
-        "first_name": "Member",
-        "tz": "America/Toronto",
-        "base_currency": "CAD",
-    })
+    member_signup = await client.post(
+        "/auth/signup",
+        json={
+            "email": "member2@example.com",
+            "password": "SecurePassword123!",
+            "first_name": "Member",
+            "tz": "America/Toronto",
+            "base_currency": "CAD",
+        },
+    )
     member_headers = _get_auth_header(member_signup)
     member_id = member_signup.json()["user"]["id"]
     await client.post(f"/groups/{group_id}/members", json={"user_id": member_id}, headers=admin_headers)
@@ -1761,12 +1936,25 @@ async def test_bulk_transfer_from_leaves_an_expense_out_of_the_group_write_check
     savings_id = (await _create_account(client, member_headers, name="Member Savings")).json()["id"]
     category_id = (await _create_category(client, member_headers, name="Member Groceries")).json()["id"]
     transfer_id = await _get_system_category_id(client, member_headers, "Transfer")
-    expense = (await _create_transaction(
-        client, member_headers, chequing_id, category_id, amount=-1200,
-    )).json()["id"]
-    transfer = (await _make_transfer(
-        client, member_headers, savings_id, transfer_id, chequing_id, amount=20000,
-    )).json()["id"]
+    expense = (
+        await _create_transaction(
+            client,
+            member_headers,
+            chequing_id,
+            category_id,
+            amount=-1200,
+        )
+    ).json()["id"]
+    transfer = (
+        await _make_transfer(
+            client,
+            member_headers,
+            savings_id,
+            transfer_id,
+            chequing_id,
+            amount=20000,
+        )
+    ).json()["id"]
 
     resp = await client.patch(
         "/transactions/bulk",
@@ -1791,15 +1979,23 @@ async def test_bulk_transfer_from_refuses_a_row_another_session_holds(client, mo
     monkeypatch.setattr(bulk_access_module, "_BULK_LOCK_WAIT", "100ms")
     headers, chequing_id, _category_id, savings_id, transfer_id = await _setup_transfer_user(client)
     cash_id = (await _create_account(client, headers, name="Cash")).json()["id"]
-    transfer = (await _make_transfer(
-        client, headers, chequing_id, transfer_id, savings_id, amount=-4000,
-    )).json()["id"]
+    transfer = (
+        await _make_transfer(
+            client,
+            headers,
+            chequing_id,
+            transfer_id,
+            savings_id,
+            amount=-4000,
+        )
+    ).json()["id"]
 
     # Held open for the length of the request below, which is what the request has to wait on. The
     # request is bounded so that a wait that never gives up fails this test rather than hanging it
     async with TestSession() as holder:
         await holder.execute(
-            text("SELECT id FROM transactions WHERE id = :id FOR UPDATE"), {"id": uuid.UUID(transfer)},
+            text("SELECT id FROM transactions WHERE id = :id FOR UPDATE"),
+            {"id": uuid.UUID(transfer)},
         )
         async with asyncio.timeout(5):
             resp = await client.patch(
@@ -1821,13 +2017,21 @@ async def test_bulk_direction_reverse_refuses_a_row_another_session_holds(client
     """Reverse, which names no absolute answer, still cannot write onto a row another session holds."""
     monkeypatch.setattr(bulk_access_module, "_BULK_LOCK_WAIT", "100ms")
     headers, chequing_id, _category_id, savings_id, transfer_id = await _setup_transfer_user(client)
-    transfer = (await _make_transfer(
-        client, headers, chequing_id, transfer_id, savings_id, amount=-4000,
-    )).json()["id"]
+    transfer = (
+        await _make_transfer(
+            client,
+            headers,
+            chequing_id,
+            transfer_id,
+            savings_id,
+            amount=-4000,
+        )
+    ).json()["id"]
 
     async with TestSession() as holder:
         await holder.execute(
-            text("SELECT id FROM transactions WHERE id = :id FOR UPDATE"), {"id": uuid.UUID(transfer)},
+            text("SELECT id FROM transactions WHERE id = :id FOR UPDATE"),
+            {"id": uuid.UUID(transfer)},
         )
         async with asyncio.timeout(5):
             resp = await client.patch(
@@ -1848,7 +2052,12 @@ async def test_bulk_edits_to_different_rows_in_one_account_preserve_both_balance
     transaction_ids = []
     for amount in (-1000, -2000):
         response = await _create_transaction(
-            client, headers, account_id, category_id, amount=amount, dt="2026-08-01",
+            client,
+            headers,
+            account_id,
+            category_id,
+            amount=amount,
+            dt="2026-08-01",
         )
         assert response.status_code == 201
         transaction_ids.append(response.json()["id"])
@@ -1875,17 +2084,25 @@ async def test_bulk_edits_to_different_rows_in_one_account_preserve_both_balance
     requests = []
     try:
         async with asyncio.timeout(10):
-            requests.append(asyncio.create_task(client.patch(
-                "/transactions/bulk",
-                json={"transaction_ids": [transaction_ids[0]], "direction": "credit"},
-                headers=headers,
-            )))
+            requests.append(
+                asyncio.create_task(
+                    client.patch(
+                        "/transactions/bulk",
+                        json={"transaction_ids": [transaction_ids[0]], "direction": "credit"},
+                        headers=headers,
+                    )
+                )
+            )
             await first_rebuilt.wait()
-            requests.append(asyncio.create_task(client.patch(
-                "/transactions/bulk",
-                json={"transaction_ids": [transaction_ids[1]], "direction": "credit"},
-                headers=headers,
-            )))
+            requests.append(
+                asyncio.create_task(
+                    client.patch(
+                        "/transactions/bulk",
+                        json={"transaction_ids": [transaction_ids[1]], "direction": "credit"},
+                        headers=headers,
+                    )
+                )
+            )
             await second_started.wait()
 
             await _wait_until_blocked(backend_pids[0], backend_pids[1])
@@ -1915,12 +2132,26 @@ async def test_bulk_edits_to_different_rows_in_one_account_preserve_both_balance
 async def test_waiting_bulk_rebuild_reads_anchor_after_the_earlier_request_commits(client, monkeypatch):
     """A waiting rebuild reads the committed earlier day's balance before rebuilding later days."""
     headers, account_id, category_id = await _setup_user_with_deps(client)
-    first = (await _create_transaction(
-        client, headers, account_id, category_id, amount=-1000, dt="2026-08-01",
-    )).json()["id"]
-    second = (await _create_transaction(
-        client, headers, account_id, category_id, amount=-2000, dt="2026-08-02",
-    )).json()["id"]
+    first = (
+        await _create_transaction(
+            client,
+            headers,
+            account_id,
+            category_id,
+            amount=-1000,
+            dt="2026-08-01",
+        )
+    ).json()["id"]
+    second = (
+        await _create_transaction(
+            client,
+            headers,
+            account_id,
+            category_id,
+            amount=-2000,
+            dt="2026-08-02",
+        )
+    ).json()["id"]
 
     original_recompute = bulk_update_module.recompute_account_snapshots
     first_rebuilt = asyncio.Event()
@@ -1943,17 +2174,25 @@ async def test_waiting_bulk_rebuild_reads_anchor_after_the_earlier_request_commi
     requests = []
     try:
         async with asyncio.timeout(10):
-            requests.append(asyncio.create_task(client.patch(
-                "/transactions/bulk",
-                json={"transaction_ids": [first], "direction": "credit"},
-                headers=headers,
-            )))
+            requests.append(
+                asyncio.create_task(
+                    client.patch(
+                        "/transactions/bulk",
+                        json={"transaction_ids": [first], "direction": "credit"},
+                        headers=headers,
+                    )
+                )
+            )
             await first_rebuilt.wait()
-            requests.append(asyncio.create_task(client.patch(
-                "/transactions/bulk",
-                json={"transaction_ids": [second], "direction": "credit"},
-                headers=headers,
-            )))
+            requests.append(
+                asyncio.create_task(
+                    client.patch(
+                        "/transactions/bulk",
+                        json={"transaction_ids": [second], "direction": "credit"},
+                        headers=headers,
+                    )
+                )
+            )
             await second_started.wait()
             await _wait_until_blocked(backend_pids[0], backend_pids[1])
             release_first.set()
@@ -1978,12 +2217,26 @@ async def test_reverse_account_maps_wait_on_the_same_first_lock(client, monkeypa
     """Bulk and single moves lock the same first account despite reversed source maps."""
     headers, first_account_id, category_id = await _setup_user_with_deps(client)
     second_account_id = (await _create_account(client, headers, name="Savings")).json()["id"]
-    first_transaction = (await _create_transaction(
-        client, headers, first_account_id, category_id, amount=-1000, dt="2026-08-01",
-    )).json()["id"]
-    second_transaction = (await _create_transaction(
-        client, headers, second_account_id, category_id, amount=-2000, dt="2026-08-01",
-    )).json()["id"]
+    first_transaction = (
+        await _create_transaction(
+            client,
+            headers,
+            first_account_id,
+            category_id,
+            amount=-1000,
+            dt="2026-08-01",
+        )
+    ).json()["id"]
+    second_transaction = (
+        await _create_transaction(
+            client,
+            headers,
+            second_account_id,
+            category_id,
+            amount=-2000,
+            dt="2026-08-01",
+        )
+    ).json()["id"]
 
     controlled_keys = {
         uuid.UUID(first_account_id): 1,
@@ -2024,17 +2277,25 @@ async def test_reverse_account_maps_wait_on_the_same_first_lock(client, monkeypa
     requests = []
     try:
         async with asyncio.timeout(10):
-            requests.append(asyncio.create_task(client.patch(
-                "/transactions/bulk",
-                json={"transaction_ids": [first_transaction], "account_id": second_account_id},
-                headers=headers,
-            )))
+            requests.append(
+                asyncio.create_task(
+                    client.patch(
+                        "/transactions/bulk",
+                        json={"transaction_ids": [first_transaction], "account_id": second_account_id},
+                        headers=headers,
+                    )
+                )
+            )
             await first_locked.wait()
-            requests.append(asyncio.create_task(client.patch(
-                f"/transactions/{second_transaction}",
-                json={"account_id": first_account_id},
-                headers=headers,
-            )))
+            requests.append(
+                asyncio.create_task(
+                    client.patch(
+                        f"/transactions/{second_transaction}",
+                        json={"account_id": first_account_id},
+                        headers=headers,
+                    )
+                )
+            )
             async with asyncio.timeout(5):
                 while len(backend_pids) < 2:
                     await asyncio.sleep(0)
@@ -2059,9 +2320,16 @@ async def test_bulk_move_of_last_transaction_restores_source_zero_anchor(client)
     """Moving the source's last row restores its creation-day zero snapshot."""
     headers, source_id, category_id = await _setup_user_with_deps(client)
     target_id = (await _create_account(client, headers, name="Savings")).json()["id"]
-    transaction_id = (await _create_transaction(
-        client, headers, source_id, category_id, amount=-1000, dt="2026-08-01",
-    )).json()["id"]
+    transaction_id = (
+        await _create_transaction(
+            client,
+            headers,
+            source_id,
+            category_id,
+            amount=-1000,
+            dt="2026-08-01",
+        )
+    ).json()["id"]
 
     response = await client.patch(
         "/transactions/bulk",
@@ -2079,9 +2347,16 @@ async def test_bulk_move_of_last_transaction_restores_source_zero_anchor(client)
 async def test_bulk_date_move_rebuilds_from_earlier_date_without_stale_snapshot(client):
     """Moving a row to an earlier date removes its old later-day snapshot."""
     headers, account_id, category_id = await _setup_user_with_deps(client)
-    transaction_id = (await _create_transaction(
-        client, headers, account_id, category_id, amount=-1000, dt="2026-08-02",
-    )).json()["id"]
+    transaction_id = (
+        await _create_transaction(
+            client,
+            headers,
+            account_id,
+            category_id,
+            amount=-1000,
+            dt="2026-08-02",
+        )
+    ).json()["id"]
 
     response = await client.patch(
         "/transactions/bulk",
@@ -2096,9 +2371,16 @@ async def test_bulk_date_move_rebuilds_from_earlier_date_without_stale_snapshot(
 async def test_bulk_note_only_edit_skips_snapshot_rebuild(client, monkeypatch):
     """Changing only a note does not enter the snapshot rebuild path."""
     headers, account_id, category_id = await _setup_user_with_deps(client)
-    transaction_id = (await _create_transaction(
-        client, headers, account_id, category_id, amount=-1000, dt="2026-08-01",
-    )).json()["id"]
+    transaction_id = (
+        await _create_transaction(
+            client,
+            headers,
+            account_id,
+            category_id,
+            amount=-1000,
+            dt="2026-08-01",
+        )
+    ).json()["id"]
 
     async def refuse_rebuild(_db, _snapshot_starts):
         """Fail if a note-only request reaches snapshot recomputation."""
@@ -2119,9 +2401,16 @@ async def test_bulk_note_only_edit_skips_snapshot_rebuild(client, monkeypatch):
 async def test_concurrent_create_waits_for_bulk_rebuild_and_preserves_total(client, monkeypatch):
     """A create waiting on a bulk rebuild contributes to the final account balance."""
     headers, account_id, category_id = await _setup_user_with_deps(client)
-    transaction_id = (await _create_transaction(
-        client, headers, account_id, category_id, amount=-1000, dt="2026-08-01",
-    )).json()["id"]
+    transaction_id = (
+        await _create_transaction(
+            client,
+            headers,
+            account_id,
+            category_id,
+            amount=-1000,
+            dt="2026-08-01",
+        )
+    ).json()["id"]
 
     async def create_other_transaction():
         """Create the second transaction through the real route."""
@@ -2152,12 +2441,26 @@ async def test_concurrent_create_waits_for_bulk_rebuild_and_preserves_total(clie
 async def test_concurrent_delete_waits_for_bulk_rebuild_and_preserves_total(client, monkeypatch):
     """A delete waiting on a bulk rebuild is reflected in the final account balance."""
     headers, account_id, category_id = await _setup_user_with_deps(client)
-    transaction_id = (await _create_transaction(
-        client, headers, account_id, category_id, amount=-1000, dt="2026-08-01",
-    )).json()["id"]
-    deleted_id = (await _create_transaction(
-        client, headers, account_id, category_id, amount=-2000, dt="2026-08-01",
-    )).json()["id"]
+    transaction_id = (
+        await _create_transaction(
+            client,
+            headers,
+            account_id,
+            category_id,
+            amount=-1000,
+            dt="2026-08-01",
+        )
+    ).json()["id"]
+    deleted_id = (
+        await _create_transaction(
+            client,
+            headers,
+            account_id,
+            category_id,
+            amount=-2000,
+            dt="2026-08-01",
+        )
+    ).json()["id"]
 
     async def delete_other_transaction():
         """Delete the second transaction through the real route."""
@@ -2179,28 +2482,42 @@ async def test_concurrent_delete_waits_for_bulk_rebuild_and_preserves_total(clie
 
 
 async def test_concurrent_generic_import_waits_for_bulk_rebuild_and_preserves_total(
-    client, monkeypatch,
+    client,
+    monkeypatch,
 ):
     """A generic import waiting on a bulk rebuild contributes to the final balance."""
     headers, account_id, category_id = await _setup_user_with_deps(client)
-    transaction_id = (await _create_transaction(
-        client, headers, account_id, category_id, amount=-1000, dt="2026-08-01",
-    )).json()["id"]
+    transaction_id = (
+        await _create_transaction(
+            client,
+            headers,
+            account_id,
+            category_id,
+            amount=-1000,
+            dt="2026-08-01",
+        )
+    ).json()["id"]
 
     async def import_other_transaction():
         """Import the second transaction through the real staged-import route."""
-        return await _import_run(client, headers, {
-            "accounts": [{"source": "Main Chequing", "account_id": account_id}],
-            "categories": [{"source": "Groceries", "category_id": category_id}],
-            "rows": [{
-                "account_source": "Main Chequing",
-                "category_source": "Groceries",
-                "dt": "2026-08-01",
-                "amount": "-20.00",
-                "merchant_name": "Neighbourhood Market",
-                "tag_names": [],
-            }],
-        })
+        return await _import_run(
+            client,
+            headers,
+            {
+                "accounts": [{"source": "Main Chequing", "account_id": account_id}],
+                "categories": [{"source": "Groceries", "category_id": category_id}],
+                "rows": [
+                    {
+                        "account_source": "Main Chequing",
+                        "category_source": "Groceries",
+                        "dt": "2026-08-01",
+                        "amount": "-20.00",
+                        "merchant_name": "Neighbourhood Market",
+                        "tag_names": [],
+                    }
+                ],
+            },
+        )
 
     bulk_response, import_response = await _run_bulk_with_blocked_writer(
         client,
@@ -2218,32 +2535,47 @@ async def test_concurrent_generic_import_waits_for_bulk_rebuild_and_preserves_to
 
 
 async def test_concurrent_firefly_import_waits_for_bulk_rebuild_and_preserves_total(
-    client, monkeypatch,
+    client,
+    monkeypatch,
 ):
     """A Firefly import waiting on a bulk rebuild contributes to the final balance."""
     headers, account_id, category_id = await _setup_user_with_deps(client)
-    transaction_id = (await _create_transaction(
-        client, headers, account_id, category_id, amount=-1000, dt="2026-08-01",
-    )).json()["id"]
+    transaction_id = (
+        await _create_transaction(
+            client,
+            headers,
+            account_id,
+            category_id,
+            amount=-1000,
+            dt="2026-08-01",
+        )
+    ).json()["id"]
 
     async def import_other_transaction():
         """Import the second transaction through the real Firefly III run."""
-        return await _import_run(client, headers, {
-            "accounts": [{"source": "Main Chequing", "account_id": account_id}],
-            "categories": [{"source": "Groceries", "category_id": category_id}],
-            "rows": [{
-                "journal_id": "bulk-concurrency",
-                "type": "withdrawal",
-                "dt": "2026-08-01",
-                "amount": "20.00",
-                "currency_code": "CAD",
-                "description": "Weekly groceries",
-                "source_account": "Main Chequing",
-                "destination_name": "Neighbourhood Market",
-                "category": "Groceries",
-                "tag_names": [],
-            }],
-        }, source="firefly")
+        return await _import_run(
+            client,
+            headers,
+            {
+                "accounts": [{"source": "Main Chequing", "account_id": account_id}],
+                "categories": [{"source": "Groceries", "category_id": category_id}],
+                "rows": [
+                    {
+                        "journal_id": "bulk-concurrency",
+                        "type": "withdrawal",
+                        "dt": "2026-08-01",
+                        "amount": "20.00",
+                        "currency_code": "CAD",
+                        "description": "Weekly groceries",
+                        "source_account": "Main Chequing",
+                        "destination_name": "Neighbourhood Market",
+                        "category": "Groceries",
+                        "tag_names": [],
+                    }
+                ],
+            },
+            source="firefly",
+        )
 
     bulk_response, import_response = await _run_bulk_with_blocked_writer(
         client,
@@ -2263,9 +2595,16 @@ async def test_concurrent_firefly_import_waits_for_bulk_rebuild_and_preserves_to
 async def test_bulk_direction_reverse_with_no_other_session_flips_the_stored_amount(client):
     """With nothing else holding the row, reverse still flips its stored amount as it always did."""
     headers, chequing_id, _category_id, savings_id, transfer_id = await _setup_transfer_user(client)
-    transfer = (await _make_transfer(
-        client, headers, chequing_id, transfer_id, savings_id, amount=-20000,
-    )).json()["id"]
+    transfer = (
+        await _make_transfer(
+            client,
+            headers,
+            chequing_id,
+            transfer_id,
+            savings_id,
+            amount=-20000,
+        )
+    ).json()["id"]
 
     resp = await client.patch(
         "/transactions/bulk",
@@ -2286,17 +2625,25 @@ async def _setup_transfer_into_a_group_account(client):
     admin_signup = await _create_user(client)
     admin_headers = _get_auth_header(admin_signup)
     group_id = (await client.post("/groups", json={"name": "Smith Family"}, headers=admin_headers)).json()["id"]
-    shared_id = (await _create_account(
-        client, admin_headers, name="Shared Savings", group_id=group_id,
-    )).json()["id"]
+    shared_id = (
+        await _create_account(
+            client,
+            admin_headers,
+            name="Shared Savings",
+            group_id=group_id,
+        )
+    ).json()["id"]
 
-    member_signup = await client.post("/auth/signup", json={
-        "email": "member@example.com",
-        "password": "SecurePassword123!",
-        "first_name": "Member",
-        "tz": "America/Toronto",
-        "base_currency": "CAD",
-    })
+    member_signup = await client.post(
+        "/auth/signup",
+        json={
+            "email": "member@example.com",
+            "password": "SecurePassword123!",
+            "first_name": "Member",
+            "tz": "America/Toronto",
+            "base_currency": "CAD",
+        },
+    )
     member_headers = _get_auth_header(member_signup)
     member_id = member_signup.json()["user"]["id"]
     await client.post(f"/groups/{group_id}/members", json={"user_id": member_id}, headers=admin_headers)
@@ -2309,25 +2656,33 @@ async def _setup_transfer_into_a_group_account(client):
     own_account_id = (await _create_account(client, member_headers, name="Member Chequing")).json()["id"]
     own_category_id = (await _create_category(client, member_headers, name="Member Groceries")).json()["id"]
     transfer_id = await _get_system_category_id(client, member_headers, "Transfer")
-    transfer = (await _create_transaction(
-        client,
-        member_headers,
-        own_account_id,
-        transfer_id,
-        counterparty_account_id=shared_id,
-        counterparty_account_scope="tracked",
-    )).json()["id"]
+    transfer = (
+        await _create_transaction(
+            client,
+            member_headers,
+            own_account_id,
+            transfer_id,
+            counterparty_account_id=shared_id,
+            counterparty_account_scope="tracked",
+        )
+    ).json()["id"]
 
     return (
-        admin_headers, member_headers, member_id, group_id, shared_id,
-        own_account_id, own_category_id, transfer,
+        admin_headers,
+        member_headers,
+        member_id,
+        group_id,
+        shared_id,
+        own_account_id,
+        own_category_id,
+        transfer,
     )
 
 
 async def test_bulk_transfer_from_refuses_a_group_account_the_caller_cannot_write(client):
     """An own end writes into the account it names, so reading it is not enough."""
-    admin_headers, member_headers, member_id, _group_id, shared_id, own_account_id, _cat, transfer = (
-        await _setup_transfer_into_a_group_account(client)
+    admin_headers, member_headers, member_id, _group_id, shared_id, own_account_id, _cat, transfer = await _setup_transfer_into_a_group_account(
+        client
     )
     await client.post(
         f"/accounts/{shared_id}/permissions",
@@ -2350,15 +2705,28 @@ async def test_bulk_transfer_from_refuses_a_group_account_the_caller_cannot_writ
 
 async def test_bulk_transfer_from_checks_a_chosen_category_against_the_group_it_lands_in(client):
     """An end leaves its source account behind, so only the group it lands in has to reach the category."""
-    admin_headers, member_headers, _member_id, group_id, shared_id, own_account_id, _own_cat, transfer = (
-        await _setup_transfer_into_a_group_account(client)
-    )
+    (
+        admin_headers,
+        member_headers,
+        _member_id,
+        group_id,
+        shared_id,
+        own_account_id,
+        _own_cat,
+        transfer,
+    ) = await _setup_transfer_into_a_group_account(client)
 
     # Owned by the group, so it reaches the account the row lands in and nothing else. Checking it
     # against the personal account the row is leaving as well would turn a valid request down
-    family_transfer = (await _create_category(
-        client, admin_headers, name="Family Transfer", kind="transfer", group_id=group_id,
-    )).json()["id"]
+    family_transfer = (
+        await _create_category(
+            client,
+            admin_headers,
+            name="Family Transfer",
+            kind="transfer",
+            group_id=group_id,
+        )
+    ).json()["id"]
 
     resp = await client.patch(
         "/transactions/bulk",
@@ -2381,9 +2749,16 @@ async def test_bulk_transfer_from_checks_a_chosen_category_against_the_group_it_
 async def test_bulk_direction_turns_a_row_the_way_it_is_asked(client):
     """Setting money in makes every amount positive and rebuilds the balance behind it."""
     headers, account_id, category_id = await _setup_user_with_deps(client)
-    first = (await _create_transaction(
-        client, headers, account_id, category_id, dt="2026-08-01", amount=-4000,
-    )).json()["id"]
+    first = (
+        await _create_transaction(
+            client,
+            headers,
+            account_id,
+            category_id,
+            dt="2026-08-01",
+            amount=-4000,
+        )
+    ).json()["id"]
     await _create_transaction(client, headers, account_id, category_id, dt="2026-08-10", amount=-800)
 
     resp = await client.patch(
@@ -2419,9 +2794,16 @@ async def test_bulk_direction_applies_to_every_kind(client):
     """Direction is the sign of the amount, which a transfer and an expense both carry."""
     headers, account_id, category_id, other_account_id, transfer_id = await _setup_transfer_user(client)
     expense = (await _create_transaction(client, headers, account_id, category_id, amount=5000)).json()["id"]
-    transfer = (await _make_transfer(
-        client, headers, account_id, transfer_id, other_account_id, amount=4000,
-    )).json()["id"]
+    transfer = (
+        await _make_transfer(
+            client,
+            headers,
+            account_id,
+            transfer_id,
+            other_account_id,
+            amount=4000,
+        )
+    ).json()["id"]
 
     resp = await client.patch(
         "/transactions/bulk",
@@ -2481,9 +2863,16 @@ async def test_bulk_direction_leaves_a_zero_amount_alone(client):
 async def test_bulk_direction_leaves_the_accounts_alone(client):
     """Direction writes a sign and nothing else, so a transfer stays where it is and keeps its far side."""
     headers, account_id, _category_id, other_account_id, transfer_id = await _setup_transfer_user(client)
-    transfer = (await _make_transfer(
-        client, headers, account_id, transfer_id, other_account_id, amount=4000,
-    )).json()["id"]
+    transfer = (
+        await _make_transfer(
+            client,
+            headers,
+            account_id,
+            transfer_id,
+            other_account_id,
+            amount=4000,
+        )
+    ).json()["id"]
 
     resp = await client.patch(
         "/transactions/bulk",
@@ -2505,12 +2894,18 @@ async def test_bulk_direction_leaves_the_accounts_alone(client):
 async def test_bulk_transfer_direction_turns_only_the_transfer_and_leaves_the_expense(client):
     """transfer_direction reaches the transfer and skips a plain expense in the same selection."""
     headers, chequing_id, category_id, savings_id, transfer_id = await _setup_transfer_user(client)
-    transfer = (await _make_transfer(
-        client, headers, chequing_id, transfer_id, savings_id, dt="2026-08-23", amount=-20000,
-    )).json()["id"]
-    expense = (
-        await _create_transaction(client, headers, savings_id, category_id, dt="2026-08-22", amount=-1200)
+    transfer = (
+        await _make_transfer(
+            client,
+            headers,
+            chequing_id,
+            transfer_id,
+            savings_id,
+            dt="2026-08-23",
+            amount=-20000,
+        )
     ).json()["id"]
+    expense = (await _create_transaction(client, headers, savings_id, category_id, dt="2026-08-22", amount=-1200)).json()["id"]
 
     resp = await client.patch(
         "/transactions/bulk",
@@ -2528,12 +2923,18 @@ async def test_bulk_transfer_direction_combines_with_an_end_on_the_row_it_reache
     """transfer_from sets the far side transfer_direction resolves to, and stays off the expense."""
     headers, chequing_id, category_id, savings_id, transfer_id = await _setup_transfer_user(client)
     cash_id = (await _create_account(client, headers, name="Cash")).json()["id"]
-    transfer = (await _make_transfer(
-        client, headers, chequing_id, transfer_id, savings_id, dt="2026-08-23", amount=-20000,
-    )).json()["id"]
-    expense = (
-        await _create_transaction(client, headers, savings_id, category_id, dt="2026-08-22", amount=-1200)
+    transfer = (
+        await _make_transfer(
+            client,
+            headers,
+            chequing_id,
+            transfer_id,
+            savings_id,
+            dt="2026-08-23",
+            amount=-20000,
+        )
     ).json()["id"]
+    expense = (await _create_transaction(client, headers, savings_id, category_id, dt="2026-08-22", amount=-1200)).json()["id"]
 
     resp = await client.patch(
         "/transactions/bulk",
@@ -2596,9 +2997,7 @@ async def test_bulk_transfer_direction_refuses_a_selection_with_no_transfer(clie
     )
 
     assert resp.status_code == 422
-    assert resp.json()["detail"] == (
-        "The direction applies to transfers only, and none of the selected transactions end up as one"
-    )
+    assert resp.json()["detail"] == ("The direction applies to transfers only, and none of the selected transactions end up as one")
 
 
 async def test_bulk_transfer_direction_with_an_end_refuses_a_selection_with_no_transfer(client):
@@ -2619,6 +3018,4 @@ async def test_bulk_transfer_direction_with_an_end_refuses_a_selection_with_no_t
     )
 
     assert resp.status_code == 422
-    assert resp.json()["detail"] == (
-        "From and To apply to transfers only, and none of the selected transactions end up as one"
-    )
+    assert resp.json()["detail"] == ("From and To apply to transfers only, and none of the selected transactions end up as one")
