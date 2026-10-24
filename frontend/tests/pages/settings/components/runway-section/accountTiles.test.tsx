@@ -7,12 +7,7 @@ import { renderToStaticMarkup } from 'react-dom/server'
 import { describe, expect, it, vi } from 'vitest'
 import type { AccountsOverview } from '@/api/accounts'
 
-/** Reads the inline text colour of every element whose whole text is the given text */
-function getColoursOfText(markup: string, text: string) {
-  const escaped = text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
-  return [...markup.matchAll(new RegExp(`<[^>]*style="([^"]*)"[^>]*>${escaped}</`, 'g'))]
-    .map((element) => /(?:^|;)color:([^;]*)/.exec(element[1])?.[1])
-}
+import { getColoursOfText } from './fixtures'
 
 const currencies = [{ id: 'USD', name: 'US Dollar', symbol: '$', minor_unit_exponent: 2 }]
 

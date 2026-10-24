@@ -7,12 +7,7 @@ import { renderToStaticMarkup } from 'react-dom/server'
 import { describe, expect, it, vi } from 'vitest'
 import type { Budget } from '@/api/budgets'
 
-/** Reads the inline text colour of every element whose whole text is the given text */
-function getColoursOfText(markup: string, text: string) {
-  const escaped = text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
-  return [...markup.matchAll(new RegExp(`<[^>]*style="([^"]*)"[^>]*>${escaped}</`, 'g'))]
-    .map((element) => /(?:^|;)color:([^;]*)/.exec(element[1])?.[1])
-}
+import { getColoursOfText } from './fixtures'
 
 const currencies = [{ id: 'USD', name: 'US Dollar', symbol: '$', minor_unit_exponent: 2 }]
 
@@ -40,7 +35,7 @@ function render(remaining: number) {
 
 /** The colours of the remainder line in both layouts, whose text is the label followed by the amount */
 function remainderColours(markup: string, label: string, amount: string) {
-  return getColoursOfText(markup.replaceAll(`${label} <!-- -->${amount}`, `${label} ${amount}`), `${label} ${amount}`)
+  return getColoursOfText(markup, `${label} ${amount}`)
 }
 
 describe('budget period history remainder colours', () => {
