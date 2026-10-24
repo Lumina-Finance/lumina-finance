@@ -645,4 +645,22 @@ test.describe('dialog input errors', () => {
     await expect(dialog.getByRole('alert')).toHaveCount(0)
     await expect(apply).not.toHaveAttribute('aria-disabled', 'true')
   })
+
+  test('keeps the bulk delete confirmation whole, since there is nothing in it to fill in', AT_EVERY_SIZE, async ({ page, request }) => {
+    const user = await signUpUser(request)
+    const account = await createAccount(request, user, { name: 'Everyday' })
+    await createTransaction(request, user, { accountId: account.id, categoryName: 'Groceries', amount: -1000, date: daysFromTodayInTestTimezone(-1) })
+    await logInViaApi(page, user)
+    await openPage(page, '/transactions')
+    await page.getByRole('button', { name: 'Select transactions', exact: true }).click()
+    await page.getByRole('checkbox', { name: /^Select the transactions shown on / }).first().check()
+    await page.getByRole('button', { name: 'Delete the selected transactions', exact: true }).click()
+
+    const confirm = page.getByRole('dialog', { name: 'Delete 1 transaction?', exact: true })
+    const remove = confirm.getByRole('button', { name: 'Delete', exact: true })
+    await expect(remove).toBeVisible()
+    await expect(remove).not.toHaveAttribute('aria-disabled', 'true')
+    await expect(remove).toBeEnabled()
+    await expect(confirm.getByRole('alert')).toHaveCount(0)
+  })
 })

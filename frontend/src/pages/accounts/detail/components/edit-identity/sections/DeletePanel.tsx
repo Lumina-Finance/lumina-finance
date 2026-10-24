@@ -3,6 +3,7 @@ import { AnimatePresence, motion } from 'motion/react'
 import { AlertTriangle, EyeOff } from 'lucide-react'
 import type { Account } from '@/api/accounts'
 import { FieldError } from '@/components/forms/FieldError'
+import { FormError } from '@/components/forms/FormError'
 import { getFocusableElements } from '@/components/modal/focus'
 import { useRevealWhenGrown } from '@/pages/accounts/detail/hooks/useRevealWhenGrown'
 import { DisabledReasonButton } from '@/components/tooltips/DisabledReasonButton'
@@ -186,11 +187,7 @@ export function DeleteAccountPanel({
                             autoComplete="off"
                           />
 
-                          {deleteError && (
-                            <p className="mt-3 text-[0.9375rem] font-medium" style={{ color: 'var(--app-negative)' }}>
-                              {deleteError}
-                            </p>
-                          )}
+                          <FormError message={deleteError} className="mt-3" />
 
                           <div className="mt-4 flex justify-end">
                             <DisabledReasonButton

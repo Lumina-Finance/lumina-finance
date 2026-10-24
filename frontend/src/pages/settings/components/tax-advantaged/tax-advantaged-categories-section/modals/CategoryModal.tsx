@@ -1,6 +1,7 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { AnimatePresence, motion } from 'motion/react'
+import { FormError } from '@/components/forms/FormError'
 import { ModalShell } from '@/components/modal/Shell'
 import { Check, Trash2, X } from 'lucide-react'
 import type { AccountsOverview } from '@/api/accounts'
@@ -264,11 +265,7 @@ export default function TaxAdvantagedCategoryModal({
               />
             </div>
 
-            {planError && (
-              <p className="text-sm" style={{ color: 'var(--app-negative)' }}>
-                {planError}
-              </p>
-            )}
+            <FormError message={planError} />
 
             <div className="grid grid-cols-2 gap-2 border-t pt-3 min-[750px]:flex min-[750px]:items-center min-[750px]:justify-between min-[750px]:pt-4 min-[1050px]:mt-auto" style={{ borderColor: 'var(--app-border)' }}>
               <button

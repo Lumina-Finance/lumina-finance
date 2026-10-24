@@ -1,4 +1,5 @@
 import { motion } from 'motion/react'
+import { FormError } from '@/components/forms/FormError'
 import { ChevronRight, LoaderCircle, Plus, Trash2 } from 'lucide-react'
 import type { RefObject } from 'react'
 import type {
@@ -316,11 +317,7 @@ export default function TaxAdvantagedLimitsPanel({
         </div>
       </div>
 
-      {limitError && (
-        <p className="text-sm" style={{ color: 'var(--app-negative)' }}>
-          {limitError}
-        </p>
-      )}
+      <FormError message={limitError} />
     </div>
   )
 }
