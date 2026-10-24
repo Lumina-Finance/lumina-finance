@@ -224,6 +224,15 @@ describe('reading a bank statement', () => {
     expect((await readFile(bytes)).statements[0].transactions[0].payee).toBe('Café')
   })
 
+  it('reads the Windows-1252 en dash byte of a 1.x amount as a minus', async () => {
+    const markup = buildSgmlOfx([{ transactions: [{ amount: '¤5.00' }] }])
+    // Byte 0x96 is the en dash in Windows-1252, which is how a word processor writes a minus there
+    const bytes = Uint8Array.from(markup, (character) => (character === '¤' ? 0x96 : character.charCodeAt(0)))
+
+    expect(bytes.includes(0x96)).toBe(true)
+    expect((await readFile(bytes)).statements[0].transactions[0].amount).toBe('-5.00')
+  })
+
   it.each(['ISO-8859-1', 'iso-8859-1'])('decodes a 1.x file that declares %s', async (charset) => {
     const markup = buildMessageSet({ transactions: [{ name: 'Dépanneur', memo: 'Crème', amount: '-3.00' }] }, false)
     const text = wrapMessageSets([markup], SGML_HEADER.replace('CHARSET:1252', `CHARSET:${charset}`))
