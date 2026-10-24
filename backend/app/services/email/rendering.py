@@ -11,9 +11,7 @@ _TEMPLATES_DIR = Path(__file__).parent / "templates"
 _RESET_SUBJECT = "Reset your password"
 
 # Autoescaping guards the HTML parts while leaving plain-text templates untouched
-_environment = Environment(
-    loader=FileSystemLoader(str(_TEMPLATES_DIR)), autoescape=select_autoescape(["html"])
-)
+_environment = Environment(loader=FileSystemLoader(str(_TEMPLATES_DIR)), autoescape=select_autoescape(["html"]))
 
 
 def render_reset_email(reset_link: str, expiry_minutes: int) -> RenderedEmail:
