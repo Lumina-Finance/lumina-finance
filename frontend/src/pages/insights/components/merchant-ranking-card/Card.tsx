@@ -7,7 +7,7 @@ import {
   LoadingOverlay,
 } from '@/components/loading/Transition'
 import { useLoadingSnapshot } from '@/hooks/useLoadingSnapshot'
-import { formatMovedPercent } from '@/utils/negativeAmount'
+import { formatMovedPercent, getAmountSign, getAmountSignColor, MUTED_ZERO_COLOR } from '@/utils/negativeAmount'
 import { useMoneyFormatters } from '@/hooks/useMoneyFormatters'
 import type { MerchantRankingRow } from '@/pages/insights/types/merchantRanking'
 import { getMerchantSpendingFxStatusMessage } from '@/pages/insights/utils/fxTooltipMessages'
@@ -45,10 +45,8 @@ type MerchantRankingSnapshot = {
  * figure has to hold up against the page behind it
  */
 function getChangeColor(changePct: number | null) {
-  if (changePct === null) return 'var(--app-text-muted)'
-  if (changePct > 0) return 'var(--app-negative)'
-  if (changePct < 0) return 'var(--app-positive)'
-  return 'var(--app-text-muted)'
+  if (changePct === null) return MUTED_ZERO_COLOR
+  return getAmountSignColor(getAmountSign(-changePct), MUTED_ZERO_COLOR)
 }
 
 function getChangeLabel(changePct: number | null) {

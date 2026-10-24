@@ -1,7 +1,7 @@
 import type { Currency } from '@/api/currency'
 import { useMoneyFormatters } from '@/hooks/useMoneyFormatters'
 import { formatDashboardMoney } from '@/pages/dashboard/utils/formatDashboardMoney'
-import { getAmountSign, signMovedAmount } from '@/utils/negativeAmount'
+import { getAmountSign, getSignedAmountColor, MUTED_ZERO_COLOR, signMovedAmount } from '@/utils/negativeAmount'
 
 type NetWorthMetricProps = {
   netWorth: number
@@ -30,12 +30,7 @@ export function NetWorthMetric({
 }: NetWorthMetricProps) {
   const { currencies } = useMoneyFormatters()
   const netWorthColor = netWorth < 0 ? 'var(--app-negative)' : 'var(--app-text)'
-  const netWorthChangeColor =
-    netWorthChange == null || netWorthChange === 0
-      ? 'var(--app-text-muted)'
-      : netWorthChange > 0
-        ? 'var(--app-positive)'
-        : 'var(--app-negative)'
+  const netWorthChangeColor = getSignedAmountColor(netWorthChange ?? 0, MUTED_ZERO_COLOR)
 
   return (
     <div className="inline-flex max-w-full items-end gap-2">

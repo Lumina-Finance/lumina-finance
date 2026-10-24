@@ -39,20 +39,24 @@ const AMOUNT_SIGN_COLORS: Record<AmountSign, string> = {
   1: 'var(--app-positive)',
 }
 
+/** The neutral colour of a change figure that sits beside a flat icon or a label, a step quieter than text */
+export const MUTED_ZERO_COLOR = 'var(--app-text-muted)'
+
 /**
- * Returns the text colour for an amount's direction, with zero in the neutral text colour. Every
- * amount that is coloured by its direction reads this, so no screen colours a zero as a gain
+ * Returns the text colour for an amount's direction, with zero in the neutral text colour, or in
+ * `zeroColor` where a change figure keeps a quieter neutral. Every amount that is coloured by its
+ * direction reads this, so no screen colours a zero as a gain
  */
-export function getAmountSignColor(sign: AmountSign): string {
-  return AMOUNT_SIGN_COLORS[sign]
+export function getAmountSignColor(sign: AmountSign, zeroColor = AMOUNT_SIGN_COLORS[0]): string {
+  return sign === 0 ? zeroColor : AMOUNT_SIGN_COLORS[sign]
 }
 
 /**
  * Returns the text colour for an amount in minor units, read in the direction it is shown in, so an
  * amount that shows as zero is neutral just as its text is unsigned
  */
-export function getSignedAmountColor(amount: number): string {
-  return getAmountSignColor(getShownAmountSign(amount))
+export function getSignedAmountColor(amount: number, zeroColor?: string): string {
+  return getAmountSignColor(getShownAmountSign(amount), zeroColor)
 }
 
 /**

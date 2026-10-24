@@ -127,6 +127,15 @@ describe('the colour of an amount', () => {
     )
   })
 
+  it('gives zero the quieter neutral a change figure asks for, and leaves the other directions alone', () => {
+    expect([0, 0.4, 500, -500].map((amount) => getSignedAmountColor(amount, 'var(--app-text-muted)'))).toEqual([
+      'var(--app-text-muted)',
+      'var(--app-text-muted)',
+      'var(--app-positive)',
+      'var(--app-negative)',
+    ])
+  })
+
   it('colours a direction on its own, for a figure whose colour is the other way round', () => {
     expect([getAmountSignColor(1), getAmountSignColor(0), getAmountSignColor(-1)]).toEqual([
       'var(--app-positive)',

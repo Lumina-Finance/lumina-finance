@@ -13,6 +13,7 @@ import { FxStatusBadge } from '@/components/tooltips/FxStatusBadge'
 import { InsightCalculationTooltip } from '@/pages/insights/components/CalculationTooltip'
 import { InsightActionButton } from '@/pages/insights/components/ActionButton'
 import { NetWorthChart } from './Chart'
+import { getSignedAmountColor, MUTED_ZERO_COLOR } from '@/utils/negativeAmount'
 import { InsightSectionHeader } from '@/pages/insights/components/SectionHeader'
 import {
   getNetWorthChartData,
@@ -119,11 +120,7 @@ export function NetWorthCard({
   const latestChange = deltaSeries.at(-1)?.totalChange ?? 0
   // The text colours rather than the chart ones, since this is a figure and its arrow rather than
   // anything drawn in the plot
-  const netWorthTrendColor = latestChange > 0
-    ? 'var(--app-positive)'
-    : latestChange < 0
-      ? 'var(--app-negative)'
-      : 'var(--app-text-muted)'
+  const netWorthTrendColor = getSignedAmountColor(latestChange, MUTED_ZERO_COLOR)
   const NetWorthTrendIcon = latestChange > 0 ? TrendingUp : latestChange < 0 ? TrendingDown : Minus
 
   return (
