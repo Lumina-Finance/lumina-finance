@@ -25,6 +25,7 @@ const FILE: ImportFileDraft = {
   reading: {
     headerRow: 1,
     skipLastRows: 0,
+    isSkipLastRowsDetected: false,
     preview: [
       { rowNumber: 1, cells: ['Date', 'Amount'], isSkipped: false },
       { rowNumber: 2, cells: ['2025-01-15', '-1.00'], isSkipped: false },

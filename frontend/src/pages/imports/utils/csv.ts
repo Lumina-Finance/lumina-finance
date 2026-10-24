@@ -148,6 +148,42 @@ const NO_DATA_ROWS_ERROR = 'This file has a heading row and no transactions unde
 // How far down the file the table's header is looked for, past the lines a bank puts above it
 const TABLE_START_SEARCH_ROWS = 20
 
+// A closing line that sums the file instead of holding a transaction, such as "Total" or "Grand total"
+const SUMMARY_LINE_PATTERN = /^(?:grand\s+|sub-?)?totals?:?$/i
+
+/**
+ * Counts the lines at the end of the file that sum it up, which a first reading leaves out, since a
+ * total in the date column spoils the guess at the date and amount formats. Leaves at least the
+ * lines above the last two, so a file is never read as nothing but a summary
+ */
+function countTrailingSummaryLines(records: string[][]) {
+  let count = 0
+  while (count < records.length - 2) {
+    const record = records[records.length - 1 - count]
+    // A line carrying a date is a transaction, even one whose description is only Total
+    const isSummary = record.some((cell) => SUMMARY_LINE_PATTERN.test(cell.trim())) && !record.some(isValidDateValue)
+    if (!isSummary) break
+    count += 1
+  }
+  return count
+}
+
+/**
+ * The lines to leave out at the end that the user chose, nothing for a count the reader found for
+ * one file, since the next file may not end in a summary line
+ */
+export function getChosenSkipLastRows(reading: CsvReading | undefined) {
+  return reading && !reading.isSkipLastRowsDetected ? reading.skipLastRows : undefined
+}
+
+/**
+ * The choices the first file's reading gives the files read after it, which share one header row
+ * and one count of lines left out at the end
+ */
+export function getSharedReadingChoices(reading: CsvReading | undefined): CsvReadingChoices {
+  return reading ? { headerRow: reading.headerRow ?? undefined, skipLastRows: getChosenSkipLastRows(reading) } : {}
+}
+
 // How many lines from each end of the file the reading preview shows
 const READING_PREVIEW_ROWS = 4
 const SINGLE_COLUMN_ERROR = 'Only one column was found. Check this is a CSV whose fields are separated by a comma or semicolon.'
@@ -531,7 +567,9 @@ export function buildParsedCsv(
 
   // The field never offers skipping every line, and a header row below the lines kept is a choice
   // made before Skip last rows was raised, so both are held to what the file has and shown as used
-  const skipLastRows = Math.min(choices?.skipLastRows ?? 0, records.length - 1)
+  // A first reading, where the user has not chosen a count, leaves out a closing line that sums the file
+  const requestedSkipLastRows = choices?.skipLastRows ?? (choices ? countTrailingSummaryLines(records) : 0)
+  const skipLastRows = Math.min(requestedSkipLastRows, records.length - 1)
   const end = records.length - skipLastRows
   const isHeaderChosen = choices?.headerRow !== undefined
   const start = isHeaderChosen
@@ -543,6 +581,7 @@ export function buildParsedCsv(
   const reading: CsvReading | undefined = choices && {
     headerRow: hasHeaderRow ? start + 1 : null,
     skipLastRows,
+    isSkipLastRowsDetected: choices.skipLastRows === undefined,
     preview: buildReadingPreview(records, start, end),
   }
   const refuse = (error: string) => ({ ...refuseParsedCsv(error), reading })

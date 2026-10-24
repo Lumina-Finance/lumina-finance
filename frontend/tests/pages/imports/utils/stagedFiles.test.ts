@@ -225,7 +225,7 @@ describe('a single file', () => {
   })
 
   it('is staged whole when it has an error the reading choices can fix', () => {
-    const fixable = candidate('only.csv', { headers: [], rows: [], error: 'Only one column was found.', reading: { headerRow: null, skipLastRows: 0, preview: [] } })
+    const fixable = candidate('only.csv', { headers: [], rows: [], error: 'Only one column was found.', reading: { headerRow: null, skipLastRows: 0, isSkipLastRowsDetected: false, preview: [] } })
 
     const { accepted, refusals } = stageImportFiles([], [fixable])
 
@@ -234,7 +234,7 @@ describe('a single file', () => {
   })
 
   it('turns away the files picked beside one that still needs its reading fixed', () => {
-    const fixable = candidate('2024-01.csv', { headers: [], rows: [], error: 'Only one column was found.', reading: { headerRow: null, skipLastRows: 0, preview: [] } })
+    const fixable = candidate('2024-01.csv', { headers: [], rows: [], error: 'Only one column was found.', reading: { headerRow: null, skipLastRows: 0, isSkipLastRowsDetected: false, preview: [] } })
 
     const { accepted, refusals } = stageImportFiles([], [fixable, candidate('2024-02.csv')])
 

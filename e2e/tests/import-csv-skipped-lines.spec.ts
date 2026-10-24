@@ -79,3 +79,27 @@ test('keeps a staged file whose columns no longer match after the header row cha
   await expect(page.getByRole('button', { name: 'Remove 04.csv', exact: true })).toBeVisible()
   await expect(page.getByRole('button', { name: 'Remove 03.csv', exact: true })).toBeVisible()
 })
+
+// A Total line closing the first file is left out of that file only: the file staged with it, which
+// has no such line, keeps every transaction
+test('leaves out a closing Total line only from the file that has one', async ({ page, request }) => {
+  const user = await signUpUser(request)
+  const account = await createAccount(request, user, { name: 'Everyday chequing' })
+  await logInViaApi(page, user)
+  await openPage(page, `/settings/imports?account=${account.id}`)
+
+  const statement = (name: string, days: [string, string], closing: string[]) => ({
+    name,
+    mimeType: 'text/csv',
+    buffer: Buffer.from(['Date;Description;Amount', `2026-03-${days[0]};Kiosk;-12.00`, `2026-03-${days[1]};Market;-4.50`, ...closing].join('\n')),
+  })
+  const upload = page.locator('input[type="file"][accept=".csv,text/csv"]')
+  await expect(upload).toBeEnabled()
+  await upload.setInputFiles([statement('first.csv', ['15', '16'], ['Total;;-16.50']), statement('second.csv', ['17', '18'], [])])
+  await expect(page.getByRole('button', { name: 'Remove second.csv', exact: true })).toBeVisible()
+
+  await commitImport(page)
+
+  await expect(page.getByRole('dialog').getByText('4 transactions imported · 0 accounts created · 0 categories created', { exact: true })).toBeVisible()
+  expect(await countLedgerTransactions(request, user)).toBe(4)
+})
