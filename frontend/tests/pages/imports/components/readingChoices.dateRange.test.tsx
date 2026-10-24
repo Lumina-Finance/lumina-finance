@@ -80,6 +80,19 @@ describe('the dates to import in the File step', () => {
     expect(renderChoices(true, '2025-06-02', true)).not.toContain(label)
   })
 
+  it('hold the offer back for as long as the start date has an error', () => {
+    const label = 'Latest recorded transaction'
+    const crossed = renderChoices(true, '2025-06-02', false, { from: '2025-04-01', to: '2025-03-01' }, true)
+    expect(crossed).toContain('Must be on or before the end date')
+    expect(crossed).not.toContain(label)
+
+    const partlyTyped = renderChoices(true, '2025-06-02', false, { from: null, to: '2025-03-10' }, true)
+    expect(partlyTyped).toContain('Enter the whole date, or clear it')
+    expect(partlyTyped).not.toContain(label)
+
+    expect(renderChoices(true, '2025-06-02', false, { from: '2025-02-01', to: '2025-03-01' })).toContain(label)
+  })
+
   it('keep the partly typed message and leave out the crossed one', () => {
     const markup = renderChoices(true, null, false, { from: null, to: '2025-03-10' }, true)
     expect(markup).toContain('Enter the whole date, or clear it')
