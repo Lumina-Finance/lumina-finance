@@ -754,7 +754,7 @@ export const ACCOUNT_TYPE_OPTIONS: DropdownOption[] = [
 
 // The panel is nearly the colour of the flat light hover, so what it holds takes the hover made for a shaded surface
 export const IMPORT_INSET_STYLE = {
-  background: 'color-mix(in srgb, var(--app-input-bg) 58%, var(--app-bg))',
+  background: 'var(--app-import-panel)',
   '--app-hover-fill': 'var(--app-hover-on-surface-soft)',
 } as CSSProperties
 

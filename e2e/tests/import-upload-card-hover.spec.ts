@@ -2,44 +2,14 @@ import { expect, test, type APIRequestContext, type Locator, type Page } from '@
 
 import { createAccount, signUpUser } from '../support/api'
 import { chooseFromDropdown, logInViaApi, openPage, showImportSetup } from '../support/app'
+import { contrastRatio, shownFill, type Rgb } from '../support/paint'
 
 // Runs on desktop only: hover and press are pointer states, and the fills they change don't vary with width
 
-type Rgb = [number, number, number]
-
 const STATEMENT = { name: 'statement.csv', mimeType: 'text/csv', buffer: Buffer.from('Date,Memo,Amount\n2026-03-01,Lunch,-12.00\n') }
 
-/**
- * The colour on screen at an element's box once its transitions have ended: every background from the
- * page down to the element, laid over one another, so a translucent fill counts as the colour it makes
- */
-async function shownFill(element: Locator): Promise<Rgb> {
-  return element.evaluate(async (node) => {
-    const ending = document.getAnimations().filter((animation) => animation.effect?.getComputedTiming().endTime !== Infinity)
-    await Promise.all(ending.map((animation) => animation.finished.catch(() => undefined)))
-
-    const canvas = document.createElement('canvas')
-    canvas.width = 1
-    canvas.height = 1
-    const context = canvas.getContext('2d', { willReadFrequently: true })!
-    const read = (colour: string) => {
-      context.clearRect(0, 0, 1, 1)
-      context.fillStyle = colour
-      context.fillRect(0, 0, 1, 1)
-      const [red, green, blue, alpha] = context.getImageData(0, 0, 1, 1).data
-      return [red, green, blue, alpha / 255]
-    }
-
-    const layers: Element[] = []
-    for (let layer: Element | null = node; layer; layer = layer.parentElement) layers.push(layer)
-    let shown = [255, 255, 255]
-    for (const layer of layers.reverse()) {
-      const [red, green, blue, alpha] = read(getComputedStyle(layer).backgroundColor)
-      shown = [red, green, blue].map((channel, index) => channel * alpha + shown[index] * (1 - alpha))
-    }
-    return shown as Rgb
-  })
-}
+// The smallest step between a control at rest and under the pointer that shows
+const MINIMUM_HOVER_STEP = 1.05
 
 /** The background colour an element declares once its transitions have ended, so a colour partway between two is never read */
 function declaredFill(element: Locator): Promise<string> {
@@ -80,19 +50,21 @@ async function hoveredFill(element: Locator): Promise<Rgb> {
 }
 
 for (const colorScheme of ['light', 'dark'] as const) {
-  test(`turns the CSV upload card the remove button's hover colour under the pointer in the ${colorScheme} theme`, async ({ page, request }) => {
+  test(`shades the CSV upload card and the remove button visibly under the pointer in the ${colorScheme} theme`, async ({ page, request }) => {
     await openImports(page, request, colorScheme)
     const card = page.getByRole('button', { name: /^Upload CSV file/ })
     await expect(card).toBeVisible()
 
     await page.mouse.move(0, 0)
     const rest = await declaredFill(card)
+    const restShown = await shownFill(card)
     await card.hover()
     await expect.poll(() => declaredFill(card)).not.toBe(rest)
     const hovered = await declaredFill(card)
+    expect(contrastRatio(restShown, await shownFill(card))).toBeGreaterThanOrEqual(MINIMUM_HOVER_STEP)
 
     // The same card is there to add more files once one is staged, and the remove button on a staged file
-    // takes the colour the card does
+    // shades under the pointer too, in its own hover colour, which suits the page it sits on
     await page.locator('input[type="file"][accept=".csv,text/csv"]').setInputFiles(STATEMENT)
     // The file collapses the setup panel holding both, which stays out while the pointer is on its strip,
     // off them
@@ -102,10 +74,14 @@ for (const colorScheme of ['light', 'dark'] as const) {
     await expect(remove).toBeVisible()
     await expect.poll(() => declaredFill(addMore)).toBe(rest)
 
-    await remove.hover()
-    await expect.poll(() => declaredFill(remove)).toBe(hovered)
     await addMore.hover()
     await expect.poll(() => declaredFill(addMore)).toBe(hovered)
+    // The page puts focus on the staged file's remove button, which shows the hover look until it is let go
+    await remove.blur()
+    const removeRest = await shownFill(remove)
+    await remove.hover()
+    await expect.poll(async () => contrastRatio(removeRest, await shownFill(remove))).toBeGreaterThanOrEqual(MINIMUM_HOVER_STEP)
+    await addMore.hover()
 
     // Both ease their fill, rather than switching at once
     expect((await easedProperties(addMore))['background-color']).toBeGreaterThan(0)

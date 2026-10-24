@@ -37,6 +37,12 @@
        the wash on a surface shaded like the card, which a surface sets for what it holds. Kept apart from
        --app-hover-soft so the loading skeletons' shimmer, which reads that one, is unchanged on a card */
     --app-hover-fill: var(--app-hover-soft);
+    /* The Imports page's inset panels, drawn as part of the input fill over the page, and what the upload card
+       takes under the pointer. Both flat hover colours sit within a few steps of the panel, so the card's is
+       the text colour mixed into it, which shows on it in both themes and light enough that the card's subtle
+       hint keeps its contrast in the dark one */
+    --app-import-panel: color-mix(in srgb, var(--app-input-bg) 58%, var(--app-bg));
+    --app-hover-on-import-panel: color-mix(in srgb, var(--app-text) 3.5%, var(--app-import-panel));
 
     --app-border: #4b37231c;
     --app-border-strong: #4b372333;
@@ -2326,11 +2332,11 @@
     transform: translateY(1px);
   }
 
-  /* The Imports page's upload card, which turns the shared hover colour under the pointer, as the remove button
-     on a staged file does, and sits down a pixel when pressed, as the buttons beside it do. Its rest fill is set
-     on the element as a colour, which outranks this rule, so the hover colour is marked important. Fill, border
-     and press ease together. Keyboard focus shows the same hover colour and the base ring, since its border
-     shows only for a refusal or a file being dragged over it. A card that cannot take a file keeps its rest fill and its cursor */
+  /* The Imports page's upload card, which takes its own hover colour under the pointer, and sits down a pixel when
+     pressed, as the buttons beside it do. Its rest fill is set on the element as a colour, which outranks this rule,
+     so the hover colour is marked important. Fill, border and press ease together. Keyboard focus shows the same
+     hover colour and the base ring, since its border shows only for a refusal or a file being dragged over it. A
+     card that cannot take a file keeps its rest fill and its cursor */
   .app-upload-card {
     transition:
       background-color 150ms cubic-bezier(0.22, 1, 0.36, 1),
@@ -2341,7 +2347,7 @@
 
   .app-upload-card:not([aria-disabled="true"]):hover,
   .app-upload-card:not([aria-disabled="true"]):focus-visible {
-    background-color: var(--app-hover-soft) !important;
+    background-color: var(--app-hover-on-import-panel) !important;
   }
 
   .app-upload-card:not([aria-disabled="true"]):active {

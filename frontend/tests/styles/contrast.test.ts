@@ -33,7 +33,7 @@ function surfaces(tokens: Tokens): Record<string, Rgb> {
   return {
     page,
     card: solid(tokens, '--app-surface-soft'),
-    'import panel': paint(solid(tokens, '--app-input-bg'), 0.58, page),
+    'import panel': resolve(tokens, '--app-import-panel'),
   }
 }
 
@@ -82,7 +82,7 @@ function resolve(tokens: Tokens, name: string): Rgb {
   const value = tokens[name] ?? ''
   const alias = /^var\((--[\w-]+)\)$/.exec(value)
   if (alias) return resolve(tokens, alias[1])
-  const mixed = /^color-mix\(in srgb, var\((--[\w-]+)\) (\d+)%, var\((--[\w-]+)\)\)$/.exec(value)
+  const mixed = /^color-mix\(in srgb, var\((--[\w-]+)\) ([\d.]+)%, var\((--[\w-]+)\)\)$/.exec(value)
   if (mixed) return mix(resolve(tokens, mixed[1]), Number(mixed[2]) / 100, resolve(tokens, mixed[3]))
   const darkened = /^color-mix\(in srgb, var\((--[\w-]+)\) (\d+)%, black\)$/.exec(value)
   if (darkened) return mix(resolve(tokens, darkened[1]), Number(darkened[2]) / 100, [0, 0, 0])
@@ -223,10 +223,10 @@ describe('tinted state contrast', () => {
     },
     {
       // The Imports upload card under the pointer (.app-upload-card), which draws its title in the text colour, its
-      // hint in subtle text, and a refusal in red. Its fill is the shared hover colour, which is a wash in the dark theme
+      // hint in subtle text, and a refusal in red, on its own hover colour
       name: 'the upload card under the pointer',
       text: ['--app-text', '--app-text-subtle', '--app-negative'],
-      fill: (tokens) => washOver(tokens, '--app-hover-soft', surfaces(tokens).page),
+      fill: (tokens) => resolve(tokens, '--app-hover-on-import-panel'),
     },
     {
       // .app-nav-link under the pointer or keyboard focus, and the selected item at rest, in the main sidebar
@@ -406,11 +406,8 @@ describe('hover on shaded surfaces', () => {
     expect(contrast(washOver(tokens, token, backdrop(tokens)), backdrop(tokens))).toBeGreaterThanOrEqual(MINIMUM_HOVER_STEP)
   })
 
-  it('has the shared icon button take the fill of the surface it sits on', () => {
-    let background: string | undefined
-    stylesheet.walkRules((rule) => {
-      if (rule.selectors.includes('.app-icon-button:hover')) rule.walkDecls('background', (declaration) => { background = declaration.value })
-    })
-    expect(background).toBe('var(--app-hover-fill)')
+  it.each(Object.keys(THEMES) as Theme[])('shows the upload card under the pointer against the import panel in the %s theme', (theme) => {
+    const tokens = THEMES[theme]
+    expect(contrast(resolve(tokens, '--app-hover-on-import-panel'), resolve(tokens, '--app-import-panel'))).toBeGreaterThanOrEqual(MINIMUM_HOVER_STEP)
   })
 })
