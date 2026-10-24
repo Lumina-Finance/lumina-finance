@@ -108,7 +108,9 @@ describe('a savings rate', () => {
   it.each([
     [999, '999%'],
     [1000, 'above 999%'],
+    [999.5, 'above 999%'],
     [-999, `${MINUS}999%`],
+    [-999.5, `below ${MINUS}999%`],
     [-1000, `below ${MINUS}999%`],
     [-62345579, `below ${MINUS}999%`],
     [-Infinity, `${MINUS}∞%`],
