@@ -1,0 +1,12 @@
+{% extends "base.html" %}
+{% block content %}
+Someone used this email address to start creating a {{ app_name }} account.
+<div style="padding:24px 0">
+  <a href="{{ confirm_link }}" style="display:inline-block;background:#C9A96A;color:#0F0E0C;text-decoration:none;padding:12px 20px;border-radius:8px;font-weight:600">Confirm email</a>
+</div>
+This link expires in {{ expiry_hours }} hours. Open it to choose a password and finish creating your account. If this was not you, you can ignore this email.
+<div style="padding-top:24px;font-size:12px;color:#6b655b">
+  If the button does not work, copy this link into your browser:
+  <div style="padding-top:4px;word-break:break-all"><a href="{{ confirm_link }}" style="color:#9a7b45">{{ confirm_link }}</a></div>
+</div>
+{% endblock %}

@@ -8,7 +8,14 @@ import pytest
 
 import app.services.email.contract as contract_module
 import app.services.email.senders as senders_module
-from app.services.email import RenderedEmail, build_email_sender, get_email_sender, render_reset_email, set_email_sender
+from app.services.email import (
+    RenderedEmail,
+    build_email_sender,
+    get_email_sender,
+    render_reset_email,
+    render_signup_confirmation_email,
+    set_email_sender,
+)
 from app.services.email.senders import LoggingEmailSender, SmtpEmailSender
 
 
@@ -215,6 +222,15 @@ def test_get_email_sender_requires_installation(monkeypatch):
     sender = LoggingEmailSender()
     set_email_sender(sender)
     assert get_email_sender() is sender
+
+
+def test_render_signup_confirmation_email_carries_link_in_both_parts():
+    """The confirmation email includes the link and expiry in the HTML and text parts"""
+    message = render_signup_confirmation_email("https://app.example.com/confirm-email?token=abc123", 24)
+
+    for body in (message.text_body, message.html_body):
+        assert "https://app.example.com/confirm-email?token=abc123" in body
+        assert "24" in body
 
 
 def test_render_reset_email_carries_link_in_both_parts():
