@@ -10,6 +10,7 @@ import {
   MAX_IMPORT_FILE_BYTES,
   MAX_IMPORT_ROWS,
   removeStagedFile,
+  restageImportFiles,
   stageImportFiles,
   type StagingCandidate,
 } from '@/pages/imports/utils'
@@ -129,6 +130,50 @@ describe('the size and row limits across the files', () => {
     const { refusals } = stageImportFiles([candidate('2024-01.csv', { rows })], [candidate('2024-02.csv')])
 
     expect(refusals).toEqual(['"2024-02.csv" was not added. Together the files would have 100,001 rows, and the importer reads up to 100,000.'])
+  })
+})
+
+describe('checking the staged files again after they are read with new choices', () => {
+  const errorsOf = (files: StagingCandidate[]) => files.map(({ draft: file }) => [file.name, file.error])
+
+  it('leaves files that still share the first file\'s layout as they were', () => {
+    const files = [candidate('a.csv'), candidate('b.csv')]
+
+    expect(restageImportFiles(files)).toEqual(files)
+  })
+
+  it('keeps a file whose headings no longer match staged, with the reason as its error and no rows', () => {
+    const restaged = restageImportFiles([
+      candidate('a.csv'),
+      candidate('b.csv', { headers: ['Date', 'Total'] }),
+      candidate('c.csv'),
+    ])
+
+    expect(errorsOf(restaged)).toEqual([['a.csv', null], ['b.csv', 'Its columns don\'t match the first file.'], ['c.csv', null]])
+    expect(restaged[1].draft.rows).toEqual([])
+  })
+
+  it('keeps the file that pushes the total rows over the limit staged, with the reason as its error', () => {
+    const rows = Array.from({ length: MAX_IMPORT_ROWS }, () => ({ Date: '2024-03-01', Amount: '-1.00' }))
+
+    const restaged = restageImportFiles([candidate('a.csv', { rows }), candidate('b.csv')])
+
+    expect(errorsOf(restaged)).toEqual([
+      ['a.csv', null],
+      ['b.csv', 'Together the files would have 100,001 rows, and the importer reads up to 100,000.'],
+    ])
+  })
+
+  it('leaves every file as it was when the first one is still unreadable, so its reading can be changed', () => {
+    const files = [candidate('a.csv', { error: 'No transactions.' }), candidate('b.csv')]
+
+    expect(restageImportFiles(files)).toEqual(files)
+  })
+
+  it('leaves a later file that has an error of its own with that error', () => {
+    const broken = candidate('b.csv', { error: 'No transactions.', headers: [], rows: [] })
+
+    expect(restageImportFiles([candidate('a.csv'), broken])[1]).toBe(broken)
   })
 })
 

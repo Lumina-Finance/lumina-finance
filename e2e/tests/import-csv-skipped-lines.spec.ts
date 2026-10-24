@@ -52,3 +52,30 @@ test('imports a CSV file once the lines around its table are skipped', async ({ 
   await expect(page.getByRole('dialog').getByText('2 transactions imported · 0 accounts created · 0 categories created', { exact: true })).toBeVisible()
   expect(await countLedgerTransactions(request, user)).toBe(2)
 })
+
+// Reading every staged file again with a new header row gives a file other headings than the first, and
+// it stays staged with the reason in the import's errors
+test('keeps a staged file whose columns no longer match after the header row changes, with its error', async ({ page, request }) => {
+  const user = await signUpUser(request)
+  const account = await createAccount(request, user, { name: 'Everyday chequing' })
+  await logInViaApi(page, user)
+  await openPage(page, `/settings/imports?account=${account.id}`)
+
+  const statement = (month: string) => ({
+    name: `${month}.csv`,
+    mimeType: 'text/csv',
+    buffer: Buffer.from(['Date,Amount,Notes', `2026-${month}-15,-1.00,First`, `2026-${month}-16,-2.00,Second`].join('\n')),
+  })
+  const upload = page.locator('input[type="file"][accept=".csv,text/csv"]')
+  await expect(upload).toBeEnabled()
+  await upload.setInputFiles([statement('03'), statement('04')])
+  await expect(page.getByRole('button', { name: 'Remove 04.csv', exact: true })).toBeVisible()
+
+  const headerRow = page.getByLabel('Header row', { exact: true })
+  await headerRow.fill('2')
+  await headerRow.press('Enter')
+
+  await expect(page.getByText('"04.csv" can\'t be imported. Its columns don\'t match the first file.')).toBeVisible()
+  await expect(page.getByRole('button', { name: 'Remove 04.csv', exact: true })).toBeVisible()
+  await expect(page.getByRole('button', { name: 'Remove 03.csv', exact: true })).toBeVisible()
+})

@@ -81,6 +81,34 @@ export function stageImportFiles(staged: StagingCandidate[], candidates: Staging
 }
 
 /**
+ * Checks the staged files again after they were all read with new reading choices, since a changed
+ * separator, header row or count of last rows can give a file other headings or more rows
+ *
+ * The first file sets the layout, and a file the reader gave an error of its own stays as it is. Each
+ * other file must still share the layout and fit the limits together with the files held before it.
+ * One that no longer does stays staged with the reason as its error and no rows, so the import
+ * lists it in its errors and the user can change the reading or remove the file
+ *
+ * @param candidates - Every staged file read again, in the order they are staged
+ * @returns The same files in the same order
+ */
+export function restageImportFiles(candidates: StagingCandidate[]): StagingCandidate[] {
+  const [first] = candidates
+  if (!first || first.draft.error) return candidates
+
+  const held = [first]
+  return candidates.map((candidate, index) => {
+    if (index === 0 || candidate.draft.error) return candidate
+    const reason = getRefusalReason(held, candidate)
+    if (reason === null) {
+      held.push(candidate)
+      return candidate
+    }
+    return { ...candidate, draft: { ...candidate.draft, error: reason, rows: [] } }
+  })
+}
+
+/**
  * Words the refusal of one file, naming it unless it was the only file chosen, since then the
  * refusal is about the file the user just chose and its name adds nothing
  */

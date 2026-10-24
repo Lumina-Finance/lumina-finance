@@ -86,6 +86,7 @@ import {
   SEVERAL_CSV_IMPORT_FILE_TYPE,
   labelStagedFiles,
   removeStagedFile,
+  restageImportFiles,
   stageImportFiles,
   type ImportDelimiter,
   type ScopedImportAnswers,
@@ -1130,9 +1131,14 @@ export function useTransactionImportWorkflow(fixedAccount: AccountsOverview | nu
       if (!isCurrentWorkflowRun(workflowRun)) return
       // Each file keeps its place in the staged list, which draws it by its id, rather than leaving
       // and returning as another file
-      const drafts = readDrafts.map((draft, index) => ({ ...draft, id: files[index].id, identityId: files[index].identityId }))
-      sourceFilesRef.current = new Map(drafts.map((draft, index) => [draft.id, sourceFiles[index]]))
-      applyStagedFiles(drafts, { startFresh })
+      // The files are checked against each other again, since the new choices can give one other headings
+      // or push the total past a limit, and a file that no longer fits stays staged with that as its error
+      const restaged = restageImportFiles(readDrafts.map((draft, index) => ({
+        draft: { ...draft, id: files[index].id, identityId: files[index].identityId },
+        source: sourceFiles[index],
+      })))
+      sourceFilesRef.current = new Map(restaged.map(({ draft, source }) => [draft.id, source]))
+      applyStagedFiles(restaged.map(({ draft }) => draft), { startFresh })
     } finally {
       if (isCurrentWorkflowRun(workflowRun)) setIsProcessingFiles(false)
     }
