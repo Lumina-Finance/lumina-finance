@@ -1,4 +1,5 @@
 import type { OptionItem } from '@/components/filters/OptionList'
+import { APPLY_FILTERS_DISABLED_REASON } from '@/components/list-controls/filterReasons'
 import { MobileFilterSheet } from '@/components/list-controls/MobileFilterSheet'
 import { useSeedDraftOnOpen } from '@/components/list-controls/useSeedDraftOnOpen'
 import { FilterPanelBody } from '@/pages/accounts/components/toolbar/FilterPanelBody'
@@ -45,6 +46,7 @@ export function MobileFilterPanel({
       activeFacetCount={draft.activeFacetCount}
       clearAll={draft.clearAll}
       applyFilters={draft.applyFilters}
+      applyDisabledReason={draft.isDraftApplied ? APPLY_FILTERS_DISABLED_REASON : undefined}
     >
       {(headingId) => (
         <FilterPanelBody draft={draft} showFooter={false} mobile fillHeight facetLabelledBy={headingId} />

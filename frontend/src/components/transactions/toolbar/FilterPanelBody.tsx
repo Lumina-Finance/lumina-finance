@@ -230,21 +230,13 @@ export function FilterPanelBody({
       </motion.div>
 
       <motion.div layout={blockLayout} transition={transition}>
-        {/* The crossed-range messages take this line rather than sitting in their own editors, so
-            every reason Apply is unavailable stays on screen whichever facet is open */}
-        {draft.isApplyBlocked ? (
-          <>
-            {draft.hasCrossedAmountBounds && (
-              <p id={amountRangeMessageId} className="mt-2 px-0.5 text-xs" style={{ color: 'var(--app-negative)' }}>
-                {CROSSED_AMOUNT_RANGE_MESSAGE}
-              </p>
-            )}
-            {draft.hasCrossedDateRange && (
-              <p id={dateRangeMessageId} className="mt-2 px-0.5 text-xs" style={{ color: 'var(--app-negative)' }}>
-                {CROSSED_DATE_RANGE_MESSAGE}
-              </p>
-            )}
-          </>
+        {/* The crossed amount range takes this line rather than sitting in its own editor. A crossed date
+            range is said on the From field's label row, as the importer says it, and Apply gives it as
+            its reason whichever facet is open */}
+        {draft.hasCrossedAmountBounds ? (
+          <p id={amountRangeMessageId} className="mt-2 px-0.5 text-xs" style={{ color: 'var(--app-negative)' }}>
+            {CROSSED_AMOUNT_RANGE_MESSAGE}
+          </p>
         ) : (
           <p className="mt-2 px-0.5 text-xs" style={{ color: 'var(--app-text-subtle)' }}>
             Transactions must match every filter you apply
@@ -280,26 +272,34 @@ export function FilterPanelBody({
 function DateFacetInput({
   label,
   value,
-  error,
-  describedById,
+  message,
+  messageId,
   onValueChange,
 }: {
   label: string
   value: string
-  // True while the two dates exclude each other, which marks both fields rather than blaming one
-  error: boolean
-  // Names the message explaining the crossed range, which the panel renders outside this field
-  describedById: string
+  // What is wrong with this date, said on its label row while the field takes the error tint and points
+  // at the message. Only the From date carries the crossed range's, as the importer's dates do
+  message?: string
+  messageId?: string
   onValueChange: (value: string) => void
 }) {
   return (
     <div className="flex min-w-0 flex-1 flex-col gap-1 text-xs" style={{ color: 'var(--app-text-muted)' }}>
-      {label}
+      {/* Both label rows share the message's line height, so the fields stay level whichever one carries it */}
+      <div className="flex items-baseline justify-between gap-3">
+        <span className="shrink-0 leading-5">{label}</span>
+        {message && (
+          <p id={messageId} role="alert" className="text-right text-xs font-medium leading-5 text-balance" style={{ color: 'var(--app-negative)' }}>
+            {message}
+          </p>
+        )}
+      </div>
       <DateField
         ariaLabel={label}
         value={value}
-        error={error}
-        describedById={describedById}
+        error={Boolean(message)}
+        describedById={messageId}
         onChange={onValueChange}
       />
     </div>
@@ -332,7 +332,7 @@ type SectionEditorProps = {
   amountRangeMessageId: string
   // True while the from date sits after the to date, leaving a range no transaction can satisfy
   hasCrossedDateRange: boolean
-  // Names the message explaining the crossed range, which the panel renders outside this editor
+  // Names the message explaining the crossed range, which the From field says on its label row
   dateRangeMessageId: string
   // The currency the amount range matches, chosen inside the amount section
   currencyOptions: OptionItem[]
@@ -518,8 +518,8 @@ function SectionEditor({
         <DateFacetInput
           label="From"
           value={dateRange.from}
-          error={hasCrossedDateRange}
-          describedById={dateRangeMessageId}
+          message={hasCrossedDateRange ? CROSSED_DATE_RANGE_MESSAGE : undefined}
+          messageId={dateRangeMessageId}
           onValueChange={(value) => onDateRangeChange({ ...dateRange, from: value })}
         />
         {/* Each field carries its own From or To label, so the joining word only reads as one while
@@ -532,8 +532,6 @@ function SectionEditor({
         <DateFacetInput
           label="To"
           value={dateRange.to}
-          error={hasCrossedDateRange}
-          describedById={dateRangeMessageId}
           onValueChange={(value) => onDateRangeChange({ ...dateRange, to: value })}
         />
       </div>

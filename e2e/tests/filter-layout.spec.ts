@@ -180,7 +180,9 @@ for (const domain of ['Account', 'Transaction'] as const) {
         return { top: rect.top, bottom: rect.bottom, viewportHeight: window.innerHeight, inside: rect.top >= -1 && rect.bottom <= window.innerHeight + 1 }
       })).toMatchObject({ inside: true })
     }
-    await expect(panel.getByRole('button', { name: 'Apply filters', exact: true })).toBeEnabled()
+    // The phone's sheet holds Apply off while nothing in it differs from the applied filters
+    if (original.width < 750) await expect(panel.getByRole('button', { name: 'Apply filters', exact: true })).toBeDisabled()
+    else await expect(panel.getByRole('button', { name: 'Apply filters', exact: true })).toBeEnabled()
     await expect.poll(() => panel.evaluate((element) => {
       const rect = element.getBoundingClientRect()
       return { top: rect.top, bottom: rect.bottom, height: rect.height, viewportHeight: window.innerHeight, inside: rect.top >= -1 && rect.bottom <= window.innerHeight + 1 }
@@ -213,7 +215,8 @@ for (const domain of ['Account', 'Transaction'] as const) {
     await page.setViewportSize(original)
     panel = await openFilters(page, domain)
     await expect(panel.getByRole('group', { name: 'Selected filters', exact: true })).toHaveCount(0)
-    await panel.getByRole('button', { name: 'Apply filters', exact: true }).click()
+    if (original.width < 750) await expect(panel.getByRole('button', { name: 'Apply filters', exact: true })).toBeDisabled()
+    else await panel.getByRole('button', { name: 'Apply filters', exact: true }).click()
   })
 }
 
@@ -252,13 +255,57 @@ test('retains Tags explanations and invalid amount and date blocking', AT_EVERY_
     await date.getByRole('textbox', { name: 'Month', exact: true }).fill('03')
     await date.getByRole('textbox', { name: 'Day', exact: true }).fill(day)
   }
-  const crossedDates = 'The From date must be on or before the To date'
+  const crossedDates = "From can't be after To"
   const fromYear = panel.getByRole('group', { name: 'From', exact: true }).getByRole('textbox', { name: 'Year', exact: true })
   await expect(fromYear).toHaveAttribute('aria-describedby', /.+/)
   const dateMessageId = await fromYear.getAttribute('aria-describedby')
   const dateMessage = panel.locator(`[id="${dateMessageId}"]`)
   await expect(dateMessage).toBeVisible()
   await expect(dateMessage).toHaveText(crossedDates)
+  // As in the importer, only From takes the error and the message sits on its label row
+  await expect(fromYear).toHaveAttribute('aria-invalid', 'true')
+  await expect(panel.getByRole('group', { name: 'To', exact: true }).getByRole('textbox', { name: 'Year', exact: true })).not.toHaveAttribute('aria-invalid', 'true')
+  await expect(dateMessage.locator('..')).toContainText('From')
+
+  // Side by side, the message on From's label row leaves the labels and the fields level, and fits one line
+  if (page.viewportSize()!.width >= 750) {
+    const top = async (locator: Locator) => (await locator.boundingBox())!.y
+    const fromGroup = panel.getByRole('group', { name: 'From', exact: true })
+    const toGroup = panel.getByRole('group', { name: 'To', exact: true })
+    expect(await top(fromGroup)).toBe(await top(toGroup))
+    expect((await dateMessage.boundingBox())!.height).toBeLessThan(24)
+    const labelTop = async (label: string) => (await panel.getByText(label, { exact: true }).first().boundingBox())!.y
+    expect(await labelTop('From')).toBe(await labelTop('To'))
+  }
   await expect(apply).toBeDisabled()
   await expect(apply).toHaveAccessibleDescription(crossedDates)
+})
+
+test('holds Apply off with its reason on a phone until a filter changes', AT_EVERY_SIZE, async ({ page, request }) => {
+  const user = await signUpUser(request)
+  await createAccount(request, user, { name: 'Nothing to apply account' })
+  await logInViaApi(page, user)
+  await openPage(page, '/transactions')
+  const panel = await openFilters(page, 'Transaction')
+  const apply = panel.getByRole('button', { name: 'Apply filters', exact: true })
+
+  // Only the phone's sheet closes on an Apply that changes nothing, so only it explains and holds it off
+  if (page.viewportSize()!.width >= 750) {
+    await expect(apply).toBeEnabled()
+    return
+  }
+  await expect(apply).toBeDisabled()
+  await expect(apply).toHaveAccessibleDescription('Nothing to apply')
+
+  // A held-off Apply does nothing when clicked or entered, so the sheet stays open
+  await apply.click({ force: true })
+  await apply.focus()
+  await page.keyboard.press('Enter')
+  await expect(panel).toBeVisible()
+  await expect(apply).toBeDisabled()
+  await selectFacet(page, panel, 'Accounts')
+  await panel.getByRole('checkbox', { name: 'Nothing to apply account', exact: true }).click()
+  await expect(apply).toBeEnabled()
+  await panel.getByRole('checkbox', { name: 'Nothing to apply account', exact: true }).click()
+  await expect(apply).toBeDisabled()
 })
