@@ -3,7 +3,13 @@ import type { ModalLevel } from '@/components/modal/Shell'
 
 // The justify side is applied separately below, since a footer drawn with the primary on the left
 // swaps it for sm:justify-between rather than adding to it
-const FOOTER_BASE_CLASS_NAME = 'grid shrink-0 grid-cols-2 gap-3 py-4 sm:flex min-[1050px]:py-5'
+const FOOTER_BASE_CLASS_NAME = 'shrink-0 gap-3 py-4 min-[1050px]:py-5'
+
+// Two equal columns on a phone, so Cancel and the submit button share the row. A confirmation puts its
+// action and Cancel at opposite ends instead, each only as wide as its label, wrapping the error onto
+// a row of its own on a phone
+const FOOTER_EQUAL_COLUMNS_CLASS_NAME = 'grid grid-cols-2 sm:flex'
+const FOOTER_SPLIT_CLASS_NAME = 'flex flex-wrap justify-between sm:flex-nowrap'
 
 interface ModalFormFooterProps {
   submitLabel: string
@@ -51,7 +57,7 @@ export function ModalFormFooter({
   // its own, while it stays between them in the DOM and in the single row from sm
   const errorMessage = error && (
     <p
-      className={`col-span-2 text-sm font-medium sm:col-span-1 ${primaryOnLeft ? 'order-first sm:order-none' : 'sm:mr-auto'}`}
+      className={`text-sm font-medium ${primaryOnLeft ? 'order-first basis-full sm:order-none sm:basis-auto' : 'col-span-2 sm:col-span-1 sm:mr-auto'}`}
       id={errorId}
       role="alert"
       style={{ color: 'var(--app-negative)' }}
@@ -62,7 +68,7 @@ export function ModalFormFooter({
   const cancelButton = (
     <button
       type="button"
-      className="app-secondary-button w-full sm:w-auto"
+      className={`app-secondary-button ${primaryOnLeft ? '' : 'w-full sm:w-auto'}`}
       onClick={onCancel}
       disabled={submitDisabled}
       data-modal-initial-focus={primaryOnLeft ? 'true' : undefined}
@@ -86,7 +92,7 @@ export function ModalFormFooter({
 
   return (
     <div
-      className={`${FOOTER_BASE_CLASS_NAME} ${MODAL_INSET_CLASS_NAME[level]} ${primaryOnLeft ? 'sm:justify-between' : 'sm:justify-end'} ${error ? 'items-center' : ''}`}
+      className={`${FOOTER_BASE_CLASS_NAME} ${MODAL_INSET_CLASS_NAME[level]} ${primaryOnLeft ? FOOTER_SPLIT_CLASS_NAME : `${FOOTER_EQUAL_COLUMNS_CLASS_NAME} sm:justify-end`} ${error ? 'items-center' : ''}`}
       style={{ borderTop: '1px solid var(--app-border)' }}
     >
       {primaryOnLeft ? (

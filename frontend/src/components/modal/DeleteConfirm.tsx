@@ -59,7 +59,7 @@ export function ModalDeleteConfirm({
         <ModalFormFooter
           submitLabel={confirmLabel}
           submitDisabled={isDeleting}
-          submitWidthClassName="w-full sm:w-auto"
+          submitWidthClassName="w-auto"
           error={error}
           onCancel={onCancel}
           onPrimary={onConfirm}
