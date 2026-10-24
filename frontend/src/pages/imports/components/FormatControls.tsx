@@ -27,6 +27,16 @@ const AMOUNT_PRESETS: Array<{ format: ImportAmountFormat; label: string }> = [
   { format: { decimalSeparator: ',', groupingSeparator: "'" }, label: "1'234,56" },
 ]
 
+/**
+ * Names a date format in the field and its list, with an example of how it reads. The ISO format
+ * goes by its name alone, since its example is wider than the field is at a tablet or phone and the
+ * field shows the whole of what was chosen
+ */
+function getDateFormatOptionLabel(format: ImportDateFormat) {
+  const { label, example } = IMPORT_DATE_FORMAT_LABELS[format]
+  return format === 'iso' ? label : `${label} (${example})`
+}
+
 /** Picks the date order used by the mapped date column */
 export function ImportDateFormatControl({
   format,
@@ -44,7 +54,7 @@ export function ImportDateFormatControl({
   const formatLabelId = useId()
   const options: DropdownOption[] = IMPORT_DATE_FORMATS.map((candidate) => ({
     value: candidate,
-    label: `${IMPORT_DATE_FORMAT_LABELS[candidate].label} (${IMPORT_DATE_FORMAT_LABELS[candidate].example})`,
+    label: getDateFormatOptionLabel(candidate),
     badge: scan.rejectedBy[candidate] ? UNREADABLE_FORMAT_BADGE : undefined,
   }))
   const selectedValue = format ?? ''

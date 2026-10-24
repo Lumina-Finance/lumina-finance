@@ -40,7 +40,7 @@ for (const { profileZone, browserZone, dates } of DATE_CASES) {
       await upload.setInputFiles({ name: 'iso-dates.csv', mimeType: 'text/csv', buffer: Buffer.from(CSV) })
 
       const dateFormat = page.getByRole('combobox', { name: 'Date format', exact: true })
-      await expect(dateFormat).toHaveText('ISO date/time (2026-04-30T12:00:00Z)')
+      await expect(dateFormat).toHaveText('ISO date/time')
       const info = page.getByRole('button', { name: 'How timestamp dates are imported', exact: true })
       await expect(info).toBeVisible()
       const formatBounds = await dateFormat.boundingBox()
