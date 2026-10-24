@@ -122,7 +122,7 @@ describe('transaction date-group helpers', () => {
 
 describe('getDayTotalFxStatusMessage', () => {
   it('says an upcoming total waits for a published rate, and a past one could not convert', () => {
-    expect(getDayTotalFxStatusMessage(true)).toBe("This total leaves out amounts whose exchange rate isn't published yet.")
+    expect(getDayTotalFxStatusMessage(true)).toBe("This total leaves out amounts whose exchange rate isn't published yet")
     expect(getDayTotalFxStatusMessage(false)).toContain('could not be converted')
   })
 })

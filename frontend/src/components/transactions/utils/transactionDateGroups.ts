@@ -59,7 +59,7 @@ export function getTransactionDateGroupTotal(
  */
 export function getDayTotalFxStatusMessage(isUpcoming: boolean) {
   return isUpcoming
-    ? "This total leaves out amounts whose exchange rate isn't published yet."
+    ? "This total leaves out amounts whose exchange rate isn't published yet"
     : 'Some amounts on this day could not be converted, so this total leaves them out'
 }
 
