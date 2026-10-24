@@ -9,7 +9,7 @@ from app.models.account import Account, TaxAdvantagedCategory
 from app.models.user import User
 from app.utils.dates import ACCOUNT_OWNER_PROFILE, OWN_PROFILE
 from tests.conftest import TestSession
-from tests.routes.support import SIGNUP_PAYLOAD, _create_account, _create_user, _get_auth_header, _seed_currency
+from tests.routes.support import SIGNUP_PAYLOAD, _create_account, _create_user, _get_auth_header, _seed_currency, sign_up_confirmed
 
 # An identifier no release of the IANA database carries. Signup validates against the zone database,
 # so a row only holds one of these when the value arrived another way, such as a restore from an
@@ -42,7 +42,7 @@ async def _signup(client, *, email: str):
     Returns:
         API response from signing up the user
     """
-    return await client.post("/auth/signup", json={**SIGNUP_PAYLOAD, "email": email})
+    return await sign_up_confirmed(client, {**SIGNUP_PAYLOAD, "email": email})
 
 
 async def _create_tax_advantaged_category(client, headers):

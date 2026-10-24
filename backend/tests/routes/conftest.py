@@ -8,7 +8,9 @@ from app.database import current_user_id_ctx, get_db, get_session_factory
 from app.dependencies import get_current_user
 from app.main import app
 from app.models.user import User
+from app.services.email import contract as email_contract
 from tests.conftest import ScopedSession
+from tests.routes.support.mailbox import mailbox
 
 
 async def _override_get_db():
@@ -45,6 +47,18 @@ async def _test_me(user: Annotated[User, Depends(get_current_user)]):
         Minimal user identity payload
     """
     return {"id": str(user.id), "email": user.email}
+
+
+@pytest.fixture(autouse=True)
+def captured_email(monkeypatch):
+    """Install the capturing sender for the test, so sign-ups can read their emailed links
+
+    Returns:
+        The sender, empty at the start of each test
+    """
+    mailbox.sent.clear()
+    monkeypatch.setattr(email_contract, "_active_sender", mailbox)
+    return mailbox
 
 
 @pytest.fixture

@@ -31,7 +31,7 @@ from app.models.base import AuthProvider
 from app.models.user import User
 from app.services.auth.recovery_codes import generate_recovery_codes
 from tests.conftest import TestSession
-from tests.routes.support import SIGNUP_PAYLOAD, _create_user, _get_auth_header, _seed_reset_token
+from tests.routes.support import SIGNUP_PAYLOAD, _create_user, _get_auth_header, _seed_reset_token, sign_up_confirmed
 
 _NEW_PASSWORD = "NewSecurePass123!"
 
@@ -56,7 +56,7 @@ _ASSERTION_SIGN_COUNT = 5
 async def _create_second_user(client):
     """Sign up a second user reusing the seeded currency, returning the auth response"""
     payload = {**SIGNUP_PAYLOAD, "email": "second@example.com"}
-    return await client.post("/auth/signup", json=payload)
+    return await sign_up_confirmed(client, payload)
 
 
 async def _seed_passkey(user_id: str, credential_id: bytes, name: str = "Seeded key") -> uuid.UUID:

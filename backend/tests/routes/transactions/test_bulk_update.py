@@ -18,7 +18,7 @@ from app.services.transactions import creation as creation_module
 from app.services.transactions import deletion as deletion_module
 from app.services.transactions import snapshots as transaction_snapshots_module
 from tests.conftest import TestSession
-from tests.routes.support import _create_user, _get_auth_header, _wait_until_blocked
+from tests.routes.support import _create_user, _get_auth_header, _wait_until_blocked, sign_up_confirmed
 from tests.routes.transactions._helpers import (
     _create_account,
     _create_category,
@@ -1858,9 +1858,9 @@ async def test_bulk_transfer_from_records_a_read_only_account_without_moving_int
     group_id = (await client.post("/groups", json={"name": "Household"}, headers=admin_headers)).json()["id"]
     cash_id = (await _create_account(client, admin_headers, name="Cash", group_id=group_id)).json()["id"]
 
-    member_signup = await client.post(
-        "/auth/signup",
-        json={
+    member_signup = await sign_up_confirmed(
+        client,
+        {
             "email": "member@example.com",
             "password": "SecurePassword123!",
             "first_name": "Member",
@@ -1913,9 +1913,9 @@ async def test_bulk_transfer_from_leaves_an_expense_out_of_the_group_write_check
     group_id = (await client.post("/groups", json={"name": "Household"}, headers=admin_headers)).json()["id"]
     cash_id = (await _create_account(client, admin_headers, name="Cash", group_id=group_id)).json()["id"]
 
-    member_signup = await client.post(
-        "/auth/signup",
-        json={
+    member_signup = await sign_up_confirmed(
+        client,
+        {
             "email": "member2@example.com",
             "password": "SecurePassword123!",
             "first_name": "Member",
@@ -2634,9 +2634,9 @@ async def _setup_transfer_into_a_group_account(client):
         )
     ).json()["id"]
 
-    member_signup = await client.post(
-        "/auth/signup",
-        json={
+    member_signup = await sign_up_confirmed(
+        client,
+        {
             "email": "member@example.com",
             "password": "SecurePassword123!",
             "first_name": "Member",

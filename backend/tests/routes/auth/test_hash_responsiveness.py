@@ -6,13 +6,14 @@ import threading
 
 import pytest
 
+from app.services.auth.tokens import SignupConfirmationClaims, create_signup_confirmation_token
 from tests.routes.support import SIGNUP_PAYLOAD, _create_user, _seed_currency
 
 
 @pytest.mark.parametrize(
     ("service", "primitive", "path", "existing_user", "expected_status"),
     [
-        ("signup", "hash_password", "/auth/signup", False, 201),
+        ("signup", "hash_password", "/auth/signup/confirm", False, 201),
         ("login", "is_password_valid", "/auth/login", True, 200),
         ("login", "hash_dummy_password_for_timing", "/auth/login", False, 401),
     ],
@@ -40,14 +41,15 @@ async def test_currency_request_completes_while_auth_hash_is_pending(
         return original(*args)
 
     monkeypatch.setattr(module, primitive, held_hash)
-    payload = (
-        SIGNUP_PAYLOAD
-        if service == "signup"
-        else {
-            "email": SIGNUP_PAYLOAD["email"],
-            "password": SIGNUP_PAYLOAD["password"],
-        }
-    )
+    if service == "signup":
+        token = create_signup_confirmation_token(
+            SignupConfirmationClaims(
+                SIGNUP_PAYLOAD["email"], SIGNUP_PAYLOAD["first_name"], None, SIGNUP_PAYLOAD["tz"], SIGNUP_PAYLOAD["base_currency"]
+            )
+        )
+        payload = {"token": token, "new_password": SIGNUP_PAYLOAD["password"]}
+    else:
+        payload = {"email": SIGNUP_PAYLOAD["email"], "password": SIGNUP_PAYLOAD["password"]}
     request = asyncio.create_task(client.post(path, json=payload))
     waiting = asyncio.create_task(entered.wait())
     try:

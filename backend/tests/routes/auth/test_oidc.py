@@ -17,7 +17,7 @@ from app.models.user import User
 from app.services.auth import oidc_login, registration
 from app.services.auth.token_hashing import hash_token
 from tests.conftest import TestSession
-from tests.routes.support import SIGNUP_PAYLOAD, _clears_cookie, _seed_currency
+from tests.routes.support import SIGNUP_PAYLOAD, _clears_cookie, _seed_currency, sign_up_confirmed
 
 ISSUER = "https://idp.test"
 CLIENT_ID = "client-123"
@@ -140,7 +140,7 @@ async def test_authorize_rejects_unknown_provider(client):
 async def test_callback_signs_in_linked_identity(client, provider_protocol):
     """A known provider subject signs its linked user in with no second factor step"""
     await _seed_currency()
-    signup = await client.post("/auth/signup", json=SIGNUP_PAYLOAD)
+    signup = await sign_up_confirmed(client, SIGNUP_PAYLOAD)
     user_id = uuid.UUID(signup.json()["user"]["id"])
     provider = await _seed_provider()
     async with TestSession() as session:
@@ -165,7 +165,7 @@ async def test_callback_signs_in_linked_identity(client, provider_protocol):
 async def test_callback_never_auto_links_verified_email(client, provider_protocol):
     """A verified provider email matching a local account is refused, never linked automatically"""
     await _seed_currency()
-    await client.post("/auth/signup", json=SIGNUP_PAYLOAD)
+    await sign_up_confirmed(client, SIGNUP_PAYLOAD)
     await _seed_provider()
     provider_protocol["claims"] = _claims(email=SIGNUP_PAYLOAD["email"], email_verified=True)
 
@@ -192,7 +192,7 @@ async def test_callback_never_auto_links_verified_email(client, provider_protoco
 async def test_callback_rejects_unverified_email_collision(client, provider_protocol):
     """An unverified provider email matching a local account is refused, never linked"""
     await _seed_currency()
-    await client.post("/auth/signup", json=SIGNUP_PAYLOAD)
+    await sign_up_confirmed(client, SIGNUP_PAYLOAD)
     await _seed_provider()
     provider_protocol["claims"] = _claims(email=SIGNUP_PAYLOAD["email"], email_verified=False)
 
@@ -291,7 +291,7 @@ async def test_callback_closed_registration_refuses_new_user(client, provider_pr
 async def test_callback_closed_registration_signs_in_linked_identity(client, provider_protocol, monkeypatch):
     """Closing registration leaves an already linked provider sign-in working"""
     await _seed_currency()
-    signup = await client.post("/auth/signup", json=SIGNUP_PAYLOAD)
+    signup = await sign_up_confirmed(client, SIGNUP_PAYLOAD)
     user_id = uuid.UUID(signup.json()["user"]["id"])
     provider = await _seed_provider()
     async with TestSession() as session:
@@ -310,7 +310,7 @@ async def test_callback_closed_registration_signs_in_linked_identity(client, pro
 async def test_callback_closed_registration_keeps_email_conflict(client, provider_protocol, monkeypatch):
     """An existing account's owner still gets the sign-in-and-link path, not the closed message"""
     await _seed_currency()
-    await client.post("/auth/signup", json=SIGNUP_PAYLOAD)
+    await sign_up_confirmed(client, SIGNUP_PAYLOAD)
     await _seed_provider()
     provider_protocol["claims"] = _claims(email=SIGNUP_PAYLOAD["email"], email_verified=True)
     monkeypatch.setattr(registration, "REGISTRATION_ENABLED", False)
@@ -431,7 +431,7 @@ async def test_signup_races_to_conflict_not_crash(client, provider_protocol, mon
 
     # Register the onboarding email after the token was minted, then hide it from the pre-check so the
     # user insert is what trips the unique constraint, standing in for a parallel signup that commits first
-    await client.post("/auth/signup", json={**SIGNUP_PAYLOAD, "email": "sso-user@example.com"})
+    await sign_up_confirmed(client, {**SIGNUP_PAYLOAD, "email": "sso-user@example.com"})
 
     async def blind_reject(db, email):
         """Let onboarding proceed as if the email were still free"""
@@ -536,7 +536,7 @@ async def _create_password_user(client, email: str | None = None):
     The email defaults to the one `_claims` asserts, so a link matches unless a test says otherwise
     """
     await _seed_currency()
-    signup = await client.post("/auth/signup", json={**SIGNUP_PAYLOAD, "email": email or _claims()["email"]})
+    signup = await sign_up_confirmed(client, {**SIGNUP_PAYLOAD, "email": email or _claims()["email"]})
     assert signup.status_code == 201
     from tests.routes.support import _get_auth_header
 
@@ -710,7 +710,7 @@ async def test_link_callback_rejects_another_account(client, provider_protocol):
     provider_protocol["claims"] = _claims()
     state = await _start_link(client, auth)
 
-    other_signup = await client.post("/auth/signup", json={**SIGNUP_PAYLOAD, "email": "other@example.com"})
+    other_signup = await sign_up_confirmed(client, {**SIGNUP_PAYLOAD, "email": "other@example.com"})
     from tests.routes.support import _get_auth_header
 
     other_auth = _get_auth_header(other_signup)

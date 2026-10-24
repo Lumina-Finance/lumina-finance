@@ -23,6 +23,7 @@ from app.routes.auth.token_helpers import (
 from app.schemas.auth import (
     AuthResponse,
     ChangePasswordRequest,
+    ConfirmSignupRequest,
     ForgotPasswordRequest,
     LoginRequest,
     MfaRequiredResponse,
@@ -50,6 +51,7 @@ from app.services.auth import (
     complete_password_reset,
     complete_totp_enrollment,
     confirm_recovery_codes,
+    confirm_signup,
     confirm_totp_enrollment,
     disable_two_factor,
     ensure_reset_token_active,
@@ -61,8 +63,8 @@ from app.services.auth import (
     prune_stale_factor_staging,
     regenerate_recovery_codes,
     request_password_reset,
+    request_signup,
     set_first_password,
-    signup,
 )
 from app.services.auth.account_lockout import reset_failed_attempts
 
@@ -77,17 +79,42 @@ router.include_router(passkeys_router)
 router.include_router(oidc_router)
 
 
-@router.post("/signup", response_model=AuthResponse, status_code=status.HTTP_201_CREATED)
+@router.post("/signup", status_code=status.HTTP_204_NO_CONTENT)
 async def signup_route(
     data: SignupRequest,
+    db: Annotated[AsyncSession, Depends(get_db)],
+    background_tasks: BackgroundTasks,
+    session_factory: Annotated[async_sessionmaker[AsyncSession], Depends(get_session_factory)],
+):
+    """Email a confirmation link to a new address, and send an address that has an account nothing
+
+    The response is always 204 so the endpoint never reveals whether an email is registered, and the
+    email goes out after it so the response takes as long either way. No account exists until the
+    link is confirmed
+
+    Args:
+        data: Signup payload with email, name, timezone, and currency
+        db: Active database session
+        background_tasks: Runs the send once the response is out
+        session_factory: Opens the session that releases the send cap after a failed send
+
+    Raises:
+        HTTPException: Registration is closed or the base currency is invalid
+    """
+    await request_signup(db, data, background_tasks, session_factory)
+
+
+@router.post("/signup/confirm", response_model=AuthResponse, status_code=status.HTTP_201_CREATED)
+async def confirm_signup_route(
+    data: ConfirmSignupRequest,
     request: Request,
     response: Response,
     db: Annotated[AsyncSession, Depends(get_db)],
 ):
-    """Register a user and issue a token pair
+    """Create the account an emailed link was sent for, with the chosen password, and issue a token pair
 
     Args:
-        data: Signup payload with email, password, name, timezone, and currency
+        data: Confirmation token with the password the person chose
         request: FastAPI request object
         response: FastAPI response object for setting the refresh cookie
         db: Active database session
@@ -96,11 +123,10 @@ async def signup_route(
         Auth response with user info and access token
 
     Raises:
-        HTTPException: Registration is closed or the email is already registered
+        HTTPException: The link is invalid, expired or already used, or registration is closed
     """
-    user = await signup(db, data)
-    auth_response = await issue_and_store_tokens(db, request, response, user)
-    return auth_response
+    user = await confirm_signup(db, data.token, data.new_password)
+    return await issue_and_store_tokens(db, request, response, user)
 
 
 @router.get("/registration", response_model=RegistrationStatusResponse)

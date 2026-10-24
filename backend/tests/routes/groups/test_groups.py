@@ -1,4 +1,4 @@
-from tests.routes.support import _create_user, _get_auth_header, _get_system_merchant_id
+from tests.routes.support import _create_user, _get_auth_header, _get_system_merchant_id, sign_up_confirmed
 
 # --- Helpers ---
 
@@ -31,9 +31,9 @@ async def _create_second_user(client):
     Returns:
         Tuple of (auth_headers, user_id)
     """
-    resp = await client.post(
-        "/auth/signup",
-        json={
+    resp = await sign_up_confirmed(
+        client,
+        {
             "email": "other@example.com",
             "password": "SecurePassword123!",
             "first_name": "Other",
@@ -531,9 +531,9 @@ async def test_add_member_by_non_owner_admin_returns_201(client):
     await client.post(f"/groups/{group_id}/members", json={"user_id": other_user_id}, headers=headers)
     await client.patch(f"/groups/{group_id}/members/{other_user_id}", json={"is_admin": True}, headers=headers)
 
-    third_resp = await client.post(
-        "/auth/signup",
-        json={
+    third_resp = await sign_up_confirmed(
+        client,
+        {
             "email": "third@example.com",
             "password": "SecurePassword123!",
             "first_name": "Third",
@@ -684,9 +684,9 @@ async def test_non_owner_admin_cannot_promote_returns_403(client):
     await client.patch(f"/groups/{group_id}/members/{other_user_id}", json={"is_admin": True}, headers=headers)
 
     # Create a third user to be the target
-    third_resp = await client.post(
-        "/auth/signup",
-        json={
+    third_resp = await sign_up_confirmed(
+        client,
+        {
             "email": "third@example.com",
             "password": "SecurePassword123!",
             "first_name": "Third",
@@ -826,9 +826,9 @@ async def test_remove_member_non_admin_cannot_remove_others_returns_403(client):
     await client.post(f"/groups/{group_id}/members", json={"user_id": other_user_id}, headers=headers)
 
     # Create a third user to be the removal target
-    third_resp = await client.post(
-        "/auth/signup",
-        json={
+    third_resp = await sign_up_confirmed(
+        client,
+        {
             "email": "third@example.com",
             "password": "SecurePassword123!",
             "first_name": "Third",

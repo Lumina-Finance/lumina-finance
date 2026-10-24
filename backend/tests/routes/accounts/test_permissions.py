@@ -1,6 +1,6 @@
 import pytest
 
-from tests.routes.support import _create_user, _get_auth_header
+from tests.routes.support import _create_user, _get_auth_header, sign_up_confirmed
 
 # --- Helpers ---
 
@@ -16,9 +16,9 @@ async def _create_second_user(client):
     Returns:
         Tuple of (auth_headers, user_id)
     """
-    resp = await client.post(
-        "/auth/signup",
-        json={
+    resp = await sign_up_confirmed(
+        client,
+        {
             "email": "other@example.com",
             "password": "SecurePassword123!",
             "first_name": "Other",
@@ -290,9 +290,9 @@ async def test_grant_account_permission_by_non_member_returns_404(client):
     """Non-member cannot grant permissions."""
     _, _, member_user_id, _, account_id = await _setup_group_with_member_and_account(client)
 
-    third_resp = await client.post(
-        "/auth/signup",
-        json={
+    third_resp = await sign_up_confirmed(
+        client,
+        {
             "email": "third@example.com",
             "password": "SecurePassword123!",
             "first_name": "Third",
@@ -490,9 +490,9 @@ async def test_list_account_permissions_multiple_ordered_by_created_at(client):
     """Multiple permissions are returned ordered by created_at."""
     admin_headers, _, member_user_id, group_id, account_id = await _setup_group_with_member_and_account(client)
 
-    third_resp = await client.post(
-        "/auth/signup",
-        json={
+    third_resp = await sign_up_confirmed(
+        client,
+        {
             "email": "third@example.com",
             "password": "SecurePassword123!",
             "first_name": "Third",

@@ -8,7 +8,7 @@ import sqlalchemy as sa
 from app.models.budget import BudgetTrackedCategory
 from app.models.currency import Currency
 from tests.conftest import TestSession
-from tests.routes.support import _get_auth_header, _get_system_merchant_id
+from tests.routes.support import _get_auth_header, _get_system_merchant_id, sign_up_confirmed
 
 NONEXISTENT_ID = "00000000-0000-0000-0000-000000000000"
 
@@ -33,9 +33,9 @@ async def _get_budget_utilization_entry(client, headers, base_budget_id, budget_
 
 async def _create_second_user(client):
     """Sign up a second user and return (auth_headers, user_id)"""
-    resp = await client.post(
-        "/auth/signup",
-        json={
+    resp = await sign_up_confirmed(
+        client,
+        {
             "email": "other@example.com",
             "password": "SecurePassword123!",
             "first_name": "Other",

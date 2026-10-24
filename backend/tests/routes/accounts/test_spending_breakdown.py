@@ -15,7 +15,7 @@ from app.models.merchant import Merchant
 from app.models.transaction import Transaction
 from app.services.accounts.spending import get_account_spending_breakdown
 from tests.conftest import ScopedSession, TestSession
-from tests.routes.support import _create_account, _create_user, _get_auth_header, _get_system_merchant_id
+from tests.routes.support import _create_account, _create_user, _get_auth_header, _get_system_merchant_id, sign_up_confirmed
 
 # --- Helpers ---
 
@@ -80,9 +80,9 @@ async def _create_transaction(client, headers, account_id, category_id, **overri
 
 async def _create_second_user(client):
     """Sign up a second user and return (auth_headers, user_id)."""
-    resp = await client.post(
-        "/auth/signup",
-        json={
+    resp = await sign_up_confirmed(
+        client,
+        {
             "email": "other@example.com",
             "password": "SecurePassword123!",
             "first_name": "Other",

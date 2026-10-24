@@ -92,6 +92,7 @@ AUTH_TABLES = (
     "auth_tokens",
     "password_reset_tokens",
     "login_lockouts",
+    "signup_email_sends",
     "mfa_challenges",
     "totp_credentials",
     "recovery_codes",

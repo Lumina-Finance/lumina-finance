@@ -24,7 +24,7 @@ from tests.routes.base_budgets._helpers import (
     _create_group,
     _create_second_user,
 )
-from tests.routes.support import SIGNUP_PAYLOAD, _create_user, _get_auth_header
+from tests.routes.support import SIGNUP_PAYLOAD, _create_user, _get_auth_header, sign_up_confirmed
 from tests.routes.transactions._helpers import _get_system_category_id
 from tests.routes.transactions._import_helpers import _chequing_mapping, _firefly_row, _open_staged_run
 
@@ -434,9 +434,9 @@ async def _assert_compact_budget_import(client, record_property):
     owner_id = uuid.UUID(user_resp.json()["id"])
     groceries_id = await _get_system_category_id(client, headers, "Groceries")
     dining_id = await _get_system_category_id(client, headers, "Dining")
-    other_signup = await client.post(
-        "/auth/signup",
-        json={
+    other_signup = await sign_up_confirmed(
+        client,
+        {
             **SIGNUP_PAYLOAD,
             "email": "other@example.com",
         },

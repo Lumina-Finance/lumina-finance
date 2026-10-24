@@ -4,7 +4,7 @@ from tests.routes.categories._helpers import (
     _create_group,
     _setup_group_with_member,
 )
-from tests.routes.support import _create_user, _get_auth_header, _get_system_merchant_id
+from tests.routes.support import _create_user, _get_auth_header, _get_system_merchant_id, sign_up_confirmed
 
 # --- Group categories: POST /categories ---
 
@@ -36,9 +36,9 @@ async def test_create_group_category_non_member_returns_404(client):
     """Non-member cannot create a category in a group."""
     _, _, _, group_id = await _setup_group_with_member(client)
 
-    outsider_resp = await client.post(
-        "/auth/signup",
-        json={
+    outsider_resp = await sign_up_confirmed(
+        client,
+        {
             "email": "outsider@example.com",
             "password": "SecurePassword123!",
             "first_name": "Outsider",
@@ -148,9 +148,9 @@ async def test_list_categories_group_filter_non_member_returns_404(client):
     """Non-member passing group_id filter returns 404."""
     _, _, _, group_id = await _setup_group_with_member(client)
 
-    outsider_resp = await client.post(
-        "/auth/signup",
-        json={
+    outsider_resp = await sign_up_confirmed(
+        client,
+        {
             "email": "outsider@example.com",
             "password": "SecurePassword123!",
             "first_name": "Outsider",
@@ -186,9 +186,9 @@ async def test_get_group_category_non_member_returns_404(client):
     create_resp = await _create_category(client, admin_headers, name="Shared", group_id=group_id)
     category_id = create_resp.json()["id"]
 
-    outsider_resp = await client.post(
-        "/auth/signup",
-        json={
+    outsider_resp = await sign_up_confirmed(
+        client,
+        {
             "email": "outsider@example.com",
             "password": "SecurePassword123!",
             "first_name": "Outsider",
@@ -278,9 +278,9 @@ async def test_patch_group_category_non_member_returns_404(client):
     create_resp = await _create_category(client, admin_headers, name="Shared", group_id=group_id)
     category_id = create_resp.json()["id"]
 
-    outsider_resp = await client.post(
-        "/auth/signup",
-        json={
+    outsider_resp = await sign_up_confirmed(
+        client,
+        {
             "email": "outsider@example.com",
             "password": "SecurePassword123!",
             "first_name": "Outsider",
@@ -352,9 +352,9 @@ async def test_delete_group_category_non_member_returns_404(client):
     create_resp = await _create_category(client, admin_headers, name="Shared", group_id=group_id)
     category_id = create_resp.json()["id"]
 
-    outsider_resp = await client.post(
-        "/auth/signup",
-        json={
+    outsider_resp = await sign_up_confirmed(
+        client,
+        {
             "email": "outsider@example.com",
             "password": "SecurePassword123!",
             "first_name": "Outsider",

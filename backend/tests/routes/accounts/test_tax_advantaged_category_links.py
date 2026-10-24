@@ -1,6 +1,6 @@
 from app.models.currency import Currency
 from tests.conftest import TestSession
-from tests.routes.support import _create_account, _create_user, _get_auth_header
+from tests.routes.support import _create_account, _create_user, _get_auth_header, sign_up_confirmed
 
 NONEXISTENT_ID = "00000000-0000-0000-0000-000000000000"
 
@@ -21,9 +21,9 @@ async def _create_second_user(client):
     Returns:
         The HTTP response from the signup endpoint
     """
-    return await client.post(
-        "/auth/signup",
-        json={
+    return await sign_up_confirmed(
+        client,
+        {
             "email": "other@example.com",
             "password": "SecurePassword123!",
             "first_name": "Other",

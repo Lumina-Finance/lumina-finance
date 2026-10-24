@@ -10,6 +10,7 @@ from app.models.category import Category
 from app.models.institution import Institution
 from app.models.transaction import Transaction
 from tests.conftest import TestSession
+from tests.routes.support import sign_up_confirmed
 
 NONEXISTENT_ID = "00000000-0000-0000-0000-000000000000"
 
@@ -59,9 +60,9 @@ async def _create_second_user(client):
     Returns:
         The HTTP response from the signup endpoint
     """
-    return await client.post(
-        "/auth/signup",
-        json={
+    return await sign_up_confirmed(
+        client,
+        {
             "email": "other@example.com",
             "password": "SecurePassword123!",
             "first_name": "Other",
@@ -73,9 +74,9 @@ async def _create_second_user(client):
 
 async def _signup_user(client, *, email: str, first_name: str, tz: str):
     """Sign up a user with caller-provided identity and timezone details"""
-    return await client.post(
-        "/auth/signup",
-        json={
+    return await sign_up_confirmed(
+        client,
+        {
             "email": email,
             "password": "SecurePassword123!",
             "first_name": first_name,

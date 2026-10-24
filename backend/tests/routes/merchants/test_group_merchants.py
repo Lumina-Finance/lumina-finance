@@ -7,7 +7,7 @@ from tests.routes.merchants._helpers import (
     _own_merchant_names,
     _setup_group_with_member,
 )
-from tests.routes.support import _create_user, _get_auth_header
+from tests.routes.support import _create_user, _get_auth_header, sign_up_confirmed
 
 # --- Group merchants: POST /merchants ---
 
@@ -38,9 +38,9 @@ async def test_create_group_merchant_non_member_returns_404(client):
     """Non-member cannot create a merchant in a group."""
     _, _, _, group_id = await _setup_group_with_member(client)
 
-    outsider_resp = await client.post(
-        "/auth/signup",
-        json={
+    outsider_resp = await sign_up_confirmed(
+        client,
+        {
             "email": "outsider@example.com",
             "password": "SecurePassword123!",
             "first_name": "Outsider",
@@ -177,9 +177,9 @@ async def test_list_merchants_group_filter_non_member_returns_404(client):
     """Non-member passing group_id filter returns 404."""
     _, _, _, group_id = await _setup_group_with_member(client)
 
-    outsider_resp = await client.post(
-        "/auth/signup",
-        json={
+    outsider_resp = await sign_up_confirmed(
+        client,
+        {
             "email": "outsider@example.com",
             "password": "SecurePassword123!",
             "first_name": "Outsider",
@@ -215,9 +215,9 @@ async def test_get_group_merchant_non_member_returns_404(client):
     create_resp = await _create_merchant(client, admin_headers, name="Shared", group_id=group_id)
     merchant_id = create_resp.json()["id"]
 
-    outsider_resp = await client.post(
-        "/auth/signup",
-        json={
+    outsider_resp = await sign_up_confirmed(
+        client,
+        {
             "email": "outsider@example.com",
             "password": "SecurePassword123!",
             "first_name": "Outsider",
@@ -341,9 +341,9 @@ async def test_patch_group_merchant_non_member_returns_404(client):
     create_resp = await _create_merchant(client, admin_headers, name="Shared", group_id=group_id)
     merchant_id = create_resp.json()["id"]
 
-    outsider_resp = await client.post(
-        "/auth/signup",
-        json={
+    outsider_resp = await sign_up_confirmed(
+        client,
+        {
             "email": "outsider@example.com",
             "password": "SecurePassword123!",
             "first_name": "Outsider",
@@ -415,9 +415,9 @@ async def test_delete_group_merchant_non_member_returns_404(client):
     create_resp = await _create_merchant(client, admin_headers, name="Shared", group_id=group_id)
     merchant_id = create_resp.json()["id"]
 
-    outsider_resp = await client.post(
-        "/auth/signup",
-        json={
+    outsider_resp = await sign_up_confirmed(
+        client,
+        {
             "email": "outsider@example.com",
             "password": "SecurePassword123!",
             "first_name": "Outsider",

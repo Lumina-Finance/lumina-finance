@@ -4,7 +4,7 @@ Verifies cross-user isolation holds even when users share a group,
 and documents current limitations around group account transactions
 """
 
-from tests.routes.support import _create_user, _get_auth_header, _get_system_merchant_id
+from tests.routes.support import _create_user, _get_auth_header, _get_system_merchant_id, sign_up_confirmed
 
 # --- Helpers ---
 
@@ -126,9 +126,9 @@ async def _setup_group_with_two_members(client):
     group_id = group_resp.json()["id"]
 
     # User 2 — group member
-    signup2 = await client.post(
-        "/auth/signup",
-        json={
+    signup2 = await sign_up_confirmed(
+        client,
+        {
             "email": "other@example.com",
             "password": "SecurePassword123!",
             "first_name": "Other",
@@ -262,9 +262,9 @@ async def _setup_group_with_shared_account(client):
     group_resp = await _create_group(client, admin_headers)
     group_id = group_resp.json()["id"]
 
-    signup2 = await client.post(
-        "/auth/signup",
-        json={
+    signup2 = await sign_up_confirmed(
+        client,
+        {
             "email": "member@example.com",
             "password": "SecurePassword123!",
             "first_name": "Member",

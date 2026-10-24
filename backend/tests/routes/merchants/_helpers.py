@@ -1,4 +1,4 @@
-from tests.routes.support import _create_user, _get_auth_header
+from tests.routes.support import _create_user, _get_auth_header, sign_up_confirmed
 
 NONEXISTENT_ID = "00000000-0000-0000-0000-000000000000"
 
@@ -71,9 +71,9 @@ async def _create_second_user(client):
     Returns:
         The HTTP response from the signup endpoint
     """
-    return await client.post(
-        "/auth/signup",
-        json={
+    return await sign_up_confirmed(
+        client,
+        {
             "email": "other@example.com",
             "password": "SecurePassword123!",
             "first_name": "Other",
@@ -111,9 +111,9 @@ async def _setup_group_with_member(client):
 
     group_id = await _create_group(client, admin_headers)
 
-    member_resp = await client.post(
-        "/auth/signup",
-        json={
+    member_resp = await sign_up_confirmed(
+        client,
+        {
             "email": "member@example.com",
             "password": "SecurePassword123!",
             "first_name": "Member",

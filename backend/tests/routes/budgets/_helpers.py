@@ -1,13 +1,13 @@
-from tests.routes.support import _get_auth_header
+from tests.routes.support import _get_auth_header, sign_up_confirmed
 
 NONEXISTENT_ID = "00000000-0000-0000-0000-000000000000"
 
 
 async def _create_second_user(client):
     """Sign up a second user and return (headers, user_id)"""
-    resp = await client.post(
-        "/auth/signup",
-        json={
+    resp = await sign_up_confirmed(
+        client,
+        {
             "email": "other@example.com",
             "password": "SecurePassword123!",
             "first_name": "Other",

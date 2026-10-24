@@ -12,7 +12,7 @@ from app.models.category import Category
 from app.models.currency import Currency
 from app.models.transaction import Transaction
 from tests.conftest import TestSession
-from tests.routes.support import _create_account, _create_user, _get_auth_header
+from tests.routes.support import _create_account, _create_user, _get_auth_header, sign_up_confirmed
 
 
 def _owner_local_creation_day(account):
@@ -32,9 +32,9 @@ async def _seed_usd():
 
 async def _signup_second_user(client):
     """Sign up a second user and return auth headers"""
-    resp = await client.post(
-        "/auth/signup",
-        json={
+    resp = await sign_up_confirmed(
+        client,
+        {
             "email": "other@example.com",
             "password": "SecurePassword123!",
             "first_name": "Other",

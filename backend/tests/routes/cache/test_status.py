@@ -2,14 +2,14 @@ import importlib
 from datetime import UTC, datetime
 from zoneinfo import ZoneInfo
 
-from tests.routes.support import _create_account, _create_user, _get_auth_header
+from tests.routes.support import _create_account, _create_user, _get_auth_header, sign_up_confirmed
 
 
 async def _create_second_user(client):
     """Sign up a second user and return auth headers plus user ID."""
-    resp = await client.post(
-        "/auth/signup",
-        json={
+    resp = await sign_up_confirmed(
+        client,
+        {
             "email": "other@example.com",
             "password": "SecurePassword123!",
             "first_name": "Other",
