@@ -5,6 +5,11 @@ import type { AuthenticationResponseJSON } from '@simplewebauthn/browser';
 import { requestPasskeyStepUpAssertion, usePasskeyConfig, usePasskeys } from '@/api/passkeys';
 import { useTotpStatus } from '@/api/two-factor';
 import { OtpInput, OTP_LENGTH } from '@/components/OtpInput';
+import { AcknowledgementGroup } from '@/components/forms/AcknowledgementGroup';
+import { getAcknowledgementItemId, getAcknowledgementProblem } from '@/components/forms/acknowledgement';
+import { FieldLabelRow } from '@/components/forms/FieldLabelRow';
+import { FormError } from '@/components/forms/FormError';
+import { useRefusedSubmit } from '@/hooks/useRefusedSubmit';
 import { StepTransition } from '@/components/two-factor/StepTransition';
 import { ModalContentFooter, ModalContentPanel } from '@/components/modal/ContentPanel';
 import { MODAL_TITLE_CLASS_NAME } from '@/components/modal/Rail';
@@ -49,6 +54,9 @@ interface StepUpModalProps {
 }
 
 const GENERIC_STEP_UP_ERROR = 'That did not work. Check your details and try again.';
+
+const STEP_UP_FIELDS = ['password', 'code', 'acknowledgements'] as const;
+const RECOVERY_ACK_KEY = 'recovery';
 
 /**
  * Re-verifies a current second factor before a sensitive action across two steps: the password first,
@@ -113,12 +121,30 @@ export function StepUpModal({
   // other loading buttons
   // A stacked step-up can open over another, so each form's id is its own
   const codeFormId = useId();
+  const passwordId = useId();
+  const codeId = useId();
+  const ackGroupId = useId();
+  // Each step asks for its own input, so only the step on screen can have a problem
+  const refusal = useRefusedSubmit(
+    {
+      password: step === 'password' && !confirmingReset && !password ? 'Enter your password' : undefined,
+      code: step === 'factor' && !confirmingReset && showCodeEntry && !canSubmitCode ? 'Enter the full code' : undefined,
+      acknowledgements: confirmingReset ? getAcknowledgementProblem([recoveryAcknowledged]) : undefined,
+    },
+    STEP_UP_FIELDS,
+    {
+      password: passwordId,
+      code: codeId,
+      acknowledgements: getAcknowledgementItemId(ackGroupId, RECOVERY_ACK_KEY),
+    },
+  );
   const actionButtonClass = `${danger ? 'app-danger-button' : 'app-primary-button'} transition-all duration-300 ${verifyingPath === 'code' ? 'app-primary-button-loading' : 'w-full'}`;
 
   /**
    * Clears the transient inputs so the modal opens clean next time
    */
   const reset = () => {
+    refusal.reset();
     setPassword('');
     setOtp('');
     setRefusedCodes(0);
@@ -174,7 +200,7 @@ export function StepUpModal({
     // Password managers auto-submit by calling click(), which fires an untrusted event, so the prompt
     // only advances on a real user press
     if (!event.isTrusted) return;
-    if (!password) return;
+    if (!refusal.guard()) return;
     setError('');
     setLockoutRemaining(null);
 
@@ -184,6 +210,7 @@ export function StepUpModal({
       void runStepUp('code', () => onVerify({ password }));
       return;
     }
+    refusal.reset();
     setStep('factor');
   };
 
@@ -194,7 +221,7 @@ export function StepUpModal({
   const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     if (!event.isTrusted) return;
-    if (!canSubmitCode || verifying) return;
+    if (verifying || !refusal.guard()) return;
     void runStepUp('code', () => onVerify({ password, code: otp }));
   };
 
@@ -213,7 +240,7 @@ export function StepUpModal({
    */
   const handleRecoveryReset = async (event: MouseEvent<HTMLButtonElement>) => {
     // A password manager auto-clicking this fires an untrusted event, which must not sign the user out
-    if (!event.isTrusted || resetting) return;
+    if (!event.isTrusted || resetting || !refusal.guard()) return;
     setResetting(true);
     const start = Date.now();
     try {
@@ -245,11 +272,9 @@ export function StepUpModal({
           {error ? `${error} ${buildLockoutWarning(lockoutRemaining)}` : buildLockoutWarning(lockoutRemaining)}
         </WarningCallout>
       </div>
-    ) : error ? (
-      <p role="alert" className="text-center text-sm" style={{ color: 'var(--app-negative)' }}>
-        {error}
-      </p>
-    ) : null;
+    ) : (
+      <FormError message={error} className="text-center" />
+    );
 
   return (
     <ModalContentPanel
@@ -287,21 +312,27 @@ export function StepUpModal({
               This removes all your authenticators and passkeys and signs you out everywhere. You'll sign back
               in with a recovery code, then set up a new factor.
             </WarningCallout>
-            <label className="flex items-start gap-2 text-sm" style={{ color: 'var(--app-text-muted)' }}>
-              <input
-                type="checkbox"
-                className="app-checkbox mt-0.5 shrink-0"
-                checked={recoveryAcknowledged}
-                onChange={(event) => setRecoveryAcknowledged(event.target.checked)}
-                disabled={resetting}
-              />
-              <span>I have a recovery code and understand I'll need one to sign back in</span>
-            </label>
+            <AcknowledgementGroup
+              groupId={ackGroupId}
+              heading="Before you sign out"
+              error={refusal.errors.acknowledgements}
+              errorId={`${ackGroupId}-error`}
+              disabled={resetting}
+              items={[
+                {
+                  key: RECOVERY_ACK_KEY,
+                  label: "I have a recovery code and understand I'll need one to sign back in",
+                  checked: recoveryAcknowledged,
+                  onChange: setRecoveryAcknowledged,
+                  multiline: true,
+                },
+              ]}
+            />
             <div className="flex justify-center">
               <DisabledReasonButton
                 onClick={handleRecoveryReset}
                 disabled={resetting}
-                disabledReason={!resetting && !recoveryAcknowledged ? 'Tick the box first' : undefined}
+                disabledReason={resetting ? undefined : refusal.blockedReason}
                 className={`app-danger-button transition-all duration-300 ${resetting ? 'app-primary-button-loading' : 'w-full'}`}
               >
                 {resetting ? <div className="app-spinner" /> : 'Sign out to recover'}
@@ -309,7 +340,10 @@ export function StepUpModal({
             </div>
             <button
               type="button"
-              onClick={onUserPress(() => setConfirmingReset(false))}
+              onClick={onUserPress(() => {
+                refusal.reset();
+                setConfirmingReset(false);
+              })}
               disabled={resetting}
               className="mx-auto block text-center text-sm font-medium underline underline-offset-2"
               style={{ color: 'var(--app-text-muted)' }}
@@ -319,15 +353,25 @@ export function StepUpModal({
           </div>
         ) : step === 'password' ? (
           <form onSubmit={handleContinue} className="flex flex-col gap-5 max-[1049px]:flex-1">
-            <input
-              className="app-input w-full"
-              type="password"
-              placeholder="Current password"
-              autoComplete="current-password"
-              value={password}
-              onChange={(event) => setPassword(event.target.value)}
-              autoFocus
-            />
+            <div>
+              <FieldLabelRow
+                label="Current password"
+                htmlFor={passwordId}
+                error={refusal.errors.password}
+                errorId={`${passwordId}-error`}
+              />
+              <input
+                id={passwordId}
+                className={`app-input w-full ${refusal.errors.password ? 'app-input-error' : ''}`}
+                type="password"
+                autoComplete="current-password"
+                value={password}
+                onChange={(event) => setPassword(event.target.value)}
+                aria-invalid={refusal.errors.password ? true : undefined}
+                aria-describedby={refusal.errors.password ? `${passwordId}-error` : undefined}
+                autoFocus
+              />
+            </div>
             {feedback}
             <ModalContentFooter>
               {passwordOnly ? (
@@ -335,7 +379,7 @@ export function StepUpModal({
                   <DisabledReasonButton
                     type="submit"
                     disabled={verifying}
-                    disabledReason={!verifying && !password ? 'Enter your password first' : undefined}
+                    disabledReason={verifying ? undefined : refusal.blockedReason}
                     className={`${danger ? 'app-danger-button' : 'app-primary-button'} transition-all duration-300 ${verifyingPath === 'code' ? 'app-primary-button-loading' : 'w-full'}`}
                   >
                     {verifyingPath === 'code' ? <div className="app-spinner" /> : confirmLabel}
@@ -344,7 +388,7 @@ export function StepUpModal({
               ) : (
                 <DisabledReasonButton
                   type="submit"
-                  disabledReason={!password ? 'Enter your password first' : undefined}
+                  disabledReason={refusal.blockedReason}
                   className="app-primary-button w-full"
                 >
                   Continue
@@ -382,13 +426,24 @@ export function StepUpModal({
               )}
 
               {showCodeEntry && (
-                <OtpInput
-                  key={refusedCodes}
-                  value={otp}
-                  onChange={setOtp}
-                  disabled={verifying}
-                  autoFocus={!canUsePasskey || refusedCodes > 0}
-                />
+                <div>
+                  <FieldLabelRow
+                    label="One-time code"
+                    htmlFor={codeId}
+                    error={refusal.errors.code}
+                    errorId={`${codeId}-error`}
+                  />
+                  <OtpInput
+                    key={refusedCodes}
+                    id={codeId}
+                    value={otp}
+                    onChange={setOtp}
+                    disabled={verifying}
+                    autoFocus={!canUsePasskey || refusedCodes > 0}
+                    hasError={!!refusal.errors.code}
+                    errorId={`${codeId}-error`}
+                  />
+                </div>
               )}
 
               {feedback}
@@ -404,7 +459,7 @@ export function StepUpModal({
                         type="submit"
                         form={codeFormId}
                         disabled={verifying}
-                        disabledReason={!verifying && !canSubmitCode ? 'Enter the full code first' : undefined}
+                        disabledReason={verifying ? undefined : refusal.blockedReason}
                         className={actionButtonClass}
                       >
                         {verifyingPath === 'code' ? <div className="app-spinner" /> : confirmLabel}
@@ -418,6 +473,7 @@ export function StepUpModal({
                       type="button"
                       onClick={onUserPress(() => {
                         // Drop the entered password when stepping back so it is not held while the user is away
+                        refusal.reset();
                         setStep('password');
                         setPassword('');
                         setOtp('');
@@ -434,7 +490,10 @@ export function StepUpModal({
                   {allowRecoveryReset && (
                     <button
                       type="button"
-                      onClick={onUserPress(() => setConfirmingReset(true))}
+                      onClick={onUserPress(() => {
+                        refusal.reset();
+                        setConfirmingReset(true);
+                      })}
                       disabled={verifying}
                       className="mx-auto block text-center text-sm font-medium underline underline-offset-2"
                       style={{ color: 'var(--app-text-muted)' }}

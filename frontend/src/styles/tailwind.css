@@ -715,6 +715,12 @@
     accent-color: var(--app-accent);
   }
 
+  /* An unticked box a refused press found missing. A shadow rather than an outline, so the focus ring stays */
+  .app-checkbox[aria-invalid='true'] {
+    border-radius: 2px;
+    box-shadow: 0 0 0 2px var(--app-negative);
+  }
+
   .app-input {
     @apply h-10 min-w-0 w-full rounded-lg border px-4 py-0 outline-none transition-colors duration-200;
     font-size: 0.9375rem;

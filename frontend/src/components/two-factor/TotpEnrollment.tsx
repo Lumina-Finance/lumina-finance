@@ -1,7 +1,16 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useId, useRef, useState } from 'react';
 import { Check, Copy } from 'lucide-react';
 import { QRCodeSVG } from 'qrcode.react';
+import { AcknowledgementGroup } from '@/components/forms/AcknowledgementGroup';
+import {
+  getAcknowledgementItemId,
+  getAcknowledgementProblem,
+  getFirstUntickedKey,
+} from '@/components/forms/acknowledgement';
+import { FieldLabelRow } from '@/components/forms/FieldLabelRow';
+import { FormError } from '@/components/forms/FormError';
 import { DisabledReasonButton } from '@/components/tooltips/DisabledReasonButton';
+import { useRefusedSubmit } from '@/hooks/useRefusedSubmit';
 import { ModalContentFooter } from '@/components/modal/ContentPanel';
 import {
   useCompleteTotp,
@@ -26,6 +35,11 @@ import { delayToMinimum, LOADING_ANIMATION_MIN_MS, MFA_LOADING_MIN_MS } from '@/
 
 // How long the copied confirmation stays before reverting to the copy affordance
 const COPIED_FEEDBACK_MS = 1500;
+
+const WRONG_CODE_MESSAGE = 'That code was incorrect. Try again.';
+const CODE_FIELDS = ['code'] as const;
+const ACK_FIELDS = ['acknowledgements'] as const;
+const ACK_KEYS = ['saved', 'lockout'] as const;
 
 interface TotpEnrollmentProps {
   /** Called once 2FA is confirmed and the recovery codes are acknowledged */
@@ -86,6 +100,22 @@ export function TotpEnrollment({
   const [finishFailed, setFinishFailed] = useState(false);
   const [keyCopied, setKeyCopied] = useState(false);
   const copyResetTimer = useRef<number | null>(null);
+  // The server refused the code that was entered, which is a problem with the code field
+  const [codeError, setCodeError] = useState('');
+  const codeId = useId();
+  const codeErrorId = `${codeId}-error`;
+  const ackGroupId = useId();
+  const codeRefusal = useRefusedSubmit(
+    { code: codeError || (code.length < OTP_LENGTH ? 'Enter the full code' : undefined) },
+    CODE_FIELDS,
+    { code: codeId },
+  );
+  const ackTicks = [savedAcknowledged, lockoutAcknowledged];
+  const ackRefusal = useRefusedSubmit(
+    { acknowledgements: getAcknowledgementProblem(ackTicks) },
+    ACK_FIELDS,
+    { acknowledgements: getAcknowledgementItemId(ackGroupId, getFirstUntickedKey(ACK_KEYS, ackTicks)) },
+  );
 
   // Hold the spinner for a fixed minimum from mount so a fast secret does not flash the QR in
   useEffect(() => {
@@ -132,7 +162,7 @@ export function TotpEnrollment({
    * The step-up already ran when the secret was minted, so confirm carries only the code
    */
   const handleConfirm = async () => {
-    if (code.length < OTP_LENGTH || confirming) return;
+    if (confirming || !codeRefusal.guard()) return;
 
     setError('');
     setConfirming(true);
@@ -143,7 +173,9 @@ export function TotpEnrollment({
       applyConfirmResult(result);
     } catch {
       await delayToMinimum(start, MFA_LOADING_MIN_MS);
-      setError('That code was incorrect. Try again.');
+      // The wrong code belongs to the field, which the refusal marks until the person types again
+      setCodeError(WRONG_CODE_MESSAGE);
+      codeRefusal.markRefused();
       setCode('');
     } finally {
       setConfirming(false);
@@ -154,7 +186,7 @@ export function TotpEnrollment({
    * Turns two-factor on once the recovery codes are acknowledged, then hands back to the caller
    */
   const handleComplete = async () => {
-    if (!savedAcknowledged || !lockoutAcknowledged || completing) return;
+    if (completing || !ackRefusal.guard()) return;
 
     setError('');
     setCompleting(true);
@@ -185,7 +217,10 @@ export function TotpEnrollment({
     setLockoutAcknowledged(false);
     setFinishFailed(false);
     setCode('');
+    setCodeError('');
     setError('');
+    codeRefusal.reset();
+    ackRefusal.reset();
     setup.refetch();
   };
 
@@ -217,43 +252,39 @@ export function TotpEnrollment({
 
           <RecoveryCodesPanel codes={recoveryCodes} factors={{ authenticator: true, passkeys: 0 }} />
 
-          <div className="space-y-2">
-            <label className="flex items-center gap-2 text-sm" style={{ color: 'var(--app-text-muted)' }}>
-              <input
-                type="checkbox"
-                className="app-checkbox"
-                checked={savedAcknowledged}
-                onChange={(event) => setSavedAcknowledged(event.target.checked)}
-              />
-              I've saved my recovery codes
-            </label>
-
-            <label className="flex items-start gap-2 text-sm" style={{ color: 'var(--app-text-muted)' }}>
-              <input
-                type="checkbox"
-                className="app-checkbox mt-1 shrink-0"
-                checked={lockoutAcknowledged}
-                onChange={(event) => setLockoutAcknowledged(event.target.checked)}
-              />
-              I understand I may be permanently locked out if I lose both my authenticator and these codes
-            </label>
-          </div>
+          <AcknowledgementGroup
+            groupId={ackGroupId}
+            heading="Before you continue"
+            error={ackRefusal.errors.acknowledgements}
+            errorId={`${ackGroupId}-error`}
+            items={[
+              {
+                key: 'saved',
+                label: "I've saved my recovery codes",
+                checked: savedAcknowledged,
+                onChange: setSavedAcknowledged,
+              },
+              {
+                key: 'lockout',
+                label: 'I understand I may be permanently locked out if I lose both my authenticator and these codes',
+                checked: lockoutAcknowledged,
+                onChange: setLockoutAcknowledged,
+                multiline: true,
+              },
+            ]}
+          />
 
           <ModalContentFooter>
             {finishFailed ? (
               <SetupRestart onStartAgain={startAgain} />
             ) : (
               <div className="space-y-3">
-                {error && (
-                  <p role="alert" className="text-center text-sm" style={{ color: 'var(--app-negative)' }}>
-                    {error}
-                  </p>
-                )}
+                <FormError message={error} className="text-center" />
                 <div className="flex justify-center">
                   <DisabledReasonButton
                     onClick={handleComplete}
                     disabled={completing}
-                    disabledReason={!savedAcknowledged || !lockoutAcknowledged ? 'Tick both boxes first' : undefined}
+                    disabledReason={completing ? undefined : ackRefusal.blockedReason}
                     className={`app-primary-button transition-all duration-300 ${completing ? 'app-primary-button-loading' : 'w-full'}`}
                   >
                     {completing ? <div className="app-spinner" /> : 'Done'}
@@ -313,19 +344,37 @@ export function TotpEnrollment({
             </div>
           )}
 
-          <OtpInput value={code} onChange={setCode} disabled={confirming} autoFocus />
+          <div>
+            <FieldLabelRow
+              label="One-time code"
+              htmlFor={codeId}
+              error={codeRefusal.errors.code}
+              errorId={codeErrorId}
+            />
+            <OtpInput
+              id={codeId}
+              value={code}
+              onChange={(value) => {
+                setCode(value);
+                if (codeError) {
+                  setCodeError('');
+                  codeRefusal.reset();
+                }
+              }}
+              disabled={confirming}
+              autoFocus
+              hasError={!!codeRefusal.errors.code}
+              errorId={codeErrorId}
+            />
+          </div>
 
-          {error && (
-            <p role="alert" className="text-center text-sm" style={{ color: 'var(--app-negative)' }}>
-              {error}
-            </p>
-          )}
+          <FormError message={error} className="text-center" />
 
           <div className="flex justify-center">
             <DisabledReasonButton
               onClick={handleConfirm}
               disabled={confirming}
-              disabledReason={code.length < OTP_LENGTH ? 'Enter the full code first' : undefined}
+              disabledReason={confirming ? undefined : codeRefusal.blockedReason}
               className={`app-primary-button transition-all duration-300 ${confirming ? 'app-primary-button-loading' : 'w-full'}`}
             >
               {confirming ? <div className="app-spinner" /> : 'Confirm'}

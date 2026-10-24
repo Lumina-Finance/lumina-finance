@@ -1,6 +1,14 @@
-import { useState } from 'react';
+import { useId, useState } from 'react';
 import { KeyRound } from 'lucide-react';
+import { AcknowledgementGroup } from '@/components/forms/AcknowledgementGroup';
+import {
+  getAcknowledgementItemId,
+  getAcknowledgementProblem,
+  getFirstUntickedKey,
+} from '@/components/forms/acknowledgement';
+import { FormError } from '@/components/forms/FormError';
 import { DisabledReasonButton } from '@/components/tooltips/DisabledReasonButton';
+import { useRefusedSubmit } from '@/hooks/useRefusedSubmit';
 import { RecoveryCodesPanel, type RecoveryFactors } from '@/components/two-factor/RecoveryCodesPanel';
 import { SetupRestart } from '@/components/two-factor/SetupRestart';
 import { ModalContentFooter, ModalContentPanel } from '@/components/modal/ContentPanel';
@@ -12,6 +20,9 @@ import { delayToMinimum } from '@/utils/timing';
 
 const DEFAULT_DESCRIPTION =
   "These replace your current codes once you confirm. Store them somewhere safe, you won't see them again.";
+
+const ACK_FIELDS = ['acknowledgements'] as const;
+const ACK_KEYS = ['saved', 'lockout'] as const;
 
 type RecoveryCodesModalProps = {
   open: boolean;
@@ -50,10 +61,16 @@ export function RecoveryCodesModal({
   const [failed, setFailed] = useState(false);
   const [error, setError] = useState('');
 
-  const ready = acknowledged && lockoutAcknowledged;
+  const groupId = useId();
+  const refusal = useRefusedSubmit(
+    { acknowledgements: getAcknowledgementProblem([acknowledged, lockoutAcknowledged]) },
+    ACK_FIELDS,
+    { acknowledgements: getAcknowledgementItemId(groupId, getFirstUntickedKey(ACK_KEYS, [acknowledged, lockoutAcknowledged])) },
+  );
 
   // The component stays mounted between rotations, so reset transient state on each close
   const reset = () => {
+    refusal.reset();
     setAcknowledged(false);
     setLockoutAcknowledged(false);
     setConfirming(false);
@@ -66,7 +83,7 @@ export function RecoveryCodesModal({
    * when the request got no usable answer
    */
   const handleConfirm = async () => {
-    if (!ready || confirming) return;
+    if (confirming || !refusal.guard()) return;
 
     setError('');
     setConfirming(true);
@@ -118,46 +135,40 @@ export function RecoveryCodesModal({
 
       {codes && <RecoveryCodesPanel codes={codes} factors={factors} />}
 
-      <div className="space-y-2">
-        <label className="flex items-center gap-2 text-sm" style={{ color: 'var(--app-text-muted)' }}>
-          <input
-            type="checkbox"
-            className="app-checkbox"
-            checked={acknowledged}
-            onChange={(event) => setAcknowledged(event.target.checked)}
-          />
-          I've saved my new recovery codes
-        </label>
-
-        <label className="flex items-start gap-2 text-sm" style={{ color: 'var(--app-text-muted)' }}>
-          <input
-            type="checkbox"
-            className="app-checkbox mt-0.5 shrink-0"
-            checked={lockoutAcknowledged}
-            onChange={(event) => setLockoutAcknowledged(event.target.checked)}
-          />
-          <span>
-            I understand that losing my recovery codes and my passkey or authenticator at the same time
-            may permanently lock me out of my account
-          </span>
-        </label>
-      </div>
+      <AcknowledgementGroup
+        groupId={groupId}
+        heading="Before you continue"
+        error={refusal.errors.acknowledgements}
+        errorId={`${groupId}-error`}
+        items={[
+          {
+            key: 'saved',
+            label: "I've saved my new recovery codes",
+            checked: acknowledged,
+            onChange: setAcknowledged,
+          },
+          {
+            key: 'lockout',
+            label:
+              'I understand that losing my recovery codes and my passkey or authenticator at the same time may permanently lock me out of my account',
+            checked: lockoutAcknowledged,
+            onChange: setLockoutAcknowledged,
+            multiline: true,
+          },
+        ]}
+      />
 
       <ModalContentFooter>
         {failed ? (
           <SetupRestart onStartAgain={handleStartAgain} />
         ) : (
           <div className="space-y-3">
-            {error && (
-              <p role="alert" className="text-center text-sm" style={{ color: 'var(--app-negative)' }}>
-                {error}
-              </p>
-            )}
+            <FormError message={error} className="text-center" />
             <div className="flex justify-center">
               <DisabledReasonButton
                 onClick={handleConfirm}
                 disabled={confirming}
-                disabledReason={ready ? undefined : 'Tick both boxes first'}
+                disabledReason={confirming ? undefined : refusal.blockedReason}
                 className={`app-primary-button transition-all duration-300 ${confirming ? 'app-primary-button-loading' : 'w-full'}`}
               >
                 {confirming ? <div className="app-spinner" /> : 'Done'}

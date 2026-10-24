@@ -13,7 +13,7 @@ import { chooseFromDropdown, logInViaApi, openModal, openPage } from '../support
 import { AT_EVERY_SIZE } from '../support/sizes'
 import { API_BASE_URL } from '../support/target'
 
-// Runs at every size, apart from the Edit budget, keep-open, annual limit, Replace & Delete and passkey name tests, whose behaviour does not change with the
+// Runs at every size, apart from the Edit budget, keep-open, annual limit, Replace & Delete, passkey name and recovery code tests, whose behaviour does not change with the
 // width: the message sits on the field's label row, which stacks
 // differently on a phone, and the button is reached by tap there
 
@@ -534,6 +534,62 @@ test.describe('dialog input errors', () => {
     await expect(existingSave).toHaveAttribute('aria-disabled', 'true')
     await expect(existingSave).toHaveAccessibleDescription('There are no changes to save')
     await expect(existing.getByRole('alert')).toHaveCount(0)
+  })
+
+  test('marks the password, the code and the unticked boxes of the recovery code flow on their own rows', async ({ page, request }) => {
+    const user = await signUpUser(request)
+
+    // Report an authenticator as on and stand in for the regeneration, so the account needs no real factor
+    await page.route(`${API_BASE_URL}/auth/2fa/status`, (route) => route.fulfill({ json: { totp_enabled: true } }))
+    await page.route(`${API_BASE_URL}/auth/2fa/recovery-codes`, (route) =>
+      route.fulfill({ json: { recovery_codes: Array.from({ length: 10 }, (_, i) => `aaaa-bbbb-cccc-dddd-${i}000`) } }))
+
+    await logInViaApi(page, user)
+    await openPage(page, '/settings#security')
+    await page.locator('#security').getByRole('button', { name: 'Manage' }).click()
+    await page.getByRole('button', { name: 'Regenerate' }).click()
+    const stepUp = page.getByRole('dialog', { name: 'Regenerate recovery codes' })
+
+    // The password step opens whole, and a press with nothing typed marks the field
+    const password = stepUp.getByLabel('Current password')
+    const next = stepUp.getByRole('button', { name: 'Continue', exact: true })
+    await expect(next).not.toHaveAttribute('aria-disabled', 'true')
+    await next.click()
+    await expect(stepUp.getByRole('alert')).toHaveText('Enter your password')
+    await expect(password).toHaveAttribute('aria-invalid', 'true')
+    await expect(next).toHaveAttribute('aria-disabled', 'true')
+    await password.fill(user.password)
+    await expect(stepUp.getByRole('alert')).toHaveCount(0)
+    await next.click()
+
+    // The code step does the same for a part-typed code
+    const code = stepUp.getByLabel('One-time code')
+    const confirm = stepUp.getByRole('button', { name: 'Regenerate', exact: true })
+    await code.pressSequentially('123')
+    await confirm.click()
+    await expect(stepUp.getByRole('alert')).toHaveText('Enter the full code')
+    await expect(code).toHaveAttribute('aria-invalid', 'true')
+    await code.pressSequentially('456')
+    await expect(stepUp.getByRole('alert')).toHaveCount(0)
+    await confirm.click()
+
+    // The new codes need both boxes ticked, and each unticked one is marked while the message shows
+    const codes = page.getByRole('dialog', { name: 'Your new recovery codes' })
+    const saved = codes.getByLabel("I've saved my new recovery codes")
+    const lockout = codes.getByLabel(/I understand that losing my recovery codes/)
+    const done = codes.getByRole('button', { name: 'Done', exact: true })
+    await expect(done).not.toHaveAttribute('aria-disabled', 'true')
+    await done.click()
+    await expect(codes.getByRole('alert')).toHaveText('Tick both boxes')
+    await expect(saved).toHaveAttribute('aria-invalid', 'true')
+    await expect(lockout).toHaveAttribute('aria-invalid', 'true')
+    await expect(done).toHaveAttribute('aria-disabled', 'true')
+    await saved.check()
+    await expect(saved).not.toHaveAttribute('aria-invalid', 'true')
+    await expect(lockout).toHaveAttribute('aria-invalid', 'true')
+    await lockout.check()
+    await expect(codes.getByRole('alert')).toHaveCount(0)
+    await expect(done).not.toHaveAttribute('aria-disabled', 'true')
   })
 
   test('marks an unnamed passkey on its label row and returns Add once it is named', async ({ page, request }) => {

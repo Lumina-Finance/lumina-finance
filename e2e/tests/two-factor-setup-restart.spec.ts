@@ -78,7 +78,7 @@ test('reopens the settings step-up when finishing authenticator setup fails', as
 
   await page.locator('#security').getByRole('button', { name: 'Manage' }).click()
   await page.getByRole('button', { name: 'Enable' }).click()
-  await page.getByPlaceholder('Current password').fill(user.password)
+  await page.getByRole('dialog').getByLabel('Current password').fill(user.password)
   await page.getByRole('button', { name: 'Continue' }).click()
   await expect(page.getByRole('heading', { name: 'Set up two-factor authentication' })).toBeVisible()
 
@@ -88,7 +88,7 @@ test('reopens the settings step-up when finishing authenticator setup fails', as
   // Settings minted the secret behind its own prompt, so starting again asks to confirm it's you again
   await page.getByRole('button', { name: 'Start again' }).click()
   await expect(page.getByRole('heading', { name: 'Turn on two-factor authentication' })).toBeVisible()
-  await expect(page.getByPlaceholder('Current password')).toHaveValue('')
+  await expect(page.getByRole('dialog').getByLabel('Current password')).toHaveValue('')
 })
 
 // A dropped request or a server error says nothing about the staged setup, which the server may still
@@ -99,7 +99,7 @@ test('keeps Done for another try when finishing authenticator setup gets no answ
   await openPage(page, '/settings#security')
   await page.locator('#security').getByRole('button', { name: 'Manage' }).click()
   await page.getByRole('button', { name: 'Enable' }).click()
-  await page.getByPlaceholder('Current password').fill(user.password)
+  await page.getByRole('dialog').getByLabel('Current password').fill(user.password)
   await page.getByRole('button', { name: 'Continue' }).click()
 
   const setup = page.getByRole('dialog', { name: /Set up two-factor authentication|Save your recovery codes/ })
@@ -131,7 +131,7 @@ test('announces a wrong authenticator code during setup', async ({ page, request
   await openPage(page, '/settings#security')
   await page.locator('#security').getByRole('button', { name: 'Manage' }).click()
   await page.getByRole('button', { name: 'Enable' }).click()
-  await page.getByPlaceholder('Current password').fill(user.password)
+  await page.getByRole('dialog').getByLabel('Current password').fill(user.password)
   await page.getByRole('button', { name: 'Continue' }).click()
 
   // Refused here rather than left to the real check, which a guessed code could pass
@@ -161,7 +161,7 @@ test('reopens the regenerate step-up when saving new recovery codes fails', asyn
   await page.locator('#security').getByRole('button', { name: 'Manage' }).click()
   await page.getByRole('button', { name: 'Regenerate' }).click()
   const stepUp = page.getByRole('dialog', { name: 'Regenerate recovery codes' })
-  await stepUp.getByPlaceholder('Current password').fill(user.password)
+  await stepUp.getByLabel('Current password').fill(user.password)
   await stepUp.getByRole('button', { name: 'Continue' }).click()
   await stepUp.getByLabel('One-time code').pressSequentially('123456')
   await stepUp.getByRole('button', { name: 'Regenerate' }).click()
@@ -174,7 +174,7 @@ test('reopens the regenerate step-up when saving new recovery codes fails', asyn
   await expect(codes.getByRole('button', { name: 'Done' })).toHaveCount(0)
 
   await codes.getByRole('button', { name: 'Start again' }).click()
-  await expect(stepUp.getByPlaceholder('Current password')).toHaveValue('')
+  await expect(stepUp.getByLabel('Current password')).toHaveValue('')
   await expect(codes).toHaveCount(0)
 })
 
@@ -253,7 +253,7 @@ test('keeps Done for another try when saving new recovery codes gets no answer',
   await page.locator('#security').getByRole('button', { name: 'Manage' }).click()
   await page.getByRole('button', { name: 'Regenerate' }).click()
   const stepUp = page.getByRole('dialog', { name: 'Regenerate recovery codes' })
-  await stepUp.getByPlaceholder('Current password').fill(user.password)
+  await stepUp.getByLabel('Current password').fill(user.password)
   await stepUp.getByRole('button', { name: 'Continue' }).click()
   await stepUp.getByLabel('One-time code').pressSequentially('123456')
   await stepUp.getByRole('button', { name: 'Regenerate' }).click()
