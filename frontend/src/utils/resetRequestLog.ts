@@ -10,8 +10,6 @@ const ROLLING_DAY_MS = 24 * 60 * 60 * 1000
  * backend enforces the real limits. Storage being unavailable simply reports a first request
  */
 export function recordResetRequest(now = Date.now()): number {
-  if (typeof window === 'undefined') return 1
-
   let timestamps: number[] = []
   try {
     const stored = readStoredValue(STORAGE_KEY)
