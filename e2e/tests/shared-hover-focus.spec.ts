@@ -55,6 +55,30 @@ async function expectFocusBorder(search: Locator) {
   })).toBe(true)
 }
 
+for (const colorScheme of ['light', 'dark'] as const) {
+  test(`draws the focus ring on the runway threshold thumbs in the ${colorScheme} theme`, async ({ page, request }) => {
+    await openAs(page, request, colorScheme, '/settings#runway')
+    for (const name of ['Risky threshold', 'Healthy threshold']) {
+      const thumb = page.getByRole('slider', { name, exact: true })
+      await thumb.scrollIntoViewIfNeeded()
+
+      // Reached by keyboard, which is what shows the ring, then read once its fade has ended
+      await page.keyboard.press('Tab')
+      await thumb.focus()
+      await expect.poll(() => thumb.evaluate((node) => {
+        const probe = document.createElement('i')
+        probe.style.color = 'var(--app-focus-ring)'
+        document.body.append(probe)
+        const ring = getComputedStyle(probe).color
+        probe.remove()
+        const style = getComputedStyle(node)
+        return `${style.outlineStyle} ${style.outlineWidth} ${style.outlineColor === ring}`
+      }), name).toBe('solid 2px true')
+      await thumb.blur()
+    }
+  })
+}
+
 // The app's ease-out curve, as the browser writes it
 const APP_EASE = 'cubic-bezier(0.22, 1, 0.36, 1)'
 
