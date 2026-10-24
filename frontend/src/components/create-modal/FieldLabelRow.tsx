@@ -1,5 +1,6 @@
 import type { ReactNode } from 'react'
 import { AnimatePresence, motion } from 'motion/react'
+import { FieldError } from '@/components/forms/FieldError'
 import { joinClassNames } from '@/utils/classNames'
 import { focusChosenOption, getFieldLabelId } from '@/utils/fieldLabel'
 
@@ -13,6 +14,8 @@ interface CreateModalFieldLabelRowProps {
   // without the action, the same as a field that has none
   action?: ReactNode
   error?: string | false
+  /** Id for the message, so the field it is about can point to it as its description */
+  errorId?: string
   htmlFor?: string
   label: ReactNode
 
@@ -29,10 +32,11 @@ export default function CreateModalFieldLabelRow({
   accessory,
   action,
   error,
+  errorId,
   htmlFor,
   label,
   optionGroupId,
-}: CreateModalFieldLabelRowProps) {
+}:CreateModalFieldLabelRowProps) {
   const stacksOnNarrowLayouts = Boolean(action) && !error
 
   return (
@@ -53,22 +57,7 @@ export default function CreateModalFieldLabelRow({
         </label>
         {accessory}
       </div>
-      <AnimatePresence initial={false}>
-        {error && (
-          <motion.p
-            key={error}
-            role="alert"
-            className="text-right text-xs font-medium leading-5"
-            style={{ color: 'var(--app-negative)' }}
-            initial={{ opacity: 0, x: 4 }}
-            animate={{ opacity: 1, x: 0 }}
-            exit={{ opacity: 0, x: 4 }}
-            transition={{ duration: 0.15 }}
-          >
-            {error}
-          </motion.p>
-        )}
-      </AnimatePresence>
+      <FieldError message={error} id={errorId} />
       <AnimatePresence initial={false}>
         {!error && action && (
           <motion.div

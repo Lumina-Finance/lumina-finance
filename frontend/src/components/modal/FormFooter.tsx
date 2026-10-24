@@ -1,4 +1,5 @@
 import { useEffect, useRef } from 'react'
+import { FormError } from '@/components/forms/FormError'
 import { MODAL_INSET_CLASS_NAME } from '@/components/modal/inset'
 import type { ModalLevel } from '@/components/modal/Shell'
 
@@ -62,15 +63,12 @@ export function ModalFormFooter({
 
   // Below sm an error between the buttons would split them across rows, so it is drawn first on a row of
   // its own, while it stays between them in the DOM and in the single row from sm
-  const errorMessage = error && (
-    <p
-      className={`col-span-2 text-sm font-medium sm:col-span-1 ${primaryOnLeft ? 'order-first sm:order-none' : 'sm:mr-auto'}`}
+  const errorMessage = (
+    <FormError
+      message={error}
       id={errorId}
-      role="alert"
-      style={{ color: 'var(--app-negative)' }}
-    >
-      {error}
-    </p>
+      className={`col-span-2 sm:col-span-1 ${primaryOnLeft ? 'order-first sm:order-none' : 'sm:mr-auto'}`}
+    />
   )
   const cancelButton = (
     <button
