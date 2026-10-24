@@ -182,6 +182,25 @@ test('eases the name of a chooser row straight to its new colour and leaves the 
   }
 })
 
+test('says no credit accounts when the user has no credit card', async ({ page, request }) => {
+  const user = await signUpUser(request)
+  await logInViaApi(page, user)
+  await openPage(page, '/dashboard')
+
+  await expect(page.getByText('No credit accounts', { exact: true })).toBeVisible()
+  await expect(page.getByText('No credit limit set', { exact: true })).toHaveCount(0)
+})
+
+test('says no credit limit is set when the counted card has none', async ({ page, request }) => {
+  const user = await signUpUser(request)
+  await createCard(request, user, 'Card A', 0, 0)
+  await logInViaApi(page, user)
+  await openPage(page, '/dashboard')
+
+  await expect(page.getByText('No credit limit set', { exact: true })).toBeVisible()
+  await expect(page.getByText('No credit accounts', { exact: true })).toHaveCount(0)
+})
+
 for (const reducedMotion of ['no-preference', 'reduce'] as const) {
   test(`keeps every digit of the credit amount inside the widget with ${reducedMotion} motion`, async ({ page, request }) => {
     const user = await signUpUser(request, { baseCurrency: 'USD' })
@@ -200,17 +219,18 @@ for (const reducedMotion of ['no-preference', 'reduce'] as const) {
     for (const width of [1920, 768, 390]) {
       await page.setViewportSize({ width, height: 900 })
       await openPage(page, '/dashboard')
-      const amount = page.locator('p.font-financial.text-3xl:has(span.sr-only)').filter({ hasText: 'US$3,200.00' })
-      await expect(amount).toBeVisible()
+      const amount = page.getByTestId('credit-amount')
+      await expect(amount).toContainText('US$3,200.00')
 
-      // The box animates its width, so poll until it has settled. It must then be as wide as its whole
-      // text and end inside the row the widget draws it in
+      // The amount's box animates its width, so poll until it has settled. It must then be as wide as
+      // its whole text, which a range over the text measures, and end inside the row the widget draws it in
       await expect.poll(() => amount.evaluate((paragraph) => {
-        const box = paragraph.firstElementChild as HTMLElement
-        const row = paragraph.parentElement!.parentElement as HTMLElement
-        const textWidth = box.querySelector('.invisible')!.getBoundingClientRect().width
-        return box.getBoundingClientRect().width >= textWidth - 0.5
-          && box.getBoundingClientRect().right <= row.getBoundingClientRect().right + 0.5
+        const range = document.createRange()
+        range.selectNodeContents(paragraph)
+        const textRight = range.getBoundingClientRect().right
+        const boxRight = paragraph.firstElementChild!.getBoundingClientRect().right
+        const rowRight = paragraph.closest('[data-testid="credit-row"]')!.getBoundingClientRect().right
+        return boxRight >= textRight - 0.5 && textRight <= rowRight + 0.5
       }), `amount at ${width}`).toBe(true)
     }
   })

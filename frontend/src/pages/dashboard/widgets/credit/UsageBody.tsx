@@ -93,7 +93,7 @@ export function CreditUsageBody({
   }
 
   return (
-    <div ref={rowRef} className="flex h-full min-h-0 items-center justify-center gap-4">
+    <div ref={rowRef} data-testid="credit-row" className="flex h-full min-h-0 items-center justify-center gap-4">
       <div ref={ringRef} className="relative aspect-square h-full shrink-0">
         <svg viewBox={`0 0 ${size} ${size}`} className="h-full w-full -rotate-90">
           <circle
@@ -120,7 +120,7 @@ export function CreditUsageBody({
         </div>
       </div>
       <div className="min-w-0">
-        <p className="font-financial text-3xl font-normal leading-none tracking-tight max-[1000px]:text-[1.6875rem]">
+        <p data-testid="credit-amount" className="font-financial text-3xl font-normal leading-none tracking-tight max-[1000px]:text-[1.6875rem]">
           <AppScrambledNumber text={formatDashboardMoney(displayAmount, displayCurrency, 'credit', currencies, displayAmountRounding)} maxWidth={amountWidth} />
         </p>
         <p className="font-financial mt-1.5 text-sm max-[1000px]:text-[0.7875rem]" style={{ color: 'var(--app-text-muted)' }}>
