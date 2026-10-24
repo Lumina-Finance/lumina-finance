@@ -6,7 +6,7 @@ import {
   useUpdateTransaction,
   type Transaction,
 } from '@/api/transactions'
-import { getCreateFailureMessage } from '@/utils/createFailure'
+import { getCreateFailureMessage, getCreateFailuresMessage } from '@/utils/createFailure'
 import { LOADING_ANIMATION_MIN_MS, waitForMilliseconds } from '@/utils/timing'
 import {
   INITIAL_TRANSACTION_FORM,
@@ -220,8 +220,8 @@ export function useTransactionSubmit({
       }
 
       if (failedLegs.length === legs.length) {
-        const firstFailure = results.find((result) => result.status === 'rejected')
-        setSubmitError(getCreateFailureMessage(firstFailure?.reason, 'transaction'))
+        const reasons = results.flatMap((result) => (result.status === 'rejected' ? [result.reason] : []))
+        setSubmitError(getCreateFailuresMessage(reasons, 'transaction'))
         return
       }
 

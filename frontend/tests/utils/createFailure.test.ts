@@ -4,9 +4,22 @@
  */
 import { describe, expect, it } from 'vitest'
 import { ApiError } from '@/api/auth'
-import { getCreateFailureMessage } from '@/utils/createFailure'
+import { getCreateFailureMessage, getCreateFailuresMessage } from '@/utils/createFailure'
 
 const timeout = () => new DOMException('The request timed out', 'TimeoutError')
+
+describe('reading a message off several failed creates', () => {
+  const timedOut = 'The server took too long to answer. It may have been saved, so check your transactions before trying again.'
+
+  it('shows the timeout message when either create timed out, whichever failed first', () => {
+    expect(getCreateFailuresMessage([new ApiError('Refused', 422), timeout()], 'transaction')).toBe(timedOut)
+    expect(getCreateFailuresMessage([timeout(), new ApiError('Refused', 422)], 'transaction')).toBe(timedOut)
+  })
+
+  it('shows the first message when none timed out', () => {
+    expect(getCreateFailuresMessage([new ApiError('Refused', 422), new Error('Failed to fetch')], 'transaction')).toBe('Refused')
+  })
+})
 
 describe('reading a message off a failed create', () => {
   it('tells the user to check their accounts after a timed-out account create', () => {
