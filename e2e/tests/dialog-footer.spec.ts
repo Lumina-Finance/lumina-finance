@@ -47,9 +47,14 @@ for (const size of [{ width: 390, height: 667 }, { width: 1280, height: 800 }]) 
     // The codes scroll under the footer, while Done stays where it is
     const doneTop = (await done.boundingBox())!.y
     await codes.getByText(RECOVERY_CODES[0]).hover()
-    await page.mouse.wheel(0, 400)
-    // The content ran taller than the panel, so the body really scrolled
-    await expect.poll(() => codes.locator('.app-modal-body').evaluate((body) => body.scrollTop)).toBeGreaterThan(0)
+    // Scrolled all the way, since the footer once rode up by the body's padding only at the end. The
+    // content runs taller than the panel, so the body really scrolls
+    const body = codes.locator('.app-modal-body')
+    await page.mouse.wheel(0, 2000)
+    await expect.poll(() => body.evaluate((element) => element.scrollTop)).toBeGreaterThan(0)
+    await expect
+      .poll(() => body.evaluate((element) => element.scrollHeight - element.clientHeight - element.scrollTop))
+      .toBeLessThanOrEqual(1)
     await expect(done).toBeInViewport({ ratio: 1 })
     expect((await done.boundingBox())!.y).toBeCloseTo(doneTop, 0)
 
