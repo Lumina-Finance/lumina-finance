@@ -88,8 +88,11 @@ export function MultiSelectChecklist({ options, selectedValues, searchPlaceholde
   )
 }
 
+// A chosen row rests in the soft accent tint, set on the row itself, so the deeper tint it takes under the
+// pointer is important to outrank it, along with the text colour that stays readable on it. A row with
+// keyboard focus keeps dropping its tint, whether or not the pointer is over it
 const ROW_CLASS_NAME =
-  'app-focus-inset focus-visible:bg-transparent! w-full items-center rounded-lg px-2 py-1.5 text-left text-sm hover:bg-[var(--app-accent-soft)]'
+  'app-focus-inset focus-visible:bg-transparent! w-full items-center rounded-lg px-2 py-1.5 text-left text-sm hover:bg-[var(--app-accent-soft)] aria-checked:not-focus-visible:hover:bg-[var(--app-accent-chosen-hover-fill)]! aria-checked:not-focus-visible:hover:text-[var(--app-accent-on-hover-fill)]!'
 
 // A row with details is a grid, since a flex row would size itself to the full width of its text and
 // push the dialog wider than its panel, where a grid track that may shrink to nothing lets the text cut off

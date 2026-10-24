@@ -71,6 +71,21 @@ for (const colorScheme of ['light', 'dark'] as const) {
     await expectFocusBorder(page.getByPlaceholder('Search merchant'))
   })
 
+  test(`shows a hover on a chosen checklist row in the ${colorScheme} theme`, async ({ page, request }) => {
+    await page.emulateMedia({ colorScheme })
+    const user = await signUpUser(request)
+    await createAccount(request, user, { name: 'Card A', accountKind: 'revolving', accountType: 'credit_card', startingBalance: -50_000, creditLimit: 500_000 })
+    await logInViaApi(page, user)
+    await openPage(page, '/dashboard')
+    await page.getByRole('button', { name: 'Choose credit accounts' }).click()
+
+    // Every card is chosen to begin with, and a chosen row rests in the soft accent tint
+    const row = page.getByRole('dialog', { name: 'Credit utilization' }).getByRole('checkbox', { name: 'Card A' })
+    await expect(row).toHaveAttribute('aria-checked', 'true')
+    await row.blur()
+    expect(await hoverStep(page, row)).toBeGreaterThanOrEqual(MINIMUM_HOVER_STEP)
+  })
+
   test(`shows a hover on the Insights category list in the ${colorScheme} theme`, async ({ page, request }) => {
     await page.emulateMedia({ colorScheme })
     const user = await signUpUser(request)

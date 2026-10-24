@@ -65,6 +65,9 @@
     /* The tint a selected option takes under the pointer or keyboard focus, deeper than the soft tint
        it already rests in so the change shows on top of it */
     --app-accent-hover-fill: color-mix(in srgb, var(--app-accent) 30%, transparent);
+    /* The same for a chosen row of a list on a plain surface, whose type and institution line in muted text
+       the full hover fill would take under 4.5:1. Deeper than the soft tint it rests in, so the change shows */
+    --app-accent-chosen-hover-fill: color-mix(in srgb, var(--app-accent) 18%, transparent);
     /* The text on that fill, the accent drawn toward the page text colour. The accent itself falls under
        4.5:1 on it in the light theme and on the deepest surfaces in the dark one, and this clears 4.7:1
        on every surface in both. The chip in the Filters panel takes it on its 22% hover tint too */

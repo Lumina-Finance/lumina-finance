@@ -377,6 +377,25 @@ describe('selected row text on the page colour', () => {
   })
 })
 
+describe('a chosen checklist row under the pointer', () => {
+  // MultiSelectChecklist: the row rests in the soft accent tint and takes the deeper hover fill with its own
+  // text colour, on the dialog's page colour (the credit accounts list) or the filter panel's field colour. Its
+  // type and institution line keeps the muted text
+  const MINIMUM_STEP = 1.05
+  const cases = (Object.keys(THEMES) as Theme[]).flatMap((theme) =>
+    (['page', 'field'] as const).map((surface) => ({ theme, surface })))
+
+  it.each(cases)('reads at 4.5:1 and shows against its resting tint in the $theme theme on the $surface', ({ theme, surface }) => {
+    const tokens = THEMES[theme]
+    const backdrop = surface === 'page' ? solid(tokens, '--app-bg') : solid(tokens, '--app-input-bg')
+    const fill = washOver(tokens, '--app-accent-chosen-hover-fill', backdrop)
+    expect(contrast(resolve(tokens, '--app-accent-on-hover-fill'), fill)).toBeGreaterThanOrEqual(MINIMUM_TEXT_CONTRAST)
+    // Only a list with details, which draws straight on the page colour, has the muted line
+    if (surface === 'page') expect(contrast(solid(tokens, '--app-text-muted'), fill)).toBeGreaterThanOrEqual(MINIMUM_TEXT_CONTRAST)
+    expect(contrast(fill, solid(tokens, '--app-accent-soft', backdrop))).toBeGreaterThanOrEqual(MINIMUM_STEP)
+  })
+})
+
 describe('hover on shaded surfaces', () => {
   // The smallest step between a surface and the same surface under the pointer that shows, where the flat light
   // hover colour is 1.0 on the card and about 1.01 on the import panel
