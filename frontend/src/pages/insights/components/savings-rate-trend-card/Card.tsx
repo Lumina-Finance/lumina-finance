@@ -59,7 +59,7 @@ const averageSavingsRateCalculation = 'Average savings rate across completed mon
 const bestSavingsRateCalculation = 'Highest savings rate across completed months. The current month is excluded'
 const worstSavingsRateCalculation = 'Lowest savings rate across completed months. The current month is excluded'
 const savingsRateStatLabelClass = 'app-label inline-flex items-center gap-2 text-sm leading-5'
-const savingsRateStatCaptionClass = 'truncate text-right text-xs leading-4 min-[750px]:mt-2 min-[750px]:text-left'
+const savingsRateStatCaptionClass = 'min-w-0 text-right text-xs leading-4 min-[750px]:mt-2 min-[750px]:text-left'
 
 /**
  * Renders savings-rate summary metrics and the monthly savings-rate chart
