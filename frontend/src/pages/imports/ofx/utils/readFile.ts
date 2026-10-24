@@ -19,6 +19,8 @@ import { findAllDescendants, findChild, parseOfxMarkup, readLeaf, type OfxNode }
 
 // The 1.x header is plain ASCII lines before the markup, so a prefix is enough to find its charset
 const HEADER_PREFIX_BYTES = 1024
+// The encoding a 2.x file declares in its XML declaration
+const XML_ENCODING_PATTERN = /^\s*<\?xml[^>]*\sencoding\s*=\s*["']([^"']+)["']/i
 const POSTED_DATE_PATTERN = /^(\d{4})(\d{2})(\d{2})/
 
 // A plain signed decimal. OFX writes the decimal separator as a period or a comma and never groups.
@@ -91,15 +93,15 @@ function readOfxStatements(text: string, origin: OfxFileOrigin): OfxFileRead {
 }
 
 /**
- * Decodes the file as UTF-8, or as the charset its 1.x header declares
+ * Decodes the file as UTF-8, or as the charset its header declares
  *
- * The header writes a Windows code page as its number (1252) and any other charset by name
- * (ISO-8859-1), and says NONE where the text is UTF-8. A charset the browser cannot decode is read
- * as UTF-8
+ * A 1.x header writes a Windows code page as its number (1252) and any other charset by name
+ * (ISO-8859-1), and says NONE where the text is UTF-8. A 2.x file declares its encoding in the XML
+ * declaration instead. A charset the browser cannot decode is read as UTF-8
  */
 function decodeOfxBytes(bytes: ArrayBuffer) {
   const header = new TextDecoder('latin1').decode(bytes.slice(0, HEADER_PREFIX_BYTES))
-  const charset = /^CHARSET:\s*(\S+)/im.exec(header)?.[1]?.toLowerCase()
+  const charset = (/^CHARSET:\s*(\S+)/im.exec(header) ?? XML_ENCODING_PATTERN.exec(header))?.[1]?.toLowerCase()
   const label = charset && /^\d+$/.test(charset) ? `windows-${charset}` : charset
   try {
     return new TextDecoder(label && label !== 'none' ? label : 'utf-8').decode(bytes)

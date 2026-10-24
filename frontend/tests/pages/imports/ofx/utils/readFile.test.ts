@@ -167,6 +167,15 @@ describe('reading a bank statement', () => {
     expect(split.transactions[0].bankAccountKey).toBe(alone.transactions[0].bankAccountKey)
   })
 
+  it('decodes a 2.x file that declares ISO-8859-1 in its XML declaration', async () => {
+    const markup = buildXmlOfx([{ transactions: [{ name: 'Dépanneur', memo: 'Crème', amount: '-3.00' }] }])
+      .replace('encoding="UTF-8"', 'encoding="ISO-8859-1"')
+    const bytes = Uint8Array.from(markup, (character) => character.charCodeAt(0))
+
+    expect(bytes.includes(0xe9)).toBe(true)
+    expect((await readFile(bytes)).statements[0].transactions[0]).toMatchObject({ payee: 'Dépanneur', memo: 'Crème' })
+  })
+
   it('reads the date a stamp starts with, the amount with a comma decimal, and entities in names', async () => {
     const file = await readFile(buildSgmlOfx([{
       transactions: [{ posted: '20240229235959.000[-5:EST]', amount: '-1234,50', name: 'Fish &amp; Chips &amp;lt;', memo: 'Table &#35;4' }],
