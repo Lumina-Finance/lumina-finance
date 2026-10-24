@@ -261,8 +261,10 @@ export function useOfxImportWorkflow(fixedAccount: AccountsOverview | null = nul
   )
 
   const transactionCount = statements.reduce((total, statement) => total + statement.transactions.length, 0)
+  // Rows counts every transaction in the files, as in the other importers, and only Will create leaves
+  // out the ones the import skips
   const importEstimate = {
-    rowCount: transactionCount - importBuild.skippedRows.length,
+    rowCount: transactionCount,
     transactionEstimate: transactionCount - importBuild.skippedRows.length,
   }
 

@@ -332,7 +332,7 @@ test('flags a transaction the account already holds in the preview, and the save
   await expect(page.getByRole('combobox', { name: `Existing account ${ACCOUNT_LABEL}` })).toHaveText(ACCOUNT_LABEL)
   const preview = page.locator('section').filter({ has: page.getByText('Preview and commit', { exact: true }) })
   await expect(preview.getByRole('paragraph').filter({ hasText: /^(Rows|Will create|New accounts|New categories|\d+)$/ }))
-    .toHaveText(['Rows', '1', 'Will create', '1', 'New accounts', '0', 'New categories', '0'])
+    .toHaveText(['Rows', '2', 'Will create', '1', 'New accounts', '0', 'New categories', '0'])
   await expect(page.getByText(`This transaction is already in ${ACCOUNT_LABEL}.`, { exact: true })).toBeVisible()
   await expect(page.getByText('Payroll', { exact: true }).first()).toBeVisible()
 
@@ -413,7 +413,7 @@ test('keeps the finished import as saved, and asks again once its undo reopens t
   await expect(alreadyIn).toBeVisible()
   const preview = page.locator('section').filter({ has: page.getByText('Preview and commit', { exact: true }) })
   const figures = preview.getByRole('paragraph').filter({ hasText: /^(Rows|Will create|New accounts|New categories|\d+)$/ })
-  await expect(figures).toHaveText(['Rows', '1', 'Will create', '1', 'New accounts', '0', 'New categories', '0'])
+  await expect(figures).toHaveText(['Rows', '2', 'Will create', '1', 'New accounts', '0', 'New categories', '0'])
   expect(heldChecks).toBe(1)
 
   expect((await commitImport(page)).status()).toBe(201)
@@ -424,7 +424,7 @@ test('keeps the finished import as saved, and asks again once its undo reopens t
   const lastImport = page.getByRole('region', { name: 'Last import' })
   await expect(lastImport).toContainText('1 transaction')
   await expect(alreadyIn).toHaveCount(1)
-  await expect(figures).toHaveText(['Rows', '1', 'Will create', '1', 'New accounts', '0', 'New categories', '0'])
+  await expect(figures).toHaveText(['Rows', '2', 'Will create', '1', 'New accounts', '0', 'New categories', '0'])
   expect(heldChecks).toBe(1)
 
   await page.getByRole('button', { name: 'Undo import of second.qfx', exact: true }).click()
@@ -434,7 +434,7 @@ test('keeps the finished import as saved, and asks again once its undo reopens t
   // and the payroll one is still held by the first import
   await expect.poll(() => heldChecks).toBe(2)
   await expect(alreadyIn).toHaveCount(1)
-  await expect(figures).toHaveText(['Rows', '1', 'Will create', '1', 'New accounts', '0', 'New categories', '0'])
+  await expect(figures).toHaveText(['Rows', '2', 'Will create', '1', 'New accounts', '0', 'New categories', '0'])
   await expect(page.getByRole('button', { name: 'Commit import', exact: true })).toBeEnabled()
   expect(await countLedgerTransactions(request, user)).toBe(2)
 })
