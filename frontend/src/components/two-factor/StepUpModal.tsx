@@ -254,6 +254,23 @@ export function StepUpModal({
       </p>
     ) : null;
 
+  // The panel is centred, so a message growing its step would move the whole modal. The longest message a
+  // step can show is laid out unseen in the same cell, which keeps the room for it reserved at every width.
+  // Its words are drawn from an attribute, so they are not a second copy of the message in the page's text
+  const feedbackWithRoom = (
+    <div className="grid">
+      <div aria-hidden className="invisible col-start-1 row-start-1">
+        <WarningCallout>
+          <span
+            className="after:content-[attr(data-text)]"
+            data-text={`${describeStepUpFailure('passkey', false)} ${buildLockoutWarning(LONGEST_COUNTDOWN)}`}
+          />
+        </WarningCallout>
+      </div>
+      <div className="col-start-1 row-start-1">{feedback}</div>
+    </div>
+  );
+
   return (
     <ModalContentPanel
       open={open}
@@ -324,7 +341,7 @@ export function StepUpModal({
               onChange={(event) => setPassword(event.target.value)}
               autoFocus
             />
-            {feedback}
+            {feedbackWithRoom}
             <ModalContentFooter>
               {passwordOnly ? (
                 <div className="flex justify-center">
@@ -387,17 +404,8 @@ export function StepUpModal({
                 />
               )}
 
-              {showCodeEntry ? (
-                // The panel is centred, so a message growing the form would move the whole modal. The
-                // longest message this step can show is laid out unseen in the same cell, which keeps the
-                // room for it reserved at every width
-                <div className="grid">
-                  <div aria-hidden className="invisible col-start-1 row-start-1">
-                    <WarningCallout>{`${describeStepUpFailure('passkey', false)} ${buildLockoutWarning(LONGEST_COUNTDOWN)}`}</WarningCallout>
-                  </div>
-                  <div className="col-start-1 row-start-1">{feedback}</div>
-                </div>
-              ) : feedback}
+              {/* With a password step a refusal sends the person back to it, so the room is kept there */}
+              {requirePassword ? feedback : feedbackWithRoom}
             </form>
 
             {(showCodeEntry || requirePassword || allowRecoveryReset) && (
