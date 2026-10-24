@@ -1,7 +1,7 @@
-import { expect, test, type Page } from '@playwright/test'
+import { expect, test } from '@playwright/test'
 
-import { signUpUser, TEST_PASSWORD, type TestUser } from '../support/api'
-import { expectSignedIn } from '../support/app'
+import { signUpUser, TEST_PASSWORD } from '../support/api'
+import { expectSignedIn, reachTwoFactorChallenge } from '../support/app'
 import { API_BASE_URL } from '../support/target'
 import { currentTotp, enrollTotp } from '../support/totp'
 
@@ -12,15 +12,6 @@ const VERIFY_URL = `${API_BASE_URL}/auth/2fa/verify`
 // Longer than an authenticator code, so a recovery code sent as soon as six characters were in would
 // show as a shorter code in the request
 const RECOVERY_CODE = 'aaaa-bbbb-cccc-dddd-0000'
-
-/** Sign in with the password, which opens the second-factor step for a user with TOTP */
-async function reachChallenge(page: Page, user: TestUser): Promise<void> {
-  await page.goto('/login')
-  await page.getByLabel('Email').fill(user.email)
-  await page.getByLabel('Password', { exact: true }).fill(user.password)
-  await page.getByRole('button', { name: 'Log in' }).click()
-  await expect(page.getByLabel('One-time code')).toBeVisible()
-}
 
 test('sends the code once when the challenge is submitted again while it is checked', async ({ page, request }) => {
   const user = await signUpUser(request)
@@ -37,7 +28,7 @@ test('sends the code once when the challenge is submitted again while it is chec
   })
 
   // A code submits itself once its last digit is typed
-  await reachChallenge(page, user)
+  await reachTwoFactorChallenge(page, user)
   await page.getByLabel('One-time code').pressSequentially(currentTotp(secret))
   await expect.poll(() => verifyRequests).toBe(1)
 
@@ -60,7 +51,7 @@ test('waits for Verify before sending a recovery code', async ({ page, request }
     return route.fulfill({ status: 401, json: { detail: 'Invalid code' } })
   })
 
-  await reachChallenge(page, user)
+  await reachTwoFactorChallenge(page, user)
   await page.getByRole('button', { name: 'Enter a recovery code instead' }).click()
   await page.getByPlaceholder('Recovery code').pressSequentially(RECOVERY_CODE)
 
@@ -83,7 +74,7 @@ test('takes all six digits of a code pasted with a space in the middle', async (
     return route.fulfill({ status: 401, json: { detail: 'Invalid code' } })
   })
 
-  await reachChallenge(page, user)
+  await reachTwoFactorChallenge(page, user)
   const field = page.getByLabel('One-time code')
   await field.focus()
   await page.keyboard.insertText('123 456')
@@ -98,13 +89,13 @@ test('leaves the challenge for a person\'s click on "Back to login" but not a sc
   const code = page.getByLabel('One-time code')
   const backToLogin = page.getByRole('button', { name: 'Back to login' })
 
-  await reachChallenge(page, user)
+  await reachTwoFactorChallenge(page, user)
   await backToLogin.click()
   await expect(code).toHaveCount(0)
 
   // A password manager clicks from a script, which the browser marks as untrusted. The step stays on
   // screen for a moment even as it leaves, so signing in with it afterwards is what shows it stayed
-  await reachChallenge(page, user)
+  await reachTwoFactorChallenge(page, user)
   await backToLogin.evaluate((button) => (button as HTMLButtonElement).click())
   const verified = page.waitForResponse(VERIFY_URL)
   await code.fill(currentTotp(secret))
