@@ -3,8 +3,28 @@
  * the same rows rather than each drifting its own copies
  */
 import type { Category } from '@/api/categories'
-import type { BulkEditChoice, SelectedTransactionFacts } from '@/components/transactions/bulk-edit/selection'
+import {
+  getBulkEditChangeProblem,
+  getBulkEditSelectionBlockReason,
+  type BulkEditBlockers,
+  type BulkEditChoice,
+  type SelectedTransactionFacts,
+} from '@/components/transactions/bulk-edit/selection'
 import type { TransactionListAccount } from '@/components/transactions/types/transactionList'
+
+/**
+ * Says why Apply is held off, or nothing while the edit can be written: the selection's reason first,
+ * then the problem with what the edit changes, as the Apply button reads them
+ */
+export function whyApplyIsBlocked(
+  rows: SelectedTransactionFacts[],
+  choice: BulkEditChoice,
+  blockers: BulkEditBlockers,
+): string | undefined {
+  return getBulkEditSelectionBlockReason(rows) ?? getBulkEditChangeProblem(choice, blockers)
+}
+
+export const WARNINGS_FIRST = 'Fix the warnings under What changes first'
 
 export const writableAccounts: TransactionListAccount[] = [
   { id: 'chequing', name: 'Chequing', currency: 'CAD', can_write: true, group_id: null },

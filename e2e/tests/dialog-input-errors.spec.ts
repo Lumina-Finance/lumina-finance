@@ -7,6 +7,7 @@ import {
   createMonthlyBudget,
   createTaxAdvantagedCategory,
   createTransaction,
+  daysFromTodayInTestTimezone,
   signUpUser,
 } from '../support/api'
 import { chooseFromDropdown, logInViaApi, openModal, openPage } from '../support/app'
@@ -616,5 +617,32 @@ test.describe('dialog input errors', () => {
     await expect(dialog.getByRole('alert')).toHaveCount(0)
     await expect(name).not.toHaveAttribute('aria-invalid', 'true')
     await expect(add).not.toHaveAttribute('aria-disabled', 'true')
+  })
+
+  test('marks the What changes heading when bulk edit Apply finds no change chosen, and returns Apply once one is', AT_EVERY_SIZE, async ({ page, request }) => {
+    const user = await signUpUser(request)
+    const account = await createAccount(request, user, { name: 'Everyday' })
+    await createTransaction(request, user, { accountId: account.id, categoryName: 'Groceries', amount: -1000, date: daysFromTodayInTestTimezone(-1) })
+    await logInViaApi(page, user)
+    await openPage(page, '/transactions')
+    await page.getByRole('button', { name: 'Select transactions', exact: true }).click()
+    await page.getByRole('checkbox', { name: /^Select the transactions shown on / }).first().check()
+    await page.getByRole('button', { name: 'Edit the selected transactions', exact: true }).click()
+    const dialog = page.getByRole('dialog', { name: 'Edit 1 transaction', exact: true })
+    const apply = dialog.getByRole('button', { name: 'Apply', exact: true })
+
+    await expect(apply).not.toHaveAttribute('aria-disabled', 'true')
+    await expect(dialog.getByRole('alert')).toHaveCount(0)
+
+    await apply.click()
+    await expect(dialog.getByRole('alert')).toHaveText('Choose a change to apply')
+    await expect(apply).toHaveAttribute('aria-disabled', 'true')
+    await expect(apply).toHaveAccessibleDescription('Choose a change to apply')
+    // Nothing was asked of the server: the confirmation that follows a real Apply did not open
+    await expect(page.getByRole('dialog', { name: 'Change 1 transaction?', exact: true })).toHaveCount(0)
+
+    await dialog.locator('#bulk-note').fill('Corrected')
+    await expect(dialog.getByRole('alert')).toHaveCount(0)
+    await expect(apply).not.toHaveAttribute('aria-disabled', 'true')
   })
 })

@@ -25,6 +25,15 @@ async function openBulkEdit(page: Page, request: APIRequestContext) {
   return dialog
 }
 
+/** Opens the bulk edit window and presses Apply once with nothing chosen, which fades it with its reason */
+async function openRefusedBulkEdit(page: Page, request: APIRequestContext) {
+  const dialog = await openBulkEdit(page, request)
+  const apply = dialog.getByRole('button', { name: 'Apply', exact: true })
+  await apply.click()
+  await expect(apply).toHaveAttribute('aria-disabled', 'true')
+  return dialog
+}
+
 /** Expects the tooltip to be faded out, or gone from the page once its fade has ended */
 async function expectFadedOut(tooltip: Locator) {
   await expect.poll(() => tooltip.evaluateAll((nodes) => nodes.every((node) => getComputedStyle(node).opacity === '0'))).toBe(true)
@@ -44,6 +53,9 @@ test('does nothing when Apply is pressed with nothing chosen, and applies once s
   const apply = dialog.getByRole('button', { name: 'Apply', exact: true })
   const bulkRequests = recordRequests(page, 'PATCH', /\/transactions\/bulk$/)
 
+  // Apply is whole until it is pressed, then it marks the missing change and holds itself off
+  await expect(apply).not.toHaveAttribute('aria-disabled', 'true')
+  await apply.click()
   await expect(apply).toHaveAttribute('aria-disabled', 'true')
   await expect(apply).toHaveAccessibleDescription(NOTHING_CHOSEN)
 
@@ -150,10 +162,13 @@ test('opens nothing when a dropdown held off for a reason is clicked or Enter is
 })
 
 test('shows the reason on keyboard focus and puts it away on Escape without closing the window', async ({ page, request }) => {
-  const dialog = await openBulkEdit(page, request)
+  const dialog = await openRefusedBulkEdit(page, request)
   const apply = dialog.getByRole('button', { name: 'Apply', exact: true })
   const tooltip = page.getByTestId(TOOLTIP).filter({ hasText: NOTHING_CHOSEN })
 
+  // The press that refused the form left the pointer over Apply, so a keyboard user's turn starts with it away
+  await page.mouse.move(0, 0)
+  await expectFadedOut(tooltip)
   await dialog.getByRole('button', { name: 'Cancel', exact: true }).focus()
   await page.keyboard.press('Tab')
   await expect(apply).toBeFocused()
@@ -170,7 +185,7 @@ test('shows the reason on keyboard focus and puts it away on Escape without clos
 })
 
 test('puts away a reason shown under the pointer on Escape without closing the window', async ({ page, request }) => {
-  const dialog = await openBulkEdit(page, request)
+  const dialog = await openRefusedBulkEdit(page, request)
   const apply = dialog.getByRole('button', { name: 'Apply', exact: true })
   const tooltip = page.getByTestId(TOOLTIP).filter({ hasText: NOTHING_CHOSEN })
 
@@ -187,7 +202,7 @@ test('puts away a reason shown under the pointer on Escape without closing the w
 // its words were in, a few pixels high, and so was placed too low, back under the pointer
 test('places a reason above the pointer under reduced motion', async ({ page, request }) => {
   await page.emulateMedia({ reducedMotion: 'reduce' })
-  const dialog = await openBulkEdit(page, request)
+  const dialog = await openRefusedBulkEdit(page, request)
   const apply = dialog.getByRole('button', { name: 'Apply', exact: true })
 
   const box = (await apply.boundingBox())!
