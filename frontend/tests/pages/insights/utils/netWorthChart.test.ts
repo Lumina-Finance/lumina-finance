@@ -51,7 +51,9 @@ describe('net worth start label', () => {
     expect(formatNetWorthStartLabel(296_000, 'CAD', currencies)).toBe('CA$2.9K');
     expect(formatNetWorthStartLabel(100_000, 'CAD', currencies)).toBe('CA$1.0K');
     expect(formatNetWorthStartLabel(99_999_999, 'CAD', currencies)).toBe('CA$999.9K');
-    expect(formatNetWorthStartLabel(1_250_000_00, 'CAD', currencies)).toBe('CA$1.2M');
+    expect(formatNetWorthStartLabel(100_000_000, 'CAD', currencies)).toBe('CA$1.0M');
+    expect(formatNetWorthStartLabel(125_000_000, 'CAD', currencies)).toBe('CA$1.2M');
+    expect(formatNetWorthStartLabel(0, 'CAD', currencies)).toBe('CA$0');
   });
 
   it('reads below 1K for 999.99, and rounds a negative net worth down, away from zero', () => {
