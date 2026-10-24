@@ -61,14 +61,22 @@ export function invalidateAccountCreditData(
 }
 
 /**
- * Refreshes the credit widget's account list when a revolving account is renamed, since the chooser
- * shows its name but no total changes
+ * Refreshes the credit widget's account list when a revolving account's name or institution changes,
+ * since the chooser shows both but no total changes
+ *
+ * @param previous - The account as cached before the update, or undefined when it was not cached,
+ *   which refreshes the list since what changed is unknown
  */
-export function invalidateAccountCreditName(
+export function invalidateAccountCreditPicker(
   queryClient: QueryClient,
-  account: Pick<AccountsOverview, 'account_kind'>,
+  previous: Pick<AccountsOverview, 'name' | 'institution'> | undefined,
+  account: Pick<AccountsOverview, 'account_kind' | 'name' | 'institution'>,
 ) {
-  if (isRevolvingAccount(account)) invalidateDashboardCreditUtilization(queryClient);
+  if (!isRevolvingAccount(account)) return;
+  const isUnchanged = previous !== undefined
+    && previous.name === account.name
+    && (previous.institution?.id ?? null) === (account.institution?.id ?? null);
+  if (!isUnchanged) invalidateDashboardCreditUtilization(queryClient);
 }
 
 /**

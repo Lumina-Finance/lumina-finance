@@ -65,6 +65,14 @@ describe('net flow summary', () => {
 
     expect(textOf(markup)).toEqual(expect.arrayContaining(['+$50.00', '$80.00', '$30.00']))
   })
+
+  it('leaves a zero inflow and outflow neutral', () => {
+    const markup = renderToStaticMarkup(
+      <NetFlowSummary inflow={0} outflow={0} fxStatus={undefined} displayCurrency="USD" />,
+    )
+
+    expect(markup).not.toMatch(/var\(--app-(positive|negative)\)/)
+  })
 })
 
 describe('daily cash flow tooltip', () => {

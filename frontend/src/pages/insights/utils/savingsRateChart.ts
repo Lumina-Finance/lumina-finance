@@ -1,3 +1,4 @@
+import { getRechartsTooltipPoint, type RechartsTooltipState } from '@/components/charts/rechartsTooltip'
 import type { SavingsRateHistoryPoint } from '@/pages/insights/types/savingsRate'
 
 export type SavingsRateSummary = {
@@ -15,6 +16,20 @@ type SavingsRateAxisConfig = {
   domain: [number, number]
   ticks: number[]
   averageChartRate: number | null
+}
+
+/**
+ * Finds the month the pointer is over, or nothing when the chart reports no active bar
+ */
+export function getSavingsRateTooltipPoint(
+  state: RechartsTooltipState<SavingsRateHistoryPoint>,
+  series: SavingsRateHistoryPoint[],
+) {
+  return getRechartsTooltipPoint({
+    state,
+    data: series,
+    resolveLabel: (label) => series.find((point) => point.monthKey === label),
+  })
 }
 
 function hasFiniteSavingsRate(point: SavingsRateHistoryPoint): point is SavingsRateHistoryPoint & { rate: number } {

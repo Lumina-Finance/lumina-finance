@@ -15,8 +15,8 @@ from tests.routes.support import _create_account, _create_user, _get_auth_header
 from tests.routes.support.clock_helpers import PROFILE_TOMORROW, freeze_profile_clock
 
 
-async def test_dashboard_includes_archived_accounts_in_net_worth_and_credit(client, monkeypatch):
-    """Dashboard balance aggregates include archived accounts."""
+async def test_dashboard_counts_archived_accounts_in_net_worth_but_not_credit(client, monkeypatch):
+    """Net worth includes archived accounts, while credit leaves out an archived card, which no longer lends anything."""
     from app.routes import dashboard as dashboard_routes
 
     monkeypatch.setattr(dashboard_routes, "datetime", _FixedClock(datetime(2026, 3, 20, 16, 0, tzinfo=UTC)))
@@ -84,8 +84,8 @@ async def test_dashboard_includes_archived_accounts_in_net_worth_and_credit(clie
 
     assert credit_resp.status_code == 200
     credit_data = credit_resp.json()
-    assert credit_data["credit_limit_total"] == 1_100_000
-    assert credit_data["credit_used"] == 100_000
+    assert credit_data["credit_limit_total"] == 200_000
+    assert credit_data["credit_used"] == 30_000
     assert credit_data["fx_status"] == {"state": "none", "missing_pairs": []}
 
 

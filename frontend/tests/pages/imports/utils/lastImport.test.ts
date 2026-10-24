@@ -6,7 +6,7 @@
  */
 import { describe, expect, it } from 'vitest'
 import type { LastImport } from '@/api/import-runs'
-import { describeUndoDeletion } from '@/pages/imports/utils/lastImport'
+import { chooseImportUndoOutcome, describeUndoDeletion } from '@/pages/imports/utils/lastImport'
 
 function entry(overrides: Partial<LastImport> = {}): LastImport {
   return {
@@ -24,6 +24,20 @@ function entry(overrides: Partial<LastImport> = {}): LastImport {
     ...overrides,
   }
 }
+
+describe('what undoing an import does to an importer', () => {
+  it('opens the importer that saved the undone import, finished or not', () => {
+    expect(chooseImportUndoOutcome({ committedRunId: 'run-1', isFinished: true, undoneRunId: 'run-1' })).toBe('reopen')
+  })
+
+  it('empties a finished importer that saved another import, such as one from an earlier visit', () => {
+    expect(chooseImportUndoOutcome({ committedRunId: 'run-0', isFinished: true, undoneRunId: 'run-1' })).toBe('reset')
+  })
+
+  it('leaves an importer still being filled in alone', () => {
+    expect(chooseImportUndoOutcome({ committedRunId: null, isFinished: false, undoneRunId: 'run-1' })).toBe('keep')
+  })
+})
 
 describe('what undoing an import deletes', () => {
   it.each([

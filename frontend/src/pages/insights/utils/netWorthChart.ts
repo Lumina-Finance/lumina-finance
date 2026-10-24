@@ -54,23 +54,18 @@ const groupColors: Record<string, string> = {
   other_debt: '#7F4D52',
 }
 
-const netWorthAxisMoneyRules: CompactMoneyRule[] = [
-  { threshold: 100_000_000, divisor: 1_000_000, suffix: 'M', fractionDigits: 0 },
-  { threshold: 10_000_000, divisor: 1_000_000, suffix: 'M', fractionDigits: 1 },
+// The starting figure is written like any other net worth figure: K and M keep one decimal, even a zero one
+const netWorthStartLabelMoneyRules: CompactMoneyRule[] = [
   { threshold: 1_000_000, divisor: 1_000_000, suffix: 'M', fractionDigits: 1 },
-  { threshold: 100_000, divisor: 1_000, suffix: 'K', fractionDigits: 0 },
-  { threshold: 10_000, divisor: 1_000, suffix: 'K', fractionDigits: 1 },
-  { threshold: 1_000, divisor: 1_000, suffix: 'K', fractionDigits: 0 },
+  { threshold: 1_000, divisor: 1_000, suffix: 'K', fractionDigits: 1 },
 ]
 
 /**
- * Formats a net worth chart axis value with K/M compaction rules and no currency prefix
- *
- * An axis tick is a round step chosen for the scale, not a figure, so it rounds to the nearest and
- * keeps its own digits (3K, not 3.0K) rather than following the rounding rule
+ * Formats the net worth the chart starts from, which is a figure rather than a tick, so it rounds
+ * down like net worth everywhere else and the label never sits above the first value
  */
-export function formatNetWorthAxisMoney(value: number, currency: string, currencies: Currency[]) {
-  return formatCompactMoney(value, currency, netWorthAxisMoneyRules, currencies, 'nearest', {
+export function formatNetWorthStartLabel(value: number, currency: string, currencies: Currency[]) {
+  return formatCompactMoney(value, currency, netWorthStartLabelMoneyRules, currencies, 'down', {
     prefix: '',
     plainFractionDigits: 0,
   })

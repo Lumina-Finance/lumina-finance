@@ -1,6 +1,8 @@
 export type {
   CsvImportAmountFormat,
   CsvImportLayout,
+  HeldBankTransactionItem,
+  HeldBankTransactionsScope,
   SavedAccountImportSource,
   SavedCsvImportLayout,
   TransactionImportAccountMapping,
@@ -18,4 +20,10 @@ export type {
 
 export { buildStagedImportBatches } from '@/api/transaction-imports/batching';
 export { commitStagedImportRun, runTransactionImport } from '@/api/transaction-imports/run';
-export { useCommitStagedImport, useImportLayouts, useImportSources, useImportTransactions } from '@/api/transaction-imports/hooks';
+export {
+  useCommitStagedImport,
+  useHeldBankTransactions,
+  useImportLayouts,
+  useImportSources,
+  useImportTransactions,
+} from '@/api/transaction-imports/hooks';

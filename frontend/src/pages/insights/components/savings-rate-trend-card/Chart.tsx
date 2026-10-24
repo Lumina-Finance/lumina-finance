@@ -24,6 +24,7 @@ import type { SavingsRateHistoryPoint } from '@/pages/insights/types/savingsRate
 import {
   getSavingsRateAxisConfig,
   getSavingsRateChartPoints,
+  getSavingsRateTooltipPoint,
   type SavingsRateChartPoint,
 } from '@/pages/insights/utils/savingsRateChart'
 import {
@@ -33,6 +34,11 @@ import {
 import { getValueMarkColor } from '@/utils/valueMarkColor'
 import { formatSavingsRateValue } from '@/pages/insights/utils/money'
 import { useMoneyFormatters } from '@/hooks/useMoneyFormatters'
+import { formatRatePercent } from '@/utils/negativeAmount'
+import {
+  useFittedYAxisWidth,
+  Y_AXIS_LABEL_CLASS_NAME,
+} from '@/pages/insights/hooks/useFittedYAxisWidth'
 
 type SavingsRateTooltipState = {
   activeLabel?: string | number
@@ -115,7 +121,7 @@ function SavingsRateHistoryTooltipContent({
 /**
  * Renders a savings-rate Y-axis tick with emphasis for the cap boundary
  */
-function SavingsRateYAxisTick({
+export function SavingsRateYAxisTick({
   x = 0,
   y = 0,
   payload,
@@ -124,6 +130,7 @@ function SavingsRateYAxisTick({
 
   return (
     <text
+      className={Y_AXIS_LABEL_CLASS_NAME}
       x={x}
       y={y}
       dy={4}
@@ -132,7 +139,7 @@ function SavingsRateYAxisTick({
       fontWeight={500}
       fill="var(--app-text-subtle)"
     >
-      {Number.isFinite(value) ? `${value}%` : ''}
+      {Number.isFinite(value) ? formatRatePercent(value) : ''}
     </text>
   )
 }
@@ -148,6 +155,9 @@ export function SavingsRateChart({
   emptyLabel,
 }: SavingsRateChartProps) {
   const chartRef = useRef<HTMLDivElement>(null)
+  // The wrapper that is always drawn, since the chart itself is not while there is no activity
+  const fitRef = useRef<HTMLDivElement>(null)
+  const yAxisWidth = useFittedYAxisWidth(fitRef)
   const tooltipRef = useRef<DeferredChartTooltipOverlayHandle<SavingsRateHistoryPoint>>(null)
   const hasActivity = series.some((point) => point.income > 0 || point.expenses > 0)
   const currentPoint = series.find((point) => point.isCurrent)
@@ -182,10 +192,7 @@ export function SavingsRateChart({
     state: SavingsRateTooltipState,
     event: ReactMouseEvent<SVGGraphicsElement>,
   ) {
-    const activeIndex = Number(state.activeTooltipIndex)
-    const point = Number.isInteger(activeIndex)
-      ? series[activeIndex]
-      : series.find((item) => item.monthKey === String(state.activeLabel))
+    const point = getSavingsRateTooltipPoint(state, series)
     const pointer = getSavingsRateTooltipPointer(state, event)
     if (!point) {
       tooltipRef.current?.show(null, pointer)
@@ -198,7 +205,10 @@ export function SavingsRateChart({
   const hideTooltip = () => tooltipRef.current?.hide()
 
   return (
-    <div className="h-[300px] shrink-0 min-[750px]:h-auto min-[750px]:min-h-0 min-[750px]:flex-1 min-[750px]:shrink">
+    <div
+      ref={fitRef}
+      className="h-[300px] shrink-0 min-[750px]:h-auto min-[750px]:min-h-0 min-[750px]:flex-1 min-[750px]:shrink"
+    >
       {!hasActivity ? (
         <div
           className="flex h-full w-full items-center justify-center text-sm"
@@ -250,7 +260,7 @@ export function SavingsRateChart({
                 tickMargin={4}
               />
               <YAxis
-                width={52}
+                width={yAxisWidth}
                 axisLine={false}
                 tickLine={false}
                 domain={domain}

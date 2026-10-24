@@ -4,10 +4,16 @@
  * range leaves out are unknown rather than none while it cannot be applied
  */
 import { describe, expect, it } from 'vitest'
-import { EMPTY_COLUMN_MAP, getRowsOutsideDateRangeExplanation } from '@/pages/imports/constants'
+import {
+  EMPTY_COLUMN_MAP,
+  getRowsOutsideDateRangeExplanation,
+  IMPORT_DATE_RANGE_CROSSED_ERROR,
+  IMPORT_DATE_RANGE_INCOMPLETE_ERROR,
+} from '@/pages/imports/constants'
 import type { ImportDateRange, ImportFileDraft } from '@/pages/imports/types'
 import {
   countImportRowsOutsideDateRange,
+  getImportDateRangeBlockReason,
   getImportDateRangeFilter,
   getLatestStartSuggestion,
   getLatestTransactionFilters,
@@ -88,9 +94,11 @@ describe('counting the rows outside the chosen dates', () => {
 })
 
 describe('offering the day after the latest transaction as the start', () => {
-  it('looks for the newest transaction in the account, or in every account on an ordinary import', () => {
-    expect(getLatestTransactionFilters('acc-1')).toEqual({ account_id: ['acc-1'], sort_by: 'dt', sort_order: 'desc', limit: 1 })
-    expect(getLatestTransactionFilters(null)).toEqual({ sort_by: 'dt', sort_order: 'desc', limit: 1 })
+  it('looks for the newest transaction up to today, in the account or in every account on an ordinary import', () => {
+    // A future-dated transaction would start the import after rows already past
+    const latest = { sort_by: 'dt', sort_order: 'desc', limit: 1, to_date: '2026-10-23' }
+    expect(getLatestTransactionFilters('acc-1', '2026-10-23')).toEqual({ account_id: ['acc-1'], ...latest })
+    expect(getLatestTransactionFilters(null, '2026-10-23')).toEqual(latest)
   })
 
   it('starts the day after the latest transaction, across a month and year end', () => {
@@ -101,6 +109,21 @@ describe('offering the day after the latest transaction as the start', () => {
   it('offers nothing without a latest transaction', () => {
     expect(getLatestStartSuggestion(undefined)).toBeNull()
     expect(getLatestStartSuggestion(null)).toBeNull()
+  })
+})
+
+describe('the reason the chosen dates hold Commit import off', () => {
+  it('names a date only partly typed, a start after the end, and nothing otherwise', () => {
+    expect(getImportDateRangeBlockReason(COLUMN_MAP, { from: null, to: '' })).toBe(IMPORT_DATE_RANGE_INCOMPLETE_ERROR)
+    expect(getImportDateRangeBlockReason(COLUMN_MAP, { from: '2025-03-31', to: null })).toBe(IMPORT_DATE_RANGE_INCOMPLETE_ERROR)
+    expect(getImportDateRangeBlockReason(COLUMN_MAP, { from: '2025-03-31', to: '2025-03-01' })).toBe(IMPORT_DATE_RANGE_CROSSED_ERROR)
+    expect(getImportDateRangeBlockReason(COLUMN_MAP, { from: '2025-03-01', to: '2025-03-31' })).toBeNull()
+    expect(getImportDateRangeBlockReason(COLUMN_MAP, WHOLE_FILE_DATE_RANGE)).toBeNull()
+  })
+
+  it('holds nothing off while no date column is mapped, since the fields are not shown', () => {
+    expect(getImportDateRangeBlockReason(EMPTY_COLUMN_MAP, { from: null, to: '' })).toBeNull()
+    expect(getImportDateRangeBlockReason(EMPTY_COLUMN_MAP, { from: '2025-03-31', to: '2025-03-01' })).toBeNull()
   })
 })
 

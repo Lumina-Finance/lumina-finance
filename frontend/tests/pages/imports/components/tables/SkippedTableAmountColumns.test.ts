@@ -48,6 +48,7 @@ function renderCsvPreview(columnMap: ColumnMap) {
     importError: null,
     handleCommitImport: async () => undefined,
     canCommitImport: false,
+    dateRangeBlockReason: null,
     importResult: null,
     completedImport: null,
   }))

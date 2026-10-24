@@ -1,5 +1,12 @@
 import type { ComponentProps, ReactNode } from 'react'
-import { EmptyState, ImportCommitFooter, ImportPreviewList, ImportStat, ImportStep } from '@/pages/imports/components'
+import {
+  EmptyState,
+  ImportCommitFooter,
+  ImportPreviewList,
+  ImportStat,
+  ImportStep,
+  type ImportCommitCheck,
+} from '@/pages/imports/components'
 import { IMPORT_SAMPLE_PREVIEW_LIMIT, UNKNOWN_IMPORT_FIGURE } from '@/pages/imports/constants'
 
 /** The four figures every import's preview opens with */
@@ -29,6 +36,7 @@ export function ImportPreviewLayout({
   previewGroups,
   emptyDescription,
   buildError = null,
+  check = null,
   importError,
   imported,
   canCommit,
@@ -47,6 +55,9 @@ export function ImportPreviewLayout({
 
   /** The first thing the answers still need, said beside the button, for an import that doesn't list them above */
   buildError?: string | null
+
+  /** A check the server is running or could not finish, which holds the commit until it has answered */
+  check?: ImportCommitCheck | null
   importError: string | null
   imported: boolean
   canCommit: boolean
@@ -75,6 +86,7 @@ export function ImportPreviewLayout({
 
       <ImportCommitFooter
         buildError={buildError}
+        check={check}
         importError={importError}
         canCommit={canCommit}
         imported={imported}

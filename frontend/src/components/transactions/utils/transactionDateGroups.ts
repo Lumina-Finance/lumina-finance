@@ -54,6 +54,16 @@ export function getTransactionDateGroupTotal(
 }
 
 /**
+ * Explains a day total that leaves out amounts with no exchange rate. On an upcoming day the rate is
+ * not missing but not published yet, which is no failure
+ */
+export function getDayTotalFxStatusMessage(isUpcoming: boolean) {
+  return isUpcoming
+    ? "This total leaves out amounts whose exchange rate isn't published yet"
+    : 'Some amounts on this day could not be converted, so this total leaves them out'
+}
+
+/**
  * Returns the FX status of a day's total, naming each currency pair it left out, or null when every
  * amount converted so the day shows no badge
  */

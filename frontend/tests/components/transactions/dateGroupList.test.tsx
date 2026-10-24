@@ -24,6 +24,7 @@ vi.mock('@/hooks/useMoneyFormatters', () => ({
 
 import TransactionDateGroupList from '@/components/transactions/DateGroupList'
 import type { TransactionListAccount } from '@/components/transactions/types/transactionList'
+import { getDayTotalFxStatusMessage } from '@/components/transactions/utils/transactionDateGroups'
 import { UPCOMING_DAY_TOTAL_COLOUR } from '@/components/transactions/UpcomingSection'
 
 function transaction(id: string, amount: number): Transaction {
@@ -123,12 +124,20 @@ describe('a transaction with no exchange rate', () => {
     )
   }
 
+  /** The tone the badge on a day's heading is drawn in, which the badge states on its button */
+  // Reads the tone from the badge's own tag, whatever order its attributes come in
+  const badgeTone = (markup: string, dateLabel: string) => {
+    const tag = new RegExp(`<[^>]*aria-label="FX status for ${dateLabel}"[^>]*>`).exec(markup)?.[0]
+    return tag && /data-fx-tone="(\w+)"/.exec(tag)?.[1]
+  }
+
   const unavailableCount = (markup: string) => markup.split('FX unavailable').length - 1
 
   it('marks only the unconverted row and gives its day one FX badge, leaving it out of the total', () => {
     const markup = renderDay([converted, unconverted, zero])
 
     expect(unavailableCount(markup)).toBe(2)
+    expect(markup).not.toContain('Rate not published yet')
     expect(markup.split('FX status for Oct 3, 2026').length - 1).toBe(1)
     expect(dayTotal(markup).text).toBe('−$10.00')
   })
@@ -145,6 +154,45 @@ describe('a transaction with no exchange rate', () => {
 
     expect(unavailableCount(markup)).toBe(0)
     expect(markup).not.toContain('FX status for')
+  })
+
+  // A future-dated row has no rate because none is published yet, which is no failure, so inside the
+  // Upcoming section it says so in the neutral colour, and its day heading keeps an FX badge that is
+  // neutral too, where a past day's badge is red
+  it('says the rate is not published yet on an upcoming row, with a neutral heading badge', () => {
+    const markup = renderToStaticMarkup(
+      <TransactionDateGroupList
+        dateGroups={[]}
+        upcomingDateGroups={[{ dateLabel: 'Oct 9, 2026', transactions: [unconverted] }]}
+        today="2026-10-01"
+        isUpcomingExpanded
+        onToggleUpcoming={() => {}}
+        categoryMap={new Map()}
+        accountMap={new Map([[account.id, account]])}
+        currency="USD"
+        listRevealKey={0}
+        stickyTop={0}
+        prefersReducedMotion
+        skipEnterAnimation
+        onEditTransaction={() => {}}
+      />,
+    )
+
+    const note = /<span[^>]*style="[^"]*color:([^;"]*)[^"]*"[^>]*>Rate not published yet<\/span>/.exec(markup)
+    expect(note?.[1]).toBe('var(--app-text-muted)')
+    expect(unavailableCount(markup)).toBe(0)
+    expect(badgeTone(markup, 'Oct 9, 2026')).toBe('gray')
+    // The markup writes the message's apostrophe as an entity
+    expect(markup).toContain(getDayTotalFxStatusMessage(true).replace("'", '&#x27;'))
+    expect(markup).not.toContain(getDayTotalFxStatusMessage(false))
+  })
+
+  it('draws a past day badge in red with the message about amounts that could not be converted', () => {
+    const markup = renderDay([unconverted])
+
+    expect(badgeTone(markup, 'Oct 3, 2026')).toBe('red')
+    expect(markup).toContain(getDayTotalFxStatusMessage(false))
+    expect(markup).not.toContain(getDayTotalFxStatusMessage(true))
   })
 
   it('marks a row missing its account amount on an account list even when the base amount exists', () => {

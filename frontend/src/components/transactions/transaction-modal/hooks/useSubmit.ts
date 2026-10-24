@@ -6,6 +6,7 @@ import {
   useUpdateTransaction,
   type Transaction,
 } from '@/api/transactions'
+import { getCreateFailureMessage, getTransferFailureNotice } from '@/utils/createFailure'
 import { LOADING_ANIMATION_MIN_MS, waitForMilliseconds } from '@/utils/timing'
 import {
   INITIAL_TRANSACTION_FORM,
@@ -193,10 +194,10 @@ export function useTransactionSubmit({
       // Each leg is independent, so a failed leg leaves the other in place rather than rolling back
       const results = await Promise.allSettled(legs.map((leg) => createMutation.mutateAsync(leg.payload)))
       const created: Transaction[] = []
-      const failedLegs: typeof legs = []
+      const failedLegs: { leg: (typeof legs)[number]; reason: unknown }[] = []
       results.forEach((result, index) => {
         if (result.status === 'fulfilled') created.push(result.value)
-        else failedLegs.push(legs[index])
+        else failedLegs.push({ leg: legs[index], reason: result.reason })
       })
 
       created.forEach((txn) => recordCreatedAccountId(txn.account_id))
@@ -218,16 +219,16 @@ export function useTransactionSubmit({
         return
       }
 
-      if (failedLegs.length === legs.length) {
-        setSubmitError('Something went wrong. Please try again.')
-        return
-      }
-
-      if (failedLegs.length === 1) {
-        const failedLeg = failedLegs[0]
-        const accountName = accounts.find((account) => account.id === failedLeg.accountId)?.name ?? 'the counterparty account'
-        setSubmitErrorTitle('One of the pair of transactions failed.')
-        setSubmitError(`There was a problem creating a ${failedLeg.failedKind} transfer in ${accountName}. Please add that leg manually.`)
+      if (failedLegs.length > 0) {
+        const notice = getTransferFailureNotice(
+          failedLegs.map(({ leg, reason }) => {
+            const accountName = accounts.find((account) => account.id === leg.accountId)?.name ?? 'the counterparty account'
+            return { description: `a ${leg.failedKind} transfer in ${accountName}`, reason }
+          }),
+          legs.length,
+        )
+        setSubmitErrorTitle(notice.title)
+        setSubmitError(notice.message)
         return
       }
 
@@ -270,7 +271,7 @@ export function useTransactionSubmit({
       resetFormAfterCreate({ keepTransferPair: false })
     } catch (err) {
       await minimumLoading
-      setSubmitError(err instanceof ApiError ? err.message : 'Something went wrong. Please try again.')
+      setSubmitError(getCreateFailureMessage(err, 'transaction'))
     } finally {
       setCreateDelayPending(false)
     }

@@ -1,6 +1,7 @@
 import type { ColumnMap, ImportDateRange, ImportFileDraft, ImportRowFilter } from '@/pages/imports/types'
 import type { TransactionFilters } from '@/api/transactions'
 import { addDays, formatYmd, isDateRangeCrossed, parseYmd } from '@/utils/date'
+import { IMPORT_DATE_RANGE_CROSSED_ERROR, IMPORT_DATE_RANGE_INCOMPLETE_ERROR } from '@/pages/imports/constants'
 import { includeEveryImportRow } from './common'
 import { readImportRowDate } from './rowResolution'
 import type { ImportDateFormat, ImportDateSeparator } from './valueParsers'
@@ -22,6 +23,18 @@ export function isImportDateRangeCrossed(columnMap: ColumnMap, { from, to }: Imp
  */
 export function isImportDateRangeIncomplete(columnMap: ColumnMap, { from, to }: ImportDateRange) {
   return Boolean(columnMap.dt) && (from === null || to === null)
+}
+
+/**
+ * Says why the chosen dates hold Commit import off, or null when they do not
+ *
+ * Read from the range the fields show rather than the one the page has taken, so the button is
+ * greyed out the moment a date is wrong and stays so while the user is still in the field
+ */
+export function getImportDateRangeBlockReason(columnMap: ColumnMap, dateRange: ImportDateRange) {
+  if (isImportDateRangeIncomplete(columnMap, dateRange)) return IMPORT_DATE_RANGE_INCOMPLETE_ERROR
+  if (isImportDateRangeCrossed(columnMap, dateRange)) return IMPORT_DATE_RANGE_CROSSED_ERROR
+  return null
 }
 
 /**
@@ -96,13 +109,19 @@ export function getNextImportDateRange(
 
 /**
  * Builds the list query that finds the newest transaction in one account, or in every account
+ *
+ * Only transactions dated today or earlier count, since a future-dated one has not happened yet and
+ * would start the import after rows the file holds for days already past
+ *
+ * @param todayYmd - Today in the profile's timezone
  */
-export function getLatestTransactionFilters(accountId: string | null): TransactionFilters {
+export function getLatestTransactionFilters(accountId: string | null, todayYmd: string): TransactionFilters {
   return {
     ...(accountId ? { account_id: [accountId] } : {}),
     sort_by: 'dt',
     sort_order: 'desc',
     limit: 1,
+    to_date: todayYmd,
   }
 }
 

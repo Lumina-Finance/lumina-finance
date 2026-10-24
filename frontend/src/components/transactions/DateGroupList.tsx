@@ -4,6 +4,7 @@ import { AnimatePresence, motion } from 'motion/react'
 import type { Category } from '@/api/categories'
 import type { Transaction } from '@/api/transactions'
 import { useMoneyFormatters } from '@/hooks/useMoneyFormatters'
+import { getSignedAmountColor } from '@/utils/negativeAmount'
 import { Checkbox } from '@/components/forms/Checkbox'
 import { FxStatusBadge } from '@/components/tooltips/FxStatusBadge'
 import TransactionRow, { type TransactionRowSelection } from '@/components/transactions/Row'
@@ -24,6 +25,7 @@ import type { TransactionDateGroup, TransactionListAccount } from '@/components/
 import {
   getTransactionDateGroupFxStatus,
   getTransactionDateGroupTotal,
+  getDayTotalFxStatusMessage,
   isTransactionAmountUnconverted,
 } from '@/components/transactions/utils/transactionDateGroups'
 import { getTransactionReadOnlyReason } from '@/components/transactions/utils/rowEditability'
@@ -46,13 +48,6 @@ export interface TransactionDateHeadingSelection {
   onToggle: (clearsHover: boolean) => void
   onPointerMove: () => void
   onPointerLeave: () => void
-}
-
-/**
- * Explains a day total that leaves out amounts with no exchange rate
- */
-function getDayTotalFxStatusMessage() {
-  return 'Some amounts on this day could not be converted, so this total leaves them out'
 }
 
 /**
@@ -125,7 +120,9 @@ export default function TransactionDateGroupList({
 
   // Inside the open Upcoming section the headings stay in place, since its own header is what sticks
   // there, and a heading stuck at the same height would slide over it. Their totals take the section's
-  // muted colour rather than the colours of money in and out, since none of it counts yet
+  // muted colour rather than the colours of money in and out, since none of it counts yet. A row there
+  // with no rate says the rate is not published yet, and its heading's FX badge is neutral rather than
+  // red, since a rate that does not exist yet is no failure
   function renderDateGroups(groups: TransactionDateGroup[], isUpcoming = false) {
     // initial={false} suppresses the first render and the whole-list swap on filter changes, so a group
     // only animates here when it is genuinely added (a new day's first transaction) or removed (its last
@@ -136,10 +133,7 @@ export default function TransactionDateGroupList({
           const dailyTotal = getTransactionDateGroupTotal(transactions, fixedAccount)
           const dayFxStatus = getTransactionDateGroupFxStatus(transactions, currency, fixedAccount)
           // A day that netted to zero moved nothing, so it takes the neutral colour rather than the positive colour
-          let dailyColor = 'var(--app-text)'
-          if (dailyTotal > 0) dailyColor = 'var(--app-positive)'
-          else if (dailyTotal < 0) dailyColor = 'var(--app-negative)'
-          if (isUpcoming) dailyColor = UPCOMING_DAY_TOTAL_COLOUR
+          const dailyColor = isUpcoming ? UPCOMING_DAY_TOTAL_COLOUR : getSignedAmountColor(dailyTotal)
           const headingSelection = buildHeadingSelection?.(transactions.map((transaction) => transaction.id))
           return (
             <motion.div
@@ -219,7 +213,8 @@ export default function TransactionDateGroupList({
                   <FxStatusBadge
                     label={`FX status for ${dateLabel}`}
                     fxStatus={dayFxStatus}
-                    getMessage={getDayTotalFxStatusMessage}
+                    getMessage={() => getDayTotalFxStatusMessage(isUpcoming)}
+                    tone={isUpcoming ? 'gray' : undefined}
                   />
                 )}
                 <p
@@ -253,7 +248,11 @@ export default function TransactionDateGroupList({
                     category={category}
                     currency={transaction.currency}
                     readOnlyReason={readOnlyReason}
-                    isFxUnavailable={isTransactionAmountUnconverted(transaction, fixedAccount)}
+                    fxNote={
+                      isTransactionAmountUnconverted(transaction, fixedAccount)
+                        ? isUpcoming ? 'rateNotPublished' : 'unavailable'
+                        : undefined
+                    }
                     transaction={transaction}
                     prefersReducedMotion={prefersReducedMotion}
                     skipEnterAnimation={skipEnterAnimation}

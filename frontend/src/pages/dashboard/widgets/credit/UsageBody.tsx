@@ -1,3 +1,4 @@
+import { useLayoutEffect, useRef, useState } from 'react'
 import { AppScrambledNumber } from '@/components/display/ScrambledNumber'
 import { useMoneyFormatters } from '@/hooks/useMoneyFormatters'
 import { formatDashboardMoney } from '@/pages/dashboard/utils/formatDashboardMoney'
@@ -10,18 +11,22 @@ type CreditUsageBodyProps = {
   // The user has credit accounts but counts none, which reads differently from having none
   allLeftOut: boolean
 
+  // The user counts credit accounts, but their limits add up to nothing
+  limitUnset: boolean
+
   // Opens the account chooser from the empty state that asks the user to pick accounts
   onChooseAccounts: () => void
 }
 
 /**
- * Renders the credit progress ring, active mode amount, and the empty states for no credit accounts
- * and for every one left out
+ * Renders the credit progress ring, active mode amount, and the empty states for no credit accounts,
+ * for counted accounts with no limit set and for every one left out
  */
 export function CreditUsageBody({
   summary,
   displayCurrency,
   allLeftOut,
+  limitUnset,
   onChooseAccounts,
 }: CreditUsageBodyProps) {
   const {
@@ -33,6 +38,24 @@ export function CreditUsageBody({
     tierColor,
   } = summary
   const { currencies } = useMoneyFormatters()
+
+  // The width the amount may take, which is what the ring and the gap leave of the row. The amount
+  // steps its font size down to it rather than overflow the widget and lose a digit
+  const rowRef = useRef<HTMLDivElement>(null)
+  const ringRef = useRef<HTMLDivElement>(null)
+  const [amountWidth, setAmountWidth] = useState<number>()
+  useLayoutEffect(() => {
+    const row = rowRef.current
+    const ring = ringRef.current
+    if (!row || !ring) return
+
+    const measure = () => setAmountWidth(row.getBoundingClientRect().width - ring.getBoundingClientRect().width - parseFloat(getComputedStyle(row).columnGap))
+    measure()
+    const observer = new ResizeObserver(measure)
+    observer.observe(row)
+    observer.observe(ring)
+    return () => observer.disconnect()
+  }, [allLeftOut, hasCredit])
 
   const size = 120
   const strokeWidth = 10
@@ -64,14 +87,14 @@ export function CreditUsageBody({
         className="flex h-full items-center justify-center text-center text-sm italic max-[1000px]:text-[0.7875rem]"
         style={{ color: 'var(--app-text-subtle)' }}
       >
-        No credit accounts
+        {limitUnset ? 'No credit limit set' : 'No credit accounts'}
       </p>
     )
   }
 
   return (
-    <div className="flex h-full min-h-0 items-center justify-center gap-4">
-      <div className="relative aspect-square h-full shrink-0">
+    <div ref={rowRef} data-testid="credit-row" className="flex h-full min-h-0 items-center justify-center gap-4">
+      <div ref={ringRef} className="relative aspect-square h-full shrink-0">
         <svg viewBox={`0 0 ${size} ${size}`} className="h-full w-full -rotate-90">
           <circle
             cx={size / 2} cy={size / 2} r={radius}
@@ -97,8 +120,8 @@ export function CreditUsageBody({
         </div>
       </div>
       <div className="min-w-0">
-        <p className="font-financial text-3xl font-normal leading-none tracking-tight max-[1000px]:text-[1.6875rem]">
-          <AppScrambledNumber text={formatDashboardMoney(displayAmount, displayCurrency, 'credit', currencies, displayAmountRounding)} />
+        <p data-testid="credit-amount" className="font-financial text-3xl font-normal leading-none tracking-tight max-[1000px]:text-[1.6875rem]">
+          <AppScrambledNumber text={formatDashboardMoney(displayAmount, displayCurrency, 'credit', currencies, displayAmountRounding)} maxWidth={amountWidth} />
         </p>
         <p className="font-financial mt-1.5 text-sm max-[1000px]:text-[0.7875rem]" style={{ color: 'var(--app-text-muted)' }}>
           of <AppScrambledNumber text={formatDashboardMoney(creditAvailable, displayCurrency, 'credit', currencies, 'down')} />

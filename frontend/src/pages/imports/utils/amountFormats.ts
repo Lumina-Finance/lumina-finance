@@ -44,14 +44,25 @@ export const IMPORT_AMOUNT_FORMATS: readonly ImportAmountFormat[] = [
 
 const SPACE_GROUPING_PATTERN = /[ \u00a0\u202f]/
 const ALL_SPACE_GROUPING_PATTERN = /[ \u00a0\u202f]/g
-const EXTRA_SIGN_PATTERN = /[-+\u2212]/
+
+// Every character a bank or a spreadsheet writes as a minus: the hyphen-minus, the Unicode hyphens,
+// the figure, en and em dashes, the horizontal bar, the minus sign and their small and fullwidth
+// forms. Each reads as a minus, since one taken for text would bring money out in as money in
+export const MINUS_CHARACTERS = '\\-\\u2010-\\u2015\\u2212\\uFE58\\uFE63\\uFF0D'
+const MINUS_PATTERN = new RegExp(`^[${MINUS_CHARACTERS}]$`, 'u')
+const SIGN_CHARACTERS = `+${MINUS_CHARACTERS}`
+const EXTRA_SIGN_PATTERN = new RegExp(`[${SIGN_CHARACTERS}]`, 'u')
+const LEADING_SIGN_PATTERN = new RegExp(`^[${SIGN_CHARACTERS}]`, 'u')
 const PARENTHESIS_PATTERN = /[()]/
 const NUMERIC_PUNCTUATION_PATTERN = /[.,']/
 const NON_ASCII_DECIMAL_DIGIT_PATTERN = /(?![0-9])\p{Decimal_Number}/u
 
 // Leading text such as a currency symbol, then one sign with only spaces between it and the digits,
 // as some banks write `R$ -10,00`. The text before it is checked like any other prefix
-const SIGN_AFTER_LEADING_TEXT_PATTERN = /^([^-+\u{2212}0-9]+)([-+\u{2212}])(?=[ \u{a0}\u{202f}]*[0-9])/u
+const SIGN_AFTER_LEADING_TEXT_PATTERN = new RegExp(
+  `^([^${SIGN_CHARACTERS}0-9]+)([${SIGN_CHARACTERS}])(?=[ \\u{a0}\\u{202f}]*[0-9])`,
+  'u',
+)
 
 /**
  * Reads one amount under a selected decimal and grouping format
@@ -72,7 +83,7 @@ export function readImportAmount(rawValue: string, format: ImportAmountFormat): 
   const trimmed = rawValue.trim()
   if (!trimmed || PARENTHESIS_PATTERN.test(trimmed)) return null
 
-  const leadingSign = /^[-+\u2212]/.exec(trimmed)?.[0] ?? ''
+  const leadingSign = LEADING_SIGN_PATTERN.exec(trimmed)?.[0] ?? ''
   const currencySign = leadingSign ? null : SIGN_AFTER_LEADING_TEXT_PATTERN.exec(trimmed)
   const amountSign = leadingSign || (currencySign?.[2] ?? '')
   const unsignedValue = leadingSign
@@ -100,7 +111,7 @@ export function readImportAmount(rawValue: string, format: ImportAmountFormat): 
   const wholeDigits = readWholeAmountDigits(whole, format.groupingSeparator)
   if (wholeDigits === null) return null
 
-  const signCharacter = amountSign === '\u2212' ? '-' : amountSign
+  const signCharacter = MINUS_PATTERN.test(amountSign) ? '-' : amountSign
   const normalized = `${signCharacter}${wholeDigits}${fraction === undefined ? '' : `.${fraction}`}`
   const sign = signCharacter === '-' ? 'negative' : signCharacter === '+' ? 'positive' : 'unsigned'
 
@@ -117,7 +128,7 @@ export function isValidMappedImportAmount(value: string) {
 }
 
 // An optional sign, then digits and the separators the supported formats use, with nothing else
-const BARE_AMOUNT_PATTERN = /^[-+]?[0-9][0-9.,' \u00a0\u202f]*$/
+const BARE_AMOUNT_PATTERN = new RegExp(`^[${SIGN_CHARACTERS}]?[0-9][0-9.,' \\u00a0\\u202f]*$`, 'u')
 
 /**
  * Reports whether a cell is nothing but an amount in some supported format, for the guesser that

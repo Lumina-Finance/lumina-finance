@@ -8,6 +8,7 @@ import { InstitutionLogo } from '@/pages/accounts/components/InstitutionLogo'
 import { humanizeAccountType } from '@/pages/accounts/detail/utils/formatAccountType'
 import type { AccountAccent } from '@/pages/accounts/types/accounts'
 import { getAccountBalanceFxStatusMessage } from '@/pages/accounts/utils/fxTooltipMessages'
+import { getSignedAmountColor } from '@/utils/negativeAmount'
 
 /**
  * One account in a list, linking to its detail page and showing the institution logo, name, any
@@ -42,11 +43,7 @@ export default function AccountRow({
     isArchived
       ? 'var(--app-text-muted)'
       : accent === 'positive'
-        ? account.current_balance > 0
-          ? 'var(--app-positive)'
-          : account.current_balance < 0
-            ? 'var(--app-negative)'
-            : 'var(--app-text)'
+        ? getSignedAmountColor(account.current_balance)
         : account.current_balance < 0
           ? 'var(--app-negative)'
           : 'var(--app-text)'

@@ -13,10 +13,10 @@ import { useInstitutions, type Institution } from '@/api/institutions';
 import { useTaxAdvantagedCategories } from '@/api/tax-advantaged-categories';
 import InstitutionModal from '@/components/reference-modals/InstitutionModal';
 import { useCreateAccount } from '@/api/accounts';
-import { ApiError } from '@/api/auth';
 import { useAuth } from '@/hooks/useAuth';
 import { useInstitutionModal } from '@/hooks/useInstitutionModal';
 import { useMoneyInput } from '@/hooks/useMoneyInput';
+import { getCreateFailureMessage } from '@/utils/createFailure';
 import { getCurrencyExponent } from '@/utils/moneyInput';
 import { getFieldLabelId } from '@/utils/fieldLabel';
 import {
@@ -142,7 +142,7 @@ export default function CreateAccountModal({ open, onClose }: CreateAccountModal
     mutation.mutate(payload, {
       onSuccess: () => onClose(),
       onError: (err) => {
-        setSubmitError(err instanceof ApiError ? err.message : 'Something went wrong. Please try again.');
+        setSubmitError(getCreateFailureMessage(err, 'account'));
       },
     });
   };

@@ -74,6 +74,17 @@ export function getOfxRepeatedTransactionReason(fileName: string) {
   return `This transaction is already in ${fileName}.`
 }
 
+/** Says why a transaction is left out when its account already holds it from an earlier import */
+export function getOfxAlreadyInAccountReason(accountName: string) {
+  return `This transaction is already in ${accountName}.`
+}
+
+/** Said beside Commit import while the server is asked which transactions the accounts already hold */
+export const OFX_HELD_CHECK_RUNNING_MESSAGE = 'Checking which transactions are already in the account…'
+
+/** Said beside Commit import when that question could not be answered, since nothing is committed unchecked */
+export const OFX_HELD_CHECK_FAILED_MESSAGE = "Couldn't check which transactions are already in the account. Please try again."
+
 /** Said of a transaction left out because an earlier one in the same file has its bank ID */
 export const OFX_REPEATED_IN_FILE_REASON = 'Repeats an earlier transaction in this file.'
 

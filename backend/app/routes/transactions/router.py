@@ -1,4 +1,5 @@
 """Transaction API routes"""
+
 import uuid
 from datetime import date
 from typing import Annotated
@@ -12,7 +13,9 @@ from app.models.import_run import ImportRunSource
 from app.models.user import User
 from app.schemas.import_run import (
     AccountImportSourceResponse,
+    CheckHeldBankTransactionsRequest,
     CsvImportLayoutResponse,
+    HeldBankTransactionsResponse,
     ImportRunArchiveRequest,
     ImportRunBudgetsRequest,
     ImportUndoResponse,
@@ -38,6 +41,7 @@ from app.services.importers import (
     commit_import_run,
     commit_journal_run,
     delete_import_run,
+    find_held_import_rows,
     get_last_import,
     list_import_layouts,
     list_import_sources,
@@ -185,6 +189,28 @@ async def get_transaction(
     return await get_transaction_response_for_user(db, user, transaction_id)
 
 
+@router.post("/import/held-bank-transactions", response_model=HeldBankTransactionsResponse)
+async def check_held_bank_transactions(
+    data: CheckHeldBankTransactionsRequest,
+    user: Annotated[User, Depends(get_current_user)],
+    db: Annotated[AsyncSession, Depends(get_db)],
+):
+    """Say which OFX transactions their account already holds, so the preview can leave them out
+
+    Stored bank IDs are keyed hashes only the server can make, so the page cannot compare them
+    itself. Nothing is stored or logged, and the commit still skips whatever is held by then
+
+    Args:
+        data: Each transaction's bank account and bank ID with the account it would go into
+        user: Authenticated user previewing the import
+        db: Active database session
+
+    Returns:
+        The positions in the request that the account already holds
+    """
+    return HeldBankTransactionsResponse(held=await find_held_import_rows(db, user, data))
+
+
 @router.post("/import/runs", response_model=TransactionImportRunResponse, status_code=status.HTTP_201_CREATED)
 async def open_transaction_import_run(
     data: TransactionImportRunRequest,
@@ -205,7 +231,12 @@ async def open_transaction_import_run(
         The opened run, which every later call for this file quotes
     """
     run = await open_import_run(
-        db, user, data.expected_transaction_count, ImportRunSource(data.source), data.file_name, data.csv_layout,
+        db,
+        user,
+        data.expected_transaction_count,
+        ImportRunSource(data.source),
+        data.file_name,
+        data.csv_layout,
     )
     return TransactionImportRunResponse(id=run.id)
 

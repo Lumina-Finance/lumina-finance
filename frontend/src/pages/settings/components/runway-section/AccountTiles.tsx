@@ -2,6 +2,7 @@ import { Archive, Check } from 'lucide-react'
 import type { AccountsOverview } from '@/api/accounts'
 import MarqueeText from '@/components/display/MarqueeText'
 import { useMoneyFormatters } from '@/hooks/useMoneyFormatters'
+import { getSignedAmountColor } from '@/utils/negativeAmount'
 
 interface ArchivedRunwayAccountTileProps {
   account: AccountsOverview
@@ -92,14 +93,7 @@ export function RunwayAccountTile({ account, selected, onToggle }: RunwayAccount
       <span className="shrink-0 text-right tabular-nums">
         <span
           className="block font-financial text-sm font-medium"
-          style={{
-            color:
-              account.current_balance > 0
-                ? 'var(--app-positive)'
-                : account.current_balance < 0
-                  ? 'var(--app-negative)'
-                  : 'var(--app-text)',
-          }}
+          style={{ color: getSignedAmountColor(account.current_balance) }}
         >
           {formatCurrency(account.current_balance, account.currency)}
         </span>

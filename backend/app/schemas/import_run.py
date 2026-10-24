@@ -198,6 +198,32 @@ class AccountImportSourceResponse(BaseModel):
     source: Literal["generic", "firefly", "actual_budget", "ofx"]
 
 
+class HeldBankTransactionItem(BaseModel):
+    """One OFX transaction the import page asks about, with the account it would go into."""
+
+    # Refused rather than dropped, as for a staged row
+    model_config = ConfigDict(extra="forbid")
+
+    account_id: uuid.UUID
+    bank_account: str = Field(min_length=1, max_length=MAX_IMPORT_BANK_ACCOUNT_KEY_LENGTH)
+    bank_transaction: str = Field(min_length=1, max_length=MAX_IMPORT_BANK_TRANSACTION_ID_LENGTH)
+
+
+class CheckHeldBankTransactionsRequest(BaseModel):
+    """A part of the transactions of an OFX import that carry a bank ID, asked about before anything is staged."""
+
+    # One request is bounded as a staged batch is, since 100,000 bank IDs would pass the request body
+    # limit. The page asks about a larger import in parts
+    items: list[HeldBankTransactionItem] = Field(max_length=MAX_IMPORT_BATCH_ROWS)
+
+
+class HeldBankTransactionsResponse(BaseModel):
+    """Which of the asked transactions their account already holds."""
+
+    # Positions in the request, so no bank ID or hash travels back
+    held: list[int]
+
+
 class TransactionImportRunRequest(BaseModel):
     """Open a run for a file about to be staged."""
 

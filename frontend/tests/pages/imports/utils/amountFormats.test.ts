@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { readImportAmount, type ImportAmountFormat } from '@/pages/imports/utils/amountFormats'
+import { isBareImportAmount, readImportAmount, type ImportAmountFormat } from '@/pages/imports/utils/amountFormats'
 
 const DECIMAL_COMMA: ImportAmountFormat = { decimalSeparator: ',', groupingSeparator: '.' }
 const DECIMAL_POINT: ImportAmountFormat = { decimalSeparator: '.', groupingSeparator: ',' }
@@ -45,6 +45,24 @@ describe('reading an amount in a selected format', () => {
     expect(readImportAmount('CHF-100,99', DECIMAL_COMMA)).toMatchObject({ normalized: '-100.99', sign: 'negative' })
     expect(readImportAmount('R$ − 10,00', DECIMAL_COMMA)).toMatchObject({ normalized: '-10.00', sign: 'negative' })
     expect(readImportAmount('R$ +10,00', DECIMAL_COMMA)).toMatchObject({ normalized: '+10.00', sign: 'positive' })
+  })
+
+  it.each([
+    { name: 'hyphen', dash: '‐' },
+    { name: 'non-breaking hyphen', dash: '‑' },
+    { name: 'figure dash', dash: '‒' },
+    { name: 'en dash', dash: '–' },
+    { name: 'em dash', dash: '—' },
+    { name: 'horizontal bar', dash: '―' },
+    { name: 'small em dash', dash: '﹘' },
+    { name: 'small hyphen-minus', dash: '﹣' },
+    { name: 'fullwidth hyphen-minus', dash: '－' },
+  ])('reads a leading $name as a minus', ({ dash }) => {
+    expect(readImportAmount(`${dash}10,00`, DECIMAL_COMMA)).toMatchObject({ normalized: '-10.00', sign: 'negative' })
+    expect(readImportAmount(`CHF${dash}100,99`, DECIMAL_COMMA)).toMatchObject({ normalized: '-100.99', sign: 'negative' })
+    expect(isBareImportAmount(`${dash}10.00`)).toBe(true)
+    expect(readImportAmount(`100,99${dash}`, DECIMAL_COMMA)).toBeNull()
+    expect(readImportAmount(`${dash}-100,99`, DECIMAL_COMMA)).toBeNull()
   })
 
   it('refuses signs whose meaning would be lost', () => {

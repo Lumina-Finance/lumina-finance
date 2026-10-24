@@ -1,14 +1,19 @@
 import { useQuery } from '@tanstack/react-query';
-import { importLayoutKeys, importSourceKeys } from '@/api/cache/queryKeys';
+import { heldBankTransactionKeys, importLayoutKeys, importSourceKeys } from '@/api/cache/queryKeys';
 import { useImportRunMutation } from '@/api/import-runs/hooks';
-import { fetchImportLayouts, fetchImportSources } from '@/api/transaction-imports/requests';
+import type { OnImportStaged } from '@/api/import-runs/types';
+import { fetchHeldBankTransactions, fetchImportLayouts, fetchImportSources } from '@/api/transaction-imports/requests';
 import { commitStagedImportRun, runTransactionImport } from '@/api/transaction-imports/run';
 import type {
   CsvImportLayout,
+  HeldBankTransactionItem,
+  HeldBankTransactionsScope,
   TransactionImportPayload,
   TransactionImportSource,
 } from '@/api/transaction-imports/types';
 import { useAuth } from '@/hooks/useAuth';
+
+const HELD_CHECK_RETRY_COUNT = 1;
 
 /**
  * Provides the mutation boundary for staging a prepared import and committing it
@@ -17,7 +22,7 @@ export function useImportTransactions() {
   return useImportRunMutation(({ payload, signal, onStaged, fileName, csvLayout, source }: {
     payload: TransactionImportPayload;
     signal?: AbortSignal;
-    onStaged?: () => Promise<void>;
+    onStaged?: OnImportStaged;
     fileName?: string;
     csvLayout?: CsvImportLayout;
     source?: TransactionImportSource;
@@ -62,6 +67,39 @@ export function useImportSources(isWanted: boolean) {
     enabled: !!accessToken && isWanted,
     staleTime: Infinity,
     refetchOnMount: 'always',
+  });
+}
+
+/**
+ * Asks the server which OFX transactions their account already holds, so the preview can leave them out
+ *
+ * The cache key is the scope alone. The items carry the bank accounts and bank IDs and are only sent,
+ * so the persisted query cache never holds them. Read again whenever the app data is refreshed, since
+ * an import or an undo, here or in another tab, changes what an account holds
+ *
+ * @param scope - Names the staged files, the statements' positions and their accounts, or null when
+ *   there is nothing to ask
+ * @param items - The transactions to ask about, in the order the answer's positions refer to
+ * @param isPaused - Keeps the answer as it is, so an import being saved is not asked again about what
+ *   it has just written
+ */
+export function useHeldBankTransactions(
+  scope: HeldBankTransactionsScope | null,
+  items: HeldBankTransactionItem[],
+  isPaused: boolean,
+) {
+  const { accessToken } = useAuth();
+  return useQuery({
+    queryKey: heldBankTransactionKeys.check(scope ?? { fileIds: [], statements: [] }),
+    queryFn: ({ signal }) => fetchHeldBankTransactions(items, signal),
+    enabled: !!accessToken && scope !== null && !isPaused,
+
+    // Fresh until an import or an undo invalidates it, and read again when the preview opens
+    staleTime: Infinity,
+    refetchOnMount: 'always',
+
+    // Commit waits on this answer, so a failure is shown after one more try instead of the default three
+    retry: HELD_CHECK_RETRY_COUNT,
   });
 }
 

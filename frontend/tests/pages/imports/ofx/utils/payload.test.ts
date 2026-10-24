@@ -18,6 +18,7 @@ import {
   ROW_AMOUNT_TOO_LARGE_REASON,
 } from '@/pages/imports/constants'
 import {
+  getOfxAlreadyInAccountReason,
   getOfxAmountTooPreciseReason,
   getOfxCurrencyMismatchError,
   getOfxFixedAccountCurrencyError,
@@ -32,6 +33,7 @@ import type { OfxFile } from '@/pages/imports/ofx/types'
 import {
   buildOfxImportPayload,
   getOfxFixedAccountMappings,
+  getOfxSkippedRowId,
   getOfxStatementsToImport,
   type OfxImportAnswers,
 } from '@/pages/imports/ofx/utils/payload'
@@ -499,5 +501,73 @@ describe('a transaction that an earlier file of the import already holds', () =>
 
     expect(build.skippedRows.map((row) => row.reason)).toEqual([OFX_AMOUNT_UNREADABLE_REASON])
     expect(build.payload?.rows.map((row) => row.merchant_name)).toEqual(['Market', 'Gas'])
+  })
+})
+
+// LF-1425 example 1: the account holds the Jan 16 payroll from an earlier import, so the preview must
+// agree with the save, which skips it
+describe('a transaction that its account already holds from an earlier import', () => {
+  const heldIds = (file: OfxFile, ...positions: number[]) => {
+    const statement = file.statements[0]
+    return new Set(positions.map((position) => getOfxSkippedRowId(statement, statement.transactions[position])))
+  }
+
+  it('is left out with the account named, and the transactions that are new still import', async () => {
+    const file = await readStatements([CHECKING])
+    const build = buildOfxImportPayload(file, createAnswers(file, CHEQUING.id, { heldRowIds: heldIds(file, 1) }))
+
+    expect(build.errors).toEqual([])
+    expect(build.payload?.rows.map((row) => row.merchant_name)).toEqual(['Corner Cafe'])
+    expect(build.skippedRows.map(({ payee, reason }) => ({ payee, reason }))).toEqual([
+      { payee: 'Payroll', reason: getOfxAlreadyInAccountReason('Chequing') },
+    ])
+    expect(getOfxAlreadyInAccountReason('Chequing')).toBe('This transaction is already in Chequing.')
+  })
+
+  it('is left out of the sample rows the preview shows', async () => {
+    const file = await readStatements([CHECKING])
+    const answers = createAnswers(file, CHEQUING.id, { heldRowIds: heldIds(file, 1) })
+    const build = buildOfxImportPayload(file, answers)
+
+    const rows = buildOfxPreviewRows(file, {
+      ...answers,
+      institutionById: new Map(),
+      skippedRowIds: new Set(build.skippedRows.map((row) => row.id)),
+    }, 5)
+
+    expect(rows.map((row) => row.transaction.merchant_name)).toEqual(['Corner Cafe'])
+  })
+
+  it('leaves the import with no rows to refuse when every transaction is held', async () => {
+    const file = await readStatements([CHECKING])
+    const build = buildOfxImportPayload(file, createAnswers(file, CHEQUING.id, { heldRowIds: heldIds(file, 0, 1) }))
+
+    expect(build.payload).toBeNull()
+    expect(build.errors).toEqual([getImportNoRowsError('file')])
+    expect(build.skippedRows).toHaveLength(2)
+    expect(build.writtenSources.size).toBe(0)
+  })
+
+  it('keeps the account when nothing is held', async () => {
+    const file = await readStatements([CHECKING])
+    const build = buildOfxImportPayload(file, createAnswers(file, CHEQUING.id, { heldRowIds: new Set() }))
+
+    expect(build.payload?.rows).toHaveLength(2)
+    expect(build.skippedRows).toEqual([])
+  })
+
+  it('is named a repeat rather than held when a later file repeats the kept copy', async () => {
+    const first = await readOfxFile(toOfxFile(buildSgmlOfx([{ transactions: [{ fitId: 'A2', name: 'Payroll' }] }]), '2024-01.qfx'))
+    const second = await readOfxFile(toOfxFile(buildSgmlOfx([{ transactions: [{ fitId: 'A2', name: 'Payroll' }] }]), '2024-02.qfx'))
+    if (first.status !== 'read' || second.status !== 'read') throw new Error('Fixture files are not readable')
+    const file = combineOfxFiles([first.file, second.file])
+    const keptCopy = file.statements[0].transactions[0]
+    const held = new Set([getOfxSkippedRowId(file.statements[0], keptCopy)])
+
+    const build = buildOfxImportPayload(file, createAnswers(file, CHEQUING.id, { heldRowIds: held }))
+
+    expect(build.skippedRows.map((row) => row.reason).sort()).toEqual(
+      [getOfxAlreadyInAccountReason('Chequing'), getOfxRepeatedTransactionReason('2024-01.qfx')].sort(),
+    )
   })
 })

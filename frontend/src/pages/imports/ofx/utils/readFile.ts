@@ -13,6 +13,7 @@ import {
   OFX_TOO_LARGE_REASON,
 } from '@/pages/imports/ofx/constants'
 import type { OfxFileRead, OfxStatement, OfxStatementKind, OfxTransaction } from '@/pages/imports/ofx/types'
+import { MINUS_CHARACTERS } from '@/pages/imports/utils/amountFormats'
 import { createRandomId } from '@/utils/randomId'
 import { findAllDescendants, findChild, parseOfxMarkup, readLeaf, type OfxNode } from './markup'
 
@@ -20,8 +21,11 @@ import { findAllDescendants, findChild, parseOfxMarkup, readLeaf, type OfxNode }
 const HEADER_PREFIX_BYTES = 1024
 const POSTED_DATE_PATTERN = /^(\d{4})(\d{2})(\d{2})/
 
-// A plain signed decimal. OFX writes the decimal separator as a period or a comma and never groups
-const AMOUNT_PATTERN = /^([+-]?)(\d+)(?:[.,](\d+))?$/
+// A plain signed decimal. OFX writes the decimal separator as a period or a comma and never groups.
+// Any dash a bank or spreadsheet writes as a minus is one, as in the CSV import, since one taken for
+// text would bring money out in as money in
+const AMOUNT_PATTERN = new RegExp(`^([+${MINUS_CHARACTERS}]?)(\\d+)(?:[.,](\\d+))?$`, 'u')
+const PLUS_SIGN = '+'
 
 const CURRENCY_PATTERN = /^[A-Z]{3}$/
 
@@ -226,5 +230,6 @@ function readAmount(text: string) {
   if (!match) return null
 
   const [, sign, whole, fraction] = match
-  return `${sign === '-' ? '-' : ''}${whole}${fraction === undefined ? '' : `.${fraction}`}`
+  const isMinus = sign !== '' && sign !== PLUS_SIGN
+  return `${isMinus ? '-' : ''}${whole}${fraction === undefined ? '' : `.${fraction}`}`
 }

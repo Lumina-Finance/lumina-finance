@@ -1,7 +1,7 @@
 import { expect, test } from '@playwright/test'
 
 import { asUser, createAccount, signUpUser } from '../support/api'
-import { commitImport, logInViaApi, openPage } from '../support/app'
+import { commitImport, logInViaApi, openPage, showImportSetup } from '../support/app'
 import { API_BASE_URL } from '../support/target'
 
 // Runs on desktop only: what undoing an import removes is the same at every size
@@ -39,6 +39,10 @@ test('undoes the last import, deleting everything it added and keeping the accou
   await expect(dialog).toBeHidden()
   await expect(lastImport).toBeHidden()
 
+  // Nothing is staged on a page opened afresh, so the importer starts empty and the pop-up says to upload again
+  await expect(page.getByRole('status').filter({ hasText: 'Import undone. Upload the files again to import them.' })).toBeVisible()
+  await expect(page.getByText('No files staged', { exact: true })).toBeVisible()
+
   // The account existed before the import, so it stays with only its starting balance
   const transactions = await request.get(`${API_BASE_URL}/transactions`, {
     headers: asUser(user),
@@ -48,4 +52,54 @@ test('undoes the last import, deleting everything it added and keeping the accou
   const kept = await request.get(`${API_BASE_URL}/accounts/${account.id}`, { headers: asUser(user) })
   expect(kept.status()).toBe(200)
   expect((await kept.json() as { current_balance: number }).current_balance).toBe(10000)
+})
+
+// The row dated February 31 is skipped, which keeps the finished import on screen to be read
+const ON_SCREEN_CSV = [
+  'Date,Amount,Merchant',
+  '2024-03-15,-12.50,Market',
+  '2024-02-31,-9.99,Market',
+  '2024-03-16,-4.00,Market',
+].join('\n')
+
+test('gives the importer back with its files and answers when the import it ran is undone', async ({ page, request }) => {
+  const user = await signUpUser(request)
+  const account = await createAccount(request, user, { name: 'Everyday', startingBalance: 10000 })
+  await logInViaApi(page, user)
+  await openPage(page, `/settings/imports?account=${account.id}`)
+  const upload = page.locator('input[type="file"][accept=".csv,text/csv"]')
+  await expect(upload).toBeEnabled()
+  await upload.setInputFiles({ name: 'undo-back.csv', mimeType: 'text/csv', buffer: Buffer.from(ON_SCREEN_CSV) })
+
+  // An answer given by hand, which has to come back as it was
+  const merchantField = page.getByRole('combobox', { name: 'Match to app field Merchant', exact: true })
+  await merchantField.click()
+  await page.getByRole('option', { name: 'Do not import', exact: true }).click()
+  await expect(merchantField).toContainText('Do not import')
+  await commitImport(page)
+  await page.getByRole('dialog').getByRole('button', { name: 'Review skipped rows', exact: true }).click()
+  await expect(merchantField).toBeDisabled()
+  await expect(page.getByRole('button', { name: 'Remove undo-back.csv', exact: true })).toHaveCount(0)
+  await expect(page.getByRole('button', { name: 'Imported', exact: true })).toBeDisabled()
+
+  await page.getByRole('button', { name: 'Undo import of undo-back.csv' }).click()
+  await page.getByRole('dialog', { name: 'Undo this import?' }).getByRole('button', { name: 'Undo import', exact: true }).click()
+
+  // Announced as a status, and the page is as it was before Commit import
+  const popUp = page.getByRole('status').filter({
+    hasText: 'Import undone. Your files and answers are back, so you can change anything and import again.',
+  })
+  await expect(popUp).toBeVisible()
+
+  // The undo button went with the import, so focus is kept on the page for a keyboard user
+  await expect(page.getByRole('dialog', { name: 'Undo this import?' })).toBeHidden()
+  await expect(page.locator(':focus')).toHaveAttribute('tabindex', '-1')
+  await expect(merchantField).toBeEnabled()
+  await expect(merchantField).toContainText('Do not import')
+  await showImportSetup(page)
+  await expect(page.getByRole('button', { name: 'Remove undo-back.csv', exact: true })).toBeVisible()
+  await expect(page.getByRole('region', { name: 'Last import' })).toBeHidden()
+
+  // And it imports again, from the answers on screen
+  expect((await commitImport(page)).status()).toBe(201)
 })

@@ -10,6 +10,7 @@ import {
 } from '@/api/transaction-imports'
 import { EMPTY_COLUMN_MAP } from '@/pages/imports/constants'
 import { useAuth } from '@/hooks/useAuth'
+import { useTodayYmd } from '@/hooks/useTodayYmd'
 import { OUTSIDE_ACCOUNT_LABEL, OUTSIDE_ACCOUNT_VALUE } from '@/utils/transfers'
 import { LOADING_ANIMATION_MIN_MS } from '@/utils/timing'
 import type { ColumnMap, ColumnTarget, ColumnValidationErrors, CsvReadingChoices, ImportAmountDirection, ImportCategoryKind, ImportFileDraft, ImportRowProblem, PreviewTransactionRow } from '@/pages/imports/types'
@@ -37,6 +38,7 @@ import {
   getStatedCurrencyByAccountSource,
   getColumnValues,
   countImportRowsOutsideDateRange,
+  getImportDateRangeBlockReason,
   getImportDateRangeFilter,
   getLatestStartSuggestion,
   getLatestTransactionFilters,
@@ -213,8 +215,13 @@ export function useTransactionImportWorkflow(fixedAccount: AccountsOverview | nu
   )
   const isDateRangeCrossed = isImportDateRangeCrossed(columnMap, shownDateRange)
 
+  // Read from the dates on screen, not the ones the page has taken, so Commit import is greyed out
+  // for as long as a date is wrong, including while the user is still in the field
+  const dateRangeBlockReason = getImportDateRangeBlockReason(columnMap, shownDateRange)
+
   // Offered rather than filled in, so the start stays empty unless the user asks for it
-  const { data: latestTransactions } = useTransactions(getLatestTransactionFilters(fixedAccount?.id ?? null))
+  const todayYmd = useTodayYmd()
+  const { data: latestTransactions } = useTransactions(getLatestTransactionFilters(fixedAccount?.id ?? null, todayYmd))
   const latestStartSuggestion = getLatestStartSuggestion(latestTransactions?.[0]?.dt)
 
   const accountMappingSources = useMemo(
@@ -915,7 +922,11 @@ export function useTransactionImportWorkflow(fixedAccount: AccountsOverview | nu
       ? getImportLayoutsUploadBlockReason(importLayouts.isError || (importLayouts.isFetchedAfterMount && !importLayouts.isStale))
       : null)
 
-  const canCommitImport = run.canCommit({ hasPayload: importBuild.payload !== null, isProcessingFile: isProcessingFiles })
+  const canCommitImport = run.canCommit({
+    hasPayload: importBuild.payload !== null,
+    isProcessingFile: isProcessingFiles,
+    blockReason: dateRangeBlockReason,
+  })
 
   const syncAutoMatchKeys = (
     nextColumnMap: ColumnMap,
@@ -1094,7 +1105,9 @@ export function useTransactionImportWorkflow(fixedAccount: AccountsOverview | nu
     setIsProcessingFiles(false)
     sourceFilesRef.current.delete(fileId)
     const remainingFiles = removeStagedFile(files, fileId)
-    // With no file left the layout is cleared, so the next file's columns are read as on a first upload
+    // With no file left the layout and the chosen dates are cleared, so the next file is read as on a
+    // first upload and no range carries over to it
+    if (remainingFiles.length === 0) resetDateRange()
     applyStagedFiles(remainingFiles, { startFresh: remainingFiles.length === 0 })
   }
 
@@ -1295,6 +1308,7 @@ export function useTransactionImportWorkflow(fixedAccount: AccountsOverview | nu
     setDateFormat,
     dateRange: shownDateRange,
     isDateRangeCrossed,
+    dateRangeBlockReason,
     outsideRangeRowCount,
     setDateRangeEnd,
     setIsPointerInDatePanel,

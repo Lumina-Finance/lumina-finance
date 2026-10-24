@@ -181,3 +181,57 @@ test('eases the name of a chooser row straight to its new colour and leaves the 
     expect(frames.every((frame) => frame[1].every((channel, index) => channel === first[1][index]))).toBe(true)
   }
 })
+
+test('says no credit accounts when the user has no credit card', async ({ page, request }) => {
+  const user = await signUpUser(request)
+  await logInViaApi(page, user)
+  await openPage(page, '/dashboard')
+
+  await expect(page.getByText('No credit accounts', { exact: true })).toBeVisible()
+  await expect(page.getByText('No credit limit set', { exact: true })).toHaveCount(0)
+})
+
+test('says no credit limit is set when the counted card has none', async ({ page, request }) => {
+  const user = await signUpUser(request)
+  await createCard(request, user, 'Card A', 0, 0)
+  await logInViaApi(page, user)
+  await openPage(page, '/dashboard')
+
+  await expect(page.getByText('No credit limit set', { exact: true })).toBeVisible()
+  await expect(page.getByText('No credit accounts', { exact: true })).toHaveCount(0)
+})
+
+for (const reducedMotion of ['no-preference', 'reduce'] as const) {
+  test(`keeps every digit of the credit amount inside the widget with ${reducedMotion} motion`, async ({ page, request }) => {
+    const user = await signUpUser(request, { baseCurrency: 'USD' })
+    await createAccount(request, user, {
+      name: 'Card A',
+      accountKind: 'revolving',
+      accountType: 'credit_card',
+      currency: 'USD',
+      startingBalance: -320_000,
+      creditLimit: 800_000,
+    })
+    await page.emulateMedia({ reducedMotion })
+    await logInViaApi(page, user)
+
+    // A wide desktop, a tablet and a phone, where the amount's column is narrow enough to cut a digit
+    for (const width of [1920, 768, 390]) {
+      await page.setViewportSize({ width, height: 900 })
+      await openPage(page, '/dashboard')
+      const amount = page.getByTestId('credit-amount')
+      await expect(amount).toContainText('US$3,200.00')
+
+      // The amount's box animates its width, so poll until it has settled. It must then be as wide as
+      // its whole text, which a range over the text measures, and end inside the row the widget draws it in
+      await expect.poll(() => amount.evaluate((paragraph) => {
+        const range = document.createRange()
+        range.selectNodeContents(paragraph)
+        const textRight = range.getBoundingClientRect().right
+        const boxRight = paragraph.firstElementChild!.getBoundingClientRect().right
+        const rowRight = paragraph.closest('[data-testid="credit-row"]')!.getBoundingClientRect().right
+        return boxRight >= textRight - 0.5 && textRight <= rowRight + 0.5
+      }), `amount at ${width}`).toBe(true)
+    }
+  })
+}

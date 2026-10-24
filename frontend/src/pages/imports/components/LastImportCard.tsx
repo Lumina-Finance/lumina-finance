@@ -5,7 +5,6 @@ import { ApiError } from '@/api/auth'
 import { useLastImport, useUndoImportRun, type LastImport } from '@/api/import-runs'
 import { COLLAPSIBLE_SECTION_EASE, COLLAPSIBLE_SECTION_TRANSITION_SECONDS } from '@/components/collapsible-section/motion'
 import { useAuth } from '@/hooks/useAuth'
-import { useToast } from '@/hooks/useToast'
 import { IMPORT_INSET_STYLE } from '@/pages/imports/constants'
 import { UndoImportConfirm } from '@/pages/imports/components/UndoImportConfirm'
 import {
@@ -27,11 +26,13 @@ const COLUMN_GAP = '-2rem'
  * (`IMPORT_UNDO_WINDOW`, whose end the server sends as `undo_until`) and only while nothing else has
  * changed, so this shows nothing once there is none to undo. Left out until it arrives, so a new user
  * never sees it flash, and grown into place when it does, so the steps below slide down rather than jump
+ *
+ * @param onUndone - Told the ID of the import once it is undone, for the page to put its importers right
+ *   and say what happened
  */
-export function LastImportCard({ className = '' }: { className?: string }) {
+export function LastImportCard({ className = '', onUndone }: { className?: string; onUndone: (runId: string) => void }) {
   const lastImport = useLastImport()
   const undo = useUndoImportRun()
-  const { showToast } = useToast()
   const { user } = useAuth()
   const prefersReducedMotion = useReducedMotion()
 
@@ -48,9 +49,9 @@ export function LastImportCard({ className = '' }: { className?: string }) {
     if (!pendingEntry) return
     setUndoError(null)
     undo.mutate(pendingEntry.id, {
-      onSuccess: (result) => {
+      onSuccess: () => {
         setIsConfirmOpen(false)
-        showToast({ status: 'success', text: `Import undone. ${formatTransactionCount(result.transactions_deleted)} deleted.` })
+        onUndone(pendingEntry.id)
       },
       onError: (error) => {
         setUndoError(error instanceof ApiError ? error.message : 'Something went wrong. Please try again.')

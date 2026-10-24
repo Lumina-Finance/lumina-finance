@@ -1,7 +1,13 @@
 import { useMemo, useRef, useState } from 'react'
 import type { AccountsOverview } from '@/api/accounts'
 import { getImportFileName } from '@/api/import-runs'
-import { useCommitStagedImport, useImportTransactions, type TransactionImportResponse } from '@/api/transaction-imports'
+import {
+  useCommitStagedImport,
+  useHeldBankTransactions,
+  useImportTransactions,
+  type TransactionImportResponse,
+} from '@/api/transaction-imports'
+import type { ImportCommitCheck } from '@/pages/imports/components'
 import { CREATE_ACCOUNT_VALUE, IMPORT_SAMPLE_PREVIEW_LIMIT, IMPORT_TRANSFER_CATEGORY_NAME } from '@/pages/imports/constants'
 import {
   useImportAccountCreateState,
@@ -14,10 +20,13 @@ import {
   getOfxAccountSourceScope,
   getOfxLeftOutNotice,
   getOfxMultipleStatementsReason,
+  OFX_HELD_CHECK_FAILED_MESSAGE,
+  OFX_HELD_CHECK_RUNNING_MESSAGE,
   OFX_IMPORT_FILE_TYPE,
   OFX_UPLOAD_LABEL,
 } from '@/pages/imports/ofx/constants'
 import type { OfxSkippedRow, OfxStagedFile } from '@/pages/imports/ofx/types'
+import { buildOfxHeldCheck, getOfxHeldRowIds } from '@/pages/imports/ofx/utils/heldRows'
 import {
   buildOfxImportPayload,
   getOfxFixedAccountMappings,
@@ -186,6 +195,39 @@ export function useOfxImportWorkflow(fixedAccount: AccountsOverview | null = nul
     [accountCreateCurrencies, accountCreateInstitutions, accountCreateTypes, statements, supportedCurrencyCodes],
   )
 
+  // The server alone can say which transactions an account already holds, since it keeps only hashes
+  // of the bank IDs. Rows bound for a new account are never asked about
+  const heldCheck = useMemo(
+    () => (ofxFile ? buildOfxHeldCheck(ofxFile, stagedFiles.map(({ id }) => id), resolvedAccountMappings, accountById) : null),
+    [accountById, ofxFile, resolvedAccountMappings, stagedFiles],
+  )
+  // Not asked from the moment an import starts until it is reopened or replaced, so the rows it just
+  // saved are never read back as already held. The run state turns on as the import starts, before
+  // anything is saved, and undoing the import reopens it, which asks again
+  const isHeldCheckPaused = run.workflow.importOverlayOpen || run.workflow.isImportInFlight || run.workflow.importResult !== null
+  const heldQuery = useHeldBankTransactions(heldCheck?.scope ?? null, heldCheck?.items ?? [], isHeldCheckPaused)
+  const isHeldCheckAsked = heldCheck?.scope != null && !isHeldCheckPaused
+  const heldRowIds = useMemo(
+    () => (heldCheck && heldQuery.data ? getOfxHeldRowIds(heldCheck, heldQuery.data.held) : undefined),
+    [heldCheck, heldQuery.data],
+  )
+
+  // Commit stays off from the moment an answer is wanted until it arrives, and again if it fails or
+  // the app data is refreshed and the answer is read afresh, since a held row let through as new
+  // would be saved on a stale answer
+  const heldCheckState: ImportCommitCheck['state'] | null = !isHeldCheckAsked
+    ? null
+    : heldQuery.isFetching || heldQuery.isPending
+      ? 'running'
+      : heldQuery.isError ? 'failed' : null
+  const heldCheckNotice: ImportCommitCheck | null = heldCheckState === null
+    ? null
+    : {
+      state: heldCheckState,
+      message: heldCheckState === 'running' ? OFX_HELD_CHECK_RUNNING_MESSAGE : OFX_HELD_CHECK_FAILED_MESSAGE,
+      onRetry: () => { void heldQuery.refetch() },
+    }
+
   const importBuild = useMemo(
     () => (ofxFile
       ? buildOfxImportPayload(ofxFile, {
@@ -195,9 +237,10 @@ export function useOfxImportWorkflow(fixedAccount: AccountsOverview | null = nul
         fixedAccount,
         categories,
         currencies,
+        heldRowIds,
       })
       : EMPTY_BUILD),
-    [accountById, categories, currencies, fixedAccount, ofxFile, resolvedAccountCreateDetails, resolvedAccountMappings],
+    [accountById, categories, currencies, fixedAccount, heldRowIds, ofxFile, resolvedAccountCreateDetails, resolvedAccountMappings],
   )
 
   const skippedRowIds = useMemo(() => new Set(importBuild.skippedRows.map((row) => row.id)), [importBuild.skippedRows])
@@ -218,8 +261,10 @@ export function useOfxImportWorkflow(fixedAccount: AccountsOverview | null = nul
   )
 
   const transactionCount = statements.reduce((total, statement) => total + statement.transactions.length, 0)
+  // Rows counts every transaction in the files, as in the other importers, and only Will create leaves
+  // out the ones the import skips
   const importEstimate = {
-    rowCount: transactionCount - importBuild.skippedRows.length,
+    rowCount: transactionCount,
     transactionEstimate: transactionCount - importBuild.skippedRows.length,
   }
 
@@ -231,7 +276,11 @@ export function useOfxImportWorkflow(fixedAccount: AccountsOverview | null = nul
     importBuild.writtenSources,
   )
 
-  const canCommitImport = run.canCommit({ hasPayload: importBuild.payload !== null, isProcessingFile })
+  const canCommitImport = run.canCommit({
+    hasPayload: importBuild.payload !== null,
+    isProcessingFile,
+    blockReason: heldCheckNotice?.message ?? null,
+  })
   const uploadBlockReason = getImportUploadBlockReason(currencies, currenciesError)
 
   const resetAnswers = () => {
@@ -332,6 +381,7 @@ export function useOfxImportWorkflow(fixedAccount: AccountsOverview | null = nul
     predictedSkippedRows: importBuild.skippedRows,
     newAccountCount,
     importBuild,
+    heldCheckNotice,
     canCommitImport,
     accountsLoading,
     currenciesLoading,

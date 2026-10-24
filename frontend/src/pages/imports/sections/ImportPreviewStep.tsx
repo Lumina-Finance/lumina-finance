@@ -26,6 +26,7 @@ type ImportPreviewStepProps = Pick<
   | 'importError'
   | 'handleCommitImport'
   | 'canCommitImport'
+  | 'dateRangeBlockReason'
   | 'importResult'
   | 'completedImport'
 >
@@ -71,6 +72,7 @@ export function ImportPreviewStep({
   importError,
   handleCommitImport,
   canCommitImport,
+  dateRangeBlockReason,
   importResult,
   completedImport,
 }: ImportPreviewStepProps) {
@@ -95,6 +97,7 @@ export function ImportPreviewStep({
       previewGroups={previewGroups}
       emptyDescription="Mapped rows will appear here."
       importError={importError}
+      buildError={dateRangeBlockReason}
       imported={Boolean(importResult)}
       canCommit={canCommitImport}
       onCommit={handleCommitImport}

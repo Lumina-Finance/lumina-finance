@@ -1,4 +1,5 @@
 """Transaction import account mapping"""
+
 import uuid
 from dataclasses import dataclass
 
@@ -61,14 +62,13 @@ async def resolve_import_account_sources(
     outside_sources: set[str] = set()
 
     # Acquire fresh caller-bound facts without changing the order of account policy decisions
-    access_lookup = await load_account_access_lookup(db, {
-        mapping.account_id for mapping in mappings if mapping.account_id is not None
-    }, user.id)
+    access_lookup = await load_account_access_lookup(
+        db, {mapping.account_id for mapping in mappings if mapping.account_id is not None}, user.id
+    )
     existing_currencies, existing_institutions = await load_import_account_references(
         db,
         {mapping.create.currency.upper() for mapping in mappings if mapping.create is not None},
-        {mapping.create.institution_id for mapping in mappings
-         if mapping.create is not None and mapping.create.institution_id is not None},
+        {mapping.create.institution_id for mapping in mappings if mapping.create is not None and mapping.create.institution_id is not None},
     )
 
     # Build each declared account source once so import rows can use a stable lookup map
@@ -141,20 +141,24 @@ async def _get_or_create_import_account_for_mapping(
         account = (
             await _get_counterparty_import_account(db, user, mapping.account_id, access_lookup)
             if is_counterparty_only
-            else await _get_existing_import_account(db, user, mapping.account_id, access_lookup)
+            else await get_existing_import_account(db, user, mapping.account_id, access_lookup)
         )
         stats.reused_account_ids.add(account.id)
         return account
 
-    account = await create_import_account(db, user, mapping.create,
-                                         existing_currencies=existing_currencies, existing_institutions=existing_institutions)
+    account = await create_import_account(
+        db, user, mapping.create, existing_currencies=existing_currencies, existing_institutions=existing_institutions
+    )
     stats.accounts_created += 1
     stats.created_account_ids.append(account.id)
     return account
 
 
-async def _get_existing_import_account(
-    db: AsyncSession, user: User, account_id: uuid.UUID, access_lookup: AccountAccessLookup,
+async def get_existing_import_account(
+    db: AsyncSession,
+    user: User,
+    account_id: uuid.UUID,
+    access_lookup: AccountAccessLookup,
 ) -> Account:
     """Return an existing account after validating import write access
 
@@ -183,7 +187,10 @@ async def _get_existing_import_account(
 
 
 async def _get_counterparty_import_account(
-    db: AsyncSession, user: User, account_id: uuid.UUID, access_lookup: AccountAccessLookup,
+    db: AsyncSession,
+    user: User,
+    account_id: uuid.UUID,
+    access_lookup: AccountAccessLookup,
 ) -> Account:
     """Return an existing account that only ever appears as a transfer's counterparty
 

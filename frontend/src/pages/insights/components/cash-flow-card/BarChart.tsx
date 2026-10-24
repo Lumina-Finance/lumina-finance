@@ -25,13 +25,14 @@ import {
 import { CHART_X_AXIS_TICK_FONT_SIZE } from '@/components/charts/constants'
 import { useMoneyFormatters } from '@/hooks/useMoneyFormatters'
 import type { CashFlowBarBucket } from '@/pages/insights/types/cashFlow'
-import { getSignedAmountColor } from '@/pages/insights/utils/money'
+import { getCashFlowTooltipBucket } from '@/pages/insights/utils/cashFlow'
+import { getSignedAmountColor } from '@/utils/negativeAmount'
 import {
   useFittedYAxisWidth,
   Y_AXIS_LABEL_CLASS_NAME,
   Y_AXIS_TICK_MARGIN_PX,
   Y_AXIS_TICK_SIZE_PX,
-} from './useFittedYAxisWidth'
+} from '@/pages/insights/hooks/useFittedYAxisWidth'
 
 type CashFlowTooltipState = {
   activeLabel?: string | number
@@ -130,10 +131,7 @@ export function CashFlowBarChart({
     state: CashFlowTooltipState,
     event: ReactMouseEvent<SVGGraphicsElement>,
   ) {
-    const activeIndex = Number(state.activeTooltipIndex)
-    const bucket = Number.isInteger(activeIndex)
-      ? buckets[activeIndex]
-      : buckets.find((item) => item.label === String(state.activeLabel))
+    const bucket = getCashFlowTooltipBucket(state, buckets)
     const pointer = getCashFlowTooltipPointer(state, event)
     if (!bucket) {
       tooltipRef.current?.show(null, pointer)

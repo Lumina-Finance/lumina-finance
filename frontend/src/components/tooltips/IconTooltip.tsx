@@ -299,6 +299,7 @@ export default function IconTooltip({
         aria-label={label}
         aria-expanded={isOpen}
         data-modal-field-tab-stop={modalFieldTabStop ? 'true' : undefined}
+        data-fx-tone={isFxIcon ? fxTone : undefined}
         className={triggerClassName}
         style={isFxIcon ? undefined : { color: iconColor ?? color }}
         onClick={() => {

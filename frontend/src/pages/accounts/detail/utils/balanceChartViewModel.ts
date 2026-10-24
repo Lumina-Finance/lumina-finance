@@ -1,4 +1,5 @@
 import type { AccountBalanceSnapshot, SnapshotGranularity } from '@/api/accounts'
+import { getSignedAmountColor, MUTED_ZERO_COLOR } from '@/utils/negativeAmount'
 import {
   RANGE_CONFIG,
   type BalanceChartMode,
@@ -141,11 +142,7 @@ export function getBalanceChartSnapshot({
   // The period change is written out as a figure and drawn as the line in change mode, so it
   // carries a colour for each: the figure keeps the contrast a number needs, the line matches
   // every other chart. A flat period is neutral, since nothing was gained or lost
-  const deltaColor = trend === 'flat'
-    ? 'var(--app-text-muted)'
-    : trend === 'up'
-      ? 'var(--app-positive)'
-      : 'var(--app-negative)'
+  const deltaColor = getSignedAmountColor(periodDelta?.absolute ?? 0, MUTED_ZERO_COLOR)
   const deltaMarkColor = getValueMarkColor(trend === 'up' ? 'positive' : 'negative')
 
   return {

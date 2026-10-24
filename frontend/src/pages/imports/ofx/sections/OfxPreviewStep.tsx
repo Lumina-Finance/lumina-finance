@@ -12,6 +12,7 @@ type OfxPreviewStepProps = Pick<
   | 'completedImport'
   | 'newAccountCount'
   | 'importBuild'
+  | 'heldCheckNotice'
   | 'importError'
   | 'importResult'
   | 'canCommitImport'
@@ -31,6 +32,7 @@ export function OfxPreviewStep({
   completedImport,
   newAccountCount,
   importBuild,
+  heldCheckNotice,
   importError,
   importResult,
   canCommitImport,
@@ -47,6 +49,7 @@ export function OfxPreviewStep({
       previewGroups={previewGroups}
       emptyDescription="Transactions compiled from the statement will appear here."
       buildError={importBuild.errors[0] ?? null}
+      check={heldCheckNotice}
       importError={importError}
       imported={Boolean(importResult)}
       canCommit={canCommitImport}

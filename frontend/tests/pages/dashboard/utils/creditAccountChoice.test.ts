@@ -7,9 +7,11 @@ import type { CreditUtilizationAccount } from '@/api/dashboard'
 import {
   areAllAccountsLeftOut,
   getExcludedAccountIds,
+  isCreditLimitUnset,
   isExclusionChanged,
   toggleExcludedAccount,
 } from '@/pages/dashboard/utils/creditAccountChoice'
+import { fxStatus } from './fixtures'
 
 const CARDS: CreditUtilizationAccount[] = [
   { id: 'card-a', name: 'Card A', is_counted: true, account_type: 'credit_card', institution: null },
@@ -38,5 +40,18 @@ describe('credit account choice', () => {
     expect(areAllAccountsLeftOut([{ ...CARDS[0], is_counted: false }, CARDS[1]])).toBe(true)
     expect(areAllAccountsLeftOut(CARDS)).toBe(false)
     expect(areAllAccountsLeftOut([])).toBe(false)
+  })
+
+  it('says no limit is set only for counted cards whose limits add up to nothing', () => {
+    const noLimit = { credit_limit_total: 0, credit_used: 0, fx_status: fxStatus, accounts: CARDS }
+    expect(isCreditLimitUnset(noLimit)).toBe(true)
+    expect(isCreditLimitUnset({ ...noLimit, credit_limit_total: 100_000 })).toBe(false)
+    expect(isCreditLimitUnset({ ...noLimit, accounts: [] })).toBe(false)
+    expect(isCreditLimitUnset({ ...noLimit, accounts: [CARDS[1]] })).toBe(false)
+
+    // A foreign limit with no rate adds nothing to the total, though the card has a limit
+    const missingRate = { state: 'unavailable' as const, missing_pairs: [{ base: 'USD', quote: 'CAD' }] }
+    expect(isCreditLimitUnset({ ...noLimit, fx_status: missingRate })).toBe(false)
+    expect(isCreditLimitUnset({ ...noLimit, fx_status: { ...missingRate, state: 'incomplete' } })).toBe(false)
   })
 })

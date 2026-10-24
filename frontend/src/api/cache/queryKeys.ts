@@ -196,3 +196,12 @@ export const importLayoutKeys = {
 export const importSourceKeys = {
   all: ['import-sources'] as const,
 };
+
+export const heldBankTransactionKeys = {
+  all: ['held-bank-transactions'] as const,
+
+  // The scope names files, statement positions and accounts, never a bank account or a bank ID, since
+  // the persisted query cache writes keys out to browser storage
+  check: (scope: { fileIds: string[]; statements: Array<[number, string]> }) =>
+    [...heldBankTransactionKeys.all, scope] as const,
+};

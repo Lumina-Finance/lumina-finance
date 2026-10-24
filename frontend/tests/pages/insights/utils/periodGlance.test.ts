@@ -54,6 +54,25 @@ describe('period glance amounts that moved', () => {
       .toBe('−$10.00 (−10%) vs previous matching period')
   })
 
+  it('leaves a net savings and a net worth change of zero unsigned and neutral, and colours the rest by direction', () => {
+    const toneOf = (income: number, expenses: number, netWorthChange: number) => {
+      const { primaryMetric, supportItems } = getPeriodGlanceCardData(
+        respond({ income, expenses, net_worth_change: netWorthChange }),
+        'USD',
+        currencies,
+      )
+      return [
+        primaryMetric.value,
+        primaryMetric.tone,
+        supportItems.find((item) => item.label === 'Net worth changed by')?.tone,
+      ]
+    }
+
+    expect(toneOf(5_000, 5_000, 0)).toEqual(['$0.00', 'neutral', 'neutral'])
+    expect(toneOf(6_000, 5_000, 100)).toEqual(['+$10.00', 'positive', 'positive'])
+    expect(toneOf(5_000, 6_000, -100)).toEqual(['−$10.00', 'negative', 'negative'])
+  })
+
   it('rounds the top category share and the biggest change up, like any spending figure', () => {
     // 410,000 of 480,000 is 85.4%, and a 1,001 rise on a 100,000 basis is 1.001%
     const items = getPeriodGlanceCardData(

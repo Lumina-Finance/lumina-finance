@@ -8,6 +8,7 @@ from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.account import Account
+from app.models.base import AccountKind
 from app.models.user import User, UserCreditExcludedAccount
 from app.services.dashboard_widgets.credit import get_credit_widget_accounts
 
@@ -49,12 +50,30 @@ async def replace_excluded_credit_account_ids(
         requested_ids: Credit accounts to leave out
 
     Raises:
-        HTTPException: A requested account is not readable, or is not a credit account with a limit
+        HTTPException: A requested account is not readable, is archived, or is not a credit account
+            with a limit
     """
     credit_account_ids = {account.id for account in get_credit_widget_accounts(accounts)}
     readable_account_ids = {account.id for account in accounts}
     if requested_ids - readable_account_ids:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Account not found")
+    # A card archived since the user opened the list is a different mistake from a chequing account
+    archived_card = next(
+        (
+            account
+            for account in accounts
+            if account.id in requested_ids
+            and account.is_archived
+            and account.account_kind == AccountKind.REVOLVING
+            and account.credit_limit is not None
+        ),
+        None,
+    )
+    if archived_card is not None:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+            detail=f"{archived_card.name} is archived, so it can't count toward credit utilization",
+        )
     if requested_ids - credit_account_ids:
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,

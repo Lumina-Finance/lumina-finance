@@ -33,6 +33,32 @@ export function getShownAmountSign(amount: number): AmountSign {
   return Math.round(Math.abs(amount)) === 0 ? 0 : getAmountSign(amount)
 }
 
+const AMOUNT_SIGN_COLORS: Record<AmountSign, string> = {
+  [-1]: 'var(--app-negative)',
+  0: 'var(--app-text)',
+  1: 'var(--app-positive)',
+}
+
+/** The neutral colour of a change figure that sits beside a flat icon or a label, a step quieter than text */
+export const MUTED_ZERO_COLOR = 'var(--app-text-muted)'
+
+/**
+ * Returns the text colour for an amount's direction, with zero in the neutral text colour, or in
+ * `zeroColor` where a change figure keeps a quieter neutral. Every amount that is coloured by its
+ * direction reads this, so no screen colours a zero as a gain
+ */
+export function getAmountSignColor(sign: AmountSign, zeroColor = AMOUNT_SIGN_COLORS[0]): string {
+  return sign === 0 ? zeroColor : AMOUNT_SIGN_COLORS[sign]
+}
+
+/**
+ * Returns the text colour for an amount in minor units, read in the direction it is shown in, so an
+ * amount that shows as zero is neutral just as its text is unsigned
+ */
+export function getSignedAmountColor(amount: number, zeroColor?: string): string {
+  return getAmountSignColor(getShownAmountSign(amount), zeroColor)
+}
+
 /**
  * Puts an amount's direction in front of its already formatted magnitude
  *
@@ -46,12 +72,21 @@ export function signMovedAmount(sign: AmountSign, magnitude: string): string {
   return `${prefix}${magnitude}${suffix}`
 }
 
+// A savings rate with income near zero runs into the millions, which says nothing a reader can use
+// and overflows the places it is shown, so a rate past this many percent is written as beyond it
+const SAVINGS_RATE_DISPLAY_LIMIT = 999
+
 /**
  * Formats a savings rate, which is unsigned when it is positive and written with the same negative
  * as an amount that moved when spending outran income. Minus infinity, the rate of spending with no
- * income behind it, is written the same way
+ * income behind it, is written the same way. A finite rate beyond 999% either way is written as
+ * "above 999%" or "below −999%"
  */
 export function formatRatePercent(rate: number): string {
+  if (rate > SAVINGS_RATE_DISPLAY_LIMIT) return `above ${SAVINGS_RATE_DISPLAY_LIMIT}%`
+  if (rate < -SAVINGS_RATE_DISPLAY_LIMIT && Number.isFinite(rate)) {
+    return `below ${signMovedAmount(-1, `${SAVINGS_RATE_DISPLAY_LIMIT}%`)}`
+  }
   const magnitude = Number.isFinite(rate) ? Math.abs(rate).toString() : '∞'
   return rate < 0 ? signMovedAmount(-1, `${magnitude}%`) : `${magnitude}%`
 }

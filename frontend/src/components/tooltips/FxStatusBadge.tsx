@@ -1,4 +1,5 @@
 import type { FxStatus } from '@/api/shared/fx'
+import type { IconTooltipFxTone } from '@/components/tooltips/fxToneClass'
 import IconTooltip from '@/components/tooltips/IconTooltip'
 import { formatMissingFxPairs, getFxStatusMessage, getFxStatusTone } from '@/utils/fxStatus'
 
@@ -7,6 +8,8 @@ type FxStatusBadgeProps = {
   fxStatus: FxStatus | undefined
   getMessage?: (fxStatus: FxStatus) => string | undefined
   placement?: 'top' | 'bottom'
+  // Overrides the tone the status gives, for a gap that is no failure
+  tone?: IconTooltipFxTone
 }
 
 const FX_STATUS_FALLBACK_MESSAGE = 'FX conversion did not complete. Values may be incomplete'
@@ -19,6 +22,7 @@ export function FxStatusBadge({
   fxStatus,
   getMessage = getFxStatusMessage,
   placement = 'top',
+  tone,
 }: FxStatusBadgeProps) {
   if (!fxStatus) return null
   const message = getMessage(fxStatus) ?? FX_STATUS_FALLBACK_MESSAGE
@@ -27,7 +31,7 @@ export function FxStatusBadge({
     <IconTooltip
       label={label}
       icon="fx"
-      fxTone={getFxStatusTone(fxStatus)}
+      fxTone={tone ?? getFxStatusTone(fxStatus)}
       placement={placement}
     >
       <span className="block">{message}</span>

@@ -229,6 +229,7 @@ describe('getSkippedRowsDisplay after a Firefly III commit', () => {
       liveForecastRows: livePrediction.skippedRows,
       completedImport: {
         result: importResult,
+        runId: null,
         skippedRowsAtCommit: predictionAtCommit.skippedRows,
         outsideRangeCountAtCommit: 0,
         savedEarlier: false,

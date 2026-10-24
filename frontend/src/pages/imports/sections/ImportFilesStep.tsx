@@ -136,10 +136,13 @@ export function ImportFilesStep({
       {files.length === 0 ? (
         <>
           {uploadArea}
-          <EmptyState
-            title="No files staged"
-            description="The uploaded files will appear here."
-          />
+          {/* The upload card says the file is being read, so the empty state would contradict it */}
+          {!isProcessingFiles && (
+            <EmptyState
+              title="No files staged"
+              description="The uploaded files will appear here."
+            />
+          )}
         </>
       ) : (
         <>

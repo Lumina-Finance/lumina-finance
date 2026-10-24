@@ -125,7 +125,8 @@ export function OfxFilesStep({
       {/* Files are added to the staged ones, so the card sits with the list it adds to. A finished
           import's card is the start of the next import, so it sits last */}
       {!isImportFinished && uploadArea}
-      {stagedFiles.length === 0 && (
+      {/* The upload card says the file is being read, so the empty state would contradict it */}
+      {stagedFiles.length === 0 && !isProcessingFile && (
         <EmptyState title="No files staged" description="The uploaded files will appear here." />
       )}
 

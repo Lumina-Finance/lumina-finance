@@ -2,6 +2,7 @@ import { useMoneyFormatters } from '@/hooks/useMoneyFormatters'
 import type { FxStatus } from '@/api/shared/fx'
 import { FxStatusBadge } from '@/components/tooltips/FxStatusBadge'
 import { getAccountSummaryFxStatusMessage } from '@/pages/accounts/utils/fxTooltipMessages'
+import { getSignedAmountColor } from '@/utils/negativeAmount'
 import { SummaryValueFade } from './ValueFade'
 import { SummaryValueSkeleton } from './ValueSkeleton'
 
@@ -72,9 +73,7 @@ export default function SummaryStatement({
           >
             <p
               className="font-financial text-[3.125rem] font-semibold leading-none tracking-tight min-[730px]:text-[3.375rem]"
-              style={{
-                color: netWorth >= 0 ? 'var(--app-positive)' : 'var(--app-negative)',
-              }}
+              style={{ color: getSignedAmountColor(netWorth) }}
             >
               {formatCurrency(netWorth, displayCurrency)}
             </p>
@@ -102,7 +101,7 @@ export default function SummaryStatement({
               <>
                 <p
                   className="font-financial text-xl font-medium"
-                  style={{ color: totalAssets >= 0 ? 'var(--app-positive)' : 'var(--app-negative)' }}
+                  style={{ color: getSignedAmountColor(totalAssets) }}
                 >
                   {formatCurrency(totalAssets, displayCurrency)}
                 </p>
