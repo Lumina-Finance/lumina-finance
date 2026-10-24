@@ -229,6 +229,13 @@ describe('tinted state contrast', () => {
       fill: (tokens) => resolve(tokens, '--app-hover-on-import-panel'),
     },
     {
+      // A day of a neighbouring month in the date picker (.app-calendar-day[data-outside]) under the pointer or keyboard
+      // focus, drawn in the text colour over the accent tint on the picker's field-coloured panel
+      name: 'a calendar day outside the month under the pointer',
+      text: ['--app-text'],
+      fill: (tokens) => solid(tokens, '--app-accent-soft', solid(tokens, '--app-input-bg')),
+    },
+    {
       // .app-nav-link under the pointer or keyboard focus, and the selected item at rest, in the main sidebar
       name: 'a menu item on the sidebar',
       text: ['--app-accent-nav-text'],

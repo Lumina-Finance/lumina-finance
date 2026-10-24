@@ -1,8 +1,8 @@
 import { expect, test, type Locator, type Page } from '@playwright/test'
 
 import { createAccount, createTransaction, signUpUser } from '../support/api'
-import { logInViaApi, openPage } from '../support/app'
-import { contrastRatio, shownFill } from '../support/paint'
+import { logInViaApi, openModal, openPage } from '../support/app'
+import { contrastRatio, shownFill, type Rgb } from '../support/paint'
 
 // Runs on desktop only: hover, keyboard focus and the sidebar's collapse are the desktop's states, and the
 // colours and easing they check don't vary with width
@@ -20,6 +20,9 @@ const EXPANDED_WIDTH = 240
 
 // The smallest step between a surface and the same surface under the pointer that shows
 const MINIMUM_HOVER_STEP = 1.05
+
+// The smallest contrast text needs against its fill
+const MINIMUM_TEXT_CONTRAST = 4.5
 
 /** Signs up a user, opens a page in a theme and pins the sidebar open, so its controls are on screen */
 async function openAs(page: Page, request: Parameters<typeof signUpUser>[0], colorScheme: 'light' | 'dark', url: string) {
@@ -173,6 +176,30 @@ for (const colorScheme of ['light', 'dark'] as const) {
     await expect(row).toHaveAttribute('aria-checked', 'true')
     await row.blur()
     expect(await hoverStep(page, row)).toBeGreaterThanOrEqual(MINIMUM_HOVER_STEP)
+  })
+
+  test(`keeps a calendar day outside the month readable under the pointer in the ${colorScheme} theme`, async ({ page, request }) => {
+    await openAs(page, request, colorScheme, '/transactions')
+    const dialog = await openModal(page, ['Add transaction'], 'Add transaction')
+    await dialog.getByRole('group', { name: 'Date', exact: true }).getByRole('button', { name: 'Open calendar', exact: true }).click()
+    const calendar = page.getByRole('dialog', { name: 'Choose date', exact: true })
+    await expect(calendar).toBeVisible()
+
+    // The grid always shows days of a neighbouring month, which rest in subtle text and take the text colour under the pointer
+    const outside = calendar.locator('[data-outside]:not([data-selected])').first()
+    await page.mouse.move(0, 0)
+    await outside.hover()
+    const text = await outside.evaluate(() => {
+      const probe = document.createElement('i')
+      probe.style.color = 'var(--app-text)'
+      document.body.append(probe)
+      const resolved = getComputedStyle(probe).color
+      probe.remove()
+      return resolved
+    })
+    await expect.poll(() => outside.evaluate((node) => getComputedStyle(node).color)).toBe(text)
+    const channels = text.match(/\d+/g)!.slice(0, 3).map(Number) as Rgb
+    expect(contrastRatio(channels, await shownFill(outside))).toBeGreaterThanOrEqual(MINIMUM_TEXT_CONTRAST)
   })
 
   test(`shows a hover on the Insights category list in the ${colorScheme} theme`, async ({ page, request }) => {

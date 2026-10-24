@@ -845,6 +845,13 @@
     color: var(--app-text-subtle);
   }
 
+  /* Subtle and muted text both fall under 4.5:1 on the accent tint in the dark theme, so a neighbouring month's day
+     under the pointer or keyboard focus reads in the text colour, like any other day */
+  .app-calendar-day[data-outside]:not([data-selected]):hover,
+  .app-calendar-day[data-outside]:not([data-selected]):focus-visible {
+    color: var(--app-text);
+  }
+
   .app-calendar-day[data-today] {
     font-weight: 600;
     box-shadow: inset 0 0 0 1px var(--app-border-strong);
