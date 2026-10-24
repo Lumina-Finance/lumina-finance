@@ -6,6 +6,7 @@ import Dropdown, { type DropdownOption } from '@/components/dropdown/Dropdown'
 import { AppSlotMachineText } from '@/components/display/SlotMachineText'
 import {
   EASE,
+  TRANSACTION_MODAL_ERROR_IDS,
   TRANSACTION_MODAL_FIELD_IDS,
 } from '@/components/transactions/transaction-modal/constants'
 import CreditRepaymentNotice from '@/components/transactions/transaction-modal/controls/CreditRepaymentNotice'
@@ -225,6 +226,7 @@ export default function TransactionReferencesSection({
           htmlFor={TRANSACTION_MODAL_FIELD_IDS.account}
           label={accountLabel}
           error={accountError}
+          errorId={TRANSACTION_MODAL_ERROR_IDS.account_id}
         />
         <Dropdown
           id={TRANSACTION_MODAL_FIELD_IDS.account}
@@ -234,6 +236,7 @@ export default function TransactionReferencesSection({
           value={accountValue}
           onChange={onAccountChange}
           hasError={!!accountError}
+          describedBy={accountError ? TRANSACTION_MODAL_ERROR_IDS.account_id : undefined}
           labelledBy={getFieldLabelId(TRANSACTION_MODAL_FIELD_IDS.account)}
           placeholder={accountPlaceholder}
           searchable
@@ -267,6 +270,7 @@ export default function TransactionReferencesSection({
                     </>
                   )}
                   error={counterpartyAccountError}
+                  errorId={TRANSACTION_MODAL_ERROR_IDS.counterparty_account_id}
                 />
                 <Dropdown
                   id={TRANSACTION_MODAL_FIELD_IDS.counterpartyAccount}
@@ -276,6 +280,7 @@ export default function TransactionReferencesSection({
                   value={counterpartyAccountValue}
                   onChange={onCounterpartyAccountChange}
                   hasError={!!counterpartyAccountError}
+                  describedBy={counterpartyAccountError ? TRANSACTION_MODAL_ERROR_IDS.counterparty_account_id : undefined}
                   labelledBy={getFieldLabelId(TRANSACTION_MODAL_FIELD_IDS.counterpartyAccount)}
                   placeholder="Select account..."
                   searchable
@@ -343,6 +348,7 @@ export default function TransactionReferencesSection({
           htmlFor={TRANSACTION_MODAL_FIELD_IDS.merchant}
           label="Merchant"
           error={merchantError}
+          errorId={TRANSACTION_MODAL_ERROR_IDS.merchant_id}
         />
         <Dropdown
           id={TRANSACTION_MODAL_FIELD_IDS.merchant}
@@ -351,6 +357,7 @@ export default function TransactionReferencesSection({
           value={merchantValue}
           onChange={onMerchantChange}
           hasError={!!merchantError}
+          describedBy={merchantError ? TRANSACTION_MODAL_ERROR_IDS.merchant_id : undefined}
           labelledBy={getFieldLabelId(TRANSACTION_MODAL_FIELD_IDS.merchant)}
           placeholder="Select or type to create..."
           searchable
@@ -378,6 +385,7 @@ export default function TransactionReferencesSection({
           htmlFor={TRANSACTION_MODAL_FIELD_IDS.category}
           label="Category"
           error={categoryError}
+          errorId={TRANSACTION_MODAL_ERROR_IDS.category_id}
           action={showMerchantDefaultCategoryAction && (
             <button
               type="button"
@@ -397,6 +405,7 @@ export default function TransactionReferencesSection({
           value={categoryValue}
           onChange={onCategoryChange}
           hasError={!!categoryError}
+          describedBy={categoryError ? TRANSACTION_MODAL_ERROR_IDS.category_id : undefined}
           labelledBy={getFieldLabelId(TRANSACTION_MODAL_FIELD_IDS.category)}
           placeholder="Select category..."
           searchable

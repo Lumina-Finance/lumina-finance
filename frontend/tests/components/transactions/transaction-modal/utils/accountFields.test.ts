@@ -3,7 +3,7 @@
  * transfer pair whichever way the money moves, and each field moves whole
  */
 import { describe, expect, it } from 'vitest'
-import { orderAccountFields } from '@/components/transactions/transaction-modal/utils/accountFields'
+import { getTransactionFieldLayout, orderAccountFields } from '@/components/transactions/transaction-modal/utils/accountFields'
 
 describe('account field ordering', () => {
   const recorded = { name: 'recorded' }
@@ -34,5 +34,19 @@ describe('account field ordering', () => {
 
     expect(top).toBe(counterparty)
     expect(second).toBe(recorded)
+  })
+})
+
+describe('transaction field layout', () => {
+  it('sends a refusal to the control each account field is drawn in, which swaps with the pair direction', () => {
+    const ordinary = getTransactionFieldLayout({ isSymmetricTransfer: false, direction: 'credit' })
+    expect(ordinary.order.slice(0, 2)).toEqual(['account_id', 'counterparty_account_id'])
+    expect(ordinary.controlIds.account_id).toBe('txn-account')
+    expect(ordinary.controlIds.counterparty_account_id).toBe('txn-counterparty-account')
+
+    const pairInto = getTransactionFieldLayout({ isSymmetricTransfer: true, direction: 'credit' })
+    expect(pairInto.order.slice(0, 2)).toEqual(['counterparty_account_id', 'account_id'])
+    expect(pairInto.controlIds.counterparty_account_id).toBe('txn-account')
+    expect(pairInto.controlIds.account_id).toBe('txn-counterparty-account')
   })
 })

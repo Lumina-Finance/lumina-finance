@@ -67,7 +67,7 @@ describe('transaction category and merchant selection', () => {
     }
     const field = useCategoryField({
       categories, form, readOnly: false, applyKindChange,
-      clearError: vi.fn(), closeModal: vi.fn(),
+      clearSubmitError: vi.fn(), closeModal: vi.fn(),
     })
 
     expect(field.categoryOptions.some((option) => option.value === selected.id)).toBe(true)
@@ -79,7 +79,7 @@ describe('transaction category and merchant selection', () => {
     })
     const updatedField = useCategoryField({
       categories, form, readOnly: false, applyKindChange,
-      clearError: vi.fn(), closeModal: vi.fn(),
+      clearSubmitError: vi.fn(), closeModal: vi.fn(),
     })
     expect(updatedField.categoryOptions[0]?.value).toBe(selected.id)
   })
@@ -91,12 +91,12 @@ describe('transaction category and merchant selection', () => {
     })
     const field = useCategoryField({
       categories: [personal, system], form, readOnly: false,
-      applyKindChange: vi.fn(), clearError: vi.fn(), closeModal: vi.fn(),
+      applyKindChange: vi.fn(), clearSubmitError: vi.fn(), closeModal: vi.fn(),
     })
     const merchant = useMerchantField({
       open: true, categoryById: field.categoryById, categoryOptions: field.categoryOptions,
       selectedCategory: field.selectedCategory, form, readOnly: false,
-      setForm: vi.fn(), applyKindChange: vi.fn(), clearError: vi.fn(), closeModal: vi.fn(),
+      setForm: vi.fn(), applyKindChange: vi.fn(), clearSubmitError: vi.fn(), closeModal: vi.fn(),
       setSubmitError: vi.fn(), setSubmitErrorTitle: vi.fn(),
     })
 
@@ -122,7 +122,7 @@ describe('transaction category and merchant selection', () => {
     const applyKindChange = vi.fn()
     const field = useCategoryField({
       categories: [personalAdjustment], form, readOnly: false,
-      applyKindChange, clearError: vi.fn(), closeModal: vi.fn(),
+      applyKindChange, clearSubmitError: vi.fn(), closeModal: vi.fn(),
     })
 
     field.handleCategoryChange(personalAdjustment.id)
@@ -151,12 +151,12 @@ describe('transaction category and merchant selection', () => {
     const applyKindChange = vi.fn()
     const field = useCategoryField({
       categories: [personalAdjustment], form, readOnly: false,
-      applyKindChange: vi.fn(), clearError: vi.fn(), closeModal: vi.fn(),
+      applyKindChange: vi.fn(), clearSubmitError: vi.fn(), closeModal: vi.fn(),
     })
     const merchant = useMerchantField({
       open: true, categoryById: field.categoryById, categoryOptions: field.categoryOptions,
       selectedCategory: field.selectedCategory, form, readOnly: false,
-      setForm: vi.fn(), applyKindChange, clearError: vi.fn(), closeModal: vi.fn(),
+      setForm: vi.fn(), applyKindChange, clearSubmitError: vi.fn(), closeModal: vi.fn(),
       setSubmitError: vi.fn(), setSubmitErrorTitle: vi.fn(),
     })
 
@@ -186,12 +186,12 @@ describe('transaction category and merchant selection', () => {
     const applyKindChange = vi.fn()
     const field = useCategoryField({
       categories: [personalAdjustment], form, readOnly: false,
-      applyKindChange: vi.fn(), clearError: vi.fn(), closeModal: vi.fn(),
+      applyKindChange: vi.fn(), clearSubmitError: vi.fn(), closeModal: vi.fn(),
     })
     const merchant = useMerchantField({
       open: true, categoryById: field.categoryById, categoryOptions: field.categoryOptions,
       selectedCategory: field.selectedCategory, form, readOnly: false,
-      setForm: vi.fn(), applyKindChange, clearError: vi.fn(), closeModal: vi.fn(),
+      setForm: vi.fn(), applyKindChange, clearSubmitError: vi.fn(), closeModal: vi.fn(),
       setSubmitError: vi.fn(), setSubmitErrorTitle: vi.fn(),
     })
     const createdMerchant = {
@@ -228,12 +228,12 @@ describe('transaction category and merchant selection', () => {
     const applyKindChange = vi.fn()
     const field = useCategoryField({
       categories: [personal], form, readOnly: false,
-      applyKindChange: vi.fn(), clearError: vi.fn(), closeModal: vi.fn(),
+      applyKindChange: vi.fn(), clearSubmitError: vi.fn(), closeModal: vi.fn(),
     })
     const merchant = useMerchantField({
       open: true, categoryById: field.categoryById, categoryOptions: field.categoryOptions,
       selectedCategory: field.selectedCategory, form, readOnly: false,
-      setForm, applyKindChange, clearError: vi.fn(), closeModal: vi.fn(),
+      setForm, applyKindChange, clearSubmitError: vi.fn(), closeModal: vi.fn(),
       setSubmitError: vi.fn(), setSubmitErrorTitle: vi.fn(),
     })
 
@@ -258,7 +258,7 @@ describe('transaction category and merchant selection', () => {
     const applyKindChange = vi.fn()
     const field = useCategoryField({
       categories: [], form, readOnly: false,
-      applyKindChange, clearError: vi.fn(), closeModal: vi.fn(),
+      applyKindChange, clearSubmitError: vi.fn(), closeModal: vi.fn(),
     })
 
     field.handleCategoryCreated(transfer)

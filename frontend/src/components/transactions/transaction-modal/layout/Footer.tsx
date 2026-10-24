@@ -1,12 +1,16 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { Check, Trash2 } from 'lucide-react'
 import { MODAL_INSET_CLASS_NAME } from '@/components/modal/inset'
+import { DisabledReasonButton } from '@/components/tooltips/DisabledReasonButton'
 
 interface TransactionModalFooterProps {
   editing: boolean
   isPending: boolean
   readOnly: boolean
   submitLoading: boolean
+
+  // Why the form can't go ahead once a press found a problem, shown in a tooltip while Add stays focusable
+  submitBlockedReason?: string
   deleteLoading: boolean
   keepOpenAfterCreate: boolean
   onKeepOpenAfterCreateChange: (value: boolean) => void
@@ -22,6 +26,7 @@ export default function TransactionModalFooter({
   isPending,
   readOnly,
   submitLoading,
+  submitBlockedReason,
   deleteLoading,
   keepOpenAfterCreate,
   onKeepOpenAfterCreateChange,
@@ -176,16 +181,17 @@ export default function TransactionModalFooter({
           {readOnly ? 'Close' : 'Cancel'}
         </button>
         {!readOnly && (
-          <button
+          <DisabledReasonButton
             type="submit"
             data-testid="transaction-submit"
             aria-label={editing ? 'Save' : 'Add transaction'}
             aria-busy={submitLoading}
             disabled={isPending}
+            disabledReason={isPending ? undefined : submitBlockedReason}
             className={`app-primary-button overflow-hidden whitespace-nowrap duration-300 ${submitLoading ? 'app-primary-button-loading justify-self-center sm:justify-self-auto' : editing ? 'w-full sm:w-24' : 'w-full sm:w-44'}`}
           >
             {submitLoading ? <div className="app-spinner" /> : editing ? 'Save' : 'Add transaction'}
-          </button>
+          </DisabledReasonButton>
         )}
       </div>
     </div>

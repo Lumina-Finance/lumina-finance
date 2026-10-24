@@ -9,17 +9,19 @@ import { useAuth } from '@/hooks/useAuth'
 import { KIND_LABELS } from '@/components/transactions/transaction-modal/constants'
 import { buildInitialTransactionForm } from '@/components/transactions/transaction-modal/utils/initialForm'
 import { buildCurrencyOptions } from '@/components/transactions/transaction-modal/utils/options'
-import { isSymmetricTransferForm } from '@/components/transactions/transaction-modal/utils/validation'
-import { orderAccountFields } from '@/components/transactions/transaction-modal/utils/accountFields'
+import { getTransactionProblems, isSymmetricTransferForm } from '@/components/transactions/transaction-modal/utils/validation'
+import { getTransactionFieldLayout, orderAccountFields } from '@/components/transactions/transaction-modal/utils/accountFields'
+import { useRefusedSubmit } from '@/hooks/useRefusedSubmit'
 import type {
   CreateTransactionModalProps,
+  TransactionFormFieldErrors,
   TransactionFormValues,
 } from '@/components/transactions/transaction-modal/types'
 import TransactionDetailsSection from '@/components/transactions/transaction-modal/sections/DetailsSection'
 import TransactionModalFooter from '@/components/transactions/transaction-modal/layout/Footer'
 import { ReceiptText } from 'lucide-react'
 import { ModalTitledPanel } from '@/components/modal/TitledPanel'
-import TransactionModalSubmitError from '@/components/transactions/transaction-modal/controls/SubmitError'
+import { FormError } from '@/components/forms/FormError'
 import TransactionReferenceCreationModals from '@/components/transactions/transaction-modal/modals/ReferenceCreationModals'
 import TransactionReferencesSection from '@/components/transactions/transaction-modal/sections/ReferencesSection'
 import TransactionTypeDirectionSection from '@/components/transactions/transaction-modal/sections/TypeDirectionSection'
@@ -78,19 +80,15 @@ export default function CreateTransactionModal({
   const {
     form,
     setForm,
-    setFieldErrors,
-    setTouched,
     submitError,
     setSubmitError,
     submitErrorTitle,
     setSubmitErrorTitle,
     directionHighlightKey,
-    clearError,
+    clearSubmitError,
     applyKindChange,
     handleField,
     handleAmountChange,
-    handleBlur,
-    showError,
   } = useTransactionFormState(initialForm)
 
   const selectedAccount = useMemo(
@@ -110,7 +108,7 @@ export default function CreateTransactionModal({
     readOnly,
     form,
     applyKindChange,
-    clearError,
+    clearSubmitError,
     closeModal: categoryModal.closeModal,
   })
 
@@ -122,7 +120,7 @@ export default function CreateTransactionModal({
     form,
     setForm,
     applyKindChange,
-    clearError,
+    clearSubmitError,
     readOnly,
     setSubmitError,
     setSubmitErrorTitle,
@@ -145,7 +143,7 @@ export default function CreateTransactionModal({
     selectedAccount,
     form,
     setForm,
-    clearError,
+    clearSubmitError,
     tagById: tagField.tagById,
   })
 
@@ -165,6 +163,21 @@ export default function CreateTransactionModal({
   const isAmountLocked = editing && knownCurrencyExponent === null
 
   useRestoreLockedAmount({ open, transaction, currencies, isAmountLocked, setForm })
+
+  const isSymmetricTransfer = isSymmetricTransferForm(form)
+  const fieldLayout = getTransactionFieldLayout({ isSymmetricTransfer, direction: form.direction })
+  const refusal = useRefusedSubmit(
+    getTransactionProblems(form, {
+      editing,
+      isAmountLocked,
+      isBalanceAdjustmentCategory: categoryField.isBalanceAdjustmentCategory,
+      selectedAccount,
+      selectedCounterpartyAccount,
+    }),
+    fieldLayout.order,
+    fieldLayout.controlIds,
+  )
+  const showError = (field: keyof TransactionFormFieldErrors) => refusal.errors[field]
 
   const { openRef, recordCreatedAccountId, flushDeferredRefresh, closeModal } = useDeferredTransactionRefresh({
     open,
@@ -191,17 +204,15 @@ export default function CreateTransactionModal({
     transaction,
     form,
     setForm,
-    setFieldErrors,
-    setTouched,
+    guard: refusal.guard,
+    resetRefusal: refusal.reset,
     setSubmitError,
     setSubmitErrorTitle,
     readOnly,
     accounts,
     selectedAccount,
-    selectedCounterpartyAccount,
     selectedCurrencyExponent,
     isAmountLocked,
-    isBalanceAdjustmentCategory: categoryField.isBalanceAdjustmentCategory,
     deleteLoading,
     openRef,
     recordCreatedAccountId,
@@ -211,7 +222,6 @@ export default function CreateTransactionModal({
 
 
   const showRunningBalance = !editing && keepOpenAfterCreate && !!selectedAccount
-  const isSymmetricTransfer = isSymmetricTransferForm(form)
 
   // The direction toggle moves the accounts between the two fields without anything being written
   // back to the form, because the ordering is worked out here on every render
@@ -261,6 +271,7 @@ export default function CreateTransactionModal({
             isPending={isPending}
             readOnly={readOnly}
             submitLoading={submitLoading}
+            submitBlockedReason={refusal.blockedReason}
             deleteLoading={deleteLoading}
             keepOpenAfterCreate={keepOpenAfterCreate}
             onKeepOpenAfterCreateChange={setKeepOpenAfterCreate}
@@ -357,13 +368,13 @@ export default function CreateTransactionModal({
             notes={form.notes}
             readOnly={readOnly}
             onDateChange={(value) => handleField('date', value)}
-            onDateBlur={() => handleBlur('date')}
+            onDateBlur={() => refusal.touch('date')}
             onAmountChange={handleAmountChange}
-            onAmountBlur={() => handleBlur('amount')}
+            onAmountBlur={() => refusal.touch('amount')}
             onNotesChange={(value) => handleField('notes', value)}
           />
 
-          <TransactionModalSubmitError error={submitError} title={submitErrorTitle} />
+          <FormError message={submitError} title={submitErrorTitle} />
         </div>
       </ModalTitledPanel>
       <TransactionReferenceCreationModals

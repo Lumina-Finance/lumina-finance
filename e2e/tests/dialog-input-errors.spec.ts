@@ -5,7 +5,8 @@ import { chooseFromDropdown, logInViaApi, openModal, openPage } from '../support
 import { AT_EVERY_SIZE } from '../support/sizes'
 import { API_BASE_URL } from '../support/target'
 
-// Runs at every size, apart from the Edit budget test: the message sits on the field's label row, which stacks
+// Runs at every size, apart from the Edit budget and keep-open tests, whose behaviour does not change with the
+// width: the message sits on the field's label row, which stacks
 // differently on a phone, and the button is reached by tap there
 
 /** Open the Create tag dialog from Settings, a dialog with one required field */
@@ -326,5 +327,69 @@ test.describe('dialog input errors', () => {
     await name.fill('Renamed budget')
     await expect(edit.getByRole('alert')).toHaveCount(0)
     await expect(save).not.toHaveAttribute('aria-disabled', 'true')
+  })
+
+  test('marks the missing merchant, category and amount in the Add transaction dialogue and returns the button once each is fixed', AT_EVERY_SIZE, async ({ page, request }) => {
+    const user = await signUpUser(request)
+    const account = await createAccount(request, user, { name: 'Everyday' })
+    let creations = 0
+    page.on('request', (sent) => {
+      if (sent.url() === `${API_BASE_URL}/transactions` && sent.method() === 'POST') creations += 1
+    })
+    await logInViaApi(page, user)
+    await openPage(page, '/transactions')
+    const dialog = await openModal(page, ['Add transaction'], 'Add transaction')
+    const add = dialog.getByTestId('transaction-submit')
+    const merchant = dialog.getByRole('combobox', { name: 'Merchant', exact: true })
+    const category = dialog.getByRole('combobox', { name: 'Category', exact: true })
+    const amount = dialog.getByLabel('Amount')
+
+    await expect(add).not.toHaveAttribute('aria-disabled', 'true')
+    await expect(dialog.getByRole('alert')).toHaveCount(0)
+
+    // The account is chosen first so the merchant is the first problem the button names
+    await chooseFromDropdown(dialog, 'Account', account.name)
+    await add.click()
+    await expect(merchant).toHaveAttribute('aria-invalid', 'true')
+    await expect(merchant).toHaveAccessibleDescription('Select or create a merchant')
+    await expect(category).toHaveAttribute('aria-invalid', 'true')
+    await expect(category).toHaveAccessibleDescription('Select a category')
+    await expect(amount).toHaveAttribute('aria-invalid', 'true')
+    await expect(amount).toHaveAccessibleDescription('Enter an amount')
+    await expect(add).toHaveAttribute('aria-disabled', 'true')
+    await expect(add).toHaveAccessibleDescription('Select or create a merchant')
+    expect(creations).toBe(0)
+
+    // Each field clears on its own, and the button waits for the last
+    await chooseFromDropdown(dialog, 'Merchant', 'Unknown')
+    await chooseFromDropdown(dialog, 'Category', 'Groceries')
+    await expect(add).toHaveAttribute('aria-disabled', 'true')
+    await amount.fill('12.50')
+    await expect(dialog.getByRole('alert')).toHaveCount(0)
+    await expect(amount).not.toHaveAttribute('aria-invalid', 'true')
+    await expect(add).not.toHaveAttribute('aria-disabled', 'true')
+  })
+
+  test('leaves the cleared amount unmarked after an add that keeps the Add transaction dialogue open', async ({ page, request }) => {
+    const user = await signUpUser(request)
+    const account = await createAccount(request, user, { name: 'Everyday' })
+    await logInViaApi(page, user)
+    await openPage(page, '/transactions')
+    const dialog = await openModal(page, ['Add transaction'], 'Add transaction')
+    const add = dialog.getByTestId('transaction-submit')
+    const amount = dialog.getByLabel('Amount')
+
+    await dialog.getByRole('checkbox', { name: /Keep modal open after adding/ }).check()
+    await chooseFromDropdown(dialog, 'Account', account.name)
+    await chooseFromDropdown(dialog, 'Merchant', 'Unknown')
+    await chooseFromDropdown(dialog, 'Category', 'Groceries')
+    await amount.fill('12.50')
+    await add.click()
+
+    // The next row starts clean: the empty amount is not yet a mistake, and the button is whole
+    await expect(amount).toHaveValue('')
+    await expect(dialog.getByRole('alert')).toHaveCount(0)
+    await expect(amount).not.toHaveAttribute('aria-invalid', 'true')
+    await expect(add).not.toHaveAttribute('aria-disabled', 'true')
   })
 })

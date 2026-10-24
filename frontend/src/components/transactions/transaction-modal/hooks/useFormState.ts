@@ -1,9 +1,7 @@
 import { useState, type Dispatch, type SetStateAction } from 'react'
 import { getFormAfterKindChange } from '@/components/transactions/transaction-modal/utils/formTransitions'
 import { getDirectionFromAmountInputSign } from '@/components/transactions/transaction-modal/utils/money'
-import { validateTransactionForm } from '@/components/transactions/transaction-modal/utils/validation'
 import type {
-  TransactionFormFieldErrors,
   TransactionFormValues,
   TransactionModalKind,
 } from '@/components/transactions/transaction-modal/types'
@@ -11,39 +9,31 @@ import type {
 interface TransactionFormState {
   form: TransactionFormValues
   setForm: Dispatch<SetStateAction<TransactionFormValues>>
-  fieldErrors: TransactionFormFieldErrors
-  setFieldErrors: Dispatch<SetStateAction<TransactionFormFieldErrors>>
-  touched: Record<string, boolean>
-  setTouched: Dispatch<SetStateAction<Record<string, boolean>>>
   submitError: string
   setSubmitError: Dispatch<SetStateAction<string>>
   submitErrorTitle: string
   setSubmitErrorTitle: Dispatch<SetStateAction<string>>
   directionHighlightKey: number
-  clearError: (field: keyof TransactionFormFieldErrors) => void
+  clearSubmitError: () => void
   applyKindChange: (nextKind: TransactionModalKind, fields?: Partial<TransactionFormValues>) => void
   handleField: <K extends keyof TransactionFormValues>(field: K, value: TransactionFormValues[K]) => void
   handleAmountChange: (value: string, typed?: string) => void
-  handleBlur: (field: keyof TransactionFormFieldErrors) => void
-  showError: (field: keyof TransactionFormFieldErrors) => string | false | undefined
 }
 
 /**
- * Owns the transaction form values, validation errors, and submit-error banner, including the
- * shared kind-change routine that keeps the direction toggle in sync
+ * Owns the transaction form values and the submit-error banner, including the shared kind-change
+ * routine that keeps the direction toggle in sync
  */
 export function useTransactionFormState(initialForm: TransactionFormValues): TransactionFormState {
   const [form, setForm] = useState(initialForm)
-  const [fieldErrors, setFieldErrors] = useState<TransactionFormFieldErrors>({})
-  const [touched, setTouched] = useState<Record<string, boolean>>({})
   const [submitError, setSubmitError] = useState('')
 
   // A heading shown above the submit error when only one leg of a symmetric transfer fails
   const [submitErrorTitle, setSubmitErrorTitle] = useState('')
   const [directionHighlightKey, setDirectionHighlightKey] = useState(0)
 
-  const clearError = (field: keyof TransactionFormFieldErrors) => {
-    if (fieldErrors[field]) setFieldErrors((prev) => ({ ...prev, [field]: undefined }))
+  // A change to the form may fix what an earlier save failed on
+  const clearSubmitError = () => {
     setSubmitError('')
     setSubmitErrorTitle('')
   }
@@ -59,7 +49,7 @@ export function useTransactionFormState(initialForm: TransactionFormValues): Tra
 
   const handleField = <K extends keyof TransactionFormValues>(field: K, value: TransactionFormValues[K]) => {
     setForm((f) => ({ ...f, [field]: value }))
-    if (field in fieldErrors) clearError(field as keyof TransactionFormFieldErrors)
+    clearSubmitError()
   }
 
   const handleAmountChange = (value: string, typed?: string) => {
@@ -72,34 +62,20 @@ export function useTransactionFormState(initialForm: TransactionFormValues): Tra
       direction: signDirection ?? f.direction,
     }))
     if (signDirection && signDirection !== form.direction) setDirectionHighlightKey((key) => key + 1)
-    if ('amount' in fieldErrors) clearError('amount')
+    if (typed !== undefined) clearSubmitError()
   }
-
-  const handleBlur = (field: keyof TransactionFormFieldErrors) => {
-    setTouched((t) => ({ ...t, [field]: true }))
-    const errors = validateTransactionForm(form)
-    setFieldErrors((prev) => ({ ...prev, [field]: errors[field] }))
-  }
-
-  const showError = (field: keyof TransactionFormFieldErrors) => touched[field] && fieldErrors[field]
 
   return {
     form,
     setForm,
-    fieldErrors,
-    setFieldErrors,
-    touched,
-    setTouched,
     submitError,
     setSubmitError,
     submitErrorTitle,
     setSubmitErrorTitle,
     directionHighlightKey,
-    clearError,
+    clearSubmitError,
     applyKindChange,
     handleField,
     handleAmountChange,
-    handleBlur,
-    showError,
   }
 }

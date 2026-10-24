@@ -1,4 +1,39 @@
-import type { TransactionDirection } from '@/components/transactions/transaction-modal/types'
+import {
+  TRANSACTION_MODAL_FIELD_IDS,
+  TRANSACTION_MODAL_FIXED_CONTROL_IDS,
+} from '@/components/transactions/transaction-modal/constants'
+import type {
+  TransactionDirection,
+  TransactionFormFieldErrors,
+} from '@/components/transactions/transaction-modal/types'
+
+type TransactionField = keyof TransactionFormFieldErrors
+
+interface AccountPlacement {
+  isSymmetricTransfer: boolean
+  direction: TransactionDirection
+}
+
+/**
+ * The order the modal draws its validated fields in, and the control that takes focus for each
+ *
+ * The two account controls keep their places on the page while the fields trade them, so the
+ * control that takes focus for an account field follows the same ordering the fields are drawn in
+ */
+export function getTransactionFieldLayout(placement: AccountPlacement): {
+  order: TransactionField[]
+  controlIds: Record<TransactionField, string>
+} {
+  const [top, second] = orderAccountFields<TransactionField>('account_id', 'counterparty_account_id', placement)
+  return {
+    order: [top, second, 'merchant_id', 'category_id', 'date', 'currency', 'amount'],
+    controlIds: {
+      ...TRANSACTION_MODAL_FIXED_CONTROL_IDS,
+      [top]: TRANSACTION_MODAL_FIELD_IDS.account,
+      [second]: TRANSACTION_MODAL_FIELD_IDS.counterpartyAccount,
+    } as Record<TransactionField, string>,
+  }
+}
 
 /**
  * Orders the modal's two account fields for display, source first
@@ -14,7 +49,7 @@ import type { TransactionDirection } from '@/components/transactions/transaction
 export function orderAccountFields<T>(
   recordedAccountField: T,
   counterpartyAccountField: T,
-  { isSymmetricTransfer, direction }: { isSymmetricTransfer: boolean; direction: TransactionDirection },
+  { isSymmetricTransfer, direction }: AccountPlacement,
 ): [T, T] {
   return isSymmetricTransfer && direction === 'credit'
     ? [counterpartyAccountField, recordedAccountField]

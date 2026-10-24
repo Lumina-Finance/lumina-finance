@@ -58,6 +58,31 @@ export function validateTransactionForm(
   return errors
 }
 
+interface TransactionProblemsOptions extends ValidateTransactionFormOptions {
+  editing: boolean
+  selectedAccount: AccountsOverview | undefined
+  selectedCounterpartyAccount: AccountsOverview | undefined
+}
+
+/**
+ * Everything wrong with the form right now: its required fields, and for a new paired transfer
+ * whether the two accounts can hold the same amount
+ *
+ * Ticking the checkbox creates a real transaction in the recorded account, so that account has to be
+ * one the amount is valid in. Both accounts have to be loaded to compare them
+ */
+export function getTransactionProblems(
+  form: TransactionFormValues,
+  { editing, selectedAccount, selectedCounterpartyAccount, ...options }: TransactionProblemsOptions,
+): TransactionFormFieldErrors {
+  const problems = validateTransactionForm(form, options)
+  if (!editing && isSymmetricTransferForm(form) && !problems.counterparty_account_id) {
+    const accountError = getSymmetricTransferAccountError(selectedAccount, selectedCounterpartyAccount)
+    if (accountError) problems.counterparty_account_id = accountError
+  }
+  return problems
+}
+
 /**
  * Validates the receiving account against the originating account for a symmetric transfer
  *
