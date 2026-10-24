@@ -76,7 +76,11 @@ test('marks the Create tag name field invalid when the name is taken or empty', 
   await field.fill('')
   await create.click()
   await expect(field).toHaveAttribute('aria-invalid', 'true')
-  await expect(field).toHaveAccessibleDescription('Name is required.')
+  await expect(field).toHaveAccessibleDescription('Name is required')
+
+  // The message sits on the field's own heading row, above the field and not down with the actions
+  const [alert, fieldBox] = [await dialog.getByRole('alert').boundingBox(), await field.boundingBox()]
+  expect(alert!.y + alert!.height).toBeLessThanOrEqual(fieldBox!.y)
 })
 
 // A failure the server gave no explanation for, such as a 500 with an empty body, is told in the app's

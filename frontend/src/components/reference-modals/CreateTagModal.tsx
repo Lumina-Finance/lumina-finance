@@ -3,10 +3,11 @@ import { Tag as TagIcon } from 'lucide-react'
 import { ApiError } from '@/api/auth'
 import { useCreateTag, type Tag } from '@/api/tags'
 import CreateModalSectionFrame from '@/components/create-modal/SectionFrame'
+import CreateModalSectionHeadingRow from '@/components/create-modal/SectionHeadingRow'
 import { ModalTitledPanel } from '@/components/modal/TitledPanel'
 import { ModalFormFooter } from '@/components/modal/FormFooter'
 import type { ModalLevel } from '@/components/modal/Shell'
-import { CREATE_TAG_FIELD_IDS } from '@/components/reference-modals/createTagConstants'
+import { CREATE_TAG_FIELD_IDS, CREATE_TAG_NAME_REQUIRED_MESSAGE } from '@/components/reference-modals/createTagConstants'
 import { LOADING_ANIMATION_MIN_MS, waitForMilliseconds } from '@/utils/timing'
 
 
@@ -38,6 +39,7 @@ export default function CreateTagModal({
 }: CreateTagModalProps) {
   const createTag = useCreateTag()
   const [name, setName] = useState(initialName)
+  const [nameError, setNameError] = useState<string | null>(null)
   const [formError, setFormError] = useState<string | null>(null)
   const [createInProgress, setCreateInProgress] = useState(false)
   const isSubmitting = createTag.isPending || createInProgress
@@ -49,7 +51,7 @@ export default function CreateTagModal({
 
     const trimmed = name.trim()
     if (!trimmed) {
-      setFormError('Name is required.')
+      setNameError(CREATE_TAG_NAME_REQUIRED_MESSAGE)
       return
     }
 
@@ -63,7 +65,9 @@ export default function CreateTagModal({
       })
       .catch(async (error) => {
         await minimumLoading
-        setFormError(error instanceof ApiError ? error.message : 'Failed to create tag.')
+        // A name already taken is about the field, anything else about the request
+        if (error instanceof ApiError && error.status === 409) setNameError(error.message)
+        else setFormError(error instanceof ApiError ? error.message : 'Failed to create tag.')
         setCreateInProgress(false)
       })
   }
@@ -99,17 +103,18 @@ export default function CreateTagModal({
     >
       <CreateModalSectionFrame step="01">
         <div className="min-w-0 space-y-3">
-          <p className="flex h-4 items-center text-base font-bold leading-none" style={{ color: 'var(--app-accent)' }}>
-            Tag name
-          </p>
+          <CreateModalSectionHeadingRow label="Tag name" error={nameError} errorId={CREATE_TAG_FIELD_IDS.nameError} />
           <div>
             <label htmlFor={CREATE_TAG_FIELD_IDS.name} className="sr-only">Tag name</label>
             <input
               id={CREATE_TAG_FIELD_IDS.name}
-              className="app-input"
+              className={`app-input ${nameError ? 'app-input-error' : ''}`}
+              aria-invalid={nameError ? true : undefined}
+              aria-describedby={nameError ? CREATE_TAG_FIELD_IDS.nameError : undefined}
               value={name}
               onChange={(event) => {
                 setName(event.target.value)
+                setNameError(null)
                 setFormError(null)
               }}
               maxLength={64}
