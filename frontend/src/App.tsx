@@ -35,6 +35,7 @@ const SettingsPage = lazyPage(() => import('@/pages/settings/SettingsPage'))
 const ImportsPage = lazyPage(() => import('@/pages/imports/ImportsPage'))
 const AuthPage = lazyPage(() => import('@/pages/auth/AuthPage'))
 const ResetPasswordPage = lazyPage(() => import('@/pages/auth/ResetPasswordPage'))
+const ConfirmEmailPage = lazyPage(() => import('@/pages/auth/ConfirmEmailPage'))
 const OidcCallbackPage = lazyPage(() => import('@/pages/auth/OidcCallbackPage'))
 
 const PAGE_TRANSITION_MS = 350;
@@ -386,6 +387,7 @@ function AnimatedRoutes() {
           <Route path="/signup" element={<AuthPage />} />
           <Route path="/forgot-password" element={<AuthPage />} />
           <Route path="/reset-password" element={<ResetPasswordPage />} />
+          <Route path="/confirm-email" element={<ConfirmEmailPage />} />
         </Route>
 
         {/* The provider callback serves both audiences, an anonymous login completion and a

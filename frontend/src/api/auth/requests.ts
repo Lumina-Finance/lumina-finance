@@ -1,6 +1,7 @@
 import { buildApiError, getSessionRestoreFailure, isRefreshAlreadyRotatedError } from '@/api/auth/errors';
 import type {
   AuthResponse,
+  ConfirmSignupPayload,
   ForgotPasswordPayload,
   LoginPayload,
   LoginResult,
@@ -127,7 +128,7 @@ async function requestAuth<T>(path: string, options: RequestInit): Promise<T> {
     throw buildApiError(res.status, await res.json().catch(() => null));
   }
 
-  // The forgot and reset endpoints return 204 with no body, so res.json would throw
+  // The sign-up, forgot and reset endpoints return 204 with no body, so res.json would throw
   if (res.status === 204) return undefined as T;
 
   return res.json();
@@ -161,10 +162,22 @@ export function verifyMfa(payload: MfaVerifyPayload): Promise<AuthResponse> {
 }
 
 /**
- * Creates a user and starts an authenticated session
+ * Asks for the confirmation email, always resolving the same way so callers cannot tell whether the
+ * address already has an account
  */
-export function signup(payload: SignupPayload): Promise<AuthResponse> {
+export function signup(payload: SignupPayload): Promise<void> {
   return requestAuth('/auth/signup', {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  });
+}
+
+/**
+ * Creates the account an emailed link was sent for, with the password chosen on opening it, and starts
+ * an authenticated session
+ */
+export function confirmSignup(payload: ConfirmSignupPayload): Promise<AuthResponse> {
+  return requestAuth('/auth/signup/confirm', {
     method: 'POST',
     body: JSON.stringify(payload),
   });

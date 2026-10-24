@@ -9,6 +9,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { API_BASE } from '@/api/config';
 import {
   ApiError,
+  confirmSignup,
   getSessionRestoreFailure,
   login,
   logout,
@@ -91,24 +92,40 @@ describe('auth API functions', () => {
     });
   });
 
-  it('signs up with profile and currency fields', async () => {
-    await signup({
+  it('asks for the confirmation email with profile and currency fields and no password', async () => {
+    fetchMock.mockResolvedValueOnce({ ok: true, status: 204 });
+
+    await expect(signup({
       email: 'daniel@example.com',
-      password: 'secret',
       first_name: 'Daniel',
       tz: 'America/Toronto',
       base_currency: 'CAD',
-    });
+    })).resolves.toBeUndefined();
 
     expect(fetchMock).toHaveBeenCalledWith(`${API_BASE}/auth/signup`, {
       method: 'POST',
       body: JSON.stringify({
         email: 'daniel@example.com',
-        password: 'secret',
         first_name: 'Daniel',
         tz: 'America/Toronto',
         base_currency: 'CAD',
       }),
+      credentials: 'include',
+      signal: expect.any(AbortSignal),
+      headers: {
+        'Content-Type': 'application/json',
+      },
+    });
+  });
+
+  it('confirms the sign-up with the emailed token and the chosen password', async () => {
+    await expect(confirmSignup({ token: 'signed.link.token', new_password: 'StrongPassword1!' })).resolves.toEqual(
+      authResponse,
+    );
+
+    expect(fetchMock).toHaveBeenCalledWith(`${API_BASE}/auth/signup/confirm`, {
+      method: 'POST',
+      body: JSON.stringify({ token: 'signed.link.token', new_password: 'StrongPassword1!' }),
       credentials: 'include',
       signal: expect.any(AbortSignal),
       headers: {
@@ -213,7 +230,6 @@ describe('auth API functions', () => {
   it('keeps the fields a refused signup named', async () => {
     const payload = {
       email: 'daniel@example.test',
-      password: 'correct horse battery',
       first_name: 'Daniel',
       tz: 'America/Toronto',
       base_currency: 'CAD',

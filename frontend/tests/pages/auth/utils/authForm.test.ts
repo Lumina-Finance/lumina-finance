@@ -9,6 +9,7 @@ import {
   buildInitialAuthForm,
   buildLoginPayload,
   buildSignupPayload,
+  emailFromConfirmationToken,
   getAuthErrorMessage,
   getAuthMode,
   getAuthSubmitBlockReason,
@@ -47,13 +48,17 @@ describe('auth form helpers', () => {
     expect(validateAuthFields({
       ...buildInitialAuthForm('America/Toronto'),
       email: 'bad-email',
-      password: 'weak',
     }, 'signup')).toEqual({
       email: 'Enter a valid email address',
-      password: 'Password does not meet requirements',
       first_name: 'First name is required',
-      confirm_password: 'Please confirm your password',
     })
+
+    // Sign-up asks for no password, since it is chosen on the emailed link's page
+    expect(validateAuthFields({
+      ...buildInitialAuthForm('America/Toronto'),
+      email: 'user@example.com',
+      first_name: 'Dana',
+    }, 'signup')).toEqual({})
     expect(isAuthFieldErrorKey('email')).toBe(true)
     expect(isAuthFieldErrorKey('last_name')).toBe(false)
   })
@@ -63,25 +68,18 @@ describe('auth form helpers', () => {
       ...buildInitialAuthForm('America/Toronto'),
       email: 'user@example.com',
       password: 'StrongPassword1!',
-      confirm_password: 'StrongPassword1!',
       first_name: ' Dana ',
       last_name: ' ',
       base_currency: 'USD',
     }
 
-    expect(getSubmitTouchedFields('signup')).toEqual({
-      email: true,
-      password: true,
-      first_name: true,
-      confirm_password: true,
-    })
+    expect(getSubmitTouchedFields('signup')).toEqual({ email: true, first_name: true })
     expect(buildLoginPayload(form)).toEqual({
       email: 'user@example.com',
       password: 'StrongPassword1!',
     })
     expect(buildSignupPayload(form)).toEqual({
       email: 'user@example.com',
-      password: 'StrongPassword1!',
       first_name: 'Dana',
       last_name: undefined,
       tz: 'America/Toronto',
@@ -159,5 +157,27 @@ describe('auth form helpers', () => {
       fieldErrors: [{ field: 'token', message: 'Field required' }],
     })
     expect(getAuthErrorMessage(refusal)).toBe(generic)
+  })
+})
+
+describe('emailFromConfirmationToken', () => {
+  const encode = (payload: object) => btoa(JSON.stringify(payload)).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '')
+
+  it('reads the email from the token payload', () => {
+    expect(emailFromConfirmationToken(`header.${encode({ email: 'ada@example.com' })}.signature`)).toBe('ada@example.com')
+  })
+
+  it('reads an address with non-ASCII characters', () => {
+    const utf8 = btoa(String.fromCharCode(...new TextEncoder().encode(JSON.stringify({ email: 'zoë@example.com' }))))
+      .replace(/\+/g, '-')
+      .replace(/\//g, '_')
+      .replace(/=+$/, '')
+
+    expect(emailFromConfirmationToken(`header.${utf8}.signature`)).toBe('zoë@example.com')
+  })
+
+  it('returns an empty string for a token it cannot read', () => {
+    expect(emailFromConfirmationToken('not-a-token')).toBe('')
+    expect(emailFromConfirmationToken(`header.${encode({ sub: 'x' })}.signature`)).toBe('')
   })
 })
