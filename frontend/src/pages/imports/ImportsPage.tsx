@@ -44,7 +44,7 @@ import {
 } from './firefly/sections'
 import { useOfxImportWorkflow } from './ofx/hooks'
 import { OfxAccountMappingStep, OfxFilesStep, OfxPreviewStep } from './ofx/sections'
-import { useImportAccountScope, useTransactionImportWorkflow } from './hooks'
+import { useImportAccountScope, useImportUndoneElsewhere, useTransactionImportWorkflow } from './hooks'
 import {
   ACCOUNT_DATA_SOURCES,
   DEFAULT_DATA_SOURCE,
@@ -267,7 +267,7 @@ export default function ImportsPage() {
   // Puts every importer right once an import is undone, whichever one saved it. The one that did gets
   // its files and answers back, unlocked. Another finished one is a record of an import that is no
   // longer the last, so it starts over empty. One still being filled in is left as it is
-  const handleImportUndone = (undoneRunId: string) => {
+  const putImportersRight = (undoneRunId: string) => {
     const resets = {
       generic: workflow.resetImportWorkflow,
       firefly: fireflyWorkflow.resetFireflyWorkflow,
@@ -290,8 +290,17 @@ export default function ImportsPage() {
       }
     }
     showToast({ status: 'success', text: isReopened ? IMPORT_UNDONE_REOPENED_MESSAGE : IMPORT_UNDONE_EMPTY_MESSAGE })
+  }
+
+  const handleImportUndone = (undoneRunId: string) => {
+    putImportersRight(undoneRunId)
     setUndoCount((count) => count + 1)
   }
+
+  // An import undone in another tab leaves the same finished importer here as it would in the tab
+  // that undid it. Focus stays where the user has it, since no control of this page went with it
+  const finishedRunId = Object.values(overlayWorkflows).find((importer) => importer.committedRunId !== null)?.committedRunId ?? null
+  useImportUndoneElsewhere(finishedRunId, putImportersRight)
 
   // The undo button leaves with its import, and the confirmation hands focus back to it, so focus
   // would end on the document. It is put on the page instead, a frame after the confirmation has

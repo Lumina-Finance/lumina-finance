@@ -1,4 +1,4 @@
-import { expect, test } from '@playwright/test'
+import { expect, test, type Page } from '@playwright/test'
 
 import { asUser, createAccount, signUpUser } from '../support/api'
 import { commitImport, logInViaApi, openPage, showImportSetup } from '../support/app'
@@ -128,4 +128,178 @@ test('gives the importer back with its files and answers when the import it ran 
 
   // And it imports again, from the answers on screen
   expect((await commitImport(page)).status()).toBe(201)
+})
+
+/**
+ * Opens the imports page in a second tab of the same browser and undoes the import the first tab
+ * ran, as a user with two Imports tabs open would. The first tab is told nothing: it learns of the
+ * undo the way it learns of any change made elsewhere, when it is looked at again
+ */
+async function undoInSecondTab(page: Page, accountId: string, fileName: string) {
+  const otherTab = await page.context().newPage()
+  await openPage(otherTab, `/settings/imports?account=${accountId}`)
+  const lastImport = otherTab.getByRole('region', { name: 'Last import' })
+  await expect(lastImport).toContainText(`${fileName}`)
+  await otherTab.getByRole('button', { name: `Undo import of ${fileName}` }).click()
+  await otherTab.getByRole('dialog', { name: 'Undo this import?' }).getByRole('button', { name: 'Undo import', exact: true }).click()
+  await expect(lastImport).toBeHidden()
+  await otherTab.close()
+}
+
+/**
+ * Makes the page run the app's cache check, as returning to its window does, and waits for it to
+ * read the last import again and for whatever it then asks to settle, so a test that expects
+ * nothing to change has given the page the chance to
+ */
+async function returnToTab(page: Page) {
+  const answered = page.waitForResponse((response) => response.url() === `${API_BASE_URL}/transactions/import/last`)
+  await page.evaluate(() => window.dispatchEvent(new Event('focus')))
+  await answered
+  await page.waitForLoadState('networkidle')
+}
+
+/**
+ * Holds back the page's reads of the last import, as an away tab's wait, so it learns of nothing
+ * until the returned function lets them through
+ */
+async function holdLastImportReads(page: Page) {
+  let release!: () => void
+  const isReleased = new Promise<void>((resolve) => { release = resolve })
+  await page.route(`${API_BASE_URL}/transactions/import/last`, async (route) => {
+    await isReleased
+    await route.continue()
+  })
+  return release
+}
+
+/** Imports the file in the page's tab and leaves it showing as finished */
+async function importAndKeepFinished(page: Page, fileName: string, accountId: string) {
+  await openPage(page, `/settings/imports?account=${accountId}`)
+  const upload = page.locator('input[type="file"][accept=".csv,text/csv"]')
+  await expect(upload).toBeEnabled()
+  await upload.setInputFiles({ name: fileName, mimeType: 'text/csv', buffer: Buffer.from(ON_SCREEN_CSV) })
+  await commitImport(page)
+  await page.getByRole('dialog').getByRole('button', { name: 'Review skipped rows', exact: true }).click()
+}
+
+test('opens a finished import again when another tab undoes it', async ({ page, request }) => {
+  const user = await signUpUser(request)
+  const account = await createAccount(request, user, { name: 'Everyday', startingBalance: 10000 })
+  await logInViaApi(page, user)
+  await importAndKeepFinished(page, 'undo-elsewhere.csv', account.id)
+  const merchantField = page.getByRole('combobox', { name: 'Match to app field Merchant', exact: true })
+  await expect(merchantField).toBeDisabled()
+
+  await undoInSecondTab(page, account.id, 'undo-elsewhere.csv')
+  await returnToTab(page)
+
+  // As the tab that undid it would have left it: the files and answers back, and the user told
+  const popUp = page.getByRole('status').filter({
+    hasText: 'Import undone. Your files and answers are back, so you can change anything and import again.',
+  })
+  await expect(popUp).toBeVisible()
+  await expect(merchantField).toBeEnabled()
+  await expect(page.getByRole('region', { name: 'Last import' })).toBeHidden()
+})
+
+test('leaves a tab filling in a next import alone when another tab undoes the last one', async ({ page, request }) => {
+  const user = await signUpUser(request)
+  const account = await createAccount(request, user, { name: 'Everyday', startingBalance: 10000 })
+  await logInViaApi(page, user)
+  await importAndKeepFinished(page, 'undo-elsewhere.csv', account.id)
+
+  // A file chosen after the import starts the next one
+  const chooser = page.waitForEvent('filechooser')
+  await page.getByRole('button', { name: /^Upload CSV file/ }).click()
+  await (await chooser).setFiles({
+    name: 'next.csv',
+    mimeType: 'text/csv',
+    buffer: Buffer.from('Date,Amount,Merchant\n2024-04-02,-12.00,Bakery'),
+  })
+  // In the steps, since the file's own preview sits in the setup panel, which has collapsed away
+  const nextRow = page.getByRole('region', { name: 'Import steps' }).getByText(/12\.00/).first()
+  await expect(nextRow).toBeVisible()
+
+  await undoInSecondTab(page, account.id, 'undo-elsewhere.csv')
+  await returnToTab(page)
+
+  // Its Last import card going is the sign the check has run
+  await expect(page.getByRole('region', { name: 'Last import' })).toBeHidden()
+  await expect(page.getByRole('status').filter({ hasText: 'Import undone' })).toHaveCount(0)
+  await expect(nextRow).toBeVisible()
+})
+
+test('keeps a finished import when a later import is saved and undone in another tab meanwhile', async ({ page, request }) => {
+  const user = await signUpUser(request)
+  const account = await createAccount(request, user, { name: 'Everyday', startingBalance: 10000 })
+  await logInViaApi(page, user)
+  await importAndKeepFinished(page, 'first-import.csv', account.id)
+  const merchantField = page.getByRole('combobox', { name: 'Match to app field Merchant', exact: true })
+
+  // Saving the later import takes the first one's place as the last import, and undoing it leaves
+  // no last import, all before this tab looks again. The first import's rows are still saved
+  const returned = await holdLastImportReads(page)
+  const otherTab = await page.context().newPage()
+  await importAndKeepFinished(otherTab, 'later-import.csv', account.id)
+  await otherTab.getByRole('button', { name: 'Undo import of later-import.csv' }).click()
+  await otherTab.getByRole('dialog', { name: 'Undo this import?' }).getByRole('button', { name: 'Undo import', exact: true }).click()
+  await expect(otherTab.getByRole('region', { name: 'Last import' })).toBeHidden()
+  // Recorded as the server sends it, before the page reads it. The app signs a request again once a
+  // refused one has had its sign-in refreshed, so only the answers are kept
+  const answers: Array<{ is_saved?: boolean }> = []
+  await page.route(`${API_BASE_URL}/transactions/import/runs/*`, async (route) => {
+    const response = await route.fetch()
+    if (response.ok()) answers.push(await response.json() as { is_saved: boolean })
+    await route.fulfill({ response })
+  })
+  const asked = page.waitForResponse((response) => response.url().includes('/transactions/import/runs/') && response.ok())
+  returned()
+  await returnToTab(page)
+  await asked
+
+  // Told the first import is still saved, so a skipped question would not pass this
+  expect(answers.length).toBeGreaterThan(0)
+  expect(answers).not.toContainEqual({ is_saved: false })
+  await expect(page.getByRole('region', { name: 'Last import' })).toBeHidden()
+  await expect(page.getByRole('status').filter({ hasText: 'Import undone' })).toHaveCount(0)
+  await expect(merchantField).toBeDisabled()
+})
+
+test('opens a finished import again when it is undone and a later import is saved in other tabs', async ({ page, request }) => {
+  const user = await signUpUser(request)
+  const account = await createAccount(request, user, { name: 'Everyday', startingBalance: 10000 })
+  await logInViaApi(page, user)
+  await importAndKeepFinished(page, 'undo-then-later.csv', account.id)
+  const merchantField = page.getByRole('combobox', { name: 'Match to app field Merchant', exact: true })
+  await expect(merchantField).toBeDisabled()
+
+  const returned = await holdLastImportReads(page)
+
+  await undoInSecondTab(page, account.id, 'undo-then-later.csv')
+  await importAndKeepFinished(await page.context().newPage(), 'later-import.csv', account.id)
+  returned()
+  await returnToTab(page)
+
+  // The last import is the later one, which is no sign the first was not undone
+  await expect(page.getByRole('status').filter({
+    hasText: 'Import undone. Your files and answers are back, so you can change anything and import again.',
+  })).toBeVisible()
+  await expect(merchantField).toBeEnabled()
+})
+
+test('keeps a finished import when its undo ended without being used', async ({ page, request }) => {
+  const user = await signUpUser(request)
+  const account = await createAccount(request, user, { name: 'Everyday', startingBalance: 10000 })
+  await logInViaApi(page, user)
+  await importAndKeepFinished(page, 'made-permanent.csv', account.id)
+  const merchantField = page.getByRole('combobox', { name: 'Match to app field Merchant', exact: true })
+
+  // Any other change to the user's data makes the import permanent, which takes its Last import card
+  // away without undoing anything
+  await createAccount(request, user, { name: 'Savings' })
+  await returnToTab(page)
+  await expect(page.getByRole('region', { name: 'Last import' })).toBeHidden()
+
+  await expect(page.getByRole('status').filter({ hasText: 'Import undone' })).toHaveCount(0)
+  await expect(merchantField).toBeDisabled()
 })

@@ -82,19 +82,19 @@ async def test_a_completed_import_into_one_account_saves_how_its_file_was_read(c
     assert await _stored_layouts() == [(account_id, _WEB_EXPORT["headers"], "dayFirst", run_id)]
 
 
-async def test_a_file_with_other_headers_is_saved_beside_the_first_and_unlinks_it(client):
-    """A second layout for the account replaced the first, or a later import took the first one's undo link with it."""
+async def test_a_file_with_other_headers_is_saved_beside_the_first_and_keeps_its_link(client):
+    """A second layout for the account replaced the first, or a later import took the first one's link with it."""
     headers, account_id, category_id = await _setup_user_with_deps(client)
-    await _import(client, headers, _into(account_id, category_id), _WEB_EXPORT)
+    web_run_id, _ = await _import(client, headers, _into(account_id, category_id), _WEB_EXPORT)
 
     mobile_run_id, committed = await _import(client, headers, _into(account_id, category_id), _MOBILE_EXPORT)
 
     assert committed.status_code == 201, committed.text
     assert await _list_layouts(client, headers) == [_saved(account_id, _MOBILE_EXPORT), _saved(account_id, _WEB_EXPORT)]
 
-    # Only the last import can be undone, so the earlier run goes with this commit and its layout stays unlinked
+    # Only the last import can be undone, though the earlier run stays for the undo window
     assert await _stored_layouts() == [
-        (account_id, _WEB_EXPORT["headers"], "dayFirst", None),
+        (account_id, _WEB_EXPORT["headers"], "dayFirst", web_run_id),
         (account_id, _MOBILE_EXPORT["headers"], "yearFirst", mobile_run_id),
     ]
 

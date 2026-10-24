@@ -74,6 +74,18 @@ export function fetchLastImport(signal?: AbortSignal) {
 }
 
 /**
+ * Asks whether a saved import is still there, which undoing it and the end of its undo window end,
+ * though saving a later import does not
+ *
+ * @param runId - The run the import was saved under
+ * @param signal - Aborts the request when the load that asked for it is abandoned
+ */
+export async function fetchIsImportRunSaved(runId: string, signal?: AbortSignal) {
+  const answer = await authenticatedFetch<{ is_saved: boolean }>(`${IMPORT_RUNS_PATH}/${runId}`, { signal });
+  return answer.is_saved;
+}
+
+/**
  * Deletes every transaction a saved import wrote that is still there, all of them or none
  */
 export function undoImportRun(runId: string) {

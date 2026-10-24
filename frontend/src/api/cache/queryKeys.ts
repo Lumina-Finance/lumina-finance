@@ -187,6 +187,9 @@ export const oidcKeys = {
 
 export const lastImportKeys = {
   all: ['last-import'] as const,
+
+  // Under the last import's key, so whatever reads that again after a change reads this too
+  run: (runId: string) => ['last-import', 'run', runId] as const,
 };
 
 export const importLayoutKeys = {

@@ -39,7 +39,8 @@ vi.mock('@tanstack/react-query', async (importOriginal) => {
 });
 
 import { getImportFileName, settleStagedRun, useUndoImportRun } from '@/api/import-runs';
-import { deleteImportRun, stageImportRunRows, undoImportRun } from '@/api/import-runs/requests';
+import { invalidateAppData } from '@/api/cache/invalidation';
+import { deleteImportRun, fetchIsImportRunSaved, stageImportRunRows, undoImportRun } from '@/api/import-runs/requests';
 import { REQUEST_TIMEOUT_MS } from '@/api/server';
 
 // Any import's routes do here, since only the limit each request carries is under test
@@ -156,6 +157,36 @@ describe('settling a kept run before importing afresh', () => {
     else authenticatedFetchMock.mockResolvedValueOnce(undefined);
 
     expect(await settleStagedRun(RUN_ID)).toBe(settlement);
+  });
+});
+
+describe('asking whether a saved import is still there', () => {
+  it.each([
+    ['is there', true],
+    ['is gone', false],
+  ])('reads an import that %s', async (_case, isSaved) => {
+    authenticatedFetchMock.mockResolvedValueOnce({ is_saved: isSaved });
+
+    expect(await fetchIsImportRunSaved(RUN_ID)).toBe(isSaved);
+  });
+
+  // An answer the server did not give is not a sign the import is gone, which would empty a finished importer
+  it.each([
+    ['refused', new ApiError('Something went wrong', 500)],
+    ['unanswered', new TypeError('Failed to fetch')],
+  ])('does not read an import as gone when the request is %s', async (_case, failure) => {
+    authenticatedFetchMock.mockRejectedValueOnce(failure);
+
+    await expect(fetchIsImportRunSaved(RUN_ID)).rejects.toBe(failure);
+  });
+
+  // Marking the last import stale after any change is what makes a tab ask again
+  it('is read again whenever the last import is', () => {
+    hookContext.client!.setQueryData(lastImportKeys.run(RUN_ID), true);
+
+    invalidateAppData(hookContext.client!);
+
+    expect(hookContext.client!.getQueryState(lastImportKeys.run(RUN_ID))?.isInvalidated).toBe(true);
   });
 });
 

@@ -112,6 +112,31 @@ async def get_last_import(db: AsyncSession, user: User) -> LastImportResponse | 
     )
 
 
+async def is_import_run_saved(db: AsyncSession, user: User, run_id: uuid.UUID) -> bool:
+    """Return whether the caller's saved import is still there
+
+    A saved import's run goes when the import is undone and once its undo window has passed, and a
+    later import leaves it be. So a screen that was showing the import as finished learns from its
+    absence that the import was undone, as long as the screen knows the window is still open
+
+    Args:
+        db: Active database session
+        user: Authenticated user
+        run_id: Import to look for
+
+    Returns:
+        False for a run that is absent, not the caller's or not yet saved
+    """
+    found = await db.scalar(
+        select(ImportRun.id).where(
+            ImportRun.id == run_id,
+            ImportRun.owner_id == user.id,
+            ImportRun.committed_at.is_not(None),
+        )
+    )
+    return found is not None
+
+
 async def undo_import_run(db: AsyncSession, user: User, run_id: uuid.UUID) -> ImportUndoResponse:
     """Delete everything an import wrote, its transactions and every record it created, or nothing
 

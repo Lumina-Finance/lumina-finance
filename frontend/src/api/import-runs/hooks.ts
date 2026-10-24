@@ -1,7 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { invalidateAppData } from '@/api/cache/invalidation';
 import { lastImportKeys } from '@/api/cache/queryKeys';
-import { fetchLastImport, undoImportRun } from '@/api/import-runs/requests';
+import { fetchIsImportRunSaved, fetchLastImport, undoImportRun } from '@/api/import-runs/requests';
 import { ImportRunError } from '@/api/import-runs/run';
 import { useAuth } from '@/hooks/useAuth';
 
@@ -41,6 +41,22 @@ export function useLastImport() {
     enabled: !!accessToken,
     staleTime: 0,
     refetchOnMount: 'always',
+  });
+}
+
+/**
+ * Reads whether a saved import is still there, once a run is named
+ *
+ * Read again whenever the last import is, since a change made elsewhere is what ends it
+ *
+ * @param runId - The run the import was saved under, or null to read nothing
+ */
+export function useIsImportRunSaved(runId: string | null) {
+  return useQuery({
+    queryKey: lastImportKeys.run(runId ?? ''),
+    queryFn: ({ signal }) => fetchIsImportRunSaved(runId ?? '', signal),
+    enabled: runId !== null,
+    staleTime: 0,
   });
 }
 
