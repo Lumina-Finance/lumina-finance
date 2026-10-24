@@ -261,32 +261,32 @@ export function getImportGroupAccountError(label: string) {
 // The CSV and Firefly III imports name a new account after the source, so a name too long for one is
 // refused before saving rather than by the server
 export function getImportAccountNameTooLongError(label: string) {
-  return `Map to an existing account, since a new account name holds at most ${IMPORT_ACCOUNT_NAME_MAX_LENGTH} characters: ${label}`
+  return `${label} is too long for a new account name, which holds at most ${IMPORT_ACCOUNT_NAME_MAX_LENGTH} characters, so map it to an existing account.`
 }
 
 /** Says which account source still needs a mapping */
 export function getImportAccountMappingError(name: string) {
-  return `Map account: ${name}`
+  return `Choose an account for ${name}.`
 }
 
 /** Says which category source still needs a mapping */
 export function getImportCategoryMappingError(name: string) {
-  return `Map category: ${name}`
+  return `Choose a category for ${name}.`
 }
 
 /** Says which new account still needs a type */
 export function getImportAccountTypeRequiredError(name: string) {
-  return `Choose account type: ${name}`
+  return `Choose a type for the new account ${name}.`
 }
 
 /** Says which new account still needs a currency */
 export function getImportAccountCurrencyRequiredError(name: string) {
-  return `Choose account currency: ${name}`
+  return `Choose a currency for the new account ${name}.`
 }
 
 /** Says which new account has an unsupported type */
 export function getImportAccountTypeUnsupportedError(name: string) {
-  return `Choose an account type this app supports: ${name}`
+  return `Choose an account type this app supports for the new account ${name}.`
 }
 
 /**
@@ -296,13 +296,13 @@ export function getImportAccountTypeUnsupportedError(name: string) {
  */
 export function getImportReadOnlyAccountMappingError(name: string, account: Pick<AccountsOverview, 'is_archived'>) {
   return account.is_archived
-    ? `Map to an account that is not archived: ${name}`
-    : `Map to an account you can write to: ${name}`
+    ? `Choose an account for ${name} that is not archived.`
+    : `Choose an account for ${name} that you can write to.`
 }
 
 /** Says which new category still needs a type */
 export function getImportCategoryTypeRequiredError(name: string) {
-  return `Choose category type: ${name}`
+  return `Choose a type for the new category ${name}.`
 }
 
 /** Says that an import file or export contains no uploadable rows */

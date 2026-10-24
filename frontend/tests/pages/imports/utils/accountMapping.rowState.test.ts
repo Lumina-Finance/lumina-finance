@@ -36,8 +36,8 @@ describe('what the mapping counter calls answered', () => {
     expect(getImportAccountRowState(createRow({ value: 'checking' }))).toBe('mapped')
   })
 
-  // payload.ts asks for both before it will create an account, adding "Choose account type" or
-  // "Choose account currency", so a half-filled create row cannot read as finished
+  // payload.ts asks for both before it will create an account, adding "Choose a type" or
+  // "Choose a currency", so a half-filled create row cannot read as finished
   it('counts a create row as new only once its type and currency are both set', () => {
     const creating = { value: CREATE_ACCOUNT_VALUE }
 

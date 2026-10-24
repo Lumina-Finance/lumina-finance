@@ -149,7 +149,7 @@ describe('refusing a category or merchant answer the builder cannot use', () => 
       categoryTypesBySource: {},
     })
 
-    expect(result.errors).toEqual(['Choose category type: Groceries'])
+    expect(result.errors).toEqual(['Choose a type for the new category Groceries.'])
   })
 
   it('forwards a merchant answer the builder refuses, no test having passed this function one before', () => {
@@ -170,7 +170,7 @@ describe('refusing an account mapping answer', () => {
   it('asks to map an account source with no answer at all', () => {
     const result = build({ accountMappings: {} })
 
-    expect(result.errors).toEqual(['Map account: Chequing'])
+    expect(result.errors).toEqual(['Choose an account for Chequing.'])
   })
 
   // The type-support check can only be reached once both fields are answered, so a second source
@@ -186,9 +186,9 @@ describe('refusing an account mapping answer', () => {
       accountCreateTypes: { 'bad-type-source': 'not-a-real-type' },
     })
 
-    expect(result.errors).toContain('Choose account type: Blank Source')
-    expect(result.errors).toContain('Choose account currency: Blank Source')
-    expect(result.errors).toContain('Choose an account type this app supports: Bad Type Source')
+    expect(result.errors).toContain('Choose a type for the new account Blank Source.')
+    expect(result.errors).toContain('Choose a currency for the new account Blank Source.')
+    expect(result.errors).toContain('Choose an account type this app supports for the new account Bad Type Source.')
   })
 
   it('refuses a new account whose name is longer than an account name holds, and only a new one', () => {

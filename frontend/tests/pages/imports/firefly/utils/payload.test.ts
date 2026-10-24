@@ -81,13 +81,13 @@ describe('a Firefly account archived after it was mapped', () => {
     const result = buildWithMapping(ARCHIVED.id, [CHEQUING, ARCHIVED])
 
     expect(result.payload).toBeNull()
-    expect(result.errors).toContain('Map to an account that is not archived: Chequing')
+    expect(result.errors).toContain('Choose an account for Chequing that is not archived.')
   })
 
   it('accepts the same mapping while the account is not archived', () => {
     const result = buildWithMapping(CHEQUING.id, [CHEQUING, ARCHIVED])
 
-    expect(result.errors).not.toContain('Map to an account that is not archived: Chequing')
+    expect(result.errors).not.toContain('Choose an account for Chequing that is not archived.')
     expect(result.payload?.accounts).toEqual([{ source: 'Chequing', account_id: CHEQUING.id }])
   })
 })
@@ -98,7 +98,7 @@ describe('a Firefly account the user can only read', () => {
     const result = buildWithMapping(SHARED.id, [CHEQUING, SHARED])
 
     expect(result.payload).toBeNull()
-    expect(result.errors).toContain('Map to an account you can write to: Chequing')
+    expect(result.errors).toContain('Choose an account for Chequing that you can write to.')
   })
 })
 
@@ -224,8 +224,8 @@ describe('Firefly account mapping completeness', () => {
     })
 
     expect(result.errors).toEqual([
-      'Map account: Everyday Chequing',
-      'Map account: Everyday Chequing Card One',
+      'Choose an account for Everyday Chequing.',
+      'Choose an account for Everyday Chequing Card One.',
     ])
     expect(result.payload).toBeNull()
   })
@@ -292,7 +292,7 @@ describe('a Firefly account name longer than a new account takes', () => {
 
     expect(result.payload).toBeNull()
     expect(result.errors).toEqual([
-      `Map to an existing account, since a new account name holds at most 256 characters: ${name}`,
+      `${name} is too long for a new account name, which holds at most 256 characters, so map it to an existing account.`,
     ])
   })
 
@@ -399,9 +399,9 @@ describe('a Firefly asset account and loan sharing a name', () => {
     })
 
     expect(result.errors).toEqual([
-      'Map account: Car (Asset account)',
-      'Map account: Car (Loan)',
-      'Map account: Savings',
+      'Choose an account for Car (Asset account).',
+      'Choose an account for Car (Loan).',
+      'Choose an account for Savings.',
     ])
   })
 

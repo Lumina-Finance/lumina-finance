@@ -225,7 +225,7 @@ describe('CSV import counterparty account', () => {
     })
 
     expect(rowAccount.payload).toBeNull()
-    expect(rowAccount.errors).toContain('Map to an account that is not archived: Chequing')
+    expect(rowAccount.errors).toContain('Choose an account for Chequing that is not archived.')
   })
 
   // Recording a counterparty writes nothing to the account, so read access is enough there, while
@@ -243,7 +243,7 @@ describe('CSV import counterparty account', () => {
     })
 
     expect(rowAccount.payload).toBeNull()
-    expect(rowAccount.errors).toContain('Map to an account you can write to: Chequing')
+    expect(rowAccount.errors).toContain('Choose an account for Chequing that you can write to.')
   })
 
   it('refuses the outside answer for a source rows are written to', () => {
