@@ -73,7 +73,7 @@ export default function MergeDeleteMerchantModal({
         selectPlaceholder: 'Select merchant...',
         emptyOptionsPlaceholder: 'No compatible merchants',
         loadingPlaceholder: 'Loading merchants...',
-        requireSelectionError: 'Select a replacement merchant.',
+        requireSelectionError: 'Select a replacement merchant',
         deleteErrorFallback: 'Failed to delete merchant.',
       }}
       onClose={onClose}

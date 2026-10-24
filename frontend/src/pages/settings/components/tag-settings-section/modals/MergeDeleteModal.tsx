@@ -70,7 +70,7 @@ export default function MergeDeleteTagModal({
         selectPlaceholder: 'Select tag...',
         emptyOptionsPlaceholder: 'No compatible tags',
         loadingPlaceholder: 'Loading tags...',
-        requireSelectionError: 'Select a replacement tag.',
+        requireSelectionError: 'Select a replacement tag',
         deleteErrorFallback: 'Failed to delete tag.',
       }}
       onClose={onClose}

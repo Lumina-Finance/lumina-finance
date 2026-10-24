@@ -54,7 +54,7 @@ export default function MergeDeleteCategoryModal({
         searchPlaceholder: 'Search categories...',
         selectPlaceholder: 'Select category...',
         emptyOptionsPlaceholder: 'No compatible categories',
-        requireSelectionError: 'Select a replacement category.',
+        requireSelectionError: 'Select a replacement category',
         deleteErrorFallback: 'Failed to delete category.',
       }}
       onClose={onClose}

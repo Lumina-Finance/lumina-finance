@@ -6,13 +6,14 @@ import {
   createAccount,
   createMonthlyBudget,
   createTaxAdvantagedCategory,
+  createTransaction,
   signUpUser,
 } from '../support/api'
 import { chooseFromDropdown, logInViaApi, openModal, openPage } from '../support/app'
 import { AT_EVERY_SIZE } from '../support/sizes'
 import { API_BASE_URL } from '../support/target'
 
-// Runs at every size, apart from the Edit budget, keep-open and annual limit tests, whose behaviour does not change with the
+// Runs at every size, apart from the Edit budget, keep-open, annual limit and Replace & Delete tests, whose behaviour does not change with the
 // width: the message sits on the field's label row, which stacks
 // differently on a phone, and the button is reached by tap there
 
@@ -423,6 +424,47 @@ test.describe('dialog input errors', () => {
     await expect(dialog.getByRole('alert')).toHaveCount(0)
     await expect(name).not.toHaveAttribute('aria-invalid', 'true')
     await expect(create).not.toHaveAttribute('aria-disabled', 'true')
+  })
+
+  test('keeps Replace & Delete whole while another tag can take the transactions and faded with its reason when none can', async ({ page, request }) => {
+    const user = await signUpUser(request)
+    const account = await createAccount(request, user, { name: 'Everyday' })
+    const created = await request.post(`${API_BASE_URL}/tags`, { headers: asUser(user), data: { name: 'Holiday' } })
+    expect(created.status()).toBe(201)
+    const holiday = ((await created.json()) as { id: string }).id
+    await createTransaction(request, user, { accountId: account.id, categoryName: 'Groceries', amount: -1250, tagIds: [holiday] })
+    await logInViaApi(page, user)
+
+    /** Deleting a tag that transactions use opens the dialogue asking where they should go */
+    async function openMoveDialog() {
+      await openPage(page, '/settings#tags')
+      const tags = page.locator('#tags')
+      await tags.getByRole('button', { name: 'Delete Holiday', exact: true }).click()
+      await tags.getByRole('button', { name: 'Confirm delete Holiday', exact: true }).click()
+      const dialog = page.getByRole('dialog', { name: 'Move transactions first', exact: true })
+      await expect(dialog).toBeVisible()
+      return dialog
+    }
+
+    // With no other tag nothing can take them, which is a state of the dialogue rather than a mistake
+    const alone = await openMoveDialog()
+    const aloneButton = alone.getByRole('button', { name: 'Replace & Delete', exact: true })
+    await expect(aloneButton).toHaveAttribute('aria-disabled', 'true')
+    await expect(aloneButton).toHaveAccessibleDescription('Nothing compatible to move the transactions to')
+    await expect(alone.getByRole('alert')).toHaveCount(0)
+    await alone.getByRole('button', { name: 'Cancel', exact: true }).click()
+    await expect(alone).toBeHidden()
+
+    // With another tag one is chosen already, so the button is whole when the dialogue opens
+    const other = await request.post(`${API_BASE_URL}/tags`, { headers: asUser(user), data: { name: 'Travel' } })
+    expect(other.status()).toBe(201)
+    // The tag list the page already fetched does not know about Travel yet
+    await page.reload()
+    const dialog = await openMoveDialog()
+    const replace = dialog.getByRole('button', { name: 'Replace & Delete', exact: true })
+    await expect(dialog.getByRole('combobox', { name: 'Replacement tag', exact: true })).toContainText('Travel')
+    await expect(replace).not.toHaveAttribute('aria-disabled', 'true')
+    await expect(dialog.getByRole('alert')).toHaveCount(0)
   })
 
   test('marks an emptied name in the Category details dialogue and returns Save once it is filled', AT_EVERY_SIZE, async ({ page, request }) => {
