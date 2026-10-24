@@ -147,7 +147,8 @@ export function AppScrambledNumber({
       style={fitScale < 1 ? { ...style, fontSize: `${fitScale}em` } : style}
       animate={targetWidth === undefined ? undefined : { width: targetWidth }}
       transition={shouldReduceMotion ? { duration: 0 } : widthTransition}
-      aria-busy={loading || isScrambling}    >
+      aria-busy={loading || isScrambling}
+    >
       <span className="invisible block whitespace-nowrap" aria-hidden>
         {widthText}
       </span>
