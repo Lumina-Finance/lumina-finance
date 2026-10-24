@@ -20,6 +20,7 @@ def _fresh_totp_code(secret: str) -> str:
     totp = pyotp.TOTP(secret)
     return totp.at(int(time.time()) + totp.interval)
 
+
 SIGNUP_PAYLOAD = {
     "email": "test@example.com",
     "password": "SecurePassword123!",
@@ -36,7 +37,6 @@ async def _seed_currency():
         None
     """
     async with TestSession() as session:
-
         # Insert the default signup currency so auth route tests can create users
         session.add(Currency(id="CAD", name="Canadian Dollar", symbol="$", minor_unit_exponent=2))
         await session.commit()
@@ -101,7 +101,4 @@ def _clears_cookie(resp, key: str) -> bool:
     Returns:
         True when one of the response's Set-Cookie headers expires that cookie
     """
-    return any(
-        header.startswith(f'{key}=""') and "Max-Age=0" in header
-        for header in resp.headers.get_list("set-cookie")
-    )
+    return any(header.startswith(f'{key}=""') and "Max-Age=0" in header for header in resp.headers.get_list("set-cookie"))

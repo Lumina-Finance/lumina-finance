@@ -25,9 +25,7 @@ class AuthIdentity(Base):
     """Links a user to an authentication provider. Supports multiple providers per user."""
 
     __tablename__ = "auth_identities"
-    __table_args__ = (
-        UniqueConstraint("user_id", "auth_provider", name="uq_auth_identity_user_provider"),
-    )
+    __table_args__ = (UniqueConstraint("user_id", "auth_provider", name="uq_auth_identity_user_provider"),)
 
     id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
     user_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("users.id"), nullable=False)
