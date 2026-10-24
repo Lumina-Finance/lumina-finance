@@ -201,6 +201,28 @@ test('says no credit limit is set when the counted card has none', async ({ page
   await expect(page.getByText('No credit accounts', { exact: true })).toHaveCount(0)
 })
 
+test('says a rate is missing when the only counted card has a limit that could not be converted', async ({ page, request }) => {
+  const user = await signUpUser(request)
+  await createCard(request, user, 'Card A', 0, 500_000)
+
+  // The suite has no way to make the server find no rate, so the response is the server's own with the
+  // total it would give and the status it would report when the card's limit has no rate to convert it
+  await page.route(/\/dashboard\/credit-utilization$/, async (route) => {
+    const response = await route.fetch()
+    const body = await response.json()
+    await route.fulfill({
+      response,
+      json: { ...body, credit_limit_total: 0, fx_status: { state: 'unavailable', missing_pairs: [{ base: 'USD', quote: 'CAD' }] } },
+    })
+  })
+  await logInViaApi(page, user)
+  await openPage(page, '/dashboard')
+
+  await expect(page.getByText('An exchange rate is missing for USD/CAD', { exact: true })).toBeVisible()
+  await expect(page.getByText('No credit accounts', { exact: true })).toHaveCount(0)
+  await expect(page.getByText('No credit limit set', { exact: true })).toHaveCount(0)
+})
+
 for (const reducedMotion of ['no-preference', 'reduce'] as const) {
   test(`keeps every digit of the credit amount inside the widget with ${reducedMotion} motion`, async ({ page, request }) => {
     const user = await signUpUser(request, { baseCurrency: 'USD' })

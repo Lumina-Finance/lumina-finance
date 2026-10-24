@@ -6,8 +6,8 @@ import { describe, expect, it } from 'vitest'
 import type { CreditUtilizationAccount } from '@/api/dashboard'
 import {
   areAllAccountsLeftOut,
+  getCreditEmptyMessage,
   getExcludedAccountIds,
-  isCreditLimitUnset,
   isExclusionChanged,
   toggleExcludedAccount,
 } from '@/pages/dashboard/utils/creditAccountChoice'
@@ -42,16 +42,35 @@ describe('credit account choice', () => {
     expect(areAllAccountsLeftOut([])).toBe(false)
   })
 
-  it('says no limit is set only for counted cards whose limits add up to nothing', () => {
-    const noLimit = { credit_limit_total: 0, credit_used: 0, fx_status: fxStatus, accounts: CARDS }
-    expect(isCreditLimitUnset(noLimit)).toBe(true)
-    expect(isCreditLimitUnset({ ...noLimit, credit_limit_total: 100_000 })).toBe(false)
-    expect(isCreditLimitUnset({ ...noLimit, accounts: [] })).toBe(false)
-    expect(isCreditLimitUnset({ ...noLimit, accounts: [CARDS[1]] })).toBe(false)
+  it('says a rate is missing, not that no limit is set or no accounts exist, when a foreign limit has no rate', () => {
+    const usdCard: CreditUtilizationAccount = { ...CARDS[0], id: 'card-usd', name: 'USD card' }
+    const noLimit = { credit_limit_total: 0, credit_used: 0, fx_status: fxStatus, accounts: [usdCard] }
+    const usdToCad = { base: 'USD', quote: 'CAD' }
 
-    // A foreign limit with no rate adds nothing to the total, though the card has a limit
-    const missingRate = { state: 'unavailable' as const, missing_pairs: [{ base: 'USD', quote: 'CAD' }] }
-    expect(isCreditLimitUnset({ ...noLimit, fx_status: missingRate })).toBe(false)
-    expect(isCreditLimitUnset({ ...noLimit, fx_status: { ...missingRate, state: 'incomplete' } })).toBe(false)
+    // The only counted card has a USD limit and no rate, so the total is 0 (FX unavailable)
+    expect(getCreditEmptyMessage({ ...noLimit, fx_status: { state: 'unavailable', missing_pairs: [usdToCad] } }))
+      .toEqual({ message: 'An exchange rate is missing for USD/CAD', needsAttention: true })
+
+    // A CAD card with no limit beside it changes nothing (FX incomplete)
+    expect(getCreditEmptyMessage({ ...noLimit, accounts: [CARDS[0], usdCard], fx_status: { state: 'incomplete', missing_pairs: [usdToCad] } }))
+      .toEqual({ message: 'An exchange rate is missing for USD/CAD', needsAttention: true })
+
+    // Four pairs show three and the count of the rest
+    const pairs = ['USD', 'EUR', 'GBP', 'JPY'].map((base) => ({ base, quote: 'CAD' }))
+    expect(getCreditEmptyMessage({ ...noLimit, fx_status: { state: 'unavailable', missing_pairs: pairs } }).message)
+      .toBe('An exchange rate is missing for USD/CAD, EUR/CAD, GBP/CAD and 1 more')
+  })
+
+  it('says no limit is set when counted cards have none and no conversion failed', () => {
+    expect(getCreditEmptyMessage({ credit_limit_total: 0, credit_used: 0, fx_status: fxStatus, accounts: CARDS }))
+      .toEqual({ message: 'No credit limit set', needsAttention: false })
+  })
+
+  it('says there are no credit accounts when the user has none or counts none', () => {
+    const none = { credit_limit_total: 0, credit_used: 0, fx_status: fxStatus, accounts: [] }
+    const expected = { message: 'No credit accounts', needsAttention: false }
+    expect(getCreditEmptyMessage(none)).toEqual(expected)
+    expect(getCreditEmptyMessage(undefined)).toEqual(expected)
+    expect(getCreditEmptyMessage({ ...none, accounts: [CARDS[1]] })).toEqual(expected)
   })
 })
