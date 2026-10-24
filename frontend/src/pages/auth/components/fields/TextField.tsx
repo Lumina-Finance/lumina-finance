@@ -7,7 +7,6 @@ interface AuthTextFieldProps {
   id: string
   label: string
   labelSuffix?: ReactNode
-  readOnly?: boolean
   touched?: boolean
   type?: HTMLInputTypeAttribute
   value: string
@@ -25,7 +24,6 @@ export function AuthTextField({
   id,
   label,
   labelSuffix,
-  readOnly = false,
   touched = false,
   type = 'text',
   value,
@@ -65,7 +63,6 @@ export function AuthTextField({
         autoComplete={autoComplete}
         className={`app-input ${showError ? 'app-input-error' : ''}`}
         value={value}
-        readOnly={readOnly}
         aria-invalid={showError ? true : undefined}
         aria-describedby={showError ? `${id}-error` : undefined}
         onChange={(event) => onChange(event.target.value)}

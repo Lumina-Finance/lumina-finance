@@ -63,8 +63,27 @@ export function NewPasswordForm({
       <AuthErrorBanner error={error} />
 
       {username !== undefined && (
-        <div className="mt-5">
-          <AuthTextField id="username" label="Email" type="email" autoComplete="username" value={username} readOnly />
+        <div className="mt-5 space-y-1.5">
+          <span id="username-label" className="app-label">
+            Email
+          </span>
+          {/* Text rather than an input, which cuts a long address at its edge instead of wrapping it */}
+          <p
+            aria-labelledby="username-label"
+            className="app-input h-auto break-all py-2 leading-snug"
+            style={{ color: 'var(--app-text-muted)' }}
+          >
+            {username}
+          </p>
+          <input
+            type="email"
+            autoComplete="username"
+            className="sr-only"
+            value={username}
+            readOnly
+            tabIndex={-1}
+            aria-hidden
+          />
         </div>
       )}
 

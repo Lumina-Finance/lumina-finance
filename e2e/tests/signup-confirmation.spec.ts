@@ -79,3 +79,23 @@ test('shows the same view and sends no email when the address already has an acc
   await waitForConfirmationLink(later)
   expect(await countEmailsTo(user.email)).toBe(emailsBefore)
 })
+
+for (const size of [
+  { name: 'desktop', width: 1920, height: 1080 },
+  { name: 'phone', width: 390, height: 844 },
+]) {
+  test(`shows a long address in full on the confirm page at ${size.name} width`, async ({ page }) => {
+    const email = await requestSignUpThroughTheForm(page, `e2e-${crypto.randomUUID()}-with-a-long-name@example.com`)
+    await page.setViewportSize({ width: size.width, height: size.height })
+    await page.goto(await waitForConfirmationLink(email))
+
+    // A read-only value wider than its box is cut at the edge, hiding the end of the address
+    const shown = page.getByLabel('Email')
+    await expect(shown).toBeVisible()
+    const { scrollWidth, clientWidth } = await shown.evaluate((element) => ({
+      scrollWidth: element.scrollWidth,
+      clientWidth: element.clientWidth,
+    }))
+    expect(scrollWidth).toBeLessThanOrEqual(clientWidth)
+  })
+}
