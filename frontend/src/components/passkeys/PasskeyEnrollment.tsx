@@ -1,12 +1,15 @@
 import { useState } from 'react';
 import { KeyRound } from 'lucide-react';
 import { DisabledReasonButton } from '@/components/tooltips/DisabledReasonButton';
+import { ModalContentFooter } from '@/components/modal/ContentPanel';
 import { useConfirmPasskeyRegistration, useRegisterPasskey } from '@/api/passkeys';
 import type { StepUpPayload } from '@/api/two-factor';
 import { RecoveryCodesPanel } from '@/components/two-factor/RecoveryCodesPanel';
 import { SetupRestart } from '@/components/two-factor/SetupRestart';
 import { StepTransition } from '@/components/two-factor/StepTransition';
 import { getPasskeyRegistrationMessage, isPasskeyCeremonyCancelled } from '@/utils/passkeyErrors';
+import { SERVER_UNREACHABLE_MESSAGE } from '@/api/server';
+import { isSetupRefused } from '@/utils/setupFailure';
 
 interface PasskeyEnrollmentProps {
   /** Called once the passkey is active and, for a first passkey, its recovery codes are acknowledged */
@@ -69,8 +72,9 @@ export function PasskeyEnrollment({ onComplete, onSkip, onSwitchToTotp, setupSte
     try {
       await confirmRegistration.mutateAsync();
       onComplete();
-    } catch {
-      setActivateFailed(true);
+    } catch (failure) {
+      if (isSetupRefused(failure)) setActivateFailed(true);
+      else setError(SERVER_UNREACHABLE_MESSAGE);
     }
   };
 
@@ -118,20 +122,29 @@ export function PasskeyEnrollment({ onComplete, onSkip, onSwitchToTotp, setupSte
             </label>
           </div>
 
-          {activateFailed ? (
-            <SetupRestart onStartAgain={startAgain} />
-          ) : (
-            <div className="flex justify-center">
-              <DisabledReasonButton
-                onClick={handleActivate}
-                disabled={confirmRegistration.isPending}
-                disabledReason={!savedAcknowledged || !lockoutAcknowledged ? 'Tick both boxes first' : undefined}
-                className={`app-primary-button transition-all duration-300 ${confirmRegistration.isPending ? 'app-primary-button-loading' : 'w-full'}`}
-              >
-                {confirmRegistration.isPending ? <div className="app-spinner" /> : 'Done'}
-              </DisabledReasonButton>
-            </div>
-          )}
+          <ModalContentFooter>
+            {activateFailed ? (
+              <SetupRestart onStartAgain={startAgain} />
+            ) : (
+              <div className="space-y-3">
+                {error && (
+                  <p role="alert" className="text-center text-sm" style={{ color: 'var(--app-negative)' }}>
+                    {error}
+                  </p>
+                )}
+                <div className="flex justify-center">
+                  <DisabledReasonButton
+                    onClick={handleActivate}
+                    disabled={confirmRegistration.isPending}
+                    disabledReason={!savedAcknowledged || !lockoutAcknowledged ? 'Tick both boxes first' : undefined}
+                    className={`app-primary-button transition-all duration-300 ${confirmRegistration.isPending ? 'app-primary-button-loading' : 'w-full'}`}
+                  >
+                    {confirmRegistration.isPending ? <div className="app-spinner" /> : 'Done'}
+                  </DisabledReasonButton>
+                </div>
+              </div>
+            )}
+          </ModalContentFooter>
         </div>
       ) : (
         <div className="space-y-5">

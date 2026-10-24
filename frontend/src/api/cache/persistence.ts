@@ -11,6 +11,7 @@ import type { PersistedClient } from '@tanstack/react-query-persist-client';
 import { SESSION_KEY } from '@/api/auth/session';
 import { twoFactorKeys } from '@/api/cache/queryKeys';
 import { hasUncacheableFxStatus } from '@/api/shared/fxCache';
+import { readStoredValue, removeStoredValue, writeStoredValue } from '@/utils/browserStorage';
 
 // The local storage key holding the saved query cache, one copy shared by every tab
 export const QUERY_CACHE_STORAGE_KEY = 'lumina:query-cache';
@@ -93,19 +94,18 @@ function savedCopyVersion(userId: string | null) {
  */
 function writeSavedCopy(serialize: () => string, changes: number, userId: string | null) {
   if (isSavingStopped) return;
-  const sessionUserId = window.localStorage.getItem(SESSION_KEY);
+  const sessionUserId = readStoredValue(SESSION_KEY);
   if (sessionUserId === null) {
-    window.localStorage.removeItem(QUERY_CACHE_STORAGE_KEY);
+    removeStoredValue(QUERY_CACHE_STORAGE_KEY);
     return;
   }
   if (userId !== sessionUserId) return;
-  try {
-    window.localStorage.setItem(QUERY_CACHE_STORAGE_KEY, serialize());
+  if (writeStoredValue(QUERY_CACHE_STORAGE_KEY, serialize())) {
     savedChangeCount = changes;
-  } catch {
+  } else {
     // Storage is full, so the older copy left behind would be restored as fresh on the next load.
     // Without it that load starts empty and fetches everything
-    window.localStorage.removeItem(QUERY_CACHE_STORAGE_KEY);
+    removeStoredValue(QUERY_CACHE_STORAGE_KEY);
   }
 }
 
@@ -117,7 +117,9 @@ function writeSavedCopy(serialize: () => string, changes: number, userId: string
  * page loads, so the restore takes only the copy of the user the session flag names then
  */
 export function createQueryCachePersistOptions() {
-  restoredUserId = window.localStorage.getItem(SESSION_KEY);
+  // A browser that blocks storage reads as holding no session, so the app starts with nothing restored
+  // rather than throwing before anything renders
+  restoredUserId = readStoredValue(SESSION_KEY);
   return {
     persister: createAsyncStoragePersister({
       // Counted when the persister serializes, since that copy reflects every change so far, and
@@ -130,10 +132,10 @@ export function createQueryCachePersistOptions() {
         return JSON.stringify({ ...persistedClient, buster: savedCopyVersion(serializedUserId) });
       },
       storage: {
-        getItem: (key: string) => window.localStorage.getItem(key),
+        getItem: (key: string) => readStoredValue(key),
         setItem: (_key: string, value: string) =>
           writeSavedCopy(() => value, serializedChangeCount, serializedUserId),
-        removeItem: (key: string) => window.localStorage.removeItem(key),
+        removeItem: (key: string) => removeStoredValue(key),
       },
       key: QUERY_CACHE_STORAGE_KEY,
     }),

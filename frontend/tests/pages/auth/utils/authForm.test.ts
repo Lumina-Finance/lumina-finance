@@ -2,7 +2,7 @@
  * Tests auth form policy helpers so refactors catch broken login validation, signup payloads, lockout timers, and currency-loading guards before the page submits
  */
 import { describe, expect, it } from 'vitest'
-import { ApiError } from '@/api/auth'
+import { ApiError, buildApiError } from '@/api/auth'
 import type { Currency } from '@/api/currency'
 import {
   buildCurrencyOptions,
@@ -114,7 +114,6 @@ describe('auth form helpers', () => {
     expect(isAuthLockoutError(lockoutError)).toBe(true)
     expect(isAuthLockoutError(genericError)).toBe(false)
     expect(getAuthErrorMessage(new ApiError('Invalid credentials', 401))).toBe('Incorrect email or password. Please try again.')
-    expect(getAuthErrorMessage(genericError)).toBe('Something went wrong. Please try again.')
 
     // A sign-up form left open after registration closed must say so rather than invite a retry
     expect(getAuthErrorMessage(new ApiError('Registration is closed on this instance', 403))).toBe(
@@ -141,12 +140,24 @@ describe('auth form helpers', () => {
     expect(getRefusedAuthFields(new ApiError('Invalid credentials', 401))).toEqual({})
   })
 
-  it('names the refused fields in the banner of a form that has none of them', () => {
-    const message = "Oops, the token wasn't accepted. Please check it and try again."
-    const refusal = new ApiError(message, 422, {
+  // A timed-out or unexplained failure used to show one sentence that hid what happened
+  it('says the server took too long, or could not be reached, in its own words', () => {
+    const timeout = new DOMException('Oops, the server took too long to answer. Please try again.', 'TimeoutError')
+    expect(getAuthErrorMessage(timeout)).toBe('Oops, the server took too long to answer. Please try again.')
+
+    // The browser's own words for a dropped connection, such as "Failed to fetch", are not for the screen
+    expect(getAuthErrorMessage(new TypeError('Failed to fetch'))).toBe("Couldn't reach the server. Please try again.")
+  })
+
+  // These pages face anyone, so a server's detail, a status or a field name could help someone probing them
+  it('shows only the friendly sentence for a refusal the form has no words for', () => {
+    const generic = 'Oops, something went wrong. Please try again.'
+    expect(getAuthErrorMessage(buildApiError(500, { detail: 'IntegrityError on users.email_key' }))).toBe(generic)
+    expect(getAuthErrorMessage(buildApiError(500, null))).toBe(generic)
+    expect(getAuthErrorMessage(buildApiError(429, { detail: 'Rate limit 5/minute exceeded' }))).toBe(generic)
+    const refusal = new ApiError("Oops, the token wasn't accepted. Please check it and try again.", 422, {
       fieldErrors: [{ field: 'token', message: 'Field required' }],
     })
-
-    expect(getAuthErrorMessage(refusal)).toBe(message)
+    expect(getAuthErrorMessage(refusal)).toBe(generic)
   })
 })

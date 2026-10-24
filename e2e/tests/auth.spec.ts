@@ -45,7 +45,72 @@ test('says the email address is the problem when signup refuses it', async ({ pa
   await page.getByRole('button', { name: 'Sign up' }).click()
 
   await expect(page.getByText('Enter a valid email address', { exact: true })).toBeVisible()
-  await expect(page.getByText('Something went wrong. Please try again.', { exact: true })).toHaveCount(0)
+  await expect(page.getByText('Oops, something went wrong. Please try again.', { exact: true })).toHaveCount(0)
+})
+
+// A browser set to block all site data throws on any touch of its storage, which once left the page
+// blank before anything rendered
+test('opens and signs in when the browser blocks storage', async ({ page, request }) => {
+  const user = await signUpUser(request)
+  await page.addInitScript(() => {
+    for (const name of ['localStorage', 'sessionStorage']) {
+      Object.defineProperty(window, name, {
+        get() {
+          throw new DOMException('The operation is insecure.', 'SecurityError')
+        },
+      })
+    }
+  })
+
+  await page.goto('/login')
+  const isStorageBlocked = await page.evaluate(() => {
+    try {
+      return window.localStorage === undefined
+    } catch {
+      return true
+    }
+  })
+  expect(isStorageBlocked).toBe(true)
+
+  await logIn(page, user)
+  await expectSignedIn(page)
+})
+
+// On a small phone the page stayed scrolled to the submit button after a server error, so the
+// banner above the form sat out of view and screen readers were not told. Every auth page shares
+// the banner, so the sign-in page stands for them all
+test('brings a sign-in error into view and announces it on a small phone', async ({ page }) => {
+  // The smallest common phone, so the login form runs taller than the screen and the page can scroll
+  // away from where the banner opens
+  await page.setViewportSize({ width: 320, height: 480 })
+  let release!: () => void
+  const released = new Promise<void>((resolve) => { release = resolve })
+  await page.route(/\/auth\/login$/, async (route) => {
+    await released
+    await route.fulfill({
+      status: 500,
+      headers: {
+        'Access-Control-Allow-Origin': route.request().headers()['origin'],
+        'Access-Control-Allow-Credentials': 'true',
+      },
+      contentType: 'application/json',
+      body: JSON.stringify({ detail: 'Internal Server Error' }),
+    })
+  })
+  await page.goto('/login')
+  await page.getByLabel('Email').fill(`e2e-${crypto.randomUUID()}@example.com`)
+  await page.getByLabel('Password', { exact: true }).fill(TEST_PASSWORD)
+  await page.getByRole('button', { name: 'Log in' }).click()
+
+  // Scrolled to the bottom while the answer is held, so the banner opens above the screen
+  await page.evaluate(() => window.scrollTo(0, document.documentElement.scrollHeight))
+  await expect.poll(() => page.evaluate(() => window.scrollY)).toBeGreaterThan(0)
+  release()
+
+  const banner = page.getByRole('alert').filter({ hasText: /^Oops, something went wrong\. Please try again\.$/ })
+  await expect(banner).toBeVisible()
+  // Nearly all of it, since smooth scrolling can stop a fraction of a pixel short
+  await expect(banner).toBeInViewport({ ratio: 0.9 })
 })
 
 test('refuses a wrong password before accepting the right one', async ({ page, request }) => {

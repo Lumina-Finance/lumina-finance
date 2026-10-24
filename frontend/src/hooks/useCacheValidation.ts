@@ -3,6 +3,7 @@ import { focusManager, useQueryClient, type QueryClient } from '@tanstack/react-
 import type { User } from '@/api/auth'
 import { fetchCacheStatus, fetchProfile } from '@/api/user'
 import { invalidateAppData, invalidateFxData } from '@/api/cache/invalidation'
+import { readStoredValue, writeStoredValue } from '@/utils/browserStorage'
 
 const PERSONAL_CACHE_CHANGED_AT_KEY_PREFIX = 'lumina:personal-cache-changed-at'
 const CALCULATION_DATE_TOKEN_KEY_PREFIX = 'lumina:calculation-date-token'
@@ -133,7 +134,7 @@ export function useCacheValidation(
         event.storageArea === window.localStorage
         && (event.key === changedAtKey || event.key === dateKey)
         && event.newValue !== null
-        && event.newValue !== window.sessionStorage.getItem(event.key)
+        && event.newValue !== readStoredValue(event.key, 'session')
         && document.visibilityState === 'visible'
       ) void validate()
     }
@@ -159,16 +160,16 @@ async function validateAppData(
   const status = await fetchCacheStatus()
   const currentChangedAt = toUtcCacheTimestamp(status.personal.changed_at) ?? ''
   const previousChangedAt = toUtcCacheTimestamp(
-    window.sessionStorage.getItem(storageKey) ?? window.localStorage.getItem(storageKey),
+    readStoredValue(storageKey, 'session') ?? readStoredValue(storageKey),
   )
-  const previousDate = window.sessionStorage.getItem(dateStorageKey) ?? window.localStorage.getItem(dateStorageKey)
-  window.sessionStorage.setItem(storageKey, currentChangedAt)
-  window.sessionStorage.setItem(dateStorageKey, status.calculation_date_token)
-  if (window.localStorage.getItem(storageKey) !== currentChangedAt) {
-    window.localStorage.setItem(storageKey, currentChangedAt)
+  const previousDate = readStoredValue(dateStorageKey, 'session') ?? readStoredValue(dateStorageKey)
+  writeStoredValue(storageKey, currentChangedAt, 'session')
+  writeStoredValue(dateStorageKey, status.calculation_date_token, 'session')
+  if (readStoredValue(storageKey) !== currentChangedAt) {
+    writeStoredValue(storageKey, currentChangedAt)
   }
-  if (window.localStorage.getItem(dateStorageKey) !== status.calculation_date_token) {
-    window.localStorage.setItem(dateStorageKey, status.calculation_date_token)
+  if (readStoredValue(dateStorageKey) !== status.calculation_date_token) {
+    writeStoredValue(dateStorageKey, status.calculation_date_token)
   }
 
   const changed = previousChangedAt !== null && previousChangedAt !== currentChangedAt
@@ -193,10 +194,10 @@ function validateFxData(
 ) {
   const storageKey = `${FX_REFRESHED_AT_KEY_PREFIX}:${userId}`
   const now = Date.now()
-  const previousRefreshedAt = window.localStorage.getItem(storageKey)
+  const previousRefreshedAt = readStoredValue(storageKey)
 
   if (previousRefreshedAt === null || appInvalidated) {
-    window.localStorage.setItem(storageKey, String(now))
+    writeStoredValue(storageKey, String(now))
     return
   }
 
@@ -204,5 +205,5 @@ function validateFxData(
   if (Number.isFinite(previousTime) && now - previousTime < FX_REFRESH_INTERVAL_MS) return
 
   invalidateFxData(queryClient)
-  window.localStorage.setItem(storageKey, String(now))
+  writeStoredValue(storageKey, String(now))
 }

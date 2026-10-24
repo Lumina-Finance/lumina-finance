@@ -73,6 +73,27 @@ test('waits for Verify before sending a recovery code', async ({ page, request }
   expect(sentCodes).toEqual([RECOVERY_CODE])
 })
 
+// Authenticator apps show and copy the code as two groups of three, and the field once cut the pasted
+// text at six characters, space included, which left five digits
+test('takes all six digits of a code pasted with a space in the middle', async ({ page, request }) => {
+  const user = await signUpUser(request)
+  await enrollTotp(request, user)
+
+  const sentCodes: string[] = []
+  await page.route(VERIFY_URL, (route) => {
+    sentCodes.push((route.request().postDataJSON() as { code: string }).code)
+    return route.fulfill({ status: 401, json: { detail: 'Invalid code' } })
+  })
+
+  await reachChallenge(page, user)
+  const field = page.getByLabel('One-time code')
+  await field.focus()
+  await page.keyboard.insertText('123 456')
+
+  await expect(field).toHaveValue('123456')
+  await expect.poll(() => sentCodes).toEqual(['123456'])
+})
+
 test('leaves the challenge for a person\'s click on "Back to login" but not a scripted one', async ({ page, request }) => {
   const user = await signUpUser(request)
   const secret = await enrollTotp(request, user)

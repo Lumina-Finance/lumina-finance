@@ -2694,6 +2694,28 @@
     outline: none;
   }
 
+  /* A content dialog's final actions stay at the bottom of the panel while the body scrolls under them,
+     so Done is in view on a short screen. The footer reaches the body's side edges so nothing scrolls
+     past beside it, and takes over the body's bottom padding and the device safe area. Outside a dialog,
+     such as the forced re-enrolment page, it stays in the flow */
+  .app-modal-body {
+    padding-bottom: calc(1.5rem + env(safe-area-inset-bottom));
+  }
+
+  .app-modal-body:has(.app-modal-footer) {
+    padding-bottom: 0;
+  }
+
+  .app-modal-body .app-modal-footer {
+    position: sticky;
+    bottom: 0;
+    z-index: 1;
+    margin-inline: -1.5rem;
+    padding: 1rem 1.5rem calc(1.5rem + env(safe-area-inset-bottom));
+    background: var(--app-bg);
+    border-top: 1px solid var(--app-border);
+  }
+
   /* Every modal portals its dialog panel into the body, so this locks page scroll for any open modal
      at once. The viewport scrolls the root element, not the body, so the lock has to sit on html, and
      the stable scrollbar gutter keeps the content from shifting when the scrollbar disappears */

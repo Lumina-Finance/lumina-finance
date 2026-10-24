@@ -37,7 +37,8 @@ export function OtpInput({ value, onChange, length = OTP_LENGTH, disabled = fals
         type="text"
         inputMode="numeric"
         autoComplete="one-time-code"
-        maxLength={length}
+        // No length limit, since the browser would cut a pasted "123 456" to six characters before the
+        // space is dropped. Only the digits are kept, up to the code's length
         autoFocus={autoFocus}
         disabled={disabled}
         value={value}

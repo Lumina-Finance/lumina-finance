@@ -7,11 +7,14 @@ from types import SimpleNamespace
 
 import pyotp
 import pytest
+from httpx import ASGITransport, AsyncClient
 from sqlalchemy import func, select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.main import app
 from app.models.auth import PasswordCredential, PasswordResetToken
 from app.services.auth import password_reset
+from app.services.auth.token_hashing import hash_token
 from tests.conftest import TestSession
 from tests.routes.support import SIGNUP_PAYLOAD, _create_user, _fresh_totp_code, _get_auth_header, _seed_reset_token
 
@@ -75,9 +78,7 @@ async def _overlap_reset_requests(client, monkeypatch, first_email, second_email
             else:
                 async with TestSession() as observer:
                     while not second.done():
-                        blockers = await observer.scalar(
-                            text("SELECT pg_blocking_pids(:pid)"), {"pid": request_pids[1]}
-                        )
+                        blockers = await observer.scalar(text("SELECT pg_blocking_pids(:pid)"), {"pid": request_pids[1]})
                         if request_pids[0] in blockers:
                             break
                         await asyncio.sleep(0.01)
@@ -159,6 +160,41 @@ async def test_forgot_password_drops_the_token_when_the_email_fails(client, monk
     assert sent_reset_emails == [SIGNUP_PAYLOAD["email"]]
 
 
+async def test_forgot_password_sends_the_email_once_the_response_has_started(client, monkeypatch):
+    """The route answers before it waits on the mail server, so its timing can't tell an address apart"""
+    signup = await _create_user(client)
+    user_id = uuid.UUID(signup.json()["user"]["id"])
+    events = []
+    sent = []
+
+    async def record_send(email, message):
+        """Note the send in order with the response, with the link it carries"""
+        events.append("email")
+        sent.append((email, message.text_body))
+
+    async def tracked_app(scope, receive, send):
+        """Run the app, noting when its response starts"""
+
+        async def tracked_send(message):
+            if message["type"] == "http.response.start":
+                events.append("response")
+            await send(message)
+
+        await app(scope, receive, tracked_send)
+
+    monkeypatch.setattr(password_reset, "get_email_sender", lambda: SimpleNamespace(send=record_send))
+    async with AsyncClient(transport=ASGITransport(app=tracked_app), base_url="http://test") as tracked_client:
+        resp = await tracked_client.post("/auth/password/forgot", json={"email": SIGNUP_PAYLOAD["email"]})
+
+    assert resp.status_code == 204
+    assert events == ["response", "email"]
+    # The link carries the raw token whose hash was stored, so it can finish the reset
+    [(recipient, body)] = sent
+    raw_token = body.split("/reset-password?token=", 1)[1].split()[0]
+    assert recipient == SIGNUP_PAYLOAD["email"]
+    assert [row.token_hash for row in await _reset_tokens_for(user_id)] == [hash_token(raw_token)]
+
+
 @pytest.mark.parametrize("prior_sends", [0, 2])
 async def test_overlapping_reset_requests_share_the_allowance(client, monkeypatch, sent_reset_emails, prior_sends):
     """Concurrent requests cannot duplicate a live link or exceed the last daily allowance"""
@@ -167,9 +203,7 @@ async def test_overlapping_reset_requests_share_the_allowance(client, monkeypatc
     for index in range(prior_sends):
         await _seed_reset_token(user_id, raw_token=f"expired-{index}", expires_in_seconds=-60)
 
-    responses = await _overlap_reset_requests(
-        client, monkeypatch, SIGNUP_PAYLOAD["email"], SIGNUP_PAYLOAD["email"]
-    )
+    responses = await _overlap_reset_requests(client, monkeypatch, SIGNUP_PAYLOAD["email"], SIGNUP_PAYLOAD["email"])
 
     assert [response.status_code for response in responses] == [204, 204]
     rows = await _reset_tokens_for(user_id)
@@ -185,9 +219,7 @@ async def test_overlapping_reset_requests_for_different_users_are_independent(cl
     second = await client.post("/auth/signup", json={**SIGNUP_PAYLOAD, "email": second_email})
     assert second.status_code == 201
 
-    responses = await _overlap_reset_requests(
-        client, monkeypatch, SIGNUP_PAYLOAD["email"], second_email, independent=True
-    )
+    responses = await _overlap_reset_requests(client, monkeypatch, SIGNUP_PAYLOAD["email"], second_email, independent=True)
 
     assert [response.status_code for response in responses] == [204, 204]
     assert len(await _reset_tokens_for(uuid.UUID(first.json()["user"]["id"]))) == 1
@@ -205,8 +237,8 @@ async def test_forgot_password_unknown_email_creates_no_token(client):
         assert token_count == 0
 
 
-async def test_forgot_password_keeps_the_live_link_and_sends_nothing_new(client):
-    """Requesting again while the earlier link still works issues no new token"""
+async def test_forgot_password_keeps_the_live_link_and_sends_nothing_new(client, sent_reset_emails):
+    """Requesting again while the earlier link still works issues no new token and sends no email"""
     signup = await _create_user(client)
     user_id = uuid.UUID(signup.json()["user"]["id"])
 
@@ -219,6 +251,7 @@ async def test_forgot_password_keeps_the_live_link_and_sends_nothing_new(client)
     assert resp.status_code == 204
     assert len(rows) == 1
     assert rows[0].token_hash == first_hash
+    assert sent_reset_emails == [SIGNUP_PAYLOAD["email"]]
 
 
 async def test_forgot_password_sends_again_after_the_link_expires(client):
@@ -272,7 +305,8 @@ async def test_reset_password_sets_new_password_and_consumes_token(client):
     assert resp.status_code == 204
 
     login = await client.post(
-        "/auth/login", json={"email": SIGNUP_PAYLOAD["email"], "password": _NEW_PASSWORD},
+        "/auth/login",
+        json={"email": SIGNUP_PAYLOAD["email"], "password": _NEW_PASSWORD},
     )
     assert login.status_code == 200
 
@@ -409,9 +443,7 @@ async def test_reset_during_reenrollment_requires_a_remaining_recovery_code(clie
     signup, _, recovery_codes = await _enroll_totp(client)
     user_id = uuid.UUID(signup.json()["user"]["id"])
 
-    login = await client.post(
-        "/auth/login", json={"email": SIGNUP_PAYLOAD["email"], "password": SIGNUP_PAYLOAD["password"]}
-    )
+    login = await client.post("/auth/login", json={"email": SIGNUP_PAYLOAD["email"], "password": SIGNUP_PAYLOAD["password"]})
     recovery_login = await client.post(
         "/auth/2fa/verify",
         json={"mfa_token": login.json()["mfa_token"], "code": recovery_codes[0]},
@@ -479,9 +511,7 @@ async def test_reset_verify_rejects_a_login_challenge(client):
     user_id = uuid.UUID(signup.json()["user"]["id"])
     raw_token = await _seed_reset_token(user_id)
 
-    login = await client.post(
-        "/auth/login", json={"email": SIGNUP_PAYLOAD["email"], "password": SIGNUP_PAYLOAD["password"]}
-    )
+    login = await client.post("/auth/login", json={"email": SIGNUP_PAYLOAD["email"], "password": SIGNUP_PAYLOAD["password"]})
     login_mfa_token = login.json()["mfa_token"]
 
     verify = await client.post(
@@ -575,14 +605,10 @@ async def test_reset_sets_first_password_for_provider_account(client):
     assert resp.status_code == 204
 
     async with TestSession() as session:
-        credential = (
-            await session.execute(select(PasswordCredential).where(PasswordCredential.user_id == user_id))
-        ).scalar_one()
+        credential = (await session.execute(select(PasswordCredential).where(PasswordCredential.user_id == user_id))).scalar_one()
         password_identity = (
             await session.execute(
-                select(AuthIdentity).where(
-                    AuthIdentity.user_id == user_id, AuthIdentity.auth_provider == AuthProvider.PASSWORD
-                )
+                select(AuthIdentity).where(AuthIdentity.user_id == user_id, AuthIdentity.auth_provider == AuthProvider.PASSWORD)
             )
         ).scalar_one()
     assert credential.password_hash != _NEW_PASSWORD

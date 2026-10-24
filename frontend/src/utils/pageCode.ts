@@ -1,4 +1,5 @@
 import { lazy, type ComponentType } from 'react';
+import { readStoredValue, writeStoredValue } from '@/utils/browserStorage';
 
 const PAGE_CODE_RELOAD_KEY = 'page-code-reload-at';
 
@@ -22,7 +23,14 @@ function readBrowserEnvironment(): PageCodeEnvironment {
     isOnline: navigator.onLine,
     now: Date.now(),
     reload: () => window.location.reload(),
-    storage: window.sessionStorage,
+    // A blocked store reads as no marker and fails to save one, so the failure goes to the error screen
+    // rather than reloading with nothing to stop a loop
+    storage: {
+      getItem: (key) => readStoredValue(key, 'session'),
+      setItem: (key, value) => {
+        if (!writeStoredValue(key, value, 'session')) throw new Error('Session storage is unavailable');
+      },
+    },
   };
 }
 

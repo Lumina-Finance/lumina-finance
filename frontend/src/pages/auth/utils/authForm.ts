@@ -1,8 +1,9 @@
-import { ApiError, type LoginPayload, type SignupPayload } from '@/api/auth'
+import { ApiError, NO_EXPLANATION_MESSAGE, type LoginPayload, type SignupPayload } from '@/api/auth'
 import type { Currency } from '@/api/currency'
 import type { DropdownOption } from '@/components/dropdown/Dropdown'
 import { formatCurrencyLabel } from '@/utils/formatCurrency'
 import { isNewPasswordValid } from '@/utils/passwordPolicy'
+import { SERVER_UNREACHABLE_MESSAGE } from '@/api/server'
 
 export type AuthMode = 'login' | 'signup' | 'forgot'
 
@@ -209,16 +210,19 @@ export function getAuthSubmitBlockReason(
 }
 
 /**
- * Maps backend auth errors into user-facing messages while hiding unrecognised implementation details
+ * Puts a failed auth request in the form's words where it has them, and otherwise in one of the request
+ * layer's own safe sentences: the timeout's, the dropped connection's, or the friendly sentence
+ *
+ * The server's own explanation is never shown as it stands, since these pages face anyone, and a detail,
+ * status or internal name there could tell someone probing them more than the form means to
  */
 export function getAuthErrorMessage(error: unknown): string {
-  if (!(error instanceof ApiError)) return 'Something went wrong. Please try again.'
-
-  // A validation refusal already names each refused field, which a form without that field shows as
-  // it is rather than hiding behind the generic sentence
-  if (error.fieldErrors) return error.message
-
-  return ERROR_MESSAGES[error.message] ?? 'Something went wrong. Please try again.'
+  if (error instanceof DOMException && error.name === 'TimeoutError') return error.message
+  // The browser fails a request that never reached the server this way, with a message not written for
+  // the screen
+  if (error instanceof TypeError) return SERVER_UNREACHABLE_MESSAGE
+  if (!(error instanceof ApiError)) return NO_EXPLANATION_MESSAGE
+  return ERROR_MESSAGES[error.message] ?? NO_EXPLANATION_MESSAGE
 }
 
 /**

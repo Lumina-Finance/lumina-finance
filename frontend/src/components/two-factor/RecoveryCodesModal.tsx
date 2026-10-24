@@ -2,8 +2,10 @@ import { useState } from 'react';
 import { DisabledReasonButton } from '@/components/tooltips/DisabledReasonButton';
 import { RecoveryCodesPanel, type RecoveryFactors } from '@/components/two-factor/RecoveryCodesPanel';
 import { SetupRestart } from '@/components/two-factor/SetupRestart';
-import { ModalContentPanel } from '@/components/modal/ContentPanel';
+import { ModalContentFooter, ModalContentPanel } from '@/components/modal/ContentPanel';
 import type { ModalLevel } from '@/components/modal/Shell';
+import { SERVER_UNREACHABLE_MESSAGE } from '@/api/server';
+import { isSetupRefused } from '@/utils/setupFailure';
 import { delayToMinimum } from '@/utils/timing';
 
 const DEFAULT_DESCRIPTION =
@@ -18,7 +20,7 @@ type RecoveryCodesModalProps = {
   onConfirm: () => Promise<void>;
   /** Dismisses without activating, leaving the current codes in force */
   onClose: () => void;
-  /** Drops this batch and begins the step that issued it again, since a failed confirm can't be retried */
+  /** Drops this batch and begins the step that issued it again, since a refused confirm can't be retried */
   onRestart: () => void;
   /** Overrides the body text, since first-time issuance reads differently from a rotation */
   description?: string;
@@ -44,6 +46,7 @@ export function RecoveryCodesModal({
   const [lockoutAcknowledged, setLockoutAcknowledged] = useState(false);
   const [confirming, setConfirming] = useState(false);
   const [failed, setFailed] = useState(false);
+  const [error, setError] = useState('');
 
   const ready = acknowledged && lockoutAcknowledged;
 
@@ -53,23 +56,27 @@ export function RecoveryCodesModal({
     setLockoutAcknowledged(false);
     setConfirming(false);
     setFailed(false);
+    setError('');
   };
 
   /**
-   * Activates the staged codes, offering a fresh start on failure
+   * Activates the staged codes, offering a fresh start once the server refuses them and another try
+   * when the request got no usable answer
    */
   const handleConfirm = async () => {
     if (!ready || confirming) return;
 
+    setError('');
     setConfirming(true);
     const start = Date.now();
     try {
       await onConfirm();
       await delayToMinimum(start);
       reset();
-    } catch {
+    } catch (failure) {
       await delayToMinimum(start);
-      setFailed(true);
+      if (isSetupRefused(failure)) setFailed(true);
+      else setError(SERVER_UNREACHABLE_MESSAGE);
       setConfirming(false);
     }
   };
@@ -125,20 +132,29 @@ export function RecoveryCodesModal({
         </label>
       </div>
 
-      {failed ? (
-        <SetupRestart onStartAgain={handleStartAgain} />
-      ) : (
-        <div className="flex justify-center">
-          <DisabledReasonButton
-            onClick={handleConfirm}
-            disabled={confirming}
-            disabledReason={ready ? undefined : 'Tick both boxes first'}
-            className={`app-primary-button transition-all duration-300 ${confirming ? 'app-primary-button-loading' : 'w-full'}`}
-          >
-            {confirming ? <div className="app-spinner" /> : 'Done'}
-          </DisabledReasonButton>
-        </div>
-      )}
+      <ModalContentFooter>
+        {failed ? (
+          <SetupRestart onStartAgain={handleStartAgain} />
+        ) : (
+          <div className="space-y-3">
+            {error && (
+              <p role="alert" className="text-center text-sm" style={{ color: 'var(--app-negative)' }}>
+                {error}
+              </p>
+            )}
+            <div className="flex justify-center">
+              <DisabledReasonButton
+                onClick={handleConfirm}
+                disabled={confirming}
+                disabledReason={ready ? undefined : 'Tick both boxes first'}
+                className={`app-primary-button transition-all duration-300 ${confirming ? 'app-primary-button-loading' : 'w-full'}`}
+              >
+                {confirming ? <div className="app-spinner" /> : 'Done'}
+              </DisabledReasonButton>
+            </div>
+          </div>
+        )}
+      </ModalContentFooter>
     </ModalContentPanel>
   );
 }

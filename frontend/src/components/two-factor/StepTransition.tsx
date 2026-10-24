@@ -40,8 +40,10 @@ export function StepTransition({ stepKey, header, children }: StepTransitionProp
     <motion.div
       animate={{ height }}
       transition={HEIGHT_TRANSITION}
-      // Clip only while the height eases, so focus rings on the edge controls are not cut off at rest
-      style={{ overflow: isEasing ? 'hidden' : 'visible' }}
+      // Clip only while the height eases, so focus rings on the edge controls are not cut off at rest. Clip
+      // rather than hide, and only top to bottom, so a dialog footer inside keeps sticking to the panel's
+      // bottom and reaching its side edges while it eases
+      style={{ overflowX: 'visible', overflowY: isEasing ? 'clip' : 'visible' }}
       onAnimationStart={() => setIsEasing(true)}
       onAnimationComplete={() => setIsEasing(false)}
     >

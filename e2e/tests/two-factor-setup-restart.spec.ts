@@ -96,6 +96,60 @@ test('reopens the settings step-up when finishing authenticator setup fails', as
   await expect(page.getByPlaceholder('Current password')).toHaveValue('')
 })
 
+// A dropped request or a server error says nothing about the staged setup, which the server may still
+// hold, so the person keeps Done and the setup they have already confirmed
+test('keeps Done for another try when finishing authenticator setup gets no answer', async ({ page, request }) => {
+  const user = await signUpUser(request)
+  await logInViaApi(page, user)
+  await openPage(page, '/settings#security')
+  await page.locator('#security').getByRole('button', { name: 'Manage' }).click()
+  await page.getByRole('button', { name: 'Enable' }).click()
+  await page.getByPlaceholder('Current password').fill(user.password)
+  await page.getByRole('button', { name: 'Continue' }).click()
+
+  const setup = page.getByRole('dialog', { name: /Set up two-factor authentication|Save your recovery codes/ })
+  await page.route(`${API_BASE_URL}/auth/2fa/confirm`, (route) =>
+    route.fulfill({ json: { recovery_codes: Array.from({ length: 10 }, (_, i) => `aaaa-bbbb-cccc-dddd-${i}000`) } }))
+  let finishes = 0
+  await page.route(`${API_BASE_URL}/auth/2fa/complete`, (route) => {
+    finishes += 1
+    return finishes === 1 ? route.fulfill({ status: 500, body: '' }) : route.fulfill({ status: 204 })
+  })
+  await expect(setup.getByRole('button', { name: 'Copy key' })).toBeVisible()
+  await setup.getByLabel('One-time code').pressSequentially('123456')
+  await setup.getByRole('button', { name: 'Confirm' }).click()
+  await setup.getByLabel("I've saved my recovery codes").check()
+  await setup.getByLabel(/I understand I may be permanently locked out/).check()
+  await setup.getByRole('button', { name: 'Done' }).click()
+
+  await expect(setup.getByRole('alert')).toHaveText("Couldn't reach the server. Please try again.")
+  await expect(setup.getByRole('button', { name: 'Start again' })).toHaveCount(0)
+  await setup.getByRole('button', { name: 'Done' }).click()
+  await expect(setup).toHaveCount(0)
+  expect(finishes).toBe(2)
+})
+
+// Focus stays in the code field after a wrong code, so the failure is announced rather than only shown
+test('announces a wrong authenticator code during setup', async ({ page, request }) => {
+  const user = await signUpUser(request)
+  await logInViaApi(page, user)
+  await openPage(page, '/settings#security')
+  await page.locator('#security').getByRole('button', { name: 'Manage' }).click()
+  await page.getByRole('button', { name: 'Enable' }).click()
+  await page.getByPlaceholder('Current password').fill(user.password)
+  await page.getByRole('button', { name: 'Continue' }).click()
+
+  // Refused here rather than left to the real check, which a guessed code could pass
+  await page.route(`${API_BASE_URL}/auth/2fa/confirm`, (route) =>
+    route.fulfill({ status: 400, json: { detail: 'Invalid code' } }))
+  const setup = page.getByRole('dialog', { name: 'Set up two-factor authentication' })
+  await expect(setup.getByRole('button', { name: 'Copy key' })).toBeVisible()
+  await setup.getByLabel('One-time code').pressSequentially('123456')
+  await setup.getByRole('button', { name: 'Confirm' }).click()
+
+  await expect(setup.getByRole('alert')).toHaveText('That code was incorrect. Try again.')
+})
+
 test('reopens the regenerate step-up when saving new recovery codes fails', async ({ page, request }) => {
   const user = await signUpUser(request)
 
@@ -129,8 +183,11 @@ test('reopens the regenerate step-up when saving new recovery codes fails', asyn
   await expect(codes).toHaveCount(0)
 })
 
-test('returns sign-up passkey setup to naming the passkey when activating it fails', async ({ page }) => {
-  // A virtual authenticator answers the browser's passkey prompt, so registration runs for real
+/**
+ * Sign up and register a passkey for real through a virtual authenticator, stopping at its recovery
+ * codes with both boxes ticked
+ */
+async function reachPasskeyDone(page: Page): Promise<void> {
   const cdp = await page.context().newCDPSession(page)
   await cdp.send('WebAuthn.enable')
   await cdp.send('WebAuthn.addVirtualAuthenticator', {
@@ -151,12 +208,17 @@ test('returns sign-up passkey setup to naming the passkey when activating it fai
   if (await passkeyInstead.isVisible()) await passkeyInstead.click()
   await passkeyName.fill('Laptop')
   await page.getByRole('button', { name: 'Set up a passkey' }).click()
+  await page.getByLabel("I've saved my recovery codes").check()
+  await page.getByLabel(/I understand I may be permanently locked out/).check()
+}
+
+test('returns sign-up passkey setup to naming the passkey when activating it fails', async ({ page }) => {
+  await reachPasskeyDone(page)
 
   // Refuse activation as the server does once the staged passkey has expired
   await page.route(`${API_BASE_URL}/auth/passkeys/register/confirm`, (route) =>
     route.fulfill({ status: 400, json: { detail: 'No passkey awaiting confirmation' } }))
-  await page.getByLabel("I've saved my recovery codes").check()
-  await page.getByLabel(/I understand I may be permanently locked out/).check()
+  const passkeyName = page.getByLabel('New passkey name')
   await page.getByRole('button', { name: 'Done' }).click()
   await expect(page.getByRole('alert')).toHaveText(RESTART_MESSAGE)
   await expect(page.getByRole('button', { name: 'Done' })).toHaveCount(0)
@@ -164,4 +226,56 @@ test('returns sign-up passkey setup to naming the passkey when activating it fai
   await page.getByRole('button', { name: 'Start again' }).click()
   await expect(page.getByRole('heading', { name: 'Protect your account with a passkey' })).toBeVisible()
   await expect(passkeyName).toBeVisible()
+})
+
+// The server still holds the staged passkey after a dropped request, so Done stays for another try
+test('keeps Done for another try when activating a sign-up passkey gets no answer', async ({ page }) => {
+  await reachPasskeyDone(page)
+
+  let activations = 0
+  await page.route(`${API_BASE_URL}/auth/passkeys/register/confirm`, (route) => {
+    activations += 1
+    return activations === 1 ? route.fulfill({ status: 500, body: '' }) : route.fallback()
+  })
+  await page.getByRole('button', { name: 'Done' }).click()
+  await expect(page.getByRole('alert')).toHaveText("Couldn't reach the server. Please try again.")
+  await expect(page.getByRole('button', { name: 'Start again' })).toHaveCount(0)
+
+  await page.getByRole('button', { name: 'Done' }).click()
+  await expectSignedIn(page)
+  expect(activations).toBe(2)
+})
+
+// Saving new recovery codes after a dropped request can still work, so the new batch stays on screen
+test('keeps Done for another try when saving new recovery codes gets no answer', async ({ page, request }) => {
+  const user = await signUpUser(request)
+  await page.route(`${API_BASE_URL}/auth/2fa/status`, (route) => route.fulfill({ json: { totp_enabled: true } }))
+  await page.route(`${API_BASE_URL}/auth/2fa/recovery-codes`, (route) =>
+    route.fulfill({ json: { recovery_codes: Array.from({ length: 10 }, (_, i) => `aaaa-bbbb-cccc-dddd-${i}000`) } }))
+  let saves = 0
+  await page.route(`${API_BASE_URL}/auth/2fa/recovery-codes/confirm`, (route) => {
+    saves += 1
+    return saves === 1 ? route.fulfill({ status: 503, body: '' }) : route.fulfill({ status: 204 })
+  })
+
+  await logInViaApi(page, user)
+  await openPage(page, '/settings#security')
+  await page.locator('#security').getByRole('button', { name: 'Manage' }).click()
+  await page.getByRole('button', { name: 'Regenerate' }).click()
+  const stepUp = page.getByRole('dialog', { name: 'Regenerate recovery codes' })
+  await stepUp.getByPlaceholder('Current password').fill(user.password)
+  await stepUp.getByRole('button', { name: 'Continue' }).click()
+  await stepUp.getByLabel('One-time code').pressSequentially('123456')
+  await stepUp.getByRole('button', { name: 'Regenerate' }).click()
+
+  const codes = page.getByRole('dialog', { name: 'Your new recovery codes' })
+  await codes.getByLabel("I've saved my new recovery codes").check()
+  await codes.getByLabel(/I understand that losing my recovery codes/).check()
+  await codes.getByRole('button', { name: 'Done' }).click()
+  await expect(codes.getByRole('alert')).toHaveText("Couldn't reach the server. Please try again.")
+  await expect(codes.getByRole('button', { name: 'Start again' })).toHaveCount(0)
+
+  await codes.getByRole('button', { name: 'Done' }).click()
+  await expect(codes).toHaveCount(0)
+  expect(saves).toBe(2)
 })

@@ -22,7 +22,8 @@ export function useProviderReauth() {
   const reauthWith = async (slug: string, action: OidcReauthAction) => {
     setBusySlug(slug);
     try {
-      markOidcIntent({ flow: 'reauth', action });
+      // Without the flag the return would read as a link the server refuses, so the trip never starts
+      if (!markOidcIntent({ flow: 'reauth', action })) throw new Error('Session storage is unavailable');
       const { authorization_url } = await withMinDelay(() => beginOidcReauth(slug));
       window.location.assign(authorization_url);
     } catch {

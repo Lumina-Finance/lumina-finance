@@ -34,7 +34,8 @@ test('clears the code and refocuses its first box after a wrong code in the step
   await expect(code).toHaveValue(WRONG_CODE)
   await page.getByRole('button', { name: 'Verify' }).click()
 
-  await expect(page.getByText(/Your password or code was incorrect/)).toBeVisible()
+  // Announced, since focus stays in the code field
+  await expect(page.getByRole('dialog').getByRole('alert')).toContainText(/Your password or code was incorrect/)
   await expect(code).toHaveValue('')
   await expect(code).toBeFocused()
 

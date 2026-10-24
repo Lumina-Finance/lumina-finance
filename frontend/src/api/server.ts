@@ -9,6 +9,10 @@ export const REQUEST_TIMEOUT_MS = 30_000;
 // for a dropped connection
 const REQUEST_TIMEOUT_MESSAGE = 'Oops, the server took too long to answer. Please try again.';
 
+// Shown in place of the browser's own words when a request never got a usable answer, such as a dropped
+// connection
+export const SERVER_UNREACHABLE_MESSAGE = "Couldn't reach the server. Please try again.";
+
 export type ServerRequestInit = RequestInit & {
   /** How long this request may go unanswered, in milliseconds, when it differs from the shared limit */
   timeoutMs?: number;
