@@ -303,9 +303,10 @@ function getDateFormatExpectation(
     ? defaultExample.replace(/[-/]/g, separator)
     : defaultExample
 
-  // The label is title case because it names a dropdown entry, and reads as a proper noun mid
-  // sentence unless it is lowered
-  return `valid dates in the ${label.toLowerCase()} format, such as ${example}`
+  // The label is capitalised because it names a dropdown entry, and reads as a proper noun mid
+  // sentence unless its first letter is lowered. An acronym such as ISO keeps its capitals
+  const name = label.replace(/^[A-Z](?![A-Z])/, (letter) => letter.toLowerCase())
+  return `valid dates in the ${name} format, such as ${example}`
 }
 
 /** Describes the amount format a mapped column must use */
