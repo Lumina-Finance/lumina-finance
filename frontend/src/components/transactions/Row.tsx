@@ -25,13 +25,13 @@ const DEFAULT_CATEGORY_ICON = '🏷️'
 const ROW_EXIT_EASE = [0.25, 0.1, 0.25, 1] as const
 
 export type TransactionRowMetadata = Pick<Transaction, 'id' | 'dt' | 'merchant_name' | 'notes' | 'tags' | 'counterparty_account_scope'>
+export type TransactionFxNote = 'unavailable' | 'rateNotPublished'
+
 /**
  * Supplies already signed and formatted amount text, with the amount's sign controlling color
  * and transfer direction independently of its numeric representation
  */
-export type TransactionFxNote = 'unavailable' | 'rateNotPublished'
-
-export type TransactionAmountPresentation ={ text: string; sign: -1 | 0 | 1 }
+export type TransactionAmountPresentation = { text: string; sign: -1 | 0 | 1 }
 
 /**
  * Describes the counterparty of a transfer for the line that shows a merchant on other kinds
