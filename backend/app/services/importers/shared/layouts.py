@@ -17,7 +17,7 @@ from app.models.user import User
 from app.schemas.import_run import CsvImportLayout, CsvImportLayoutResponse
 
 # The settings a layout row holds, which a save writes and an undo puts back
-_LAYOUT_FIELDS = ("headers", "delimiter", "header_row","column_map", "date_format", "amount_format")
+_LAYOUT_FIELDS = ("headers", "delimiter", "header_row", "column_map", "date_format", "amount_format")
 
 # The namespace separates this protocol's lock inputs from other advisory lock protocols
 _LAYOUT_LOCK_NAMESPACE = b"lumina:account-import-layouts:"
@@ -85,10 +85,14 @@ async def save_import_layout(
             .with_for_update()
         )
     ).scalar_one_or_none()
-    run.replaced_csv_layout = None if replaced is None else {
-        **{field: getattr(replaced, field) for field in _LAYOUT_FIELDS},
-        "updated_at": replaced.updated_at.isoformat(),
-    }
+    run.replaced_csv_layout = (
+        None
+        if replaced is None
+        else {
+            **{field: getattr(replaced, field) for field in _LAYOUT_FIELDS},
+            "updated_at": replaced.updated_at.isoformat(),
+        }
+    )
 
     values = {**layout.model_dump(mode="json"), "import_run_id": run.id, "updated_at": func.now()}
     await db.execute(
