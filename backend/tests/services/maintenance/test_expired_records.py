@@ -10,6 +10,7 @@ from app.config.imports import ABANDONED_RUN_AGE, IMPORT_UNDO_WINDOW
 from app.config.two_factor import TWO_FACTOR_STAGING_EXPIRE_SECONDS
 from app.encryption import encrypt
 from app.models.auth import (
+    LoginLockout,
     MfaChallenge,
     PasswordResetToken,
     RecoveryCode,
@@ -196,6 +197,23 @@ async def test_prunes_abandoned_and_undo_expired_import_runs_for_every_user():
     await prune_expired_records(ScopedSession)
 
     assert await _remaining_ids(ImportRun) == {in_progress.id, still_undoable.id}
+
+
+async def test_the_cleanup_forgets_failure_counts_idle_for_a_week_and_keeps_recent_ones():
+    """Counts of emails nobody has failed with for a week go, so anonymous requests cannot grow the table forever"""
+    idle_week = _NOW - timedelta(days=7, minutes=1)
+    async with TestSession() as session:
+        session.add_all(
+            [
+                LoginLockout(email_hash="idle", failed_attempt_count=3, last_failed_at=idle_week),
+                LoginLockout(email_hash="recent", failed_attempt_count=3, last_failed_at=idle_week + timedelta(hours=1)),
+            ]
+        )
+        await session.commit()
+
+    await prune_expired_records(ScopedSession)
+
+    assert await _remaining_ids(LoginLockout, "email_hash") == {"recent"}
 
 
 async def test_a_failing_kind_is_logged_and_the_kinds_around_it_still_commit(monkeypatch, caplog):

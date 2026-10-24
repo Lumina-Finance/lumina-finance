@@ -153,17 +153,6 @@ async def test_create_password_credential(db, password_credential):
     assert result is not None
     assert result.password_hash == "hashed_pw"
     assert result.password_algo == "argon2id"
-    assert result.failed_attempt_count == 0
-    assert result.locked_until is None
-
-
-async def test_update_failed_attempt_count(db, password_credential):
-    """Increment failed attempt count."""
-    password_credential.failed_attempt_count = 3
-    await db.flush()
-
-    result = await db.get(PasswordCredential, password_credential.user_id)
-    assert result.failed_attempt_count == 3
 
 
 async def test_delete_password_credential(db, password_credential):
@@ -183,16 +172,6 @@ async def test_updated_at_auto_set(db, password_credential):
     """updated_at should be set automatically by the database."""
     await db.refresh(password_credential)
     assert password_credential.updated_at is not None
-
-
-async def test_failed_attempt_count_defaults_to_zero(db, password_credential):
-    """failed_attempt_count should default to 0."""
-    assert password_credential.failed_attempt_count == 0
-
-
-async def test_locked_until_defaults_to_null(db, password_credential):
-    """locked_until should default to null."""
-    assert password_credential.locked_until is None
 
 
 # --- PasswordCredential: Constraints ---

@@ -64,7 +64,7 @@ from app.services.auth import (
     set_first_password,
     signup,
 )
-from app.services.auth.account_lockout import get_password_credential, reset_failed_attempts
+from app.services.auth.account_lockout import reset_failed_attempts
 
 _security = HTTPBearer(auto_error=False)
 
@@ -152,9 +152,8 @@ async def login_route(
         )
 
     # A login with no second factor is complete here, so clear the shared lockout counter
-    credential = await get_password_credential(db, user.id)
-    if credential is not None:
-        await reset_failed_attempts(db, credential)
+    await reset_failed_attempts(db, user.email)
+    await db.commit()
 
     auth_response = await issue_and_store_tokens(db, request, response, user)
     return auth_response

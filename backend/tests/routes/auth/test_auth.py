@@ -9,13 +9,14 @@ from sqlalchemy import select
 
 from app.config.jwt import JWT_ACCESS_PRIVATE_KEY, JWT_ALGORITHM, JWT_ISSUER, JWT_REFRESH_PRIVATE_KEY
 from app.main import app
+from app.models.auth import LoginLockout
 from app.models.auth_session import AuthSession
 from app.models.auth_token import AuthToken
 from app.models.base import AuthTokenKind
 from app.models.user import User
 from app.services.auth import registration
 from tests.conftest import TestSession
-from tests.routes.support import SIGNUP_PAYLOAD, _clears_cookie, _create_user, _seed_currency
+from tests.routes.support import SIGNUP_PAYLOAD, _clears_cookie, _create_user, _get_login_lockout, _seed_currency
 
 # --- Helpers ---
 
@@ -278,20 +279,12 @@ async def test_successful_login_resets_failed_attempt_count(client):
     resp = await client.post("/auth/login", json=LOGIN_PAYLOAD)
     assert resp.status_code == 200
 
-    # Verify counter was reset in the database
-    async with TestSession() as session:
-        from app.models.auth import PasswordCredential
-
-        result = await session.execute(select(PasswordCredential))
-        credential = result.scalar_one()
-        assert credential.failed_attempt_count == 0
-        assert credential.locked_until is None
+    # The email's failures are forgotten
+    assert await _get_login_lockout("test@example.com") is None
 
 
 async def test_failed_attempt_after_expired_lock_starts_fresh(client):
     """Once the lockout window passes, a new failure restarts the count instead of re-locking immediately"""
-    from app.models.auth import PasswordCredential
-
     await _create_user(client)
     bad_login = {"email": "test@example.com", "password": "wrongpassword"}
 
@@ -300,18 +293,17 @@ async def test_failed_attempt_after_expired_lock_starts_fresh(client):
 
     # Move the lock into the past, as if the 30-minute window had elapsed
     async with TestSession() as session:
-        credential = (await session.execute(select(PasswordCredential))).scalar_one()
-        credential.locked_until = datetime.now(UTC) - timedelta(minutes=1)
+        lockout = (await session.execute(select(LoginLockout))).scalar_one()
+        lockout.locked_until = datetime.now(UTC) - timedelta(minutes=1)
         await session.commit()
 
     # A single failure after the window must not re-lock, and the count restarts at one
     resp = await client.post("/auth/login", json=bad_login)
     assert resp.status_code == 401
 
-    async with TestSession() as session:
-        credential = (await session.execute(select(PasswordCredential))).scalar_one()
-        assert credential.failed_attempt_count == 1
-        assert credential.locked_until is None
+    lockout = await _get_login_lockout("test@example.com")
+    assert lockout.failed_attempt_count == 1
+    assert lockout.locked_until is None
 
 
 # --- Refresh ---

@@ -9,7 +9,7 @@ from app.models.user import User
 from app.schemas.auth import LoginRequest
 from app.services.auth.account_lockout import (
     get_password_credential,
-    is_account_locked,
+    is_email_locked,
     record_failed_attempt,
 )
 from app.services.auth.password_helpers import hash_dummy_password_for_timing, is_password_valid
@@ -33,20 +33,24 @@ async def login(db: AsyncSession, data: LoginRequest) -> User:
     Raises:
         HTTPException: Credentials are invalid or the account is temporarily locked
     """
-    user_id = await find_user_id_by_email(db, data.email)
-    if not user_id:
-        await run_in_threadpool(hash_dummy_password_for_timing)
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid credentials")
-
-    credential = await get_password_credential(db, user_id)
-    if not credential:
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid credentials")
-
-    if is_account_locked(credential):
+    # The lock is read before anything about the account, so a locked email answers the same, and as
+    # quickly, whether or not an account has it
+    if await is_email_locked(db, data.email):
         raise HTTPException(status_code=status.HTTP_423_LOCKED, detail="Account temporarily locked")
 
+    user_id = await find_user_id_by_email(db, data.email)
+    credential = await get_password_credential(db, user_id) if user_id else None
+
+    # An unknown email and an account with no password take the same path as a wrong password: one hash,
+    # one counted failure, one answer, and no session revoked, since the lock protects nothing there.
+    # Any difference would show which emails have an account
+    if credential is None:
+        await run_in_threadpool(hash_dummy_password_for_timing)
+        await record_failed_attempt(db, data.email, None)
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid credentials")
+
     if not await run_in_threadpool(is_password_valid, data.password, credential.password_hash):
-        await record_failed_attempt(db, credential)
+        await record_failed_attempt(db, data.email, user_id)
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid credentials")
 
     # The email and credential lookups ran before any identity existed, so close that transaction

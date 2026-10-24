@@ -5,8 +5,9 @@ from datetime import UTC, datetime, timedelta
 
 import pyotp
 
-from app.models.auth import PasswordResetToken
+from app.models.auth import LoginLockout, PasswordResetToken
 from app.models.currency import Currency
+from app.services.auth.login_email_hash import seal_login_email
 from app.services.auth.token_hashing import hash_token
 from tests.conftest import TestSession
 
@@ -19,6 +20,12 @@ def _fresh_totp_code(secret: str) -> str:
     """
     totp = pyotp.TOTP(secret)
     return totp.at(int(time.time()) + totp.interval)
+
+
+async def _get_login_lockout(email: str) -> LoginLockout | None:
+    """Return the lockout record for an email, or None when no failure is counted for it"""
+    async with TestSession() as session:
+        return await session.get(LoginLockout, seal_login_email(email))
 
 
 SIGNUP_PAYLOAD = {

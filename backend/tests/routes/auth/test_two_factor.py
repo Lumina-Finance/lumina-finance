@@ -15,7 +15,7 @@ from app.services.auth import recovery_codes, two_factor
 from app.services.auth.mfa_challenge import MFA_PURPOSE_LOGIN, MFA_PURPOSE_PASSWORD_RESET, issue_mfa_challenge
 from app.services.auth.recovery_codes import generate_recovery_codes
 from tests.conftest import TestSession
-from tests.routes.support import SIGNUP_PAYLOAD, _create_user, _fresh_totp_code, _get_auth_header
+from tests.routes.support import SIGNUP_PAYLOAD, _create_user, _fresh_totp_code, _get_auth_header, _get_login_lockout
 
 _PASSWORD = SIGNUP_PAYLOAD["password"]
 
@@ -740,6 +740,20 @@ async def test_correct_2fa_clears_the_lockout_counter(client):
     second = await client.post("/auth/login", json={"email": SIGNUP_PAYLOAD["email"], "password": _PASSWORD})
     verify = await client.post("/auth/2fa/verify", json={"mfa_token": second.json()["mfa_token"], "code": _fresh_totp_code(secret)})
     assert verify.status_code == 200
+    assert await _get_login_lockout(SIGNUP_PAYLOAD["email"]) is None
+
+
+async def test_correct_step_up_clears_earlier_wrong_attempts(client):
+    """A correct step-up code forgets the earlier wrong ones, so typos do not pile up towards the lockout"""
+    auth, secret, _ = await _enroll(client)
+    for _ in range(2):
+        await client.post("/auth/2fa/recovery-codes", headers=auth, json={"password": _PASSWORD, "code": "000000"})
+    assert (await _get_login_lockout(SIGNUP_PAYLOAD["email"])).failed_attempt_count == 2
+
+    regenerate = await client.post("/auth/2fa/recovery-codes", headers=auth, json={"password": _PASSWORD, "code": _fresh_totp_code(secret)})
+
+    assert regenerate.status_code == 200
+    assert await _get_login_lockout(SIGNUP_PAYLOAD["email"]) is None
 
 
 async def test_verify_completes_login_with_a_valid_code(client):

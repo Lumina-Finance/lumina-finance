@@ -7,6 +7,7 @@ from tests.routes.support.auth_helpers import (
     _create_user,
     _fresh_totp_code,
     _get_auth_header,
+    _get_login_lockout,
     _seed_currency,
     _seed_reset_token,
 )
@@ -21,6 +22,7 @@ __all__ = [
     "_create_user",
     "_fresh_totp_code",
     "_get_auth_header",
+    "_get_login_lockout",
     "_get_system_merchant_id",
     "_seed_currency",
     "_seed_reset_token",

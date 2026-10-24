@@ -10,7 +10,7 @@ from app.models.auth_session import AuthSession
 from app.services.auth.password_helpers import is_password_valid
 from tests.conftest import TestSession
 from tests.routes.auth.test_passkeys import _seed_passkey
-from tests.routes.support import SIGNUP_PAYLOAD, _create_user, _fresh_totp_code, _get_auth_header
+from tests.routes.support import SIGNUP_PAYLOAD, _create_user, _fresh_totp_code, _get_auth_header, _get_login_lockout
 
 _NEW_PASSWORD = "NewSecurePass123!"
 
@@ -108,11 +108,28 @@ async def test_change_password_locks_after_repeated_wrong_password(client):
         )
         assert resp.status_code == 401
 
-    user_id = uuid.UUID(signup.json()["user"]["id"])
-    async with TestSession() as session:
-        credential = await session.get(PasswordCredential, user_id)
-        assert credential.locked_until is not None
-        assert credential.failed_attempt_count >= 5
+    lockout = await _get_login_lockout(SIGNUP_PAYLOAD["email"])
+    assert lockout.locked_until is not None
+    assert lockout.failed_attempt_count >= 5
+
+
+async def test_change_password_clears_the_lockout_count(client):
+    """A verified change forgets earlier wrong-password failures for the account's email"""
+    signup = await _create_user(client)
+    headers = _get_auth_header(signup)
+    wrong = {"current_password": "WrongPassword123!", "new_password": _NEW_PASSWORD}
+    for _ in range(3):
+        await client.patch("/auth/password", json=wrong, headers=headers)
+    assert (await _get_login_lockout(SIGNUP_PAYLOAD["email"])).failed_attempt_count == 3
+
+    resp = await client.patch(
+        "/auth/password",
+        json={"current_password": SIGNUP_PAYLOAD["password"], "new_password": _NEW_PASSWORD},
+        headers=headers,
+    )
+
+    assert resp.status_code == 204
+    assert await _get_login_lockout(SIGNUP_PAYLOAD["email"]) is None
 
 
 async def test_change_password_wrong_password_reports_attempts_remaining(client):
