@@ -73,9 +73,7 @@ async def _age_totp_staging(user_id, created_at):
     async with TestSession() as db:
         await db.execute(update(TotpCredential).where(TotpCredential.user_id == user_id).values(created_at=created_at))
         await db.execute(
-            update(RecoveryCode)
-            .where(RecoveryCode.user_id == user_id, RecoveryCode.pending.is_(True))
-            .values(created_at=created_at)
+            update(RecoveryCode).where(RecoveryCode.user_id == user_id, RecoveryCode.pending.is_(True)).values(created_at=created_at)
         )
         await db.commit()
 
@@ -486,9 +484,7 @@ async def test_disable_turns_off_two_factor(client):
     """A correct password and code disables 2FA, after which setup is allowed again"""
     auth, secret, _ = await _enroll(client)
 
-    disable = await client.post(
-        "/auth/2fa/disable", headers=auth, json={"password": _PASSWORD, "code": _fresh_totp_code(secret)}
-    )
+    disable = await client.post("/auth/2fa/disable", headers=auth, json={"password": _PASSWORD, "code": _fresh_totp_code(secret)})
     assert disable.status_code == 204
     assert (await client.post("/auth/2fa/setup", headers=auth, json={"step_up": _STEP_UP})).status_code == 200
 
@@ -497,9 +493,7 @@ async def test_disable_rejects_a_wrong_password(client):
     """Disable refuses a wrong password even with a valid code"""
     auth, secret, _ = await _enroll(client)
 
-    disable = await client.post(
-        "/auth/2fa/disable", headers=auth, json={"password": "WrongPass123!", "code": pyotp.TOTP(secret).now()}
-    )
+    disable = await client.post("/auth/2fa/disable", headers=auth, json={"password": "WrongPass123!", "code": pyotp.TOTP(secret).now()})
     assert disable.status_code == 401
 
 
@@ -530,15 +524,11 @@ async def test_disabling_only_totp_clears_recovery_codes(client):
     """Disabling the sole second factor clears the shared recovery batch"""
     auth, secret, user_id = await _enroll_with_id(client)
 
-    disable = await client.post(
-        "/auth/2fa/disable", headers=auth, json={"password": _PASSWORD, "code": _fresh_totp_code(secret)}
-    )
+    disable = await client.post("/auth/2fa/disable", headers=auth, json={"password": _PASSWORD, "code": _fresh_totp_code(secret)})
     assert disable.status_code == 204
 
     async with TestSession() as db:
-        remaining = (
-            await db.execute(select(RecoveryCode).where(RecoveryCode.user_id == uuid.UUID(user_id)))
-        ).scalars().all()
+        remaining = (await db.execute(select(RecoveryCode).where(RecoveryCode.user_id == uuid.UUID(user_id)))).scalars().all()
     assert remaining == []
 
 
@@ -547,9 +537,7 @@ async def test_repeated_wrong_step_up_codes_lock_the_account(client):
     auth, _, _ = await _enroll(client)
 
     for _ in range(5):
-        rejected = await client.post(
-            "/auth/2fa/disable", headers=auth, json={"password": _PASSWORD, "code": "000000"}
-        )
+        rejected = await client.post("/auth/2fa/disable", headers=auth, json={"password": _PASSWORD, "code": "000000"})
         assert rejected.status_code == 401
 
     # Tripping the lock signed the step-up session out, and a correct password is now refused at login
@@ -562,9 +550,7 @@ async def test_wrong_step_up_code_reports_attempts_remaining(client):
     """A wrong step-up code returns the remaining allowance so the modal can warn before the lockout"""
     auth, _, _ = await _enroll(client)
 
-    rejected = await client.post(
-        "/auth/2fa/disable", headers=auth, json={"password": _PASSWORD, "code": "000000"}
-    )
+    rejected = await client.post("/auth/2fa/disable", headers=auth, json={"password": _PASSWORD, "code": "000000"})
 
     assert rejected.status_code == 401
     assert rejected.headers["x-auth-attempts-remaining"] == "4"
@@ -585,9 +571,7 @@ async def test_regenerate_then_confirm_swaps_the_codes(client):
     """Confirming a regeneration activates the new batch and retires the old one"""
     auth, secret, old_codes = await _enroll(client)
 
-    regenerate = await client.post(
-        "/auth/2fa/recovery-codes", headers=auth, json={"password": _PASSWORD, "code": _fresh_totp_code(secret)}
-    )
+    regenerate = await client.post("/auth/2fa/recovery-codes", headers=auth, json={"password": _PASSWORD, "code": _fresh_totp_code(secret)})
     assert regenerate.status_code == 200
     new_codes = regenerate.json()["recovery_codes"]
     assert len(new_codes) == 10
@@ -604,9 +588,7 @@ async def test_abandoned_regenerate_keeps_old_codes(client):
     """A staged regeneration that is never confirmed leaves the existing codes working"""
     auth, secret, old_codes = await _enroll(client)
 
-    regenerate = await client.post(
-        "/auth/2fa/recovery-codes", headers=auth, json={"password": _PASSWORD, "code": _fresh_totp_code(secret)}
-    )
+    regenerate = await client.post("/auth/2fa/recovery-codes", headers=auth, json={"password": _PASSWORD, "code": _fresh_totp_code(secret)})
     assert regenerate.status_code == 200
 
     # No confirm, so an existing code still signs in
@@ -624,15 +606,11 @@ async def test_confirm_recovery_codes_requires_a_staged_batch(client):
 async def test_confirm_recovery_codes_refuses_a_batch_past_its_lifetime(client):
     """An abandoned regeneration can't later replace the active codes"""
     auth, secret, old_codes = await _enroll(client)
-    regenerate = await client.post(
-        "/auth/2fa/recovery-codes", headers=auth, json={"password": _PASSWORD, "code": _fresh_totp_code(secret)}
-    )
+    regenerate = await client.post("/auth/2fa/recovery-codes", headers=auth, json={"password": _PASSWORD, "code": _fresh_totp_code(secret)})
     new_codes = regenerate.json()["recovery_codes"]
     async with TestSession() as db:
         await db.execute(
-            update(RecoveryCode)
-            .where(RecoveryCode.pending.is_(True))
-            .values(created_at=datetime.now(UTC) - timedelta(minutes=31))
+            update(RecoveryCode).where(RecoveryCode.pending.is_(True)).values(created_at=datetime.now(UTC) - timedelta(minutes=31))
         )
         await db.commit()
 
@@ -646,9 +624,7 @@ async def test_confirm_recovery_codes_refuses_a_batch_past_its_lifetime(client):
 async def test_recovery_code_confirm_keeps_the_active_codes_when_login_cleanup_overlaps(client, monkeypatch):
     """A batch swept while its confirm waits is refused instead of leaving the account with no codes"""
     auth, secret, old_codes = await _enroll(client)
-    regenerate = await client.post(
-        "/auth/2fa/recovery-codes", headers=auth, json={"password": _PASSWORD, "code": _fresh_totp_code(secret)}
-    )
+    regenerate = await client.post("/auth/2fa/recovery-codes", headers=auth, json={"password": _PASSWORD, "code": _fresh_totp_code(secret)})
     assert regenerate.status_code == 200
     async with TestSession() as db:
         aged = datetime.now(UTC) - timedelta(seconds=120)
@@ -707,9 +683,7 @@ async def test_regenerate_rejects_a_recovery_code_as_second_factor(client):
     """Step-up takes only the authenticator, so a recovery code cannot rotate the recovery codes"""
     auth, _, codes = await _enroll(client)
 
-    regenerate = await client.post(
-        "/auth/2fa/recovery-codes", headers=auth, json={"password": _PASSWORD, "code": codes[0]}
-    )
+    regenerate = await client.post("/auth/2fa/recovery-codes", headers=auth, json={"password": _PASSWORD, "code": codes[0]})
     assert regenerate.status_code == 401
 
     # The rejected code is not consumed, so it still works at login
@@ -721,14 +695,10 @@ async def test_totp_code_cannot_be_replayed(client):
     auth, secret, _ = await _enroll(client)
     code = _fresh_totp_code(secret)
 
-    first = await client.post(
-        "/auth/2fa/recovery-codes", headers=auth, json={"password": _PASSWORD, "code": code}
-    )
+    first = await client.post("/auth/2fa/recovery-codes", headers=auth, json={"password": _PASSWORD, "code": code})
     assert first.status_code == 200
 
-    replay = await client.post(
-        "/auth/2fa/recovery-codes", headers=auth, json={"password": _PASSWORD, "code": code}
-    )
+    replay = await client.post("/auth/2fa/recovery-codes", headers=auth, json={"password": _PASSWORD, "code": code})
     assert replay.status_code == 401
 
 
@@ -741,9 +711,7 @@ async def test_enrolment_code_cannot_be_replayed_as_a_factor(client):
     await client.post("/auth/2fa/complete", headers=auth)
 
     # Replaying the exact enrolment code at a step-up action is refused within its window
-    replay = await client.post(
-        "/auth/2fa/recovery-codes", headers=auth, json={"password": _PASSWORD, "code": enrolment_code}
-    )
+    replay = await client.post("/auth/2fa/recovery-codes", headers=auth, json={"password": _PASSWORD, "code": enrolment_code})
     assert replay.status_code == 401
 
 
@@ -770,9 +738,7 @@ async def test_correct_2fa_clears_the_lockout_counter(client):
     await client.post("/auth/2fa/verify", json={"mfa_token": first.json()["mfa_token"], "code": "000000"})
 
     second = await client.post("/auth/login", json={"email": SIGNUP_PAYLOAD["email"], "password": _PASSWORD})
-    verify = await client.post(
-        "/auth/2fa/verify", json={"mfa_token": second.json()["mfa_token"], "code": _fresh_totp_code(secret)}
-    )
+    verify = await client.post("/auth/2fa/verify", json={"mfa_token": second.json()["mfa_token"], "code": _fresh_totp_code(secret)})
     assert verify.status_code == 200
 
 
@@ -903,9 +869,7 @@ async def test_restricted_session_re_enrols_with_fresh_codes(client):
 
     # A fresh login with the new authenticator now succeeds with no restriction
     relogin = await client.post("/auth/login", json={"email": SIGNUP_PAYLOAD["email"], "password": _PASSWORD})
-    verify = await client.post(
-        "/auth/2fa/verify", json={"mfa_token": relogin.json()["mfa_token"], "code": _fresh_totp_code(secret)}
-    )
+    verify = await client.post("/auth/2fa/verify", json={"mfa_token": relogin.json()["mfa_token"], "code": _fresh_totp_code(secret)})
     assert verify.status_code == 200
     assert verify.json()["user"]["second_factor_reenrollment_required"] is False
 
