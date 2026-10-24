@@ -405,6 +405,7 @@ export default function BudgetEditModal({
           ids={EDIT_FIELD_IDS}
           emptyMessage="Create an expense category before editing this budget."
           animateOptions
+          number="04"
           fieldsLocked={fieldsLocked}
           showError={showError}
           handlers={handlers}
