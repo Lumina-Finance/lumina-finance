@@ -149,8 +149,9 @@ describe('a transaction with no exchange rate', () => {
   })
 
   // A future-dated row has no rate because none is published yet, which is no failure, so inside the
-  // Upcoming section it says so in the neutral colour, with no badge on its day heading
-  it('says the rate is not published yet on an upcoming row, with no red note and no heading badge', () => {
+  // Upcoming section it says so in the neutral colour, and its day heading keeps an FX badge that is
+  // neutral too, where a past day's badge is red
+  it('says the rate is not published yet on an upcoming row, with a neutral heading badge', () => {
     const markup = renderToStaticMarkup(
       <TransactionDateGroupList
         dateGroups={[]}
@@ -172,7 +173,12 @@ describe('a transaction with no exchange rate', () => {
     const note = /<span[^>]*style="[^"]*color:([^;"]*)[^"]*"[^>]*>Rate not published yet<\/span>/.exec(markup)
     expect(note?.[1]).toBe('var(--app-text-muted)')
     expect(unavailableCount(markup)).toBe(0)
-    expect(markup).not.toContain('FX status for')
+    expect(markup).toContain('FX status for Oct 9, 2026')
+    expect(markup).not.toContain('text-[var(--app-negative)]')
+  })
+
+  it('draws a past day badge in red', () => {
+    expect(renderDay([unconverted])).toContain('text-[var(--app-negative)]')
   })
 
   it('marks a row missing its account amount on an account list even when the base amount exists', () => {

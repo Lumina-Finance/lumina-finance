@@ -25,6 +25,7 @@ import type { TransactionDateGroup, TransactionListAccount } from '@/components/
 import {
   getTransactionDateGroupFxStatus,
   getTransactionDateGroupTotal,
+  getDayTotalFxStatusMessage,
   isTransactionAmountUnconverted,
 } from '@/components/transactions/utils/transactionDateGroups'
 import { getTransactionReadOnlyReason } from '@/components/transactions/utils/rowEditability'
@@ -47,13 +48,6 @@ export interface TransactionDateHeadingSelection {
   onToggle: (clearsHover: boolean) => void
   onPointerMove: () => void
   onPointerLeave: () => void
-}
-
-/**
- * Explains a day total that leaves out amounts with no exchange rate
- */
-function getDayTotalFxStatusMessage() {
-  return 'Some amounts on this day could not be converted, so this total leaves them out'
 }
 
 /**
@@ -127,8 +121,8 @@ export default function TransactionDateGroupList({
   // Inside the open Upcoming section the headings stay in place, since its own header is what sticks
   // there, and a heading stuck at the same height would slide over it. Their totals take the section's
   // muted colour rather than the colours of money in and out, since none of it counts yet. A row there
-  // with no rate says the rate is not published yet, and its heading carries no FX badge, since a rate
-  // that does not exist yet is no failure
+  // with no rate says the rate is not published yet, and its heading's FX badge is neutral rather than
+  // red, since a rate that does not exist yet is no failure
   function renderDateGroups(groups: TransactionDateGroup[], isUpcoming = false) {
     // initial={false} suppresses the first render and the whole-list swap on filter changes, so a group
     // only animates here when it is genuinely added (a new day's first transaction) or removed (its last
@@ -137,7 +131,7 @@ export default function TransactionDateGroupList({
       <AnimatePresence initial={false}>
         {groups.map(({ dateLabel, transactions }, index) => {
           const dailyTotal = getTransactionDateGroupTotal(transactions, fixedAccount)
-          const dayFxStatus = isUpcoming ? null : getTransactionDateGroupFxStatus(transactions, currency, fixedAccount)
+          const dayFxStatus = getTransactionDateGroupFxStatus(transactions, currency, fixedAccount)
           // A day that netted to zero moved nothing, so it takes the neutral colour rather than the positive colour
           const dailyColor = isUpcoming ? UPCOMING_DAY_TOTAL_COLOUR : getSignedAmountColor(dailyTotal)
           const headingSelection = buildHeadingSelection?.(transactions.map((transaction) => transaction.id))
@@ -219,7 +213,8 @@ export default function TransactionDateGroupList({
                   <FxStatusBadge
                     label={`FX status for ${dateLabel}`}
                     fxStatus={dayFxStatus}
-                    getMessage={getDayTotalFxStatusMessage}
+                    getMessage={() => getDayTotalFxStatusMessage(isUpcoming)}
+                    tone={isUpcoming ? 'gray' : undefined}
                   />
                 )}
                 <p
