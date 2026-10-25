@@ -11,14 +11,17 @@ heartbeat and what the worker needs before it starts are covered last
 """
 
 import asyncio
+import contextlib
 import json
 import os
+import signal
 import subprocess
 import sys
 import uuid
 from collections.abc import Sequence
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
 from sqlalchemy import select, text, update
@@ -265,6 +268,74 @@ async def test_job_finishing_after_an_unlink_or_disconnect_mid_fetch_writes_noth
         assert (await _pending_items(), await _job_states()) == (set(), {})
     else:
         assert (await _pending_items(), await _job_states()) == ({(everyday.id, "HOLD-1")}, {job.id: ("succeeded", 1)})
+
+
+async def test_runner_asked_to_stop_finishes_its_job_and_claims_no_other(connections, monkeypatch):
+    """Stopping while the first connection's job fetches lets that job finish and leaves the second connection's job queued"""
+    first = await _seed_job(connections[0], BankSyncJobKind.SCHEDULED)
+    second = await _seed_job(connections[1], BankSyncJobKind.SCHEDULED)
+    runner = _FetchingRunner(held=[(first.id, 1)])
+    monkeypatch.setattr(worker, "run_sync_job", runner)
+    stopping = asyncio.Event()
+
+    async with asyncio.timeout(_WAIT_SECONDS):
+        running = asyncio.create_task(worker._run_jobs_in_turn(stopping))
+        await runner.fetching[(first.id, 1)].wait()
+        stopping.set()
+        runner.release[(first.id, 1)].set()
+        await running
+
+    assert await _job_states() == {first.id: ("succeeded", 1), second.id: ("queued", 0)}
+
+
+async def test_scan_for_due_work_asked_to_stop_returns_at_once(monkeypatch):
+    """A scan sleeping until its next round wakes and returns when the worker is asked to stop"""
+    scanned = asyncio.Event()
+
+    async def scan() -> None:
+        """Note the scan happened"""
+        scanned.set()
+
+    monkeypatch.setattr(worker, "enqueue_due_work", scan)
+    stopping = asyncio.Event()
+
+    async with asyncio.timeout(_WAIT_SECONDS):
+        scanning = asyncio.create_task(worker._scan_for_due_work(stopping))
+        await scanned.wait()
+        stopping.set()
+        await scanning
+
+
+async def test_worker_stops_on_sigterm_once_its_runners_have_finished(monkeypatch):
+    """SIGTERM, which Docker sends on a stop or an upgrade, ends the worker rather than killing it mid-job"""
+    handlers = {}
+    scanned = asyncio.Event()
+
+    async def scan() -> None:
+        """Note the scan happened"""
+        scanned.set()
+
+    async def nothing(*_) -> None:
+        """Stand in for a start-up check"""
+
+    @contextlib.asynccontextmanager
+    async def connect():
+        """Stand in for a database connection"""
+        yield None
+
+    loop = asyncio.get_running_loop()
+    monkeypatch.setattr(loop, "add_signal_handler", lambda sig, callback, *args: handlers.__setitem__(sig, callback))
+    monkeypatch.setattr(worker, "enqueue_due_work", scan)
+    monkeypatch.setattr(worker, "_wait_for_database", nothing)
+    monkeypatch.setattr(worker, "verify_app_role_is_unprivileged", nothing)
+    monkeypatch.setattr(worker, "verify_key_matches_data", nothing)
+    monkeypatch.setattr(worker, "engine", SimpleNamespace(connect=connect, dispose=nothing))
+
+    async with asyncio.timeout(_WAIT_SECONDS):
+        running = asyncio.create_task(worker.run_worker())
+        await scanned.wait()
+        handlers[signal.SIGTERM]()
+        await running
 
 
 @pytest.mark.parametrize(

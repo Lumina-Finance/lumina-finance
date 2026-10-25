@@ -12,15 +12,15 @@ services:
     volumes:
       - lumina_data:/data
 
-  # Runs bank sync jobs, from the same image and settings as the app. It waits for the app to set
-  # up the database, so it can start alongside it. Its health check follows the heartbeat each
-  # scan for due work records, replacing the image's check of the web server this container
-  # doesn't run, and init passes the stop signal on so the worker stops at once
+  # Bank sync worker
   worker:
     image: "luminahq/lumina-finance:${APP_IMAGE_TAG:-latest}"
     restart: unless-stopped
     command: worker
     init: true
+
+    # Time to finish the job it is running
+    stop_grace_period: 6m
     depends_on:
       postgres:
         condition: service_healthy
