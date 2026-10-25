@@ -283,8 +283,8 @@ test('starts focus on keeping the current value when the comparison opens from t
   await expect(dialog.getByRole('button', { name: 'Keep current value' })).toBeFocused()
 })
 
-// The actions end where the close button above them ends at every width, as the other dialogs' do.
-// Their left edge is only checked while they stack, since side by side they sit at the right
+// The ledger-changing action starts where the title starts and the keeping one ends where the close
+// button above it ends, at every width, as the other confirmations' do
 test('lines the comparison actions up with its header', AT_EVERY_SIZE, async ({ page, request }) => {
   await startWithCorrection(page, request)
   await openPage(page, '/transactions')
@@ -299,10 +299,9 @@ test('lines the comparison actions up with its header', AT_EVERY_SIZE, async ({ 
       dialog.getByRole('button', { name: 'Keep current value', exact: true }).boundingBox(),
       dialog.getByRole('button', { name: 'Accept bank change', exact: true }).boundingBox(),
     ])
-    const stacked = keep!.y !== accept!.y
     return {
-      left: stacked ? Math.round(keep!.x - title!.x) || 0 : 0,
-      right: Math.round(accept!.x + accept!.width - (close!.x + close!.width)) || 0,
+      left: Math.round(accept!.x - title!.x) || 0,
+      right: Math.round(keep!.x + keep!.width - (close!.x + close!.width)) || 0,
     }
   }
 

@@ -7,7 +7,7 @@ import { ModalTitledPanel } from '@/components/modal/TitledPanel'
 import { useMoneyFormatters } from '@/hooks/useMoneyFormatters'
 import { useToast } from '@/hooks/useToast'
 import { ReviewDecisionButton } from '@/components/transactions/bank-review/DecisionButton'
-import TransactionModalSubmitError from '@/components/transactions/transaction-modal/controls/SubmitError'
+import { FormError } from '@/components/forms/FormError'
 import { formatRawAmount } from '@/components/transactions/utils/bankReview'
 import { formatDateLabel } from '@/utils/date'
 
@@ -111,11 +111,19 @@ export function BankComparisonModal({ open, item, currency, onClose }: BankCompa
       railLabel="Review"
       closeDisabled={resolve.isPending}
       footer={(
-        // Stacked on phones, where the two labels don't fit side by side
+        // The action that changes the ledger sits on the left and the keeping one on the right, as in the
+        // other confirmations, and each takes half the width on phones
         <div
-          className={`grid shrink-0 grid-cols-1 gap-3 py-4 sm:flex sm:items-center sm:justify-end min-[1050px]:py-5 ${MODAL_INSET_CLASS_NAME.page}`}
+          className={`grid shrink-0 grid-cols-2 gap-3 py-4 sm:flex sm:items-center sm:justify-between min-[1050px]:py-5 ${MODAL_INSET_CLASS_NAME.page}`}
           style={{ borderTop: '1px solid var(--app-border)' }}
         >
+          <ReviewDecisionButton
+            label={apply.label}
+            tone={isRemoval ? 'danger' : 'primary'}
+            loading={pendingResolution === apply.resolution}
+            disabled={isLocked}
+            onClick={() => decide(apply)}
+          />
           <ReviewDecisionButton
             label={keep.label}
             tone="secondary"
@@ -123,13 +131,6 @@ export function BankComparisonModal({ open, item, currency, onClose }: BankCompa
             loading={pendingResolution === keep.resolution}
             disabled={isLocked}
             onClick={() => decide(keep)}
-          />
-          <ReviewDecisionButton
-            label={apply.label}
-            tone={isRemoval ? 'danger' : 'primary'}
-            loading={pendingResolution === apply.resolution}
-            disabled={isLocked}
-            onClick={() => decide(apply)}
           />
         </div>
       )}
@@ -221,11 +222,7 @@ export function BankComparisonModal({ open, item, currency, onClose }: BankCompa
           </table>
         </div>
 
-        {error && (
-          <div role="alert">
-            <TransactionModalSubmitError error={error} />
-          </div>
-        )}
+        <FormError message={error} />
       </div>
     </ModalTitledPanel>
   )
