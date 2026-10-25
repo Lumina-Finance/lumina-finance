@@ -274,7 +274,7 @@ async def test_reconnect_whose_request_budget_is_spent_keeps_the_new_credential_
     client, scenario: FakeBridgeScenario
 ):
     """The claim spends the token whatever the budget says, so it is kept and counted, while the listing waits for a request to free up"""
-    headers, everyday_id, savings_id, connection_id = await _rejected_with_two_links(client, scenario)
+    headers, _everyday_id, _savings_id, connection_id = await _rejected_with_two_links(client, scenario)
     async with TestSession() as session:
         await session.execute(
             update(BankConnection)

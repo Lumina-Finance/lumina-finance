@@ -134,9 +134,7 @@ async def test_record_starting_balance_accepts_an_overdrawn_asset(client):
 async def test_record_starting_balance_saves_a_liabilitys_credit_balance_positive(client):
     """A credit card holding 25.00 of credit, stated as owing -25.00, shows a balance of 25.00."""
     headers = _get_auth_header(await _create_user(client))
-    account_id = (
-        await _create_account(client, headers, account_kind="revolving", account_type="credit_card", name="Visa")
-    ).json()["id"]
+    account_id = (await _create_account(client, headers, account_kind="revolving", account_type="credit_card", name="Visa")).json()["id"]
 
     resp = await _record_starting_balance(client, headers, account_id, -25_00)
 

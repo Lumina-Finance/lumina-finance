@@ -88,7 +88,10 @@ def test_booked_record_stamped_at_midnight_utc_keeps_its_utc_date(posted, timezo
     """
     transaction = {"id": "TRN-1", "posted": posted, "amount": "-4.50", "description": "COFFEE"}
     account = {"id": "ACT-1", "name": "Chequing", "conn_id": "CON-1", "currency": "USD", "balance": "1.00", "balance-date": posted}
-    body = {"connections": [{"conn_id": "CON-1", "name": "Harbour", "org_id": "ORG-1"}], "accounts": [account | {"transactions": [transaction]}]}
+    body = {
+        "connections": [{"conn_id": "CON-1", "name": "Harbour", "org_id": "ORG-1"}],
+        "accounts": [account | {"transactions": [transaction]}],
+    }
     dating = RecordDating(timezone=ZoneInfo(timezone), requested_on=_REQUESTED_ON)
 
     accounts = read_external_accounts(read_account_set(json.dumps(body).encode()), currency_exponents=_EXPONENTS, dating=dating)
