@@ -258,22 +258,39 @@ export function useBulkApprovalPreview(accountIds: string[] | undefined, enabled
   });
 }
 
-export function useClaimSetupToken() {
-  const queryClient = useQueryClient();
-  return useMutation({
+/**
+ * Sends a setup token even while the browser reports being offline, so a request that cannot go
+ * fails at once with a message rather than waiting, with its Cancel held, for a connection
+ */
+export function claimSetupTokenMutationOptions(queryClient: QueryClient) {
+  return mutationOptions({
     mutationFn: (payload: Parameters<typeof claimSetupToken>[0]) =>
       runWithMinimumPendingTime(ACTION_LOADING_MIN_MS, () => claimSetupToken(payload)),
+    networkMode: 'always',
     onSuccess: () => invalidateBankSyncStatus(queryClient),
+  });
+}
+
+export function useClaimSetupToken() {
+  const queryClient = useQueryClient();
+  return useMutation(claimSetupTokenMutationOptions(queryClient));
+}
+
+/**
+ * Sends a new setup token the way a claim does, failing at once while offline
+ */
+export function reconnectBankConnectionMutationOptions(queryClient: QueryClient) {
+  return mutationOptions({
+    mutationFn: (payload: Parameters<typeof reconnectBankConnection>[0]) =>
+      runWithMinimumPendingTime(ACTION_LOADING_MIN_MS, () => reconnectBankConnection(payload)),
+    networkMode: 'always',
+    onSuccess: () => refreshBankLinkState(queryClient),
   });
 }
 
 export function useReconnectBankConnection() {
   const queryClient = useQueryClient();
-  return useMutation({
-    mutationFn: (payload: Parameters<typeof reconnectBankConnection>[0]) =>
-      runWithMinimumPendingTime(ACTION_LOADING_MIN_MS, () => reconnectBankConnection(payload)),
-    onSuccess: () => refreshBankLinkState(queryClient),
-  });
+  return useMutation(reconnectBankConnectionMutationOptions(queryClient));
 }
 
 export function useRenameBankConnection() {
