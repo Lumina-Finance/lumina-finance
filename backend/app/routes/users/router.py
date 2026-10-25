@@ -1,4 +1,5 @@
 """User profile routes"""
+
 import hashlib
 from datetime import UTC, date, datetime, time, timedelta
 from typing import Annotated
@@ -67,10 +68,13 @@ async def _get_calculation_date_boundary(db: AsyncSession, user: User) -> tuple[
     """Return a date token and the next midnight for every visible calculation owner."""
     group_ids = select_user_group_ids(user.id)
     group_owner_ids = set((await db.scalars(select(Group.owner_id).where(Group.id.in_(group_ids)))).all())
-    category_owner_ids = set((await db.scalars(
-        select(TaxAdvantagedCategory.category_owner_user_id)
-        .where(TaxAdvantagedCategory.group_id.in_(group_ids)),
-    )).all())
+    category_owner_ids = set(
+        (
+            await db.scalars(
+                select(TaxAdvantagedCategory.category_owner_user_id).where(TaxAdvantagedCategory.group_id.in_(group_ids)),
+            )
+        ).all()
+    )
     other_owner_ids = (group_owner_ids | category_owner_ids) - {user.id}
     owner_timezones = await get_category_owner_timezones(db, other_owner_ids)
     owner_timezones[user.id] = resolve_timezone(user.tz)
