@@ -12,7 +12,7 @@ import {
   todayInTestTimezone,
 } from '../support/api'
 import { chooseFromDropdown, logInViaApi, openModal, openPage, typeDate } from '../support/app'
-import { addImportedItem, answerLinksWith, linkToSampleBankAccount, waitForEntrance } from '../support/bankSync'
+import { addImportedItem, answerLinksWith, linkToSampleBankAccount } from '../support/bankSync'
 import { contrastOf, MIN_TEXT_CONTRAST } from '../support/selectors'
 import { AT_EVERY_SIZE } from '../support/sizes'
 import { API_BASE_URL } from '../support/target'
@@ -581,7 +581,7 @@ test('greys out bulk Delete with its reason while a ticked bank transaction is i
   await expect(deleteAction).toHaveAccessibleDescription(BULK_DELETE_LINKED_REASON)
   const reason = page.getByText(BULK_DELETE_LINKED_REASON).filter({ visible: true })
   await deleteAction.hover({ position: { x: POINTER_INSET_PX, y: POINTER_INSET_PX } })
-  await expect.poll(async () => (await readTooltip(reason)).opacity).toBe('1')
+  await expect.poll(() => readTooltipOpacity(reason)).toBe('1')
 
   // Forced, because the button is marked unavailable and pressing it anyway is what is checked
   await deleteAction.click({ force: true })
