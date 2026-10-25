@@ -168,9 +168,10 @@ async def complete_oidc_sign_in(db: AsyncSession, code: str, state: str, browser
     The stored roundtrip is consumed and committed before the provider is contacted, so a
     replayed callback finds it already spent. The binding secret is verified first, so a
     stolen state and code cannot complete a login in a browser that never started it
-    Resolution then runs in order: a known provider subject signs in, an email matching an
-    existing account is refused so it can be linked from settings under step-up instead,
-    and an unmatched email onboards a new user
+    Resolution then runs in order: a known provider subject signs in, a provider-verified email
+    matching an existing account is refused so it can be linked from settings under step-up
+    instead, and any other email onboards a new user. An unverified email is never matched
+    against accounts, so the answer is the same whether or not it is registered
 
     Args:
         db: Active database session
@@ -184,8 +185,8 @@ async def complete_oidc_sign_in(db: AsyncSession, code: str, state: str, browser
     Raises:
         HTTPException: The roundtrip is unknown or expired, the binding secret is missing
             or wrong, the provider rejects the exchange, the token does not verify, the email is
-            missing, unverified when verification is required, or already registered, or a new
-            user would be onboarded while registration is closed
+            missing, unverified when verification is required, or verified and already registered,
+            or a new user would be onboarded while registration is closed
     """
     request_row = await _consume_authorization_request(db, state, OIDC_PURPOSE_LOGIN)
 
@@ -205,18 +206,22 @@ async def complete_oidc_sign_in(db: AsyncSession, code: str, state: str, browser
         return await _sign_in_identity(db, identity)
 
     email = _require_provider_email(claims)
+    email_verified = claims.get("email_verified") is True
 
     # An email that already belongs to an account is never linked automatically, even when the
     # provider verified it, so a provider sign-in can never join an existing account without the
     # owner explicitly linking it from settings under step-up. The user signs in with their
     # password and links there instead. The detail is structured so the client can offer that
-    # password sign-in prefilled with the address
-    existing_user_id = await find_user_id_by_email(db, email)
-    if existing_user_id is not None:
-        raise HTTPException(
-            status_code=status.HTTP_409_CONFLICT,
-            detail={"code": OIDC_EMAIL_CONFLICT_CODE, "email": email},
-        )
+    # password sign-in prefilled with the address. Only a verified email is looked up, since
+    # whoever signs in at the provider can type any unverified address, and answering differently
+    # for a registered one would let them test which addresses have accounts
+    if email_verified:
+        existing_user_id = await find_user_id_by_email(db, email)
+        if existing_user_id is not None:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail={"code": OIDC_EMAIL_CONFLICT_CODE, "email": email},
+            )
 
     # Everything past here leads to a new account, so a closed instance refuses before the profile form
     reject_closed_registration()
@@ -224,9 +229,10 @@ async def complete_oidc_sign_in(db: AsyncSession, code: str, state: str, browser
     # Whether an unverified provider email can create an account is an operator policy. Some
     # self-hosted providers do not verify email addresses, or report them as verified without
     # checking, so OIDC_REQUIRE_VERIFIED_EMAIL lets the operator relax it for those. Existing-account
-    # takeover is prevented regardless, since a provider sign-in is never auto-linked by email. The
-    # flag is recorded as the provider stated it either way
-    if OIDC_REQUIRE_VERIFIED_EMAIL and claims.get("email_verified") is not True:
+    # takeover is prevented regardless, since a provider sign-in is never auto-linked by email. With
+    # the policy relaxed, an unverified address that is already registered meets its refusal when
+    # the signup completes, not here. The flag is recorded as the provider stated it either way
+    if OIDC_REQUIRE_VERIFIED_EMAIL and not email_verified:
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
             detail="Identity provider did not verify the email address",
@@ -236,7 +242,7 @@ async def complete_oidc_sign_in(db: AsyncSession, code: str, state: str, browser
         provider_slug=provider.slug,
         subject=subject,
         email=email,
-        email_verified=claims.get("email_verified") is True,
+        email_verified=email_verified,
         first_name=_derive_first_name(claims, email),
         last_name=claims.get("family_name") or None,
     )

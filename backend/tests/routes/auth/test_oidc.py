@@ -1,5 +1,6 @@
 """OIDC sign-in route tests with the provider protocol mocked at the service seam"""
 
+import re
 import uuid
 from datetime import UTC, datetime, timedelta
 from urllib.parse import parse_qs, urlparse
@@ -189,70 +190,105 @@ async def test_callback_never_auto_links_verified_email(client, provider_protoco
     assert oidc_auth_identities == []
 
 
-async def test_callback_rejects_unverified_email_collision(client, provider_protocol):
-    """An unverified provider email matching a local account is refused, never linked"""
-    await _seed_currency()
-    await sign_up_confirmed(client, SIGNUP_PAYLOAD)
-    await _seed_provider()
-    provider_protocol["claims"] = _claims(email=SIGNUP_PAYLOAD["email"], email_verified=False)
+# Claim values a provider can send that are not the boolean true, which is the only verified value
+UNVERIFIED_EMAIL_CLAIMS = [False, None, "true", "false"]
+
+
+async def _callback_with_unverified_email(client, provider_protocol, email_verified):
+    """Run a provider sign-in whose email is SIGNUP_PAYLOAD's and the provider did not verify"""
+    claims = _claims(email=SIGNUP_PAYLOAD["email"], email_verified=email_verified)
+    if email_verified is None:
+        del claims["email_verified"]
+    provider_protocol["claims"] = claims
 
     state = await _start_sign_in(client)
-    resp = await client.post("/auth/oidc/callback", json={"code": "any", "state": state})
+    return await client.post("/auth/oidc/callback", json={"code": "any", "state": state})
 
-    assert resp.status_code == 409
 
-    # The structured detail hands the client the address so it can prefill a password sign-in
-    detail = resp.json()["detail"]
-    assert detail["code"] == "email_already_registered"
-    assert detail["email"] == SIGNUP_PAYLOAD["email"]
+def _cookie_headers(resp) -> list[str]:
+    """Return the Set-Cookie headers without the expiry instant, which moves with the clock"""
+    return [re.sub(r"expires=[^;]*;\s*", "", header) for header in resp.headers.get_list("set-cookie")]
+
+
+def _without_onboarding_token(resp) -> dict:
+    """Return the response body minus the signed token, which is different on every sign-in"""
+    return {key: value for key, value in resp.json().items() if key != "onboarding_token"}
+
+
+@pytest.mark.parametrize("email_verified", UNVERIFIED_EMAIL_CLAIMS)
+async def test_callback_unverified_email_gets_same_refusal_whether_registered_or_not(client, provider_protocol, email_verified):
+    """With strict verification, the default, an unverified provider email never reveals an account
+
+    Whoever signs in at the provider can type any address as their email, so the refusal for a
+    registered address must match the one for an unregistered address in status, body and cookies
+    """
+    await _seed_currency()
+    await _seed_provider()
+
+    unregistered = await _callback_with_unverified_email(client, provider_protocol, email_verified)
+    await sign_up_confirmed(client, SIGNUP_PAYLOAD)
+    registered = await _callback_with_unverified_email(client, provider_protocol, email_verified)
+
+    assert unregistered.status_code == 422
+    assert unregistered.json() == {"detail": "Identity provider did not verify the email address"}
+    assert registered.status_code == unregistered.status_code
+    assert registered.json() == unregistered.json()
+    assert _cookie_headers(registered) == _cookie_headers(unregistered)
+    assert _clears_cookie(registered, "oidc_login_binding")
 
     async with TestSession() as session:
+        users = (await session.execute(select(User))).scalars().all()
         identities = (await session.execute(select(OidcIdentity))).scalars().all()
+    assert len(users) == 1
     assert identities == []
 
 
 @pytest.mark.parametrize("email_verified", [False, None])
-async def test_callback_rejects_unverified_email_when_strict(client, provider_protocol, email_verified):
-    """With strict verification, the default, a sign-in the provider did not verify is refused"""
+async def test_callback_unverified_email_onboards_alike_whether_registered_or_not_when_relaxed(
+    client, provider_protocol, monkeypatch, email_verified
+):
+    """With verification relaxed, an unverified provider email onboards the same whether or not it is registered
+
+    Some self-hosted providers report the claim without verifying the address, so an operator relaxes
+    the check and relies on the never-auto-link rule to prevent takeover. A registered address meets
+    its refusal when the signup completes
+    """
+    monkeypatch.setattr(oidc_login, "OIDC_REQUIRE_VERIFIED_EMAIL", False)
+    await _seed_currency()
     await _seed_provider()
-    claims = _claims()
-    if email_verified is None:
-        del claims["email_verified"]
-    else:
-        claims["email_verified"] = email_verified
-    provider_protocol["claims"] = claims
 
-    state = await _start_sign_in(client)
-    resp = await client.post("/auth/oidc/callback", json={"code": "any", "state": state})
+    unregistered = await _callback_with_unverified_email(client, provider_protocol, email_verified)
+    await sign_up_confirmed(client, SIGNUP_PAYLOAD)
+    registered = await _callback_with_unverified_email(client, provider_protocol, email_verified)
 
-    assert resp.status_code == 422
+    assert unregistered.status_code == 200
+    assert unregistered.json()["onboarding_required"] is True
+    assert registered.status_code == unregistered.status_code
+    assert _without_onboarding_token(registered) == _without_onboarding_token(unregistered)
+    assert _cookie_headers(registered) == _cookie_headers(unregistered)
 
     async with TestSession() as session:
         users = (await session.execute(select(User))).scalars().all()
-    assert users == []
+        identities = (await session.execute(select(OidcIdentity))).scalars().all()
+    assert len(users) == 1
+    assert identities == []
 
 
 @pytest.mark.parametrize("email_verified", [False, None])
-async def test_callback_onboards_unverified_email_when_relaxed(client, provider_protocol, monkeypatch, email_verified):
-    """With verification relaxed, a provider that reports or omits email_verified still onboards
+async def test_callback_signs_in_linked_identity_with_unverified_email(client, provider_protocol, email_verified):
+    """A linked provider identity signs in whatever its email claims say, strict verification included"""
+    await _seed_currency()
+    signup = await sign_up_confirmed(client, SIGNUP_PAYLOAD)
+    user_id = uuid.UUID(signup.json()["user"]["id"])
+    provider = await _seed_provider()
+    async with TestSession() as session:
+        session.add(OidcIdentity(user_id=user_id, provider_id=provider.id, subject="subject-1", email=SIGNUP_PAYLOAD["email"]))
+        await session.commit()
 
-    Some self-hosted providers report the claim without verifying the address, so an operator relaxes
-    the check and relies on the never-auto-link rule to prevent takeover
-    """
-    monkeypatch.setattr(oidc_login, "OIDC_REQUIRE_VERIFIED_EMAIL", False)
-    await _seed_provider()
-    claims = _claims()
-    if email_verified is None:
-        del claims["email_verified"]
-    else:
-        claims["email_verified"] = email_verified
-    provider_protocol["claims"] = claims
-
-    state = await _start_sign_in(client)
-    resp = await client.post("/auth/oidc/callback", json={"code": "any", "state": state})
+    resp = await _callback_with_unverified_email(client, provider_protocol, email_verified)
 
     assert resp.status_code == 200
-    assert resp.json()["onboarding_required"] is True
+    assert resp.json()["user"]["id"] == str(user_id)
 
 
 async def test_callback_onboards_new_user(client, provider_protocol):
