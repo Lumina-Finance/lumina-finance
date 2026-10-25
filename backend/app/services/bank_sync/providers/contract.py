@@ -16,6 +16,9 @@ from zoneinfo import ZoneInfo
 from app.models.bank_connection import BankProvider, ConnectsFrom
 from app.models.bank_sync_job import ProviderErrorKind
 
+# The most characters of an error reason that are kept, which fits a line of the sync status details
+MAX_ERROR_REASON_LENGTH = 500
+
 # An ISO 4217 code. Anything else in its place, such as a URL or nothing, is a currency of the
 # provider's own, which no Lumina account can hold
 _ISO_CURRENCY_CODE = re.compile(r"[A-Z]{3}")
@@ -31,11 +34,17 @@ class ProviderError:
     """A typed failure, or a warning when it arrives alongside usable data
 
     The reason is shown in the sync status details, so it names at most the provider's host and
-    never a credential or a full provider URL
+    never a credential or a full provider URL. A message the provider sent is kept as it came, cut
+    to the reason cap, since the provider chooses its length and it is stored and shown
     """
 
     kind: ProviderErrorKind
     reason: str
+
+    def __post_init__(self) -> None:
+        """Cut a reason over the cap short, ending in an ellipsis"""
+        if len(self.reason) > MAX_ERROR_REASON_LENGTH:
+            object.__setattr__(self, "reason", self.reason[: MAX_ERROR_REASON_LENGTH - 1] + "…")
 
 
 @dataclass(frozen=True)
