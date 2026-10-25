@@ -270,6 +270,30 @@ async def test_reconnect_with_nothing_linked_whose_listing_fails_queues_a_sync_t
     assert await _jobs() == [("initial", True, "queued")]
 
 
+async def test_reconnect_whose_request_budget_is_spent_keeps_the_new_credential_and_lists_the_bank_accounts_later(
+    client, scenario: FakeBridgeScenario
+):
+    """The claim spends the token whatever the budget says, so it is kept and counted, while the listing waits for a request to free up"""
+    headers, everyday_id, savings_id, connection_id = await _rejected_with_two_links(client, scenario)
+    async with TestSession() as session:
+        await session.execute(
+            update(BankConnection)
+            .where(BankConnection.id == uuid.UUID(connection_id))
+            .values(request_budget_spent_until=datetime.now(UTC) + timedelta(hours=1))
+        )
+        await session.commit()
+    before = await _request_purposes()
+
+    response = await _reconnect(client, headers, connection_id, await scenario.new_setup_token())
+
+    assert response.status_code == 200, response.text
+    body = response.json()
+    assert (body["resumed_account_ids"], body["choose_again_account_ids"], body["accounts_pending"]) == ([], [], True)
+    assert (await _stored_connection(connection_id)).credential_rejected_at is None
+    assert await _request_purposes() == sorted([*before, "claim"])
+    assert await _jobs() == [("initial", True, "queued")]
+
+
 async def test_reconnect_with_nothing_linked_whose_listing_works_queues_nothing(client, scenario: FakeBridgeScenario):
     """No account is linked through the connection and its bank accounts are listed, so there is nothing for a sync to do"""
     headers, _ = await _sign_up(client)
