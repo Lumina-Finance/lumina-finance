@@ -13,7 +13,7 @@
 </p>
 
 <p align="center">
-  <a href="https://www.buymeacoffee.com/lumina.finance"><img alt="Buy Me a Coffee" src="https://cdn.buymeacoffee.com/buttons/v2/default-yellow.png" height="48"></a>
+  <a href="https://github.com/sponsors/Lumina-Finance"><picture><source media="(prefers-color-scheme: dark)" srcset="docs/sponsor_dark.svg"><img alt="Sponsor on GitHub" src="docs/sponsor_light.svg" height="40"></picture></a>&nbsp;&nbsp;<a href="https://www.buymeacoffee.com/lumina.finance"><img alt="Buy Me a Coffee" src="https://cdn.buymeacoffee.com/buttons/v2/default-yellow.png" height="40"></a>
 </p>
 
 <!-- markdownlint-enable MD033 -->
@@ -37,7 +37,7 @@ THIS APPLICATION IS PROVIDED “AS IS” AND “AS AVAILABLE,” WITHOUT WARRANT
 
 <!-- markdownlint-disable MD033 -->
 
-https://github.com/user-attachments/assets/ff25a063-eec5-4069-b019-3e0ebb8c7ed9
+https://github.com/user-attachments/assets/de14da6a-c15c-4dfc-ba02-81a9c7140cee
 
 <!-- markdownlint-enable MD033 -->
 
@@ -48,10 +48,10 @@ Lumina Finance gives you one place to track accounts, transactions, budgets, and
 - **Accounts** - Lumina Finance helps you track cash, credit, savings, and every other account type, with a detailed view and balance history for each. Archived accounts can be hidden when you don't need to see them.
 - **Multi-currency** - Exchange rate conversions help you follow accounts and activity in different currencies across dashboards, budgets, runway, and insights.
 - **Transactions** - You can add transactions and organize them with merchants, categories, tags, and notes to keep your records clear.
-- **Imports** - The CSV importer brings in new transactions from your bank as you go, and app-specific importers help you move your history over from another app.
+- **Imports** - CSV files and OFX or QFX bank statements bring in new transactions from your bank as you go, several files at a time, and statements skip the transactions you've already imported. App-specific importers help you move your history over from another app.
 - **Tax-advantaged accounts** - Accounts with the same tax-advantaged structure can be grouped together, helping you track their contribution and withdrawal limits in one place.
 - **Budgets** - Recurring and one-time budgets help you compare your spending against the amounts you set for each category. Their history stays available after you archive them.
-- **Dashboard** - The dashboard brings your net worth, credit usage, spending, savings rate, recent activity, and top budgets together in one beautifully presented view.
+- **Dashboard** - The dashboard brings your net worth, credit usage across the cards you choose, spending, savings rate, recent activity, and top budgets together in one beautifully presented view.
 - **Runway** - The runway view shows you exactly how long your funds will last in the worst-case scenario.
 - **Insights** - Cash flow reports, income and expense breakdowns, and merchant patterns help you understand your finances, alongside trends in your net worth and savings rate.
 - **Account security** - Two-factor authentication protects your sign-in through an authenticator app or passkeys, with recovery codes as a fallback. Email password resets help you regain access if you forget your password.
@@ -66,6 +66,7 @@ Each app-specific importer is tested every week against the app's latest release
 | Importer | Used for | Status |
 |-|-|-|
 | CSV | Everyday imports from your bank | |
+| OFX and QFX | Everyday imports from your bank's statements | |
 | Actual Budget | Moving over from Actual Budget | <a href="https://github.com/Lumina-Finance/lumina-finance/actions/workflows/actual-check.yml"><img alt="Actual Budget import check" src="https://img.shields.io/github/actions/workflow/status/Lumina-Finance/lumina-finance/actual-check.yml?label=Weekly%20test&style=flat&logo=githubactions&logoColor=white"></a> |
 | Firefly III | Moving over from Firefly III | <a href="https://github.com/Lumina-Finance/lumina-finance/actions/workflows/firefly-check.yml"><img alt="Firefly III import check" src="https://img.shields.io/github/actions/workflow/status/Lumina-Finance/lumina-finance/firefly-check.yml?label=Weekly%20test&style=flat&logo=githubactions&logoColor=white"></a> |
 <!-- markdownlint-enable MD033 -->
@@ -185,11 +186,14 @@ Set `DB_PASSWORD` in `.env` to a password of your own before the first start. Th
 Setup, configuration and answers to common questions are on the docs site at [docs.luminafinance.co](https://docs.luminafinance.co):
 
 - [Getting started](https://docs.luminafinance.co/self-hosting/getting-started/)
-- [Environment variables](https://docs.luminafinance.co/self-hosting/environment-variables/)
+- [Setting instance URL](https://docs.luminafinance.co/self-hosting/instance-url/)
 - [Email](https://docs.luminafinance.co/self-hosting/email/)
-- [Single sign-on](https://docs.luminafinance.co/self-hosting/single-sign-on/)
-- [Rotating the encryption key](https://docs.luminafinance.co/self-hosting/encryption-keys/)
+- [Automatic update checks](https://docs.luminafinance.co/self-hosting/update-checks/)
+- [Closing registration](https://docs.luminafinance.co/self-hosting/closing-registration/)
 - [Signing keys and JWKS](https://docs.luminafinance.co/self-hosting/signing-keys/)
+- [Single sign-on](https://docs.luminafinance.co/self-hosting/single-sign-on/)
+- [Encryption and hash keys](https://docs.luminafinance.co/self-hosting/encryption-keys/)
+- [Environment variables](https://docs.luminafinance.co/self-hosting/environment-variables/)
 - [FAQ](https://docs.luminafinance.co/self-hosting/faq/)
 
 ## Support the project
@@ -197,7 +201,7 @@ Setup, configuration and answers to common questions are on the docs site at [do
 Lumina Finance is fully bootstrapped. If you would like to support its development, please consider donating to the project.
 
 <!-- markdownlint-disable MD033 -->
-<a href="https://www.buymeacoffee.com/lumina.finance"><img alt="Buy Me a Coffee" src="https://cdn.buymeacoffee.com/buttons/v2/default-yellow.png" height="48"></a>
+<a href="https://github.com/sponsors/Lumina-Finance"><picture><source media="(prefers-color-scheme: dark)" srcset="docs/sponsor_dark.svg"><img alt="Sponsor on GitHub" src="docs/sponsor_light.svg" height="40"></picture></a>&nbsp;&nbsp;<a href="https://www.buymeacoffee.com/lumina.finance"><img alt="Buy Me a Coffee" src="https://cdn.buymeacoffee.com/buttons/v2/default-yellow.png" height="40"></a>
 <!-- markdownlint-enable MD033 -->
 
 You can also show your support by starring the project on GitHub!
