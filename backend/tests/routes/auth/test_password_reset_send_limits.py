@@ -7,6 +7,7 @@ from types import SimpleNamespace
 import pytest
 from fastapi import BackgroundTasks
 from sqlalchemy import delete, select
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.auth import PasswordResetToken
 from app.services.auth import password_reset, reset_send_limit
@@ -79,6 +80,26 @@ async def test_the_wait_doubles_after_each_failed_send(client, monkeypatch, rese
         await client.post(_FORGOT, json={"email": emails[0]})
         assert len(attempts) == expected_attempts
         reset_clock(1)
+
+
+async def test_requests_refused_while_an_account_waits_do_not_use_up_its_daily_allowance(client, monkeypatch, reset_clock):
+    """Refused requests store stand-in rows, and three of them must not stop the account sending once the wait ends"""
+    emails, _ = await _create_users(client, 1)
+    attempts = []
+
+    async def failing_send(email, _message):
+        attempts.append(email)
+        await _failing_send()
+
+    _use_mailer(monkeypatch, failing_send)
+    await client.post(_FORGOT, json={"email": emails[0]})
+    for _ in range(3):
+        await client.post(_FORGOT, json={"email": emails[0]})
+    assert len(attempts) == 1
+
+    reset_clock(reset_send_limit.FIRST_FAILURE_WAIT_SECONDS)
+    await client.post(_FORGOT, json={"email": emails[0]})
+    assert len(attempts) == 2
 
 
 @pytest.mark.parametrize(
@@ -299,17 +320,39 @@ async def test_a_request_that_fails_before_handing_on_its_send_frees_its_claim(c
 
     _use_mailer(monkeypatch, record_send)
 
-    def broken_render(*_args):
-        raise RuntimeError("template is broken")
+    async def broken_commit(_self):
+        raise RuntimeError("database went away")
 
     with monkeypatch.context() as broken:
-        broken.setattr(password_reset, "render_reset_email", broken_render)
+        broken.setattr(AsyncSession, "commit", broken_commit)
         with pytest.raises(RuntimeError):
             await client.post(_FORGOT, json={"email": emails[0]})
 
     assert await _token_count(user_ids[0]) == 0
     assert (await client.post(_FORGOT, json={"email": emails[0]})).status_code == 204
     assert sent == emails
+
+
+async def test_an_email_that_cannot_be_rendered_is_answered_and_leaves_no_link(client, monkeypatch):
+    """Rendering waits until after the response, so a broken template drops the token and starts the back-off"""
+    emails, user_ids = await _create_users(client, 1)
+    sent = []
+
+    async def record_send(email, _message):
+        sent.append(email)
+
+    def broken_render(*_args):
+        raise RuntimeError("template is broken")
+
+    _use_mailer(monkeypatch, record_send)
+    monkeypatch.setattr(password_reset, "render_reset_email", broken_render)
+
+    response = await client.post(_FORGOT, json={"email": emails[0]})
+
+    assert response.status_code == 204
+    assert sent == []
+    assert await _token_count(user_ids[0]) == 0
+    assert user_ids[0] in reset_send_limit._backoffs
 
 
 async def test_a_send_that_waited_past_its_links_life_is_dropped_without_a_failure(client, monkeypatch):
@@ -350,13 +393,14 @@ async def test_a_request_cancelled_before_handing_on_its_send_frees_its_claim(cl
     """A cancellation after the claim is not an Exception, and must still free the account's place"""
     emails, user_ids = await _create_users(client, 1)
 
-    def cancelled_render(*_args):
+    async def cancelled_commit(_self):
         raise asyncio.CancelledError
 
-    monkeypatch.setattr(password_reset, "render_reset_email", cancelled_render)
-    with pytest.raises(asyncio.CancelledError):
-        async with TestSession() as db:
-            await password_reset.request_password_reset(db, emails[0], BackgroundTasks(), TestSession)
+    with monkeypatch.context() as cancelled:
+        cancelled.setattr(AsyncSession, "commit", cancelled_commit)
+        with pytest.raises(asyncio.CancelledError):
+            async with TestSession() as db:
+                await password_reset.request_password_reset(db, emails[0], BackgroundTasks(), TestSession)
 
     assert await _token_count(user_ids[0]) == 0
     assert reset_send_limit.try_start_send(user_ids[0]) is not None

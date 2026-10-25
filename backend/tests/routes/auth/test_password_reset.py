@@ -8,14 +8,14 @@ from types import SimpleNamespace
 import pyotp
 import pytest
 from httpx import ASGITransport, AsyncClient
-from sqlalchemy import func, select, text
+from sqlalchemy import delete, event, func, select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.main import app
 from app.models.auth import PasswordCredential, PasswordResetToken
 from app.services.auth import password_reset, reset_send_limit
 from app.services.auth.token_hashing import hash_token
-from tests.conftest import TestSession
+from tests.conftest import TestSession, scoped_engine
 from tests.routes.support import (
     SIGNUP_PAYLOAD,
     _create_user,
@@ -65,11 +65,10 @@ async def _overlap_reset_requests(client, monkeypatch, first_email, second_email
         return user_id
 
     async def pause_first_issuance(db):
-        """Flush the first new token and retain its transaction until the overlap is observed"""
+        """Retain the first transaction that stored a token until the overlap is observed"""
         nonlocal gate_used
-        if not gate_used and any(isinstance(row, PasswordResetToken) for row in db.new):
+        if not gate_used:
             gate_used = True
-            await db.flush()
             first_paused.set()
             await release_first.wait()
         await original_commit(db)
@@ -128,6 +127,12 @@ async def _reset_tokens_for(user_id):
     async with TestSession() as session:
         result = await session.execute(select(PasswordResetToken).where(PasswordResetToken.user_id == user_id))
         return result.scalars().all()
+
+
+async def _all_reset_token_row_count():
+    """Return how many reset token rows exist, whoever they belong to and whether or not they count"""
+    async with TestSession() as session:
+        return await session.scalar(select(func.count()).select_from(PasswordResetToken))
 
 
 async def test_forgot_password_issues_token_for_existing_user(client):
@@ -207,6 +212,95 @@ async def test_forgot_password_sends_the_email_once_the_response_has_started(cli
     assert [row.token_hash for row in await _reset_tokens_for(user_id)] == [hash_token(raw_token)]
 
 
+async def _statements_before_response(email):
+    """Return the database statements and commits a reset request runs before its response starts"""
+    statements = []
+    answered = False
+
+    def record_statement(_conn, _cursor, statement, _parameters, _context, _executemany):
+        """Note a statement, normalising whitespace so only its text is compared"""
+        if not answered:
+            statements.append(" ".join(statement.split()))
+
+    def record_commit(_conn):
+        """Note a commit, since two commits cost more than one"""
+        if not answered:
+            statements.append("COMMIT")
+
+    async def tracked_app(scope, receive, send):
+        """Run the app, noting when its response starts"""
+
+        async def tracked_send(message):
+            nonlocal answered
+            if message["type"] == "http.response.start":
+                answered = True
+            await send(message)
+
+        await app(scope, receive, tracked_send)
+
+    event.listen(scoped_engine.sync_engine, "before_cursor_execute", record_statement)
+    event.listen(scoped_engine.sync_engine, "commit", record_commit)
+    try:
+        async with AsyncClient(transport=ASGITransport(app=tracked_app), base_url="http://test") as tracked_client:
+            response = await tracked_client.post("/auth/password/forgot", json={"email": email})
+    finally:
+        event.remove(scoped_engine.sync_engine, "before_cursor_execute", record_statement)
+        event.remove(scoped_engine.sync_engine, "commit", record_commit)
+    assert response.status_code == 204
+    return statements
+
+
+async def test_forgot_password_runs_the_same_statements_before_answering_for_every_email(client, sent_reset_emails):
+    """Timing can't tell an account apart when unknown, due, live-link and capped emails do identical work"""
+    signup = await _create_user(client)
+    user_id = uuid.UUID(signup.json()["user"]["id"])
+    registered = SIGNUP_PAYLOAD["email"]
+
+    async def request(email):
+        """Request a reset, returning its statements and how many rows it stored in all"""
+        rows_before = await _all_reset_token_row_count()
+        statements = await _statements_before_response(email)
+        return statements, await _all_reset_token_row_count() - rows_before
+
+    async def clear_rows():
+        """Remove every reset token row so the next case starts from nothing"""
+        async with TestSession() as session:
+            await session.execute(delete(PasswordResetToken))
+            await session.commit()
+
+    unknown, unknown_rows = await request("nobody@example.com")
+    due, due_rows = await request(registered)
+    assert len(await _reset_tokens_for(user_id)) == 1
+    live_link, live_link_rows = await request(registered)
+    assert len(await _reset_tokens_for(user_id)) == 1
+
+    await clear_rows()
+    for index in range(3):
+        await _seed_reset_token(user_id, raw_token=f"spent-link-{index}", expires_in_seconds=-60)
+    capped, capped_rows = await request(registered)
+    assert len(await _reset_tokens_for(user_id)) == 3
+
+    # A reset that is due but whose send the limiter refuses, as after a failed send
+    await clear_rows()
+    reset_send_limit.record_send_failed(user_id)
+    refused, refused_rows = await request(registered)
+    assert await _reset_tokens_for(user_id) == []
+
+    # The mailbox saw only the one due request
+    assert sent_reset_emails == [registered]
+
+    # The listeners saw the insert and exactly one commit, so the comparison below is not empty
+    assert any("INSERT INTO password_reset_tokens" in statement for statement in due)
+    assert due.count("COMMIT") == 1
+
+    # Every request writes exactly one row, so no commit costs more than another. One comparison
+    # reports every case that differs, not only the first
+    cases = {"unknown": unknown, "live link": live_link, "daily limit": capped, "send refused": refused}
+    assert {name: statements for name, statements in cases.items() if statements != due} == {}
+    rows = {"unknown": unknown_rows, "due": due_rows, "live link": live_link_rows, "daily limit": capped_rows, "send refused": refused_rows}
+    assert rows == dict.fromkeys(rows, 1)
+
+
 @pytest.mark.parametrize("prior_sends", [0, 2])
 async def test_overlapping_reset_requests_share_the_allowance(client, monkeypatch, sent_reset_emails, prior_sends):
     """Concurrent requests cannot duplicate a live link or exceed the last daily allowance"""
@@ -239,14 +333,18 @@ async def test_overlapping_reset_requests_for_different_users_are_independent(cl
     assert sent_reset_emails == [second_email, SIGNUP_PAYLOAD["email"]]
 
 
-async def test_forgot_password_unknown_email_creates_no_token(client):
-    """An unknown email still returns 204 but issues no token, avoiding enumeration"""
+async def test_forgot_password_unknown_email_stores_only_a_row_nobody_can_use(client):
+    """An unknown email still returns 204 and leaves a used, expired row with no user, avoiding enumeration"""
     resp = await client.post("/auth/password/forgot", json={"email": "nobody@example.com"})
 
     assert resp.status_code == 204
     async with TestSession() as session:
-        token_count = await session.scalar(select(func.count()).select_from(PasswordResetToken))
-        assert token_count == 0
+        record = (await session.execute(select(PasswordResetToken))).scalar_one()
+
+    # The one row it leaves can never be redeemed and belongs to nobody
+    assert record.user_id is None
+    assert record.used_at is not None
+    assert record.expires_at <= datetime.now(UTC)
 
 
 async def test_forgot_password_keeps_the_live_link_and_sends_nothing_new(client, sent_reset_emails):
