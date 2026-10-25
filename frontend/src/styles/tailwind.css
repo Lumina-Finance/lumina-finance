@@ -335,8 +335,8 @@
      it. Reached by keyboard it looks as it does hovered, which each hover rule also lists under
      :focus-visible, so the two can't drift apart. One without a border, such as a filled button or an icon
      button, keeps the ring above on top of its hover look. A menu item counts as bordered, since its
-     hover look adds a border. A border is the shared classes that draw one, and the border utility
-     unless it is transparent */
+     hover look adds a border, as the sidebar's log out button and collapse toggle do too. A border is the
+     shared classes that draw one, and the border utility unless it is transparent */
   :is(a, button, [role="button"], [role="tab"], [role="radio"], [role="menuitem"]):is(
     .app-secondary-button,
     .app-glass-button,
@@ -344,6 +344,8 @@
     .app-range-glass-head,
     .app-card,
     .app-nav-link,
+    .app-nav-user-logout,
+    .app-desktop-nav-toggle,
     .border:not(.border-transparent)
   ):not(svg *):not([aria-disabled="true"]):focus-visible {
     outline: none;
@@ -397,7 +399,6 @@
     height: calc(100vh - 2.5rem);
     overflow: hidden;
     background: var(--app-nav-bg);
-    --app-hover-fill: var(--app-hover-on-surface-soft);
     border: 1px solid var(--app-border);
     box-shadow: var(--app-shadow-soft);
     /* A resting zero blur so the frosted collapsed state can ease its blur in and out rather than
@@ -2340,6 +2341,18 @@
 
   .app-icon-button:active {
     transform: translateY(1px);
+  }
+
+  /* The sidebar's own buttons, the log out button and the collapse toggle, take the look a menu item beside
+     them takes under the pointer: accent text, the soft accent fill and the accent border. Keyboard focus
+     shows that look with no ring. They sit after the icon button rules to outrank them */
+  .app-nav-user-logout:hover,
+  .app-nav-user-logout:focus-visible,
+  .app-desktop-nav-toggle:hover,
+  .app-desktop-nav-toggle:focus-visible {
+    color: var(--app-accent-nav-text);
+    background: var(--app-accent-soft);
+    border-color: var(--app-accent-border);
   }
 
   /* The Imports page's upload card, which takes its own hover colour under the pointer, and sits down a pixel when

@@ -417,7 +417,6 @@ describe('hover on shaded surfaces', () => {
 
   const SHADED = [
     { surface: 'card', token: hoverFillOf('.app-card'), backdrop: (tokens: Tokens) => solid(tokens, '--app-surface-soft') },
-    { surface: 'sidebar', token: hoverFillOf('.app-desktop-nav'), backdrop: (tokens: Tokens) => solid(tokens, '--app-nav-bg') },
     {
       surface: 'import panel',
       token: /^var\((--[\w-]+)\)$/.exec(String((IMPORT_INSET_STYLE as Record<string, unknown>)['--app-hover-fill']))![1],

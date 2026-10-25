@@ -219,11 +219,40 @@ for (const colorScheme of ['light', 'dark'] as const) {
     expect(await hoverStep(page, row)).toBeGreaterThanOrEqual(MINIMUM_HOVER_STEP)
   })
 
-  test(`shows a hover on the sidebar's log out button and a settings card row in the ${colorScheme} theme`, async ({ page, request }) => {
+  test(`shows the menu item hover on the sidebar's log out button and collapse toggle in the ${colorScheme} theme`, async ({ page, request }) => {
     await openAs(page, request, colorScheme, '/settings')
 
-    const logOut = page.getByRole('navigation', { name: 'Primary', exact: true }).getByRole('button', { name: 'Log out', exact: true })
-    expect(await hoverStep(page, logOut)).toBeGreaterThanOrEqual(MINIMUM_HOVER_STEP)
+    const sidebar = page.getByRole('navigation', { name: 'Primary', exact: true })
+    const buttons = {
+      'a menu item': sidebar.getByRole('link', { name: 'Insights', exact: true }),
+      'the log out button': sidebar.getByRole('button', { name: 'Log out', exact: true }),
+      'the collapse toggle': page.getByRole('button', { name: 'Collapse sidebar', exact: true }),
+    }
+    // The accent text, soft fill and border a menu item shows under the pointer, resolved by the browser
+    const menuItemLook = await page.evaluate(() => {
+      const probe = document.createElement('i')
+      probe.style.cssText = 'color: var(--app-accent-nav-text); background-color: var(--app-accent-soft); border: 1px solid var(--app-accent-border)'
+      document.body.append(probe)
+      const style = getComputedStyle(probe)
+      const resolved = [style.color, style.backgroundColor, style.borderTopColor]
+      probe.remove()
+      return resolved
+    })
+    for (const [name, element] of Object.entries(buttons)) {
+      await page.mouse.move(0, 0)
+      await element.hover()
+      await expect.poll(
+        () => element.evaluate((node) => {
+          const style = getComputedStyle(node)
+          return [style.color, style.backgroundColor, style.borderTopColor]
+        }),
+        { message: name },
+      ).toEqual(menuItemLook)
+    }
+  })
+
+  test(`shows a hover on a settings card row in the ${colorScheme} theme`, async ({ page, request }) => {
+    await openAs(page, request, colorScheme, '/settings')
 
     const expenseGroup = page.getByRole('button', { name: /^Expense/ }).first()
     expect(await hoverStep(page, expenseGroup)).toBeGreaterThanOrEqual(MINIMUM_HOVER_STEP)
