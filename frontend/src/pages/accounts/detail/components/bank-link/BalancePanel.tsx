@@ -74,7 +74,7 @@ type BalancePanelProps = {
  * the caption with no box or heading of its own
  */
 export function BalancePanel({ balance, currency, providerName, footer }: BalancePanelProps) {
-  const { formatCurrency, formatMovedAmount } = useMoneyFormatters()
+  const { formatCurrency, formatMovedCurrency } = useMoneyFormatters()
   const { user } = useAuth()
   const { amount, difference } = balance
   const asOf = formatDate(new Date(balance.balance_date), DATE_FORMATS.monthDayTime, user?.tz)
@@ -98,7 +98,7 @@ export function BalancePanel({ balance, currency, providerName, footer }: Balanc
         <BalanceFact label="Ledger" value={formatCurrency(balance.ledger_balance, currency)} color="var(--app-text)" />
         {difference !== null && (difference === 0
           ? <BalanceFact label="Difference" value="None" color="var(--app-positive)" />
-          : <BalanceFact label="Difference" value={formatMovedAmount(difference, currency)} color="var(--app-warning-text)" hint={GAP_HINT} />)}
+          : <BalanceFact label="Difference" value={formatMovedCurrency(difference, currency)} color="var(--app-warning-text)" hint={GAP_HINT} />)}
       </dl>
       <p className="mt-3 text-xs" style={{ color: 'var(--app-text-muted)' }}>
         As of {asOf}

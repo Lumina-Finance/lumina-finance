@@ -49,7 +49,7 @@ export function BankPendingStrip({
   onToggleOpen,
   prefersReducedMotion,
 }: BankPendingStripProps) {
-  const { formatMovedAmount } = useMoneyFormatters()
+  const { formatMovedCurrency } = useMoneyFormatters()
   const listId = useId()
   useRelativeTimeRefresh(() => transactions.map((transaction) => formatRelativeTime(transaction.observed_at)).join('\n'))
   const { collapsed, enterTransition, leave } = REVIEW_MOTION[prefersReducedMotion ? 'reduced' : 'full']
@@ -123,7 +123,7 @@ export function BankPendingStrip({
                       const account = accountFor(transaction.account_id)
                       const amount = transaction.amount === null
                         ? formatRawAmount(transaction.raw_amount ?? '', account.currency).text
-                        : formatMovedAmount(transaction.amount, account.currency)
+                        : formatMovedCurrency(transaction.amount, account.currency)
                       const details = [
                         formatReviewDate(transaction.date, today),
                         showAccountNames && account.name,

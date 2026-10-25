@@ -44,7 +44,8 @@ from tests.conftest import ScopedSession, TestSession
 from tests.fake_simplefin_bridge import FakeBridgeTransport
 from tests.routes.support.account_helpers import _create_account
 from tests.routes.support.auth_helpers import SIGNUP_PAYLOAD, _create_user, _get_auth_header
-from tests.routes.support.transaction_helpers import _create_transaction, _get_system_category_id, _import_transactions
+from tests.routes.support.transaction_helpers import _create_transaction, _get_system_category_id
+from tests.routes.transactions._import_helpers import _import_run
 
 BANK_ACCOUNT_ID = "ACT-1"
 LINK_START = date(2026, 9, 1)
@@ -612,7 +613,7 @@ async def _changed_at(client, headers) -> str | None:
 
 async def _import_a_file(client, headers) -> None:
     """Import a file holding a $4.50 coffee into a new Wallet account, which the user can then undo for a while"""
-    imported = await _import_transactions(
+    imported = await _import_run(
         client,
         headers,
         {

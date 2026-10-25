@@ -24,7 +24,7 @@ from tests.routes.support.bank_sync_helpers import (
     _new_account,
     _sign_up,
 )
-from tests.routes.support.transaction_helpers import _import_transactions
+from tests.routes.transactions._import_helpers import _import_run
 
 
 async def _list(client, headers, connection_id, account_id):
@@ -147,7 +147,7 @@ async def test_listing_that_asks_for_a_fresh_discovery_leaves_the_last_import_un
     headers, user_id = await _sign_up(client)
     everyday_id = await _new_account(client, headers, "Everyday")
     connection = await _commit_listed_connection(user_id, discovered_at=datetime.now(UTC) - timedelta(hours=3))
-    imported = await _import_transactions(
+    imported = await _import_run(
         client,
         headers,
         {

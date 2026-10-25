@@ -8,7 +8,6 @@ import ShortcutHint from '@/components/transactions/transaction-modal/controls/S
 import ShortcutHints from '@/components/transactions/transaction-modal/controls/ShortcutHints'
 import { ARIA_SUBMIT_SHORTCUT } from '@/components/transactions/transaction-modal/utils/shortcuts'
 import type { ModalLevel } from '@/components/modal/Shell'
-import { useDisabledReason } from '@/hooks/useDisabledReason'
 import TransactionKeepOpenOption from '@/components/transactions/transaction-modal/controls/KeepOpenOption'
 import { useConfirmingClick } from '@/hooks/useConfirmingClick'
 
@@ -106,15 +105,14 @@ export default function TransactionModalFooter({
       style={{ borderTop: '1px solid var(--app-border)' }}
     >
       {editing && !readOnly ? (
-        <button
+        <DisabledReasonButton
           ref={deleteButtonRef}
           data-testid="transaction-delete"
           aria-label={confirmingDelete ? 'Yes, delete' : 'Delete'}
           aria-busy={deleteButtonLoading}
-          type="button"
           onClick={handleDeleteClick}
           disabled={isPending}
-          {...deleteReasonProps}
+          disabledReason={deleteDisabledReason}
           className={`app-danger-button overflow-hidden whitespace-nowrap ${
             deleteButtonLoading ? 'app-primary-button-loading shrink-0' : 'w-full sm:w-auto'
           }`}
@@ -160,7 +158,7 @@ export default function TransactionModalFooter({
               </span>
             </span>
           </PendingLabel>
-        </button>
+        </DisabledReasonButton>
       ) : !editing && !hideKeepOpen ? (
         <TransactionKeepOpenOption
           id={ids.keepOpen}
@@ -172,8 +170,6 @@ export default function TransactionModalFooter({
         />
       ) : null}
 
-      {/* Takes no room in the row: Delete's description is hidden and its tooltip sits on the page body */}
-      {deleteReasonTooltip}
       <div className="relative grid grid-cols-2 gap-3 sm:ml-auto sm:flex sm:items-center">
         <button
           type="button"

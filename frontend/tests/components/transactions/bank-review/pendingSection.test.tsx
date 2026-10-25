@@ -14,14 +14,14 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { ApiError } from '@/api/auth/errors'
 import { accountKeys, bankSyncKeys } from '@/api/cache/queryKeys'
-import { formatCurrency, formatMovedAmount } from '@/utils/formatCurrency'
+import { formatCurrency, formatMovedCurrency } from '@/utils/formatCurrency'
 import { createAccount, createPendingTransaction, TEST_CURRENCIES } from './fixtures'
 
 vi.mock('@/hooks/useMoneyFormatters', () => ({
   useMoneyFormatters: () => ({
     currencies: TEST_CURRENCIES,
     formatCurrency: (amount: number, currency: string) => formatCurrency(amount, currency, TEST_CURRENCIES),
-    formatMovedAmount: (amount: number, currency: string) => formatMovedAmount(amount, currency, TEST_CURRENCIES),
+    formatMovedCurrency: (amount: number, currency: string) => formatMovedCurrency(amount, currency, TEST_CURRENCIES),
   }),
 }))
 vi.mock('@/hooks/useAuth', () => ({

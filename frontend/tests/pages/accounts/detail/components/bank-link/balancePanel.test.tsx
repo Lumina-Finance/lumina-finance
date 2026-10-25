@@ -14,14 +14,14 @@ import { renderToStaticMarkup } from 'react-dom/server'
 import { describe, expect, it, vi } from 'vitest'
 import type { BankBalance } from '@/api/bank-sync'
 import type { Currency } from '@/api/currency'
-import { formatCurrency, formatMovedAmount } from '@/utils/formatCurrency'
+import { formatCurrency, formatMovedCurrency } from '@/utils/formatCurrency'
 
 const CURRENCIES: Currency[] = [{ id: 'CAD', name: 'Canadian Dollar', symbol: '$', minor_unit_exponent: 2 }]
 
 vi.mock('@/hooks/useMoneyFormatters', () => ({
   useMoneyFormatters: () => ({
     formatCurrency: (amount: number, currency: string) => formatCurrency(amount, currency, CURRENCIES),
-    formatMovedAmount: (amount: number, currency: string) => formatMovedAmount(amount, currency, CURRENCIES),
+    formatMovedCurrency: (amount: number, currency: string) => formatMovedCurrency(amount, currency, CURRENCIES),
   }),
 }))
 vi.mock('@/hooks/useAuth', () => ({

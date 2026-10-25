@@ -12,14 +12,14 @@ import { createElement } from 'react'
 import { renderToStaticMarkup } from 'react-dom/server'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { PendingBankTransaction } from '@/api/bank-sync/types'
-import { formatCurrency, formatMovedAmount } from '@/utils/formatCurrency'
+import { formatCurrency, formatMovedCurrency } from '@/utils/formatCurrency'
 import { createPendingTransaction, MINUS, TEST_CURRENCIES } from './fixtures'
 
 vi.mock('@/hooks/useMoneyFormatters', () => ({
   useMoneyFormatters: () => ({
     currencies: TEST_CURRENCIES,
     formatCurrency: (amount: number, currency: string) => formatCurrency(amount, currency, TEST_CURRENCIES),
-    formatMovedAmount: (amount: number, currency: string) => formatMovedAmount(amount, currency, TEST_CURRENCIES),
+    formatMovedCurrency: (amount: number, currency: string) => formatMovedCurrency(amount, currency, TEST_CURRENCIES),
   }),
 }))
 

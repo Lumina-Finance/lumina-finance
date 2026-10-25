@@ -4,7 +4,6 @@ import { ApiError } from '@/api/auth'
 import { useSyncBankAccount, type BankConnection, type BankLink, type BankProvidersResponse } from '@/api/bank-sync'
 import ActionFeedbackButton from '@/components/feedback/ActionButton'
 import { useActionFeedback } from '@/hooks/useActionFeedback'
-import { useDisabledReason } from '@/hooks/useDisabledReason'
 import { useFittedButtonWidth } from '@/hooks/useFittedButtonWidth'
 import { useRelativeTimeRefresh } from '@/hooks/useRelativeTimeRefresh'
 import { useToast } from '@/hooks/useToast'
@@ -58,7 +57,6 @@ export function SyncNowButton({ link, connection, providers, focusProps }: SyncN
 
   const { status, block } = describeSyncNow(feedback.status, link, connection, providers)
   const busy = status !== 'idle'
-  const { controlProps, tooltip } = useDisabledReason(block)
   const { 'data-modal-initial-focus': initialFocus, ...actionProps } = focusProps
 
   const syncNow = () => {
@@ -68,24 +66,21 @@ export function SyncNowButton({ link, connection, providers, focusProps }: SyncN
   }
 
   return (
-    <>
-      <ActionFeedbackButton
-        ref={buttonRef}
-        type="button"
-        status={status}
-        loadingLabel="Starting sync"
-        successLabel="Sync started"
-        className="app-secondary-button relative h-9 w-full justify-center whitespace-nowrap px-3.5 text-sm sm:w-(--fit-width)"
-        style={style}
-        measure={measure}
-        {...actionProps}
-        data-modal-initial-focus={block === null ? initialFocus : undefined}
-        {...controlProps}
-        onClick={busy ? undefined : syncNow}
-      >
-        <span className="inline-flex items-center gap-2">{renderLabel(SYNC_NOW_LABEL)}</span>
-      </ActionFeedbackButton>
-      {tooltip}
-    </>
+    <ActionFeedbackButton
+      ref={buttonRef}
+      type="button"
+      status={status}
+      loadingLabel="Starting sync"
+      successLabel="Sync started"
+      className="app-secondary-button relative h-9 w-full justify-center whitespace-nowrap px-3.5 text-sm sm:w-(--fit-width)"
+      style={style}
+      measure={measure}
+      {...actionProps}
+      data-modal-initial-focus={block === null ? initialFocus : undefined}
+      disabledReason={block}
+      onClick={busy ? undefined : syncNow}
+    >
+      <span className="inline-flex items-center gap-2">{renderLabel(SYNC_NOW_LABEL)}</span>
+    </ActionFeedbackButton>
   )
 }

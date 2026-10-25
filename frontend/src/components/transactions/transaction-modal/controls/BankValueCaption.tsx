@@ -1,7 +1,7 @@
 import { useRef } from 'react'
 import { AnimatePresence, motion, useReducedMotion } from 'motion/react'
 import { LoaderCircle } from 'lucide-react'
-import { useDisabledReason } from '@/hooks/useDisabledReason'
+import { DisabledReasonButton } from '@/components/tooltips/DisabledReasonButton'
 import { DETAILS_LINE_TRANSITION } from '@/components/transactions/transaction-modal/constants'
 import { revealIfHidden } from '@/components/transactions/transaction-modal/utils/reveal'
 
@@ -56,11 +56,7 @@ export default function TransactionBankValueCaption({
   onRestore,
 }: BankValueCaptionProps) {
   const prefersReducedMotion = useReducedMotion()
-  const { controlProps, tooltip } = useDisabledReason(unavailableReason)
   const failureRef = useRef<HTMLParagraphElement>(null)
-
-  // The action is described by the bank's value it restores, then by why it can't, where it can't
-  const describedBy = [id, controlProps['aria-describedby']].filter(Boolean).join(' ')
 
   return (
     <AnimatePresence initial={false}>
@@ -91,16 +87,16 @@ export default function TransactionBankValueCaption({
               </span>
               <span className="inline-flex items-center">
                 <span aria-hidden className="w-4 shrink-0 text-center">&middot;</span>
-                <button
+                <DisabledReasonButton
                   id={actionId}
-                  type="button"
                   onClick={onRestore}
                   // An unavailable action stays focusable, refused through aria-disabled instead, so the
-                  // keyboard can reach its reason
-                  disabled={!unavailableReason && (disabled || restoring)}
+                  // keyboard can reach its reason. It is described by the bank's value it restores, then
+                  // by why it can't, where it can't
+                  disabled={disabled || restoring}
+                  disabledReason={unavailableReason}
                   aria-busy={restoring}
-                  {...controlProps}
-                  aria-describedby={describedBy}
+                  aria-describedby={id}
                   // Restoring keeps its full colour, since it says what is happening rather than that
                   // the action is unavailable. Focus scrolls the action in with room above and below it
                   // for its ring, which the edge of the modal's body would otherwise cut off. The ring
@@ -114,8 +110,7 @@ export default function TransactionBankValueCaption({
                   <span className={unavailableReason ? 'underline underline-offset-2 opacity-60' : 'underline underline-offset-2'}>
                     {restoring ? 'Restoring' : 'Restore bank value'}
                   </span>
-                </button>
-                {tooltip}
+                </DisabledReasonButton>
               </span>
             </p>
             <AnimatePresence initial={false}>

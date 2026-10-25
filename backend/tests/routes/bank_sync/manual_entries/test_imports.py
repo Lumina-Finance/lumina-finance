@@ -19,7 +19,7 @@ from tests.routes.support.manual_entry_helpers import (
     _ledger,
     _unlink,
 )
-from tests.routes.support.transaction_helpers import _import_journal, _import_transactions
+from tests.routes.transactions._import_helpers import _import_run
 
 
 def _csv_import(ledger: _Ledger, *days: date) -> dict:
@@ -85,7 +85,7 @@ async def test_a_file_import_with_a_row_inside_the_range_is_refused_whole(client
     ledger = await _ledger(client)
     await _commit_link(ledger, ledger.everyday_id)
 
-    imported = await _import_transactions(client, ledger.headers, _csv_import(ledger, date(2026, 5, 31), day))
+    imported = await _import_run(client, ledger.headers, _csv_import(ledger, date(2026, 5, 31), day))
 
     assert imported.status_code == 422, imported.text
     assert imported.json()["detail"] == SUPPLIED_IN_EVERYDAY
@@ -97,7 +97,7 @@ async def test_a_file_import_outside_the_range_saves(client):
     ledger = await _ledger(client)
     await _commit_link(ledger, ledger.everyday_id)
 
-    imported = await _import_transactions(client, ledger.headers, _csv_import(ledger, *OUTSIDE))
+    imported = await _import_run(client, ledger.headers, _csv_import(ledger, *OUTSIDE))
 
     assert imported.status_code == 201, imported.text
     assert await _dates_in(ledger.everyday_id) == OUTSIDE
@@ -109,8 +109,8 @@ async def test_a_journal_import_with_a_row_inside_the_range_is_refused_whole(cli
     ledger = await _ledger(client)
     await _commit_link(ledger, ledger.everyday_id)
 
-    imported = await _import_journal(
-        client, ledger.headers, _journal_import(ledger, _journal_row("1", date(2026, 5, 31)), _journal_row("2", day))
+    imported = await _import_run(
+        client, ledger.headers, _journal_import(ledger, _journal_row("1", date(2026, 5, 31)), _journal_row("2", day)), source="firefly"
     )
 
     assert imported.status_code == 422, imported.text
@@ -123,7 +123,7 @@ async def test_a_journal_transfer_into_the_linked_account_inside_the_range_is_re
     ledger = await _ledger(client)
     await _commit_link(ledger, ledger.everyday_id)
 
-    imported = await _import_journal(client, ledger.headers, _journal_import(ledger, _journal_transfer("1", date(2026, 7, 12))))
+    imported = await _import_run(client, ledger.headers, _journal_import(ledger, _journal_transfer("1", date(2026, 7, 12))), source="firefly")
 
     assert imported.status_code == 422, imported.text
     assert imported.json()["detail"] == SUPPLIED_IN_EVERYDAY
@@ -137,7 +137,7 @@ async def test_a_journal_import_names_the_linked_account_whose_row_lands_inside_
     await _commit_link(ledger, ledger.savings_id, external_account_id="ACT-2")
     rows = [_journal_row("1", date(2026, 5, 31)), _journal_row("2", date(2026, 7, 12), source_account="Savings")]
 
-    imported = await _import_journal(client, ledger.headers, _journal_import(ledger, *rows))
+    imported = await _import_run(client, ledger.headers, _journal_import(ledger, *rows), source="firefly")
 
     assert imported.status_code == 422, imported.text
     assert imported.json()["detail"] == "SimpleFIN supplies the transactions in Savings from Jun 1, 2026 to today"
@@ -149,7 +149,9 @@ async def test_a_journal_import_outside_the_range_saves(client):
     await _commit_link(ledger, ledger.everyday_id)
     rows = [_journal_row(str(index), day) for index, day in enumerate(OUTSIDE, start=1)]
 
-    imported = await _import_journal(client, ledger.headers, _journal_import(ledger, *rows, _journal_transfer("9", date(2026, 5, 31))))
+    imported = await _import_run(
+        client, ledger.headers, _journal_import(ledger, *rows, _journal_transfer("9", date(2026, 5, 31))), source="firefly"
+    )
 
     assert imported.status_code == 201, imported.text
     assert await _dates_in(ledger.everyday_id) == [date(2026, 5, 31), *OUTSIDE]
@@ -161,8 +163,8 @@ async def test_imports_inside_the_range_save_after_unlinking(client):
     await _commit_link(ledger, ledger.everyday_id)
     await _unlink(client, ledger, ledger.everyday_id)
 
-    file_import = await _import_transactions(client, ledger.headers, _csv_import(ledger, date(2026, 7, 14)))
-    journal = await _import_journal(client, ledger.headers, _journal_import(ledger, _journal_row("1", date(2026, 7, 15))))
+    file_import = await _import_run(client, ledger.headers, _csv_import(ledger, date(2026, 7, 14)))
+    journal = await _import_run(client, ledger.headers, _journal_import(ledger, _journal_row("1", date(2026, 7, 15))), source="firefly")
 
     assert file_import.status_code == 201, file_import.text
     assert journal.status_code == 201, journal.text

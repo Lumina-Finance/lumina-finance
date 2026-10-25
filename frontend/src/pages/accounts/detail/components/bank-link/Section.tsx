@@ -23,7 +23,7 @@ import LoadingRegion from '@/components/loading/Region'
 import { revealInScrollArea } from '@/components/modal/scrollArea'
 import { StepTransition } from '@/components/two-factor/StepTransition'
 import { useAuth } from '@/hooks/useAuth'
-import { getDisabledControlProps, useDisabledReason } from '@/hooks/useDisabledReason'
+import { DisabledReasonButton } from '@/components/tooltips/DisabledReasonButton'
 import { BalancePanel } from '@/pages/accounts/detail/components/bank-link/BalancePanel'
 import { ImportProgress } from '@/pages/accounts/detail/components/bank-link/ImportProgress'
 import { OpeningAdjustmentOffer } from '@/pages/accounts/detail/components/bank-link/OpeningAdjustmentOffer'
@@ -289,8 +289,7 @@ export function BankLinkSection({ account, sectionNumber, autoFocus = false }: B
   const linkingPaused = providers !== undefined && !providers.sync_running
   // Archiving lasts, so its reason sits beside the button. A pause passes, so it waits in a tooltip
   const archivedReasonId = useId()
-  const { controlProps: pausedProps, tooltip } = useDisabledReason(!account.is_archived && linkingPaused ? LINKING_PAUSED_REASON : null)
-  const controlProps = account.is_archived ? getDisabledControlProps(archivedReasonId) : pausedProps
+  const linkBlockReason = account.is_archived ? ARCHIVED_REASON : linkingPaused ? LINKING_PAUSED_REASON : undefined
 
   const openLinkFlow = () => {
     setLinkFlowKey((key) => key + 1)
@@ -367,14 +366,20 @@ export function BankLinkSection({ account, sectionNumber, autoFocus = false }: B
                         ? `Previously linked to ${previous.external_account_name} at ${previous.institution_name} through ${previous.provider_name}, until ${formatDate(new Date(previous.unlinked_at), DATE_FORMATS.monthDayYear, user?.tz)}. Reconnecting fetches what the bank reported since then.`
                         : 'Link this account to one of the bank accounts on your connections to bring in its transactions automatically. Everything the bank sends waits for your review before it touches a balance.'}
                     </p>
-                    <button type="button" className="app-primary-button" {...ACTION_PROPS} {...initialFocus} {...controlProps} onClick={openLinkFlow}>
+                    <DisabledReasonButton
+                      className="app-primary-button"
+                      {...ACTION_PROPS}
+                      {...initialFocus}
+                      disabledReason={linkBlockReason}
+                      reasonShownById={account.is_archived ? archivedReasonId : undefined}
+                      onClick={openLinkFlow}
+                    >
                       <Link2 size={16} aria-hidden />
                       {previous ? 'Reconnect bank account' : 'Link bank account'}
-                    </button>
+                    </DisabledReasonButton>
                     {account.is_archived && (
                       <p id={archivedReasonId} className="text-sm" style={{ color: 'var(--app-text-muted)' }}>{ARCHIVED_REASON}</p>
                     )}
-                    {tooltip}
                   </div>
                 )}
                 {viewKey === 'linked' && link && (
