@@ -62,7 +62,7 @@ for (const { profileZone, browserZone, dates } of DATE_CASES) {
       await expect(info).toHaveCount(0)
       await expect(page.getByText('The date is not a real date in the format chosen above.', { exact: true }).first()).toBeVisible()
       await dateFormat.click()
-      await page.getByRole('option', { name: /^ISO date\/time \(2026-04-30T12:00:00Z\)/ }).click()
+      await page.getByRole('option', { name: /^ISO date\/time/ }).click()
       await expect(commit).toBeEnabled()
 
       // ImportStep renders its title in a paragraph directly inside the enclosing section
@@ -110,7 +110,7 @@ for (const { profileZone, browserZone, dates } of DATE_CASES) {
       await page.getByRole('combobox', { name: 'Match to app field Date', exact: true }).click()
       await page.getByRole('option', { name: 'Date Transaction date.', exact: true }).click()
       await dateFormat.click()
-      await page.getByRole('option', { name: /^ISO date\/time \(2026-04-30T12:00:00Z\)/ }).click()
+      await page.getByRole('option', { name: /^ISO date\/time/ }).click()
       await expect(commit).toBeDisabled()
       await expect(info).toHaveCount(0)
       const dateRow = page.getByRole('row').filter({ has: dateFormat })
