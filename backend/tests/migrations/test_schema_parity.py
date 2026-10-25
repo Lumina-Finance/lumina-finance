@@ -55,6 +55,10 @@ _ALEMBIC_ACCOUNT_DATE_INDEX_DB_NAME = f"{WORKER_DB_NAME}_alembic_account_date_in
 _BEFORE_ACCOUNT_DATE_INDEX_REVISION = "51c17506619a"
 _ACCOUNT_DATE_INDEX_REVISION = "0b8d6e2c9a41"
 _ACCOUNT_DATE_INDEX_NAME = "ix_transactions_account_id_dt"
+_ALEMBIC_DATE_FORMAT_DB_NAME = f"{WORKER_DB_NAME}_alembic_date_format"
+_BEFORE_DATE_FORMAT_REVISION = "b3e7a15c9d42"
+_DATE_FORMAT_REVISION = "c5d2a8f1b7e3"
+_DATE_FORMAT_OWNER_ID = "99999999-9999-4999-8999-999999999999"
 _ALEMBIC_OFX_SOURCE_DB_NAME = f"{WORKER_DB_NAME}_alembic_ofx_source"
 _BEFORE_OFX_SOURCE_REVISION = "c4e8a2f6b913"
 _OFX_SOURCE_REVISION = "b8d4f1a6c203"
@@ -225,6 +229,50 @@ async def test_ofx_import_source_migration_keeps_other_runs_and_drops_ofx_runs_o
                 async with engine.begin() as conn:
                     with pytest.raises(IntegrityError):
                         await _insert_import_run(conn, _OFX_RUN_ID, "ofx")
+    finally:
+        await engine.dispose()
+        await _drop_database(database_name)
+
+
+async def test_date_format_migration_keeps_existing_users_on_month_day_year_and_refuses_other_values() -> None:
+    """Verify upgrade, downgrade and reupgrade of the date format start a user from before it on month-day-year"""
+    database_name = _ALEMBIC_DATE_FORMAT_DB_NAME
+    await _recreate_database(database_name)
+    engine = _create_engine_for_database(database_name)
+    try:
+        _run_alembic_upgrade(database_name, revision=_BEFORE_DATE_FORMAT_REVISION)
+        async with engine.begin() as conn:
+            await conn.execute(
+                text(
+                    "INSERT INTO currencies (id, name, symbol, minor_unit_exponent)"
+                    " VALUES ('CAD', 'Canadian Dollar', '$', 2) ON CONFLICT (id) DO NOTHING",
+                )
+            )
+            await conn.execute(
+                text(
+                    "INSERT INTO users (id, email, first_name, tz, base_currency)"
+                    " VALUES (:id, 'date-format-migration@example.com', 'Date', 'UTC', 'CAD')",
+                ),
+                {"id": UUID(_DATE_FORMAT_OWNER_ID)},
+            )
+
+        for reupgrade in (False, True):
+            _run_alembic_upgrade(database_name, revision=_DATE_FORMAT_REVISION)
+            async with engine.connect() as conn:
+                saved = await conn.scalar(text("SELECT date_format FROM users"))
+            assert saved == "month-day-year"
+
+            async with engine.begin() as conn:
+                with pytest.raises(IntegrityError):
+                    await conn.execute(text("UPDATE users SET date_format = 'match-language'"))
+            if not reupgrade:
+                async with engine.begin() as conn:
+                    await conn.execute(text("UPDATE users SET date_format = 'iso'"))
+                _run_alembic_downgrade(database_name, _BEFORE_DATE_FORMAT_REVISION)
+
+                async with engine.connect() as conn:
+                    columns = await conn.scalars(text("SELECT column_name FROM information_schema.columns WHERE table_name = 'users'"))
+                    assert "date_format" not in columns.all()
     finally:
         await engine.dispose()
         await _drop_database(database_name)
