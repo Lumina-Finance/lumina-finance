@@ -47,7 +47,7 @@ async def record_account_starting_balance(
         db: Active database session
         account: The account receiving the starting balance, one the user owns or administers
         user: User recording the starting balance
-        amount: Starting balance in minor units, above zero
+        amount: Starting balance in minor units, not zero
         adjustment_date: The account owner's today, which dates the adjustment
 
     Raises:

@@ -44,17 +44,18 @@ async def record_starting_balance_for_user(
     account = await get_account_meeting(
         db, account_id, user.id, own_or_administered_account_condition(user.id), refused_detail=_NOT_OWN_ACCOUNT_DETAIL
     )
-    await record_account_starting_balance(
-        db,
-        account,
-        user=user,
-        amount=data.amount,
-        adjustment_date=await _account_owners_today(db, account, now),
-    )
+    if data.amount:
+        await record_account_starting_balance(
+            db,
+            account,
+            user=user,
+            amount=data.amount,
+            adjustment_date=await _account_owners_today(db, account, now),
+        )
 
-    # Mark the account scope stale before returning the account with derived fields
-    await mark_cache_changed_for_scope(db, user_id=account.owner_id, group_id=account.group_id)
-    await db.commit()
+        # Mark the account scope stale before returning the account with derived fields
+        await mark_cache_changed_for_scope(db, user_id=account.owner_id, group_id=account.group_id)
+        await db.commit()
 
     return await get_account_for_response(db, user, account_id, now.date())
 
