@@ -1,5 +1,6 @@
 """Password reset request and token service"""
 
+import asyncio
 import hashlib
 import logging
 import secrets
@@ -181,8 +182,8 @@ async def send_password_reset_email(pending: PendingResetEmail, session_factory:
     """Email a stored reset link once it has its turn, dropping its token when the send fails
 
     Runs after the response, so the request's own session has closed and the drop opens one
-    from the factory. A link that expired while the send waited its turn is dropped unsent, and
-    that is not a failure of the mail server
+    from the factory. A link that expired while the send waited its turn, and the link of a send
+    cancelled before it finished, are dropped too, and neither is a failure of the mail server
 
     Args:
         pending: The email request_password_reset returned
@@ -202,6 +203,10 @@ async def send_password_reset_email(pending: PendingResetEmail, session_factory:
         # suppress every retry until the token expires
         await _drop_reset_token(pending, session_factory)
         logger.warning("Password reset email failed to send", exc_info=True)
+    except asyncio.CancelledError:
+        # A cancelled send counts as unsent, so its link must not stay live and block a new request
+        await _drop_reset_token(pending, session_factory)
+        raise
     else:
         if is_expired:
             await _drop_reset_token(pending, session_factory)

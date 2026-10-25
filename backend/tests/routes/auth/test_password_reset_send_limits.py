@@ -236,6 +236,42 @@ async def test_a_full_queue_starts_no_send_and_stores_no_token(client, monkeypat
     assert started == emails
 
 
+async def test_a_cancelled_queued_send_leaves_no_live_link_and_no_wait(client, monkeypatch):
+    """A send cancelled while it waits its turn drops its token, so the same account can ask again at once"""
+    monkeypatch.setattr(reset_send_limit, "MAX_CONCURRENT_RESET_SENDS", 1)
+    emails, user_ids = await _create_users(client, 2)
+    started = []
+    release = asyncio.Event()
+
+    async def held_send(email, _message):
+        started.append(email)
+        await release.wait()
+
+    _use_mailer(monkeypatch, held_send)
+    running = asyncio.create_task(client.post(_FORGOT, json={"email": emails[0]}))
+    queued = None
+    try:
+        async with asyncio.timeout(5):
+            while not started:
+                await asyncio.sleep(0.01)
+            queued = asyncio.create_task(client.post(_FORGOT, json={"email": emails[1]}))
+            while await _token_count(user_ids[1]) == 0:
+                await asyncio.sleep(0.01)
+
+            # The queued send has had time to start waiting for its turn by now
+            await asyncio.sleep(0.2)
+            queued.cancel()
+            await asyncio.gather(queued, return_exceptions=True)
+            assert queued.cancelled()
+            assert await _token_count(user_ids[1]) == 0
+    finally:
+        release.set()
+        await asyncio.gather(running, return_exceptions=True)
+
+    await client.post(_FORGOT, json={"email": emails[1]})
+    assert started == emails
+
+
 def test_an_admission_that_never_reports_back_gives_up_its_place(reset_clock):
     """A send dropped before it runs frees its place after the lease, and its late end frees nothing newer"""
     user_id = uuid.uuid4()
