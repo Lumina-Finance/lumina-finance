@@ -55,6 +55,7 @@ export function OtpInput({ value, onChange, length = OTP_LENGTH, disabled = fals
         return (
           <div
             key={index}
+            data-testid="otp-box"
             aria-hidden
             className="app-input flex h-12 w-12 items-center justify-center text-lg"
             style={{

@@ -84,8 +84,8 @@ for (const colorScheme of ['light', 'dark'] as const) {
     await reachTwoFactorChallenge(page, user)
     await expect(page.locator('html')).toHaveClass(colorScheme === 'dark' ? /\bdark\b/ : /^(?!.*\bdark\b)/)
     const field = page.getByLabel('One-time code')
-    // The six boxes are drawn after the field that captures the typing
-    const boxes = field.locator('xpath=following-sibling::div')
+    // The boxes are hidden from assistive technology, so they have no role to find them by
+    const boxes = page.getByTestId('otp-box')
     await expect(boxes).toHaveCount(6)
 
     // The mark is only on the box that takes the next digit, and fully the shared look
