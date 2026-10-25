@@ -20,7 +20,6 @@ _BASE_SETTINGS = {
     "APP_URL": "",
     "ALLOWED_ORIGINS": "",
     "EMAIL_BACKEND": "logging",
-    "API_DOCS_ENABLED": "",
 }
 
 _LAMBDA_SETTINGS = {"RUNTIME": "lambda", "APP_URL": "https://app.example.test", "EMAIL_BACKEND": "smtp"}
@@ -81,18 +80,12 @@ def test_lambda_without_app_url_refuses_to_start():
     assert "Missing required environment variable: APP_URL" in completed.stderr
 
 
-@pytest.mark.parametrize(
-    ("settings", "expected_statuses"),
-    [
-        (_LAMBDA_SETTINGS, [404, 404, 404]),
-        ({}, [404, 404, 404]),
-        ({"API_DOCS_ENABLED": "true"}, [200, 200, 200]),
-    ],
-    ids=["lambda-default", "server-default", "turned-on"],
-)
-def test_api_docs_are_off_unless_turned_on(settings, expected_statuses):
-    """The API docs are off by default in every runtime, and the setting turns them on"""
-    assert _output(_start_app(_DOCS_STATUS_SCRIPT, settings)) == expected_statuses
+@pytest.mark.parametrize("runtime_settings", [{}, _LAMBDA_SETTINGS], ids=["server", "lambda"])
+def test_api_docs_paths_answer_404_in_every_runtime(runtime_settings):
+    """The API docs paths are never served, even with the retired API_DOCS_ENABLED set to true"""
+    settings = {**runtime_settings, "API_DOCS_ENABLED": "true"}
+
+    assert _output(_start_app(_DOCS_STATUS_SCRIPT, settings)) == [404, 404, 404]
 
 
 def test_lambda_with_the_logging_email_backend_refuses_to_start():

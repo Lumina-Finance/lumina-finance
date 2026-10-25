@@ -9,7 +9,7 @@ from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.config.oidc import OIDC_PROVIDER_CONFIGS
-from app.config.runtime import ALLOWED_ORIGINS, API_DOCS_ENABLED, RUNTIME
+from app.config.runtime import ALLOWED_ORIGINS, RUNTIME
 from app.database import async_session, engine, verify_app_role_is_unprivileged
 from app.db.bank_transaction_key import verify_key_matches_hashes
 from app.db.encryption_key import verify_key_matches_data
@@ -85,10 +85,12 @@ async def _lifespan(_app: FastAPI):
                 await pruning
 
 
-# FastAPI mounts /docs and /redoc only beside the schema, so leaving the schema out turns off all three
+# The API publishes no map of its routes in any runtime, and no setting brings one back
 app = FastAPI(
     title="Lumina Finance API",
-    openapi_url="/openapi.json" if API_DOCS_ENABLED else None,
+    openapi_url=None,
+    docs_url=None,
+    redoc_url=None,
     lifespan=_lifespan,
 )
 
