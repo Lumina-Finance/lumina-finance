@@ -42,11 +42,9 @@ async def change_password(
 
     await verify_sensitive_action_step_up(db, user, data.current_password, code=data.code, passkey=data.passkey)
 
-    # A verified change clears any login lockout since the caller has proven the current password
+    # The step-up above already cleared the email's failed attempts, since it proved the current password
     credential.password_hash = await run_in_threadpool(hash_password, data.new_password)
     credential.password_algo = "argon2id"  # noqa: S105
-    credential.failed_attempt_count = 0
-    credential.locked_until = None
 
     # Sign the user out of every other device so a leaked password cannot keep one authenticated
     await delete_other_user_auth_sessions(db, user.id, current_session_id)

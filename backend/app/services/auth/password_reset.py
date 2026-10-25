@@ -18,6 +18,7 @@ from app.config.runtime import APP_URL
 from app.database import current_user_id_ctx
 from app.models.auth import PasswordCredential, PasswordResetToken
 from app.models.user import User
+from app.services.auth.account_lockout import reset_failed_attempts
 from app.services.auth.mfa_challenge import MFA_PURPOSE_PASSWORD_RESET, issue_mfa_challenge
 from app.services.auth.password_credential import create_first_password_credential
 from app.services.auth.password_helpers import hash_password
@@ -295,8 +296,8 @@ async def _apply_password_reset(db: AsyncSession, reset_token: PasswordResetToke
         credential.password_algo = "argon2id"  # noqa: S105
 
     # A verified reset clears any login lockout the user was trying to recover from
-    credential.failed_attempt_count = 0
-    credential.locked_until = None
+    email = await db.scalar(select(User.email).where(User.id == reset_token.user_id))
+    await reset_failed_attempts(db, email)
 
     # A reset means the old password may be compromised, so end every session
     await delete_all_user_auth_sessions(db, reset_token.user_id)

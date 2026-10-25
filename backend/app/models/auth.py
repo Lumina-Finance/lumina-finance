@@ -25,9 +25,7 @@ class AuthIdentity(Base):
     """Links a user to an authentication provider. Supports multiple providers per user."""
 
     __tablename__ = "auth_identities"
-    __table_args__ = (
-        UniqueConstraint("user_id", "auth_provider", name="uq_auth_identity_user_provider"),
-    )
+    __table_args__ = (UniqueConstraint("user_id", "auth_provider", name="uq_auth_identity_user_provider"),)
 
     id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
     user_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("users.id"), nullable=False)
@@ -45,8 +43,22 @@ class PasswordCredential(Base):
     password_hash: Mapped[str] = mapped_column(Text, nullable=False)
     password_algo: Mapped[str] = mapped_column(VARCHAR(32), nullable=False)  # e.g., "argon2id"
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, server_default=func.now(), onupdate=func.now())
-    failed_attempt_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)  # Reset to 0 on successful login
+
+
+class LoginLockout(Base):
+    """Counts failed sign-ins per email, whether or not an account has that email
+
+    The email is kept only as a keyed hash, so the records of addresses nobody registered hold no
+    personal data. A row exists from the first failure until a completed sign-in, a password change or
+    reset, or the scheduled cleanup removes it
+    """
+
+    __tablename__ = "login_lockouts"
+
+    email_hash: Mapped[str] = mapped_column(VARCHAR(64), primary_key=True)
+    failed_attempt_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     locked_until: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))  # Non-null = temporarily locked
+    last_failed_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)  # Lets cleanup drop idle rows
 
 
 class TotpCredential(Base):

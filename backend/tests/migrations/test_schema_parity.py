@@ -22,6 +22,7 @@ from app.db.credentials import resolve_role_password
 from app.db.key_fingerprint import read_fingerprint
 from app.models.base import Base
 from app.models.types import find_encrypted_columns
+from app.services.auth.login_email_hash import seal_login_email
 from app.services.merchants.defaults import (
     SELF_MERCHANT_NAME,
     SYSTEM_MERCHANT_NAMES,
@@ -635,6 +636,91 @@ async def test_auth_session_overhaul_clears_legacy_auth_state() -> None:
         assert not active_tokens_exists
     finally:
         await _drop_database(_ALEMBIC_AUTH_RESET_DB_NAME)
+
+
+_ALEMBIC_LOGIN_LOCKOUT_DB_NAME = f"{WORKER_DB_NAME}_alembic_login_lockout"
+_BEFORE_LOGIN_LOCKOUT_REVISION = "9d2f6b4e7a31"
+_LOGIN_LOCKOUT_REVISION = "4e8b2d6a9c15"
+_LOCKED_USER_ID = "12121212-1212-4121-8121-121212121212"
+_COUNTING_USER_ID = "34343434-3434-4343-8343-343434343434"
+_CLEAN_USER_ID = "56565656-5656-4565-8565-565656565656"
+
+
+async def test_login_lockout_migration_carries_counts_and_locks_both_ways() -> None:
+    """Verify upgrade, downgrade and reupgrade keep every count and lock, under the hash the login uses
+
+    A lock moved under any other name would no longer match the email at sign-in, so the account would
+    unlock, and a clean credential must not leave a row behind
+    """
+    database_name = _ALEMBIC_LOGIN_LOCKOUT_DB_NAME
+    await _recreate_database(database_name)
+    engine = _create_engine_for_database(database_name)
+    users = {
+        _LOCKED_USER_ID: ("locked@example.com", 5, True),
+        _COUNTING_USER_ID: ("counting@example.com", 2, False),
+        _CLEAN_USER_ID: ("clean@example.com", 0, False),
+    }
+    try:
+        _run_alembic_upgrade(database_name, revision=_BEFORE_LOGIN_LOCKOUT_REVISION)
+        async with engine.begin() as conn:
+            await conn.execute(text("INSERT INTO currencies (id, name, symbol, minor_unit_exponent) VALUES ('CAD', 'Canadian Dollar', '$', 2)"))
+            for user_id, (email, count, locked) in users.items():
+                await conn.execute(
+                    text(
+                        "INSERT INTO users (id, email, first_name, tz, base_currency)"
+                        " VALUES (:id, :email, 'Migration', 'America/Toronto', 'CAD')"
+                    ),
+                    {"id": user_id, "email": email},
+                )
+                await conn.execute(
+                    text(
+                        "INSERT INTO password_credentials"
+                        " (user_id, password_hash, password_algo, failed_attempt_count, locked_until)"
+                        " VALUES (:id, 'unused-hash', 'argon2id', :count,"
+                        " CASE WHEN :locked THEN now() + interval '20 minutes' END)"
+                    ),
+                    {"id": user_id, "count": count, "locked": locked},
+                )
+
+        expected = {
+            seal_login_email(users[_LOCKED_USER_ID][0]): (5, True),
+            seal_login_email(users[_COUNTING_USER_ID][0]): (2, False),
+        }
+        for reupgrade in (False, True):
+            _run_alembic_upgrade(database_name, revision=_LOGIN_LOCKOUT_REVISION)
+            async with engine.connect() as conn:
+                rows = (await conn.execute(text("SELECT email_hash, failed_attempt_count, locked_until IS NOT NULL FROM login_lockouts"))).all()
+                credential_columns = set(
+                    (
+                        await conn.execute(text("SELECT column_name FROM information_schema.columns WHERE table_name = 'password_credentials'"))
+                    ).scalars()
+                )
+            assert {row[0]: (row[1], row[2]) for row in rows} == expected, f"reupgrade={reupgrade}"
+            assert {"failed_attempt_count", "locked_until"}.isdisjoint(credential_columns)
+
+            # The login reads and writes the table as the app role, so the migration must grant it
+            app_engine = _create_app_role_engine(database_name)
+            try:
+                async with app_engine.begin() as conn:
+                    assert await conn.scalar(text("SELECT count(*) FROM login_lockouts")) == len(expected)
+            finally:
+                await app_engine.dispose()
+
+            if not reupgrade:
+                _run_alembic_downgrade(database_name, _BEFORE_LOGIN_LOCKOUT_REVISION)
+                async with engine.connect() as conn:
+                    restored = {
+                        str(user_id): (count, locked)
+                        for user_id, count, locked in (
+                            await conn.execute(text("SELECT user_id, failed_attempt_count, locked_until IS NOT NULL FROM password_credentials"))
+                        )
+                    }
+                    table_left = await conn.scalar(text("SELECT to_regclass('public.login_lockouts')"))
+                assert restored == {user_id: (count, locked) for user_id, (_, count, locked) in users.items()}
+                assert table_left is None
+    finally:
+        await engine.dispose()
+        await _drop_database(database_name)
 
 
 async def _recreate_database(database_name: str) -> None:

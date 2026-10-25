@@ -33,7 +33,7 @@ from app.routes.auth.cookie_helpers import (
 from app.schemas.auth import AuthResponse, UserInfo
 from app.services.auth.account_lockout import (
     get_password_credential,
-    is_account_locked,
+    is_email_locked,
     record_failed_attempt,
     reset_failed_attempts,
 )
@@ -337,9 +337,17 @@ async def _complete_mfa_challenge(
     # transactions below stamp onto their connection for the self-only users policy
     current_user_id_ctx.set(user_id)
 
+    # The self-only users policy reads the identity stamped when a transaction begins, and the request
+    # may already have one open from before the identity was known, so close it to load the user under
+    # the new one
+    await db.commit()
+    user = await db.get(User, user_id)
+    if user is None:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid or expired challenge")
+
     # The lockout counter is shared with the password step, so a factor grind trips the same lock
     credential = await get_password_credential(db, user_id)
-    if credential is not None and is_account_locked(credential):
+    if credential is not None and await is_email_locked(db, user.email):
         raise HTTPException(status_code=status.HTTP_423_LOCKED, detail="Account temporarily locked")
 
     # Consume and commit before checking the factor so a wrong factor still burns the single-use challenge
@@ -355,17 +363,11 @@ async def _complete_mfa_challenge(
         # malformed challenge (400) does not, so a slow or fumbled ceremony cannot lock the account. A
         # typed code only ever fails with a 401, so it still counts
         if credential is not None and error.status_code == status.HTTP_401_UNAUTHORIZED:
-            await record_failed_attempt(db, credential)
+            await record_failed_attempt(db, user.email, user_id)
         raise
 
-    if credential is not None:
-        await reset_failed_attempts(db, credential)
-    else:
-        await db.commit()
-
-    user = await db.get(User, user_id)
-    if user is None:
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid or expired challenge")
+    await reset_failed_attempts(db, user.email)
+    await db.commit()
 
     return user, factor_kind
 

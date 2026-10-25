@@ -5,8 +5,9 @@ from datetime import UTC, datetime, timedelta
 
 import pyotp
 
-from app.models.auth import PasswordResetToken
+from app.models.auth import LoginLockout, PasswordResetToken
 from app.models.currency import Currency
+from app.services.auth.login_email_hash import seal_login_email
 from app.services.auth.token_hashing import hash_token
 from tests.conftest import TestSession
 
@@ -19,6 +20,13 @@ def _fresh_totp_code(secret: str) -> str:
     """
     totp = pyotp.TOTP(secret)
     return totp.at(int(time.time()) + totp.interval)
+
+
+async def _get_login_lockout(email: str) -> LoginLockout | None:
+    """Return the lockout record for an email, or None when no failure is counted for it"""
+    async with TestSession() as session:
+        return await session.get(LoginLockout, seal_login_email(email))
+
 
 SIGNUP_PAYLOAD = {
     "email": "test@example.com",
@@ -36,7 +44,6 @@ async def _seed_currency():
         None
     """
     async with TestSession() as session:
-
         # Insert the default signup currency so auth route tests can create users
         session.add(Currency(id="CAD", name="Canadian Dollar", symbol="$", minor_unit_exponent=2))
         await session.commit()
@@ -101,7 +108,4 @@ def _clears_cookie(resp, key: str) -> bool:
     Returns:
         True when one of the response's Set-Cookie headers expires that cookie
     """
-    return any(
-        header.startswith(f'{key}=""') and "Max-Age=0" in header
-        for header in resp.headers.get_list("set-cookie")
-    )
+    return any(header.startswith(f'{key}=""') and "Max-Age=0" in header for header in resp.headers.get_list("set-cookie"))
