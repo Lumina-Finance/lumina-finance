@@ -1,3 +1,5 @@
+import type { DateFormatSetting } from '@/utils/dateFormat';
+
 export interface User {
   id: string;
   email: string;
@@ -5,6 +7,7 @@ export interface User {
   last_name: string | null;
   tz: string;
   base_currency: string;
+  date_format: DateFormatSetting;
   created_at: string;
   // True after a recovery-code login, holding the account to the forced re-enrolment screen
   second_factor_reenrollment_required: boolean;

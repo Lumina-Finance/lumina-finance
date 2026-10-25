@@ -2,7 +2,8 @@
  * Tests the shared date layer, covering the zone guard that keeps an unrecognized profile setting
  * from unmounting the app and the calendar arithmetic every view derives its ranges from
  */
-import { describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it } from 'vitest'
+import { DEFAULT_DATE_FORMAT, setDateFormat, type DateFormatSetting } from '@/utils/dateFormat'
 import {
   DATE_FORMATS,
   addDays,
@@ -77,6 +78,82 @@ describe('formatDate', () => {
     expect(formatDate(june1, DATE_FORMATS.monthDayYear)).toBe('Jun 1, 2026')
     expect(formatDate(june1, DATE_FORMATS.longMonthYear)).toBe('June 2026')
     expect(formatDate(june1, DATE_FORMATS.longDate)).toBe('June 1, 2026')
+  })
+
+  describe('in each date format', () => {
+    afterEach(() => {
+      setDateFormat(DEFAULT_DATE_FORMAT)
+    })
+
+    // Every shape the product renders, on a day whose number cannot be mistaken for a month. The time
+    // is 3:45 in the afternoon in Toronto
+    const september24 = new Date(2026, 8, 24)
+    const undoDeadline = new Date('2026-09-24T19:45:00Z')
+
+    function formatEveryShape() {
+      return Object.values(DATE_FORMATS)
+        .filter((format) => !('hour' in format))
+        .map((format) => formatDate(september24, format))
+    }
+
+    it.each([
+      {
+        format: 'month-day-year',
+        expected: ['Sep', 'Sep 24', 'Sep 2026', 'Sep 24, 2026', 'September 2026', 'September 24, 2026'],
+        withTime: 'Sep 24, 3:45 p.m.',
+      },
+      {
+        format: 'day-month-year',
+        expected: ['Sep', '24 Sep', 'Sep 2026', '24 Sep 2026', 'September 2026', '24 September 2026'],
+        withTime: '24 Sep, 3:45 p.m.',
+      },
+      {
+        format: 'iso',
+        expected: ['Sep', '09-24', '2026-09', '2026-09-24', '2026-09', '2026-09-24'],
+        withTime: '09-24, 3:45 p.m.',
+      },
+    ] satisfies { format: DateFormatSetting; expected: string[]; withTime: string }[])(
+      'writes every shape in $format',
+      ({ format, expected, withTime }) => {
+        setDateFormat(format)
+
+        expect(formatEveryShape()).toEqual(expected)
+        expect(formatDate(undoDeadline, DATE_FORMATS.monthDayTime, 'America/Toronto')).toBe(withTime)
+      },
+    )
+
+    it('reads the day in the zone given, where it is already the next day', () => {
+      // Midday UTC on 24 September is already 25 September at UTC+14
+      const instant = new Date(Date.UTC(2026, 8, 24, 12))
+
+      setDateFormat('iso')
+      expect(formatDate(instant, DATE_FORMATS.monthDayYear, 'Pacific/Kiritimati')).toBe('2026-09-25')
+      setDateFormat('day-month-year')
+      expect(formatDate(instant, DATE_FORMATS.monthDayYear, 'Pacific/Kiritimati')).toBe('25 Sep 2026')
+    })
+
+    it('writes a date range with each end in the format', () => {
+      setDateFormat('day-month-year')
+      expect(formatDateRangeLabel('2026-06-01', '2026-06-30')).toBe('1 Jun 2026 – 30 Jun 2026')
+      setDateFormat('iso')
+      expect(formatDateRangeLabel('2026-06-01', '2026-06-30')).toBe('2026-06-01 – 2026-06-30')
+    })
+
+    it.each([
+      { format: 'month-day-year', expected: ['Oct 5 – 31', 'Mar 3 – 15, 2027'] },
+      { format: 'day-month-year', expected: ['5 Oct – 31 Oct', '3 Mar – 15 Mar 2027'] },
+      { format: 'iso', expected: ['10-05 – 10-31', '03-03 – 2027-03-15'] },
+    ] satisfies { format: DateFormatSetting; expected: string[] }[])(
+      'shortens a range within one month in $format',
+      ({ format, expected }) => {
+        setDateFormat(format)
+
+        expect([
+          formatShortDateRangeLabel('2026-10-05', '2026-10-31', 2026),
+          formatShortDateRangeLabel('2027-03-03', '2027-03-15', 2026),
+        ]).toEqual(expected)
+      },
+    )
   })
 
   it('reads a timestamp in the zone it is given', () => {

@@ -1,3 +1,5 @@
+import { readDateFormat } from '@/utils/dateFormat'
+
 // Every date and relative time the product renders goes through this locale, so a browser configured
 // for another region still sees one convention. Every format below names the month rather than
 // numbering it, where this renders identically to en-US, so this constant is about having one place
@@ -68,7 +70,30 @@ export function resolveTimeZone(timeZone?: string | null): string {
 }
 
 /**
- * Renders a date in the product's locale
+ * Reads the calendar day an instant falls on in a zone as a "YYYY-MM-DD" string
+ *
+ * The parts are read out individually rather than formatted into a string, so the result does not
+ * depend on the locale putting the year first
+ */
+function readZonedYmd(instant: Date, timeZone: string): string {
+  const parts = new Intl.DateTimeFormat(DATE_LOCALE, {
+    timeZone,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).formatToParts(instant)
+  const part = (type: Intl.DateTimeFormatPartTypes) => parts.find((item) => item.type === type)?.value ?? ''
+
+  return `${part('year')}-${part('month')}-${part('day')}`
+}
+
+/**
+ * Renders a date in the user's date format
+ *
+ * Month-day-year is how the locale writes it. The other formats keep the locale's month name and
+ * write the day and year around it, as "24 Sep 2026", or in ISO as "2026-09-24", where a month
+ * shown on its own keeps its name since a lone number cannot be read as a month. A format with a
+ * time follows the date with the time of day
  *
  * @param date - The date to render
  * @param format - One of DATE_FORMATS
@@ -77,31 +102,41 @@ export function resolveTimeZone(timeZone?: string | null): string {
  * in another zone shifts it
  */
 export function formatDate(date: Date, format: DateFormat, timeZone?: string): string {
-  return new Intl.DateTimeFormat(DATE_LOCALE, {
-    ...format,
-    timeZone: resolveTimeZone(timeZone),
-  }).format(date)
+  const zone = resolveTimeZone(timeZone)
+  const formatter = new Intl.DateTimeFormat(DATE_LOCALE, { ...format, timeZone: zone })
+  const setting = readDateFormat()
+  if (setting === 'month-day-year') return formatter.format(date)
+
+  const hasDay = 'day' in format
+  const hasYear = 'year' in format
+  const parts = formatter.formatToParts(date)
+  const readPart = (type: Intl.DateTimeFormatPartTypes) => parts.find((part) => part.type === type)?.value ?? ''
+
+  let dateText: string
+  if (setting === 'iso' && (hasDay || hasYear)) {
+    const [year, month, day] = readZonedYmd(date, zone).split('-')
+    dateText = [hasYear ? year : null, month, hasDay ? day : null].filter((part) => part !== null).join('-')
+  } else {
+    // The order the locale writes a month name with its day and year does not apply here, so the
+    // parts are put together in the order this setting names
+    dateText = [hasDay ? readPart('day') : null, readPart('month'), hasYear ? readPart('year') : null]
+      .filter((part) => part !== null)
+      .join(' ')
+  }
+  if (!('hour' in format)) return dateText
+
+  const time = new Intl.DateTimeFormat(DATE_LOCALE, { hour: 'numeric', minute: '2-digit', timeZone: zone }).format(date)
+  return `${dateText}, ${time}`
 }
 
 /**
  * Returns today's calendar day in the given zone as a "YYYY-MM-DD" string
  *
- * The parts are read out individually rather than formatted into a string, so the result does not
- * depend on the locale putting the year first
- *
  * @param timeZone - Zone deciding which day it currently is, defaulting to the browser's
  * @param now - Instant to read the day from, overridable so tests can pin it
  */
 export function getTodayYmd(timeZone?: string, now = new Date()): string {
-  const parts = new Intl.DateTimeFormat(DATE_LOCALE, {
-    timeZone: resolveTimeZone(timeZone),
-    year: 'numeric',
-    month: '2-digit',
-    day: '2-digit',
-  }).formatToParts(now)
-  const part = (type: Intl.DateTimeFormatPartTypes) => parts.find((item) => item.type === type)?.value ?? ''
-
-  return `${part('year')}-${part('month')}-${part('day')}`
+  return readZonedYmd(now, resolveTimeZone(timeZone))
 }
 
 /**
@@ -213,7 +248,10 @@ export function formatShortDateRangeLabel(from: string, to: string, currentYear:
   // The end's year covers the start too unless the start falls in another year that isn't this one
   const startShowsYear = start.getFullYear() !== end.getFullYear() && start.getFullYear() !== currentYear
   const sameMonth = start.getFullYear() === end.getFullYear() && start.getMonth() === end.getMonth()
-  const endText = sameMonth ? `${end.getDate()}${endShowsYear ? `, ${end.getFullYear()}` : ''}` : label(end, endShowsYear)
+  // A bare day number after the dash reads only where the month and day are written in that order
+  const endText = sameMonth && readDateFormat() === 'month-day-year'
+    ? `${end.getDate()}${endShowsYear ? `, ${end.getFullYear()}` : ''}`
+    : label(end, endShowsYear)
   return `${label(start, startShowsYear)} – ${endText}`
 }
 

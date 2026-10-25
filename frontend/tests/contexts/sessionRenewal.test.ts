@@ -17,6 +17,7 @@ function user(id: string): User {
     last_name: null,
     tz: 'America/Toronto',
     base_currency: 'CAD',
+    date_format: 'month-day-year',
     created_at: '2026-06-12T00:00:00Z',
     second_factor_reenrollment_required: false,
   };

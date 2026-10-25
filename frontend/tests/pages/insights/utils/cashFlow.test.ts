@@ -3,8 +3,9 @@
  * in the tooltip range, naming the year on the January label and in the tooltips of a range that crosses a
  * calendar year, and its tooltip naming no bar when none is active
  */
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it } from 'vitest';
 import type { FxStatus } from '@/api/shared/fx';
+import { DEFAULT_DATE_FORMAT, setDateFormat, type DateFormatSetting } from '@/utils/dateFormat';
 import type { CashFlowBarBucket } from '@/pages/insights/types/cashFlow';
 import { getCashFlowBarData, getCashFlowTooltipBucket } from '@/pages/insights/utils/cashFlow';
 
@@ -118,5 +119,30 @@ describe('getCashFlowBarData', () => {
     expect(granularity).toBe('week');
     expect(buckets.map((bucket) => bucket.label)).toEqual(['Dec 29', 'Jan 5, 2026']);
     expect(buckets[0].rangeLabel).toBe('Dec 29, 2025 – Jan 4, 2026');
+  });
+
+  describe('in each date format', () => {
+    afterEach(() => {
+      setDateFormat(DEFAULT_DATE_FORMAT);
+    });
+
+    it.each([
+      { format: 'day-month-year', label: '5 Jan', rangeLabel: '5 Jan – 11 Jan' },
+      { format: 'iso', label: '01-05', rangeLabel: '01-05 – 01-11' },
+    ] satisfies { format: DateFormatSetting; label: string; rangeLabel: string }[])(
+      'writes the weekly bars in $format',
+      ({ format, label, rangeLabel }) => {
+        setDateFormat(format);
+
+        const { buckets } = getCashFlowBarData(
+          { points: [['2026-01-05', '2026-01-11', 100, 50]], fx_status: { state: 'none', missing_pairs: [] } },
+          '2026-01-05',
+          '2026-04-06',
+        );
+
+        expect(buckets[0].label).toBe(label);
+        expect(buckets[0].rangeLabel).toBe(rangeLabel);
+      },
+    );
   });
 });
