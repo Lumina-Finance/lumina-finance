@@ -1,40 +1,17 @@
 import { useState } from 'react'
-import type { User } from '@/api/auth'
-import {
-  useUpdateProfile,
-  type UpdateProfilePayload,
-} from '@/api/user'
+import { useUpdateProfile } from '@/api/user'
 import { useActionFeedback } from '@/hooks/useActionFeedback'
 import { useAuth } from '@/hooks/useAuth'
-import { profileFormFromUser, type ProfileFormState } from '@/pages/settings/profileForm'
+import {
+  getProfilePatch,
+  isProfileFormDirty,
+  profileFormFromUser,
+  type ProfileFormState,
+} from '@/pages/settings/profileForm'
 import { getProfileSaveBlockedReason } from '@/pages/settings/utils/profileForm'
+import { DEFAULT_DATE_FORMAT } from '@/utils/dateFormat'
 
-const emptyProfileForm: ProfileFormState = { first_name: '', last_name: '', tz: '' }
-
-/**
- * Compares the controlled profile form against the backend user shape
- */
-function isProfileFormDirty(profileForm: ProfileFormState, user: User | null) {
-  if (!user) return false
-
-  return profileForm.first_name !== user.first_name
-    || (profileForm.last_name === '' ? null : profileForm.last_name) !== user.last_name
-    || profileForm.tz !== user.tz
-}
-
-/**
- * Builds the minimal profile patch while translating blank last names back to null
- */
-function getProfilePatch(profileForm: ProfileFormState, user: User): UpdateProfilePayload {
-  const patch: UpdateProfilePayload = {}
-  if (profileForm.first_name !== user.first_name) patch.first_name = profileForm.first_name.trim()
-
-  const nextLastName = profileForm.last_name === '' ? null : profileForm.last_name
-  if (nextLastName !== user.last_name) patch.last_name = nextLastName
-  if (profileForm.tz !== user.tz) patch.tz = profileForm.tz
-
-  return patch
-}
+const emptyProfileForm: ProfileFormState = { first_name: '', last_name: '', tz: '', date_format: DEFAULT_DATE_FORMAT }
 
 /**
  * Owns profile draft state, validation, mutation feedback, and save/discard actions
@@ -46,7 +23,7 @@ export function useProfileSettingsForm() {
   const [profileOverrides, setProfileOverrides] = useState<Partial<ProfileFormState>>({})
   const profileBase = user ? profileFormFromUser(user) : emptyProfileForm
   const profileForm: ProfileFormState = { ...profileBase, ...profileOverrides }
-  const isProfileDirty = isProfileFormDirty(profileForm, user)
+  const isProfileDirty = user ? isProfileFormDirty(profileForm, user) : false
 
   // first_name is required by the backend, so the save button should block blank submissions
   const firstNameValid = profileForm.first_name.trim().length > 0

@@ -1,5 +1,6 @@
 import type { AuthenticationResponseJSON } from '@simplewebauthn/browser';
 import type { FxStatus } from '@/api/shared/fx';
+import type { DateFormatSetting } from '@/utils/dateFormat';
 
 /**
  * Editable profile fields for the current user
@@ -8,6 +9,7 @@ export interface UpdateProfilePayload {
   first_name?: string;
   last_name?: string | null;
   tz?: string;
+  date_format?: DateFormatSetting;
 }
 
 /**
