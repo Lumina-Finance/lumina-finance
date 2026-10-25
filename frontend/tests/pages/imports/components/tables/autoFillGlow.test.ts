@@ -96,36 +96,25 @@ function renderAccounts(disabled: boolean) {
   } as unknown as Parameters<typeof ImportAccountMappingTable>[0]))
 }
 
-describe('the glow on a row the table filled in for the user', () => {
-  it('shows on a category row while the step is open', () => {
-    expect(renderCategories(false)).toContain('import-auto-fill-row')
-    expect(renderCategories(false)).toContain('import-auto-fill-field')
+// The glow is drawn by the `import-auto-fill-*` styles, so the class names are what tells it shown from held
+const tables: Array<[string, (disabled: boolean) => string]> = [
+  ['category', renderCategories],
+  ['category whose type alone was filled in', (disabled) => renderCategories(disabled, 'detailAutoFilled')],
+  ['account', renderAccounts],
+  ['column mapping', renderColumns],
+  ['direction word', renderDirections],
+]
+
+describe.each(tables)('the glow on a %s row the table filled in for the user', (_name, render) => {
+  it('shows while the step is open', () => {
+    expect(render(false)).toContain('import-auto-fill-row')
   })
 
-  it('stays off a category row while the answers are held', () => {
-    expect(renderCategories(true)).not.toContain('import-auto-fill')
+  it('stays off while the answers are held or the import is finished', () => {
+    expect(render(true)).not.toContain('import-auto-fill')
   })
+})
 
-  it('shows on a category row whose type alone was filled in, and stays off while the answers are held', () => {
-    expect(renderCategories(false, 'detailAutoFilled')).toContain('import-auto-fill-row')
-    expect(renderCategories(true, 'detailAutoFilled')).not.toContain('import-auto-fill')
-  })
-
-  it('shows on an account row while the step is open', () => {
-    expect(renderAccounts(false)).toContain('import-auto-fill-row')
-  })
-
-  it('stays off an account row while the answers are held', () => {
-    expect(renderAccounts(true)).not.toContain('import-auto-fill')
-  })
-
-  it('shows on a column mapping row while the step is open, and stays off a finished import', () => {
-    expect(renderColumns(false)).toContain('import-auto-fill-row')
-    expect(renderColumns(true)).not.toContain('import-auto-fill')
-  })
-
-  it('shows on a direction word row while the step is open, and stays off a finished import', () => {
-    expect(renderDirections(false)).toContain('import-auto-fill-row')
-    expect(renderDirections(true)).not.toContain('import-auto-fill')
-  })
+it('glows the answer field of a category row too', () => {
+  expect(renderCategories(false)).toContain('import-auto-fill-field')
 })
