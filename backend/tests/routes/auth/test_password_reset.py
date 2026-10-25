@@ -13,7 +13,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.main import app
 from app.models.auth import PasswordCredential, PasswordResetToken
-from app.services.auth import password_reset
+from app.services.auth import password_reset, reset_send_limit
 from app.services.auth.token_hashing import hash_token
 from tests.conftest import TestSession
 from tests.routes.support import (
@@ -42,7 +42,12 @@ def sent_reset_emails(monkeypatch):
 
 
 async def _overlap_reset_requests(client, monkeypatch, first_email, second_email, *, independent=False):
-    """Hold the first real issuance transaction while the second completes or waits on it"""
+    """Hold the first real issuance transaction while the second completes or waits on it
+
+    The in-process send admission would refuse the second request for the same account while the
+    first still holds its place, which hides a missing database lock, so every send is admitted
+    here and only the lock can separate the two requests
+    """
     first_paused = asyncio.Event()
     second_started = asyncio.Event()
     release_first = asyncio.Event()
@@ -71,6 +76,7 @@ async def _overlap_reset_requests(client, monkeypatch, first_email, second_email
 
     monkeypatch.setattr(password_reset, "find_user_id_by_email", observe_lookup)
     monkeypatch.setattr(AsyncSession, "commit", pause_first_issuance)
+    monkeypatch.setattr(password_reset, "try_start_send", lambda user_id: reset_send_limit.SendTicket(user_id=user_id, lease_ends=0.0))
     tasks = []
     try:
         async with asyncio.timeout(5):
@@ -84,10 +90,8 @@ async def _overlap_reset_requests(client, monkeypatch, first_email, second_email
                 await second
             else:
                 async with TestSession() as observer:
-                    while not second.done():
-                        blockers = await observer.scalar(text("SELECT pg_blocking_pids(:pid)"), {"pid": request_pids[1]})
-                        if request_pids[0] in blockers:
-                            break
+                    while request_pids[0] not in await observer.scalar(text("SELECT pg_blocking_pids(:pid)"), {"pid": request_pids[1]}):
+                        assert not second.done(), "the second request finished without waiting on the first"
                         await asyncio.sleep(0.01)
 
             release_first.set()
@@ -139,7 +143,7 @@ async def test_forgot_password_issues_token_for_existing_user(client):
     assert rows[0].used_at is None
 
 
-async def test_forgot_password_drops_the_token_when_the_email_fails(client, monkeypatch, sent_reset_emails):
+async def test_forgot_password_drops_the_token_when_the_email_fails(client, monkeypatch, sent_reset_emails, reset_clock):
     """A send failure preserves earlier send history and allows a later retry"""
     signup = await _create_user(client)
     user_id = uuid.UUID(signup.json()["user"]["id"])
@@ -158,6 +162,7 @@ async def test_forgot_password_drops_the_token_when_the_email_fails(client, monk
     assert resp.status_code == 204
     assert [row.id for row in await _reset_tokens_for(user_id)] == [original_id]
 
+    reset_clock(reset_send_limit.FIRST_FAILURE_WAIT_SECONDS)
     retry = await client.post("/auth/password/forgot", json={"email": SIGNUP_PAYLOAD["email"]})
     assert retry.status_code == 204
     rows = await _reset_tokens_for(user_id)
