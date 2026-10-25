@@ -266,10 +266,11 @@ async def test_saving_the_choice_waits_for_the_user_row_so_the_later_save_wins(c
 
     request = None
     async with TestSession() as holder:
-        # FOR NO KEY UPDATE is the strength the save takes, and it conflicts with itself only. The foreign key
-        # checks of the save's own inserts take a weaker lock, so they cannot stand in for the explicit one:
-        # a save without it runs straight through
+        # FOR NO KEY UPDATE is the strength the save takes, and it conflicts with every row lock but FOR KEY SHARE.
+        # The foreign key checks of the save's own inserts take that weaker lock, so they cannot stand in for the
+        # explicit one: a save without it runs straight through
         await holder.execute(select(User.id).where(User.id == user_id).with_for_update(key_share=True))
+        holder_pid = await holder.scalar(text("SELECT pg_backend_pid()"))
         try:
             async with asyncio.timeout(10), TestSession() as observer:
                 request = asyncio.create_task(
@@ -280,7 +281,8 @@ async def test_saving_the_choice_waits_for_the_user_row_so_the_later_save_wins(c
                     )
                 )
                 while not request.done() and not await observer.scalar(
-                    text("SELECT count(*) FROM pg_stat_activity WHERE cardinality(pg_blocking_pids(pid)) > 0")
+                    text("SELECT count(*) FROM pg_stat_activity WHERE :holder_pid = ANY(pg_blocking_pids(pid))"),
+                    {"holder_pid": holder_pid},
                 ):
                     await asyncio.sleep(0.01)
                 assert not request.done()
