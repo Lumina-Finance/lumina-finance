@@ -16,7 +16,7 @@ from zoneinfo import ZoneInfo
 from app.models.bank_connection import BankProvider, ConnectsFrom
 from app.models.bank_sync_job import ProviderErrorKind
 
-# The most characters of an error reason that are kept, which fits a line of the sync status details
+# The most characters of an error reason that are kept, enough for a line of the sync status details
 MAX_ERROR_REASON_LENGTH = 500
 
 # An ISO 4217 code. Anything else in its place, such as a URL or nothing, is a currency of the

@@ -7,8 +7,11 @@ outbound guard lets through. Also guards the counts the environment sets, such a
 cap and how many jobs the worker runs at once, which share one reader
 """
 
+import importlib
+
 import pytest
 
+from app.config import bank_sync as bank_sync_config
 from app.config.bank_sync import read_count_setting, read_simplefin_origins, read_simplefin_test_origin
 
 _BRIDGE_ORIGINS = ["https://beta-bridge.simplefin.org", "https://bridge.simplefin.org"]
@@ -80,3 +83,17 @@ def test_count_setting_above_its_maximum_is_refused_at_start(monkeypatch):
 
     monkeypatch.setenv("BANK_SYNC_SIMPLEFIN_DAILY_REQUESTS", "24")
     assert read_count_setting("BANK_SYNC_SIMPLEFIN_DAILY_REQUESTS", 20, maximum=24) == 24
+
+
+def test_the_daily_request_cap_the_app_reads_is_refused_over_24(monkeypatch):
+    """The cap the sync actually uses is read from the environment with that maximum, so 25 stops the app starting and 24 is kept"""
+    key = "BANK_SYNC_SIMPLEFIN_DAILY_REQUESTS"
+    try:
+        monkeypatch.setenv(key, "25")
+        with pytest.raises(RuntimeError, match=f"Invalid {key}"):
+            importlib.reload(bank_sync_config)
+        monkeypatch.setenv(key, "24")
+        assert importlib.reload(bank_sync_config).BANK_SYNC_SIMPLEFIN_DAILY_REQUESTS == 24
+    finally:
+        monkeypatch.delenv(key, raising=False)
+        importlib.reload(bank_sync_config)

@@ -1781,7 +1781,7 @@ async def test_job_stopped_by_its_time_limit_has_already_sent_the_email_a_part_s
 async def test_job_stopped_by_its_time_limit_keeps_the_success_a_link_already_recorded(connection, monkeypatch, frozen_now, job_time_limits):
     """The first window of Everyday's and Savings's imports is cut short, and the earlier half brings Everyday back whole and not Savings
 
-    The later half outlasts the job's time limit. Savings fails as timed out, while Everyday keeps
+    The later half outlasts the job's time limit. Savings keeps the failure the earlier half recorded, while Everyday keeps
     the success it recorded, with no failure for days it already brought in
     """
     everyday = await _link(connection, "ACT-everyday", import_start=date(2026, 1, 1), checkpoint=date(2025, 12, 31))

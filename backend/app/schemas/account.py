@@ -100,8 +100,8 @@ class RecordStartingBalanceRequest(BaseModel):
     """Record the starting balance of an account that has no transactions yet"""
 
     # Minor units as the user states the balance, so a liability's is the amount owed, which is
-    # saved negated. Zero, or negative for an overdrawn asset, is accepted as the create request
-    # accepted it. A zero balance needs no adjustment, so none is written
+    # saved negated. Zero is accepted, and so is a negative for an overdrawn asset or a liability's
+    # credit balance. A zero balance needs no adjustment, so none is written
     amount: int
 
 

@@ -185,8 +185,8 @@ async def run_worker() -> None:
     Waits until the database is reachable and migrated, then scans for due work every 5 minutes
     while BANK_SYNC_WORKER_CONCURRENCY runners claim and run jobs. The claim never hands two
     runners jobs for one connection. On SIGTERM or SIGINT it claims no more jobs, lets each job
-    already running finish, which its time limit bounds, and returns. Jobs send their action-needed emails through the sender
-    EMAIL_BACKEND names, as the app sends its own
+    already running finish within its time limit, and returns. Jobs send their action-needed
+    emails through the sender EMAIL_BACKEND names, as the app sends its own
 
     Raises:
         RuntimeError: Jobs would run as a role row-level security doesn't constrain, the

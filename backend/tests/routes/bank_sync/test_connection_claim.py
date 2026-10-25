@@ -29,6 +29,7 @@ from tests.services.bank_sync.stand_ins import AccountsTimeOut, FakeBridgeScenar
 _TOKEN = base64.b64encode(b"https://beta-bridge.simplefin.org/simplefin/claim/never-claimed").decode()
 
 _ALREADY_USED = "This setup token has already been used. Create a new one in SimpleFIN Bridge"
+_TOO_LONG = "That setup token is too long. Copy only the token from SimpleFIN Bridge and try again"
 _UNREACHABLE = "SimpleFIN Bridge couldn't be reached. Try again in a few minutes"
 
 
@@ -238,16 +239,20 @@ async def test_claim_with_a_token_that_cant_be_claimed_says_why(client, setup_to
     assert await _stored_connections() == []
 
 
-async def test_claim_with_a_token_over_the_length_cap_is_refused_before_anything_is_sent(client, scenario: FakeBridgeScenario):
-    """A token of 9,000 characters that decodes to a claim URL is refused with a sentence, and a real token still claims"""
+@pytest.mark.parametrize(("encoded_length", "too_long"), [(2048, False), (2052, True)], ids=["at-the-cap", "over-the-cap"])
+async def test_claim_with_a_token_over_the_length_cap_is_refused_before_anything_is_sent(
+    client, scenario: FakeBridgeScenario, encoded_length, too_long
+):
+    """A token of 2,052 characters that decodes to a claim URL is refused with a sentence, one of 2,048 is not, and a real token still claims"""
     headers, _ = await _sign_up(client)
-    too_long = base64.b64encode(b"https://beta-bridge.simplefin.org/simplefin/claim/" + b"a" * 7_000).decode()
+    prefix = b"https://beta-bridge.simplefin.org/simplefin/claim/"
+    token = base64.b64encode(prefix + b"a" * (encoded_length // 4 * 3 - len(prefix))).decode()
+    assert len(token) == encoded_length
 
-    refused = await _claim(client, headers, too_long)
+    refused = await _claim(client, headers, token)
     claimed = await _claim(client, headers, scenario.setup_token)
 
-    assert refused.status_code == 422, refused.text
-    assert refused.json()["detail"] == "That setup token is too long. Copy only the token from SimpleFIN Bridge and try again"
+    assert (refused.json().get("detail") == _TOO_LONG) is too_long, refused.text
     assert claimed.status_code == 201, claimed.text
 
 
