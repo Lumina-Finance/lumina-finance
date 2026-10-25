@@ -30,7 +30,6 @@ class BankReviewItemResponse(BaseModel):
     account_id: uuid.UUID
     provider: BankProvider
     provider_name: str
-    external_transaction_id: str
     received_at: datetime
 
     # Moves on whenever the item changes, so bulk approval applies only what it previewed

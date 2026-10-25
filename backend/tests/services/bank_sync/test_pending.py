@@ -39,7 +39,7 @@ async def test_replace_pending_transactions_removes_stale_items_and_spares_other
         [_build_pending_transaction(everyday, "P-STILL"), _build_pending_transaction(everyday, "P-NEW")],
     )
 
-    remaining = (await db.execute(select(BankPendingTransaction.account_id, BankPendingTransaction.external_transaction_id))).all()
+    remaining = (await db.execute(select(BankPendingTransaction.account_id, BankPendingTransaction.description))).all()
     assert sorted(remaining) == sorted(
         [
             (everyday.id, "P-STILL"),

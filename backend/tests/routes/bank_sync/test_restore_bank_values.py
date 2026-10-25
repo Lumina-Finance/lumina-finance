@@ -103,9 +103,6 @@ def _bank_sends(amount: int) -> ProviderRecord:
         amount=amount,
         raw_amount=f"{amount / 100:.2f}",
         description=BANK_DESCRIPTION,
-        merchant_name=None,
-        category_hint=None,
-        extras={},
         pending=False,
     )
 

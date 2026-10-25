@@ -37,7 +37,7 @@ from app.models.currency import Currency
 from app.models.group import Group, GroupMember
 from app.models.transaction import Transaction
 from app.models.user import User, UserCreditExcludedAccount
-from tests.conftest import ScopedSession, TestSession
+from tests.conftest import TestSession
 from tests.routes.support.bank_sync_helpers import (
     _build_bank_connection,
     _build_bank_link,

@@ -108,8 +108,6 @@ def _blue_bottle_source(*, amount: int | None = -475, raw_amount: str | None = N
             "amount": amount,
             "raw_amount": raw_amount,
             "description": _BLUE_BOTTLE,
-            "merchant_name": None,
-            "category_hint": None,
         },
         "edited_fields": edited_fields or [],
         "review_item_id": None,

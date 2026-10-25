@@ -39,7 +39,10 @@ if [ "$#" -gt 0 ]; then
 	reset-bank-transaction-hash-key)
 		# Binds the database to the key now set, generating one when none is, for an
 		# operator who has lost the old one. Statements imported again then bring back
-		# the transactions already saved from them, which is why it is never automatic
+		# the transactions already saved from them. The next bank sync sends the
+		# transactions it fetches again back for review, even those approved, and the
+		# bank's corrections and removals stop reaching the saved ones. That is why it
+		# is never automatic
 		if [ "$#" -gt 1 ]; then
 			echo "reset-bank-transaction-hash-key takes no arguments" >&2
 			exit 64

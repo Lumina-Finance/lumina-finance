@@ -72,7 +72,6 @@ def _pending_transaction(link: BankAccountLink, record: ProviderRecord, observed
     return BankPendingTransaction(
         owner_id=link.owner_id,
         account_id=link.account_id,
-        external_transaction_id=record.external_id,
         transaction_date=record.date,
         amount=record.amount,
         # Kept only when the amount can't be stored exactly, for the item to show as the bank sent it

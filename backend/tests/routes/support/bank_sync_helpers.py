@@ -40,6 +40,7 @@ from app.models.currency import Currency
 from app.models.transaction import Transaction
 from app.models.user import User
 from app.services.bank_sync import links
+from app.services.bank_sync.transaction_hash import hash_bank_transaction_id
 from tests.conftest import ScopedSession, TestSession
 from tests.fake_simplefin_bridge import FakeBridgeTransport
 from tests.routes.support.account_helpers import _create_account
@@ -261,7 +262,7 @@ def _build_bank_transaction(
         account_id=account.id,
         provider=BankProvider.SIMPLEFIN,
         external_account_id=external_account_id,
-        external_transaction_id=external_transaction_id,
+        external_transaction_hash=hash_bank_transaction_id(BankProvider.SIMPLEFIN, external_account_id, external_transaction_id),
         disposition=BankTransactionDisposition.ACCEPTED if accepted else BankTransactionDisposition.AWAITING_REVIEW,
         transaction_id=transaction.id if accepted else None,
         observed_date=BANK_DATE,
@@ -480,15 +481,14 @@ async def _new_group_account(client, headers) -> str:
     return await _new_account(client, headers, "Joint", group_id=group.json()["id"])
 
 
-def _build_pending_transaction(account: Account, external_transaction_id: str, amount: int = -2500) -> BankPendingTransaction:
+def _build_pending_transaction(account: Account, description: str = "HOLD HARBOUR FUEL", amount: int = -2500) -> BankPendingTransaction:
     """Return an unsaved pending item the bank reports for an account"""
     return BankPendingTransaction(
         owner_id=account.owner_id,
         account_id=account.id,
-        external_transaction_id=external_transaction_id,
         transaction_date=date(2026, 10, 4),
         amount=amount,
-        description="HOLD HARBOUR FUEL",
+        description=description,
         observed_at=datetime(2026, 10, 4, 9, 0, tzinfo=UTC),
     )
 

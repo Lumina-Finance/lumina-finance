@@ -460,13 +460,12 @@ export type ReviewPreferences = {
   removals: ReviewDecision;
 };
 
-export type BankField = 'date' | 'amount' | 'description' | 'merchant_name' | 'category_hint';
+export type BankField = 'date' | 'amount' | 'description';
 
 /**
- * The bank fields a correction can change. A change to only the merchant name or category hint
- * updates what the bank last said without opening one
+ * The bank fields a correction can change
  */
-export type CorrectableBankField = Extract<BankField, 'date' | 'amount' | 'description'>;
+export type CorrectableBankField = BankField;
 
 /**
  * The bank fields the ledger row can differ from, which count as the user's own once they do and
@@ -489,8 +488,6 @@ export type BankValues = {
   /** The amount exactly as the bank sent it, given only when `amount` is null */
   raw_amount: string | null;
   description: string;
-  merchant_name: string | null;
-  category_hint: string | null;
 };
 
 export type BankReviewItemKind = 'new' | 'correction' | 'removal';
@@ -504,7 +501,6 @@ export type BankReviewItem = {
   account_id: string;
   provider: BankProviderId;
   provider_name: string;
-  external_transaction_id: string;
   received_at: string;
 
   /** Moves on whenever the bank changes the item, so bulk approval applies only what was previewed */

@@ -42,8 +42,6 @@ def _bank_source(
             "amount": amount,
             "raw_amount": raw_amount,
             "description": BANK_DESCRIPTION,
-            "merchant_name": None,
-            "category_hint": None,
         },
         "received_at": "2026-10-04T09:05:00Z",
         "edited_fields": edited_fields or [],

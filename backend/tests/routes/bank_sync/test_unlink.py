@@ -13,15 +13,17 @@ from datetime import UTC, datetime
 from sqlalchemy import func, select, update
 
 from app.models.account import Account
-from app.models.bank_connection import BankAccountLink, BankConnection, BankLinkState
+from app.models.bank_connection import BankAccountLink, BankConnection, BankLinkState, BankProvider
 from app.models.bank_pending_transaction import BankPendingTransaction
 from app.models.bank_sync_job import BankSyncJob
 from app.models.bank_transaction import BankTransaction
 from app.models.transaction import Transaction
 from app.services.bank_sync import availability
 from app.services.bank_sync.pending import replace_pending_transactions
+from app.services.bank_sync.transaction_hash import hash_bank_transaction_id
 from tests.conftest import TestSession
 from tests.routes.support.bank_sync_helpers import (
+    BANK_ACCOUNT_ID,
     _build_account,
     _build_bank_link,
     _build_bank_transaction,
@@ -38,6 +40,9 @@ from tests.routes.support.bank_sync_helpers import (
 from tests.routes.support.lock_helpers import _wait_until_waiting_on
 
 _NOT_LINKED = "This account is not linked to a bank"
+
+# The kept bank transactions' keyed hashes, in the order they are read back
+_KEPT_HASHES = sorted(hash_bank_transaction_id(BankProvider.SIMPLEFIN, BANK_ACCOUNT_ID, bank_id) for bank_id in ("TRN-ACCEPTED", "TRN-WAITING"))
 
 
 async def _two_linked(client) -> tuple[dict, uuid.UUID, str, str, BankConnection]:
@@ -76,21 +81,21 @@ async def _pending_ids(account_id: str) -> list[str]:
     """Return the bank ids of an account's pending items"""
     async with TestSession() as session:
         rows = await session.scalars(
-            select(BankPendingTransaction.external_transaction_id)
+            select(BankPendingTransaction.description)
             .where(BankPendingTransaction.account_id == uuid.UUID(account_id))
-            .order_by(BankPendingTransaction.external_transaction_id)
+            .order_by(BankPendingTransaction.description)
         )
         return list(rows)
 
 
 async def _kept_history(account_id: str) -> tuple[int, list[str]]:
-    """Return how many ledger transactions an account has, and the bank ids of its bank transactions"""
+    """Return how many ledger transactions an account has, and the keyed hashes of its bank transactions' ids, in order"""
     async with TestSession() as session:
         ledger = await session.scalar(select(func.count()).select_from(Transaction).where(Transaction.account_id == uuid.UUID(account_id)))
         bank = await session.scalars(
-            select(BankTransaction.external_transaction_id)
+            select(BankTransaction.external_transaction_hash)
             .where(BankTransaction.account_id == uuid.UUID(account_id))
-            .order_by(BankTransaction.external_transaction_id)
+            .order_by(BankTransaction.external_transaction_hash)
         )
         return ledger, list(bank)
 
@@ -134,7 +139,7 @@ async def test_unlink_ends_one_link_clears_its_pending_and_keeps_its_history(cli
         uuid.UUID(savings_id): ("active", connection.id, False),
     }
     assert (await _pending_ids(everyday_id), await _pending_ids(savings_id)) == ([], ["HOLD-S"])
-    assert await _kept_history(everyday_id) == (1, ["TRN-ACCEPTED", "TRN-WAITING"])
+    assert await _kept_history(everyday_id) == (1, _KEPT_HASHES)
     listed = await client.get("/bank-sync/connections", headers=headers)
     assert listed.status_code == 200, listed.text
     assert [account["linked_account_id"] for account in listed.json()[0]["accounts"]] == [None, savings_id, None, None]
@@ -195,7 +200,7 @@ async def test_disconnect_unlinks_every_account_and_deletes_the_connection(clien
         uuid.UUID(savings_id): ("unlinked", None, True),
     }
     assert (await _pending_ids(everyday_id), await _pending_ids(savings_id)) == ([], [])
-    assert await _kept_history(everyday_id) == (1, ["TRN-ACCEPTED", "TRN-WAITING"])
+    assert await _kept_history(everyday_id) == (1, _KEPT_HASHES)
     async with TestSession() as session:
         assert await session.get(BankConnection, connection.id) is None
         assert list(await session.scalars(select(BankSyncJob.id))) == []

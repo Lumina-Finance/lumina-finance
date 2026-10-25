@@ -44,7 +44,7 @@ const ACCOUNTS = [
 ]
 
 const VISA_CORRECTION = createReviewItem('visa-1', 'correction', 'visa', {
-  bank: { date: '2026-09-21', amount: -2310, raw_amount: null, description: 'COUNTDOWN 123', merchant_name: null, category_hint: null },
+  bank: { date: '2026-09-21', amount: -2310, raw_amount: null, description: 'COUNTDOWN 123' },
 })
 const EVERYDAY_ITEMS = [createReviewItem('everyday-1', 'new', 'everyday'), createReviewItem('everyday-2', 'new', 'everyday')]
 

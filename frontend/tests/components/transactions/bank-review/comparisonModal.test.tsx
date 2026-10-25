@@ -44,7 +44,7 @@ const FIELDS = ['date', 'amount', 'description'] as const
 const TINT = 'var(--app-warning-soft)'
 
 /** Countdown, approved at $42.10 out on Sep 21, which the bank now says was $45.10 */
-const LEDGER: BankValues = { date: '2026-09-21', amount: -4210, raw_amount: null, description: 'COUNTDOWN 123 AUCKLAND', merchant_name: null, category_hint: null }
+const LEDGER: BankValues = { date: '2026-09-21', amount: -4210, raw_amount: null, description: 'COUNTDOWN 123 AUCKLAND' }
 const COUNTDOWN = createReviewItem('countdown', 'correction', 'everyday', {
   current: LEDGER,
   bank: { ...LEDGER, amount: -4510 },

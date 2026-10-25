@@ -32,8 +32,7 @@ class OpenReviewKind(enum.StrEnum):
 # bank description is always shown read-only and can't be edited
 EditableBankField = Literal["date", "amount"]
 
-# The fields whose change opens a correction on an accepted record. A change to only the merchant
-# name or category hint updates the stored observation without one
+# The fields whose change opens a correction on an accepted record
 CorrectableBankField = Literal["date", "amount", "description"]
 
 # The JSON columns store None as SQL NULL rather than a JSON null, since the checks below read a
@@ -47,9 +46,6 @@ OBSERVATION_COLUMNS = (
     "observed_amount",
     "raw_amount",
     "description",
-    "merchant_name",
-    "category_hint",
-    "extras",
     "observed_at",
 )
 
@@ -71,7 +67,7 @@ class BankTransaction(Base):
             "account_id",
             "provider",
             "external_account_id",
-            "external_transaction_id",
+            "external_transaction_hash",
             name="uq_bank_transactions_identity",
         ),
         # A ledger row comes from at most one bank transaction
@@ -114,7 +110,10 @@ class BankTransaction(Base):
     account_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("accounts.id", ondelete="CASCADE"), nullable=False)
     provider: Mapped[str] = mapped_column(VARCHAR(32), nullable=False)
     external_account_id: Mapped[str] = mapped_column(Text, nullable=False)
-    external_transaction_id: Mapped[str] = mapped_column(Text, nullable=False)
+
+    # The keyed hash of the provider's ID for the transaction. The server's key keeps anything of the ID
+    # out of it. See app.services.bank_sync.transaction_hash
+    external_transaction_hash: Mapped[str] = mapped_column(VARCHAR(64), nullable=False)
     disposition: Mapped[str] = mapped_column(VARCHAR(16), nullable=False)
 
     # Deleting the ledger row deletes the record, leaving no marker of its bank identity
@@ -126,9 +125,6 @@ class BankTransaction(Base):
     observed_amount: Mapped[int | None] = mapped_column(BigInteger)
     raw_amount: Mapped[str | None] = mapped_column(Text)
     description: Mapped[str | None] = mapped_column(Text)
-    merchant_name: Mapped[str | None] = mapped_column(Text)
-    category_hint: Mapped[str | None] = mapped_column(Text)
-    extras: Mapped[dict[str, Any] | None] = mapped_column(_JSON)
     observed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
     # The bank date and amount the ledger row was last aligned with, as the ledger holds them. A

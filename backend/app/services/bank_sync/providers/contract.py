@@ -10,7 +10,7 @@ from abc import ABC, abstractmethod
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field
 from datetime import date, datetime
-from typing import Any, ClassVar
+from typing import ClassVar
 from zoneinfo import ZoneInfo
 
 from app.models.bank_connection import BankProvider, ConnectsFrom
@@ -64,11 +64,6 @@ class ProviderRecord:
     # The amount exactly as the provider sent it
     raw_amount: str
     description: str
-    merchant_name: str | None
-    category_hint: str | None
-
-    # Provider-specific fields, kept only in the provider observation
-    extras: Mapping[str, Any]
     pending: bool
 
     # The provider says this transaction no longer exists

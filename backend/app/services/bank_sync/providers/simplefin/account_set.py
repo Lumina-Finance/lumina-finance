@@ -3,7 +3,6 @@
 from collections.abc import Mapping
 from dataclasses import dataclass
 from datetime import UTC, date, datetime
-from typing import Any
 from zoneinfo import ZoneInfo
 
 from pydantic import BaseModel, ConfigDict, Field, ValidationError
@@ -42,11 +41,6 @@ class _Transaction(_Model):
     description: str
     transacted_at: int | None = None
     pending: bool = False
-
-    # SimpleFIN Bridge sends these, though the protocol doesn't define them
-    payee: str | None = None
-    memo: str | None = None
-    extra: dict[str, Any] | None = None
 
 
 class _Account(_Model):
@@ -199,16 +193,12 @@ def _read_record(
     else:
         record_date = dating.requested_on
 
-    extras = {"transacted_at": transaction.transacted_at, "memo": transaction.memo, "extra": transaction.extra}
     return ProviderRecord(
         external_id=transaction.id,
         date=record_date,
         amount=_minor_units(transaction.amount, currency, exponent),
         raw_amount=transaction.amount,
         description=transaction.description,
-        merchant_name=(transaction.payee or "").strip() or None,
-        category_hint=None,
-        extras={key: value for key, value in extras.items() if value is not None},
         pending=pending,
     )
 

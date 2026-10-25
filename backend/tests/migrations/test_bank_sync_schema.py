@@ -448,7 +448,7 @@ async def test_bank_pending_transactions_go_with_the_account(session):
 
     await session.execute(delete(Account).where(Account.id == everyday.id))
 
-    assert (await session.scalars(select(BankPendingTransaction.external_transaction_id))).all() == ["P-2"]
+    assert (await session.scalars(select(BankPendingTransaction.description))).all() == ["P-2"]
 
 
 async def test_bank_sync_jobs_one_running_and_one_queued_per_connection(session):

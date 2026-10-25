@@ -37,8 +37,6 @@ def build_bank_source(record: BankTransaction, txn: Transaction) -> TransactionB
             amount=record.observed_amount,
             raw_amount=record.raw_amount,
             description=record.description,
-            merchant_name=record.merchant_name,
-            category_hint=record.category_hint,
         ),
         received_at=record.received_at,
         edited_fields=edited_fields(record, txn.dt, txn.amount),

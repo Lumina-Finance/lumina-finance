@@ -41,6 +41,7 @@ from tests.routes.support.bank_sync_helpers import (
     _sign_up,
 )
 from tests.routes.support.lock_helpers import _wait_until_waiting_on
+from tests.routes.support.mailbox import mailbox
 from tests.services.bank_sync.stand_ins import AccountsTimeOut, FakeBridgeScenario, simplefin_adapter
 
 _WORKING = "This connection is working, so it needs no new setup token"
@@ -181,14 +182,13 @@ async def test_reconnect_with_both_bank_accounts_unchanged_resumes_both_and_clea
     assert await _request_purposes() == ["claim", "claim", "discovery", "discovery"]
 
 
-async def test_reconnect_with_a_bank_account_listed_under_a_new_id_waits_for_it_to_be_chosen_again(
-    client, scenario: FakeBridgeScenario, sent_action_emails
-):
+async def test_reconnect_with_a_bank_account_listed_under_a_new_id_waits_for_it_to_be_chosen_again(client, scenario: FakeBridgeScenario):
     """Everyday's bank account comes back under a new id: Everyday waits to choose it, its sign-in and 4 waiting items aside
 
-    The user is in the app choosing, so nothing is emailed
+    The user is in the app choosing, so nothing is emailed after signing up
     """
     headers, everyday_id, savings_id, connection_id = await _rejected_with_two_links(client, scenario)
+    emails_after_sign_up = len(mailbox.sent)
     await _wait_on_signin(everyday_id)
     async with TestSession() as session:
         everyday = await session.get_one(Account, uuid.UUID(everyday_id))
@@ -214,7 +214,7 @@ async def test_reconnect_with_a_bank_account_listed_under_a_new_id_waits_for_it_
         )
     assert waiting == 4
     assert await _jobs() == [("initial", False, "queued")]
-    assert sent_action_emails == []
+    assert len(mailbox.sent) == emails_after_sign_up
 
 
 async def test_reconnect_leaves_no_link_showing_the_failure_from_before_it(client, scenario: FakeBridgeScenario):

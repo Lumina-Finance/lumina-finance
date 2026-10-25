@@ -40,14 +40,12 @@ async def _everyday(client) -> tuple[dict, uuid.UUID, str]:
 
 
 def _bank_values(day: date, amount: int | None, description: str = BANK_DESCRIPTION, **values) -> dict:
-    """Return the bank values of an item without a merchant or category hint, unless given, and with an amount the currency holds"""
+    """Return the bank values of an item, with an amount the currency holds unless given another"""
     return {
         "date": day.isoformat(),
         "amount": amount,
         "raw_amount": None,
         "description": description,
-        "merchant_name": None,
-        "category_hint": None,
         **values,
     }
 
@@ -164,8 +162,6 @@ async def test_review_list_shows_each_kind_with_the_values_its_review_compares(c
         await session.flush()
 
         new = _build_bank_transaction(account, "TRN-NEW")
-        new.merchant_name = "Harbour Coffee"
-        new.category_hint = "Coffee shops"
 
         usd = _build_bank_transaction(await session.get_one(Account, uuid.UUID(usd_id)), "TRN-USD")
         usd.observed_date = date(2026, 10, 4)
@@ -211,7 +207,6 @@ async def test_review_list_shows_each_kind_with_the_values_its_review_compares(c
                 "id": str(usd.id),
                 "kind": "new",
                 "account_id": usd_id,
-                "external_transaction_id": "TRN-USD",
                 "bank": _bank_values(date(2026, 10, 4), None, "AMZN MKTP US", raw_amount="-12.345"),
             },
             {
@@ -220,15 +215,13 @@ async def test_review_list_shows_each_kind_with_the_values_its_review_compares(c
                 "id": str(new.id),
                 "kind": "new",
                 "account_id": account_id,
-                "external_transaction_id": "TRN-NEW",
-                "bank": _bank_values(date(2026, 10, 3), -1250, merchant_name="Harbour Coffee", category_hint="Coffee shops"),
+                "bank": _bank_values(date(2026, 10, 3), -1250),
             },
             {
                 **item,
                 "id": str(correction.id),
                 "kind": "correction",
                 "account_id": account_id,
-                "external_transaction_id": "TRN-CORRECTED",
                 "bank": _bank_values(date(2026, 10, 2), -475, "BLUE BOTTLE COFFEE"),
                 "transaction_id": str(corrected.id),
                 "current": _bank_values(date(2026, 10, 1), -400, "SQ *BLUE BOTTLE"),
@@ -241,7 +234,6 @@ async def test_review_list_shows_each_kind_with_the_values_its_review_compares(c
                 "id": str(removal.id),
                 "kind": "removal",
                 "account_id": account_id,
-                "external_transaction_id": "TRN-REMOVED",
                 "bank": _bank_values(date(2026, 10, 1), -1250),
                 "transaction_id": str(removed.id),
                 "current": _bank_values(date(2026, 10, 1), -1250),

@@ -283,7 +283,7 @@ async def test_discovery_vanished_linked_bank_account_moves_its_link_to_choose_a
     assert await _link_state(visa) == BankLinkState.ACTIVE
     assert await _listed(connection) == {"ACT-chequing": False, "ACT-savings": True, "ACT-visa": True}
     async with TestSession() as session:
-        pending = (await session.execute(select(BankPendingTransaction.account_id, BankPendingTransaction.external_transaction_id))).all()
+        pending = (await session.execute(select(BankPendingTransaction.account_id, BankPendingTransaction.description))).all()
     assert [tuple(row) for row in pending] == [(visa.account_id, "P-visa")]
 
 

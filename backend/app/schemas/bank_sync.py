@@ -503,8 +503,6 @@ class BankValues(BaseModel):
     amount: int | None
     raw_amount: str | None
     description: str
-    merchant_name: str | None
-    category_hint: str | None
 
 
 class BankPendingTransactionResponse(BaseModel):

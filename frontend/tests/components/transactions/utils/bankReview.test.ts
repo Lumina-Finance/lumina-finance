@@ -35,14 +35,13 @@ const formatMoved = (amount: number, currency: string) => formatMovedCurrency(am
 
 /** Builds an item of the given kind on Everyday, for $12.50 out on Sep 21, 2026 */
 function createReviewItem(kind: BankReviewItemKind, overrides: Partial<BankReviewItem> = {}): BankReviewItem {
-  const bank = { date: '2026-09-21', amount: -1250, raw_amount: null, description: 'COUNTDOWN 123', merchant_name: null, category_hint: null }
+  const bank = { date: '2026-09-21', amount: -1250, raw_amount: null, description: 'COUNTDOWN 123' }
   return {
     id: `item-${kind}`,
     kind,
     account_id: 'everyday',
     provider: 'simplefin',
     provider_name: 'SimpleFIN',
-    external_transaction_id: 'TRN-1',
     received_at: '2026-09-22T12:00:00Z',
     version: 1,
     bank,

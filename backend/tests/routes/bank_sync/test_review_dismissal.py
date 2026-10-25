@@ -20,6 +20,7 @@ from app.models.account import Account
 from app.models.bank_connection import BankAccountLink, BankConnection, BankProvider
 from app.models.bank_transaction import OBSERVATION_COLUMNS, BankTransaction, BankTransactionDisposition, OpenReviewKind
 from app.services.bank_sync import review_pause
+from app.services.bank_sync.transaction_hash import hash_bank_transaction_id
 from tests.conftest import TestSession
 from tests.routes.support.bank_sync_helpers import (
     BANK_ACCOUNT_ID,
@@ -56,7 +57,7 @@ async def test_dismissing_keeps_only_the_items_identity_and_leaves_the_inbox(cli
     """HARBOUR COFFEE 0412 leaves the list with its bank values cleared and its identity kept, and the cache mark is the last write"""
     headers, _ = await _sign_up(client)
     account_id = await _new_account(client, headers, "Everyday")
-    item_id = await _commit_review_item(account_id, merchant_name="Harbour Coffee", category_hint="Coffee", extras={"memo": "card 0412"})
+    item_id = await _commit_review_item(account_id)
     before = await _changed_at(client, headers)
 
     with _recorded_statements() as statements:
@@ -65,11 +66,11 @@ async def test_dismissing_keeps_only_the_items_identity_and_leaves_the_inbox(cli
     assert dismissed.status_code == 204, dismissed.text
     assert dismissed.content == b""
     stored = await _stored_item(item_id)
-    assert (stored.account_id, stored.provider, stored.external_account_id, stored.external_transaction_id, stored.disposition) == (
+    assert (stored.account_id, stored.provider, stored.external_account_id, stored.external_transaction_hash, stored.disposition) == (
         uuid.UUID(account_id),
         BankProvider.SIMPLEFIN,
         BANK_ACCOUNT_ID,
-        "TRN-1001",
+        hash_bank_transaction_id(BankProvider.SIMPLEFIN, BANK_ACCOUNT_ID, "TRN-1001"),
         BankTransactionDisposition.DISMISSED,
     )
     assert {column: getattr(stored, column) for column in OBSERVATION_COLUMNS} == dict.fromkeys(OBSERVATION_COLUMNS)

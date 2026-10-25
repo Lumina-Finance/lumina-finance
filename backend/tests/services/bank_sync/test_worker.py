@@ -131,9 +131,9 @@ async def _seed_links(connection: BankConnection, *external_ids: str) -> tuple[l
 
 
 async def _pending_items() -> set[tuple[uuid.UUID, str]]:
-    """Return each pending item's account and bank id"""
+    """Return each pending item's account and description"""
     async with TestSession() as session:
-        rows = (await session.execute(select(BankPendingTransaction.account_id, BankPendingTransaction.external_transaction_id))).all()
+        rows = (await session.execute(select(BankPendingTransaction.account_id, BankPendingTransaction.description))).all()
     return {tuple(row) for row in rows}
 
 

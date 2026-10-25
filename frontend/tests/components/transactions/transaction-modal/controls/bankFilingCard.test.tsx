@@ -34,10 +34,9 @@ const ITEM: BankReviewItem = {
   account_id: 'everyday',
   provider: 'simplefin',
   provider_name: 'SimpleFIN',
-  external_transaction_id: 'TRN-8841',
   received_at: '2026-09-22T03:04:00Z',
   version: 1,
-  bank: { date: '2026-09-21', amount: -1250, raw_amount: null, description: 'COUNTDOWN 123', merchant_name: null, category_hint: null },
+  bank: { date: '2026-09-21', amount: -1250, raw_amount: null, description: 'COUNTDOWN 123' },
   transaction_id: null,
   current: null,
   changed_fields: [],
@@ -77,30 +76,18 @@ describe('the filing card', () => {
     expect(textOf(markup).slice(0, 5)).toEqual(['SimpleFIN', 'Example Bank', 'New', 'Chequing', 'Description from SimpleFIN'])
   })
 
-  it('gives the description its own heading and lists every other field the provider sent', () => {
+  it('gives the description its own heading and lists the amount, date and when it was received', () => {
     const markup = renderCard(withBank({
       amount: -4210,
       description: 'COUNTDOWN 123 AUCKLAND',
-      merchant_name: 'Countdown',
-      category_hint: 'Groceries',
     }))
 
     expect(markup).toMatch(/>Description from SimpleFIN<\/p><p[^>]*>COUNTDOWN 123 AUCKLAND<\/p>/)
     expect(fieldsOf(markup)).toEqual([
       ['Amount', `${MINUS}$42.10`],
       ['Date', 'Sep 21, 2026'],
-      ['Merchant', 'Countdown'],
-      ['Category', 'Groceries'],
       ['Received', expect.stringMatching(/^Sep 21, 8:04\sp\.m\.$/u)],
-      ['Ref', 'TRN-8841'],
     ])
-  })
-
-  it('shows "—" for a merchant or category the provider did not send', () => {
-    const fields = new Map(fieldsOf(renderCard(withBank({ merchant_name: null, category_hint: null }))))
-
-    expect(fields.get('Merchant')).toBe('—')
-    expect(fields.get('Category')).toBe('—')
   })
 
   it('shows an amount its currency cannot hold exactly as the bank sent it', () => {

@@ -21,7 +21,7 @@ from tests.routes.support.bank_sync_helpers import (
 _GROUP_DETAIL = "Pending bank transactions aren't listed for accounts shared with a group"
 
 
-async def _commit_pending(account_id: str | uuid.UUID, external_transaction_id: str = "P-1", **values) -> uuid.UUID:
+async def _commit_pending(account_id: str | uuid.UUID, **values) -> uuid.UUID:
     """Commit a pending item the bank reports for an account, with any of its values replaced
 
     Returns:
@@ -29,7 +29,7 @@ async def _commit_pending(account_id: str | uuid.UUID, external_transaction_id: 
     """
     async with TestSession() as session:
         account = await session.get_one(Account, uuid.UUID(str(account_id)))
-        item = _build_pending_transaction(account, external_transaction_id)
+        item = _build_pending_transaction(account)
         for field, value in values.items():
             setattr(item, field, value)
         session.add(item)
@@ -56,11 +56,10 @@ async def test_pending_list_shows_every_item_newest_first_with_when_the_bank_rep
     usd_id = await _new_account(client, headers, "US Chequing", currency="USD")
     this_morning = datetime(2026, 10, 4, 9, 0, tzinfo=UTC)
     three_days_earlier = datetime(2026, 10, 1, 9, 0, tzinfo=UTC)
-    uber = await _commit_pending(everyday_id, "P-UBER", transaction_date=date(2026, 10, 3), amount=-1800, description="UBER TRIP")
-    fuel = await _commit_pending(everyday_id, "P-FUEL")
+    uber = await _commit_pending(everyday_id, transaction_date=date(2026, 10, 3), amount=-1800, description="UBER TRIP")
+    fuel = await _commit_pending(everyday_id)
     amazon = await _commit_pending(
         usd_id,
-        "P-AMZN",
         transaction_date=date(2026, 9, 30),
         amount=None,
         raw_amount="-12.345",

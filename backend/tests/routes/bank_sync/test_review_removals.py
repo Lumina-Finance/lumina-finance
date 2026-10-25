@@ -191,8 +191,6 @@ async def test_keeping_the_transaction_leaves_the_ledger_and_remembers_the_remov
             "amount": -4000,
             "raw_amount": None,
             "description": _GROCERIES,
-            "merchant_name": None,
-            "category_hint": None,
         },
         "edited_fields": ["amount"],
         "review_item_id": None,

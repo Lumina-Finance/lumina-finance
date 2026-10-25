@@ -38,6 +38,7 @@ from app.models.bank_connection import BankAccountLink
 from app.models.bank_transaction import BankTransaction, BankTransactionDisposition
 from app.services.bank_sync.corrections import store_accepted_observations
 from app.services.bank_sync.providers.contract import ProviderRecord
+from app.services.bank_sync.transaction_hash import hash_bank_transaction_id
 
 
 @dataclass(frozen=True)
@@ -73,7 +74,7 @@ async def store_booked_records(
     Returns:
         Whether anything stored changed, and whether that reached the ledger
     """
-    wanted = [(link, _booked_records(records)) for link, records in deliveries]
+    wanted = [(link, _booked_records(link, records)) for link, records in deliveries]
     wanted = [(link, booked) for link, booked in wanted if booked]
     if not wanted:
         return StoredRecords()
@@ -87,7 +88,7 @@ async def store_booked_records(
                         BankTransaction.account_id == link.account_id,
                         BankTransaction.provider == link.provider,
                         BankTransaction.external_account_id == link.external_account_id,
-                        BankTransaction.external_transaction_id.in_(list(booked)),
+                        BankTransaction.external_transaction_hash.in_(list(booked)),
                     )
                     for link, booked in wanted
                 )
@@ -97,14 +98,14 @@ async def store_booked_records(
         .with_for_update()
     )
 
-    known = {(row.account_id, row.provider, row.external_account_id, row.external_transaction_id): row for row in stored}
+    known = {(row.account_id, row.provider, row.external_account_id, row.external_transaction_hash): row for row in stored}
 
     changed = False
     accepted: list[tuple[BankTransaction, dict[str, Any]]] = []
     removed: list[BankTransaction] = []
     for link, booked in wanted:
-        for external_id, record in booked.items():
-            row = known.get((link.account_id, link.provider, link.external_account_id, external_id))
+        for transaction_hash, record in booked.items():
+            row = known.get((link.account_id, link.provider, link.external_account_id, transaction_hash))
             if record.removed:
                 # A transaction never brought in has nothing to remove, a dismissal stands whatever the
                 # bank says, and a removal already recorded is the same one delivered again
@@ -127,7 +128,7 @@ async def store_booked_records(
                         account_id=link.account_id,
                         provider=link.provider,
                         external_account_id=link.external_account_id,
-                        external_transaction_id=external_id,
+                        external_transaction_hash=transaction_hash,
                         disposition=BankTransactionDisposition.AWAITING_REVIEW,
                         observed_at=observed_at,
                         **observation,
@@ -160,14 +161,18 @@ def _differs(row: BankTransaction, observation: dict[str, Any]) -> bool:
     return any(getattr(row, column) != value for column, value in observation.items())
 
 
-def _booked_records(records: Sequence[ProviderRecord]) -> dict[str, ProviderRecord]:
-    """Return a link's records of booked transactions by transaction ID, those the provider reports removed included
+def _booked_records(link: BankAccountLink, records: Sequence[ProviderRecord]) -> dict[str, ProviderRecord]:
+    """Return a link's records of booked transactions by the keyed hash of their transaction ID, those the provider reports removed included
 
     Pending records are display data kept apart from the review inbox. An ID sent twice in one
     response is one transaction, so the later record of it stands, whether it lists the transaction
     or reports it removed
     """
-    return {record.external_id: record for record in records if not record.pending}
+    return {
+        hash_bank_transaction_id(link.provider, link.external_account_id, record.external_id): record
+        for record in records
+        if not record.pending
+    }
 
 
 def _observation(record: ProviderRecord) -> dict[str, Any]:
@@ -178,7 +183,4 @@ def _observation(record: ProviderRecord) -> dict[str, Any]:
         # Kept only when the amount can't be stored exactly, for the item to show as the bank sent it
         "raw_amount": record.raw_amount if record.amount is None else None,
         "description": record.description,
-        "merchant_name": record.merchant_name,
-        "category_hint": record.category_hint,
-        "extras": dict(record.extras),
     }

@@ -28,7 +28,6 @@ class BankPendingTransaction(Base):
     id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
     owner_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
     account_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("accounts.id", ondelete="CASCADE"), nullable=False)
-    external_transaction_id: Mapped[str] = mapped_column(Text, nullable=False)
     transaction_date: Mapped[date] = mapped_column(Date, nullable=False)
 
     # In the account currency's minor units, or null with the amount exactly as the bank sent it

@@ -88,6 +88,7 @@ from app.services.bank_sync.provider_requests import read_request_budget, reserv
 from app.services.bank_sync.providers.contract import FetchResult, ProviderError, ProviderRecord
 from app.services.bank_sync.review_pause import lift_review_pauses, lock_account_links
 from app.services.bank_sync.schedule import next_daily_sync, queue_scheduled_sync, schedule_next_sync
+from app.services.bank_sync.transaction_hash import hash_bank_transaction_id
 from app.services.bank_sync.worker import enqueue_due_work, run_jobs
 from app.services.cache_state import get_visible_cache_status, mark_user_cache_changed
 from app.services.email import RenderedEmail
@@ -142,6 +143,11 @@ _YESTERDAYS_SYNC = datetime(2026, 10, 3, 9, 0, tzinfo=_BRISBANE)
 
 # More jobs than any test here queues, so a job that keeps queueing another fails the test
 _MOST_JOBS = 10
+
+# A stored bank transaction keeps only the keyed hash of the ID the bank sent. Naming this column in what
+# _bank_transactions returns reads that ID back, from the IDs the tests have sent so far
+_BANK_ID = BankTransaction.external_transaction_hash.label("bank_id")
+_KNOWN_BANK_IDS: set[str] = set()
 
 # Long enough for any step here to finish, so a missing protection fails the test rather than hanging it
 _WAIT_SECONDS = 10
@@ -210,34 +216,55 @@ def _record(
     **values,
 ) -> ProviderRecord:
     """Return a booked record as the provider sends it, a $4.50 coffee on 2 October unless told otherwise"""
-    fields = {"merchant_name": None, "category_hint": None, "extras": {}, "pending": False} | values
+    _KNOWN_BANK_IDS.add(external_id)
+    fields = {"pending": False} | values
     return ProviderRecord(external_id=external_id, date=day, amount=amount, raw_amount=raw_amount, description=description, **fields)
 
 
 def _pending_record(external_id: str, day: date = _TODAY, **values) -> ProviderRecord:
-    """Return a record still pending at the bank, a $4.50 coffee today unless told otherwise"""
-    return _record(external_id, day, pending=True, **values)
+    """Return a record still pending at the bank, a $4.50 coffee today described by its ID unless told otherwise
+
+    A pending item keeps no ID, so the description is what tells one stored item from another
+    """
+    return _record(external_id, day, pending=True, **{"description": external_id} | values)
+
+
+def _read_back_id(provider: str, bank_account: str, stored_hash: str) -> str:
+    """Return the ID the tests sent that a bank transaction's keyed hash stands for, or the hash itself when none matches"""
+    sent = (bank_id for bank_id in _KNOWN_BANK_IDS if hash_bank_transaction_id(provider, bank_account, bank_id) == stored_hash)
+    return next(sent, stored_hash)
 
 
 async def _bank_transactions(*columns) -> list[tuple]:
-    """Return these columns of every stored bank transaction, by bank account and then transaction ID"""
+    """Return these columns of every stored bank transaction, by bank account and then the ID the bank sent
+
+    Only the keyed hash of that ID is stored, so _BANK_ID reads back the ID among those the tests sent
+    """
     async with TestSession() as session:
-        rows = await session.execute(select(*columns).order_by(BankTransaction.external_account_id, BankTransaction.external_transaction_id))
-        return [tuple(row) for row in rows]
+        rows = await session.execute(
+            select(BankTransaction.provider, BankTransaction.external_account_id, BankTransaction.external_transaction_hash, *columns)
+        )
+    found = [
+        (bank_account, _read_back_id(provider, bank_account, stored_hash), values) for provider, bank_account, stored_hash, *values in rows
+    ]
+    return [
+        tuple(bank_id if column is _BANK_ID else value for column, value in zip(columns, values, strict=True))
+        for _, bank_id, values in sorted(found, key=lambda stored: stored[:2])
+    ]
 
 
 async def _pending_transactions(*columns) -> list[tuple]:
-    """Return these columns of every stored pending item, by transaction ID"""
+    """Return these columns of every stored pending item, by description"""
     async with TestSession() as session:
-        rows = await session.execute(select(*columns).order_by(BankPendingTransaction.external_transaction_id))
+        rows = await session.execute(select(*columns).order_by(BankPendingTransaction.description))
         return [tuple(row) for row in rows]
 
 
-async def _store_pending(link: BankAccountLink, external_transaction_id: str, **values) -> None:
+async def _store_pending(link: BankAccountLink, description: str, **values) -> None:
     """Commit a pending item an earlier sync found for the link's account, as the shared builder makes it unless told otherwise"""
     async with TestSession() as session:
         account = await session.get(Account, link.account_id)
-        item = _build_pending_transaction(account, external_transaction_id)
+        item = _build_pending_transaction(account, description)
         for field, value in values.items():
             setattr(item, field, value)
         session.add(item)
@@ -250,6 +277,7 @@ async def _store_bank_transaction(link: BankAccountLink, external_transaction_id
     Returns:
         Its id, which is also its review item's
     """
+    _KNOWN_BANK_IDS.add(external_transaction_id)
     async with TestSession() as session:
         account = await session.get(Account, link.account_id)
         record = _build_bank_transaction(account, external_transaction_id, external_account_id=link.external_account_id)
@@ -506,11 +534,27 @@ async def test_job_keeps_records_and_moves_checkpoints_only_for_bank_accounts_th
 
     await _run_jobs_until_none_is_due()
 
-    assert await _bank_transactions(BankTransaction.external_account_id, BankTransaction.external_transaction_id) == [
-        ("ACT-everyday", "TRN-coffee")
-    ]
+    assert await _bank_transactions(BankTransaction.external_account_id, _BANK_ID) == [("ACT-everyday", "TRN-coffee")]
     assert await _checkpoints(*links) == [_TODAY, date(2026, 10, 3), date(2026, 10, 3), date(2026, 10, 3)]
     assert [(kind, status) for kind, status, *_ in await _jobs()] == [("scheduled", "succeeded"), ("retry", "queued")]
+
+
+async def test_job_keeps_a_bank_transaction_by_the_keyed_hash_of_its_id_and_stores_a_resent_one_once(connection, provider):
+    """Everyday's coffee is kept as the hash of the bank account and ID, never as the ID the bank sent
+
+    A second job brings the same record back as the same transaction rather than a new one, which is
+    what keeps a transaction the user approved or dismissed from returning for review
+    """
+    link = await _link(connection, "ACT-everyday", **_synced_through_yesterday())
+    provider.outcomes = [_returned_with({"ACT-everyday": [_record("TRN-coffee")]}), _returned_with({"ACT-everyday": [_record("TRN-coffee")]})]
+
+    for _ in range(2):
+        await _seed_job(connection, BankSyncJobKind.MANUAL)
+        assert await run_jobs(1) == 1
+
+    stored = await _bank_transactions(BankTransaction.external_transaction_hash)
+    assert stored == [(hash_bank_transaction_id(link.provider, "ACT-everyday", "TRN-coffee"),)]
+    assert "TRN-coffee" not in stored[0][0]
 
 
 class _CardFailingProvider(FakeProviderAdapter):
@@ -1919,7 +1963,7 @@ async def test_job_fetches_a_window_whose_response_may_be_cut_short_again_in_two
         _window(date(2026, 1, 1), date(2026, 2, 14)),
         _window(date(2026, 2, 15), date(2026, 3, 31)),
     ]
-    assert await _bank_transactions(BankTransaction.external_transaction_id) == [("TRN-january",), ("TRN-march",)]
+    assert await _bank_transactions(_BANK_ID) == [("TRN-january",), ("TRN-march",)]
     assert await _checkpoints(link) == [date(2026, 3, 31)]
     assert [(kind, status) for kind, status, *_ in await _jobs()] == [("initial", "succeeded"), ("initial", "queued")]
 
@@ -2161,9 +2205,7 @@ async def test_job_stores_nothing_for_a_bank_account_a_fetch_lists_in_another_cu
 
     assert await run_jobs(1) == 1
 
-    assert await _bank_transactions(BankTransaction.external_account_id, BankTransaction.external_transaction_id) == [
-        ("ACT-savings", "TRN-interest")
-    ]
+    assert await _bank_transactions(BankTransaction.external_account_id, _BANK_ID) == [("ACT-savings", "TRN-interest")]
     assert await _checkpoints(everyday, savings) == [date(2026, 10, 3), _TODAY]
     assert (await _attempts(everyday))[0][2] == "Fake Bank now reports this bank account in JPY, not CAD"
     async with TestSession() as session:
@@ -2174,7 +2216,7 @@ async def test_job_stores_nothing_for_a_bank_account_a_fetch_lists_in_another_cu
     # Savings, synced through today, waits for tomorrow, so the listing is all the next job sends
     assert (len(provider.discoveries), len(provider.fetches)) == (1, 1)
     assert await _link_states(everyday, savings) == ["choose_account", "active"]
-    assert await _bank_transactions(BankTransaction.external_transaction_id) == [("TRN-interest",)]
+    assert await _bank_transactions(_BANK_ID) == [("TRN-interest",)]
 
 
 async def test_job_that_listed_a_bank_account_in_its_accounts_currency_queues_no_listing_when_its_fetch_disagrees(
@@ -2197,7 +2239,7 @@ async def test_job_that_listed_a_bank_account_in_its_accounts_currency_queues_no
     await _run_jobs_until_none_is_due()
 
     assert (len(provider.discoveries), len(provider.fetches)) == (1, 1)
-    assert await _bank_transactions(BankTransaction.external_transaction_id) == []
+    assert await _bank_transactions(_BANK_ID) == []
     assert (await _link_states(link), await _checkpoints(link)) == (["active"], [date(2026, 10, 3)])
     assert [status for _, status, *_ in await _jobs()] == ["succeeded", "queued"]
     assert await _queued_jobs() == [("retry", timedelta(minutes=30), False)]
@@ -2550,10 +2592,8 @@ async def test_job_stores_nothing_for_a_link_unlinked_while_it_fetched(connectio
         provider.release[1].set()
         await running
 
-    assert await _bank_transactions(BankTransaction.external_account_id, BankTransaction.external_transaction_id) == [
-        ("ACT-everyday", "TRN-coffee")
-    ]
-    assert await _pending_transactions(BankPendingTransaction.account_id, BankPendingTransaction.external_transaction_id) == [
+    assert await _bank_transactions(BankTransaction.external_account_id, _BANK_ID) == [("ACT-everyday", "TRN-coffee")]
+    assert await _pending_transactions(BankPendingTransaction.account_id, BankPendingTransaction.description) == [
         (everyday.account_id, "P-fuel")
     ]
     assert await _checkpoints(everyday, savings) == [_TODAY, date(2026, 10, 3)]
@@ -2631,7 +2671,7 @@ async def test_job_puts_each_new_booked_record_in_the_review_inbox_whatever_the_
         await session.commit()
     salary = _record("TRN-salary", date(2026, 10, 1), amount=2_650_00, raw_amount="2650.00", description="DIRECT CREDIT BRIGHTWORKS SALARY")
     fuel = _record("TRN-fuel", _TODAY, amount=-72_10, raw_amount="-72.10", description="NORTHERN FUEL STOP")
-    coffee = _record("TRN-coffee", merchant_name="Blue Bottle", extras={"memo": "Tap to pay"})
+    coffee = _record("TRN-coffee")
     provider.outcomes = [_returned_with({"ACT-everyday": [salary, fuel, coffee]})]
     await _seed_job(connection, BankSyncJobKind.SCHEDULED)
 
@@ -2640,13 +2680,11 @@ async def test_job_puts_each_new_booked_record_in_the_review_inbox_whatever_the_
     awaiting = BankTransactionDisposition.AWAITING_REVIEW
     assert await _bank_transactions(
         BankTransaction.account_id,
-        BankTransaction.external_transaction_id,
+        _BANK_ID,
         BankTransaction.disposition,
         BankTransaction.observed_date,
         BankTransaction.observed_amount,
         BankTransaction.description,
-        BankTransaction.merchant_name,
-        BankTransaction.extras,
         BankTransaction.observed_at,
     ) == [
         (
@@ -2656,12 +2694,10 @@ async def test_job_puts_each_new_booked_record_in_the_review_inbox_whatever_the_
             date(2026, 10, 2),
             -4_50,
             "POS 4411 COFFEE",
-            "Blue Bottle",
-            {"memo": "Tap to pay"},
             frozen_now,
         ),
-        (link.account_id, "TRN-fuel", awaiting, _TODAY, -72_10, "NORTHERN FUEL STOP", None, {}, frozen_now),
-        (link.account_id, "TRN-salary", awaiting, date(2026, 10, 1), 2_650_00, "DIRECT CREDIT BRIGHTWORKS SALARY", None, {}, frozen_now),
+        (link.account_id, "TRN-fuel", awaiting, _TODAY, -72_10, "NORTHERN FUEL STOP", frozen_now),
+        (link.account_id, "TRN-salary", awaiting, date(2026, 10, 1), 2_650_00, "DIRECT CREDIT BRIGHTWORKS SALARY", frozen_now),
     ]
     async with TestSession() as session:
         assert (await session.scalars(select(Transaction.id))).all() == []
@@ -2678,9 +2714,7 @@ async def test_job_keeps_an_amount_it_cant_store_exactly_as_the_bank_sent_it_and
 
     await _run_jobs_until_none_is_due()
 
-    assert await _bank_transactions(BankTransaction.external_transaction_id, BankTransaction.observed_amount, BankTransaction.raw_amount) == [
-        ("TRN-fx", None, "-12.345")
-    ]
+    assert await _bank_transactions(_BANK_ID, BankTransaction.observed_amount, BankTransaction.raw_amount) == [("TRN-fx", None, "-12.345")]
     async with TestSession() as session:
         assert (await session.execute(select(BankAccountLink.checkpoint, BankAccountLink.last_success_at))).one() == (_TODAY, frozen_now)
 
@@ -2700,7 +2734,7 @@ async def test_job_reading_the_same_records_again_keeps_one_unchanged_item_each(
     async with TestSession() as session:
         await session.execute(update(BankTransaction).values(observed_at=frozen_now - timedelta(days=1)))
         await session.commit()
-    columns = (BankTransaction.external_transaction_id, BankTransaction.id, BankTransaction.version, BankTransaction.observed_at)
+    columns = (_BANK_ID, BankTransaction.id, BankTransaction.version, BankTransaction.observed_at)
     stored = await _bank_transactions(*columns)
 
     await _bring_next_syncs_round(connection, frozen_now)
@@ -2783,7 +2817,7 @@ async def test_job_puts_no_pending_or_removed_record_in_the_review_inbox(connect
 
     await _run_jobs_until_none_is_due()
 
-    assert await _bank_transactions(BankTransaction.external_transaction_id) == [("TRN-coffee",)]
+    assert await _bank_transactions(_BANK_ID) == [("TRN-coffee",)]
 
 
 async def test_job_replaces_each_accounts_pending_items_with_those_still_pending_at_the_bank(connection, provider, frozen_now):
@@ -2802,7 +2836,7 @@ async def test_job_replaces_each_accounts_pending_items_with_those_still_pending
         _returned_with({"ACT-everyday": [_pending_record("P-coffee", description="COFFEE"), shell, hotel], "ACT-card": [refund]}),
         _returned_with({"ACT-everyday": [shell, _record("TRN-coffee", _TODAY, description="COFFEE")], "ACT-card": []}),
     ]
-    columns = (BankPendingTransaction.account_id, BankPendingTransaction.external_transaction_id, BankPendingTransaction.amount)
+    columns = (BankPendingTransaction.account_id, BankPendingTransaction.description, BankPendingTransaction.amount)
     await _seed_job(connection, BankSyncJobKind.SCHEDULED)
     await _run_jobs_until_none_is_due()
     after_the_first_sync = await _pending_transactions(*columns)
@@ -2812,15 +2846,13 @@ async def test_job_replaces_each_accounts_pending_items_with_those_still_pending
     await _run_jobs_until_none_is_due()
 
     assert after_the_first_sync == [
-        (everyday.account_id, "P-coffee", -4_50),
-        (everyday.account_id, "P-hotel", -200_00),
-        (card.account_id, "P-refund", 25_00),
-        (everyday.account_id, "P-shell", -60_00),
+        (everyday.account_id, "COFFEE", -4_50),
+        (everyday.account_id, "HARBOUR HOTEL", -200_00),
+        (card.account_id, "REFUND", 25_00),
+        (everyday.account_id, "SHELL", -60_00),
     ]
-    assert await _pending_transactions(*columns) == [(everyday.account_id, "P-shell", -60_00)]
-    assert await _bank_transactions(BankTransaction.external_transaction_id, BankTransaction.disposition) == [
-        ("TRN-coffee", BankTransactionDisposition.AWAITING_REVIEW)
-    ]
+    assert await _pending_transactions(*columns) == [(everyday.account_id, "SHELL", -60_00)]
+    assert await _bank_transactions(_BANK_ID, BankTransaction.disposition) == [("TRN-coffee", BankTransactionDisposition.AWAITING_REVIEW)]
 
 
 async def test_job_keeps_each_pending_record_from_the_import_start_on_once_as_the_bank_sent_it(connection, provider, frozen_now):
@@ -2845,16 +2877,15 @@ async def test_job_keeps_each_pending_record_from_the_import_start_on_once_as_th
 
     assert await _pending_transactions(
         BankPendingTransaction.account_id,
-        BankPendingTransaction.external_transaction_id,
         BankPendingTransaction.transaction_date,
         BankPendingTransaction.amount,
         BankPendingTransaction.raw_amount,
         BankPendingTransaction.description,
         BankPendingTransaction.observed_at,
     ) == [
-        (link.account_id, "P-coffee", _TODAY, -5_40, None, "POS 4411 COFFEE", frozen_now),
-        (link.account_id, "P-fee", _TODAY, None, "-12.345", "FX FEE", frozen_now),
-        (link.account_id, "P-fuel", date(2026, 10, 3), -72_10, None, "NORTHERN FUEL STOP", frozen_now),
+        (link.account_id, _TODAY, None, "-12.345", "FX FEE", frozen_now),
+        (link.account_id, date(2026, 10, 3), -72_10, None, "NORTHERN FUEL STOP", frozen_now),
+        (link.account_id, _TODAY, -5_40, None, "P-coffee", frozen_now),
     ]
 
 
@@ -2882,7 +2913,7 @@ async def test_job_leaves_the_pending_items_of_bank_accounts_the_response_didnt_
 
     await _run_jobs_until_none_is_due()
 
-    assert await _pending_transactions(BankPendingTransaction.account_id, BankPendingTransaction.external_transaction_id) == [
+    assert await _pending_transactions(BankPendingTransaction.account_id, BankPendingTransaction.description) == [
         (links["card"].account_id, "P-card-before"),
         (links["everyday"].account_id, "P-everyday-now"),
         (links["savings"].account_id, "P-savings-before"),
@@ -2910,10 +2941,10 @@ async def test_job_leaves_pending_items_alone_until_its_window_reaches_today(con
 
     for _ in range(2):
         assert await run_jobs(1) == 1
-        assert await _pending_transactions(BankPendingTransaction.external_transaction_id) == [("P-march",)]
+        assert await _pending_transactions(BankPendingTransaction.description) == [("P-march",)]
     assert await run_jobs(1) == 1
 
-    assert await _pending_transactions(BankPendingTransaction.external_transaction_id) == [("P-now",)]
+    assert await _pending_transactions(BankPendingTransaction.description) == [("P-now",)]
     assert len(provider.fetches) == 3
 
 
@@ -2928,7 +2959,7 @@ async def test_job_keeps_one_item_with_the_later_values_for_an_id_sent_twice_in_
 
     await _run_jobs_until_none_is_due()
 
-    assert await _bank_transactions(BankTransaction.external_transaction_id, BankTransaction.observed_amount) == [("TRN-coffee", -5_40)]
+    assert await _bank_transactions(_BANK_ID, BankTransaction.observed_amount) == [("TRN-coffee", -5_40)]
     assert [status for _, status, *_ in await _jobs()] == ["succeeded"]
     assert await _checkpoints(link) == [_TODAY]
 
@@ -2963,11 +2994,12 @@ async def test_job_keeps_records_from_the_import_start_on_for_a_user_far_east_of
         await session.commit()
     monkeypatch.setitem(availability.ENABLED_ADAPTERS, BankProvider.SIMPLEFIN, adapter)
     link = await _link(connection, "ACT-1", import_start=date(2026, 7, 5), checkpoint=date(2026, 7, 4))
+    _KNOWN_BANK_IDS.update({"TRN-2026-07-05", "TRN-2026-10-02"})
     await _seed_job(connection, BankSyncJobKind.INITIAL)
 
     await _run_jobs_until_none_is_due()
 
-    assert await _bank_transactions(BankTransaction.external_transaction_id, BankTransaction.observed_date) == [
+    assert await _bank_transactions(_BANK_ID, BankTransaction.observed_date) == [
         ("TRN-2026-07-05", date(2026, 7, 5)),
         ("TRN-2026-10-02", date(2026, 10, 2)),
     ]
@@ -3032,7 +3064,7 @@ async def test_job_tells_the_owners_pages_as_a_part_stores_records_without_movin
         provider.release[3].set()
         await running
 
-    assert await _bank_transactions(BankTransaction.external_transaction_id) == [("TRN-late",)]
+    assert await _bank_transactions(_BANK_ID) == [("TRN-late",)]
     assert checkpoint_after_the_earlier_half == [date(2026, 10, 3)]
     assert told_as_it_started is not None
     assert told_after_the_earlier_half > told_as_it_started
@@ -3948,6 +3980,7 @@ async def _accept_coffee(
     Returns:
         The bank transaction's id, which is also its review item's
     """
+    _KNOWN_BANK_IDS.add(external_id)
     async with TestSession() as session:
         account = await session.get_one(Account, link.account_id)
         category_id = await session.scalar(select(Category.id).where(Category.is_system.is_(True)).limit(1))
@@ -3958,7 +3991,6 @@ async def _accept_coffee(
         record = _build_bank_transaction(account, external_id, external_account_id=link.external_account_id, amount=-4_50, transaction=txn)
         record.observed_date = record.aligned_date = _COFFEE_DAY
         record.description = "POS 4411 COFFEE"
-        record.extras = {}
         for field, value in values.items():
             setattr(record, field, value)
         session.add(record)
@@ -3975,16 +4007,16 @@ async def _trust(link: BankAccountLink, *changes: str) -> None:
 
 
 async def test_job_proposes_a_bank_change_to_a_transaction_in_the_ledger_and_keeps_the_approved_value(connection, provider, frozen_now):
-    """The bank re-sends the $4.50 coffee the user added as $4.75, now under the merchant name Blue Bottle Coffee
+    """The bank re-sends the $4.50 coffee the user added as $4.75
 
     With corrections set to review, the ledger keeps $4.50 and one correction opens, for the amount
     alone. The next re-read sends $4.75 again and leaves that correction exactly as it was
     """
     link = await _link(connection, "ACT-1", **_synced_through_yesterday())
     item_id = await _accept_coffee(link)
-    corrected = _record("TRN-coffee", amount=-4_75, raw_amount="-4.75", merchant_name="Blue Bottle Coffee")
+    corrected = _record("TRN-coffee", amount=-4_75, raw_amount="-4.75")
     provider.outcomes = [_returned_with({"ACT-1": [corrected]}), _returned_with({"ACT-1": [corrected]})]
-    columns = (BankTransaction.id, *_CORRECTION, BankTransaction.observed_amount, BankTransaction.merchant_name, BankTransaction.version)
+    columns = (BankTransaction.id, *_CORRECTION, BankTransaction.observed_amount, BankTransaction.version)
     await _seed_job(connection, BankSyncJobKind.SCHEDULED)
     await _run_jobs_until_none_is_due()
     after_the_change = await _bank_transactions(*columns)
@@ -3994,7 +4026,7 @@ async def test_job_proposes_a_bank_change_to_a_transaction_in_the_ledger_and_kee
     await _run_jobs_until_none_is_due()
 
     assert len(provider.fetches) == 2
-    assert after_the_change == [(item_id, OpenReviewKind.CORRECTION, {"amount": -4_50}, -4_75, "Blue Bottle Coffee", 2)]
+    assert after_the_change == [(item_id, OpenReviewKind.CORRECTION, {"amount": -4_50}, -4_75, 2)]
     assert await _bank_transactions(*columns) == after_the_change
     assert await _ledger_rows(link.account_id) == [(_COFFEE_DAY, -4_50)]
 
@@ -4087,27 +4119,6 @@ async def test_job_widens_an_open_correction_and_keeps_comparing_with_the_values
     added = {"date": "2026-10-02", "amount": -4_50}
     assert widened == [(item_id, OpenReviewKind.CORRECTION, added, date(2026, 10, 3), -4_75)]
     assert await _bank_transactions(*columns) == [(item_id, OpenReviewKind.CORRECTION, added, date(2026, 10, 3), -5_00)]
-    assert await _ledger_rows(link.account_id) == [(_COFFEE_DAY, -4_50)]
-
-
-@pytest.mark.parametrize(
-    ("stored", "sent"),
-    [({"merchant_name": "SQ *BLUE BOTTLE"}, {"merchant_name": "Blue Bottle Coffee"}), ({}, {"category_hint": "Coffee shops"})],
-)
-async def test_job_stores_a_new_merchant_name_or_category_hint_without_a_correction(connection, provider, stored, sent):
-    """The bank renames SQ *BLUE BOTTLE to Blue Bottle Coffee, or files the coffee under Coffee shops, and changes nothing else
-
-    The bank's new value is stored with the transaction, with no correction and no change to the ledger
-    """
-    link = await _link(connection, "ACT-1", **_synced_through_yesterday())
-    await _accept_coffee(link, **stored)
-    provider.outcomes = [_returned_with({"ACT-1": [_record("TRN-coffee", **sent)]})]
-    await _seed_job(connection, BankSyncJobKind.SCHEDULED)
-
-    await _run_jobs_until_none_is_due()
-
-    [(field, value)] = sent.items()
-    assert await _bank_transactions(*_CORRECTION, getattr(BankTransaction, field)) == [(None, None, value)]
     assert await _ledger_rows(link.account_id) == [(_COFFEE_DAY, -4_50)]
 
 
@@ -4380,7 +4391,7 @@ async def test_job_stores_a_bank_change_dating_a_stored_transaction_before_the_i
 
     await _run_jobs_until_none_is_due()
 
-    columns = (BankTransaction.external_transaction_id, BankTransaction.disposition, BankTransaction.observed_date, *_CORRECTION)
+    columns = (_BANK_ID, BankTransaction.disposition, BankTransaction.observed_date, *_CORRECTION)
     assert await _bank_transactions(*columns) == [
         ("TRN-coffee", BankTransactionDisposition.ACCEPTED, redated, OpenReviewKind.CORRECTION, {"date": "2026-10-02"}),
         ("TRN-waiting", BankTransactionDisposition.AWAITING_REVIEW, redated, None, None),
@@ -4757,9 +4768,7 @@ async def test_job_deletes_a_trusted_removal_from_the_ledger_and_follows_each_ac
     assert await _ledger_rows(everyday.account_id) == [(_COFFEE_DAY, -4_50)]
     assert await _balances(everyday.account_id) == [(_COFFEE_DAY, -4_50)]
     assert await _ledger_rows(card.account_id) == [(_COFFEE_DAY, -42_00)]
-    assert await _bank_transactions(
-        BankTransaction.external_account_id, BankTransaction.external_transaction_id, BankTransaction.open_kind
-    ) == [
+    assert await _bank_transactions(BankTransaction.external_account_id, _BANK_ID, BankTransaction.open_kind) == [
         ("ACT-card", "TRN-groceries", OpenReviewKind.REMOVAL),
         ("ACT-everyday", "TRN-coffee", None),
     ]
@@ -4826,7 +4835,7 @@ async def test_job_changes_nothing_for_transactions_missing_from_a_later_fetch(c
     link = await _link(connection, "ACT-1", **_synced_through_yesterday())
     await _accept_groceries(link)
     await _store_bank_transaction(link, "TRN-coffee")
-    columns = (BankTransaction.external_transaction_id, BankTransaction.disposition, *_REMOVAL, BankTransaction.version)
+    columns = (_BANK_ID, BankTransaction.disposition, *_REMOVAL, BankTransaction.version)
     stored = await _bank_transactions(*columns)
     provider.outcomes = [_returned_with({"ACT-1": [_record("TRN-lunch", amount=-15_00, raw_amount="-15.00", description="LUNCH")]})]
     await _seed_job(connection, BankSyncJobKind.SCHEDULED)
@@ -5018,7 +5027,7 @@ async def test_job_leaves_alone_a_transaction_the_user_moved_out_of_the_account_
 
     assert await _ledger_rows(savings_id) == [(_COFFEE_DAY, -42_00)]
     assert await _balances(savings_id) == [(_COFFEE_DAY, -42_00)]
-    assert await _bank_transactions(BankTransaction.external_transaction_id, BankTransaction.disposition) == stored
+    assert await _bank_transactions(_BANK_ID, BankTransaction.disposition) == stored
 
 
 async def test_job_withdrawing_an_item_the_user_is_adding_waits_and_opens_a_removal_instead(connection, monkeypatch, frozen_now):

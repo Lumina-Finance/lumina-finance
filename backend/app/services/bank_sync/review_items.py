@@ -152,15 +152,12 @@ def build_review_item(record: BankTransaction, ledger_date: date | None, ledger_
         amount=record.observed_amount,
         raw_amount=record.raw_amount,
         description=record.description,
-        merchant_name=record.merchant_name,
-        category_hint=record.category_hint,
     )
     item = {
         "id": record.id,
         "account_id": record.account_id,
         "provider": record.provider,
         "provider_name": PROVIDER_ADAPTERS[record.provider].provider_name,
-        "external_transaction_id": record.external_transaction_id,
         "received_at": record.received_at,
         "version": record.version,
         "bank": bank,

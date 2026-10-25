@@ -47,8 +47,6 @@ export type BankSource = {
     amount: number | null
     raw_amount: string | null
     description: string
-    merchant_name: string | null
-    category_hint: string | null
   }
   edited_fields: ('date' | 'amount')[]
   review_item_id: string | null
@@ -83,14 +81,13 @@ export function reviewItem(
   bank: Partial<BankValues> = {},
   fields: Partial<ReviewItem> = {},
 ): ReviewItem {
-  const values = { date: SEP_21, amount: -1250, raw_amount: null, description: `GROCER ${id}`, merchant_name: null, category_hint: null, ...bank }
+  const values = { date: SEP_21, amount: -1250, raw_amount: null, description: `GROCER ${id}`, ...bank }
   return {
     id,
     kind,
     account_id: accountId,
     provider: 'simplefin',
     provider_name: 'SimpleFIN',
-    external_transaction_id: `TRN-${id}`,
     received_at: `${SEP_21}T12:00:00Z`,
     version: 1,
     bank: values,
@@ -143,8 +140,6 @@ export const BANK_SOURCE: BankSource = {
     amount: -4250,
     raw_amount: null,
     description: 'GROCER 123',
-    merchant_name: null,
-    category_hint: null,
   },
   edited_fields: [],
   review_item_id: null,

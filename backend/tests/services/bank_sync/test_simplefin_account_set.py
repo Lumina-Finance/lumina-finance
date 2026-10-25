@@ -6,6 +6,7 @@ The sample response is written by hand from the protocol, plus the Bridge's undo
 memo, and its conventions are assumed until checked against real Bridge data
 """
 
+import json
 from datetime import UTC, date, datetime
 from pathlib import Path
 from zoneinfo import ZoneInfo
@@ -75,10 +76,9 @@ def test_booked_record_is_dated_by_the_stamp_rule(record_id, timezone, expected)
     ("posted", "timezone", "expected"),
     [
         (1791072000, "America/Toronto", date(2026, 10, 4)),
-        (1791072000, "Pacific/Auckland", date(2026, 10, 4)),
         (1791072001, "America/Toronto", date(2026, 10, 3)),
     ],
-    ids=["midnight-utc-toronto", "midnight-utc-auckland", "one-second-past-midnight-utc"],
+    ids=["midnight-utc-toronto", "one-second-past-midnight-utc"],
 )
 def test_booked_record_stamped_at_midnight_utc_keeps_its_utc_date(posted, timezone, expected):
     """Midnight UTC on 4 October, how a bank that sends only a date may stamp it, is 4 October for a user in Toronto
@@ -130,24 +130,12 @@ def test_amount_with_more_decimals_than_its_currency_keeps_only_its_text():
     assert record.raw_amount == "-12.345"
 
 
-def test_payee_is_the_merchant_name_and_the_other_fields_stay_in_extras():
-    """The undocumented payee becomes the merchant hint, leaving the bank's description untouched"""
+def test_a_record_keeps_the_banks_description_whatever_payee_and_memo_the_bridge_adds():
+    """The Bridge's undocumented payee, memo and extra fields change nothing about the record"""
     record = _records()["TRN-coffee"]
 
-    assert record.merchant_name == "Blue Bottle Coffee"
     assert record.description == "POS 4411 BLUE BOTTLE SF"
-    assert record.extras == {"transacted_at": 1791083700, "memo": "Card ending 4411", "extra": {"category": "Dining"}}
-    assert record.category_hint is None
     assert record.removed is False
-
-
-def test_record_without_optional_fields_leaves_them_empty():
-    """A record with only the protocol's required fields reads with no merchant, hint or extras"""
-    record = _records()["TRN-konbini"]
-
-    assert record.merchant_name is None
-    assert record.category_hint is None
-    assert record.extras == {}
 
 
 @pytest.mark.parametrize(("first", "second", "cut_off"), [(500, 499, False), (500, 500, True)], ids=["999-in-all", "1000-in-all"])

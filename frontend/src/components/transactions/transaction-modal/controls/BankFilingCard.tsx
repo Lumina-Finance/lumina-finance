@@ -5,7 +5,6 @@ import { REVIEW_KIND_LABELS, getReviewItemAmount } from '@/components/transactio
 import { DATE_FORMATS, formatDate, formatDateLabel } from '@/utils/date'
 
 // What the card shows for a value the provider didn't send
-const NOT_SENT = '—'
 
 type BankFilingCardProps = {
   item: BankReviewItem
@@ -101,10 +100,7 @@ export default function BankFilingCard({
           <dl>
             <Field label="Amount" value={<span className="font-financial">{amount.text}</span>} strong />
             <Field label="Date" value={formatDateLabel(item.bank.date)} />
-            <Field label="Merchant" value={item.bank.merchant_name ?? NOT_SENT} />
-            <Field label="Category" value={item.bank.category_hint ?? NOT_SENT} />
             <Field label="Received" value={formatDate(new Date(item.received_at), DATE_FORMATS.monthDayTime, timeZone)} />
-            <Field label="Ref" value={<span className="block break-all">{item.external_transaction_id}</span>} />
           </dl>
         </div>
       </div>

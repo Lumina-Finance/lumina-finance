@@ -32,7 +32,7 @@ const NEEDS_REVIEW = 'aria-label="Needs review. Show the waiting item"'
 const SOURCE: TransactionBankSource = {
   provider: 'simplefin',
   provider_name: 'SimpleFIN',
-  bank_values: { date: '2026-10-04', amount: -1800, raw_amount: null, description: 'UBER TRIP', merchant_name: null, category_hint: null },
+  bank_values: { date: '2026-10-04', amount: -1800, raw_amount: null, description: 'UBER TRIP' },
   edited_fields: [],
   review_item_id: null,
 }
