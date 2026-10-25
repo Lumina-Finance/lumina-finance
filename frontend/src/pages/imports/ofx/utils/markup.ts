@@ -50,7 +50,7 @@ const MAX_OFX_DEPTH = 64
 // one of these, whose children follow it as tags
 const AGGREGATE_PATTERN = new RegExp(
   '^(?:OFX|SONRS|STATUS|FI|MKTGINFO|STMTTRN|PAYEE|CURRENCY|ORIGCURRENCY|LEDGERBAL|AVAILBAL|BANKTRANLIST'
-  + '|[A-Z]*ACCT(?:FROM|TO)|[A-Z]*STMTRS|[A-Z]*MSGSR[SQ]V\\d+|[A-Z]*TRN(?:RS|RQ)|LOANTRANLIST|LOANSTMTTRN)$',
+  + '|[A-Z]*ACCT(?:FROM|TO)|[A-Z]*STMTRS|[A-Z]*MSGSR[SQ]V\\d+|[A-Z]*TRN(?:RS|RQ)|INV[A-Z]*|LOANTRANLIST|LOANSTMTTRN)$',
 )
 
 function tokenize(markup: string): Token[] {

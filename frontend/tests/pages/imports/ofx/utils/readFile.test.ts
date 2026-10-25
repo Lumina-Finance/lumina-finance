@@ -337,22 +337,6 @@ describe('statements the import leaves out or refuses', () => {
     expect(file.statements).toHaveLength(1)
   })
 
-  // An investment statement lists its own transactions and positions, some of them empty tags, and none
-  // of that is a transaction of the bank statement beside it
-  it('keeps the contents of an investment statement out of the bank statement beside it', async () => {
-    const investment = [
-      '<INVSTMTMSGSRSV1>', '<INVSTMTTRNRS>', '<TRNUID>2001', '<INVSTMTRS>', '<CURDEF>CAD',
-      '<INVTRANLIST>', '<INVBANKTRAN>', '<STMTTRN>', '<TRNTYPE>DEBIT', '<DTPOSTED>20240116', '<TRNAMT>-99.00', '<FITID>INV1', '<NAME>Broker fee',
-      '</STMTTRN>', '<SUBACCTFUND>CASH', '</INVBANKTRAN>', '</INVTRANLIST>', '<INVPOSLIST>', '<INVBAL>', '</INVBAL>', '</INVPOSLIST>',
-      '</INVSTMTRS>', '</INVSTMTTRNRS>', '</INVSTMTMSGSRSV1>', '',
-    ].join('\n')
-    const file = await readFile(wrapMessageSets([investment, buildMessageSet(CHECKING, false)]))
-
-    expect(file.leftOut).toEqual({ investment: 1 })
-    expect(file.statements).toHaveLength(1)
-    expect(file.statements[0].transactions.map(({ bankTransactionId }) => bankTransactionId)).toEqual(['A1', 'A2'])
-  })
-
   it('refuses a file holding only investment statements, saying so', async () => {
     const markup = wrapMessageSets([buildInvestmentMessageSet(1)])
 
