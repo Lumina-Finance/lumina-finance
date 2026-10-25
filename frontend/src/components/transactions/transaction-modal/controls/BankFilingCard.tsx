@@ -4,8 +4,6 @@ import { useMoneyFormatters } from '@/hooks/useMoneyFormatters'
 import { REVIEW_KIND_LABELS, getReviewItemAmount } from '@/components/transactions/utils/bankReview'
 import { DATE_FORMATS, formatDate, formatDateLabel } from '@/utils/date'
 
-// What the card shows for a value the provider didn't send
-
 type BankFilingCardProps = {
   item: BankReviewItem
 

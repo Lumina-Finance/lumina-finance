@@ -1222,3 +1222,16 @@ test('answers no key in the dialogue below a Create category dialogue, and shows
   await expect(create).toBeHidden()
   expect(await readDate(dialog)).toBe(dateBefore)
 })
+
+test('steps the date with [ and ] while the keep-open checkbox has focus', async ({ page, request }) => {
+  const { dialog } = await openAddDialogue(page, request)
+  const keepOpen = dialog.getByRole('checkbox', { name: 'Keep modal open after adding', exact: true })
+
+  await keepOpen.focus()
+  await expect(keepOpen).toBeFocused()
+  await page.keyboard.press('BracketRight')
+  expect(await readDate(dialog)).toBe(daysFromTodayInTestTimezone(1))
+  await page.keyboard.press('BracketLeft')
+  expect(await readDate(dialog)).toBe(daysFromTodayInTestTimezone(0))
+  await expect(keepOpen).toBeFocused()
+})

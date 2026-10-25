@@ -88,21 +88,6 @@ function shownReason(page: Page, reason: string): Locator {
 }
 
 /**
- * Opens the account's page and, through the identity card's Bank sync fact, its edit modal at the
- * Bank link section
- *
- * @param status - The status label the fact should show first
- */
-async function openBankLink(page: Page, user: TestUser, accountId: string, status: string): Promise<Locator> {
-  await logInViaApi(page, user)
-  await openPage(page, `/accounts/${accountId}`)
-  await page.getByRole('button', { name: `Bank sync: ${status}. Open bank link` }).click()
-  const dialog = page.getByRole('dialog', { name: 'Edit account', exact: true })
-  await expect(dialog).toBeVisible()
-  return dialog
-}
-
-/**
  * Collects the bank account listings the page asks for, which name the account they are for
  */
 function watchListings(page: Page): string[] {

@@ -20,8 +20,8 @@ const SIZE_CLASSES = { sm: 'h-2 w-2', md: 'h-2.5 w-2.5' } as const
 // A slow blink that stays inside the dot's own box, so a pulsing dot never reaches past the label's
 // column the way a spreading ring would
 const BLINK_ANIMATE = { opacity: [1, 0.25, 1] }
-const SETTLE_TRANSITION = { duration: 0.2 }
-const BLINK_TRANSITION ={ duration: 1.4, repeat: Infinity, ease: 'easeInOut' } as const
+const BLINK_TRANSITION = { duration: 1.4, repeat: Infinity, ease: 'easeInOut' } as const
+const SETTLE_TRANSITION = { duration: 0.2, ease: [0.22, 1, 0.36, 1] } as const
 
 type SyncStatusDotProps = {
   tone: SyncStatusTone
