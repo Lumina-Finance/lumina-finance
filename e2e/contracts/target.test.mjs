@@ -132,10 +132,8 @@ test('every API seeding helper overrides the request context frontend base URL',
       : path.endsWith('/categories') ? [{ id: 'category-id', name: 'Groceries' }]
       : path.endsWith('/merchants') ? [{ id: 'merchant-id', name: 'Unknown' }]
       : { id: `${path.split('/').at(-1)}-id` }
-    // Recording a starting balance answers 200, as it changes an account rather than creating one
-    const created = method === 'POST' && !path.endsWith('/starting-balance')
     return {
-      status: () => path.endsWith('/auth/signup') ? 204 : created ? 201 : 200,
+      status: () => path.endsWith('/auth/signup') ? 204 : method === 'POST' ? 201 : 200,
       ok: () => true,
       json: async () => body,
       text: async () => JSON.stringify(body),
@@ -153,7 +151,7 @@ test('every API seeding helper overrides the request context frontend base URL',
     post: (url, options) => send('POST', url, options),
   }
   const user = await support.signUpUser(request)
-  const account = await support.createAccount(request, user, { name: 'Contract account', startingBalance: 125000 })
+  const account = await support.createAccount(request, user, { name: 'Contract account' })
   await support.createTransaction(request, user, {
     accountId: account.id, categoryName: 'Groceries', amount: -4250, date: '2026-09-01',
   })
@@ -165,7 +163,6 @@ test('every API seeding helper overrides the request context frontend base URL',
     ['POST', `${apiBase}/auth/signup`],
     ['POST', `${apiBase}/auth/signup/confirm`],
     ['POST', `${apiBase}/accounts`],
-    ['POST', `${apiBase}/accounts/accounts-id/starting-balance`],
     ['GET', `${apiBase}/categories`],
     ['GET', `${apiBase}/merchants`],
     ['POST', `${apiBase}/transactions`],
@@ -176,9 +173,5 @@ test('every API seeding helper overrides the request context frontend base URL',
   for (const { options } of calls.slice(2)) {
     assert.equal(options.headers.Authorization, 'Bearer contract-token')
   }
-
-  // The balance goes in its own request, since account creation refuses one
-  assert.equal('starting_balance' in calls[2].options.data, false)
-  assert.deepEqual(calls[3].options.data, { amount: 125000 })
   assert.equal(calls.at(-1).options.data.recurs, true)
 })

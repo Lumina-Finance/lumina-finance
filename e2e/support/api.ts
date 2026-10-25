@@ -334,10 +334,7 @@ export interface CreateAccountOptions {
   currency?: string
   institutionId?: string
 
-  /**
-   * Starting balance in minor units above zero, recorded after the account is created. A liability's
-   * is the amount owed, which the API saves negated
-   */
+  /** Signed opening balance in minor units */
   startingBalance?: number
 
   /** Credit limit in minor units, for a revolving account */
@@ -357,7 +354,7 @@ export interface CreateAccountOptions {
  * @param user - Account owner
  * @param options - What to create, defaulting to a chequing account in the test currency
  * @returns The account that was created
- * @throws When creation does not answer 201, or recording its starting balance does not answer 200
+ * @throws When creation does not answer 201
  */
 export async function createAccount(
   request: APIRequestContext,
@@ -374,6 +371,7 @@ export async function createAccount(
       name: options.name,
       currency,
       institution_id: options.institutionId,
+      starting_balance: options.startingBalance ?? null,
       credit_limit: options.creditLimit,
       group_id: options.groupId,
       tax_advantaged_category_id: options.taxAdvantagedCategoryId,
@@ -385,18 +383,6 @@ export async function createAccount(
   }
 
   const body = (await response.json()) as { id: string }
-  if (options.startingBalance !== undefined) {
-    const balanceResponse = await request.post(`${API_BASE_URL}/accounts/${body.id}/starting-balance`, {
-      headers: asUser(user),
-      data: { amount: options.startingBalance },
-    })
-    if (balanceResponse.status() !== 200) {
-      throw new Error(
-        `recording the starting balance of ${options.name} answered ${balanceResponse.status()}: ${await balanceResponse.text()}`,
-      )
-    }
-  }
-
   return { id: body.id, name: options.name, currency }
 }
 

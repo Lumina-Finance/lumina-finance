@@ -11,13 +11,7 @@ from tests.routes.accounts._account_helpers import (
     _seed_institution,
 )
 from tests.routes.accounts._balance_snapshot_helpers import _create_category, _create_transaction
-from tests.routes.support import (
-    ACCOUNT_PAYLOAD,
-    _create_account,
-    _create_user,
-    _get_auth_header,
-    _record_starting_balance,
-)
+from tests.routes.support import ACCOUNT_PAYLOAD, _create_account, _create_user, _get_auth_header
 
 # --- PATCH /accounts/{account_id} ---
 
@@ -56,12 +50,11 @@ async def test_patch_account_archiving_non_zero_balance_creates_balance_adjustme
 
     signup_resp = await _create_user(client)
     headers = _get_auth_header(signup_resp)
-    create_resp = await _create_account(client, headers)
+    create_resp = await _create_account(client, headers, starting_balance=12_500)
     account_data = create_resp.json()
     account_id = account_data["id"]
     archive_dt = _created_at_in_tz(account_data, "America/Toronto")
     monkeypatch.setattr(account_routes, "datetime", _clock_on_account_day(account_data, "America/Toronto"))
-    assert (await _record_starting_balance(client, headers, account_id, 12_500)).status_code == 200
 
     resp = await client.patch(f"/accounts/{account_id}", json={"is_archived": True}, headers=headers)
 
@@ -106,12 +99,11 @@ async def test_patch_account_archiving_is_blocked_by_transactions_dated_after_to
 
     signup_resp = await _create_user(client)
     headers = _get_auth_header(signup_resp)
-    create_resp = await _create_account(client, headers)
+    create_resp = await _create_account(client, headers, starting_balance=12_500)
     account_data = create_resp.json()
     account_id = account_data["id"]
     archive_dt = _created_at_in_tz(account_data, "America/Toronto")
     monkeypatch.setattr(account_routes, "datetime", _clock_on_account_day(account_data, "America/Toronto"))
-    assert (await _record_starting_balance(client, headers, account_id, 12_500)).status_code == 200
 
     # The starting balance is dated today, which does not block archiving
     same_day = await client.get(f"/accounts/{account_id}", headers=headers)
@@ -119,12 +111,7 @@ async def test_patch_account_archiving_is_blocked_by_transactions_dated_after_to
 
     category_id = (await _create_category(client, headers)).json()["id"]
     future = await _create_transaction(
-        client,
-        headers,
-        account_id,
-        category_id,
-        dt=(archive_dt + timedelta(days=1)).isoformat(),
-        amount=5_000,
+        client, headers, account_id, category_id, dt=(archive_dt + timedelta(days=1)).isoformat(), amount=5_000,
     )
     assert future.status_code == 201
     blocked = await client.get(f"/accounts/{account_id}", headers=headers)
@@ -148,11 +135,10 @@ async def test_patch_account_archiving_is_idempotent(client, monkeypatch):
 
     signup_resp = await _create_user(client)
     headers = _get_auth_header(signup_resp)
-    create_resp = await _create_account(client, headers)
+    create_resp = await _create_account(client, headers, starting_balance=25_000)
     account_data = create_resp.json()
     account_id = account_data["id"]
     monkeypatch.setattr(account_routes, "datetime", _clock_on_account_day(account_data, "America/Toronto"))
-    assert (await _record_starting_balance(client, headers, account_id, 25_000)).status_code == 200
 
     first = await client.patch(f"/accounts/{account_id}", json={"is_archived": True}, headers=headers)
     second = await client.patch(f"/accounts/{account_id}", json={"is_archived": True}, headers=headers)
@@ -171,11 +157,10 @@ async def test_patch_account_unarchiving_keeps_zeroed_balance(client, monkeypatc
 
     signup_resp = await _create_user(client)
     headers = _get_auth_header(signup_resp)
-    create_resp = await _create_account(client, headers)
+    create_resp = await _create_account(client, headers, starting_balance=42_000)
     account_data = create_resp.json()
     account_id = account_data["id"]
     monkeypatch.setattr(account_routes, "datetime", _clock_on_account_day(account_data, "America/Toronto"))
-    assert (await _record_starting_balance(client, headers, account_id, 42_000)).status_code == 200
 
     archive_resp = await client.patch(f"/accounts/{account_id}", json={"is_archived": True}, headers=headers)
     unarchive_resp = await client.patch(f"/accounts/{account_id}", json={"is_archived": False}, headers=headers)

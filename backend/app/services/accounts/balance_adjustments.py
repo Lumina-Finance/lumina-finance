@@ -69,11 +69,41 @@ async def record_account_starting_balance(
     # Taken after the row lock above, which already holds back a link request
     await refuse_days_a_bank_supplies(db, user, {account.id: [adjustment_date]})
 
-    await add_balance_adjustment(
+    await add_account_starting_balance_adjustment(
         db,
         account,
         user=user,
         amount=amount if account.account_kind == AccountKind.ASSET else -amount,
+        adjustment_date=adjustment_date,
+    )
+
+
+async def add_account_starting_balance_adjustment(
+    db: AsyncSession,
+    account: Account,
+    *,
+    user: User,
+    amount: int,
+    adjustment_date: date,
+) -> None:
+    """Add the starting balance adjustment for an account, without committing
+
+    Args:
+        db: Active database session
+        account: Account receiving the starting balance
+        user: User creating the account or recording its starting balance
+        amount: Signed starting balance in minor units, as the ledger keeps it
+        adjustment_date: Date used for the adjustment transaction
+
+    Raises:
+        HTTPException: The amount is outside the range an account balance can hold, or the Balance
+            Adjustment category or the Myself merchant is not configured
+    """
+    await add_balance_adjustment(
+        db,
+        account,
+        user=user,
+        amount=amount,
         adjustment_date=adjustment_date,
         note=_STARTING_BALANCE_NOTE,
     )

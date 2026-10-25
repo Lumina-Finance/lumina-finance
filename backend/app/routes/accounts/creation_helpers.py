@@ -11,6 +11,7 @@ from app.routes.accounts.request_validation_helpers import validate_create_accou
 from app.routes.accounts.response_loading_helpers import get_account_for_response
 from app.routes.accounts.tax_advantaged_category_link_helpers import validate_create_account_tax_advantaged_category_link
 from app.schemas.account import CreateAccountRequest
+from app.services.accounts.balance_adjustments import add_account_starting_balance_adjustment
 from app.services.cache_state import mark_cache_changed_for_scope
 from app.utils.dates import ACCOUNT_OWNER_PROFILE, OWN_PROFILE, resolve_timezone
 
@@ -41,7 +42,7 @@ async def create_account_for_user(
     # refusal there would leave the account created and the request failed
     viewer_tz = resolve_timezone(user.tz)
 
-    account = await create_account_with_initial_balance_history(db, data, creation_scope)
+    account = await create_account_with_initial_balance_history(db, data, creation_scope, user)
 
     # Mark the account scope stale before returning the account with derived fields
     await mark_cache_changed_for_scope(db, user_id=account.owner_id, group_id=account.group_id)
@@ -56,13 +57,15 @@ async def create_account_with_initial_balance_history(
     db: AsyncSession,
     data: CreateAccountRequest,
     creation_scope: AccountCreationScope,
+    user: User,
 ) -> Account:
-    """Create an account with its initial balance history, which starts at a zero balance
+    """Create an account with its initial balance history
 
     Args:
         db: Active database session
         data: Account creation request body
         creation_scope: Resolved ownership and date-anchor details
+        user: Authenticated user creating the account
 
     Returns:
         Created account row pending commit
@@ -98,5 +101,14 @@ async def create_account_with_initial_balance_history(
             balance=0,
         )
     )
+
+    if data.starting_balance:
+        await add_account_starting_balance_adjustment(
+            db,
+            account,
+            user=user,
+            amount=data.starting_balance,
+            adjustment_date=anchor_dt,
+        )
 
     return account

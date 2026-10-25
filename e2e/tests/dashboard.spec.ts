@@ -71,7 +71,7 @@ async function seedRichDashboard(request: APIRequestContext): Promise<TestUser> 
   }
   const credit = await createAccount(request, user, {
     name: 'Dashboard revolving credit account with a long descriptive label',
-    accountKind: 'revolving', accountType: 'credit_card', startingBalance: 45000,
+    accountKind: 'revolving', accountType: 'credit_card', startingBalance: -45000,
   })
   const creditResponse = await request.patch(`${API_BASE_URL}/accounts/${credit.id}`, { headers, data: { credit_limit: 200000 } })
   expect(creditResponse.status()).toBe(200)

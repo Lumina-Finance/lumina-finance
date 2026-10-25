@@ -80,18 +80,8 @@ class CreateAccountRequest(BaseModel):
     institution_id: uuid.UUID | None = None
     currency: str = Field(min_length=3, max_length=3)
     credit_limit: int | None = Field(None, ge=0)  # Only valid on liability accounts
+    starting_balance: int | None = None  # Signed initial balance adjustment in minor units
     notes: str | None = Field(None, max_length=MAX_ACCOUNT_NOTES_LENGTH)
-
-    # A starting balance has its own request once the account exists, but a page loaded before that
-    # still sends the one typed into its form, which is refused rather than dropped without a word
-    starting_balance: int | None = Field(
-        default=None,
-        deprecated=True,
-        description=(
-            "Only accepted as null or zero, as out-of-date pages send it. "
-            "Record a starting balance with POST /accounts/{account_id}/starting-balance"
-        ),
-    )
     is_archived: bool = False
     group_id: uuid.UUID | None = None
 
