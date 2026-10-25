@@ -57,7 +57,7 @@ def upgrade() -> None:
         sa.CheckConstraint("kind IN ('initial', 'manual', 'retry', 'scheduled')", name="ck_bank_sync_jobs_kind"),
         sa.CheckConstraint("status IN ('queued', 'running', 'succeeded', 'failed')", name="ck_bank_sync_jobs_status"),
         sa.CheckConstraint(
-            "last_error_kind IN ('credential_rejected', 'bank_login_needed', 'rate_limited', 'temporary', 'unknown')",
+            "last_error_kind IN ('credential_rejected', 'bank_login_needed', 'payment_required', 'rate_limited', 'temporary', 'unknown')",
             name="ck_bank_sync_jobs_last_error_kind",
         ),
         sa.CheckConstraint(

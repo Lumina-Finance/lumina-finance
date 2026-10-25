@@ -34,6 +34,9 @@ class ProviderErrorKind(enum.StrEnum):
 
     # The bank needs the user to sign in again at the provider, which retrying can't fix
     BANK_LOGIN_NEEDED = "bank_login_needed"
+
+    # The provider refuses requests until the user settles a payment problem with it
+    PAYMENT_REQUIRED = "payment_required"
     RATE_LIMITED = "rate_limited"
     TEMPORARY = "temporary"
     UNKNOWN = "unknown"
