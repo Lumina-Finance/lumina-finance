@@ -1,4 +1,5 @@
 import type { CreditUtilizationAccount, CreditUtilizationResponse } from '@/api/dashboard'
+import { formatMissingFxPairs } from '@/utils/fxStatus'
 
 /**
  * Returns the IDs of the credit accounts the server currently leaves out
@@ -36,15 +37,23 @@ export function areAllAccountsLeftOut(accounts: CreditUtilizationAccount[]): boo
   return accounts.length > 0 && accounts.every((account) => !account.is_counted)
 }
 
+export type CreditEmptyMessage = {
+  message: string
+
+  // Whether the user has something to put right, which the widget shows in the warning colour
+  needsAttention: boolean
+}
+
 /**
- * Reports whether the user counts credit accounts whose limits add up to nothing, so the widget says
- * no limit is set rather than that there are no accounts
+ * Returns what the credit widget says when its limits add up to nothing
  *
- * A limit with no exchange rate also adds nothing, which is a missing rate rather than an unset
- * limit, so a total missing a conversion does not count
+ * A limit with no exchange rate adds nothing though the card has one, so a total missing a
+ * conversion says a rate is missing rather than that no limit is set or that there are no accounts
  */
-export function isCreditLimitUnset(credit: CreditUtilizationResponse | undefined): boolean {
-  if (!credit || credit.credit_limit_total > 0) return false
-  const isConversionMissing = credit.fx_status.state === 'incomplete' || credit.fx_status.state === 'unavailable'
-  return !isConversionMissing && credit.accounts.some((account) => account.is_counted)
+export function getCreditEmptyMessage(credit: CreditUtilizationResponse | undefined): CreditEmptyMessage {
+  if (!credit?.accounts.some((account) => account.is_counted)) return { message: 'No credit accounts', needsAttention: false }
+  if (credit.fx_status.state === 'incomplete' || credit.fx_status.state === 'unavailable') {
+    return { message: `An exchange rate is missing for ${formatMissingFxPairs(credit.fx_status.missing_pairs)}`, needsAttention: true }
+  }
+  return { message: 'No credit limit set', needsAttention: false }
 }

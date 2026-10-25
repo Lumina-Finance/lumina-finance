@@ -2,6 +2,7 @@ import { useLayoutEffect, useRef, useState } from 'react'
 import { AppScrambledNumber } from '@/components/display/ScrambledNumber'
 import { useMoneyFormatters } from '@/hooks/useMoneyFormatters'
 import { formatDashboardMoney } from '@/pages/dashboard/utils/formatDashboardMoney'
+import type { CreditEmptyMessage } from '@/pages/dashboard/utils/creditAccountChoice'
 import type { CreditUsageSummary } from '@/pages/dashboard/utils/getCreditUsageSummary'
 
 type CreditUsageBodyProps = {
@@ -11,8 +12,8 @@ type CreditUsageBodyProps = {
   // The user has credit accounts but counts none, which reads differently from having none
   allLeftOut: boolean
 
-  // The user counts credit accounts, but their limits add up to nothing
-  limitUnset: boolean
+  // What the widget says when the counted accounts' limits add up to nothing
+  emptyMessage: CreditEmptyMessage
 
   // Opens the account chooser from the empty state that asks the user to pick accounts
   onChooseAccounts: () => void
@@ -20,13 +21,13 @@ type CreditUsageBodyProps = {
 
 /**
  * Renders the credit progress ring, active mode amount, and the empty states for no credit accounts,
- * for counted accounts with no limit set and for every one left out
+ * for counted accounts with no limit set or no exchange rate and for every one left out
  */
 export function CreditUsageBody({
   summary,
   displayCurrency,
   allLeftOut,
-  limitUnset,
+  emptyMessage,
   onChooseAccounts,
 }: CreditUsageBodyProps) {
   const {
@@ -84,10 +85,10 @@ export function CreditUsageBody({
   if (!hasCredit) {
     return (
       <p
-        className="flex h-full items-center justify-center text-center text-sm italic max-[1000px]:text-[0.7875rem]"
-        style={{ color: 'var(--app-text-subtle)' }}
+        className={`flex h-full items-center justify-center text-center text-sm max-[1000px]:text-[0.7875rem] ${emptyMessage.needsAttention ? 'font-medium' : 'italic'}`}
+        style={{ color: emptyMessage.needsAttention ? 'var(--app-warning-text)' : 'var(--app-text-subtle)' }}
       >
-        {limitUnset ? 'No credit limit set' : 'No credit accounts'}
+        {emptyMessage.message}
       </p>
     )
   }
