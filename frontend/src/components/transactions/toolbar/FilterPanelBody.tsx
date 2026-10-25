@@ -231,12 +231,21 @@ export function FilterPanelBody({
 
       <motion.div layout={blockLayout} transition={transition}>
         {/* The crossed amount range takes this line rather than sitting in its own editor. A crossed date
-            range is said on the From field's label row, as the importer says it, and Apply gives it as
-            its reason whichever facet is open */}
-        {draft.hasCrossedAmountBounds ? (
-          <p id={amountRangeMessageId} className="mt-2 px-0.5 text-xs" style={{ color: 'var(--app-negative)' }}>
-            {CROSSED_AMOUNT_RANGE_MESSAGE}
-          </p>
+            range is said on the From field's label row, as the importer says it, and takes this line only
+            while another facet is open, so every reason Apply is unavailable stays on screen */}
+        {draft.hasCrossedAmountBounds || (draft.hasCrossedDateRange && activeFacet.kind !== 'date') ? (
+          <>
+            {draft.hasCrossedAmountBounds && (
+              <p id={amountRangeMessageId} className="mt-2 px-0.5 text-xs" style={{ color: 'var(--app-negative)' }}>
+                {CROSSED_AMOUNT_RANGE_MESSAGE}
+              </p>
+            )}
+            {draft.hasCrossedDateRange && activeFacet.kind !== 'date' && (
+              <p className="mt-2 px-0.5 text-xs" style={{ color: 'var(--app-negative)' }}>
+                {CROSSED_DATE_RANGE_MESSAGE}
+              </p>
+            )}
+          </>
         ) : (
           <p className="mt-2 px-0.5 text-xs" style={{ color: 'var(--app-text-subtle)' }}>
             Transactions must match every filter you apply

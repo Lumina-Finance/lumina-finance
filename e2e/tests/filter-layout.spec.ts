@@ -279,6 +279,12 @@ test('retains Tags explanations and invalid amount and date blocking', AT_EVERY_
   }
   await expect(apply).toBeDisabled()
   await expect(apply).toHaveAccessibleDescription(crossedDates)
+
+  // Under another facet the date editor is out of sight, so the reason takes the line above the footer
+  const footerLine = panel.locator('p:not([id])').filter({ hasText: crossedDates })
+  await expect(footerLine).toHaveCount(0)
+  await selectFacet(page, panel, 'Tags')
+  await expect(footerLine).toBeVisible()
 })
 
 test('holds Apply off with its reason on a phone until a filter changes', AT_EVERY_SIZE, async ({ page, request }) => {
