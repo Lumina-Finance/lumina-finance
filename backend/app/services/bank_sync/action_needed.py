@@ -287,9 +287,10 @@ async def send_action_emails(outbox: list[ActionEmail]) -> None:
         email = outbox[0]
         try:
             await get_email_sender().send(email.recipient, email.message)
-        except Exception:
-            # A failed send must never fail the sync whose state it reports
-            logger.warning("Couldn't send the action-needed email for %s", email.about, exc_info=True)
+        except Exception as error:
+            # A failed send must never fail the sync whose state it reports. A mail server's error
+            # often repeats the recipient, so only the error's type is logged
+            logger.warning("Couldn't send the action-needed email for %s: %s", email.about, type(error).__name__)
         del outbox[0]
 
 
