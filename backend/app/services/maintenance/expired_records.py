@@ -18,6 +18,7 @@ from app.services.auth.mfa_challenge import delete_expired_mfa_challenges
 from app.services.auth.oidc_login import delete_expired_oidc_authorization_requests
 from app.services.auth.password_reset import delete_stale_password_reset_tokens
 from app.services.auth.sessions import delete_expired_auth_sessions, delete_expired_auth_tokens
+from app.services.auth.signup import delete_stale_signup_email_sends
 from app.services.auth.two_factor import prune_stale_factor_staging
 from app.services.auth.webauthn import delete_expired_webauthn_challenges
 from app.services.importers.shared.run_staging import delete_expired_import_runs
@@ -46,6 +47,7 @@ EXPIRED_RECORD_KINDS: tuple[ExpiredRecordKind, ...] = (
     ExpiredRecordKind("OIDC authorization requests", delete_expired_oidc_authorization_requests),
     ExpiredRecordKind("password reset tokens", delete_stale_password_reset_tokens),
     ExpiredRecordKind("idle sign-in lockouts", delete_idle_login_lockouts),
+    ExpiredRecordKind("sign-up email records", delete_stale_signup_email_sends),
     ExpiredRecordKind("two-factor staging", prune_stale_factor_staging),
     ExpiredRecordKind("import runs", delete_expired_import_runs),
 )

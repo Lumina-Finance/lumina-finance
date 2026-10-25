@@ -1,4 +1,4 @@
-from tests.routes.support import _create_user, _get_auth_header
+from tests.routes.support import _create_user, _get_auth_header, sign_up_confirmed
 from tests.routes.tags._helpers import (
     NONEXISTENT_ID,
     _create_group,
@@ -36,10 +36,16 @@ async def test_create_group_tag_non_member_returns_404(client):
     """Non-member cannot create a tag in a group."""
     _, _, _, group_id = await _setup_group_with_member(client)
 
-    outsider_resp = await client.post("/auth/signup", json={
-        "email": "outsider@example.com", "password": "SecurePassword123!",
-        "first_name": "Outsider", "tz": "America/Toronto", "base_currency": "CAD",
-    })
+    outsider_resp = await sign_up_confirmed(
+        client,
+        {
+            "email": "outsider@example.com",
+            "password": "SecurePassword123!",
+            "first_name": "Outsider",
+            "tz": "America/Toronto",
+            "base_currency": "CAD",
+        },
+    )
     outsider_headers = _get_auth_header(outsider_resp)
 
     resp = await _create_tag(client, outsider_headers, group_id=group_id)
@@ -157,10 +163,16 @@ async def test_list_tags_group_filter_non_member_returns_404(client):
     """Non-member passing group_id filter returns 404."""
     _, _, _, group_id = await _setup_group_with_member(client)
 
-    outsider_resp = await client.post("/auth/signup", json={
-        "email": "outsider@example.com", "password": "SecurePassword123!",
-        "first_name": "Outsider", "tz": "America/Toronto", "base_currency": "CAD",
-    })
+    outsider_resp = await sign_up_confirmed(
+        client,
+        {
+            "email": "outsider@example.com",
+            "password": "SecurePassword123!",
+            "first_name": "Outsider",
+            "tz": "America/Toronto",
+            "base_currency": "CAD",
+        },
+    )
     outsider_headers = _get_auth_header(outsider_resp)
 
     resp = await client.get(f"/tags?group_id={group_id}", headers=outsider_headers)
@@ -189,10 +201,16 @@ async def test_get_group_tag_non_member_returns_404(client):
     create_resp = await _create_tag(client, admin_headers, name="shared", group_id=group_id)
     tag_id = create_resp.json()["id"]
 
-    outsider_resp = await client.post("/auth/signup", json={
-        "email": "outsider@example.com", "password": "SecurePassword123!",
-        "first_name": "Outsider", "tz": "America/Toronto", "base_currency": "CAD",
-    })
+    outsider_resp = await sign_up_confirmed(
+        client,
+        {
+            "email": "outsider@example.com",
+            "password": "SecurePassword123!",
+            "first_name": "Outsider",
+            "tz": "America/Toronto",
+            "base_currency": "CAD",
+        },
+    )
     outsider_headers = _get_auth_header(outsider_resp)
 
     resp = await client.get(f"/tags/{tag_id}", headers=outsider_headers)
@@ -280,10 +298,16 @@ async def test_patch_group_tag_non_member_returns_404(client):
     create_resp = await _create_tag(client, admin_headers, name="shared", group_id=group_id)
     tag_id = create_resp.json()["id"]
 
-    outsider_resp = await client.post("/auth/signup", json={
-        "email": "outsider@example.com", "password": "SecurePassword123!",
-        "first_name": "Outsider", "tz": "America/Toronto", "base_currency": "CAD",
-    })
+    outsider_resp = await sign_up_confirmed(
+        client,
+        {
+            "email": "outsider@example.com",
+            "password": "SecurePassword123!",
+            "first_name": "Outsider",
+            "tz": "America/Toronto",
+            "base_currency": "CAD",
+        },
+    )
     outsider_headers = _get_auth_header(outsider_resp)
 
     resp = await client.patch(f"/tags/{tag_id}", json={"name": "hacked"}, headers=outsider_headers)
@@ -348,10 +372,16 @@ async def test_delete_group_tag_non_member_returns_404(client):
     create_resp = await _create_tag(client, admin_headers, name="shared", group_id=group_id)
     tag_id = create_resp.json()["id"]
 
-    outsider_resp = await client.post("/auth/signup", json={
-        "email": "outsider@example.com", "password": "SecurePassword123!",
-        "first_name": "Outsider", "tz": "America/Toronto", "base_currency": "CAD",
-    })
+    outsider_resp = await sign_up_confirmed(
+        client,
+        {
+            "email": "outsider@example.com",
+            "password": "SecurePassword123!",
+            "first_name": "Outsider",
+            "tz": "America/Toronto",
+            "base_currency": "CAD",
+        },
+    )
     outsider_headers = _get_auth_header(outsider_resp)
 
     resp = await client.delete(f"/tags/{tag_id}", headers=outsider_headers)

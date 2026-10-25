@@ -1,6 +1,6 @@
 import { expect, test, type APIRequestContext, type Locator, type Page, type Request } from '@playwright/test'
 
-import { createAccount, createTransaction, daysFromTodayInTestTimezone, signUpUser, TEST_PASSWORD } from '../support/api'
+import { createAccount, createTransaction, daysFromTodayInTestTimezone, signUpUser } from '../support/api'
 import { logInViaApi, openModal, openPage } from '../support/app'
 
 // Runs on desktop only, except the tap test, which sets up a touch screen of its own. A control held off
@@ -71,13 +71,13 @@ test('does nothing when Apply is pressed with nothing chosen, and applies once s
 })
 
 test('sends nothing when a sign-up with a refused field is submitted by click or Enter', async ({ page }) => {
-  const signupRequests = recordRequests(page, 'POST', /\/auth\/signup$/)
+  // Only the sign-up request ends in this path, since the confirmation one continues past it
+  const signupRequests = recordRequests(page, 'POST', /\/signup$/)
   const email = `e2e-${crypto.randomUUID()}@example.com`
   await page.goto('/signup')
   await page.getByLabel('First name').fill('Test')
   await page.getByLabel('Email').fill('not-an-email')
-  await page.getByLabel('Password', { exact: true }).fill(TEST_PASSWORD)
-  await page.getByLabel('Confirm password').fill(TEST_PASSWORD)
+  await page.getByLabel('Last name').fill('User')
   const submit = page.getByRole('button', { name: 'Sign up', exact: true })
   // Leaving the email for the next field checks it, finds it wrong and holds the button off
   await expect(page.getByText('Enter a valid email address', { exact: true })).toBeVisible()
@@ -85,7 +85,7 @@ test('sends nothing when a sign-up with a refused field is submitted by click or
   await expect(submit).toHaveAccessibleDescription(FIX_FIELDS)
 
   await submit.click({ force: true })
-  await page.getByLabel('Confirm password').press('Enter')
+  await page.getByLabel('Email').press('Enter')
   await submit.focus()
   await page.keyboard.press('Enter')
   await expect(page).toHaveURL(/\/signup$/)
@@ -93,9 +93,9 @@ test('sends nothing when a sign-up with a refused field is submitted by click or
   // The fence: with the email put right the same button signs up, and that one request is all that was sent
   await page.getByLabel('Email').fill(email)
   await expect(submit).not.toHaveAttribute('aria-disabled', 'true')
-  const signedUp = page.waitForResponse((response) => response.request().method() === 'POST' && /\/auth\/signup$/.test(new URL(response.url()).pathname))
+  const signedUp = page.waitForResponse((response) => response.request().method() === 'POST' && /\/signup$/.test(new URL(response.url()).pathname))
   await submit.click()
-  expect((await signedUp).status()).toBe(201)
+  expect((await signedUp).status()).toBe(204)
   expect(signupRequests).toHaveLength(1)
 })
 
@@ -227,8 +227,7 @@ test.describe('on a touch screen', () => {
     await page.goto('/signup')
     await page.getByLabel('First name').fill('Test')
     await page.getByLabel('Email').fill('not-an-email')
-    await page.getByLabel('Password', { exact: true }).fill(TEST_PASSWORD)
-    await page.getByLabel('Confirm password').fill(TEST_PASSWORD)
+    await page.getByLabel('Last name').fill('User')
     const submit = page.getByRole('button', { name: 'Sign up', exact: true })
     await expect(submit).toHaveAttribute('aria-disabled', 'true')
     const tooltip = page.getByTestId(TOOLTIP).filter({ hasText: FIX_FIELDS })

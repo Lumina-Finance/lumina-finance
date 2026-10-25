@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { recordResetRequest } from '@/utils/resetRequestLog'
+import { recordResetRequest, recordSignupRequest } from '@/utils/resetRequestLog'
 
 const DAY_MS = 24 * 60 * 60 * 1000
 
@@ -34,6 +34,14 @@ describe('recordResetRequest', () => {
 
     expect(recordResetRequest(1_000)).toBe(1)
     expect(recordResetRequest(1_000 + DAY_MS + 1)).toBe(1)
+  })
+
+  it('counts sign-up requests apart from reset requests', () => {
+    vi.stubGlobal('window', { localStorage: createStorageMock() })
+
+    expect(recordResetRequest(1_000)).toBe(1)
+    expect(recordSignupRequest(2_000)).toBe(1)
+    expect(recordSignupRequest(3_000)).toBe(2)
   })
 
   it('reports a first request when storage is unavailable', () => {

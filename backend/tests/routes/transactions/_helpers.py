@@ -2,7 +2,7 @@ from app.models.base import InstitutionStatus
 from app.models.currency import Currency
 from app.models.institution import Institution
 from tests.conftest import TestSession
-from tests.routes.support import _create_user, _get_auth_header, _get_system_merchant_id
+from tests.routes.support import _create_user, _get_auth_header, _get_system_merchant_id, sign_up_confirmed
 
 NONEXISTENT_ID = "00000000-0000-0000-0000-000000000000"
 
@@ -162,9 +162,9 @@ async def _setup_user_with_deps(client, email="test@example.com", name_prefix="M
     if email == "test@example.com":
         signup_resp = await _create_user(client)
     else:
-        signup_resp = await client.post(
-            "/auth/signup",
-            json={
+        signup_resp = await sign_up_confirmed(
+            client,
+            {
                 "email": email,
                 "password": "SecurePassword123!",
                 "first_name": name_prefix,

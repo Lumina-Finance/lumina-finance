@@ -2,18 +2,21 @@ import importlib
 from datetime import UTC, datetime
 from zoneinfo import ZoneInfo
 
-from tests.routes.support import _create_account, _create_user, _get_auth_header
+from tests.routes.support import _create_account, _create_user, _get_auth_header, sign_up_confirmed
 
 
 async def _create_second_user(client):
     """Sign up a second user and return auth headers plus user ID."""
-    resp = await client.post("/auth/signup", json={
-        "email": "other@example.com",
-        "password": "SecurePassword123!",
-        "first_name": "Other",
-        "tz": "America/Toronto",
-        "base_currency": "CAD",
-    })
+    resp = await sign_up_confirmed(
+        client,
+        {
+            "email": "other@example.com",
+            "password": "SecurePassword123!",
+            "first_name": "Other",
+            "tz": "America/Toronto",
+            "base_currency": "CAD",
+        },
+    )
     return _get_auth_header(resp), resp.json()["user"]["id"]
 
 
@@ -24,10 +27,13 @@ async def _create_group(client, headers):
 
 async def _login_default_user(client):
     """Log in as the default test user and return auth headers."""
-    resp = await client.post("/auth/login", json={
-        "email": "test@example.com",
-        "password": "SecurePassword123!",
-    })
+    resp = await client.post(
+        "/auth/login",
+        json={
+            "email": "test@example.com",
+            "password": "SecurePassword123!",
+        },
+    )
     return _get_auth_header(resp)
 
 
@@ -112,9 +118,13 @@ async def test_cache_status_advances_at_visible_group_owner_midnight(client, mon
     assert (await client.patch("/me", json={"tz": "Asia/Tokyo"}, headers=owner_headers)).status_code == 200
     group = await _create_group(client, owner_headers)
     member_headers, member_id = await _create_second_user(client)
-    assert (await client.post(
-        f"/groups/{group.json()['id']}/members", json={"user_id": member_id}, headers=owner_headers,
-    )).status_code == 201
+    assert (
+        await client.post(
+            f"/groups/{group.json()['id']}/members",
+            json={"user_id": member_id},
+            headers=owner_headers,
+        )
+    ).status_code == 201
 
     instant = datetime(2026, 3, 7, 14, 59, tzinfo=UTC)
 

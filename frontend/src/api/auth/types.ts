@@ -21,14 +21,20 @@ export interface LoginPayload {
   password: string;
 }
 
+// Sign-up asks for no password: the person chooses it when they open the emailed link
 export interface SignupPayload {
   email: string;
-  password: string;
   first_name: string;
   last_name?: string;
   tz: string;
   base_currency: string;
 }
+
+export type ConfirmSignupPayload = {
+  /** Signed token from the emailed confirmation link */
+  token: string;
+  new_password: string;
+};
 
 export interface ForgotPasswordPayload {
   email: string;

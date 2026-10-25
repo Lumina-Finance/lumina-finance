@@ -1,7 +1,7 @@
 import { expect, test, type Locator, type Page } from '@playwright/test'
 
-import { signUpUser, TEST_PASSWORD } from '../support/api'
-import { expectSignedIn, logInViaApi, openPage } from '../support/app'
+import { signUpUser } from '../support/api'
+import { expectSignedIn, logInViaApi, openPage, signUpThroughTheForm } from '../support/app'
 import { API_BASE_URL } from '../support/target'
 
 // Runs on desktop only: two-step setup gives the same result at every size
@@ -39,12 +39,7 @@ async function reachFailedFinish(screen: Locator): Promise<void> {
 }
 
 test('starts sign-up authenticator setup over with a fresh secret when finishing fails', async ({ page }) => {
-  await page.goto('/signup')
-  await page.getByLabel('First name').fill('Test')
-  await page.getByLabel('Email').fill(`e2e-${crypto.randomUUID()}@example.com`)
-  await page.getByLabel('Password', { exact: true }).fill(TEST_PASSWORD)
-  await page.getByLabel('Confirm password').fill(TEST_PASSWORD)
-  await page.getByRole('button', { name: 'Sign up' }).click()
+  await signUpThroughTheForm(page)
 
   // A passkey is offered first where the origin supports one, with the authenticator one link away
   const authenticatorInstead = page.getByRole('button', { name: 'Use an authenticator app instead' })
@@ -194,12 +189,7 @@ async function reachPasskeyDone(page: Page): Promise<void> {
     options: { protocol: 'ctap2', transport: 'internal', hasResidentKey: true, hasUserVerification: true, isUserVerified: true },
   })
 
-  await page.goto('/signup')
-  await page.getByLabel('First name').fill('Test')
-  await page.getByLabel('Email').fill(`e2e-${crypto.randomUUID()}@example.com`)
-  await page.getByLabel('Password', { exact: true }).fill(TEST_PASSWORD)
-  await page.getByLabel('Confirm password').fill(TEST_PASSWORD)
-  await page.getByRole('button', { name: 'Sign up' }).click()
+  await signUpThroughTheForm(page)
 
   // The default factor follows how the browser reports passkey support, so either step may come first
   const passkeyName = page.getByLabel('New passkey name')

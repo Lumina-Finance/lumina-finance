@@ -1,9 +1,10 @@
 """Route tests for GET /accounts/{account_id}/cash-flow."""
+
 import importlib
 from datetime import UTC, date, datetime, timedelta
 from zoneinfo import ZoneInfo
 
-from tests.routes.support import _create_account, _create_user, _get_auth_header, _get_system_merchant_id
+from tests.routes.support import _create_account, _create_user, _get_auth_header, _get_system_merchant_id, sign_up_confirmed
 
 # --- Helpers ---
 
@@ -93,13 +94,16 @@ async def _create_transaction(client, headers, account_id, category_id, **overri
 
 async def _create_second_user(client):
     """Sign up a second user and return (auth_headers, user_id)."""
-    resp = await client.post("/auth/signup", json={
-        "email": "other@example.com",
-        "password": "SecurePassword123!",
-        "first_name": "Other",
-        "tz": "America/Toronto",
-        "base_currency": "CAD",
-    })
+    resp = await sign_up_confirmed(
+        client,
+        {
+            "email": "other@example.com",
+            "password": "SecurePassword123!",
+            "first_name": "Other",
+            "tz": "America/Toronto",
+            "base_currency": "CAD",
+        },
+    )
     return _get_auth_header(resp), resp.json()["user"]["id"]
 
 
@@ -247,8 +251,12 @@ async def test_account_with_activity_only_in_current_month_zero_fills_others(cli
     category = (await _create_category(client, headers)).json()
 
     await _create_transaction(
-        client, headers, account_id, category["id"],
-        dt=_today_utc().isoformat(), amount=-1500,
+        client,
+        headers,
+        account_id,
+        category["id"],
+        dt=_today_utc().isoformat(),
+        amount=-1500,
     )
 
     resp = await client.get(
@@ -275,33 +283,65 @@ async def test_account_with_activity_only_in_current_month_zero_fills_others(cli
 async def test_income_expense_and_non_adjustment_transfers_contribute_to_cash_flow(client):
     """Income, expense, and transfer movement count except Balance Adjustment."""
     headers, account_id = await _setup_account(client)
-    income_cat = (await _create_category(
-        client, headers, name="Test Salary", kind="income",
-    )).json()
-    expense_cat = (await _create_category(
-        client, headers, name="Test Groceries", kind="expense",
-    )).json()
-    custom_transfer_cat = (await _create_category(
-        client, headers, name="Test Internal Transfer", kind="transfer",
-    )).json()
+    income_cat = (
+        await _create_category(
+            client,
+            headers,
+            name="Test Salary",
+            kind="income",
+        )
+    ).json()
+    expense_cat = (
+        await _create_category(
+            client,
+            headers,
+            name="Test Groceries",
+            kind="expense",
+        )
+    ).json()
+    custom_transfer_cat = (
+        await _create_category(
+            client,
+            headers,
+            name="Test Internal Transfer",
+            kind="transfer",
+        )
+    ).json()
     balance_adjustment_id = await _get_category_id(client, headers, "Balance Adjustment")
 
     today = _today_utc().isoformat()
     await _create_transaction(
-        client, headers, account_id, income_cat["id"],
-        dt=today, amount=300_000,
+        client,
+        headers,
+        account_id,
+        income_cat["id"],
+        dt=today,
+        amount=300_000,
     )
     await _create_transaction(
-        client, headers, account_id, expense_cat["id"],
-        dt=today, amount=-4500,
+        client,
+        headers,
+        account_id,
+        expense_cat["id"],
+        dt=today,
+        amount=-4500,
     )
     await _create_transaction(
-        client, headers, account_id, custom_transfer_cat["id"],
-        dt=today, amount=-5000, counterparty_account_scope="outside",
+        client,
+        headers,
+        account_id,
+        custom_transfer_cat["id"],
+        dt=today,
+        amount=-5000,
+        counterparty_account_scope="outside",
     )
     await _create_transaction(
-        client, headers, account_id, balance_adjustment_id,
-        dt=today, amount=-6000,
+        client,
+        headers,
+        account_id,
+        balance_adjustment_id,
+        dt=today,
+        amount=-6000,
     )
 
     resp = await client.get(
@@ -322,28 +362,52 @@ async def test_income_expense_and_non_adjustment_transfers_contribute_to_cash_fl
 async def test_transfer_transactions_contribute_to_cash_flow_by_sign(client):
     """Transfers are bucketed by amount sign like income and expense transactions."""
     headers, account_id = await _setup_account(client)
-    transfer_cat = (await _create_category(
-        client, headers, name="Test Internal Transfer", kind="transfer",
-    )).json()
-    expense_cat = (await _create_category(
-        client, headers, name="Test Groceries", kind="expense",
-    )).json()
+    transfer_cat = (
+        await _create_category(
+            client,
+            headers,
+            name="Test Internal Transfer",
+            kind="transfer",
+        )
+    ).json()
+    expense_cat = (
+        await _create_category(
+            client,
+            headers,
+            name="Test Groceries",
+            kind="expense",
+        )
+    ).json()
 
     today = _today_utc().isoformat()
     # Transfer out, money leaving the account, counted in expenses
     await _create_transaction(
-        client, headers, account_id, transfer_cat["id"],
-        dt=today, amount=-5000, counterparty_account_scope="outside",
+        client,
+        headers,
+        account_id,
+        transfer_cat["id"],
+        dt=today,
+        amount=-5000,
+        counterparty_account_scope="outside",
     )
     # Transfer in, money arriving at the account, counted in income
     await _create_transaction(
-        client, headers, account_id, transfer_cat["id"],
-        dt=today, amount=3000, counterparty_account_scope="outside",
+        client,
+        headers,
+        account_id,
+        transfer_cat["id"],
+        dt=today,
+        amount=3000,
+        counterparty_account_scope="outside",
     )
     # Ordinary expense — also in expenses
     await _create_transaction(
-        client, headers, account_id, expense_cat["id"],
-        dt=today, amount=-2000,
+        client,
+        headers,
+        account_id,
+        expense_cat["id"],
+        dt=today,
+        amount=-2000,
     )
 
     resp = await client.get(
@@ -368,8 +432,12 @@ async def test_expense_amount_is_returned_as_positive_minor_units(client):
     category = (await _create_category(client, headers)).json()
 
     await _create_transaction(
-        client, headers, account_id, category["id"],
-        dt=_today_utc().isoformat(), amount=-2500,
+        client,
+        headers,
+        account_id,
+        category["id"],
+        dt=_today_utc().isoformat(),
+        amount=-2500,
     )
 
     resp = await client.get(
@@ -385,13 +453,22 @@ async def test_expense_amount_is_returned_as_positive_minor_units(client):
 async def test_negative_amount_on_income_category_routes_to_expenses_by_sign(client):
     """Category kind doesn't steer the bucket — sign does."""
     headers, account_id = await _setup_account(client)
-    income_category = (await _create_category(
-        client, headers, name="Test Salary", kind="income",
-    )).json()
+    income_category = (
+        await _create_category(
+            client,
+            headers,
+            name="Test Salary",
+            kind="income",
+        )
+    ).json()
 
     await _create_transaction(
-        client, headers, account_id, income_category["id"],
-        dt=_today_utc().isoformat(), amount=-500,
+        client,
+        headers,
+        account_id,
+        income_category["id"],
+        dt=_today_utc().isoformat(),
+        amount=-500,
     )
 
     resp = await client.get(
@@ -411,21 +488,35 @@ async def test_negative_amount_on_income_category_routes_to_expenses_by_sign(cli
 async def test_other_accounts_of_the_same_user_do_not_leak_into_the_series(client):
     """An expense on a sibling account must not appear in the queried account's series."""
     headers, account_id = await _setup_account(client)
-    other_account_id = (await _create_account(
-        client, headers, name="Secondary Chequing",
-    )).json()["id"]
+    other_account_id = (
+        await _create_account(
+            client,
+            headers,
+            name="Secondary Chequing",
+        )
+    ).json()["id"]
     category_id = await _get_category_id(client, headers, "Transfer")
 
     today = _today_utc().isoformat()
     # Queried account, should appear
     await _create_transaction(
-        client, headers, account_id, category_id,
-        dt=today, amount=-1000, counterparty_account_scope="outside",
+        client,
+        headers,
+        account_id,
+        category_id,
+        dt=today,
+        amount=-1000,
+        counterparty_account_scope="outside",
     )
     # Other account, same user, same category, must NOT appear
     await _create_transaction(
-        client, headers, other_account_id, category_id,
-        dt=today, amount=-9999, counterparty_account_scope="outside",
+        client,
+        headers,
+        other_account_id,
+        category_id,
+        dt=today,
+        amount=-9999,
+        counterparty_account_scope="outside",
     )
 
     resp = await client.get(
@@ -450,13 +541,23 @@ async def test_prior_month_transaction_lands_in_second_to_last_entry(client):
     today = _today_utc()
     # Seed an expense on the 15th of last month (safe across month-length boundaries)
     await _create_transaction(
-        client, headers, account_id, category_id,
-        dt=_mid_of_prior_month(today).isoformat(), amount=-3000, counterparty_account_scope="outside",
+        client,
+        headers,
+        account_id,
+        category_id,
+        dt=_mid_of_prior_month(today).isoformat(),
+        amount=-3000,
+        counterparty_account_scope="outside",
     )
     # And a different expense in the current month — confirms both buckets compute independently
     await _create_transaction(
-        client, headers, account_id, category_id,
-        dt=today.isoformat(), amount=-700, counterparty_account_scope="outside",
+        client,
+        headers,
+        account_id,
+        category_id,
+        dt=today.isoformat(),
+        amount=-700,
+        counterparty_account_scope="outside",
     )
 
     resp = await client.get(
@@ -487,8 +588,13 @@ async def test_transaction_outside_the_window_does_not_contribute(client):
     today = _today_utc()
     out_of_window = _first_of_month_n_back(today, 5).replace(day=15)
     await _create_transaction(
-        client, headers, account_id, category_id,
-        dt=out_of_window.isoformat(), amount=-9999, counterparty_account_scope="outside",
+        client,
+        headers,
+        account_id,
+        category_id,
+        dt=out_of_window.isoformat(),
+        amount=-9999,
+        counterparty_account_scope="outside",
     )
 
     resp = await client.get(
@@ -517,8 +623,13 @@ async def test_transaction_on_window_start_is_included(client):
     today = _today_utc()
     window_start = _first_of_month_n_back(today, 5)
     await _create_transaction(
-        client, headers, account_id, category_id,
-        dt=window_start.isoformat(), amount=-1000, counterparty_account_scope="outside",
+        client,
+        headers,
+        account_id,
+        category_id,
+        dt=window_start.isoformat(),
+        amount=-1000,
+        counterparty_account_scope="outside",
     )
 
     resp = await client.get(
@@ -545,8 +656,13 @@ async def test_transaction_on_day_before_window_start_is_excluded(client):
     window_start = _first_of_month_n_back(today, 5)
     day_before = window_start - timedelta(days=1)
     await _create_transaction(
-        client, headers, account_id, category_id,
-        dt=day_before.isoformat(), amount=-9999, counterparty_account_scope="outside",
+        client,
+        headers,
+        account_id,
+        category_id,
+        dt=day_before.isoformat(),
+        amount=-9999,
+        counterparty_account_scope="outside",
     )
 
     resp = await client.get(
@@ -697,7 +813,11 @@ async def test_group_member_with_explicit_read_permission_succeeds(client):
         headers=admin_headers,
     )
     grant_resp = await _grant_account_permission(
-        client, admin_headers, account_id, member_user_id, "read",
+        client,
+        admin_headers,
+        account_id,
+        member_user_id,
+        "read",
     )
     assert grant_resp.status_code == 201
 
@@ -715,8 +835,13 @@ async def test_archived_account_still_returns_cash_flow(client):
     category_id = await _get_category_id(client, headers, "Transfer")
 
     await _create_transaction(
-        client, headers, account_id, category_id,
-        dt=_today_utc().isoformat(), amount=-1000, counterparty_account_scope="outside",
+        client,
+        headers,
+        account_id,
+        category_id,
+        dt=_today_utc().isoformat(),
+        amount=-1000,
+        counterparty_account_scope="outside",
     )
 
     archive_resp = await client.patch(

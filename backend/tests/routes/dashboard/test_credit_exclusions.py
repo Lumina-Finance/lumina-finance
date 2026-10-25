@@ -10,7 +10,7 @@ from app.models.institution import Institution
 from app.models.user import UserCreditExcludedAccount
 from tests.conftest import TestSession
 from tests.routes.dashboard._helpers import _owner_local_creation_day
-from tests.routes.support import _create_account, _create_user, _get_auth_header
+from tests.routes.support import _create_account, _create_user, _get_auth_header, sign_up_confirmed
 
 
 async def _create_card(client, headers, name, limit, used):
@@ -40,9 +40,9 @@ async def _create_card(client, headers, name, limit, used):
 
 async def _create_second_user_headers(client):
     """Sign up a second user and return their auth headers"""
-    resp = await client.post(
-        "/auth/signup",
-        json={
+    resp = await sign_up_confirmed(
+        client,
+        {
             "email": "second@example.com",
             "password": "SecurePassword123!",
             "first_name": "Second",

@@ -4,6 +4,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import * as authApi from '@/api/auth';
 import type {
   AuthResponse,
+  ConfirmSignupPayload,
   LoginPayload,
   LoginResult,
   MfaVerifyPayload,
@@ -179,8 +180,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return res;
   }, [queryClient]);
 
-  const signup = useCallback(async (payload: SignupPayload) => {
-    const res = await authApi.signup(payload);
+  const signup = useCallback((payload: SignupPayload) => authApi.signup(payload), []);
+
+  const confirmSignup = useCallback(async (payload: ConfirmSignupPayload) => {
+    const res = await authApi.confirmSignup(payload);
     clearUserScopedCache(queryClient);
     writeStoredValue(authApi.SESSION_KEY, res.user.id);
     return res;
@@ -222,8 +225,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [state.accessToken, queryClient, applyState]);
 
   const value = useMemo<AuthContextValue>(
-    () => ({ ...state, login, verifyMfa, signup, setSession, primeAccessToken, setUser, logout }),
-    [state, login, verifyMfa, signup, setSession, primeAccessToken, setUser, logout],
+    () => ({ ...state, login, verifyMfa, signup, confirmSignup, setSession, primeAccessToken, setUser, logout }),
+    [state, login, verifyMfa, signup, confirmSignup, setSession, primeAccessToken, setUser, logout],
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

@@ -15,7 +15,14 @@ from app.services.auth import recovery_codes, two_factor
 from app.services.auth.mfa_challenge import MFA_PURPOSE_LOGIN, MFA_PURPOSE_PASSWORD_RESET, issue_mfa_challenge
 from app.services.auth.recovery_codes import generate_recovery_codes
 from tests.conftest import TestSession
-from tests.routes.support import SIGNUP_PAYLOAD, _create_user, _fresh_totp_code, _get_auth_header, _get_login_lockout
+from tests.routes.support import (
+    SIGNUP_PAYLOAD,
+    _create_user,
+    _fresh_totp_code,
+    _get_auth_header,
+    _get_login_lockout,
+    sign_up_confirmed,
+)
 
 _PASSWORD = SIGNUP_PAYLOAD["password"]
 
@@ -117,7 +124,7 @@ async def test_login_preserves_confirmed_totp_and_other_users_staging(client, mo
     """Cleanup leaves active factors and codes intact and only touches the logging-in user's staging"""
     auth, _, user_id = await _stage_totp(client)
     assert (await client.post("/auth/2fa/complete", headers=auth)).status_code == 204
-    second = await client.post("/auth/signup", json={**SIGNUP_PAYLOAD, "email": "other@example.com"})
+    second = await sign_up_confirmed(client, {**SIGNUP_PAYLOAD, "email": "other@example.com"})
     assert second.status_code == 201
     _, _, other_id = await _stage_totp(client, second)
     now = datetime.now(UTC)

@@ -7,7 +7,7 @@ from tests.routes.merchants._helpers import (
     _own_merchant_names,
     _setup_group_with_member,
 )
-from tests.routes.support import _create_user, _get_auth_header
+from tests.routes.support import _create_user, _get_auth_header, sign_up_confirmed
 
 # --- Group merchants: POST /merchants ---
 
@@ -38,10 +38,16 @@ async def test_create_group_merchant_non_member_returns_404(client):
     """Non-member cannot create a merchant in a group."""
     _, _, _, group_id = await _setup_group_with_member(client)
 
-    outsider_resp = await client.post("/auth/signup", json={
-        "email": "outsider@example.com", "password": "SecurePassword123!",
-        "first_name": "Outsider", "tz": "America/Toronto", "base_currency": "CAD",
-    })
+    outsider_resp = await sign_up_confirmed(
+        client,
+        {
+            "email": "outsider@example.com",
+            "password": "SecurePassword123!",
+            "first_name": "Outsider",
+            "tz": "America/Toronto",
+            "base_currency": "CAD",
+        },
+    )
     outsider_headers = _get_auth_header(outsider_resp)
 
     resp = await _create_merchant(client, outsider_headers, group_id=group_id)
@@ -171,10 +177,16 @@ async def test_list_merchants_group_filter_non_member_returns_404(client):
     """Non-member passing group_id filter returns 404."""
     _, _, _, group_id = await _setup_group_with_member(client)
 
-    outsider_resp = await client.post("/auth/signup", json={
-        "email": "outsider@example.com", "password": "SecurePassword123!",
-        "first_name": "Outsider", "tz": "America/Toronto", "base_currency": "CAD",
-    })
+    outsider_resp = await sign_up_confirmed(
+        client,
+        {
+            "email": "outsider@example.com",
+            "password": "SecurePassword123!",
+            "first_name": "Outsider",
+            "tz": "America/Toronto",
+            "base_currency": "CAD",
+        },
+    )
     outsider_headers = _get_auth_header(outsider_resp)
 
     resp = await client.get(f"/merchants?group_id={group_id}", headers=outsider_headers)
@@ -203,10 +215,16 @@ async def test_get_group_merchant_non_member_returns_404(client):
     create_resp = await _create_merchant(client, admin_headers, name="Shared", group_id=group_id)
     merchant_id = create_resp.json()["id"]
 
-    outsider_resp = await client.post("/auth/signup", json={
-        "email": "outsider@example.com", "password": "SecurePassword123!",
-        "first_name": "Outsider", "tz": "America/Toronto", "base_currency": "CAD",
-    })
+    outsider_resp = await sign_up_confirmed(
+        client,
+        {
+            "email": "outsider@example.com",
+            "password": "SecurePassword123!",
+            "first_name": "Outsider",
+            "tz": "America/Toronto",
+            "base_currency": "CAD",
+        },
+    )
     outsider_headers = _get_auth_header(outsider_resp)
 
     resp = await client.get(f"/merchants/{merchant_id}", headers=outsider_headers)
@@ -323,10 +341,16 @@ async def test_patch_group_merchant_non_member_returns_404(client):
     create_resp = await _create_merchant(client, admin_headers, name="Shared", group_id=group_id)
     merchant_id = create_resp.json()["id"]
 
-    outsider_resp = await client.post("/auth/signup", json={
-        "email": "outsider@example.com", "password": "SecurePassword123!",
-        "first_name": "Outsider", "tz": "America/Toronto", "base_currency": "CAD",
-    })
+    outsider_resp = await sign_up_confirmed(
+        client,
+        {
+            "email": "outsider@example.com",
+            "password": "SecurePassword123!",
+            "first_name": "Outsider",
+            "tz": "America/Toronto",
+            "base_currency": "CAD",
+        },
+    )
     outsider_headers = _get_auth_header(outsider_resp)
 
     resp = await client.patch(f"/merchants/{merchant_id}", json={"name": "Hacked"}, headers=outsider_headers)
@@ -391,10 +415,16 @@ async def test_delete_group_merchant_non_member_returns_404(client):
     create_resp = await _create_merchant(client, admin_headers, name="Shared", group_id=group_id)
     merchant_id = create_resp.json()["id"]
 
-    outsider_resp = await client.post("/auth/signup", json={
-        "email": "outsider@example.com", "password": "SecurePassword123!",
-        "first_name": "Outsider", "tz": "America/Toronto", "base_currency": "CAD",
-    })
+    outsider_resp = await sign_up_confirmed(
+        client,
+        {
+            "email": "outsider@example.com",
+            "password": "SecurePassword123!",
+            "first_name": "Outsider",
+            "tz": "America/Toronto",
+            "base_currency": "CAD",
+        },
+    )
     outsider_headers = _get_auth_header(outsider_resp)
 
     resp = await client.delete(f"/merchants/{merchant_id}", headers=outsider_headers)
@@ -409,27 +439,43 @@ async def test_delete_merchant_referenced_by_transaction_returns_409(client):
     headers = _get_auth_header(signup_resp)
 
     # Set up category, merchant, account, and a transaction referencing the merchant
-    cat_resp = await client.post("/categories", json={
-        "name": "Test Groceries", "kind": "expense",
-    }, headers=headers)
+    cat_resp = await client.post(
+        "/categories",
+        json={
+            "name": "Test Groceries",
+            "kind": "expense",
+        },
+        headers=headers,
+    )
     category_id = cat_resp.json()["id"]
 
     merchant_resp = await _create_merchant(client, headers, name="Costco")
     merchant_id = merchant_resp.json()["id"]
 
-    acct_resp = await client.post("/accounts", json={
-        "account_kind": "asset", "account_type": "checking", "name": "Chequing", "currency": "CAD",
-    }, headers=headers)
+    acct_resp = await client.post(
+        "/accounts",
+        json={
+            "account_kind": "asset",
+            "account_type": "checking",
+            "name": "Chequing",
+            "currency": "CAD",
+        },
+        headers=headers,
+    )
     account_id = acct_resp.json()["id"]
 
-    await client.post("/transactions", json={
-        "account_id": account_id,
-        "category_id": category_id,
-        "merchant_id": merchant_id,
-        "dt": "2026-03-15",
-        "amount": -5000,
-        "currency": "CAD",
-    }, headers=headers)
+    await client.post(
+        "/transactions",
+        json={
+            "account_id": account_id,
+            "category_id": category_id,
+            "merchant_id": merchant_id,
+            "dt": "2026-03-15",
+            "amount": -5000,
+            "currency": "CAD",
+        },
+        headers=headers,
+    )
 
     resp = await client.delete(f"/merchants/{merchant_id}", headers=headers)
 

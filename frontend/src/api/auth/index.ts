@@ -13,6 +13,7 @@ export { getAccessTokenExpiresAt } from '@/api/auth/tokenAge';
 
 export type {
   AuthResponse,
+  ConfirmSignupPayload,
   ForgotPasswordPayload,
   LoginPayload,
   LoginResult,
@@ -27,6 +28,7 @@ export type {
 } from '@/api/auth/types';
 
 export {
+  confirmSignup,
   fetchRegistrationStatus,
   forgotPassword,
   isMfaRequired,

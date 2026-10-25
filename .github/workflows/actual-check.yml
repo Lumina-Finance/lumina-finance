@@ -245,7 +245,7 @@ jobs:
           EOF
 
       - name: Start the stack
-        run: docker compose -f docker/compose.yml up -d
+        run: docker compose -f docker/compose.yml -f e2e/compose.mail.yaml up -d
 
       - name: Download the Actual exports
         uses: actions/download-artifact@v8
@@ -283,18 +283,19 @@ jobs:
             sleep 5
           done
           echo "Health check never succeeded, dumping logs"
-          docker compose -f docker/compose.yml logs
+          docker compose -f docker/compose.yml -f e2e/compose.mail.yaml logs
           exit 1
 
       - name: Import the exports and compare
         working-directory: e2e
         env:
           E2E_BASE_URL: http://localhost:8080
+          E2E_MAIL_API_URL: http://127.0.0.1:8025
         run: npx playwright test -c actual-check/playwright.config.ts
 
       - name: Dump container logs
         if: failure()
-        run: docker compose -f docker/compose.yml logs || true
+        run: docker compose -f docker/compose.yml -f e2e/compose.mail.yaml logs || true
 
       # One report per budget the check reached
       - name: Summarize
@@ -335,4 +336,4 @@ jobs:
 
       - name: Tear down the stack
         if: always()
-        run: docker compose -f docker/compose.yml down -v
+        run: docker compose -f docker/compose.yml -f e2e/compose.mail.yaml down -v

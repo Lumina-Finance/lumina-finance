@@ -1,5 +1,7 @@
 """JWT token creation helpers"""
+
 import uuid
+from dataclasses import asdict, dataclass
 from datetime import UTC, datetime, timedelta
 
 import jwt
@@ -20,6 +22,7 @@ from app.config.oidc import (
     OIDC_ONBOARDING_TOKEN_EXPIRE_SECONDS,
     OIDC_REAUTH_STEPUP_TOKEN_EXPIRE_SECONDS,
 )
+from app.config.registration import SIGNUP_CONFIRMATION_TOKEN_EXPIRE_SECONDS
 from app.config.two_factor import MFA_CHALLENGE_TOKEN_EXPIRE_SECONDS
 from app.models.base import AuthTokenKind
 
@@ -40,6 +43,9 @@ MFA_CHALLENGE_TOKEN_USE = "mfa_challenge"  # noqa: S105 — token use claim, not
 
 # Token use claim for the OIDC signup completion bridge
 OIDC_ONBOARDING_TOKEN_USE = "oidc_onboarding"  # noqa: S105 - token use claim, not a secret
+
+# Token use claim for the emailed sign-up confirmation link
+SIGNUP_CONFIRMATION_TOKEN_USE = "signup_confirmation"  # noqa: S105 - token use claim, not a secret
 
 # Token use claim authorizing a first password after an OIDC reauth
 OIDC_REAUTH_STEPUP_TOKEN_USE = "oidc_reauth_stepup"  # noqa: S105 - token use claim, not a secret
@@ -148,6 +154,77 @@ def create_oidc_onboarding_token(
         "iss": JWT_ISSUER,
     }
     return jwt.encode(payload, _ACCESS_SIGNING_KEY, algorithm=JWT_ALGORITHM, headers={"kid": JWT_ACCESS_KID})
+
+
+@dataclass(frozen=True)
+class SignupConfirmationClaims:
+    """Profile typed at sign-up, carried by the confirmation link's signed token"""
+
+    email: str
+    first_name: str
+    last_name: str | None
+    tz: str
+    base_currency: str
+
+
+def create_signup_confirmation_token(claims: SignupConfirmationClaims) -> str:
+    """Create the signed, expiring token an emailed sign-up confirmation link carries
+
+    No account exists until the link is used and a password is chosen, so the token holds the
+    profile typed at sign-up and nothing is stored on the server in the meantime
+
+    Args:
+        claims: Profile typed at sign-up, including the address the link is sent to
+
+    Returns:
+        Encoded JWT for the confirmation page
+    """
+    issued_at = datetime.now(UTC)
+
+    # The audience segregates this grant from the other token types so jwt.decode rejects, say, an
+    # access token presented in its place
+    payload = {
+        **asdict(claims),
+        "token_use": SIGNUP_CONFIRMATION_TOKEN_USE,
+        "aud": SIGNUP_CONFIRMATION_TOKEN_USE,
+        "iat": issued_at,
+        "exp": issued_at + timedelta(seconds=SIGNUP_CONFIRMATION_TOKEN_EXPIRE_SECONDS),
+        "iss": JWT_ISSUER,
+    }
+    return jwt.encode(payload, _ACCESS_SIGNING_KEY, algorithm=JWT_ALGORITHM, headers={"kid": JWT_ACCESS_KID})
+
+
+def decode_signup_confirmation_token(confirmation_token: str) -> SignupConfirmationClaims:
+    """Return the profile an emailed sign-up confirmation token carries
+
+    Args:
+        confirmation_token: Encoded confirmation JWT string from the emailed link
+
+    Returns:
+        The profile typed at sign-up
+
+    Raises:
+        PyJWTError: The token cannot be decoded or verified, is expired, or is not a confirmation token
+    """
+    payload = jwt.decode(
+        confirmation_token,
+        _ACCESS_SIGNING_KEY.public_key(),
+        algorithms=[JWT_ALGORITHM],
+        issuer=JWT_ISSUER,
+        audience=SIGNUP_CONFIRMATION_TOKEN_USE,
+    )
+    if payload.get("token_use") != SIGNUP_CONFIRMATION_TOKEN_USE:
+        raise jwt.InvalidTokenError("Invalid token use")
+    try:
+        return SignupConfirmationClaims(
+            email=payload["email"],
+            first_name=payload["first_name"],
+            last_name=payload.get("last_name"),
+            tz=payload["tz"],
+            base_currency=payload["base_currency"],
+        )
+    except KeyError as missing:
+        raise jwt.InvalidTokenError("Incomplete confirmation token") from missing
 
 
 def create_oidc_reauth_stepup_token(user_id: uuid.UUID) -> str:

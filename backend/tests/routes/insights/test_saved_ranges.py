@@ -1,6 +1,6 @@
 """Route tests for insights saved relative ranges."""
 
-from tests.routes.support import _create_user, _get_auth_header
+from tests.routes.support import _create_user, _get_auth_header, sign_up_confirmed
 
 SAVED_RANGE_PAYLOAD = {"name": "Half-year review", "amount": 6, "unit": "month"}
 
@@ -14,13 +14,16 @@ async def _create_second_user(client):
     Returns:
         Authorization header for the second user
     """
-    resp = await client.post("/auth/signup", json={
-        "email": "second@example.com",
-        "password": "SecurePassword123!",
-        "first_name": "Second",
-        "tz": "America/Toronto",
-        "base_currency": "CAD",
-    })
+    resp = await sign_up_confirmed(
+        client,
+        {
+            "email": "second@example.com",
+            "password": "SecurePassword123!",
+            "first_name": "Second",
+            "tz": "America/Toronto",
+            "base_currency": "CAD",
+        },
+    )
     return _get_auth_header(resp)
 
 

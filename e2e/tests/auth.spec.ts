@@ -1,29 +1,20 @@
 import { expect, test, type Route } from '@playwright/test'
 
 import { signUpUser, TEST_PASSWORD } from '../support/api'
-import { expectSignedIn, logIn, waitForPageReady } from '../support/app'
+import { expectSignedIn, logIn, signUpThroughTheForm, waitForPageReady } from '../support/app'
 import { navigate } from '../support/insights'
 import { API_BASE_URL } from '../support/target'
 
 // Runs on desktop only: signing up, in and out give the same result at every size
 
-test('signs a new user up through the form', async ({ page }) => {
-  const email = `e2e-${crypto.randomUUID()}@example.com`
-
+test('signs a new user up through the form and the emailed link', async ({ page }) => {
   // Starting from the login page proves it offers sign-up while registration is open
   await page.goto('/login')
   await page.getByRole('button', { name: 'Sign up' }).click()
-  await page.getByLabel('First name').fill('Test')
-  await page.getByLabel('Email').fill(email)
-  await page.getByLabel('Password', { exact: true }).fill(TEST_PASSWORD)
-  await page.getByLabel('Confirm password').fill(TEST_PASSWORD)
+  await expect(page.getByRole('button', { name: 'Sign up', exact: true })).toBeVisible()
 
-  // Timezone and base currency keep the browser's own defaults, which the config pins, so the
-  // form needs no answer for either. Their existing native labels also leave both controls
-  // addressable when another test needs to change those defaults
-
-  // Submit stays disabled until the currency list arrives, which Playwright waits out
-  await page.getByRole('button', { name: 'Sign up' }).click()
+  // The helper covers the form, the emailed link and the password chosen on the page it opens
+  await signUpThroughTheForm(page)
 
   // The app offers a second factor before letting anyone in, a passkey where the origin
   // supports one and an authenticator app otherwise. Both branches carry these same two
@@ -40,9 +31,7 @@ test('says the email address is the problem when signup refuses it', async ({ pa
   await page.goto('/signup')
   await page.getByLabel('First name').fill('Test')
   await page.getByLabel('Email').fill(`e2e-${crypto.randomUUID()}@example.test`)
-  await page.getByLabel('Password', { exact: true }).fill(TEST_PASSWORD)
-  await page.getByLabel('Confirm password').fill(TEST_PASSWORD)
-  await page.getByRole('button', { name: 'Sign up' }).click()
+  await page.getByRole('button', { name: 'Sign up', exact: true }).click()
 
   await expect(page.getByText('Enter a valid email address', { exact: true })).toBeVisible()
   await expect(page.getByText('Oops, something went wrong. Please try again.', { exact: true })).toHaveCount(0)

@@ -6,18 +6,17 @@ import { ApiError, resetPassword, verifyResetMfa } from '@/api/auth'
 import type { MfaRequiredResponse } from '@/api/auth'
 import { usePasskeyConfig, useVerifyPasskeyReset } from '@/api/passkeys'
 import { OTP_LENGTH } from '@/components/OtpInput'
-import { PasswordRequirements } from '@/components/PasswordRequirements'
 import { MfaChallenge } from '@/components/two-factor/MfaChallenge'
 import { useAuth } from '@/hooks/useAuth'
 import { AuthErrorBanner } from '@/pages/auth/components/feedback/ErrorBanner'
-import { AuthTextField } from '@/pages/auth/components/fields/TextField'
+import { NewPasswordForm } from '@/pages/auth/components/NewPasswordForm'
 import { AUTH_VIEW_TRANSITION } from '@/pages/auth/constants/authAnimations'
 import { getAuthErrorMessage } from '@/pages/auth/utils/authForm'
 import { getPasskeySignInMessage, isPasskeyCeremonyCancelled } from '@/utils/passkeyErrors'
 import { assessPasskeySupport } from '@/utils/passkeySupport'
 import { AUTH_LOADING_MIN_MS, withMinDelay } from '@/utils/timing'
 import { isNewPasswordValid } from '@/utils/passwordPolicy'
-import { DisabledReasonButton } from '@/components/tooltips/DisabledReasonButton'
+import { focusWhenShown } from '@/utils/focusWhenShown'
 
 /**
  * Renders the password reset form reached from the emailed link, validating the new password
@@ -50,18 +49,7 @@ const ResetPasswordPage = () => {
     return <Navigate to="/login" replace />
   }
 
-  const newPasswordValid = isNewPasswordValid(newPassword)
-  const confirmMatches = confirmPassword === newPassword
-  const canSubmit = !submitting && newPasswordValid && confirmMatches
-  const submitBlockReason = submitting
-    ? undefined
-    : !newPasswordValid
-      ? 'Choose a new password that meets the rules first'
-      : !confirmMatches
-        ? 'Enter the same password in both fields first'
-        : undefined
-  const showRules = newPassword.length > 0
-  const showMismatch = confirmPassword.length > 0 && !confirmMatches
+  const canSubmit = !submitting && isNewPasswordValid(newPassword) && confirmPassword === newPassword
 
   // The passkey option only shows where a ceremony can actually run, matching the login screen
   const canUsePasskeys =
@@ -246,7 +234,13 @@ const ResetPasswordPage = () => {
 
         <AnimatePresence mode="wait" initial={false}>
           {done ? (
-            <motion.div key="reset-success" className="mt-5 space-y-6" {...AUTH_VIEW_TRANSITION}>
+            <motion.div
+              key="reset-success"
+              ref={focusWhenShown}
+              tabIndex={-1}
+              className="mt-5 space-y-6 outline-none"
+              {...AUTH_VIEW_TRANSITION}
+            >
               <p className="text-sm" style={{ color: 'var(--app-text-muted)' }}>
                 Your password has been reset. You can now log in with your new password.
               </p>
@@ -293,71 +287,32 @@ const ResetPasswordPage = () => {
               />
             </motion.div>
           ) : (
-            <motion.form
-              key="reset-form"
-              onSubmit={handleSubmit}
-              className="mt-5"
-              noValidate
-              {...AUTH_VIEW_TRANSITION}
-            >
-              <p className="text-sm" style={{ color: 'var(--app-text-muted)' }}>
-                Choose a new password for your account.
-              </p>
-
-              <AuthErrorBanner error={error} />
-
-              <div className="mt-5">
-                <AuthTextField
-                  id="new-password"
-                  label="New password"
-                  type="password"
-                  autoComplete="new-password"
-                  value={newPassword}
-                  onChange={setNewPassword}
-                />
-                <PasswordRequirements password={newPassword} visible={showRules} className="mt-2 space-y-1" />
-              </div>
-
-              <div className="mt-5">
-                <AuthTextField
-                  id="confirm-new-password"
-                  label="Confirm new password"
-                  type="password"
-                  autoComplete="new-password"
-                  value={confirmPassword}
-                  onChange={setConfirmPassword}
-                />
-                {showMismatch && (
-                  <span className="mt-1.5 block text-xs" style={{ color: 'var(--app-negative)' }}>
-                    Passwords do not match
-                  </span>
-                )}
-              </div>
-
-              <div className="mt-5 flex justify-center">
-                <DisabledReasonButton
-                  type="submit"
-                  disabled={submitting}
-                  disabledReason={submitBlockReason}
-                  className={`app-primary-button transition-all duration-300 ${
-                    submitting ? 'app-primary-button-loading' : 'w-full'
-                  }`}
-                >
-                  {submitting ? <div className="app-spinner" /> : 'Reset password'}
-                </DisabledReasonButton>
-              </div>
-
-              <p className="mt-5 text-center text-sm" style={{ color: 'var(--app-text-muted)' }}>
-                <button
-                  type="button"
-                  onClick={handleBackToLogin}
-                  className="font-medium underline underline-offset-2"
-                  style={{ color: 'var(--app-accent)' }}
-                >
-                  Back to login
-                </button>
-              </p>
-            </motion.form>
+            <motion.div key="reset-form" {...AUTH_VIEW_TRANSITION}>
+              <NewPasswordForm
+                intro="Choose a new password for your account."
+                error={error}
+                password={newPassword}
+                confirmPassword={confirmPassword}
+                passwordLabel="New password"
+                confirmLabel="Confirm new password"
+                submitLabel="Reset password"
+                submitting={submitting}
+                onPasswordChange={setNewPassword}
+                onConfirmChange={setConfirmPassword}
+                onSubmit={handleSubmit}
+              >
+                <p className="mt-5 text-center text-sm" style={{ color: 'var(--app-text-muted)' }}>
+                  <button
+                    type="button"
+                    onClick={handleBackToLogin}
+                    className="font-medium underline underline-offset-2"
+                    style={{ color: 'var(--app-accent)' }}
+                  >
+                    Back to login
+                  </button>
+                </p>
+              </NewPasswordForm>
+            </motion.div>
           )}
         </AnimatePresence>
       </div>

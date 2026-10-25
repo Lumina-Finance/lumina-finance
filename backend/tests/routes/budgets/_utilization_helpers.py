@@ -1,4 +1,5 @@
 """Route tests for budget utilization endpoints"""
+
 import uuid
 from datetime import date
 
@@ -7,13 +8,15 @@ import sqlalchemy as sa
 from app.models.budget import BudgetTrackedCategory
 from app.models.currency import Currency
 from tests.conftest import TestSession
-from tests.routes.support import _get_auth_header, _get_system_merchant_id
+from tests.routes.support import _get_auth_header, _get_system_merchant_id, sign_up_confirmed
 
 NONEXISTENT_ID = "00000000-0000-0000-0000-000000000000"
+
 
 async def _get_base_budget_utilizations(client, headers, base_budget_id):
     """GET /base-budgets/{id}/utilizations and return the raw response for status-code assertions"""
     return await client.get(f"/base-budgets/{base_budget_id}/utilizations", headers=headers)
+
 
 async def _get_budget_utilization_entry(client, headers, base_budget_id, budget_id):
     """Return the batched utilization entry for one instance under a base budget
@@ -27,21 +30,27 @@ async def _get_budget_utilization_entry(client, headers, base_budget_id, budget_
     assert entry is not None
     return entry
 
+
 async def _create_second_user(client):
     """Sign up a second user and return (auth_headers, user_id)"""
-    resp = await client.post("/auth/signup", json={
-        "email": "other@example.com",
-        "password": "SecurePassword123!",
-        "first_name": "Other",
-        "tz": "America/Toronto",
-        "base_currency": "CAD",
-    })
+    resp = await sign_up_confirmed(
+        client,
+        {
+            "email": "other@example.com",
+            "password": "SecurePassword123!",
+            "first_name": "Other",
+            "tz": "America/Toronto",
+            "base_currency": "CAD",
+        },
+    )
     return _get_auth_header(resp), resp.json()["user"]["id"]
+
 
 async def _create_group(client, headers):
     """Create a group and return its id"""
     resp = await client.post("/groups", json={"name": "Smith Family"}, headers=headers)
     return resp.json()["id"]
+
 
 async def _create_category(client, headers, **overrides):
     """Create an expense category and return its id"""
@@ -49,13 +58,14 @@ async def _create_category(client, headers, **overrides):
     resp = await client.post("/categories", json=payload, headers=headers)
     return resp.json()["id"]
 
+
 async def _seed_usd_currency():
     """Insert the USD currency row for multi-currency tests"""
     async with TestSession() as session:
-
         # Insert USD as seeded currency data for budget currency conversion tests
         session.add(Currency(id="USD", name="US Dollar", symbol="$", minor_unit_exponent=2))
         await session.commit()
+
 
 async def _create_base_budget(client, headers, *, category_ids=None, **overrides):
     """Create a base budget via POST /base-budgets
@@ -78,6 +88,7 @@ async def _create_base_budget(client, headers, *, category_ids=None, **overrides
     }
     return await client.post("/base-budgets", json=payload, headers=headers)
 
+
 async def _create_budget_instance(client, headers, base_budget_id, **overrides):
     """Create a budget instance via POST /base-budgets/{id}/budgets
 
@@ -90,11 +101,19 @@ async def _create_budget_instance(client, headers, base_budget_id, **overrides):
         **overrides,
     }
     return await client.post(
-        f"/base-budgets/{base_budget_id}/budgets", json=payload, headers=headers,
+        f"/base-budgets/{base_budget_id}/budgets",
+        json=payload,
+        headers=headers,
     )
 
+
 async def _create_base_with_instance(
-    client, headers, *, category_ids=None, base_overrides=None, instance_overrides=None,
+    client,
+    headers,
+    *,
+    category_ids=None,
+    base_overrides=None,
+    instance_overrides=None,
 ):
     """Create a base budget and one instance. Returns (base_id, instance_id)
 
@@ -106,16 +125,19 @@ async def _create_base_with_instance(
     `_set_tracked_category_timestamps`
     """
     base_resp = await _create_base_budget(
-        client, headers,
+        client,
+        headers,
         category_ids=category_ids,
         **(base_overrides or {}),
     )
     base_id = base_resp.json()["id"]
     inst_resp = await _create_budget_instance(
-        client, headers, base_id, **(instance_overrides or {}),
+        client,
+        headers,
+        base_id,
+        **(instance_overrides or {}),
     )
     async with TestSession() as session:
-
         # Backdate active tracked categories so historical budget periods include them
         await session.execute(
             sa.update(BudgetTrackedCategory)
@@ -127,6 +149,7 @@ async def _create_base_with_instance(
         )
         await session.commit()
     return base_id, inst_resp.json()["id"]
+
 
 async def _create_transaction(client, headers, account_id, category_id, **overrides):
     """Create a transaction via POST /transactions"""
@@ -144,6 +167,7 @@ async def _create_transaction(client, headers, account_id, category_id, **overri
         payload["merchant_id"] = await _get_system_merchant_id(client, headers)
     return await client.post("/transactions", json=payload, headers=headers)
 
+
 async def _grant_base_budget_permission(client, admin_headers, base_budget_id, user_id, level):
     """Grant a group member a permission level on a group base budget"""
     return await client.post(
@@ -152,6 +176,7 @@ async def _grant_base_budget_permission(client, admin_headers, base_budget_id, u
         headers=admin_headers,
     )
 
+
 async def _grant_account_permission(client, admin_headers, account_id, user_id, level):
     """Grant a group member a permission level on a group account"""
     return await client.post(
@@ -159,6 +184,7 @@ async def _grant_account_permission(client, admin_headers, account_id, user_id, 
         json={"user_id": user_id, "level": level},
         headers=admin_headers,
     )
+
 
 async def _set_tracked_category_timestamps(base_budget_id, category_id, *, added_at=None, removed_at=None):
     """Directly patch a BudgetTrackedCategory row's added_at/removed_at
@@ -176,7 +202,6 @@ async def _set_tracked_category_timestamps(base_budget_id, category_id, *, added
     if removed_at is not None:
         values["removed_at"] = removed_at
     async with TestSession() as session:
-
         # Patch the active tracked category row to model period-relative category changes
         await session.execute(
             sa.update(BudgetTrackedCategory)

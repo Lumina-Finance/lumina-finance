@@ -11,7 +11,7 @@ interface AuthTextFieldProps {
   type?: HTMLInputTypeAttribute
   value: string
   onBlur?: () => void
-  onChange: (value: string) => void
+  onChange?: (value: string) => void
   onFocus?: () => void
 }
 
@@ -28,7 +28,7 @@ export function AuthTextField({
   type = 'text',
   value,
   onBlur,
-  onChange,
+  onChange = () => {},
   onFocus,
 }: AuthTextFieldProps) {
   const showError = Boolean(touched && error)
@@ -44,6 +44,7 @@ export function AuthTextField({
           {showError && (
             <motion.p
               key={`${id}-error`}
+              id={`${id}-error`}
               className="text-xs"
               style={{ color: 'var(--app-negative)' }}
               initial={{ opacity: 0, x: 4 }}
@@ -62,6 +63,8 @@ export function AuthTextField({
         autoComplete={autoComplete}
         className={`app-input ${showError ? 'app-input-error' : ''}`}
         value={value}
+        aria-invalid={showError ? true : undefined}
+        aria-describedby={showError ? `${id}-error` : undefined}
         onChange={(event) => onChange(event.target.value)}
         onFocus={onFocus}
         onBlur={onBlur}

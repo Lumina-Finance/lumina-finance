@@ -1,4 +1,4 @@
-import { useRef, useState, type FormEvent, type RefObject } from 'react'
+import { useState, type FormEvent, type RefObject } from 'react'
 import { useNavigate } from 'react-router'
 import { animate } from 'motion/react'
 import { forgotPassword, isMfaRequired, type AuthResponse, type LoginResult } from '@/api/auth'
@@ -10,7 +10,7 @@ import { useMfaChallenge } from '@/pages/auth/hooks/useMfaChallenge'
 import { getPasskeySignInMessage, isPasskeyCeremonyCancelled } from '@/utils/passkeyErrors'
 import { assessPasskeySupport } from '@/utils/passkeySupport'
 import { consumeRecoveryIntent } from '@/utils/recoveryIntent'
-import { recordResetRequest } from '@/utils/resetRequestLog'
+import { recordResetRequest, recordSignupRequest } from '@/utils/resetRequestLog'
 import { delayToMinimum } from '@/utils/timing'
 import {
   FADE_OUT_MS,
@@ -54,11 +54,10 @@ export function useAuthFormWorkflow({
   mode,
   initialEmail,
 }: UseAuthFormWorkflowParams) {
-  const { login, signup, setSession, primeAccessToken } = useAuth()
+  const { login, signup, setSession } = useAuth()
   const passkeyConfig = usePasskeyConfig()
   const passkeySignIn = useAuthenticatePasskey()
   const navigate = useNavigate()
-  const pendingAuthRef = useRef<AuthResponse | null>(null)
   const [form, setForm] = useState<AuthFormValues>(() => {
     const initialForm = buildInitialAuthForm(detectedTimezone)
     return initialEmail ? { ...initialForm, email: initialEmail } : initialForm
@@ -69,8 +68,7 @@ export function useAuthFormWorkflow({
   const [submitting, setSubmitting] = useState(false)
   const [submitted, setSubmitted] = useState(false)
   const [forgotRepeated, setForgotRepeated] = useState(false)
-  const [passwordFocused, setPasswordFocused] = useState(false)
-  const [enrolling, setEnrolling] = useState(false)
+  const [signupRepeated, setSignupRepeated] = useState(false)
 
   // Read once on mount, so a sign-out from the lost-factor flow greets the user in recovery mode and
   // steers the second-factor step to the recovery-code input
@@ -154,14 +152,6 @@ export function useAuthFormWorkflow({
   }
 
   /**
-   * Leaves password focus state and validates the current password field
-   */
-  const handlePasswordBlur = () => {
-    setPasswordFocused(false)
-    handleBlur('password')
-  }
-
-  /**
    * Validates the form, enforces local lockout and currency guards, then starts the authenticated route transition
    */
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
@@ -212,12 +202,14 @@ export function useAuthFormWorkflow({
     setSubmitting(true)
 
     const start = Date.now()
-    let res: LoginResult
+    let res: LoginResult | undefined
 
     try {
-      res = isLogin
-        ? await login(buildLoginPayload(form))
-        : await signup(buildSignupPayload(form))
+      if (isLogin) {
+        res = await login(buildLoginPayload(form))
+      } else {
+        await signup(buildSignupPayload(form))
+      }
     } catch (err) {
       await delayToMinimum(start)
       setSubmitting(false)
@@ -236,20 +228,22 @@ export function useAuthFormWorkflow({
 
     await delayToMinimum(start)
 
+    // Signup answers the same way whether or not the address has an account, and signs no one in:
+    // the account is made when the emailed link is opened
+    if (!res) {
+      setSubmitting(false)
+      setSubmitted(true)
+
+      // The server caps the emails it sends, so a repeat from this browser is told to look for the
+      // link already sent rather than wait for a new one
+      setSignupRepeated(recordSignupRequest() >= 2)
+      return
+    }
+
     // A login that needs a second factor morphs to the verification step instead of completing
     if (isMfaRequired(res)) {
       setSubmitting(false)
       beginChallenge(res)
-      return
-    }
-
-    // Signup offers a skippable 2FA setup before the app, so the token is primed without
-    // committing a session, keeping the auth page mounted rather than redirecting home
-    if (!isLogin) {
-      setSubmitting(false)
-      pendingAuthRef.current = res
-      primeAccessToken(res.access_token)
-      setEnrolling(true)
       return
     }
 
@@ -285,19 +279,6 @@ export function useAuthFormWorkflow({
     navigate('/', { replace: true })
   }
 
-  /**
-   * Leaves the signup 2FA step for the app, whether the user enrolled or skipped
-   */
-  const finishEnrollment = async () => {
-    if (containerRef.current) {
-      await animate(containerRef.current, { opacity: 0 }, { duration: FADE_OUT_MS / 1000 })
-    }
-    if (pendingAuthRef.current) {
-      setSession(pendingAuthRef.current)
-    }
-    navigate('/', { replace: true })
-  }
-
   return {
     currencyPlaceholder,
     displayError: error,
@@ -305,13 +286,11 @@ export function useAuthFormWorkflow({
     form,
     handleBlur,
     handleChange,
-    handlePasswordBlur,
     handleSubmit,
     goToForgot,
     isLogin,
-    passwordFocused,
-    setPasswordFocused,
     forgotRepeated,
+    signupRepeated,
     submitDisabled,
     submitBlockReason,
     submitted,
@@ -338,8 +317,6 @@ export function useAuthFormWorkflow({
     switchToAuthenticatorMfa,
     switchToRecoveryMfa,
     switchToPasskeyMfa,
-    enrolling,
-    finishEnrollment,
     recoveryMode,
   }
 }

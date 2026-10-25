@@ -10,6 +10,7 @@ from app.models.currency import Currency
 from app.services.auth.login_email_hash import seal_login_email
 from app.services.auth.token_hashing import hash_token
 from tests.conftest import TestSession
+from tests.routes.support.mailbox import mailbox
 
 
 def _fresh_totp_code(secret: str) -> str:
@@ -49,6 +50,24 @@ async def _seed_currency():
         await session.commit()
 
 
+async def sign_up_confirmed(client, payload):
+    """Sign a user up and confirm the emailed link, as a person does to get a working account
+
+    Args:
+        client: Async test client
+        payload: Sign-up profile plus the password the person chooses at confirmation
+
+    Returns:
+        API response from confirming, which signs the new user in
+    """
+    profile = {key: value for key, value in payload.items() if key != "password"}
+    signup = await client.post("/auth/signup", json=profile)
+    assert signup.status_code == 204, signup.text
+
+    token = mailbox.confirmation_token(payload["email"])
+    return await client.post("/auth/signup/confirm", json={"token": token, "new_password": payload["password"]})
+
+
 async def _create_user(client):
     """Create the default signed-up user with the route API
 
@@ -56,10 +75,10 @@ async def _create_user(client):
         client: Async test client
 
     Returns:
-        API response from signing up the user
+        API response from confirming the user's sign-up
     """
     await _seed_currency()
-    return await client.post("/auth/signup", json=SIGNUP_PAYLOAD)
+    return await sign_up_confirmed(client, SIGNUP_PAYLOAD)
 
 
 async def _seed_reset_token(user_id, raw_token="reset-token-abc", *, expires_in_seconds=600, used=False, age_seconds=None):  # noqa: S107

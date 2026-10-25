@@ -4,7 +4,8 @@
 
 import { expect, type Locator, type Page, type Response } from '@playwright/test'
 
-import type { TestUser } from './api'
+import { TEST_PASSWORD, type TestUser } from './api'
+import { waitForConfirmationLink } from './mail'
 import { API_BASE_URL, BASE_URL } from './target'
 
 // The app's own two breakpoints. Above the first the navigation is a sidebar and below it a
@@ -43,8 +44,6 @@ async function isAtLeast(page: Page, widthPx: number): Promise<boolean> {
 export async function logIn(page: Page, user: TestUser): Promise<void> {
   await page.goto('/login')
   await page.getByLabel('Email').fill(user.email)
-
-  // Exact, or it also matches the "Confirm password" field the signup form carries
   await page.getByLabel('Password', { exact: true }).fill(user.password)
 
   const authenticated = page.waitForResponse((response) =>
@@ -53,6 +52,51 @@ export async function logIn(page: Page, user: TestUser): Promise<void> {
   expect((await authenticated).status()).toBe(200)
   await page.waitForURL((url) => !url.pathname.startsWith('/login'))
   await waitForPageReady(page)
+}
+
+/**
+ * Fill the sign-up form with a fresh address, press Sign up and wait for the "Check your email" view.
+ *
+ * The form asks for no password, and nothing is created until the emailed link is opened. Timezone
+ * and base currency keep the browser's own defaults, which the config pins, so the form needs no
+ * answer for either
+ *
+ * @param page - Page to drive, at any address in the app
+ * @param email - Address to sign up, a fresh one when omitted
+ * @returns The address that was submitted
+ */
+export async function requestSignUpThroughTheForm(
+  page: Page,
+  email = `e2e-${crypto.randomUUID()}@example.com`,
+): Promise<string> {
+  await page.goto('/signup')
+  await page.getByLabel('First name').fill('Test')
+  await page.getByLabel('Last name').fill('User')
+  await page.getByLabel('Email').fill(email)
+
+  // Sign up stays disabled until the currency list arrives, which Playwright waits out
+  await page.getByRole('button', { name: 'Sign up', exact: true }).click()
+  await expect(page.getByRole('status')).toHaveText('Check your email to finish creating your account')
+  return email
+}
+
+/**
+ * Sign up through the form, open the emailed link and choose a password, stopping at the
+ * "Account created" step that offers a second factor.
+ *
+ * The session is held back until that step is finished or skipped, so the app is not open yet
+ *
+ * @param page - Page to drive, at any address in the app
+ * @returns The address that signed up, whose password is `TEST_PASSWORD`
+ */
+export async function signUpThroughTheForm(page: Page): Promise<string> {
+  const email = await requestSignUpThroughTheForm(page)
+  await page.goto(await waitForConfirmationLink(email))
+  await page.getByLabel('Password', { exact: true }).fill(TEST_PASSWORD)
+  await page.getByLabel('Confirm password').fill(TEST_PASSWORD)
+  await page.getByRole('button', { name: 'Create account' }).click()
+  await expect(page.getByRole('heading', { name: 'Account created' })).toBeVisible()
+  return email
 }
 
 /** Start a separate real browser session so its rotation cannot invalidate API fixture credentials */

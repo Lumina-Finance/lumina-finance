@@ -6,22 +6,19 @@ import { useRegistrationStatus } from '@/api/auth';
 import { useCurrencies } from '@/api/currency';
 import { useOidcProviders } from '@/api/oidc';
 import { MfaChallenge } from '@/components/two-factor/MfaChallenge';
-import { SignupFactorSetup } from '@/pages/auth/components/SignupFactorSetup';
 import { AuthAnimatedTitle } from '@/pages/auth/components/AnimatedTitle';
-import { AuthConfirmPasswordField } from '@/pages/auth/components/fields/ConfirmPasswordField';
 import { CurrencyRetryWarning } from '@/pages/auth/components/feedback/CurrencyRetryWarning';
 import { AuthErrorBanner } from '@/pages/auth/components/feedback/ErrorBanner';
 import { OidcProviderButtons } from '@/pages/auth/components/OidcProviderButtons';
 import { AuthSignupNameFields } from '@/pages/auth/components/fields/SignupNameFields';
 import { AuthSignupReferenceFields } from '@/pages/auth/components/fields/SignupReferenceFields';
 import { AuthTextField } from '@/pages/auth/components/fields/TextField';
-import { PasswordRequirements } from '@/components/PasswordRequirements';
 import { AUTH_VIEW_TRANSITION, SIGNUP_FIELD_ANIMATION } from '@/pages/auth/constants/authAnimations';
 import { useAuthFormWorkflow } from '@/pages/auth/hooks/useAuthFormWorkflow';
 import { getAuthMode, REGISTRATION_CLOSED_NOTICE } from '@/pages/auth/utils/authForm';
 import { DisabledReasonButton } from '@/components/tooltips/DisabledReasonButton';
 import { getBrowserTimeZone } from '@/utils/date';
-import { isNewPasswordValid } from '@/utils/passwordPolicy';
+import { focusWhenShown } from '@/utils/focusWhenShown';
 import { buildTimezoneOptions } from '@/utils/timezoneOptions';
 
 const DETECTED_TZ = getBrowserTimeZone();
@@ -57,12 +54,10 @@ const AuthPage = () => {
     form,
     handleBlur,
     handleChange,
-    handlePasswordBlur,
     handleSubmit,
     goToForgot,
-    passwordFocused,
-    setPasswordFocused,
     forgotRepeated,
+    signupRepeated,
     submitDisabled,
     submitBlockReason,
     submitted,
@@ -89,8 +84,6 @@ const AuthPage = () => {
     switchToAuthenticatorMfa,
     switchToRecoveryMfa,
     switchToPasskeyMfa,
-    enrolling,
-    finishEnrollment,
     recoveryMode,
   } = useAuthFormWorkflow({
     containerRef,
@@ -112,11 +105,6 @@ const AuthPage = () => {
   // Provider sign-in also onboards new users, so the buttons show on signup as well
   const showPasskeyButton = isLogin && canUsePasskeys;
   const showOidcButtons = (isLogin || isSignup) && oidcProviders.length > 0;
-
-  // The checklist stays open while the field is focused or has content, and hides once the password
-  // has been touched and satisfies every rule
-  const passwordRequirementsVisible =
-    (passwordFocused || form.password.length > 0) && !(touched.password && isNewPasswordValid(form.password));
 
   const submitLabel = isLogin ? 'Log in' : isSignup ? 'Sign up' : 'Send reset link';
   const switchPrompt = isLogin
@@ -140,13 +128,7 @@ const AuthPage = () => {
       transition={{ duration: 0.3 }}
     >
       <form
-        onSubmit={(event) => {
-          if (enrolling) {
-            event.preventDefault();
-            return;
-          }
-          (mfaActive ? handleMfaSubmit : handleSubmit)(event);
-        }}
+        onSubmit={mfaActive ? handleMfaSubmit : handleSubmit}
         className="w-full max-w-sm"
         noValidate
       >
@@ -163,7 +145,7 @@ const AuthPage = () => {
           />
         )}
 
-        {recoveryMode && isLogin && !enrolling && (
+        {recoveryMode && isLogin && (
           <div
             className="mt-4 rounded-lg border px-3 py-2 text-sm"
             style={{ borderColor: 'var(--app-border)', color: 'var(--app-text-muted)' }}
@@ -173,16 +155,7 @@ const AuthPage = () => {
         )}
 
         <AnimatePresence mode="wait" initial={false}>
-          {enrolling ? (
-            <motion.div key="factor-enrollment" className="mt-5" {...AUTH_VIEW_TRANSITION}>
-              {/* Opt-in 2FA at signup is the account's first factor, so it steps up with the password just set */}
-              <SignupFactorSetup
-                passkeysSupported={canUsePasskeys}
-                setupStepUp={{ password: form.password }}
-                onFinish={finishEnrollment}
-              />
-            </motion.div>
-          ) : mfaActive ? (
+          {mfaActive ? (
             <motion.div
               key={`mfa-step-${mfaUsePasskey ? 'passkey' : mfaUseRecoveryCode ? 'recovery' : 'code'}`}
               className="mt-5 space-y-6"
@@ -210,8 +183,44 @@ const AuthPage = () => {
                 hasAncestorForm
               />
             </motion.div>
+          ) : isSignup && submitted ? (
+            <motion.div
+              key="signup-confirmation"
+              ref={focusWhenShown}
+              tabIndex={-1}
+              className="mt-5 space-y-6 outline-none"
+              {...AUTH_VIEW_TRANSITION}
+            >
+              {/* Says the same thing whether or not the address already has an account */}
+              <p className="text-base font-medium" role="status">
+                Check your email to finish creating your account
+              </p>
+              <p className="text-sm" style={{ color: 'var(--app-text-muted)' }}>
+                We've sent a message to {form.email}. Open its link to finish creating your account before you
+                log in. Check your spam folder if it does not arrive.
+              </p>
+              {signupRepeated && (
+                <p className="text-sm" style={{ color: 'var(--app-text-muted)' }}>
+                  Already asked for a link today? Use the newest one in your inbox or spam folder.
+                </p>
+              )}
+              <button
+                type="button"
+                onClick={switchMode}
+                className="font-medium underline underline-offset-2 transition-colors duration-200"
+                style={{ color: 'var(--app-accent)' }}
+              >
+                Back to login
+              </button>
+            </motion.div>
           ) : isForgot && submitted ? (
-            <motion.div key="forgot-confirmation" className="mt-5 space-y-6" {...AUTH_VIEW_TRANSITION}>
+            <motion.div
+              key="forgot-confirmation"
+              ref={focusWhenShown}
+              tabIndex={-1}
+              className="mt-5 space-y-6 outline-none"
+              {...AUTH_VIEW_TRANSITION}
+            >
               <p className="text-sm" style={{ color: 'var(--app-text-muted)' }}>
                 If an account exists for {form.email}, a link to set a new password is on its way. Check your inbox.
               </p>
@@ -269,28 +278,19 @@ const AuthPage = () => {
               </div>
 
               <AnimatePresence initial={false}>
-                {!isForgot && (
+                {isLogin && (
                   <motion.div key="password-field" className="overflow-hidden" {...SIGNUP_FIELD_ANIMATION}>
                     <AuthTextField
                       id="password"
                       label="Password"
                       type="password"
-                      autoComplete={isLogin ? 'current-password' : 'new-password'}
+                      autoComplete="current-password"
                       value={form.password}
                       touched={touched.password}
                       error={fieldErrors.password}
                       onChange={(value) => handleChange('password', value)}
-                      onFocus={() => setPasswordFocused(true)}
-                      onBlur={handlePasswordBlur}
+                      onBlur={() => handleBlur('password')}
                     />
-                    {isSignup && (
-                      <PasswordRequirements
-                        password={form.password}
-                        visible={passwordRequirementsVisible}
-                        animated
-                        className="mt-2 space-y-1"
-                      />
-                    )}
                   </motion.div>
                 )}
               </AnimatePresence>
@@ -313,15 +313,6 @@ const AuthPage = () => {
                   </motion.div>
                 )}
               </AnimatePresence>
-
-              <AuthConfirmPasswordField
-                show={isSignup}
-                value={form.confirm_password}
-                touched={touched.confirm_password}
-                error={fieldErrors.confirm_password}
-                onFieldBlur={handleBlur}
-                onFieldChange={handleChange}
-              />
 
               <AuthSignupReferenceFields
                 currencies={currencies}

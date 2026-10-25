@@ -1,0 +1,6 @@
+Someone used this email address to start creating a {{ app_name }} account.
+
+Use this link within {{ expiry_hours }} hours to choose a password and finish creating your account:
+{{ confirm_link }}
+
+If this was not you, you can ignore this email

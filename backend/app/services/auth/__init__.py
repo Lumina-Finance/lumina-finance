@@ -30,7 +30,7 @@ from app.services.auth.password_reset import (
 from app.services.auth.registration import is_registration_open
 from app.services.auth.sessions import delete_expired_auth_sessions, delete_expired_auth_tokens
 from app.services.auth.set_password import set_first_password
-from app.services.auth.signup import signup
+from app.services.auth.signup import confirm_signup, request_signup
 from app.services.auth.step_up import authorize_factor_addition
 from app.services.auth.tokens import (
     create_access_token,
@@ -86,6 +86,7 @@ __all__ = [
     "complete_totp_enrollment",
     "confirm_passkey_registration",
     "confirm_recovery_codes",
+    "confirm_signup",
     "confirm_totp_enrollment",
     "create_access_token",
     "create_oidc_onboarding_token",
@@ -112,8 +113,8 @@ __all__ = [
     "remove_passkey_with_step_up",
     "rename_passkey",
     "request_password_reset",
+    "request_signup",
     "set_first_password",
-    "signup",
     "sync_oidc_providers",
     "unlink_oidc_identity",
     "verify_passkey_authentication",

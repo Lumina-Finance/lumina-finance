@@ -9,7 +9,7 @@ from app.models.account import Account, TaxAdvantagedCategory
 from app.models.user import User
 from app.utils.dates import ACCOUNT_OWNER_PROFILE, OWN_PROFILE
 from tests.conftest import TestSession
-from tests.routes.support import SIGNUP_PAYLOAD, _create_account, _create_user, _get_auth_header, _seed_currency
+from tests.routes.support import SIGNUP_PAYLOAD, _create_account, _create_user, _get_auth_header, _seed_currency, sign_up_confirmed
 
 # An identifier no release of the IANA database carries. Signup validates against the zone database,
 # so a row only holds one of these when the value arrived another way, such as a restore from an
@@ -27,7 +27,6 @@ async def _store_unresolvable_timezone(email: str = SIGNUP_PAYLOAD["email"]):
         None
     """
     async with TestSession() as session:
-
         # Replace the user's timezone with one no zone database resolves
         await session.execute(update(User).where(User.email == email).values(tz=UNRESOLVABLE_IDENTIFIER))
         await session.commit()
@@ -43,7 +42,7 @@ async def _signup(client, *, email: str):
     Returns:
         API response from signing up the user
     """
-    return await client.post("/auth/signup", json={**SIGNUP_PAYLOAD, "email": email})
+    return await sign_up_confirmed(client, {**SIGNUP_PAYLOAD, "email": email})
 
 
 async def _create_tax_advantaged_category(client, headers):
@@ -86,7 +85,6 @@ async def test_account_creation_writes_nothing_when_the_stored_timezone_is_unres
     assert create_resp.status_code == status.HTTP_422_UNPROCESSABLE_CONTENT
     assert OWN_PROFILE in create_resp.json()["detail"]
     async with TestSession() as session:
-
         # Count every account row, since a refusal after the commit would leave one behind
         account_count = await session.scalar(select(func.count()).select_from(Account))
     assert account_count == 0
@@ -103,7 +101,6 @@ async def test_category_creation_writes_nothing_when_the_stored_timezone_is_unre
     assert create_resp.status_code == status.HTTP_422_UNPROCESSABLE_CONTENT
     assert UNRESOLVABLE_IDENTIFIER in create_resp.json()["detail"]
     async with TestSession() as session:
-
         # Count every tax-advantaged category row, since a refusal after the commit would leave one behind
         category_count = await session.scalar(select(func.count()).select_from(TaxAdvantagedCategory))
     assert category_count == 0
@@ -125,7 +122,6 @@ async def test_category_update_writes_nothing_when_the_stored_timezone_is_unreso
     assert update_resp.status_code == status.HTTP_422_UNPROCESSABLE_CONTENT
     assert UNRESOLVABLE_IDENTIFIER in update_resp.json()["detail"]
     async with TestSession() as session:
-
         # Read the stored name back, since a refusal after the commit would have saved the new one
         stored_name = await session.scalar(
             select(TaxAdvantagedCategory.name).where(TaxAdvantagedCategory.id == uuid.UUID(category_id)),

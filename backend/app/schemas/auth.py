@@ -6,7 +6,7 @@ from datetime import datetime
 from typing import Any
 from zoneinfo import available_timezones
 
-from pydantic import BaseModel, EmailStr, field_validator
+from pydantic import BaseModel, EmailStr, Field, field_validator
 
 _VALID_TIMEZONES = available_timezones()
 
@@ -68,9 +68,10 @@ class SignupRequest(BaseModel):
     """Signup request payload"""
 
     email: EmailStr
-    password: str
-    first_name: str
-    last_name: str | None = None
+
+    # The names travel inside the emailed link, so their length is bounded at the columns' width
+    first_name: str = Field(max_length=256)
+    last_name: str | None = Field(default=None, max_length=256)
     tz: str  # IANA timezone (e.g., "America/Toronto")
     base_currency: str  # ISO 4217 code (e.g., "CAD")
 
@@ -80,11 +81,11 @@ class SignupRequest(BaseModel):
         """Validate timezone names at the API boundary"""
         return validate_iana_timezone(v)
 
-    @field_validator("password")
-    @classmethod
-    def validate_password(cls, v: str) -> str:
-        """Enforce the password policy when an account is created"""
-        return validate_password_strength(v)
+
+class ConfirmSignupRequest(NewPasswordRequest):
+    """Sign-up confirmation payload pairing the emailed token with the password the person chooses"""
+
+    token: str
 
 
 class LoginRequest(BaseModel):

@@ -107,6 +107,21 @@ class PasswordResetToken(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, server_default=func.now())
 
 
+class SignupEmailSend(Base):
+    """Records one sign-up request for an address, so a rolling-day cap on its emails can count them
+
+    A registered address is recorded too, though nothing is sent to it, so both requests do the same
+    work. The address is kept only as a keyed hash, since the log holds addresses of people who never
+    registered. A row lasts a day, then the sign-up request or the scheduled cleanup removes it.
+    """
+
+    __tablename__ = "signup_email_sends"
+
+    id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
+    email_hash: Mapped[str] = mapped_column(VARCHAR(64), nullable=False, index=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, server_default=func.now())
+
+
 class MfaChallenge(Base):
     """Stores single-use second-factor challenges issued after a verified first step, keyed by jti and expiring"""
 

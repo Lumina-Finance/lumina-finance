@@ -1,4 +1,4 @@
-from tests.routes.support import _create_user, _get_auth_header
+from tests.routes.support import _create_user, _get_auth_header, sign_up_confirmed
 
 NONEXISTENT_ID = "00000000-0000-0000-0000-000000000000"
 
@@ -6,6 +6,7 @@ CATEGORY_PAYLOAD = {
     "name": "Custom Test Category",
     "kind": "expense",
 }
+
 
 async def _create_category(client, headers, **overrides):
     """Create a category via POST /categories
@@ -23,6 +24,7 @@ async def _create_category(client, headers, **overrides):
     payload = {**CATEGORY_PAYLOAD, **overrides}
     return await client.post("/categories", json=payload, headers=headers)
 
+
 async def _create_second_user(client):
     """Sign up a second user for ownership-isolation tests
 
@@ -32,13 +34,17 @@ async def _create_second_user(client):
     Returns:
         The HTTP response from the signup endpoint
     """
-    return await client.post("/auth/signup", json={
-        "email": "other@example.com",
-        "password": "SecurePassword123!",
-        "first_name": "Other",
-        "tz": "America/Toronto",
-        "base_currency": "CAD",
-    })
+    return await sign_up_confirmed(
+        client,
+        {
+            "email": "other@example.com",
+            "password": "SecurePassword123!",
+            "first_name": "Other",
+            "tz": "America/Toronto",
+            "base_currency": "CAD",
+        },
+    )
+
 
 async def _create_group(client, headers):
     """Create a group and return its ID
@@ -52,6 +58,7 @@ async def _create_group(client, headers):
     """
     resp = await client.post("/groups", json={"name": "Smith Family"}, headers=headers)
     return resp.json()["id"]
+
 
 async def _setup_group_with_member(client):
     """Create a group with an admin (owner) and a regular member
@@ -67,13 +74,16 @@ async def _setup_group_with_member(client):
 
     group_id = await _create_group(client, admin_headers)
 
-    member_resp = await client.post("/auth/signup", json={
-        "email": "member@example.com",
-        "password": "SecurePassword123!",
-        "first_name": "Member",
-        "tz": "America/Toronto",
-        "base_currency": "CAD",
-    })
+    member_resp = await sign_up_confirmed(
+        client,
+        {
+            "email": "member@example.com",
+            "password": "SecurePassword123!",
+            "first_name": "Member",
+            "tz": "America/Toronto",
+            "base_currency": "CAD",
+        },
+    )
     member_headers = _get_auth_header(member_resp)
     member_user_id = member_resp.json()["user"]["id"]
 

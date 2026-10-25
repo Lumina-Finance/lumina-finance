@@ -16,7 +16,14 @@ from app.models.auth import PasswordCredential, PasswordResetToken
 from app.services.auth import password_reset
 from app.services.auth.token_hashing import hash_token
 from tests.conftest import TestSession
-from tests.routes.support import SIGNUP_PAYLOAD, _create_user, _fresh_totp_code, _get_auth_header, _seed_reset_token
+from tests.routes.support import (
+    SIGNUP_PAYLOAD,
+    _create_user,
+    _fresh_totp_code,
+    _get_auth_header,
+    _seed_reset_token,
+    sign_up_confirmed,
+)
 
 _NEW_PASSWORD = "NewSecurePass123!"
 
@@ -216,7 +223,7 @@ async def test_overlapping_reset_requests_for_different_users_are_independent(cl
     """Another user's reset request completes while the first issuance remains uncommitted"""
     first = await _create_user(client)
     second_email = "second@example.com"
-    second = await client.post("/auth/signup", json={**SIGNUP_PAYLOAD, "email": second_email})
+    second = await sign_up_confirmed(client, {**SIGNUP_PAYLOAD, "email": second_email})
     assert second.status_code == 201
 
     responses = await _overlap_reset_requests(client, monkeypatch, SIGNUP_PAYLOAD["email"], second_email, independent=True)
@@ -533,7 +540,7 @@ async def test_reset_verify_rejects_a_challenge_for_another_user(client):
     factor_user_id = uuid.UUID(signup.json()["user"]["id"])
     _, challenge = await _begin_reset_with_factor(client, factor_user_id)
 
-    other_signup = await client.post("/auth/signup", json={**SIGNUP_PAYLOAD, "email": "other@example.com"})
+    other_signup = await sign_up_confirmed(client, {**SIGNUP_PAYLOAD, "email": "other@example.com"})
     other_user_id = uuid.UUID(other_signup.json()["user"]["id"])
     other_token = await _seed_reset_token(other_user_id, raw_token="reset-token-other")
 

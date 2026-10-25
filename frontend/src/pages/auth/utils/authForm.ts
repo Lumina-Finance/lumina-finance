@@ -2,7 +2,6 @@ import { ApiError, NO_EXPLANATION_MESSAGE, type LoginPayload, type SignupPayload
 import type { Currency } from '@/api/currency'
 import type { DropdownOption } from '@/components/dropdown/Dropdown'
 import { formatCurrencyLabel } from '@/utils/formatCurrency'
-import { isNewPasswordValid } from '@/utils/passwordPolicy'
 import { SERVER_UNREACHABLE_MESSAGE } from '@/api/server'
 
 export type AuthMode = 'login' | 'signup' | 'forgot'
@@ -10,7 +9,6 @@ export type AuthMode = 'login' | 'signup' | 'forgot'
 export interface AuthFormValues {
   email: string
   password: string
-  confirm_password: string
   first_name: string
   last_name: string
   base_currency: string
@@ -20,20 +18,31 @@ export interface AuthFormValues {
 export interface AuthFieldErrors {
   email?: string
   password?: string
-  confirm_password?: string
   first_name?: string
 }
 
-const AUTH_FIELD_ERROR_KEYS: ReadonlySet<keyof AuthFormValues> = new Set([
-  'email',
-  'password',
-  'confirm_password',
-  'first_name',
-])
+const AUTH_FIELD_ERROR_KEYS: ReadonlySet<keyof AuthFormValues> = new Set(['email', 'password', 'first_name'])
 
 export const LOCKOUT_KEY = 'lumina:auth_lockout'
 export const LOCKOUT_MS = 30 * 60 * 1000 + 30 * 1000
 export const FADE_OUT_MS = 300
+
+/**
+ * Reads the email a sign-up confirmation token was issued for, only to show it on the confirm page
+ *
+ * The payload is read without checking the signature, which the server does when the link is used
+ */
+export function emailFromConfirmationToken(token: string): string {
+  try {
+    const payload = token.split('.')[1] ?? ''
+    const binary = atob(payload.replace(/-/g, '+').replace(/_/g, '/'))
+    const json = new TextDecoder().decode(Uint8Array.from(binary, (character) => character.charCodeAt(0)))
+    const email = (JSON.parse(json) as { email?: unknown }).email
+    return typeof email === 'string' ? email : ''
+  } catch {
+    return ''
+  }
+}
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
 
@@ -50,7 +59,6 @@ export const REGISTRATION_CLOSED_NOTICE = 'Registration is closed on this instan
 
 const ERROR_MESSAGES: Record<string, string> = {
   'Invalid credentials': 'Incorrect email or password. Please try again.',
-  'Email already registered': 'An account with this email already exists.',
   'Account temporarily locked': 'Too many failed attempts.',
   'Invalid currency code': 'The selected currency is not supported.',
   'Invalid code': 'That code was incorrect. Please try again.',
@@ -74,7 +82,6 @@ export function buildInitialAuthForm(timezone: string, baseCurrency = 'CAD'): Au
   return {
     email: '',
     password: '',
-    confirm_password: '',
     first_name: '',
     last_name: '',
     base_currency: baseCurrency,
@@ -97,21 +104,16 @@ export function validateAuthFields(form: AuthFormValues, mode: AuthMode): AuthFi
   // Forgot-password only asks for an email, so the password rules never apply
   if (mode === 'forgot') return errors
 
-  if (!form.password) {
-    errors.password = 'Password is required'
-  } else if (mode === 'signup' && !isNewPasswordValid(form.password)) {
-    errors.password = 'Password does not meet requirements'
-  }
-
+  // Sign-up asks for no password, since the person chooses it when they open the emailed link
   if (mode === 'signup') {
     if (!form.first_name.trim()) {
       errors.first_name = 'First name is required'
     }
-    if (!form.confirm_password) {
-      errors.confirm_password = 'Please confirm your password'
-    } else if (form.confirm_password !== form.password) {
-      errors.confirm_password = 'Passwords do not match'
-    }
+    return errors
+  }
+
+  if (!form.password) {
+    errors.password = 'Password is required'
   }
 
   return errors
@@ -130,12 +132,8 @@ export function isAuthFieldErrorKey(field: keyof AuthFormValues): field is keyof
 export function getSubmitTouchedFields(mode: AuthMode): Record<string, boolean> {
   if (mode === 'forgot') return { email: true }
 
-  const touched: Record<string, boolean> = { email: true, password: true }
-  if (mode === 'signup') {
-    touched.first_name = true
-    touched.confirm_password = true
-  }
-  return touched
+  if (mode === 'signup') return { email: true, first_name: true }
+  return { email: true, password: true }
 }
 
 /**
@@ -154,7 +152,6 @@ export function buildLoginPayload(form: AuthFormValues): LoginPayload {
 export function buildSignupPayload(form: AuthFormValues): SignupPayload {
   return {
     email: form.email,
-    password: form.password,
     first_name: form.first_name.trim(),
     last_name: form.last_name.trim() || undefined,
     tz: form.tz,

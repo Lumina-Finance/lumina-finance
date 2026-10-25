@@ -16,6 +16,7 @@ from tests.routes.support import (
     _get_login_lockout,
     _seed_currency,
     _seed_reset_token,
+    sign_up_confirmed,
 )
 
 _UNKNOWN_EMAIL = "nobody@example.com"
@@ -26,7 +27,7 @@ _NEW_PASSWORD = "NewSecurePass123!"
 
 async def _create_provider_only_account(client) -> None:
     """Sign up an account, then remove its password credential, as an account created through a provider has"""
-    signup = await client.post("/auth/signup", json={**SIGNUP_PAYLOAD, "email": _PROVIDER_ONLY_EMAIL})
+    signup = await sign_up_confirmed(client, {**SIGNUP_PAYLOAD, "email": _PROVIDER_ONLY_EMAIL})
     assert signup.status_code == 201
     async with TestSession() as session:
         await session.execute(delete(PasswordCredential).where(PasswordCredential.user_id == uuid.UUID(signup.json()["user"]["id"])))

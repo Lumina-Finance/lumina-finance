@@ -1,4 +1,4 @@
-from tests.routes.support import _create_user, _get_auth_header
+from tests.routes.support import _create_user, _get_auth_header, sign_up_confirmed
 
 # --- Helpers ---
 
@@ -7,13 +7,16 @@ NONEXISTENT_ID = "00000000-0000-0000-0000-000000000000"
 
 async def _create_second_user(client, email="other@example.com", first_name="Other"):
     """Sign up a second user and return (auth_headers, user_id)."""
-    resp = await client.post("/auth/signup", json={
-        "email": email,
-        "password": "SecurePassword123!",
-        "first_name": first_name,
-        "tz": "America/Toronto",
-        "base_currency": "CAD",
-    })
+    resp = await sign_up_confirmed(
+        client,
+        {
+            "email": email,
+            "password": "SecurePassword123!",
+            "first_name": first_name,
+            "tz": "America/Toronto",
+            "base_currency": "CAD",
+        },
+    )
     return _get_auth_header(resp), resp.json()["user"]["id"]
 
 
@@ -38,27 +41,35 @@ async def _create_group_base_budget(client, headers, group_id, *, name="Family B
     either base budget names or category names
     """
     cat_id = await _create_category(client, headers, name=category_name, group_id=group_id)
-    resp = await client.post("/base-budgets", json={
-        "name": name,
-        "currency": "CAD",
-        "group_id": group_id,
-        "recurrence_freq": "monthly",
-        "recurrence_dom": 1,
-        "category_ids": [cat_id],
-    }, headers=headers)
+    resp = await client.post(
+        "/base-budgets",
+        json={
+            "name": name,
+            "currency": "CAD",
+            "group_id": group_id,
+            "recurrence_freq": "monthly",
+            "recurrence_dom": 1,
+            "category_ids": [cat_id],
+        },
+        headers=headers,
+    )
     return resp.json()["id"]
 
 
 async def _create_personal_base_budget(client, headers):
     """Create a personal base budget and return its ID."""
     cat_id = await _create_category(client, headers)
-    resp = await client.post("/base-budgets", json={
-        "name": "Personal Budget",
-        "currency": "CAD",
-        "recurrence_freq": "monthly",
-        "recurrence_dom": 1,
-        "category_ids": [cat_id],
-    }, headers=headers)
+    resp = await client.post(
+        "/base-budgets",
+        json={
+            "name": "Personal Budget",
+            "currency": "CAD",
+            "recurrence_freq": "monthly",
+            "recurrence_dom": 1,
+            "category_ids": [cat_id],
+        },
+        headers=headers,
+    )
     return resp.json()["id"]
 
 
@@ -89,9 +100,7 @@ async def _setup_group_with_member_and_base_budget(client):
 
 async def test_grant_base_budget_permission_returns_201(client):
     """Admin can grant READ permission to a non-admin group member."""
-    admin_headers, _, member_user_id, group_id, base_budget_id = (
-        await _setup_group_with_member_and_base_budget(client)
-    )
+    admin_headers, _, member_user_id, group_id, base_budget_id = await _setup_group_with_member_and_base_budget(client)
 
     resp = await client.post(
         f"/base-budgets/{base_budget_id}/permissions",
@@ -111,9 +120,7 @@ async def test_grant_base_budget_permission_returns_201(client):
 
 async def test_grant_base_budget_permission_write_level(client):
     """Admin can grant WRITE permission."""
-    admin_headers, _, member_user_id, _, base_budget_id = (
-        await _setup_group_with_member_and_base_budget(client)
-    )
+    admin_headers, _, member_user_id, _, base_budget_id = await _setup_group_with_member_and_base_budget(client)
 
     resp = await client.post(
         f"/base-budgets/{base_budget_id}/permissions",
@@ -127,9 +134,7 @@ async def test_grant_base_budget_permission_write_level(client):
 
 async def test_grant_base_budget_permission_admin_level(client):
     """Admin can grant ADMIN permission (full control over the base budget)."""
-    admin_headers, _, member_user_id, _, base_budget_id = (
-        await _setup_group_with_member_and_base_budget(client)
-    )
+    admin_headers, _, member_user_id, _, base_budget_id = await _setup_group_with_member_and_base_budget(client)
 
     resp = await client.post(
         f"/base-budgets/{base_budget_id}/permissions",
@@ -143,9 +148,7 @@ async def test_grant_base_budget_permission_admin_level(client):
 
 async def test_grant_base_budget_permission_updating_level(client):
     """Elevating a member's permission updates the row in place: same id, same created_at, no duplicate."""
-    admin_headers, _, member_user_id, _, base_budget_id = (
-        await _setup_group_with_member_and_base_budget(client)
-    )
+    admin_headers, _, member_user_id, _, base_budget_id = await _setup_group_with_member_and_base_budget(client)
 
     resp1 = await client.post(
         f"/base-budgets/{base_budget_id}/permissions",
@@ -181,9 +184,7 @@ async def test_grant_base_budget_permission_updating_level(client):
 
 async def test_grant_base_budget_permission_invalid_level_returns_422(client):
     """Invalid permission level is rejected."""
-    admin_headers, _, member_user_id, _, base_budget_id = (
-        await _setup_group_with_member_and_base_budget(client)
-    )
+    admin_headers, _, member_user_id, _, base_budget_id = await _setup_group_with_member_and_base_budget(client)
 
     resp = await client.post(
         f"/base-budgets/{base_budget_id}/permissions",
@@ -215,9 +216,7 @@ async def test_grant_base_budget_permission_to_admin_member_returns_422(client):
 
 async def test_grant_base_budget_permission_to_promoted_admin_returns_422(client):
     """Cannot grant permission to a member who was promoted to admin."""
-    admin_headers, _, member_user_id, group_id, base_budget_id = (
-        await _setup_group_with_member_and_base_budget(client)
-    )
+    admin_headers, _, member_user_id, group_id, base_budget_id = await _setup_group_with_member_and_base_budget(client)
 
     await client.patch(
         f"/groups/{group_id}/members/{member_user_id}",
@@ -290,9 +289,7 @@ async def test_grant_base_budget_permission_personal_base_returns_404(client):
 
 async def test_grant_base_budget_permission_as_non_admin_returns_404(client):
     """A non-admin member cannot see the group base budget, so granting is not disclosed"""
-    _, member_headers, _, _, base_budget_id = (
-        await _setup_group_with_member_and_base_budget(client)
-    )
+    _, member_headers, _, _, base_budget_id = await _setup_group_with_member_and_base_budget(client)
     _, third_user_id = await _create_second_user(client, email="third@example.com", first_name="Third")
 
     # Member tries to grant a permission to a third user
@@ -340,9 +337,7 @@ async def test_grant_base_budget_permission_unauthenticated_returns_401(client):
 
 async def test_list_base_budget_permissions_returns_200(client):
     """Admin can list all permissions on a base budget."""
-    admin_headers, _, member_user_id, group_id, base_budget_id = (
-        await _setup_group_with_member_and_base_budget(client)
-    )
+    admin_headers, _, member_user_id, group_id, base_budget_id = await _setup_group_with_member_and_base_budget(client)
 
     grant_resp = await client.post(
         f"/base-budgets/{base_budget_id}/permissions",
@@ -367,9 +362,7 @@ async def test_list_base_budget_permissions_returns_200(client):
 
 async def test_list_base_budget_permissions_empty(client):
     """Listing permissions on a base budget with none returns an empty list."""
-    admin_headers, _, _, _, base_budget_id = (
-        await _setup_group_with_member_and_base_budget(client)
-    )
+    admin_headers, _, _, _, base_budget_id = await _setup_group_with_member_and_base_budget(client)
 
     resp = await client.get(
         f"/base-budgets/{base_budget_id}/permissions",
@@ -382,11 +375,11 @@ async def test_list_base_budget_permissions_empty(client):
 
 async def test_list_base_budget_permissions_filters_by_user_id(client):
     """The user_id query parameter filters permissions to a single user without dropping the others."""
-    admin_headers, _, member_user_id, group_id, base_budget_id = (
-        await _setup_group_with_member_and_base_budget(client)
-    )
+    admin_headers, _, member_user_id, group_id, base_budget_id = await _setup_group_with_member_and_base_budget(client)
     _, third_user_id = await _create_second_user(
-        client, email="third@example.com", first_name="Third",
+        client,
+        email="third@example.com",
+        first_name="Third",
     )
     await client.post(
         f"/groups/{group_id}/members",
@@ -428,9 +421,7 @@ async def test_list_base_budget_permissions_filters_by_user_id(client):
 
 async def test_list_base_budget_permissions_filter_by_user_id_no_matches_returns_empty(client):
     """Filtering by a user with no permission row returns 200 + empty list."""
-    admin_headers, _, member_user_id, _, base_budget_id = (
-        await _setup_group_with_member_and_base_budget(client)
-    )
+    admin_headers, _, member_user_id, _, base_budget_id = await _setup_group_with_member_and_base_budget(client)
     await client.post(
         f"/base-budgets/{base_budget_id}/permissions",
         json={"user_id": member_user_id, "level": "read"},
@@ -449,12 +440,12 @@ async def test_list_base_budget_permissions_filter_by_user_id_no_matches_returns
 
 async def test_list_base_budget_permissions_filter_by_group_member_without_permission_returns_empty(client):
     """Filtering by a real group member who has no permission row returns 200 + empty list."""
-    admin_headers, _, _, group_id, base_budget_id = (
-        await _setup_group_with_member_and_base_budget(client)
-    )
+    admin_headers, _, _, group_id, base_budget_id = await _setup_group_with_member_and_base_budget(client)
     # Add a third user to the group but never grant them any permission on the base
     _, third_user_id = await _create_second_user(
-        client, email="third@example.com", first_name="Third",
+        client,
+        email="third@example.com",
+        first_name="Third",
     )
     await client.post(
         f"/groups/{group_id}/members",
@@ -473,11 +464,11 @@ async def test_list_base_budget_permissions_filter_by_group_member_without_permi
 
 async def test_list_base_budget_permissions_orders_by_created_at(client):
     """Permissions are ordered by created_at ascending."""
-    admin_headers, _, member_user_id, group_id, base_budget_id = (
-        await _setup_group_with_member_and_base_budget(client)
-    )
+    admin_headers, _, member_user_id, group_id, base_budget_id = await _setup_group_with_member_and_base_budget(client)
     _, third_user_id = await _create_second_user(
-        client, email="third@example.com", first_name="Third",
+        client,
+        email="third@example.com",
+        first_name="Third",
     )
     await client.post(
         f"/groups/{group_id}/members",
@@ -540,9 +531,7 @@ async def test_list_base_budget_permissions_personal_base_returns_404(client):
 
 async def test_list_base_budget_permissions_as_non_admin_returns_404(client):
     """A non-admin member cannot see the group base budget, so its permissions are not disclosed"""
-    _, member_headers, _, _, base_budget_id = (
-        await _setup_group_with_member_and_base_budget(client)
-    )
+    _, member_headers, _, _, base_budget_id = await _setup_group_with_member_and_base_budget(client)
 
     resp = await client.get(
         f"/base-budgets/{base_budget_id}/permissions",
@@ -583,9 +572,7 @@ async def test_list_base_budget_permissions_unauthenticated_returns_401(client):
 
 async def test_revoke_base_budget_permission_returns_204(client):
     """Admin can revoke a member's permission; a subsequent list does not include it."""
-    admin_headers, _, member_user_id, _, base_budget_id = (
-        await _setup_group_with_member_and_base_budget(client)
-    )
+    admin_headers, _, member_user_id, _, base_budget_id = await _setup_group_with_member_and_base_budget(client)
     grant_resp = await client.post(
         f"/base-budgets/{base_budget_id}/permissions",
         json={"user_id": member_user_id, "level": "read"},
@@ -609,9 +596,7 @@ async def test_revoke_base_budget_permission_returns_204(client):
 
 async def test_revoke_base_budget_permission_does_not_remove_member(client):
     """Revoking a permission does not remove the user from the group."""
-    admin_headers, _, member_user_id, group_id, base_budget_id = (
-        await _setup_group_with_member_and_base_budget(client)
-    )
+    admin_headers, _, member_user_id, group_id, base_budget_id = await _setup_group_with_member_and_base_budget(client)
     grant_resp = await client.post(
         f"/base-budgets/{base_budget_id}/permissions",
         json={"user_id": member_user_id, "level": "read"},
@@ -631,9 +616,7 @@ async def test_revoke_base_budget_permission_does_not_remove_member(client):
 
 async def test_revoke_base_budget_permission_nonexistent_permission_returns_404(client):
     """Revoking a non-existent permission returns 404."""
-    admin_headers, _, _, _, base_budget_id = (
-        await _setup_group_with_member_and_base_budget(client)
-    )
+    admin_headers, _, _, _, base_budget_id = await _setup_group_with_member_and_base_budget(client)
 
     resp = await client.delete(
         f"/base-budgets/{base_budget_id}/permissions/{NONEXISTENT_ID}",
@@ -646,12 +629,13 @@ async def test_revoke_base_budget_permission_nonexistent_permission_returns_404(
 
 async def test_revoke_base_budget_permission_wrong_base_budget_returns_404(client):
     """A permission belonging to a different base budget cannot be revoked through this one."""
-    admin_headers, _, member_user_id, group_id, base_budget_a = (
-        await _setup_group_with_member_and_base_budget(client)
-    )
+    admin_headers, _, member_user_id, group_id, base_budget_a = await _setup_group_with_member_and_base_budget(client)
     base_budget_b = await _create_group_base_budget(
-        client, admin_headers, group_id,
-        name="Second Budget", category_name="Other Shared",
+        client,
+        admin_headers,
+        group_id,
+        name="Second Budget",
+        category_name="Other Shared",
     )
 
     grant_resp = await client.post(
@@ -709,9 +693,7 @@ async def test_revoke_base_budget_permission_personal_base_returns_404(client):
 
 async def test_revoke_base_budget_permission_as_non_admin_returns_403(client):
     """Non-admin group member cannot revoke permissions."""
-    admin_headers, member_headers, member_user_id, _, base_budget_id = (
-        await _setup_group_with_member_and_base_budget(client)
-    )
+    admin_headers, member_headers, member_user_id, _, base_budget_id = await _setup_group_with_member_and_base_budget(client)
     grant_resp = await client.post(
         f"/base-budgets/{base_budget_id}/permissions",
         json={"user_id": member_user_id, "level": "read"},
@@ -730,9 +712,7 @@ async def test_revoke_base_budget_permission_as_non_admin_returns_403(client):
 
 async def test_revoke_base_budget_permission_as_outsider_returns_404(client):
     """A user not in the group cannot revoke — 404."""
-    admin_headers, _, member_user_id, _, base_budget_id = (
-        await _setup_group_with_member_and_base_budget(client)
-    )
+    admin_headers, _, member_user_id, _, base_budget_id = await _setup_group_with_member_and_base_budget(client)
     grant_resp = await client.post(
         f"/base-budgets/{base_budget_id}/permissions",
         json={"user_id": member_user_id, "level": "read"},
@@ -741,7 +721,9 @@ async def test_revoke_base_budget_permission_as_outsider_returns_404(client):
     permission_id = grant_resp.json()["id"]
 
     outsider_headers, _ = await _create_second_user(
-        client, email="outsider@example.com", first_name="Outsider",
+        client,
+        email="outsider@example.com",
+        first_name="Outsider",
     )
 
     resp = await client.delete(

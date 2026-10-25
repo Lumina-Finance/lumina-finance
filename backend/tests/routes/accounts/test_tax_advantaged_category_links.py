@@ -1,6 +1,6 @@
 from app.models.currency import Currency
 from tests.conftest import TestSession
-from tests.routes.support import _create_account, _create_user, _get_auth_header
+from tests.routes.support import _create_account, _create_user, _get_auth_header, sign_up_confirmed
 
 NONEXISTENT_ID = "00000000-0000-0000-0000-000000000000"
 
@@ -21,13 +21,16 @@ async def _create_second_user(client):
     Returns:
         The HTTP response from the signup endpoint
     """
-    return await client.post("/auth/signup", json={
-        "email": "other@example.com",
-        "password": "SecurePassword123!",
-        "first_name": "Other",
-        "tz": "America/Toronto",
-        "base_currency": "CAD",
-    })
+    return await sign_up_confirmed(
+        client,
+        {
+            "email": "other@example.com",
+            "password": "SecurePassword123!",
+            "first_name": "Other",
+            "tz": "America/Toronto",
+            "base_currency": "CAD",
+        },
+    )
 
 
 async def _create_tax_advantaged_category(client, headers, **overrides):
@@ -316,9 +319,9 @@ async def test_group_account_rejects_tax_advantaged_category_from_different_grou
     owner_headers = _get_auth_header(owner_resp)
     first_group_id = await _create_group(client, owner_headers)
     second_group_id = (await client.post("/groups", json={"name": "Other Household"}, headers=owner_headers)).json()["id"]
-    other_group_tax_advantaged_category_id = (
-        await _create_tax_advantaged_category(client, owner_headers, group_id=second_group_id)
-    ).json()["id"]
+    other_group_tax_advantaged_category_id = (await _create_tax_advantaged_category(client, owner_headers, group_id=second_group_id)).json()[
+        "id"
+    ]
     account_id = (await _create_account(client, owner_headers, group_id=first_group_id)).json()["id"]
 
     resp = await client.patch(

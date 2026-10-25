@@ -16,7 +16,14 @@ from app.models.base import AuthTokenKind
 from app.models.user import User
 from app.services.auth import registration
 from tests.conftest import TestSession
-from tests.routes.support import SIGNUP_PAYLOAD, _clears_cookie, _create_user, _get_login_lockout, _seed_currency
+from tests.routes.support import (
+    SIGNUP_PAYLOAD,
+    _clears_cookie,
+    _create_user,
+    _get_login_lockout,
+    _seed_currency,
+    sign_up_confirmed,
+)
 
 # --- Helpers ---
 
@@ -58,10 +65,10 @@ def _encode_auth_test_token(
 # --- Signup ---
 
 
-async def test_signup_returns_user_and_access_token(client):
-    """Successful signup returns user info and an access token."""
+async def test_confirming_signup_returns_user_and_access_token(client):
+    """Confirming a sign-up returns user info and an access token."""
     await _seed_currency()
-    resp = await client.post("/auth/signup", json=SIGNUP_PAYLOAD)
+    resp = await sign_up_confirmed(client, SIGNUP_PAYLOAD)
 
     assert resp.status_code == 201
     data = resp.json()
@@ -75,27 +82,27 @@ async def test_signup_returns_user_and_access_token(client):
     assert data["token_type"] == "bearer"
 
 
-async def test_signup_rejects_weak_password(client):
-    """Signup rejects a password that fails the strength policy."""
+async def test_confirming_signup_rejects_weak_password(client):
+    """Confirming rejects a password that fails the strength policy."""
     await _seed_currency()
-    resp = await client.post("/auth/signup", json={**SIGNUP_PAYLOAD, "password": "weak"})
+    resp = await sign_up_confirmed(client, {**SIGNUP_PAYLOAD, "password": "weak"})
 
     assert resp.status_code == 422
 
 
-async def test_signup_sets_refresh_cookie(client):
-    """Successful signup sets an httpOnly refresh token cookie."""
+async def test_confirming_signup_sets_refresh_cookie(client):
+    """Confirming a sign-up sets an httpOnly refresh token cookie."""
     await _seed_currency()
-    resp = await client.post("/auth/signup", json=SIGNUP_PAYLOAD)
+    resp = await sign_up_confirmed(client, SIGNUP_PAYLOAD)
 
     assert resp.status_code == 201
     assert "refresh_token" in resp.cookies
 
 
-async def test_signup_registers_auth_session_and_tokens(client):
-    """Signup stores one auth session with access and refresh token rows"""
+async def test_confirming_signup_registers_auth_session_and_tokens(client):
+    """Confirming a sign-up stores one auth session with access and refresh token rows"""
     await _seed_currency()
-    await client.post("/auth/signup", json=SIGNUP_PAYLOAD)
+    await sign_up_confirmed(client, SIGNUP_PAYLOAD)
 
     async with TestSession() as session:
         session_result = await session.execute(select(AuthSession))
@@ -108,27 +115,14 @@ async def test_signup_registers_auth_session_and_tokens(client):
         assert {token.session_id for token in tokens} == {auth_sessions[0].id}
 
 
-async def test_signup_duplicate_email_returns_409(client):
-    """Signing up with an existing email returns 409 Conflict."""
+async def test_signup_closed_registration_sends_nothing(client, closed_registration, captured_email):
+    """A sign-up request while registration is closed is refused before any email goes out"""
     await _seed_currency()
-    await client.post("/auth/signup", json=SIGNUP_PAYLOAD)
-    resp = await client.post("/auth/signup", json=SIGNUP_PAYLOAD)
-
-    assert resp.status_code == 409
-    assert resp.json()["detail"] == "Email already registered"
-
-
-async def test_signup_closed_registration_creates_no_user(client, closed_registration):
-    """A sign-up request while registration is closed is refused before any account exists"""
-    await _seed_currency()
-    resp = await client.post("/auth/signup", json=SIGNUP_PAYLOAD)
+    resp = await client.post("/auth/signup", json={k: v for k, v in SIGNUP_PAYLOAD.items() if k != "password"})
 
     assert resp.status_code == 403
     assert resp.json()["detail"] == "Registration is closed on this instance"
-
-    async with TestSession() as session:
-        users = (await session.execute(select(User))).scalars().all()
-    assert users == []
+    assert captured_email.sent == []
 
 
 @pytest.mark.parametrize("enabled", [True, False])
@@ -145,7 +139,7 @@ async def test_signup_without_last_name_succeeds(client):
     """Signup with last_name omitted should succeed since it's optional."""
     await _seed_currency()
     payload = {k: v for k, v in SIGNUP_PAYLOAD.items() if k != "last_name"}
-    resp = await client.post("/auth/signup", json=payload)
+    resp = await sign_up_confirmed(client, payload)
 
     assert resp.status_code == 201
     assert resp.json()["user"]["last_name"] is None

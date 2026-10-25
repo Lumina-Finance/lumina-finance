@@ -5,6 +5,7 @@
 
 import type { APIRequestContext } from '@playwright/test'
 
+import { tokenFromLink, waitForConfirmationLink } from './mail'
 import { API_BASE_URL } from './target'
 
 // Satisfies the backend's password policy: twelve to a hundred and twenty-eight characters,
@@ -42,7 +43,7 @@ export interface TestUser {
  * @param request - Playwright request context, with requests sent to the configured API target
  * @param options - Base currency, for a spec whose subject depends on it, `TEST_CURRENCY` otherwise
  * @returns The credentials of the user that was created
- * @throws When signup does not answer 201
+ * @throws When signup does not answer 204, no confirmation email arrives, or confirming does not answer 201
  */
 export async function signUpUser(
   request: APIRequestContext,
@@ -51,18 +52,26 @@ export async function signUpUser(
   const email = `e2e-${crypto.randomUUID()}@example.com`
   const firstName = 'Test'
 
-  const response = await request.post(`${API_BASE_URL}/auth/signup`, {
+  const requested = await request.post(`${API_BASE_URL}/auth/signup`, {
     data: {
       email,
-      password: TEST_PASSWORD,
       first_name: firstName,
       tz: TEST_TIMEZONE,
       base_currency: baseCurrency,
     },
   })
+  if (requested.status() !== 204) {
+    throw new Error(`signup for ${email} answered ${requested.status()}: ${await requested.text()}`)
+  }
+
+  // Nothing exists until the emailed link is used, and the password is chosen there
+  const token = tokenFromLink(await waitForConfirmationLink(email))
+  const response = await request.post(`${API_BASE_URL}/auth/signup/confirm`, {
+    data: { token, new_password: TEST_PASSWORD },
+  })
 
   if (response.status() !== 201) {
-    throw new Error(`signup for ${email} answered ${response.status()}: ${await response.text()}`)
+    throw new Error(`confirming the signup for ${email} answered ${response.status()}: ${await response.text()}`)
   }
 
   const body = (await response.json()) as { access_token?: string }
