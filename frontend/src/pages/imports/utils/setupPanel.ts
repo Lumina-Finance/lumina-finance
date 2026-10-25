@@ -19,6 +19,7 @@ export type SetupPanelEvent =
   | { type: 'file-staged'; isDesktop: boolean; isFocusInside: boolean }
   | { type: 'files-cleared'; isDesktop: boolean }
   | { type: 'toggled' }
+  | { type: 'expand-requested' }
   | { type: 'pointer-entered' }
   | { type: 'pointer-left' }
   | { type: 'focus-entered' }
@@ -56,6 +57,10 @@ export function reduceSetupPanel(state: SetupPanelState, event: SetupPanelEvent)
       return { ...state, isCollapsed: false, isPlacedAtOnce: state.isCollapsed && isSetupPanelOpen(state, event.isDesktop) }
     case 'toggled':
       return { ...state, isCollapsed: !state.isCollapsed, isPointerInside: false, isFocusInside: false, isPlacedAtOnce: false }
+    case 'expand-requested':
+      // The page has news for the panel's sections, so it opens the way the caret opens it, and does
+      // nothing to a panel that is open. Pointer and focus stay as they are
+      return state.isCollapsed ? { ...state, isCollapsed: false, isPlacedAtOnce: false } : state
     case 'pointer-entered':
       return { ...state, isPointerInside: true }
     case 'pointer-left':

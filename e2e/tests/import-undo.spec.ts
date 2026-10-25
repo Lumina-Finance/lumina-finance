@@ -1,4 +1,4 @@
-import { expect, test, type Page } from '@playwright/test'
+import { expect, test, type APIRequestContext, type Page } from '@playwright/test'
 
 import { asUser, createAccount, signUpUser } from '../support/api'
 import { commitImport, logInViaApi, openPage, showImportSetup } from '../support/app'
@@ -302,4 +302,51 @@ test('keeps a finished import when its undo ended without being used', async ({ 
 
   await expect(page.getByRole('status').filter({ hasText: 'Import undone' })).toHaveCount(0)
   await expect(merchantField).toBeDisabled()
+})
+
+/**
+ * Stages a file in the page, which folds the setup panel and the card with it, then saves an import in
+ * another tab and comes back, which is what the page sees as the last import arriving from elsewhere
+ */
+async function receiveImportFromAnotherTab(page: Page, request: APIRequestContext) {
+  const user = await signUpUser(request)
+  const account = await createAccount(request, user, { name: 'Everyday', startingBalance: 10000 })
+  await logInViaApi(page, user)
+  await openPage(page, `/settings/imports?account=${account.id}`)
+  const upload = page.locator('input[type="file"][accept=".csv,text/csv"]')
+  await expect(upload).toBeEnabled()
+  await upload.setInputFiles({ name: 'staged-here.csv', mimeType: 'text/csv', buffer: Buffer.from(ON_SCREEN_CSV) })
+
+  // The staged file folds the setup panel away, and the card with it
+  const setupToggle = page.getByRole('button', { name: /(Collapse|Expand) import setup/ })
+  await expect(setupToggle).toHaveAccessibleName('Expand import setup')
+
+  const otherTab = await page.context().newPage()
+  await importAndKeepFinished(otherTab, 'saved-elsewhere.csv', account.id)
+  await returnToTab(page)
+
+  const lastImport = page.getByRole('region', { name: 'Last import' })
+  await expect(setupToggle).toHaveAccessibleName('Collapse import setup')
+  await expect(lastImport).toBeVisible()
+  await expect(lastImport).toContainText('saved-elsewhere.csv')
+  return lastImport
+}
+
+test('opens the setup panel and flashes the last import when another tab saves one', async ({ page, request }) => {
+  const lastImport = await receiveImportFromAnotherTab(page, request)
+
+  // The flash starts once the panel is open and a pause has passed with the tab in view, and plays three times
+  await expect(lastImport).toHaveClass(/import-last-import-flash/)
+  await expect(lastImport).toHaveCSS('animation-iteration-count', '3')
+  await expect(page.getByRole('status').filter({ hasText: 'Your last import changed to saved-elsewhere.csv.' })).toBeAttached()
+})
+
+test('opens the setup panel without flashing the last import under reduced motion', async ({ page, request }) => {
+  await page.emulateMedia({ reducedMotion: 'reduce' })
+  const lastImport = await receiveImportFromAnotherTab(page, request)
+
+  // The pause has passed once the class is on, and no animation plays under it
+  await expect(lastImport).toHaveClass(/import-last-import-flash/)
+  await expect(lastImport).toHaveCSS('animation-name', 'none')
+  await expect(page.getByRole('status').filter({ hasText: 'Your last import changed to saved-elsewhere.csv.' })).toBeAttached()
 })

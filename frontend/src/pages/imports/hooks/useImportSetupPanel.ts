@@ -74,8 +74,10 @@ function holdsPanelOpen(element: Element | null): boolean {
  *
  * @param hasFile - Whether a file is staged and nothing about it needs the user's attention
  * @param onPointerInsideChange - Told when a mouse enters the panel and when it leaves, since a touch has no hover to end
+ * @param expandCount - Rises each time the page wants the panel's sections in view, which expands a
+ *   collapsed panel the way the caret does. The value it opens with asks for nothing
  */
-export function useImportSetupPanel(hasFile: boolean, onPointerInsideChange?: (isInside: boolean) => void) {
+export function useImportSetupPanel(hasFile: boolean, onPointerInsideChange?: (isInside: boolean) => void, expandCount = 0) {
   const panelRef = useRef<HTMLElement>(null)
   const onPointerInsideChangeRef = useRef(onPointerInsideChange)
   useEffect(() => {
@@ -156,6 +158,13 @@ export function useImportSetupPanel(hasFile: boolean, onPointerInsideChange?: (i
     const isFocusInside = (panelRef.current?.contains(document.activeElement) ?? false) && holdsPanelOpen(document.activeElement)
     send(hasFile ? { type: 'file-staged', isDesktop, isFocusInside } : { type: 'files-cleared', isDesktop })
   }, [hasFile, isDesktop])
+
+  const expandedForCountRef = useRef(expandCount)
+  useEffect(() => {
+    if (expandCount === expandedForCountRef.current) return
+    expandedForCountRef.current = expandCount
+    setState((current) => reduceSetupPanel(current, { type: 'expand-requested' }))
+  }, [expandCount])
 
   return {
     panelRef,

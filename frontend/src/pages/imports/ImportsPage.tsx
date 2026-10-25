@@ -44,7 +44,7 @@ import {
 } from './firefly/sections'
 import { useOfxImportWorkflow } from './ofx/hooks'
 import { OfxAccountMappingStep, OfxFilesStep, OfxPreviewStep } from './ofx/sections'
-import { useImportAccountScope, useImportUndoneElsewhere, useTransactionImportWorkflow } from './hooks'
+import { useImportAccountScope, useImportUndoneElsewhere, useLastImportArrival, useTransactionImportWorkflow } from './hooks'
 import {
   ACCOUNT_DATA_SOURCES,
   DEFAULT_DATA_SOURCE,
@@ -54,6 +54,7 @@ import {
   chooseImportUndoOutcome,
   IMPORT_UNDONE_EMPTY_MESSAGE,
   IMPORT_UNDONE_REOPENED_MESSAGE,
+  UNNAMED_IMPORT_FILE,
 } from './utils/lastImport'
 import {
   ImportAccountMappingStep,
@@ -302,6 +303,11 @@ export default function ImportsPage() {
   const finishedRunId = Object.values(overlayWorkflows).find((importer) => importer.committedRunId !== null)?.committedRunId ?? null
   useImportUndoneElsewhere(finishedRunId, putImportersRight)
 
+  // An import saved in another tab shows as the last import here: the setup panel opens so the card
+  // is in view, the card flashes, and a screen reader hears it, since the card sits in a panel that
+  // may be folded away. The importer here being finished with its own import is no arrival
+  const { arrivalCount, arrivedEntry } = useLastImportArrival(finishedRunId)
+
   // The undo button leaves with its import, and the confirmation hands focus back to it, so focus
   // would end on the document. It is put on the page instead, a frame after the confirmation has
   // done so, which keeps a keyboard user's place instead of sending them back to the top
@@ -426,9 +432,16 @@ export default function ImportsPage() {
                 overlayWorkflow.importResult && 'import-record',
               ].filter(Boolean).join(' ')}
             >
-              <ImportSetupPanel hasFile={hasStagedFile} onPointerInsideChange={workflow.setIsPointerInDatePanel}>
+              {/* Each arrival replaces the line's text node, so two with the same file name are both read out */}
+              <p role="status" className="sr-only">
+                {arrivedEntry && <span key={arrivalCount}>{`Your last import changed to ${arrivedEntry.file_name ?? UNNAMED_IMPORT_FILE}.`}</span>}
+              </p>
+              <ImportSetupPanel hasFile={hasStagedFile} onPointerInsideChange={workflow.setIsPointerInDatePanel} expandCount={arrivalCount}>
                 {/* First, so the way to undo the last import is in view without scrolling the steps below */}
-                <LastImportCard onUndone={handleImportUndone} />
+                <LastImportCard
+                  onUndone={handleImportUndone}
+                  arrival={arrivedEntry ? { count: arrivalCount, runId: arrivedEntry.id } : null}
+                />
                 {/* An import started from an account offers the sources that write to one account */}
                 {/* Ends where the files step below it does, which keeps a gutter beside its scrolling box */}
                 <div className="xl:pr-1">

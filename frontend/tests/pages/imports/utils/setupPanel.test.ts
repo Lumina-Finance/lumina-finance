@@ -132,6 +132,27 @@ describe('setup panel placement', () => {
   })
 })
 
+describe('setup panel expanding for the page', () => {
+  it('opens a panel a file collapsed, through the open state the caret sets and not the hover peek', () => {
+    const expanded = run(STAGED_ON_DESKTOP, { type: 'expand-requested' })
+    expect(expanded.isCollapsed).toBe(false)
+    expect(isSetupPanelOpen(expanded, true)).toBe(true)
+
+    const peeking = run(STAGED_ON_DESKTOP, { type: 'pointer-entered' })
+    expect(reduceSetupPanel(peeking, { type: 'expand-requested' }).isCollapsed).toBe(false)
+  })
+
+  it('opens a panel the caret collapsed at any size, and leaves an open one as it is', () => {
+    expect(run({ type: 'toggled' }, { type: 'expand-requested' }).isCollapsed).toBe(false)
+    expect(reduceSetupPanel(INITIAL_SETUP_PANEL_STATE, { type: 'expand-requested' })).toBe(INITIAL_SETUP_PANEL_STATE)
+  })
+
+  it('lets the next file collapse it again', () => {
+    const expanded = run(STAGED_ON_DESKTOP, { type: 'expand-requested' }, { type: 'files-cleared', isDesktop: true })
+    expect(reduceSetupPanel(expanded, STAGED_ON_DESKTOP).isCollapsed).toBe(true)
+  })
+})
+
 describe('hasOnlyAcceptedFiles', () => {
   it('is true for accepted files and empty slots, and false for no files or any refused one', () => {
     expect(hasOnlyAcceptedFiles([{ error: null }, null, { error: null }])).toBe(true)

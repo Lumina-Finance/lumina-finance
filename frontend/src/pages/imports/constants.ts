@@ -771,3 +771,7 @@ export const IMPORT_SIDE_BY_SIDE_QUERY = '(min-width: 1280px)'
 // How long the setup panel's collapse and expand take, which is the page's usual 240ms. The sections,
 // the label, the caret and the steps beside the panel all move within it
 export const IMPORT_SETUP_MOTION_MS = 240
+
+// How long the page waits, once the setup panel has opened, before the "Last import" card flashes, so
+// the user's eye has arrived at the panel first
+export const IMPORT_FLASH_PAUSE_MS = 400
