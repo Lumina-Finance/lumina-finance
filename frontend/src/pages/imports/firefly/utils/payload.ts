@@ -71,7 +71,7 @@ export function buildFireflyImportPayload({
   }
 
   if (!transactionsFile) addError('Upload the transactions CSV file.')
-  if (transactionsFile?.error) addError(`${transactionsFile.name}: ${transactionsFile.error}`)
+  if (transactionsFile?.error) addError(`"${transactionsFile.name}" can't be imported: ${transactionsFile.error}`)
 
   // One run holds up to this many distinct values of each kind across all its batches, so an
   // export past it is refused here rather than by the server part way through the upload

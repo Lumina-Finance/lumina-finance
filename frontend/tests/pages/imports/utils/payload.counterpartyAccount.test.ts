@@ -252,7 +252,7 @@ describe('CSV import counterparty account', () => {
     })
 
     expect(payload).toBeNull()
-    expect(errors).toContain('Map to one of your accounts: Chequing has rows of its own, so it cannot be answered as outside.')
+    expect(errors).toContain('Chequing has rows of its own, so map it to one of your accounts rather than answering it as outside.')
   })
 
   it('refuses a counterparty account on a row that is not a transfer', () => {

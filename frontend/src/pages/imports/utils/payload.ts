@@ -147,7 +147,7 @@ export function buildTransactionImportPayload({
 
   if (files.length === 0) addError('Upload a CSV file.')
   for (const file of files) {
-    if (file.error) addError(`${file.name}: ${file.error}`)
+    if (file.error) addError(`"${file.name}" can't be imported: ${file.error}`)
   }
 
   const missingRequired = getMissingRequiredColumnLabels(columnMap)
@@ -205,7 +205,7 @@ export function buildTransactionImportPayload({
       // The dropdown only offers this answer where no row is written to the source, so it survives
       // here when a file added later carries rows for a name that was answered this way
       if (source.isCounterpartyOnly) accounts.push({ source: source.id, outside: true })
-      else addError(`Map to one of your accounts: ${source.label} has rows of its own, so it cannot be answered as outside.`)
+      else addError(`${source.label} has rows of its own, so map it to one of your accounts rather than answering it as outside.`)
       continue
     }
 

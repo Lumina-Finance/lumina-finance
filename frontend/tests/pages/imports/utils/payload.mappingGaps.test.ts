@@ -108,10 +108,10 @@ describe('refusing an import with nothing to build a payload from', () => {
     expect(result.payload).toBeNull()
   })
 
-  it('prefixes the error with the file it belongs to', () => {
+  it('names the file an error belongs to in a whole sentence', () => {
     const result = build({ files: [createFile([], { error: 'A quoted value is never closed.' })] })
 
-    expect(result.errors).toEqual(['Chequing.csv: A quoted value is never closed.'])
+    expect(result.errors).toEqual(['"Chequing.csv" can\'t be imported: A quoted value is never closed.'])
     expect(result.payload).toBeNull()
   })
 
@@ -162,7 +162,7 @@ describe('refusing a category or merchant answer the builder cannot use', () => 
       },
     })
 
-    expect(result.errors).toContain('Choose a name for the new merchant: Acme')
+    expect(result.errors).toContain('Choose a name for the new merchant Acme.')
   })
 })
 
