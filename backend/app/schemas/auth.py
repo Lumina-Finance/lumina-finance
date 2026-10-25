@@ -8,6 +8,8 @@ from zoneinfo import available_timezones
 
 from pydantic import BaseModel, EmailStr, Field, field_validator
 
+from app.schemas.profile_preferences import ProfilePreferences
+
 _VALID_TIMEZONES = available_timezones()
 
 _MIN_PASSWORD_LENGTH = 12
@@ -125,7 +127,7 @@ class ResetPasswordVerifyRequest(NewPasswordRequest):
     code: str
 
 
-class UserInfo(BaseModel):
+class UserInfo(ProfilePreferences):
     """Minimal user info returned alongside auth responses"""
 
     id: uuid.UUID
@@ -136,8 +138,6 @@ class UserInfo(BaseModel):
     base_currency: str
     created_at: datetime
     second_factor_reenrollment_required: bool  # true holds the client to the forced re-enrolment screen
-
-    model_config = {"from_attributes": True}
 
 
 class AuthResponse(BaseModel):
