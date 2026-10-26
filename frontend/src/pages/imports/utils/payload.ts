@@ -147,7 +147,7 @@ export function buildTransactionImportPayload({
 
   if (files.length === 0) addError('Upload a CSV file.')
   for (const file of files) {
-    if (file.error) addError(`"${file.name}" can't be imported: ${file.error}`)
+    if (file.error) addError(`"${file.name}" can't be imported. ${file.error}`)
   }
 
   const missingRequired = getMissingRequiredColumnLabels(columnMap)

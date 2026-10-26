@@ -111,7 +111,7 @@ describe('refusing an import with nothing to build a payload from', () => {
   it('names the file an error belongs to in a whole sentence', () => {
     const result = build({ files: [createFile([], { error: 'A quoted value is never closed.' })] })
 
-    expect(result.errors).toEqual(['"Chequing.csv" can\'t be imported: A quoted value is never closed.'])
+    expect(result.errors).toEqual(['"Chequing.csv" can\'t be imported. A quoted value is never closed.'])
     expect(result.payload).toBeNull()
   })
 
