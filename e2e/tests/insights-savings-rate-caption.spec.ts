@@ -13,7 +13,7 @@ const WIDTHS = [
   { width: 390, height: 844 },
 ]
 
-test('savings rate average caption is shown whole at every width', async ({ page, request }) => {
+test('savings rate average has no line under it, its tooltip says what it counts, and the three boxes line up', async ({ page, request }) => {
   const user = await signUpUser(request, { baseCurrency: 'CAD' })
   const account = await createAccount(request, user, { name: 'Savings caption account', currency: 'CAD' })
   await createTransaction(request, user, { accountId: account.id, categoryName: 'Salary', amount: 100_000, currency: 'CAD' })
@@ -22,23 +22,22 @@ test('savings rate average caption is shown whole at every width', async ({ page
 
   const savingsRate = card(page, 2)
   await savingsRate.scrollIntoViewIfNeeded()
-  const caption = savingsRate.getByText('Completed months with income', { exact: true })
-  await expect(caption).toBeVisible()
+  await expect(savingsRate.locator('p', { hasText: /^Average/ })).toBeVisible()
+
+  // What the Average counts sits behind its question mark, not in a line that wraps or cuts off on the card
+  await expect(savingsRate.getByText('Completed months with income', { exact: true })).toHaveCount(0)
+  await savingsRate.getByRole('button', { name: 'Average savings rate calculation', exact: true }).hover()
+  await expect(page.getByText(/Average savings rate across completed months with income/)).toBeVisible()
 
   for (const size of WIDTHS) {
     await page.setViewportSize(size)
     await page.evaluate(() => document.fonts.ready.then(() => undefined))
 
-    // Whole means no ellipsis and no text hidden past the caption's own box
-    await expect.poll(() => caption.evaluate((element) => ({
-      ellipsis: getComputedStyle(element).textOverflow === 'ellipsis',
-      cutOff: element.scrollWidth > element.clientWidth,
-    })), { message: `caption at ${size.width}px` }).toEqual({ ellipsis: false, cutOff: false })
-
     // The Average, Best and Worst boxes stay one height
-    const heights = await savingsRate.locator('p', { hasText: /^(Average|Best|Worst)/ })
-      .evaluateAll((labels) => labels.map((label) => Math.round(label.parentElement!.getBoundingClientRect().height)))
-    expect(heights).toHaveLength(3)
-    if (size.width >= 750) expect(new Set(heights).size).toBe(1)
+    await expect.poll(async () => {
+      const heights = await savingsRate.locator('p', { hasText: /^(Average|Best|Worst)/ })
+        .evaluateAll((labels) => labels.map((label) => Math.round(label.parentElement!.getBoundingClientRect().height)))
+      return heights.length === 3 && new Set(heights).size === 1
+    }, { message: `boxes at ${size.width}px` }).toBe(true)
   }
 })
