@@ -1,8 +1,8 @@
-// Every date the product renders goes through this locale, so a browser configured for another
-// region still sees one convention. Every format below names the month rather than numbering it,
-// where this renders identically to en-US, so this constant is about having one place to change
-// the convention rather than about changing today's output
-const DATE_LOCALE = 'en-CA'
+// Every date and relative time the product renders goes through this locale, so a browser configured
+// for another region still sees one convention. Every format below names the month rather than
+// numbering it, where this renders identically to en-US, so this constant is about having one place
+// to change the convention rather than about changing today's output
+export const DATE_LOCALE = 'en-CA'
 
 const DAYS_PER_WEEK = 7
 

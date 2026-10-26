@@ -1,4 +1,7 @@
-const RELATIVE_TIME_FORMAT = new Intl.RelativeTimeFormat(undefined, { numeric: 'auto' })
+import { DATE_LOCALE } from '@/utils/date'
+
+// In the product's locale rather than the browser's, so a phrase reads in the language around it
+const RELATIVE_TIME_FORMAT = new Intl.RelativeTimeFormat(DATE_LOCALE, { numeric: 'auto' })
 
 const RELATIVE_UNITS: [Intl.RelativeTimeFormatUnit, number][] = [
   ['year', 60 * 60 * 24 * 365],
