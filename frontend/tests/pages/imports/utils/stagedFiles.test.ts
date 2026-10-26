@@ -10,6 +10,7 @@ import {
   MAX_IMPORT_FILE_BYTES,
   MAX_IMPORT_ROWS,
   removeStagedFile,
+  restageImportFiles,
   stageImportFiles,
   type StagingCandidate,
 } from '@/pages/imports/utils'
@@ -132,6 +133,75 @@ describe('the size and row limits across the files', () => {
   })
 })
 
+describe('checking the staged files again after they are read with new choices', () => {
+  const errorsOf = (files: StagingCandidate[]) => files.map(({ draft: file }) => [file.name, file.error])
+
+  it('leaves files that still share the first file\'s layout as they were', () => {
+    const files = [candidate('a.csv'), candidate('b.csv')]
+
+    expect(restageImportFiles(files)).toEqual(files)
+  })
+
+  it('keeps a file whose headings no longer match staged, with the reason as its error and no rows', () => {
+    const restaged = restageImportFiles([
+      candidate('a.csv'),
+      candidate('b.csv', { headers: ['Date', 'Total'] }),
+      candidate('c.csv'),
+    ])
+
+    expect(errorsOf(restaged)).toEqual([['a.csv', null], ['b.csv', 'Its columns don\'t match the first file.'], ['c.csv', null]])
+    expect(restaged[1].draft.rows).toEqual([])
+  })
+
+  it('keeps the file that pushes the total rows over the limit staged, with the reason as its error', () => {
+    const rows = Array.from({ length: MAX_IMPORT_ROWS }, () => ({ Date: '2024-03-01', Amount: '-1.00' }))
+
+    const restaged = restageImportFiles([candidate('a.csv', { rows }), candidate('b.csv')])
+
+    expect(errorsOf(restaged)).toEqual([
+      ['a.csv', null],
+      ['b.csv', 'Together the files would have 100,001 rows, and the importer reads up to 100,000.'],
+    ])
+  })
+
+  // The limit is on all the files held together, so a file that fits beside the first can still be
+  // the one that pushes a later file over it
+  it('counts every file held before a file against the limit, not only the first', () => {
+    const rows = (count: number) => Array.from({ length: count }, () => ({ Date: '2024-03-01', Amount: '-1.00' }))
+
+    const restaged = restageImportFiles([
+      candidate('a.csv', { rows: rows(MAX_IMPORT_ROWS / 2) }),
+      candidate('b.csv', { rows: rows(MAX_IMPORT_ROWS / 2) }),
+      candidate('c.csv'),
+    ])
+
+    expect(errorsOf(restaged)).toEqual([
+      ['a.csv', null],
+      ['b.csv', null],
+      ['c.csv', 'Together the files would have 100,001 rows, and the importer reads up to 100,000.'],
+    ])
+  })
+
+  it('keeps the file that pushes the total size over the limit staged, with the reason as its error', () => {
+    const restaged = restageImportFiles([candidate('a.csv', { size: MAX_IMPORT_FILE_BYTES }), candidate('b.csv')])
+
+    expect(restaged[0].draft.error).toBeNull()
+    expect(restaged[1].draft.error).toMatch(/^Together the files would be .+, and the importer reads up to .+\.$/)
+  })
+
+  it('leaves every file as it was when the first one is still unreadable, so its reading can be changed', () => {
+    const files = [candidate('a.csv', { error: 'No transactions.' }), candidate('b.csv')]
+
+    expect(restageImportFiles(files)).toEqual(files)
+  })
+
+  it('leaves a later file that has an error of its own with that error', () => {
+    const broken = candidate('b.csv', { error: 'No transactions.', headers: [], rows: [] })
+
+    expect(restageImportFiles([candidate('a.csv'), broken])[1]).toBe(broken)
+  })
+})
+
 describe('the row limit across the files', () => {
   const fill = (count: number) => Array.from({ length: count }, () => ({ Date: '2024-03-01', Amount: '-1.00' }))
 
@@ -180,7 +250,7 @@ describe('a single file', () => {
   })
 
   it('is staged whole when it has an error the reading choices can fix', () => {
-    const fixable = candidate('only.csv', { headers: [], rows: [], error: 'Only one column was found.', reading: { headerRow: null, skipLastRows: 0, preview: [] } })
+    const fixable = candidate('only.csv', { headers: [], rows: [], error: 'Only one column was found.', reading: { headerRow: null, skipLastRows: 0, isSkipLastRowsDetected: false, preview: [] } })
 
     const { accepted, refusals } = stageImportFiles([], [fixable])
 
@@ -189,7 +259,7 @@ describe('a single file', () => {
   })
 
   it('turns away the files picked beside one that still needs its reading fixed', () => {
-    const fixable = candidate('2024-01.csv', { headers: [], rows: [], error: 'Only one column was found.', reading: { headerRow: null, skipLastRows: 0, preview: [] } })
+    const fixable = candidate('2024-01.csv', { headers: [], rows: [], error: 'Only one column was found.', reading: { headerRow: null, skipLastRows: 0, isSkipLastRowsDetected: false, preview: [] } })
 
     const { accepted, refusals } = stageImportFiles([], [fixable, candidate('2024-02.csv')])
 

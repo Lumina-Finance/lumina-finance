@@ -19,6 +19,8 @@ import { findAllDescendants, findChild, parseOfxMarkup, readLeaf, type OfxNode }
 
 // The 1.x header is plain ASCII lines before the markup, so a prefix is enough to find its charset
 const HEADER_PREFIX_BYTES = 1024
+// The encoding a 2.x file declares in its XML declaration
+const XML_ENCODING_PATTERN = /^\s*<\?xml[^>]*\sencoding\s*=\s*["']([^"']+)["']/i
 const POSTED_DATE_PATTERN = /^(\d{4})(\d{2})(\d{2})/
 
 // A plain signed decimal. OFX writes the decimal separator as a period or a comma and never groups.
@@ -87,19 +89,19 @@ function readOfxStatements(text: string, origin: OfxFileOrigin): OfxFileRead {
     return { status: 'refused', reason: leftOut.investment > 0 ? OFX_ONLY_LEFT_OUT_REASON : OFX_NO_STATEMENTS_REASON }
   }
 
-  return { status: 'read', file: { statements: nameStatements(statements), leftOut } }
+  return { status: 'read', file: { statements: mergeStatements(statements), leftOut } }
 }
 
 /**
- * Decodes the file as UTF-8, or as the charset its 1.x header declares
+ * Decodes the file as UTF-8, or as the charset its header declares
  *
- * The header writes a Windows code page as its number (1252) and any other charset by name
- * (ISO-8859-1), and says NONE where the text is UTF-8. A charset the browser cannot decode is read
- * as UTF-8
+ * A 1.x header writes a Windows code page as its number (1252) and any other charset by name
+ * (ISO-8859-1), and says NONE where the text is UTF-8. A 2.x file declares its encoding in the XML
+ * declaration instead. A charset the browser cannot decode is read as UTF-8
  */
 function decodeOfxBytes(bytes: ArrayBuffer) {
   const header = new TextDecoder('latin1').decode(bytes.slice(0, HEADER_PREFIX_BYTES))
-  const charset = /^CHARSET:\s*(\S+)/im.exec(header)?.[1]?.toLowerCase()
+  const charset = (/^CHARSET:\s*(\S+)/im.exec(header) ?? XML_ENCODING_PATTERN.exec(header))?.[1]?.toLowerCase()
   const label = charset && /^\d+$/.test(charset) ? `windows-${charset}` : charset
   try {
     return new TextDecoder(label && label !== 'none' ? label : 'utf-8').decode(bytes)
@@ -153,17 +155,28 @@ function readAccountKind(kind: OfxStatementKind, account: OfxNode) {
 }
 
 /**
- * Tells apart statements the file gives the same name and id, such as one account's statement split
- * over two date ranges, so each keeps its own account answer and its own line in the account step
+ * Joins the statements a file gives the same account id and currency into one, such as one account's
+ * statement split over two date ranges, so the account is answered once and counts as one statement,
+ * as `combineOfxFiles` treats the same account in several files. The transactions are numbered afresh
+ * in the order the file lists them
+ *
+ * A statement in another currency keeps the account's id, since `combineOfxFiles` tells the currencies
+ * apart once the files are joined, and a later file finds its own by that id
  */
-function nameStatements(statements: OfxStatement[]) {
-  const seen = new Map<string, number>()
-  return statements.map((statement) => {
-    const count = (seen.get(statement.id) ?? 0) + 1
-    seen.set(statement.id, count)
-    if (count === 1) return statement
-    return { ...statement, id: `${statement.id}#${count}`, name: `${statement.name} (${count})`, label: `${statement.label} (${count})` }
-  })
+function mergeStatements(statements: OfxStatement[]) {
+  const merged = new Map<string, OfxStatement>()
+  for (const statement of statements) {
+    const key = `${statement.id}|${statement.currency}`
+    const existing = merged.get(key)
+    if (existing) {
+      const after = existing.transactions.length
+      existing.transactions.push(...statement.transactions.map((transaction, position) => ({ ...transaction, index: after + position + 1 })))
+      continue
+    }
+
+    merged.set(key, statement)
+  }
+  return [...merged.values()]
 }
 
 /**

@@ -124,6 +124,28 @@ describe('combining the statements of several files', () => {
     expect(new Set(combined.statements.map((statement) => statement.name)).size).toBe(2)
   })
 
+  // The first file holds the account in both currencies, so the second file's CAD statement must find
+  // the one the first file gave CAD, however the first file told its two statements apart
+  it('joins a later file to the right currency of an account an earlier file holds in two', async () => {
+    const combined = combineOfxFiles([
+      await readStatements([JANUARY, { ...FEBRUARY, currency: 'USD' }]),
+      await readStatements([{ transactions: [{ name: 'Late', fitId: 'C1' }] }]),
+    ])
+
+    expect(combined.statements.map((statement) => [statement.currency, statement.transactions.length])).toEqual([['CAD', 3], ['USD', 1]])
+    expect(new Set(combined.statements.map((statement) => statement.id)).size).toBe(2)
+  })
+
+  it('joins a later file to the second currency of an account an earlier file holds in two', async () => {
+    const combined = combineOfxFiles([
+      await readStatements([JANUARY, { ...FEBRUARY, currency: 'USD' }]),
+      await readStatements([{ currency: 'USD', transactions: [{ name: 'Late', fitId: 'C1' }] }]),
+    ])
+
+    expect(combined.statements.map((statement) => [statement.currency, statement.transactions.length])).toEqual([['CAD', 2], ['USD', 2]])
+    expect(new Set(combined.statements.map((statement) => statement.id)).size).toBe(2)
+  })
+
   // Many banks name every download alike, so a name two files share is told apart by the file's position
   it('names a file by its position only when another file has the same name, and orders the files', async () => {
     const readNamed = async (name: string, statement: FixtureStatement) => {

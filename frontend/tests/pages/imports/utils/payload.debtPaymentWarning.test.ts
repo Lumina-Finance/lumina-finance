@@ -210,7 +210,7 @@ describe('guidance for CSV rows filed under system Debt Payment', () => {
   it('does not warn before the category source is mapped', () => {
     const result = build({ categoryChoice: '' })
 
-    expect(result.errors).toEqual(['Map category: Debt Payment'])
+    expect(result.errors).toEqual(['Choose a category for Debt Payment.'])
     expect(result.payload).toBeNull()
     expect(result.rowWarnings).toEqual([])
   })

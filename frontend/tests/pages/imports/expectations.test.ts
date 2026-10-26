@@ -73,7 +73,7 @@ describe('the card saying what an import does with its data', () => {
           'With no readable date or amount',
           'With an amount in another currency than their statement',
           'With more decimal places than their currency allows',
-          'With a payee name or memo over the limits this app takes',
+          'With a merchant name or memo over the limits this app takes',
           'Already in an earlier file of the same import, by the bank\'s transaction ID',
           'Already in the account from an earlier import, by the bank\'s transaction ID',
           'Listed twice in the same file',

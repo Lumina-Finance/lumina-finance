@@ -38,7 +38,7 @@ type ImportFilesStepProps = Pick<
  * column is mapped as the date, the dates to import
  *
  * The first file sets the layout, so the upload control stays under the staged files for adding the
- * rest, and goes only while a staged file is refused, since nothing can be checked against a layout
+ * rest, and goes only while the first file is refused, since nothing can be checked against a layout
  * that has not been read yet. The guidance above it goes once any file is staged. Removing every
  * file brings the guidance back and clears the layout
  *
@@ -73,9 +73,11 @@ export function ImportFilesStep({
   const stagedFile = files[0]
   const { stagedListRef, uploadCardRef, removeFileKeepingFocus } = useStagedFileFocus(files, removeFile)
 
-  // Files are added to the staged ones, so the card stays unless a staged file is refused. A finished
+  // Files are added to the staged ones, so the card stays unless the first file is refused, since it
+  // sets the layout the rest are checked against. A later file left with an error by a new reading
+  // stays staged beside the card, so another can be added without removing it first. A finished
   // import keeps its files as a record and shows the card for starting the next one
-  const isUploadShown = files.length === 0 || isImportFinished || files.every((file) => !file.error)
+  const isUploadShown = files.length === 0 || isImportFinished || !files[0].error
   const isAddingFiles = files.length > 0 && !isImportFinished
   const uploadArea = isUploadShown && (
     <>

@@ -45,12 +45,18 @@ export function getImportRowId(fileId: string, rowIndex: number) {
 
 /**
  * Renders a file size for display, stepping up from bytes to kilobytes to megabytes in units of 1024
- * and keeping one decimal place above the byte range
+ * and keeping one decimal place above the byte range, rounded up so a file just over a limit never
+ * reads as the limit itself
  */
 export function formatBytes(bytes: number) {
   if (bytes < 1024) return `${bytes} B`
-  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`
-  return `${(bytes / 1024 / 1024).toFixed(1)} MB`
+  if (bytes < 1024 * 1024) return `${roundUpToTenth(bytes / 1024)} KB`
+  return `${roundUpToTenth(bytes / 1024 / 1024)} MB`
+}
+
+/** Rounds up to one decimal place and writes it with that place kept */
+function roundUpToTenth(value: number) {
+  return (Math.ceil(value * 10) / 10).toFixed(1)
 }
 
 

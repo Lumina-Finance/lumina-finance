@@ -48,6 +48,12 @@ describe('rendering a file size', () => {
   it('renders the size the refusal message quotes', () => {
     expect(formatBytes(26214400)).toBe('25.0 MB')
   })
+
+  // Rounding to the nearest turned a refusal into "25.0 MB, and the importer reads files up to 25.0 MB"
+  it('rounds up, so a size over a limit never reads as the limit', () => {
+    expect(formatBytes(26214401)).toBe('25.1 MB')
+    expect(formatBytes(1025)).toBe('1.1 KB')
+  })
 })
 
 describe('counting the sources an import creates', () => {

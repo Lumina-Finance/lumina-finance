@@ -25,6 +25,7 @@ const FILE: ImportFileDraft = {
   reading: {
     headerRow: 1,
     skipLastRows: 0,
+    isSkipLastRowsDetected: false,
     preview: [
       { rowNumber: 1, cells: ['Date', 'Amount'], isSkipped: false },
       { rowNumber: 2, cells: ['2025-01-15', '-1.00'], isSkipped: false },
@@ -78,6 +79,19 @@ describe('the dates to import in the File step', () => {
 
     expect(renderChoices(true, null)).not.toContain(label)
     expect(renderChoices(true, '2025-06-02', true)).not.toContain(label)
+  })
+
+  it('hold the offer back for as long as the start date has an error', () => {
+    const label = 'Latest recorded transaction'
+    const crossed = renderChoices(true, '2025-06-02', false, { from: '2025-04-01', to: '2025-03-01' }, true)
+    expect(crossed).toContain('Must be on or before the end date')
+    expect(crossed).not.toContain(label)
+
+    const partlyTyped = renderChoices(true, '2025-06-02', false, { from: null, to: '2025-03-10' }, true)
+    expect(partlyTyped).toContain('Enter the whole date, or clear it')
+    expect(partlyTyped).not.toContain(label)
+
+    expect(renderChoices(true, '2025-06-02', false, { from: '2025-02-01', to: '2025-03-01' })).toContain(label)
   })
 
   it('keep the partly typed message and leave out the crossed one', () => {

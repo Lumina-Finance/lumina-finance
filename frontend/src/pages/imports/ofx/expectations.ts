@@ -14,7 +14,7 @@ const ALREADY_IMPORTED_SOURCE = 'A transaction an earlier OFX import brought int
  * a loan statement goes into a loan or mortgage account like any other, investment statements are
  * counted and left out, and a transaction whose date or amount cannot be read, whose amount is in
  * another currency than the statement, whose amount has more decimal places than the currency, whose
- * payee name or memo is over the limit, or whose bank transaction ID an earlier transaction of the
+ * merchant name or memo is over the limit, or whose bank transaction ID an earlier transaction of the
  * same file or an earlier file of the same import already has, or whose bank transaction ID its
  * account already holds from an earlier import, is listed and skipped before the commit, and a
  * deleted one holds none. The save skips what its account holds by then too
@@ -65,7 +65,7 @@ export const OFX_EXPECTATIONS: ImportExpectations = {
         'With no readable date or amount',
         'With an amount in another currency than their statement',
         'With more decimal places than their currency allows',
-        'With a payee name or memo over the limits this app takes',
+        'With a merchant name or memo over the limits this app takes',
         'Already in an earlier file of the same import, by the bank\'s transaction ID',
         'Already in the account from an earlier import, by the bank\'s transaction ID',
         'Listed twice in the same file',

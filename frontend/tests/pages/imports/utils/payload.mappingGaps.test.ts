@@ -108,10 +108,10 @@ describe('refusing an import with nothing to build a payload from', () => {
     expect(result.payload).toBeNull()
   })
 
-  it('prefixes the error with the file it belongs to', () => {
+  it('names the file an error belongs to in a whole sentence', () => {
     const result = build({ files: [createFile([], { error: 'A quoted value is never closed.' })] })
 
-    expect(result.errors).toEqual(['Chequing.csv: A quoted value is never closed.'])
+    expect(result.errors).toEqual(['"Chequing.csv" can\'t be imported. A quoted value is never closed.'])
     expect(result.payload).toBeNull()
   })
 
@@ -129,7 +129,7 @@ describe('refusing an import for what the mapping step never asked', () => {
 
     // The label states all three ways a file can carry its amount, so asserting only that the
     // message mentions Amount would pass on any wording at all
-    expect(result.errors).toEqual(['Map the required columns: Amount (or Money out / Money in)'])
+    expect(result.errors).toEqual(['Map the required columns: Amount (or Money out / Money in).'])
   })
 
   it('refuses an import declaring more account sources than it may carry, the counterpart of the category limit', () => {
@@ -149,7 +149,7 @@ describe('refusing a category or merchant answer the builder cannot use', () => 
       categoryTypesBySource: {},
     })
 
-    expect(result.errors).toEqual(['Choose category type: Groceries'])
+    expect(result.errors).toEqual(['Choose a type for the new category Groceries.'])
   })
 
   it('forwards a merchant answer the builder refuses, no test having passed this function one before', () => {
@@ -162,7 +162,7 @@ describe('refusing a category or merchant answer the builder cannot use', () => 
       },
     })
 
-    expect(result.errors).toContain('Choose a name for the new merchant: Acme')
+    expect(result.errors).toContain('Choose a name for the new merchant "Acme".')
   })
 })
 
@@ -170,7 +170,7 @@ describe('refusing an account mapping answer', () => {
   it('asks to map an account source with no answer at all', () => {
     const result = build({ accountMappings: {} })
 
-    expect(result.errors).toEqual(['Map account: Chequing'])
+    expect(result.errors).toEqual(['Choose an account for Chequing.'])
   })
 
   // The type-support check can only be reached once both fields are answered, so a second source
@@ -186,9 +186,9 @@ describe('refusing an account mapping answer', () => {
       accountCreateTypes: { 'bad-type-source': 'not-a-real-type' },
     })
 
-    expect(result.errors).toContain('Choose account type: Blank Source')
-    expect(result.errors).toContain('Choose account currency: Blank Source')
-    expect(result.errors).toContain('Choose an account type this app supports: Bad Type Source')
+    expect(result.errors).toContain('Choose a type for the new account Blank Source.')
+    expect(result.errors).toContain('Choose a currency for the new account Blank Source.')
+    expect(result.errors).toContain('Choose an account type this app supports for the new account Bad Type Source.')
   })
 
   it('refuses a new account whose name is longer than an account name holds, and only a new one', () => {

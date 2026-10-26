@@ -107,7 +107,9 @@ export function ImportValueMatchTable({
             const tooltipPlacement = index < rows.length / 2 ? 'bottom' : 'top'
 
             return (
-              <tr key={row.id} className={row.autoFilled || row.detailAutoFilled ? 'import-auto-fill-row' : undefined}>
+              // The glow asks the user to check an answer, which means nothing while every answer is held,
+              // as on a finished import's record or while the targets load
+              <tr key={row.id} className={!disabled && (row.autoFilled || row.detailAutoFilled) ? 'import-auto-fill-row' : undefined}>
                 <td className="px-4 py-2 align-middle">
                   <div className="flex min-w-0 items-center gap-2">
                     {row.rename ? (
@@ -151,7 +153,7 @@ export function ImportValueMatchTable({
                   <td className="px-4 py-2 align-middle">
                     {/* Carries its own corner, since the glow no longer sets one and the toggle
                         inside is not a pill */}
-                    <div className={row.detailAutoFilled ? 'import-auto-fill-field rounded-lg' : undefined}>
+                    <div className={!disabled && row.detailAutoFilled ? 'import-auto-fill-field rounded-lg' : undefined}>
                       {row.detailNode ?? (row.onDetailKindChange ? (
                         <ImportSegmentedToggle
                           options={IMPORT_CATEGORY_KIND_OPTIONS}
@@ -177,7 +179,7 @@ export function ImportValueMatchTable({
                     searchable
                     blankWhenEmpty
                     size="compact"
-                    className={row.autoFilled ? 'import-auto-fill-field' : undefined}
+                    className={!disabled && row.autoFilled ? 'import-auto-fill-field' : undefined}
                     disabled={disabled}
                     searchValue={searchValue}
                     onSearchChange={onSearchChange}

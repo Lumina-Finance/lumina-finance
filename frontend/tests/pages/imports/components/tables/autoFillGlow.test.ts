@@ -1,0 +1,120 @@
+/**
+ * Tests that the category and account tables glow a row they filled in for the user to check, and not
+ * while every answer is held or on a finished import's record, where nothing is left to check and the
+ * glow shows as a stray bronze outline
+ */
+import { createElement } from 'react'
+import { renderToStaticMarkup } from 'react-dom/server'
+import { describe, expect, it } from 'vitest'
+import { ImportAccountMappingTable } from '@/pages/imports/components/tables/AccountMappingTable'
+import { ImportDirectionValueTable } from '@/pages/imports/components/tables/DirectionValueTable'
+import { ImportHeaderMappingTable } from '@/pages/imports/components/tables/HeaderMappingTable'
+import { ImportValueMatchTable } from '@/pages/imports/components/tables/ValueMatchTable'
+import { EMPTY_COLUMN_MAP } from '@/pages/imports/constants'
+
+/** Renders the column mapping table with its one column matched for the user */
+function renderColumns(disabled: boolean) {
+  return renderToStaticMarkup(createElement(ImportHeaderMappingTable, {
+    headers: ['Notes'],
+    files: [],
+    options: [],
+    autoFilledHeaders: new Set(['Notes']),
+    columnMap: { ...EMPTY_COLUMN_MAP, notes: 'Notes' },
+    validationErrors: {},
+    dateFormat: null,
+    dateFormatAutomatic: true,
+    amountFormat: null,
+    amountFormatAutomatic: true,
+    disabled,
+    onChange: () => undefined,
+    onDateFormatChange: () => undefined,
+    onAmountFormatChange: () => undefined,
+  } as unknown as Parameters<typeof ImportHeaderMappingTable>[0]))
+}
+
+/** Renders the direction word table with its one word matched for the user */
+function renderDirections(disabled: boolean) {
+  return renderToStaticMarkup(createElement(ImportDirectionValueTable, {
+    values: [{ key: 'debit', label: 'DEBIT' }],
+    answers: { debit: 'out' },
+    autoFilledValues: new Set(['debit']),
+    disabled,
+    onChange: () => undefined,
+  } as unknown as Parameters<typeof ImportDirectionValueTable>[0]))
+}
+
+/** Renders the category table with one row filled in for the user, in its answer or only its type */
+function renderCategories(disabled: boolean, filled: 'autoFilled' | 'detailAutoFilled' = 'autoFilled') {
+  return renderToStaticMarkup(createElement(ImportValueMatchTable, {
+    sourceLabel: 'Category from export',
+    targetLabel: 'Existing category',
+    rows: [{ id: 'Food', source: 'Food', value: '', [filled]: true, onChange: () => undefined }],
+    options: [],
+    disabled,
+  } as unknown as Parameters<typeof ImportValueMatchTable>[0]))
+}
+
+/** Renders the account table with one row filled in for the user */
+function renderAccounts(disabled: boolean) {
+  return renderToStaticMarkup(createElement(ImportAccountMappingTable, {
+    rows: [{
+      id: 'Checking',
+      source: 'Checking',
+      value: '',
+      autoFilled: true,
+      isCounterpartyOnly: false,
+      isReadOnlyAccount: false,
+      isHandAnswered: false,
+      accountType: '',
+      accountCurrency: '',
+      accountInstitution: '',
+      createType: '',
+      createCurrency: '',
+      createInstitution: '',
+      onChange: () => undefined,
+      onCreateTypeChange: () => undefined,
+      onCreateCurrencyChange: () => undefined,
+      onCreateInstitutionChange: () => undefined,
+    }],
+    options: [],
+    accountTypeOptions: [],
+    currencyOptions: [],
+    institutionOptions: [],
+    disabled,
+    currenciesDisabled: false,
+    institutionsDisabled: false,
+    selectedRowIds: new Set<string>(),
+    batchAccountType: '',
+    batchAccountCurrency: '',
+    batchAccountInstitution: '',
+    onBatchAccountTypeChange: () => undefined,
+    onBatchAccountCurrencyChange: () => undefined,
+    onBatchAccountInstitutionChange: () => undefined,
+    onSelectedRowsChange: () => undefined,
+    onCreateInstitution: () => undefined,
+    onBatchCreateInstitution: () => undefined,
+  } as unknown as Parameters<typeof ImportAccountMappingTable>[0]))
+}
+
+// The glow is drawn by the `import-auto-fill-*` styles, so the class names are what tells it shown from held
+const tables: Array<[string, (disabled: boolean) => string]> = [
+  ['category', renderCategories],
+  ['category whose type alone was filled in', (disabled) => renderCategories(disabled, 'detailAutoFilled')],
+  ['account', renderAccounts],
+  ['column mapping', renderColumns],
+  ['direction word', renderDirections],
+]
+
+describe.each(tables)('the glow on a %s row the table filled in for the user', (_name, render) => {
+  it('shows while the step is open', () => {
+    expect(render(false)).toContain('import-auto-fill-row')
+  })
+
+  it('stays off while the answers are held or the import is finished', () => {
+    expect(render(true)).not.toContain('import-auto-fill')
+  })
+})
+
+it('glows the answer field of a category row too', () => {
+  expect(renderCategories(false)).toContain('import-auto-fill-field')
+})

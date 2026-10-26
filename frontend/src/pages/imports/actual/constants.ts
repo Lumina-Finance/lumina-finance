@@ -166,7 +166,7 @@ export function getActualPaymentsHelp(categoryName: string, isIncome: boolean) {
 }
 
 export function getActualAccountNameTooLongError(label: string) {
-  return `Link to an existing account, since a new account name holds at most ${IMPORT_ACCOUNT_NAME_MAX_LENGTH} characters: ${label}`
+  return `${label} is too long for a new account name, which holds at most ${IMPORT_ACCOUNT_NAME_MAX_LENGTH} characters, so link it to an existing account.`
 }
 
 // The page Actual keeps on exporting a budget, linked rather than repeated so the steps stay current

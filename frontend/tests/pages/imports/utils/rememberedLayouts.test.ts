@@ -22,7 +22,7 @@ const STAGED: ImportFileDraft = {
   rows: [],
   error: null,
   delimiter: ';',
-  reading: { headerRow: 2, skipLastRows: 1, preview: [] },
+  reading: { headerRow: 2, skipLastRows: 1, isSkipLastRowsDetected: false, preview: [] },
 }
 
 const COLUMN_MAP = { ...EMPTY_COLUMN_MAP, account_id: 'Account', dt: 'Date', merchant_id: 'Description', amount: 'Amount' }
@@ -51,7 +51,7 @@ describe('the layout an import saves', () => {
   })
 
   it('is left out for a file read without a header row', () => {
-    const headerless = { ...STAGED, hasHeaderRow: false, reading: { headerRow: null, skipLastRows: 0, preview: [] } }
+    const headerless = { ...STAGED, hasHeaderRow: false, reading: { headerRow: null, skipLastRows: 0, isSkipLastRowsDetected: false, preview: [] } }
 
     expect(buildCsvImportLayout(headerless, COLUMN_MAP, 'dayFirst', { decimalSeparator: '.', groupingSeparator: ',' })).toBeNull()
   })
@@ -64,7 +64,7 @@ describe('the layout an import saves', () => {
 
   it.each([
     ['more columns than the server keeps', { headers: [...STAGED.headers, ...Array.from({ length: 252 }, (_, n) => `Extra ${n}`)] }],
-    ['a header row past the last line the server keeps', { reading: { headerRow: MAX_IMPORT_ROWS + 1, skipLastRows: 0, preview: [] } }],
+    ['a header row past the last line the server keeps', { reading: { headerRow: MAX_IMPORT_ROWS + 1, skipLastRows: 0, isSkipLastRowsDetected: false, preview: [] } }],
   ])('is left out for a file with %s, rather than refusing the import', (_case, change) => {
     const file = { ...STAGED, ...change }
 
@@ -74,7 +74,7 @@ describe('the layout an import saves', () => {
   it.each([
     ['as many columns as the server keeps', { headers: Array.from({ length: 256 }, (_, n) => `Column ${n}`) }],
     ['a header as long as the server keeps', { headers: ['Date', 'x'.repeat(256)] }],
-    ['a header row on the last line the server keeps', { reading: { headerRow: MAX_IMPORT_ROWS, skipLastRows: 0, preview: [] } }],
+    ['a header row on the last line the server keeps', { reading: { headerRow: MAX_IMPORT_ROWS, skipLastRows: 0, isSkipLastRowsDetected: false, preview: [] } }],
   ])('is kept for a file with %s', (_case, change) => {
     const file = { ...STAGED, ...change }
 

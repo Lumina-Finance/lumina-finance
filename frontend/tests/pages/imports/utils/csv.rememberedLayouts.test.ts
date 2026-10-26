@@ -27,7 +27,7 @@ function read(csv: string, layouts: CsvLayoutReading[]) {
 }
 
 describe('reading a file with a saved layout', () => {
-  it('reads from the saved header row where detection finds no header row, leaving the last lines in', async () => {
+  it('reads from the saved header row where detection finds no header row, leaving out only a closing total', async () => {
     const detected = await read(TITLED_TABLE, [])
     expect(detected.draft.hasHeaderRow).toBe(false)
 
@@ -37,8 +37,8 @@ describe('reading a file with a saved layout', () => {
     expect(draft.error).toBeNull()
     expect(draft.headers).toEqual(SAVED.headers)
     expect(draft.delimiter).toBe(';')
-    expect(draft.reading).toMatchObject({ headerRow: 2, skipLastRows: 0 })
-    expect(draft.rows.map((row) => row.Date)).toEqual(['2026-10-01', '2026-10-02', 'Total'])
+    expect(draft.reading).toMatchObject({ headerRow: 2, skipLastRows: 1 })
+    expect(draft.rows.map((row) => row.Date)).toEqual(['2026-10-01', '2026-10-02'])
   })
 
   it('reads with the saved separator where detection guesses another', async () => {

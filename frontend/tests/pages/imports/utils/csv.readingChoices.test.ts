@@ -3,7 +3,7 @@
  * the flow offers reading choices: lines above the header row, and the last lines the user skips
  */
 import { describe, expect, it } from 'vitest'
-import { readCsvFile } from '@/pages/imports/utils'
+import { getSharedReadingChoices, readCsvFile } from '@/pages/imports/utils'
 
 const SUPPORTED_CURRENCY_CODES = new Set(['CAD', 'USD'])
 
@@ -102,6 +102,101 @@ describe('lines skipped at the end', () => {
     const draft = await read(csv, { headerRow: first.reading?.headerRow ?? undefined, skipLastRows: 1 })
     expect(draft.hasHeaderRow).toBe(false)
     expect(draft.rows.map((row) => row['Column 2'])).toEqual(['Coffee', 'Pay', 'Rent'])
+  })
+})
+
+describe('a closing line that sums the file', () => {
+  const WITH_TOTAL = `${TABLE}Total;;2495.50\n`
+
+  // A total in the date column spoils the guess at the date and amount formats, so a first reading
+  // leaves it out, and the user can still bring it back
+  it('is left out on a first reading, which shows it as used', async () => {
+    const draft = await read(WITH_TOTAL)
+
+    expect(draft.error).toBeNull()
+    expect(draft.rows).toHaveLength(2)
+    expect(draft.reading).toMatchObject({ skipLastRows: 1 })
+    expect(previewOf(draft)).toEqual([[1, false], [2, false], [3, false], [4, true]])
+  })
+
+  it('stays in when the user chose to skip none', async () => {
+    const draft = await read(WITH_TOTAL, { skipLastRows: 0 })
+
+    expect(draft.rows).toHaveLength(3)
+    expect(draft.reading).toMatchObject({ skipLastRows: 0 })
+  })
+
+  it('leaves a transaction alone that only has total in its description', async () => {
+    const draft = await read(`${TABLE}2026-10-03;Total Wine;-30.00\n`)
+
+    expect(draft.rows).toHaveLength(3)
+    expect(draft.reading).toMatchObject({ skipLastRows: 0 })
+  })
+
+  // A merchant can be called just Total, and a transaction is never a summary since it carries a date
+  it('leaves a dated transaction alone whose description is only Total', async () => {
+    const draft = await read(`${TABLE}2026-10-03;Total;-30.00\n`)
+
+    expect(draft.rows).toHaveLength(3)
+    expect(draft.reading).toMatchObject({ skipLastRows: 0 })
+  })
+
+  it.each(['Subtotal', 'Sub-total', 'Grand total', 'Total:', 'TOTALS'])('is recognised when it reads %s', async (label) => {
+    const draft = await read(`${TABLE}${label};;2495.50\n`)
+
+    expect(draft.rows).toHaveLength(2)
+    expect(draft.reading).toMatchObject({ skipLastRows: 1 })
+  })
+
+  it('is recognised in a later column of the line', async () => {
+    const draft = await read(`${TABLE};Total;2495.50\n`)
+
+    expect(draft.rows).toHaveLength(2)
+  })
+
+  it('leaves out every summary line closing the file', async () => {
+    const draft = await read(`${TABLE}Subtotal;;2495.50\nGrand total;;2495.50\n`)
+
+    expect(draft.rows).toHaveLength(2)
+    expect(draft.reading).toMatchObject({ skipLastRows: 2 })
+  })
+
+  it('never leaves the file with nothing but a summary', async () => {
+    const draft = await read('Date;Description;Amount\n2026-10-01;Coffee;-4.50\nTotal;;-4.50\n')
+
+    expect(draft.rows).toHaveLength(1)
+  })
+
+  it('stays in on a flow that offers no reading choices', async () => {
+    const draft = await readCsvFile(new File([WITH_TOTAL], 'statement.csv'), SUPPORTED_CURRENCY_CODES, { requireDataRows: true })
+
+    expect(draft.reading).toBeUndefined()
+    expect(draft.rows).toHaveLength(3)
+  })
+
+  // The count is one setting for the files staged together, but only a count the user chose is theirs
+  // to carry over: a Total line closing one file says nothing about the ending of the next
+  it('is not carried to a later file that has none', async () => {
+    const first = await read(WITH_TOTAL)
+    const second = await read(TABLE, getSharedReadingChoices(first.reading))
+
+    expect(second.rows).toHaveLength(2)
+    expect(second.reading).toMatchObject({ skipLastRows: 0 })
+  })
+
+  it('is found in a later file when the first file had none to skip', async () => {
+    const first = await read(TABLE)
+    const second = await read(WITH_TOTAL, getSharedReadingChoices(first.reading))
+
+    expect(second.rows).toHaveLength(2)
+    expect(second.reading).toMatchObject({ skipLastRows: 1 })
+  })
+
+  it('is carried to a later file when the user chose the count', async () => {
+    const first = await read(WITH_TOTAL, { skipLastRows: 1 })
+    const second = await read(`${TABLE}2026-10-03;Rent;-1200.00\n`, getSharedReadingChoices(first.reading))
+
+    expect(second.rows).toHaveLength(2)
   })
 })
 

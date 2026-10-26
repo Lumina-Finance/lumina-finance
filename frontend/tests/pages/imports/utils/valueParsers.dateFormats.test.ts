@@ -430,6 +430,13 @@ describe('validating a date column', () => {
     expect(named('written')).toContain('in the written format, such as April 30, 2026')
   })
 
+  it('keeps the capitals of ISO in the name of its format', () => {
+    const files = [createDateFile(['nonsense'])]
+
+    expect(validateColumnValues(files, 'Date', 'dt', SUPPORTED_CURRENCY_CODES, 'iso').message)
+      .toContain('in the ISO date/time format, such as 2026-04-30T12:00:00Z')
+  })
+
   it('accepts a real date whatever century it falls in', () => {
     const files = [createDateFile(['1899-12-31'])]
 

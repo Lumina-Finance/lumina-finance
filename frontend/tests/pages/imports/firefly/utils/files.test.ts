@@ -46,7 +46,7 @@ describe('reading Firefly III export files', () => {
 
     const draft = await readFile(`${headers.join(',')}\n${row}\n`, 'transactions')
 
-    expect(draft.error).toContain('missing columns: destination_type')
+    expect(draft.error).toContain('It is missing the columns: destination_type.')
   })
 
   it('accepts a budgets export with only its required headers', async () => {
@@ -183,7 +183,7 @@ describe('removing the formula escape from Firefly III cells', () => {
 
     expect((await readFile(readable, 'accounts')).error).toBeNull()
     expect((await readFile(unreadable, 'accounts')).error)
-      .toBe('Can\'t tell whether the account "Savings" is active, so the file can\'t be used')
+      .toBe('Can\'t tell whether the account "Savings" is active, so the file can\'t be used.')
   })
 })
 
@@ -312,6 +312,6 @@ describe('delegating selected Firefly files to their supplied slot', () => {
 
     expect(result.status).toBe('accepted')
     if (result.status !== 'accepted') return
-    expect(result.result.error).toContain('missing columns: name, active, start_date')
+    expect(result.result.error).toContain('It is missing the columns: name, active, start_date, end_date.')
   })
 })

@@ -78,22 +78,19 @@ function DateClear({ isShown, label, onClear }: { isShown: boolean; label: strin
 }
 
 /**
- * One message under the dates, which grows in and collapses out. The room above it sits inside, since
- * padding on a box whose height animates stays behind at either end
+ * What stands at the right of the start date's label row, which fades out and in as the error and the
+ * shortcut swap places
  */
-function DateRangeError({ id, children }: { id: string; children: ReactNode }) {
-  const shouldReduceMotion = useReducedMotion() ?? false
+function DateLabelNote({ shouldReduceMotion, children }: { shouldReduceMotion: boolean; children: ReactNode }) {
   return (
     <motion.div
-      className="overflow-hidden"
-      initial={shouldReduceMotion ? false : { height: 0, opacity: 0 }}
-      animate={{ height: 'auto', opacity: 1 }}
-      exit={shouldReduceMotion ? { opacity: 0 } : { height: 0, opacity: 0 }}
-      transition={{ duration: shouldReduceMotion ? 0 : DATE_RANGE_SECONDS, ease: DATE_RANGE_EASE }}
+      className="flex min-w-0 justify-end text-right"
+      initial={shouldReduceMotion ? false : { opacity: 0 }}
+      animate={{ opacity: 1 }}
+      exit={{ opacity: 0 }}
+      transition={{ duration: shouldReduceMotion ? 0 : 0.15, ease: DATE_CLEAR_EASE }}
     >
-      <p id={id} role="alert" className="text-xs font-medium leading-5 text-balance" style={{ color: 'var(--app-negative)' }}>
-        {children}
-      </p>
+      {children}
     </motion.div>
   )
 }
@@ -105,9 +102,10 @@ function DateRangeError({ id, children }: { id: string; children: ReactNode }) {
  * row's name stays the heading
  *
  * The row grows in and collapses out as a whole with its hairline, since it belongs only to a file
- * with a date column. A partly typed date is said once, under the fields, while the fields at fault
- * take the error tint and point at it. A start date after the end date is said on the start date's
- * label row, which alone takes the tint and points at it
+ * with a date column. A date's error is said on its own label row, and the field takes the error tint
+ * and points at it: a partly typed date on its row, and a start date after the end date on the start
+ * date's. On the start date's row it takes the place of the offer of the latest recorded transaction
+ * for as long as the error holds, focused or not, and the offer comes back once it is resolved
  *
  * Each date has a clear button to the right of its field while it holds a whole or a partly typed
  * date. The field narrows to make room as the button grows in and widens back as it goes, on that
@@ -137,9 +135,7 @@ export function ImportDateRangeFields({
 }) {
   const baseId = useId()
   const shouldReduceMotion = useReducedMotion() ?? false
-  const errorId = `${baseId}-error`
   const titleId = `${baseId}-title`
-  const crossedErrorId = `${baseId}-crossed`
   const isIncomplete = dateRange.from === null || dateRange.to === null
   const isStartCrossed = !isIncomplete && isCrossed
   const fieldRefs = useRef<Record<keyof ImportDateRange, DateFieldHandle | null>>({ from: null, to: null })
@@ -175,32 +171,41 @@ export function ImportDateRangeFields({
 
               // A date only begun is held as null, so it counts as holding a value too
               const hasValue = dateRange[end] !== ''
+
+              // The field's own error, which holds the label row's right side while it lasts
+              const errorId = `${fieldId}-error`
+              const errorText = dateRange[end] === null
+                ? IMPORT_DATE_RANGE_INCOMPLETE_FIELD_ERROR
+                : end === 'from' && isStartCrossed ? IMPORT_DATE_RANGE_CROSSED_FIELD_ERROR : null
+              const shortcut = end === 'from' && startSuggestion && !disabled ? startSuggestion : null
               return (
                 <div key={end} className="flex min-w-0 flex-col gap-1">
                   <div className="flex items-baseline justify-between gap-3">
-                    {/* Kept whole, so a message and the suggestion beside it wrap under one another
-                        rather than squeezing the label onto two lines */}
+                    {/* Kept whole, so the error or suggestion beside it wraps rather than squeezing the
+                        label onto two lines */}
                     <label htmlFor={fieldId} className="shrink-0 text-xs" style={{ color: 'var(--app-text-muted)' }}>
                       {label}
                     </label>
-                    {end === 'from' && (isStartCrossed || (startSuggestion && !disabled)) && (
-                      <div className="flex min-w-0 flex-wrap items-baseline justify-end gap-x-3 text-right">
-                        {isStartCrossed && (
-                          <p id={crossedErrorId} role="alert" className="text-xs font-medium leading-5 text-balance" style={{ color: 'var(--app-negative)' }}>
-                            {IMPORT_DATE_RANGE_CROSSED_FIELD_ERROR}
+                    {/* Always mounted, so a note fades out as well as in when it is the last one */}
+                    <AnimatePresence initial={false} mode="wait">
+                      {errorText ? (
+                        <DateLabelNote key="error" shouldReduceMotion={shouldReduceMotion}>
+                          <p id={errorId} role="alert" className="text-xs font-medium text-balance" style={{ color: 'var(--app-negative)' }}>
+                            {errorText}
                           </p>
-                        )}
-                        {startSuggestion && !disabled && (
+                        </DateLabelNote>
+                      ) : shortcut ? (
+                        <DateLabelNote key="shortcut" shouldReduceMotion={shouldReduceMotion}>
                           <button
                             type="button"
-                            onClick={() => onChange('from', startSuggestion, false)}
+                            onClick={() => onChange('from', shortcut!, false)}
                             className="text-right text-xs font-medium underline underline-offset-2 text-[var(--app-text-muted)] transition-colors duration-200 ease-out hover:text-[var(--app-accent)] motion-reduce:transition-none"
                           >
                             {IMPORT_LATEST_START_LABEL}
                           </button>
-                        )}
-                      </div>
-                    )}
+                        </DateLabelNote>
+                      ) : null}
+                    </AnimatePresence>
                   </div>
                   <div className="flex min-w-0 items-center">
                     <div className="min-w-0 flex-1">
@@ -209,8 +214,8 @@ export function ImportDateRangeFields({
                         id={fieldId}
                         ariaLabel={label}
                         value={dateRange[end] ?? ''}
-                        error={dateRange[end] === null || (end === 'from' && isStartCrossed)}
-                        describedById={end === 'from' && isStartCrossed ? crossedErrorId : errorId}
+                        error={errorText !== null}
+                        describedById={errorId}
                         disabled={disabled}
                         onChange={(value, isPartlyTyped) => onChange(end, value, isPartlyTyped)}
                       />
@@ -220,11 +225,6 @@ export function ImportDateRangeFields({
                 </div>
               )
             })}
-            <AnimatePresence initial={false}>
-              {isIncomplete && (
-                <DateRangeError key="incomplete" id={errorId}>{IMPORT_DATE_RANGE_INCOMPLETE_FIELD_ERROR}</DateRangeError>
-              )}
-            </AnimatePresence>
           </div>
         </motion.div>
       )}

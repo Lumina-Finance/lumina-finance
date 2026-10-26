@@ -86,6 +86,9 @@ import {
   SEVERAL_CSV_IMPORT_FILE_TYPE,
   labelStagedFiles,
   removeStagedFile,
+  restageImportFiles,
+  getChosenSkipLastRows,
+  getSharedReadingChoices,
   stageImportFiles,
   type ImportDelimiter,
   type ScopedImportAnswers,
@@ -1027,9 +1030,7 @@ export function useTransactionImportWorkflow(fixedAccount: AccountsOverview | nu
     let remembered: RememberedImportLayout | null = null
     let layout = stagedFirst
     for (const source of selectedFiles) {
-      const choices = layout?.reading && !layout.error
-        ? { headerRow: layout.reading.headerRow ?? undefined, skipLastRows: layout.reading.skipLastRows }
-        : {}
+      const choices = layout?.reading && !layout.error ? getSharedReadingChoices(layout.reading) : {}
       const options = { requireDataRows: true, offersReadingChoices: true, ...choices }
       let draft: ImportFileDraft
       if (layout) {
@@ -1128,11 +1129,16 @@ export function useTransactionImportWorkflow(fixedAccount: AccountsOverview | nu
         ...choices,
       })))
       if (!isCurrentWorkflowRun(workflowRun)) return
-      // Each file keeps its place in the staged list, which draws it by its id, rather than leaving
+      // The files are checked against each other again, since the new choices can give one other
+      // headings or push the total past a limit, and a file that no longer fits stays staged with
+      // that as its error. Each keeps its id, which the staged list draws it by, rather than leaving
       // and returning as another file
-      const drafts = readDrafts.map((draft, index) => ({ ...draft, id: files[index].id, identityId: files[index].identityId }))
-      sourceFilesRef.current = new Map(drafts.map((draft, index) => [draft.id, sourceFiles[index]]))
-      applyStagedFiles(drafts, { startFresh })
+      const restaged = restageImportFiles(readDrafts.map((draft, index) => ({
+        draft: { ...draft, id: files[index].id, identityId: files[index].identityId },
+        source: sourceFiles[index],
+      })))
+      sourceFilesRef.current = new Map(restaged.map(({ draft, source }) => [draft.id, source]))
+      applyStagedFiles(restaged.map(({ draft }) => draft), { startFresh })
     } finally {
       if (isCurrentWorkflowRun(workflowRun)) setIsProcessingFiles(false)
     }
@@ -1143,13 +1149,13 @@ export function useTransactionImportWorkflow(fixedAccount: AccountsOverview | nu
   const changeDelimiter = (delimiter: ImportDelimiter) => {
     const staged = files[0]
     if (delimiter === staged?.delimiter) return
-    void rereadFiles({ delimiter, skipLastRows: staged?.reading?.skipLastRows }, true)
+    void rereadFiles({ delimiter, skipLastRows: getChosenSkipLastRows(staged?.reading) }, true)
   }
 
   const changeHeaderRow = (headerRow: number) => {
     const staged = files[0]
     if (!staged?.reading || headerRow === staged.reading.headerRow) return
-    void rereadFiles({ delimiter: staged.delimiter, headerRow, skipLastRows: staged.reading.skipLastRows }, true)
+    void rereadFiles({ delimiter: staged.delimiter, headerRow, skipLastRows: getChosenSkipLastRows(staged.reading) }, true)
   }
 
   // Leaving out lines at the end keeps the headings, so the column answers carry over. A file read

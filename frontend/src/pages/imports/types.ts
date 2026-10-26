@@ -185,6 +185,9 @@ export type CsvReading = {
   headerRow: number | null
   skipLastRows: number
 
+  /** Whether the reader found the count itself, so it belongs to this file and is not carried to another */
+  isSkipLastRowsDetected: boolean
+
   /** What Skip last rows should be, when the file was refused for a wide line that may start a summary */
   suggestedSkipLastRows?: number
   preview: CsvPreviewLine[]

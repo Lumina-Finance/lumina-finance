@@ -1,6 +1,7 @@
 /**
- * Tests that the UTF-8 note gives way to any staged file, and the upload card to a refused one, that
- * the card stays under files that read cleanly for adding more, that all of them return once the
+ * Tests that the UTF-8 note gives way to any staged file, and the upload card to a refused first
+ * file, that the card stays under files that read cleanly, and under a later file left with an
+ * error, for adding more, that all of them return once the
  * files are removed or their import has finished, which also takes away Remove, and that the
  * Separator choice stays for a refused file
  */
@@ -42,6 +43,7 @@ const GOOD_FILE: ImportFileDraft = {
   reading: {
     headerRow: 1,
     skipLastRows: 0,
+    isSkipLastRowsDetected: false,
     preview: [
       { rowNumber: 1, cells: ['Date', 'Amount'], isSkipped: false },
       { rowNumber: 2, cells: ['2025-01-15', '-1.00'], isSkipped: false },
@@ -122,6 +124,14 @@ describe('the upload card in the File step', () => {
     expect(staged).toContain('Add more CSV files')
     expect(staged).not.toContain('Upload CSV files')
     expect(staged).not.toContain('Files are read as UTF-8')
+  })
+
+  // A new reading can leave a later file refused, and another can be added without removing it
+  it('stays when a later file is left with an error, so another can be added', () => {
+    const left = { ...GOOD_FILE, id: 'file-3', name: 'Chequing.csv', rows: [], error: 'Its columns don\'t match the first file.' }
+    const staged = renderStep([GOOD_FILE, left])
+    expect(staged).toContain('Chequing.csv')
+    expect(staged).toContain('Add more CSV files')
   })
 
   it('lists every staged file with its own Remove button and counts them', () => {

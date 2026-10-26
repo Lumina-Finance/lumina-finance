@@ -332,14 +332,27 @@ test('puts the dates in the File section after Skip last rows and blocks the imp
   await expect(end.getByRole('textbox', { name: 'Day', exact: true })).toHaveAttribute('aria-invalid', 'false')
   await expect(start.getByRole('textbox', { name: 'Day', exact: true })).toHaveAccessibleDescription('Must be on or before the end date')
 
-  // The message and the suggestion beside it leave the start date's label on one line, as the end date's is
-  await expect(fileSection.getByRole('button', { name: 'Latest recorded transaction', exact: true })).toBeVisible()
+  // The message takes the suggestion's place on that row for as long as it holds, focused or not,
+  // and the suggestion comes back once the range is fixed
+  const suggestion = fileSection.getByRole('button', { name: 'Latest recorded transaction', exact: true })
+  await expect(suggestion).toHaveCount(0)
   const startLabelBox = (await fileSection.getByText('Start date', { exact: true }).boundingBox())!
   const endLabelBox = (await fileSection.getByText('End date', { exact: true }).boundingBox())!
   expect(startLabelBox.height).toBe(endLabelBox.height)
+  await start.getByRole('textbox', { name: 'Year', exact: true }).focus()
+  await expect(page.getByRole('alert').filter({ hasText: 'Must be on or before the end date' })).toBeVisible()
+  await expect(suggestion).toHaveCount(0)
+  await end.getByRole('textbox', { name: 'Year', exact: true }).focus()
+  await expect(page.getByRole('alert').filter({ hasText: 'Must be on or before the end date' })).toBeVisible()
+  await expect(suggestion).toHaveCount(0)
   await applyImportDates(page)
   await expect(page.getByRole('button', { name: 'Commit import', exact: true })).toBeDisabled()
   await expect(page.getByText('No rows in this import fall within the chosen dates.', { exact: true })).toHaveCount(0)
+
+  // Fixing the range brings the suggestion back in the message's place
+  await typeDate(page, 'Start date', '2025-02-01')
+  await expect(page.getByText('Must be on or before the end date', { exact: true })).toHaveCount(0)
+  await expect(suggestion).toBeVisible()
 
   // Under Skip last rows, and neither date runs out of the section at any size
   const sectionBox = (await fileSection.boundingBox())!

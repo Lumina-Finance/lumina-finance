@@ -40,7 +40,7 @@ for (const { profileZone, browserZone, dates } of DATE_CASES) {
       await upload.setInputFiles({ name: 'iso-dates.csv', mimeType: 'text/csv', buffer: Buffer.from(CSV) })
 
       const dateFormat = page.getByRole('combobox', { name: 'Date format', exact: true })
-      await expect(dateFormat).toHaveText('ISO date/time (2026-04-30T12:00:00Z)')
+      await expect(dateFormat).toHaveText('ISO date/time')
       const info = page.getByRole('button', { name: 'How timestamp dates are imported', exact: true })
       await expect(info).toBeVisible()
       const formatBounds = await dateFormat.boundingBox()
@@ -62,7 +62,7 @@ for (const { profileZone, browserZone, dates } of DATE_CASES) {
       await expect(info).toHaveCount(0)
       await expect(page.getByText('The date is not a real date in the format chosen above.', { exact: true }).first()).toBeVisible()
       await dateFormat.click()
-      await page.getByRole('option', { name: /^ISO date\/time \(2026-04-30T12:00:00Z\)/ }).click()
+      await page.getByRole('option', { name: /^ISO date\/time/ }).click()
       await expect(commit).toBeEnabled()
 
       // ImportStep renders its title in a paragraph directly inside the enclosing section
@@ -110,7 +110,7 @@ for (const { profileZone, browserZone, dates } of DATE_CASES) {
       await page.getByRole('combobox', { name: 'Match to app field Date', exact: true }).click()
       await page.getByRole('option', { name: 'Date Transaction date.', exact: true }).click()
       await dateFormat.click()
-      await page.getByRole('option', { name: /^ISO date\/time \(2026-04-30T12:00:00Z\)/ }).click()
+      await page.getByRole('option', { name: /^ISO date\/time/ }).click()
       await expect(commit).toBeDisabled()
       await expect(info).toHaveCount(0)
       const dateRow = page.getByRole('row').filter({ has: dateFormat })

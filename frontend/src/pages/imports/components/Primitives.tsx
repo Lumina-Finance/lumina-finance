@@ -244,14 +244,24 @@ export function ImportNotice({
           {title}
         </p>
         {children && (
-          <p className="mt-1 text-sm leading-5">
+          // Beside a list, the paragraph joins its column: pulled left to the bullet text's edge (the
+          // list's 16px indent sits 12px left of the title's). Alone, it stays under the title
+          <p className={`mt-1 text-sm leading-5${items && items.length > 0 ? ' -ml-3' : ''}`}>
             {children}
           </p>
         )}
         {items && items.length > 0 && (
-          <ul className="mt-1 list-disc space-y-0.5 pl-4 text-sm leading-5" style={{ color: 'var(--app-text)' }}>
+          // Pulled left by the icon and its gap, so each bullet is drawn centred on the icon's centre (8px
+          // in) and a wrapped line stays under its own text. Under a paragraph it is spaced as the bullets
+          // are from each other
+          <ul className={`-ml-7 ${children ? 'mt-0.5' : 'mt-1'} space-y-0.5 text-sm leading-5`} style={{ color: 'var(--app-text)' }}>
             {items.map((item, index) => (
-              <li key={index}>{item}</li>
+              <li
+                key={index}
+                className="relative pl-4 before:absolute before:left-1.5 before:top-2 before:h-1 before:w-1 before:rounded-full before:bg-current before:content-['']"
+              >
+                {item}
+              </li>
             ))}
           </ul>
         )}

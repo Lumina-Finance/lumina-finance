@@ -96,7 +96,9 @@ export function ImportMerchantMatchingStep({
               // The matched merchant is what the commit would use without being asked, so the row
               // opens on it rather than on a blank the user has to answer
               value: answer || (matched ? matched.id : CREATE_MERCHANT_VALUE),
-              autoFilled: !answer,
+              // The glow tells the user a row was filled in for them to check, which means nothing on a
+              // finished import's record or while the matches are still loading
+              autoFilled: !answer && !isAnswerLocked,
               // A row filed under a merchant that already exists creates nothing, so the name it
               // would create is greyed out rather than taken away: the column keeps its shape down
               // the table, and switching the row back to creating shows what it was already holding
