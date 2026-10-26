@@ -173,7 +173,7 @@ describe('deciding a file is not a readable table', () => {
   it('refuses an entirely empty file', async () => {
     const draft = await stage('')
 
-    expect(draft.error).toBe('No readable rows detected')
+    expect(draft.error).toBe('This file has no readable rows.')
   })
 })
 

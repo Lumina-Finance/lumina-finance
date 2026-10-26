@@ -142,7 +142,7 @@ const HEADER_ALIASES = new Set([
   'credito',
 ])
 
-const NO_READABLE_ROWS_ERROR = 'No readable rows detected'
+const NO_READABLE_ROWS_ERROR = 'This file has no readable rows.'
 const NO_DATA_ROWS_ERROR = 'This file has a heading row and no transactions under it.'
 
 // How far down the file the table's header is looked for, past the lines a bank puts above it

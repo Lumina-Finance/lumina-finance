@@ -115,7 +115,7 @@ test('keeps a finished Firefly III import as its record until another export is 
   // A file the import can't read leaves the record as it was, with the refusal on its slot
   await expect(uploads.first()).toBeEnabled()
   await uploads.first().setInputFiles({ name: 'not-firefly.csv', mimeType: 'text/csv', buffer: Buffer.from('a,b\n1,2') })
-  await expect(page.getByText(/Not a Firefly III transactions export, missing columns/)).toBeVisible()
+  await expect(page.getByText(/This is not a Firefly III transactions export\. It is missing the columns/)).toBeVisible()
   await expect(page.getByTitle('transactions.csv', { exact: true })).toBeVisible()
   await expect(removeButtons(page)).toHaveCount(0)
   await expect(skippedTitle).toBeVisible()

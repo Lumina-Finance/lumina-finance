@@ -48,13 +48,13 @@ export async function readFireflyCsvFile(
   const headers = new Set(draft.headers)
   const missing = REQUIRED_HEADERS_BY_KIND[kind].filter((header) => !headers.has(header))
   if (missing.length > 0) {
-    return { ...draft, error: `Not a Firefly III ${kind} export, missing columns: ${missing.join(', ')}` }
+    return { ...draft, error: `This is not a Firefly III ${kind} export. It is missing the columns: ${missing.join(', ')}.` }
   }
 
   if (kind === 'accounts') {
     const unreadable = findFireflyUnreadableActiveAccount(draft.rows)
     if (unreadable) {
-      return { ...draft, error: `Can't tell whether the account "${unreadable}" is active, so the file can't be used` }
+      return { ...draft, error: `Can't tell whether the account "${unreadable}" is active, so the file can't be used.` }
     }
   }
 
