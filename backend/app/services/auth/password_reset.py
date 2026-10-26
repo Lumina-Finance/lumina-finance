@@ -1,5 +1,6 @@
 """Password reset request and token service"""
 
+import asyncio
 import hashlib
 import logging
 import secrets
@@ -22,6 +23,14 @@ from app.services.auth.account_lockout import reset_failed_attempts
 from app.services.auth.mfa_challenge import MFA_PURPOSE_PASSWORD_RESET, issue_mfa_challenge
 from app.services.auth.password_credential import create_first_password_credential
 from app.services.auth.password_helpers import hash_password
+from app.services.auth.reset_send_limit import (
+    SendTicket,
+    end_send,
+    record_send_failed,
+    record_send_succeeded,
+    try_start_send,
+    wait_for_send_turn,
+)
 from app.services.auth.sessions import delete_all_user_auth_sessions
 from app.services.auth.token_hashing import hash_token
 from app.services.auth.totp import is_totp_enabled
@@ -78,6 +87,8 @@ class PendingResetEmail:
     recipient: str
     token_id: uuid.UUID
     message: RenderedEmail
+    expires_at: datetime
+    ticket: SendTicket
 
 
 async def request_password_reset(
@@ -108,7 +119,8 @@ async def _issue_password_reset(db: AsyncSession, email: str) -> PendingResetEma
 
     No email is due while the last link still works, and at most the configured number go out
     per account per rolling day, so an unauthenticated requester cannot drain the operator's
-    mail quota
+    mail quota. Sends that fail are not counted by that limit, so a growing wait after each failure
+    and a cap on the sends running at once keep a failing mail server from piling them up
 
     Args:
         db: Active database session
@@ -138,37 +150,77 @@ async def _issue_password_reset(db: AsyncSession, email: str) -> PendingResetEma
         await db.commit()
         return None
 
-    raw_token = secrets.token_urlsafe(_TOKEN_BYTES)
-    expires_at = now + timedelta(seconds=PASSWORD_RESET_TOKEN_EXPIRE_SECONDS)
-    reset_token = PasswordResetToken(user_id=user_id, token_hash=hash_token(raw_token), expires_at=expires_at)
-    db.add(reset_token)
-    await db.commit()
+    # A failed send leaves no token to count, so the back-off after failures and the cap on sends are
+    # what bound the sends, and a refusal stores nothing
+    ticket = try_start_send(user_id)
+    if ticket is None:
+        await db.commit()
+        return None
 
-    # The raw token only ever leaves the server inside the emailed link
-    reset_link = f"{APP_URL}{_RESET_PATH}?token={raw_token}"
-    expiry_minutes = PASSWORD_RESET_TOKEN_EXPIRE_SECONDS // 60
-    return PendingResetEmail(recipient=email, token_id=reset_token.id, message=render_reset_email(reset_link, expiry_minutes))
+    # Anything that stops this request before the send is handed on, a cancellation included, frees
+    # what was claimed, since no send_password_reset_email will
+    try:
+        raw_token = secrets.token_urlsafe(_TOKEN_BYTES)
+        expires_at = now + timedelta(seconds=PASSWORD_RESET_TOKEN_EXPIRE_SECONDS)
+
+        # The raw token only ever leaves the server inside the emailed link. The email is built
+        # before the token is stored, so a failure here leaves no live link behind
+        reset_link = f"{APP_URL}{_RESET_PATH}?token={raw_token}"
+        expiry_minutes = PASSWORD_RESET_TOKEN_EXPIRE_SECONDS // 60
+        message = render_reset_email(reset_link, expiry_minutes)
+
+        reset_token = PasswordResetToken(user_id=user_id, token_hash=hash_token(raw_token), expires_at=expires_at)
+        db.add(reset_token)
+        await db.commit()
+    except BaseException:
+        end_send(ticket)
+        raise
+    return PendingResetEmail(recipient=email, token_id=reset_token.id, message=message, expires_at=expires_at, ticket=ticket)
 
 
 async def send_password_reset_email(pending: PendingResetEmail, session_factory: async_sessionmaker[AsyncSession]) -> None:
-    """Email a stored reset link, dropping its token when the send fails
+    """Email a stored reset link once it has its turn, dropping its token when the send fails
 
     Runs after the response, so the request's own session has closed and the drop opens one
-    from the factory
+    from the factory. A link that expired while the send waited its turn, and the link of a send
+    cancelled before it finished, are dropped too, and neither is a failure of the mail server
 
     Args:
         pending: The email request_password_reset returned
-        session_factory: Opens the session that drops the token after a failed send
+        session_factory: Opens the session that drops the token of a link that was not sent
     """
+    is_expired = False
     try:
-        await get_email_sender().send(pending.recipient, pending.message)
+        async with wait_for_send_turn():
+            is_expired = pending.expires_at <= datetime.now(UTC)
+            if not is_expired:
+                await get_email_sender().send(pending.recipient, pending.message)
     except Exception:
+        # Recorded before the token is dropped, so a drop that fails cannot lose the failure
+        record_send_failed(pending.ticket.user_id)
+
         # A failed send must drop the token it just stored, otherwise the one-live-link throttle would
         # suppress every retry until the token expires
-        async with session_factory() as db:
-            await db.execute(delete(PasswordResetToken).where(PasswordResetToken.id == pending.token_id))
-            await db.commit()
+        await _drop_reset_token(pending, session_factory)
         logger.warning("Password reset email failed to send", exc_info=True)
+    except asyncio.CancelledError:
+        # A cancelled send counts as unsent, so its link must not stay live and block a new request
+        await _drop_reset_token(pending, session_factory)
+        raise
+    else:
+        if is_expired:
+            await _drop_reset_token(pending, session_factory)
+        else:
+            record_send_succeeded(pending.ticket.user_id)
+    finally:
+        end_send(pending.ticket)
+
+
+async def _drop_reset_token(pending: PendingResetEmail, session_factory: async_sessionmaker[AsyncSession]) -> None:
+    """Delete the token of a link that was not sent, which never counts toward the daily limit"""
+    async with session_factory() as db:
+        await db.execute(delete(PasswordResetToken).where(PasswordResetToken.id == pending.token_id))
+        await db.commit()
 
 
 async def _find_active_reset_token(db: AsyncSession, token: str) -> PasswordResetToken | None:
