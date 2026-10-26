@@ -1,7 +1,8 @@
 import { useState } from 'react'
-import { Check, Search } from 'lucide-react'
+import { Check } from 'lucide-react'
 import { filterChecklistOptions } from '@/components/filters/filterChecklistOptions'
 import type { OptionItem } from '@/components/filters/OptionList'
+import { SearchField } from '@/components/filters/SearchField'
 import { getFilterOptionGapClass, getFilterOptionListClass, getFilterOptionStyle } from '@/components/filters/optionAppearance'
 import { useUsableLogo } from '@/hooks/useUsableLogo'
 import { joinClassNames } from '@/utils/classNames'
@@ -42,18 +43,7 @@ export function MultiSelectChecklist({ options, selectedValues, searchPlaceholde
 
   return (
     <div className={joinClassNames('flex flex-col gap-1', fillHeight && 'min-h-0 flex-1')}>
-      <div className="app-input grid grid-cols-[2.25rem_minmax(0,1fr)] items-center overflow-hidden px-0 py-0">
-        <span className="pointer-events-none flex h-9 w-9 items-center justify-center">
-          <Search size={14} style={{ color: 'var(--app-text-subtle)' }} aria-hidden />
-        </span>
-        <input
-          type="text"
-          className="h-9 min-w-0 bg-transparent pr-3 text-[0.8125rem] outline-none"
-          placeholder={searchPlaceholder}
-          value={search}
-          onChange={(event) => setSearch(event.target.value)}
-        />
-      </div>
+      <SearchField value={search} placeholder={searchPlaceholder} onChange={setSearch} />
 
       <ul className={getFilterOptionListClass(fillHeight, hasDetails)}>
         {filtered.length === 0 ? (
@@ -98,8 +88,11 @@ export function MultiSelectChecklist({ options, selectedValues, searchPlaceholde
   )
 }
 
+// A chosen row rests in the soft accent tint, set on the row itself, so the deeper tint it takes under the
+// pointer is important to outrank it, along with the text colour that stays readable on it. A row with
+// keyboard focus keeps dropping its tint, whether or not the pointer is over it
 const ROW_CLASS_NAME =
-  'app-focus-inset focus-visible:bg-transparent! w-full items-center rounded-lg px-2 py-1.5 text-left text-sm hover:bg-[var(--app-accent-soft)]'
+  'app-focus-inset focus-visible:bg-transparent! w-full items-center rounded-lg px-2 py-1.5 text-left text-sm hover:bg-[var(--app-accent-soft)] aria-checked:not-focus-visible:hover:bg-[var(--app-accent-chosen-hover-fill)]! aria-checked:not-focus-visible:hover:text-[var(--app-accent-on-hover-fill)]!'
 
 // A row with details is a grid, since a flex row would size itself to the full width of its text and
 // push the dialog wider than its panel, where a grid track that may shrink to nothing lets the text cut off

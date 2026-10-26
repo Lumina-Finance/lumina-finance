@@ -4,7 +4,7 @@
  */
 import { describe, expect, it } from 'vitest'
 import { FX_TONE_CLASS } from '@/components/tooltips/fxToneClass'
-import { contrast, paint, THEMES, type Rgb, type Theme, type Tokens } from './fixtures'
+import { contrast, paint, stylesheet, THEMES, type Rgb, type Theme, type Tokens } from './fixtures'
 
 // WCAG AA for text under 18.66px bold or 24px regular, which covers every label this file checks
 const MINIMUM_TEXT_CONTRAST = 4.5
@@ -32,7 +32,7 @@ function surfaces(tokens: Tokens): Record<string, Rgb> {
   return {
     page,
     card: solid(tokens, '--app-surface-soft'),
-    'import panel': paint(solid(tokens, '--app-input-bg'), 0.58, page),
+    'import panel': resolve(tokens, '--app-import-panel'),
   }
 }
 
@@ -81,7 +81,7 @@ function resolve(tokens: Tokens, name: string): Rgb {
   const value = tokens[name] ?? ''
   const alias = /^var\((--[\w-]+)\)$/.exec(value)
   if (alias) return resolve(tokens, alias[1])
-  const mixed = /^color-mix\(in srgb, var\((--[\w-]+)\) (\d+)%, var\((--[\w-]+)\)\)$/.exec(value)
+  const mixed = /^color-mix\(in srgb, var\((--[\w-]+)\) ([\d.]+)%, var\((--[\w-]+)\)\)$/.exec(value)
   if (mixed) return mix(resolve(tokens, mixed[1]), Number(mixed[2]) / 100, resolve(tokens, mixed[3]))
   const darkened = /^color-mix\(in srgb, var\((--[\w-]+)\) (\d+)%, black\)$/.exec(value)
   if (darkened) return mix(resolve(tokens, darkened[1]), Number(darkened[2]) / 100, [0, 0, 0])
@@ -222,10 +222,17 @@ describe('tinted state contrast', () => {
     },
     {
       // The Imports upload card under the pointer (.app-upload-card), which draws its title in the text colour, its
-      // hint in subtle text, and a refusal in red. Its fill is the shared hover colour, which is a wash in the dark theme
+      // hint in subtle text, and a refusal in red, on its own hover colour
       name: 'the upload card under the pointer',
       text: ['--app-text', '--app-text-subtle', '--app-negative'],
-      fill: (tokens) => washOver(tokens, '--app-hover-soft', surfaces(tokens).page),
+      fill: (tokens) => resolve(tokens, '--app-hover-on-import-panel'),
+    },
+    {
+      // A day of a neighbouring month in the date picker (.app-calendar-day[data-outside]) under the pointer or keyboard
+      // focus, drawn in the text colour over the accent tint on the picker's field-coloured panel
+      name: 'a calendar day outside the month under the pointer',
+      text: ['--app-text'],
+      fill: (tokens) => solid(tokens, '--app-accent-soft', solid(tokens, '--app-input-bg')),
     },
     {
       // .app-nav-link under the pointer or keyboard focus, and the selected item at rest, in the main sidebar
@@ -373,5 +380,70 @@ describe('selected row text on the page colour', () => {
 
   it('keeps the dark theme on the plain accent, which already passes', () => {
     expect(resolve(THEMES.dark, '--app-accent-on-page-tint')).toEqual(resolve(THEMES.dark, '--app-accent'))
+  })
+})
+
+describe('a chosen checklist row under the pointer', () => {
+  // MultiSelectChecklist: the row rests in the soft accent tint and takes the deeper hover fill with its own
+  // text colour, on the dialog's page colour (the credit accounts list) or the filter panel's field colour. Its
+  // type and institution line keeps the muted text
+  const MINIMUM_STEP = 1.05
+  const cases = (Object.keys(THEMES) as Theme[]).flatMap((theme) =>
+    (['page', 'field'] as const).map((surface) => ({ theme, surface })))
+
+  it.each(cases)('reads at 4.5:1 and shows against its resting tint in the $theme theme on the $surface', ({ theme, surface }) => {
+    const tokens = THEMES[theme]
+    const backdrop = surface === 'page' ? solid(tokens, '--app-bg') : solid(tokens, '--app-input-bg')
+    const fill = washOver(tokens, '--app-accent-chosen-hover-fill', backdrop)
+    expect(contrast(resolve(tokens, '--app-accent-on-hover-fill'), fill)).toBeGreaterThanOrEqual(MINIMUM_TEXT_CONTRAST)
+    // Only a list with details, which draws straight on the page colour, has the muted line
+    if (surface === 'page') expect(contrast(solid(tokens, '--app-text-muted'), fill)).toBeGreaterThanOrEqual(MINIMUM_TEXT_CONTRAST)
+    expect(contrast(fill, solid(tokens, '--app-accent-soft', backdrop))).toBeGreaterThanOrEqual(MINIMUM_STEP)
+  })
+})
+
+describe('hover on shaded surfaces', () => {
+  // The smallest step between a surface and the same surface under the pointer that shows, where the flat light
+  // hover colour is 1.0 on the card and about 1.01 on the import panel
+  const MINIMUM_HOVER_STEP = 1.05
+
+  /** The token a rule's hover fill points at, which everything inside the rule takes under the pointer */
+  function hoverFillOf(selector: string): string {
+    let found: string | undefined
+    stylesheet.walkRules(selector, (rule) => rule.walkDecls('--app-hover-fill', (declaration) => { found = declaration.value }))
+    return /^var\((--[\w-]+)\)$/.exec(found ?? '')![1]
+  }
+
+  const SHADED = [
+    { surface: 'card', token: hoverFillOf('.app-card'), backdrop: (tokens: Tokens) => solid(tokens, '--app-surface-soft') },
+  ]
+
+  const cases = (Object.keys(THEMES) as Theme[]).flatMap((theme) => SHADED.map((shaded) => ({ theme, ...shaded })))
+
+  it.each(cases)('shows against the $surface in the $theme theme', ({ theme, token, backdrop }) => {
+    const tokens = THEMES[theme]
+    expect(contrast(washOver(tokens, token, backdrop(tokens)), backdrop(tokens))).toBeGreaterThanOrEqual(MINIMUM_HOVER_STEP)
+  })
+
+  // The rows and toggles that take the menu items' accent hover (app-accent-hover) sit on the card and the import
+  // panel, where the soft accent fill must step off the surface and carry text at 4.5:1
+  const ACCENT_SURFACES = ['card', 'import panel'] as const
+  const accentCases = (Object.keys(THEMES) as Theme[]).flatMap((theme) => ACCENT_SURFACES.map((surface) => ({ theme, surface })))
+
+  it.each(accentCases)('shows the accent hover and reads on the $surface in the $theme theme', ({ theme, surface }) => {
+    const tokens = THEMES[theme]
+    const backdrop = surface === 'card' ? solid(tokens, '--app-surface-soft') : surfaces(tokens)['import panel']
+    const fill = washOver(tokens, '--app-accent-soft', backdrop)
+    expect(contrast(fill, backdrop)).toBeGreaterThanOrEqual(MINIMUM_HOVER_STEP)
+    expect(contrast(resolve(tokens, '--app-accent-nav-text'), fill)).toBeGreaterThanOrEqual(MINIMUM_TEXT_CONTRAST)
+    // The Settings rows' count line, which sits on the card, steps to this quieter text so it still reads on the fill
+    if (surface === 'card') {
+      expect(contrast(resolve(tokens, '--app-text-subtle-on-accent'), fill)).toBeGreaterThanOrEqual(MINIMUM_TEXT_CONTRAST)
+    }
+  })
+
+  it.each(Object.keys(THEMES) as Theme[])('shows the upload card under the pointer against the import panel in the %s theme', (theme) => {
+    const tokens = THEMES[theme]
+    expect(contrast(resolve(tokens, '--app-hover-on-import-panel'), resolve(tokens, '--app-import-panel'))).toBeGreaterThanOrEqual(MINIMUM_HOVER_STEP)
   })
 })

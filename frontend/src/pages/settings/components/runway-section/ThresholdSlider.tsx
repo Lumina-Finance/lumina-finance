@@ -1,7 +1,6 @@
 import {
   useRef,
   useState,
-  type CSSProperties,
   type KeyboardEvent,
   type PointerEvent,
 } from 'react'
@@ -314,15 +313,13 @@ function ThresholdHandle({
         aria-valuemax={maxValue}
         aria-valuenow={currentValue}
         aria-valuetext={value}
-        className={`absolute left-1/2 top-6 h-5 w-5 -translate-x-1/2 -translate-y-1/2 rounded-full border-2 transition-transform focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 ${isDragging ? 'scale-110 cursor-grabbing' : 'cursor-grab'}`}
+        className={`absolute left-1/2 top-6 h-5 w-5 -translate-x-1/2 -translate-y-1/2 rounded-full border-2 transition-[transform,outline-color] ease-app ${isDragging ? 'scale-110 cursor-grabbing' : 'cursor-grab'}`}
         style={{
           background: 'var(--app-bg)',
           borderColor: style.fg,
           boxShadow: '0 0 0 3px var(--app-surface-soft), var(--app-shadow-soft)',
           color: style.fg,
-          '--tw-ring-color': style.fg,
-          '--tw-ring-offset-color': 'var(--app-bg)',
-        } as CSSProperties}
+        }}
         onPointerDown={onPointerDown}
         onPointerMove={onPointerMove}
         onPointerUp={onPointerUp}

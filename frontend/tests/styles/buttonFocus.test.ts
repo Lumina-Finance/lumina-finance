@@ -236,6 +236,44 @@ describe('button keyboard focus', () => {
     }
   })
 
+  // The sidebar's log out button and collapse toggle are icon buttons that take the menu items' look, so
+  // they must declare it after the icon button rules, which share their weight, and show no ring on focus.
+  for (const name of ['.app-nav-user-logout', '.app-desktop-nav-toggle']) {
+    it(`gives ${name} the menu item's accent look under the pointer and on keyboard focus, after the icon button`, () => {
+      const [item] = rulesListing('.app-nav-link:hover')
+      const hover = rulesListing(`${name}:hover`)
+      const focus = rulesListing(`${name}:focus-visible`)
+      expect(hover).toHaveLength(1)
+      expect(focus).toEqual(hover)
+      for (const property of ['color', 'background', 'border-color']) {
+        expect(declared(hover[0], property)).toBe(declared(item, property))
+      }
+      const [iconButton] = rulesListing('.app-icon-button:hover')
+      expect(hover[0].source!.start!.offset).toBeGreaterThan(iconButton.source!.start!.offset)
+    })
+  }
+
+  // The rows and toggles on shaded surfaces opt in with app-accent-hover to the menu items' accent text and soft
+  // fill, with no border, so nothing shifts and keyboard focus keeps the ring. They show on touch screens too, so
+  // the pointer look sits in the hover-only media query and a tap leaves nothing stuck
+  it('gives .app-accent-hover the menu item\'s text and fill with no border, under the pointer only on hover screens', () => {
+    const [item] = rulesListing('.app-nav-link:hover')
+    const hover = rulesListing('.app-accent-hover:hover')
+    const focus = rulesListing('.app-accent-hover:focus-visible')
+    expect(hover).toHaveLength(1)
+    expect(focus).toHaveLength(1)
+    expect(isHoverOnlyMedia(hover[0])).toBe(true)
+    expect(isHoverOnlyMedia(focus[0])).toBe(false)
+    expect(declarationsOf(focus[0])).toEqual(declarationsOf(hover[0]))
+    for (const property of ['color', 'background']) {
+      expect(declared(hover[0], property)).toBe(declared(item, property))
+    }
+    expect(declared(hover[0], 'border-color')).toBeUndefined()
+    expect(rulesListing('.app-accent-hover').filter((rule) => declared(rule, 'border') !== undefined)).toHaveLength(0)
+    const [iconButton] = rulesListing('.app-icon-button:hover')
+    expect(hover[0].source!.start!.offset).toBeGreaterThan(iconButton.source!.start!.offset)
+  })
+
   // The selected item rests in the accent look, so keyboard focus can only show on its border, which turns
   // stronger than its resting one, and the pointer shows the same border
   it('strengthens only the selected menu item\'s border on keyboard focus and under the pointer', () => {
@@ -381,7 +419,7 @@ describe('button keyboard focus', () => {
   // Every other button, filled buttons included, keeps the base ring on top of its hover look
   describe('ring', () => {
     const optOut = rulesListing(
-      ':is(a, button, [role="button"], [role="tab"], [role="radio"], [role="menuitem"]):is(.app-secondary-button, .app-glass-button, .app-glass-icon-button, .app-range-glass-head, .app-card, .app-nav-link, .border:not(.border-transparent)):not(svg *):not([aria-disabled="true"]):focus-visible',
+      ':is(a, button, [role="button"], [role="tab"], [role="radio"], [role="menuitem"]):is(.app-secondary-button, .app-glass-button, .app-glass-icon-button, .app-range-glass-head, .app-card, .app-nav-link, .app-nav-user-logout, .app-desktop-nav-toggle, .border:not(.border-transparent)):not(svg *):not([aria-disabled="true"]):focus-visible',
     )
 
     it('is dropped only from buttons that draw a border of their own', () => {

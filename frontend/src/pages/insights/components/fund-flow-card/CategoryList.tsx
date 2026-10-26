@@ -54,14 +54,14 @@ export function FundFlowCategoryList({
       <div className="relative flex min-h-14 w-full items-center justify-between gap-4 px-3 py-2">
         <button
           type="button"
-          className="absolute inset-0 rounded-xl text-left transition-colors duration-150 hover:bg-[var(--app-hover-soft)] motion-reduce:transition-none"
+          className="peer app-accent-hover absolute inset-0 rounded-xl text-left transition-colors duration-150 motion-reduce:transition-none"
           aria-expanded={open}
           aria-controls={listId}
           onClick={onToggle}
         >
           <span className="sr-only">Toggle {title}</span>
         </button>
-        <span className="pointer-events-none relative z-10 min-w-0">
+        <span className="pointer-events-none relative z-10 min-w-0 peer-hover:[&_*]:text-[var(--app-accent-nav-text)] peer-focus-visible:[&_*]:text-[var(--app-accent-nav-text)]">
           <span className="app-label inline-flex items-center gap-2">
             {title}
             <span className="pointer-events-auto">
@@ -97,7 +97,7 @@ export function FundFlowCategoryList({
               {rows.length > 0 ? rows.map(({ entry: [name, amount], label, flipped }) => (
                 <div
                   key={`${label}-${name}-${amount}`}
-                  className="flex h-14 items-center justify-between gap-4 px-3 text-sm transition-colors duration-150 hover:bg-[var(--app-hover-soft)] motion-reduce:transition-none"
+                  className="flex h-14 items-center justify-between gap-4 px-3 text-sm"
                 >
                   <span className="min-w-0">
                     <span className="block truncate font-semibold">{name}</span>

@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import { motion, useReducedMotion } from 'motion/react'
 import { PanelLeftClose, PanelLeftOpen } from 'lucide-react'
 import type { Theme } from '@/types'
@@ -43,12 +43,16 @@ export function DesktopNavigation({
   const { navExpanded, toggleNavExpanded } = useNavCollapse()
   const [previewing, setPreviewing] = useState(false)
   const shouldReduceMotion = useReducedMotion()
+  const navigationRef = useRef<HTMLElement>(null)
+  // Set while focus is moved on programmatically, which must not preview the menu it lands in
+  const movingFocus = useRef(false)
 
   // Hover or focus temporarily reveals the full menu, but only the pinned state persists
   const expanded = navExpanded || previewing
 
   return (
     <motion.nav
+      ref={navigationRef}
       aria-label="Primary"
       className={joinClassNames(
         'app-desktop-nav fixed left-5 z-navigation hidden flex-col rounded-2xl px-4 pb-4 pt-7 min-[1050px]:flex',
@@ -60,7 +64,9 @@ export function DesktopNavigation({
       transition={shouldReduceMotion ? { duration: 0 } : NAV_WIDTH_TRANSITION}
       onHoverStart={() => setPreviewing(true)}
       onHoverEnd={() => setPreviewing(false)}
-      onFocusCapture={() => setPreviewing(true)}
+      onFocusCapture={() => {
+        if (!movingFocus.current) setPreviewing(true)
+      }}
       onBlurCapture={(event) => {
         if (!event.currentTarget.contains(event.relatedTarget as Node | null)) setPreviewing(false)
       }}
@@ -70,10 +76,17 @@ export function DesktopNavigation({
         className="app-desktop-nav-toggle app-icon-button"
         aria-label={navExpanded ? 'Collapse sidebar' : 'Keep sidebar expanded'}
         aria-pressed={navExpanded}
-        onClick={() => {
+        onClick={(event) => {
           // The pointer or focus is still on the button, so end the preview or the click would change
           // nothing. A new preview starts when the pointer re-enters or focus moves to another item
           setPreviewing(false)
+          // Collapsing from the keyboard would leave focus on this button as it fades out of the rail, so
+          // focus goes to the first menu item, whose icon stays. A click with the pointer has detail 1 or more
+          if (navExpanded && event.detail === 0) {
+            movingFocus.current = true
+            navigationRef.current?.querySelector<HTMLElement>('a[href]')?.focus()
+            movingFocus.current = false
+          }
           toggleNavExpanded()
         }}
       >

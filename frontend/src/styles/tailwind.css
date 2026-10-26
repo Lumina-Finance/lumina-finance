@@ -33,6 +33,16 @@
        shows the same on it, where the flat value nearly vanishes. A wash of the text colour, light enough
        that subtle text on it keeps its contrast */
     --app-hover-on-surface-soft: color-mix(in srgb, var(--app-text) 5%, transparent);
+    /* What a control or row takes under the pointer: the flat hover colour on the page, where it shows, and
+       the wash on a surface shaded like the card, which a surface sets for what it holds. Kept apart from
+       --app-hover-soft so the loading skeletons' shimmer, which reads that one, is unchanged on a card */
+    --app-hover-fill: var(--app-hover-soft);
+    /* The Imports page's inset panels, drawn as part of the input fill over the page, and what the upload card
+       takes under the pointer. Both flat hover colours sit within a few steps of the panel, so the card's is
+       the text colour mixed into it, which shows on it in both themes and light enough that the card's subtle
+       hint keeps its contrast in the dark one */
+    --app-import-panel: color-mix(in srgb, var(--app-input-bg) 58%, var(--app-bg));
+    --app-hover-on-import-panel: color-mix(in srgb, var(--app-text) 3.5%, var(--app-import-panel));
 
     --app-border: #4b37231c;
     --app-border-strong: #4b372333;
@@ -55,6 +65,9 @@
     /* The tint a selected option takes under the pointer or keyboard focus, deeper than the soft tint
        it already rests in so the change shows on top of it */
     --app-accent-hover-fill: color-mix(in srgb, var(--app-accent) 30%, transparent);
+    /* The same for a chosen row of a list on a plain surface, whose type and institution line in muted text
+       the full hover fill would take under 4.5:1. Deeper than the soft tint it rests in, so the change shows */
+    --app-accent-chosen-hover-fill: color-mix(in srgb, var(--app-accent) 18%, transparent);
     /* The text on that fill, the accent drawn toward the page text colour. The accent itself falls under
        4.5:1 on it in the light theme and on the deepest surfaces in the dark one, and this clears 4.7:1
        on every surface in both. The chip in the Filters panel takes it on its 22% hover tint too */
@@ -322,8 +335,8 @@
      it. Reached by keyboard it looks as it does hovered, which each hover rule also lists under
      :focus-visible, so the two can't drift apart. One without a border, such as a filled button or an icon
      button, keeps the ring above on top of its hover look. A menu item counts as bordered, since its
-     hover look adds a border. A border is the shared classes that draw one, and the border utility
-     unless it is transparent */
+     hover look adds a border, as the sidebar's log out button and collapse toggle do too. A border is the
+     shared classes that draw one, and the border utility unless it is transparent */
   :is(a, button, [role="button"], [role="tab"], [role="radio"], [role="menuitem"]):is(
     .app-secondary-button,
     .app-glass-button,
@@ -331,6 +344,8 @@
     .app-range-glass-head,
     .app-card,
     .app-nav-link,
+    .app-nav-user-logout,
+    .app-desktop-nav-toggle,
     .border:not(.border-transparent)
   ):not(svg *):not([aria-disabled="true"]):focus-visible {
     outline: none;
@@ -829,6 +844,13 @@
 
   .app-calendar-day[data-outside] {
     color: var(--app-text-subtle);
+  }
+
+  /* Subtle and muted text both fall under 4.5:1 on the accent tint in the dark theme, so a neighbouring month's day
+     under the pointer or keyboard focus reads in the text colour, like any other day */
+  .app-calendar-day[data-outside]:not([data-selected]):hover,
+  .app-calendar-day[data-outside]:not([data-selected]):focus-visible {
+    color: var(--app-text);
   }
 
   .app-calendar-day[data-today] {
@@ -1714,7 +1736,7 @@
   }
 
   .app-primary-button {
-    @apply inline-flex h-10 items-center justify-center gap-2 px-4 font-medium transition-all duration-150 motion-reduce:transition-none;
+    @apply inline-flex h-10 items-center justify-center gap-2 px-4 font-medium transition-all duration-150 ease-app motion-reduce:transition-none;
     box-sizing: border-box;
     border-radius: 20px;
     font-size: 0.9375rem;
@@ -1746,7 +1768,7 @@
   }
 
   .app-secondary-button {
-    @apply inline-flex h-10 items-center justify-center gap-2 px-4 font-medium transition-all duration-150 motion-reduce:transition-none;
+    @apply inline-flex h-10 items-center justify-center gap-2 px-4 font-medium transition-all duration-150 ease-app motion-reduce:transition-none;
     box-sizing: border-box;
     border-radius: 20px;
     font-size: 0.9375rem;
@@ -1789,7 +1811,7 @@
   }
 
   .app-danger-button {
-    @apply inline-flex h-10 items-center justify-center gap-2 px-4 font-medium transition-all duration-150 motion-reduce:transition-none;
+    @apply inline-flex h-10 items-center justify-center gap-2 px-4 font-medium transition-all duration-150 ease-app motion-reduce:transition-none;
     box-sizing: border-box;
     border-radius: 20px;
     font-size: 0.9375rem;
@@ -1845,7 +1867,7 @@
   /* The primary action keeps its accent tint but turns translucent so it joins the glass family
      while still reading as the prominent call to action */
   .app-glass-button-primary {
-    @apply inline-flex h-10 items-center justify-center gap-2 px-4 font-medium transition-all duration-150 motion-reduce:transition-none;
+    @apply inline-flex h-10 items-center justify-center gap-2 px-4 font-medium transition-all duration-150 ease-app motion-reduce:transition-none;
     box-sizing: border-box;
     border-radius: 20px;
     font-size: 0.9375rem;
@@ -1877,7 +1899,7 @@
 
   /* Neutral glass counterpart of the secondary button, sharing the filter pill surface */
   .app-glass-button {
-    @apply inline-flex h-10 items-center justify-center gap-2 px-4 font-medium transition-all duration-150 motion-reduce:transition-none;
+    @apply inline-flex h-10 items-center justify-center gap-2 px-4 font-medium transition-all duration-150 ease-app motion-reduce:transition-none;
     box-sizing: border-box;
     border-radius: 20px;
     font-size: 0.9375rem;
@@ -1992,7 +2014,7 @@
   /* Square icon-button member of the glass family for the floating mobile menu toggle, sharing the
      translucent blurred surface so it blurs the page content behind it like the toolbar controls */
   .app-glass-icon-button {
-    @apply inline-flex items-center justify-center transition-colors duration-150 motion-reduce:transition-none;
+    @apply inline-flex items-center justify-center transition-colors duration-150 ease-app motion-reduce:transition-none;
     border-radius: 16px;
     color: var(--app-text);
     border: 1px solid var(--app-border-strong);
@@ -2304,7 +2326,7 @@
   }
 
   .app-icon-button {
-    @apply inline-flex h-8 w-8 items-center justify-center rounded-lg transition-colors duration-150 motion-reduce:transition-none;
+    @apply inline-flex h-8 w-8 items-center justify-center rounded-lg transition-colors duration-150 ease-app motion-reduce:transition-none;
     color: var(--app-text-muted);
     background: transparent;
     border: 1px solid transparent;
@@ -2313,7 +2335,7 @@
   .app-icon-button:hover,
   .app-icon-button:focus-visible {
     color: var(--app-text);
-    background: var(--app-hover-soft);
+    background: var(--app-hover-fill);
     border-color: var(--app-border);
   }
 
@@ -2321,11 +2343,39 @@
     transform: translateY(1px);
   }
 
-  /* The Imports page's upload card, which turns the shared hover colour under the pointer, as the remove button
-     on a staged file does, and sits down a pixel when pressed, as the buttons beside it do. Its rest fill is set
-     on the element as a colour, which outranks this rule, so the hover colour is marked important. Fill, border
-     and press ease together. Keyboard focus shows the same hover colour and the base ring, since its border
-     shows only for a refusal or a file being dragged over it. A card that cannot take a file keeps its rest fill and its cursor */
+  /* The sidebar's own buttons, the log out button and the collapse toggle, take the look a menu item takes under
+     the pointer: accent text, the soft accent fill and the accent border. Keyboard focus shows that look with no
+     ring. They sit after the icon button rules to outrank them */
+  .app-nav-user-logout:hover,
+  .app-nav-user-logout:focus-visible,
+  .app-desktop-nav-toggle:hover,
+  .app-desktop-nav-toggle:focus-visible {
+    color: var(--app-accent-nav-text);
+    background: var(--app-accent-soft);
+    border-color: var(--app-accent-border);
+  }
+
+  /* The rows and toggles on shaded surfaces that opt in with app-accent-hover take the same accent text and soft
+     accent fill, with no border, so nothing shifts. Having no border, keyboard focus keeps the ring on top. The
+     pointer look sits in the hover-only media query, since these rows work on touch screens too, where a tap
+     must not leave it stuck on */
+  .app-accent-hover:focus-visible {
+    color: var(--app-accent-nav-text);
+    background: var(--app-accent-soft);
+  }
+
+  @media (hover: hover) {
+    .app-accent-hover:hover {
+      color: var(--app-accent-nav-text);
+      background: var(--app-accent-soft);
+    }
+  }
+
+  /* The Imports page's upload card, which takes its own hover colour under the pointer, and sits down a pixel when
+     pressed, as the buttons beside it do. Its rest fill is set on the element as a colour, which outranks this rule,
+     so the hover colour is marked important. Fill, border and press ease together. Keyboard focus shows the same
+     hover colour and the base ring, since its border shows only for a refusal or a file being dragged over it. A
+     card that cannot take a file keeps its rest fill and its cursor */
   .app-upload-card {
     transition:
       background-color 150ms cubic-bezier(0.22, 1, 0.36, 1),
@@ -2336,7 +2386,7 @@
 
   .app-upload-card:not([aria-disabled="true"]):hover,
   .app-upload-card:not([aria-disabled="true"]):focus-visible {
-    background-color: var(--app-hover-soft) !important;
+    background-color: var(--app-hover-on-import-panel) !important;
   }
 
   .app-upload-card:not([aria-disabled="true"]):active {
@@ -2482,6 +2532,7 @@
     @apply rounded-2xl border p-4;
     background: var(--app-surface-soft);
     border-color: var(--app-border);
+    --app-hover-fill: var(--app-hover-on-surface-soft);
   }
 
   .app-marquee-text-track {
@@ -2893,7 +2944,7 @@
      its focus ring still fades in the shared 150ms: the later entry for outline-color wins the list */
   @media (prefers-reduced-motion: no-preference) {
     :is(.app-primary-button, .app-danger-button, .app-secondary-button).duration-300 {
-      transition: all 300ms cubic-bezier(0.4, 0, 0.2, 1), var(--app-focus-fade);
+      transition: all 300ms cubic-bezier(0.22, 1, 0.36, 1), var(--app-focus-fade);
     }
   }
 
