@@ -162,7 +162,7 @@ describe('refusing a category or merchant answer the builder cannot use', () => 
       },
     })
 
-    expect(result.errors).toContain('Choose a name for the new merchant Acme.')
+    expect(result.errors).toContain('Choose a name for the new merchant "Acme".')
   })
 })
 

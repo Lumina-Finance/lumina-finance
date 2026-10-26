@@ -76,7 +76,7 @@ describe('what the merchant step sends', () => {
     const { mappings, errors } = buildFor('SQ *COFFEE 4471', CREATE_MERCHANT_VALUE, '   ')
 
     expect(mappings).toEqual([])
-    expect(errors).toEqual(['Choose a name for the new merchant SQ *COFFEE 4471.'])
+    expect(errors).toEqual(['Choose a name for the new merchant "SQ *COFFEE 4471".'])
   })
 })
 
