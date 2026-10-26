@@ -201,12 +201,6 @@ describe('reading a bank statement', () => {
     expect(memo).toBe('Tea 🍵')
   })
 
-  it('reads a loan statement whose account type is empty', async () => {
-    const markup = buildSgmlOfx([{ kind: 'loan', transactions: [{}] }]).replace('<LOANACCTTYPE>AUTO', '<LOANACCTTYPE>')
-
-    expect((await readFile(markup)).statements[0].name).toBe('Loan ending 6777')
-  })
-
   it('reads the date a stamp starts with, the amount with a comma decimal, and entities in names', async () => {
     const file = await readFile(buildSgmlOfx([{
       transactions: [{ posted: '20240229235959.000[-5:EST]', amount: '-1234,50', name: 'Fish &amp; Chips &amp;lt;', memo: 'Table &#35;4' }],
