@@ -78,6 +78,9 @@ test('keeps a staged file whose columns no longer match after the header row cha
   await expect(page.getByText('"04.csv" can\'t be imported. Its columns don\'t match the first file.')).toBeVisible()
   await expect(page.getByRole('button', { name: 'Remove 04.csv', exact: true })).toBeVisible()
   await expect(page.getByRole('button', { name: 'Remove 03.csv', exact: true })).toBeVisible()
+
+  // The card for adding files stays beside the file left with its error
+  await expect(page.getByText('Add more CSV files', { exact: true }).locator('visible=true')).toHaveCount(1)
 })
 
 // A Total line closing the first file is left out of that file only: the file staged with it, which
