@@ -145,11 +145,13 @@ const restrictedQueryFns = [
 
 // crypto.randomUUID is missing on a page opened over plain HTTP, such as a self-hosted app at a LAN address
 const RANDOM_UUID_MESSAGE = 'crypto.randomUUID is missing on pages opened over plain HTTP. Use createRandomId from @/utils/randomId'
-const restrictedProperties = ['crypto', 'window.crypto', 'globalThis.crypto', 'self.crypto'].map((object) => ({
-  object,
-  property: 'randomUUID',
-  message: RANDOM_UUID_MESSAGE,
-}))
+// The ban follows the name, not the object, so an alias (const c = crypto), a longer path (window.self.crypto)
+// and a prototype call (Crypto.prototype.randomUUID.call) all fail too
+const restrictedRandomUuid = [
+  { selector: "Identifier[name='randomUUID']", message: RANDOM_UUID_MESSAGE },
+  { selector: "Literal[value='randomUUID']", message: RANDOM_UUID_MESSAGE },
+  { selector: "TemplateElement[value.cooked='randomUUID']", message: RANDOM_UUID_MESSAGE },
+]
 
 export default defineConfig([
   globalIgnores(['dist']),
@@ -173,8 +175,13 @@ export default defineConfig([
   {
     files: ['src/**/*.{ts,tsx}'],
     rules: {
-      'no-restricted-properties': ['error', ...restrictedProperties],
-      'no-restricted-syntax': ['error', ...restrictedStackingLevels, ...restrictedObserverEntries, ...restrictedQueryFns],
+      'no-restricted-syntax': [
+        'error',
+        ...restrictedStackingLevels,
+        ...restrictedObserverEntries,
+        ...restrictedQueryFns,
+        ...restrictedRandomUuid,
+      ],
     },
   },
   ...pageFolders.map((page) => ({
