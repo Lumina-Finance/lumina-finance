@@ -53,12 +53,20 @@ export function useProfileSettingsForm() {
     try {
       await profileSaveFeedback.run(async () => {
         const updated = await updateProfile.mutateAsync(getProfilePatch(profileForm, user))
-        const apply = () => {
+        if (updated.date_format === user.date_format) {
           setUser(updated)
           setProfileOverrides({})
+          return
         }
-        if (updated.date_format !== user.date_format) deferred.apply = apply
-        else apply()
+
+        // Fields stay editable while the success state shows, so only the drafts the save made redundant go
+        const saved = profileFormFromUser(updated)
+        deferred.apply = () => {
+          setUser(updated)
+          setProfileOverrides((overrides) =>
+            Object.fromEntries(Object.entries(overrides).filter(([key, value]) => saved[key as keyof ProfileFormState] !== value)),
+          )
+        }
       })
       deferred.apply?.()
     } catch {
