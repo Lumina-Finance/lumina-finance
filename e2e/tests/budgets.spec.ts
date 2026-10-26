@@ -193,6 +193,25 @@ test('explains the disabled Save changes of Edit budget as soon as the last cate
   await expect(save).toBeEnabled()
 })
 
+test('numbers the Edit budget sections in the order they read, on desktop and on a phone', AT_EVERY_SIZE, async ({ page, request }) => {
+  const user = await signUpUser(request)
+  const id = await createMonthlyBudget(request, user, {
+    name: 'Numbered sections',
+    categoryNames: ['Groceries'],
+    overallLimit: 50_000,
+    periodStart: budgetPeriodStart(),
+  })
+  await logInViaApi(page, user)
+  await openPage(page, '/budgets')
+  await page.getByTestId(`budget-card-${id}`).click()
+  await page.getByRole('dialog', { name: 'Numbered sections', exact: true }).getByRole('button', { name: 'Edit', exact: true }).click()
+  const edit = page.getByRole('dialog', { name: 'Edit budget', exact: true })
+  await expect(edit).toBeVisible()
+
+  // The page order is Scope, Cadence, Archive, then Tracked categories, so the numbers must count up in it
+  await expect(edit.getByText(/^0[1-9]$/)).toHaveText(['01', '02', '03', '04'])
+})
+
 test('leaves the Edit budget of an archived budget without a category message', async ({ page, request }) => {
   const user = await signUpUser(request)
   const id = await createMonthlyBudget(request, user, {

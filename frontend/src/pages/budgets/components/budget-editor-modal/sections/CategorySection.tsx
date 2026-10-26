@@ -17,6 +17,9 @@ interface BudgetEditorModalCategorySectionProps {
   emptyMessage: string
   animateOptions: boolean
 
+  // The section's number, which follows the sections ahead of it in the dialog
+  number?: string
+
   // Locks category search and selection while the budget is archived so tracked categories cannot change
   fieldsLocked: boolean
   showError: BudgetEditorModalErrorGetter
@@ -32,6 +35,7 @@ export default function BudgetEditorModalCategorySection({
   ids,
   emptyMessage,
   animateOptions,
+  number = '03',
   fieldsLocked,
   showError,
   handlers,
@@ -57,7 +61,7 @@ export default function BudgetEditorModalCategorySection({
       <div className="grid min-h-0 flex-1 grid-cols-[1rem_minmax(0,1fr)] gap-x-2 min-[1050px]:gap-x-3 min-[1050px]:overflow-hidden">
         <div className="flex min-h-0 flex-col items-center">
           <span className="flex h-4 shrink-0 items-center text-xs font-semibold leading-none" style={{ color: 'var(--app-accent)' }} aria-hidden>
-            03
+            {number}
           </span>
           <span
             className="mt-1 w-px flex-1"

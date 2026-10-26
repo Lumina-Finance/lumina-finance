@@ -73,6 +73,22 @@ describe('period glance amounts that moved', () => {
     expect(toneOf(5_000, 6_000, -100)).toEqual(['−$10.00', 'negative', 'negative'])
   })
 
+  it('says income and expenses are equal, in the neutral tone, when they match or are both zero', () => {
+    const detailOf = (income: number, expenses: number) => {
+      const { primaryMetric } = getPeriodGlanceCardData(respond({ income, expenses }), 'USD', currencies)
+      return [primaryMetric.label, primaryMetric.value, primaryMetric.tone, primaryMetric.detail]
+    }
+    const equal = 'Recorded income and recorded expenses are equal in the selected range, excluding transfers'
+
+    expect(detailOf(0, 0)).toEqual(['You kept', '$0.00', 'neutral', equal])
+    expect(detailOf(120_000, 120_000)).toEqual(['You kept', '$0.00', 'neutral', equal])
+    // A net under half a cent, left by currency conversion, shows as $0.00, so it reads as equal both ways
+    expect(detailOf(120_000.4, 120_000)).toEqual(['You kept', '$0.00', 'neutral', equal])
+    expect(detailOf(120_000, 120_000.4)).toEqual(['You kept', '$0.00', 'neutral', equal])
+    expect(detailOf(200_000, 150_000)[3]).toBe('Recorded income exceeds recorded expenses in the selected range, excluding transfers')
+    expect(detailOf(100_000, 140_000)[3]).toBe('Recorded expenses exceed recorded income in the selected range, excluding transfers')
+  })
+
   it('rounds the top category share and the biggest change up, like any spending figure', () => {
     // 410,000 of 480,000 is 85.4%, and a 1,001 rise on a 100,000 basis is 1.001%
     const items = getPeriodGlanceCardData(

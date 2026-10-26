@@ -26,6 +26,7 @@ import { CHART_X_AXIS_TICK_FONT_SIZE } from '@/components/charts/constants'
 import { useMoneyFormatters } from '@/hooks/useMoneyFormatters'
 import type { CashFlowBarBucket } from '@/pages/insights/types/cashFlow'
 import { getCashFlowTooltipBucket } from '@/pages/insights/utils/cashFlow'
+import { getCashFlowAxisTicks } from '@/pages/insights/utils/cashFlowAxis'
 import { getSignedAmountColor } from '@/utils/negativeAmount'
 import {
   useFittedYAxisWidth,
@@ -117,6 +118,7 @@ export function CashFlowBarChart({
   const tooltipRef = useRef<DeferredChartTooltipOverlayHandle<CashFlowBarBucket>>(null)
   const { formatMovedCurrency } = useMoneyFormatters()
   const hasActivity = buckets.some((bucket) => bucket.inflow > 0 || bucket.outflow > 0)
+  const axisTicks = useMemo(() => getCashFlowAxisTicks(buckets.map((bucket) => bucket.net)), [buckets])
   const yAxisWidth = useFittedYAxisWidth(chartRef)
   const dataSignature = useMemo(
     () => getChartDataSignature(buckets, (bucket) => bucket.net),
@@ -178,13 +180,8 @@ export function CashFlowBarChart({
               width={yAxisWidth}
               axisLine={{ stroke: 'var(--app-border-strong)', strokeWidth: 1 }}
               tickLine={false}
-              domain={[
-                (dataMin: number) => Math.min(dataMin, 0),
-                (dataMax: number) => Math.max(dataMax, 0),
-              ]}
-              // Amounts are in minor units, so a tick between two whole units prints the same as its
-              // neighbour at the currency's decimals, and a range of a few units gets fewer ticks instead
-              allowDecimals={false}
+              domain={[axisTicks[0], axisTicks[axisTicks.length - 1]]}
+              ticks={axisTicks}
               tickSize={Y_AXIS_TICK_SIZE_PX}
               tickMargin={Y_AXIS_TICK_MARGIN_PX}
               tick={{ fill: 'var(--app-text-subtle)', fontSize: 11, className: Y_AXIS_LABEL_CLASS_NAME }}

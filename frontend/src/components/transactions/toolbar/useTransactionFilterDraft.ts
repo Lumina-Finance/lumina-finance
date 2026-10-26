@@ -17,6 +17,7 @@ import {
   isAppliedRangeWaitingOnCurrency,
   type AmountDraft,
 } from '@/components/transactions/utils/amountRange'
+import { isFilterPatchApplied } from '@/components/transactions/utils/filterDraft'
 import { isDateRangeCrossed } from '@/utils/date'
 import { useRestoreAmountRange } from '@/components/transactions/toolbar/hooks/useRestoreAmountRange'
 import type { TransactionListFilters } from '@/components/transactions/types/transactionList'
@@ -26,7 +27,7 @@ import type { TransactionFilterSetter } from '@/components/transactions/toolbar/
 export const CROSSED_AMOUNT_RANGE_MESSAGE = 'Enter a minimum at or below the maximum'
 
 /** What the panel says, and Apply gives as its reason, while the From date is after the To date */
-export const CROSSED_DATE_RANGE_MESSAGE = 'The From date must be on or before the To date'
+export const CROSSED_DATE_RANGE_MESSAGE = "From can't be after To"
 
 export type FacetKind = 'multi' | 'amount' | 'date'
 
@@ -151,7 +152,8 @@ export function useTransactionFilterDraft({
   // applying it would close the panel on an empty list
   const isApplyBlocked = hasCrossedAmountBounds || hasCrossedDateRange
 
-  // The first reason, when both ranges cross. The panel's own line lists every one
+  // The first reason, when both ranges cross. The amount message sits in the panel's own line and the
+  // date message on the From field's label, so each shows where it applies
   const applyBlockedReason = hasCrossedAmountBounds
     ? CROSSED_AMOUNT_RANGE_MESSAGE
     : hasCrossedDateRange
@@ -213,6 +215,31 @@ export function useTransactionFilterDraft({
     setAmount(findAmountRangeDraft(filters, currencies) ?? EMPTY_AMOUNT)
   }, [filters, currencies, showAccountFilter, currencyLocked, armAmountRestore])
 
+  // What Apply would set, converting the amount bounds into the matched currency's minor units
+  const draftPatch: TransactionListFilters = {
+    account_id: selections.accounts,
+    category_id: selections.categories,
+    merchant_id: selections.merchants,
+    tag_id: selections.tags,
+    tag_match: selections.tags.length > 0 ? tagMatch : undefined,
+    currency: selections.currency[0],
+    ...buildAmountFilterPatch({
+      amount,
+      amountCurrency,
+      exponent: amountExponent,
+      isLocked: isAmountLocked,
+      filters,
+    }),
+    from_date: dateRange.from || undefined,
+    to_date: dateRange.to || undefined,
+  }
+
+  // The account scope of a list that fixes it is no applied filter, so it is not compared
+  const isDraftApplied = isFilterPatchApplied(
+    draftPatch,
+    showAccountFilter ? filters : { ...filters, account_id: [] },
+  )
+
   /**
    * Adds or removes a value from a facet draft, recording the label for server-searched facets
    */
@@ -268,25 +295,7 @@ export function useTransactionFilterDraft({
   function applyFilters() {
     if (isApplyBlocked) return
 
-    const appliedAmount = buildAmountFilterPatch({
-      amount,
-      amountCurrency,
-      exponent: amountExponent,
-      isLocked: isAmountLocked,
-      filters,
-    })
-
-    setFilter({
-      account_id: selections.accounts,
-      category_id: selections.categories,
-      merchant_id: selections.merchants,
-      tag_id: selections.tags,
-      tag_match: selections.tags.length > 0 ? tagMatch : undefined,
-      currency: selections.currency[0],
-      ...appliedAmount,
-      from_date: dateRange.from || undefined,
-      to_date: dateRange.to || undefined,
-    })
+    setFilter(draftPatch)
     onClose()
   }
 
@@ -308,6 +317,7 @@ export function useTransactionFilterDraft({
     hasCrossedDateRange,
     isApplyBlocked,
     applyBlockedReason,
+    isDraftApplied,
     currencyLocked,
     getFacetOptions,
     countFacet,

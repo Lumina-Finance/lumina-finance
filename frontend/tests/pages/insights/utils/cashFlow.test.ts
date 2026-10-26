@@ -1,6 +1,6 @@
 /**
- * Covers the cash flow card labelling weekly bars by the month each week starts in, with the week's
- * own dates in the tooltip range, and its tooltip naming no bar when none is active
+ * Covers the cash flow card labelling weekly bars by the day each week starts, with the week's own dates
+ * in the tooltip range, and its tooltip naming no bar when none is active
  */
 import { describe, expect, it } from 'vitest';
 import type { CashFlowBarBucket } from '@/pages/insights/types/cashFlow';
@@ -29,15 +29,29 @@ describe('getCashFlowTooltipBucket', () => {
 });
 
 describe('getCashFlowBarData', () => {
-  it('labels the weekly bars of a 92-day range by month and gives each week its dates', () => {
+  it('labels each weekly bar of a 92-day range by the day its week starts, so no two bars share a label', () => {
     const { granularity, buckets } = getCashFlowBarData(
-      { points: [['2026-01-05', '2026-01-11', 100, 50]], fx_status: { state: 'none', missing_pairs: [] } },
+      {
+        points: [['2026-01-05', '2026-01-11', 100, 50], ['2026-01-12', '2026-01-18', 100, 50]],
+        fx_status: { state: 'none', missing_pairs: [] },
+      },
       '2026-01-05',
       '2026-04-06',
     );
 
     expect(granularity).toBe('week');
+    expect(buckets.map((bucket) => bucket.label)).toEqual(['Jan 5', 'Jan 12']);
+    expect(buckets[0].rangeLabel).toBe('Jan 5–Jan 11');
+  });
+
+  it('labels the monthly bars of a long range by month', () => {
+    const { granularity, buckets } = getCashFlowBarData(
+      { points: [['2026-01-01', '2026-01-31', 100, 50]], fx_status: { state: 'none', missing_pairs: [] } },
+      '2026-01-01',
+      '2026-12-31',
+    );
+
+    expect(granularity).toBe('month');
     expect(buckets[0].label).toBe('Jan');
-    expect(buckets[0].rangeLabel).toBe('Jan 5-Jan 11');
   });
 });

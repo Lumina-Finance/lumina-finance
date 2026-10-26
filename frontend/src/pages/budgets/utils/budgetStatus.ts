@@ -1,5 +1,5 @@
 import type { Budget, BudgetUtilization } from '@/api/budgets'
-import { getBudgetUtilizationPercent } from '@/pages/budgets/utils/utilization'
+import { getBudgetUtilizationPercent } from '@/utils/budgetUtilization'
 import { getValueMarkColor } from '@/utils/valueMarkColor'
 
 /**

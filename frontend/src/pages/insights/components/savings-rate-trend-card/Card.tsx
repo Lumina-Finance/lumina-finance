@@ -55,11 +55,11 @@ const BODY_CLASS = 'flex flex-col min-[750px]:h-[430px]'
 
 const savingsRateCalculation = 'Monthly savings rate is income minus expenses, divided by income. Income and expense categories are netted first. Transfers are excluded'
 const latestSavingsRateCalculation = 'Savings rate for the latest available month. The current month may be partial. Shows −∞% when expenses exist without income because the calculation divides by zero'
-const averageSavingsRateCalculation = 'Average savings rate across completed months with income. The current month and no-income months are excluded'
+const averageSavingsRateCalculation = 'Average savings rate across completed months with income. The current month and months without income are left out'
 const bestSavingsRateCalculation = 'Highest savings rate across completed months. The current month is excluded'
 const worstSavingsRateCalculation = 'Lowest savings rate across completed months. The current month is excluded'
 const savingsRateStatLabelClass = 'app-label inline-flex items-center gap-2 text-sm leading-5'
-const savingsRateStatCaptionClass = 'truncate text-right text-xs leading-4 min-[750px]:mt-2 min-[750px]:text-left'
+const savingsRateStatCaptionClass = 'min-w-0 text-right text-xs leading-4 min-[750px]:mt-2 min-[750px]:text-left'
 
 /**
  * Renders savings-rate summary metrics and the monthly savings-rate chart
@@ -176,12 +176,10 @@ export function SavingsRateTrendCard({
                         calculation={averageSavingsRateCalculation}
                       />
                     </p>
-                    <div className="mt-1 flex items-baseline justify-between gap-3 min-[750px]:block">
+                    {/* Stacked on a phone, Best and Worst rows are a pixel taller than their figure alone, from the baseline of the month beside it, so this row holds that height to keep the three boxes level */}
+                    <div className="mt-1 flex min-h-[1.3125rem] items-baseline justify-between gap-3 min-[750px]:block min-[750px]:min-h-0">
                       <p className="font-financial text-xl leading-none tracking-tight min-[750px]:text-2xl">
                         {formatSavingsRateValue(averageRate)}
-                      </p>
-                      <p className={savingsRateStatCaptionClass} style={{ color: 'var(--app-text-muted)' }}>
-                        Completed months with income
                       </p>
                     </div>
                   </div>

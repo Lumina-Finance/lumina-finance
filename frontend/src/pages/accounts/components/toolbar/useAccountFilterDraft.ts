@@ -2,6 +2,7 @@ import { useCallback, useState } from 'react'
 import { Landmark, Layers, Wallet } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
 import type { OptionItem } from '@/components/filters/OptionList'
+import { isSameSelection } from '@/components/list-controls/sameSelection'
 import type { AccountKind, AccountType } from '@/api/accounts'
 import type { FilterValues } from '@/pages/accounts/types/accounts'
 
@@ -83,6 +84,8 @@ export function useAccountFilterDraft({
     })
   }, [filters])
 
+  const isDraftApplied = FILTER_FACETS.every((facet) => isSameSelection(selections[facet.id], filters[facet.id]))
+
   /**
    * Adds or removes a value from a facet draft
    */
@@ -120,6 +123,7 @@ export function useAccountFilterDraft({
   return {
     selections,
     activeFacetCount,
+    isDraftApplied,
     getFacetOptions,
     countFacet,
     toggleSelection,

@@ -89,6 +89,18 @@ function getTopCategoryDetail(amount: number | undefined, expenseTotal: number |
   return `${getRoundedPercent(amount, expenseTotal, 'up')}% of recorded expenses`
 }
 
+/**
+ * Says which of income and expenses is larger, or that they are equal, which includes a range with neither
+ */
+function getNetSavingsDetail(netSavings: number) {
+  // The shown amount decides, so a net that rounds to $0.00 after conversion reads as equal
+  const sign = getShownAmountSign(netSavings)
+  if (sign === 0) return 'Recorded income and recorded expenses are equal in the selected range, excluding transfers'
+  return sign > 0
+    ? 'Recorded income exceeds recorded expenses in the selected range, excluding transfers'
+    : 'Recorded expenses exceed recorded income in the selected range, excluding transfers'
+}
+
 function getPeriodGlanceBrief(
   data: InsightsPeriodGlanceResponse,
   displayCurrency: string,
@@ -100,11 +112,9 @@ function getPeriodGlanceBrief(
   return {
     metrics: [
       {
-        label: netSavings >= 0 ? 'You kept' : 'You overspent',
+        label: getShownAmountSign(netSavings) >= 0 ? 'You kept' : 'You overspent',
         value: netSavings,
-        detail: netSavings >= 0
-          ? 'Recorded income exceeds recorded expenses in the selected range, excluding transfers'
-          : 'Recorded expenses exceed recorded income in the selected range, excluding transfers',
+        detail: getNetSavingsDetail(netSavings),
         calculation: 'Income - expenses for this range. Transfers are excluded',
         tone: getAmountTone(netSavings),
       },

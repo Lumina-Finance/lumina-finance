@@ -45,12 +45,13 @@ async function seedIqdAccount(request: Parameters<typeof signUpUser>[0]): Promis
 }
 
 const TICK_CASES = [
-  // Five evenly spaced ticks between zero and one minor unit print as the same amount several times
+  // Ticks spaced by less than one minor unit would print as the same amount several times
   { name: 'a two-decimal net of one cent', currency: 'CAD', minorUnits: 1, count: 2, first: '0.00', last: '0.01' },
   { name: 'a three-decimal net of one fils', currency: 'IQD', minorUnits: 1, count: 2, first: '0.000', last: '0.001' },
 
-  // An ordinary net keeps all five ticks
-  { name: 'an ordinary net', currency: 'CAD', minorUnits: 125_000, count: 5, first: '0.00', last: '1,250.00' },
+  // An ordinary net gets even steps, with the top tick at or just above the tallest bar
+  { name: 'an ordinary net', currency: 'CAD', minorUnits: 125_000, count: 6, first: '0.00', last: '1,250.00' },
+  { name: 'a net just over a round step', currency: 'CAD', minorUnits: 102_000, count: 7, first: '0.00', last: '1,200.00' },
 ]
 
 // A net is an amount that moved, so its labels are signed like the card's headline, never written in
@@ -85,7 +86,7 @@ for (const example of SIGN_CASES) {
   test(`cash flow axis signs the amounts for ${example.name}`, async ({ page, request }) => {
     const amountLabels = await openCashFlowAxis(page, request, 'CAD', example.minorUnits)
 
-    // Recharts picks the ticks between zero and the net, so only their sign is pinned
+    // The ticks step evenly from zero to the first step past the net, and each carries the net's sign
     await expect.poll(async () => {
       const labels = await amountLabels.allTextContents()
       return {
@@ -135,12 +136,12 @@ test('cash flow axis refits when the range changes from short labels to very lon
 
   // The opening range holds only the small amount, so its axis is fitted to short labels first
   const amountLabels = await openCashFlowLabels(page)
-  await expect(amountLabels.filter({ hasText: '1,246,913' })).toHaveCount(0)
+  await expect(amountLabels.filter({ hasText: '1,250,000,000' })).toHaveCount(0)
   await expect.poll(() => problemsWith(amountLabels)).toEqual([])
 
   // Widening the range after load brings the large amount in, with no reload to fit the axis again
   await page.getByRole('button', { name: /^Insights date range: / }).filter({ visible: true }).click()
   await page.getByRole('tab', { name: '90D', exact: true }).click()
-  await expect(amountLabels.filter({ hasText: '1,246,913' }).first()).toBeVisible()
+  await expect(amountLabels.filter({ hasText: '1,250,000,000' }).first()).toBeVisible()
   await expect.poll(() => problemsWith(amountLabels)).toEqual([])
 })

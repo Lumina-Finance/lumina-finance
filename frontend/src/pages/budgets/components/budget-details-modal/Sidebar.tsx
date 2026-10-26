@@ -8,7 +8,7 @@ import ArchivedPill from '@/pages/budgets/components/shared/ArchivedPill'
 import BudgetAttentionIcon from '@/pages/budgets/components/shared/AttentionIcon'
 import BudgetFxStatusBadge from '@/pages/budgets/components/shared/FxStatusBadge'
 import { budgetCadenceLabel, formatBudgetPeriod } from '@/pages/budgets/utils/budgetPeriods'
-import { getBudgetUtilizationLabelPercent, getBudgetUtilizationPercent } from '@/pages/budgets/utils/utilization'
+import { getBudgetUtilizationLabelPercent, getBudgetUtilizationPercent } from '@/utils/budgetUtilization'
 
 type BudgetAttention = {
   label: string
