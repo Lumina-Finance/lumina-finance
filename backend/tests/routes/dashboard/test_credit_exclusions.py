@@ -258,7 +258,7 @@ async def test_saving_the_choice_refuses_an_account_that_is_not_a_credit_account
     assert resp.json()["detail"] == "Only credit accounts with a limit count toward credit utilization"
 
 
-async def test_saving_the_choice_waits_for_the_user_row_so_the_later_save_wins(client):
+async def test_saving_the_choice_waits_for_the_user_row_before_replacing_it(client):
     """A save queues behind a holder of the user's row, so it runs after that holder's change rather than beside it."""
     headers = _get_auth_header(await _create_user(client))
     card = await _create_card(client, headers, "Card A", 500_000, 50_000)
