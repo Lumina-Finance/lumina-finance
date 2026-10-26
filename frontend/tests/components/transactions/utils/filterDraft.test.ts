@@ -23,15 +23,26 @@ describe('isFilterPatchApplied', () => {
     expect(isFilterPatchApplied({ ...applied, category_id: ['c2', 'c1'], account_id: [], merchant_id: [] }, applied)).toBe(true)
   })
 
-  it('is false once any selection, bound or date differs', () => {
-    expect(isFilterPatchApplied({ ...applied, category_id: ['c1'] }, applied)).toBe(false)
-    expect(isFilterPatchApplied({ ...applied, to_date: '2026-10-31' }, applied)).toBe(false)
-    expect(isFilterPatchApplied({ ...applied, min_amount: 600 }, applied)).toBe(false)
-    expect(isFilterPatchApplied({ ...applied, tag_match: 'all' }, applied)).toBe(false)
-    expect(isFilterPatchApplied({ ...applied, currency: 'CAD' }, applied)).toBe(false)
+  // Each key alone must make Apply live again, since a key missing from the comparison holds Apply off for good
+  it.each([
+    ['account_id', { account_id: ['a1'] }],
+    ['category_id', { category_id: ['c1'] }],
+    ['merchant_id', { merchant_id: ['m1'] }],
+    ['tag_id', { tag_id: ['t2'] }],
+    ['tag_match', { tag_match: 'all' as const }],
+    ['currency', { currency: 'CAD' }],
+    ['min_amount', { min_amount: 600 }],
+    ['max_amount', { max_amount: 900 }],
+    ['amount_currency', { amount_currency: 'CAD' }],
+    ['from_date', { from_date: '2026-10-02' }],
+    ['to_date', { to_date: '2026-10-31' }],
+  ])('is false once %s alone differs', (_key, change) => {
+    expect(isFilterPatchApplied({ ...applied, ...change }, applied)).toBe(false)
   })
 
-  it('reads the tag match only while tags are chosen', () => {
+  it('reads the tag match only while tags are chosen, an unset applied match being "all"', () => {
     expect(isFilterPatchApplied({ tag_id: [], tag_match: undefined }, { tag_match: 'any' })).toBe(true)
+    expect(isFilterPatchApplied({ tag_id: ['t1'], tag_match: 'all' }, { tag_id: ['t1'] })).toBe(true)
+    expect(isFilterPatchApplied({ tag_id: ['t1'], tag_match: 'any' }, { tag_id: ['t1'] })).toBe(false)
   })
 })
