@@ -4,7 +4,6 @@
  */
 import { describe, expect, it } from 'vitest'
 import { FX_TONE_CLASS } from '@/components/tooltips/fxToneClass'
-import { IMPORT_INSET_STYLE } from '@/pages/imports/constants'
 import { contrast, paint, stylesheet, THEMES, type Rgb, type Theme, type Tokens } from './fixtures'
 
 // WCAG AA for text under 18.66px bold or 24px regular, which covers every label this file checks
@@ -417,11 +416,6 @@ describe('hover on shaded surfaces', () => {
 
   const SHADED = [
     { surface: 'card', token: hoverFillOf('.app-card'), backdrop: (tokens: Tokens) => solid(tokens, '--app-surface-soft') },
-    {
-      surface: 'import panel',
-      token: /^var\((--[\w-]+)\)$/.exec(String((IMPORT_INSET_STYLE as Record<string, unknown>)['--app-hover-fill']))![1],
-      backdrop: (tokens: Tokens) => surfaces(tokens)['import panel'],
-    },
   ]
 
   const cases = (Object.keys(THEMES) as Theme[]).flatMap((theme) => SHADED.map((shaded) => ({ theme, ...shaded })))
@@ -429,6 +423,23 @@ describe('hover on shaded surfaces', () => {
   it.each(cases)('shows against the $surface in the $theme theme', ({ theme, token, backdrop }) => {
     const tokens = THEMES[theme]
     expect(contrast(washOver(tokens, token, backdrop(tokens)), backdrop(tokens))).toBeGreaterThanOrEqual(MINIMUM_HOVER_STEP)
+  })
+
+  // The rows and toggles that take the menu items' accent hover (app-accent-hover) sit on the card and the import
+  // panel, where the soft accent fill must step off the surface and carry text at 4.5:1
+  const ACCENT_SURFACES = ['card', 'import panel'] as const
+  const accentCases = (Object.keys(THEMES) as Theme[]).flatMap((theme) => ACCENT_SURFACES.map((surface) => ({ theme, surface })))
+
+  it.each(accentCases)('shows the accent hover and reads on the $surface in the $theme theme', ({ theme, surface }) => {
+    const tokens = THEMES[theme]
+    const backdrop = surface === 'card' ? solid(tokens, '--app-surface-soft') : surfaces(tokens)['import panel']
+    const fill = washOver(tokens, '--app-accent-soft', backdrop)
+    expect(contrast(fill, backdrop)).toBeGreaterThanOrEqual(MINIMUM_HOVER_STEP)
+    expect(contrast(resolve(tokens, '--app-accent-nav-text'), fill)).toBeGreaterThanOrEqual(MINIMUM_TEXT_CONTRAST)
+    // The Settings rows' count line, which sits on the card, steps to this quieter text so it still reads on the fill
+    if (surface === 'card') {
+      expect(contrast(resolve(tokens, '--app-text-subtle-on-accent'), fill)).toBeGreaterThanOrEqual(MINIMUM_TEXT_CONTRAST)
+    }
   })
 
   it.each(Object.keys(THEMES) as Theme[])('shows the upload card under the pointer against the import panel in the %s theme', (theme) => {

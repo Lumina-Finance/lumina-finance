@@ -131,43 +131,48 @@ export default function CategorySettingsSection() {
             label="Loading categories"
             overlayClassName={SETTINGS_LIST_LOADING_OVERLAY_CLASS}
             animateLoadingHeight
+            className="-mx-2 -my-1.5"
           >
-            {/* Categories cached from an earlier session survive a failed request, since the query
-                cache is persisted, so the message sits above them rather than throwing a readable
-                list away */}
-            {isError && <LoadFailure error={error} subject="Categories" />}
+            {/* The region clips what overflows it, so it is widened to the room a hovered group's fill outsets
+                into, and the list sits back inside it at its own place */}
+            <div className="px-2 py-1.5">
+              {/* Categories cached from an earlier session survive a failed request, since the query
+                  cache is persisted, so the message sits above them rather than throwing a readable
+                  list away */}
+              {isError && <LoadFailure error={error} subject="Categories" />}
 
-            {isError && categories.length === 0 ? null : categories.length === 0 ? (
-              <p className="py-3 text-center text-sm italic" style={{ color: 'var(--app-text-subtle)' }}>
-                No categories yet.
-              </p>
-            ) : !hasMatches ? (
-              <p className="py-3 text-center text-sm italic" style={{ color: 'var(--app-text-subtle)' }}>
-                No categories match your search.
-              </p>
-            ) : (
-              <div className="space-y-6">
-                {groupedCategories.map(({ kind, items }) => (
-                  items.length > 0 && (
-                    <CategorySettingsGroup
-                      key={kind}
-                      kind={kind}
-                      expanded={expandedKinds.has(kind)}
-                      categories={items}
-                      confirmingDeleteCategoryId={confirmingDeleteCategoryId}
-                      deletingCategoryId={deletingCategoryId}
-                      editingCategoryId={editingCategoryId}
-                      onDeleteCancel={() => setConfirmingDeleteCategoryId(null)}
-                      onDeleteConfirm={handleDelete}
-                      onEdit={(category) => setEditingCategoryId(category.id)}
-                      onDeleteRequest={handleDeleteRequest}
-                      onEditCancel={() => setEditingCategoryId(null)}
-                      onToggle={() => toggleKind(kind)}
-                    />
-                  )
-                ))}
-              </div>
-            )}
+              {isError && categories.length === 0 ? null : categories.length === 0 ? (
+                <p className="py-3 text-center text-sm italic" style={{ color: 'var(--app-text-subtle)' }}>
+                  No categories yet.
+                </p>
+              ) : !hasMatches ? (
+                <p className="py-3 text-center text-sm italic" style={{ color: 'var(--app-text-subtle)' }}>
+                  No categories match your search.
+                </p>
+              ) : (
+                <div className="space-y-6">
+                  {groupedCategories.map(({ kind, items }) => (
+                    items.length > 0 && (
+                      <CategorySettingsGroup
+                        key={kind}
+                        kind={kind}
+                        expanded={expandedKinds.has(kind)}
+                        categories={items}
+                        confirmingDeleteCategoryId={confirmingDeleteCategoryId}
+                        deletingCategoryId={deletingCategoryId}
+                        editingCategoryId={editingCategoryId}
+                        onDeleteCancel={() => setConfirmingDeleteCategoryId(null)}
+                        onDeleteConfirm={handleDelete}
+                        onEdit={(category) => setEditingCategoryId(category.id)}
+                        onDeleteRequest={handleDeleteRequest}
+                        onEditCancel={() => setEditingCategoryId(null)}
+                        onToggle={() => toggleKind(kind)}
+                      />
+                    )
+                  ))}
+                </div>
+              )}
+            </div>
           </LoadingRegion>
         </div>
       </SettingsCard>

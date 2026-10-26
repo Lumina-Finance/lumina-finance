@@ -43,22 +43,23 @@ export default function CategorySettingsGroup({
   onToggle: () => void
 }) {
   return (
-    <div>
+    // A block of its own, so the row's outset margins stay inside it and don't change the gap between groups
+    <div className="flow-root">
       <button
         type="button"
-        className="flex h-11 w-full items-center gap-3 rounded-md text-left transition-colors hover:bg-[var(--app-hover-fill)] motion-reduce:transition-none"
+        className="group/row -mx-2 -my-1.5 flex h-14 w-[calc(100%+1rem)] items-center gap-3 px-2 app-accent-hover rounded-md text-left transition-colors motion-reduce:transition-none"
         onClick={onToggle}
         aria-expanded={expanded}
       >
         <ChevronDown
           size={14}
-          className={`mt-1.5 shrink-0 self-start transition-transform duration-150 motion-reduce:transition-none ${expanded ? 'rotate-180' : 'rotate-0'}`}
+          className={`mt-3 shrink-0 self-start transition-transform duration-150 motion-reduce:transition-none ${expanded ? 'rotate-180' : 'rotate-0'}`}
           style={{ opacity: 0.7 }}
           aria-hidden
         />
         <span className="min-w-0">
-          <span className="app-label block">{KIND_LABELS[kind]}</span>
-          <span className="block text-xs" style={{ color: 'var(--app-text-subtle)' }}>
+          <span className="app-label block group-hover/row:text-[var(--app-accent-nav-text)] group-focus-visible/row:text-[var(--app-accent-nav-text)]">{KIND_LABELS[kind]}</span>
+          <span className="block text-xs text-[var(--app-text-subtle)] group-hover/row:text-[var(--app-text-subtle-on-accent)] group-focus-visible/row:text-[var(--app-text-subtle-on-accent)]">
             {categories.length} {categories.length === 1 ? 'category' : 'categories'}
           </span>
         </span>

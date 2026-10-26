@@ -2343,9 +2343,9 @@
     transform: translateY(1px);
   }
 
-  /* The sidebar's own buttons, the log out button and the collapse toggle, take the look a menu item beside
-     them takes under the pointer: accent text, the soft accent fill and the accent border. Keyboard focus
-     shows that look with no ring. They sit after the icon button rules to outrank them */
+  /* The sidebar's own buttons, the log out button and the collapse toggle, take the look a menu item takes under
+     the pointer: accent text, the soft accent fill and the accent border. Keyboard focus shows that look with no
+     ring. They sit after the icon button rules to outrank them */
   .app-nav-user-logout:hover,
   .app-nav-user-logout:focus-visible,
   .app-desktop-nav-toggle:hover,
@@ -2353,6 +2353,22 @@
     color: var(--app-accent-nav-text);
     background: var(--app-accent-soft);
     border-color: var(--app-accent-border);
+  }
+
+  /* The rows and toggles on shaded surfaces that opt in with app-accent-hover take the same accent text and soft
+     accent fill, with no border, so nothing shifts. Having no border, keyboard focus keeps the ring on top. The
+     pointer look sits in the hover-only media query, since these rows work on touch screens too, where a tap
+     must not leave it stuck on */
+  .app-accent-hover:focus-visible {
+    color: var(--app-accent-nav-text);
+    background: var(--app-accent-soft);
+  }
+
+  @media (hover: hover) {
+    .app-accent-hover:hover {
+      color: var(--app-accent-nav-text);
+      background: var(--app-accent-soft);
+    }
   }
 
   /* The Imports page's upload card, which takes its own hover colour under the pointer, and sits down a pixel when

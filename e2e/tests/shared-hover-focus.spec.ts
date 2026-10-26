@@ -202,7 +202,7 @@ for (const colorScheme of ['light', 'dark'] as const) {
     expect(contrastRatio(channels, await shownFill(outside))).toBeGreaterThanOrEqual(MINIMUM_TEXT_CONTRAST)
   })
 
-  test(`shows a hover on the Insights category list in the ${colorScheme} theme`, async ({ page, request }) => {
+  test(`shows a hover on the Insights category header and none on its rows in the ${colorScheme} theme`, async ({ page, request }) => {
     await page.emulateMedia({ colorScheme })
     const user = await signUpUser(request)
     const account = await createAccount(request, user, { name: 'Everyday chequing', startingBalance: 100_000 })
@@ -211,12 +211,17 @@ for (const colorScheme of ['light', 'dark'] as const) {
     await logInViaApi(page, user)
     await openPage(page, '/insights')
 
-    // The list's header, and a category row once it opens, sit on the card
+    // The header toggles the list, so it shows a hover on the card. A row inside the open list does nothing
+    // when clicked, so it shows none
     const header = page.getByRole('button', { name: /^Toggle / }).first()
     await header.click()
     const row = page.locator(`#${await header.getAttribute('aria-controls')}`).getByText(/^(Salary|Groceries)$/).first()
     expect(await hoverStep(page, header)).toBeGreaterThanOrEqual(MINIMUM_HOVER_STEP)
-    expect(await hoverStep(page, row)).toBeGreaterThanOrEqual(MINIMUM_HOVER_STEP)
+    await page.mouse.move(0, 0)
+    const rest = await shownFill(row)
+    await row.hover()
+    await page.waitForTimeout(400)
+    expect(await shownFill(row)).toEqual(rest)
   })
 
   test(`shows the menu item hover on the sidebar's log out button and collapse toggle in the ${colorScheme} theme`, async ({ page, request }) => {
