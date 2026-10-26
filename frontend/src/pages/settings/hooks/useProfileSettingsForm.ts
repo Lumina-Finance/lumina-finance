@@ -46,12 +46,21 @@ export function useProfileSettingsForm() {
   async function handleSaveProfile() {
     if (!canSaveProfile || !user) return
 
+    // A new date format remounts the routed pages, which would drop this save's success state, so that
+    // change reaches the user only once the success state has shown
+    const deferred: { apply?: () => void } = {}
+
     try {
       await profileSaveFeedback.run(async () => {
         const updated = await updateProfile.mutateAsync(getProfilePatch(profileForm, user))
-        setUser(updated)
-        setProfileOverrides({})
+        const apply = () => {
+          setUser(updated)
+          setProfileOverrides({})
+        }
+        if (updated.date_format !== user.date_format) deferred.apply = apply
+        else apply()
       })
+      deferred.apply?.()
     } catch {
       // Mutation errors surface through the pane-level save error text
     }
