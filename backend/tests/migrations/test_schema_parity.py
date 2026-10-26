@@ -45,6 +45,8 @@ _ALEMBIC_SYSTEM_MERCHANT_DB_NAME = f"{WORKER_DB_NAME}_alembic_system_merchant"
 _BEFORE_SYSTEM_MERCHANTS_REVISION = "cbf7ada87de3"
 _ALEMBIC_UNKNOWN_MERCHANT_DB_NAME = f"{WORKER_DB_NAME}_alembic_unknown_merchant"
 _BEFORE_UNKNOWN_MERCHANT_REVISION = "93e7aa96d2ae"
+_ALEMBIC_RESET_REQUEST_DB_NAME = f"{WORKER_DB_NAME}_alembic_reset_request"
+_BEFORE_RESET_REQUEST_REVISION = "b3e7a15c9d42"
 _ALEMBIC_ENCRYPTED_DB_NAME = f"{WORKER_DB_NAME}_alembic_encrypted_columns"
 _ALEMBIC_FOLDED_CATEGORY_DB_NAME = f"{WORKER_DB_NAME}_alembic_folded_categories"
 _ALEMBIC_FOLDED_MERCHANT_DB_NAME = f"{WORKER_DB_NAME}_alembic_folded_merchants"
@@ -1801,3 +1803,74 @@ async def _seed_merchants_differing_only_in_capitals(database_name: str) -> dict
         await engine.dispose()
 
     return ids
+
+
+async def test_reset_request_migration_keeps_named_rows_through_downgrade_and_upgrade() -> None:
+    """Verify rows naming a user survive a round trip, and rows naming nobody go on the downgrade"""
+    await _recreate_database(_ALEMBIC_RESET_REQUEST_DB_NAME)
+    user_id = "11111111-1111-4111-8111-111111111111"
+    named_id = "33333333-3333-4333-8333-333333333333"
+    userless_id = "44444444-4444-4444-8444-444444444444"
+    insert_row = text(
+        "INSERT INTO password_reset_tokens (id, user_id, token_hash, expires_at) VALUES (:id, :user_id, :token_hash, now() + interval '1 hour')"
+    )
+    try:
+        _run_alembic_upgrade(_ALEMBIC_RESET_REQUEST_DB_NAME, revision=_BEFORE_RESET_REQUEST_REVISION)
+        engine = _create_engine_for_database(_ALEMBIC_RESET_REQUEST_DB_NAME)
+        try:
+            async with engine.begin() as conn:
+                await conn.execute(
+                    text(
+                        "INSERT INTO currencies (id, name, symbol, minor_unit_exponent)"
+                        " VALUES ('CAD', 'Canadian Dollar', '$', 2) ON CONFLICT (id) DO NOTHING",
+                    )
+                )
+                await conn.execute(
+                    text(
+                        "INSERT INTO users (id, email, first_name, tz, base_currency)"
+                        " VALUES (:id, 'reset-migration@example.com', 'Reset', 'UTC', 'CAD')",
+                    ),
+                    {"id": user_id},
+                )
+                await conn.execute(insert_row, {"id": named_id, "user_id": user_id, "token_hash": "named"})
+
+            # Upgrading leaves the existing row counting, and lets a request that sent nothing name nobody
+            _run_alembic_upgrade(_ALEMBIC_RESET_REQUEST_DB_NAME)
+            async with engine.begin() as conn:
+                await conn.execute(insert_row, {"id": userless_id, "user_id": None, "token_hash": "userless"})
+            async with engine.connect() as conn:
+                assert await _read_reset_token_ids(conn) == {named_id, userless_id}
+
+            # Downgrading deletes only the rows that name nobody, then requires a user again
+            _run_alembic_downgrade(_ALEMBIC_RESET_REQUEST_DB_NAME, _BEFORE_RESET_REQUEST_REVISION)
+            async with engine.connect() as conn:
+                assert await _read_reset_token_ids(conn) == {named_id}
+                assert await _reset_token_user_is_nullable(conn) is False
+
+            _run_alembic_upgrade(_ALEMBIC_RESET_REQUEST_DB_NAME)
+            async with engine.connect() as conn:
+                assert await _read_reset_token_ids(conn) == {named_id}
+                assert await _reset_token_user_is_nullable(conn) is True
+                created_at_index = (
+                    await conn.execute(text("SELECT count(*) FROM pg_indexes WHERE indexname = 'ix_password_reset_tokens_created_at'"))
+                ).scalar_one()
+                assert created_at_index == 1
+        finally:
+            await engine.dispose()
+    finally:
+        await _drop_database(_ALEMBIC_RESET_REQUEST_DB_NAME)
+
+
+async def _read_reset_token_ids(conn: AsyncConnection) -> set[str]:
+    """Return the ids of every stored reset token"""
+    return {str(row[0]) for row in await conn.execute(text("SELECT id FROM password_reset_tokens"))}
+
+
+async def _reset_token_user_is_nullable(conn: AsyncConnection) -> bool:
+    """Return whether a reset token may name no user"""
+    nullable = (
+        await conn.execute(
+            text("SELECT is_nullable FROM information_schema.columns WHERE table_name = 'password_reset_tokens' AND column_name = 'user_id'")
+        )
+    ).scalar_one()
+    return nullable == "YES"

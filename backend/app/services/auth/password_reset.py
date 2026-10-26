@@ -9,7 +9,7 @@ from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 
 from fastapi import BackgroundTasks, HTTPException, status
-from sqlalchemy import delete, select, update
+from sqlalchemy import delete, insert, select, update
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 from sqlalchemy.sql import func as sa_func
 from starlette.concurrency import run_in_threadpool
@@ -36,7 +36,7 @@ from app.services.auth.token_hashing import hash_token
 from app.services.auth.totp import is_totp_enabled
 from app.services.auth.user_lookup import find_user_id_by_email
 from app.services.auth.webauthn import is_passkey_registered
-from app.services.email import RenderedEmail, get_email_sender, render_reset_email
+from app.services.email import get_email_sender, render_reset_email
 
 logger = logging.getLogger(__name__)
 
@@ -50,6 +50,9 @@ _SEND_LOG_RETENTION = timedelta(hours=24)
 
 # Keep reset issuance separate from other advisory-lock protocols
 _ISSUANCE_LOCK_NAMESPACE = b"lumina:password-reset-issuance:"
+
+# Owner of the send read for an email with no account. No counted row has it, so the read finds nothing
+_NO_USER_ID = uuid.UUID(int=0)
 
 # One message for every token failure so responses do not reveal which check rejected it
 _INVALID_TOKEN_DETAIL = "Invalid or expired reset token"  # noqa: S105
@@ -86,7 +89,7 @@ class PendingResetEmail:
 
     recipient: str
     token_id: uuid.UUID
-    message: RenderedEmail
+    raw_token: str
     expires_at: datetime
     ticket: SendTicket
 
@@ -100,8 +103,8 @@ async def request_password_reset(
     """Issue a single-use reset token for the email and send its link once the response is out
 
     The caller always reports success so the endpoint never reveals whether an email is
-    registered or was throttled, and the send waits until after the answer, since the time it
-    takes would otherwise tell a registered address apart
+    registered or was throttled, and the rendering and the send wait until after the answer, since
+    the time they take would otherwise tell a registered address apart
 
     Args:
         db: Active database session
@@ -115,12 +118,17 @@ async def request_password_reset(
 
 
 async def _issue_password_reset(db: AsyncSession, email: str) -> PendingResetEmail | None:
-    """Store a reset token for the email and return the email carrying its link
+    """Store a reset token for the email and return the pending email carrying its link
 
     No email is due while the last link still works, and at most the configured number go out
     per account per rolling day, so an unauthenticated requester cannot drain the operator's
     mail quota. Sends that fail are not counted by that limit, so a growing wait after each failure
     and a cap on the sends running at once keep a failing mail server from piling them up
+
+    Every email runs the same statements, stores one row and makes the same commit, whether it has
+    no account, a live link, a spent allowance or a reset due, so the time taken does not tell an
+    account apart. The token is made on every path, and only a reset that is due stores a live one
+    that names its user. Writing the user's foreign key is the one step left that only a due reset does
 
     Args:
         db: Active database session
@@ -131,59 +139,64 @@ async def _issue_password_reset(db: AsyncSession, email: str) -> PendingResetEma
     """
     user_id = await find_user_id_by_email(db, email)
     await delete_stale_password_reset_tokens(db)
-    if user_id is None:
-        await db.commit()
-        return None
 
-    # Hold this user's allowance until the new token commits, including when no prior rows exist
-    lock_digest = hashlib.blake2b(_ISSUANCE_LOCK_NAMESPACE + user_id.bytes, digest_size=8).digest()
+    # Hold this user's allowance until the new token commits, including when no prior rows exist.
+    # An email with no account locks on itself, so unknown emails never queue behind one another
+    lock_subject = user_id.bytes if user_id is not None else email.encode()
+    lock_digest = hashlib.blake2b(_ISSUANCE_LOCK_NAMESPACE + lock_subject, digest_size=8).digest()
     lock_key = int.from_bytes(lock_digest, byteorder="big", signed=True)
     await db.execute(select(sa_func.pg_advisory_xact_lock(lock_key)))
 
-    # After pruning, every remaining row for the user was created within the rolling day
-    recent_tokens_query = select(PasswordResetToken).where(PasswordResetToken.user_id == user_id)
-    recent_tokens = (await db.execute(recent_tokens_query)).scalars().all()
+    # Only the rows of real sends name the user, and after pruning each was created within the rolling day
+    sends_query = select(PasswordResetToken).where(PasswordResetToken.user_id == (user_id or _NO_USER_ID))
+    sends = (await db.execute(sends_query)).scalars().all()
 
     now = datetime.now(UTC)
-    has_live_link = any(row.used_at is None and row.expires_at > now for row in recent_tokens)
-    if has_live_link or len(recent_tokens) >= PASSWORD_RESET_DAILY_EMAIL_LIMIT:
-        await db.commit()
-        return None
+    has_live_link = any(row.used_at is None and row.expires_at > now for row in sends)
+    raw_token = secrets.token_urlsafe(_TOKEN_BYTES)
+    token_id = uuid.uuid4()
 
     # A failed send leaves no token to count, so the back-off after failures and the cap on sends are
-    # what bound the sends, and a refusal stores nothing
-    ticket = try_start_send(user_id)
-    if ticket is None:
-        await db.commit()
-        return None
+    # what bound the sends, and a refusal stores a row that names no user
+    ticket = None
+    if user_id is not None and not has_live_link and len(sends) < PASSWORD_RESET_DAILY_EMAIL_LIMIT:
+        ticket = try_start_send(user_id)
+    is_due = ticket is not None
+    expires_at = now + timedelta(seconds=PASSWORD_RESET_TOKEN_EXPIRE_SECONDS) if is_due else now
 
     # Anything that stops this request before the send is handed on, a cancellation included, frees
     # what was claimed, since no send_password_reset_email will
     try:
-        raw_token = secrets.token_urlsafe(_TOKEN_BYTES)
-        expires_at = now + timedelta(seconds=PASSWORD_RESET_TOKEN_EXPIRE_SECONDS)
-
-        # The raw token only ever leaves the server inside the emailed link. The email is built
-        # before the token is stored, so a failure here leaves no live link behind
-        reset_link = f"{APP_URL}{_RESET_PATH}?token={raw_token}"
-        expiry_minutes = PASSWORD_RESET_TOKEN_EXPIRE_SECONDS // 60
-        message = render_reset_email(reset_link, expiry_minutes)
-
-        reset_token = PasswordResetToken(user_id=user_id, token_hash=hash_token(raw_token), expires_at=expires_at)
-        db.add(reset_token)
+        # One row for every email, so each request writes and commits the same amount. When no reset is
+        # due the row is already used and expired, so nobody can redeem it, and it names no user, so
+        # it is left out of the limit and nothing keeps a record that this account was asked about
+        await db.execute(
+            insert(PasswordResetToken).values(
+                id=token_id,
+                user_id=user_id if is_due else None,
+                token_hash=hash_token(raw_token),
+                expires_at=expires_at,
+                used_at=None if is_due else now,
+            )
+        )
         await db.commit()
     except BaseException:
-        end_send(ticket)
+        if ticket is not None:
+            end_send(ticket)
         raise
-    return PendingResetEmail(recipient=email, token_id=reset_token.id, message=message, expires_at=expires_at, ticket=ticket)
+    if ticket is None:
+        return None
+    return PendingResetEmail(recipient=email, token_id=token_id, raw_token=raw_token, expires_at=expires_at, ticket=ticket)
 
 
 async def send_password_reset_email(pending: PendingResetEmail, session_factory: async_sessionmaker[AsyncSession]) -> None:
     """Email a stored reset link once it has its turn, dropping its token when the send fails
 
     Runs after the response, so the request's own session has closed and the drop opens one
-    from the factory. A link that expired while the send waited its turn, and the link of a send
-    cancelled before it finished, are dropped too, and neither is a failure of the mail server
+    from the factory. The email is rendered here, since the time it takes would otherwise tell a
+    registered address apart, and a render that fails drops the token like a send that fails. A
+    link that expired while the send waited its turn, and the link of a send cancelled before it
+    finished, are dropped too, and neither is a failure of the mail server
 
     Args:
         pending: The email request_password_reset returned
@@ -191,10 +204,13 @@ async def send_password_reset_email(pending: PendingResetEmail, session_factory:
     """
     is_expired = False
     try:
+        # The raw token only ever leaves the server inside the emailed link
+        reset_link = f"{APP_URL}{_RESET_PATH}?token={pending.raw_token}"
+        message = render_reset_email(reset_link, PASSWORD_RESET_TOKEN_EXPIRE_SECONDS // 60)
         async with wait_for_send_turn():
             is_expired = pending.expires_at <= datetime.now(UTC)
             if not is_expired:
-                await get_email_sender().send(pending.recipient, pending.message)
+                await get_email_sender().send(pending.recipient, message)
     except Exception:
         # Recorded before the token is dropped, so a drop that fails cannot lose the failure
         record_send_failed(pending.ticket.user_id)

@@ -93,18 +93,28 @@ class RecoveryCode(Base):
 
 
 class PasswordResetToken(Base):
-    """Stores single-use password reset tokens as hashes, scoped per user and expiring."""
+    """Stores single-use password reset tokens as hashes, scoped per user and expiring
+
+    Every reset request stores exactly one row, so the time a request takes does not tell an account
+    apart. A request with a reset due stores a live token. Any other request, including one for an
+    email with no account, stores a row already used and expired that names no user, so it never
+    counts toward the daily limit, can never be redeemed, and records nothing about any account.
+    """
 
     __tablename__ = "password_reset_tokens"
 
     id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
-    user_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+
+    # Null on every row that sent nothing, so nothing records that an account was asked about
+    user_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), nullable=True, index=True)
 
     # Only the hash is stored so a leaked table cannot be used to reset accounts
     token_hash: Mapped[str] = mapped_column(Text, nullable=False, unique=True)
     expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     used_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))  # Non-null once redeemed
-    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, server_default=func.now())
+
+    # Indexed because every reset request prunes by age, and requests for any email add rows
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, server_default=func.now(), index=True)
 
 
 class SignupEmailSend(Base):
