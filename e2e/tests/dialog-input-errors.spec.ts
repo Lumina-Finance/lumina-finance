@@ -10,9 +10,9 @@ import {
   daysFromTodayInTestTimezone,
   signUpUser,
 } from '../support/api'
-import { chooseFromDropdown, logInViaApi, openModal, openPage } from '../support/app'
+import { chooseFromDropdown, logInViaApi, openModal, openPage, signUpThroughTheForm } from '../support/app'
 import { AT_EVERY_SIZE } from '../support/sizes'
-import { API_BASE_URL } from '../support/target'
+import { API_BASE_URL, BASE_URL } from '../support/target'
 
 // Runs at every size, apart from the Edit budget, keep-open, annual limit, Replace & Delete, passkey name and recovery code tests, whose behaviour does not change with the
 // width: the message sits on the field's label row, which stacks
@@ -617,6 +617,122 @@ test.describe('dialog input errors', () => {
     await expect(dialog.getByRole('alert')).toHaveCount(0)
     await expect(name).not.toHaveAttribute('aria-invalid', 'true')
     await expect(add).not.toHaveAttribute('aria-disabled', 'true')
+  })
+
+  test('marks a part-typed and a wrong authenticator code on the code row and the unticked boxes of the recovery codes step', async ({ page }) => {
+    await signUpThroughTheForm(page)
+    const authenticatorInstead = page.getByRole('button', { name: 'Use an authenticator app instead' })
+    const setupHeading = page.getByRole('heading', { name: 'Set up two-factor authentication' })
+    await expect(authenticatorInstead.or(setupHeading)).toBeVisible()
+    if (await authenticatorInstead.isVisible()) await authenticatorInstead.click()
+    await expect(page.getByRole('button', { name: 'Copy key' })).toBeVisible()
+
+    // A wrong code is refused by the server, whatever is typed
+    await page.route(`${API_BASE_URL}/auth/2fa/confirm`, (route) =>
+      route.fulfill({ status: 400, json: { detail: 'Invalid code' } }))
+    const code = page.getByLabel('One-time code')
+    const confirm = page.getByRole('button', { name: 'Confirm' })
+    const message = page.getByRole('alert')
+    await expect(confirm).not.toHaveAttribute('aria-disabled', 'true')
+
+    await code.pressSequentially('123')
+    await confirm.click()
+    await expect(message).toHaveText('Enter the full code')
+    await expect(code).toHaveAttribute('aria-invalid', 'true')
+    await expect(confirm).toHaveAttribute('aria-disabled', 'true')
+    await code.pressSequentially('456')
+    await expect(message).toHaveCount(0)
+    await expect(confirm).not.toHaveAttribute('aria-disabled', 'true')
+
+    await confirm.click()
+    await expect(message).toHaveText('That code was incorrect. Try again.')
+    await expect(code).toHaveAttribute('aria-invalid', 'true')
+    await code.pressSequentially('1')
+    await expect(message).toHaveCount(0)
+
+    // Accepting the code shows the recovery codes, which need both boxes ticked
+    await page.unroute(`${API_BASE_URL}/auth/2fa/confirm`)
+    await page.route(`${API_BASE_URL}/auth/2fa/confirm`, (route) =>
+      route.fulfill({ json: { recovery_codes: Array.from({ length: 10 }, (_, i) => `aaaa-bbbb-cccc-dddd-${i}000`) } }))
+    await code.pressSequentially('23456')
+    await confirm.click()
+    const saved = page.getByLabel("I've saved my recovery codes")
+    const lockout = page.getByLabel(/I understand I may be permanently locked out/)
+    const done = page.getByRole('button', { name: 'Done', exact: true })
+    await expect(done).not.toHaveAttribute('aria-disabled', 'true')
+    await done.click()
+    await expect(message).toHaveText('Tick both boxes')
+    await expect(saved).toHaveAttribute('aria-invalid', 'true')
+    await expect(lockout).toHaveAttribute('aria-invalid', 'true')
+    await expect(done).toHaveAttribute('aria-disabled', 'true')
+    await saved.check()
+    await lockout.check()
+    await expect(message).toHaveCount(0)
+    await expect(done).not.toHaveAttribute('aria-disabled', 'true')
+  })
+
+  test('marks the empty and the unmatched password in the Set a password dialogue and returns the button once each is fixed', AT_EVERY_SIZE, async ({ page, request }) => {
+    const user = await signUpUser(request)
+    // Stand in for a provider-created account, whose reauth lands in Settings with the flag that opens this dialogue
+    await page.route(`${API_BASE_URL}/auth/oidc/identities`, (route) =>
+      route.fulfill({ json: { has_password: false, identities: [] } }))
+    await logInViaApi(page, user)
+    await openPage(page, '/budgets')
+    await page.evaluate(() => {
+      window.history.pushState({ usr: { setPassword: true }, key: 'set-password', idx: 1 }, '', '/settings#security')
+      window.dispatchEvent(new PopStateEvent('popstate', { state: window.history.state }))
+    })
+    const dialog = page.getByRole('dialog', { name: 'Set a password' })
+    const submit = dialog.getByRole('button', { name: 'Set password', exact: true })
+    const fresh = dialog.getByLabel('New password', { exact: true })
+    const confirm = dialog.getByLabel('Confirm new password')
+    await expect(submit).not.toHaveAttribute('aria-disabled', 'true')
+    await expect(dialog.getByRole('alert')).toHaveCount(0)
+
+    await submit.click()
+    await expect(dialog.getByRole('alert')).toHaveText(['Enter a password', 'Confirm your password'])
+    await expect(fresh).toHaveAttribute('aria-invalid', 'true')
+    await expect(confirm).toHaveAttribute('aria-invalid', 'true')
+    await expect(submit).toHaveAttribute('aria-disabled', 'true')
+
+    await fresh.fill(user.password)
+    await expect(fresh).not.toHaveAttribute('aria-invalid', 'true')
+    // Leaving the confirm field with a different password marks it, since the button is already faded
+    await confirm.fill(`${user.password}x`)
+    await confirm.blur()
+    // The faded button's tooltip repeats the problem, so look only at the message on the confirm row
+    await expect(dialog.getByRole('alert').filter({ hasText: 'Passwords do not match' }).first()).toBeVisible()
+    await expect(confirm).toHaveAttribute('aria-invalid', 'true')
+    await confirm.fill(user.password)
+    await expect(dialog.getByRole('alert')).toHaveCount(0)
+    await expect(submit).not.toHaveAttribute('aria-disabled', 'true')
+  })
+
+  test('marks an unnamed passkey in the re-enrolment screen and returns the button once it is named', async ({ page, request }) => {
+    const user = await signUpUser(request)
+    // The screen is for an account that signed in with a recovery code, and offers a passkey only where the origin allows one
+    await page.route(`${API_BASE_URL}/auth/refresh`, async (route) => {
+      const response = await route.fetch()
+      const body = await response.json()
+      body.user.second_factor_reenrollment_required = true
+      await route.fulfill({ response, json: body })
+    })
+    await page.route(`${API_BASE_URL}/auth/passkeys/config`, (route) =>
+      route.fulfill({ json: { rp_id: new URL(BASE_URL).hostname } }))
+    await logInViaApi(page, user)
+    await page.goto('/')
+    await page.getByRole('button', { name: 'Set up a passkey' }).click()
+    const name = page.getByLabel('New passkey name')
+    const submit = page.getByRole('button', { name: 'Set up a passkey' })
+    await expect(submit).not.toHaveAttribute('aria-disabled', 'true')
+
+    await submit.click()
+    await expect(page.getByRole('alert')).toHaveText('Name is required')
+    await expect(name).toHaveAttribute('aria-invalid', 'true')
+    await expect(submit).toHaveAttribute('aria-disabled', 'true')
+    await name.fill('Laptop')
+    await expect(page.getByRole('alert')).toHaveCount(0)
+    await expect(submit).not.toHaveAttribute('aria-disabled', 'true')
   })
 
   test('marks the What changes heading when bulk edit Apply finds no change chosen, and returns Apply once one is', AT_EVERY_SIZE, async ({ page, request }) => {
