@@ -82,6 +82,9 @@ describe('period glance amounts that moved', () => {
 
     expect(detailOf(0, 0)).toEqual(['You kept', '$0.00', 'neutral', equal])
     expect(detailOf(120_000, 120_000)).toEqual(['You kept', '$0.00', 'neutral', equal])
+    // A net under half a cent, left by currency conversion, shows as $0.00, so it reads as equal both ways
+    expect(detailOf(120_000.4, 120_000)).toEqual(['You kept', '$0.00', 'neutral', equal])
+    expect(detailOf(120_000, 120_000.4)).toEqual(['You kept', '$0.00', 'neutral', equal])
     expect(detailOf(200_000, 150_000)[3]).toBe('Recorded income exceeds recorded expenses in the selected range, excluding transfers')
     expect(detailOf(100_000, 140_000)[3]).toBe('Recorded expenses exceed recorded income in the selected range, excluding transfers')
   })
