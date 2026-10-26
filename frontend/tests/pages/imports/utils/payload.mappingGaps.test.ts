@@ -129,7 +129,7 @@ describe('refusing an import for what the mapping step never asked', () => {
 
     // The label states all three ways a file can carry its amount, so asserting only that the
     // message mentions Amount would pass on any wording at all
-    expect(result.errors).toEqual(['Map the required columns: Amount (or Money out / Money in)'])
+    expect(result.errors).toEqual(['Map the required columns: Amount (or Money out / Money in).'])
   })
 
   it('refuses an import declaring more account sources than it may carry, the counterpart of the category limit', () => {

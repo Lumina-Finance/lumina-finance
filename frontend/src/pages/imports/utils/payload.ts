@@ -151,7 +151,7 @@ export function buildTransactionImportPayload({
   }
 
   const missingRequired = getMissingRequiredColumnLabels(columnMap)
-  if (missingRequired.length > 0) addError(`Map the required columns: ${missingRequired.join(', ')}`)
+  if (missingRequired.length > 0) addError(`Map the required columns: ${missingRequired.join(', ')}.`)
 
   const arrangementClash = getAmountArrangementClashError(columnMap)
   if (arrangementClash) addError(arrangementClash.message)
