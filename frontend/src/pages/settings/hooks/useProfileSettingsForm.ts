@@ -59,12 +59,12 @@ export function useProfileSettingsForm() {
           return
         }
 
-        // Fields stay editable while the success state shows, so only the drafts the save made redundant go
-        const saved = profileFormFromUser(updated)
+        // Fields stay editable while the success state shows, so only the drafts left as they were saved go
+        const sent = profileForm
         deferred.apply = () => {
           setUser(updated)
           setProfileOverrides((overrides) =>
-            Object.fromEntries(Object.entries(overrides).filter(([key, value]) => saved[key as keyof ProfileFormState] !== value)),
+            Object.fromEntries(Object.entries(overrides).filter(([key, value]) => value !== sent[key as keyof ProfileFormState])),
           )
         }
       })
