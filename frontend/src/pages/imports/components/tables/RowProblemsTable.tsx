@@ -26,6 +26,7 @@ export function ImportRowProblemsTable({
   toggleLabel,
   tone = 'danger',
   reasonHeader = 'Reason',
+  reasonLang,
   revealsOnReview,
   areFilesNamed = false,
 }: {
@@ -44,6 +45,9 @@ export function ImportRowProblemsTable({
 
   /** What the note a group of rows sits under is called to a screen reader, for a list of notes rather than refusals */
   reasonHeader?: string
+
+  /** The language the reasons are written in when it differs from the page's */
+  reasonLang?: string
 
   /** Whether this list answers Review skipped rows on a finished import */
   revealsOnReview?: boolean
@@ -74,6 +78,7 @@ export function ImportRowProblemsTable({
       totalCount={rowProblems.length}
       tone={tone}
       reasonHeader={reasonHeader}
+      reasonLang={reasonLang}
       revealsOnReview={revealsOnReview}
     />
   )

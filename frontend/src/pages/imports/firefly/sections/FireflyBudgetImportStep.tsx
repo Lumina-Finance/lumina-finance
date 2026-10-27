@@ -89,6 +89,7 @@ export function FireflyBudgetImportStep({
       skippedHeaders={SKIPPED_BUDGET_HEADERS}
       skippedAmountHeaders={SKIPPED_BUDGET_AMOUNT_HEADERS}
       skippedRows={skippedRows}
+      skippedReasonLang="en"
       selectionError={budgetSelectionError}
       noBudgetsDescription="The budgets CSV has no budget limit rows."
       allSkippedDescription="Every budget in the export is skipped, for the reasons listed below."

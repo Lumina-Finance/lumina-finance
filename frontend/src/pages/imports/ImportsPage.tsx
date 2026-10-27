@@ -508,6 +508,7 @@ export default function ImportsPage() {
         steps={overlayWorkflow.importOverlaySteps}
         summary={overlayWorkflow.importSummary}
         error={overlayWorkflow.importOverlayError}
+        errorReason={overlayWorkflow.importOverlayErrorReason}
         errorEmphasis={overlayWorkflow.importOverlayErrorEmphasis}
         title={overlayWorkflow.importOverlayTitle}
         note={overlayWorkflow.importOverlayNote}

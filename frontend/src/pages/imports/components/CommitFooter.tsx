@@ -18,6 +18,7 @@ export function ImportCommitFooter({
   buildError = null,
   check = null,
   importError,
+  importErrorLang,
   canCommit,
   imported,
   onCommit,
@@ -29,6 +30,9 @@ export function ImportCommitFooter({
   /** A check that holds the button once the answers need nothing more, said where a build error would be */
   check?: ImportCommitCheck | null
   importError: string | null
+
+  /** The language of the import error when it is the server's own English rather than the page's */
+  importErrorLang?: string
   canCommit: boolean
   imported: boolean
   onCommit: () => void
@@ -67,7 +71,7 @@ export function ImportCommitFooter({
       )}
       {importError && (
         <p role="alert" className="max-w-xl text-pretty text-right text-sm font-medium" style={{ color: 'var(--app-negative)' }}>
-          {importError}
+          <span lang={importErrorLang}>{importError}</span>
         </p>
       )}
       <DisabledReasonButton

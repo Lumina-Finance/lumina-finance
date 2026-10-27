@@ -123,6 +123,9 @@ const iconVariants: Variants = {
 interface ImportProgressOverlayProps {
   error: string | null
 
+  /** The server's reason for a failure, kept in English and marked as such, shown before the error */
+  errorReason?: string
+
   /** Words of the error set in bold, for the one condition a user must not read past */
   errorEmphasis?: string
 
@@ -163,6 +166,7 @@ interface ImportProgressOverlayProps {
  */
 export function ImportProgressOverlay({
   error,
+  errorReason,
   errorEmphasis,
   title: endedTitle,
   note,
@@ -250,7 +254,7 @@ export function ImportProgressOverlay({
         >
           <h2 id={titleId} className="sr-only">Import progress</h2>
           <p role="status" aria-live="polite" aria-atomic="true" className="sr-only">
-            {title}. {complete || ended ? '' : steps?.find((step) => step.status === 'active')?.label ?? ''} {message}{ended && note ? ` ${note}` : ''}
+            {title}. {complete || ended ? '' : steps?.find((step) => step.status === 'active')?.label ?? ''} {failed && errorReason && <span lang="en">{errorReason}</span>} {message}{ended && note ? ` ${note}` : ''}
           </p>
           <motion.div
             className="relative flex w-full max-w-[30rem] flex-col items-center px-4 py-8 text-center"
@@ -310,6 +314,7 @@ export function ImportProgressOverlay({
                   style={messageStyle}
                   variants={itemVariants}
                 >
+                  {failed && errorReason && <><span lang="en">{errorReason}</span>{' '}</>}
                   {renderEmphasis(message, failed ? errorEmphasis : undefined)}
                 </motion.p>
 

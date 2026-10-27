@@ -92,3 +92,26 @@ describe('what the user is told after stopping an import', () => {
     )
   })
 })
+
+describe('whether the message is the backend\'s own English reason', () => {
+  function refused(detail?: string) {
+    return new ImportRunError('Account is archived', 'commit', RUN_ID, {
+      cause: new ApiError('Account is archived', 422, { detail }),
+    })
+  }
+
+  it('is true when the server explained the refusal, however the error was wrapped', () => {
+    expect(getImportCommitFailure(refused('Account is archived'), false).isServerReason).toBe(true)
+    expect(getImportCommitFailure(new ApiError('Account is archived', 422, { detail: 'Account is archived' }), false).isServerReason).toBe(true)
+  })
+
+  it('is false for wording the app wrote, since that reads in the page\'s language', () => {
+    expect(getImportCommitFailure(refused(undefined), false).isServerReason).toBe(false)
+    expect(getImportCommitFailure(new ImportRunError('Failed to fetch', 'commit', RUN_ID, { cause: new TypeError('Failed to fetch') }), false).isServerReason).toBe(false)
+    expect(getImportCommitFailure(new ApiError('Session expired', 401), false).isServerReason).toBe(false)
+  })
+
+  it('is false when the user stopped the import, even if the server had answered', () => {
+    expect(getImportCommitFailure(refused('Account is archived'), true).isServerReason).toBe(false)
+  })
+})

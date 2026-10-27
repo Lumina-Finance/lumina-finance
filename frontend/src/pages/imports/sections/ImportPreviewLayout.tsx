@@ -38,6 +38,7 @@ export function ImportPreviewLayout({
   buildError = null,
   check = null,
   importError,
+  importErrorLang,
   imported,
   canCommit,
   onCommit,
@@ -59,6 +60,9 @@ export function ImportPreviewLayout({
   /** A check the server is running or could not finish, which holds the commit until it has answered */
   check?: ImportCommitCheck | null
   importError: string | null
+
+  /** The language of the import error when it is the server's own English rather than the page's */
+  importErrorLang?: string
   imported: boolean
   canCommit: boolean
   onCommit: () => void
@@ -88,6 +92,7 @@ export function ImportPreviewLayout({
         buildError={buildError}
         check={check}
         importError={importError}
+        importErrorLang={importErrorLang}
         canCommit={canCommit}
         imported={imported}
         onCommit={onCommit}

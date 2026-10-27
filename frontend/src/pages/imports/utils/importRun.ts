@@ -93,6 +93,9 @@ export interface CompletedImport<TResult, TSkipped> {
 /** Why the last attempt failed, with the answers it was started with */
 export interface ImportRunFailure {
   message: string
+
+  /** Whether the message is the backend's own explanation, kept in English */
+  isServerReason: boolean
   answers: object
 
   /** Whether the save ended with no answer, so the upload is kept and may already have landed */
@@ -308,6 +311,7 @@ export function createImportRunController<TResult, TSkipped>({
         stagedRunId: failure.retryableRunId,
         failure: {
           message: failure.message,
+          isServerReason: failure.isServerReason,
           answers,
           interrupted: failure.retryableRunId !== null && !controller.signal.aborted,
         },
@@ -420,36 +424,59 @@ export interface ImportRunFailureCopy {
   overlayTitle: string | null
   overlayMessage: string
 
+  /** The server's reason in its own words, which stay English and so are set apart from the message, or null when there is none */
+  overlayReason: string | null
+
   /** Words of the overlay message set in bold, or null when none need it */
   overlayEmphasis: string | null
 
   /** Set apart under the overlay's buttons, for a step that matters only to someone leaving */
   overlayNote: string | null
   footerMessage: string
+
+  /** The language of the footer message when it is the server's own English, or null when it reads in the page's */
+  footerLang: string | null
 }
 
 /**
  * Says what a failed import left behind: nothing, or a save that was interrupted and may already
  * have landed, which saving again from this screen settles without writing anything twice
  */
-export function describeImportRunFailure({ message, interrupted }: Pick<ImportRunFailure, 'message' | 'interrupted'>): ImportRunFailureCopy {
+export function describeImportRunFailure({ message, interrupted, isServerReason }: Pick<ImportRunFailure, 'message' | 'interrupted' | 'isServerReason'>): ImportRunFailureCopy {
   if (interrupted) {
     return {
       overlayTitle: IMPORT_RUN_INTERRUPTED_TITLE,
       overlayMessage: IMPORT_RUN_INTERRUPTED_MESSAGE,
+      overlayReason: null,
       overlayEmphasis: IMPORT_RUN_INTERRUPTED_EMPHASIS,
       overlayNote: IMPORT_RUN_INTERRUPTED_NOTE,
       footerMessage: IMPORT_RUN_INTERRUPTED_FOOTER,
+      footerLang: null,
     }
   }
 
-  const sentence = /[.!?]$/.test(message) ? message : `${message}.`
+  // Wording the app wrote reads in the page's language, so only the backend's own reason is set apart
+  if (!isServerReason) {
+    const sentence = /[.!?]$/.test(message) ? message : `${message}.`
+    return {
+      overlayTitle: null,
+      overlayMessage: `${sentence} ${IMPORT_RUN_NOTHING_SAVED_NOTE}`,
+      overlayReason: null,
+      overlayEmphasis: null,
+      overlayNote: null,
+      footerMessage: message,
+      footerLang: null,
+    }
+  }
+
   return {
     overlayTitle: null,
-    overlayMessage: `${sentence} ${IMPORT_RUN_NOTHING_SAVED_NOTE}`,
+    overlayMessage: IMPORT_RUN_NOTHING_SAVED_NOTE,
+    overlayReason: /[.!?]$/.test(message) ? message : `${message}.`,
     overlayEmphasis: null,
     overlayNote: null,
     footerMessage: message,
+    footerLang: 'en',
   }
 }
 

@@ -130,6 +130,7 @@ export function ImportSkippedTable({
   totalCount,
   tone = 'danger',
   reasonHeader = 'Reason',
+  reasonLang,
   revealsOnReview = false,
 }: {
   title: string
@@ -160,6 +161,9 @@ export function ImportSkippedTable({
    * refusal and the wrong one for a note against rows that import as they stand
    */
   reasonHeader?: string
+
+  /** The language the reasons are written in when it differs from the page's, such as a backend refusal kept in English */
+  reasonLang?: string
 
   /**
    * Whether this list answers Review skipped rows on a finished import, by opening, scrolling to its
@@ -280,7 +284,7 @@ export function ImportSkippedTable({
                         style={{ ...REASON_LINE_STYLE, color: reasonColor }}
                       >
                         <span className="sr-only">{`${reasonHeader}: `}</span>
-                        <span>{group.reason}</span>
+                        <span lang={reasonLang}>{group.reason}</span>
                       </div>
                     </th>
                   </tr>

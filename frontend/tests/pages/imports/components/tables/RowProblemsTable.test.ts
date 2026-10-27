@@ -28,6 +28,13 @@ describe('the import\'s row problem tables', () => {
     expectAmountColumns(markup, { headers: ['Amount'], values: ['-42.50', '1,234.00'], others: ['Date', 'someday', 'Notes', 'Lunch'] })
   })
 
+  it('marks the reasons with the language they are written in only when it is given', () => {
+    const props = { title: '2 rows not imported', rowProblems: PROBLEMS, headers: ['Date'], amountHeaders: [], toggleLabel: 'skipped rows' }
+
+    expect(renderToStaticMarkup(createElement(ImportRowProblemsTable, { ...props, reasonLang: 'en' }))).toContain('<span lang="en">The date is not one we can read.</span>')
+    expect(renderToStaticMarkup(createElement(ImportRowProblemsTable, props))).not.toContain('lang=')
+  })
+
   it('right-aligns both columns of a file keeping money out and money in apart, in the rows worth a look', () => {
     const markup = renderToStaticMarkup(createElement(ImportRowWarningsTable, {
       rowWarnings: PROBLEMS,

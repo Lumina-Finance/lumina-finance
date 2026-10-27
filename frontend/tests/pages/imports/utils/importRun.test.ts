@@ -301,14 +301,16 @@ describe('import run', () => {
 
 describe('describing a failed import', () => {
   it('says an interrupted save can be finished from this screen, and what to do before leaving', () => {
-    const copy = describeImportRunFailure({ message: 'Failed to fetch', interrupted: true })
+    const copy = describeImportRunFailure({ message: 'Failed to fetch', interrupted: true, isServerReason: false })
 
     expect(copy).toEqual({
       overlayTitle: 'Save interrupted',
       overlayMessage: 'The import was interrupted. Try again to finish saving your import. Nothing will be added twice as long as you stay on the import page.',
+      overlayReason: null,
       overlayEmphasis: 'stay on the import page',
       overlayNote: 'Leaving the import page? Check your transactions before importing again.',
       footerMessage: 'Save interrupted. Please try again.',
+      footerLang: null,
     })
 
     // The overlay bolds the phrase only where the message holds it, so a rewording must keep it
@@ -316,12 +318,22 @@ describe('describing a failed import', () => {
   })
 
   it('says a refused import added nothing, beside its reason', () => {
-    expect(describeImportRunFailure({ message: 'Account is archived', interrupted: false })).toEqual({
+    expect(describeImportRunFailure({ message: 'Account is archived', interrupted: false, isServerReason: true })).toEqual({
       overlayTitle: null,
-      overlayMessage: 'Account is archived. Nothing was added to your ledger.',
+      overlayMessage: 'Nothing was added to your ledger.',
+      overlayReason: 'Account is archived.',
       overlayEmphasis: null,
       overlayNote: null,
       footerMessage: 'Account is archived',
+      footerLang: 'en',
+    })
+  })
+
+  it('keeps wording the app wrote in one sentence with the note, since only the backend\'s reason is English', () => {
+    expect(describeImportRunFailure({ message: 'Import failed.', interrupted: false, isServerReason: false })).toMatchObject({
+      overlayMessage: 'Import failed. Nothing was added to your ledger.',
+      overlayReason: null,
+      footerLang: null,
     })
   })
 })

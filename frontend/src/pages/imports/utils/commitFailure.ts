@@ -1,3 +1,4 @@
+import { ApiError } from '@/api/auth/errors'
 import { ImportRunError, isImportCommitWorthRepeating } from '@/api/import-runs'
 import { getImportFailureMessage } from '@/utils/importFailure'
 
@@ -9,6 +10,9 @@ const IMPORT_STOPPED_WHILE_COMMITTING_MESSAGE = 'Import stopped while it was bei
 /** What is left of an import that stopped, and what the user is told about it */
 export interface ImportCommitFailure {
   message: string
+
+  /** Whether the message is the backend's own explanation, which stays English, rather than wording the app wrote */
+  isServerReason: boolean
 
   /** The staged file still worth committing again, absent when repeating cannot help */
   retryableRunId: string | null
@@ -32,7 +36,9 @@ export function getImportCommitFailure(error: unknown, cancelled: boolean): Impo
   const worthRepeating = runId !== null && isImportCommitWorthRepeating(error)
   const stoppedDuringCommit = error instanceof ImportRunError && error.phase === 'commit'
 
+  const cause = error instanceof Error && error.cause !== undefined ? error.cause : error
   return {
+    isServerReason: !cancelled && cause instanceof ApiError && Boolean(cause.detail),
     message: cancelled
       ? (stoppedDuringCommit ? IMPORT_STOPPED_WHILE_COMMITTING_MESSAGE : IMPORT_STOPPED_WHILE_STAGING_MESSAGE)
       : getImportFailureMessage(error),
