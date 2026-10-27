@@ -66,6 +66,7 @@ export function FireflyPreviewStep({
           headers={fireflyHeaders}
           amountHeaders={FIREFLY_AMOUNT_HEADERS}
           toggleLabel="skipped rows"
+          reasonLang="en"
           revealsOnReview
         />
       )}

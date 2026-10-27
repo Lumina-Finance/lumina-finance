@@ -420,6 +420,9 @@ export interface ImportRunFailureCopy {
   overlayTitle: string | null
   overlayMessage: string
 
+  /** The server's reason in its own words, which stay English and so are set apart from the message, or null when there is none */
+  overlayReason: string | null
+
   /** Words of the overlay message set in bold, or null when none need it */
   overlayEmphasis: string | null
 
@@ -437,16 +440,17 @@ export function describeImportRunFailure({ message, interrupted }: Pick<ImportRu
     return {
       overlayTitle: IMPORT_RUN_INTERRUPTED_TITLE,
       overlayMessage: IMPORT_RUN_INTERRUPTED_MESSAGE,
+      overlayReason: null,
       overlayEmphasis: IMPORT_RUN_INTERRUPTED_EMPHASIS,
       overlayNote: IMPORT_RUN_INTERRUPTED_NOTE,
       footerMessage: IMPORT_RUN_INTERRUPTED_FOOTER,
     }
   }
 
-  const sentence = /[.!?]$/.test(message) ? message : `${message}.`
   return {
     overlayTitle: null,
-    overlayMessage: `${sentence} ${IMPORT_RUN_NOTHING_SAVED_NOTE}`,
+    overlayMessage: IMPORT_RUN_NOTHING_SAVED_NOTE,
+    overlayReason: message,
     overlayEmphasis: null,
     overlayNote: null,
     footerMessage: message,

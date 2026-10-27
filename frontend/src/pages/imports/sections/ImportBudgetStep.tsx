@@ -22,6 +22,9 @@ type ImportBudgetStepProps<Budget extends { name: string; isArchived: boolean }>
   /** The facts among them that are amounts */
   skippedAmountHeaders: string[]
   skippedRows: ImportSkippedTableRow[]
+
+  /** The language the skipped budgets' reasons are written in when it differs from the page's */
+  skippedReasonLang?: string
   selectionError: string | null
   noBudgetsDescription: string
   allSkippedDescription: string
@@ -41,6 +44,7 @@ export function ImportBudgetStep<Budget extends { name: string; isArchived: bool
   skippedHeaders,
   skippedAmountHeaders,
   skippedRows,
+  skippedReasonLang,
   selectionError,
   noBudgetsDescription,
   allSkippedDescription,
@@ -61,6 +65,7 @@ export function ImportBudgetStep<Budget extends { name: string; isArchived: bool
           amountHeaders={skippedAmountHeaders}
           rows={skippedRows}
           totalCount={skippedRows.length}
+          reasonLang={skippedReasonLang}
         />
       )}
 

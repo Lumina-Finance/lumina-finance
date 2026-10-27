@@ -306,6 +306,7 @@ describe('describing a failed import', () => {
     expect(copy).toEqual({
       overlayTitle: 'Save interrupted',
       overlayMessage: 'The import was interrupted. Try again to finish saving your import. Nothing will be added twice as long as you stay on the import page.',
+      overlayReason: null,
       overlayEmphasis: 'stay on the import page',
       overlayNote: 'Leaving the import page? Check your transactions before importing again.',
       footerMessage: 'Save interrupted. Please try again.',
@@ -318,7 +319,8 @@ describe('describing a failed import', () => {
   it('says a refused import added nothing, beside its reason', () => {
     expect(describeImportRunFailure({ message: 'Account is archived', interrupted: false })).toEqual({
       overlayTitle: null,
-      overlayMessage: 'Account is archived. Nothing was added to your ledger.',
+      overlayMessage: 'Nothing was added to your ledger.',
+      overlayReason: 'Account is archived',
       overlayEmphasis: null,
       overlayNote: null,
       footerMessage: 'Account is archived',
