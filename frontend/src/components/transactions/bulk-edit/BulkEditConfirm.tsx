@@ -48,7 +48,7 @@ export function BulkEditConfirm({
         <ModalFormFooter
           submitLabel="Confirm"
           submitDisabled={isApplying}
-          submitWidthClassName="w-auto"
+          submitWidthClassName="w-full sm:w-auto"
           error={error}
           level="stacked"
           onCancel={onCancel}

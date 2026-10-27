@@ -7,9 +7,6 @@ import { AT_EVERY_SIZE } from '../support/sizes'
 // Runs on desktop only, apart from the delete confirmation tests, which run at every size: its
 // actions lay out differently on a phone
 
-// Room the two actions leave between them on a phone, which equal halves of the row would not
-const MIN_GAP_BETWEEN_ACTIONS_PX = 40
-
 // Two of three rows are ticked and deleted after the confirmation, the third stays, and the balance
 // already on screen drops back by what the deleted rows had taken out, without a reload
 test('deletes the selected transactions and brings the balance back', async ({ page, request }) => {
@@ -124,7 +121,7 @@ test('lines the delete confirmation actions up with its header', AT_EVERY_SIZE, 
 })
 
 // A refused delete shows its error without splitting the actions: on a phone Delete and Cancel stay side
-// by side on one row, each as wide as its label, under a full-width error, and from 640px the error sits
+// by side on one row, a half of it each, under a full-width error, and from 640px the error sits
 // between them on their row, as before
 test('keeps the delete confirmation actions on one row when it shows an error', AT_EVERY_SIZE, async ({ page, request }) => {
   const user = await signUpUser(request)
@@ -162,9 +159,9 @@ test('keeps the delete confirmation actions on one row when it shows an error', 
     if (phone) {
       return {
         actionsOnOneRow,
-        // Each action is as wide as its label, Delete at the start of the row and Cancel at its end
-        labelWide: removeBox!.width + cancelBox!.width + MIN_GAP_BETWEEN_ACTIONS_PX < errorBox!.width,
-        actionsAtEnds: Math.round(removeBox!.x) === Math.round(errorBox!.x) &&
+        // The row is split in halves, from the error's start to the error's end
+        equalHalves: Math.abs(removeBox!.width - cancelBox!.width) <= 1,
+        fillsRow: Math.round(removeBox!.x) === Math.round(errorBox!.x) &&
           Math.round(cancelBox!.x + cancelBox!.width) === Math.round(errorBox!.x + errorBox!.width),
         errorAboveActions: errorBox!.y + errorBox!.height <= removeBox!.y,
       }
@@ -177,7 +174,7 @@ test('keeps the delete confirmation actions on one row when it shows an error', 
   }
 
   await expect.poll(readLayout).toEqual(phone
-    ? { actionsOnOneRow: true, labelWide: true, actionsAtEnds: true, errorAboveActions: true }
+    ? { actionsOnOneRow: true, equalHalves: true, fillsRow: true, errorAboveActions: true }
     : { actionsOnOneRow: true, errorBetweenActions: true, errorOnActionsRow: true })
 })
 
