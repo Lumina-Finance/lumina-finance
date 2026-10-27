@@ -410,6 +410,7 @@ test('preserves transaction action names through save and delete confirmation', 
 
 test('leaves the date in Add transaction with one Tab, past its calendar icon', async ({ page, request }) => {
   const user = await signUpUser(request)
+  await createAccount(request, user, { name: 'Everyday Chequing' })
   await logInViaApi(page, user)
   await openPage(page, '/transactions')
   const dialog = await openModal(page, ['Add transaction'], 'Add transaction')

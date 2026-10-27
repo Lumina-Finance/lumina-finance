@@ -25,9 +25,11 @@ const MINIMUM_HOVER_STEP = 1.05
 const MINIMUM_TEXT_CONTRAST = 4.5
 
 /** Signs up a user, opens a page in a theme and pins the sidebar open, so its controls are on screen */
-async function openAs(page: Page, request: Parameters<typeof signUpUser>[0], colorScheme: 'light' | 'dark', url: string) {
+async function openAs(page: Page, request: Parameters<typeof signUpUser>[0], colorScheme: 'light' | 'dark', url: string, withAccount = false) {
   await page.emulateMedia({ colorScheme })
   const user = await signUpUser(request)
+  // Add transaction stays off until an account is open, so a page that opens it needs one
+  if (withAccount) await createAccount(request, user, { name: 'Everyday' })
   await logInViaApi(page, user)
   await page.addInitScript((key) => localStorage.setItem(key, 'true'), NAV_EXPANDED_KEY)
   await openPage(page, url)
@@ -179,7 +181,7 @@ for (const colorScheme of ['light', 'dark'] as const) {
   })
 
   test(`keeps a calendar day outside the month readable under the pointer in the ${colorScheme} theme`, async ({ page, request }) => {
-    await openAs(page, request, colorScheme, '/transactions')
+    await openAs(page, request, colorScheme, '/transactions', true)
     const dialog = await openModal(page, ['Add transaction'], 'Add transaction')
     await dialog.getByRole('group', { name: 'Date', exact: true }).getByRole('button', { name: 'Open calendar', exact: true }).click()
     const calendar = page.getByRole('dialog', { name: 'Choose date', exact: true })

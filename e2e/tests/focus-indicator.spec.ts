@@ -289,6 +289,7 @@ for (const colorScheme of ['light', 'dark'] as const) {
   test(`keeps a hovered selected option's text readable in the ${colorScheme} theme`, async ({ page, request }) => {
     await page.emulateMedia({ colorScheme, reducedMotion: 'reduce' })
     const user = await signUpUser(request)
+    await createAccount(request, user, { name: 'Everyday' })
     await logInViaApi(page, user)
     await openPage(page, '/transactions')
     const dialog = await openModal(page, ['Add transaction'], 'Add transaction')
