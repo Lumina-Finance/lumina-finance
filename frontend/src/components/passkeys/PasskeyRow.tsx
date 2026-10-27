@@ -119,9 +119,11 @@ export function PasskeyRow({ passkey, onRename, onRemove, disabled }: PasskeyRow
               >
                 <div className="min-w-0 flex-1">
                   <p className="truncate text-sm font-medium">{passkey.name}</p>
-                  {/* Wraps between the two parts on a phone rather than hiding the last used words */}
-                  <p className="break-words text-xs" style={{ color: 'var(--app-text-muted)' }}>
-                    <span className="whitespace-nowrap">{addedLabel} ·</span> <span className="whitespace-nowrap">{usageLabel}</span>
+                  {/* Wraps between the two parts on a phone rather than hiding the last used words. The dot sits in the gap before the second part, so a wrapped second part pushes it past the left edge, where the line clips it */}
+                  <p className="flex flex-wrap gap-x-3 overflow-x-clip break-words text-xs" style={{ color: 'var(--app-text-muted)' }}>
+                    {/* The trailing space is dropped from the layout but keeps copied text and screen readers from joining the two parts */}
+                    <span className="whitespace-nowrap">{addedLabel} </span>
+                    <span className="relative whitespace-nowrap before:absolute before:right-full before:w-3 before:text-center before:content-['·']">{usageLabel}</span>
                   </p>
                 </div>
                 <OverflowMenu

@@ -1,6 +1,7 @@
 /**
  * Guards the passkey detail line in the Multi-factor authentication dialog, which once cut off when
- * a passkey was last used with an ellipsis at phone width
+ * a passkey was last used with an ellipsis at phone width, and which once left its "·" separator dangling
+ * at the end of the first line when it wrapped
  */
 import { expect, test } from '@playwright/test'
 
@@ -43,6 +44,19 @@ test('wraps the passkey detail line on a phone instead of cutting it off', async
     const lineHeight = parseFloat(getComputedStyle(element).lineHeight)
     return Math.round(element.getBoundingClientRect().height / lineHeight)
   })
+  // The dot is drawn in the gap before the last used words. It shows only when those words sit beside the date,
+  // since on a wrapped line the words start at the left edge and push the dot out past it, where the line clips it
+  const separator = (text: string) => detailLine(text).evaluate((element) => {
+    const [date, lastUsed] = Array.from(element.children)
+    return {
+      wrapped: lastUsed.getBoundingClientRect().top > date.getBoundingClientRect().top,
+      dotInView: lastUsed.getBoundingClientRect().left > element.getBoundingClientRect().left,
+      clipsSideways: getComputedStyle(element).overflowX === 'clip',
+      // A dot typed into either part's text would stay on its line however the line wraps
+      dotInText: (element.textContent ?? '').includes('·'),
+      dotDrawn: getComputedStyle(lastUsed, '::before').content === '"·"',
+    }
+  })
   const openDialog = async () => {
     await openPage(page, '/settings#security')
     await page.locator('#security').getByRole('button', { name: 'Manage', exact: true }).click()
@@ -57,6 +71,9 @@ test('wraps the passkey detail line on a phone instead of cutting it off', async
       expect(await isCutOff(text), `${text} at 390x${height}`).toBe(false)
     }
     expect(await lineCount('last used 10 minutes ago')).toBeGreaterThan(1)
+    // A wrapped line shows no dot, rather than one that ends the first line or starts the second
+    expect(await separator('last used 10 minutes ago'), `wrapped line at 390x${height}`)
+      .toEqual({ wrapped: true, dotInView: false, clipsSideways: true, dotInText: false, dotDrawn: true })
 
     // A very long name still cuts off, and its row keeps inside the dialog
     const longName = dialog.getByText(LONG_NAME, { exact: true })
@@ -72,4 +89,6 @@ test('wraps the passkey detail line on a phone instead of cutting it off', async
   await openDialog()
   expect(await lineCount('last used 10 minutes ago')).toBe(1)
   expect(await isCutOff('last used 10 minutes ago')).toBe(false)
+  // A line that fits keeps its dot between the two parts
+  expect(await separator('last used 10 minutes ago')).toEqual({ wrapped: false, dotInView: true, clipsSideways: true, dotInText: false, dotDrawn: true })
 })
