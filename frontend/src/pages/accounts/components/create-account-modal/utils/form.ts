@@ -2,6 +2,7 @@ import { ACCOUNT_KIND_BY_TYPE, type AccountType, type CreateAccountPayload } fro
 import type { Currency } from '@/api/currency'
 import { CREATE_ACCOUNT_TYPE_OPTIONS, INITIAL_CREATE_ACCOUNT_FORM } from '@/pages/accounts/components/create-account-modal/constants'
 import { optionalAccountMoneyInputToMinorUnits } from '@/pages/accounts/components/create-account-modal/utils/money'
+import { formatCurrencySymbol } from '@/utils/formatCurrency'
 import { isValidMoneyInput } from '@/utils/moneyInput'
 import type {
   CreateAccountFieldErrors,
@@ -78,7 +79,7 @@ export function buildCreateAccountViewModel(form: CreateAccountForm, currencies:
     isLiability,
     isRevolving,
     selectedAccountTypeLabel: CREATE_ACCOUNT_TYPE_OPTIONS.find((option) => option.value === form.account_type)?.label,
-    selectedCurrencySymbol: currencies.find((currency) => currency.id === form.currency)?.symbol ?? '',
+    selectedCurrencySymbol: currencies.some((currency) => currency.id === form.currency) ? formatCurrencySymbol(form.currency) : '',
     startingBalanceLabel: isLiability ? 'Starting amount owed' : 'Starting balance',
   }
 }

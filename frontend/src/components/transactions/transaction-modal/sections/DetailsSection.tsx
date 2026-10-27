@@ -5,6 +5,7 @@ import Dropdown, { type DropdownOption } from '@/components/dropdown/Dropdown'
 import IconTooltip from '@/components/tooltips/IconTooltip'
 import { TRANSACTION_MODAL_ERROR_IDS, TRANSACTION_MODAL_FIELD_IDS } from '@/components/transactions/transaction-modal/constants'
 import { useMoneyInput } from '@/hooks/useMoneyInput'
+import { getSymbolInputStyle } from '@/utils/formatCurrency'
 import { getMoneyPlaceholder } from '@/utils/moneyInput'
 import {
   CURRENCY_AMOUNT_NOTICE,
@@ -155,6 +156,7 @@ export default function TransactionDetailsSection({
             <input
               id={TRANSACTION_MODAL_FIELD_IDS.amount}
               className={`app-input w-full disabled:cursor-not-allowed disabled:opacity-60 ${selectedCurrencySymbol ? 'pl-8' : ''} ${amountError ? 'app-input-error' : ''}`}
+              style={getSymbolInputStyle(selectedCurrencySymbol)}
               aria-invalid={amountError ? true : undefined}
               aria-describedby={amountError ? TRANSACTION_MODAL_ERROR_IDS.amount : undefined}
               placeholder={isAmountLocked ? undefined : getMoneyPlaceholder(currencyExponent)}

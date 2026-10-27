@@ -5,6 +5,8 @@ import { useMoneyInput } from '@/hooks/useMoneyInput'
 import type { BudgetEditorModalErrorGetter, BudgetEditorModalFieldIds, BudgetEditorModalHandlers, BudgetEditorModalOptions, BudgetEditorModalViewState } from '@/pages/budgets/components/budget-editor-modal/types'
 import BudgetEditorFieldLabelRow from '@/pages/budgets/components/shared/EditorFieldLabelRow'
 import { budgetFieldErrorId } from '@/pages/budgets/utils/form'
+import { buildBudgetCurrencyOptions } from '@/pages/budgets/utils/money'
+import { getSymbolInputStyle } from '@/utils/formatCurrency'
 import { getCurrencyExponent, getMoneyPlaceholder } from '@/utils/moneyInput'
 import {
   CURRENCY_LIST_LOADING,
@@ -95,87 +97,84 @@ export default function BudgetEditorModalScopeSection({
           />
         </div>
 
-        <div className="grid gap-4 md:grid-cols-2">
-          <div>
-            <BudgetEditorFieldLabelRow
-              htmlFor={ids.currency}
-              label={(
-                <span className="inline-flex items-center gap-2">
-                  Currency
-                  <IconTooltip label="Budget display currency" modalFieldTabStop>
-                    This is the budget’s display currency.
+        {/* Currency and Limit stack at every width, since the currency label names the currency and is too long for half a row */}
+        <div>
+          <BudgetEditorFieldLabelRow
+            htmlFor={ids.currency}
+            label={(
+              <span className="inline-flex items-center gap-2">
+                Currency
+                <IconTooltip label="Budget display currency" modalFieldTabStop>
+                  This is the budget’s display currency.
+                </IconTooltip>
+                {currencyState === 'loading' && (
+                  <IconTooltip label="Loading currencies" modalFieldTabStop>
+                    {CURRENCY_LIST_LOADING}
                   </IconTooltip>
-                  {currencyState === 'loading' && (
-                    <IconTooltip label="Loading currencies" modalFieldTabStop>
-                      {CURRENCY_LIST_LOADING}
-                    </IconTooltip>
-                  )}
-                  {currencyState === 'unavailable' && (
-                    <IconTooltip label="Currency list unavailable" level="important" modalFieldTabStop>
-                      {CURRENCY_LIST_NOTICE}
-                    </IconTooltip>
-                  )}
-                </span>
-              )}
-              error={showError('currency')}
-            />
-            {currencyReadOnly ? (
-              <input
-                id={ids.currency}
-                className="app-input disabled:cursor-not-allowed disabled:opacity-60"
-                value={form.currency}
-                placeholder={currencyState === 'loading' ? CURRENCY_LIST_LOADING : undefined}
-                disabled
-                readOnly
-              />
-            ) : (
-              <Dropdown
-                id={ids.currency}
-                options={currencies.map((currency) => ({
-                  value: currency.id,
-                  label: `${currency.id} · ${currency.name}`,
-                }))}
-                value={form.currency}
-                onChange={(value) => setField('currency', value)}
-                hasError={!!showError('currency')}
-                describedBy={showError('currency') ? budgetFieldErrorId(ids.currency) : undefined}
-                placeholder={currencies.length === 0 ? 'Loading currencies...' : 'Select currency...'}
-                searchable
-                searchPlaceholder="Search currencies..."
-              />
+                )}
+                {currencyState === 'unavailable' && (
+                  <IconTooltip label="Currency list unavailable" level="important" modalFieldTabStop>
+                    {CURRENCY_LIST_NOTICE}
+                  </IconTooltip>
+                )}
+              </span>
             )}
-          </div>
-
-          <div>
-            <BudgetEditorFieldLabelRow
-              htmlFor={ids.limit}
-              label={(
-                <span className="inline-flex items-center gap-2">
-                  Limit
-                  <CurrencyUnavailableTooltip unavailable={isLimitLocked} currencyState={currencyState} label="Limit unavailable" />
-                </span>
-              )}
-              error={showError('limit')}
+            error={showError('currency')}
+          />
+          {currencyReadOnly ? (
+            <input
+              id={ids.currency}
+              className="app-input disabled:cursor-not-allowed disabled:opacity-60"
+              value={form.currency}
+              placeholder={currencyState === 'loading' ? CURRENCY_LIST_LOADING : undefined}
+              disabled
+              readOnly
             />
-            <div className="relative">
-              {selectedCurrencySymbol && (
-                <span
-                  className="app-input-prefix pointer-events-none absolute left-4 top-1/2 -translate-y-1/2"
-                  aria-hidden
-                >
-                  {selectedCurrencySymbol}
-                </span>
-              )}
-              <input
-                id={ids.limit}
-                className={`app-input disabled:cursor-not-allowed disabled:opacity-60 ${selectedCurrencySymbol ? 'pl-8' : ''} ${showError('limit') ? 'app-input-error' : ''}`}
-                placeholder={isLimitLocked ? undefined : limitPlaceholder ?? getMoneyPlaceholder(limitExponent)}
-                disabled={limitDisabled || fieldsLocked || isLimitLocked}
-                aria-invalid={showError('limit') ? true : undefined}
-                aria-describedby={showError('limit') ? budgetFieldErrorId(ids.limit) : undefined}
-                {...limitInput}
-              />
-            </div>
+          ) : (
+            <Dropdown
+              id={ids.currency}
+              options={buildBudgetCurrencyOptions(currencies)}
+              value={form.currency}
+              onChange={(value) => setField('currency', value)}
+              hasError={!!showError('currency')}
+              describedBy={showError('currency') ? budgetFieldErrorId(ids.currency) : undefined}
+              placeholder={currencies.length === 0 ? 'Loading currencies...' : 'Select currency...'}
+              searchable
+              searchPlaceholder="Search currencies..."
+            />
+          )}
+        </div>
+
+        <div>
+          <BudgetEditorFieldLabelRow
+            htmlFor={ids.limit}
+            label={(
+              <span className="inline-flex items-center gap-2">
+                Limit
+                <CurrencyUnavailableTooltip unavailable={isLimitLocked} currencyState={currencyState} label="Limit unavailable" />
+              </span>
+            )}
+            error={showError('limit')}
+          />
+          <div className="relative">
+            {selectedCurrencySymbol && (
+              <span
+                className="app-input-prefix pointer-events-none absolute left-4 top-1/2 -translate-y-1/2"
+                aria-hidden
+              >
+                {selectedCurrencySymbol}
+              </span>
+            )}
+            <input
+              id={ids.limit}
+              className={`app-input disabled:cursor-not-allowed disabled:opacity-60 ${selectedCurrencySymbol ? 'pl-8' : ''} ${showError('limit') ? 'app-input-error' : ''}`}
+              style={getSymbolInputStyle(selectedCurrencySymbol)}
+              placeholder={isLimitLocked ? undefined : limitPlaceholder ?? getMoneyPlaceholder(limitExponent)}
+              disabled={limitDisabled || fieldsLocked || isLimitLocked}
+              aria-invalid={showError('limit') ? true : undefined}
+              aria-describedby={showError('limit') ? budgetFieldErrorId(ids.limit) : undefined}
+              {...limitInput}
+            />
           </div>
         </div>
       </div>

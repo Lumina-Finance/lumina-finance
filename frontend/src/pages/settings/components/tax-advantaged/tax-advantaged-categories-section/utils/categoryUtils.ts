@@ -1,7 +1,7 @@
 import type { Currency } from '@/api/currency'
 import type { TaxAdvantagedCategoryLimit, TaxTreatment } from '@/api/tax-advantaged-categories'
 import { TAX_TREATMENT_OPTIONS } from '@/pages/settings/components/tax-advantaged/tax-advantaged-categories-section/constants'
-import { formatCurrencyLabel } from '@/utils/formatCurrency'
+import { formatCurrencyLabel, formatCurrencySymbol } from '@/utils/formatCurrency'
 import {
   fromMinorUnits as fromMinorUnitsCanonical,
   getCurrencyExponent,
@@ -36,10 +36,10 @@ export function currencyOptions(currencies: Currency[]) {
 }
 
 /**
- * Symbol for a currency code, falling back to an empty string when the currency is not found
+ * Symbol the reader's language uses for a loaded currency, an empty string when the currency is not in the list
  */
 export function currencySymbol(currencies: Currency[], code: string) {
-  return currencies.find((c) => c.id === code)?.symbol ?? ''
+  return currencies.some((c) => c.id === code) ? formatCurrencySymbol(code) : ''
 }
 
 /**

@@ -10,9 +10,9 @@
  * Where a code stands in place of a symbol, PKR and IQD below, what separates it from the digits is a
  * non-breaking space, written as an escape so it cannot be retyped as a plain one
  */
-import { describe, expect, it } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { Currency } from '@/api/currency'
-import { formatCurrency } from '@/utils/formatCurrency'
+import { formatCurrency, formatCurrencyLabel, formatCurrencySymbol, getSymbolInputStyle } from '@/utils/formatCurrency'
 
 // The exponents here are the seeded ones. PKR and IQD are two of the 16 codes the browser's own
 // tables disagree about, reporting no decimal places for either
@@ -58,5 +58,83 @@ describe('money formatting', () => {
     // Dividing -0 by the exponent keeps the sign, and accounting style would wrap it, so a zero
     // amount reaching this as -0 has to come out identical to one reaching it as 0
     expect(formatCurrency(-0, 'CAD', currencies)).toBe('CA$0.00')
+  })
+})
+
+describe('symbol field padding', () => {
+  it('leaves a one-character symbol to the field\'s own padding', () => {
+    expect(getSymbolInputStyle('$')).toBeUndefined()
+    expect(getSymbolInputStyle('')).toBeUndefined()
+  })
+
+  it('adds room for each character past the first so CA$ and CHF clear the typed amount', () => {
+    expect(getSymbolInputStyle('CA$')).toEqual({ paddingLeft: 'calc(2rem + 1.6rem)' })
+    expect(getSymbolInputStyle('CHF')).toEqual({ paddingLeft: 'calc(2rem + 1.6rem)' })
+  })
+
+  describe('with text that can be measured', () => {
+    // A narrow symbol such as A$ and a wide one such as F CFA, at the widths they draw at
+    const WIDTHS: Record<string, number> = { 'A$': 19, 'F CFA': 40 }
+
+    beforeEach(() => {
+      const context = { font: '', measureText: (text: string) => ({ width: WIDTHS[text] }) }
+      vi.stubGlobal('document', {
+        createElement: () => ({ getContext: () => context }),
+        documentElement: {},
+        body: {},
+      })
+      vi.stubGlobal('getComputedStyle', () => ({ fontSize: '16px', fontFamily: 'DM Sans' }))
+    })
+
+    afterEach(() => {
+      vi.unstubAllGlobals()
+    })
+
+    it('starts the amount the same distance past a narrow and a wide symbol', () => {
+      const narrow = getSymbolInputStyle('A$')
+      const wide = getSymbolInputStyle('F CFA')
+
+      expect(narrow).toEqual({ paddingLeft: '45px' })
+      expect(wide).toEqual({ paddingLeft: '66px' })
+      // The symbol starts 16px in, so what is left after its width is the same gap for both
+      expect(45 - 16 - WIDTHS['A$']).toBe(66 - 16 - WIDTHS['F CFA'])
+    })
+
+    it('counts the inset a field draws its symbol at', () => {
+      expect(getSymbolInputStyle('A$', { insetRem: 0.75, fontRem: 0.875 })).toEqual({ paddingLeft: '41px' })
+    })
+
+    it('estimates instead while the page font is still loading', () => {
+      vi.stubGlobal('document', {
+        createElement: () => ({ getContext: () => ({ font: '', measureText: () => ({ width: 19 }) }) }),
+        documentElement: {},
+        body: {},
+        fonts: { check: () => false },
+      })
+
+      expect(getSymbolInputStyle('A$')).toEqual({ paddingLeft: 'calc(2rem + 0.8rem)' })
+    })
+  })
+})
+
+describe('currency labels', () => {
+  it('writes a symbol the way the reader\'s region does, not as the seeded table has it', () => {
+    expect(formatCurrencySymbol('CAD')).toBe('CA$')
+    expect(formatCurrencySymbol('USD')).toBe('$')
+    expect(formatCurrencySymbol('EUR')).toBe('€')
+  })
+
+  it('falls back to the code for one the browser rejects', () => {
+    expect(formatCurrencySymbol('not-a-code')).toBe('not-a-code')
+  })
+
+  it('labels a currency with its code, name and the reader\'s symbol', () => {
+    expect(formatCurrencyLabel(currencies[0])).toBe('CAD · Canadian Dollar (CA$)')
+    expect(formatCurrencyLabel(currencies[1])).toBe('USD · US Dollar ($)')
+  })
+
+  it('leaves the bracket off a currency the reader\'s region writes as its own code', () => {
+    expect(formatCurrencyLabel({ id: 'BWP', name: 'Botswana Pula', symbol: 'P', minor_unit_exponent: 2 }))
+      .toBe('BWP · Botswana Pula')
   })
 })

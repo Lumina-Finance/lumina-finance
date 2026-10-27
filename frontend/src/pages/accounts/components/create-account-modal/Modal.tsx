@@ -19,6 +19,7 @@ import { useInstitutionModal } from '@/hooks/useInstitutionModal';
 import { useMoneyInput } from '@/hooks/useMoneyInput';
 import { useRefusedSubmit } from '@/hooks/useRefusedSubmit';
 import { getCreateFailureMessage } from '@/utils/createFailure';
+import { getSymbolInputStyle } from '@/utils/formatCurrency';
 import { getCurrencyExponent } from '@/utils/moneyInput';
 import { getFieldLabelId } from '@/utils/fieldLabel';
 import {
@@ -292,6 +293,7 @@ export default function CreateAccountModal({ open, onClose }: CreateAccountModal
                   <input
                     id={CREATE_ACCOUNT_MODAL_FIELD_IDS.startingBalance}
                     className={`app-input ${selectedCurrencySymbol ? 'pl-8' : ''} ${errors.starting_balance ? 'app-input-error' : ''}`}
+                    style={getSymbolInputStyle(selectedCurrencySymbol)}
                     aria-invalid={errors.starting_balance ? true : undefined}
                     aria-describedby={errors.starting_balance ? CREATE_ACCOUNT_ERROR_IDS.starting_balance : undefined}
                     placeholder="Optional"
@@ -356,6 +358,7 @@ export default function CreateAccountModal({ open, onClose }: CreateAccountModal
                           <input
                             id={CREATE_ACCOUNT_MODAL_FIELD_IDS.creditLimit}
                             className={`app-input ${selectedCurrencySymbol ? 'pl-8' : ''} ${errors.credit_limit ? 'app-input-error' : ''}`}
+                            style={getSymbolInputStyle(selectedCurrencySymbol)}
                             aria-invalid={errors.credit_limit ? true : undefined}
                             aria-describedby={errors.credit_limit ? CREATE_ACCOUNT_ERROR_IDS.credit_limit : undefined}
                             placeholder="Optional"

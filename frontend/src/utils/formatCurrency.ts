@@ -1,12 +1,94 @@
+import type { CSSProperties } from 'react'
 import type { Currency } from '@/api/currency'
 import { DEFAULT_MINOR_UNIT_EXPONENT, findCurrencyExponent } from '@/utils/moneyInput'
 import { getNegativeAffixes, getShownAmountSign, signMovedAmount } from '@/utils/negativeAmount'
 
+// The amount starts this far past the end of the symbol
+const SYMBOL_TO_AMOUNT_PX = 10
+
+// Where `.app-input-prefix` draws a symbol unless a field says otherwise: 1rem in from the field's edge,
+// in 0.9375rem text
+const DEFAULT_SYMBOL_PLACEMENT = { insetRem: 1, fontRem: 0.9375 }
+
+export interface SymbolPlacement {
+  insetRem: number
+  fontRem: number
+}
+
+let measuringCanvas: HTMLCanvasElement | undefined
+
+// The width the symbol draws at in the page's own font, or undefined where nothing can measure text or
+// the font has not loaded yet, so a fallback font's width is never trusted
+function measureSymbolWidth(symbol: string, fontRem: number, rootPx: number): number | undefined {
+  try {
+    measuringCanvas ??= document.createElement('canvas')
+    const context = measuringCanvas.getContext('2d')
+    if (!context) return undefined
+    const font = `${fontRem * rootPx}px ${getComputedStyle(document.body).fontFamily || 'sans-serif'}`
+    if (document.fonts && !document.fonts.check(font, symbol)) return undefined
+    context.font = font
+    const width = context.measureText(symbol).width
+    return width > 0 ? width : undefined
+  } catch {
+    return undefined
+  }
+}
+
 /**
- * Formats a currency's code, name, and symbol for selection and reference fields
+ * Returns the left padding an amount field needs so a currency symbol drawn inside its left edge never
+ * runs under the typed amount, or undefined for a one-character symbol, which the field's own `pl-8`
+ * already clears. The reader's language can write a symbol in three or more characters, such as CA$,
+ * CHF or F CFA, so the amount starts a fixed distance past the symbol's drawn width, the same for every
+ * currency. Without a way to measure text, each character past the first adds room instead
+ */
+export function getSymbolInputStyle(
+  symbol: string,
+  placement: SymbolPlacement = DEFAULT_SYMBOL_PLACEMENT,
+): CSSProperties | undefined {
+  const extraCharacters = Array.from(symbol).length - 1
+  if (extraCharacters <= 0) return undefined
+  const fallback = { paddingLeft: `calc(2rem + ${extraCharacters * 0.8}rem)` }
+  if (typeof document === 'undefined') return fallback
+  const rootPx = parseFloat(getComputedStyle(document.documentElement).fontSize) || 16
+  const width = measureSymbolWidth(symbol, placement.fontRem, rootPx)
+  if (width === undefined) return fallback
+  return { paddingLeft: `${Math.ceil(placement.insetRem * rootPx + width + SYMBOL_TO_AMOUNT_PX)}px` }
+}
+
+// Read once per code, since a dropdown asks for every currency on each render and building an
+// `Intl.NumberFormat` is the costly part
+const symbolsByCode = new Map<string, string>()
+
+/**
+ * Returns the symbol the reader's own language writes for a currency, the same one its formatted
+ * amounts carry, rather than the seeded table's symbol. Falls back to the code when the browser
+ * knows no symbol for it
+ */
+export function formatCurrencySymbol(code: string): string {
+  const known = symbolsByCode.get(code)
+  if (known !== undefined) return known
+
+  let symbol = code
+  try {
+    const part = new Intl.NumberFormat(undefined, { style: 'currency', currency: code })
+      .formatToParts(0)
+      .find((candidate) => candidate.type === 'currency')
+    symbol = part?.value ?? code
+  } catch {
+    // A code the browser rejects is written as itself
+  }
+  symbolsByCode.set(code, symbol)
+  return symbol
+}
+
+/**
+ * Formats a currency's code, name, and symbol for selection and reference fields, the one label
+ * every currency dropdown shares. A currency the reader's language writes as its own code gets no
+ * bracket, since it would only repeat the code
  */
 export function formatCurrencyLabel(currency: Currency): string {
-  return `${currency.id}: ${currency.name} (${currency.symbol})`
+  const symbol = formatCurrencySymbol(currency.id)
+  return symbol === currency.id ? `${currency.id} · ${currency.name}` : `${currency.id} · ${currency.name} (${symbol})`
 }
 
 /**

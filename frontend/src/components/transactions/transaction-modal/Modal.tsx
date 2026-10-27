@@ -4,6 +4,7 @@ import { useCategories } from '@/api/categories'
 import { useCurrencies } from '@/api/currency'
 import { useCurrencyListState } from '@/hooks/useCurrencyListState'
 import { CURRENCY_LIST_LOADING } from '@/utils/currencyStatus'
+import { formatCurrencySymbol } from '@/utils/formatCurrency'
 import { DEFAULT_MINOR_UNIT_EXPONENT, findCurrencyExponent } from '@/utils/moneyInput'
 import { useAuth } from '@/hooks/useAuth'
 import { KIND_LABELS } from '@/components/transactions/transaction-modal/constants'
@@ -152,7 +153,7 @@ export default function CreateTransactionModal({
     [currencies, form.currency],
   )
   const selectedCurrency = currencies.find((c) => c.id === form.currency)
-  const selectedCurrencySymbol = selectedCurrency?.symbol ?? ''
+  const selectedCurrencySymbol = selectedCurrency ? formatCurrencySymbol(selectedCurrency.id) : ''
   const knownCurrencyExponent = findCurrencyExponent(currencies, form.currency)
   const selectedCurrencyExponent = knownCurrencyExponent ?? DEFAULT_MINOR_UNIT_EXPONENT
 

@@ -1,11 +1,20 @@
 import type { Currency } from '@/api/currency'
+import { formatCurrencyLabel, formatCurrencySymbol } from '@/utils/formatCurrency'
 import { findCurrencyExponent, toMinorUnits as toMinorUnitsCanonical } from '@/utils/moneyInput'
 
 /**
- * Looks up the currency's symbol by code, returning an empty string when the currency isn't found
+ * Writes the symbol the reader's language uses for a loaded currency, or an empty string when the
+ * currency isn't in the list
  */
 export function currencySymbol(currencies: Currency[], code: string) {
-  return currencies.find((currency) => currency.id === code)?.symbol ?? ''
+  return currencies.some((currency) => currency.id === code) ? formatCurrencySymbol(code) : ''
+}
+
+/**
+ * Builds the budget editor's currency dropdown options, labelled as every other currency dropdown is
+ */
+export function buildBudgetCurrencyOptions(currencies: Currency[]) {
+  return currencies.map((currency) => ({ value: currency.id, label: formatCurrencyLabel(currency) }))
 }
 
 /**

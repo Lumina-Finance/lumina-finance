@@ -4,6 +4,7 @@ import IconTooltip from '@/components/tooltips/IconTooltip'
 import { useMoneyInput } from '@/hooks/useMoneyInput'
 import { currencySymbol } from '@/pages/settings/components/tax-advantaged/tax-advantaged-categories-section/utils/categoryUtils'
 import { getCompactFieldFrameStyle } from '@/pages/settings/components/tax-advantaged/tax-advantaged-categories-section/utils/compactFieldStyle'
+import { getSymbolInputStyle } from '@/utils/formatCurrency'
 import { getCurrencyExponent, getMoneyPlaceholder } from '@/utils/moneyInput'
 
 /**
@@ -90,6 +91,7 @@ export function CurrencyInput({
         aria-invalid={hasError ? true : undefined}
         id={id}
         className={`app-input w-full ${symbol ? 'pl-8' : ''} ${hasError ? 'app-input-error' : ''}`}
+        style={getSymbolInputStyle(symbol)}
         placeholder={placeholder ?? getMoneyPlaceholder(exponent)}
         required={required}
         {...moneyInput}

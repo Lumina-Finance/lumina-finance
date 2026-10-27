@@ -20,6 +20,7 @@ import {
   findCurrencyExponent,
   fromMinorUnits,
 } from '@/utils/moneyInput'
+import { formatCurrencySymbol } from '@/utils/formatCurrency'
 import { ACTION_LOADING_MIN_MS, LOADING_ANIMATION_MIN_MS, waitForMilliseconds } from '@/utils/timing'
 import {
   DELETE_ACCOUNT_CONTROL_IDS,
@@ -96,7 +97,7 @@ export default function EditAccountIdentityModal({
 
   const isRevolving = account.account_kind === 'revolving'
   const canLinkTaxAdvantagedCategory = account.account_kind === 'asset' && account.group_id === null && !account.is_archived
-  const selectedCurrencySymbol = currencies.find((currency) => currency.id === account.currency)?.symbol ?? ''
+  const selectedCurrencySymbol = currencies.some((currency) => currency.id === account.currency) ? formatCurrencySymbol(account.currency) : ''
   const knownCreditLimitExponent = findCurrencyExponent(currencies, account.currency)
   const isCreditLimitLocked = isRevolving && knownCreditLimitExponent === null
   const refusal = useRefusedSubmit<(typeof EDIT_ACCOUNT_IDENTITY_FIELDS)[number]>(
