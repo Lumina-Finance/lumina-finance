@@ -28,11 +28,6 @@ from app.services.maintenance import expired_records
 from app.services.maintenance.expired_records import ExpiredRecordKind, prune_expired_records
 from tests.conftest import ScopedSession, TestSession
 
-_NOW = datetime.now(UTC)
-_PAST = _NOW - timedelta(minutes=1)
-_FUTURE = _NOW + timedelta(hours=1)
-_STAGING_EXPIRED = _NOW - timedelta(seconds=TWO_FACTOR_STAGING_EXPIRE_SECONDS + 60)
-
 
 async def _seed_users(count: int) -> list[User]:
     """Insert users sharing one base currency, since the scheduled cleanup spans every account"""
@@ -63,6 +58,10 @@ def _import_run(owner: User, *, created_at: datetime, committed_at: datetime | N
 
 async def test_prunes_expired_records_of_every_kind_across_users_and_keeps_live_ones():
     """Every kind loses its expired rows for every user, while live rows and confirmed factors stay"""
+    now = datetime.now(UTC)
+    past = now - timedelta(minutes=1)
+    future = now + timedelta(hours=1)
+    staging_expired = now - timedelta(seconds=TWO_FACTOR_STAGING_EXPIRE_SECONDS + 60)
     first, second = await _seed_users(2)
     provider = OidcProvider(
         slug="test",
@@ -73,8 +72,8 @@ async def test_prunes_expired_records_of_every_kind_across_users_and_keeps_live_
         scopes="openid email",
         enabled=True,
     )
-    expired_session = AuthSession(user_id=first.id, expires_at=_PAST)
-    live_session = AuthSession(user_id=second.id, expires_at=_FUTURE)
+    expired_session = AuthSession(user_id=first.id, expires_at=past)
+    live_session = AuthSession(user_id=second.id, expires_at=future)
     async with TestSession() as session:
         session.add_all([provider, expired_session, live_session])
         await session.flush()
@@ -83,69 +82,69 @@ async def test_prunes_expired_records_of_every_kind_across_users_and_keeps_live_
             user_id=second.id,
             session_id=live_session.id,
             token_kind=AuthTokenKind.REFRESH,
-            expires_at=_PAST,
+            expires_at=past,
         )
         live_token = AuthToken(
             jti=uuid.uuid4(),
             user_id=second.id,
             session_id=live_session.id,
             token_kind=AuthTokenKind.ACCESS,
-            expires_at=_FUTURE,
+            expires_at=future,
         )
-        expired_passkey_challenge = WebauthnChallenge(challenge=b"old", user_id=first.id, purpose="registration", expires_at=_PAST)
-        live_passkey_challenge = WebauthnChallenge(challenge=b"new", purpose="authentication", expires_at=_FUTURE)
-        expired_mfa = MfaChallenge(jti=uuid.uuid4(), user_id=first.id, expires_at=_PAST)
-        live_mfa = MfaChallenge(jti=uuid.uuid4(), user_id=second.id, expires_at=_FUTURE)
+        expired_passkey_challenge = WebauthnChallenge(challenge=b"old", user_id=first.id, purpose="registration", expires_at=past)
+        live_passkey_challenge = WebauthnChallenge(challenge=b"new", purpose="authentication", expires_at=future)
+        expired_mfa = MfaChallenge(jti=uuid.uuid4(), user_id=first.id, expires_at=past)
+        live_mfa = MfaChallenge(jti=uuid.uuid4(), user_id=second.id, expires_at=future)
         expired_oidc = OidcAuthorizationRequest(
             state_hash="old",
             nonce="n",
             code_verifier="v",
             provider_id=provider.id,
-            expires_at=_PAST,
+            expires_at=past,
         )
         live_oidc = OidcAuthorizationRequest(
             state_hash="new",
             nonce="n",
             code_verifier="v",
             provider_id=provider.id,
-            expires_at=_FUTURE,
+            expires_at=future,
         )
         stale_reset = PasswordResetToken(
             user_id=first.id,
             token_hash="old",
-            expires_at=_PAST,
-            created_at=_NOW - timedelta(hours=25),
+            expires_at=past,
+            created_at=now - timedelta(hours=25),
         )
         recent_reset = PasswordResetToken(
             user_id=second.id,
             token_hash="new",
-            expires_at=_PAST,
-            created_at=_NOW - timedelta(hours=23),
+            expires_at=past,
+            created_at=now - timedelta(hours=23),
         )
         stale_passkey = WebauthnCredential(
             user_id=first.id,
             credential_id=b"stale",
             public_key=b"k",
             name="Stale",
-            created_at=_STAGING_EXPIRED,
+            created_at=staging_expired,
         )
         confirmed_passkey = WebauthnCredential(
             user_id=second.id,
             credential_id=b"kept",
             public_key=b"k",
             name="Kept",
-            created_at=_STAGING_EXPIRED,
-            confirmed_at=_STAGING_EXPIRED,
+            created_at=staging_expired,
+            confirmed_at=staging_expired,
         )
-        stale_totp = TotpCredential(user_id=first.id, secret_encrypted="s", created_at=_STAGING_EXPIRED)
+        stale_totp = TotpCredential(user_id=first.id, secret_encrypted="s", created_at=staging_expired)
         confirmed_totp = TotpCredential(
             user_id=second.id,
             secret_encrypted="s",
-            created_at=_STAGING_EXPIRED,
-            confirmed_at=_STAGING_EXPIRED,
+            created_at=staging_expired,
+            confirmed_at=staging_expired,
         )
-        stale_code = RecoveryCode(user_id=first.id, code_hash="stale", pending=True, created_at=_STAGING_EXPIRED)
-        active_code = RecoveryCode(user_id=second.id, code_hash="kept", pending=False, created_at=_STAGING_EXPIRED)
+        stale_code = RecoveryCode(user_id=first.id, code_hash="stale", pending=True, created_at=staging_expired)
+        active_code = RecoveryCode(user_id=second.id, code_hash="kept", pending=False, created_at=staging_expired)
         session.add_all(
             [
                 expired_token,
@@ -183,13 +182,14 @@ async def test_prunes_expired_records_of_every_kind_across_users_and_keeps_live_
 
 async def test_prunes_abandoned_and_undo_expired_import_runs_for_every_user():
     """Abandoned uploads and runs past their undo window go, while runs still in use stay"""
+    now = datetime.now(UTC)
     first, second = await _seed_users(2)
-    long_ago = _NOW - max(ABANDONED_RUN_AGE, IMPORT_UNDO_WINDOW) - timedelta(hours=1)
-    abandoned = _import_run(first, created_at=_NOW - ABANDONED_RUN_AGE - timedelta(minutes=1))
-    undo_expired = _import_run(second, created_at=long_ago, committed_at=_NOW - IMPORT_UNDO_WINDOW - timedelta(minutes=1))
-    in_progress = _import_run(first, created_at=_NOW - ABANDONED_RUN_AGE + timedelta(minutes=5))
+    long_ago = now - max(ABANDONED_RUN_AGE, IMPORT_UNDO_WINDOW) - timedelta(hours=1)
+    abandoned = _import_run(first, created_at=now - ABANDONED_RUN_AGE - timedelta(minutes=1))
+    undo_expired = _import_run(second, created_at=long_ago, committed_at=now - IMPORT_UNDO_WINDOW - timedelta(minutes=1))
+    in_progress = _import_run(first, created_at=now - ABANDONED_RUN_AGE + timedelta(minutes=5))
     # Uploaded long ago but committed recently, so it is still inside its undo window
-    still_undoable = _import_run(second, created_at=long_ago, committed_at=_NOW - IMPORT_UNDO_WINDOW + timedelta(minutes=5))
+    still_undoable = _import_run(second, created_at=long_ago, committed_at=now - IMPORT_UNDO_WINDOW + timedelta(minutes=5))
     async with TestSession() as session:
         session.add_all([abandoned, undo_expired, in_progress, still_undoable])
         await session.commit()
@@ -201,7 +201,7 @@ async def test_prunes_abandoned_and_undo_expired_import_runs_for_every_user():
 
 async def test_the_cleanup_forgets_failure_counts_idle_for_a_week_and_keeps_recent_ones():
     """Counts of emails nobody has failed with for a week go, so anonymous requests cannot grow the table forever"""
-    idle_week = _NOW - timedelta(days=7, minutes=1)
+    idle_week = datetime.now(UTC) - timedelta(days=7, minutes=1)
     async with TestSession() as session:
         session.add_all(
             [
@@ -218,9 +218,10 @@ async def test_the_cleanup_forgets_failure_counts_idle_for_a_week_and_keeps_rece
 
 async def test_a_failing_kind_is_logged_and_the_kinds_around_it_still_commit(monkeypatch, caplog):
     """A cleanup that fails mid-statement is logged, and neither the kind before nor after it is lost"""
+    past = datetime.now(UTC) - timedelta(minutes=1)
     (owner,) = await _seed_users(1)
-    expired_mfa = MfaChallenge(jti=uuid.uuid4(), user_id=owner.id, expires_at=_PAST)
-    expired_passkey_challenge = WebauthnChallenge(challenge=b"old", purpose="authentication", expires_at=_PAST)
+    expired_mfa = MfaChallenge(jti=uuid.uuid4(), user_id=owner.id, expires_at=past)
+    expired_passkey_challenge = WebauthnChallenge(challenge=b"old", purpose="authentication", expires_at=past)
     async with TestSession() as session:
         session.add_all([expired_mfa, expired_passkey_challenge])
         await session.commit()
