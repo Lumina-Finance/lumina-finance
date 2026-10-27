@@ -260,6 +260,7 @@ export function StepUpModal({
       level={level}
       RailIcon={ShieldCheck}
       railLabel="Verify"
+      phoneHeader
     >
       <StepTransition
         fillPhone

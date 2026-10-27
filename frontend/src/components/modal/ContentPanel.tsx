@@ -28,6 +28,9 @@ interface ModalContentPanelProps {
   railLabel?: string
   /** Blocks dismissal while an action is in flight */
   closeDisabled?: boolean
+  /** Set by a dialog whose content draws the form modals' header on a phone, which gives its close button
+   *  their bare look in place of the floating frosted one */
+  phoneHeader?: boolean
   /** Runs once the exit animation has finished, for work that must wait until the modal is fully gone */
   onExitComplete?: () => void
   children: ReactNode
@@ -45,6 +48,7 @@ export function ModalContentPanel({
   RailIcon,
   railLabel,
   closeDisabled = false,
+  phoneHeader = false,
   onExitComplete,
   children,
 }: ModalContentPanelProps) {
@@ -54,15 +58,18 @@ export function ModalContentPanel({
     <>
       {/* Backdrop tap and Escape close the modal on desktop, but it goes fullscreen below 1050px where
           neither is reachable, so the close button only shows at that width. It floats over the body on
-          the frosted glass of the phone menu button, so the content scrolling under it blurs */}
+          the frosted glass of the phone menu button, so the content scrolling under it blurs. A dialog
+          that draws the form modals' header on a phone takes their bare cross instead */}
       <button
         type="button"
         onClick={onClose}
         disabled={closeDisabled}
         aria-label="Close"
-        className="app-glass-icon-button absolute right-4 top-4 z-10 h-8 w-8 min-[1050px]:hidden"
+        className={phoneHeader
+          ? 'app-icon-button absolute right-4 top-5 z-10 min-[1050px]:hidden'
+          : 'app-glass-icon-button absolute right-4 top-4 z-10 h-8 w-8 min-[1050px]:hidden'}
       >
-        <X size={18} aria-hidden />
+        <X size={phoneHeader ? 20 : 18} aria-hidden />
       </button>
 
       <div className={BODY_CLASS_NAME}>{children}</div>
