@@ -13,7 +13,7 @@ import { OidcProviderButtons } from '@/pages/auth/components/OidcProviderButtons
 import { AuthSignupNameFields } from '@/pages/auth/components/fields/SignupNameFields';
 import { AuthSignupReferenceFields } from '@/pages/auth/components/fields/SignupReferenceFields';
 import { AuthTextField } from '@/pages/auth/components/fields/TextField';
-import { AUTH_VIEW_TRANSITION, SIGNUP_FIELD_ANIMATION } from '@/pages/auth/constants/authAnimations';
+import { AUTH_VIEW_TRANSITION, FORGOT_LINK_ANIMATION, SIGNUP_FIELD_ANIMATION } from '@/pages/auth/constants/authAnimations';
 import { useAuthFormWorkflow } from '@/pages/auth/hooks/useAuthFormWorkflow';
 import { getAuthMode, REGISTRATION_CLOSED_NOTICE } from '@/pages/auth/utils/authForm';
 import { DisabledReasonButton } from '@/components/tooltips/DisabledReasonButton';
@@ -299,17 +299,19 @@ const AuthPage = () => {
                 {isLogin && (
                   <motion.div
                     key="forgot-link"
-                    className="flex justify-end overflow-hidden"
-                    {...SIGNUP_FIELD_ANIMATION}
+                    className="-mx-[4px] overflow-hidden"
+                    {...FORGOT_LINK_ANIMATION}
                   >
-                    <button
-                      type="button"
-                      onClick={goToForgot}
-                      className="text-sm font-medium underline underline-offset-2 transition-colors duration-200"
-                      style={{ color: 'var(--app-accent)' }}
-                    >
-                      Forgot password?
-                    </button>
+                    <div className="flex justify-end p-[4px]">
+                      <button
+                        type="button"
+                        onClick={goToForgot}
+                        className="text-sm font-medium underline underline-offset-2 transition-colors duration-200"
+                        style={{ color: 'var(--app-accent)' }}
+                      >
+                        Forgot password?
+                      </button>
+                    </div>
                   </motion.div>
                 )}
               </AnimatePresence>
