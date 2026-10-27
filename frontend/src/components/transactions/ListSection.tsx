@@ -64,6 +64,7 @@ export default function TransactionListSection({
   onFilterLoadingChange,
   onSettledTransactionsChange,
   onCreateTransaction,
+  createBlockReason,
   onEditTransaction,
   onImport,
 }: {
@@ -75,6 +76,9 @@ export default function TransactionListSection({
   onFilterLoadingChange?: (loading: boolean) => void
   onSettledTransactionsChange?: (transactions: Transaction[]) => void
   onCreateTransaction: () => void
+
+  // Why Add transaction is off beyond the fixed account being archived, shown as its tooltip
+  createBlockReason?: string
   onEditTransaction: (transaction: Transaction) => void
 
   // Opens an import filed into the account this list is fixed to, offered only alongside one
@@ -173,8 +177,8 @@ export default function TransactionListSection({
     () => (isUpcomingExpanded ? [...upcomingTransactions, ...pastTransactions] : pastTransactions),
     [isUpcomingExpanded, upcomingTransactions, pastTransactions],
   )
-  const createDisabled = Boolean(fixedAccount?.is_archived)
-  const createDisabledReason = createDisabled ? 'Archived accounts are read-only' : undefined
+  const createDisabledReason = fixedAccount?.is_archived ? 'Archived accounts are read-only' : createBlockReason
+  const createDisabled = Boolean(createDisabledReason)
 
   const [isSelecting, setIsSelecting] = useState(false)
   const [pendingChange, setPendingChange] = useState<BulkEditFields | null>(null)

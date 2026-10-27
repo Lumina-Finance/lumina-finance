@@ -56,7 +56,7 @@ export function MobileToolbarActions({
       {secondaryAction}
 
       <DisabledReasonButton
-        className="app-glass-button-primary h-11 w-11 shrink-0 px-0"
+        className="app-glass-button-primary app-fade-label-only h-11 w-11 shrink-0 px-0"
         onClick={onPrimaryAction}
         disabled={primaryDisabled}
         disabledReason={primaryDisabled ? primaryDisabledReason : undefined}

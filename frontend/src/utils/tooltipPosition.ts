@@ -84,7 +84,8 @@ export function getCursorTooltipPosition({
   const flipY = placeAbove ? -(tooltip.offsetHeight + offset) : offset
 
   return {
-    x: clamp(pointerX - tooltip.offsetWidth - offset, minX, maxX),
+    // Hung from a box, the tooltip's right edge lines up with the box's, not the cursor offset left of it
+    x: clamp(pointerX - tooltip.offsetWidth - (keepClear ? 0 : offset), minX, maxX),
     y: pointerY,
     flipY,
     maxWidth: Math.max(boundsRect.width - margin * 2, 1),

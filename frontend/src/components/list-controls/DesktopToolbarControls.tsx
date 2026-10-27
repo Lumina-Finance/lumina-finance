@@ -64,7 +64,7 @@ export function DesktopToolbarControls({
           oversight: do not square it up with the rest. The invisible twin below is measured by the
           toolbar to decide when the row wraps, so any height change has to happen on both */}
       <DisabledReasonButton
-        className={`app-glass-button-primary h-10 shrink-0 ${desktopCreateStacked ? 'basis-full justify-center' : 'w-auto'}`}
+        className={`app-glass-button-primary app-fade-label-only h-10 shrink-0 ${desktopCreateStacked ? 'basis-full justify-center' : 'w-auto'}`}
         onClick={onCreate}
         disabled={createDisabled}
         disabledReason={createDisabled ? createDisabledReason : undefined}

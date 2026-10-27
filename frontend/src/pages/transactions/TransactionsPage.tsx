@@ -6,6 +6,7 @@ import { useLocation, useNavigate } from 'react-router'
 import { buildImportOriginState } from '@/utils/importOrigin'
 import { useAuth } from '@/hooks/useAuth'
 import { useAccounts } from '@/api/accounts'
+import { getCreateBlockReason } from '@/components/transactions/utils/createBlockReason'
 import {
   useLoadTransaction,
   useTransactionsOverview,
@@ -235,6 +236,7 @@ export default function TransactionsPage() {
           onFilterLoadingChange={setFilterListLoading}
           onSettledTransactionsChange={handleSettledTransactionsChange}
           onCreateTransaction={openCreateModal}
+          createBlockReason={getCreateBlockReason(accounts)}
           onEditTransaction={openEditModal}
           onImport={openImport}
         />
