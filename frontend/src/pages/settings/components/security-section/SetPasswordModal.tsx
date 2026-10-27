@@ -92,7 +92,6 @@ export function SetPasswordModal({ open, onClose, onDone, onExitComplete }: SetP
             htmlFor={NEW_PASSWORD_ID}
             error={refusal.errors.newPassword}
             errorId="set_new_password-error"
-            spacingClassName="mb-0"
           />
           <input
             id={NEW_PASSWORD_ID}
@@ -120,7 +119,6 @@ export function SetPasswordModal({ open, onClose, onDone, onExitComplete }: SetP
             htmlFor={CONFIRM_PASSWORD_ID}
             error={refusal.errors.confirmPassword}
             errorId="set_confirm_password-error"
-            spacingClassName="mb-0"
           />
           <input
             id={CONFIRM_PASSWORD_ID}

@@ -715,6 +715,12 @@ test.describe('dialog input errors', () => {
     const confirm = dialog.getByLabel('Confirm new password')
     await expect(submit).not.toHaveAttribute('aria-disabled', 'true')
     await expect(dialog.getByRole('alert')).toHaveCount(0)
+    // Each label keeps a gap above its field
+    for (const field of [fresh, confirm]) {
+      const label = dialog.locator(`label[for="${await field.getAttribute('id')}"]`)
+      const [labelBox, fieldBox] = [await label.boundingBox(), await field.boundingBox()]
+      expect(fieldBox!.y - (labelBox!.y + labelBox!.height)).toBeGreaterThanOrEqual(4)
+    }
 
     await submit.click()
     await expect(dialog.getByRole('alert')).toHaveText(['Enter a password', 'Confirm your password'])
