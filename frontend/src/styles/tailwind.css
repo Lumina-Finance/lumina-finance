@@ -1,12 +1,6 @@
 @import "tailwindcss";
 @config "../../tailwind.config.js";
 
-@property --app-underline-thickness {
-  syntax: "<length>";
-  inherits: false;
-  initial-value: 1px;
-}
-
 /* Tailwind's own curve for every transition utility that names none, such as transition-colors, so a hover
    look written with a bare utility eases like the rest instead of on Material's */
 @theme {

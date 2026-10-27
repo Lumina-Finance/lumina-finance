@@ -72,13 +72,4 @@ describe('hover looks that name their own transition', () => {
     })
     expect(values).toEqual([APP_EASE])
   })
-
-  it('eases an underlined button through a registered length, since Chromium never transitions the thickness itself', () => {
-    const transitions: string[] = []
-    stylesheet.walkRules('button.underline', (rule) => {
-      rule.walkDecls('transition', (decl) => transitions.push(decl.value))
-      rule.walkDecls('text-decoration-thickness', (decl) => expect(decl.value).toBe('var(--app-underline-thickness)'))
-    })
-    expect(transitions.join(',')).toContain(`--app-underline-thickness 150ms ${APP_EASE}`)
-  })
 })
