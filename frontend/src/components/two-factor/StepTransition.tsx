@@ -19,9 +19,10 @@ interface StepTransitionProps {
 }
 
 /**
- * Eases a stacked two-factor modal between steps of differing heights. The body cross-fades while the
- * wrapper animates its real height from the old step to the new one in a single pass, so the panel
- * never snaps and the content is never scaled out of shape the way a layout animation would. The
+ * Eases a stacked two-factor modal between steps of differing heights. The old body fades out and the
+ * new one in while the wrapper animates its real height from the old step to the new one in a single
+ * pass, so the panel never snaps and the content is never scaled out of shape the way a layout
+ * animation would. The
  * outgoing step is lifted out of flow during the fade, so the measured height already reflects the
  * incoming step
  */
