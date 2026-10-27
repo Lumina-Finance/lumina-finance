@@ -3,6 +3,7 @@
  * label below the WCAG AA minimum for normal text in either theme
  */
 import { describe, expect, it } from 'vitest'
+import selectorSource from '@/components/time-range/Selector.tsx?raw'
 import { FX_TONE_CLASS } from '@/components/tooltips/fxToneClass'
 import { contrast, paint, stylesheet, THEMES, type Rgb, type Theme, type Tokens } from './fixtures'
 
@@ -423,6 +424,23 @@ describe('hover on shaded surfaces', () => {
   it.each(cases)('shows against the $surface in the $theme theme', ({ theme, token, backdrop }) => {
     const tokens = THEMES[theme]
     expect(contrast(washOver(tokens, token, backdrop(tokens)), backdrop(tokens))).toBeGreaterThanOrEqual(MINIMUM_HOVER_STEP)
+  })
+
+  // The date-range list's options sit on the translucent glass panel (62% of the input fill over the page or a card),
+  // where the flat hover colour all but vanishes in the light theme, so they take the wash of the text colour
+  const GLASS_BACKDROPS = ['page', 'card'] as const
+  const glassCases = (Object.keys(THEMES) as Theme[]).flatMap((theme) => GLASS_BACKDROPS.map((under) => ({ theme, under })))
+
+  it('has the date-range options take the wash on the glass panel', () => {
+    expect(selectorSource).toContain('hover:bg-[var(--app-hover-on-surface-soft)]')
+  })
+
+  it.each(glassCases)('shows a date-range option under the pointer against the glass panel in the $theme theme on the $under', ({ theme, under }) => {
+    const tokens = THEMES[theme]
+    const behind = solid(tokens, under === 'page' ? '--app-bg' : '--app-surface-soft')
+    const { rgb, alpha } = readHex(tokens, '--app-input-bg')
+    const glass = paint(rgb, alpha * 0.62, behind)
+    expect(contrast(washOver(tokens, '--app-hover-on-surface-soft', glass), glass)).toBeGreaterThanOrEqual(MINIMUM_HOVER_STEP)
   })
 
   // The rows and toggles that take the menu items' accent hover (app-accent-hover) sit on the card and the import
