@@ -13,6 +13,7 @@ from app.config.runtime import ALLOWED_ORIGINS, RUNTIME
 from app.database import async_session, engine, verify_app_role_is_unprivileged
 from app.db.bank_transaction_key import verify_key_matches_hashes
 from app.db.encryption_key import verify_key_matches_data
+from app.request_hook import RequestObserverMiddleware
 from app.request_security import RequestBodySizeLimitMiddleware
 from app.request_validation import handle_request_validation_error
 from app.routes.accounts import router as account_router
@@ -118,6 +119,10 @@ if ALLOWED_ORIGINS:
         # the attempts count to warn before the lockout. A browser on another origin sees only what is listed
         expose_headers=["WWW-Authenticate", ATTEMPTS_REMAINING_HEADER],
     )
+
+# Added last so it is the outermost layer and sees every request, including one CORS or the body
+# size guard answers without reaching a route
+app.add_middleware(RequestObserverMiddleware)
 
 app.include_router(auth_router)
 app.include_router(app_version_router)

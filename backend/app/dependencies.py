@@ -6,7 +6,7 @@ from typing import Annotated
 
 import jwt
 from cryptography.hazmat.primitives.serialization import load_pem_private_key
-from fastapi import Depends, HTTPException, status
+from fastapi import Depends, HTTPException, Request, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -18,6 +18,7 @@ from app.models.auth_session import AuthSession
 from app.models.auth_token import AuthToken
 from app.models.base import AuthTokenKind
 from app.models.user import User
+from app.request_hook import record_request_user
 
 # Derive the access public key from the private key for token verification
 _private_key = load_pem_private_key(JWT_ACCESS_PRIVATE_KEY.encode(), password=None)
@@ -37,6 +38,7 @@ def get_current_session_id() -> uuid.UUID | None:
 
 
 async def get_authenticated_user(
+    request: Request,
     credentials: Annotated[HTTPAuthorizationCredentials, Depends(_security)],
     db: Annotated[AsyncSession, Depends(get_db)],
 ) -> User:
@@ -47,6 +49,7 @@ async def get_authenticated_user(
     on this directly, since get_current_user adds the restriction check
 
     Args:
+        request: Incoming request, which carries the user's ID to the request observers
         credentials: Bearer token from the Authorization header
         db: Async database session
 
@@ -120,6 +123,7 @@ async def get_authenticated_user(
     if not user:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="User not found", headers=_TOKEN_AUTH_HEADERS)
 
+    record_request_user(request, user.id)
     return user
 
 

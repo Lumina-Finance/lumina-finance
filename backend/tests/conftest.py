@@ -1,5 +1,5 @@
 import os
-from collections.abc import AsyncIterator, Callable
+from collections.abc import AsyncIterator, Callable, Iterator
 from datetime import datetime
 from types import ModuleType
 from uuid import uuid4
@@ -9,6 +9,7 @@ from sqlalchemy import event, text
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 from sqlalchemy.pool import NullPool
 
+from app import request_hook
 from app.config.database import APP_DB_USER, MIGRATOR_DB_USER
 from app.config.env import require
 from app.database import stamp_request_identity
@@ -16,6 +17,7 @@ from app.db.credentials import resolve_role_password
 from app.db.rls import apply_rls
 from app.models import import_all_models
 from app.models.base import Base
+from app.request_hook import RequestRecord, observe_requests
 from app.services.categories.defaults import seed_system_categories
 from app.services.merchants.defaults import seed_system_merchants
 from app.valkey_store import ValkeyStore, use_valkey
@@ -172,3 +174,15 @@ async def published_valkey(valkey_store: ValkeyStore) -> AsyncIterator[ValkeySto
     """
     async with use_valkey(valkey_store):
         yield valkey_store
+
+
+@pytest.fixture
+def request_records(monkeypatch) -> Iterator[list[RequestRecord]]:
+    """The records of the requests answered during the test, as the request observers receive them
+
+    The observers the app registers stay in place, and the one added here is removed afterwards
+    """
+    monkeypatch.setattr(request_hook, "_observers", list(request_hook._observers))
+    records: list[RequestRecord] = []
+    observe_requests(records.append)
+    yield records
