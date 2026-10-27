@@ -12,7 +12,7 @@ import { API_BASE_URL } from '../support/target'
 
 /** The rail's label is drawn and the title is set in the app's serif */
 async function expectRailAndSerifTitle(dialog: Locator, railLabel: string): Promise<void> {
-  await expect(dialog.getByText(railLabel, { exact: true })).toBeVisible()
+  await expect(dialog.getByText(railLabel, { exact: true }).filter({ visible: true })).toBeVisible()
   const titleFont = await dialog.getByRole('heading').first().evaluate((heading) => getComputedStyle(heading).fontFamily)
   expect(titleFont).toContain('Cormorant Garamond')
 }

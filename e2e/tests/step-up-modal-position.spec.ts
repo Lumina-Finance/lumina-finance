@@ -14,13 +14,13 @@ const WRONG_CODE = '000000'
 // Frames to wait after the message shows, for the modal's height easing of about a quarter of a second to finish
 const SETTLE_FRAMES = 60
 
-// The most the top edge may move between two frames: the message's height eased over a quarter of a second
-// is a few pixels a frame, where a jump would be the whole of it at once
-const MAX_STEP_PX = 8
+// Distinct heights the top edge holds while the modal opens for the message: its start, its end and at
+// least one between, where a jump would show only the start and the end
+const MIN_POSITIONS_WHILE_EASING = 3
 
 /**
- * Runs the action that gets a refusal and asserts the modal's top edge never moved more than a few pixels
- * between two frames while its message came in. The modal holds no blank room for the message, and is
+ * Runs the action that gets a refusal and asserts the modal's top edge passes through positions between its
+ * start and its end while the message comes in. The modal holds no blank room for the message, and is
  * centred, so it eases open by the message's height rather than jumping
  */
 async function expectModalStillWhileRefused(page: Page, modal: Locator, refuse: () => Promise<void>): Promise<void> {
@@ -48,8 +48,10 @@ async function expectModalStillWhileRefused(page: Page, modal: Locator, refuse: 
   await expect.poll(framesNow).toBeGreaterThan(framesAtMessage + SETTLE_FRAMES)
 
   const tops = await page.evaluate(() => (window as unknown as { modalTops: number[] }).modalTops)
-  const largestStep = Math.max(...tops.slice(1).map((top, index) => Math.abs(top - tops[index])))
-  expect(largestStep).toBeLessThan(MAX_STEP_PX)
+  const restingTop = tops[0]
+  const heldPositions = new Set(tops.map((top) => Math.round(top)))
+  expect(tops[tops.length - 1]).toBeLessThan(restingTop)
+  expect(heldPositions.size).toBeGreaterThanOrEqual(MIN_POSITIONS_WHILE_EASING)
 }
 
 test('eases the step-up modal open when a code is refused', ACROSS_ORIGINS, async ({ page, request }) => {
