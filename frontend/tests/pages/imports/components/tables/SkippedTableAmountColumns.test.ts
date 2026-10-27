@@ -113,8 +113,8 @@ describe('the Firefly III import', () => {
         writtenSources: { accounts: new Set<string>(), categories: new Set<string>() },
         archiveAccountSources: [],
       },
-      importError: null,
-      importErrorLang: undefined,
+      importError: 'Withdrawal source is not an imported account',
+      importErrorLang: 'en',
       importResult: null,
       canCommitImport: false,
       handleCommitImport: async () => undefined,
@@ -125,6 +125,11 @@ describe('the Firefly III import', () => {
       values: ['-42.50', '-30.10', '1,234.00'],
       others: ['date', 'description', 'someday', 'Lunch'],
     })
+
+    // The reason mirrors the backend's refusals, which stay English on a translated page
+    expect(markup).toContain('<span lang="en">The date is not one we can read.</span>')
+    expect(markup).not.toContain('lang="en">This amount is much larger')
+    expect(markup).toContain('<span lang="en">Withdrawal source is not an imported account</span>')
   })
 
   it('right-aligns a skipped budget\'s Latest amount', () => {
@@ -155,6 +160,7 @@ describe('the Firefly III import', () => {
     }))
 
     expectAmountColumns(markup, { headers: ['Latest amount'], values: ['$450.00'], others: ['Status', 'Active', 'Cadence', 'Monthly'] })
+    expect(markup).toContain('<span lang="en">Its limits are in more than one currency.</span>')
   })
 })
 
