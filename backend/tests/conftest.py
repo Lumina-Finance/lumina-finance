@@ -118,9 +118,7 @@ async def _setup_schema():
 async def clean_tables():
     """Truncate all tables before each test for a clean slate."""
     async with engine.begin() as conn:
-        await conn.execute(text(
-            "TRUNCATE " + ", ".join(t.name for t in reversed(Base.metadata.sorted_tables)) + " CASCADE"
-        ))
+        await conn.execute(text("TRUNCATE " + ", ".join(t.name for t in reversed(Base.metadata.sorted_tables)) + " CASCADE"))
     async with TestSession() as session:
         await seed_system_categories(session)
         await seed_system_merchants(session)
