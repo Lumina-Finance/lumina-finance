@@ -1,9 +1,17 @@
+{
+	servers {
+		trusted_proxies static {$TRUSTED_PROXIES:127.0.0.1/32}
+	}
+}
+
 :80 {
 	encode zstd gzip
 	root * /srv/lumina/frontend
 
 	handle_path /api/* {
-		reverse_proxy 127.0.0.1:8000
+		reverse_proxy 127.0.0.1:8000 {
+			header_up X-Forwarded-For {client_ip}
+		}
 	}
 
 	handle {
