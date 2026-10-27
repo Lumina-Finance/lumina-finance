@@ -67,8 +67,8 @@ describe('disabled control reason beside the control', () => {
     expect(bottom).toBeLessThanOrEqual(box.top)
   })
 
-  it('ends the cursor offset inside the control right edge', () => {
+  it('ends level with the control right edge', () => {
     const { x, box } = placeBeside(300)
-    expect(x + TOOLTIP.offsetWidth).toBe(box.right - 10)
+    expect(x + TOOLTIP.offsetWidth).toBe(box.right)
   })
 })

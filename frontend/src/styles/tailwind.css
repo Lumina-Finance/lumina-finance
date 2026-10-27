@@ -1948,6 +1948,18 @@
     background: color-mix(in srgb, var(--app-button-primary-bg) 41%, transparent);
   }
 
+  /* A primary button that keeps its box whole and fades only what is written on it, for one where the
+     unavailable state is explained by its tooltip and the shape should stay put */
+  .app-glass-button-primary.app-fade-label-only[aria-disabled="true"] {
+    color: var(--app-button-primary-text);
+    border-color: color-mix(in srgb, var(--app-button-primary-bg) 65%, var(--app-border-strong));
+    background: color-mix(in srgb, var(--app-button-primary-bg) 82%, transparent);
+  }
+
+  .app-fade-label-only[aria-disabled="true"] > * {
+    opacity: 0.5;
+  }
+
   .app-danger-button[aria-disabled="true"] {
     color: color-mix(in srgb, white 50%, transparent);
     border-color: color-mix(in srgb, color-mix(in srgb, var(--app-danger-fill) 65%, var(--app-border-strong)) 50%, transparent);
