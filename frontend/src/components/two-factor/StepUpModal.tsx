@@ -311,7 +311,7 @@ export function StepUpModal({
               type="button"
               onClick={onUserPress(() => setConfirmingReset(false))}
               disabled={resetting}
-              className="block w-full text-center text-sm font-medium underline underline-offset-2"
+              className="mx-auto block text-center text-sm font-medium underline underline-offset-2"
               style={{ color: 'var(--app-text-muted)' }}
             >
               Back
@@ -425,7 +425,7 @@ export function StepUpModal({
                         setLockoutRemaining(null);
                       })}
                       disabled={verifying}
-                      className="block w-full text-center text-sm underline underline-offset-2"
+                      className="mx-auto block text-center text-sm underline underline-offset-2"
                       style={{ color: 'var(--app-text-muted)' }}
                     >
                       Back
@@ -436,7 +436,7 @@ export function StepUpModal({
                       type="button"
                       onClick={onUserPress(() => setConfirmingReset(true))}
                       disabled={verifying}
-                      className="block w-full text-center text-sm font-medium underline underline-offset-2"
+                      className="mx-auto block text-center text-sm font-medium underline underline-offset-2"
                       style={{ color: 'var(--app-text-muted)' }}
                     >
                       Lost your authenticator?
