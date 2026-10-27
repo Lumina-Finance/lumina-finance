@@ -111,7 +111,12 @@ export function readImportAmount(rawValue: string, format: ImportAmountFormat): 
   const wholeDigits = readWholeAmountDigits(whole, format.groupingSeparator)
   if (wholeDigits === null) return null
 
-  const signCharacter = MINUS_PATTERN.test(amountSign) ? '-' : amountSign
+  const explicitSign = MINUS_PATTERN.test(amountSign) ? '-' : amountSign
+  const markerSign = readTrailingMarkerSign(suffix)
+  // A marker that disagrees with a written sign is an unclear cell, so it is refused, not guessed
+  if (markerSign && explicitSign && explicitSign !== markerSign) return null
+
+  const signCharacter = explicitSign || markerSign
   const normalized = `${signCharacter}${wholeDigits}${fraction === undefined ? '' : `.${fraction}`}`
   const sign = signCharacter === '-' ? 'negative' : signCharacter === '+' ? 'positive' : 'unsigned'
 
@@ -165,6 +170,19 @@ export function doesImportAmountReadingSignDisagreeWithDirection(
 ) {
   if (reading.isZero) return false
   return direction === 'out' ? reading.sign === 'positive' : reading.sign === 'negative'
+}
+
+/**
+ * Reads the debit or credit marker some banks write after an amount, such as `250.00 Dr`
+ *
+ * A debit reads as a minus and a credit as a plus. The marker is a word of its own at the end of
+ * the text after the digits, in any letter case, with or without a space before it, so `Andr` is
+ * ordinary text and stays discarded
+ */
+function readTrailingMarkerSign(suffix: string) {
+  const marker = /(?<!\p{L})(dr|cr)$/iu.exec(suffix.trim())?.[1]
+  if (!marker) return ''
+  return marker.toLowerCase() === 'dr' ? '-' : '+'
 }
 
 /** Finds the final Latin digit without converting the amount to a JavaScript number */
