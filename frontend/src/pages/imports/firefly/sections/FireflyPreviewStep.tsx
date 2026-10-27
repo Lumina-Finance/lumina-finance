@@ -16,6 +16,7 @@ type FireflyPreviewStepProps = Pick<
   | 'budgetsFile'
   | 'importBuild'
   | 'importError'
+  | 'importErrorLang'
   | 'importResult'
   | 'canCommitImport'
   | 'handleCommitImport'
@@ -40,6 +41,7 @@ export function FireflyPreviewStep({
   budgetsFile,
   importBuild,
   importError,
+  importErrorLang,
   importResult,
   canCommitImport,
   handleCommitImport,
@@ -55,6 +57,7 @@ export function FireflyPreviewStep({
       emptyDescription="Transactions compiled from the export will appear here."
       buildError={importBuild.errors[0] ?? null}
       importError={importError}
+      importErrorLang={importErrorLang}
       imported={Boolean(importResult)}
       canCommit={canCommitImport}
       onCommit={handleCommitImport}

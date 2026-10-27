@@ -15,6 +15,7 @@ type ActualPreviewStepProps = Pick<
   | 'newCategoryCount'
   | 'importBuild'
   | 'importError'
+  | 'importErrorLang'
   | 'importResult'
   | 'canCommitImport'
   | 'handleCommitImport'
@@ -33,6 +34,7 @@ export function ActualPreviewStep({
   newCategoryCount,
   importBuild,
   importError,
+  importErrorLang,
   importResult,
   canCommitImport,
   handleCommitImport,
@@ -48,6 +50,7 @@ export function ActualPreviewStep({
       emptyDescription="Transactions compiled from the export will appear here."
       buildError={importBuild.errors[0] ?? null}
       importError={importError}
+      importErrorLang={importErrorLang}
       imported={Boolean(importResult)}
       canCommit={canCommitImport}
       onCommit={handleCommitImport}

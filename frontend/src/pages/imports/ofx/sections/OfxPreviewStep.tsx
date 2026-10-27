@@ -14,6 +14,7 @@ type OfxPreviewStepProps = Pick<
   | 'importBuild'
   | 'heldCheckNotice'
   | 'importError'
+  | 'importErrorLang'
   | 'importResult'
   | 'canCommitImport'
   | 'handleCommitImport'
@@ -34,6 +35,7 @@ export function OfxPreviewStep({
   importBuild,
   heldCheckNotice,
   importError,
+  importErrorLang,
   importResult,
   canCommitImport,
   handleCommitImport,
@@ -51,6 +53,7 @@ export function OfxPreviewStep({
       buildError={importBuild.errors[0] ?? null}
       check={heldCheckNotice}
       importError={importError}
+      importErrorLang={importErrorLang}
       imported={Boolean(importResult)}
       canCommit={canCommitImport}
       onCommit={handleCommitImport}
