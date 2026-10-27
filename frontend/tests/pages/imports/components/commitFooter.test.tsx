@@ -68,3 +68,12 @@ describe('Commit import while the held-rows check runs', () => {
     expect(markup).not.toContain('Try again')
   })
 })
+
+describe('Commit import after the server refused the import', () => {
+  it('marks the server\'s English reason with its language only when it is told to', () => {
+    const props = { importError: 'Account is archived', canCommit: true, imported: false, onCommit: () => {}, className: '' }
+
+    expect(renderToStaticMarkup(<ImportCommitFooter {...props} importErrorLang="en" />)).toContain('<span lang="en">Account is archived</span>')
+    expect(renderToStaticMarkup(<ImportCommitFooter {...props} />)).not.toContain('lang=')
+  })
+})
