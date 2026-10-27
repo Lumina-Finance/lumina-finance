@@ -15,7 +15,8 @@ export function getCashFlowTooltipBucket(
   return getRechartsTooltipPoint({
     state,
     data: buckets,
-    resolveLabel: (label) => buckets.find((bucket) => bucket.label === label),
+    // The chart's category is rangeLabel, since the axis label repeats across years
+    resolveLabel: (label) => buckets.find((bucket) => bucket.rangeLabel === label),
   })
 }
 
@@ -35,26 +36,36 @@ export function getCashFlowBarData(
 ) {
   const dayCount = getCustomRangeDays(fromDate, toDate) ?? 1
   const granularity = getChartGranularity(dayCount)
+  // A range that crosses a calendar year repeats months and days, so its tooltips name the year and its
+  // axis marks where the year turns, with the year on the January label alone
+  const showYear = fromDate.slice(0, 4) !== toDate.slice(0, 4)
+  const dayFormat = showYear ? DATE_FORMATS.monthDayYear : DATE_FORMATS.monthDay
+  const points = response?.points ?? []
   return {
     granularity,
-    buckets: (response?.points ?? []).map(([bucketStart, bucketEnd, inflow, outflow]): CashFlowBarBucket => {
+    buckets: points.map(([bucketStart, bucketEnd, inflow, outflow], index): CashFlowBarBucket => {
       const firstDate = parseYmd(bucketStart)
       const lastDate = parseYmd(bucketEnd)
+      // Monthly bars turn the year at each January. Weekly and daily bars have no January bar, so the first
+      // bar of a new year does
+      const marksYear = showYear && firstDate !== null && (granularity === 'month'
+        ? firstDate.getMonth() === 0
+        : index > 0 && points[index - 1][0].slice(0, 4) !== bucketStart.slice(0, 4))
       // Weekly bars are labelled by the day their week starts, since a week number is hard to place and
-      // several weeks of one month would repeat its name, which the tooltip lookup by label also needs to
-      // be unique. The tooltip's range gives each bar's dates
+      // several weeks of one month would repeat its name. The tooltip's range gives each bar's dates
       const label = granularity === 'month'
-        ? (firstDate ? formatDate(firstDate, DATE_FORMATS.month) : bucketStart)
-        : (firstDate ? formatDate(firstDate, DATE_FORMATS.monthDay) : bucketStart)
+        ? (firstDate ? formatDate(firstDate, marksYear ? DATE_FORMATS.monthYear : DATE_FORMATS.month) : bucketStart)
+        : (firstDate ? formatDate(firstDate, marksYear ? DATE_FORMATS.monthDayYear : DATE_FORMATS.monthDay) : bucketStart)
       const rangeLabel = firstDate && lastDate && firstDate.getTime() === lastDate.getTime()
-        ? formatDate(firstDate, DATE_FORMATS.monthDay)
+        ? formatDate(firstDate, dayFormat)
         : firstDate && lastDate
-          ? `${formatDate(firstDate, DATE_FORMATS.monthDay)}–${formatDate(lastDate, DATE_FORMATS.monthDay)}`
-          : `${bucketStart}–${bucketEnd}`
+          ? `${formatDate(firstDate, dayFormat)} – ${formatDate(lastDate, dayFormat)}`
+          : `${bucketStart} – ${bucketEnd}`
 
       return {
         label,
         rangeLabel,
+        marksYear,
         inflow,
         outflow,
         net: inflow - outflow,
