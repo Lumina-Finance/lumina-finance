@@ -107,9 +107,15 @@ async def test_import_transactions_creates_records_and_recomputes_snapshots(clie
     assert {"account_id": account_id, "dt": "2026-04-10", "balance": -1234} in snapshots_resp.json()
 
 
-@pytest.mark.parametrize("amount", ["90000000000000000.00", "-90000000000000000.00"])
-async def test_import_transactions_refuses_a_balance_too_large_to_store(client, amount):
-    """Rows whose running balance would leave the stored range either way are refused and nothing is saved."""
+@pytest.mark.parametrize(
+    ("amount", "wording"),
+    [
+        ("90000000000000000.00", "a larger balance than an account can hold"),
+        ("-90000000000000000.00", "a balance further below zero than an account can hold"),
+    ],
+)
+async def test_import_transactions_refuses_a_balance_too_large_to_store(client, amount, wording):
+    """Rows whose running balance would leave the stored range either way are refused with that direction's wording and nothing is saved."""
     institution = await _seed_institution()
     signup_resp = await _create_user(client)
     headers = _get_auth_header(signup_resp)
@@ -141,7 +147,7 @@ async def test_import_transactions_refuses_a_balance_too_large_to_store(client, 
     )
 
     assert resp.status_code == 422
-    assert resp.json()["detail"] == "Savings would end up with a larger balance than an account can hold"
+    assert resp.json()["detail"] == f"Savings would end up with {wording}"
     assert (await client.get("/transactions", headers=headers)).json() == []
     assert (await client.get("/accounts", headers=headers)).json() == []
     assert "Windfall" not in {category["name"] for category in (await client.get("/categories", headers=headers)).json()}

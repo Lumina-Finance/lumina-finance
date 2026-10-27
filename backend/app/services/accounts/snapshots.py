@@ -170,9 +170,15 @@ async def _recompute_account_snapshots_from(
         # then fail as a server error instead of a refusal the caller can show
         if not MIN_MINOR_UNITS <= running_balance <= MAX_MINOR_UNITS:
             account_name = await db.scalar(select(Account.name).where(Account.id == account_id))
+            # A hugely negative balance is not a "larger" one, so each direction gets its own wording
+            limit_wording = (
+                "a larger balance than an account can hold"
+                if running_balance > MAX_MINOR_UNITS
+                else "a balance further below zero than an account can hold"
+            )
             raise HTTPException(
                 status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
-                detail=f"{account_name} would end up with a larger balance than an account can hold",
+                detail=f"{account_name} would end up with {limit_wording}",
             )
         db.add(
             AccountBalanceSnapshot(
