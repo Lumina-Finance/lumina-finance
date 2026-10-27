@@ -5,6 +5,8 @@ export type PeriodGlanceTone = 'positive' | 'neutral' | 'negative'
 export type PeriodGlancePrimaryMetric = {
   label: string
   value: string
+  // The short form shown when `value` is too wide for its place even at the smallest size
+  compactValue: string
   detail: string
   calculation?: string
   tone: PeriodGlanceTone

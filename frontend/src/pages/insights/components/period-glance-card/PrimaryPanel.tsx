@@ -6,6 +6,9 @@ import { useMoneyFormatters } from '@/hooks/useMoneyFormatters'
 import { InsightCalculationTooltip } from '@/pages/insights/components/CalculationTooltip'
 import { getPeriodGlanceToneClass } from './display'
 import { getFittedAmountStyle, useFittedAmount } from '@/pages/insights/hooks/useFittedAmount'
+import { formatCompactTotalCurrency } from '@/pages/insights/utils/compactMovedMoney'
+import { renderFittedText } from '@/pages/insights/components/renderFittedText'
+import { FullAmountTooltip } from '@/pages/insights/components/FullAmountTooltip'
 
 // The headline's `text-5xl` size, and the smallest it shrinks to, `text-lg`, which keeps an amount
 // as long as "+IQD 1,246,913,569.001" inside the panel at phone width, including the frames after
@@ -40,17 +43,30 @@ export function PeriodGlancePrimaryPanel({
   incomeExpenseFxStatus,
   displayCurrency,
 }: PeriodGlancePrimaryPanelProps) {
-  const { formatCurrency } = useMoneyFormatters()
-  const [primaryAmountRef, primaryAmountFillRatio] = useFittedAmount(
+  const { currencies, formatCurrency } = useMoneyFormatters()
+  const [primaryAmountRef, primaryAmountFillRatio, primaryAmountCompact] = useFittedAmount(
     primaryMetric.value,
+    primaryMetric.compactValue,
     PRIMARY_AMOUNT_MAX_REM,
     PRIMARY_AMOUNT_MIN_REM,
   )
   const primaryAmountStyle = getFittedAmountStyle(primaryAmountFillRatio, PRIMARY_AMOUNT_MAX_REM, PRIMARY_AMOUNT_MIN_REM)
   const formattedIncome = formatCurrency(income, displayCurrency)
   const formattedExpenses = formatCurrency(expenses, displayCurrency)
-  const [incomeRef, incomeFillRatio] = useFittedAmount(formattedIncome, FIGURE_MAX_REM, FIGURE_MIN_REM)
-  const [expensesRef, expensesFillRatio] = useFittedAmount(formattedExpenses, FIGURE_MAX_REM, FIGURE_MIN_REM)
+  const compactIncome = formatCompactTotalCurrency(income, displayCurrency, currencies, 'income')
+  const compactExpenses = formatCompactTotalCurrency(expenses, displayCurrency, currencies, 'expense')
+  const [incomeRef, incomeFillRatio, incomeCompact] = useFittedAmount(
+    formattedIncome,
+    compactIncome,
+    FIGURE_MAX_REM,
+    FIGURE_MIN_REM,
+  )
+  const [expensesRef, expensesFillRatio, expensesCompact] = useFittedAmount(
+    formattedExpenses,
+    compactExpenses,
+    FIGURE_MAX_REM,
+    FIGURE_MIN_REM,
+  )
 
   // Both figures take the smaller fitted size, so a long amount never sits beside a larger short one.
   // Their containers are always equally wide, so the smaller fill ratio fits both
@@ -75,6 +91,7 @@ export function PeriodGlancePrimaryPanel({
               getMessage={getPeriodIncomeExpenseFxStatusMessage}
             />
           )}
+          <FullAmountTooltip label={primaryMetric.label} compact={primaryAmountCompact} fullAmount={primaryMetric.value} />
         </p>
         <p
           ref={primaryAmountRef}
@@ -84,7 +101,7 @@ export function PeriodGlancePrimaryPanel({
           ].join(' ')}
           style={primaryAmountStyle}
         >
-          {primaryMetric.value}
+          {renderFittedText(primaryAmountCompact, primaryMetric.compactValue, primaryMetric.value)}
         </p>
         <p className="mt-2 max-w-3xl text-sm leading-6 text-[var(--app-text-muted)]">
           {primaryMetric.detail}
@@ -99,9 +116,14 @@ export function PeriodGlancePrimaryPanel({
               label="Income"
               calculation="Total money in for this range after refunds and reversals are netted. Transfers are excluded"
             />
+            <FullAmountTooltip label="Income" compact={incomeCompact} fullAmount={formattedIncome} />
           </p>
-          <p ref={incomeRef} className="mt-1 whitespace-nowrap font-financial text-lg leading-7" style={figureStyle}>
-            {formattedIncome}
+          <p
+            ref={incomeRef}
+            className="mt-1 whitespace-nowrap font-financial text-lg leading-7"
+            style={figureStyle}
+          >
+            {renderFittedText(incomeCompact, compactIncome, formattedIncome)}
           </p>
         </div>
         <div className="min-w-0 [container-type:inline-size]">
@@ -111,9 +133,14 @@ export function PeriodGlancePrimaryPanel({
               label="Expenses"
               calculation="Total money out for this range after refunds and reversals are netted. Shown as a positive amount. Transfers are excluded"
             />
+            <FullAmountTooltip label="Expenses" compact={expensesCompact} fullAmount={formattedExpenses} />
           </p>
-          <p ref={expensesRef} className="mt-1 whitespace-nowrap font-financial text-lg leading-7" style={figureStyle}>
-            {formattedExpenses}
+          <p
+            ref={expensesRef}
+            className="mt-1 whitespace-nowrap font-financial text-lg leading-7"
+            style={figureStyle}
+          >
+            {renderFittedText(expensesCompact, compactExpenses, formattedExpenses)}
           </p>
         </div>
       </div>

@@ -1827,6 +1827,42 @@
     }
   }
 
+  /* A full amount waiting to turn compact fills its container, below its usual smallest size (useFittedAmount.ts).
+     Important, since the fitted size is an inline style */
+  [data-fit-pending] {
+    font-size: var(--fit-pending-size) !important;
+  }
+
+  /*
+    An Insights amount that changes between its full and its compact form, such as on a window resize,
+    fades in. Two names, one per form, so each change plays its own animation (useFittedAmount.ts)
+  */
+  [data-fit-swap='to-compact'] {
+    animation: app-fitted-amount-to-compact 300ms var(--ease-app, cubic-bezier(0.22, 1, 0.36, 1));
+  }
+
+  [data-fit-swap='to-full'] {
+    animation: app-fitted-amount-to-full 300ms var(--ease-app, cubic-bezier(0.22, 1, 0.36, 1));
+  }
+
+  @keyframes app-fitted-amount-to-compact {
+    from {
+      opacity: 0;
+    }
+  }
+
+  @keyframes app-fitted-amount-to-full {
+    from {
+      opacity: 0;
+    }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    [data-fit-swap] {
+      animation: none;
+    }
+  }
+
   .app-danger-button {
     @apply inline-flex h-10 items-center justify-center gap-2 px-4 font-medium transition-all duration-150 ease-app motion-reduce:transition-none;
     box-sizing: border-box;

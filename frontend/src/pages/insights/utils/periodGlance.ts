@@ -1,6 +1,7 @@
 import type { InsightsPeriodGlanceResponse } from '@/api/insights'
 import type { Currency } from '@/api/currency'
 import { formatMovedCurrency } from '@/utils/formatCurrency'
+import { formatCompactMovedCurrency } from '@/pages/insights/utils/compactMovedMoney'
 import { formatMovedPercent, getShownAmountSign, type AmountSign } from '@/utils/negativeAmount'
 import type {
   PeriodGlancePrimaryMetric,
@@ -246,6 +247,7 @@ export function getPeriodGlanceCardData(
     primaryMetric: {
       label: primaryMetric.label,
       value: formatMovedCurrency(primaryMetric.value, displayCurrency, currencies),
+      compactValue: formatCompactMovedCurrency(primaryMetric.value, displayCurrency, currencies),
       detail: primaryMetric.detail,
       calculation: primaryMetric.calculation,
       tone: primaryMetric.tone,

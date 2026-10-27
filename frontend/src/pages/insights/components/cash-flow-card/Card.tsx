@@ -12,6 +12,9 @@ import { getFittedAmountStyle, useFittedAmount } from '@/pages/insights/hooks/us
 import { CashFlowBarChart } from './BarChart'
 import type { CashFlowBarBucket, CashFlowGranularity } from '@/pages/insights/types/cashFlow'
 import { getInsightsCashFlowFxStatusMessage } from '@/pages/insights/utils/fxTooltipMessages'
+import { formatCompactMovedCurrency } from '@/pages/insights/utils/compactMovedMoney'
+import { renderFittedText } from '@/pages/insights/components/renderFittedText'
+import { FullAmountTooltip } from '@/pages/insights/components/FullAmountTooltip'
 import { getSignedAmountColor } from '@/utils/negativeAmount'
 import { FxStatusBadge } from '@/components/tooltips/FxStatusBadge'
 import { InsightCalculationTooltip } from '@/pages/insights/components/CalculationTooltip'
@@ -66,7 +69,7 @@ export function CashFlowCard({
   loading = false,
   transitionKey,
 }: CashFlowCardProps) {
-  const { formatMovedCurrency } = useMoneyFormatters()
+  const { currencies, formatMovedCurrency } = useMoneyFormatters()
   // The failure travels in the snapshot rather than beside it, so the box arrives with the reveal
   // instead of growing the card while the spinner is still turning
   const incomingSnapshot = useMemo<CashFlowSnapshot>(() => ({
@@ -92,7 +95,13 @@ export function CashFlowCard({
   const totalOutflow = displaySnapshot.buckets.reduce((sum, bucket) => sum + bucket.outflow, 0)
   const totalNet = totalInflow - totalOutflow
   const formattedTotalNet = formatMovedCurrency(totalNet, displaySnapshot.displayCurrency)
-  const [totalNetRef, totalNetFillRatio] = useFittedAmount(formattedTotalNet, TOTAL_NET_MAX_REM, TOTAL_NET_MIN_REM)
+  const compactTotalNet = formatCompactMovedCurrency(totalNet, displaySnapshot.displayCurrency, currencies)
+  const [totalNetRef, totalNetFillRatio, totalNetCompact] = useFittedAmount(
+    formattedTotalNet,
+    compactTotalNet,
+    TOTAL_NET_MAX_REM,
+    TOTAL_NET_MIN_REM,
+  )
   const totalNetFitStyle = getFittedAmountStyle(totalNetFillRatio, TOTAL_NET_MAX_REM, TOTAL_NET_MIN_REM)
 
   return (
@@ -138,13 +147,14 @@ export function CashFlowCard({
                     label="Net cash flow"
                     calculation={netCashFlowCalculation}
                   />
+                  <FullAmountTooltip label="Net cash flow" compact={totalNetCompact} fullAmount={formattedTotalNet} />
                 </p>
                 <p
                   ref={totalNetRef}
                   className="mt-1 max-w-full whitespace-nowrap font-financial text-3xl leading-none tracking-tight"
                   style={{ ...totalNetFitStyle, color: getSignedAmountColor(totalNet) }}
                 >
-                  {formattedTotalNet}
+                  {renderFittedText(totalNetCompact, compactTotalNet, formattedTotalNet)}
                 </p>
               </div>
               <CashFlowBarChart

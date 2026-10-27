@@ -564,3 +564,81 @@ test('headlines refit to the figures font when it arrives after they are drawn',
   })).toBeGreaterThan(0.97)
   expect(await measureHeadline(page, headline)).toEqual({ lines: 1, overflows: false })
 })
+
+// Two 16-digit amounts, IQD 8,888,888,888,888.000 of income and IQD 7,777,777,777,777.000 of
+// expenses, which no type size fits inside their half of the panel at phone width, so each reads in
+// millions to one decimal place: the income rounded down and the expenses up. Their difference fits
+// the headline
+const HUGE_INCOME = 8_888_888_888_888_000
+const HUGE_EXPENSE = 7_777_777_777_777_000
+const HUGE_INCOME_FULL = /^IQD\s8,888,888,888,888\.000$/
+const HUGE_INCOME_COMPACT = /^≈IQD\s8,888,888\.8M$/
+const HUGE_EXPENSE_FULL =/^IQD\s7,777,777,777,777\.000$/
+const HUGE_EXPENSE_COMPACT = /^≈IQD\s7,777,777\.8M$/
+
+test('period glance income and expenses of 16 digits read in millions inside their panel on a phone, with the full amount kept', async ({ page, request }) => {
+  const user = await signUpUser(request, { baseCurrency: 'IQD' })
+  const account = await createAccount(request, user, { name: 'Huge total account', currency: 'IQD' })
+  await createTransaction(request, user, {
+    accountId: account.id, categoryName: 'Salary', amount: HUGE_INCOME, currency: 'IQD',
+  })
+  await createTransaction(request, user, {
+    accountId: account.id, categoryName: 'Groceries', amount: -HUGE_EXPENSE, currency: 'IQD',
+  })
+  await page.setViewportSize(PHONE)
+  await logIn(page, user)
+  await expectSignedIn(page)
+  await navigate(page, 'Insights')
+
+  // Screen readers read each amount's full form instead of the short form
+  const compactFigure = (full: RegExp) => periodGlance(page).locator('p', { has: page.locator('.sr-only', { hasText: full }) })
+  const amounts = [
+    { figure: compactFigure(HUGE_INCOME_FULL), full: HUGE_INCOME_FULL, compact: HUGE_INCOME_COMPACT },
+    { figure: compactFigure(HUGE_EXPENSE_FULL), full: HUGE_EXPENSE_FULL, compact: HUGE_EXPENSE_COMPACT },
+  ]
+  for (const { figure, full, compact } of amounts) {
+    await expect(figure.locator('[aria-hidden="true"]')).toHaveText(compact)
+    await expect(figure.locator('.sr-only')).toHaveText(full)
+    // The screen-reader text is clipped off screen, so only the short form is measured
+    await page.evaluate(() => document.fonts.ready.then(() => undefined))
+    await expect.poll(() => figure.evaluate((element) => {
+      const shown = element.querySelector('[aria-hidden="true"]')!.getBoundingClientRect()
+      const box = element.getBoundingClientRect()
+      return shown.right - box.right <= 0.01 && shown.left >= box.left - 0.01 && shown.height < box.height * 1.5
+    })).toBe(true)
+  }
+
+  // The full amount opens from the info icon beside the label, by keyboard as well as by hover
+  // (reached with the Tab key from the icon before it, since the tooltip opens on keyboard focus only)
+  await periodGlance(page).getByRole('button', { name: 'Income calculation', exact: true }).focus()
+  await page.keyboard.press('Tab')
+  const incomeInFull = periodGlance(page).getByRole('button', { name: 'Income in full', exact: true })
+  await expect(incomeInFull).toBeFocused()
+  const incomeTooltip = incomeInFull.locator('xpath=..').getByRole('tooltip')
+  await expect(incomeTooltip).toBeVisible()
+  await expect(incomeTooltip).toHaveCSS('opacity', '1')
+  await expect(incomeTooltip).toHaveText(HUGE_INCOME_FULL)
+
+  // A window resize that changes the form fades the new one in, in each direction
+  // (the attribute clears when its animation ends, so the changes are recorded as they happen)
+  await page.evaluate(() => {
+    const swaps: string[] = []
+    Object.assign(window, { fitSwaps: swaps })
+    new MutationObserver((records) => {
+      for (const record of records) {
+        const value = (record.target as Element).getAttribute('data-fit-swap')
+        if (value) swaps.push(value)
+      }
+    }).observe(document.body, { attributes: true, attributeFilter: ['data-fit-swap'], subtree: true })
+  })
+  const recordedSwaps = () => page.evaluate(() => (window as unknown as { fitSwaps: string[] }).fitSwaps)
+  await page.setViewportSize(DESKTOP)
+  await expect.poll(recordedSwaps).toContain('to-full')
+  await page.setViewportSize(PHONE)
+  await expect.poll(recordedSwaps).toContain('to-compact')
+  // The fade plays out and leaves the figure fully opaque, and the attribute clears with it
+  const compactIncome = compactFigure(HUGE_INCOME_FULL)
+  await expect.poll(() => compactIncome.evaluate((element) => element.getAnimations().length)).toBe(0)
+  await expect(compactIncome).not.toHaveAttribute('data-fit-swap', /./)
+  await expect(compactIncome).toHaveCSS('opacity', '1')
+})
