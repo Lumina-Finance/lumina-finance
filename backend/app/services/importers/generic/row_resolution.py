@@ -60,7 +60,7 @@ def _resolve_import_row(row: TransactionImportRow, import_lookups: ImportLookups
     if account_source in import_lookups.outside_account_sources:
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
-            detail=(f"Map to one of your accounts: {account_source} has rows of its own, so it cannot be answered as outside."),
+            detail=f"{account_source} can't be set to Outside this app: it has rows of its own",
         )
 
     account = get_import_row_account(import_lookups.accounts_by_source, row.account_source)

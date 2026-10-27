@@ -1,4 +1,5 @@
 """Transaction import category mapping"""
+
 import uuid
 from dataclasses import dataclass
 
@@ -30,7 +31,9 @@ class ImportCategoryNameFacts:
 
 
 async def _load_import_category_name_facts(
-    db: AsyncSession, user_id: uuid.UUID, names: set[str],
+    db: AsyncSession,
+    user_id: uuid.UUID,
+    names: set[str],
 ) -> ImportCategoryNameFacts:
     """Acquire reusable candidates using the database's category name key
 
@@ -45,16 +48,22 @@ async def _load_import_category_name_facts(
     facts = ImportCategoryNameFacts({}, {})
     if not names:
         return facts
-    requested = values(column("name", String), name="import_category_names").data([
-        (name,) for name in sorted(names)
-    ])
+    requested = values(column("name", String), name="import_category_names").data([(name,) for name in sorted(names)])
 
     # Lower both operands in PostgreSQL so the lookup agrees with its unique indexes
-    rows = (await db.execute(select(Category, requested.c.name, func.lower(requested.c.name)).select_from(
-        requested.outerjoin(Category, (
-            func.lower(Category.name) == func.lower(requested.c.name)
-        ) & (Category.is_system.is_(True) | ((Category.owner_id == user_id) & Category.group_id.is_(None)))),
-    ).order_by(Category.is_system.asc()))).all()
+    rows = (
+        await db.execute(
+            select(Category, requested.c.name, func.lower(requested.c.name))
+            .select_from(
+                requested.outerjoin(
+                    Category,
+                    (func.lower(Category.name) == func.lower(requested.c.name))
+                    & (Category.is_system.is_(True) | ((Category.owner_id == user_id) & Category.group_id.is_(None))),
+                ),
+            )
+            .order_by(Category.is_system.asc())
+        )
+    ).all()
     for category, name, key in rows:
         facts.keys_by_name[name] = key
         if category is not None:
@@ -86,21 +95,29 @@ async def get_or_create_import_categories_by_source(
     categories_by_source: dict[str, Category] = {}
 
     # Preload facts but keep source validation, kind checks and writes in declaration order
-    categories_by_id = await load_visible_import_categories(db, {
-        mapping.category_id for mapping in mappings if mapping.category_id is not None
-    }, user.id)
-    name_facts = await _load_import_category_name_facts(db, user.id, {
-        mapping.create.name.strip() for mapping in mappings if mapping.create is not None
-    })
+    categories_by_id = await load_visible_import_categories(
+        db, {mapping.category_id for mapping in mappings if mapping.category_id is not None}, user.id
+    )
+    name_facts = await _load_import_category_name_facts(
+        db, user.id, {mapping.create.name.strip() for mapping in mappings if mapping.create is not None}
+    )
 
     # Build each declared category source once so import rows can use a stable lookup map
     for mapping in mappings:
         source = strip_import_text_or_raise(mapping.source, "Category source")
         if source in categories_by_source:
-            raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail=f"Duplicate category source: {source}")
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail=f"The category source {source} is listed more than once"
+            )
 
         categories_by_source[source] = await _get_or_create_import_category_for_mapping(
-            db, user.id, mapping, source, stats, categories_by_id, name_facts,
+            db,
+            user.id,
+            mapping,
+            source,
+            stats,
+            categories_by_id,
+            name_facts,
         )
     return categories_by_source
 
@@ -134,7 +151,7 @@ async def _get_or_create_import_category_for_mapping(
     if (mapping.category_id is None) == (mapping.create is None):
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
-            detail=f"Category source must map to exactly one category action: {source}",
+            detail=f"The category source {source} must map to exactly one category action",
         )
 
     if mapping.category_id is not None:
@@ -155,15 +172,13 @@ def get_import_category_scope_filter(user_id: uuid.UUID):
         SQL predicate matching the importer's visible categories
     """
     group_ids = select(GroupMember.group_id).where(GroupMember.user_id == user_id).scalar_subquery()
-    return (
-        Category.is_system.is_(True)
-        | ((Category.owner_id == user_id) & (Category.group_id.is_(None)))
-        | Category.group_id.in_(group_ids)
-    )
+    return Category.is_system.is_(True) | ((Category.owner_id == user_id) & (Category.group_id.is_(None))) | Category.group_id.in_(group_ids)
 
 
 async def load_visible_import_categories(
-    db: AsyncSession, category_ids: set[uuid.UUID], user_id: uuid.UUID,
+    db: AsyncSession,
+    category_ids: set[uuid.UUID],
+    user_id: uuid.UUID,
 ) -> dict[uuid.UUID, Category]:
     """Read all selected category references under the importer's existing visibility rule
 
@@ -179,15 +194,27 @@ async def load_visible_import_categories(
         return {}
 
     # Acquire visible references in one read while validation retains declaration order
-    categories = (await db.execute(select(Category).where(
-        Category.id.in_(category_ids), get_import_category_scope_filter(user_id),
-    ))).scalars().all()
+    categories = (
+        (
+            await db.execute(
+                select(Category).where(
+                    Category.id.in_(category_ids),
+                    get_import_category_scope_filter(user_id),
+                )
+            )
+        )
+        .scalars()
+        .all()
+    )
     return {category.id: category for category in categories}
 
 
 async def get_visible_import_category(
-    db: AsyncSession, category_id: uuid.UUID, user_id: uuid.UUID,
-    *, categories_by_id: dict[uuid.UUID, Category] | None = None,
+    db: AsyncSession,
+    category_id: uuid.UUID,
+    user_id: uuid.UUID,
+    *,
+    categories_by_id: dict[uuid.UUID, Category] | None = None,
 ) -> Category:
     """Return an existing category visible to the importing user
 
@@ -204,11 +231,13 @@ async def get_visible_import_category(
         HTTPException: Raised with 422 when the category is not visible
     """
     if categories_by_id is None:
-
         # Fetch the selected category only if it is system, personal, or in one of the user's groups
-        result = await db.execute(select(Category).where(
-            Category.id == category_id, get_import_category_scope_filter(user_id),
-        ))
+        result = await db.execute(
+            select(Category).where(
+                Category.id == category_id,
+                get_import_category_scope_filter(user_id),
+            )
+        )
         category = result.scalar_one_or_none()
     else:
         category = categories_by_id.get(category_id)

@@ -75,13 +75,15 @@ async def resolve_import_account_sources(
     for mapping in mappings:
         source = strip_import_text_or_raise(mapping.source, "Account source")
         if source in accounts_by_source or source in outside_sources:
-            raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail=f"Duplicate account source: {source}")
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail=f"The account source {source} is listed more than once"
+            )
 
         if mapping.outside:
             if mapping.account_id is not None or mapping.create is not None:
                 raise HTTPException(
                     status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
-                    detail=f"Account source must map to exactly one account action: {source}",
+                    detail=f"The account source {source} must map to exactly one account action",
                 )
             outside_sources.add(source)
             continue
@@ -134,7 +136,7 @@ async def _get_or_create_import_account_for_mapping(
     if (mapping.account_id is None) == (mapping.create is None):
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
-            detail=f"Account source must map to exactly one account action: {source}",
+            detail=f"The account source {source} must map to exactly one account action",
         )
 
     if mapping.account_id is not None:

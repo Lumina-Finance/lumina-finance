@@ -646,7 +646,7 @@ async def test_firefly_budget_import_conceals_forbidden_categories_without_write
     forbidden = [
         ("00000000-0000-0000-0000-000000000000", "Category not found"),
         (other_personal_id, "Category not found"),
-        (group_category_id, "Forbidden category 2: a tracked category was not found"),
+        (group_category_id, "The Forbidden category 2 budget tracks a category that was not found"),
     ]
 
     for index, (category_id, detail) in enumerate(forbidden):
@@ -710,7 +710,7 @@ async def test_firefly_budget_import_validates_currencies_before_budgets(client)
     )
 
     assert response.status_code == 422
-    assert response.json()["detail"] == "Missing ZZZ: currency ZZZ is not supported"
+    assert response.json()["detail"] == "The Missing ZZZ budget uses the currency ZZZ, which is not supported"
 
 
 async def test_firefly_budget_import_bounds_pending_children(client):
@@ -856,11 +856,11 @@ async def test_firefly_budget_import_preserves_currency_precision(client, curren
 @pytest.mark.parametrize(
     ("amount", "detail"),
     [
-        ("12.345", 'Invalid amount: invalid limit amount "12.345"'),
-        ("100.555000000000", 'Invalid amount: invalid limit amount "100.555000000000"'),
-        ("0.000000000000", "Invalid amount: limit amounts must be positive"),
-        ("92233720368547758.08", 'Invalid amount: invalid limit amount "92233720368547758.08"'),
-        ("0.00", "Invalid amount: limit amounts must be positive"),
+        ("12.345", 'The Invalid amount budget has an invalid limit amount "12.345"'),
+        ("100.555000000000", 'The Invalid amount budget has an invalid limit amount "100.555000000000"'),
+        ("0.000000000000", "The Invalid amount budget has a limit amount that is not positive"),
+        ("92233720368547758.08", 'The Invalid amount budget has an invalid limit amount "92233720368547758.08"'),
+        ("0.00", "The Invalid amount budget has a limit amount that is not positive"),
     ],
 )
 async def test_firefly_budget_import_preserves_limit_refusals(client, amount, detail):
@@ -891,9 +891,9 @@ async def test_firefly_budget_import_preserves_limit_refusals(client, amount, de
 @pytest.mark.parametrize(
     ("invalid_kind", "expected_detail"),
     [
-        ("amount", 'Late invalid: invalid limit amount "12.345"'),
+        ("amount", 'The Late invalid budget has an invalid limit amount "12.345"'),
         ("category", "Category not found"),
-        ("overlap", "Late invalid: two limit periods overlap"),
+        ("overlap", "The Late invalid budget has two limit periods that overlap"),
     ],
 )
 async def test_firefly_budget_import_rejections_preserve_existing_state(client, invalid_kind, expected_detail):
@@ -1220,7 +1220,7 @@ async def test_firefly_budget_import_refuses_a_cadence_the_latest_period_does_no
     )
 
     assert resp.status_code == 422
-    assert resp.json()["detail"] == "Groceries: the cadence does not fit the latest limit period"
+    assert resp.json()["detail"] == "The cadence of the Groceries budget does not fit its latest limit period"
     assert (await client.get("/base-budgets", headers=headers)).json() == []
 
 
@@ -1286,7 +1286,7 @@ async def test_firefly_budget_import_rejects_overlapping_periods(client):
     )
 
     assert resp.status_code == 422
-    assert resp.json()["detail"] == "Groceries: two limit periods overlap"
+    assert resp.json()["detail"] == "The Groceries budget has two limit periods that overlap"
 
 
 async def test_firefly_budget_import_rejects_period_end_before_start(client):
@@ -1312,7 +1312,7 @@ async def test_firefly_budget_import_rejects_period_end_before_start(client):
     )
 
     assert resp.status_code == 422
-    assert resp.json()["detail"] == "Groceries: a limit period ends before it starts"
+    assert resp.json()["detail"] == "The Groceries budget has a limit period that ends before it starts"
 
 
 @pytest.mark.parametrize("invalid_amount", ["12.345", "92233720368547758.08"])
@@ -1346,7 +1346,7 @@ async def test_firefly_budget_import_is_atomic_across_budgets(client, invalid_am
     )
 
     assert resp.status_code == 422
-    assert resp.json()["detail"] == f'Broken: invalid limit amount "{invalid_amount}"'
+    assert resp.json()["detail"] == f'The Broken budget has an invalid limit amount "{invalid_amount}"'
 
     base_budgets_resp = await client.get("/base-budgets", headers=headers)
     assert base_budgets_resp.json() == []

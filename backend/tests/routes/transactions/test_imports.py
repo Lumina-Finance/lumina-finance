@@ -345,7 +345,7 @@ async def test_import_transactions_rejects_a_counterparty_account_on_a_non_trans
     )
 
     assert resp.status_code == 422
-    assert resp.json()["detail"] == "Only a transfer records a counterparty account: Savings"
+    assert resp.json()["detail"] == "Savings is recorded as a counterparty account, but only a transfer records one"
 
 
 async def test_import_transactions_rejects_a_transfer_recording_its_own_account(client):
@@ -375,7 +375,7 @@ async def test_import_transactions_rejects_a_transfer_recording_its_own_account(
     )
 
     assert resp.status_code == 422
-    assert resp.json()["detail"] == "A transfer cannot record its own account as its counterparty: Chequing (old)"
+    assert resp.json()["detail"] == "A transfer cannot name its own account, Chequing (old), as its counterparty"
 
 
 async def test_import_transactions_rejects_an_unmapped_counterparty_source(client):
@@ -402,7 +402,7 @@ async def test_import_transactions_rejects_an_unmapped_counterparty_source(clien
     )
 
     assert resp.status_code == 422
-    assert resp.json()["detail"] == "Counterparty account source is not mapped: Savings"
+    assert resp.json()["detail"] == "The counterparty account source Savings is not mapped"
 
 
 async def test_import_transactions_rejects_an_outside_source_that_also_names_an_account(client):
@@ -427,7 +427,7 @@ async def test_import_transactions_rejects_an_outside_source_that_also_names_an_
     )
 
     assert resp.status_code == 422
-    assert resp.json()["detail"] == "Account source must map to exactly one account action: Chequing"
+    assert resp.json()["detail"] == "The account source Chequing must map to exactly one account action"
 
 
 async def test_import_transactions_rejects_rows_written_to_an_outside_source(client):
@@ -452,9 +452,7 @@ async def test_import_transactions_rejects_rows_written_to_an_outside_source(cli
     )
 
     assert resp.status_code == 422
-    assert resp.json()["detail"] == (
-        "Map to one of your accounts: Brokerage elsewhere has rows of its own, so it cannot be answered as outside."
-    )
+    assert resp.json()["detail"] == ("Brokerage elsewhere can't be set to Outside this app: it has rows of its own")
 
 
 async def test_import_transactions_rejects_unmapped_account_source(client):
@@ -484,7 +482,7 @@ async def test_import_transactions_rejects_unmapped_account_source(client):
     )
 
     assert resp.status_code == 422
-    assert resp.json()["detail"] == "Account source is not mapped: Missing Account"
+    assert resp.json()["detail"] == "The account source Missing Account is not mapped"
 
 
 async def test_import_transactions_rejects_invalid_created_account_institution(client):
@@ -833,7 +831,7 @@ async def test_staging_refuses_a_source_declared_differently_by_a_later_batch(cl
     resp = await client.post(f"/transactions/import/runs/{run_id}/rows", json=second_batch, headers=headers)
 
     assert resp.status_code == 422
-    assert resp.json()["detail"] == "Account source is declared twice with different answers: Main Chequing"
+    assert resp.json()["detail"] == "The account source Main Chequing is declared twice with different answers"
 
 
 async def test_staging_refuses_a_batch_reaching_past_the_declared_row_count(client):

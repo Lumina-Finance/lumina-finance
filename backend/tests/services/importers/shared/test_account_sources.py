@@ -25,7 +25,7 @@ async def test_naming_one_source_twice_as_outside_money_is_refused_as_a_duplicat
             await resolve_import_account_sources(session, user, [mapping, mapping], ImportStats(), set())
 
         assert exc_info.value.status_code == 422
-        assert exc_info.value.detail == "Duplicate account source: Cash"
+        assert exc_info.value.detail == "The account source Cash is listed more than once"
 
 
 async def test_a_mapping_naming_no_account_and_no_create_is_refused():
@@ -38,4 +38,4 @@ async def test_a_mapping_naming_no_account_and_no_create_is_refused():
             await resolve_import_account_sources(session, user, [mapping], ImportStats(), set())
 
         assert exc_info.value.status_code == 422
-        assert exc_info.value.detail == "Account source must map to exactly one account action: Chequing"
+        assert exc_info.value.detail == "The account source Chequing must map to exactly one account action"

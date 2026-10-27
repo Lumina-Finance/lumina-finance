@@ -1,4 +1,5 @@
 """Transaction import row source mapping validation"""
+
 import uuid
 
 from fastapi import HTTPException, status
@@ -26,7 +27,7 @@ def get_import_row_account(accounts_by_source: dict[str, Account], raw_account_s
     account_source = strip_import_text_or_raise(raw_account_source, "Account source")
     account = accounts_by_source.get(account_source)
     if account is None:
-        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail=f"Account source is not mapped: {account_source}")
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail=f"The account source {account_source} is not mapped")
     return account
 
 
@@ -65,7 +66,7 @@ def get_import_row_counterparty_account(
     if not does_category_record_counterparty_account(category):
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
-            detail=f"Only a transfer records a counterparty account: {counterparty_source}",
+            detail=f"{counterparty_source} is recorded as a counterparty account, but only a transfer records one",
         )
 
     if counterparty_source in outside_sources:
@@ -75,13 +76,13 @@ def get_import_row_counterparty_account(
     if counterparty_account is None:
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
-            detail=f"Counterparty account source is not mapped: {counterparty_source}",
+            detail=f"The counterparty account source {counterparty_source} is not mapped",
         )
 
     if counterparty_account.id == account.id:
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
-            detail=f"A transfer cannot record its own account as its counterparty: {counterparty_source}",
+            detail=f"A transfer cannot name its own account, {counterparty_source}, as its counterparty",
         )
     return counterparty_account.id, TransferCounterpartyScope.TRACKED
 
@@ -102,7 +103,7 @@ def get_import_row_category(categories_by_source: dict[str, Category], raw_categ
     category_source = strip_import_text_or_raise(raw_category_source, "Category source")
     category = categories_by_source.get(category_source)
     if category is None:
-        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail=f"Category source is not mapped: {category_source}")
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail=f"The category source {category_source} is not mapped")
     return category
 
 

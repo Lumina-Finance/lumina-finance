@@ -146,12 +146,10 @@ def _resolve_rows(
         except JournalRowRefusedError as refusal:
             status_code, reason = status.HTTP_422_UNPROCESSABLE_CONTENT, refusal.reason
         except HTTPException as exc:
-
             # The frontend must supply a mapping for every source a row names, so one it cannot use
             # keeps the status the mapping check gave it
             status_code, reason = exc.status_code, exc.detail
         except Exception:
-
             # A row failing in a way no refusal rule anticipated is refused with a generic reason, and
             # the specifics are kept in the server log
             logger.exception("%s %s could not be converted", row_label, row.journal_id)
@@ -159,7 +157,7 @@ def _resolve_rows(
 
         raise HTTPException(
             status_code=status_code,
-            detail=f"{row_label} {row.journal_id}: {reason}",
+            detail=f"{row_label} {row.journal_id} can't be imported. {reason}",
         )
     return legs_by_row
 

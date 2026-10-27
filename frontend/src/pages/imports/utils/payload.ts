@@ -206,7 +206,7 @@ export function buildTransactionImportPayload({
       // The dropdown only offers this answer where no row is written to the source, so it survives
       // here when a file added later carries rows for a name that was answered this way
       if (source.isCounterpartyOnly) accounts.push({ source: source.id, outside: true })
-      else addError(`${source.label} has rows of its own, so map it to one of your accounts rather than answering it as outside.`)
+      else addError(`${source.label} can't be set to Outside this app: it has rows of its own`)
       continue
     }
 

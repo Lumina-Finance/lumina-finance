@@ -262,7 +262,7 @@ def _resolve_budget_categories(
         if category is None:
             raise HTTPException(
                 status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
-                detail=f"{draft.name}: category source {source} has no category mapping in this import",
+                detail=f"The {draft.name} budget uses the category source {source}, which has no category mapping in this import",
             )
         category_ids.append(category.id)
 
@@ -325,7 +325,9 @@ async def _archive_accounts(
         try:
             await validate_no_transactions_after_archive_date(db, account, archive_date)
         except HTTPException as exc:
-            raise HTTPException(status_code=exc.status_code, detail=f"Account source {source}: {exc.detail}") from exc
+            raise HTTPException(
+                status_code=exc.status_code, detail=f"The account {source} has transactions after its archive date, so it can't be archived"
+            ) from exc
 
         account.is_archived = True
         if await zero_account_balance_for_archive(db, account, user, archive_date, import_run_id=run.id):
