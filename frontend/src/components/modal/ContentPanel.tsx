@@ -10,9 +10,8 @@ const PANEL_CLASS_NAME = 'flex max-h-[86vh] w-full max-w-sm flex-col'
 const BODY_CLASS_NAME = 'app-modal-body min-h-0 flex-1 space-y-5 overflow-y-auto overscroll-contain px-6 pt-6'
 
 // With a rail the panel is widened by the rail's own width, so the content keeps the room it has without
-// one. The rail clips to the panel's corners. The serif title takes more room than a plain one, so the
-// panel stands a little taller, so more of the recovery step shows above its footer before the body scrolls
-const RAILED_PANEL_CLASS_NAME = 'flex max-h-[92vh] w-full overflow-hidden'
+// one. The rail clips to the panel's corners
+const RAILED_PANEL_CLASS_NAME = 'flex max-h-[86vh] w-full overflow-hidden'
 const RAILED_WIDTH_CLASS_NAME: Record<ModalLevel, string> = {
   page: 'max-w-md',
   stacked: 'max-w-[27rem]',

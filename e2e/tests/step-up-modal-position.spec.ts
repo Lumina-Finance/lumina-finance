@@ -6,8 +6,7 @@ import { ACROSS_ORIGINS } from '../support/origins'
 import { currentTotp, enrollTotp } from '../support/totp'
 
 // Runs in the cross-origin project only: the attempts left come in a header the browser reads only when
-// the API is on another origin. Its width is the desktop one, and the room kept for the message is laid
-// out from the message itself, so it holds at any width
+// the API is on another origin. Its width is the desktop one
 
 // A code the authenticator will not show for the next few steps, so Verify refuses it
 const WRONG_CODE = '000000'
@@ -15,9 +14,14 @@ const WRONG_CODE = '000000'
 // Frames to wait after the message shows, for the modal's height easing of about a quarter of a second to finish
 const SETTLE_FRAMES = 60
 
+// The most the top edge may move between two frames: the message's height eased over a quarter of a second
+// is a few pixels a frame, where a jump would be the whole of it at once
+const MAX_STEP_PX = 8
+
 /**
- * Runs the action that gets a refusal and asserts the modal's top edge did not move at any frame while its
- * message came in. The modal is centred, so room that opens up for the message would move the whole modal
+ * Runs the action that gets a refusal and asserts the modal's top edge never moved more than a few pixels
+ * between two frames while its message came in. The modal holds no blank room for the message, and is
+ * centred, so it eases open by the message's height rather than jumping
  */
 async function expectModalStillWhileRefused(page: Page, modal: Locator, refuse: () => Promise<void>): Promise<void> {
   // The modal's own opening animation is let finish first, so only a move caused by the refusal is counted
@@ -44,10 +48,11 @@ async function expectModalStillWhileRefused(page: Page, modal: Locator, refuse: 
   await expect.poll(framesNow).toBeGreaterThan(framesAtMessage + SETTLE_FRAMES)
 
   const tops = await page.evaluate(() => (window as unknown as { modalTops: number[] }).modalTops)
-  expect(Math.max(...tops) - Math.min(...tops)).toBeLessThan(1)
+  const largestStep = Math.max(...tops.slice(1).map((top, index) => Math.abs(top - tops[index])))
+  expect(largestStep).toBeLessThan(MAX_STEP_PX)
 }
 
-test('keeps the step-up modal where it is when a code is refused', ACROSS_ORIGINS, async ({ page, request }) => {
+test('eases the step-up modal open when a code is refused', ACROSS_ORIGINS, async ({ page, request }) => {
   const user = await signUpUser(request)
   const secret = await enrollTotp(request, user)
 
@@ -71,7 +76,7 @@ test('keeps the step-up modal where it is when a code is refused', ACROSS_ORIGIN
   await expectModalStillWhileRefused(page, modal, () => page.getByRole('button', { name: 'Verify' }).click())
 })
 
-test('keeps the step-up modal where it is when a password is refused', ACROSS_ORIGINS, async ({ page, request }) => {
+test('eases the step-up modal open when a password is refused', ACROSS_ORIGINS, async ({ page, request }) => {
   const user = await signUpUser(request)
   await logInViaApi(page, user)
   await openPage(page, '/settings#security')

@@ -18,9 +18,6 @@ import { markRecoveryIntent } from '@/utils/recoveryIntent';
 import { delayToMinimum, MFA_LOADING_MIN_MS } from '@/utils/timing';
 import { onUserPress } from '@/utils/userPress';
 
-// Any count of two or more gives the countdown its longest wording, which the lockout allows at most four of
-const LONGEST_COUNTDOWN = 4;
-
 export interface StepUpCredentials {
   /** Empty when the modal does not collect a password */
   password: string;
@@ -254,23 +251,6 @@ export function StepUpModal({
       </p>
     ) : null;
 
-  // The panel is centred, so a message growing its step would move the whole modal. The longest message a
-  // step can show is laid out unseen in the same cell, which keeps the room for it reserved at every width.
-  // Its words are drawn from an attribute, so they are not a second copy of the message in the page's text
-  const feedbackWithRoom = (
-    <div className="grid">
-      <div aria-hidden className="invisible col-start-1 row-start-1">
-        <WarningCallout>
-          <span
-            className="after:content-[attr(data-text)]"
-            data-text={`${describeStepUpFailure('passkey', false)} ${buildLockoutWarning(LONGEST_COUNTDOWN)}`}
-          />
-        </WarningCallout>
-      </div>
-      <div className="col-start-1 row-start-1">{feedback}</div>
-    </div>
-  );
-
   return (
     <ModalContentPanel
       open={open}
@@ -341,7 +321,7 @@ export function StepUpModal({
               onChange={(event) => setPassword(event.target.value)}
               autoFocus
             />
-            {feedbackWithRoom}
+            {feedback}
             <ModalContentFooter>
               {passwordOnly ? (
                 <div className="flex justify-center">
@@ -404,8 +384,7 @@ export function StepUpModal({
                 />
               )}
 
-              {/* With a password step a refusal sends the person back to it, so the room is kept there */}
-              {requirePassword ? feedback : feedbackWithRoom}
+              {feedback}
             </form>
 
             {(showCodeEntry || requirePassword || allowRecoveryReset) && (
