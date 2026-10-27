@@ -11,10 +11,58 @@ const FX_REFRESHED_AT_KEY_PREFIX = 'lumina:fx-refreshed-at'
 const FX_REFRESH_INTERVAL_MS = 12 * 60 * 60 * 1000
 const CACHE_STATUS_RETRY_INTERVAL_MS = 60 * 1000
 
+/**
+ * Counts the holds on a task, so it stays back while any hold is open and listeners hear when the
+ * last one ends. A hold is released once, so a repeated release can't take another hold's place
+ */
+export function createHoldGate() {
+  let holdCount = 0
+  const releaseListeners = new Set<() => void>()
+
+  return {
+    hold() {
+      holdCount += 1
+      let released = false
+      return () => {
+        if (released) return
+        released = true
+        holdCount -= 1
+        if (holdCount === 0) releaseListeners.forEach((listener) => listener())
+      }
+    },
+    isHeld: () => holdCount > 0,
+    onRelease(listener: () => void) {
+      releaseListeners.add(listener)
+      return () => { releaseListeners.delete(listener) }
+    },
+  }
+}
+
+/**
+ * Runs `task` when a caller's attempt finds the gate open, or once the last hold ends if an
+ * attempt was skipped meanwhile
+ */
+export function createHeldRunner(gate: ReturnType<typeof createHoldGate>, task: () => void) {
+  let skipped = false
+  const unsubscribe = gate.onRelease(() => {
+    if (!skipped) return
+    skipped = false
+    task()
+  })
+
+  return {
+    attempt() {
+      if (!gate.isHeld()) return true
+      skipped = true
+      return false
+    },
+    dispose: unsubscribe,
+  }
+}
+
 // Shared by every mounted component, since the dialogues that hold the check sit far below the
 // app shell that runs it
-let holdCount = 0
-const releaseListeners = new Set<() => void>()
+const cacheValidationGate = createHoldGate()
 
 /**
  * Holds every cache check back while `held` is true, so a dialogue that defers its own refresh
@@ -24,11 +72,7 @@ const releaseListeners = new Set<() => void>()
 export function useHoldCacheValidation(held: boolean) {
   useEffect(() => {
     if (!held) return
-    holdCount += 1
-    return () => {
-      holdCount -= 1
-      if (holdCount === 0) releaseListeners.forEach((listener) => listener())
-    }
+    return cacheValidationGate.hold()
   }, [held])
 }
 
@@ -56,7 +100,7 @@ export function useCacheValidation(
     if (!enabled || !userId) return
     let midnightTimer: ReturnType<typeof setTimeout> | undefined
     let active = true
-    let skippedWhileHeld = false
+    const heldRunner = createHeldRunner(cacheValidationGate, () => { void validate() })
 
     const scheduleMidnightCheck = (nextBoundaryAt: string) => {
       if (!active) return
@@ -86,10 +130,7 @@ export function useCacheValidation(
     }
 
     const validate = async () => {
-      if (holdCount > 0) {
-        skippedWhileHeld = true
-        return
-      }
+      if (!heldRunner.attempt()) return
       if (validatingRef.current) {
         pendingValidationRef.current = true
         return
@@ -115,14 +156,7 @@ export function useCacheValidation(
       }
     }
 
-    const onRelease = () => {
-      if (!skippedWhileHeld) return
-      skippedWhileHeld = false
-      void validate()
-    }
-
     void validate()
-    releaseListeners.add(onRelease)
     const unsubscribeFocus = focusManager.subscribe((focused) => {
       if (focused) void validate()
     })
@@ -143,7 +177,7 @@ export function useCacheValidation(
     return () => {
       active = false
       clearTimeout(midnightTimer)
-      releaseListeners.delete(onRelease)
+      heldRunner.dispose()
       unsubscribeFocus()
       window.removeEventListener('focus', onWindowFocus)
       window.removeEventListener('storage', onStorageChange)
