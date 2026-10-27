@@ -30,3 +30,55 @@ describe('hover and colour transitions', () => {
     expect(values.every((value) => value.includes(APP_EASE))).toBe(true)
   })
 })
+
+/** Splits a transition value at its top-level commas, keeping cubic-bezier's own commas together */
+function splitTransitions(value: string): string[] {
+  return value.split(/,\s*(?![^()]*\))/)
+}
+
+describe('hover looks that name their own transition', () => {
+  const HOVER_SELECTORS = [
+    '.app-nav-user',
+    '.app-dropdown-glass',
+    '.app-dropdown-row',
+    '.app-dropdown-row-edit',
+    '.app-range-glass',
+    '.app-range-glass-clear',
+    '.app-range-seg-option',
+    '.app-time-selector .app-segmented-option',
+    '.app-navigation-theme-toggle',
+    '.app-navigation-theme-toggle .app-segmented-option',
+    '.app-balance-chart-mode-selector .app-segmented-option',
+    '.app-create-transaction-pill-selector .app-segmented-option',
+    '.app-tag-tooltip-glass',
+  ]
+
+  it.each(HOVER_SELECTORS)('%s eases every entry on the app curve', (selector) => {
+    const entries: string[] = []
+    stylesheet.walkRules(selector, (rule) => {
+      rule.walkDecls('transition', (decl) => entries.push(...splitTransitions(decl.value)))
+    })
+    expect(entries.length).toBeGreaterThan(0)
+    // Reduced motion's own `transition: none` names no curve
+    expect(entries.filter((entry) => entry !== 'none' && !entry.includes(APP_EASE) && !entry.includes('var('))).toEqual(
+      [],
+    )
+  })
+
+  it('makes the curve a transition utility takes when it names none the app curve', () => {
+    const values: string[] = []
+    stylesheet.walkAtRules('theme', (rule) => {
+      rule.walkDecls('--default-transition-timing-function', (decl) => values.push(decl.value))
+    })
+    expect(values).toEqual([APP_EASE])
+  })
+
+  it('eases an underlined button through a registered length, since Chromium never transitions the thickness itself', () => {
+    const transitions: string[] = []
+    stylesheet.walkRules('button.underline', (rule) => {
+      rule.walkDecls('transition', (decl) => transitions.push(decl.value))
+      rule.walkDecls('text-decoration-thickness', (decl) => expect(decl.value).toBe('var(--app-underline-thickness)'))
+    })
+    expect(transitions.join(',')).toContain(`--app-underline-thickness 150ms ${APP_EASE}`)
+  })
+})
