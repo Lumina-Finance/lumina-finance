@@ -433,6 +433,9 @@ export interface ImportRunFailureCopy {
   /** Set apart under the overlay's buttons, for a step that matters only to someone leaving */
   overlayNote: string | null
   footerMessage: string
+
+  /** The language of the footer message when it is the server's own English, or null when it reads in the page's */
+  footerLang: string | null
 }
 
 /**
@@ -448,6 +451,7 @@ export function describeImportRunFailure({ message, interrupted, isServerReason 
       overlayEmphasis: IMPORT_RUN_INTERRUPTED_EMPHASIS,
       overlayNote: IMPORT_RUN_INTERRUPTED_NOTE,
       footerMessage: IMPORT_RUN_INTERRUPTED_FOOTER,
+      footerLang: null,
     }
   }
 
@@ -461,6 +465,7 @@ export function describeImportRunFailure({ message, interrupted, isServerReason 
       overlayEmphasis: null,
       overlayNote: null,
       footerMessage: message,
+      footerLang: null,
     }
   }
 
@@ -471,6 +476,7 @@ export function describeImportRunFailure({ message, interrupted, isServerReason 
     overlayEmphasis: null,
     overlayNote: null,
     footerMessage: message,
+    footerLang: 'en',
   }
 }
 

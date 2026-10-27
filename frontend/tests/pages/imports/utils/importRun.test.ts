@@ -310,6 +310,7 @@ describe('describing a failed import', () => {
       overlayEmphasis: 'stay on the import page',
       overlayNote: 'Leaving the import page? Check your transactions before importing again.',
       footerMessage: 'Save interrupted. Please try again.',
+      footerLang: null,
     })
 
     // The overlay bolds the phrase only where the message holds it, so a rewording must keep it
@@ -324,6 +325,7 @@ describe('describing a failed import', () => {
       overlayEmphasis: null,
       overlayNote: null,
       footerMessage: 'Account is archived',
+      footerLang: 'en',
     })
   })
 
@@ -331,6 +333,7 @@ describe('describing a failed import', () => {
     expect(describeImportRunFailure({ message: 'Import failed.', interrupted: false, isServerReason: false })).toMatchObject({
       overlayMessage: 'Import failed. Nothing was added to your ledger.',
       overlayReason: null,
+      footerLang: null,
     })
   })
 })

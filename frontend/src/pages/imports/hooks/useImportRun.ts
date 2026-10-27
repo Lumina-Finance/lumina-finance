@@ -153,7 +153,7 @@ export function useImportRun<TResult, TSkipped>({
       completedImport,
       completedSkippedCount,
       importError: failureCopy?.footerMessage ?? importError,
-      importErrorLang: failureCopy?.overlayReason ? 'en' : undefined,
+      importErrorLang: failureCopy?.footerLang ?? undefined,
       importOverlayError: overlayFailureCopy?.overlayMessage ?? importError,
       importOverlayErrorReason: overlayFailureCopy?.overlayReason ?? undefined,
       importOverlayErrorEmphasis: overlayFailureCopy?.overlayEmphasis ?? undefined,
