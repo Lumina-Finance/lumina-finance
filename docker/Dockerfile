@@ -1,3 +1,6 @@
+# Python minor version of the dependency and runtime images
+ARG PYTHON_VERSION=3.14
+
 # Frontend build
 FROM dhi.io/node:26.12.1-debian13-sfw-dev AS frontend-builder
 
@@ -20,7 +23,7 @@ RUN npm run build:app
 
 
 # Backend dependencies
-FROM dhi.io/python:3-debian13-sfw-dev AS backend-deps
+FROM dhi.io/python:${PYTHON_VERSION}-debian13-sfw-dev AS backend-deps
 
 ARG UV_VERSION=0.12.0
 
@@ -42,7 +45,7 @@ FROM dhi.io/caddy:2-debian13-dev AS caddy
 
 
 # Runtime image
-FROM dhi.io/python:3-debian13-dev AS runtime
+FROM dhi.io/python:${PYTHON_VERSION}-debian13-dev AS runtime
 
 ARG APP_VERSION
 
