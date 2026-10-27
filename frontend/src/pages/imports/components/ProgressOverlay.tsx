@@ -314,12 +314,7 @@ export function ImportProgressOverlay({
                   style={messageStyle}
                   variants={itemVariants}
                 >
-                  {failed && errorReason && (
-                    <>
-                      <span lang="en">{errorReason}</span>
-                      {' '}
-                    </>
-                  )}
+                  {failed && errorReason && <><span lang="en">{errorReason}</span>{' '}</>}
                   {renderEmphasis(message, failed ? errorEmphasis : undefined)}
                 </motion.p>
 

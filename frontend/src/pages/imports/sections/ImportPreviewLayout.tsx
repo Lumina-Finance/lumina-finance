@@ -60,6 +60,8 @@ export function ImportPreviewLayout({
   /** A check the server is running or could not finish, which holds the commit until it has answered */
   check?: ImportCommitCheck | null
   importError: string | null
+
+  /** The language of the import error when it is the server's own English rather than the page's */
   importErrorLang?: string
   imported: boolean
   canCommit: boolean

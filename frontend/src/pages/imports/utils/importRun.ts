@@ -93,6 +93,9 @@ export interface CompletedImport<TResult, TSkipped> {
 /** Why the last attempt failed, with the answers it was started with */
 export interface ImportRunFailure {
   message: string
+
+  /** Whether the message is the backend's own explanation, kept in English */
+  isServerReason: boolean
   answers: object
 
   /** Whether the save ended with no answer, so the upload is kept and may already have landed */
@@ -308,6 +311,7 @@ export function createImportRunController<TResult, TSkipped>({
         stagedRunId: failure.retryableRunId,
         failure: {
           message: failure.message,
+          isServerReason: failure.isServerReason,
           answers,
           interrupted: failure.retryableRunId !== null && !controller.signal.aborted,
         },
@@ -435,7 +439,7 @@ export interface ImportRunFailureCopy {
  * Says what a failed import left behind: nothing, or a save that was interrupted and may already
  * have landed, which saving again from this screen settles without writing anything twice
  */
-export function describeImportRunFailure({ message, interrupted }: Pick<ImportRunFailure, 'message' | 'interrupted'>): ImportRunFailureCopy {
+export function describeImportRunFailure({ message, interrupted, isServerReason }: Pick<ImportRunFailure, 'message' | 'interrupted' | 'isServerReason'>): ImportRunFailureCopy {
   if (interrupted) {
     return {
       overlayTitle: IMPORT_RUN_INTERRUPTED_TITLE,
@@ -447,10 +451,23 @@ export function describeImportRunFailure({ message, interrupted }: Pick<ImportRu
     }
   }
 
+  // Wording the app wrote reads in the page's language, so only the backend's own reason is set apart
+  if (!isServerReason) {
+    const sentence = /[.!?]$/.test(message) ? message : `${message}.`
+    return {
+      overlayTitle: null,
+      overlayMessage: `${sentence} ${IMPORT_RUN_NOTHING_SAVED_NOTE}`,
+      overlayReason: null,
+      overlayEmphasis: null,
+      overlayNote: null,
+      footerMessage: message,
+    }
+  }
+
   return {
     overlayTitle: null,
     overlayMessage: IMPORT_RUN_NOTHING_SAVED_NOTE,
-    overlayReason: message,
+    overlayReason: /[.!?]$/.test(message) ? message : `${message}.`,
     overlayEmphasis: null,
     overlayNote: null,
     footerMessage: message,
