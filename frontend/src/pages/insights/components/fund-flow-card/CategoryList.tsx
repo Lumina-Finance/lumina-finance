@@ -38,9 +38,8 @@ export function FundFlowCategoryList({
   const shouldReduceMotion = useReducedMotion()
   const { formatCurrency } = useMoneyFormatters()
   const totalCount = normalEntries.length + flippedEntries.length
-  const displayCount = flippedEntries.length > 0
-    ? `${normalEntries.length} + ${flippedEntries.length}`
-    : String(totalCount)
+  const displayCount =
+    flippedEntries.length > 0 ? `${normalEntries.length} + ${flippedEntries.length}` : String(totalCount)
   const rows = [
     ...flippedEntries.map((entry) => ({ entry, label: flippedLabel, flipped: true })),
     ...normalEntries.map((entry) => ({ entry, label: normalLabel, flipped: false })),
@@ -62,23 +61,23 @@ export function FundFlowCategoryList({
           <span className="sr-only">Toggle {title}</span>
         </button>
         <span className="pointer-events-none relative z-10 min-w-0 peer-hover:[&_*]:text-[var(--app-accent-nav-text)] peer-focus-visible:[&_*]:text-[var(--app-accent-nav-text)]">
-          <span className="app-label inline-flex items-center gap-2">
+          <span className="app-label inline-flex items-center gap-2 transition-colors duration-150">
             {title}
             <span className="pointer-events-auto">
-              <InsightCalculationTooltip
-                label={title}
-                calculation={calculation}
-              />
+              <InsightCalculationTooltip label={title} calculation={calculation} />
             </span>
           </span>
-          <span className="mt-1 block font-financial text-xl leading-none">
+          <span className="mt-1 block font-financial text-xl leading-none transition-colors duration-150">
             {displayCount}
           </span>
         </span>
         <ChevronDown
           size={14}
           aria-hidden
-          className={joinClassNames('pointer-events-none relative z-10 shrink-0 transition-transform duration-150 motion-reduce:transition-none', open && 'rotate-180')}
+          className={joinClassNames(
+            'pointer-events-none relative z-10 shrink-0 transition-transform duration-150 motion-reduce:transition-none',
+            open && 'rotate-180',
+          )}
           style={{ color: 'var(--app-accent)' }}
         />
       </div>
@@ -94,25 +93,25 @@ export function FundFlowCategoryList({
             className="overflow-hidden border-t border-[var(--app-border)]"
           >
             <div className="h-56 overflow-y-auto">
-              {rows.length > 0 ? rows.map(({ entry: [name, amount], label, flipped }) => (
-                <div
-                  key={`${label}-${name}-${amount}`}
-                  className="flex h-14 items-center justify-between gap-4 px-3 text-sm"
-                >
-                  <span className="min-w-0">
-                    <span className="block truncate font-semibold">{name}</span>
-                    <span
-                      className="mt-0.5 block text-xs font-medium"
-                      style={{ color: flipped ? 'var(--app-accent)' : 'var(--app-text-muted)' }}
-                    >
-                      {label}
+              {rows.length > 0 ? (
+                rows.map(({ entry: [name, amount], label, flipped }) => (
+                  <div
+                    key={`${label}-${name}-${amount}`}
+                    className="flex h-14 items-center justify-between gap-4 px-3 text-sm"
+                  >
+                    <span className="min-w-0">
+                      <span className="block truncate font-semibold">{name}</span>
+                      <span
+                        className="mt-0.5 block text-xs font-medium"
+                        style={{ color: flipped ? 'var(--app-accent)' : 'var(--app-text-muted)' }}
+                      >
+                        {label}
+                      </span>
                     </span>
-                  </span>
-                  <span className="shrink-0 font-financial">
-                    {formatCurrency(amount, displayCurrency)}
-                  </span>
-                </div>
-              )) : (
+                    <span className="shrink-0 font-financial">{formatCurrency(amount, displayCurrency)}</span>
+                  </div>
+                ))
+              ) : (
                 <div className="flex h-56 items-center px-3 text-sm" style={{ color: 'var(--app-text-muted)' }}>
                   No categories in this range.
                 </div>

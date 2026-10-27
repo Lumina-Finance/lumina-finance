@@ -1,6 +1,18 @@
 @import "tailwindcss";
 @config "../../tailwind.config.js";
 
+@property --app-underline-thickness {
+  syntax: "<length>";
+  inherits: false;
+  initial-value: 1px;
+}
+
+/* Tailwind's own curve for every transition utility that names none, such as transition-colors, so a hover
+   look written with a bare utility eases like the rest instead of on Material's */
+@theme {
+  --default-transition-timing-function: cubic-bezier(0.22, 1, 0.36, 1);
+}
+
 /* Every hover: utility on a button also applies while the button is keyboard focused, so a button
    reached by keyboard looks as it does hovered. A button with a border of its own shows only that, and
    one without keeps the ring too (see the base rules below). The pointer part is Tailwind's own hover
@@ -665,10 +677,10 @@
     background: var(--app-surface-soft);
     border: 1px solid var(--app-border);
     transition:
-      gap 0.28s ease,
-      padding 0.28s ease,
-      background 0.2s ease,
-      border-color 0.2s ease;
+      gap 0.28s cubic-bezier(0.22, 1, 0.36, 1),
+      padding 0.28s cubic-bezier(0.22, 1, 0.36, 1),
+      background 0.2s cubic-bezier(0.22, 1, 0.36, 1),
+      border-color 0.2s cubic-bezier(0.22, 1, 0.36, 1);
   }
 
   .app-desktop-nav-collapsed .app-nav-user {
@@ -960,9 +972,9 @@
     color: var(--app-text);
 
     transition:
-      border-color 0.2s,
-      background 0.2s,
-      box-shadow 0.2s;
+      border-color 0.2s cubic-bezier(0.22, 1, 0.36, 1),
+      background 0.2s cubic-bezier(0.22, 1, 0.36, 1),
+      box-shadow 0.2s cubic-bezier(0.22, 1, 0.36, 1);
   }
 
   /* Opening upward stacks the contents in reverse, so the list appears above the head while the head
@@ -1129,7 +1141,7 @@
     color: var(--app-text);
     cursor: pointer;
     text-align: left;
-    transition: background 0.1s;
+    transition: background 0.1s cubic-bezier(0.22, 1, 0.36, 1);
   }
 
   /* The row the pointer or the arrow keys are resting on, tinted rather than accented so it stays
@@ -1172,7 +1184,7 @@
     align-items: center;
     visibility: hidden;
     color: var(--app-text-muted);
-    transition: color 0.1s;
+    transition: color 0.1s cubic-bezier(0.22, 1, 0.36, 1);
   }
 
   .app-dropdown-row:hover .app-dropdown-row-edit {
@@ -1281,8 +1293,8 @@
     -webkit-backdrop-filter: blur(20px) saturate(160%);
     backdrop-filter: blur(20px) saturate(160%);
     transition:
-      background-color 150ms ease,
-      border-color 150ms ease,
+      background-color 150ms cubic-bezier(0.22, 1, 0.36, 1),
+      border-color 150ms cubic-bezier(0.22, 1, 0.36, 1),
       var(--app-focus-fade);
   }
 
@@ -1411,8 +1423,8 @@
     color: var(--app-text-subtle);
     border-radius: 9999px;
     transition:
-      color 0.15s ease,
-      background 0.15s ease,
+      color 0.15s cubic-bezier(0.22, 1, 0.36, 1),
+      background 0.15s cubic-bezier(0.22, 1, 0.36, 1),
       var(--app-focus-fade);
   }
 
@@ -1504,8 +1516,8 @@
     white-space: nowrap;
     color: var(--app-text-muted);
     transition:
-      color 180ms ease,
-      background-color 180ms ease,
+      color 180ms cubic-bezier(0.22, 1, 0.36, 1),
+      background-color 180ms cubic-bezier(0.22, 1, 0.36, 1),
       var(--app-focus-fade);
   }
 
@@ -1631,9 +1643,9 @@
     -webkit-backdrop-filter: blur(0px);
     backdrop-filter: blur(0px);
     transition:
-      background-color 0.2s ease-out,
-      -webkit-backdrop-filter 0.2s ease-out,
-      backdrop-filter 0.2s ease-out;
+      background-color 0.2s cubic-bezier(0.22, 1, 0.36, 1),
+      -webkit-backdrop-filter 0.2s cubic-bezier(0.22, 1, 0.36, 1),
+      backdrop-filter 0.2s cubic-bezier(0.22, 1, 0.36, 1);
   }
 
   .group:hover .app-tag-tooltip-glass {
@@ -2262,9 +2274,9 @@
     background: transparent;
     box-shadow: none;
     transition:
-      color 180ms ease,
-      background-color 180ms ease,
-      transform 180ms ease,
+      color 180ms cubic-bezier(0.22, 1, 0.36, 1),
+      background-color 180ms cubic-bezier(0.22, 1, 0.36, 1),
+      transform 180ms cubic-bezier(0.22, 1, 0.36, 1),
       var(--app-focus-fade);
   }
 
@@ -2309,8 +2321,8 @@
 
   .app-navigation-theme-toggle {
     transition:
-      background-color 0.2s ease,
-      border-color 0.2s ease;
+      background-color 0.2s cubic-bezier(0.22, 1, 0.36, 1),
+      border-color 0.2s cubic-bezier(0.22, 1, 0.36, 1);
   }
 
   .app-navigation-theme-toggle .app-segmented-option {
@@ -2320,11 +2332,11 @@
     background: transparent;
     box-shadow: none;
     transition:
-      color 180ms ease,
-      background-color 180ms ease,
-      transform 180ms ease,
-      opacity 200ms ease,
-      flex-grow 280ms ease,
+      color 180ms cubic-bezier(0.22, 1, 0.36, 1),
+      background-color 180ms cubic-bezier(0.22, 1, 0.36, 1),
+      transform 180ms cubic-bezier(0.22, 1, 0.36, 1),
+      opacity 200ms cubic-bezier(0.22, 1, 0.36, 1),
+      flex-grow 280ms cubic-bezier(0.22, 1, 0.36, 1),
       var(--app-focus-fade);
   }
 
@@ -2372,9 +2384,9 @@
     background: transparent;
     box-shadow: none;
     transition:
-      color 180ms ease,
-      background-color 180ms ease,
-      transform 180ms ease,
+      color 180ms cubic-bezier(0.22, 1, 0.36, 1),
+      background-color 180ms cubic-bezier(0.22, 1, 0.36, 1),
+      transform 180ms cubic-bezier(0.22, 1, 0.36, 1),
       var(--app-focus-fade);
   }
 
@@ -2417,9 +2429,9 @@
     background: transparent;
     box-shadow: none;
     transition:
-      color 180ms ease,
-      background-color 180ms ease,
-      transform 180ms ease,
+      color 180ms cubic-bezier(0.22, 1, 0.36, 1),
+      background-color 180ms cubic-bezier(0.22, 1, 0.36, 1),
+      transform 180ms cubic-bezier(0.22, 1, 0.36, 1),
       var(--app-focus-fade);
   }
 
@@ -2820,7 +2832,7 @@
     pointer-events: none !important;
     transition:
       transform 280ms cubic-bezier(0.22, 1, 0.36, 1),
-      opacity 150ms ease-out !important;
+      opacity 150ms cubic-bezier(0.22, 1, 0.36, 1) !important;
   }
 
   .recharts-default-tooltip.app-chart-tooltip-default,
