@@ -1,6 +1,8 @@
 import {
+  useLayoutEffect,
   useMemo,
   useRef,
+  useState,
   type MouseEvent as ReactMouseEvent,
 } from 'react'
 import {
@@ -26,7 +28,7 @@ import { CHART_X_AXIS_TICK_FONT_SIZE } from '@/components/charts/constants'
 import { useMoneyFormatters } from '@/hooks/useMoneyFormatters'
 import type { CashFlowBarBucket } from '@/pages/insights/types/cashFlow'
 import { getCashFlowTooltipBucket } from '@/pages/insights/utils/cashFlow'
-import { getCashFlowAxisTicks } from '@/pages/insights/utils/cashFlowAxis'
+import { getCashFlowAxisTicks, getCashFlowXAxisTicks } from '@/pages/insights/utils/cashFlowAxis'
 import { getSignedAmountColor } from '@/utils/negativeAmount'
 import {
   useFittedYAxisWidth,
@@ -120,6 +122,27 @@ export function CashFlowBarChart({
   const hasActivity = buckets.some((bucket) => bucket.inflow > 0 || bucket.outflow > 0)
   const axisTicks = useMemo(() => getCashFlowAxisTicks(buckets.map((bucket) => bucket.net)), [buckets])
   const yAxisWidth = useFittedYAxisWidth(chartRef)
+  const [chartWidth, setChartWidth] = useState(0)
+  // Measured before the first paint, so the labels the chart chooses are the ones it first draws and
+  // the axis never shows the library's own labels for a frame and then swaps them
+  useLayoutEffect(() => {
+    const chart = chartRef.current
+    if (!chart) return undefined
+    setChartWidth(chart.getBoundingClientRect().width)
+    const observer = new ResizeObserver(([entry]) => setChartWidth(entry.contentRect.width))
+    observer.observe(chart)
+    return () => observer.disconnect()
+  }, [])
+  // Recharts thins labels without regard to which one marks the year, so a range over two calendar years
+  // names the labels itself, keeping every one that carries the year
+  const yearTicks = useMemo(
+    () => getCashFlowXAxisTicks(buckets, chartWidth - yAxisWidth),
+    [buckets, chartWidth, yAxisWidth],
+  )
+  const axisLabels = useMemo(
+    () => new Map(buckets.map((bucket) => [bucket.rangeLabel, bucket.label])),
+    [buckets],
+  )
   const dataSignature = useMemo(
     () => getChartDataSignature(buckets, (bucket) => bucket.net),
     [buckets],
@@ -168,10 +191,13 @@ export function CashFlowBarChart({
             onMouseLeave={hideTooltip}
           >
             <XAxis
-              dataKey="label"
+              // The category is the range, which is unique per bar, and the axis writes the shorter label
+              dataKey="rangeLabel"
+              tickFormatter={(value) => axisLabels.get(String(value)) ?? String(value)}
               axisLine={false}
               tickLine={false}
-              interval="preserveStartEnd"
+              ticks={yearTicks}
+              interval={yearTicks ? 0 : 'preserveStartEnd'}
               minTickGap={32}
               tick={{ fill: 'var(--app-text-subtle)', fontSize: CHART_X_AXIS_TICK_FONT_SIZE }}
               tickMargin={4}
