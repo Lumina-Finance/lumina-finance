@@ -1,3 +1,4 @@
+import logging
 import os
 from collections.abc import AsyncIterator, Callable, Iterator
 from datetime import datetime
@@ -10,6 +11,7 @@ from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 from sqlalchemy.pool import NullPool
 
 from app import request_hook
+from app.abuse_log import abuse_log
 from app.config.database import APP_DB_USER, MIGRATOR_DB_USER
 from app.config.env import require
 from app.database import stamp_request_identity
@@ -186,3 +188,24 @@ def request_records(monkeypatch) -> Iterator[list[RequestRecord]]:
     records: list[RequestRecord] = []
     observe_requests(records.append)
     yield records
+
+
+@pytest.fixture
+def abuse_log_lines() -> Iterator[list[str]]:
+    """The abuse log lines written during the test, as the raw text of each
+
+    Read through a handler of its own because the abuse log writes straight to standard output and
+    does not propagate to the root logger, where the log capture fixture listens
+    """
+    lines: list[str] = []
+
+    class _Collector(logging.Handler):
+        def emit(self, record: logging.LogRecord) -> None:
+            lines.append(record.getMessage())
+
+    collector = _Collector()
+    abuse_log.addHandler(collector)
+    try:
+        yield lines
+    finally:
+        abuse_log.removeHandler(collector)
