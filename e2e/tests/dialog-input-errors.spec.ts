@@ -30,6 +30,27 @@ async function openCreateTag(page: Page): Promise<{ dialog: Locator; field: Loca
   }
 }
 
+/** Whether a control sits fully inside the box that scrolls it, so the footer or the edge cuts none of it */
+function isInScrollView(control: Locator): Promise<boolean> {
+  return control.evaluate((node) => {
+    let box: HTMLElement | null = node.parentElement
+    while (box && !/(auto|scroll)/.test(getComputedStyle(box).overflowY)) box = box.parentElement
+    if (!box) return true
+    const inner = node.getBoundingClientRect()
+    const outer = box.getBoundingClientRect()
+    return inner.top >= outer.top && inner.bottom <= outer.bottom
+  })
+}
+
+/** How far the box that scrolls a control is scrolled */
+function getScrollTop(control: Locator): Promise<number> {
+  return control.evaluate((node) => {
+    let box: HTMLElement | null = node.parentElement
+    while (box && !/(auto|scroll)/.test(getComputedStyle(box).overflowY)) box = box.parentElement
+    return box?.scrollTop ?? 0
+  })
+}
+
 /** Count the requests that create a tag, to prove a refused press sent nothing */
 function countTagCreations(page: Page): () => number {
   let count = 0
@@ -358,8 +379,14 @@ test.describe('dialog input errors', () => {
 
     // The account is chosen first so the merchant is the first problem the button names
     await chooseFromDropdown(dialog, 'Account', account.name)
+    const wasInView = await isInScrollView(merchant)
+    const scrolledBefore = await getScrollTop(merchant)
     await add.click()
     await expect(merchant).toHaveAttribute('aria-invalid', 'true')
+    // The first problem and its message end up fully in view, and a form that already showed them does not move
+    await expect.poll(() => isInScrollView(merchant)).toBe(true)
+    await expect(merchant).toBeFocused()
+    if (wasInView) expect(await getScrollTop(merchant)).toBe(scrolledBefore)
     await expect(merchant).toHaveAccessibleDescription('Select or create a merchant')
     await expect(category).toHaveAttribute('aria-invalid', 'true')
     await expect(category).toHaveAccessibleDescription('Select a category')

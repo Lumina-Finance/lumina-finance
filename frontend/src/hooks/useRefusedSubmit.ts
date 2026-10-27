@@ -2,6 +2,9 @@ import { useCallback, useState } from 'react'
 import { useReducedMotion } from 'motion/react'
 import { getFirstProblem, getShownProblems, type FieldProblems } from '@/utils/refusedSubmit'
 
+const REVEAL_ROOM_ABOVE = '2rem'
+const REVEAL_ROOM_BELOW = '1.5rem'
+
 /**
  * Lets a dialog's action button look and work as clickable until a press finds something missing or
  * wrong, then marks every problem on its own field and holds the button off until each is fixed
@@ -10,8 +13,9 @@ import { getFirstProblem, getShownProblems, type FieldProblems } from '@/utils/r
  * Pass the first return value's `errors` to the fields and `blockedReason` to the action button, which
  * stays focusable and explains itself in its tooltip. The submit handler starts with `guard()`
  *
- * A refused press focuses the first field with a problem and scrolls it to the middle of the dialog's
- * body, so a message on a row that sits off screen, most of all on a phone, is never missed
+ * A refused press focuses the first field with a problem and, only when it and its message are not
+ * already fully in view, scrolls just far enough to show them, so a message on a row that sits off
+ * screen, most of all on a phone, is never missed and a form that already shows the problem stays put
  *
  * @param problems - Every problem the form has right now, by field
  * @param order - The fields in the order the dialog draws them
@@ -53,7 +57,10 @@ export function useRefusedSubmit<F extends string>(
       const control = document.getElementById(controlId)
       if (!control) return
       control.focus({ preventScroll: true, focusVisible: true })
-      control.scrollIntoView({ behavior: shouldReduceMotion ? 'auto' : 'smooth', block: 'center' })
+      // Room above for the label row that carries the message, and below so the field never rests on the footer's edge
+      control.style.scrollMarginBlock = `${REVEAL_ROOM_ABOVE} ${REVEAL_ROOM_BELOW}`
+      control.scrollIntoView({ behavior: shouldReduceMotion ? 'auto' : 'smooth', block: 'nearest' })
+      control.style.scrollMarginBlock = ''
     })
     return false
   }
