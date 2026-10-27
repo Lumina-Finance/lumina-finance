@@ -61,6 +61,8 @@ export function LastImportCard({ className = '', onUndone }: { className?: strin
 
   const entry = useUndoableEntry(lastImport.data ?? null)
   const reveal = {
+    // Ends where the steps below it do, which keep a gutter on desktop beside the files step's scrolling box
+    className: 'xl:pr-1',
     // Clipped only while it moves, so the button's focus ring shows once it is in place
     initial: { height: 0, opacity: 0, marginBottom: COLUMN_GAP, overflow: 'hidden' },
     animate: { height: 'auto', opacity: 1, marginBottom: 0, transitionEnd: { overflow: 'visible' } },

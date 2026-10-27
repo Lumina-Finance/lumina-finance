@@ -54,6 +54,32 @@ test('undoes the last import, deleting everything it added and keeping the accou
   expect((await kept.json() as { current_balance: number }).current_balance).toBe(10000)
 })
 
+test('ends the last import card where the data source dropdown ends at 1280px', async ({ page, request }) => {
+  await page.setViewportSize({ width: 1280, height: 800 })
+  const user = await signUpUser(request)
+  const account = await createAccount(request, user, { name: 'Everyday', startingBalance: 10000 })
+  await logInViaApi(page, user)
+  await openPage(page, `/settings/imports?account=${account.id}`)
+
+  const csv = ['Date,Amount,Category,Merchant,Notes', '2024-03-15,-12.50,Groceries,Unknown,Align test'].join('\n')
+  const upload = page.locator('input[type="file"][accept=".csv,text/csv"]')
+  await expect(upload).toBeEnabled()
+  await upload.setInputFiles({ name: 'align-test.csv', mimeType: 'text/csv', buffer: Buffer.from(csv) })
+  expect((await commitImport(page)).status()).toBe(201)
+
+  await openPage(page, `/settings/imports?account=${account.id}`)
+  await expect(page.getByRole('region', { name: 'Last import' })).toContainText('Can be undone until')
+
+  const edges = await page.evaluate(() => {
+    const rightOf = (element: Element | null) => element!.getBoundingClientRect().right
+    return {
+      card: rightOf(document.querySelector('section[aria-label="Last import"]')),
+      dropdown: rightOf(document.querySelector('.app-dropdown-glass')),
+    }
+  })
+  expect(edges.card).toBeCloseTo(edges.dropdown, 0)
+})
+
 // The row dated February 31 is skipped, which keeps the finished import on screen to be read
 const ON_SCREEN_CSV = [
   'Date,Amount,Merchant',
