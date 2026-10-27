@@ -3,10 +3,12 @@ import { AnimatePresence, motion } from 'motion/react';
 
 const EASE = [0.25, 0.1, 0.25, 1] as const;
 const HEIGHT_TRANSITION = { duration: 0.26, ease: EASE };
-const FADE_TRANSITION = { duration: 0.2, ease: EASE };
+// The outgoing step is gone before the incoming one shows, so the two never sit over each other
+const FADE_OUT_TRANSITION = { duration: 0.1, ease: EASE };
+const FADE_IN_TRANSITION = { duration: 0.2, ease: EASE };
 
 interface StepTransitionProps {
-  /** Identity of the visible step, so a change cross-fades the body and eases the panel height */
+  /** Identity of the visible step, so a change fades the old body out, then the new one in, and eases the panel height */
   stepKey: string;
   /** Heading shared by every step, rendered above the body without cross-fading */
   header?: ReactNode;
@@ -58,9 +60,8 @@ export function StepTransition({ stepKey, header, fillPhone = false, children }:
             key={stepKey}
             className={fillPhone ? 'max-[1049px]:flex max-[1049px]:flex-1 max-[1049px]:flex-col' : undefined}
             initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            transition={FADE_TRANSITION}
+            animate={{ opacity: 1, transition: { ...FADE_IN_TRANSITION, delay: FADE_OUT_TRANSITION.duration } }}
+            exit={{ opacity: 0, transition: FADE_OUT_TRANSITION }}
           >
             {children}
           </motion.div>
