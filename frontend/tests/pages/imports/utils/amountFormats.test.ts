@@ -28,6 +28,20 @@ describe('reading an amount in a selected format', () => {
     expect(readImportAmount(value, DECIMAL_POINT)).toBeNull()
   })
 
+  it('reads a trailing Dr as a minus and a trailing Cr as a plus', () => {
+    expect(readImportAmount('250.00 Dr', DECIMAL_POINT)).toMatchObject({ normalized: '-250.00', sign: 'negative' })
+    expect(readImportAmount('250.00 Cr', DECIMAL_POINT)).toMatchObject({ normalized: '+250.00', sign: 'positive' })
+    expect(readImportAmount('1.234,50Dr', DECIMAL_COMMA)).toMatchObject({ normalized: '-1234.50', sign: 'negative' })
+    expect(readImportAmount('75.10 dr', DECIMAL_POINT)).toMatchObject({ normalized: '-75.10', sign: 'negative' })
+    expect(readImportAmount('-250.00 Dr', DECIMAL_POINT)?.normalized).toBe('-250.00')
+  })
+
+  it('refuses a marker that disagrees with a written sign and keeps other trailing words', () => {
+    expect(readImportAmount('-250.00 Cr', DECIMAL_POINT)).toBeNull()
+    expect(readImportAmount('+250.00 Dr', DECIMAL_POINT)).toBeNull()
+    expect(readImportAmount('250.00 Andr', DECIMAL_POINT)).toMatchObject({ normalized: '250.00', sign: 'unsigned' })
+  })
+
   it('retains leading signs and recognizes the Unicode minus sign', () => {
     expect(readImportAmount('+CHF100,99', DECIMAL_COMMA)).toMatchObject({
       normalized: '+100.99',

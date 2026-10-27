@@ -3,8 +3,8 @@
  * refusal tells the user about where the problem is
  */
 import { describe, expect, it } from 'vitest'
-import type { CsvRow, ImportAmountDirection, ImportFileDraft } from '@/pages/imports/types'
-import { answerImportDirectionValue, validateColumnValues } from '@/pages/imports/utils'
+import type { ColumnMap, CsvRow, ImportAmountDirection, ImportFileDraft } from '@/pages/imports/types'
+import { answerImportDirectionValue, resolveImportAmount, validateColumnValues } from '@/pages/imports/utils'
 
 const SUPPORTED_CURRENCY_CODES = new Set(['CAD', 'USD'])
 
@@ -339,6 +339,24 @@ describe('answering what one word in the Direction column means', () => {
   // rewriting a word the user had already settled
   it('leaves the pair alone when the answered word is not one of them', () => {
     expect(answerImportDirectionValue({}, PAIR, 'debit', 'out')).toEqual({ debit: 'out' })
+  })
+})
+
+describe('reading a Dr or Cr marker on the single amount field', () => {
+  const columnMap = { amount: 'Amount' } as ColumnMap
+  const decimalPoint = { decimalSeparator: '.', groupingSeparator: ',' } as const
+
+  // The payload carries money out as a minus, which is what lists the row as money out
+  it('gives a debit as money out and a credit as money in', () => {
+    expect(resolveImportAmount({ Amount: '250.00 Dr' }, columnMap, {}, decimalPoint).amount).toBe('-250.00')
+    expect(resolveImportAmount({ Amount: '250.00 Cr' }, columnMap, {}, decimalPoint).amount).toBe('+250.00')
+  })
+
+  it('leaves a cell with a conflicting sign unread, so its row is listed as unreadable', () => {
+    const result = resolveImportAmount({ Amount: '-250.00 Cr' }, columnMap, {}, decimalPoint)
+
+    expect(result.amountReading).toBeNull()
+    expect(result.amount).toBe('-250.00 Cr')
   })
 })
 
