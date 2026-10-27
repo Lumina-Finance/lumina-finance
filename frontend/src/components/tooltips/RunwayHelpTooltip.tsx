@@ -20,7 +20,7 @@ export function RunwayHelpTooltip() {
       </span>
       <Link
         to="/settings#runway"
-        className="mt-2 inline-flex font-semibold"
+        className="mt-2 inline-flex font-semibold underline underline-offset-2"
         style={{ color: 'var(--app-accent)' }}
       >
         Runway settings

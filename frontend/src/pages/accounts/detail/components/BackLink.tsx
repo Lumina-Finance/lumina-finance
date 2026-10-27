@@ -9,7 +9,7 @@ export default function AccountDetailBackLink() {
   return (
     <Link
       to="/accounts"
-      className="mb-6 inline-flex items-center gap-1.5 text-sm"
+      className="mb-6 inline-flex items-center gap-1.5 text-sm underline underline-offset-2 [--link-underline-start:20px]"
       style={{ color: 'var(--app-text-muted)' }}
     >
       <ArrowLeft size={14} aria-hidden />
