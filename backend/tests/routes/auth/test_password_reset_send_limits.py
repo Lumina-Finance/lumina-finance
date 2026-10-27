@@ -404,3 +404,22 @@ async def test_a_request_cancelled_before_handing_on_its_send_frees_its_claim(cl
 
     assert await _token_count(user_ids[0]) == 0
     assert reset_send_limit.try_start_send(user_ids[0]) is not None
+
+
+async def test_a_request_cut_off_after_its_link_commits_leaves_no_live_link(client, monkeypatch):
+    """A cancellation that lands once the link is saved must release it, so the account can ask again at once"""
+    emails, user_ids = await _create_users(client, 1)
+    real_commit = AsyncSession.commit
+
+    async def commit_then_cancel(self):
+        await real_commit(self)
+        raise asyncio.CancelledError
+
+    with monkeypatch.context() as cancelled:
+        cancelled.setattr(AsyncSession, "commit", commit_then_cancel)
+        with pytest.raises(asyncio.CancelledError):
+            async with TestSession() as db:
+                await password_reset.request_password_reset(db, emails[0], BackgroundTasks(), TestSession)
+
+    assert await _token_count(user_ids[0]) == 0
+    assert reset_send_limit.try_start_send(user_ids[0]) is not None

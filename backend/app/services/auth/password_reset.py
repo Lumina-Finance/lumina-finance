@@ -112,12 +112,14 @@ async def request_password_reset(
         background_tasks: Runs the send once the response is out
         session_factory: Opens the session the send uses after the response
     """
-    pending = await _issue_password_reset(db, email)
+    pending = await _issue_password_reset(db, email, session_factory)
     if pending is not None:
         background_tasks.add_task(send_password_reset_email, pending, session_factory)
 
 
-async def _issue_password_reset(db: AsyncSession, email: str) -> PendingResetEmail | None:
+async def _issue_password_reset(
+    db: AsyncSession, email: str, session_factory: async_sessionmaker[AsyncSession]
+) -> PendingResetEmail | None:
     """Store a reset token for the email and return the pending email carrying its link
 
     No email is due while the last link still works, and at most the configured number go out
@@ -133,6 +135,7 @@ async def _issue_password_reset(db: AsyncSession, email: str) -> PendingResetEma
     Args:
         db: Active database session
         email: Email address requesting the reset
+        session_factory: Opens the session that drops a link saved by a request that was cut off
 
     Returns:
         The email to send, or None when no account matches or none is due
@@ -183,6 +186,9 @@ async def _issue_password_reset(db: AsyncSession, email: str) -> PendingResetEma
     except BaseException:
         if ticket is not None:
             end_send(ticket)
+            # The commit may have reached the database before the cut-off, and no send will follow to
+            # drop the link, so it is dropped here. A row that was never stored deletes nothing
+            await asyncio.shield(_drop_token_by_id(token_id, session_factory))
         raise
     if ticket is None:
         return None
@@ -234,8 +240,13 @@ async def send_password_reset_email(pending: PendingResetEmail, session_factory:
 
 async def _drop_reset_token(pending: PendingResetEmail, session_factory: async_sessionmaker[AsyncSession]) -> None:
     """Delete the token of a link that was not sent, which never counts toward the daily limit"""
+    await _drop_token_by_id(pending.token_id, session_factory)
+
+
+async def _drop_token_by_id(token_id: uuid.UUID, session_factory: async_sessionmaker[AsyncSession]) -> None:
+    """Delete one stored reset token in a session of its own"""
     async with session_factory() as db:
-        await db.execute(delete(PasswordResetToken).where(PasswordResetToken.id == pending.token_id))
+        await db.execute(delete(PasswordResetToken).where(PasswordResetToken.id == token_id))
         await db.commit()
 
 
