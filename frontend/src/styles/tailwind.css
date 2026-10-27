@@ -2770,11 +2770,16 @@
     padding-bottom: calc(1.5rem + env(safe-area-inset-bottom));
   }
 
+  .app-modal-phone-eyebrow {
+    display: none;
+  }
+
   .app-modal-body:has(.app-modal-footer) {
     padding-bottom: 0;
   }
 
   .app-modal-body .app-modal-footer {
+    margin-top: auto;
     position: sticky;
     bottom: 0;
     z-index: 1;
@@ -2820,6 +2825,18 @@
 
     .app-modal-panel[role="dialog"][aria-modal="true"] > [aria-hidden="true"]:first-child > * {
       display: none !important;
+    }
+
+    /* A content dialog's title block takes the form modals' header on a phone: the eyebrow over the
+       title, closed off from the body by a rule that reaches the screen's side edges */
+    .app-modal-phone-header {
+      margin-inline: -1.5rem;
+      padding: 0 1.5rem 1.25rem;
+      border-bottom: 1px solid var(--app-border);
+    }
+
+    .app-modal-phone-eyebrow {
+      display: block;
     }
 
     .app-modal-panel[role="dialog"][aria-modal="true"] > .app-secondary-modal-rail:first-child {

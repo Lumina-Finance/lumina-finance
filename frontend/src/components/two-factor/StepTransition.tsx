@@ -10,6 +10,9 @@ interface StepTransitionProps {
   stepKey: string;
   /** Heading shared by every step, rendered above the body without cross-fading */
   header?: ReactNode;
+  /** On a phone, where the modal fills the screen, stretches the step so a footer inside it can sit at the
+   *  bottom of the screen, as the form modals' footers do */
+  fillPhone?: boolean;
   children: ReactNode;
 }
 
@@ -20,7 +23,7 @@ interface StepTransitionProps {
  * outgoing step is lifted out of flow during the fade, so the measured height already reflects the
  * incoming step
  */
-export function StepTransition({ stepKey, header, children }: StepTransitionProps) {
+export function StepTransition({ stepKey, header, fillPhone = false, children }: StepTransitionProps) {
   const contentRef = useRef<HTMLDivElement>(null);
   const [height, setHeight] = useState<number | 'auto'>('auto');
   const [isEasing, setIsEasing] = useState(false);
@@ -38,6 +41,7 @@ export function StepTransition({ stepKey, header, children }: StepTransitionProp
 
   return (
     <motion.div
+      className={fillPhone ? 'max-[1049px]:flex max-[1049px]:min-h-full max-[1049px]:flex-col' : undefined}
       animate={{ height }}
       transition={HEIGHT_TRANSITION}
       // Clip only while the height eases, so focus rings on the edge controls are not cut off at rest. Clip
@@ -47,11 +51,12 @@ export function StepTransition({ stepKey, header, children }: StepTransitionProp
       onAnimationStart={() => setIsEasing(true)}
       onAnimationComplete={() => setIsEasing(false)}
     >
-      <div ref={contentRef} className="relative flex flex-col gap-5">
+      <div ref={contentRef} className={`relative flex flex-col gap-5 ${fillPhone ? 'max-[1049px]:flex-1' : ''}`}>
         {header}
         <AnimatePresence mode="popLayout" initial={false}>
           <motion.div
             key={stepKey}
+            className={fillPhone ? 'max-[1049px]:flex max-[1049px]:flex-1 max-[1049px]:flex-col' : undefined}
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}

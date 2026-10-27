@@ -262,10 +262,16 @@ export function StepUpModal({
       railLabel="Verify"
     >
       <StepTransition
+        fillPhone
         stepKey={confirmingReset ? 'reset' : step}
         header={
-          <div className="space-y-1">
-            <h3 id="step-up-title" className={MODAL_TITLE_CLASS_NAME}>{title}</h3>
+          <div className="flex flex-col gap-1 max-[1049px]:gap-5">
+            <div className="app-modal-phone-header">
+              <p className="app-modal-phone-eyebrow mb-2 text-xs font-semibold uppercase" style={{ color: 'var(--app-accent)' }}>
+                Verify
+              </p>
+              <h3 id="step-up-title" className={MODAL_TITLE_CLASS_NAME}>{title}</h3>
+            </div>
             <p className="text-sm" style={{ color: 'var(--app-text-muted)' }}>
               {confirmingReset
                 ? "You'll be signed out everywhere and can set up a new factor after signing in with a recovery code."
@@ -311,7 +317,7 @@ export function StepUpModal({
             </button>
           </div>
         ) : step === 'password' ? (
-          <form onSubmit={handleContinue} className="space-y-5">
+          <form onSubmit={handleContinue} className="flex flex-col gap-5 max-[1049px]:flex-1">
             <input
               className="app-input w-full"
               type="password"
@@ -346,7 +352,7 @@ export function StepUpModal({
             </ModalContentFooter>
           </form>
         ) : (
-          <div className="space-y-5">
+          <div className="flex flex-col gap-5 max-[1049px]:flex-1">
             <form id={codeFormId} onSubmit={handleSubmit} className="space-y-5">
               {canUsePasskey && (
                 <div className="flex justify-center">
