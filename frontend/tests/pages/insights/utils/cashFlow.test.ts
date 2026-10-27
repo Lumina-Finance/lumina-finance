@@ -4,6 +4,7 @@
  * calendar year, and its tooltip naming no bar when none is active
  */
 import { describe, expect, it } from 'vitest';
+import type { FxStatus } from '@/api/shared/fx';
 import type { CashFlowBarBucket } from '@/pages/insights/types/cashFlow';
 import { getCashFlowBarData, getCashFlowTooltipBucket } from '@/pages/insights/utils/cashFlow';
 
@@ -71,7 +72,7 @@ describe('getCashFlowBarData', () => {
     expect(buckets[0].label).toBe('Jan');
   });
 
-  const fxStatus = { state: 'none', missing_pairs: [] } as const;
+  const fxStatus: FxStatus = { state: 'none', missing_pairs: [] };
 
   // March 2025 and March 2026 both read "Mar", so only the January label marks where the year turns
   it('labels a long range by month with the year on each January, whose bars are marked', () => {
