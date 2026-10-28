@@ -2932,24 +2932,67 @@
 }
 
 /*
-  An underlined text button has no fill or border to change, and its colour is often set on the element,
-  so under the pointer or on keyboard focus its underline thickens, as a link's does in a browser. These
-  rules live in the utilities layer because the buttons carry transition utilities, which Tailwind orders
-  after components, and a components-layer transition would lose to them
+  An underlined text link, whether an anchor, a router link or a button that reads as one, has no fill or
+  border to change, and its colour is often set on the element. It rests with no underline, so the link
+  colour alone tells it from the text beside it. Under the pointer or on keyboard focus a 1px underline
+  grows from the middle of the text out to both edges, and shrinks back to the middle on leaving. Every such
+  link takes the same look.
+
+  The line is a background shape and not the browser's own underline, which could not grow. It draws over
+  250ms and eases in and out, as visual.md asks of an underline, since the app's ease-out curve would
+  have drawn most of the line in the first 60ms, and not at all under reduced motion. It sits where the browser's underline would, 2px below the baseline of DM
+  Sans, whose ascent is 0.99em and descent 0.31em: a button or a link with its own box centres the font's
+  1.3em in its line box, and an inline link's background covers just the font's own 1.3em. The top is
+  rounded to a whole pixel so the line stays crisp. A link with an icon sets --link-underline-start to the
+  icon's width and gap, so the line runs under the label only. A link that wraps draws a line under each of
+  its lines, while a link with its own box draws one line, so it is for a label that stays on one line.
+  These rules live in the utilities layer because the links carry transition utilities, which Tailwind
+  orders after components, and a components-layer rule would lose to them
 */
 @layer utilities {
-  button.underline {
-    text-decoration-thickness: 1px;
+  :is(a, button).underline {
+    text-decoration-line: none;
+    background-image: linear-gradient(currentColor, currentColor);
+    background-repeat: no-repeat;
+    background-size: 0px 1px;
+    background-position: calc(50% + var(--link-underline-start, 0px) / 2) calc(0.99em + 2px);
+    background-position: calc(50% + var(--link-underline-start, 0px) / 2) round(calc(0.99em + 2px), 1px);
+    box-decoration-break: clone;
+    -webkit-box-decoration-break: clone;
+  }
+
+  button.underline,
+  a.underline:is(.block, .inline-block, .inline-flex, .flex) {
+    background-position-y: calc(0.5lh + 0.34em + 2px);
+    background-position-y: round(calc(0.5lh + 0.34em + 2px), 1px);
+  }
+
+  /* A full-width centred link shrinks to its text so its line runs under the text only, and its padding
+     keeps a wide target */
+  :is(a, button).underline.w-full {
+    width: fit-content;
+    max-width: 100%;
+    margin-inline: auto;
+    padding-inline: 0.75rem;
+    background-origin: content-box;
+    background-clip: content-box;
   }
 
   @media (prefers-reduced-motion: no-preference) {
-    button.underline {
-      transition: text-decoration-thickness 150ms ease, color 200ms ease, var(--app-focus-fade);
+    :is(a, button).underline {
+      transition: background-size 250ms cubic-bezier(0.65, 0, 0.35, 1), color 150ms cubic-bezier(0.22, 1, 0.36, 1),
+        var(--app-focus-fade);
     }
   }
 
-  button.underline:focus-visible {
-    text-decoration-thickness: 2px;
+  @media (prefers-reduced-motion: reduce) {
+    :is(a, button).underline {
+      transition: none;
+    }
+  }
+
+  :is(a, button).underline:focus-visible {
+    background-size: calc(100% - var(--link-underline-start, 0px)) 1px;
   }
 
   /* A shared button that changes its width into a spinner and back takes 300ms through `duration-300`, while
@@ -2961,8 +3004,8 @@
   }
 
   @media (hover: hover) {
-    button.underline:hover {
-      text-decoration-thickness: 2px;
+    :is(a, button).underline:hover {
+      background-size: calc(100% - var(--link-underline-start, 0px)) 1px;
     }
   }
 }

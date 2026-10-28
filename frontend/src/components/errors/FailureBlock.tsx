@@ -200,7 +200,7 @@ export default function FailureBlock({
 
         <button
           type="button"
-          className="inline-flex items-center gap-1.5 text-xs font-medium underline underline-offset-2 transition-colors duration-200"
+          className="inline-flex items-center gap-1.5 text-xs font-medium underline underline-offset-2 transition-colors duration-200 [--link-underline-start:20px]"
           style={{ color: 'var(--app-text-muted)' }}
           onClick={handleCopy}
         >
