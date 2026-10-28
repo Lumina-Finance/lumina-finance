@@ -177,7 +177,7 @@ export function ImportUploadCard({
                   {message}
                 </span>
                 {!blockReason && (
-                  <span className="mt-1 block text-xs" style={{ color: 'var(--app-text-subtle)' }}>
+                  <span className="app-upload-card-hint mt-1 block text-xs">
                     Choose another file to try again.
                   </span>
                 )}
@@ -197,7 +197,7 @@ export function ImportUploadCard({
                 <span className="block text-sm font-semibold" style={{ color: 'var(--app-text)' }}>
                   {dropPrompt.title}
                 </span>
-                <span className="mt-1 block text-xs" style={{ color: 'var(--app-text-subtle)' }}>
+                <span className="app-upload-card-hint mt-1 block text-xs">
                   {dropPrompt.hint}
                 </span>
               </motion.span>
@@ -213,7 +213,7 @@ export function ImportUploadCard({
                 <span className="block text-sm font-semibold" style={{ color: 'var(--app-text)' }}>
                   {title}
                 </span>
-                <span className="mt-1 block text-xs" style={{ color: 'var(--app-text-subtle)' }}>
+                <span className="app-upload-card-hint mt-1 block text-xs">
                   {hint}
                 </span>
               </motion.span>
