@@ -98,11 +98,48 @@ async def test_handoff_from_long_open_session_is_refused(client):
     assert query == {"error": "handoff_failed"}
 
 
-async def test_handoff_after_sign_up_setup_succeeds(client):
-    """A sign-up hands off only once its second factor and recovery codes are set up, which takes minutes"""
+async def test_handoff_within_window_succeeds(client):
+    """A sign-in still passing its second factor minutes after it began can hand off"""
     query = await _hand_off_session_started_ago(client, timedelta(minutes=5))
 
     assert "code" in query
+
+
+@pytest.mark.parametrize(
+    "form",
+    [
+        {"access_token": "token"},
+        {"access_token": "token", "code_challenge": "short"},
+        {"code_challenge": "A" * 43},
+        {"access_token": ["one", "two"], "code_challenge": "A" * 43},
+    ],
+)
+async def test_handoff_with_malformed_form_tells_app_it_failed(client, form):
+    """A missing, repeated or badly formed field never yields a code"""
+    resp = await client.post("/auth/native/handoff", data=form, follow_redirects=False)
+
+    assert resp.status_code == 303
+    assert resp.headers["location"] == "luminafinance://auth/callback?error=handoff_failed"
+
+
+async def test_handoff_with_binary_body_tells_app_it_failed(client):
+    """A body that isn't a urlencoded form is refused the same way"""
+    resp = await client.post("/auth/native/handoff", content=b"\xff\xfe", follow_redirects=False)
+
+    assert resp.status_code == 303
+    assert resp.headers["location"] == "luminafinance://auth/callback?error=handoff_failed"
+
+
+async def test_exchange_with_unusable_code_is_refused(client):
+    """A garbage string and a real access token are both refused as an invalid handoff, never an error page"""
+    signup = await _create_user(client)
+    verifier, _ = _pkce_pair()
+
+    for code in ("garbage", signup.json()["access_token"]):
+        resp = await client.post("/auth/native/exchange", json={"code": code, "code_verifier": verifier})
+
+        assert resp.status_code == 401
+        assert resp.json()["detail"] == "Invalid or expired handoff"
 
 
 async def test_exchange_with_wrong_verifier_is_refused_and_spends_code(client):

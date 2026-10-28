@@ -123,5 +123,6 @@ async def test_native_logout_revokes_refresh_token(client):
     resp = await client.post("/auth/refresh", json={"refresh_token": token}, headers=_NATIVE)
 
     assert logout.status_code == 200
+    assert not _clears_cookie(logout, "refresh_token")
     assert resp.status_code == 401
     assert resp.json()["detail"] == "Session is not active"

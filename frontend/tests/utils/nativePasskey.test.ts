@@ -31,6 +31,20 @@ describe('runNativePasskeyCeremony', () => {
     })
   })
 
+  it('flags a prompt the user closed in Chrome or Firefox as dismissed', async () => {
+    vi.mocked(startAuthentication).mockRejectedValue(buildWebAuthnError('ERROR_CEREMONY_ABORTED', 'AbortError'))
+    expect(await runNativePasskeyCeremony('get', '{}')).toEqual({
+      error: 'Could not sign in with a passkey. Try again, or use your email and password.',
+      cancelled: 'true',
+    })
+  })
+
+  it('answers options it cannot read with the flow message, not flagged as dismissed', async () => {
+    expect(await runNativePasskeyCeremony('create', 'not json')).toEqual({
+      error: expect.stringMatching(/passkey/i),
+    })
+  })
+
   it('gives a failed passkey setup the setup message, not flagged as dismissed', async () => {
     vi.mocked(startRegistration).mockRejectedValue(
       buildWebAuthnError('ERROR_AUTHENTICATOR_PREVIOUSLY_REGISTERED', 'InvalidStateError'),
