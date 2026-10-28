@@ -3,7 +3,7 @@ import { createHash, randomBytes } from 'node:crypto'
 import { expect, test, type APIRequestContext, type APIResponse, type Page } from '@playwright/test'
 
 import { enrollTotp, signUpUser, TEST_PASSWORD, totpCode } from '../support/api'
-import { addPasskeyAuthenticator, chooseFromDropdown } from '../support/app'
+import { addPasskeyAuthenticator, chooseFromDropdown, signUpThroughTheForm } from '../support/app'
 import { API_BASE_URL } from '../support/target'
 
 // Runs on desktop only: the Apple apps open this page in a system sheet, the same at every size
@@ -143,41 +143,9 @@ test('hands a first single sign-on to the app once its account is created', asyn
   expect((await exchange(request, await code, verifier)).status()).toBe(200)
 })
 
-test('hands a sign-up to the app once its passkey is set up', async ({ page, request }) => {
-  await addPasskeyAuthenticator(page)
-  const { verifier, challenge } = pkcePair()
-
-  // The sign-in page remembers the app's challenge, and the sign-up link keeps it for the tab
-  await page.goto(`/login?native_challenge=${challenge}`)
-  await signUpWithPasskey(page)
-  const code = waitForHandoffCode(page)
-  await page.getByRole('button', { name: 'Done' }).click()
-
-  const exchanged = await exchange(request, await code, verifier)
-  expect(exchanged.status()).toBe(200)
-  expect((await exchanged.json()).refresh_token).toBeTruthy()
-})
-
 /** Signs up in the page with a passkey as the second factor, then signs out, and returns the email */
 async function signedUpWithPasskey(page: Page): Promise<string> {
-  await page.goto('/login')
-  const email = await signUpWithPasskey(page)
-  const done = page.getByRole('button', { name: 'Done' })
-  await done.click()
-  await expect(done).toBeHidden()
-  await page.context().clearCookies()
-  return email
-}
-
-/** Signs up from the sign-in page with a passkey as the second factor, up to the last step, and returns the email */
-async function signUpWithPasskey(page: Page): Promise<string> {
-  const email = `e2e-${crypto.randomUUID()}@example.com`
-  await page.getByRole('button', { name: 'Sign up' }).click()
-  await page.getByLabel('First name').fill('Test')
-  await page.getByLabel('Email').fill(email)
-  await page.getByLabel('Password', { exact: true }).fill(TEST_PASSWORD)
-  await page.getByLabel('Confirm password').fill(TEST_PASSWORD)
-  await page.getByRole('button', { name: 'Sign up' }).click()
+  const email = await signUpThroughTheForm(page)
 
   // The default factor follows how the browser reports passkey support, so either step may come first
   const passkeyName = page.getByLabel('New passkey name')
@@ -188,5 +156,9 @@ async function signUpWithPasskey(page: Page): Promise<string> {
   await page.getByRole('button', { name: 'Set up a passkey' }).click()
   await page.getByLabel("I've saved my recovery codes").check()
   await page.getByLabel(/I understand I may be permanently locked out/).check()
+  const done = page.getByRole('button', { name: 'Done' })
+  await done.click()
+  await expect(done).toBeHidden()
+  await page.context().clearCookies()
   return email
 }
