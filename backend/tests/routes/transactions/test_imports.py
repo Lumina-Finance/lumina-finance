@@ -38,30 +38,40 @@ async def test_import_transactions_creates_records_and_recomputes_snapshots(clie
     signup_resp = await _create_user(client)
     headers = _get_auth_header(signup_resp)
 
-    resp = await _import_run(client, headers, {
-        "accounts": [{
-            "source": "TD Visa",
-            "create": {
-                "name": "TD Visa",
-                "account_type": "credit_card",
-                "currency": "CAD",
-                "institution_id": str(institution.id),
-            },
-        }],
-        "categories": [{
-            "source": "Restaurants",
-            "create": {"name": "Restaurants", "kind": "expense"},
-        }],
-        "rows": [{
-            "account_source": "TD Visa",
-            "category_source": "Restaurants",
-            "dt": "2026-04-10",
-            "amount": "-12.34",
-            "merchant_name": "Corner Cafe",
-            "notes": "Lunch",
-            "tag_names": ["Food", "Food", ""],
-        }],
-    })
+    resp = await _import_run(
+        client,
+        headers,
+        {
+            "accounts": [
+                {
+                    "source": "TD Visa",
+                    "create": {
+                        "name": "TD Visa",
+                        "account_type": "credit_card",
+                        "currency": "CAD",
+                        "institution_id": str(institution.id),
+                    },
+                }
+            ],
+            "categories": [
+                {
+                    "source": "Restaurants",
+                    "create": {"name": "Restaurants", "kind": "expense"},
+                }
+            ],
+            "rows": [
+                {
+                    "account_source": "TD Visa",
+                    "category_source": "Restaurants",
+                    "dt": "2026-04-10",
+                    "amount": "-12.34",
+                    "merchant_name": "Corner Cafe",
+                    "notes": "Lunch",
+                    "tag_names": ["Food", "Food", ""],
+                }
+            ],
+        },
+    )
 
     assert resp.status_code == 201
     data = resp.json()
@@ -97,9 +107,15 @@ async def test_import_transactions_creates_records_and_recomputes_snapshots(clie
     assert {"account_id": account_id, "dt": "2026-04-10", "balance": -1234} in snapshots_resp.json()
 
 
-@pytest.mark.parametrize("amount", ["90000000000000000.00", "-90000000000000000.00"])
-async def test_import_transactions_refuses_a_balance_too_large_to_store(client, amount):
-    """Rows whose running balance would leave the stored range either way are refused and nothing is saved."""
+@pytest.mark.parametrize(
+    ("amount", "wording"),
+    [
+        ("90000000000000000.00", "a larger balance than an account can hold"),
+        ("-90000000000000000.00", "a balance further below zero than an account can hold"),
+    ],
+)
+async def test_import_transactions_refuses_a_balance_too_large_to_store(client, amount, wording):
+    """Rows whose running balance would leave the stored range either way are refused with that direction's wording and nothing is saved."""
     institution = await _seed_institution()
     signup_resp = await _create_user(client)
     headers = _get_auth_header(signup_resp)
@@ -110,22 +126,28 @@ async def test_import_transactions_refuses_a_balance_too_large_to_store(client, 
         "amount": amount,
     }
 
-    resp = await _import_run(client, headers, {
-        "accounts": [{
-            "source": "Savings",
-            "create": {
-                "name": "Savings",
-                "account_type": "savings",
-                "currency": "CAD",
-                "institution_id": str(institution.id),
-            },
-        }],
-        "categories": [{"source": "Windfall", "create": {"name": "Windfall", "kind": "income"}}],
-        "rows": [row, {**row, "dt": "2026-04-11"}],
-    })
+    resp = await _import_run(
+        client,
+        headers,
+        {
+            "accounts": [
+                {
+                    "source": "Savings",
+                    "create": {
+                        "name": "Savings",
+                        "account_type": "savings",
+                        "currency": "CAD",
+                        "institution_id": str(institution.id),
+                    },
+                }
+            ],
+            "categories": [{"source": "Windfall", "create": {"name": "Windfall", "kind": "income"}}],
+            "rows": [row, {**row, "dt": "2026-04-11"}],
+        },
+    )
 
     assert resp.status_code == 422
-    assert resp.json()["detail"] == "Savings would end up with a larger balance than an account can hold"
+    assert resp.json()["detail"] == f"Savings would end up with {wording}"
     assert (await client.get("/transactions", headers=headers)).json() == []
     assert (await client.get("/accounts", headers=headers)).json() == []
     assert "Windfall" not in {category["name"] for category in (await client.get("/categories", headers=headers)).json()}
@@ -137,18 +159,24 @@ async def test_import_transactions_reuses_existing_records(client):
     await _create_merchant(client, headers, name="Costco")
     await _create_tag(client, headers, name="bulk")
 
-    resp = await _import_run(client, headers, {
-        "accounts": [{"source": "Main Chequing", "account_id": account_id}],
-        "categories": [{"source": "Groceries", "category_id": category_id}],
-        "rows": [{
-            "account_source": "Main Chequing",
-            "category_source": "Groceries",
-            "dt": "2026-04-11",
-            "amount": "1234.56",
-            "merchant_name": "Costco",
-            "tag_names": ["bulk"],
-        }],
-    })
+    resp = await _import_run(
+        client,
+        headers,
+        {
+            "accounts": [{"source": "Main Chequing", "account_id": account_id}],
+            "categories": [{"source": "Groceries", "category_id": category_id}],
+            "rows": [
+                {
+                    "account_source": "Main Chequing",
+                    "category_source": "Groceries",
+                    "dt": "2026-04-11",
+                    "amount": "1234.56",
+                    "merchant_name": "Costco",
+                    "tag_names": ["bulk"],
+                }
+            ],
+        },
+    )
 
     assert resp.status_code == 201
     data = resp.json()
@@ -180,28 +208,32 @@ async def test_import_transactions_records_the_counterparty_account_on_a_transfe
     savings_id = savings_resp.json()["id"]
     transfer_category_id = await _get_system_category_id(client, headers, "Transfer")
 
-    resp = await _import_run(client, headers, {
-        "accounts": [
-            {"source": "Chequing", "account_id": account_id},
-            {"source": "Savings", "account_id": savings_id},
-        ],
-        "categories": [{"source": "Transfer", "category_id": transfer_category_id}],
-        "rows": [
-            {
-                "account_source": "Chequing",
-                "category_source": "Transfer",
-                "dt": "2026-04-11",
-                "amount": "-500.00",
-                "counterparty_account_source": "Savings",
-            },
-            {
-                "account_source": "Savings",
-                "category_source": "Transfer",
-                "dt": "2026-04-13",
-                "amount": "500.00",
-            },
-        ],
-    })
+    resp = await _import_run(
+        client,
+        headers,
+        {
+            "accounts": [
+                {"source": "Chequing", "account_id": account_id},
+                {"source": "Savings", "account_id": savings_id},
+            ],
+            "categories": [{"source": "Transfer", "category_id": transfer_category_id}],
+            "rows": [
+                {
+                    "account_source": "Chequing",
+                    "category_source": "Transfer",
+                    "dt": "2026-04-11",
+                    "amount": "-500.00",
+                    "counterparty_account_source": "Savings",
+                },
+                {
+                    "account_source": "Savings",
+                    "category_source": "Transfer",
+                    "dt": "2026-04-13",
+                    "amount": "500.00",
+                },
+            ],
+        },
+    )
 
     assert resp.status_code == 201
     transactions_resp = await client.get("/transactions", headers=headers)
@@ -220,23 +252,29 @@ async def test_import_transactions_records_an_account_it_creates_as_the_counterp
     headers, account_id, _ = await _setup_user_with_deps(client)
     transfer_category_id = await _get_system_category_id(client, headers, "Transfer")
 
-    resp = await _import_run(client, headers, {
-        "accounts": [
-            {"source": "Chequing", "account_id": account_id},
-            {
-                "source": "Savings",
-                "create": {"name": "Savings", "account_type": "savings", "currency": "CAD"},
-            },
-        ],
-        "categories": [{"source": "Transfer", "category_id": transfer_category_id}],
-        "rows": [{
-            "account_source": "Chequing",
-            "category_source": "Transfer",
-            "dt": "2026-04-11",
-            "amount": "-500.00",
-            "counterparty_account_source": "Savings",
-        }],
-    })
+    resp = await _import_run(
+        client,
+        headers,
+        {
+            "accounts": [
+                {"source": "Chequing", "account_id": account_id},
+                {
+                    "source": "Savings",
+                    "create": {"name": "Savings", "account_type": "savings", "currency": "CAD"},
+                },
+            ],
+            "categories": [{"source": "Transfer", "category_id": transfer_category_id}],
+            "rows": [
+                {
+                    "account_source": "Chequing",
+                    "category_source": "Transfer",
+                    "dt": "2026-04-11",
+                    "amount": "-500.00",
+                    "counterparty_account_source": "Savings",
+                }
+            ],
+        },
+    )
 
     assert resp.status_code == 201
     data = resp.json()
@@ -252,20 +290,26 @@ async def test_import_transactions_records_a_transfer_leaving_the_tracked_accoun
     headers, account_id, _ = await _setup_user_with_deps(client)
     transfer_category_id = await _get_system_category_id(client, headers, "Transfer")
 
-    resp = await _import_run(client, headers, {
-        "accounts": [
-            {"source": "Chequing", "account_id": account_id},
-            {"source": "Brokerage elsewhere", "outside": True},
-        ],
-        "categories": [{"source": "Transfer", "category_id": transfer_category_id}],
-        "rows": [{
-            "account_source": "Chequing",
-            "category_source": "Transfer",
-            "dt": "2026-04-11",
-            "amount": "-500.00",
-            "counterparty_account_source": "Brokerage elsewhere",
-        }],
-    })
+    resp = await _import_run(
+        client,
+        headers,
+        {
+            "accounts": [
+                {"source": "Chequing", "account_id": account_id},
+                {"source": "Brokerage elsewhere", "outside": True},
+            ],
+            "categories": [{"source": "Transfer", "category_id": transfer_category_id}],
+            "rows": [
+                {
+                    "account_source": "Chequing",
+                    "category_source": "Transfer",
+                    "dt": "2026-04-11",
+                    "amount": "-500.00",
+                    "counterparty_account_source": "Brokerage elsewhere",
+                }
+            ],
+        },
+    )
 
     assert resp.status_code == 201
     assert resp.json()["accounts_created"] == 0
@@ -279,20 +323,26 @@ async def test_import_transactions_rejects_a_counterparty_account_on_a_non_trans
     headers, account_id, category_id = await _setup_user_with_deps(client)
     savings_resp = await _create_account(client, headers, name="Main Savings", account_type="savings")
 
-    resp = await _import_run(client, headers, {
-        "accounts": [
-            {"source": "Chequing", "account_id": account_id},
-            {"source": "Savings", "account_id": savings_resp.json()["id"]},
-        ],
-        "categories": [{"source": "Groceries", "category_id": category_id}],
-        "rows": [{
-            "account_source": "Chequing",
-            "category_source": "Groceries",
-            "dt": "2026-04-11",
-            "amount": "-10.00",
-            "counterparty_account_source": "Savings",
-        }],
-    })
+    resp = await _import_run(
+        client,
+        headers,
+        {
+            "accounts": [
+                {"source": "Chequing", "account_id": account_id},
+                {"source": "Savings", "account_id": savings_resp.json()["id"]},
+            ],
+            "categories": [{"source": "Groceries", "category_id": category_id}],
+            "rows": [
+                {
+                    "account_source": "Chequing",
+                    "category_source": "Groceries",
+                    "dt": "2026-04-11",
+                    "amount": "-10.00",
+                    "counterparty_account_source": "Savings",
+                }
+            ],
+        },
+    )
 
     assert resp.status_code == 422
     assert resp.json()["detail"] == "Only a transfer records a counterparty account: Savings"
@@ -303,20 +353,26 @@ async def test_import_transactions_rejects_a_transfer_recording_its_own_account(
     headers, account_id, _ = await _setup_user_with_deps(client)
     transfer_category_id = await _get_system_category_id(client, headers, "Transfer")
 
-    resp = await _import_run(client, headers, {
-        "accounts": [
-            {"source": "Chequing", "account_id": account_id},
-            {"source": "Chequing (old)", "account_id": account_id},
-        ],
-        "categories": [{"source": "Transfer", "category_id": transfer_category_id}],
-        "rows": [{
-            "account_source": "Chequing",
-            "category_source": "Transfer",
-            "dt": "2026-04-11",
-            "amount": "-500.00",
-            "counterparty_account_source": "Chequing (old)",
-        }],
-    })
+    resp = await _import_run(
+        client,
+        headers,
+        {
+            "accounts": [
+                {"source": "Chequing", "account_id": account_id},
+                {"source": "Chequing (old)", "account_id": account_id},
+            ],
+            "categories": [{"source": "Transfer", "category_id": transfer_category_id}],
+            "rows": [
+                {
+                    "account_source": "Chequing",
+                    "category_source": "Transfer",
+                    "dt": "2026-04-11",
+                    "amount": "-500.00",
+                    "counterparty_account_source": "Chequing (old)",
+                }
+            ],
+        },
+    )
 
     assert resp.status_code == 422
     assert resp.json()["detail"] == "A transfer cannot record its own account as its counterparty: Chequing (old)"
@@ -327,17 +383,23 @@ async def test_import_transactions_rejects_an_unmapped_counterparty_source(clien
     headers, account_id, _ = await _setup_user_with_deps(client)
     transfer_category_id = await _get_system_category_id(client, headers, "Transfer")
 
-    resp = await _import_run(client, headers, {
-        "accounts": [{"source": "Chequing", "account_id": account_id}],
-        "categories": [{"source": "Transfer", "category_id": transfer_category_id}],
-        "rows": [{
-            "account_source": "Chequing",
-            "category_source": "Transfer",
-            "dt": "2026-04-11",
-            "amount": "-500.00",
-            "counterparty_account_source": "Savings",
-        }],
-    })
+    resp = await _import_run(
+        client,
+        headers,
+        {
+            "accounts": [{"source": "Chequing", "account_id": account_id}],
+            "categories": [{"source": "Transfer", "category_id": transfer_category_id}],
+            "rows": [
+                {
+                    "account_source": "Chequing",
+                    "category_source": "Transfer",
+                    "dt": "2026-04-11",
+                    "amount": "-500.00",
+                    "counterparty_account_source": "Savings",
+                }
+            ],
+        },
+    )
 
     assert resp.status_code == 422
     assert resp.json()["detail"] == "Counterparty account source is not mapped: Savings"
@@ -347,16 +409,22 @@ async def test_import_transactions_rejects_an_outside_source_that_also_names_an_
     """A source answers with exactly one of an account, a new account, or the outside answer."""
     headers, account_id, category_id = await _setup_user_with_deps(client)
 
-    resp = await _import_run(client, headers, {
-        "accounts": [{"source": "Chequing", "account_id": account_id, "outside": True}],
-        "categories": [{"source": "Groceries", "category_id": category_id}],
-        "rows": [{
-            "account_source": "Chequing",
-            "category_source": "Groceries",
-            "dt": "2026-04-11",
-            "amount": "-10.00",
-        }],
-    })
+    resp = await _import_run(
+        client,
+        headers,
+        {
+            "accounts": [{"source": "Chequing", "account_id": account_id, "outside": True}],
+            "categories": [{"source": "Groceries", "category_id": category_id}],
+            "rows": [
+                {
+                    "account_source": "Chequing",
+                    "category_source": "Groceries",
+                    "dt": "2026-04-11",
+                    "amount": "-10.00",
+                }
+            ],
+        },
+    )
 
     assert resp.status_code == 422
     assert resp.json()["detail"] == "Account source must map to exactly one account action: Chequing"
@@ -366,21 +434,26 @@ async def test_import_transactions_rejects_rows_written_to_an_outside_source(cli
     """An outside source answers where money went and holds no rows of its own."""
     headers, _, category_id = await _setup_user_with_deps(client)
 
-    resp = await _import_run(client, headers, {
-        "accounts": [{"source": "Brokerage elsewhere", "outside": True}],
-        "categories": [{"source": "Groceries", "category_id": category_id}],
-        "rows": [{
-            "account_source": "Brokerage elsewhere",
-            "category_source": "Groceries",
-            "dt": "2026-04-11",
-            "amount": "-10.00",
-        }],
-    })
+    resp = await _import_run(
+        client,
+        headers,
+        {
+            "accounts": [{"source": "Brokerage elsewhere", "outside": True}],
+            "categories": [{"source": "Groceries", "category_id": category_id}],
+            "rows": [
+                {
+                    "account_source": "Brokerage elsewhere",
+                    "category_source": "Groceries",
+                    "dt": "2026-04-11",
+                    "amount": "-10.00",
+                }
+            ],
+        },
+    )
 
     assert resp.status_code == 422
     assert resp.json()["detail"] == (
-        "Map to one of your accounts: Brokerage elsewhere has rows of its own, "
-        "so it cannot be answered as outside."
+        "Map to one of your accounts: Brokerage elsewhere has rows of its own, so it cannot be answered as outside."
     )
 
 
@@ -388,19 +461,27 @@ async def test_import_transactions_rejects_unmapped_account_source(client):
     """Rows must reference a declared account source."""
     headers, _, category_id = await _setup_user_with_deps(client)
 
-    resp = await _import_run(client, headers, {
-        "accounts": [{
-            "source": "Mapped Account",
-            "create": {"name": "Imported Account", "account_type": "checking", "currency": "CAD"},
-        }],
-        "categories": [{"source": "Groceries", "category_id": category_id}],
-        "rows": [{
-            "account_source": "Missing Account",
-            "category_source": "Groceries",
-            "dt": "2026-04-11",
-            "amount": "-10.00",
-        }],
-    })
+    resp = await _import_run(
+        client,
+        headers,
+        {
+            "accounts": [
+                {
+                    "source": "Mapped Account",
+                    "create": {"name": "Imported Account", "account_type": "checking", "currency": "CAD"},
+                }
+            ],
+            "categories": [{"source": "Groceries", "category_id": category_id}],
+            "rows": [
+                {
+                    "account_source": "Missing Account",
+                    "category_source": "Groceries",
+                    "dt": "2026-04-11",
+                    "amount": "-10.00",
+                }
+            ],
+        },
+    )
 
     assert resp.status_code == 422
     assert resp.json()["detail"] == "Account source is not mapped: Missing Account"
@@ -410,24 +491,32 @@ async def test_import_transactions_rejects_invalid_created_account_institution(c
     """Import-created accounts must reference an existing institution."""
     headers, _, category_id = await _setup_user_with_deps(client)
 
-    resp = await _import_run(client, headers, {
-        "accounts": [{
-            "source": "Mapped Account",
-            "create": {
-                "name": "Imported Account",
-                "account_type": "checking",
-                "currency": "CAD",
-                "institution_id": NONEXISTENT_ID,
-            },
-        }],
-        "categories": [{"source": "Groceries", "category_id": category_id}],
-        "rows": [{
-            "account_source": "Mapped Account",
-            "category_source": "Groceries",
-            "dt": "2026-04-11",
-            "amount": "-10.00",
-        }],
-    })
+    resp = await _import_run(
+        client,
+        headers,
+        {
+            "accounts": [
+                {
+                    "source": "Mapped Account",
+                    "create": {
+                        "name": "Imported Account",
+                        "account_type": "checking",
+                        "currency": "CAD",
+                        "institution_id": NONEXISTENT_ID,
+                    },
+                }
+            ],
+            "categories": [{"source": "Groceries", "category_id": category_id}],
+            "rows": [
+                {
+                    "account_source": "Mapped Account",
+                    "category_source": "Groceries",
+                    "dt": "2026-04-11",
+                    "amount": "-10.00",
+                }
+            ],
+        },
+    )
 
     assert resp.status_code == 422
     assert resp.json()["detail"] == "Institution not found"
@@ -437,16 +526,22 @@ async def test_import_transactions_rejects_invalid_raw_amount(client):
     """Imported amounts must be raw numeric strings with optional thousands separators."""
     headers, account_id, category_id = await _setup_user_with_deps(client)
 
-    resp = await _import_run(client, headers, {
-        "accounts": [{"source": "Main Chequing", "account_id": account_id}],
-        "categories": [{"source": "Groceries", "category_id": category_id}],
-        "rows": [{
-            "account_source": "Main Chequing",
-            "category_source": "Groceries",
-            "dt": "2026-04-11",
-            "amount": "$12.34",
-        }],
-    })
+    resp = await _import_run(
+        client,
+        headers,
+        {
+            "accounts": [{"source": "Main Chequing", "account_id": account_id}],
+            "categories": [{"source": "Groceries", "category_id": category_id}],
+            "rows": [
+                {
+                    "account_source": "Main Chequing",
+                    "category_source": "Groceries",
+                    "dt": "2026-04-11",
+                    "amount": "$12.34",
+                }
+            ],
+        },
+    )
 
     assert resp.status_code == 422
     assert resp.json()["detail"] == "Invalid amount: $12.34"
@@ -464,38 +559,51 @@ async def test_import_transactions_rolls_back_created_records_for_invalid_amount
     # A failed import must not leave a balance snapshot for the account it tried to create
     # Owner and name scope the observation to this synthetic user's attempted record
     async with TestSession() as db:
-        snapshots_before = (await db.execute(text(
-            "SELECT count(*) FROM account_balance_snapshots AS snapshots "
-            "JOIN accounts ON accounts.id = snapshots.account_id "
-            "WHERE accounts.owner_id = :owner_id AND accounts.name = 'Imported Account'"
-        ), {"owner_id": user_id})).scalar_one()
+        snapshots_before = (
+            await db.execute(
+                text(
+                    "SELECT count(*) FROM account_balance_snapshots AS snapshots "
+                    "JOIN accounts ON accounts.id = snapshots.account_id "
+                    "WHERE accounts.owner_id = :owner_id AND accounts.name = 'Imported Account'"
+                ),
+                {"owner_id": user_id},
+            )
+        ).scalar_one()
 
-    resp = await _import_run(client, headers, {
-        "accounts": [{
-            "source": "Imported Account",
-            "create": {"name": "Imported Account", "account_type": "checking", "currency": "CAD"},
-        }],
-        "categories": [{
-            "source": "Imported Category",
-            "create": {"name": "Imported Category", "kind": "expense"},
-        }],
-        "rows": [
-            {
-                "account_source": "Imported Account",
-                "category_source": "Imported Category",
-                "dt": "2026-04-11",
-                "amount": "-12.34",
-                "merchant_name": "Imported Merchant",
-                "tag_names": ["Imported Tag"],
-            },
-            {
-                "account_source": "Imported Account",
-                "category_source": "Imported Category",
-                "dt": "2026-04-12",
-                "amount": invalid_amount,
-            },
-        ],
-    })
+    resp = await _import_run(
+        client,
+        headers,
+        {
+            "accounts": [
+                {
+                    "source": "Imported Account",
+                    "create": {"name": "Imported Account", "account_type": "checking", "currency": "CAD"},
+                }
+            ],
+            "categories": [
+                {
+                    "source": "Imported Category",
+                    "create": {"name": "Imported Category", "kind": "expense"},
+                }
+            ],
+            "rows": [
+                {
+                    "account_source": "Imported Account",
+                    "category_source": "Imported Category",
+                    "dt": "2026-04-11",
+                    "amount": "-12.34",
+                    "merchant_name": "Imported Merchant",
+                    "tag_names": ["Imported Tag"],
+                },
+                {
+                    "account_source": "Imported Account",
+                    "category_source": "Imported Category",
+                    "dt": "2026-04-12",
+                    "amount": invalid_amount,
+                },
+            ],
+        },
+    )
 
     assert resp.status_code == 422
     assert resp.json()["detail"] == f"Invalid amount: {invalid_amount}"
@@ -505,11 +613,16 @@ async def test_import_transactions_rolls_back_created_records_for_invalid_amount
     # Repeat the same owner-scoped snapshot observation after refusal so unrelated test users or
     # identically named accounts cannot satisfy the rollback check
     async with TestSession() as db:
-        snapshots_after = (await db.execute(text(
-            "SELECT count(*) FROM account_balance_snapshots AS snapshots "
-            "JOIN accounts ON accounts.id = snapshots.account_id "
-            "WHERE accounts.owner_id = :owner_id AND accounts.name = 'Imported Account'"
-        ), {"owner_id": user_id})).scalar_one()
+        snapshots_after = (
+            await db.execute(
+                text(
+                    "SELECT count(*) FROM account_balance_snapshots AS snapshots "
+                    "JOIN accounts ON accounts.id = snapshots.account_id "
+                    "WHERE accounts.owner_id = :owner_id AND accounts.name = 'Imported Account'"
+                ),
+                {"owner_id": user_id},
+            )
+        ).scalar_one()
     assert snapshots_after == snapshots_before
 
 
@@ -517,16 +630,22 @@ async def test_import_transactions_stores_a_normalized_amount(client):
     """A normalized decimal string reaches storage without locale separators or precision loss."""
     headers, account_id, category_id = await _setup_user_with_deps(client)
 
-    resp = await _import_run(client, headers, {
-        "accounts": [{"source": "Main Chequing", "account_id": account_id}],
-        "categories": [{"source": "Groceries", "category_id": category_id}],
-        "rows": [{
-            "account_source": "Main Chequing",
-            "category_source": "Groceries",
-            "dt": "2026-04-11",
-            "amount": "-100.99",
-        }],
-    })
+    resp = await _import_run(
+        client,
+        headers,
+        {
+            "accounts": [{"source": "Main Chequing", "account_id": account_id}],
+            "categories": [{"source": "Groceries", "category_id": category_id}],
+            "rows": [
+                {
+                    "account_source": "Main Chequing",
+                    "category_source": "Groceries",
+                    "dt": "2026-04-11",
+                    "amount": "-100.99",
+                }
+            ],
+        },
+    )
 
     assert resp.status_code == 201
     transaction = (await client.get("/transactions", headers=headers)).json()[0]
@@ -539,16 +658,22 @@ async def test_import_transactions_rejects_archived_account_mapping(client):
     archive_resp = await client.patch(f"/accounts/{account_id}", json={"is_archived": True}, headers=headers)
     assert archive_resp.status_code == 200
 
-    resp = await _import_run(client, headers, {
-        "accounts": [{"source": "Main Chequing", "account_id": account_id}],
-        "categories": [{"source": "Groceries", "category_id": category_id}],
-        "rows": [{
-            "account_source": "Main Chequing",
-            "category_source": "Groceries",
-            "dt": "2026-04-11",
-            "amount": "-10.00",
-        }],
-    })
+    resp = await _import_run(
+        client,
+        headers,
+        {
+            "accounts": [{"source": "Main Chequing", "account_id": account_id}],
+            "categories": [{"source": "Groceries", "category_id": category_id}],
+            "rows": [
+                {
+                    "account_source": "Main Chequing",
+                    "category_source": "Groceries",
+                    "dt": "2026-04-11",
+                    "amount": "-10.00",
+                }
+            ],
+        },
+    )
 
     assert resp.status_code == 422
     assert resp.json()["detail"] == "Account is archived"
@@ -563,20 +688,26 @@ async def test_import_transactions_records_an_archived_account_as_the_counterpar
     assert archive_resp.status_code == 200
     transfer_category_id = await _get_system_category_id(client, headers, "Transfer")
 
-    resp = await _import_run(client, headers, {
-        "accounts": [
-            {"source": "Chequing", "account_id": account_id},
-            {"source": "Old Savings", "account_id": savings_id},
-        ],
-        "categories": [{"source": "Transfer", "category_id": transfer_category_id}],
-        "rows": [{
-            "account_source": "Chequing",
-            "category_source": "Transfer",
-            "dt": "2026-04-11",
-            "amount": "-500.00",
-            "counterparty_account_source": "Old Savings",
-        }],
-    })
+    resp = await _import_run(
+        client,
+        headers,
+        {
+            "accounts": [
+                {"source": "Chequing", "account_id": account_id},
+                {"source": "Old Savings", "account_id": savings_id},
+            ],
+            "categories": [{"source": "Transfer", "category_id": transfer_category_id}],
+            "rows": [
+                {
+                    "account_source": "Chequing",
+                    "category_source": "Transfer",
+                    "dt": "2026-04-11",
+                    "amount": "-500.00",
+                    "counterparty_account_source": "Old Savings",
+                }
+            ],
+        },
+    )
 
     assert resp.status_code == 201
     transactions_resp = await client.get("/transactions", headers=headers)
@@ -594,28 +725,32 @@ async def test_import_transactions_rejects_an_archived_counterparty_that_also_ta
     assert archive_resp.status_code == 200
     transfer_category_id = await _get_system_category_id(client, headers, "Transfer")
 
-    resp = await _import_run(client, headers, {
-        "accounts": [
-            {"source": "Chequing", "account_id": account_id},
-            {"source": "Old Savings", "account_id": savings_id},
-        ],
-        "categories": [{"source": "Transfer", "category_id": transfer_category_id}],
-        "rows": [
-            {
-                "account_source": "Chequing",
-                "category_source": "Transfer",
-                "dt": "2026-04-11",
-                "amount": "-500.00",
-                "counterparty_account_source": "Old Savings",
-            },
-            {
-                "account_source": "Old Savings",
-                "category_source": "Transfer",
-                "dt": "2026-04-13",
-                "amount": "500.00",
-            },
-        ],
-    })
+    resp = await _import_run(
+        client,
+        headers,
+        {
+            "accounts": [
+                {"source": "Chequing", "account_id": account_id},
+                {"source": "Old Savings", "account_id": savings_id},
+            ],
+            "categories": [{"source": "Transfer", "category_id": transfer_category_id}],
+            "rows": [
+                {
+                    "account_source": "Chequing",
+                    "category_source": "Transfer",
+                    "dt": "2026-04-11",
+                    "amount": "-500.00",
+                    "counterparty_account_source": "Old Savings",
+                },
+                {
+                    "account_source": "Old Savings",
+                    "category_source": "Transfer",
+                    "dt": "2026-04-13",
+                    "amount": "500.00",
+                },
+            ],
+        },
+    )
 
     assert resp.status_code == 422
     assert resp.json()["detail"] == "Account is archived"
@@ -627,20 +762,26 @@ async def test_import_transactions_rejects_a_counterparty_in_another_users_accou
     _, other_account_id, _ = await _setup_user_with_deps(client, email="other@example.com", name_prefix="Other")
     transfer_category_id = await _get_system_category_id(client, headers, "Transfer")
 
-    resp = await _import_run(client, headers, {
-        "accounts": [
-            {"source": "Chequing", "account_id": account_id},
-            {"source": "Theirs", "account_id": other_account_id},
-        ],
-        "categories": [{"source": "Transfer", "category_id": transfer_category_id}],
-        "rows": [{
-            "account_source": "Chequing",
-            "category_source": "Transfer",
-            "dt": "2026-04-11",
-            "amount": "-500.00",
-            "counterparty_account_source": "Theirs",
-        }],
-    })
+    resp = await _import_run(
+        client,
+        headers,
+        {
+            "accounts": [
+                {"source": "Chequing", "account_id": account_id},
+                {"source": "Theirs", "account_id": other_account_id},
+            ],
+            "categories": [{"source": "Transfer", "category_id": transfer_category_id}],
+            "rows": [
+                {
+                    "account_source": "Chequing",
+                    "category_source": "Transfer",
+                    "dt": "2026-04-11",
+                    "amount": "-500.00",
+                    "counterparty_account_source": "Theirs",
+                }
+            ],
+        },
+    )
 
     assert resp.status_code == 404
     assert resp.json()["detail"] == "Account not found"
@@ -681,10 +822,12 @@ async def test_staging_refuses_a_source_declared_differently_by_a_later_batch(cl
     run_id = await _open_run(client, headers, 2)
     first_batch = _batch(account_id, category_id, ["-1.00"])
     second_batch = _batch(account_id, category_id, ["-2.00"], start_row_index=1)
-    second_batch["accounts"] = [{
-        "source": "Main Chequing",
-        "create": {"name": "Main Chequing", "account_type": "credit_card", "currency": "CAD"},
-    }]
+    second_batch["accounts"] = [
+        {
+            "source": "Main Chequing",
+            "create": {"name": "Main Chequing", "account_type": "credit_card", "currency": "CAD"},
+        }
+    ]
 
     await client.post(f"/transactions/import/runs/{run_id}/rows", json=first_batch, headers=headers)
     resp = await client.post(f"/transactions/import/runs/{run_id}/rows", json=second_batch, headers=headers)
@@ -740,17 +883,23 @@ async def test_a_transfer_stating_no_merchant_is_stamped_with_the_self_merchant(
     transfer_category_id = await _get_system_category_id(client, headers, "Transfer")
     self_merchant_id = await _get_system_merchant_id(client, headers, SELF_MERCHANT_NAME)
 
-    resp = await _import_run(client, headers, {
-        "accounts": [{"source": "Main Chequing", "account_id": account_id}],
-        "categories": [{"source": "Transfer", "category_id": transfer_category_id}],
-        "rows": [{
-            "account_source": "Main Chequing",
-            "category_source": "Transfer",
-            "dt": "2026-04-10",
-            "amount": "-50.00",
-            "tag_names": [],
-        }],
-    })
+    resp = await _import_run(
+        client,
+        headers,
+        {
+            "accounts": [{"source": "Main Chequing", "account_id": account_id}],
+            "categories": [{"source": "Transfer", "category_id": transfer_category_id}],
+            "rows": [
+                {
+                    "account_source": "Main Chequing",
+                    "category_source": "Transfer",
+                    "dt": "2026-04-10",
+                    "amount": "-50.00",
+                    "tag_names": [],
+                }
+            ],
+        },
+    )
 
     assert resp.status_code == 201
     transaction = (await client.get("/transactions", headers=headers)).json()[0]
@@ -816,10 +965,16 @@ async def test_a_merchant_name_matching_a_personal_and_a_shared_merchant_resolve
     sibling = await _create_merchant(client, headers, name="Corner Cafe")
     await _insert_personal_merchant_beside_a_shared_one(sibling.json()["id"], SELF_MERCHANT_NAME.lower())
 
-    resp = await _import_rows(client, headers, account_id, category_id, [
-        {"merchant_name": SELF_MERCHANT_NAME.upper()},
-        {"merchant_name": SELF_MERCHANT_NAME.lower()},
-    ])
+    resp = await _import_rows(
+        client,
+        headers,
+        account_id,
+        category_id,
+        [
+            {"merchant_name": SELF_MERCHANT_NAME.upper()},
+            {"merchant_name": SELF_MERCHANT_NAME.lower()},
+        ],
+    )
 
     assert resp.status_code == 201
     assert resp.json()["merchants_created"] == 0
@@ -833,17 +988,23 @@ async def test_a_category_source_creating_a_name_the_user_already_has_reuses_it(
     headers, account_id, _ = await _setup_user_with_deps(client)
     existing = await _create_category(client, headers, name="Hardware Store", kind="expense")
 
-    resp = await _import_run(client, headers, {
-        "accounts": [{"source": "Main Chequing", "account_id": account_id}],
-        "categories": [{"source": "HARDWARE STORE", "create": {"name": "HARDWARE STORE", "kind": "expense"}}],
-        "rows": [{
-            "account_source": "Main Chequing",
-            "category_source": "HARDWARE STORE",
-            "dt": "2026-04-10",
-            "amount": "-1.00",
-            "tag_names": [],
-        }],
-    })
+    resp = await _import_run(
+        client,
+        headers,
+        {
+            "accounts": [{"source": "Main Chequing", "account_id": account_id}],
+            "categories": [{"source": "HARDWARE STORE", "create": {"name": "HARDWARE STORE", "kind": "expense"}}],
+            "rows": [
+                {
+                    "account_source": "Main Chequing",
+                    "category_source": "HARDWARE STORE",
+                    "dt": "2026-04-10",
+                    "amount": "-1.00",
+                    "tag_names": [],
+                }
+            ],
+        },
+    )
 
     assert resp.status_code == 201
     assert (resp.json()["categories_created"], resp.json()["categories_reused"]) == (0, 1)
@@ -882,17 +1043,23 @@ async def test_a_category_source_creating_a_name_recording_the_other_direction_i
     created = await _create_category(client, headers, name="Garden Club", kind=existing_kind)
     assert created.status_code == 201, created.text
 
-    resp = await _import_run(client, headers, {
-        "accounts": [{"source": "Main Chequing", "account_id": account_id}],
-        "categories": [{"source": "Garden Club", "create": {"name": "Garden Club", "kind": requested_kind}}],
-        "rows": [{
-            "account_source": "Main Chequing",
-            "category_source": "Garden Club",
-            "dt": "2026-04-10",
-            "amount": "-1.00",
-            "tag_names": [],
-        }],
-    })
+    resp = await _import_run(
+        client,
+        headers,
+        {
+            "accounts": [{"source": "Main Chequing", "account_id": account_id}],
+            "categories": [{"source": "Garden Club", "create": {"name": "Garden Club", "kind": requested_kind}}],
+            "rows": [
+                {
+                    "account_source": "Main Chequing",
+                    "category_source": "Garden Club",
+                    "dt": "2026-04-10",
+                    "amount": "-1.00",
+                    "tag_names": [],
+                }
+            ],
+        },
+    )
 
     assert resp.status_code == 422
     assert resp.json()["detail"] == expected_detail
@@ -1059,8 +1226,7 @@ async def test_a_merchant_name_answered_with_a_name_that_ships_with_the_app_reus
 
     assert resp.status_code == 201
     assert resp.json()["merchants_created"] == 0
-    assert [merchant["name"] for merchant in (await client.get("/merchants", headers=headers)).json()
-            if not merchant["is_system"]] == []
+    assert [merchant["name"] for merchant in (await client.get("/merchants", headers=headers)).json() if not merchant["is_system"]] == []
     transaction = (await client.get("/transactions", headers=headers)).json()[0]
     assert transaction["merchant_id"] == self_merchant_id
 
@@ -1176,10 +1342,16 @@ async def test_two_spellings_of_one_merchant_name_in_a_file_make_one_merchant(cl
     """A file carrying both spellings creates one merchant, under the spelling it uses first."""
     headers, account_id, category_id = await _setup_user_with_deps(client)
 
-    resp = await _import_rows(client, headers, account_id, category_id, [
-        {"merchant_name": "Bakery"},
-        {"merchant_name": "BAKERY"},
-    ])
+    resp = await _import_rows(
+        client,
+        headers,
+        account_id,
+        category_id,
+        [
+            {"merchant_name": "Bakery"},
+            {"merchant_name": "BAKERY"},
+        ],
+    )
 
     assert resp.status_code == 201
     assert resp.json()["merchants_created"] == 1
@@ -1231,9 +1403,7 @@ async def test_staging_accepts_a_row_at_every_row_cap(client):
     run_id = await _open_run(client, headers, 1)
     batch = _batch(account_id, category_id, ["-1.00"])
     batch["rows"][0]["notes"] = "n" * MAX_IMPORT_NOTES_LENGTH
-    batch["rows"][0]["tag_names"] = [
-        f"{index}".ljust(MAX_IMPORT_TAG_NAME_LENGTH, "t") for index in range(MAX_IMPORT_TAGS_PER_ROW)
-    ]
+    batch["rows"][0]["tag_names"] = [f"{index}".ljust(MAX_IMPORT_TAG_NAME_LENGTH, "t") for index in range(MAX_IMPORT_TAGS_PER_ROW)]
 
     resp = await client.post(f"/transactions/import/runs/{run_id}/rows", json=batch, headers=headers)
 
@@ -1256,14 +1426,15 @@ async def _insert_personal_merchant_beside_a_shared_one(sibling_merchant_id, nam
         name: Name for the new merchant
     """
     async with TestSession() as session:
-        owner_id = (await session.execute(
-            text("SELECT owner_id FROM merchants WHERE id = :id"),
-            {"id": sibling_merchant_id},
-        )).scalar_one()
+        owner_id = (
+            await session.execute(
+                text("SELECT owner_id FROM merchants WHERE id = :id"),
+                {"id": sibling_merchant_id},
+            )
+        ).scalar_one()
         await session.execute(
             text(
-                "INSERT INTO merchants (id, owner_id, name, created_at)"
-                " VALUES (gen_random_uuid(), :owner_id, :name, now() - interval '1 day')",
+                "INSERT INTO merchants (id, owner_id, name, created_at) VALUES (gen_random_uuid(), :owner_id, :name, now() - interval '1 day')",
             ),
             {"owner_id": owner_id, "name": name},
         )
@@ -1272,21 +1443,26 @@ async def _insert_personal_merchant_beside_a_shared_one(sibling_merchant_id, nam
 
 async def _import_rows(client, headers, account_id, category_id, row_overrides, merchants=None):
     """Import one file of rows sharing an account and category, each row taking its own overrides"""
-    return await _import_run(client, headers, {
-        "accounts": [{"source": "Main Chequing", "account_id": account_id}],
-        "categories": [{"source": "Groceries", "category_id": category_id}],
-        "merchants": merchants or [],
-        "rows": [
-            {
-                "account_source": "Main Chequing",
-                "category_source": "Groceries",
-                "dt": "2026-04-10",
-                "amount": "-1.00",
-                "tag_names": [],
-            } | overrides
-            for overrides in row_overrides
-        ],
-    })
+    return await _import_run(
+        client,
+        headers,
+        {
+            "accounts": [{"source": "Main Chequing", "account_id": account_id}],
+            "categories": [{"source": "Groceries", "category_id": category_id}],
+            "merchants": merchants or [],
+            "rows": [
+                {
+                    "account_source": "Main Chequing",
+                    "category_source": "Groceries",
+                    "dt": "2026-04-10",
+                    "amount": "-1.00",
+                    "tag_names": [],
+                }
+                | overrides
+                for overrides in row_overrides
+            ],
+        },
+    )
 
 
 async def test_committing_twice_answers_from_the_first_commit(client):
@@ -1366,28 +1542,32 @@ async def test_reuse_counts_leave_out_records_the_import_created(client):
     """A merchant one row creates and the next row meets again is created once and reused none."""
     headers, account_id, category_id = await _setup_user_with_deps(client)
 
-    resp = await _import_run(client, headers, {
-        "accounts": [{"source": "Main Chequing", "account_id": account_id}],
-        "categories": [{"source": "Groceries", "category_id": category_id}],
-        "rows": [
-            {
-                "account_source": "Main Chequing",
-                "category_source": "Groceries",
-                "dt": "2026-04-10",
-                "amount": "-1.00",
-                "merchant_name": "Corner Cafe",
-                "tag_names": ["Lunch"],
-            },
-            {
-                "account_source": "Main Chequing",
-                "category_source": "Groceries",
-                "dt": "2026-04-11",
-                "amount": "-2.00",
-                "merchant_name": "Corner Cafe",
-                "tag_names": ["Lunch"],
-            },
-        ],
-    })
+    resp = await _import_run(
+        client,
+        headers,
+        {
+            "accounts": [{"source": "Main Chequing", "account_id": account_id}],
+            "categories": [{"source": "Groceries", "category_id": category_id}],
+            "rows": [
+                {
+                    "account_source": "Main Chequing",
+                    "category_source": "Groceries",
+                    "dt": "2026-04-10",
+                    "amount": "-1.00",
+                    "merchant_name": "Corner Cafe",
+                    "tag_names": ["Lunch"],
+                },
+                {
+                    "account_source": "Main Chequing",
+                    "category_source": "Groceries",
+                    "dt": "2026-04-11",
+                    "amount": "-2.00",
+                    "merchant_name": "Corner Cafe",
+                    "tag_names": ["Lunch"],
+                },
+            ],
+        },
+    )
 
     assert resp.status_code == 201
     data = resp.json()
@@ -1453,14 +1633,18 @@ async def test_an_import_across_two_accounts_recomputes_each_from_its_own_earlie
     if chequing_id < savings_id:
         rows = rows[2:] + rows[:2]
 
-    resp = await _import_run(client, headers, {
-        "accounts": [
-            {"source": "Chequing", "account_id": chequing_id},
-            {"source": "Savings", "account_id": savings_id},
-        ],
-        "categories": [{"source": "Groceries", "category_id": category_id}],
-        "rows": rows,
-    })
+    resp = await _import_run(
+        client,
+        headers,
+        {
+            "accounts": [
+                {"source": "Chequing", "account_id": chequing_id},
+                {"source": "Savings", "account_id": savings_id},
+            ],
+            "categories": [{"source": "Groceries", "category_id": category_id}],
+            "rows": rows,
+        },
+    )
 
     assert resp.status_code == 201
     assert resp.json()["affected_account_ids"] == sorted([chequing_id, savings_id])

@@ -5,6 +5,7 @@ transaction activity. Transaction and account routes call these helpers after
 mutations so the snapshot table stays aligned with account history. Rebuilds
 for the same account serialize until their caller commits or rolls back
 """
+
 import hashlib
 import uuid
 from collections.abc import Mapping, Sequence
@@ -30,7 +31,9 @@ _SNAPSHOT_LOCK_NAMESPACE = b"lumina:account-snapshots:"
 
 
 async def get_current_balances(
-    db: AsyncSession, account_ids: Sequence[uuid.UUID], as_of_date: date,
+    db: AsyncSession,
+    account_ids: Sequence[uuid.UUID],
+    as_of_date: date,
 ) -> dict[uuid.UUID, int]:
     """Return the latest eligible snapshot balance for each account
 
@@ -167,15 +170,23 @@ async def _recompute_account_snapshots_from(
         # then fail as a server error instead of a refusal the caller can show
         if not MIN_MINOR_UNITS <= running_balance <= MAX_MINOR_UNITS:
             account_name = await db.scalar(select(Account.name).where(Account.id == account_id))
+            # A hugely negative balance is not a "larger" one, so each direction gets its own wording
+            limit_wording = (
+                "a larger balance than an account can hold"
+                if running_balance > MAX_MINOR_UNITS
+                else "a balance further below zero than an account can hold"
+            )
             raise HTTPException(
                 status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
-                detail=f"{account_name} would end up with a larger balance than an account can hold",
+                detail=f"{account_name} would end up with {limit_wording}",
             )
-        db.add(AccountBalanceSnapshot(
-            account_id=account_id,
-            dt=row.dt,
-            balance=running_balance,
-        ))
+        db.add(
+            AccountBalanceSnapshot(
+                account_id=account_id,
+                dt=row.dt,
+                balance=running_balance,
+            )
+        )
 
     await db.flush()
     await restore_zero_anchor_if_empty(db, account_id)
@@ -196,27 +207,29 @@ async def restore_zero_anchor_if_empty(db: AsyncSession, account_id: uuid.UUID) 
     """
     # Check whether any snapshot remains before rebuilding the account's zero anchor
     existing = await db.execute(
-        select(AccountBalanceSnapshot.account_id)
-        .where(AccountBalanceSnapshot.account_id == account_id)
-        .limit(1),
+        select(AccountBalanceSnapshot.account_id).where(AccountBalanceSnapshot.account_id == account_id).limit(1),
     )
     if existing.scalar_one_or_none() is not None:
         return
 
     # Fetch account creation time and owner timezone so the anchor uses the account owner's local date
-    row = (await db.execute(
-        select(Account.created_at, func.coalesce(PersonalOwner.tz, GroupOwner.tz).label("tz"))
-        .outerjoin(PersonalOwner, Account.owner_id == PersonalOwner.id)
-        .outerjoin(Group, Account.group_id == Group.id)
-        .outerjoin(GroupOwner, Group.owner_id == GroupOwner.id)
-        .where(Account.id == account_id),
-    )).one_or_none()
+    row = (
+        await db.execute(
+            select(Account.created_at, func.coalesce(PersonalOwner.tz, GroupOwner.tz).label("tz"))
+            .outerjoin(PersonalOwner, Account.owner_id == PersonalOwner.id)
+            .outerjoin(Group, Account.group_id == Group.id)
+            .outerjoin(GroupOwner, Group.owner_id == GroupOwner.id)
+            .where(Account.id == account_id),
+        )
+    ).one_or_none()
     if row is None or row.created_at is None or row.tz is None:
         return
 
-    db.add(AccountBalanceSnapshot(
-        account_id=account_id,
-        dt=row.created_at.astimezone(resolve_timezone(row.tz, stored_on=ACCOUNT_OWNER_PROFILE)).date(),
-        balance=0,
-    ))
+    db.add(
+        AccountBalanceSnapshot(
+            account_id=account_id,
+            dt=row.created_at.astimezone(resolve_timezone(row.tz, stored_on=ACCOUNT_OWNER_PROFILE)).date(),
+            balance=0,
+        )
+    )
     await db.flush()
