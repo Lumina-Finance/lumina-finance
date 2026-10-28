@@ -96,6 +96,12 @@ def try_start_send(user_id: uuid.UUID) -> SendTicket | None:
     return ticket
 
 
+def has_send_under_way(user_id: uuid.UUID) -> bool:
+    """Whether an admitted send for the account is still running or waiting its turn, without claiming anything"""
+    ticket = _admitted.get(user_id)
+    return ticket is not None and ticket.lease_ends > monotonic()
+
+
 def end_send(ticket: SendTicket) -> None:
     """Free the place of a send that ended, or whose request failed before it could be handed on"""
     if _admitted.get(ticket.user_id) is ticket:
