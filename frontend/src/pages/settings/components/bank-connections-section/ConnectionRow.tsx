@@ -74,7 +74,7 @@ export function ConnectionRow({ connection, layoutKey, isLast, prefersReducedMot
       >
         <span className="grid grid-cols-[minmax(0,1fr)_auto] items-start gap-x-3 min-[750px]:hidden">
           <MarqueeText active className="min-w-0 font-medium">{name}</MarqueeText>
-          <span className="flex items-center gap-1">
+          <span className="flex min-w-0 items-center gap-1">
             {statusLabel}
             <ChevronRight size={16} aria-hidden className="shrink-0" style={{ color: 'var(--app-text-subtle)' }} />
           </span>
