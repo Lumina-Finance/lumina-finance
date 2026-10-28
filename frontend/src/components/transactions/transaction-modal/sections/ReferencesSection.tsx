@@ -262,7 +262,7 @@ export default function TransactionReferencesSection({
           placeholder={accountPlaceholder}
           searchable
           searchPlaceholder="Search accounts..."
-          disabled={readOnly}
+          disabled={readOnly || isAccountLocked}
           disabledReason={isAccountLocked ? LOCKED_ACCOUNT_REASON : undefined}
         />
         <RunningBalanceRow runningBalance={runningBalance} />

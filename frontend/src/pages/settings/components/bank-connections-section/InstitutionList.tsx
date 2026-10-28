@@ -142,7 +142,7 @@ function BankAccountRow({ bankAccount, canLink, overLimit, linkingPaused, linkin
                     placeholder="Link an account"
                     size="field"
                     labelledBy={nameId}
-                    disabled={!canLink}
+                    disabled={!canLink || linkingPaused}
                     disabledReason={linkingPaused ? LINKING_PAUSED_REASON : undefined}
                     onChange={(accountId) => onLink(bankAccount, accountId)}
                   />
