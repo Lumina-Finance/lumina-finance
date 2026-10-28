@@ -791,6 +791,7 @@
   /* The currency symbol drawn inside the start of a money field, beside its input */
   .app-input-prefix {
     color: var(--app-text-subtle);
+    font-size: 0.9375rem;
   }
 
   /* The red tint of a field in error takes faint text under the contrast text needs in the dark theme, so

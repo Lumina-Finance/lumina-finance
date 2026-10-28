@@ -4,7 +4,7 @@
  */
 import { describe, expect, it } from 'vitest'
 import type { Currency } from '@/api/currency'
-import { toMinorUnits } from '@/pages/budgets/utils/money'
+import { buildBudgetCurrencyOptions, currencySymbol, toMinorUnits } from '@/pages/budgets/utils/money'
 
 const currencies: Currency[] = [
   { id: 'CAD', name: 'Canadian Dollar', symbol: '$', minor_unit_exponent: 2 },
@@ -25,5 +25,15 @@ describe('budget money helpers', () => {
     expect(toMinorUnits('', [], 'JPY')).toBeNull()
     expect(toMinorUnits('', cadOnlyCurrencies, 'JPY')).toBeNull()
     expect(toMinorUnits('500000', cadOnlyCurrencies, 'JPY')).toBeNull()
+  })
+
+  it('labels the currency dropdown as every other one is, in the reader\'s symbol', () => {
+    // The suite pins en-US through LC_ALL, so the seeded "$" reads CA$ here
+    expect(buildBudgetCurrencyOptions(currencies)[0]).toEqual({ value: 'CAD', label: 'CAD · Canadian Dollar (CA$)' })
+  })
+
+  it('writes a loaded currency\'s symbol the way the reader\'s language does and none for an unknown code', () => {
+    expect(currencySymbol(currencies, 'CAD')).toBe('CA$')
+    expect(currencySymbol(currencies, 'EUR')).toBe('')
   })
 })

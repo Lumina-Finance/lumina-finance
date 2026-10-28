@@ -8,6 +8,7 @@ import { useMerchantDetails } from '@/api/merchants'
 import { useTagDetails } from '@/api/tags'
 import { useAuth } from '@/hooks/useAuth'
 import { useCurrencyListState } from '@/hooks/useCurrencyListState'
+import { formatCurrencySymbol } from '@/utils/formatCurrency'
 import { getCurrencyExponent } from '@/utils/moneyInput'
 import {
   buildAmountFilterPatch,
@@ -130,7 +131,7 @@ export function useTransactionFilterDraft({
   // user never picks a currency twice
   const currencyLocked = Boolean(lockedCurrency)
   const amountCurrency = lockedCurrency ?? selections.currency[0] ?? baseCurrency
-  const amountSymbol = currencies.find((currency) => currency.id === amountCurrency)?.symbol ?? ''
+  const amountSymbol = currencies.some((currency) => currency.id === amountCurrency) ? formatCurrencySymbol(amountCurrency) : ''
   const amountExponent = getCurrencyExponent(currencies, amountCurrency)
   // Both fields refuse input while the decimal places are unknown, since a bound typed against the
   // two-place fallback would be stored at the wrong scale. Decided here rather than in the body, so

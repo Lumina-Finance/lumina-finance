@@ -9,6 +9,7 @@ import { CLEAR_FILTERS_DISABLED_REASON } from '@/components/list-controls/filter
 import { FILTER_GLASS_SPRING } from '@/components/list-controls/toolbarStyles'
 import { DisabledReasonButton } from '@/components/tooltips/DisabledReasonButton'
 import { joinClassNames } from '@/utils/classNames'
+import { getSymbolInputStyle, type SymbolPlacement } from '@/utils/formatCurrency'
 import { getMoneyPlaceholder } from '@/utils/moneyInput'
 import {
   CURRENCY_RANGE_LOADING,
@@ -29,6 +30,9 @@ import {
   type MultiSelections,
   type TransactionFilterDraft,
 } from '@/components/transactions/toolbar/useTransactionFilterDraft'
+
+// The Amount symbols sit 0.75rem in, in 0.875rem text, a little tighter than a modal field's
+const AMOUNT_SYMBOL_PLACEMENT: SymbolPlacement = { insetRem: 0.75, fontRem: 0.875 }
 
 // Stable empty set so the common, account-enabled case never rebuilds a set on each render
 const NO_DISABLED_FACETS = new Set<string>()
@@ -476,6 +480,7 @@ function SectionEditor({
                 )}
                 <input
                   className={joinClassNames('app-input disabled:cursor-not-allowed disabled:opacity-60', amountSymbol && 'pl-8', hasCrossedAmountBounds && 'app-input-error')}
+                  style={getSymbolInputStyle(amountSymbol, AMOUNT_SYMBOL_PLACEMENT)}
                   placeholder={isAmountLocked ? undefined : getMoneyPlaceholder(amountExponent)}
                   disabled={isAmountLocked}
                   aria-invalid={hasCrossedAmountBounds}
@@ -499,6 +504,7 @@ function SectionEditor({
                 )}
                 <input
                   className={joinClassNames('app-input disabled:cursor-not-allowed disabled:opacity-60', amountSymbol && 'pl-8', hasCrossedAmountBounds && 'app-input-error')}
+                  style={getSymbolInputStyle(amountSymbol, AMOUNT_SYMBOL_PLACEMENT)}
                   placeholder={isAmountLocked ? undefined : 'Any'}
                   disabled={isAmountLocked}
                   aria-invalid={hasCrossedAmountBounds}
