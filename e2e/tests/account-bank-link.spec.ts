@@ -80,7 +80,7 @@ function toast(page: Page, text: string): Locator {
  * control and fades rather than leaving
  */
 function shownReason(page: Page, reason: string): Locator {
-  return page.locator('body > div[aria-hidden="true"]').filter({ hasText: reason })
+  return page.getByTestId('disabled-reason-tooltip').filter({ hasText: reason })
 }
 
 /**
@@ -377,12 +377,12 @@ test('moves focus to Link bank account once the link it sat by is undone elsewhe
   releaseReads()
 })
 
-test("keeps the link's message clear of Cancel and Save Changes where the edit modal fills the screen, and back in the corner once it closes", async ({ page, request }) => {
+test("keeps the link's message clear of Cancel and Save changes where the edit modal fills the screen, and back in the corner once it closes", async ({ page, request }) => {
   // The widest screen the modal still fills, which stands for every screen it fills
   await page.setViewportSize(WIDEST_FULL_SCREEN_MODAL_SIZE)
   const { dialog, message } = await linkFromEditAccount(page, request)
   const cancel = dialog.getByRole('button', { name: 'Cancel', exact: true })
-  const save = dialog.getByRole('button', { name: 'Save Changes', exact: true })
+  const save = dialog.getByRole('button', { name: 'Save changes', exact: true })
 
   // Read while the message still shows, since both come out from under it once it goes
   await expect(message).toBeInViewport({ ratio: 1 })
@@ -394,7 +394,7 @@ test("keeps the link's message clear of Cancel and Save Changes where the edit m
   await expect.poll(() => readMessageInset(message)).toEqual(MESSAGE_IN_CORNER)
 })
 
-test("leaves the link's message in the corner, clear of Cancel and Save Changes, where the edit modal sits in the middle", async ({ page, request }) => {
+test("leaves the link's message in the corner, clear of Cancel and Save changes, where the edit modal sits in the middle", async ({ page, request }) => {
   // The narrowest screen the modal sits in the middle of, where the message in the corner comes closest
   // to its buttons
   await page.setViewportSize(NARROWEST_CENTRED_MODAL_SIZE)
@@ -402,7 +402,7 @@ test("leaves the link's message in the corner, clear of Cancel and Save Changes,
 
   await expectMessageInCorner(message)
   expect(await isUncovered(dialog.getByRole('button', { name: 'Cancel', exact: true }))).toBe(true)
-  expect(await isUncovered(dialog.getByRole('button', { name: 'Save Changes', exact: true }))).toBe(true)
+  expect(await isUncovered(dialog.getByRole('button', { name: 'Save changes', exact: true }))).toBe(true)
 })
 
 test("lists the bank accounts that can't be linked with the reason for each", async ({ page, request }) => {
@@ -761,7 +761,8 @@ test.describe('the reason on Link bank account while bank sync is not running', 
     await link.hover()
     await expect(shownReason(page, LINKING_PAUSED)).toHaveCSS('opacity', '1')
     await page.keyboard.press('Escape')
-    await expect(shownReason(page, LINKING_PAUSED)).toHaveCSS('opacity', '0')
+    // Faded out, or gone from the page once its fade has ended
+    await expect.poll(() => shownReason(page, LINKING_PAUSED).evaluateAll((nodes) => nodes.every((node) => getComputedStyle(node).opacity === '0'))).toBe(true)
 
     // Pressing it anyway opens nothing, in the modal Escape left open
     await link.click({ force: true })

@@ -40,7 +40,7 @@ test('opens the replacement dropdown in the short merchant delete modal from its
   // Refused while transactions use the merchant, which is what opens the modal
   await page.getByRole('button', { name: `Delete ${name}`, exact: true }).click()
   await page.getByRole('button', { name: `Confirm delete ${name}`, exact: true }).click()
-  const dialog = page.getByRole('dialog', { name: 'Move Transactions First', exact: true })
+  const dialog = page.getByRole('dialog', { name: 'Move transactions first', exact: true })
   await expect(dialog).toBeVisible()
 
   const field = dialog.getByRole('combobox', { name: 'Replacement merchant', exact: true })
