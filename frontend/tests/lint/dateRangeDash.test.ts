@@ -48,9 +48,11 @@ function listSourceFiles(folder: string): string[] {
 }
 
 function findDashProblems(text: string): string[] {
-  return text.split('\n').flatMap((line, index) =>
-    DASH_RULES.filter((rule) => rule.pattern.test(line)).map((rule) => `line ${index + 1}: ${rule.name}`),
-  )
+  return text
+    .split('\n')
+    .flatMap((line, index) =>
+      DASH_RULES.filter((rule) => rule.pattern.test(line)).map((rule) => `line ${index + 1}: ${rule.name}`),
+    )
 }
 
 describe('date range dash', () => {

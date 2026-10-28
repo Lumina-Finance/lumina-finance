@@ -59,9 +59,7 @@ describe('today in a given zone', () => {
   })
 
   it('degrades to the browser zone instead of throwing on an unrecognized zone', () => {
-    expect(getTodayYmd('Not/AZone', LATE_JUNE_EVENING)).toBe(
-      getTodayYmd(BROWSER_TIME_ZONE, LATE_JUNE_EVENING),
-    )
+    expect(getTodayYmd('Not/AZone', LATE_JUNE_EVENING)).toBe(getTodayYmd(BROWSER_TIME_ZONE, LATE_JUNE_EVENING))
   })
 
   it('expresses the zone day on the browser calendar so local arithmetic lands on it', () => {

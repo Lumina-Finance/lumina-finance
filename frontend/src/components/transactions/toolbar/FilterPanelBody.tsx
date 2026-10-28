@@ -148,10 +148,19 @@ export function FilterPanelBody({
                 disabled={isDisabled}
                 whileTap={shouldReduceMotion || isDisabled ? undefined : { scale: 0.94 }}
                 className={joinClassNames('app-range-seg-option', isActive && 'app-range-seg-option-active')}
-                style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2, opacity: isDisabled ? 0.4 : 1, cursor: isDisabled ? 'not-allowed' : undefined }}
+                style={{
+                  display: 'flex',
+                  flexDirection: 'column',
+                  alignItems: 'center',
+                  gap: 2,
+                  opacity: isDisabled ? 0.4 : 1,
+                  cursor: isDisabled ? 'not-allowed' : undefined,
+                }}
                 onClick={() => setActiveFacetId(facet.id)}
               >
-                {isActive && <motion.span layoutId={`${segId}-facet`} className="app-range-seg-thumb" transition={transition} />}
+                {isActive && (
+                  <motion.span layoutId={`${segId}-facet`} className="app-range-seg-thumb" transition={transition} />
+                )}
                 <span className="app-range-seg-label" style={{ display: 'inline-flex' }}>
                   <FacetIcon size={16} aria-hidden />
                 </span>
@@ -161,7 +170,13 @@ export function FilterPanelBody({
                 {!isDisabled && facetCount > 0 && (
                   <span
                     className="absolute flex h-[14px] min-w-[14px] items-center justify-center rounded-full px-1 text-[9px] font-medium"
-                    style={{ top: 2, right: 2, zIndex: FACET_COUNT_BADGE_Z_INDEX, background: 'var(--app-accent)', color: 'var(--app-button-primary-text)' }}
+                    style={{
+                      top: 2,
+                      right: 2,
+                      zIndex: FACET_COUNT_BADGE_Z_INDEX,
+                      background: 'var(--app-accent)',
+                      color: 'var(--app-button-primary-text)',
+                    }}
                   >
                     {facetCount}
                   </span>
@@ -204,7 +219,7 @@ export function FilterPanelBody({
               hasCrossedDateRange={draft.hasCrossedDateRange}
               dateRangeMessageId={dateRangeMessageId}
               currencyOptions={draft.getFacetOptions('currency')}
-              currencyValue={draft.currencyLocked ? draft.amountCurrency : draft.selections.currency[0] ?? ''}
+              currencyValue={draft.currencyLocked ? draft.amountCurrency : (draft.selections.currency[0] ?? '')}
               currencyLocked={draft.currencyLocked}
               dateRange={draft.dateRange}
               fillHeight={fillHeight}
@@ -304,7 +319,12 @@ function DateFacetInput({
       <div className="flex items-baseline justify-between gap-3">
         <span className="shrink-0 leading-5">{label}</span>
         {message && (
-          <p id={messageId} role="alert" className="text-right text-xs font-medium leading-5 text-balance" style={{ color: 'var(--app-negative)' }}>
+          <p
+            id={messageId}
+            role="alert"
+            className="text-right text-xs font-medium leading-5 text-balance"
+            style={{ color: 'var(--app-negative)' }}
+          >
             {message}
           </p>
         )}
@@ -428,7 +448,14 @@ function SectionEditor({
                 <span
                   aria-disabled
                   className="rounded-full border px-3 py-1 text-sm"
-                  style={{ background: 'var(--app-accent-soft)', borderColor: 'transparent', color: 'var(--app-accent)', fontWeight: 500, opacity: 0.55, cursor: 'not-allowed' }}
+                  style={{
+                    background: 'var(--app-accent-soft)',
+                    borderColor: 'transparent',
+                    color: 'var(--app-accent)',
+                    fontWeight: 500,
+                    opacity: 0.55,
+                    cursor: 'not-allowed',
+                  }}
                 >
                   {currencyValue}
                 </span>
@@ -473,14 +500,16 @@ function SectionEditor({
               Min
               <div className="relative">
                 {amountSymbol && (
-                  <span
-                    className="app-input-prefix pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-sm"
-                  >
+                  <span className="app-input-prefix pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-sm">
                     {amountSymbol}
                   </span>
                 )}
                 <input
-                  className={joinClassNames('app-input disabled:cursor-not-allowed disabled:opacity-60', amountSymbol && 'pl-8', hasCrossedAmountBounds && 'app-input-error')}
+                  className={joinClassNames(
+                    'app-input disabled:cursor-not-allowed disabled:opacity-60',
+                    amountSymbol && 'pl-8',
+                    hasCrossedAmountBounds && 'app-input-error',
+                  )}
                   style={getSymbolInputStyle(amountSymbol, AMOUNT_SYMBOL_PLACEMENT)}
                   placeholder={isAmountLocked ? undefined : getMoneyPlaceholder(amountExponent)}
                   disabled={isAmountLocked}
@@ -497,14 +526,16 @@ function SectionEditor({
               Max
               <div className="relative">
                 {amountSymbol && (
-                  <span
-                    className="app-input-prefix pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-sm"
-                  >
+                  <span className="app-input-prefix pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-sm">
                     {amountSymbol}
                   </span>
                 )}
                 <input
-                  className={joinClassNames('app-input disabled:cursor-not-allowed disabled:opacity-60', amountSymbol && 'pl-8', hasCrossedAmountBounds && 'app-input-error')}
+                  className={joinClassNames(
+                    'app-input disabled:cursor-not-allowed disabled:opacity-60',
+                    amountSymbol && 'pl-8',
+                    hasCrossedAmountBounds && 'app-input-error',
+                  )}
                   style={getSymbolInputStyle(amountSymbol, AMOUNT_SYMBOL_PLACEMENT)}
                   placeholder={isAmountLocked ? undefined : 'Any'}
                   disabled={isAmountLocked}
@@ -584,7 +615,9 @@ function SectionEditor({
               })}
             </div>
             <p className="mt-1 px-0.5 text-xs" style={{ color: 'var(--app-text-subtle)' }}>
-              {tagMatch === 'all' ? 'Match transactions with all selected tags' : 'Match transactions with any selected tag'}
+              {tagMatch === 'all'
+                ? 'Match transactions with all selected tags'
+                : 'Match transactions with any selected tag'}
             </p>
           </div>
         )}
@@ -652,19 +685,19 @@ function ActiveFilterSummary({
   const multiChips = Object.entries(selections).flatMap(([facetId, values]) =>
     values.map((value) => {
       // Client-list facets resolve via their options, server-searched ones via the label cache
-      const label = getFacetOptions(facetId).find((option) => option.value === value)?.label ?? referenceLabels[value] ?? value
+      const label =
+        getFacetOptions(facetId).find((option) => option.value === value)?.label ?? referenceLabels[value] ?? value
       return { key: `${facetId}:${value}`, label, onRemove: () => onRemoveSelection(facetId, value) }
     }),
   )
 
   const amountLabel = buildAmountRangeLabel({ amount, amountCurrency, amountExponent })
-  const amountChip = amountLabel
-    ? [{ key: 'amount', label: amountLabel, onRemove: onClearAmount }]
-    : []
+  const amountChip = amountLabel ? [{ key: 'amount', label: amountLabel, onRemove: onClearAmount }] : []
 
-  const dateChip = dateRange.from || dateRange.to
-    ? [{ key: 'date', label: formatOpenDateRangeLabel(dateRange.from, dateRange.to), onRemove: onClearDate }]
-    : []
+  const dateChip =
+    dateRange.from || dateRange.to
+      ? [{ key: 'date', label: formatOpenDateRangeLabel(dateRange.from, dateRange.to), onRemove: onClearDate }]
+      : []
 
   const chips = [...multiChips, ...amountChip, ...dateChip]
 

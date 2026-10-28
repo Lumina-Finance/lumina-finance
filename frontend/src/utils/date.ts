@@ -154,7 +154,9 @@ export function formatDateRange(start: Date, end: Date, format: DateFormat, time
   return new Intl.DateTimeFormat(DATE_LOCALE, {
     ...format,
     timeZone: resolveTimeZone(timeZone),
-  }).formatRange(start, end).replace(/\s*–\s*/, ' – ')
+  })
+    .formatRange(start, end)
+    .replace(/\s*–\s*/, ' – ')
 }
 
 /**
@@ -391,7 +393,7 @@ export function getIsoWeek(date: Date): number {
   const thursday = getIsoWeekThursday(date)
   const yearStart = new Date(Date.UTC(thursday.getUTCFullYear(), 0, 1))
 
-  return Math.ceil((((thursday.getTime() - yearStart.getTime()) / 86400000) + 1) / 7)
+  return Math.ceil(((thursday.getTime() - yearStart.getTime()) / 86400000 + 1) / 7)
 }
 
 /**
