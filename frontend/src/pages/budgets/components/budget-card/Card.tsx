@@ -44,7 +44,7 @@ export default function BudgetCard({
       data-testid={`budget-card-${baseBudget.id}`}
       className={`app-card app-budget-card flex w-full min-w-0 cursor-pointer flex-col duration-150 hover:-translate-y-0.5 ${
         isArchived
-          ? 'opacity-80 transition-[transform,opacity] hover:opacity-100'
+          ? 'opacity-80 transition-[translate,opacity] hover:opacity-100'
           : 'min-h-[21.5rem] transition-transform'
       }`}
       style={{
