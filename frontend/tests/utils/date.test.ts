@@ -11,6 +11,7 @@ import {
   formatDate,
   formatDateRange,
   formatDateRangeLabel,
+  formatOpenDateRangeLabel,
   formatShortDateRangeLabel,
   formatUnreadableRange,
   formatYmd,
@@ -58,9 +59,7 @@ describe('today in a given zone', () => {
   })
 
   it('degrades to the browser zone instead of throwing on an unrecognized zone', () => {
-    expect(getTodayYmd('Not/AZone', LATE_JUNE_EVENING)).toBe(
-      getTodayYmd(BROWSER_TIME_ZONE, LATE_JUNE_EVENING),
-    )
+    expect(getTodayYmd('Not/AZone', LATE_JUNE_EVENING)).toBe(getTodayYmd(BROWSER_TIME_ZONE, LATE_JUNE_EVENING))
   })
 
   it('expresses the zone day on the browser calendar so local arithmetic lands on it', () => {
@@ -170,6 +169,36 @@ describe('formatDate', () => {
   })
 })
 
+describe('date range separator', () => {
+  afterEach(() => {
+    setDateFormat(DEFAULT_DATE_FORMAT)
+  })
+
+  // The ISO setting names no month, so it writes both ends in full whatever they share
+  const RANGES = {
+    'month-day-year': ['Oct 1 – 31, 2026', 'Oct 25 – Nov 4, 2026', 'Aug 1, 2025 – Oct 28, 2026'],
+    'day-month-year': ['1 Oct 2026 – 31 Oct 2026', '25 Oct 2026 – 4 Nov 2026', '1 Aug 2025 – 28 Oct 2026'],
+    iso: ['2026-10-01 – 2026-10-31', '2026-10-25 – 2026-11-04', '2025-08-01 – 2026-10-28'],
+  } satisfies Record<DateFormatSetting, string[]>
+
+  it.each(Object.entries(RANGES) as [DateFormatSetting, string[]][])(
+    'joins a same-month, cross-month and cross-year range in %s with a plain spaced en dash',
+    (setting, expected) => {
+      setDateFormat(setting)
+      const written = [
+        ['2026-10-01', '2026-10-31'],
+        ['2026-10-25', '2026-11-04'],
+        ['2025-08-01', '2026-10-28'],
+      ].map(([from, to]) => formatDateRange(parseYmd(from)!, parseYmd(to)!, DATE_FORMATS.monthDayYear))
+
+      expect(written).toEqual(expected)
+      // A thin or no-break space, or none, beside the dash would pass the comparison above only by
+      // being typed into it, so the characters around the dash are checked on their own
+      expect(written.every((range) => /^[^–]+ – [^–]+$/.test(range) && !/[^\x20-\x7e–…]/.test(range))).toBe(true)
+    },
+  )
+})
+
 describe('YYYY-MM-DD strings', () => {
   it('writes and reads back the same calendar day', () => {
     expect(formatYmd(new Date(2026, 0, 5))).toBe('2026-01-05')
@@ -190,12 +219,19 @@ describe('YYYY-MM-DD strings', () => {
     expect(format('2026-06-01', '2026-06-01')).toBe('Jun 1, 2026')
   })
 
-  it('lists both ends of an unreadable range as the locale lists items', () => {
-    expect(formatUnreadableRange('2026-02-31', '2026-03-31')).toBe('2026-02-31, Mar 31, 2026')
+  it('joins both ends of an unreadable range with the spaced en dash', () => {
+    expect(formatUnreadableRange('2026-02-31', '2026-03-31')).toBe('2026-02-31 – Mar 31, 2026')
   })
 
   it('keeps a range end naming no real day as written, rather than the day it would roll forward to', () => {
-    expect(formatDateRangeLabel('2026-02-31', '2026-03-31')).toBe('2026-02-31, Mar 31, 2026')
+    expect(formatDateRangeLabel('2026-02-31', '2026-03-31')).toBe('2026-02-31 – Mar 31, 2026')
+  })
+
+  it('writes a filter range open at one end with an ellipsis for the missing date', () => {
+    expect(formatOpenDateRangeLabel('2026-10-01', '2026-10-31')).toBe('Oct 1 – 31, 2026')
+    expect(formatOpenDateRangeLabel('2026-10-01', '')).toBe('Oct 1, 2026 – …')
+    expect(formatOpenDateRangeLabel('', '2026-10-31')).toBe('… – Oct 31, 2026')
+    expect(formatOpenDateRangeLabel('2026-10-31', '2026-10-01')).toBe('Oct 31, 2026 – Oct 1, 2026')
   })
 
   it('shortens a range within the current year to the parts that change', () => {
@@ -213,7 +249,7 @@ describe('YYYY-MM-DD strings', () => {
   })
 
   it('falls back to the full labels when an end of a short range names no real day', () => {
-    expect(formatShortDateRangeLabel('2026-02-31', '2026-03-31', 2026)).toBe('2026-02-31, Mar 31, 2026')
+    expect(formatShortDateRangeLabel('2026-02-31', '2026-03-31', 2026)).toBe('2026-02-31 – Mar 31, 2026')
   })
 
   it('refuses a day the calendar does not have instead of rolling it forward', () => {

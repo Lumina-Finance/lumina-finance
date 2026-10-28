@@ -12,6 +12,10 @@ const DAYS_PER_WEEK = 7
 // so a string carrying a time or a missing pad is refused rather than half-read
 const YMD_PATTERN = /^(\d{4})-(\d{2})-(\d{2})$/
 
+// How every range joins its ends: an en dash with one normal space each side, never a hyphen or the
+// thin and no-break spaces the browser's range format uses
+const DATE_RANGE_SEPARATOR = ' – '
+
 /**
  * The date formats the product renders, so a call site names the format it wants instead of
  * respelling the options
@@ -150,7 +154,9 @@ export function formatDateRange(start: Date, end: Date, format: DateFormat, time
   return new Intl.DateTimeFormat(DATE_LOCALE, {
     ...format,
     timeZone: resolveTimeZone(timeZone),
-  }).formatRange(start, end).replace(/\s*–\s*/, ' – ')
+  })
+    .formatRange(start, end)
+    .replace(/\s*–\s*/, ' – ')
 }
 
 /**
@@ -251,16 +257,13 @@ export function formatDateRangeLabel(from: string, to: string): string {
 }
 
 /**
- * Lists the two ends of a range when one is not a real date, each as `formatDateLabel` labels it
+ * Joins the two ends of a range when one is not a real date, each as `formatDateLabel` labels it
  *
- * The locale's range format needs two real dates, so this names both ends with the locale's own list
- * format instead of joining them with a separator of our own
+ * The locale's range format needs two real dates, so the ends are joined with the same spaced en
+ * dash `formatDateRange` writes
  */
 export function formatUnreadableRange(from: string, to: string): string {
-  return new Intl.ListFormat(DATE_LOCALE, { type: 'unit', style: 'long' }).format([
-    formatDateLabel(from),
-    formatDateLabel(to),
-  ])
+  return `${formatDateLabel(from)}${DATE_RANGE_SEPARATOR}${formatDateLabel(to)}`
 }
 
 /**
@@ -283,6 +286,17 @@ export function formatShortDateRangeLabel(from: string, to: string, currentYear:
   const format = inCurrentYear ? DATE_FORMATS.monthDay : DATE_FORMATS.monthDayYear
   if (from === to) return formatDate(end, format)
   return formatDateRange(start, end, format)
+}
+
+/**
+ * Formats a range of "YYYY-MM-DD" calendar dates that may be open at one end, such as a filter
+ * holding only a start date. An open end reads as an ellipsis and a closed range reads as
+ * `formatDateRangeLabel` gives it. A range whose start falls after its end, still being edited,
+ * names both ends in full, since the locale's range format is for ranges that run forward
+ */
+export function formatOpenDateRangeLabel(from: string, to: string): string {
+  if (from && to && !isDateRangeCrossed({ from, to })) return formatDateRangeLabel(from, to)
+  return `${from ? formatDateLabel(from) : '…'}${DATE_RANGE_SEPARATOR}${to ? formatDateLabel(to) : '…'}`
 }
 
 /**
@@ -379,7 +393,7 @@ export function getIsoWeek(date: Date): number {
   const thursday = getIsoWeekThursday(date)
   const yearStart = new Date(Date.UTC(thursday.getUTCFullYear(), 0, 1))
 
-  return Math.ceil((((thursday.getTime() - yearStart.getTime()) / 86400000) + 1) / 7)
+  return Math.ceil(((thursday.getTime() - yearStart.getTime()) / 86400000 + 1) / 7)
 }
 
 /**

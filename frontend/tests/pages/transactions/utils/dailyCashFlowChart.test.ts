@@ -13,13 +13,14 @@ import {
 
 describe('daily cash-flow chart helpers', () => {
   it('keeps a bucket dated with a day the calendar does not have, labelled with its raw bounds', () => {
-    const series = getDailyCashFlowSeries([
-      { date: '2026-02-31', end_date: '2026-03-06', inflow: 10000, outflow: -2500 },
-    ], 'week')
+    const series = getDailyCashFlowSeries(
+      [{ date: '2026-02-31', end_date: '2026-03-06', inflow: 10000, outflow: -2500 }],
+      'week',
+    )
 
     expect(series).toHaveLength(1)
     expect(series[0].date).toBe('2026-02-31')
-    expect(series[0].rangeLabel).toBe('2026-02-31, Mar 6, 2026')
+    expect(series[0].rangeLabel).toBe('2026-02-31 – Mar 6, 2026')
     expect(series[0].net).toBe(7500)
   })
 
@@ -31,14 +32,19 @@ describe('daily cash-flow chart helpers', () => {
   })
 
   it('builds chart points with net totals and full bucket labels', () => {
-    expect(getDailyCashFlowSeries([
-      {
-        date: '2026-01-01',
-        end_date: '2026-01-07',
-        inflow: 10000,
-        outflow: -2500,
-      },
-    ], 'week')).toEqual([
+    expect(
+      getDailyCashFlowSeries(
+        [
+          {
+            date: '2026-01-01',
+            end_date: '2026-01-07',
+            inflow: 10000,
+            outflow: -2500,
+          },
+        ],
+        'week',
+      ),
+    ).toEqual([
       {
         key: '2026-01-01',
         date: 'Jan 1',
@@ -71,11 +77,6 @@ describe('daily cash-flow chart helpers', () => {
 
     expect(getDailyCashFlowXAxisTickCount(undefined)).toBe(10)
     expect(getDailyCashFlowXAxisTickCount(180)).toBe(2)
-    expect(getDailyCashFlowXAxisTicks(points, 4)).toEqual([
-      'point-1',
-      'point-5',
-      'point-9',
-      'point-12',
-    ])
+    expect(getDailyCashFlowXAxisTicks(points, 4)).toEqual(['point-1', 'point-5', 'point-9', 'point-12'])
   })
 })
