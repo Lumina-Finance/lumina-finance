@@ -565,6 +565,8 @@ test.describe('dialog input errors', () => {
   })
 
   test('marks the password, the code and the unticked boxes of the recovery code flow on their own rows', async ({ page, request }) => {
+    // Short enough that the unticked boxes start below the footer that sticks over the end of the body
+    await page.setViewportSize({ width: 1280, height: 800 })
     const user = await signUpUser(request)
 
     // Report an authenticator as on and stand in for the regeneration, so the account needs no real factor
@@ -607,11 +609,19 @@ test.describe('dialog input errors', () => {
     const lockout = codes.getByLabel(/I understand that losing my recovery codes/)
     const done = codes.getByRole('button', { name: 'Done', exact: true })
     await expect(done).not.toHaveAttribute('aria-disabled', 'true')
-    await done.click()
+    // Forced, so the click itself does not scroll the body and only the refusal can bring the boxes into view
+    await done.click({ force: true })
     await expect(codes.getByRole('alert')).toHaveText('Tick both boxes')
     await expect(saved).toHaveAttribute('aria-invalid', 'true')
     await expect(lockout).toHaveAttribute('aria-invalid', 'true')
     await expect(done).toHaveAttribute('aria-disabled', 'true')
+
+    // The footer sticks over the end of the body, so the press scrolls the message and the first box clear of it
+    const footerTop = async () => (await codes.locator('.app-modal-footer').boundingBox())?.y ?? 0
+    await expect.poll(async () => {
+      const [message, box] = await Promise.all([codes.getByRole('alert').boundingBox(), saved.boundingBox()])
+      return message && box ? Math.max(message.y + message.height, box.y + box.height) <= (await footerTop()) : false
+    }).toBe(true)
     await saved.check()
     await expect(saved).not.toHaveAttribute('aria-invalid', 'true')
     await expect(lockout).toHaveAttribute('aria-invalid', 'true')

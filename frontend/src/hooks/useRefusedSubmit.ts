@@ -58,7 +58,11 @@ export function useRefusedSubmit<F extends string>(
       if (!control) return
       control.focus({ preventScroll: true, focusVisible: true })
       // Room above for the label row that carries the message, and below so the field never rests on the footer's edge
-      control.style.scrollMarginBlock = `${REVEAL_ROOM_ABOVE} ${REVEAL_ROOM_BELOW}`
+      // A footer that sticks to the bottom of the scrolling body covers the last rows of its scroll view, so the room below
+      // has to include its height or the field would count as in view while it sits under the footer
+      const footer = control.closest('.app-modal-body')?.querySelector<HTMLElement>('.app-modal-footer')
+      const footerHeight = footer && getComputedStyle(footer).position === 'sticky' ? footer.offsetHeight : 0
+      control.style.scrollMarginBlock = `${REVEAL_ROOM_ABOVE} calc(${REVEAL_ROOM_BELOW} + ${footerHeight}px)`
       control.scrollIntoView({ behavior: shouldReduceMotion ? 'auto' : 'smooth', block: 'nearest' })
       control.style.scrollMarginBlock = ''
     })
