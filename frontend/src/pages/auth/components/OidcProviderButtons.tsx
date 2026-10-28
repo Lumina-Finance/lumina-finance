@@ -1,10 +1,12 @@
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { beginOidcSignIn, type OidcProvider } from '@/api/oidc'
 import { ProviderMark } from '@/components/ProviderMark'
 import { withMinDelay } from '@/utils/timing'
 
 interface OidcProviderButtonsProps {
   providers: OidcProvider[]
+  /** A provider to start at once, for a native app whose own provider button opened this page */
+  autoStartSlug?: string | null
 }
 
 /**
@@ -14,13 +16,16 @@ interface OidcProviderButtonsProps {
  * roundtrips, and the pending state is kept after the redirect begins because the page
  * is navigating away
  */
-export function OidcProviderButtons({ providers }: OidcProviderButtonsProps) {
-  const [pendingSlug, setPendingSlug] = useState<string | null>(null)
+export function OidcProviderButtons({ providers, autoStartSlug }: OidcProviderButtonsProps) {
+  // The app already showed the user its own button for this provider, so the page goes straight on,
+  // already showing that button's spinner. An unknown slug leaves the buttons for the user to choose
+  const [autoStart] = useState(() =>
+    autoStartSlug && providers.some((provider) => provider.slug === autoStartSlug) ? autoStartSlug : null)
+  const [pendingSlug, setPendingSlug] = useState<string | null>(autoStart)
   const [error, setError] = useState<string | null>(null)
+  const autoStartedRef = useRef(false)
 
-  const handleProviderClick = async (slug: string) => {
-    setPendingSlug(slug)
-    setError(null)
+  const redirectToProvider = async (slug: string) => {
     try {
       const { authorization_url } = await withMinDelay(() => beginOidcSignIn(slug))
       window.location.assign(authorization_url)
@@ -29,6 +34,18 @@ export function OidcProviderButtons({ providers }: OidcProviderButtonsProps) {
       setPendingSlug(null)
     }
   }
+
+  const handleProviderClick = (slug: string) => {
+    setPendingSlug(slug)
+    setError(null)
+    void redirectToProvider(slug)
+  }
+
+  useEffect(() => {
+    if (!autoStart || autoStartedRef.current) return
+    autoStartedRef.current = true
+    void redirectToProvider(autoStart)
+  })
 
   return (
     <div className="space-y-3">

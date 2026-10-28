@@ -15,6 +15,10 @@ _COOKIE_KEY = "refresh_token"
 _COOKIE_PATH = "/"
 _COOKIE_MAX_AGE = JWT_REFRESH_TOKEN_EXPIRE_SECONDS
 
+# The header the Apple apps send so their refresh token comes back in the body
+NATIVE_CLIENT_HEADER = "x-lumina-client"
+NATIVE_CLIENT_MARKER = "native"
+
 # The login binding cookie only has to survive the redirect out to the provider and back, so it
 # lives exactly as long as the roundtrip it guards
 OIDC_BINDING_COOKIE_KEY = "oidc_login_binding"
@@ -38,6 +42,17 @@ def request_is_https(request: Request) -> bool:
     if forwarded_proto:
         return forwarded_proto.split(",", 1)[0].strip().lower() == "https"
     return request.url.scheme == "https"
+
+
+def request_is_native_client(request: Request) -> bool:
+    """Return whether the request comes from a native app, which takes its refresh token in the body
+
+    A browser adds an Origin header to every fetch POST and page script cannot remove it, so a
+    request that carries one is answered with the httpOnly cookie whatever else it claims. That keeps
+    the refresh token out of reach of any script running in a web page
+    """
+    is_marked_native = request.headers.get(NATIVE_CLIENT_HEADER) == NATIVE_CLIENT_MARKER
+    return is_marked_native and "origin" not in request.headers
 
 
 def set_refresh_cookie(request: Request, response: Response, token: str) -> None:

@@ -2,7 +2,7 @@
 
 from typing import Annotated
 
-from fastapi import APIRouter, BackgroundTasks, Cookie, Depends, Request, Response, status
+from fastapi import APIRouter, BackgroundTasks, Body, Cookie, Depends, Request, Response, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
@@ -12,6 +12,7 @@ from app.models.user import User
 from app.routes.auth.cookie_helpers import OIDC_REAUTH_STEPUP_COOKIE_KEY
 from app.routes.auth.jwks_helpers import build_jwks_response
 from app.routes.auth.logout_helpers import logout_auth_session
+from app.routes.auth.native import router as native_router
 from app.routes.auth.oidc import router as oidc_router
 from app.routes.auth.passkeys import router as passkeys_router
 from app.routes.auth.refresh_helpers import refresh_auth_tokens
@@ -28,6 +29,7 @@ from app.schemas.auth import (
     LoginRequest,
     MfaRequiredResponse,
     MfaVerifyRequest,
+    NativeRefreshTokenRequest,
     RecoveryCodesResponse,
     RegistrationStatusResponse,
     ResetPasswordRequest,
@@ -77,6 +79,9 @@ router.include_router(passkeys_router)
 
 # OIDC sign-in shares the /auth prefix through its own router
 router.include_router(oidc_router)
+
+# The web sign-in's handoff to a native app shares the /auth prefix through its own router
+router.include_router(native_router)
 
 
 @router.post("/signup", status_code=status.HTTP_204_NO_CONTENT)
@@ -514,6 +519,7 @@ async def refresh_route(
     request: Request,
     response: Response,
     db: Annotated[AsyncSession, Depends(get_db)],
+    body: Annotated[NativeRefreshTokenRequest | None, Body()] = None,
     refresh_token: str | None = Cookie(None),
 ):
     """Exchange a valid refresh token for a new token pair
@@ -522,6 +528,7 @@ async def refresh_route(
         request: FastAPI request object
         response: FastAPI response object for setting the new refresh cookie
         db: Active database session
+        body: A native app's refresh token, which wins over any cookie
         refresh_token: Refresh token read from the cookie by FastAPI
 
     Returns:
@@ -530,6 +537,8 @@ async def refresh_route(
     Raises:
         HTTPException: Refresh token is missing, invalid, expired, or inactive
     """
+    if body is not None:
+        return await refresh_auth_tokens(db, request, response, body.refresh_token, from_body=True)
     auth_response = await refresh_auth_tokens(db, request, response, refresh_token)
     return auth_response
 
@@ -539,6 +548,7 @@ async def logout_route(
     response: Response,
     db: Annotated[AsyncSession, Depends(get_db)],
     credentials: Annotated[HTTPAuthorizationCredentials | None, Depends(_security)] = None,
+    body: Annotated[NativeRefreshTokenRequest | None, Body()] = None,
     refresh_token: str | None = Cookie(None),
 ):
     """Revoke the caller's active auth session
@@ -550,12 +560,15 @@ async def logout_route(
         response: FastAPI response object
         db: Active database session
         credentials: Optional bearer token from the Authorization header
+        body: A native app's refresh token, which wins over any cookie and leaves it in place
         refresh_token: Optional refresh token read from the cookie by FastAPI
 
     Returns:
         Logout confirmation
     """
     access_token = credentials.credentials if credentials else None
+    if body is not None:
+        return await logout_auth_session(db, response, access_token, body.refresh_token, clears_cookie=False)
     logout_response = await logout_auth_session(db, response, access_token, refresh_token)
     return logout_response
 

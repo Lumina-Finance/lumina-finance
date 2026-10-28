@@ -17,6 +17,8 @@ async def logout_auth_session(
     response: Response,
     access_token: str | None,
     refresh_token: str | None,
+    *,
+    clears_cookie: bool = True,
 ) -> dict[str, str]:
     """Revoke an auth session when a valid token identifies it
 
@@ -27,7 +29,8 @@ async def logout_auth_session(
         db: Active database session
         response: FastAPI response object
         access_token: Optional bearer token from the Authorization header
-        refresh_token: Optional refresh token from the refresh cookie
+        refresh_token: Optional refresh token from the cookie, or from a native app's body
+        clears_cookie: Whether to remove the refresh cookie, which a native app's logout leaves alone
 
     Returns:
         Logout confirmation
@@ -37,7 +40,8 @@ async def logout_auth_session(
         await delete_auth_session(db, session_id)
 
     await db.commit()
-    clear_refresh_cookie(response)
+    if clears_cookie:
+        clear_refresh_cookie(response)
     logout_response = {"detail": "Logged out"}
     return logout_response
 
@@ -87,7 +91,7 @@ async def _get_session_id_from_access_token(db: AsyncSession, access_token: str)
             return None
         session_uuid = uuid.UUID(str(session_id))
         user_uuid = uuid.UUID(str(user_id))
-    except (TypeError, ValueError, jwt.PyJWTError):
+    except TypeError, ValueError, jwt.PyJWTError:
         return None
 
     active_token = await get_active_token_by_jti(db, token_id, user_uuid, AuthTokenKind.ACCESS)
@@ -112,7 +116,7 @@ async def _get_session_id_from_refresh_token(db: AsyncSession, refresh_token: st
         token_id = uuid.UUID(str(payload.get("jti")))
         session_id = uuid.UUID(str(payload.get("sid")))
         user_id = uuid.UUID(str(payload.get("sub")))
-    except (TypeError, ValueError, jwt.PyJWTError):
+    except TypeError, ValueError, jwt.PyJWTError:
         return None
 
     active_token = await get_active_token_by_jti(db, token_id, user_id, AuthTokenKind.REFRESH)

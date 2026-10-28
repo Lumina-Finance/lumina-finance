@@ -5,6 +5,7 @@ import type { AuthResponse, MfaRequiredResponse } from '@/api/auth'
 import { useVerifyPasskeyMfa } from '@/api/passkeys'
 import { OTP_LENGTH } from '@/components/OtpInput'
 import { useAuth } from '@/hooks/useAuth'
+import { handOffToNativeApp } from '@/utils/nativeHandoff'
 import { getPasskeySignInMessage, isPasskeyCeremonyCancelled } from '@/utils/passkeyErrors'
 import { delayToMinimum } from '@/utils/timing'
 import { FADE_OUT_MS, getAuthErrorMessage } from '@/pages/auth/utils/authForm'
@@ -104,6 +105,7 @@ export function useMfaChallenge({ containerRef, recoveryMode, setError }: UseMfa
     if (containerRef.current) {
       await animate(containerRef.current, { opacity: 0 }, { duration: FADE_OUT_MS / 1000 })
     }
+    if (handOffToNativeApp(res.access_token)) return
     setSession(res)
     navigate('/', { replace: true })
   }
@@ -131,6 +133,7 @@ export function useMfaChallenge({ containerRef, recoveryMode, setError }: UseMfa
     if (containerRef.current) {
       await animate(containerRef.current, { opacity: 0 }, { duration: FADE_OUT_MS / 1000 })
     }
+    if (handOffToNativeApp(res.access_token)) return
     setSession(res)
     navigate('/', { replace: true })
   }

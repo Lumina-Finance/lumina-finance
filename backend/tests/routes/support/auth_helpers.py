@@ -114,6 +114,19 @@ def _get_auth_header(resp):
     return {"Authorization": f"Bearer {token}"}
 
 
+async def _enroll(client):
+    """Sign up a user and complete TOTP enrolment, returning the auth header, secret, and codes
+
+    Adding the first factor steps up with the password alone, since there is no factor to present yet
+    """
+    auth = _get_auth_header(await _create_user(client))
+    step_up = {"password": SIGNUP_PAYLOAD["password"]}
+    secret = (await client.post("/auth/2fa/setup", headers=auth, json={"step_up": step_up})).json()["secret"]
+    confirm = await client.post("/auth/2fa/confirm", headers=auth, json={"code": pyotp.TOTP(secret).now()})
+    await client.post("/auth/2fa/complete", headers=auth)
+    return auth, secret, confirm.json()["recovery_codes"]
+
+
 def _clears_cookie(resp, key: str) -> bool:
     """Return whether a response tells the browser to remove a cookie
 

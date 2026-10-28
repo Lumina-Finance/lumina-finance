@@ -1,0 +1,232 @@
+"""Native handoff tests: a web sign-in in the app's system sheet hands its session to the app"""
+
+import asyncio
+import base64
+import contextlib
+import hashlib
+import secrets
+from datetime import UTC, datetime, timedelta
+from urllib.parse import parse_qs, urlsplit
+
+import jwt
+import pytest
+from httpx import ASGITransport, AsyncClient
+from sqlalchemy import update
+
+from app.main import app
+from app.models.auth_session import AuthSession
+from app.services.auth import native_handoff as native_handoff_service
+from app.services.auth import tokens
+from tests.conftest import TestSession
+from tests.routes.support import _create_user
+
+
+def _clock_set_back(age: timedelta) -> type[datetime]:
+    """Return a datetime whose now is the given age ago, so a code is issued as if that long ago"""
+
+    class _Earlier(datetime):
+        @classmethod
+        def now(cls, tz=None):
+            return datetime.now(tz) - age
+
+    return _Earlier
+
+
+def _pkce_pair() -> tuple[str, str]:
+    """Return a PKCE verifier and its S256 challenge, as the app makes them"""
+    verifier = secrets.token_urlsafe(32)
+    challenge = base64.urlsafe_b64encode(hashlib.sha256(verifier.encode()).digest()).rstrip(b"=").decode()
+    return verifier, challenge
+
+
+async def _hand_off(client, access_token: str, challenge: str):
+    """Submit the page's handoff form and return the query the redirect hands to the app"""
+    resp = await client.post(
+        "/auth/native/handoff",
+        data={"access_token": access_token, "code_challenge": challenge},
+        follow_redirects=False,
+    )
+    assert resp.status_code == 303
+    location = urlsplit(resp.headers["location"])
+    assert f"{location.scheme}://{location.netloc}{location.path}" == "luminafinance://auth/callback"
+    return {name: values[0] for name, values in parse_qs(location.query).items()}
+
+
+async def _signed_in_code(client) -> tuple[str, str, str]:
+    """Sign up in the web, hand off, and return the code, its verifier and the web refresh cookie"""
+    signup = await _create_user(client)
+    verifier, challenge = _pkce_pair()
+    query = await _hand_off(client, signup.json()["access_token"], challenge)
+    return query["code"], verifier, signup.cookies["refresh_token"]
+
+
+async def test_exchange_starts_native_session_and_ends_web_session(client):
+    """The app gets both tokens in the body, and the web session in the sheet stops working"""
+    code, verifier, web_cookie = await _signed_in_code(client)
+    client.cookies.clear()
+
+    resp = await client.post("/auth/native/exchange", json={"code": code, "code_verifier": verifier})
+
+    assert resp.status_code == 200
+    assert resp.json()["refresh_token"]
+    assert "refresh_token" not in resp.cookies
+    client.cookies.set("refresh_token", web_cookie)
+    assert (await client.post("/auth/refresh")).status_code == 401
+
+
+async def test_handoff_with_invalid_access_token_tells_app_it_failed(client):
+    """A page whose session has gone sends the app an error instead of leaving the sheet stuck"""
+    _, challenge = _pkce_pair()
+
+    query = await _hand_off(client, "not-a-token", challenge)
+
+    assert query == {"error": "handoff_failed"}
+
+
+async def _hand_off_session_started_ago(client, age: timedelta) -> dict[str, str]:
+    """Sign up, backdate the web session's start by the given age, and hand it off"""
+    signup = await _create_user(client)
+    async with TestSession() as session:
+        await session.execute(update(AuthSession).values(created_at=datetime.now(UTC) - age))
+        await session.commit()
+    _, challenge = _pkce_pair()
+    return await _hand_off(client, signup.json()["access_token"], challenge)
+
+
+async def test_handoff_from_long_open_session_is_refused(client):
+    """Only a sign-in that just finished can hand off, so a script in a long-open tab can't mint an app session"""
+    query = await _hand_off_session_started_ago(client, timedelta(minutes=11))
+
+    assert query == {"error": "handoff_failed"}
+
+
+async def test_handoff_within_window_succeeds(client):
+    """A session that began minutes ago, inside the window, can still hand off"""
+    query = await _hand_off_session_started_ago(client, timedelta(minutes=5))
+
+    assert "code" in query
+
+
+@pytest.mark.parametrize(
+    "challenge",
+    [None, "short", "A" * 44, "A" * 42 + "+"],
+    ids=["missing", "short", "too-long", "outside-base64url"],
+)
+async def test_handoff_with_bad_challenge_tells_app_it_failed(client, challenge):
+    """A valid sign-in still gets no code for a challenge that isn't a SHA-256 digest"""
+    signup = await _create_user(client)
+    form = {"access_token": signup.json()["access_token"]}
+    if challenge is not None:
+        form["code_challenge"] = challenge
+
+    resp = await client.post("/auth/native/handoff", data=form, follow_redirects=False)
+
+    assert resp.status_code == 303
+    assert resp.headers["location"] == "luminafinance://auth/callback?error=handoff_failed"
+
+
+@pytest.mark.parametrize("repeated", ["access_token", "code_challenge"])
+async def test_handoff_with_repeated_field_tells_app_it_failed(client, repeated):
+    """A field sent twice is refused, since which value counts would be ambiguous"""
+    signup = await _create_user(client)
+    _, challenge = _pkce_pair()
+    form = {"access_token": signup.json()["access_token"], "code_challenge": challenge}
+    form[repeated] = [form[repeated], form[repeated]]
+
+    resp = await client.post("/auth/native/handoff", data=form, follow_redirects=False)
+
+    assert resp.status_code == 303
+    assert resp.headers["location"] == "luminafinance://auth/callback?error=handoff_failed"
+
+
+async def test_handoff_with_binary_body_tells_app_it_failed(client):
+    """A body that isn't a urlencoded form is refused the same way"""
+    resp = await client.post("/auth/native/handoff", content=b"\xff\xfe", follow_redirects=False)
+
+    assert resp.status_code == 303
+    assert resp.headers["location"] == "luminafinance://auth/callback?error=handoff_failed"
+
+
+async def test_exchange_with_unusable_code_is_refused(client):
+    """A garbage string and a real access token are both refused as an invalid handoff, never an error page"""
+    signup = await _create_user(client)
+    verifier, _ = _pkce_pair()
+
+    for code in ("garbage", signup.json()["access_token"]):
+        resp = await client.post("/auth/native/exchange", json={"code": code, "code_verifier": verifier})
+
+        assert resp.status_code == 401
+        assert resp.json()["detail"] == "Invalid or expired handoff"
+
+
+async def test_exchange_with_wrong_verifier_is_refused_and_spends_code(client):
+    """Only the app that asked can exchange, and a wrong guess burns the code"""
+    code, verifier, _ = await _signed_in_code(client)
+
+    wrong = await client.post("/auth/native/exchange", json={"code": code, "code_verifier": "x" * 43})
+    retry = await client.post("/auth/native/exchange", json={"code": code, "code_verifier": verifier})
+
+    assert wrong.status_code == 401
+    assert wrong.json()["detail"] == "Invalid or expired handoff"
+    assert retry.status_code == 401
+
+
+@pytest.mark.parametrize(("age", "status"), [(timedelta(seconds=55), 200), (timedelta(seconds=65), 401)])
+async def test_code_works_for_one_minute(client, monkeypatch, age, status):
+    """A code left unexchanged for more than a minute stops working"""
+    signup = await _create_user(client)
+    verifier, challenge = _pkce_pair()
+    monkeypatch.setattr(tokens, "datetime", _clock_set_back(age))
+    code = (await _hand_off(client, signup.json()["access_token"], challenge))["code"]
+    monkeypatch.undo()
+    issued_at = jwt.decode(code, options={"verify_signature": False})["iat"]
+    assert abs(datetime.now(UTC).timestamp() - age.total_seconds() - issued_at) < 5
+
+    resp = await client.post("/auth/native/exchange", json={"code": code, "code_verifier": verifier})
+
+    assert resp.status_code == status
+
+
+async def test_exchange_after_web_sign_out_is_refused(client):
+    """A code from a session that has since ended can't start a new one"""
+    code, verifier, web_cookie = await _signed_in_code(client)
+    client.cookies.set("refresh_token", web_cookie)
+    await client.post("/auth/logout")
+
+    resp = await client.post("/auth/native/exchange", json={"code": code, "code_verifier": verifier})
+
+    assert resp.status_code == 401
+    assert resp.json()["detail"] == "Invalid or expired handoff"
+
+
+async def test_concurrent_exchanges_of_one_session_start_one_native_session(client, monkeypatch):
+    """Two codes handed off from one web session can't both turn into native sessions
+
+    Each exchange waits at the point where it spends its code until the other arrives, so unless the
+    web session's lock keeps the second one out, both always get there together and both succeed
+    """
+    arrivals = []
+    both_arrived = asyncio.Event()
+    spend_code = native_handoff_service.consume_mfa_challenge
+
+    async def wait_for_other_exchange(*args, **kwargs):
+        arrivals.append(args)
+        if len(arrivals) == 2:
+            both_arrived.set()
+        with contextlib.suppress(TimeoutError):
+            await asyncio.wait_for(both_arrived.wait(), timeout=2)
+        return await spend_code(*args, **kwargs)
+
+    monkeypatch.setattr(native_handoff_service, "consume_mfa_challenge", wait_for_other_exchange)
+    signup = await _create_user(client)
+    access_token = signup.json()["access_token"]
+    pairs = [_pkce_pair(), _pkce_pair()]
+    codes = [(await _hand_off(client, access_token, challenge))["code"] for _, challenge in pairs]
+
+    async def exchange(code: str, verifier: str):
+        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as exchange_client:
+            return await exchange_client.post("/auth/native/exchange", json={"code": code, "code_verifier": verifier})
+
+    results = await asyncio.gather(*(exchange(code, verifier) for code, (verifier, _) in zip(codes, pairs, strict=True)))
+
+    assert sorted(resp.status_code for resp in results) == [200, 401]

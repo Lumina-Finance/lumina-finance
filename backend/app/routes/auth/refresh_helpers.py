@@ -36,14 +36,20 @@ async def refresh_auth_tokens(
     request: Request,
     response: Response,
     refresh_token: str | None,
+    *,
+    from_body: bool = False,
 ) -> AuthResponse:
     """Exchange a valid refresh token for a new token pair
+
+    A token presented in the body is answered in the body and a cookie token with a cookie, whatever
+    the headers say, so a browser's cookie session can never be turned into a token script can read
 
     Args:
         db: Active database session
         request: FastAPI request object
         response: FastAPI response object for setting the new refresh cookie
-        refresh_token: Refresh token read from the cookie by FastAPI
+        refresh_token: Refresh token from the body, or else from the cookie
+        from_body: Whether the token came from a native app's request body
 
     Returns:
         Auth response with user info and a new access token
@@ -51,6 +57,28 @@ async def refresh_auth_tokens(
     Raises:
         HTTPException: Refresh token is missing, invalid, expired, or inactive
     """
+    if not from_body:
+        return await _refresh(db, request, response, refresh_token, refresh_in_body=False)
+
+    try:
+        return await _refresh(db, request, response, refresh_token, refresh_in_body=True)
+    except HTTPException as exc:
+        # A body token failing says nothing about any cookie the same client holds, so the error
+        # leaves that cookie alone
+        if exc.headers:
+            exc.headers = {name: value for name, value in exc.headers.items() if name != "set-cookie"} or None
+        raise
+
+
+async def _refresh(
+    db: AsyncSession,
+    request: Request,
+    response: Response,
+    refresh_token: str | None,
+    *,
+    refresh_in_body: bool,
+) -> AuthResponse:
+    """Verify a refresh token and rotate its session's tokens, delivered the way the caller asked"""
     if not refresh_token:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Missing refresh token")
 
@@ -66,7 +94,14 @@ async def refresh_auth_tokens(
     if not user:
         _raise_refresh_token_error("User not found")
 
-    auth_response = await issue_and_store_tokens(db, request, response, user, session_id=claims.session_id)
+    auth_response = await issue_and_store_tokens(
+        db,
+        request,
+        response,
+        user,
+        session_id=claims.session_id,
+        refresh_in_body=refresh_in_body,
+    )
     return auth_response
 
 

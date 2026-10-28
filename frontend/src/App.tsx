@@ -38,6 +38,7 @@ const AuthPage = lazyPage(() => import('@/pages/auth/AuthPage'))
 const ResetPasswordPage = lazyPage(() => import('@/pages/auth/ResetPasswordPage'))
 const ConfirmEmailPage = lazyPage(() => import('@/pages/auth/ConfirmEmailPage'))
 const OidcCallbackPage = lazyPage(() => import('@/pages/auth/OidcCallbackPage'))
+const NativePasskeyPage = lazyPage(() => import('@/pages/auth/NativePasskeyPage'))
 
 const PAGE_TRANSITION_MS = 350;
 const PAGE_TRANSITION_OFFSET_PX = 12;
@@ -401,6 +402,18 @@ function AnimatedRoutes() {
             <ErrorBoundary variant="screen">
               <Suspense fallback={null}>
                 <OidcCallbackPage />
+              </Suspense>
+            </ErrorBoundary>
+          }
+        />
+
+        {/* A native app's passkey prompt, run in its sign-in sheet whether or not anyone is signed in */}
+        <Route
+          path="/native/passkey"
+          element={
+            <ErrorBoundary variant="screen">
+              <Suspense fallback={null}>
+                <NativePasskeyPage />
               </Suspense>
             </ErrorBoundary>
           }
