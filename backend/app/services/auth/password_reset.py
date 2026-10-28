@@ -26,6 +26,7 @@ from app.services.auth.password_helpers import hash_password
 from app.services.auth.reset_send_limit import (
     SendTicket,
     end_send,
+    has_send_under_way,
     record_send_failed,
     record_send_succeeded,
     try_start_send,
@@ -47,6 +48,9 @@ _RESET_PATH = "/reset-password"
 # Dead token rows double as the send log for the daily email limit, so they are kept for the
 # full rolling day the limit counts over
 _SEND_LOG_RETENTION = timedelta(hours=24)
+
+# How long a stored link may wait for its email before the next request treats it as never sent
+_UNSENT_LINK_GRACE = timedelta(seconds=30)
 
 # Keep reset issuance separate from other advisory-lock protocols
 _ISSUANCE_LOCK_NAMESPACE = b"lumina:password-reset-issuance:"
@@ -112,12 +116,12 @@ async def request_password_reset(
         background_tasks: Runs the send once the response is out
         session_factory: Opens the session the send uses after the response
     """
-    pending = await _issue_password_reset(db, email)
+    pending = await _issue_password_reset(db, email, session_factory)
     if pending is not None:
         background_tasks.add_task(send_password_reset_email, pending, session_factory)
 
 
-async def _issue_password_reset(db: AsyncSession, email: str) -> PendingResetEmail | None:
+async def _issue_password_reset(db: AsyncSession, email: str, session_factory: async_sessionmaker[AsyncSession]) -> PendingResetEmail | None:
     """Store a reset token for the email and return the pending email carrying its link
 
     No email is due while the last link still works, and at most the configured number go out
@@ -133,6 +137,7 @@ async def _issue_password_reset(db: AsyncSession, email: str) -> PendingResetEma
     Args:
         db: Active database session
         email: Email address requesting the reset
+        session_factory: Opens the session that drops a link saved by a request that was cut off
 
     Returns:
         The email to send, or None when no account matches or none is due
@@ -147,11 +152,25 @@ async def _issue_password_reset(db: AsyncSession, email: str) -> PendingResetEma
     lock_key = int.from_bytes(lock_digest, byteorder="big", signed=True)
     await db.execute(select(sa_func.pg_advisory_xact_lock(lock_key)))
 
-    # Only the rows of real sends name the user, and after pruning each was created within the rolling day
-    sends_query = select(PasswordResetToken).where(PasswordResetToken.user_id == (user_id or _NO_USER_ID))
-    sends = (await db.execute(sends_query)).scalars().all()
-
+    # A link whose send never started once the grace has passed belongs to a request that was cut off, such
+    # as by a restart, so it is deleted and neither blocks this request nor counts toward the limit. A send
+    # still waiting its turn in this process will email its link, so its row stays. Every request runs
+    # the same statement, and the cutoff alone changes: while a send is under way it reaches back past the
+    # pruned rows, so nothing matches, and one for an unknown email deletes nothing
     now = datetime.now(UTC)
+    owner = user_id or _NO_USER_ID
+    unsent_before = now - (_SEND_LOG_RETENTION if has_send_under_way(owner) else _UNSENT_LINK_GRACE)
+    await db.execute(
+        delete(PasswordResetToken).where(
+            PasswordResetToken.user_id == owner,
+            PasswordResetToken.emailed_at.is_(None),
+            PasswordResetToken.created_at < unsent_before,
+        )
+    )
+
+    # Only the rows of real sends name the user, and after pruning each was created within the rolling day
+    sends_query = select(PasswordResetToken).where(PasswordResetToken.user_id == owner)
+    sends = (await db.execute(sends_query)).scalars().all()
     has_live_link = any(row.used_at is None and row.expires_at > now for row in sends)
     raw_token = secrets.token_urlsafe(_TOKEN_BYTES)
     token_id = uuid.uuid4()
@@ -183,6 +202,9 @@ async def _issue_password_reset(db: AsyncSession, email: str) -> PendingResetEma
     except BaseException:
         if ticket is not None:
             end_send(ticket)
+            # The commit may have reached the database before the cut-off, and no send will follow to
+            # drop the link, so it is dropped here. A row that was never stored deletes nothing
+            await asyncio.shield(_drop_token_by_id(token_id, session_factory))
         raise
     if ticket is None:
         return None
@@ -210,6 +232,8 @@ async def send_password_reset_email(pending: PendingResetEmail, session_factory:
         async with wait_for_send_turn():
             is_expired = pending.expires_at <= datetime.now(UTC)
             if not is_expired:
+                # Marked as the send starts, so a send slower than the grace still blocks other requests
+                await _mark_reset_emailed(pending, session_factory)
                 await get_email_sender().send(pending.recipient, message)
     except Exception:
         # Recorded before the token is dropped, so a drop that fails cannot lose the failure
@@ -217,25 +241,32 @@ async def send_password_reset_email(pending: PendingResetEmail, session_factory:
 
         # A failed send must drop the token it just stored, otherwise the one-live-link throttle would
         # suppress every retry until the token expires
-        await _drop_reset_token(pending, session_factory)
+        await _drop_token_by_id(pending.token_id, session_factory)
         logger.warning("Password reset email failed to send", exc_info=True)
     except asyncio.CancelledError:
         # A cancelled send counts as unsent, so its link must not stay live and block a new request
-        await _drop_reset_token(pending, session_factory)
+        await _drop_token_by_id(pending.token_id, session_factory)
         raise
     else:
         if is_expired:
-            await _drop_reset_token(pending, session_factory)
+            await _drop_token_by_id(pending.token_id, session_factory)
         else:
             record_send_succeeded(pending.ticket.user_id)
     finally:
         end_send(pending.ticket)
 
 
-async def _drop_reset_token(pending: PendingResetEmail, session_factory: async_sessionmaker[AsyncSession]) -> None:
-    """Delete the token of a link that was not sent, which never counts toward the daily limit"""
+async def _mark_reset_emailed(pending: PendingResetEmail, session_factory: async_sessionmaker[AsyncSession]) -> None:
+    """Record that the link's send has started, so it keeps blocking and counting like any sent link"""
     async with session_factory() as db:
-        await db.execute(delete(PasswordResetToken).where(PasswordResetToken.id == pending.token_id))
+        await db.execute(update(PasswordResetToken).where(PasswordResetToken.id == pending.token_id).values(emailed_at=sa_func.now()))
+        await db.commit()
+
+
+async def _drop_token_by_id(token_id: uuid.UUID, session_factory: async_sessionmaker[AsyncSession]) -> None:
+    """Delete the token of a link that was not sent in a session of its own, so it never counts toward the daily limit"""
+    async with session_factory() as db:
+        await db.execute(delete(PasswordResetToken).where(PasswordResetToken.id == token_id))
         await db.commit()
 
 

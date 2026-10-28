@@ -2,11 +2,12 @@
 
 import asyncio
 import uuid
+from datetime import UTC, datetime, timedelta
 from types import SimpleNamespace
 
 import pytest
 from fastapi import BackgroundTasks
-from sqlalchemy import delete, select
+from sqlalchemy import delete, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.auth import PasswordResetToken
@@ -167,11 +168,11 @@ async def test_a_failure_is_recorded_before_its_token_is_dropped(client, monkeyp
     """A drop that fails must not lose the failure, so the account still waits"""
     emails, user_ids = await _create_users(client, 1)
 
-    async def broken_drop(_pending, _session_factory):
+    async def broken_drop(_token_id, _session_factory):
         raise RuntimeError("database is down")
 
     _use_mailer(monkeypatch, _failing_send)
-    monkeypatch.setattr(password_reset, "_drop_reset_token", broken_drop)
+    monkeypatch.setattr(password_reset, "_drop_token_by_id", broken_drop)
 
     with pytest.raises(RuntimeError, match="database is down"):
         await client.post(_FORGOT, json={"email": emails[0]})
@@ -398,6 +399,173 @@ async def test_a_request_cancelled_before_handing_on_its_send_frees_its_claim(cl
 
     with monkeypatch.context() as cancelled:
         cancelled.setattr(AsyncSession, "commit", cancelled_commit)
+        with pytest.raises(asyncio.CancelledError):
+            async with TestSession() as db:
+                await password_reset.request_password_reset(db, emails[0], BackgroundTasks(), TestSession)
+
+    assert await _token_count(user_ids[0]) == 0
+    assert reset_send_limit.try_start_send(user_ids[0]) is not None
+
+
+async def _age_tokens(user_id, seconds):
+    """Move the creation time of a user's reset tokens back, as if that long had passed"""
+    async with TestSession() as session:
+        await session.execute(
+            update(PasswordResetToken)
+            .where(PasswordResetToken.user_id == user_id)
+            .values(created_at=PasswordResetToken.created_at - timedelta(seconds=seconds))
+        )
+        await session.commit()
+
+
+async def test_a_link_never_emailed_because_the_process_died_does_not_block_the_next_request(client, monkeypatch):
+    """A restart after the link is saved loses the send, and asking again a minute later must send an email"""
+    emails, user_ids = await _create_users(client, 1)
+    async with TestSession() as db:
+        pending = await password_reset._issue_password_reset(db, emails[0], TestSession)
+    reset_send_limit.end_send(pending.ticket)
+    await _age_tokens(user_ids[0], 60)
+    sent = []
+
+    async def send(email, _message):
+        sent.append(email)
+
+    _use_mailer(monkeypatch, send)
+    await client.post(_FORGOT, json={"email": emails[0]})
+
+    assert sent == emails
+    # The stranded row is deleted by the request that found it, leaving only the new link
+    assert await _token_count(user_ids[0]) == 1
+
+
+async def test_a_send_still_waiting_its_turn_past_the_grace_keeps_its_link_and_gets_no_second(client, monkeypatch):
+    """A queued send will still email its link, so deleting the row would send a dead link"""
+    emails, user_ids = await _create_users(client, 1)
+    async with TestSession() as db:
+        pending = await password_reset._issue_password_reset(db, emails[0], TestSession)
+    await _age_tokens(user_ids[0], 60)
+    sent = []
+
+    async def send(email, _message):
+        sent.append(email)
+
+    _use_mailer(monkeypatch, send)
+    await client.post(_FORGOT, json={"email": emails[0]})
+
+    assert sent == []
+    assert await _token_count(user_ids[0]) == 1
+    reset_send_limit.end_send(pending.ticket)
+
+
+async def _seed_unsent_tokens(user_id, count, age_seconds):
+    """Store count live reset links for a user that no send ever started, each created age_seconds ago"""
+    async with TestSession() as session:
+        for _ in range(count):
+            now = datetime.now(UTC)
+            session.add(
+                PasswordResetToken(
+                    user_id=user_id,
+                    token_hash=uuid.uuid4().hex,
+                    expires_at=now + timedelta(minutes=15),
+                    created_at=now - timedelta(seconds=age_seconds),
+                )
+            )
+        await session.commit()
+
+
+def _capture_sends(monkeypatch):
+    """Make a mail server that records the address of each email, returning that list"""
+    sent = []
+
+    async def send(email, _message):
+        sent.append(email)
+
+    _use_mailer(monkeypatch, send)
+    return sent
+
+
+async def test_stranded_links_do_not_count_toward_the_daily_limit(client, monkeypatch):
+    """Three links that were never emailed are not sends, so the allowance of three is still whole"""
+    emails, user_ids = await _create_users(client, 1)
+    await _seed_unsent_tokens(user_ids[0], 3, 60)
+    sent = _capture_sends(monkeypatch)
+
+    await client.post(_FORGOT, json={"email": emails[0]})
+
+    assert sent == emails
+    assert await _token_count(user_ids[0]) == 1
+
+
+async def test_a_link_saved_moments_ago_by_another_worker_is_left_alone(client, monkeypatch):
+    """A fresh unemailed link may be one a restart just orphaned, so inside the grace it stays and blocks"""
+    emails, user_ids = await _create_users(client, 1)
+    await _seed_unsent_tokens(user_ids[0], 1, 5)
+    sent = _capture_sends(monkeypatch)
+
+    await client.post(_FORGOT, json={"email": emails[0]})
+
+    assert sent == []
+    assert await _token_count(user_ids[0]) == 1
+
+
+async def test_another_accounts_stranded_link_is_not_deleted(client, monkeypatch):
+    """Clearing one account's stranded links must not touch the next account's"""
+    emails, user_ids = await _create_users(client, 2)
+    await _seed_unsent_tokens(user_ids[1], 1, 60)
+    sent = _capture_sends(monkeypatch)
+
+    await client.post(_FORGOT, json={"email": emails[0]})
+
+    assert sent == emails[:1]
+    assert await _token_count(user_ids[1]) == 1
+
+
+async def test_a_send_whose_admission_lease_ran_out_no_longer_protects_its_link(client, monkeypatch):
+    """A send that never reported back stops holding its account's place, so its stranded link is cleared"""
+    emails, user_ids = await _create_users(client, 1)
+    async with TestSession() as db:
+        await password_reset._issue_password_reset(db, emails[0], TestSession)
+    await _age_tokens(user_ids[0], 60)
+    monkeypatch.setitem(
+        reset_send_limit._admitted,
+        user_ids[0],
+        reset_send_limit.SendTicket(user_id=user_ids[0], lease_ends=reset_send_limit.monotonic() - 1),
+    )
+    sent = _capture_sends(monkeypatch)
+
+    await client.post(_FORGOT, json={"email": emails[0]})
+
+    assert sent == emails
+    assert await _token_count(user_ids[0]) == 1
+
+
+async def test_an_emailed_link_keeps_blocking_a_second_request_after_the_grace(client, monkeypatch):
+    """A link that was sent stays the one live link, however long ago it was saved"""
+    emails, user_ids = await _create_users(client, 1)
+    sent = []
+
+    async def send(email, _message):
+        sent.append(email)
+
+    _use_mailer(monkeypatch, send)
+    await client.post(_FORGOT, json={"email": emails[0]})
+    await _age_tokens(user_ids[0], 60)
+    await client.post(_FORGOT, json={"email": emails[0]})
+
+    assert sent == emails
+
+
+async def test_a_request_cut_off_after_its_link_commits_leaves_no_live_link(client, monkeypatch):
+    """A cancellation that lands once the link is saved must release it, so the account can ask again at once"""
+    emails, user_ids = await _create_users(client, 1)
+    real_commit = AsyncSession.commit
+
+    async def commit_then_cancel(self):
+        await real_commit(self)
+        raise asyncio.CancelledError
+
+    with monkeypatch.context() as cancelled:
+        cancelled.setattr(AsyncSession, "commit", commit_then_cancel)
         with pytest.raises(asyncio.CancelledError):
             async with TestSession() as db:
                 await password_reset.request_password_reset(db, emails[0], BackgroundTasks(), TestSession)

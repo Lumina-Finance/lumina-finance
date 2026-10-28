@@ -113,6 +113,11 @@ class PasswordResetToken(Base):
     expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     used_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))  # Non-null once redeemed
 
+    # Set as the link's send starts. A live link still null after the send's grace is one whose request
+    # was cut off, so the next request deletes it and it never blocks or counts toward the limit, unless
+    # its send is still queued in this process
+    emailed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
     # Indexed because every reset request prunes by age, and requests for any email add rows
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, server_default=func.now(), index=True)
 
