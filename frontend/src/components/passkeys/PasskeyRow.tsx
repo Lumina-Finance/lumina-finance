@@ -1,6 +1,6 @@
 import { Check, KeyRound, Pencil, Trash2, X } from 'lucide-react';
 import { useId, useState } from 'react';
-import { AnimatePresence, motion } from 'motion/react';
+import { AnimatePresence, motion, useReducedMotion } from 'motion/react';
 import type { Passkey } from '@/api/passkeys';
 import { FieldLabelRow } from '@/components/forms/FieldLabelRow';
 import { FormError } from '@/components/forms/FormError';
@@ -31,6 +31,7 @@ interface PasskeyRowProps {
  */
 export function PasskeyRow({ passkey, onRename, onRemove, disabled }: PasskeyRowProps) {
   const { user } = useAuth();
+  const shouldReduceMotion = useReducedMotion();
   const [isRenaming, setIsRenaming] = useState(false);
   const [draftName, setDraftName] = useState(passkey.name);
   const [error, setError] = useState<string | null>(null);
@@ -77,13 +78,18 @@ export function PasskeyRow({ passkey, onRename, onRemove, disabled }: PasskeyRow
   return (
     <div className="rounded-xl border p-3" style={{ borderColor: 'var(--app-border)' }}>
       <div className="flex items-center gap-3">
-        <div
-          className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg"
+        {/* While the message shows above the field, the icon stays level with the field and not with the row */}
+        <motion.div
+          layout="position"
+          transition={shouldReduceMotion ? { duration: 0 } : FIELD_TRANSITION}
+          className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-lg ${
+            isRenaming && renameRefusal.errors.name ? 'mb-0.5 self-end' : ''
+          }`}
           style={{ backgroundColor: 'var(--app-accent-soft)', color: 'var(--app-accent)' }}
           aria-hidden
         >
           <KeyRound size={18} />
-        </div>
+        </motion.div>
 
         <div className="grid min-h-10 min-w-0 flex-1 grid-cols-1">
           <AnimatePresence initial={false}>
