@@ -208,7 +208,7 @@ export function ImportAccountMappingStep({
           {' '}
           <Link
             to="/settings/imports"
-            className="font-medium underline underline-offset-2 transition-colors duration-200 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2"
+            className="font-medium underline underline-offset-2 transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2"
             style={{ color: 'var(--app-accent)' }}
           >
             {FIXED_ACCOUNT_WARNING_LINK_LABEL}
@@ -247,7 +247,7 @@ export function ImportAccountMappingStep({
                   state={{ editAccount: true }}
                   aria-label={`Open ${match.name} to unarchive it`}
                   onClick={(event) => handleArchivedAccountLinkClick(event, `/accounts/${match.id}`)}
-                  className="font-medium underline underline-offset-2 transition-colors duration-200 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2"
+                  className="font-medium underline underline-offset-2 transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2"
                   style={{ color: 'var(--app-accent)' }}
                 >
                   {match.name}
@@ -323,7 +323,7 @@ export function ImportAccountMappingStep({
           <button
             type="button"
             onClick={confirmLeaveImport}
-            className="block w-full text-center text-sm font-medium underline underline-offset-2 transition-colors duration-200"
+            className="block w-full text-center text-sm font-medium underline underline-offset-2 transition-colors"
             style={{ color: 'var(--app-text-muted)' }}
           >
             Leave the import page

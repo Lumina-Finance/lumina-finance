@@ -36,7 +36,7 @@ export function SavingsRateHeader({
       >
         <ArrowUpToLine
           size={12}
-          className={`transition-transform duration-150 motion-reduce:transition-none ${capSavingsRateChart ? 'rotate-180' : ''}`}
+          className={`transition-transform motion-reduce:transition-none ${capSavingsRateChart ? 'rotate-180' : ''}`}
         />
       </button>
     </div>

@@ -14,7 +14,7 @@ type CursorTooltipPortalProps = {
 
 const defaultTooltipStyle: CSSProperties = {
   zIndex: STACKING_LEVELS.tooltip,
-  transition: 'opacity 150ms cubic-bezier(0.22, 1, 0.36, 1), transform 160ms cubic-bezier(0.22, 1, 0.36, 1)',
+  transition: 'opacity var(--app-ease-duration) var(--app-ease-curve), transform var(--app-ease-duration) var(--app-ease-curve)',
   willChange: 'opacity, transform',
 }
 

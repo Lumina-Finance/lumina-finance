@@ -26,7 +26,7 @@ export function NavigationVersionIndicator() {
           href={updateNotice.releaseUrl}
           target="_blank"
           rel="noreferrer"
-          className="app-nav-version-update mt-1 flex min-h-5 items-center justify-center text-[0.6875rem] font-medium no-underline transition-[opacity,outline-color] duration-150 hover:opacity-80 app-focus-ring motion-reduce:transition-none"
+          className="app-nav-version-update mt-1 flex min-h-5 items-center justify-center text-[0.6875rem] font-medium no-underline transition-[opacity,outline-color] hover:opacity-80 app-focus-ring motion-reduce:transition-none"
           style={{ color: 'var(--app-accent)' }}
         >
           <span className="relative flex h-3 w-3 shrink-0 items-center justify-center" aria-hidden>

@@ -16,12 +16,7 @@ type DetailLimitUsageProps = {
 /**
  * Renders one compact tax-advantaged limit meter inside the account identity card
  */
-export function DetailLimitUsage({
-  label,
-  used,
-  limit,
-  currency,
-}: DetailLimitUsageProps) {
+export function DetailLimitUsage({ label, used, limit, currency }: DetailLimitUsageProps) {
   const { formatCurrency } = useMoneyFormatters()
 
   if (limit === null) {
@@ -73,9 +68,7 @@ export function DetailLimitUsage({
             }}
           />
         </div>
-        <div
-          className="app-chart-tooltip-default-content app-chart-tooltip-default-value pointer-events-none absolute bottom-full left-1/2 z-20 mb-2 -translate-x-1/2 whitespace-nowrap font-medium opacity-0 transition-opacity duration-150 group-hover:opacity-100"
-        >
+        <div className="app-chart-tooltip-default-content app-chart-tooltip-default-value pointer-events-none absolute bottom-full left-1/2 z-20 mb-2 -translate-x-1/2 whitespace-nowrap font-medium opacity-0 transition-opacity group-hover:opacity-100">
           {usageLabel}
         </div>
       </div>

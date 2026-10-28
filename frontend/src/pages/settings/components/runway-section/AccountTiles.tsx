@@ -68,7 +68,7 @@ export function RunwayAccountTile({ account, selected, onToggle }: RunwayAccount
       role="checkbox"
       aria-checked={selected}
       onClick={onToggle}
-      className={`app-marquee-trigger flex w-full min-w-0 items-center gap-3 overflow-hidden rounded-xl border px-3 py-2.5 text-left transition-colors duration-200 hover:border-[var(--app-hover-border)] ${
+      className={`app-marquee-trigger flex w-full min-w-0 items-center gap-3 overflow-hidden rounded-xl border px-3 py-2.5 text-left transition-colors hover:border-[var(--app-hover-border)] ${
         selected
           ? 'border-[var(--app-accent-border)] bg-[var(--app-accent-soft)] hover:bg-[var(--app-accent-border)]'
           : 'border-[var(--app-input-border)] bg-[var(--app-input-bg)] hover:bg-[var(--app-accent-soft)]'

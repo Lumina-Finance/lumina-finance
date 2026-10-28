@@ -41,7 +41,7 @@ export default function BudgetEditorModalFooter({
         data-testid="budget-submit"
         aria-label={submitLabel}
         aria-busy={isPending}
-        className={`app-primary-button overflow-hidden whitespace-nowrap duration-300 ${isPending ? 'app-primary-button-loading justify-self-center sm:justify-self-auto' : 'w-full sm:w-36'}`}
+        className={`app-primary-button overflow-hidden whitespace-nowrap${isPending ? ' app-primary-button-loading justify-self-center sm:justify-self-auto' : ' w-full sm:w-36'}`}
         disabled={submitDisabled}
         disabledReason={submitDisabled ? undefined : submitDisabledReason}
       >

@@ -6,8 +6,7 @@ import { getDisabledReasonProps } from '@/utils/disabledReasonControl'
 
 export type ActionFeedbackStatus = 'idle' | 'loading' | 'success'
 
-const APP_EASE = 'cubic-bezier(0.22, 1, 0.36, 1)'
-const STATE_STYLE_TRANSITION = `background 250ms ${APP_EASE}, border-color 250ms ${APP_EASE}, color 250ms ${APP_EASE}, var(--app-focus-fade)`
+const STATE_STYLE_TRANSITION = 'all var(--app-ease-duration) var(--app-ease-curve), var(--app-focus-fade)'
 
 interface ActionFeedbackButtonProps extends Omit<HTMLMotionProps<'button'>, 'children'> {
   children: ReactNode

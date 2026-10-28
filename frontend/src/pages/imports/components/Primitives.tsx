@@ -111,7 +111,7 @@ export function ImportCollapseToggle({
     >
       <ChevronDown
         size={17}
-        className="transition-transform duration-150"
+        className="transition-transform"
         style={{ transform: expanded ? 'rotate(180deg)' : 'rotate(0deg)' }}
         aria-hidden
       />

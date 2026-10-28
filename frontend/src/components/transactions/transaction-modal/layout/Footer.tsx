@@ -129,14 +129,14 @@ export default function TransactionModalFooter({
                 Yes, delete
               </span>
               <span
-                className="absolute inset-0 inline-flex items-center justify-center gap-2 whitespace-nowrap transition-opacity duration-150"
+                className="absolute inset-0 inline-flex items-center justify-center gap-2 whitespace-nowrap transition-opacity"
                 style={{ opacity: confirmingDelete ? 0 : 1 }}
               >
                 <Trash2 size={16} aria-hidden />
                 Delete
               </span>
               <span
-                className="absolute inset-0 inline-flex items-center justify-center gap-2 whitespace-nowrap transition-opacity duration-150"
+                className="absolute inset-0 inline-flex items-center justify-center gap-2 whitespace-nowrap transition-opacity"
                 style={{ opacity: confirmingDelete ? 1 : 0 }}
               >
                 <Check size={16} aria-hidden />
@@ -188,7 +188,7 @@ export default function TransactionModalFooter({
             aria-busy={submitLoading}
             disabled={isPending}
             disabledReason={isPending ? undefined : submitBlockedReason}
-            className={`app-primary-button overflow-hidden whitespace-nowrap duration-300 ${submitLoading ? 'app-primary-button-loading justify-self-center sm:justify-self-auto' : editing ? 'w-full sm:w-24' : 'w-full sm:w-44'}`}
+            className={`app-primary-button overflow-hidden whitespace-nowrap${submitLoading ? ' app-primary-button-loading justify-self-center sm:justify-self-auto' : editing ? ' w-full sm:w-24' : ' w-full sm:w-44'}`}
           >
             {submitLoading ? <div className="app-spinner" /> : editing ? 'Save' : 'Add transaction'}
           </DisabledReasonButton>

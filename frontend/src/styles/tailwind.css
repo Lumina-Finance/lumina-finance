@@ -1,10 +1,15 @@
 @import "tailwindcss";
 @config "../../tailwind.config.js";
 
-/* Tailwind's own curve for every transition utility that names none, such as transition-colors, so a hover
-   look written with a bare utility eases like the rest instead of on Material's */
-@theme {
-  --default-transition-timing-function: cubic-bezier(0.22, 1, 0.36, 1);
+/* The one duration and curve every hover, focus and press look eases over, and the defaults Tailwind
+   gives each transition utility that names none, such as transition-colors, so a look written with a
+   bare utility eases like the rest instead of on Material's curve over 150ms. Static so the tokens
+   stay in the stylesheet for the rules below that name them directly */
+@theme static {
+  --app-ease-duration: 300ms;
+  --app-ease-curve: cubic-bezier(0.22, 1, 0.36, 1);
+  --default-transition-duration: var(--app-ease-duration);
+  --default-transition-timing-function: var(--app-ease-curve);
 }
 
 /* Every hover: utility on a button also applies while the button is keyboard focused, so a button
@@ -105,7 +110,7 @@
        motion it is the focus colour but not drawn, so nothing eases at all */
     --app-focus-outline-rest: 2px solid transparent;
     /* The ring's fade, for a control whose own transition list has to carry it */
-    --app-focus-fade: outline-color 150ms cubic-bezier(0.22, 1, 0.36, 1);
+    --app-focus-fade: outline-color 150ms var(--app-ease-curve);
     --app-focus-offset: 2px;
     --app-focus-border: inset 0 0 0 1px var(--app-focus-ring);
     --app-focus-border-error: inset 0 0 0 1px var(--app-negative);
@@ -673,8 +678,8 @@
     transition:
       gap 0.28s cubic-bezier(0.22, 1, 0.36, 1),
       padding 0.28s cubic-bezier(0.22, 1, 0.36, 1),
-      background 0.2s cubic-bezier(0.22, 1, 0.36, 1),
-      border-color 0.2s cubic-bezier(0.22, 1, 0.36, 1);
+      background var(--app-ease-duration) var(--app-ease-curve),
+      border-color var(--app-ease-duration) var(--app-ease-curve);
   }
 
   .app-desktop-nav-collapsed .app-nav-user {
@@ -701,9 +706,9 @@
            font-medium no-underline;
     font-size: 0.9375rem;
     transition:
-      color 200ms cubic-bezier(0.22, 1, 0.36, 1),
-      background-color 200ms cubic-bezier(0.22, 1, 0.36, 1),
-      border-color 200ms cubic-bezier(0.22, 1, 0.36, 1);
+      color var(--app-ease-duration) var(--app-ease-curve),
+      background-color var(--app-ease-duration) var(--app-ease-curve),
+      border-color var(--app-ease-duration) var(--app-ease-curve);
     color: var(--app-text-muted);
     border: 1px solid transparent;
   }
@@ -753,7 +758,7 @@
   }
 
   .app-input {
-    @apply h-10 min-w-0 w-full rounded-lg border px-4 py-0 outline-none transition-colors duration-200;
+    @apply h-10 min-w-0 w-full rounded-lg border px-4 py-0 outline-none transition-colors;
     font-size: 0.9375rem;
     background: var(--app-input-bg);
     border-color: var(--app-input-border);
@@ -836,7 +841,7 @@
   /* The segmented date control mirrors app-input as a flex row so the year, month, and day inputs sit
      inside one field frame, with focus-within standing in for the input focus ring */
   .app-date-field {
-    @apply flex h-10 min-w-0 w-full items-center rounded-lg border px-4 py-0 transition-colors duration-200;
+    @apply flex h-10 min-w-0 w-full items-center rounded-lg border px-4 py-0 transition-colors;
     font-size: 0.9375rem;
     background: var(--app-input-bg);
     border-color: var(--app-input-border);
@@ -876,7 +881,7 @@
   }
 
   .app-calendar-day {
-    @apply flex h-8 w-full items-center justify-center rounded-md text-sm tabular-nums transition-colors duration-100;
+    @apply flex h-8 w-full items-center justify-center rounded-md text-sm tabular-nums transition-colors;
     color: var(--app-text);
   }
 
@@ -966,9 +971,9 @@
     color: var(--app-text);
 
     transition:
-      border-color 0.2s cubic-bezier(0.22, 1, 0.36, 1),
-      background 0.2s cubic-bezier(0.22, 1, 0.36, 1),
-      box-shadow 0.2s cubic-bezier(0.22, 1, 0.36, 1);
+      border-color var(--app-ease-duration) var(--app-ease-curve),
+      background var(--app-ease-duration) var(--app-ease-curve),
+      box-shadow var(--app-ease-duration) var(--app-ease-curve);
   }
 
   /* Opening upward stacks the contents in reverse, so the list appears above the head while the head
@@ -1135,7 +1140,7 @@
     color: var(--app-text);
     cursor: pointer;
     text-align: left;
-    transition: background 0.1s cubic-bezier(0.22, 1, 0.36, 1);
+    transition: background var(--app-ease-duration) var(--app-ease-curve);
   }
 
   /* The row the pointer or the arrow keys are resting on, tinted rather than accented so it stays
@@ -1178,7 +1183,7 @@
     align-items: center;
     visibility: hidden;
     color: var(--app-text-muted);
-    transition: color 0.1s cubic-bezier(0.22, 1, 0.36, 1);
+    transition: color var(--app-ease-duration) var(--app-ease-curve);
   }
 
   .app-dropdown-row:hover .app-dropdown-row-edit {
@@ -1287,8 +1292,8 @@
     -webkit-backdrop-filter: blur(20px) saturate(160%);
     backdrop-filter: blur(20px) saturate(160%);
     transition:
-      background-color 150ms cubic-bezier(0.22, 1, 0.36, 1),
-      border-color 150ms cubic-bezier(0.22, 1, 0.36, 1),
+      background-color var(--app-ease-duration) var(--app-ease-curve),
+      border-color var(--app-ease-duration) var(--app-ease-curve),
       var(--app-focus-fade);
   }
 
@@ -1400,8 +1405,8 @@
     font-size: 0.8125rem;
     font-weight: 500;
     transition:
-      background-color 0.15s cubic-bezier(0.22, 1, 0.36, 1),
-      border-color 0.15s cubic-bezier(0.22, 1, 0.36, 1),
+      background-color var(--app-ease-duration) var(--app-ease-curve),
+      border-color var(--app-ease-duration) var(--app-ease-curve),
       var(--app-focus-fade);
   }
 
@@ -1421,8 +1426,8 @@
     color: var(--app-text-subtle);
     border-radius: 9999px;
     transition:
-      color 0.15s cubic-bezier(0.22, 1, 0.36, 1),
-      background 0.15s cubic-bezier(0.22, 1, 0.36, 1),
+      color var(--app-ease-duration) var(--app-ease-curve),
+      background var(--app-ease-duration) var(--app-ease-curve),
       var(--app-focus-fade);
   }
 
@@ -1514,8 +1519,8 @@
     white-space: nowrap;
     color: var(--app-text-muted);
     transition:
-      color 180ms cubic-bezier(0.22, 1, 0.36, 1),
-      background-color 180ms cubic-bezier(0.22, 1, 0.36, 1),
+      color var(--app-ease-duration) var(--app-ease-curve),
+      background-color var(--app-ease-duration) var(--app-ease-curve),
       var(--app-focus-fade);
   }
 
@@ -1610,7 +1615,7 @@
     font-size: 0.8125rem;
     color: var(--app-text);
     transition:
-      background-color 0.15s cubic-bezier(0.22, 1, 0.36, 1),
+      background-color var(--app-ease-duration) var(--app-ease-curve),
       var(--app-focus-fade);
   }
 
@@ -1644,9 +1649,9 @@
     -webkit-backdrop-filter: blur(0px);
     backdrop-filter: blur(0px);
     transition:
-      background-color 0.2s cubic-bezier(0.22, 1, 0.36, 1),
-      -webkit-backdrop-filter 0.2s cubic-bezier(0.22, 1, 0.36, 1),
-      backdrop-filter 0.2s cubic-bezier(0.22, 1, 0.36, 1);
+      background-color var(--app-ease-duration) var(--app-ease-curve),
+      -webkit-backdrop-filter var(--app-ease-duration) var(--app-ease-curve),
+      backdrop-filter var(--app-ease-duration) var(--app-ease-curve);
   }
 
   .group:hover .app-tag-tooltip-glass {
@@ -1830,7 +1835,7 @@
   }
 
   .app-primary-button {
-    @apply inline-flex h-10 items-center justify-center gap-2 px-4 font-medium transition-all duration-150 ease-app motion-reduce:transition-none;
+    @apply inline-flex h-10 items-center justify-center gap-2 px-4 font-medium transition-all motion-reduce:transition-none;
     box-sizing: border-box;
     border-radius: 20px;
     font-size: 0.9375rem;
@@ -1862,7 +1867,7 @@
   }
 
   .app-secondary-button {
-    @apply inline-flex h-10 items-center justify-center gap-2 px-4 font-medium transition-all duration-150 ease-app motion-reduce:transition-none;
+    @apply inline-flex h-10 items-center justify-center gap-2 px-4 font-medium transition-all motion-reduce:transition-none;
     box-sizing: border-box;
     border-radius: 20px;
     font-size: 0.9375rem;
@@ -1941,7 +1946,7 @@
   }
 
   .app-danger-button {
-    @apply inline-flex h-10 items-center justify-center gap-2 px-4 font-medium transition-all duration-150 ease-app motion-reduce:transition-none;
+    @apply inline-flex h-10 items-center justify-center gap-2 px-4 font-medium transition-all motion-reduce:transition-none;
     box-sizing: border-box;
     border-radius: 20px;
     font-size: 0.9375rem;
@@ -1977,7 +1982,7 @@
      every other input, at rest, under the pointer and while focused, so searching reads as the same
      kind of control as typing anywhere else */
   .app-glass-input {
-    @apply min-w-0 border px-4 py-0 outline-none transition-colors duration-200;
+    @apply min-w-0 border px-4 py-0 outline-none transition-colors;
     border-radius: 20px;
     font-size: 0.9375rem;
     color: var(--app-text);
@@ -1997,7 +2002,7 @@
   /* The primary action keeps its accent tint but turns translucent so it joins the glass family
      while still reading as the prominent call to action */
   .app-glass-button-primary {
-    @apply inline-flex h-10 items-center justify-center gap-2 px-4 font-medium transition-all duration-150 ease-app motion-reduce:transition-none;
+    @apply inline-flex h-10 items-center justify-center gap-2 px-4 font-medium transition-all motion-reduce:transition-none;
     box-sizing: border-box;
     border-radius: 20px;
     font-size: 0.9375rem;
@@ -2029,7 +2034,7 @@
 
   /* Neutral glass counterpart of the secondary button, sharing the filter pill surface */
   .app-glass-button {
-    @apply inline-flex h-10 items-center justify-center gap-2 px-4 font-medium transition-all duration-150 ease-app motion-reduce:transition-none;
+    @apply inline-flex h-10 items-center justify-center gap-2 px-4 font-medium transition-all motion-reduce:transition-none;
     box-sizing: border-box;
     border-radius: 20px;
     font-size: 0.9375rem;
@@ -2135,14 +2140,14 @@
      them snaps ahead of the others */
   .app-dropdown-glass.app-dropdown-glass-disabled {
     transition:
-      border-color 150ms cubic-bezier(0.22, 1, 0.36, 1),
-      background 150ms cubic-bezier(0.22, 1, 0.36, 1),
-      box-shadow 150ms cubic-bezier(0.22, 1, 0.36, 1),
-      opacity 150ms cubic-bezier(0.22, 1, 0.36, 1);
+      border-color var(--app-ease-duration) var(--app-ease-curve),
+      background var(--app-ease-duration) var(--app-ease-curve),
+      box-shadow var(--app-ease-duration) var(--app-ease-curve),
+      opacity var(--app-ease-duration) var(--app-ease-curve);
   }
 
   .app-dropdown-glass-disabled .app-dropdown-head {
-    transition: opacity 150ms cubic-bezier(0.22, 1, 0.36, 1);
+    transition: opacity var(--app-ease-duration) var(--app-ease-curve);
   }
 
   @media (prefers-reduced-motion: reduce) {
@@ -2164,7 +2169,7 @@
   /* Square icon-button member of the glass family for the floating mobile menu toggle, sharing the
      translucent blurred surface so it blurs the page content behind it like the toolbar controls */
   .app-glass-icon-button {
-    @apply inline-flex items-center justify-center transition-colors duration-150 ease-app motion-reduce:transition-none;
+    @apply inline-flex items-center justify-center transition-colors motion-reduce:transition-none;
     border-radius: 16px;
     color: var(--app-text);
     border: 1px solid var(--app-border-strong);
@@ -2275,9 +2280,9 @@
     background: transparent;
     box-shadow: none;
     transition:
-      color 180ms cubic-bezier(0.22, 1, 0.36, 1),
-      background-color 180ms cubic-bezier(0.22, 1, 0.36, 1),
-      transform 180ms cubic-bezier(0.22, 1, 0.36, 1),
+      color var(--app-ease-duration) var(--app-ease-curve),
+      background-color var(--app-ease-duration) var(--app-ease-curve),
+      transform var(--app-ease-duration) var(--app-ease-curve),
       var(--app-focus-fade);
   }
 
@@ -2322,8 +2327,8 @@
 
   .app-navigation-theme-toggle {
     transition:
-      background-color 0.2s cubic-bezier(0.22, 1, 0.36, 1),
-      border-color 0.2s cubic-bezier(0.22, 1, 0.36, 1);
+      background-color var(--app-ease-duration) var(--app-ease-curve),
+      border-color var(--app-ease-duration) var(--app-ease-curve);
   }
 
   .app-navigation-theme-toggle .app-segmented-option {
@@ -2333,11 +2338,11 @@
     background: transparent;
     box-shadow: none;
     transition:
-      color 180ms cubic-bezier(0.22, 1, 0.36, 1),
-      background-color 180ms cubic-bezier(0.22, 1, 0.36, 1),
-      transform 180ms cubic-bezier(0.22, 1, 0.36, 1),
-      opacity 200ms cubic-bezier(0.22, 1, 0.36, 1),
-      flex-grow 280ms cubic-bezier(0.22, 1, 0.36, 1),
+      color var(--app-ease-duration) var(--app-ease-curve),
+      background-color var(--app-ease-duration) var(--app-ease-curve),
+      transform var(--app-ease-duration) var(--app-ease-curve),
+      opacity var(--app-ease-duration) var(--app-ease-curve),
+      flex-grow 280ms var(--app-ease-curve),
       var(--app-focus-fade);
   }
 
@@ -2385,9 +2390,9 @@
     background: transparent;
     box-shadow: none;
     transition:
-      color 180ms cubic-bezier(0.22, 1, 0.36, 1),
-      background-color 180ms cubic-bezier(0.22, 1, 0.36, 1),
-      transform 180ms cubic-bezier(0.22, 1, 0.36, 1),
+      color var(--app-ease-duration) var(--app-ease-curve),
+      background-color var(--app-ease-duration) var(--app-ease-curve),
+      transform var(--app-ease-duration) var(--app-ease-curve),
       var(--app-focus-fade);
   }
 
@@ -2430,9 +2435,9 @@
     background: transparent;
     box-shadow: none;
     transition:
-      color 180ms cubic-bezier(0.22, 1, 0.36, 1),
-      background-color 180ms cubic-bezier(0.22, 1, 0.36, 1),
-      transform 180ms cubic-bezier(0.22, 1, 0.36, 1),
+      color var(--app-ease-duration) var(--app-ease-curve),
+      background-color var(--app-ease-duration) var(--app-ease-curve),
+      transform var(--app-ease-duration) var(--app-ease-curve),
       var(--app-focus-fade);
   }
 
@@ -2496,7 +2501,7 @@
   }
 
   .app-icon-button {
-    @apply inline-flex h-8 w-8 items-center justify-center rounded-lg transition-colors duration-150 ease-app motion-reduce:transition-none;
+    @apply inline-flex h-8 w-8 items-center justify-center rounded-lg transition-colors motion-reduce:transition-none;
     color: var(--app-text-muted);
     background: transparent;
     border: 1px solid transparent;
@@ -2550,9 +2555,9 @@
      card that cannot take a file keeps its rest fill and its cursor */
   .app-upload-card {
     transition:
-      background-color 300ms cubic-bezier(0.22, 1, 0.36, 1),
-      border-color 300ms cubic-bezier(0.22, 1, 0.36, 1),
-      transform 150ms cubic-bezier(0.22, 1, 0.36, 1),
+      background-color var(--app-ease-duration) var(--app-ease-curve),
+      border-color var(--app-ease-duration) var(--app-ease-curve),
+      transform var(--app-ease-duration) var(--app-ease-curve),
       var(--app-focus-fade);
   }
 
@@ -2565,7 +2570,7 @@
      fill allows, which is muted text in the light theme where the fill is deeper */
   .app-upload-card-hint {
     color: var(--app-text-subtle);
-    transition: color 300ms cubic-bezier(0.22, 1, 0.36, 1);
+    transition: color var(--app-ease-duration) var(--app-ease-curve);
   }
 
   .app-upload-card:not([aria-disabled="true"]):hover .app-upload-card-hint,
@@ -2603,8 +2608,8 @@
      with its own curve over the ring's, so the row lists both here */
   .app-focus-inset {
     transition:
-      color 150ms cubic-bezier(0.22, 1, 0.36, 1),
-      background-color 150ms cubic-bezier(0.22, 1, 0.36, 1),
+      color var(--app-ease-duration) var(--app-ease-curve),
+      background-color var(--app-ease-duration) var(--app-ease-curve),
       var(--app-focus-fade);
   }
 
@@ -2614,7 +2619,7 @@
      button is focused */
   .app-transaction-row {
     transition:
-      background-color 100ms cubic-bezier(0.22, 1, 0.36, 1),
+      background-color var(--app-ease-duration) var(--app-ease-curve),
       var(--app-focus-fade);
   }
 
@@ -2734,6 +2739,11 @@
   .app-marquee-text-track {
     opacity: 0;
     transform: translateX(0);
+    transition: opacity var(--app-ease-duration) var(--app-ease-curve);
+  }
+
+  .app-marquee-text-static {
+    transition: opacity var(--app-ease-duration) var(--app-ease-curve);
   }
 
   .app-marquee-trigger:hover .app-marquee-text[data-overflow="true"] .app-marquee-text-track,
@@ -2832,8 +2842,8 @@
   .recharts-tooltip-wrapper {
     pointer-events: none !important;
     transition:
-      transform 280ms cubic-bezier(0.22, 1, 0.36, 1),
-      opacity 150ms cubic-bezier(0.22, 1, 0.36, 1) !important;
+      transform var(--app-ease-duration) var(--app-ease-curve),
+      opacity var(--app-ease-duration) var(--app-ease-curve) !important;
   }
 
   .recharts-default-tooltip.app-chart-tooltip-default,
@@ -2842,7 +2852,7 @@
      instantly without smearing */
   .app-cursor-tooltip-flip {
     transform: translateY(var(--cursor-tooltip-flip-y, 0px));
-    transition: transform 200ms cubic-bezier(0.22, 1, 0.36, 1);
+    transition: transform var(--app-ease-duration) var(--app-ease-curve);
     will-change: transform;
   }
 
@@ -2899,7 +2909,7 @@
   }
 
   .app-hover-tooltip {
-    @apply pointer-events-none absolute bottom-full left-1/2 z-20 mb-2 w-52 -translate-x-1/2 rounded-md px-2.5 py-1.5 text-xs font-medium opacity-0 shadow-sm transition-opacity duration-150 group-hover:opacity-100;
+    @apply pointer-events-none absolute bottom-full left-1/2 z-20 mb-2 w-52 -translate-x-1/2 rounded-md px-2.5 py-1.5 text-xs font-medium opacity-0 shadow-sm transition-opacity group-hover:opacity-100;
     border: 1px solid var(--app-border-strong);
   }
 
@@ -3034,7 +3044,7 @@
   }
 
   .app-selection-option {
-    @apply grid w-full grid-cols-[1.25rem_minmax(0,1fr)] items-center gap-3 rounded-lg px-3 py-2 text-left text-sm transition-colors duration-150;
+    @apply grid w-full grid-cols-[1.25rem_minmax(0,1fr)] items-center gap-3 rounded-lg px-3 py-2 text-left text-sm transition-colors;
     background: transparent;
     border: 1px solid transparent;
     color: var(--app-text-muted);
@@ -3141,7 +3151,7 @@
   link takes the same look.
 
   The line is a background shape and not the browser's own underline, which could not grow. It draws over
-  250ms and eases in and out, as visual.md asks of an underline, since the app's ease-out curve would
+  the app's shared duration and eases in and out, as visual.md asks of an underline, since the app's ease-out curve would
   have drawn most of the line in the first 60ms, and not at all under reduced motion. It sits where the browser's underline would, 2px below the baseline of DM
   Sans, whose ascent is 0.99em and descent 0.31em: a button or a link with its own box centres the font's
   1.3em in its line box, and an inline link's background covers just the font's own 1.3em. The top is
@@ -3183,8 +3193,8 @@
   @media (prefers-reduced-motion: no-preference) {
     :is(a, button).underline {
       transition:
-        background-size 250ms cubic-bezier(0.65, 0, 0.35, 1),
-        color 150ms cubic-bezier(0.22, 1, 0.36, 1),
+        background-size var(--app-ease-duration) cubic-bezier(0.65, 0, 0.35, 1),
+        color var(--app-ease-duration) var(--app-ease-curve),
         var(--app-focus-fade);
     }
   }
@@ -3199,12 +3209,12 @@
     background-size: calc(100% - var(--link-underline-start, 0px)) 1px;
   }
 
-  /* A shared button that changes its width into a spinner and back takes 300ms through `duration-300`, while
-     its focus ring still fades in the shared 150ms: the later entry for outline-color wins the list */
+  /* A shared button eases every change over the app's duration and curve, while its focus ring still fades
+     in the shared 150ms: the later entry for outline-color wins the list */
   @media (prefers-reduced-motion: no-preference) {
-    :is(.app-primary-button, .app-danger-button, .app-secondary-button).duration-300 {
+    :is(.app-primary-button, .app-danger-button, .app-secondary-button, .app-glass-button, .app-glass-button-primary) {
       transition:
-        all 300ms cubic-bezier(0.22, 1, 0.36, 1),
+        all var(--app-ease-duration) var(--app-ease-curve),
         var(--app-focus-fade);
     }
   }

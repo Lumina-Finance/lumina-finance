@@ -216,7 +216,7 @@ const OidcCallbackPage = () => {
                 <button
                   type="button"
                   onClick={handleBackToLogin}
-                  className="font-medium underline underline-offset-2 transition-colors duration-200"
+                  className="font-medium underline underline-offset-2 transition-colors"
                   style={{ color: 'var(--app-accent)' }}
                 >
                   {user ? 'Back to settings' : 'Back to login'}
@@ -408,9 +408,7 @@ function OidcOnboardingForm({ onboarding, onBackToLogin }: OidcOnboardingFormPro
           type="submit"
           disabled={submitting}
           disabledReason={submitBlockReason}
-          className={`app-primary-button transition-all duration-300 ${
-            submitting ? 'app-primary-button-loading' : 'w-full'
-          }`}
+          className={`app-primary-button ${submitting ? 'app-primary-button-loading' : 'w-full'}`}
         >
           {submitting ? <div className="app-spinner" /> : 'Create account'}
         </DisabledReasonButton>
@@ -421,7 +419,7 @@ function OidcOnboardingForm({ onboarding, onBackToLogin }: OidcOnboardingFormPro
         <button
           type="button"
           onClick={onBackToLogin}
-          className="font-medium underline underline-offset-2 transition-colors duration-200"
+          className="font-medium underline underline-offset-2 transition-colors"
           style={{ color: 'var(--app-accent)' }}
         >
           Back to login

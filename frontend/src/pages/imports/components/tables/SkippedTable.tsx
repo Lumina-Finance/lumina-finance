@@ -240,7 +240,7 @@ export function ImportSkippedTable({
         </span>
         <ChevronDown
           size={17}
-          className="shrink-0 transition-transform duration-150"
+          className="shrink-0 transition-transform"
           style={{ transform: expanded ? 'rotate(180deg)' : 'rotate(0deg)', color: 'var(--app-text-muted)' }}
           aria-hidden
         />

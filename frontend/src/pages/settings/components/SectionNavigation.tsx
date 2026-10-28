@@ -89,7 +89,7 @@ export function SettingsMobileSectionMenu({
         >
           <button
             type="button"
-            className="relative flex h-11 w-full items-center gap-3 rounded-xl border bg-[var(--app-surface-soft)] px-4 text-left font-medium shadow-sm transition-colors duration-150 hover:bg-[var(--app-accent-soft)]"
+            className="relative flex h-11 w-full items-center gap-3 rounded-xl border bg-[var(--app-surface-soft)] px-4 text-left font-medium shadow-sm transition-colors hover:bg-[var(--app-accent-soft)]"
             style={{
               borderColor: 'var(--app-border)',
               color: 'var(--app-text)',
@@ -103,7 +103,7 @@ export function SettingsMobileSectionMenu({
             <ChevronDown
               size={18}
               aria-hidden
-              className={`shrink-0 transition-transform duration-200 ${menuOpen ? 'rotate-180' : ''}`}
+              className={`shrink-0 transition-transform ${menuOpen ? 'rotate-180' : ''}`}
             />
           </button>
 

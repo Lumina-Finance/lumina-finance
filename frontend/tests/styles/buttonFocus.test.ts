@@ -385,12 +385,9 @@ describe('button keyboard focus', () => {
       const [head] = rulesListing('.app-dropdown-glass.app-dropdown-glass-disabled:focus-within .app-dropdown-head')
       expect(head).toBeDefined()
       expect(declared(head, 'opacity')).toBe('var(--app-dropdown-disabled-opacity-control)')
-      // The fill, the ring and the content move together, over the time and easing of the focus fade
-      let fade = ''
-      stylesheet.walkDecls('--app-focus-fade', (decl) => {
-        fade = decl.value
-      })
-      const [time, easing] = [/(\d+ms)/.exec(fade)?.[1], /(cubic-bezier\([^)]*\))/.exec(fade)?.[1]]
+      // The fill, the ring and the content move together, over the app's duration and curve, since the ring
+      // here is the box's own border and shadow rather than an outline
+      const [time, easing] = ['var(--app-ease-duration)', 'var(--app-ease-curve)']
       const restBox = rulesListing('.app-dropdown-glass.app-dropdown-glass-disabled').find((rule) => declared(rule, 'transition') !== undefined)
       const restHead = rulesListing('.app-dropdown-glass-disabled .app-dropdown-head').find((rule) => declared(rule, 'transition') !== undefined)
       expect(time).toBeDefined()

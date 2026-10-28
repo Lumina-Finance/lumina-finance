@@ -163,7 +163,7 @@ export function PasskeyEnrollment({ onComplete, onSkip, onSwitchToTotp, setupSte
                     onClick={handleActivate}
                     disabled={confirmRegistration.isPending}
                     disabledReason={confirmRegistration.isPending ? undefined : ackRefusal.blockedReason}
-                    className={`app-primary-button transition-all duration-300 ${confirmRegistration.isPending ? 'app-primary-button-loading' : 'w-full'}`}
+                    className={`app-primary-button ${confirmRegistration.isPending ? 'app-primary-button-loading' : 'w-full'}`}
                   >
                     {confirmRegistration.isPending ? <div className="app-spinner" /> : 'Done'}
                   </DisabledReasonButton>
@@ -209,7 +209,7 @@ export function PasskeyEnrollment({ onComplete, onSkip, onSwitchToTotp, setupSte
               onClick={handleRegister}
               disabled={register.isPending}
               disabledReason={register.isPending ? undefined : nameRefusal.blockedReason}
-              className={`app-primary-button transition-all duration-300 ${register.isPending ? 'app-primary-button-loading' : 'flex w-full items-center justify-center gap-2'}`}
+              className={`app-primary-button ${register.isPending ? 'app-primary-button-loading' : 'flex w-full items-center justify-center gap-2'}`}
             >
               {register.isPending ? (
                 <div className="app-spinner" />
@@ -226,7 +226,7 @@ export function PasskeyEnrollment({ onComplete, onSkip, onSwitchToTotp, setupSte
             <button
               type="button"
               onClick={onSwitchToTotp}
-              className="block w-full text-center text-sm font-medium underline underline-offset-2 transition-colors duration-200"
+              className="block w-full text-center text-sm font-medium underline underline-offset-2 transition-colors"
               style={{ color: 'var(--app-accent)' }}
             >
               Use an authenticator app instead
@@ -237,7 +237,7 @@ export function PasskeyEnrollment({ onComplete, onSkip, onSwitchToTotp, setupSte
             <button
               type="button"
               onClick={onSkip}
-              className="block w-full text-center text-sm font-medium underline underline-offset-2 transition-colors duration-200"
+              className="block w-full text-center text-sm font-medium underline underline-offset-2 transition-colors"
               style={{ color: 'var(--app-accent)' }}
             >
               Skip for now

@@ -7,8 +7,8 @@ import type { AtRule, Rule } from 'postcss'
 import { describe, expect, it } from 'vitest'
 import { stylesheet } from './fixtures'
 
-const APP_EASE = 'cubic-bezier(0.22, 1, 0.36, 1)'
-const MINIMUM_VISIBLE_MS = 300
+const APP_EASE_TOKEN = 'var(--app-ease-curve)'
+const APP_DURATION_TOKEN = 'var(--app-ease-duration)'
 
 /** Splits a transition value at its top-level commas, keeping cubic-bezier's own commas together */
 function splitTransitions(value: string): string[] {
@@ -27,23 +27,16 @@ function transitionsOf(selector: string): Map<string, string> {
   return entries
 }
 
-/** The milliseconds an entry such as `background-color 250ms cubic-bezier(...)` runs for */
-function durationOf(entry: string): number {
-  const match = entry.match(/\s(\d*\.?\d+)(ms|s)\s/)
-  if (!match) throw new Error(`No duration in ${entry}`)
-  return Number(match[1]) * (match[2] === 's' ? 1000 : 1)
-}
-
 describe('upload card hover easing', () => {
   it.each([
     ['.app-upload-card', 'background-color'],
     ['.app-upload-card', 'border-color'],
     ['.app-upload-card-hint', 'color'],
-  ])('%s eases its %s on the app curve over at least 300ms', (selector, property) => {
+  ])('%s eases its %s on the app curve and duration', (selector, property) => {
     const entry = transitionsOf(selector).get(property)
     expect(entry, `${selector} names no ${property} transition, so its hover would snap`).toBeDefined()
-    expect(entry).toContain(APP_EASE)
-    expect(durationOf(entry!)).toBeGreaterThanOrEqual(MINIMUM_VISIBLE_MS)
+    expect(entry).toContain(APP_EASE_TOKEN)
+    expect(entry).toContain(APP_DURATION_TOKEN)
   })
 
   it('takes the focus ring fade and the press on the card as well', () => {
@@ -55,7 +48,11 @@ describe('upload card hover easing', () => {
   it('shows its hover fill through the hover rule that outranks the inline rest fill', () => {
     const colours: string[] = []
     stylesheet.walkRules((rule: Rule) => {
-      if (!rule.selector.includes('.app-upload-card:not([aria-disabled="true"]):hover') || rule.selector.includes('hint')) return
+      if (
+        !rule.selector.includes('.app-upload-card:not([aria-disabled="true"]):hover') ||
+        rule.selector.includes('hint')
+      )
+        return
       rule.walkDecls('background-color', (declaration) => {
         colours.push(`${declaration.value}${declaration.important ? ' !important' : ''}`)
       })

@@ -49,15 +49,15 @@ export default function CategorySettingsGroup({
       >
         <ChevronDown
           size={14}
-          className={`mt-3 shrink-0 self-start transition-transform duration-150 motion-reduce:transition-none ${expanded ? 'rotate-180' : 'rotate-0'}`}
+          className={`mt-3 shrink-0 self-start transition-transform motion-reduce:transition-none ${expanded ? 'rotate-180' : 'rotate-0'}`}
           style={{ opacity: 0.7 }}
           aria-hidden
         />
         <span className="min-w-0">
-          <span className="app-label block transition-colors duration-150 group-hover/row:text-[var(--app-accent-nav-text)] group-focus-visible/row:text-[var(--app-accent-nav-text)]">
+          <span className="app-label block transition-colors group-hover/row:text-[var(--app-accent-nav-text)] group-focus-visible/row:text-[var(--app-accent-nav-text)]">
             {KIND_LABELS[kind]}
           </span>
-          <span className="block text-xs text-[var(--app-text-subtle)] transition-colors duration-150 group-hover/row:text-[var(--app-text-subtle-on-accent)] group-focus-visible/row:text-[var(--app-text-subtle-on-accent)]">
+          <span className="block text-xs text-[var(--app-text-subtle)] transition-colors group-hover/row:text-[var(--app-text-subtle-on-accent)] group-focus-visible/row:text-[var(--app-text-subtle-on-accent)]">
             {categories.length} {categories.length === 1 ? 'category' : 'categories'}
           </span>
         </span>

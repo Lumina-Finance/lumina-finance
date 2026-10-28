@@ -302,7 +302,7 @@ function ThresholdHandle({
 
   return (
     <div
-      className={`absolute inset-y-0 z-20 -translate-x-1/2 ${isDragging ? '' : 'transition-[left] duration-150 ease-out'}`}
+      className={`absolute inset-y-0 z-20 -translate-x-1/2 ${isDragging ? '' : 'transition-[left]'}`}
       style={{ left: `${pct}%` }}
     >
       <button

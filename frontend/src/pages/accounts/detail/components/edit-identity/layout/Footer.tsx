@@ -26,9 +26,8 @@ export function EditModalFooter({
   onStartDelete,
 }: EditModalFooterProps) {
   // Saving and starting a delete both wait while the delete confirmation is open
-  const deleteInProgressReason = !isBusy && deleteStage !== 'idle'
-    ? 'Finish or cancel deleting the account first'
-    : undefined
+  const deleteInProgressReason =
+    !isBusy && deleteStage !== 'idle' ? 'Finish or cancel deleting the account first' : undefined
 
   return (
     <div
@@ -54,7 +53,7 @@ export function EditModalFooter({
           data-testid="account-submit"
           aria-label="Save changes"
           aria-busy={saveLoading}
-          className={`app-primary-button overflow-hidden whitespace-nowrap duration-300 ${saveLoading ? 'app-primary-button-loading' : 'w-36'}`}
+          className={`app-primary-button overflow-hidden whitespace-nowrap${saveLoading ? ' app-primary-button-loading' : ' w-36'}`}
           disabled={isBusy}
           disabledReason={deleteInProgressReason ?? (isBusy ? undefined : saveBlockedReason)}
         >

@@ -60,7 +60,7 @@ const FX_TRIGGER_CLASS = 'inline-flex h-4 cursor-pointer appearance-none items-c
 // Above the list toolbars, which stick at z-30 over the page as it scrolls, so a panel that opens
 // across a toolbar is drawn over it rather than under it. Fixed rather than absolute, so a scrolling
 // box around the trigger, such as a dialog's body, never cuts the panel off
-const TOOLTIP_WRAPPER_CLASS = 'fixed z-40 p-2 transition-opacity duration-150'
+const TOOLTIP_WRAPPER_CLASS = 'fixed z-40 p-2 transition-opacity'
 // Closed, the panel shows and takes pointer input only while hovered. Open, it does both whatever the
 // pointer, since a touch screen has no hover. The two are kept apart because classes setting the same
 // property are ordered by the stylesheet, not by the class list

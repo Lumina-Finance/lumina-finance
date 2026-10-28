@@ -317,14 +317,14 @@ export default function TaxAdvantagedCategoryModal({
                       Yes, delete
                     </span>
                     <span
-                      className="absolute inset-0 inline-flex items-center justify-center gap-2 whitespace-nowrap transition-opacity duration-150"
+                      className="absolute inset-0 inline-flex items-center justify-center gap-2 whitespace-nowrap transition-opacity"
                       style={{ opacity: confirmingPlanDelete ? 0 : 1 }}
                     >
                       <Trash2 size={16} aria-hidden />
                       Delete
                     </span>
                     <span
-                      className="absolute inset-0 inline-flex items-center justify-center gap-2 whitespace-nowrap transition-opacity duration-150"
+                      className="absolute inset-0 inline-flex items-center justify-center gap-2 whitespace-nowrap transition-opacity"
                       style={{ opacity: confirmingPlanDelete ? 1 : 0 }}
                     >
                       <Check size={16} aria-hidden />
@@ -356,7 +356,7 @@ export default function TaxAdvantagedCategoryModal({
                     type="button"
                     role="tab"
                     aria-selected={activeTab === tab}
-                    className={`border-b-2 px-0 pb-2 pt-4 text-sm font-medium transition-colors duration-150 ${
+                    className={`border-b-2 px-0 pb-2 pt-4 text-sm font-medium transition-colors ${
                       activeTab === tab ? 'text-[var(--app-text)]' : 'text-[var(--app-text-muted)] hover:text-[var(--app-text)]'
                     }`}
                     onClick={() => setActiveTab(tab)}

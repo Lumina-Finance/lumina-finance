@@ -109,7 +109,7 @@ export function ImportMerchantMatchingStep({
               ) : (
                 <input
                   type="text"
-                  className={`app-field-focus-visible w-full rounded-lg px-3 py-1.5 text-sm ${rowState === 'creating' ? '' : 'opacity-60'}`}
+                  className={`app-field-focus-visible w-full rounded-lg px-3 py-1.5 text-sm transition-[border-color,box-shadow,opacity] ${rowState === 'creating' ? '' : 'opacity-60'}`}
                   style={{
                     background: 'var(--app-input-bg)',
                     color: 'var(--app-text)',

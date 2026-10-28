@@ -58,7 +58,7 @@ export default function TaxAdvantagedAccountLinksPanel({
             return (
               <label
                 key={account.id}
-                className={`grid grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-3 px-4 py-3 text-sm transition-colors duration-150 ${disabled ? 'cursor-not-allowed' : 'cursor-pointer hover:bg-[var(--app-accent-soft)]'}`}
+                className={`grid grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-3 px-4 py-3 text-sm transition-colors ${disabled ? 'cursor-not-allowed' : 'cursor-pointer hover:bg-[var(--app-accent-soft)]'}`}
                 style={{
                   borderTop: index === 0 ? 'none' : '1px solid var(--app-border)',
                   opacity: account.is_archived || linkedElsewhere ? 0.55 : 1,

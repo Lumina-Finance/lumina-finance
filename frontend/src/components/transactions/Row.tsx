@@ -172,7 +172,7 @@ function TagTooltip({ tags }: { tags: Transaction['tags'] }) {
       {tags.map((tag) => (
         <span
           key={tag.id}
-          className="relative inline-flex max-w-full items-center gap-1 rounded-full px-2 py-0.5 text-sm font-medium opacity-0 transition-opacity duration-200 group-hover:opacity-100"
+          className="relative inline-flex max-w-full items-center gap-1 rounded-full px-2 py-0.5 text-sm font-medium opacity-0 transition-opacity group-hover:opacity-100"
           style={{
             background: 'var(--app-surface-soft)',
             color: 'var(--app-text-muted)',

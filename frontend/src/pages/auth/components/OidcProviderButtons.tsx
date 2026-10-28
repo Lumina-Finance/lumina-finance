@@ -20,7 +20,8 @@ export function OidcProviderButtons({ providers, autoStartSlug }: OidcProviderBu
   // The app already showed the user its own button for this provider, so the page goes straight on,
   // already showing that button's spinner. An unknown slug leaves the buttons for the user to choose
   const [autoStart] = useState(() =>
-    autoStartSlug && providers.some((provider) => provider.slug === autoStartSlug) ? autoStartSlug : null)
+    autoStartSlug && providers.some((provider) => provider.slug === autoStartSlug) ? autoStartSlug : null,
+  )
   const [pendingSlug, setPendingSlug] = useState<string | null>(autoStart)
   const [error, setError] = useState<string | null>(null)
   const autoStartedRef = useRef(false)
@@ -55,7 +56,7 @@ export function OidcProviderButtons({ providers, autoStartSlug }: OidcProviderBu
             type="button"
             onClick={() => handleProviderClick(provider.slug)}
             disabled={pendingSlug !== null}
-            className={`app-secondary-button transition-all duration-300 ${
+            className={`app-secondary-button ${
               pendingSlug === provider.slug
                 ? 'app-primary-button-loading'
                 : 'flex w-full items-center justify-center gap-2'

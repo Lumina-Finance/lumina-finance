@@ -214,7 +214,7 @@ const AuthPage = () => {
               <button
                 type="button"
                 onClick={switchMode}
-                className="font-medium underline underline-offset-2 transition-colors duration-200"
+                className="font-medium underline underline-offset-2 transition-colors"
                 style={{ color: 'var(--app-accent)' }}
               >
                 Back to login
@@ -240,7 +240,7 @@ const AuthPage = () => {
               <button
                 type="button"
                 onClick={switchMode}
-                className="font-medium underline underline-offset-2 transition-colors duration-200"
+                className="font-medium underline underline-offset-2 transition-colors"
                 style={{ color: 'var(--app-accent)' }}
               >
                 Back to login
@@ -313,7 +313,7 @@ const AuthPage = () => {
                       <button
                         type="button"
                         onClick={goToForgot}
-                        className="text-sm font-medium underline underline-offset-2 transition-colors duration-200"
+                        className="text-sm font-medium underline underline-offset-2 transition-colors"
                         style={{ color: 'var(--app-accent)' }}
                       >
                         Forgot password?
@@ -337,9 +337,7 @@ const AuthPage = () => {
                   type="submit"
                   disabled={submitDisabled}
                   disabledReason={submitBlockReason}
-                  className={`app-primary-button transition-all duration-300 ${
-                    submitting ? 'app-primary-button-loading' : 'w-full'
-                  }`}
+                  className={`app-primary-button ${submitting ? 'app-primary-button-loading' : 'w-full'}`}
                 >
                   {submitting ? <div className="app-spinner" /> : submitLabel}
                 </DisabledReasonButton>
@@ -361,7 +359,7 @@ const AuthPage = () => {
                         type="button"
                         onClick={handlePasskeySignIn}
                         disabled={passkeySigningIn}
-                        className={`app-secondary-button transition-all duration-300 ${passkeySigningIn ? 'app-primary-button-loading' : 'flex w-full items-center justify-center gap-2'}`}
+                        className={`app-secondary-button ${passkeySigningIn ? 'app-primary-button-loading' : 'flex w-full items-center justify-center gap-2'}`}
                       >
                         {passkeySigningIn ? (
                           <div className="app-spinner" />
@@ -385,7 +383,7 @@ const AuthPage = () => {
                   <button
                     type="button"
                     onClick={switchMode}
-                    className="font-medium underline underline-offset-2 transition-colors duration-200"
+                    className="font-medium underline underline-offset-2 transition-colors"
                     style={{ color: 'var(--app-accent)' }}
                   >
                     {isLogin ? 'Sign up' : 'Log in'}

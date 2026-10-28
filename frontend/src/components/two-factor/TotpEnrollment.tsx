@@ -285,7 +285,7 @@ export function TotpEnrollment({
                     onClick={handleComplete}
                     disabled={completing}
                     disabledReason={completing ? undefined : ackRefusal.blockedReason}
-                    className={`app-primary-button transition-all duration-300 ${completing ? 'app-primary-button-loading' : 'w-full'}`}
+                    className={`app-primary-button ${completing ? 'app-primary-button-loading' : 'w-full'}`}
                   >
                     {completing ? <div className="app-spinner" /> : 'Done'}
                   </DisabledReasonButton>
@@ -331,7 +331,7 @@ export function TotpEnrollment({
                 type="button"
                 onClick={copyKey}
                 aria-label={keyCopied ? 'Key copied' : 'Copy key'}
-                className="mx-auto flex items-center gap-2 rounded-md px-2 py-1 font-mono text-xs transition-colors duration-200 hover:bg-[color:var(--app-hover-soft)]"
+                className="mx-auto flex items-center gap-2 rounded-md px-2 py-1 font-mono text-xs transition-colors hover:bg-[color:var(--app-hover-soft)]"
                 style={{ color: 'var(--app-text-muted)' }}
               >
                 <span>{setupData.secret}</span>
@@ -375,7 +375,7 @@ export function TotpEnrollment({
               onClick={handleConfirm}
               disabled={confirming}
               disabledReason={confirming ? undefined : codeRefusal.blockedReason}
-              className={`app-primary-button transition-all duration-300 ${confirming ? 'app-primary-button-loading' : 'w-full'}`}
+              className={`app-primary-button ${confirming ? 'app-primary-button-loading' : 'w-full'}`}
             >
               {confirming ? <div className="app-spinner" /> : 'Confirm'}
             </DisabledReasonButton>
@@ -385,7 +385,7 @@ export function TotpEnrollment({
             <button
               type="button"
               onClick={onSwitchToPasskey}
-              className="block w-full text-center text-sm font-medium underline underline-offset-2 transition-colors duration-200"
+              className="block w-full text-center text-sm font-medium underline underline-offset-2 transition-colors"
               style={{ color: 'var(--app-accent)' }}
             >
               Use a passkey instead
@@ -396,7 +396,7 @@ export function TotpEnrollment({
             <button
               type="button"
               onClick={onSkip}
-              className="block w-full text-center text-sm font-medium underline underline-offset-2 transition-colors duration-200"
+              className="block w-full text-center text-sm font-medium underline underline-offset-2 transition-colors"
               style={{ color: 'var(--app-accent)' }}
             >
               Skip for now

@@ -11,7 +11,7 @@ import { assessPasskeySupport } from '@/utils/passkeySupport';
 type ReenrollMethod = 'choose' | 'totp' | 'passkey';
 
 const BACK_LINK_CLASS =
-  'block w-full text-center text-sm font-medium underline underline-offset-2 transition-colors duration-200';
+  'block w-full text-center text-sm font-medium underline underline-offset-2 transition-colors';
 
 // Cross-fade with a small slide so the method choices give way smoothly, matching the login flow
 const VIEW_TRANSITION = {
