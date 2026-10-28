@@ -40,9 +40,12 @@
     /* The Imports page's inset panels, drawn as part of the input fill over the page, and what the upload card
        takes under the pointer. Both flat hover colours sit within a few steps of the panel, so the card's is
        the text colour mixed into it, which shows on it in both themes and light enough that the card's subtle
-       hint keeps its contrast in the dark one */
+       hint keeps its contrast. The light panel is nearly white, so it takes a larger share there than in the
+       dark theme, where 3.5% already reads, enough to stand off the page beside it as well as off the panel,
+       and the card's hint steps up to muted text on it to keep its contrast */
     --app-import-panel: color-mix(in srgb, var(--app-input-bg) 58%, var(--app-bg));
-    --app-hover-on-import-panel: color-mix(in srgb, var(--app-text) 3.5%, var(--app-import-panel));
+    --app-hover-on-import-panel: color-mix(in srgb, var(--app-text) 7.5%, var(--app-import-panel));
+    --app-hover-on-import-panel-hint: var(--app-text-muted);
 
     --app-border: #4b37231c;
     --app-border-strong: #4b372333;
@@ -197,6 +200,8 @@
     --app-surface-soft: #13100E;
     --app-hover-soft: color-mix(in srgb, var(--app-text) 6%, transparent);
     --app-hover-on-surface-soft: var(--app-hover-soft);
+    --app-hover-on-import-panel: color-mix(in srgb, var(--app-text) 3.5%, var(--app-import-panel));
+    --app-hover-on-import-panel-hint: var(--app-text-subtle);
 
     --app-border: #d2b47817;
     --app-border-strong: #d2b4782b;
@@ -2397,13 +2402,15 @@
 
   /* The Imports page's upload card, which takes its own hover colour under the pointer, and sits down a pixel when
      pressed, as the buttons beside it do. Its rest fill is set on the element as a colour, which outranks this rule,
-     so the hover colour is marked important. Fill, border and press ease together. Keyboard focus shows the same
+     so the hover colour is marked important. Fill and border ease over 300ms, the app's default for its ease-out,
+     since over 150ms it finishes most of a change this small in its first frames and reads as instant. The press
+     stays at 150ms. Keyboard focus shows the same
      hover colour and the base ring, since its border shows only for a refusal or a file being dragged over it. A
      card that cannot take a file keeps its rest fill and its cursor */
   .app-upload-card {
     transition:
-      background-color 150ms cubic-bezier(0.22, 1, 0.36, 1),
-      border-color 150ms cubic-bezier(0.22, 1, 0.36, 1),
+      background-color 300ms cubic-bezier(0.22, 1, 0.36, 1),
+      border-color 300ms cubic-bezier(0.22, 1, 0.36, 1),
       transform 150ms cubic-bezier(0.22, 1, 0.36, 1),
       var(--app-focus-fade);
   }
@@ -2413,12 +2420,25 @@
     background-color: var(--app-hover-on-import-panel) !important;
   }
 
+  /* The card's hint, in subtle text at rest and, under the pointer or keyboard focus, in the hint colour its hover
+     fill allows, which is muted text in the light theme where the fill is deeper */
+  .app-upload-card-hint {
+    color: var(--app-text-subtle);
+    transition: color 300ms cubic-bezier(0.22, 1, 0.36, 1);
+  }
+
+  .app-upload-card:not([aria-disabled="true"]):hover .app-upload-card-hint,
+  .app-upload-card:not([aria-disabled="true"]):focus-visible .app-upload-card-hint {
+    color: var(--app-hover-on-import-panel-hint);
+  }
+
   .app-upload-card:not([aria-disabled="true"]):active {
     transform: translateY(1px);
   }
 
   @media (prefers-reduced-motion: reduce) {
-    .app-upload-card {
+    .app-upload-card,
+    .app-upload-card-hint {
       transition: none;
     }
   }

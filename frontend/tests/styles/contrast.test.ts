@@ -225,7 +225,7 @@ describe('tinted state contrast', () => {
       // The Imports upload card under the pointer (.app-upload-card), which draws its title in the text colour, its
       // hint in subtle text, and a refusal in red, on its own hover colour
       name: 'the upload card under the pointer',
-      text: ['--app-text', '--app-text-subtle', '--app-negative'],
+      text: ['--app-text', '--app-hover-on-import-panel-hint', '--app-negative'],
       fill: (tokens) => resolve(tokens, '--app-hover-on-import-panel'),
     },
     {
@@ -463,5 +463,15 @@ describe('hover on shaded surfaces', () => {
   it.each(Object.keys(THEMES) as Theme[])('shows the upload card under the pointer against the import panel in the %s theme', (theme) => {
     const tokens = THEMES[theme]
     expect(contrast(resolve(tokens, '--app-hover-on-import-panel'), resolve(tokens, '--app-import-panel'))).toBeGreaterThanOrEqual(MINIMUM_HOVER_STEP)
+  })
+
+  // The light panel is nearly white, so the same 3.5% wash that reads in the dark theme gave it only 1.07, which
+  // barely reads as a change on a card the size of the upload card. The hovered card also sits beside the page, whose
+  // colour a lighter wash would blend into
+  it('shows the upload card under the pointer at 1.1 or better against the import panel and 1.05 against the page in the light theme', () => {
+    const tokens = THEMES.light
+    const hovered = resolve(tokens, '--app-hover-on-import-panel')
+    expect(contrast(hovered, resolve(tokens, '--app-import-panel'))).toBeGreaterThanOrEqual(1.1)
+    expect(contrast(hovered, solid(tokens, '--app-bg'))).toBeGreaterThanOrEqual(1.05)
   })
 })
