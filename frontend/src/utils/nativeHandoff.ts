@@ -1,4 +1,5 @@
 import { API_BASE } from '@/api/config'
+import { readStoredValue, removeStoredValue, writeStoredValue } from '@/utils/browserStorage'
 
 const NATIVE_HANDOFF_KEY = 'lumina:native_handoff'
 
@@ -13,13 +14,13 @@ const CODE_CHALLENGE_PATTERN = /^[A-Za-z0-9_-]{43}$/
 export function rememberNativeChallenge(search: string): void {
   const challenge = new URLSearchParams(search).get('native_challenge')
   if (challenge && CODE_CHALLENGE_PATTERN.test(challenge)) {
-    sessionStorage.setItem(NATIVE_HANDOFF_KEY, challenge)
+    writeStoredValue(NATIVE_HANDOFF_KEY, challenge, 'session')
   }
 }
 
 /** Whether this page was opened by a native app to sign in for it */
 export function isNativeSignIn(): boolean {
-  return sessionStorage.getItem(NATIVE_HANDOFF_KEY) !== null
+  return readStoredValue(NATIVE_HANDOFF_KEY, 'session') !== null
 }
 
 /**
@@ -30,9 +31,9 @@ export function isNativeSignIn(): boolean {
  * one-time code. Script can't read that redirect, so no script in the page ever sees the code
  */
 export function handOffToNativeApp(accessToken: string): boolean {
-  const challenge = sessionStorage.getItem(NATIVE_HANDOFF_KEY)
+  const challenge = readStoredValue(NATIVE_HANDOFF_KEY, 'session')
   if (!challenge) return false
-  sessionStorage.removeItem(NATIVE_HANDOFF_KEY)
+  removeStoredValue(NATIVE_HANDOFF_KEY, 'session')
 
   const form = document.createElement('form')
   form.method = 'POST'
