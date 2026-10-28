@@ -9,8 +9,10 @@ import {
   addDays,
   addMonths,
   formatDate,
+  formatDateRange,
   formatDateRangeLabel,
   formatShortDateRangeLabel,
+  formatUnreadableRange,
   formatYmd,
   getDaysInMonth,
   getIsoWeek,
@@ -141,8 +143,8 @@ describe('formatDate', () => {
 
     it.each([
       { format: 'month-day-year', expected: ['Oct 5 – 31', 'Mar 3 – 15, 2027'] },
-      { format: 'day-month-year', expected: ['5 Oct – 31 Oct', '3 Mar – 15 Mar 2027'] },
-      { format: 'iso', expected: ['10-05 – 10-31', '03-03 – 2027-03-15'] },
+      { format: 'day-month-year', expected: ['5 Oct – 31 Oct', '3 Mar 2027 – 15 Mar 2027'] },
+      { format: 'iso', expected: ['10-05 – 10-31', '2027-03-03 – 2027-03-15'] },
     ] satisfies { format: DateFormatSetting; expected: string[] }[])(
       'shortens a range within one month in $format',
       ({ format, expected }) => {
@@ -175,11 +177,25 @@ describe('YYYY-MM-DD strings', () => {
   })
 
   it('formats a range without timezone-shifting either end', () => {
-    expect(formatDateRangeLabel('2026-06-01', '2026-06-30')).toBe('Jun 1, 2026 – Jun 30, 2026')
+    expect(formatDateRangeLabel('2026-06-01', '2026-06-30')).toBe('Jun 1 – 30, 2026')
+  })
+
+  it('leaves the separator and any shared part of a range to the locale', () => {
+    const format = (start: string, end: string) =>
+      formatDateRange(parseYmd(start)!, parseYmd(end)!, DATE_FORMATS.monthDayYear)
+
+    expect(format('2026-06-01', '2026-06-30')).toBe('Jun 1 – 30, 2026')
+    expect(format('2026-06-28', '2026-07-03')).toBe('Jun 28 – Jul 3, 2026')
+    expect(format('2026-12-28', '2027-01-03')).toBe('Dec 28, 2026 – Jan 3, 2027')
+    expect(format('2026-06-01', '2026-06-01')).toBe('Jun 1, 2026')
+  })
+
+  it('lists both ends of an unreadable range as the locale lists items', () => {
+    expect(formatUnreadableRange('2026-02-31', '2026-03-31')).toBe('2026-02-31, Mar 31, 2026')
   })
 
   it('keeps a range end naming no real day as written, rather than the day it would roll forward to', () => {
-    expect(formatDateRangeLabel('2026-02-31', '2026-03-31')).toBe('2026-02-31 – Mar 31, 2026')
+    expect(formatDateRangeLabel('2026-02-31', '2026-03-31')).toBe('2026-02-31, Mar 31, 2026')
   })
 
   it('shortens a range within the current year to the parts that change', () => {
@@ -188,8 +204,8 @@ describe('YYYY-MM-DD strings', () => {
     expect(formatShortDateRangeLabel('2026-10-03', '2026-10-03', 2026)).toBe('Oct 3')
   })
 
-  it('names only the years of a short range that are not the current one, once where both ends share it', () => {
-    expect(formatShortDateRangeLabel('2026-12-28', '2027-01-03', 2026)).toBe('Dec 28 – Jan 3, 2027')
+  it('names the years of a short range when an end is outside the current one, once where both ends share it', () => {
+    expect(formatShortDateRangeLabel('2026-12-28', '2027-01-03', 2026)).toBe('Dec 28, 2026 – Jan 3, 2027')
     expect(formatShortDateRangeLabel('2027-03-03', '2027-03-15', 2026)).toBe('Mar 3 – 15, 2027')
     expect(formatShortDateRangeLabel('2027-01-03', '2027-02-05', 2026)).toBe('Jan 3 – Feb 5, 2027')
     expect(formatShortDateRangeLabel('2027-12-28', '2028-01-03', 2026)).toBe('Dec 28, 2027 – Jan 3, 2028')
@@ -197,7 +213,7 @@ describe('YYYY-MM-DD strings', () => {
   })
 
   it('falls back to the full labels when an end of a short range names no real day', () => {
-    expect(formatShortDateRangeLabel('2026-02-31', '2026-03-31', 2026)).toBe('2026-02-31 – Mar 31, 2026')
+    expect(formatShortDateRangeLabel('2026-02-31', '2026-03-31', 2026)).toBe('2026-02-31, Mar 31, 2026')
   })
 
   it('refuses a day the calendar does not have instead of rolling it forward', () => {

@@ -1,7 +1,7 @@
 import type { InsightsCashFlowResponse } from '@/api/insights'
 import { getRechartsTooltipPoint, type RechartsTooltipState } from '@/components/charts/rechartsTooltip'
 import type { CashFlowBarBucket } from '@/pages/insights/types/cashFlow'
-import { DATE_FORMATS, formatDate, parseYmd } from '@/utils/date'
+import { DATE_FORMATS, formatDate, formatDateRange, formatUnreadableRange, parseYmd } from '@/utils/date'
 import { getChartGranularity } from '@/utils/chartGranularity'
 import { getCustomRangeDays } from './range'
 
@@ -59,8 +59,8 @@ export function getCashFlowBarData(
       const rangeLabel = firstDate && lastDate && firstDate.getTime() === lastDate.getTime()
         ? formatDate(firstDate, dayFormat)
         : firstDate && lastDate
-          ? `${formatDate(firstDate, dayFormat)} – ${formatDate(lastDate, dayFormat)}`
-          : `${bucketStart} – ${bucketEnd}`
+          ? formatDateRange(firstDate, lastDate, dayFormat)
+          : formatUnreadableRange(bucketStart, bucketEnd)
 
       return {
         label,

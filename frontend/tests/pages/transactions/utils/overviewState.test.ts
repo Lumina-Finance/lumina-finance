@@ -25,7 +25,7 @@ function overview(overrides: Partial<TransactionsOverview> = {}): TransactionsOv
   }
 }
 
-const RANGE_LABEL = 'Jun 1, 2026 – Jun 30, 2026'
+const RANGE_LABEL = 'Jun 1 – 30, 2026'
 
 /** Selects a state with terse defaults shared by the focused cases */
 function select({

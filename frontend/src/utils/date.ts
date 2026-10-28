@@ -130,6 +130,30 @@ export function formatDate(date: Date, format: DateFormat, timeZone?: string): s
 }
 
 /**
+ * Renders two dates as a range in the product's locale, such as "Jun 1 – 30, 2026", leaving the
+ * separator and any shared month or year to the locale's own range format
+ *
+ * The locale's range format knows only the locale's own month-day-year order. Under another date
+ * format setting each end is written by `formatDate` and the two are joined with a spaced en dash
+ *
+ * @param start - The first date of the range
+ * @param end - The last date of the range
+ * @param format - One of DATE_FORMATS
+ * @param timeZone - Zone to read the dates in, with the same meaning as for `formatDate`
+ */
+export function formatDateRange(start: Date, end: Date, format: DateFormat, timeZone?: string): string {
+  if (readDateFormat() !== 'month-day-year') {
+    return `${formatDate(start, format, timeZone)} – ${formatDate(end, format, timeZone)}`
+  }
+  // The browser spaces its en dash with thin or no-break spaces, or none, so it is written with
+  // one plain space each side as the other formats do
+  return new Intl.DateTimeFormat(DATE_LOCALE, {
+    ...format,
+    timeZone: resolveTimeZone(timeZone),
+  }).formatRange(start, end).replace(/\s*–\s*/, ' – ')
+}
+
+/**
  * Returns today's calendar day in the given zone as a "YYYY-MM-DD" string
  *
  * @param timeZone - Zone deciding which day it currently is, defaulting to the browser's
@@ -216,20 +240,35 @@ function formatDateLabel(ymd: string): string {
 }
 
 /**
- * Formats a range of "YYYY-MM-DD" calendar dates, such as "Jun 1, 2026 – Jun 30, 2026", with each end
- * labelled as `formatDateLabel` labels it
+ * Formats a range of "YYYY-MM-DD" calendar dates, such as "Jun 1 – 30, 2026", leaving the separator and any
+ * shared month to the locale. An end naming no real day falls back to `formatUnreadableRange`
  */
 export function formatDateRangeLabel(from: string, to: string): string {
-  return `${formatDateLabel(from)} – ${formatDateLabel(to)}`
+  const start = parseYmd(from)
+  const end = parseYmd(to)
+  if (!start || !end) return formatUnreadableRange(from, to)
+  return formatDateRange(start, end, DATE_FORMATS.monthDayYear)
+}
+
+/**
+ * Lists the two ends of a range when one is not a real date, each as `formatDateLabel` labels it
+ *
+ * The locale's range format needs two real dates, so this names both ends with the locale's own list
+ * format instead of joining them with a separator of our own
+ */
+export function formatUnreadableRange(from: string, to: string): string {
+  return new Intl.ListFormat(DATE_LOCALE, { type: 'unit', style: 'long' }).format([
+    formatDateLabel(from),
+    formatDateLabel(to),
+  ])
 }
 
 /**
  * Formats a range of "YYYY-MM-DD" calendar dates as briefly as it still reads clearly, such as
- * "Oct 5 – 31" or "Oct 28 – Nov 3". A year shows only where it isn't the current one, once for a range
- * within one year, as in "Dec 28 – Jan 3, 2027" or "Mar 3 – 15, 2027", and a range of one day reads as
- * that day alone
+ * "Oct 5 – 31" or "Oct 28 – Nov 3". A year shows only where an end falls outside the current one, as in
+ * "Dec 28, 2026 – Jan 3, 2027" or "Mar 3 – 15, 2027", and a range of one day reads as that day alone
  *
- * A string that is not a real date falls back to the full labels `formatDateRangeLabel` gives
+ * A string that is not a real date falls back to what `formatDateRangeLabel` gives
  *
  * @param currentYear - The year it is for the user, which decides whether the year needs saying
  */
@@ -238,21 +277,12 @@ export function formatShortDateRangeLabel(from: string, to: string, currentYear:
   const end = parseYmd(to)
   if (!start || !end) return formatDateRangeLabel(from, to)
 
-  // Written out rather than left to the browser's range formatting, whose spacing around the dash
-  // differs between browsers and from the full range labels
-  const label = (date: Date, withYear: boolean) =>
-    formatDate(date, withYear ? DATE_FORMATS.monthDayYear : DATE_FORMATS.monthDay)
-  const endShowsYear = end.getFullYear() !== currentYear
-  if (from === to) return label(end, endShowsYear)
-
-  // The end's year covers the start too unless the start falls in another year that isn't this one
-  const startShowsYear = start.getFullYear() !== end.getFullYear() && start.getFullYear() !== currentYear
-  const sameMonth = start.getFullYear() === end.getFullYear() && start.getMonth() === end.getMonth()
-  // A bare day number after the dash reads only where the month and day are written in that order
-  const endText = sameMonth && readDateFormat() === 'month-day-year'
-    ? `${end.getDate()}${endShowsYear ? `, ${end.getFullYear()}` : ''}`
-    : label(end, endShowsYear)
-  return `${label(start, startShowsYear)} – ${endText}`
+  // The year shows only when an end falls outside the current one, and then on both ends so the
+  // locale's range format can fold a year the two share
+  const inCurrentYear = start.getFullYear() === currentYear && end.getFullYear() === currentYear
+  const format = inCurrentYear ? DATE_FORMATS.monthDay : DATE_FORMATS.monthDayYear
+  if (from === to) return formatDate(end, format)
+  return formatDateRange(start, end, format)
 }
 
 /**
