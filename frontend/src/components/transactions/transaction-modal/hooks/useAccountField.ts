@@ -5,10 +5,7 @@ import {
   buildAccountOptions,
   buildCounterpartyAccountOptions,
 } from '@/components/transactions/transaction-modal/utils/options'
-import type {
-  TransactionFormFieldErrors,
-  TransactionFormValues,
-} from '@/components/transactions/transaction-modal/types'
+import type { TransactionFormValues } from '@/components/transactions/transaction-modal/types'
 
 interface UseAccountFieldOptions {
   accounts: AccountsOverview[]
@@ -17,7 +14,7 @@ interface UseAccountFieldOptions {
   selectedAccount: AccountsOverview | undefined
   form: TransactionFormValues
   setForm: Dispatch<SetStateAction<TransactionFormValues>>
-  clearError: (field: keyof TransactionFormFieldErrors) => void
+  clearSubmitError: () => void
   tagById: Map<string, Pick<Tag, 'id' | 'group_id' | 'name'>>
 }
 
@@ -42,7 +39,7 @@ export function useAccountField({
   selectedAccount,
   form,
   setForm,
-  clearError,
+  clearSubmitError,
   tagById,
 }: UseAccountFieldOptions): AccountFieldState {
   const accountOptions = useMemo(
@@ -80,9 +77,7 @@ export function useAccountField({
         return !tag || tag.group_id === null || tag.group_id === accountGroupId
       }),
     }))
-    clearError('account_id')
-    clearError('currency')
-    clearError('counterparty_account_id')
+    clearSubmitError()
   }
 
   /** Reports whether an account can hold the matching transaction the ticked checkbox writes */
@@ -102,7 +97,7 @@ export function useAccountField({
 
   const handleCounterpartyAccountChange = (accountId: string) => {
     setForm((f) => ({ ...f, counterparty_account_id: accountId }))
-    clearError('counterparty_account_id')
+    clearSubmitError()
   }
 
   return {

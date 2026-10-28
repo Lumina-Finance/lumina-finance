@@ -13,9 +13,10 @@ import type { BudgetEditorModalErrorGetter, BudgetEditorModalFieldIds, BudgetEdi
 import type { BudgetFormFieldErrors, BudgetFormState } from '@/pages/budgets/types'
 import { budgetCadenceLabel, formatBudgetPeriod } from '@/pages/budgets/utils/budgetPeriods'
 import { NO_CATEGORY_ERROR } from '@/pages/budgets/utils/budgetCreateValidation'
-import { sameStringSet } from '@/pages/budgets/utils/form'
+import { BUDGET_FORM_FIELD_ORDER, getBudgetControlIds, sameStringSet } from '@/pages/budgets/utils/form'
 import { currencySymbol, toMinorUnits } from '@/pages/budgets/utils/money'
 import { useCurrencyListState } from '@/hooks/useCurrencyListState'
+import { useRefusedSubmit } from '@/hooks/useRefusedSubmit'
 import { useRestoreOnceWhenReady } from '@/hooks/useRestoreOnceWhenReady'
 import { findCurrencyExponent, fromMinorUnits } from '@/utils/moneyInput'
 import { ACTION_LOADING_MIN_MS, waitForMilliseconds } from '@/utils/timing'
@@ -29,13 +30,6 @@ const EDIT_FIELD_IDS: BudgetEditorModalFieldIds = {
   frequency: 'budget-edit-frequency',
   periodStart: 'budget-edit-period-start',
   categorySearch: 'budget-edit-category-search',
-  categoryError: 'budget-edit-category-error',
-}
-
-const EDIT_INITIAL_TOUCHED = {
-  name: false,
-  limit: false,
-  categoryIds: false,
 }
 
 /**
@@ -91,37 +85,12 @@ export default function BudgetEditModal({
     [baseBudget, currencies, latestPeriod],
   )
   const [formError, setFormError] = useState<string | null>(null)
-  const [fieldErrors, setFieldErrors] = useState<BudgetFormFieldErrors>({})
-  const [touched, setTouched] = useState<Record<string, boolean>>(EDIT_INITIAL_TOUCHED)
   const [saveInProgress, setSaveInProgress] = useState(false)
   const [categorySearch, setCategorySearch] = useState('')
   const [form, setForm] = useState<BudgetFormState>(initialForm)
 
   // Archiving stays outside the shared budget form because only the edit workflow exposes it
   const [isArchived, setIsArchived] = useState(baseBudget.is_archived)
-
-  /**
-   * Restores edit state from the latest budget snapshot after save or close
-   */
-  const resetEditState = useCallback(() => {
-    setForm(initialForm)
-    setIsArchived(baseBudget.is_archived)
-    setFieldErrors({})
-    setTouched(EDIT_INITIAL_TOUCHED)
-    setFormError(null)
-    setCategorySearch('')
-    setSaveInProgress(false)
-  }, [baseBudget.is_archived, initialForm])
-
-  // The edit modal stays mounted, so reopening must reseed form and archive state from the current
-  // base budget, otherwise a stale archive toggle would silently unarchive on the next save. This
-  // adjusts state during render rather than in an effect so the reseed lands before the reopened
-  // modal paints
-  const [wasOpen, setWasOpen] = useState(open)
-  if (open !== wasOpen) {
-    setWasOpen(open)
-    if (open) resetEditState()
-  }
 
   // Preserve the budget's ownership scope so shared and personal budgets cannot cross category boundaries
   const categoryOptions = useMemo(
@@ -161,25 +130,48 @@ export default function BudgetEditModal({
   // The backend rejects any non-unarchive change to an archived budget, so every other field is locked
   // against the persisted archived state rather than the staged toggle until the unarchive is saved
   const fieldsLocked = baseBudget.is_archived
-  // The same waiver as the validator: a locked limit is blank and stays out of the save, so it must not
-  // hold the button down either. periodChanged is already false while the limit is blank
-  const saveBlockedReason = form.name.trim().length === 0
-    ? 'Name the budget first'
-    : !hasCategory
-      ? 'Choose a category first'
-      : latestPeriod && !isLimitLocked && limitMinorUnits === null
-        ? 'Enter a limit first'
-        : !(baseChanged || periodChanged || archiveChanged)
-          ? 'There are no changes to save'
-          : undefined
-  const state: BudgetEditorModalViewState = { form, formError, fieldErrors, touched, categorySearch }
+
+  // A locked limit is blank, disabled and left out of the save, so requiring a readable one would refuse
+  // every other edit to the budget
+  const problems: BudgetFormFieldErrors = {}
+  if (!form.name.trim()) problems.name = 'Name is required'
+  if (!hasCategory) problems.categoryIds = NO_CATEGORY_ERROR
+  if (latestPeriod && !isLimitLocked && limitMinorUnits === null) problems.limit = 'Limit must be greater than zero'
+  const refusal = useRefusedSubmit(problems, BUDGET_FORM_FIELD_ORDER, getBudgetControlIds(EDIT_FIELD_IDS))
+  const resetRefusal = refusal.reset
+
+  // Not an input problem, so the button is faded from the start with this as its reason
+  const noChangesReason = baseChanged || periodChanged || archiveChanged ? undefined : 'There are no changes to save'
+
+  /**
+   * Restores edit state from the latest budget snapshot after save or close
+   */
+  const resetEditState = useCallback(() => {
+    setForm(initialForm)
+    setIsArchived(baseBudget.is_archived)
+    resetRefusal()
+    setFormError(null)
+    setCategorySearch('')
+    setSaveInProgress(false)
+  }, [baseBudget.is_archived, initialForm, resetRefusal])
+
+  // The edit modal stays mounted, so reopening must reseed form and archive state from the current
+  // base budget, otherwise a stale archive toggle would silently unarchive on the next save. This
+  // adjusts state during render rather than in an effect so the reseed lands before the reopened
+  // modal paints
+  const [wasOpen, setWasOpen] = useState(open)
+  if (open !== wasOpen) {
+    setWasOpen(open)
+    if (open) resetEditState()
+  }
+
+  const state: BudgetEditorModalViewState = { form, categorySearch }
   const options: BudgetEditorModalOptions = { categories: categoryOptions, filteredCategories, currencies }
-  // Save changes is held off while no category is chosen, and a held-off button does not submit to
-  // surface the error, so that one is shown at once rather than after a touch. An archived budget's
-  // categories are locked, so nothing there can be missing
+  // Taking the last category away is shown at once rather than after the field is left, since the person
+  // has just made it so. An archived budget's categories are locked, so nothing there can be missing
   const showError: BudgetEditorModalErrorGetter = (field) => {
-    if (field === 'categoryIds') return !hasCategory && !fieldsLocked ? NO_CATEGORY_ERROR : undefined
-    return touched[field] ? fieldErrors[field] : undefined
+    if (field === 'categoryIds' && !fieldsLocked) return problems.categoryIds
+    return refusal.errors[field]
   }
 
   /**
@@ -218,48 +210,15 @@ export default function BudgetEditModal({
   })
 
   /**
-   * Validates fields that can be edited without changing immutable budget cadence fields
+   * Updates an editable form field and clears the failure of an earlier save, which the change may have fixed
    */
-  const validateEditForm = () => {
-    const errors: BudgetFormFieldErrors = {}
-    if (!form.name.trim()) errors.name = 'Name is required'
-    if (!hasCategory) errors.categoryIds = NO_CATEGORY_ERROR
-    // A locked limit is blank, disabled and left out of the save, so requiring a readable one here would
-    // refuse every other edit to the budget
-    if (latestPeriod && !isLimitLocked && limitMinorUnits === null) {
-      errors.limit = 'Limit must be greater than zero'
-    }
-    return errors
-  }
-
-  /**
-   * Clears field and form-level errors after a user changes the related input
-   */
-  const clearError = (field: keyof BudgetFormFieldErrors) => {
-    setFieldErrors((current) => ({ ...current, [field]: undefined }))
+  const setField = <K extends keyof BudgetFormState>(field: K, value: BudgetFormState[K]) => {
+    setForm((current) => ({ ...current, [field]: value }))
     setFormError(null)
   }
 
   /**
-   * Updates an editable form field and clears validation errors tied to that field
-   */
-  const setField = <K extends keyof BudgetFormState>(field: K, value: BudgetFormState[K]) => {
-    setForm((current) => ({ ...current, [field]: value }))
-    if (field === 'name') clearError('name')
-    if (field === 'limit') clearError('limit')
-  }
-
-  /**
-   * Validates touched fields without surfacing untouched form errors
-   */
-  const handleBlur = (field: keyof BudgetFormFieldErrors) => {
-    setTouched((current) => ({ ...current, [field]: true }))
-    const errors = validateEditForm()
-    setFieldErrors((current) => ({ ...current, [field]: errors[field] }))
-  }
-
-  /**
-   * Toggles tracked categories and clears category validation once the user acts
+   * Toggles tracked categories
    */
   const toggleCategory = (categoryId: string) => {
     setForm((current) => ({
@@ -268,7 +227,7 @@ export default function BudgetEditModal({
         ? current.categoryIds.filter((id) => id !== categoryId)
         : [...current.categoryIds, categoryId],
     }))
-    clearError('categoryIds')
+    setFormError(null)
   }
 
   /**
@@ -278,12 +237,7 @@ export default function BudgetEditModal({
     event.preventDefault()
     setFormError(null)
 
-    const errors = validateEditForm()
-    setFieldErrors(errors)
-    setTouched({ name: true, limit: true, categoryIds: true })
-    if (Object.keys(errors).length > 0) {
-      return
-    }
+    if (!refusal.guard()) return
 
     // Base-budget fields and current-period fields are persisted through different endpoints
     const basePatch: {
@@ -332,7 +286,7 @@ export default function BudgetEditModal({
     onRecursChange: (recurs) => setField('recurs', recurs),
     onCategorySearchChange: setCategorySearch,
     onCategoryToggle: toggleCategory,
-    onBlur: handleBlur,
+    onBlur: refusal.touch,
   }
 
   return (
@@ -353,7 +307,7 @@ export default function BudgetEditModal({
           level="stacked"
           isPending={isPending}
           submitDisabled={isPending}
-          submitDisabledReason={saveBlockedReason}
+          submitDisabledReason={refusal.blockedReason ?? noChangesReason}
           submitLabel="Save changes"
           onClose={closeAndReset}
         />

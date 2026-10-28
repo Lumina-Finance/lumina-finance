@@ -3,6 +3,7 @@ import type { Currency } from '@/api/currency'
 import IconTooltip from '@/components/tooltips/IconTooltip'
 import { useMoneyInput } from '@/hooks/useMoneyInput'
 import { currencySymbol } from '@/pages/settings/components/tax-advantaged/tax-advantaged-categories-section/utils/categoryUtils'
+import { getCompactFieldFrameStyle } from '@/pages/settings/components/tax-advantaged/tax-advantaged-categories-section/utils/compactFieldStyle'
 import { getCurrencyExponent, getMoneyPlaceholder } from '@/utils/moneyInput'
 
 /**
@@ -33,6 +34,8 @@ export function CurrencyInput({
   ariaLabel,
   currencies,
   currency,
+  errorId,
+  hasError = false,
   id,
   onBlur,
   onChange,
@@ -43,6 +46,10 @@ export function CurrencyInput({
   ariaLabel?: string
   currencies: Currency[]
   currency: string
+
+  /** Id of the message saying what is wrong, which describes the input while `hasError` is set */
+  errorId?: string
+  hasError?: boolean
   id?: string
   onBlur?: () => void
   onChange: (value: string) => void
@@ -79,8 +86,10 @@ export function CurrencyInput({
       )}
       <input
         aria-label={ariaLabel}
+        aria-describedby={hasError ? errorId : undefined}
+        aria-invalid={hasError ? true : undefined}
         id={id}
-        className={`app-input w-full ${symbol ? 'pl-8' : ''}`}
+        className={`app-input w-full ${symbol ? 'pl-8' : ''} ${hasError ? 'app-input-error' : ''}`}
         placeholder={placeholder ?? getMoneyPlaceholder(exponent)}
         required={required}
         {...moneyInput}
@@ -97,6 +106,8 @@ export function CompactCurrencyInput({
   ariaLabel,
   currencies,
   currency,
+  errorId,
+  hasError = false,
   id,
   onBlur,
   onChange,
@@ -106,6 +117,10 @@ export function CompactCurrencyInput({
   ariaLabel: string
   currencies: Currency[]
   currency: string
+
+  /** Id of the message saying what is wrong, which describes the input while `hasError` is set */
+  errorId?: string
+  hasError?: boolean
   id?: string
   onBlur?: () => void
   onChange: (value: string) => void
@@ -127,7 +142,7 @@ export function CompactCurrencyInput({
   return (
     <div
       className="group flex h-9 w-full min-w-0 items-center gap-1.5 rounded-md border border-transparent px-2 transition-colors duration-150 hover:border-[var(--app-border)] app-field-focus"
-      style={{ background: 'color-mix(in srgb, var(--app-input-bg) 55%, var(--app-bg))' }}
+      style={getCompactFieldFrameStyle(hasError)}
     >
       {symbol && (
         <span className="shrink-0 text-[0.9375rem]" style={{ color: 'var(--app-text-subtle)' }} aria-hidden>
@@ -136,6 +151,8 @@ export function CompactCurrencyInput({
       )}
       <input
         aria-label={ariaLabel}
+        aria-describedby={hasError ? errorId : undefined}
+        aria-invalid={hasError ? true : undefined}
         id={id}
         className="block h-8 min-w-0 flex-1 bg-transparent text-[0.9375rem] font-medium leading-8 outline-none"
         style={{ color: 'var(--app-text)' }}

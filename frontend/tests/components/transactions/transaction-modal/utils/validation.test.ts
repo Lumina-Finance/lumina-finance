@@ -7,7 +7,8 @@
  */
 import { describe, expect, it } from 'vitest'
 import { buildCreateTransactionPayload } from '@/components/transactions/transaction-modal/utils/payloads'
-import { validateTransactionForm } from '@/components/transactions/transaction-modal/utils/validation'
+import { getTransactionProblems, validateTransactionForm } from '@/components/transactions/transaction-modal/utils/validation'
+import { createAccount } from './fixtures'
 
 describe('transaction form validation', () => {
   it('validates required fields and positive amounts before creating payloads', () => {
@@ -99,5 +100,44 @@ describe('transaction form validation', () => {
     expect(validateTransactionForm(
       { ...transferForm, counterparty_account_id: 'checking' },
     ).counterparty_account_id).toBe('Choose a different account')
+  })
+})
+
+describe('transaction problems', () => {
+  const pairForm = {
+    kind: 'transfer' as const,
+    direction: 'debit' as const,
+    account_id: 'from',
+    category_id: 'transfer-out',
+    merchant_id: 'store',
+    amount: '50.00',
+    currency: 'CAD',
+    notes: '',
+    date: '2026-06-11',
+    tag_ids: [],
+    symmetric_transfer: true,
+    counterparty_account_id: 'to',
+  }
+  const from = createAccount({ id: 'from', currency: 'CAD' })
+
+  it('marks the receiving account of a new pair that cannot hold the same amount', () => {
+    expect(getTransactionProblems(pairForm, {
+      editing: false,
+      selectedAccount: from,
+      selectedCounterpartyAccount: createAccount({ id: 'to', currency: 'JPY' }),
+    })).toEqual({ counterparty_account_id: 'Both accounts must use the same currency' })
+  })
+
+  it('leaves a pair of matching accounts and an edit of a recorded one unmarked', () => {
+    expect(getTransactionProblems(pairForm, {
+      editing: false,
+      selectedAccount: from,
+      selectedCounterpartyAccount: createAccount({ id: 'to', currency: 'CAD' }),
+    })).toEqual({})
+    expect(getTransactionProblems(pairForm, {
+      editing: true,
+      selectedAccount: from,
+      selectedCounterpartyAccount: createAccount({ id: 'to', currency: 'JPY' }),
+    })).toEqual({})
   })
 })

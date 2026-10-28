@@ -11,7 +11,6 @@ import {
 import { buildCategoryOptions } from '@/components/transactions/transaction-modal/utils/categories'
 import { getCategorySelectionTransition } from '@/components/transactions/transaction-modal/utils/categoryTransitions'
 import type {
-  TransactionFormFieldErrors,
   TransactionFormValues,
   TransactionModalKind,
 } from '@/components/transactions/transaction-modal/types'
@@ -27,7 +26,7 @@ interface UseMerchantFieldOptions {
   form: TransactionFormValues
   setForm: Dispatch<SetStateAction<TransactionFormValues>>
   applyKindChange: (nextKind: TransactionModalKind, fields?: Partial<TransactionFormValues>) => void
-  clearError: (field: keyof TransactionFormFieldErrors) => void
+  clearSubmitError: () => void
   readOnly: boolean
   setSubmitError: Dispatch<SetStateAction<string>>
   setSubmitErrorTitle: Dispatch<SetStateAction<string>>
@@ -68,7 +67,7 @@ export function useMerchantField({
   form,
   setForm,
   applyKindChange,
-  clearError,
+  clearSubmitError,
   readOnly,
   setSubmitError,
   setSubmitErrorTitle,
@@ -139,7 +138,7 @@ export function useMerchantField({
     const defaultCategoryId = merchant?.default_category_id
     if (!defaultCategoryId) {
       setForm((f) => ({ ...f, merchant_id: merchantId }))
-      clearError('merchant_id')
+      clearSubmitError()
       return
     }
 
@@ -152,8 +151,7 @@ export function useMerchantField({
       merchant_id: merchantId,
       ...transition.fields,
     })
-    clearError('merchant_id')
-    clearError('category_id')
+    clearSubmitError()
   }
 
   const handleMerchantChange = (merchantId: string) => {

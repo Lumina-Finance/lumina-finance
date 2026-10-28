@@ -9,6 +9,12 @@ interface OtpInputProps {
   length?: number;
   disabled?: boolean;
   autoFocus?: boolean;
+  /** Lets a visible label name the field and a refused press focus it */
+  id?: string;
+  /** Marks the boxes as holding a wrong or missing code */
+  hasError?: boolean;
+  /** The message describing the problem, which the field points to as its description */
+  errorId?: string;
 }
 
 /**
@@ -17,7 +23,16 @@ interface OtpInputProps {
  * instead of racing a row of controlled boxes that drop the last autofilled digit. The boxes are a
  * purely visual rendering of its value, with native typing, backspace, paste, and autofill for free
  */
-export function OtpInput({ value, onChange, length = OTP_LENGTH, disabled = false, autoFocus = false }: OtpInputProps) {
+export function OtpInput({
+  value,
+  onChange,
+  length = OTP_LENGTH,
+  disabled = false,
+  autoFocus = false,
+  id,
+  hasError = false,
+  errorId,
+}: OtpInputProps) {
   const inputRef = useRef<HTMLInputElement>(null);
   const [isFocused, setIsFocused] = useState(false);
 
@@ -34,6 +49,7 @@ export function OtpInput({ value, onChange, length = OTP_LENGTH, disabled = fals
     >
       <input
         ref={inputRef}
+        id={id}
         type="text"
         inputMode="numeric"
         autoComplete="one-time-code"
@@ -46,6 +62,8 @@ export function OtpInput({ value, onChange, length = OTP_LENGTH, disabled = fals
         onFocus={() => setIsFocused(true)}
         onBlur={() => setIsFocused(false)}
         aria-label="One-time code"
+        aria-invalid={hasError ? true : undefined}
+        aria-describedby={hasError ? errorId : undefined}
         // The real field sits invisibly over the boxes so it captures typing, paste, and autofill while
         // the boxes below show its digits
         className="absolute inset-0 z-10 h-full w-full cursor-default opacity-0"
@@ -57,12 +75,14 @@ export function OtpInput({ value, onChange, length = OTP_LENGTH, disabled = fals
             key={index}
             data-testid="otp-box"
             aria-hidden
-            className="app-input flex h-12 w-12 items-center justify-center text-lg"
+            className={`app-input flex h-12 w-12 items-center justify-center text-lg ${hasError ? 'app-input-error' : ''}`}
             style={{
               paddingLeft: 0,
               paddingRight: 0,
               ...(isActive
-                ? { borderColor: 'var(--app-focus-ring)', boxShadow: 'var(--app-focus-border)' }
+                ? hasError
+                  ? { borderColor: 'var(--app-negative)', boxShadow: 'var(--app-focus-border-error)' }
+                  : { borderColor: 'var(--app-focus-ring)', boxShadow: 'var(--app-focus-border)' }
                 : {}),
             }}
           >

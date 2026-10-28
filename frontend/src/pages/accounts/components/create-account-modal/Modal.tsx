@@ -1,5 +1,6 @@
 import { useState, useMemo, type FormEvent } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
+import { FormError } from '@/components/forms/FormError';
 import Dropdown from '@/components/dropdown/Dropdown';
 import LoadFailure from '@/components/errors/LoadFailure';
 import IconTooltip from '@/components/tooltips/IconTooltip';
@@ -16,14 +17,17 @@ import { useCreateAccount } from '@/api/accounts';
 import { useAuth } from '@/hooks/useAuth';
 import { useInstitutionModal } from '@/hooks/useInstitutionModal';
 import { useMoneyInput } from '@/hooks/useMoneyInput';
+import { useRefusedSubmit } from '@/hooks/useRefusedSubmit';
 import { getCreateFailureMessage } from '@/utils/createFailure';
 import { getCurrencyExponent } from '@/utils/moneyInput';
 import { getFieldLabelId } from '@/utils/fieldLabel';
 import {
-  ALL_CREATE_ACCOUNT_FIELDS_TOUCHED,
+  CREATE_ACCOUNT_CONTROL_IDS,
   CREATE_ACCOUNT_EASE,
+  CREATE_ACCOUNT_ERROR_IDS,
   CREATE_ACCOUNT_MODAL_FIELD_IDS,
   CREATE_ACCOUNT_TYPE_OPTIONS,
+  CREATE_ACCOUNT_VALIDATED_FIELDS,
 } from '@/pages/accounts/components/create-account-modal/constants';
 import {
   buildCreateAccountPayload,
@@ -37,11 +41,7 @@ import {
   buildCreateAccountInstitutionOptions,
   buildCreateAccountTaxPlanOptions,
 } from '@/pages/accounts/components/create-account-modal/utils/options';
-import type {
-  CreateAccountFieldErrors,
-  CreateAccountFormField,
-  CreateAccountValidatedField,
-} from '@/pages/accounts/components/create-account-modal/types';
+import type { CreateAccountFormField } from '@/pages/accounts/components/create-account-modal/types';
 
 const conditionalField = {
   initial: { height: 0, opacity: 0 },
@@ -70,9 +70,13 @@ export default function CreateAccountModal({ open, onClose }: CreateAccountModal
   } = useTaxAdvantagedCategories();
 
   const [form, setForm] = useState(() => buildInitialCreateAccountForm(user?.base_currency));
-  const [fieldErrors, setFieldErrors] = useState<CreateAccountFieldErrors>({});
-  const [touched, setTouched] = useState<Partial<Record<CreateAccountValidatedField, boolean>>>({});
   const [submitError, setSubmitError] = useState('');
+  const refusal = useRefusedSubmit(
+    validateCreateAccountForm(form),
+    CREATE_ACCOUNT_VALIDATED_FIELDS,
+    CREATE_ACCOUNT_CONTROL_IDS,
+  );
+  const errors = refusal.errors;
 
   const {
     conditionalAccountField,
@@ -95,9 +99,6 @@ export default function CreateAccountModal({ open, onClose }: CreateAccountModal
 
   const handleChange = (field: CreateAccountFormField, value: string) => {
     setForm((current) => getNextCreateAccountForm(current, field, value));
-    if (fieldErrors[field as CreateAccountValidatedField]) {
-      setFieldErrors((prev) => ({ ...prev, [field]: undefined }));
-    }
     setSubmitError('');
   };
 
@@ -109,33 +110,23 @@ export default function CreateAccountModal({ open, onClose }: CreateAccountModal
     institutionModal.close();
   };
 
-  const handleBlur = (field: CreateAccountValidatedField) => {
-    setTouched((t) => ({ ...t, [field]: true }));
-    const errors = validateCreateAccountForm(form);
-    setFieldErrors((prev) => ({ ...prev, [field]: errors[field] }));
-  };
-
   const currencyExponent = getCurrencyExponent(currencies, form.currency);
   const startingBalanceInput = useMoneyInput({
     value: form.starting_balance,
     exponent: currencyExponent,
     onChange: (value) => handleChange('starting_balance', value),
-    onBlur: () => handleBlur('starting_balance'),
+    onBlur: () => refusal.touch('starting_balance'),
   });
   const creditLimitInput = useMoneyInput({
     value: form.credit_limit,
     exponent: currencyExponent,
     onChange: (value) => handleChange('credit_limit', value),
-    onBlur: () => handleBlur('credit_limit'),
+    onBlur: () => refusal.touch('credit_limit'),
   });
 
   const handleSubmit = (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
-
-    const errors = validateCreateAccountForm(form);
-    setFieldErrors(errors);
-    setTouched(ALL_CREATE_ACCOUNT_FIELDS_TOUCHED);
-    if (Object.keys(errors).length > 0) return;
+    if (!refusal.guard()) return;
 
     const payload = buildCreateAccountPayload(form, currencies);
 
@@ -146,8 +137,6 @@ export default function CreateAccountModal({ open, onClose }: CreateAccountModal
       },
     });
   };
-
-  const showError = (field: CreateAccountValidatedField) => touched[field] && fieldErrors[field];
 
   return (
     <>
@@ -164,6 +153,7 @@ export default function CreateAccountModal({ open, onClose }: CreateAccountModal
           <ModalFormFooter
             submitLabel="Create account"
             submitDisabled={mutation.isPending}
+            submitBlockedReason={refusal.blockedReason}
             submitWidthClassName="w-full sm:w-40"
             onCancel={onClose}
           />
@@ -178,14 +168,16 @@ export default function CreateAccountModal({ open, onClose }: CreateAccountModal
                 <CreateModalFieldLabelRow
                   htmlFor={CREATE_ACCOUNT_MODAL_FIELD_IDS.accountType}
                   label="Account type"
-                  error={showError('account_type') || undefined}
+                  error={errors.account_type}
+                  errorId={CREATE_ACCOUNT_ERROR_IDS.account_type}
                 />
                 <Dropdown
                   id={CREATE_ACCOUNT_MODAL_FIELD_IDS.accountType}
                   options={CREATE_ACCOUNT_TYPE_OPTIONS}
                   value={form.account_type}
                   onChange={(v) => handleChange('account_type', v)}
-                  hasError={!!showError('account_type')}
+                  hasError={!!errors.account_type}
+                  describedBy={errors.account_type ? CREATE_ACCOUNT_ERROR_IDS.account_type : undefined}
                   labelledBy={getFieldLabelId(CREATE_ACCOUNT_MODAL_FIELD_IDS.accountType)}
                   placeholder="Select type..."
                   searchable
@@ -197,15 +189,22 @@ export default function CreateAccountModal({ open, onClose }: CreateAccountModal
               </div>
 
               <div>
-                <CreateModalFieldLabelRow htmlFor="account-name" label="Account name" error={showError('name') || undefined} />
+                <CreateModalFieldLabelRow
+                  htmlFor={CREATE_ACCOUNT_MODAL_FIELD_IDS.name}
+                  label="Account name"
+                  error={errors.name}
+                  errorId={CREATE_ACCOUNT_ERROR_IDS.name}
+                />
                 <input
-                  id="account-name"
+                  id={CREATE_ACCOUNT_MODAL_FIELD_IDS.name}
                   type="text"
-                  className={`app-input ${showError('name') ? 'app-input-error' : ''}`}
+                  className={`app-input ${errors.name ? 'app-input-error' : ''}`}
+                  aria-invalid={errors.name ? true : undefined}
+                  aria-describedby={errors.name ? CREATE_ACCOUNT_ERROR_IDS.name : undefined}
                   placeholder="e.g. Main Checking"
                   value={form.name}
                   onChange={(e) => handleChange('name', e.target.value)}
-                  onBlur={() => handleBlur('name')}
+                  onBlur={() => refusal.touch('name')}
                   maxLength={256}
                 />
               </div>
@@ -214,14 +213,16 @@ export default function CreateAccountModal({ open, onClose }: CreateAccountModal
                 <CreateModalFieldLabelRow
                   htmlFor={CREATE_ACCOUNT_MODAL_FIELD_IDS.currency}
                   label="Currency"
-                  error={showError('currency') || undefined}
+                  error={errors.currency}
+                  errorId={CREATE_ACCOUNT_ERROR_IDS.currency}
                 />
                 <Dropdown
                   id={CREATE_ACCOUNT_MODAL_FIELD_IDS.currency}
                   options={currencyOptions}
                   value={form.currency}
                   onChange={(v) => handleChange('currency', v)}
-                  hasError={!!showError('currency')}
+                  hasError={!!errors.currency}
+                  describedBy={errors.currency ? CREATE_ACCOUNT_ERROR_IDS.currency : undefined}
                   labelledBy={getFieldLabelId(CREATE_ACCOUNT_MODAL_FIELD_IDS.currency)}
                   placeholder={currencies.length === 0 ? 'Loading currencies...' : 'Select currency...'}
                   searchable
@@ -264,9 +265,10 @@ export default function CreateAccountModal({ open, onClose }: CreateAccountModal
 
               <div>
                 <CreateModalFieldLabelRow
-                  htmlFor="starting-balance"
+                  htmlFor={CREATE_ACCOUNT_MODAL_FIELD_IDS.startingBalance}
                   label={startingBalanceLabel}
-                  error={showError('starting_balance') || undefined}
+                  error={errors.starting_balance}
+                  errorId={CREATE_ACCOUNT_ERROR_IDS.starting_balance}
                   accessory={(
                     <IconTooltip
                       label={`${startingBalanceLabel} info`}
@@ -288,8 +290,10 @@ export default function CreateAccountModal({ open, onClose }: CreateAccountModal
                     </span>
                   )}
                   <input
-                    id="starting-balance"
-                    className={`app-input ${selectedCurrencySymbol ? 'pl-8' : ''} ${showError('starting_balance') ? 'app-input-error' : ''}`}
+                    id={CREATE_ACCOUNT_MODAL_FIELD_IDS.startingBalance}
+                    className={`app-input ${selectedCurrencySymbol ? 'pl-8' : ''} ${errors.starting_balance ? 'app-input-error' : ''}`}
+                    aria-invalid={errors.starting_balance ? true : undefined}
+                    aria-describedby={errors.starting_balance ? CREATE_ACCOUNT_ERROR_IDS.starting_balance : undefined}
                     placeholder="Optional"
                     {...startingBalanceInput}
                   />
@@ -335,9 +339,10 @@ export default function CreateAccountModal({ open, onClose }: CreateAccountModal
                     ) : (
                       <div>
                         <CreateModalFieldLabelRow
-                          htmlFor="credit-limit"
+                          htmlFor={CREATE_ACCOUNT_MODAL_FIELD_IDS.creditLimit}
                           label="Credit limit"
-                          error={showError('credit_limit') || undefined}
+                          error={errors.credit_limit}
+                          errorId={CREATE_ACCOUNT_ERROR_IDS.credit_limit}
                         />
                         <div className="relative">
                           {selectedCurrencySymbol && (
@@ -349,8 +354,10 @@ export default function CreateAccountModal({ open, onClose }: CreateAccountModal
                             </span>
                           )}
                           <input
-                            id="credit-limit"
-                            className={`app-input ${selectedCurrencySymbol ? 'pl-8' : ''} ${showError('credit_limit') ? 'app-input-error' : ''}`}
+                            id={CREATE_ACCOUNT_MODAL_FIELD_IDS.creditLimit}
+                            className={`app-input ${selectedCurrencySymbol ? 'pl-8' : ''} ${errors.credit_limit ? 'app-input-error' : ''}`}
+                            aria-invalid={errors.credit_limit ? true : undefined}
+                            aria-describedby={errors.credit_limit ? CREATE_ACCOUNT_ERROR_IDS.credit_limit : undefined}
                             placeholder="Optional"
                             {...creditLimitInput}
                           />
@@ -363,20 +370,7 @@ export default function CreateAccountModal({ open, onClose }: CreateAccountModal
             </div>
           </CreateModalSectionFrame>
 
-          <AnimatePresence>
-            {submitError && (
-              <motion.p
-                className="text-sm font-medium"
-                style={{ color: 'var(--app-negative)' }}
-                initial={{ opacity: 0, y: -4 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: -4 }}
-                transition={{ duration: 0.15 }}
-              >
-                {submitError}
-              </motion.p>
-            )}
-          </AnimatePresence>
+          <FormError message={submitError} />
         </div>
       </ModalTitledPanel>
 

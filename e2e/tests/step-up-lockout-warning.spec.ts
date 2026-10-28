@@ -18,7 +18,7 @@ test('warns how many attempts remain after a wrong step-up password', ACROSS_ORI
 
   await page.locator('#security').getByRole('button', { name: 'Manage' }).click()
   await page.getByRole('button', { name: 'Enable' }).click()
-  await page.getByPlaceholder('Current password').fill(`${user.password}-wrong`)
+  await page.getByRole('dialog').getByLabel('Current password').fill(`${user.password}-wrong`)
   await page.getByRole('button', { name: 'Continue' }).click()
 
   // The wording is pinned by the unit tests, so this only needs a count of attempts to be shown

@@ -68,6 +68,6 @@ test('opens the step-up modal for the message when a password is refused', ACROS
   await page.getByRole('button', { name: 'Enable' }).click()
 
   const modal = page.getByRole('dialog', { name: 'Turn on two-factor authentication' })
-  await modal.getByPlaceholder('Current password').fill(`${user.password}-wrong`)
+  await modal.getByLabel('Current password').fill(`${user.password}-wrong`)
   await expectModalOpensForMessage(modal, () => modal.getByRole('button', { name: 'Continue' }).click())
 })

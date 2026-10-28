@@ -3,7 +3,7 @@ import CreateModalSectionFrame from '@/components/create-modal/SectionFrame'
 import DateField from '@/components/date-field/DateField'
 import Dropdown, { type DropdownOption } from '@/components/dropdown/Dropdown'
 import IconTooltip from '@/components/tooltips/IconTooltip'
-import { TRANSACTION_MODAL_FIELD_IDS } from '@/components/transactions/transaction-modal/constants'
+import { TRANSACTION_MODAL_ERROR_IDS, TRANSACTION_MODAL_FIELD_IDS } from '@/components/transactions/transaction-modal/constants'
 import { useMoneyInput } from '@/hooks/useMoneyInput'
 import { getMoneyPlaceholder } from '@/utils/moneyInput'
 import {
@@ -76,12 +76,18 @@ export default function TransactionDetailsSection({
     <CreateModalSectionFrame step="03" title="Details">
       <div className="grid gap-3 sm:grid-cols-[11rem_8.5rem_minmax(0,1fr)]">
         <div>
-          <CreateModalFieldLabelRow htmlFor="txn-date" label="Date" error={dateError} />
+          <CreateModalFieldLabelRow
+            htmlFor={TRANSACTION_MODAL_FIELD_IDS.date}
+            label="Date"
+            error={dateError}
+            errorId={TRANSACTION_MODAL_ERROR_IDS.date}
+          />
           <DateField
-            id="txn-date"
+            id={TRANSACTION_MODAL_FIELD_IDS.date}
             ariaLabel="Date"
             value={date}
             error={!!dateError}
+            describedById={TRANSACTION_MODAL_ERROR_IDS.date}
             disabled={readOnly}
             onChange={onDateChange}
             onBlur={onDateBlur}
@@ -115,7 +121,7 @@ export default function TransactionDetailsSection({
         </div>
         <div>
           <CreateModalFieldLabelRow
-            htmlFor="txn-amount"
+            htmlFor={TRANSACTION_MODAL_FIELD_IDS.amount}
             label={isAmountLocked ? (
               <span className="inline-flex items-center gap-2">
                 Amount
@@ -131,6 +137,7 @@ export default function TransactionDetailsSection({
               </span>
             ) : 'Amount'}
             error={amountError}
+            errorId={TRANSACTION_MODAL_ERROR_IDS.amount}
           />
           <div className="relative">
             {selectedCurrencySymbol && (
@@ -146,8 +153,10 @@ export default function TransactionDetailsSection({
               </span>
             )}
             <input
-              id="txn-amount"
+              id={TRANSACTION_MODAL_FIELD_IDS.amount}
               className={`app-input w-full disabled:cursor-not-allowed disabled:opacity-60 ${selectedCurrencySymbol ? 'pl-8' : ''} ${amountError ? 'app-input-error' : ''}`}
+              aria-invalid={amountError ? true : undefined}
+              aria-describedby={amountError ? TRANSACTION_MODAL_ERROR_IDS.amount : undefined}
               placeholder={isAmountLocked ? undefined : getMoneyPlaceholder(currencyExponent)}
               disabled={readOnly || isAmountLocked}
               {...amountInput}

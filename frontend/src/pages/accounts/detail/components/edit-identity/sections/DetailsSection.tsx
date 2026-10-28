@@ -96,6 +96,7 @@ export function AccountDetailsSection({
               </span>
             )}
             error={fieldErrors.credit_limit}
+            errorId={EDIT_ACCOUNT_IDENTITY_FIELD_IDS.creditLimitError}
           />
           <div className="relative">
             {selectedCurrencySymbol && (
@@ -109,6 +110,8 @@ export function AccountDetailsSection({
             <input
               id={EDIT_ACCOUNT_IDENTITY_FIELD_IDS.creditLimit}
               className={`app-input disabled:cursor-not-allowed disabled:opacity-60 ${selectedCurrencySymbol ? 'pl-8' : ''} ${fieldErrors.credit_limit ? 'app-input-error' : ''}`}
+              aria-invalid={fieldErrors.credit_limit ? true : undefined}
+              aria-describedby={fieldErrors.credit_limit ? EDIT_ACCOUNT_IDENTITY_FIELD_IDS.creditLimitError : undefined}
               placeholder="Optional"
               disabled={isCreditLimitLocked}
               {...creditLimitInput}

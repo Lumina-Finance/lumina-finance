@@ -1,16 +1,18 @@
 import { useState } from 'react'
-import { AnimatePresence, motion } from 'motion/react'
 import { setPassword } from '@/api/user'
 import { PasswordRequirements } from '@/components/PasswordRequirements'
+import { FieldLabelRow } from '@/components/forms/FieldLabelRow'
+import { FormError } from '@/components/forms/FormError'
 import { ModalContentFooter, ModalContentPanel } from '@/components/modal/ContentPanel'
 import { DisabledReasonButton } from '@/components/tooltips/DisabledReasonButton'
+import { useRefusedSubmit } from '@/hooks/useRefusedSubmit'
 import { isNewPasswordValid } from '@/utils/passwordPolicy'
 import { withMinDelay } from '@/utils/timing'
 
-// Password feedback grows and shrinks the modal, so height, fade, and the gap above each block animate
-// together. Animating marginTop rather than leaving a static margin keeps the gap from snapping in the
-// frame the block mounts, which also lets the content-sized panel resize smoothly instead of jumping
-const PASSWORD_FEEDBACK_TRANSITION = { duration: 0.2, ease: [0.25, 0.1, 0.25, 1] as const }
+const PASSWORD_FIELDS = ['newPassword', 'confirmPassword'] as const
+const NEW_PASSWORD_ID = 'set_new_password'
+const CONFIRM_PASSWORD_ID = 'set_confirm_password'
+const CONTROL_IDS = { newPassword: NEW_PASSWORD_ID, confirmPassword: CONFIRM_PASSWORD_ID }
 
 interface SetPasswordModalProps {
   open: boolean
@@ -33,16 +35,25 @@ export function SetPasswordModal({ open, onClose, onDone, onExitComplete }: SetP
   const [error, setError] = useState<string | null>(null)
 
   const confirmMatches = confirmPassword.length > 0 && confirmPassword === newPassword
-  const submitBlockReason = !isNewPasswordValid(newPassword)
-    ? 'Choose a password that meets the rules first'
-    : !confirmMatches
-      ? 'Enter the same password in both fields first'
-      : undefined
-  const submitDisabled = submitting || submitBlockReason !== undefined
+  const refusal = useRefusedSubmit(
+    {
+      // The rules list shows only once something is typed, so an empty field asks for a password instead
+      newPassword: isNewPasswordValid(newPassword)
+        ? undefined
+        : newPassword.length === 0 ? 'Enter a password' : 'Password must meet the rules',
+      confirmPassword: confirmMatches
+        ? undefined
+        : confirmPassword.length === 0
+          ? 'Confirm your password'
+          : 'Passwords do not match',
+    },
+    PASSWORD_FIELDS,
+    CONTROL_IDS,
+  )
 
   const handleSubmit = async (event: React.FormEvent) => {
     event.preventDefault()
-    if (submitDisabled) return
+    if (submitting || !refusal.guard()) return
 
     setSubmitting(true)
     setError(null)
@@ -56,8 +67,14 @@ export function SetPasswordModal({ open, onClose, onDone, onExitComplete }: SetP
     }
   }
 
+  // The modal stays mounted while closed, so a refusal from this visit is put away once it has gone
+  const handleExitComplete = () => {
+    refusal.reset()
+    onExitComplete?.()
+  }
+
   return (
-    <ModalContentPanel open={open} onClose={onClose} closeDisabled={submitting} onExitComplete={onExitComplete} titleId="set-password-title">
+    <ModalContentPanel open={open} onClose={onClose} closeDisabled={submitting} onExitComplete={handleExitComplete} titleId="set-password-title">
       <form onSubmit={handleSubmit} className="space-y-5" noValidate>
         <div className="space-y-1">
           <h3 id="set-password-title" className="text-base font-semibold">Set a password</h3>
@@ -67,23 +84,24 @@ export function SetPasswordModal({ open, onClose, onDone, onExitComplete }: SetP
           </p>
         </div>
 
-        {error && (
-          <p className="text-sm" style={{ color: 'var(--app-negative)' }}>
-            {error}
-          </p>
-        )}
+        <FormError message={error} />
 
         <div className="space-y-1.5">
-          <label htmlFor="set_new_password" className="app-label block">
-            New password
-          </label>
+          <FieldLabelRow
+            label="New password"
+            htmlFor={NEW_PASSWORD_ID}
+            error={refusal.errors.newPassword}
+            errorId="set_new_password-error"
+          />
           <input
-            id="set_new_password"
-            className="app-input"
+            id={NEW_PASSWORD_ID}
+            className={`app-input ${refusal.errors.newPassword ? 'app-input-error' : ''}`}
             type="password"
             autoComplete="new-password"
             value={newPassword}
             onChange={(event) => setNewPassword(event.target.value)}
+            aria-invalid={refusal.errors.newPassword ? true : undefined}
+            aria-describedby={refusal.errors.newPassword ? 'set_new_password-error' : undefined}
             autoFocus
           />
           <PasswordRequirements
@@ -96,31 +114,25 @@ export function SetPasswordModal({ open, onClose, onDone, onExitComplete }: SetP
         </div>
 
         <div className="space-y-1.5">
-          <label htmlFor="set_confirm_password" className="app-label block">
-            Confirm new password
-          </label>
+          <FieldLabelRow
+            label="Confirm new password"
+            htmlFor={CONFIRM_PASSWORD_ID}
+            error={refusal.errors.confirmPassword}
+            errorId="set_confirm_password-error"
+          />
           <input
-            id="set_confirm_password"
-            className="app-input"
+            id={CONFIRM_PASSWORD_ID}
+            className={`app-input ${refusal.errors.confirmPassword ? 'app-input-error' : ''}`}
             type="password"
             autoComplete="new-password"
             value={confirmPassword}
             onChange={(event) => setConfirmPassword(event.target.value)}
+            onBlur={() => {
+              if (confirmPassword.length > 0) refusal.touch('confirmPassword')
+            }}
+            aria-invalid={refusal.errors.confirmPassword ? true : undefined}
+            aria-describedby={refusal.errors.confirmPassword ? 'set_confirm_password-error' : undefined}
           />
-          <AnimatePresence initial={false}>
-            {confirmPassword.length > 0 && !confirmMatches && (
-              <motion.div
-                className="overflow-hidden text-xs"
-                style={{ color: 'var(--app-negative)' }}
-                initial={{ height: 0, opacity: 0, marginTop: 0 }}
-                animate={{ height: 'auto', opacity: 1, marginTop: 6 }}
-                exit={{ height: 0, opacity: 0, marginTop: 0 }}
-                transition={PASSWORD_FEEDBACK_TRANSITION}
-              >
-                Passwords do not match
-              </motion.div>
-            )}
-          </AnimatePresence>
         </div>
 
         <ModalContentFooter>
@@ -128,7 +140,7 @@ export function SetPasswordModal({ open, onClose, onDone, onExitComplete }: SetP
             <DisabledReasonButton
               type="submit"
               disabled={submitting}
-              disabledReason={submitting ? undefined : submitBlockReason}
+              disabledReason={submitting ? undefined : refusal.blockedReason}
               className={`app-primary-button transition-all duration-300 ${submitting ? 'app-primary-button-loading' : 'w-full'}`}
             >
               {submitting ? <div className="app-spinner" /> : 'Set password'}

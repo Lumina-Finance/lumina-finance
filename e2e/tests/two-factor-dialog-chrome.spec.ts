@@ -26,7 +26,7 @@ test('draws the rail and serif title on the step-up and authenticator setup dial
 
   const stepUp = page.getByRole('dialog', { name: 'Turn on two-factor authentication' })
   await expectRailAndSerifTitle(stepUp, 'Verify')
-  await stepUp.getByPlaceholder('Current password').fill(user.password)
+  await stepUp.getByLabel('Current password').fill(user.password)
   await stepUp.getByRole('button', { name: 'Continue' }).click()
 
   const setup = page.getByRole('dialog', { name: 'Set up two-factor authentication' })
@@ -46,7 +46,7 @@ test('draws the rail and serif title on the recovery codes dialog', async ({ pag
   await page.locator('#security').getByRole('button', { name: 'Manage' }).click()
   await page.getByRole('button', { name: 'Regenerate' }).click()
   const stepUp = page.getByRole('dialog', { name: 'Regenerate recovery codes' })
-  await stepUp.getByPlaceholder('Current password').fill(user.password)
+  await stepUp.getByLabel('Current password').fill(user.password)
   await stepUp.getByRole('button', { name: 'Continue' }).click()
   await stepUp.getByLabel('One-time code').pressSequentially('123456')
   await stepUp.getByRole('button', { name: 'Regenerate' }).click()

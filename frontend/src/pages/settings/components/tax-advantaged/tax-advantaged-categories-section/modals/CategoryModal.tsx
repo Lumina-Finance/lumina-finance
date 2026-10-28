@@ -1,6 +1,7 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { AnimatePresence, motion } from 'motion/react'
+import { FormError } from '@/components/forms/FormError'
 import { ModalShell } from '@/components/modal/Shell'
 import { Check, Trash2, X } from 'lucide-react'
 import type { AccountsOverview } from '@/api/accounts'
@@ -47,7 +48,9 @@ export default function TaxAdvantagedCategoryModal({
     confirmingDelete: confirmingPlanDelete,
     deleteCategory: handleDeletePlan,
     deletePending: deletePlanPending,
+    detailsBlockedReason,
     detailsOpen: categoryEditOpen,
+    detailsProblems,
     openDetails,
     planError,
     planForm,
@@ -92,7 +95,9 @@ export default function TaxAdvantagedCategoryModal({
     deleteSelectedLimit: handleDeleteLimit,
     hasLifetimePriorActivity,
     hasScrollableLimitRows,
+    limitBlockedReason,
     limitError,
+    limitProblems,
     limitsLoading,
     newLimitForm,
     pendingDeleteLimitYear,
@@ -103,7 +108,6 @@ export default function TaxAdvantagedCategoryModal({
     selectedLimit,
     selectedLimitDeleteConfirming,
     selectedLimitDeleting,
-    selectedLimitDirty,
     selectedSavingLimit,
     setLimitField,
     setNewLimitField,
@@ -261,11 +265,7 @@ export default function TaxAdvantagedCategoryModal({
               />
             </div>
 
-            {planError && (
-              <p className="text-sm" style={{ color: 'var(--app-negative)' }}>
-                {planError}
-              </p>
-            )}
+            <FormError message={planError} />
 
             <div className="grid grid-cols-2 gap-2 border-t pt-3 min-[750px]:flex min-[750px]:items-center min-[750px]:justify-between min-[750px]:pt-4 min-[1050px]:mt-auto" style={{ borderColor: 'var(--app-border)' }}>
               <button
@@ -415,6 +415,7 @@ export default function TaxAdvantagedCategoryModal({
       </ModalShell>
 
       <TaxAdvantagedCategoryDetailsModal
+        blockedReason={detailsBlockedReason}
         currencies={currencies}
         onClose={closeCategoryDetailsModal}
         onPlanFieldChange={setPlanField}
@@ -423,14 +424,17 @@ export default function TaxAdvantagedCategoryModal({
         plan={plan}
         planError={planError}
         planForm={planForm}
+        problems={detailsProblems}
         planSaveStatus={planSaveStatus}
         updatePending={updatePlanPending}
       />
 
       <TaxAdvantagedLimitDetailsModal
+        blockedReason={limitBlockedReason}
         creatingLimit={creatingLimit}
         currencies={currencies}
         limitError={limitError}
+        problems={limitProblems}
         newLimitForm={newLimitForm}
         onClose={closeLimitDetailsModal}
         onCreateLimit={() => { void handleCreateLimit() }}
@@ -443,7 +447,6 @@ export default function TaxAdvantagedCategoryModal({
         selectedLimit={selectedLimit}
         selectedLimitDeleteConfirming={selectedLimitDeleteConfirming}
         selectedLimitDeleting={selectedLimitDeleting}
-        selectedLimitDirty={selectedLimitDirty}
         selectedSavingLimit={selectedSavingLimit}
         showAddTaxYear={showAddTaxYear}
       />

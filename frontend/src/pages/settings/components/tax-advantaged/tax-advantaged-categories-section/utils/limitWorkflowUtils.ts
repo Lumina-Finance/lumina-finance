@@ -7,11 +7,13 @@ import type {
   TaxPlanLimitDraftState,
   TaxPlanLimitFormState,
 } from '@/pages/settings/components/tax-advantaged/types'
+import type { LimitField } from '@/pages/settings/components/tax-advantaged/tax-advantaged-categories-section/modalFieldIds'
 import {
   fromMinorUnits,
   isValidMoneyInput,
   toMinorUnits,
 } from '@/pages/settings/components/tax-advantaged/tax-advantaged-categories-section/utils/categoryUtils'
+import type { FieldProblems } from '@/utils/refusedSubmit'
 
 /**
  * Creates a blank annual limit form for the supplied tax year
@@ -76,51 +78,39 @@ export function isLimitDirty(
 }
 
 /**
- * Validates an existing annual limit draft before autosaving
+ * What is missing or wrong in an annual limit's amounts, by field. The year of an existing limit is
+ * fixed, so only the add form asks for one
  */
-export function validateExistingLimitDraft(year: number, draft: TaxPlanLimitDraftState) {
+export function getLimitAmountProblems(draft: TaxPlanLimitDraftState): FieldProblems<LimitField> {
+  const problems: FieldProblems<LimitField> = {}
   if (!isValidMoneyInput(draft.contribution_limit, true)) {
-    return `${year} contribution limit is required.`
-  }
-  if (!isValidMoneyInput(draft.withdrawal_limit)) {
-    return `${year} withdrawal limit must be zero or higher.`
+    problems.contribution_limit = 'Limit is required'
   }
   if (!isValidMoneyInput(draft.accrued_contributions)) {
-    return `${year} opening contributions must be zero or higher.`
+    problems.accrued_contributions = 'Opening contributions must be zero or higher'
+  }
+  if (!isValidMoneyInput(draft.withdrawal_limit)) {
+    problems.withdrawal_limit = 'Withdrawal limit must be zero or higher'
   }
   if (!isValidMoneyInput(draft.accrued_withdrawals)) {
-    return `${year} opening withdrawals must be zero or higher.`
+    problems.accrued_withdrawals = 'Opening withdrawals must be zero or higher'
   }
-
-  return null
+  return problems
 }
 
 /**
- * Validates the add-year draft before creating a new annual limit
+ * What is missing or wrong in the add-year form, by field
  */
-export function validateNewLimitForm(
+export function getNewLimitProblems(
   form: TaxPlanLimitFormState,
   limits: TaxAdvantagedCategoryLimit[],
-  year: number,
-) {
+): FieldProblems<LimitField> {
+  const problems = getLimitAmountProblems(form)
+  const year = Number.parseInt(form.year, 10)
   if (!Number.isInteger(year) || year < 1900 || year > 2100) {
-    return 'Year must be between 1900 and 2100.'
+    problems.year = 'Year must be between 1900 and 2100'
+  } else if (limits.some((limit) => limit.year === year)) {
+    problems.year = `A limit for ${year} already exists`
   }
-  if (limits.some((limit) => limit.year === year)) {
-    return `A limit for ${year} already exists.`
-  }
-  if (!isValidMoneyInput(form.contribution_limit, true)) {
-    return 'Contribution limit is required.'
-  }
-  if (!isValidMoneyInput(form.withdrawal_limit)) {
-    return 'Withdrawal limit must be zero or higher.'
-  }
-  if (!isValidMoneyInput(form.accrued_contributions)) {
-    return 'Opening contributions must be zero or higher.'
-  }
-  if (!isValidMoneyInput(form.accrued_withdrawals)) {
-    return 'Opening withdrawals must be zero or higher.'
-  }
-
-  return null
+  return problems
 }

@@ -3,10 +3,10 @@
  * beside them, and the warnings that hold Apply disabled
  */
 import { describe, expect, it } from 'vitest'
-import { canApplyBulkEdit, getBulkEditBlockers, type BulkEditChoice, type SelectedTransactionFacts } from '@/components/transactions/bulk-edit/selection'
+import { getBulkEditBlockers, type BulkEditChoice, type SelectedTransactionFacts } from '@/components/transactions/bulk-edit/selection'
 import { describeBulkEdit, shareOpening, type BulkEditSummary, type BulkEditSummaryLabels } from '@/components/transactions/bulk-edit/summary'
 import type { TransactionListAccount } from '@/components/transactions/types/transactionList'
-import { chequingHalf, chequingHalf2, eurExpense, groceries, oldImport, pair, savingsHalf, unanswered, untouched, writableAccounts, zeroTransfer } from './bulkEditFixtures'
+import { chequingHalf, chequingHalf2, eurExpense, groceries, oldImport, pair, savingsHalf, unanswered, untouched, WARNINGS_FIRST, whyApplyIsBlocked, writableAccounts, zeroTransfer } from './bulkEditFixtures'
 
 const ACCOUNT_NAMES: Record<string, string> = {
   chequing: 'Chequing',
@@ -309,7 +309,7 @@ describe('the rows, notes and warnings a bulk edit choice produces', () => {
       key: 'unavailable-account',
       text: "The selected transaction can't be edited because its account isn't available for editing.",
     })
-    expect(canApplyBulkEdit([groceries], choice, blockers)).toBe(false)
+    expect(whyApplyIsBlocked([groceries], choice, blockers)).toBe(WARNINGS_FIRST)
   })
 
   it('warns once per currency pair, each keyed by its own pair, when a tracked end mismatches more than one row currency', () => {

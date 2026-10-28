@@ -1,4 +1,4 @@
-import { AnimatePresence, motion } from 'motion/react'
+import { FieldError } from '@/components/forms/FieldError'
 
 interface CreateModalSectionHeadingRowProps {
   label: string
@@ -13,25 +13,10 @@ interface CreateModalSectionHeadingRowProps {
  */
 export default function CreateModalSectionHeadingRow({ label, error, errorId }: CreateModalSectionHeadingRowProps) {
   return (
-    <div className="flex min-h-4 items-start justify-between gap-3">
+    <div className="flex min-h-4 items-center justify-between gap-3">
       <p className="flex h-4 items-center text-base font-bold leading-none" style={{ color: 'var(--app-accent)' }}>{label}</p>
-      <AnimatePresence initial={false}>
-        {error && (
-          <motion.p
-            key={error}
-            id={errorId}
-            role="alert"
-            className="text-right text-xs font-medium leading-5"
-            style={{ color: 'var(--app-negative)' }}
-            initial={{ opacity: 0, x: 4 }}
-            animate={{ opacity: 1, x: 0 }}
-            exit={{ opacity: 0, x: 4 }}
-            transition={{ duration: 0.15 }}
-          >
-            {error}
-          </motion.p>
-        )}
-      </AnimatePresence>
+      {/* One line of the message is 20px tall, so the margin keeps the row at the label's height until it wraps */}
+      <FieldError message={error} id={errorId} className="-my-0.5" />
     </div>
   )
 }

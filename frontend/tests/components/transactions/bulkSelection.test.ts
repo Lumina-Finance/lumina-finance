@@ -12,14 +12,14 @@ import {
   getBulkMoveTargets,
   getTransferEndTargets,
   bulkSelectionReducer,
-  canApplyBulkEdit,
   countTransferEndEffects,
   emptyBulkSelection,
   eligibleSelectionIds,
   endsAfterDirectionClick,
   endsAfterEndPick,
-  getBulkEditApplyBlockReason,
   getBulkEditBlockers,
+  getBulkEditChangeProblem,
+  getBulkEditSelectionBlockReason,
   groupSelectionMark,
   hasBulkEditChoice,
   impliedDirection,
@@ -50,6 +50,8 @@ import {
   unanswered,
   untouched,
   usdTransferInChequing,
+  WARNINGS_FIRST,
+  whyApplyIsBlocked,
   writableAccounts,
   zeroTransfer,
 } from './bulkEditFixtures'
@@ -500,34 +502,43 @@ describe('what a bulk edit may do to the rows it covers', () => {
   it('allows 32 selected tags and retains a 33rd choice while blocking Apply', () => {
     const tags = Array.from({ length: 33 }, (_, index) => `tag-${index}`)
     const allowed = untouched({ tagIds: tags.slice(0, 32), overrideTags: true })
-    expect(canApplyBulkEdit([groceries], allowed, getBulkEditBlockers([groceries], allowed, undefined))).toBe(true)
+    expect(whyApplyIsBlocked([groceries], allowed, getBulkEditBlockers([groceries], allowed, undefined))).toBeUndefined()
     const oversized = untouched({ tagIds: tags, overrideTags: true })
-    expect(canApplyBulkEdit([groceries], oversized, getBulkEditBlockers([groceries], oversized, undefined))).toBe(false)
+    expect(whyApplyIsBlocked([groceries], oversized, getBulkEditBlockers([groceries], oversized, undefined))).toBe(WARNINGS_FIRST)
   })
 
-  it('gives Apply no reason while the edit can be applied, and the reason it is held off otherwise', () => {
+  it('names what is wrong with the change as a problem of the edit, and nothing while it can be written', () => {
     const nothing = untouched({})
-    expect(getBulkEditApplyBlockReason([groceries], nothing, getBulkEditBlockers([groceries], nothing, undefined)))
+    expect(getBulkEditChangeProblem(nothing, getBulkEditBlockers([groceries], nothing, undefined)))
       .toBe('Choose a change to apply')
     const tags = Array.from({ length: 33 }, (_, index) => `tag-${index}`)
     const oversized = untouched({ tagIds: tags, overrideTags: true })
-    expect(getBulkEditApplyBlockReason([groceries], oversized, getBulkEditBlockers([groceries], oversized, undefined)))
+    expect(getBulkEditChangeProblem(oversized, getBulkEditBlockers([groceries], oversized, undefined)))
       .toBe('Fix the warnings under What changes first')
     const clearing = untouched({ overrideTags: true })
-    expect(getBulkEditApplyBlockReason([groceries], clearing, getBulkEditBlockers([groceries], clearing, undefined)))
+    expect(getBulkEditChangeProblem(clearing, getBulkEditBlockers([groceries], clearing, undefined)))
       .toBeUndefined()
+    // A row that would be refused is a warning too, not only the tag limit
+    const noteOnly = untouched({ note: 'Corrected' })
+    expect(getBulkEditChangeProblem(noteOnly, getBulkEditBlockers([oldImport], noteOnly, undefined)))
+      .toBe('Fix the warnings under What changes first')
+  })
+
+  it('holds Apply off from the start only for a selection that cannot be edited', () => {
+    expect(getBulkEditSelectionBlockReason([groceries])).toBeUndefined()
     // No rows is not a warning in What changes, so it names the selection instead
-    expect(getBulkEditApplyBlockReason([], clearing, getBulkEditBlockers([], clearing, undefined)))
-      .toBe('Tick a transaction first')
+    expect(getBulkEditSelectionBlockReason([])).toBe('Tick a transaction first')
+    const atCap = Array.from({ length: MAX_BULK_EDIT_TRANSACTIONS }, () => groceries)
+    expect(getBulkEditSelectionBlockReason(atCap)).toBeUndefined()
     const tooMany = Array.from({ length: MAX_BULK_EDIT_TRANSACTIONS + 1 }, () => groceries)
-    expect(getBulkEditApplyBlockReason(tooMany, clearing, getBulkEditBlockers(tooMany, clearing, undefined)))
+    expect(getBulkEditSelectionBlockReason(tooMany))
       .toBe(`Up to ${MAX_BULK_EDIT_TRANSACTIONS} transactions can be edited at once`)
   })
 
   it('distinguishes clearing, replacing, appending and leaving tags unchanged', () => {
     const clearing = untouched({ overrideTags: true })
     expect(buildBulkEditFields(clearing)).toEqual({ override_tags: true })
-    expect(canApplyBulkEdit([groceries], clearing, getBulkEditBlockers([groceries], clearing, undefined))).toBe(true)
+    expect(whyApplyIsBlocked([groceries], clearing, getBulkEditBlockers([groceries], clearing, undefined))).toBeUndefined()
     expect(buildBulkEditFields(untouched({ tagIds: ['work'], overrideTags: true }))).toEqual({ add_tag_ids: ['work'], override_tags: true })
     expect(buildBulkEditFields(untouched({ tagIds: ['work'] }))).toEqual({ add_tag_ids: ['work'] })
     expect(hasBulkEditChoice(untouched({ overrideTags: false }))).toBe(false)
@@ -798,7 +809,7 @@ describe('what a bulk edit may do to the rows it covers', () => {
 
       const farSideOnly = getBulkEditBlockers([savingsHalf], choice, undefined, readOnlyCash)
       expect(farSideOnly.unavailableOwnAccount).toEqual([])
-      expect(canApplyBulkEdit([savingsHalf], choice, farSideOnly)).toBe(true)
+      expect(whyApplyIsBlocked([savingsHalf], choice, farSideOnly)).toBeUndefined()
       expect(getBulkEditBlockers([chequingHalf], choice, undefined, readOnlyCash).unavailableOwnAccount)
         .toEqual(['chequing_half'])
       expect(getBulkEditBlockers(pair, choice, undefined, readOnlyCash).unavailableOwnAccount)
@@ -833,7 +844,7 @@ describe('what a bulk edit may do to the rows it covers', () => {
       const blockers = getBulkEditBlockers([groceries], noteOnly, undefined, downgraded)
 
       expect(blockers.unavailableOwnAccount).toEqual(['a'])
-      expect(canApplyBulkEdit([groceries], noteOnly, blockers)).toBe(false)
+      expect(whyApplyIsBlocked([groceries], noteOnly, blockers)).toBe(WARNINGS_FIRST)
     })
   })
 
@@ -1133,11 +1144,11 @@ describe('what a bulk edit may do to the rows it covers', () => {
 
   describe('whether the edit can be written', () => {
     it('refuses while no control has been filled in', () => {
-      expect(canApplyBulkEdit([groceries], untouched({}), noBlockers)).toBe(false)
+      expect(whyApplyIsBlocked([groceries], untouched({}), noBlockers)).toBe('Choose a change to apply')
     })
 
     it('refuses against an empty selection', () => {
-      expect(canApplyBulkEdit([], noteOnly, noBlockers)).toBe(false)
+      expect(whyApplyIsBlocked([], noteOnly, noBlockers)).toBe('Tick a transaction first')
     })
 
     it('refuses while the selection is over the cap', () => {
@@ -1146,7 +1157,8 @@ describe('what a bulk edit may do to the rows it covers', () => {
         id: `row_${index}`,
       }))
 
-      expect(canApplyBulkEdit(overCap, noteOnly, noBlockers)).toBe(false)
+      expect(whyApplyIsBlocked(overCap, noteOnly, noBlockers))
+        .toBe(`Up to ${MAX_BULK_EDIT_TRANSACTIONS} transactions can be edited at once`)
     })
 
     it('allows a selection sitting exactly on the cap', () => {
@@ -1155,12 +1167,12 @@ describe('what a bulk edit may do to the rows it covers', () => {
         id: `row_${index}`,
       }))
 
-      expect(canApplyBulkEdit(atCap, noteOnly, noBlockers)).toBe(true)
+      expect(whyApplyIsBlocked(atCap, noteOnly, noBlockers)).toBeUndefined()
     })
 
     it('refuses while a transfer still has no far side recorded', () => {
       const blockers = getBulkEditBlockers([unanswered], noteOnly, undefined)
-      expect(canApplyBulkEdit([unanswered], noteOnly, blockers)).toBe(false)
+      expect(whyApplyIsBlocked([unanswered], noteOnly, blockers)).toBe(WARNINGS_FIRST)
     })
 
     it('refuses while a row would end up recording the account it sits in', () => {
@@ -1170,14 +1182,14 @@ describe('what a bulk edit may do to the rows it covers', () => {
       })
       const blockers = getBulkEditBlockers([toSavings], choice, undefined)
 
-      expect(canApplyBulkEdit([toSavings], choice, blockers)).toBe(false)
+      expect(whyApplyIsBlocked([toSavings], choice, blockers)).toBe(WARNINGS_FIRST)
     })
 
     it('refuses while an own end would sit outside the tracked accounts', () => {
       const choice = untouched({ transferFrom: { scope: 'outside' }, endsAreOffered: true })
       const blockers = getBulkEditBlockers([toSavings], choice, undefined)
 
-      expect(canApplyBulkEdit([toSavings], choice, blockers)).toBe(false)
+      expect(whyApplyIsBlocked([toSavings], choice, blockers)).toBe(WARNINGS_FIRST)
     })
 
     it('refuses while an own end would land in another currency', () => {
@@ -1187,7 +1199,7 @@ describe('what a bulk edit may do to the rows it covers', () => {
       })
       const blockers = getBulkEditBlockers([toSavings], choice, undefined)
 
-      expect(canApplyBulkEdit([toSavings], choice, blockers)).toBe(false)
+      expect(whyApplyIsBlocked([toSavings], choice, blockers)).toBe(WARNINGS_FIRST)
     })
 
     it('writes a note across a selection of transfers without touching their ends', () => {
@@ -1198,7 +1210,7 @@ describe('what a bulk edit may do to the rows it covers', () => {
       const blockers = getBulkEditBlockers([toSavings], choice, undefined)
 
       expect(buildBulkEditFields(choice)).toEqual({ notes: 'Reconciled' })
-      expect(canApplyBulkEdit([toSavings], choice, blockers)).toBe(true)
+      expect(whyApplyIsBlocked([toSavings], choice, blockers)).toBeUndefined()
     })
 
     it('refuses a recategorization into a transfer that leaves the far side unanswered', () => {
@@ -1209,16 +1221,16 @@ describe('what a bulk edit may do to the rows it covers', () => {
       // rather than an edit that fills in nothing
       expect(hasBulkEditChoice(choice)).toBe(true)
       expect(blockers.unansweredFarSide).toEqual(['a'])
-      expect(canApplyBulkEdit([groceries], choice, blockers)).toBe(false)
+      expect(whyApplyIsBlocked([groceries], choice, blockers)).toBe(WARNINGS_FIRST)
     })
 
     it('refuses while a blocking row stands, and allows it once a control settles that row', () => {
       const blocked = getBulkEditBlockers([oldImport], noteOnly, undefined)
-      expect(canApplyBulkEdit([oldImport], noteOnly, blocked)).toBe(false)
+      expect(whyApplyIsBlocked([oldImport], noteOnly, blocked)).toBe(WARNINGS_FIRST)
 
       const withMerchant = untouched({ merchantId: 'mer_1' })
       const settled = getBulkEditBlockers([oldImport], withMerchant, undefined)
-      expect(canApplyBulkEdit([oldImport], withMerchant, settled)).toBe(true)
+      expect(whyApplyIsBlocked([oldImport], withMerchant, settled)).toBeUndefined()
     })
   })
 })

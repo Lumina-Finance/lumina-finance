@@ -1,10 +1,11 @@
 import type { ReactNode } from 'react'
-import { AnimatePresence, motion } from 'motion/react'
+import { FieldError } from '@/components/forms/FieldError'
 
 type AccountIdentityFieldLabelRowProps = {
   label: ReactNode
   htmlFor?: string
   error?: string
+  errorId?: string
 }
 
 /**
@@ -14,27 +15,14 @@ export function AccountIdentityFieldLabelRow({
   label,
   htmlFor,
   error,
+  errorId,
 }: AccountIdentityFieldLabelRowProps) {
   return (
     <div className="mb-1.5 flex items-start justify-between gap-3">
       <label htmlFor={htmlFor} className="app-label block shrink-0 text-[0.9375rem] leading-5">
         {label}
       </label>
-      <AnimatePresence initial={false}>
-        {error && (
-          <motion.p
-            key={error}
-            className="text-right text-xs font-medium leading-5"
-            style={{ color: 'var(--app-negative)' }}
-            initial={{ opacity: 0, x: 4 }}
-            animate={{ opacity: 1, x: 0 }}
-            exit={{ opacity: 0, x: 4 }}
-            transition={{ duration: 0.15 }}
-          >
-            {error}
-          </motion.p>
-        )}
-      </AnimatePresence>
+      <FieldError message={error} id={errorId} />
     </div>
   )
 }

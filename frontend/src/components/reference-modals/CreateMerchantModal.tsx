@@ -1,19 +1,22 @@
 import { useState, type FormEvent } from 'react'
-import { AnimatePresence, motion } from 'motion/react'
 import { Store } from 'lucide-react'
 import { ApiError } from '@/api/auth'
 import { useCreateMerchant, type Merchant } from '@/api/merchants'
 import Dropdown, { type DropdownOption } from '@/components/dropdown/Dropdown'
 import CreateModalSectionFrame from '@/components/create-modal/SectionFrame'
 import CreateModalSectionHeadingRow from '@/components/create-modal/SectionHeadingRow'
+import { FormError } from '@/components/forms/FormError'
 import { ModalTitledPanel } from '@/components/modal/TitledPanel'
 import { ModalFormFooter } from '@/components/modal/FormFooter'
 import type { ModalLevel } from '@/components/modal/Shell'
-import { CREATE_MERCHANT_FIELD_IDS, NO_DEFAULT_CATEGORY_VALUE } from '@/components/reference-modals/createMerchantConstants'
+import {
+  CREATE_MERCHANT_FIELD_IDS,
+  CREATE_MERCHANT_FIELDS,
+  CREATE_MERCHANT_NAME_REQUIRED_MESSAGE,
+  NO_DEFAULT_CATEGORY_VALUE,
+} from '@/components/reference-modals/createMerchantConstants'
+import { useRefusedSubmit } from '@/hooks/useRefusedSubmit'
 import { LOADING_ANIMATION_MIN_MS, waitForMilliseconds } from '@/utils/timing'
-
-type CreateMerchantField = 'name'
-type CreateMerchantFieldErrors = Partial<Record<CreateMerchantField, string>>
 
 interface CreateMerchantModalProps {
   open: boolean
@@ -48,35 +51,26 @@ export default function CreateMerchantModal({
     name: initialName,
     default_category_id: defaultCategoryValue,
   })
-  const [fieldErrors, setFieldErrors] = useState<CreateMerchantFieldErrors>({})
-  const [touched, setTouched] = useState<Record<CreateMerchantField, boolean>>({
-    name: false,
-  })
   const [formError, setFormError] = useState<string | null>(null)
   const [createInProgress, setCreateInProgress] = useState(false)
   const isCreating = createMerchant.isPending || createInProgress
   const isSecondary = level === 'stacked'
+  const name = form.name.trim()
+  const refusal = useRefusedSubmit(
+    { name: name ? undefined : CREATE_MERCHANT_NAME_REQUIRED_MESSAGE },
+    CREATE_MERCHANT_FIELDS,
+    CREATE_MERCHANT_FIELD_IDS,
+  )
+  const nameError = refusal.errors.name
 
-  const showError = (field: CreateMerchantField) => touched[field] && fieldErrors[field]
   const setField = <K extends keyof typeof form>(field: K, value: (typeof form)[K]) => {
     setForm((current) => ({ ...current, [field]: value }))
-    if (field === 'name') {
-      setTouched((current) => ({ ...current, name: true }))
-      setFieldErrors((current) => ({ ...current, name: undefined }))
-    }
     setFormError(null)
   }
 
   const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
-    if (isCreating) return
-
-    const name = form.name.trim()
-    if (!name) {
-      setTouched({ name: true })
-      setFieldErrors({ name: 'Name is required' })
-      return
-    }
+    if (isCreating || !refusal.guard()) return
 
     setCreateInProgress(true)
     const minimumLoading = waitForMilliseconds(LOADING_ANIMATION_MIN_MS)
@@ -118,6 +112,7 @@ export default function CreateMerchantModal({
         <ModalFormFooter
           submitLabel={submitLabel}
           submitDisabled={isCreating}
+          submitBlockedReason={refusal.blockedReason}
           submitWidthClassName={submitWidth}
           level={level}
           onCancel={onClose}
@@ -127,15 +122,17 @@ export default function CreateMerchantModal({
       <div className="space-y-5">
         <CreateModalSectionFrame step="01">
           <div className="min-w-0 space-y-3">
-            <CreateModalSectionHeadingRow label="Merchant name" error={showError('name')} />
+            <CreateModalSectionHeadingRow label="Merchant name" error={nameError} errorId={CREATE_MERCHANT_FIELD_IDS.nameError} />
             <div>
               <label htmlFor={CREATE_MERCHANT_FIELD_IDS.name} className="sr-only">Merchant name</label>
               <input
                 id={CREATE_MERCHANT_FIELD_IDS.name}
-                className={`app-input ${showError('name') ? 'app-input-error' : ''}`}
+                className={`app-input ${nameError ? 'app-input-error' : ''}`}
+                aria-invalid={nameError ? true : undefined}
+                aria-describedby={nameError ? CREATE_MERCHANT_FIELD_IDS.nameError : undefined}
                 value={form.name}
                 onChange={(event) => setField('name', event.target.value)}
-                onBlur={() => setTouched((current) => ({ ...current, name: true }))}
+                onBlur={() => refusal.touch('name')}
                 placeholder="Costco"
                 maxLength={256}
                 required
@@ -166,20 +163,7 @@ export default function CreateMerchantModal({
           </div>
         </CreateModalSectionFrame>
 
-        <AnimatePresence>
-          {formError && (
-            <motion.p
-              className="text-sm font-medium"
-              style={{ color: 'var(--app-negative)' }}
-              initial={{ opacity: 0, y: -4 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -4 }}
-              transition={{ duration: 0.15 }}
-            >
-              {formError}
-            </motion.p>
-          )}
-        </AnimatePresence>
+        <FormError message={formError} />
       </div>
     </ModalTitledPanel>
   )

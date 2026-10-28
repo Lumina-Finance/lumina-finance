@@ -10,7 +10,6 @@ import {
   type CreditRepaymentSteer,
 } from '@/components/transactions/transaction-modal/utils/creditRepayment'
 import type {
-  TransactionFormFieldErrors,
   TransactionFormValues,
   TransactionModalKind,
 } from '@/components/transactions/transaction-modal/types'
@@ -20,7 +19,7 @@ interface UseCategoryFieldOptions {
   readOnly: boolean
   form: TransactionFormValues
   applyKindChange: (nextKind: TransactionModalKind, fields?: Partial<TransactionFormValues>) => void
-  clearError: (field: keyof TransactionFormFieldErrors) => void
+  clearSubmitError: () => void
   closeModal: () => void
 }
 
@@ -42,7 +41,7 @@ export function useCategoryField({
   readOnly,
   form,
   applyKindChange,
-  clearError,
+  clearSubmitError,
   closeModal,
 }: UseCategoryFieldOptions): CategoryFieldState {
   const categoryById = useMemo(() => {
@@ -70,12 +69,12 @@ export function useCategoryField({
     // counterparty, so a pending counterparty-account answer or a symmetric pair set up under a
     // real transfer category no longer applies once the category switches to it
     applyKindChange(transition.nextKind, transition.fields)
-    clearError('category_id')
+    clearSubmitError()
   }
 
   const handleCategoryCreated = (category: Category) => {
     applyKindChange(category.kind as TransactionModalKind, { category_id: category.id })
-    clearError('category_id')
+    clearSubmitError()
     closeModal()
   }
 

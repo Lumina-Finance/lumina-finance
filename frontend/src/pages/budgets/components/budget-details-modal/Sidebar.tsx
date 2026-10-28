@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState, type UIEvent } from 'react'
 import { Pencil, Trash2, X } from 'lucide-react'
 import type { BaseBudget, Budget, BudgetUtilization } from '@/api/budgets'
 import { useMoneyFormatters } from '@/hooks/useMoneyFormatters'
+import { FormError } from '@/components/forms/FormError'
 import MarqueeText from '@/components/display/MarqueeText'
 import ScrollableListMoreButton from '@/components/list-controls/MoreButton'
 import ArchivedPill from '@/pages/budgets/components/shared/ArchivedPill'
@@ -250,11 +251,7 @@ export default function BudgetDetailsSidebar({
             This will delete all historical data.
           </p>
         )}
-        {deleteError && (
-          <p className="mb-3 text-sm font-medium" style={{ color: 'var(--app-negative)' }}>
-            {deleteError}
-          </p>
-        )}
+        <FormError message={deleteError} className="mb-3" />
         <div className="flex gap-3">
           <button type="button" className="app-primary-button flex-1" onClick={onEdit}>
             <Pencil size={16} aria-hidden />

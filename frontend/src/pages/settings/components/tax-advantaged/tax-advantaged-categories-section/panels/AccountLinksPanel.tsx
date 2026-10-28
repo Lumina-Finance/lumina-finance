@@ -1,4 +1,5 @@
 import type { AccountsOverview } from '@/api/accounts'
+import { FormError } from '@/components/forms/FormError'
 import type { TaxAdvantagedCategory } from '@/api/tax-advantaged-categories'
 import { useMoneyFormatters } from '@/hooks/useMoneyFormatters'
 
@@ -32,11 +33,7 @@ export default function TaxAdvantagedAccountLinksPanel({
         </p>
       </div>
 
-      {accountError && (
-        <p className="shrink-0 text-sm" style={{ color: 'var(--app-negative)' }}>
-          {accountError}
-        </p>
-      )}
+      <FormError message={accountError} className="shrink-0" />
 
       {bindableAccounts.length === 0 ? (
         <p className="min-h-0 flex-1 py-3 text-sm italic" style={{ color: 'var(--app-text-subtle)' }}>

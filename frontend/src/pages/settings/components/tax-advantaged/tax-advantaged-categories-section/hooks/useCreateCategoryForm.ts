@@ -4,10 +4,15 @@ import { useCreateTaxAdvantagedCategory } from '@/api/tax-advantaged-categories'
 import type { TaxPlanFormState } from '@/pages/settings/components/tax-advantaged/types'
 import { CREATE_TAX_CATEGORY_MIN_LOADING_MS } from '@/pages/settings/components/tax-advantaged/tax-advantaged-categories-section/constants'
 import {
+  CREATE_CATEGORY_CONTROL_IDS,
+  CREATE_CATEGORY_VALIDATED_FIELDS,
+} from '@/pages/settings/components/tax-advantaged/tax-advantaged-categories-section/modalFieldIds'
+import {
   currencyOptions,
-  isValidMoneyInput,
   toMinorUnits,
 } from '@/pages/settings/components/tax-advantaged/tax-advantaged-categories-section/utils/categoryUtils'
+import { getCreateCategoryProblems } from '@/pages/settings/components/tax-advantaged/tax-advantaged-categories-section/utils/categoryFormProblems'
+import { useRefusedSubmit } from '@/hooks/useRefusedSubmit'
 import { waitForMilliseconds } from '@/utils/timing'
 
 interface UseCreateTaxAdvantagedCategoryFormParams {
@@ -38,9 +43,14 @@ export function useCreateTaxAdvantagedCategoryForm({
   const selectedCurrency = form.currency || userBaseCurrency || ''
   const options = useMemo(() => currencyOptions(currencies), [currencies])
   const isCreating = createPlan.isPending || createInProgress
+  const refusal = useRefusedSubmit(
+    getCreateCategoryProblems(form, selectedCurrency),
+    CREATE_CATEGORY_VALIDATED_FIELDS,
+    CREATE_CATEGORY_CONTROL_IDS,
+  )
 
   /**
-   * Updates a create-form field and clears validation tied to the previous value
+   * Updates a create-form field and clears the failure of the previous attempt
    */
   function setField<K extends keyof TaxPlanFormState>(key: K, value: TaxPlanFormState[K]) {
     setForm((current) => ({ ...current, [key]: value }))
@@ -54,11 +64,7 @@ export function useCreateTaxAdvantagedCategoryForm({
     event.preventDefault()
     if (isCreating) return
 
-    const validationError = validateCreateCategoryForm(form, selectedCurrency)
-    if (validationError) {
-      setCreateError(validationError)
-      return
-    }
+    if (!refusal.guard()) return
 
     setCreateInProgress(true)
     const minimumLoading = waitForMilliseconds(CREATE_TAX_CATEGORY_MIN_LOADING_MS)
@@ -84,7 +90,9 @@ export function useCreateTaxAdvantagedCategoryForm({
   }
 
   return {
+    blockedReason: refusal.blockedReason,
     createError,
+    errors: refusal.errors,
     form,
     handleCreatePlan,
     isCreating,
@@ -92,24 +100,4 @@ export function useCreateTaxAdvantagedCategoryForm({
     selectedCurrency,
     setField,
   }
-}
-
-/**
- * Validates required create TAC fields before values are converted to minor units
- */
-function validateCreateCategoryForm(form: TaxPlanFormState, selectedCurrency: string) {
-  if (!form.name.trim()) {
-    return 'Name is required.'
-  }
-  if (!selectedCurrency) {
-    return 'Currency is required.'
-  }
-  if (!isValidMoneyInput(form.lifetime_contribution_limit)) {
-    return 'Lifetime contribution limit must be zero or higher.'
-  }
-  if (!isValidMoneyInput(form.accrued_contributions)) {
-    return 'Accrued contributions must be zero or higher.'
-  }
-
-  return null
 }

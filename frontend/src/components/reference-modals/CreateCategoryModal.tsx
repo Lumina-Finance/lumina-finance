@@ -1,20 +1,24 @@
 import { useState, type FormEvent } from 'react'
-import { AnimatePresence, motion } from 'motion/react'
 import { Tag } from 'lucide-react'
 import { useCreateCategory, type Category } from '@/api/categories'
 import Dropdown from '@/components/dropdown/Dropdown'
 import CategoryIconSelector from '@/components/category-icon-selector/Selector'
 import CreateModalFieldLabelRow from '@/components/create-modal/FieldLabelRow'
 import CreateModalSectionFrame from '@/components/create-modal/SectionFrame'
+import { FormError } from '@/components/forms/FormError'
 import { ModalTitledPanel } from '@/components/modal/TitledPanel'
 import { ModalFormFooter } from '@/components/modal/FormFooter'
 import type { ModalLevel } from '@/components/modal/Shell'
-import { CREATE_CATEGORY_FIELD_IDS } from '@/components/reference-modals/createCategoryConstants'
+import {
+  CREATE_CATEGORY_FIELD_IDS,
+  CREATE_CATEGORY_FIELDS,
+  CREATE_CATEGORY_ICON_REQUIRED_MESSAGE,
+  CREATE_CATEGORY_NAME_REQUIRED_MESSAGE,
+} from '@/components/reference-modals/createCategoryConstants'
+import { useRefusedSubmit } from '@/hooks/useRefusedSubmit'
 import { LOADING_ANIMATION_MIN_MS, waitForMilliseconds } from '@/utils/timing'
 
 type CategoryKind = Category['kind']
-type CreateCategoryField = 'icon' | 'name'
-type CreateCategoryFieldErrors = Partial<Record<CreateCategoryField, string>>
 
 interface CreateCategoryModalProps {
   open: boolean
@@ -57,39 +61,28 @@ export default function CreateCategoryModal({
     kind: initialKind,
     icon: '',
   })
-  const [fieldErrors, setFieldErrors] = useState<CreateCategoryFieldErrors>({})
-  const [touched, setTouched] = useState<Record<CreateCategoryField, boolean>>({
-    icon: false,
-    name: false,
-  })
   const [formError, setFormError] = useState<string | null>(null)
   const [createInProgress, setCreateInProgress] = useState(false)
   const isCreating = createCategory.isPending || createInProgress
   const isSecondary = level === 'stacked'
+  const name = form.name.trim()
+  const refusal = useRefusedSubmit(
+    {
+      icon: form.icon ? undefined : CREATE_CATEGORY_ICON_REQUIRED_MESSAGE,
+      name: name ? undefined : CREATE_CATEGORY_NAME_REQUIRED_MESSAGE,
+    },
+    CREATE_CATEGORY_FIELDS,
+    CREATE_CATEGORY_FIELD_IDS,
+  )
 
-  const showError = (field: CreateCategoryField) => touched[field] && fieldErrors[field]
   const setField = <K extends keyof typeof form>(field: K, value: (typeof form)[K]) => {
     setForm((current) => ({ ...current, [field]: value }))
-    if (field === 'icon' || field === 'name') {
-      setTouched((current) => ({ ...current, [field]: true }))
-      setFieldErrors((current) => ({ ...current, [field]: undefined }))
-    }
     setFormError(null)
   }
 
   const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
-    if (isCreating) return
-
-    const name = form.name.trim()
-    const nextErrors: CreateCategoryFieldErrors = {}
-    if (!form.icon) nextErrors.icon = 'Required'
-    if (!name) nextErrors.name = 'Name is required'
-    if (Object.keys(nextErrors).length > 0) {
-      setTouched({ icon: true, name: true })
-      setFieldErrors(nextErrors)
-      return
-    }
+    if (isCreating || !refusal.guard()) return
 
     setCreateInProgress(true)
     const minimumLoading = waitForMilliseconds(LOADING_ANIMATION_MIN_MS)
@@ -132,6 +125,7 @@ export default function CreateCategoryModal({
         <ModalFormFooter
           submitLabel={submitLabel}
           submitDisabled={isCreating}
+          submitBlockedReason={refusal.blockedReason}
           submitWidthClassName={submitWidth}
           level={level}
           onCancel={onClose}
@@ -154,14 +148,14 @@ export default function CreateCategoryModal({
                   categoryName={form.name || 'New category'}
                   value={form.icon}
                   onChange={(icon) => setField('icon', icon)}
-                  buttonClassName={`app-input flex h-10 w-10 items-center justify-center p-0 text-xl leading-none ${showError('icon') ? 'app-input-error' : ''}`}
-                  hasError={!!showError('icon')}
+                  buttonClassName={`app-input flex h-10 w-10 items-center justify-center p-0 text-xl leading-none ${refusal.errors.icon ? 'app-input-error' : ''}`}
+                  hasError={!!refusal.errors.icon}
                   errorId={CREATE_CATEGORY_FIELD_IDS.iconError}
                   modalFieldTabStop
                 />
                 {/* The icon box is too narrow for visible text, so its error colour shows the problem and this carries the message to screen readers */}
-                {showError('icon') && (
-                  <p id={CREATE_CATEGORY_FIELD_IDS.iconError} role="alert" className="sr-only">{fieldErrors.icon}</p>
+                {refusal.errors.icon && (
+                  <p id={CREATE_CATEGORY_FIELD_IDS.iconError} role="alert" className="sr-only">{refusal.errors.icon}</p>
                 )}
               </div>
 
@@ -169,14 +163,17 @@ export default function CreateCategoryModal({
                 <CreateModalFieldLabelRow
                   htmlFor={CREATE_CATEGORY_FIELD_IDS.name}
                   label="Category name"
-                  error={showError('name')}
+                  error={refusal.errors.name}
+                  errorId={CREATE_CATEGORY_FIELD_IDS.nameError}
                 />
                 <input
                   id={CREATE_CATEGORY_FIELD_IDS.name}
-                  className={`app-input ${showError('name') ? 'app-input-error' : ''}`}
+                  className={`app-input ${refusal.errors.name ? 'app-input-error' : ''}`}
+                  aria-invalid={refusal.errors.name ? true : undefined}
+                  aria-describedby={refusal.errors.name ? CREATE_CATEGORY_FIELD_IDS.nameError : undefined}
                   value={form.name}
                   onChange={(event) => setField('name', event.target.value)}
-                  onBlur={() => setTouched((current) => ({ ...current, name: true }))}
+                  onBlur={() => refusal.touch('name')}
                   placeholder="Groceries"
                   maxLength={256}
                   required
@@ -201,20 +198,7 @@ export default function CreateCategoryModal({
           </div>
         </CreateModalSectionFrame>
 
-        <AnimatePresence>
-          {formError && (
-            <motion.p
-              className="text-sm font-medium"
-              style={{ color: 'var(--app-negative)' }}
-              initial={{ opacity: 0, y: -4 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -4 }}
-              transition={{ duration: 0.15 }}
-            >
-              {formError}
-            </motion.p>
-          )}
-        </AnimatePresence>
+        <FormError message={formError} />
       </div>
     </ModalTitledPanel>
   )

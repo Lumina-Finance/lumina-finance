@@ -5,21 +5,26 @@ import type { Currency } from '@/api/currency'
 import type { TaxAdvantagedCategory } from '@/api/tax-advantaged-categories'
 import ActionFeedbackButton from '@/components/feedback/ActionButton'
 import Dropdown from '@/components/dropdown/Dropdown'
+import { FieldLabelRow } from '@/components/forms/FieldLabelRow'
+import { FormError } from '@/components/forms/FormError'
 import type { TaxPlanFormState } from '@/pages/settings/components/tax-advantaged/types'
 import { TAX_TREATMENT_OPTIONS } from '@/pages/settings/components/tax-advantaged/tax-advantaged-categories-section/constants'
 import {
   CompactCurrencyInput,
   TaxAdvantagedCurrencyWarning,
 } from '@/pages/settings/components/tax-advantaged/tax-advantaged-categories-section/controls/FormControls'
+import { getCompactFieldFrameStyle } from '@/pages/settings/components/tax-advantaged/tax-advantaged-categories-section/utils/compactFieldStyle'
 import TaxAdvantagedOpeningUsageLabel from '@/pages/settings/components/tax-advantaged/tax-advantaged-categories-section/controls/OpeningUsageLabel'
-
-const COUNTS_INTERNAL_TRANSFERS_FIELD_ID = 'tac-details-counts-internal-transfers'
-const TAX_TREATMENT_FIELD_ID = 'tac-details-tax-treatment'
-const NAME_FIELD_ID = 'tac-details-name'
-const LIFETIME_LIMIT_FIELD_ID = 'tac-details-lifetime-limit'
-const OPENING_USAGE_FIELD_ID = 'tac-details-opening-usage'
+import {
+  CATEGORY_DETAILS_ERROR_IDS,
+  CATEGORY_DETAILS_FIELD_IDS,
+  type CategoryDetailsField,
+} from '@/pages/settings/components/tax-advantaged/tax-advantaged-categories-section/modalFieldIds'
+import type { FieldProblems } from '@/utils/refusedSubmit'
 
 interface TaxAdvantagedCategoryDetailsModalProps {
+  /** Why Save is held off once a press found something missing or wrong, or nothing while it is not */
+  blockedReason?: string
   currencies: Currency[]
   onClose: () => void
   onPlanFieldChange: <K extends keyof TaxPlanFormState>(key: K, value: TaxPlanFormState[K]) => void
@@ -29,6 +34,8 @@ interface TaxAdvantagedCategoryDetailsModalProps {
   planError: string | null
   planForm: TaxPlanFormState
   planSaveStatus: 'idle' | 'loading' | 'success'
+  /** The fields marked as wrong right now */
+  problems: FieldProblems<CategoryDetailsField>
   updatePending: boolean
 }
 
@@ -36,6 +43,7 @@ interface TaxAdvantagedCategoryDetailsModalProps {
  * Renders the TAC identity and lifetime room edit dialog
  */
 export default function TaxAdvantagedCategoryDetailsModal({
+  blockedReason,
   currencies,
   onClose,
   onPlanFieldChange,
@@ -45,6 +53,7 @@ export default function TaxAdvantagedCategoryDetailsModal({
   planError,
   planForm,
   planSaveStatus,
+  problems,
   updatePending,
 }: TaxAdvantagedCategoryDetailsModalProps) {
   return (
@@ -84,13 +93,13 @@ export default function TaxAdvantagedCategoryDetailsModal({
           <div className="grid grid-cols-1 gap-3 min-[620px]:grid-cols-[minmax(0,3fr)_minmax(0,7fr)]">
             <div className="grid min-w-0 grid-cols-2 gap-2">
               <div className="min-w-0">
-                <span className="app-label mb-0.5 block text-xs">Scope</span>
+                <span className="app-label mb-0.5 block text-xs leading-5">Scope</span>
                 <span className="block h-8 truncate text-[0.9375rem] font-medium leading-8">
                   {plan.group_id ? 'Group' : 'Personal'}
                 </span>
               </div>
               <div className="min-w-0">
-                <span className="app-label mb-0.5 block text-xs">Currency</span>
+                <span className="app-label mb-0.5 block text-xs leading-5">Currency</span>
                 <span className="inline-flex h-8 min-w-0 items-center gap-1 text-[0.9375rem] font-medium">
                   <span className="truncate">{plan.currency}</span>
                   <TaxAdvantagedCurrencyWarning />
@@ -98,14 +107,23 @@ export default function TaxAdvantagedCategoryDetailsModal({
               </div>
             </div>
             <div className="min-w-0">
-              <label htmlFor={NAME_FIELD_ID} className="app-label mb-0.5 block text-xs">Name</label>
+              <FieldLabelRow
+                compact
+                htmlFor={CATEGORY_DETAILS_FIELD_IDS.name}
+                label="Name"
+                error={problems.name}
+                errorId={CATEGORY_DETAILS_ERROR_IDS.name}
+                spacingClassName="mb-0.5"
+              />
               <div
                 className="group flex h-8 w-full items-center gap-1.5 rounded-md border border-transparent px-2 transition-colors duration-150 hover:border-[var(--app-border)] app-field-focus"
-                style={{ background: 'color-mix(in srgb, var(--app-input-bg) 55%, var(--app-bg))' }}
+                style={getCompactFieldFrameStyle(!!problems.name)}
               >
                 <input
                   aria-label="Category name"
-                  id={NAME_FIELD_ID}
+                  aria-describedby={problems.name ? CATEGORY_DETAILS_ERROR_IDS.name : undefined}
+                  aria-invalid={problems.name ? true : undefined}
+                  id={CATEGORY_DETAILS_FIELD_IDS.name}
                   className="block h-7 min-w-0 flex-1 bg-transparent text-[0.9375rem] font-medium leading-7 outline-none"
                   maxLength={256}
                   onChange={(event) => onPlanFieldChange('name', event.target.value)}
@@ -126,9 +144,9 @@ export default function TaxAdvantagedCategoryDetailsModal({
 
           <div className="grid grid-cols-1 gap-3 min-[620px]:grid-cols-[minmax(0,3fr)_minmax(0,7fr)]">
             <div className="min-w-0">
-              <label htmlFor={TAX_TREATMENT_FIELD_ID} className="app-label mb-1 block text-xs">Type</label>
+              <label htmlFor={CATEGORY_DETAILS_FIELD_IDS.taxTreatment} className="app-label mb-1 block text-xs">Type</label>
               <Dropdown
-                id={TAX_TREATMENT_FIELD_ID}
+                id={CATEGORY_DETAILS_FIELD_IDS.taxTreatment}
                 className="w-full"
                 size="compact"
                 options={TAX_TREATMENT_OPTIONS}
@@ -138,10 +156,19 @@ export default function TaxAdvantagedCategoryDetailsModal({
             </div>
             <div className="grid min-w-0 grid-cols-1 gap-3 min-[620px]:grid-cols-2">
               <div className="min-w-0">
-                <label htmlFor={LIFETIME_LIMIT_FIELD_ID} className="app-label mb-1 block text-xs">Lifetime limit</label>
+                <FieldLabelRow
+                  compact
+                  htmlFor={CATEGORY_DETAILS_FIELD_IDS.lifetimeLimit}
+                  label="Lifetime limit"
+                  error={problems.lifetimeLimit}
+                  errorId={CATEGORY_DETAILS_ERROR_IDS.lifetimeLimit}
+                  spacingClassName="mb-1"
+                />
                 <CompactCurrencyInput
                   ariaLabel="Lifetime limit"
-                  id={LIFETIME_LIMIT_FIELD_ID}
+                  hasError={!!problems.lifetimeLimit}
+                  errorId={CATEGORY_DETAILS_ERROR_IDS.lifetimeLimit}
+                  id={CATEGORY_DETAILS_FIELD_IDS.lifetimeLimit}
                   currencies={currencies}
                   currency={plan.currency}
                   value={planForm.lifetime_contribution_limit}
@@ -150,12 +177,19 @@ export default function TaxAdvantagedCategoryDetailsModal({
                 />
               </div>
               <div className="min-w-0">
-                <label htmlFor={OPENING_USAGE_FIELD_ID} className="app-label mb-1 block text-xs">
-                  <TaxAdvantagedOpeningUsageLabel />
-                </label>
+                <FieldLabelRow
+                  compact
+                  htmlFor={CATEGORY_DETAILS_FIELD_IDS.openingUsage}
+                  label={<TaxAdvantagedOpeningUsageLabel />}
+                  error={problems.openingUsage}
+                  errorId={CATEGORY_DETAILS_ERROR_IDS.openingUsage}
+                  spacingClassName="mb-1"
+                />
                 <CompactCurrencyInput
                   ariaLabel="Opening usage"
-                  id={OPENING_USAGE_FIELD_ID}
+                  hasError={!!problems.openingUsage}
+                  errorId={CATEGORY_DETAILS_ERROR_IDS.openingUsage}
+                  id={CATEGORY_DETAILS_FIELD_IDS.openingUsage}
                   currencies={currencies}
                   currency={plan.currency}
                   value={planForm.accrued_contributions}
@@ -166,7 +200,7 @@ export default function TaxAdvantagedCategoryDetailsModal({
           </div>
 
           <label
-            htmlFor={COUNTS_INTERNAL_TRANSFERS_FIELD_ID}
+            htmlFor={CATEGORY_DETAILS_FIELD_IDS.countsInternalTransfers}
             className="flex cursor-pointer items-center justify-between gap-4 rounded-xl p-4"
             style={{
               background: 'var(--app-input-bg)',
@@ -183,17 +217,13 @@ export default function TaxAdvantagedCategoryDetailsModal({
               </span>
             </span>
             <Switch
-              id={COUNTS_INTERNAL_TRANSFERS_FIELD_ID}
+              id={CATEGORY_DETAILS_FIELD_IDS.countsInternalTransfers}
               checked={planForm.counts_internal_transfers}
               onChange={(checked) => onPlanFieldChange('counts_internal_transfers', checked)}
             />
           </label>
 
-          {planError && (
-            <p className="text-sm" style={{ color: 'var(--app-negative)' }}>
-              {planError}
-            </p>
-          )}
+          <FormError message={planError} />
         </div>
       </div>
       <div className="grid shrink-0 grid-cols-2 gap-2 border-t px-5 py-4" style={{ borderColor: 'var(--app-border)' }}>
@@ -209,6 +239,7 @@ export default function TaxAdvantagedCategoryDetailsModal({
           type="button"
           className="app-primary-button justify-center"
           disabled={planSaveStatus !== 'idle'}
+          disabledReason={planSaveStatus === 'idle' ? blockedReason : undefined}
           loadingLabel="Saving"
           onClick={onSave}
           status={planSaveStatus}

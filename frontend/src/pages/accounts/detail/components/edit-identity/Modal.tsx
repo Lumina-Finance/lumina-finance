@@ -1,12 +1,13 @@
 import { useMemo, useState, type FormEvent } from 'react'
-import { AnimatePresence, motion } from 'motion/react'
 import {
   useDeleteAccount,
   useUpdateAccount,
   type Account,
 } from '@/api/accounts'
 import { useCurrencies } from '@/api/currency'
+import { FormError } from '@/components/forms/FormError'
 import { useCurrencyListState } from '@/hooks/useCurrencyListState'
+import { useRefusedSubmit } from '@/hooks/useRefusedSubmit'
 import { useRestoreOnceWhenReady } from '@/hooks/useRestoreOnceWhenReady'
 import { useInstitutions, type Institution } from '@/api/institutions'
 import { useInstitutionModal } from '@/hooks/useInstitutionModal'
@@ -20,12 +21,18 @@ import {
   fromMinorUnits,
 } from '@/utils/moneyInput'
 import { ACTION_LOADING_MIN_MS, LOADING_ANIMATION_MIN_MS, waitForMilliseconds } from '@/utils/timing'
-import { EDIT_ACCOUNT_IDENTITY_FIELD_IDS } from '@/pages/accounts/detail/constants/accountDetail'
+import {
+  DELETE_ACCOUNT_CONTROL_IDS,
+  DELETE_ACCOUNT_FIELDS,
+  DELETE_ACCOUNT_NAME_MISMATCH_MESSAGE,
+  EDIT_ACCOUNT_IDENTITY_CONTROL_IDS,
+  EDIT_ACCOUNT_IDENTITY_FIELD_IDS,
+  EDIT_ACCOUNT_IDENTITY_FIELDS,
+} from '@/pages/accounts/detail/constants/accountDetail'
 import {
   createIdentityFormValues,
   getIdentityFieldErrors,
   getIdentityUpdatePayload,
-  type IdentityFieldErrors,
   type IdentityFormValues,
 } from '@/pages/accounts/detail/utils/identityForm'
 import { AccountArchiveSection } from './sections/ArchiveSection'
@@ -82,7 +89,6 @@ export default function EditAccountIdentityModal({
   ))
   const [submitError, setSubmitError] = useState<string | null>(null)
   const [deleteError, setDeleteError] = useState<string | null>(null)
-  const [fieldErrors, setFieldErrors] = useState<IdentityFieldErrors>({})
   const [deleteStage, setDeleteStage] = useState<DeleteStage>('idle')
   const [deleteNameInput, setDeleteNameInput] = useState('')
   const [saveDelayPending, setSaveDelayPending] = useState(false)
@@ -93,6 +99,17 @@ export default function EditAccountIdentityModal({
   const selectedCurrencySymbol = currencies.find((currency) => currency.id === account.currency)?.symbol ?? ''
   const knownCreditLimitExponent = findCurrencyExponent(currencies, account.currency)
   const isCreditLimitLocked = isRevolving && knownCreditLimitExponent === null
+  const refusal = useRefusedSubmit<(typeof EDIT_ACCOUNT_IDENTITY_FIELDS)[number]>(
+    getIdentityFieldErrors(form, isRevolving),
+    EDIT_ACCOUNT_IDENTITY_FIELDS,
+    EDIT_ACCOUNT_IDENTITY_CONTROL_IDS,
+  )
+  const canDelete = deleteNameInput === account.name
+  const deleteRefusal = useRefusedSubmit(
+    { deleteName: canDelete ? undefined : DELETE_ACCOUNT_NAME_MISMATCH_MESSAGE },
+    DELETE_ACCOUNT_FIELDS,
+    DELETE_ACCOUNT_CONTROL_IDS,
+  )
 
   const readyCreditLimit = knownCreditLimitExponent === null
     ? null
@@ -122,7 +139,8 @@ export default function EditAccountIdentityModal({
       setForm(createIdentityFormValues(account, currencies))
       setSubmitError(null)
       setDeleteError(null)
-      setFieldErrors({})
+      refusal.reset()
+      deleteRefusal.reset()
       setDeleteStage('idle')
       setDeleteNameInput('')
       setSaveDelayPending(false)
@@ -149,11 +167,10 @@ export default function EditAccountIdentityModal({
   )
 
   /**
-   * Updates one form field and clears stale validation tied to that field
+   * Updates one form field
    */
   const setField = <K extends keyof IdentityFormValues>(field: K, value: IdentityFormValues[K]) => {
     setForm((current) => ({ ...current, [field]: value }))
-    setFieldErrors((current) => ({ ...current, [field]: undefined }))
     setSubmitError(null)
   }
 
@@ -171,10 +188,7 @@ export default function EditAccountIdentityModal({
    */
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
-    if (isBusy || deleteStage !== 'idle') return
-    const errors = getIdentityFieldErrors(form, isRevolving)
-    setFieldErrors(errors)
-    if (Object.keys(errors).length > 0) return
+    if (isBusy || deleteStage !== 'idle' || !refusal.guard()) return
 
     setSubmitError(null)
     setSaveDelayPending(true)
@@ -218,6 +232,7 @@ export default function EditAccountIdentityModal({
   const handleArchiveInstead = () => {
     setDeleteError(null)
     setDeleteNameInput('')
+    deleteRefusal.reset()
     setDeleteStage('idle')
     setField('is_archived', true)
     document.getElementById(EDIT_ACCOUNT_IDENTITY_FIELD_IDS.archive)?.focus()
@@ -230,6 +245,7 @@ export default function EditAccountIdentityModal({
     if (deleteStage !== 'idle') {
       setDeleteError(null)
       setDeleteNameInput('')
+      deleteRefusal.reset()
       setDeleteStage('idle')
     }
     setField('is_archived', checked)
@@ -239,7 +255,7 @@ export default function EditAccountIdentityModal({
    * Deletes the account only after the typed confirmation matches the current account name
    */
   const handleDeleteAccount = async () => {
-    if (deleteNameInput !== account.name || isBusy) return
+    if (isBusy || !deleteRefusal.guard()) return
     setDeleteError(null)
     onDeleteStarted(account)
 
@@ -255,7 +271,6 @@ export default function EditAccountIdentityModal({
   const deleteLoading = deleteAccount.isPending
   const saveLoading = (updateAccount.isPending && deleteStage === 'idle') || saveDelayPending
   const isBusy = updateAccount.isPending || saveDelayPending || deleteLoading
-  const canDelete = deleteNameInput === account.name
   const hasEditableAccountContext = canLinkTaxAdvantagedCategory || isRevolving
   const visibilitySectionNumber = hasEditableAccountContext ? '03' : '02'
   const isArchiving = !account.is_archived && form.is_archived
@@ -300,7 +315,7 @@ export default function EditAccountIdentityModal({
             <div className="space-y-5">
               <AccountIdentitySection
                 form={form}
-                fieldErrors={fieldErrors}
+                fieldErrors={refusal.errors}
                 institutionOptions={institutionOptions}
                 setField={setField}
                 onCreateInstitution={institutionModal.openForCreate}
@@ -310,7 +325,7 @@ export default function EditAccountIdentityModal({
               {hasEditableAccountContext && (
                 <AccountDetailsSection
                   form={form}
-                  fieldErrors={fieldErrors}
+                  fieldErrors={refusal.errors}
                   canLinkTaxAdvantagedCategory={canLinkTaxAdvantagedCategory}
                   isRevolving={isRevolving}
                   isCreditLimitLocked={isCreditLimitLocked}
@@ -334,21 +349,8 @@ export default function EditAccountIdentityModal({
                 onToggle={handleArchiveToggle}
               />
 
-              <AnimatePresence>
-                {submitError && (
-                  <motion.p
-                    // Starts where the sections' content does, as the delete panel does
-                    className="ml-6 text-sm font-medium min-[1050px]:ml-7"
-                    style={{ color: 'var(--app-negative)' }}
-                    initial={{ opacity: 0, y: -4 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    exit={{ opacity: 0, y: -4 }}
-                    transition={{ duration: 0.15 }}
-                  >
-                    {submitError}
-                  </motion.p>
-                )}
-              </AnimatePresence>
+              {/* Starts where the sections' content does, as the delete panel does */}
+              <FormError message={submitError} className="ml-6 min-[1050px]:ml-7" />
 
               <DeleteAccountPanel
                 account={account}
@@ -357,7 +359,8 @@ export default function EditAccountIdentityModal({
                 deleteError={deleteError}
                 deleteLoading={deleteLoading}
                 isBusy={isBusy}
-                canDelete={canDelete}
+                nameError={deleteRefusal.errors.deleteName}
+                blockedReason={deleteRefusal.blockedReason}
                 isArchiveBlocked={isArchiveBlocked}
                 onArchiveInstead={handleArchiveInstead}
                 onContinue={() => {
@@ -376,6 +379,7 @@ export default function EditAccountIdentityModal({
             deleteStage={deleteStage}
             isBusy={isBusy}
             saveLoading={saveLoading}
+            saveBlockedReason={refusal.blockedReason}
             onCancel={requestClose}
             onStartDelete={handleStartDeleteAccount}
           />

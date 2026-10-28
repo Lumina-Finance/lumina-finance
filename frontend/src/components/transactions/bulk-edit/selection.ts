@@ -671,50 +671,37 @@ export function getBulkEditBlockers(
 }
 
 /**
- * Returns whether the edit can be written.
+ * Says why the selection alone rules out an edit, or nothing while it can be edited
  *
  * The empty case matters as much as the cap: a refetch that no longer carries the selected rows empties
  * the selection, which can happen while the edit is open.
  *
- * @param rows The selected transactions
- * @param choice What the edit holds
- * @param blockers What the server would refuse, from getBulkEditBlockers
+ * This is a state of the page, not something the user typed, so Apply stays faded with this reason
+ * from the moment the window opens
  */
-export function canApplyBulkEdit(
-  rows: SelectedTransactionFacts[],
-  choice: BulkEditChoice,
-  blockers: BulkEditBlockers,
-): boolean {
-  if (rows.length === 0 || rows.length > MAX_BULK_EDIT_TRANSACTIONS) return false;
-  if (!hasBulkEditChoice(choice)) return false;
-
-  return (
-    blockers.withoutMerchant.length === 0
-    && !blockers.tooManyTags
-    && blockers.unansweredFarSide.length === 0
-    && blockers.ownAccountFarSide.length === 0
-    && blockers.sitsOutside.length === 0
-    && blockers.ownSideInAnotherCurrency.length === 0
-    && blockers.unavailableOwnAccount.length === 0
-  );
+export function getBulkEditSelectionBlockReason(rows: SelectedTransactionFacts[]): string | undefined {
+  if (rows.length === 0) return 'Tick a transaction first'
+  if (rows.length > MAX_BULK_EDIT_TRANSACTIONS) return `Up to ${MAX_BULK_EDIT_TRANSACTIONS} transactions can be edited at once`
+  return undefined
 }
 
 /**
- * Says why Apply is unavailable, or nothing while the edit can be applied
+ * Says what is wrong with what the edit changes, or nothing while it can be written
  *
- * Nothing chosen and a selection past the limit have a reason of their own. Every other refusal is a
- * warning the What changes panel already spells out, so the reason points there
+ * Nothing chosen has a reason of its own. Every other refusal is a warning the What changes panel
+ * already spells out, so the problem points there
  */
-export function getBulkEditApplyBlockReason(
-  rows: SelectedTransactionFacts[],
-  choice: BulkEditChoice,
-  blockers: BulkEditBlockers,
-): string | undefined {
-  if (canApplyBulkEdit(rows, choice, blockers)) return undefined
-  if (rows.length === 0) return 'Tick a transaction first'
-  if (rows.length > MAX_BULK_EDIT_TRANSACTIONS) return `Up to ${MAX_BULK_EDIT_TRANSACTIONS} transactions can be edited at once`
+export function getBulkEditChangeProblem(choice: BulkEditChoice, blockers: BulkEditBlockers): string | undefined {
   if (!hasBulkEditChoice(choice)) return 'Choose a change to apply'
-  return 'Fix the warnings under What changes first'
+
+  const isBlocked = blockers.withoutMerchant.length > 0
+    || blockers.tooManyTags
+    || blockers.unansweredFarSide.length > 0
+    || blockers.ownAccountFarSide.length > 0
+    || blockers.sitsOutside.length > 0
+    || blockers.ownSideInAnotherCurrency.length > 0
+    || blockers.unavailableOwnAccount.length > 0;
+  return isBlocked ? 'Fix the warnings under What changes first' : undefined
 }
 
 /** One row as the selection sees it: an identifier, and whether the app allows editing it */

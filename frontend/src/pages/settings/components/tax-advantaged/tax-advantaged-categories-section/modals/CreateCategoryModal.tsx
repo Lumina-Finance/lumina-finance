@@ -1,14 +1,18 @@
-import { AnimatePresence, motion } from 'motion/react'
 import { ArrowLeftRight, Landmark } from 'lucide-react'
 import { Switch } from '@/components/forms/Switch'
 import type { Currency } from '@/api/currency'
 import type { TaxTreatment } from '@/api/tax-advantaged-categories'
+import CreateModalFieldLabelRow from '@/components/create-modal/FieldLabelRow'
 import Dropdown from '@/components/dropdown/Dropdown'
 import { ModalTitledPanel } from '@/components/modal/TitledPanel'
 import { ModalFormFooter } from '@/components/modal/FormFooter'
 import { useCreateTaxAdvantagedCategoryForm } from '@/pages/settings/components/tax-advantaged/tax-advantaged-categories-section/hooks/useCreateCategoryForm'
 import { TAX_TREATMENT_OPTIONS } from '@/pages/settings/components/tax-advantaged/tax-advantaged-categories-section/constants'
-import { CREATE_TAX_ADVANTAGED_CATEGORY_FIELD_IDS } from '@/pages/settings/components/tax-advantaged/tax-advantaged-categories-section/modalFieldIds'
+import {
+  CREATE_CATEGORY_ERROR_IDS,
+  CREATE_TAX_ADVANTAGED_CATEGORY_FIELD_IDS,
+} from '@/pages/settings/components/tax-advantaged/tax-advantaged-categories-section/modalFieldIds'
+import { getFieldLabelId } from '@/utils/fieldLabel'
 import {
   CurrencyInput,
   TaxAdvantagedCurrencyWarning,
@@ -29,7 +33,9 @@ export default function CreateTaxAdvantagedCategoryModal({
   userBaseCurrency?: string
 }) {
   const {
+    blockedReason,
     createError,
+    errors,
     form,
     handleCreatePlan,
     isCreating,
@@ -54,7 +60,9 @@ export default function CreateTaxAdvantagedCategoryModal({
         <ModalFormFooter
           submitLabel="Create category"
           submitDisabled={isCreating}
+          submitBlockedReason={blockedReason}
           submitWidthClassName="w-full sm:w-40"
+          error={createError}
           onCancel={onClose}
         />
       )}
@@ -76,10 +84,17 @@ export default function CreateTaxAdvantagedCategoryModal({
             <p className="flex h-4 items-center text-base font-bold leading-none" style={{ color: 'var(--app-accent)' }}>Identity</p>
             <div className="grid gap-4 sm:grid-cols-2">
               <div>
-                <label htmlFor={CREATE_TAX_ADVANTAGED_CATEGORY_FIELD_IDS.name} className="app-label mb-1.5 block text-[0.9375rem] leading-5">Category name</label>
+                <CreateModalFieldLabelRow
+                  htmlFor={CREATE_TAX_ADVANTAGED_CATEGORY_FIELD_IDS.name}
+                  label="Category name"
+                  error={errors.name}
+                  errorId={CREATE_CATEGORY_ERROR_IDS.name}
+                />
                 <input
                   id={CREATE_TAX_ADVANTAGED_CATEGORY_FIELD_IDS.name}
-                  className="app-input"
+                  className={`app-input ${errors.name ? 'app-input-error' : ''}`}
+                  aria-invalid={errors.name ? true : undefined}
+                  aria-describedby={errors.name ? CREATE_CATEGORY_ERROR_IDS.name : undefined}
                   value={form.name}
                   onChange={(event) => setField('name', event.target.value)}
                   placeholder="TFSA"
@@ -116,24 +131,37 @@ export default function CreateTaxAdvantagedCategoryModal({
             <p className="flex h-4 items-center text-base font-bold leading-none" style={{ color: 'var(--app-accent)' }}>Limits</p>
             <div className="grid gap-4 sm:grid-cols-2">
               <div>
-                <div className="mb-1.5 flex items-center gap-2">
-                  <label htmlFor={CREATE_TAX_ADVANTAGED_CATEGORY_FIELD_IDS.currency} className="app-label block text-[0.9375rem] leading-5">Currency</label>
-                  <TaxAdvantagedCurrencyWarning />
-                </div>
+                <CreateModalFieldLabelRow
+                  htmlFor={CREATE_TAX_ADVANTAGED_CATEGORY_FIELD_IDS.currency}
+                  label="Currency"
+                  accessory={<TaxAdvantagedCurrencyWarning />}
+                  error={errors.currency}
+                  errorId={CREATE_CATEGORY_ERROR_IDS.currency}
+                />
                 <Dropdown
                   id={CREATE_TAX_ADVANTAGED_CATEGORY_FIELD_IDS.currency}
                   options={options}
                   value={selectedCurrency}
                   onChange={(value) => setField('currency', value)}
+                  hasError={!!errors.currency}
+                  describedBy={errors.currency ? CREATE_CATEGORY_ERROR_IDS.currency : undefined}
+                  labelledBy={getFieldLabelId(CREATE_TAX_ADVANTAGED_CATEGORY_FIELD_IDS.currency)}
                   placeholder="Select currency"
                   searchable
                   searchPlaceholder="Search currencies..."
                 />
               </div>
               <div>
-                <label htmlFor={CREATE_TAX_ADVANTAGED_CATEGORY_FIELD_IDS.lifetimeContributionLimit} className="app-label mb-1.5 block text-[0.9375rem] leading-5">Lifetime contribution limit</label>
+                <CreateModalFieldLabelRow
+                  htmlFor={CREATE_TAX_ADVANTAGED_CATEGORY_FIELD_IDS.lifetimeContributionLimit}
+                  label="Lifetime contribution limit"
+                  error={errors.lifetimeContributionLimit}
+                  errorId={CREATE_CATEGORY_ERROR_IDS.lifetimeContributionLimit}
+                />
                 <CurrencyInput
                   id={CREATE_TAX_ADVANTAGED_CATEGORY_FIELD_IDS.lifetimeContributionLimit}
+                  hasError={!!errors.lifetimeContributionLimit}
+                  errorId={CREATE_CATEGORY_ERROR_IDS.lifetimeContributionLimit}
                   currencies={currencies}
                   currency={selectedCurrency}
                   value={form.lifetime_contribution_limit}
@@ -142,9 +170,16 @@ export default function CreateTaxAdvantagedCategoryModal({
                 />
               </div>
               <div>
-                <label htmlFor={CREATE_TAX_ADVANTAGED_CATEGORY_FIELD_IDS.accruedContributions} className="app-label mb-1.5 block text-[0.9375rem] leading-5">Accrued contributions</label>
+                <CreateModalFieldLabelRow
+                  htmlFor={CREATE_TAX_ADVANTAGED_CATEGORY_FIELD_IDS.accruedContributions}
+                  label="Accrued contributions"
+                  error={errors.accruedContributions}
+                  errorId={CREATE_CATEGORY_ERROR_IDS.accruedContributions}
+                />
                 <CurrencyInput
                   id={CREATE_TAX_ADVANTAGED_CATEGORY_FIELD_IDS.accruedContributions}
+                  hasError={!!errors.accruedContributions}
+                  errorId={CREATE_CATEGORY_ERROR_IDS.accruedContributions}
                   currencies={currencies}
                   currency={selectedCurrency}
                   value={form.accrued_contributions}
@@ -194,21 +229,6 @@ export default function CreateTaxAdvantagedCategoryModal({
             </label>
           </div>
         </section>
-
-        <AnimatePresence>
-          {createError && (
-            <motion.p
-              className="text-sm font-medium"
-              style={{ color: 'var(--app-negative)' }}
-              initial={{ opacity: 0, y: -4 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -4 }}
-              transition={{ duration: 0.15 }}
-            >
-              {createError}
-            </motion.p>
-          )}
-        </AnimatePresence>
       </div>
     </ModalTitledPanel>
   )

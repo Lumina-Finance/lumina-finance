@@ -1,5 +1,6 @@
 import type {
   TransactionDirection,
+  TransactionFormFieldErrors,
   TransactionFormValues,
   TransactionModalKind,
 } from '@/components/transactions/transaction-modal/types'
@@ -24,7 +25,33 @@ export const TRANSACTION_MODAL_FIELD_IDS = {
   category: 'txn-category',
   tags: 'txn-tags',
   currency: 'txn-currency',
+  date: 'txn-date',
+  amount: 'txn-amount',
 } as const
+
+// The control that takes focus when a refused press lands on each validated field that stays in place.
+// The two account fields trade places with the direction, so `getTransactionFieldLayout` places them
+export const TRANSACTION_MODAL_FIXED_CONTROL_IDS: Omit<
+  Record<keyof TransactionFormFieldErrors, string>,
+  'account_id' | 'counterparty_account_id'
+> = {
+  merchant_id: TRANSACTION_MODAL_FIELD_IDS.merchant,
+  category_id: TRANSACTION_MODAL_FIELD_IDS.category,
+  currency: TRANSACTION_MODAL_FIELD_IDS.currency,
+  date: TRANSACTION_MODAL_FIELD_IDS.date,
+  amount: TRANSACTION_MODAL_FIELD_IDS.amount,
+}
+
+// The id of each validated field's message, which the field points to as its description
+export const TRANSACTION_MODAL_ERROR_IDS: Record<keyof TransactionFormFieldErrors, string> = {
+  account_id: 'txn-account-error',
+  counterparty_account_id: 'txn-counterparty-account-error',
+  merchant_id: 'txn-merchant-error',
+  category_id: 'txn-category-error',
+  currency: 'txn-currency-error',
+  date: 'txn-date-error',
+  amount: 'txn-amount-error',
+}
 
 export const KIND_OPTIONS: { value: TransactionModalKind; label: string }[] = [
   { value: 'expense', label: 'Expense' },

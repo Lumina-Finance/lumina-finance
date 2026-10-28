@@ -7,7 +7,12 @@ import CreateModalSectionHeadingRow from '@/components/create-modal/SectionHeadi
 import { ModalTitledPanel } from '@/components/modal/TitledPanel'
 import { ModalFormFooter } from '@/components/modal/FormFooter'
 import type { ModalLevel } from '@/components/modal/Shell'
-import { CREATE_TAG_FIELD_IDS, CREATE_TAG_NAME_REQUIRED_MESSAGE } from '@/components/reference-modals/createTagConstants'
+import {
+  CREATE_TAG_FIELD_IDS,
+  CREATE_TAG_FIELDS,
+  CREATE_TAG_NAME_REQUIRED_MESSAGE,
+} from '@/components/reference-modals/createTagConstants'
+import { useRefusedSubmit } from '@/hooks/useRefusedSubmit'
 import { LOADING_ANIMATION_MIN_MS, waitForMilliseconds } from '@/utils/timing'
 
 
@@ -39,21 +44,23 @@ export default function CreateTagModal({
 }: CreateTagModalProps) {
   const createTag = useCreateTag()
   const [name, setName] = useState(initialName)
-  const [nameError, setNameError] = useState<string | null>(null)
+  // A name the server refused as taken, which stays until the name is edited
+  const [takenNameError, setTakenNameError] = useState<string | null>(null)
   const [formError, setFormError] = useState<string | null>(null)
   const [createInProgress, setCreateInProgress] = useState(false)
   const isSubmitting = createTag.isPending || createInProgress
   const isSecondary = level === 'stacked'
+  const trimmed = name.trim()
+  const refusal = useRefusedSubmit(
+    { name: takenNameError ?? (trimmed ? undefined : CREATE_TAG_NAME_REQUIRED_MESSAGE) },
+    CREATE_TAG_FIELDS,
+    CREATE_TAG_FIELD_IDS,
+  )
+  const nameError = refusal.errors.name
 
   const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
-    if (isSubmitting) return
-
-    const trimmed = name.trim()
-    if (!trimmed) {
-      setNameError(CREATE_TAG_NAME_REQUIRED_MESSAGE)
-      return
-    }
+    if (isSubmitting || !refusal.guard()) return
 
     setCreateInProgress(true)
     const minimumLoading = waitForMilliseconds(LOADING_ANIMATION_MIN_MS)
@@ -66,8 +73,12 @@ export default function CreateTagModal({
       .catch(async (error) => {
         await minimumLoading
         // A name already taken is about the field, anything else about the request
-        if (error instanceof ApiError && error.status === 409) setNameError(error.message)
-        else setFormError(error instanceof ApiError ? error.message : 'Failed to create tag.')
+        if (error instanceof ApiError && error.status === 409) {
+          setTakenNameError(error.message)
+          refusal.markRefused()
+        } else {
+          setFormError(error instanceof ApiError ? error.message : 'Failed to create tag.')
+        }
         setCreateInProgress(false)
       })
   }
@@ -94,6 +105,7 @@ export default function CreateTagModal({
         <ModalFormFooter
           submitLabel={submitLabel}
           submitDisabled={isSubmitting}
+          submitBlockedReason={refusal.blockedReason}
           submitWidthClassName={submitWidth}
           error={formError}
           level={level}
@@ -114,7 +126,7 @@ export default function CreateTagModal({
               value={name}
               onChange={(event) => {
                 setName(event.target.value)
-                setNameError(null)
+                setTakenNameError(null)
                 setFormError(null)
               }}
               maxLength={64}

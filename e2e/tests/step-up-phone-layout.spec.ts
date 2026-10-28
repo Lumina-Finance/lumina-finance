@@ -18,7 +18,7 @@ test('lays the step-up password step out like the form modals below 1050px', AT_
 
   const modal = page.getByRole('dialog', { name: 'Turn on two-factor authentication' })
   const eyebrow = modal.locator('.app-modal-phone-eyebrow')
-  const field = modal.getByPlaceholder('Current password')
+  const field = modal.getByLabel('Current password')
   const next = modal.getByRole('button', { name: 'Continue' })
   await expect(field).toBeVisible()
 

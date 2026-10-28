@@ -1,6 +1,8 @@
 import { useEffect, useRef } from 'react'
+import { FormError } from '@/components/forms/FormError'
 import { MODAL_INSET_CLASS_NAME } from '@/components/modal/inset'
 import type { ModalLevel } from '@/components/modal/Shell'
+import { DisabledReasonButton } from '@/components/tooltips/DisabledReasonButton'
 
 // The justify side is applied separately below, since a footer drawn with the primary on the left
 // swaps it for sm:justify-between rather than adding to it
@@ -10,6 +12,12 @@ interface ModalFormFooterProps {
   submitLabel: string
   /** Held down while the submission is in flight, which swaps the label for a spinner and blocks cancelling */
   submitDisabled: boolean
+  /**
+   * Why the form can't go ahead, once a press found a problem. The submit button then fades but stays
+   * focusable, and says so in its tooltip until the form is fixed. Left out by a dialog with nothing to
+   * fill in, whose button never fades
+   */
+  submitBlockedReason?: string
   /** Width classes for the submit button, so a short label does not stretch the whole way across */
   submitWidthClassName: string
   /** Shown beside the actions when the submission failed, rather than against any one field */
@@ -39,6 +47,7 @@ interface ModalFormFooterProps {
 export function ModalFormFooter({
   submitLabel,
   submitDisabled,
+  submitBlockedReason,
   submitWidthClassName,
   error,
   errorId,
@@ -62,15 +71,12 @@ export function ModalFormFooter({
 
   // Below sm an error between the buttons would split them across rows, so it is drawn first on a row of
   // its own, while it stays between them in the DOM and in the single row from sm
-  const errorMessage = error && (
-    <p
-      className={`col-span-2 text-sm font-medium sm:col-span-1 ${primaryOnLeft ? 'order-first sm:order-none' : 'sm:mr-auto'}`}
+  const errorMessage = (
+    <FormError
+      message={error}
       id={errorId}
-      role="alert"
-      style={{ color: 'var(--app-negative)' }}
-    >
-      {error}
-    </p>
+      className={`col-span-2 sm:col-span-1 ${primaryOnLeft ? 'order-first sm:order-none' : 'sm:mr-auto'}`}
+    />
   )
   const cancelButton = (
     <button
@@ -84,7 +90,7 @@ export function ModalFormFooter({
     </button>
   )
   const primaryButton = (
-    <button
+    <DisabledReasonButton
       ref={primaryRef}
       type={onPrimary ? 'button' : 'submit'}
       onClick={() => {
@@ -92,13 +98,14 @@ export function ModalFormFooter({
         onPrimary?.()
       }}
       disabled={submitDisabled}
+      disabledReason={submitDisabled ? undefined : submitBlockedReason}
       aria-busy={submitDisabled}
       className={`${tone === 'danger' ? 'app-danger-button' : 'app-primary-button'} overflow-hidden whitespace-nowrap duration-300 ${submitDisabled ? 'app-primary-button-loading justify-self-center sm:justify-self-auto' : submitWidthClassName}`}
     >
       {/* The spinner replaces the label, so it carries the label as its own name and a screen reader still
           says which action is in flight */}
       {submitDisabled ? <div className="app-spinner" aria-label={submitLabel} /> : submitLabel}
-    </button>
+    </DisabledReasonButton>
   )
 
   return (

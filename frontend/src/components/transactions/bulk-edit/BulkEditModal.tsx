@@ -8,6 +8,7 @@ import { useInfiniteTags } from '@/api/tags'
 import { Checkbox } from '@/components/forms/Checkbox'
 import CreateModalFieldLabelRow from '@/components/create-modal/FieldLabelRow'
 import CreateModalSectionFrame from '@/components/create-modal/SectionFrame'
+import CreateModalSectionHeadingRow from '@/components/create-modal/SectionHeadingRow'
 import DateField from '@/components/date-field/DateField'
 import Dropdown from '@/components/dropdown/Dropdown'
 import { InfoCallout } from '@/components/InfoCallout'
@@ -22,8 +23,9 @@ import {
   doesChosenCategoryRecordTransferTarget,
   endsAfterDirectionClick,
   endsAfterEndPick,
-  getBulkEditApplyBlockReason,
   getBulkEditBlockers,
+  getBulkEditChangeProblem,
+  getBulkEditSelectionBlockReason,
   getBulkMoveTargets,
   getTransferEndTargets,
   impliedDirection,
@@ -43,12 +45,18 @@ import type { BulkDirectionChange } from '@/api/transactions'
 import type { TransactionListAccount } from '@/components/transactions/types/transactionList'
 import { useDebouncedReferenceSearch } from '@/components/transactions/transaction-modal/hooks/useDebouncedReferenceSearch'
 import { buildCategoryOptions } from '@/components/transactions/transaction-modal/utils/categories'
+import { useRefusedSubmit } from '@/hooks/useRefusedSubmit'
 import { OUTSIDE_ACCOUNT_LABEL, OUTSIDE_ACCOUNT_VALUE } from '@/utils/transfers'
 import { formatValueList } from '@/utils/formatList'
 
 // This option clears assignments rather than identifying a stored tag
 const REMOVE_ALL_TAGS_VALUE = 'remove-all-tags'
 const REMOVE_ALL_TAGS_LABEL = 'Remove all tags'
+
+// What the edit changes is the one place Apply can be refused, since every control starts as leave as is
+const BULK_EDIT_FIELDS = ['changes'] as const
+const BULK_EDIT_FIELD_IDS = { changes: 'bulk-changes' } as const
+const CHANGES_ERROR_ID = 'bulk-changes-error'
 
 const REFERENCE_SEARCH_DEBOUNCE_MS = 250
 const REFERENCE_PAGE_SIZE = 20
@@ -343,7 +351,14 @@ export function BulkEditModal({
     endsAreOffered,
   }
   const blockers = getBulkEditBlockers(rows, choice, chosenCategoryRecordsTransferTarget, accounts)
-  const applyBlockReason = getBulkEditApplyBlockReason(rows, choice, blockers)
+  // Nothing chosen and the warnings are problems of the edit, marked on the What changes heading once Apply
+  // is pressed. A missing or oversized selection is a state of the page, so it keeps Apply faded throughout
+  const selectionBlockReason = getBulkEditSelectionBlockReason(rows)
+  const refusal = useRefusedSubmit(
+    { changes: getBulkEditChangeProblem(choice, blockers) },
+    BULK_EDIT_FIELDS,
+    BULK_EDIT_FIELD_IDS,
+  )
 
   const transactionsWord = rows.length === 1 ? 'transaction' : 'transactions'
 
@@ -398,8 +413,11 @@ export function BulkEditModal({
           </button>
           <DisabledReasonButton
             className="app-primary-button h-9 px-4 text-sm"
-            disabledReason={applyBlockReason}
-            onClick={() => onApply(buildBulkEditFields(choice))}
+            disabledReason={selectionBlockReason ?? refusal.blockedReason}
+            onClick={() => {
+              if (!refusal.guard()) return
+              onApply(buildBulkEditFields(choice))
+            }}
           >
             Apply
           </DisabledReasonButton>
@@ -616,8 +634,19 @@ export function BulkEditModal({
           </div>
         </CreateModalSectionFrame>
 
-        <CreateModalSectionFrame step="03" title="What changes">
-          <BulkEditSummaryPanel summary={summary} />
+        <CreateModalSectionFrame step="03">
+          <div className="min-w-0 space-y-3">
+            {/* Takes focus when Apply is refused, so the message is read and scrolled to rather than left off screen */}
+            <div
+              id={BULK_EDIT_FIELD_IDS.changes}
+              tabIndex={-1}
+              className="outline-none"
+              aria-describedby={refusal.errors.changes ? CHANGES_ERROR_ID : undefined}
+            >
+              <CreateModalSectionHeadingRow label="What changes" error={refusal.errors.changes} errorId={CHANGES_ERROR_ID} />
+            </div>
+            <BulkEditSummaryPanel summary={summary} />
+          </div>
         </CreateModalSectionFrame>
       </div>
     </ModalTitledPanel>

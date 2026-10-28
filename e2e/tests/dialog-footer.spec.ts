@@ -23,7 +23,7 @@ async function openNewRecoveryCodes(page: Page, user: TestUser): Promise<void> {
   await page.locator('#security').getByRole('button', { name: 'Manage' }).click()
   await page.getByRole('button', { name: 'Regenerate' }).click()
   const stepUp = page.getByRole('dialog', { name: 'Regenerate recovery codes' })
-  await stepUp.getByPlaceholder('Current password').fill(user.password)
+  await stepUp.getByLabel('Current password').fill(user.password)
   await stepUp.getByRole('button', { name: 'Continue' }).click()
   await stepUp.getByLabel('One-time code').pressSequentially('123456')
   await stepUp.getByRole('button', { name: 'Regenerate' }).click()

@@ -1,12 +1,18 @@
 import { useMemo, useState, type FormEvent } from 'react'
 import type { LucideIcon } from 'lucide-react'
+import CreateModalSectionHeadingRow from '@/components/create-modal/SectionHeadingRow'
 import { MODAL_INSET_CLASS_NAME } from '@/components/modal/inset'
 import Dropdown, { type DropdownOption } from '@/components/dropdown/Dropdown'
+import { FormError } from '@/components/forms/FormError'
 import { ModalTitledPanel } from '@/components/modal/TitledPanel'
 import { DisabledReasonButton } from '@/components/tooltips/DisabledReasonButton'
+import { useRefusedSubmit } from '@/hooks/useRefusedSubmit'
 import { waitForMilliseconds } from '@/utils/timing'
 
 const NO_REPLACEMENT_REASON = 'Nothing compatible to move the transactions to'
+
+// The one field the dialogue asks for
+const REPLACEMENT_FIELDS = ['replacement'] as const
 
 interface ReplacementQueryResult<TItem> {
   replacements: TItem[]
@@ -86,9 +92,17 @@ export default function MergeDeleteReferenceModal<TItem>({
   const idSlug = wording.entityLabel.toLowerCase()
   const titleId = `merge-delete-${idSlug}-title`
   const selectId = `merge-delete-${idSlug}-replacement`
+  const errorId = `${selectId}-error`
   const hasNoReplacement = !replacementQuery.isLoading && options.length === 0
   // Only a settled empty list is a reason, since the list is also empty while it loads and while the move runs
   const noReplacementReason = !isSubmitting && hasNoReplacement ? NO_REPLACEMENT_REASON : undefined
+  // A replacement is chosen for the person once the list has arrived, so one is missing only while it loads.
+  // A list that settled empty is a state of its own, with nothing to fill in
+  const refusal = useRefusedSubmit(
+    { replacement: selectedReplacementId || hasNoReplacement ? undefined : wording.requireSelectionError },
+    REPLACEMENT_FIELDS,
+    { replacement: selectId },
+  )
   const dropdownPlaceholder = replacementQuery.isLoading && wording.loadingPlaceholder
     ? wording.loadingPlaceholder
     : options.length === 0
@@ -98,11 +112,7 @@ export default function MergeDeleteReferenceModal<TItem>({
 
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
-    if (isSubmitting) return
-    if (!selectedReplacementId) {
-      setFormError(wording.requireSelectionError)
-      return
-    }
+    if (isSubmitting || hasNoReplacement || !refusal.guard()) return
 
     setFormError(null)
     setMergeInProgress(true)
@@ -135,11 +145,7 @@ export default function MergeDeleteReferenceModal<TItem>({
             className={`flex shrink-0 flex-col-reverse gap-3 py-5 sm:flex-row sm:items-center sm:justify-end ${MODAL_INSET_CLASS_NAME.page}`}
             style={{ borderTop: '1px solid var(--app-border)' }}
           >
-            {formError && (
-              <p className="text-sm font-medium sm:mr-auto" style={{ color: 'var(--app-negative)' }}>
-                {formError}
-              </p>
-            )}
+            <FormError message={formError} className="sm:mr-auto" />
             <button
               type="button"
               className="app-secondary-button w-full sm:w-auto"
@@ -151,8 +157,8 @@ export default function MergeDeleteReferenceModal<TItem>({
             <DisabledReasonButton
               type="submit"
               className={`app-danger-button overflow-hidden whitespace-nowrap duration-300 ${isSubmitting ? 'app-primary-button-loading' : 'w-full sm:w-40'}`}
-              disabled={isSubmitting || options.length === 0}
-              disabledReason={noReplacementReason}
+              disabled={isSubmitting}
+              disabledReason={isSubmitting ? undefined : noReplacementReason ?? refusal.blockedReason}
             >
               {isSubmitting ? (
                 <div className="app-spinner" aria-label="Deleting" />
@@ -177,9 +183,11 @@ export default function MergeDeleteReferenceModal<TItem>({
 
           <div className="min-w-0 space-y-3">
             <div>
-              <p className="flex h-4 items-center text-base font-bold leading-none" style={{ color: 'var(--app-accent)' }}>
-                {wording.fieldLabel}
-              </p>
+              <CreateModalSectionHeadingRow
+                label={wording.fieldLabel}
+                error={refusal.errors.replacement}
+                errorId={errorId}
+              />
               <p className="mt-2 text-sm leading-5" style={{ color: 'var(--app-text-muted)' }}>
                 {wording.description}
               </p>
@@ -194,6 +202,8 @@ export default function MergeDeleteReferenceModal<TItem>({
                   setReplacementId(value)
                   setFormError(null)
                 }}
+                hasError={!!refusal.errors.replacement}
+                describedBy={refusal.errors.replacement ? errorId : undefined}
                 placeholder={dropdownPlaceholder}
                 searchable
                 searchPlaceholder={wording.searchPlaceholder}

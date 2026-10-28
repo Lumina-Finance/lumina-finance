@@ -1,5 +1,14 @@
-import { useState } from 'react';
+import { useId, useState } from 'react';
 import { KeyRound } from 'lucide-react';
+import { AcknowledgementGroup } from '@/components/forms/AcknowledgementGroup';
+import {
+  getAcknowledgementItemId,
+  getAcknowledgementProblem,
+  getFirstUntickedKey,
+} from '@/components/forms/acknowledgement';
+import { FieldLabelRow } from '@/components/forms/FieldLabelRow';
+import { FormError } from '@/components/forms/FormError';
+import { useRefusedSubmit } from '@/hooks/useRefusedSubmit';
 import { DisabledReasonButton } from '@/components/tooltips/DisabledReasonButton';
 import { ModalContentFooter } from '@/components/modal/ContentPanel';
 import { useConfirmPasskeyRegistration, useRegisterPasskey } from '@/api/passkeys';
@@ -10,6 +19,10 @@ import { StepTransition } from '@/components/two-factor/StepTransition';
 import { getPasskeyRegistrationMessage, isPasskeyCeremonyCancelled } from '@/utils/passkeyErrors';
 import { SERVER_UNREACHABLE_MESSAGE } from '@/api/server';
 import { isSetupRefused } from '@/utils/setupFailure';
+
+const NAME_FIELDS = ['name'] as const;
+const ACK_FIELDS = ['acknowledgements'] as const;
+const ACK_KEYS = ['saved', 'lockout'] as const;
 
 interface PasskeyEnrollmentProps {
   /** Called once the passkey is active and, for a first passkey, its recovery codes are acknowledged */
@@ -37,6 +50,20 @@ export function PasskeyEnrollment({ onComplete, onSkip, onSwitchToTotp, setupSte
   const [savedAcknowledged, setSavedAcknowledged] = useState(false);
   const [lockoutAcknowledged, setLockoutAcknowledged] = useState(false);
   const [activateFailed, setActivateFailed] = useState(false);
+  const nameId = useId();
+  const nameErrorId = `${nameId}-error`;
+  const ackGroupId = useId();
+  const nameRefusal = useRefusedSubmit(
+    { name: name.trim() ? undefined : 'Name is required' },
+    NAME_FIELDS,
+    { name: nameId },
+  );
+  const ackTicks = [savedAcknowledged, lockoutAcknowledged];
+  const ackRefusal = useRefusedSubmit(
+    { acknowledgements: getAcknowledgementProblem(ackTicks) },
+    ACK_FIELDS,
+    { acknowledgements: getAcknowledgementItemId(ackGroupId, getFirstUntickedKey(ACK_KEYS, ackTicks)) },
+  );
 
   /**
    * Runs the registration ceremony, staging the recovery codes to acknowledge when a batch is issued
@@ -45,8 +72,8 @@ export function PasskeyEnrollment({ onComplete, onSkip, onSwitchToTotp, setupSte
    * retry, switch method, or skip
    */
   const handleRegister = async () => {
+    if (register.isPending || !nameRefusal.guard()) return;
     const trimmed = name.trim();
-    if (!trimmed || register.isPending) return;
 
     setError('');
     try {
@@ -66,7 +93,7 @@ export function PasskeyEnrollment({ onComplete, onSkip, onSwitchToTotp, setupSte
    * Activates the staged passkey once the recovery codes are acknowledged, then hands back to the caller
    */
   const handleActivate = async () => {
-    if (!savedAcknowledged || !lockoutAcknowledged || confirmRegistration.isPending) return;
+    if (confirmRegistration.isPending || !ackRefusal.guard()) return;
 
     setError('');
     try {
@@ -86,6 +113,8 @@ export function PasskeyEnrollment({ onComplete, onSkip, onSwitchToTotp, setupSte
     setSavedAcknowledged(false);
     setLockoutAcknowledged(false);
     setActivateFailed(false);
+    nameRefusal.reset();
+    ackRefusal.reset();
   };
 
   return (
@@ -101,43 +130,39 @@ export function PasskeyEnrollment({ onComplete, onSkip, onSwitchToTotp, setupSte
 
           <RecoveryCodesPanel codes={recoveryCodes} factors={{ authenticator: false, passkeys: 1 }} />
 
-          <div className="space-y-2">
-            <label className="flex items-center gap-2 text-sm" style={{ color: 'var(--app-text-muted)' }}>
-              <input
-                type="checkbox"
-                className="app-checkbox"
-                checked={savedAcknowledged}
-                onChange={(event) => setSavedAcknowledged(event.target.checked)}
-              />
-              I've saved my recovery codes
-            </label>
-
-            <label className="flex items-start gap-2 text-sm" style={{ color: 'var(--app-text-muted)' }}>
-              <input
-                type="checkbox"
-                className="app-checkbox mt-1 shrink-0"
-                checked={lockoutAcknowledged}
-                onChange={(event) => setLockoutAcknowledged(event.target.checked)}
-              />
-              I understand I may be permanently locked out if I lose both my passkey and these codes
-            </label>
-          </div>
+          <AcknowledgementGroup
+            groupId={ackGroupId}
+            heading="Before you continue"
+            error={ackRefusal.errors.acknowledgements}
+            errorId={`${ackGroupId}-error`}
+            items={[
+              {
+                key: 'saved',
+                label: "I've saved my recovery codes",
+                checked: savedAcknowledged,
+                onChange: setSavedAcknowledged,
+              },
+              {
+                key: 'lockout',
+                label: 'I understand I may be permanently locked out if I lose both my passkey and these codes',
+                checked: lockoutAcknowledged,
+                onChange: setLockoutAcknowledged,
+                multiline: true,
+              },
+            ]}
+          />
 
           <ModalContentFooter>
             {activateFailed ? (
               <SetupRestart onStartAgain={startAgain} />
             ) : (
               <div className="space-y-3">
-                {error && (
-                  <p role="alert" className="text-center text-sm" style={{ color: 'var(--app-negative)' }}>
-                    {error}
-                  </p>
-                )}
+                <FormError message={error} className="text-center" />
                 <div className="flex justify-center">
                   <DisabledReasonButton
                     onClick={handleActivate}
                     disabled={confirmRegistration.isPending}
-                    disabledReason={!savedAcknowledged || !lockoutAcknowledged ? 'Tick both boxes first' : undefined}
+                    disabledReason={confirmRegistration.isPending ? undefined : ackRefusal.blockedReason}
                     className={`app-primary-button transition-all duration-300 ${confirmRegistration.isPending ? 'app-primary-button-loading' : 'w-full'}`}
                   >
                     {confirmRegistration.isPending ? <div className="app-spinner" /> : 'Done'}
@@ -157,26 +182,33 @@ export function PasskeyEnrollment({ onComplete, onSkip, onSwitchToTotp, setupSte
             </p>
           </div>
 
-          <input
-            className="app-input w-full"
-            placeholder="Name this passkey"
-            value={name}
-            onChange={(event) => setName(event.target.value)}
-            disabled={register.isPending}
-            aria-label="New passkey name"
-          />
+          <div>
+            <FieldLabelRow
+              label="Passkey name"
+              htmlFor={nameId}
+              error={nameRefusal.errors.name}
+              errorId={nameErrorId}
+            />
+            <input
+              id={nameId}
+              className={`app-input w-full ${nameRefusal.errors.name ? 'app-input-error' : ''}`}
+              placeholder="Name this passkey"
+              value={name}
+              onChange={(event) => setName(event.target.value)}
+              disabled={register.isPending}
+              aria-label="New passkey name"
+              aria-invalid={nameRefusal.errors.name ? true : undefined}
+              aria-describedby={nameRefusal.errors.name ? nameErrorId : undefined}
+            />
+          </div>
 
-          {error && (
-            <p className="text-center text-sm" style={{ color: 'var(--app-negative)' }}>
-              {error}
-            </p>
-          )}
+          <FormError message={error} className="text-center" />
 
           <div className="flex justify-center">
             <DisabledReasonButton
               onClick={handleRegister}
               disabled={register.isPending}
-              disabledReason={!name.trim() ? 'Name the passkey first' : undefined}
+              disabledReason={register.isPending ? undefined : nameRefusal.blockedReason}
               className={`app-primary-button transition-all duration-300 ${register.isPending ? 'app-primary-button-loading' : 'flex w-full items-center justify-center gap-2'}`}
             >
               {register.isPending ? (

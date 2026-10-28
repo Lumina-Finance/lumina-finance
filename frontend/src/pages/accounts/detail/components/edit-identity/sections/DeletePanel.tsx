@@ -2,6 +2,8 @@ import { useId } from 'react'
 import { AnimatePresence, motion } from 'motion/react'
 import { AlertTriangle, EyeOff } from 'lucide-react'
 import type { Account } from '@/api/accounts'
+import { FieldError } from '@/components/forms/FieldError'
+import { FormError } from '@/components/forms/FormError'
 import { getFocusableElements } from '@/components/modal/focus'
 import { useRevealWhenGrown } from '@/pages/accounts/detail/hooks/useRevealWhenGrown'
 import { DisabledReasonButton } from '@/components/tooltips/DisabledReasonButton'
@@ -19,7 +21,11 @@ type DeleteAccountPanelProps = {
   deleteError: string | null
   deleteLoading: boolean
   isBusy: boolean
-  canDelete: boolean
+  /** Why the typed name was refused, shown on the name field's label row until it matches the account's */
+  nameError?: string
+
+  /** Fades Delete account with this reason once a press found the typed name wrong */
+  blockedReason?: string
   /** Disables the archive shortcut for the same reason the archive switch is locked */
   isArchiveBlocked: boolean
   onArchiveInstead: () => void
@@ -38,7 +44,8 @@ export function DeleteAccountPanel({
   deleteError,
   deleteLoading,
   isBusy,
-  canDelete,
+  nameError,
+  blockedReason,
   isArchiveBlocked,
   onArchiveInstead,
   onContinue,
@@ -148,16 +155,25 @@ export function DeleteAccountPanel({
                         transition={{ duration: 0.18, ease: EASE }}
                       >
                         <div>
-                          <label
-                            htmlFor={EDIT_ACCOUNT_IDENTITY_FIELD_IDS.deleteName}
-                            className="mb-1.5 block break-words text-sm leading-5"
-                            style={{ color: 'var(--app-text-muted)' }}
-                          >
-                            Type <strong className="font-semibold">"{account.name}"</strong> to delete.
-                          </label>
+                          <div className="mb-1.5 flex flex-wrap items-start justify-between gap-x-3">
+                            <label
+                              htmlFor={EDIT_ACCOUNT_IDENTITY_FIELD_IDS.deleteName}
+                              className="block min-w-0 break-words text-sm leading-5"
+                              style={{ color: 'var(--app-text-muted)' }}
+                            >
+                              Type <strong className="font-semibold">"{account.name}"</strong> to delete.
+                            </label>
+                            <FieldError
+                              message={nameError}
+                              id={EDIT_ACCOUNT_IDENTITY_FIELD_IDS.deleteNameError}
+                              className="ml-auto min-w-0"
+                            />
+                          </div>
                           <input
                             id={EDIT_ACCOUNT_IDENTITY_FIELD_IDS.deleteName}
-                            className="app-input"
+                            className={`app-input ${nameError ? 'app-input-error' : ''}`}
+                            aria-invalid={nameError ? true : undefined}
+                            aria-describedby={nameError ? EDIT_ACCOUNT_IDENTITY_FIELD_IDS.deleteNameError : undefined}
                             value={deleteNameInput}
                             onChange={(event) => {
                               onNameChange(event.target.value)
@@ -171,18 +187,14 @@ export function DeleteAccountPanel({
                             autoComplete="off"
                           />
 
-                          {deleteError && (
-                            <p className="mt-3 text-[0.9375rem] font-medium" style={{ color: 'var(--app-negative)' }}>
-                              {deleteError}
-                            </p>
-                          )}
+                          <FormError message={deleteError} className="mt-3" />
 
                           <div className="mt-4 flex justify-end">
                             <DisabledReasonButton
                               className={`app-danger-button justify-center overflow-hidden whitespace-nowrap duration-300 ${deleteLoading ? 'app-primary-button-loading shrink-0' : 'w-full min-[1050px]:w-auto'}`}
                               onClick={onDelete}
                               disabled={isBusy}
-                              disabledReason={!isBusy && !canDelete ? "Type the account's name first" : undefined}
+                              disabledReason={isBusy ? undefined : blockedReason}
                               aria-label="Delete account"
                               aria-busy={deleteLoading}
                             >

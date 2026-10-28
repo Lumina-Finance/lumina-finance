@@ -19,32 +19,27 @@ import {
   getSymmetricTransferLegKinds,
   buildUpdateTransactionPatch,
 } from '@/components/transactions/transaction-modal/utils/payloads'
-import {
-  getSymmetricTransferAccountError,
-  isSymmetricTransferForm,
-  validateTransactionForm,
-} from '@/components/transactions/transaction-modal/utils/validation'
-import type {
-  TransactionFormFieldErrors,
-  TransactionFormValues,
-} from '@/components/transactions/transaction-modal/types'
+import { isSymmetricTransferForm } from '@/components/transactions/transaction-modal/utils/validation'
+import type { TransactionFormValues } from '@/components/transactions/transaction-modal/types'
 
 interface UseTransactionSubmitOptions {
   editing: boolean
   transaction?: Transaction
   form: TransactionFormValues
   setForm: Dispatch<SetStateAction<TransactionFormValues>>
-  setFieldErrors: Dispatch<SetStateAction<TransactionFormFieldErrors>>
-  setTouched: Dispatch<SetStateAction<Record<string, boolean>>>
+
+  // Marks the form's problems and returns false while it has any, from the refused-press hook
+  guard: () => boolean
+
+  // Takes the marks off a form a keep-open batch has just cleared for its next row
+  resetRefusal: () => void
   setSubmitError: Dispatch<SetStateAction<string>>
   setSubmitErrorTitle: Dispatch<SetStateAction<string>>
   readOnly: boolean
   accounts: AccountsOverview[]
   selectedAccount: AccountsOverview | undefined
-  selectedCounterpartyAccount: AccountsOverview | undefined
   selectedCurrencyExponent: number
   isAmountLocked: boolean
-  isBalanceAdjustmentCategory: boolean
   deleteLoading: boolean
   openRef: MutableRefObject<boolean>
   recordCreatedAccountId: (accountId: string) => void
@@ -70,17 +65,15 @@ export function useTransactionSubmit({
   transaction,
   form,
   setForm,
-  setFieldErrors,
-  setTouched,
+  guard,
+  resetRefusal,
   setSubmitError,
   setSubmitErrorTitle,
   readOnly,
   accounts,
   selectedAccount,
-  selectedCounterpartyAccount,
   selectedCurrencyExponent,
   isAmountLocked,
-  isBalanceAdjustmentCategory,
   deleteLoading,
   openRef,
   recordCreatedAccountId,
@@ -124,33 +117,14 @@ export function useTransactionSubmit({
       counterparty_account_id: form.counterparty_account_id,
       ...(keepTransferPair ? { symmetric_transfer: form.symmetric_transfer } : {}),
     })
-    setFieldErrors({})
-    setTouched({})
+    resetRefusal()
     setSubmitError('')
     setSubmitErrorTitle('')
   }
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault()
-    if (isPending || readOnly) return
-    const errors = validateTransactionForm(form, { isAmountLocked, isBalanceAdjustmentCategory })
-    // Ticking the checkbox creates a real transaction in the recorded account, so that account has
-    // to be one the amount is valid in. Both accounts have to be loaded to compare them
-    if (!editing && isSymmetricTransferForm(form) && !errors.counterparty_account_id) {
-      const accountError = getSymmetricTransferAccountError(selectedAccount, selectedCounterpartyAccount)
-      if (accountError) errors.counterparty_account_id = accountError
-    }
-    setFieldErrors(errors)
-    setTouched({
-      account_id: true,
-      category_id: true,
-      merchant_id: true,
-      amount: true,
-      currency: true,
-      date: true,
-      counterparty_account_id: true,
-    })
-    if (Object.keys(errors).length > 0) return
+    if (isPending || readOnly || !guard()) return
 
     if (editing && transaction) {
       const patch = buildUpdateTransactionPatch(
