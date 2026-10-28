@@ -1,3 +1,5 @@
+import { formatList } from '@/utils/formatList';
+
 export const REFRESH_ALREADY_ROTATED_STATUS = 409;
 export const REFRESH_ALREADY_ROTATED_DETAIL = 'Refresh token was already rotated';
 
@@ -100,7 +102,7 @@ const UNNAMED_FIELDS_MESSAGE = "Oops, some of what you entered wasn't accepted. 
 function describeRefusedFields(fieldErrors: ApiFieldError[]): string {
   const names = [...new Set(fieldErrors.map(({ field }) => field.replaceAll('_', ' ').trim()).filter(Boolean))];
   if (names.length === 0) return UNNAMED_FIELDS_MESSAGE;
-  const list = names.length === 1 ? names[0] : `${names.slice(0, -1).join(', ')} and ${names.at(-1)}`;
+  const list = formatList(names);
   return names.length === 1
     ? `Oops, the ${list} wasn't accepted. Please check it and try again.`
     : `Oops, the ${list} weren't accepted. Please check them and try again.`;

@@ -27,9 +27,9 @@ import {
   getFireflyBudgetUnsupportedCurrencyReason,
 } from '@/pages/imports/firefly/constants'
 import type { FireflyBudgetDraft } from '@/pages/imports/firefly/types'
-import { joinWords } from '@/pages/imports/utils/common'
 import { toImportMinorUnits } from '@/pages/imports/utils/valueParsers'
 import { parseYmd } from '@/utils/date'
+import { formatList } from '@/utils/formatList'
 import { formatCurrency } from '@/utils/formatCurrency'
 import { JOURNAL_NO_CATEGORY_SOURCE } from '@/api/provider-imports'
 import { CREATE_CATEGORY_VALUE, IMPORT_BUDGET_NAME_MAX_LENGTH, JOURNAL_ROW_FIELD_MAX_LENGTHS } from '@/pages/imports/constants'
@@ -292,14 +292,14 @@ export function buildFireflyBudgetCountingNotes({
       const others = (budgetNamesByTarget.get(key) ?? []).filter((name) => name !== draft.name)
       if (others.length === 0) continue
       const theirs = others.length === 1 ? `${others[0]}'s` : 'their'
-      notes.push(`${draft.name} shares ${categoryName} with ${joinWords(others)}, so it also counts ${theirs} spending in ${categoryName}.`)
+      notes.push(`${draft.name} shares ${categoryName} with ${formatList(others)}, so it also counts ${theirs} spending in ${categoryName}.`)
     }
 
     const totals = [...uncategorizedByBudget.get(draft.name) ?? []]
       .sort(([a], [b]) => a.localeCompare(b))
       .map(([currencyCode, minorUnits]) => formatCurrency(minorUnits, currencyCode, options.currencies))
     if (totals.length > 0) {
-      notes.push(`${draft.name} has ${joinWords(totals)} of spending with no category in Firefly III, which it will not count.`)
+      notes.push(`${draft.name} has ${formatList(totals)} of spending with no category in Firefly III, which it will not count.`)
     }
     return notes
   })

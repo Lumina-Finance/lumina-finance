@@ -6,6 +6,7 @@ import {
   stageImportRunRows,
 } from '@/api/import-runs/requests';
 import type { ImportRunRoutes, OnImportStaged, OpenImportRunRequest } from '@/api/import-runs/types';
+import { formatValueList } from '@/utils/formatList';
 import { getImportFailureMessage } from '@/utils/importFailure';
 
 /** Which half of the upload an import stopped in, which decides what can be done about it */
@@ -183,6 +184,6 @@ const MAX_IMPORT_FILE_NAME_LENGTH = 255;
  * @returns The names joined and cut to what a run records, or undefined when there are none
  */
 export function getImportFileName(names: string[]): string | undefined {
-  const joined = names.join(', ');
+  const joined = formatValueList(names);
   return joined ? joined.slice(0, MAX_IMPORT_FILE_NAME_LENGTH) : undefined;
 }

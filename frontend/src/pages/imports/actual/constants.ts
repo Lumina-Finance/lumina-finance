@@ -1,4 +1,5 @@
 import type { AccountType } from '@/api/accounts'
+import { formatList } from '@/utils/formatList'
 import type { ImportFileType } from '@/pages/imports/utils/fileIntake'
 import type { ActualPaymentMode } from '@/pages/imports/actual/types'
 import {
@@ -135,15 +136,15 @@ export function getActualAmountPrecisionReason(amount: string, currencyCode: str
 }
 
 export function getActualSharedAccountError(labels: string[], accountName: string) {
-  return `${labels.join(' and ')} are linked to the same account, ${accountName}. Link each Actual account to an account of its own.`
+  return `${formatList(labels)} are linked to the same account, ${accountName}. Link each Actual account to an account of its own.`
 }
 
 export function getActualMixedCurrencyError(currencies: string[]) {
-  return `An Actual budget has one currency, but its accounts are set to ${currencies.join(', ')}. Choose one currency for every account.`
+  return `An Actual budget has one currency, but its accounts are set to ${formatList(currencies)}. Choose one currency for every account.`
 }
 
 export function getActualFileCurrencyError(fileCurrency: string, labels: string[]) {
-  return `This budget is in ${fileCurrency}, so every account must be in ${fileCurrency} too. Change the currency of ${labels.join(', ')}.`
+  return `This budget is in ${fileCurrency}, so every account must be in ${fileCurrency} too. Change the currency of ${formatList(labels)}.`
 }
 
 export function getActualTransferCategoryError(label: string) {

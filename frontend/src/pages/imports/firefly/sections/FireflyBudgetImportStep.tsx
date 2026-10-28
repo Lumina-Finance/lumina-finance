@@ -3,6 +3,7 @@ import type { ImportSkippedTableRow } from '@/pages/imports/components/tables/Sk
 import { ImportBudgetStep } from '@/pages/imports/sections'
 import type { FireflyImportWorkflow } from '@/pages/imports/firefly/hooks'
 import type { FireflyBudgetDraft } from '@/pages/imports/firefly/types'
+import { formatValueList } from '@/utils/formatList'
 
 const SKIPPED_BUDGET_HEADERS = [
   'Status',
@@ -18,7 +19,7 @@ const SKIPPED_BUDGET_AMOUNT_HEADERS = ['Latest amount']
 const BUDGET_COLUMNS: ImportBudgetColumn<FireflyBudgetDraft>[] = [
   { header: 'Cadence', widthClassName: 'w-[11%]', tone: 'muted', render: (draft) => draft.periodLabel ?? '' },
   { header: 'Latest amount', widthClassName: 'w-[14%]', align: 'right', tone: 'figure', render: (draft) => draft.amount },
-  { header: 'Categories', widthClassName: 'w-[26%]', tone: 'muted', truncate: true, render: (draft) => draft.categoryNames.join(', ') },
+  { header: 'Categories', widthClassName: 'w-[26%]', tone: 'muted', truncate: true, render: (draft) => formatValueList(draft.categoryNames) },
   { header: 'First period', widthClassName: 'w-[13%]', tone: 'figure', render: (draft) => draft.firstPeriodStart ?? '' },
   {
     header: 'Changes',
@@ -72,7 +73,7 @@ export function FireflyBudgetImportStep({
       reason: draft.disabledReason,
       cells: {
         'Status': draft.isArchived ? 'Archived' : 'Active',
-        'Currencies': draft.currencyCodes.join(', '),
+        'Currencies': formatValueList(draft.currencyCodes),
         'Periods': draft.limits.length > 0 ? String(draft.limits.length) : '',
         'Cadence': draft.periodLabel ?? '',
         'First period': draft.firstPeriodStart ?? '',

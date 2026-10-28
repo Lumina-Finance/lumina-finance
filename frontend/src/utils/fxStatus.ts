@@ -1,4 +1,5 @@
 import type { FxRateIssue, FxStatus } from '@/api/shared/fx'
+import { formatList } from '@/utils/formatList'
 
 /**
  * Formats distinct missing currency pairs for compact FX tooltips
@@ -8,8 +9,8 @@ export function formatMissingFxPairs(missingPairs: FxRateIssue[]) {
   const visiblePairs = distinctPairs.slice(0, 3)
   const remainingCount = distinctPairs.length - visiblePairs.length
   return remainingCount > 0
-    ? `${visiblePairs.join(', ')} and ${remainingCount} more`
-    : visiblePairs.join(', ')
+    ? formatList([...visiblePairs, `${remainingCount} more`])
+    : formatList(visiblePairs)
 }
 
 /**

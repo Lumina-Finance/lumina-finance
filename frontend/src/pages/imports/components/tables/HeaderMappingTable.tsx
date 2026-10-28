@@ -12,6 +12,7 @@ import {
   getTargetForHeader,
 } from '@/pages/imports/utils'
 import { IMPORT_EXCLUDED_ROW_BACKGROUND, IMPORT_EXCLUDED_ROW_FAINT_TEXT } from '@/pages/imports/constants'
+import { formatValueList } from '@/utils/formatList'
 
 type RowIcon = { label: string; level: 'important' | 'info'; text: string }
 
@@ -177,7 +178,7 @@ export function ImportHeaderMappingTable({
                 </td>
                 <td className="max-w-[24rem] px-4 py-2.5 align-middle">
                   <p className="truncate text-sm" style={{ color: isIgnored ? IMPORT_EXCLUDED_ROW_FAINT_TEXT : 'var(--app-text-subtle)' }}>
-                    {samples.length > 0 ? samples.join(', ') : 'No samples'}
+                    {samples.length > 0 ? formatValueList(samples) : 'No samples'}
                   </p>
                 </td>
                 <td className="py-2.5 pl-4 pr-0 align-middle">

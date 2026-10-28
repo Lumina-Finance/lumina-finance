@@ -1,5 +1,5 @@
 import type { LastImport } from '@/api/import-runs'
-import { joinWords } from '@/pages/imports/utils/common'
+import { formatList } from '@/utils/formatList'
 
 /** How the last import names the app it came from */
 export const IMPORT_SOURCE_LABELS: Record<LastImport['source'], string> = {
@@ -63,7 +63,7 @@ export function describeUndoDeletion(entry: LastImport) {
     countWord(entry.budget_count, 'budget', 'budgets'),
   ].filter((part): part is string => part !== null)
 
-  return `This deletes everything ${entry.file_name ?? 'this import'} added: ${joinWords(parts)}.`
+  return `This deletes everything ${entry.file_name ?? 'this import'} added: ${formatList(parts)}.`
 }
 
 function countWord(count: number, singular: string, plural: string) {

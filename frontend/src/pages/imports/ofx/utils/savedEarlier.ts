@@ -1,5 +1,6 @@
 import type { OfxStagedFile } from '@/pages/imports/ofx/types'
 import { IMPORT_SAVED_EARLIER_MESSAGE, labelStagedFiles } from '@/pages/imports/utils'
+import { formatList } from '@/utils/formatList'
 
 /**
  * Says an earlier import was saved in place of this one, and when the files staged now differ from
@@ -37,5 +38,5 @@ function listNames(files: OfxStagedFile[], list: OfxStagedFile[]) {
 
   const labels = labelStagedFiles(list)
   const names = files.map((file) => labels[list.indexOf(file)])
-  return { count: files.length, text: new Intl.ListFormat('en', { style: 'long', type: 'conjunction' }).format(names) }
+  return { count: files.length, text: formatList(names) }
 }

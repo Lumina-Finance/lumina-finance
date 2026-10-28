@@ -19,6 +19,7 @@ import {
 } from '@/components/transactions/bulk-edit/selection'
 import { DATE_FORMATS, formatDate, parseYmd } from '@/utils/date'
 import { OUTSIDE_ACCOUNT_LABEL } from '@/utils/transfers'
+import { formatList, formatValueList } from '@/utils/formatList'
 import { MAX_BULK_TAGS } from '@/components/transactions/bulk-edit/constants'
 
 /** One currency an own end would move blocked rows into, and how many rows share the pairing */
@@ -178,7 +179,7 @@ function transferEndDetail(
     clauses.push(`${effect.recordsOnly} of the ${total} now ${verb} ${target}`)
   }
 
-  return clauses.length > 0 ? clauses.join(', ') : undefined
+  return clauses.length > 0 ? formatList(clauses) : undefined
 }
 
 /** Returns the account's label or "Outside this app" for a transfer end choice that is actually set */
@@ -264,10 +265,10 @@ export function describeBulkEdit(
   }
   if (fields.override_tags) {
     summaryRows.push(fields.add_tag_ids?.length
-      ? { label: 'Tags replaced', value: labels.tagLabels.join(', ') }
+      ? { label: 'Tags replaced', value: formatValueList(labels.tagLabels) }
       : { label: 'Tags removed', value: 'All tags' })
   } else if (fields.add_tag_ids !== undefined) {
-    summaryRows.push({ label: 'Tags added', value: labels.tagLabels.join(', ') })
+    summaryRows.push({ label: 'Tags added', value: formatValueList(labels.tagLabels) })
   }
   if (fields.transfer_from !== undefined) {
     // buildBulkEditFields only sends transfer_from when choice.transferFrom is set, so it is never
