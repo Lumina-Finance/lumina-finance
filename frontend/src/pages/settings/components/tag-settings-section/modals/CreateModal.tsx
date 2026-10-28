@@ -4,6 +4,8 @@ import { ApiError } from '@/api/auth'
 import { useCreateTag, type Tag } from '@/api/tags'
 import { ModalTitledPanel } from '@/components/modal/TitledPanel'
 import { ModalFormFooter } from '@/components/modal/FormFooter'
+import CreateModalSectionHeadingRow from '@/components/create-modal/SectionHeadingRow'
+import { CREATE_TAG_FIELD_IDS, CREATE_TAG_NAME_REQUIRED_MESSAGE } from '@/components/reference-modals/createTagConstants'
 import { CREATE_TAG_MIN_LOADING_MS } from '@/pages/settings/components/tag-settings-section/constants'
 import { waitForMilliseconds } from '@/utils/timing'
 
@@ -22,9 +24,9 @@ export default function TagCreateModal({
 }) {
   const createTag = useCreateTag()
   const [name, setName] = useState('')
+  // The name is the problem when it is empty or already taken, and the request when anything else failed
+  const [nameError, setNameError] = useState<string | null>(null)
   const [formError, setFormError] = useState<string | null>(null)
-  // Whether the failure is about the name, an empty one or one already taken, rather than the request
-  const [nameInvalid, setNameInvalid] = useState(false)
   const [createInProgress, setCreateInProgress] = useState(false)
   const isSubmitting = createTag.isPending || createInProgress
 
@@ -34,8 +36,7 @@ export default function TagCreateModal({
 
     const trimmed = name.trim()
     if (!trimmed) {
-      setFormError('Name is required.')
-      setNameInvalid(true)
+      setNameError(CREATE_TAG_NAME_REQUIRED_MESSAGE)
       return
     }
 
@@ -49,8 +50,8 @@ export default function TagCreateModal({
       })
       .catch(async (error) => {
         await minimumLoading
-        setFormError(error instanceof ApiError ? error.message : 'Failed to create tag.')
-        setNameInvalid(error instanceof ApiError && error.status === 409)
+        if (error instanceof ApiError && error.status === 409) setNameError(error.message)
+        else setFormError(error instanceof ApiError ? error.message : 'Failed to create tag.')
         setCreateInProgress(false)
       })
   }
@@ -72,7 +73,6 @@ export default function TagCreateModal({
           submitDisabled={isSubmitting}
           submitWidthClassName="w-full sm:w-28"
           error={formError}
-          errorId="create-tag-error"
           onCancel={onClose}
         />
       )}
@@ -90,25 +90,19 @@ export default function TagCreateModal({
         </div>
 
         <div className="min-w-0 space-y-3">
-          <p
-            id="create-tag-name-label"
-            className="flex h-4 items-center text-base font-bold leading-none"
-            style={{ color: 'var(--app-accent)' }}
-          >
-            Tag name
-          </p>
+          <CreateModalSectionHeadingRow label="Tag name" error={nameError} errorId={CREATE_TAG_FIELD_IDS.nameError} />
           <div>
+            <label htmlFor={CREATE_TAG_FIELD_IDS.name} className="sr-only">Tag name</label>
             <input
-              id="create-tag-name"
-              className={`app-input ${nameInvalid ? 'app-input-error' : ''}`}
-              aria-labelledby="create-tag-name-label"
-              aria-invalid={nameInvalid || undefined}
-              aria-describedby={nameInvalid ? 'create-tag-error' : undefined}
+              id={CREATE_TAG_FIELD_IDS.name}
+              className={`app-input ${nameError ? 'app-input-error' : ''}`}
+              aria-invalid={nameError ? true : undefined}
+              aria-describedby={nameError ? CREATE_TAG_FIELD_IDS.nameError : undefined}
               value={name}
               onChange={(event) => {
                 setName(event.target.value)
+                setNameError(null)
                 setFormError(null)
-                setNameInvalid(false)
               }}
               maxLength={64}
               required

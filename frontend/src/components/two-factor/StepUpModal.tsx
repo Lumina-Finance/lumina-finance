@@ -1,4 +1,4 @@
-import { KeyRound } from 'lucide-react';
+import { KeyRound, ShieldCheck } from 'lucide-react';
 import { DisabledReasonButton } from '@/components/tooltips/DisabledReasonButton';
 import { useId, useState, type FormEvent, type MouseEvent } from 'react';
 import type { AuthenticationResponseJSON } from '@simplewebauthn/browser';
@@ -7,6 +7,7 @@ import { useTotpStatus } from '@/api/two-factor';
 import { OtpInput, OTP_LENGTH } from '@/components/OtpInput';
 import { StepTransition } from '@/components/two-factor/StepTransition';
 import { ModalContentFooter, ModalContentPanel } from '@/components/modal/ContentPanel';
+import { MODAL_TITLE_CLASS_NAME } from '@/components/modal/Rail';
 import type { ModalLevel } from '@/components/modal/Shell';
 import { WarningCallout } from '@/components/WarningCallout';
 import { useAuth } from '@/hooks/useAuth';
@@ -251,12 +252,27 @@ export function StepUpModal({
     ) : null;
 
   return (
-    <ModalContentPanel open={open} onClose={handleClose} closeDisabled={verifying || resetting} titleId="step-up-title" level={level}>
+    <ModalContentPanel
+      open={open}
+      onClose={handleClose}
+      closeDisabled={verifying || resetting}
+      titleId="step-up-title"
+      level={level}
+      RailIcon={ShieldCheck}
+      railLabel="Verify"
+      phoneHeader
+    >
       <StepTransition
+        fillPhone
         stepKey={confirmingReset ? 'reset' : step}
         header={
-          <div className="space-y-1">
-            <h3 id="step-up-title" className="text-base font-semibold">{title}</h3>
+          <div className="flex flex-col gap-1 max-[1049px]:gap-5">
+            <div className="app-modal-phone-header">
+              <p className="app-modal-phone-eyebrow mb-2 text-xs font-semibold uppercase" style={{ color: 'var(--app-accent)' }}>
+                Verify
+              </p>
+              <h3 id="step-up-title" className={MODAL_TITLE_CLASS_NAME}>{title}</h3>
+            </div>
             <p className="text-sm" style={{ color: 'var(--app-text-muted)' }}>
               {confirmingReset
                 ? "You'll be signed out everywhere and can set up a new factor after signing in with a recovery code."
@@ -274,7 +290,7 @@ export function StepUpModal({
             <label className="flex items-start gap-2 text-sm" style={{ color: 'var(--app-text-muted)' }}>
               <input
                 type="checkbox"
-                className="mt-0.5 shrink-0"
+                className="app-checkbox mt-0.5 shrink-0"
                 checked={recoveryAcknowledged}
                 onChange={(event) => setRecoveryAcknowledged(event.target.checked)}
                 disabled={resetting}
@@ -295,14 +311,14 @@ export function StepUpModal({
               type="button"
               onClick={onUserPress(() => setConfirmingReset(false))}
               disabled={resetting}
-              className="block w-full text-center text-sm font-medium underline underline-offset-2"
+              className="mx-auto block text-center text-sm font-medium underline underline-offset-2"
               style={{ color: 'var(--app-text-muted)' }}
             >
               Back
             </button>
           </div>
         ) : step === 'password' ? (
-          <form onSubmit={handleContinue} className="space-y-5">
+          <form onSubmit={handleContinue} className="flex flex-col gap-5 max-[1049px]:flex-1">
             <input
               className="app-input w-full"
               type="password"
@@ -337,7 +353,7 @@ export function StepUpModal({
             </ModalContentFooter>
           </form>
         ) : (
-          <div className="space-y-5">
+          <div className="flex flex-col gap-5 max-[1049px]:flex-1">
             <form id={codeFormId} onSubmit={handleSubmit} className="space-y-5">
               {canUsePasskey && (
                 <div className="flex justify-center">
@@ -409,7 +425,7 @@ export function StepUpModal({
                         setLockoutRemaining(null);
                       })}
                       disabled={verifying}
-                      className="block w-full text-center text-sm underline underline-offset-2"
+                      className="mx-auto block text-center text-sm underline underline-offset-2"
                       style={{ color: 'var(--app-text-muted)' }}
                     >
                       Back
@@ -420,7 +436,7 @@ export function StepUpModal({
                       type="button"
                       onClick={onUserPress(() => setConfirmingReset(true))}
                       disabled={verifying}
-                      className="block w-full text-center text-sm font-medium underline underline-offset-2"
+                      className="mx-auto block text-center text-sm font-medium underline underline-offset-2"
                       style={{ color: 'var(--app-text-muted)' }}
                     >
                       Lost your authenticator?

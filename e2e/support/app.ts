@@ -291,6 +291,20 @@ export async function typeDate(page: Page, label: string, iso: string): Promise<
 }
 
 /**
+ * Sign in with the password, which opens the second-factor step for a user with TOTP.
+ *
+ * @param page - Page to drive, at any address in the app
+ * @param user - Credentials of a user who has two-factor on
+ */
+export async function reachTwoFactorChallenge(page: Page, user: TestUser): Promise<void> {
+  await page.goto('/login')
+  await page.getByLabel('Email').fill(user.email)
+  await page.getByLabel('Password', { exact: true }).fill(user.password)
+  await page.getByRole('button', { name: 'Log in' }).click()
+  await expect(page.getByLabel('One-time code')).toBeVisible()
+}
+
+/**
  * Assert the app is showing its signed-in shell.
  *
  * The navigation is the thing that says so, and it only renders for a signed-in user past the

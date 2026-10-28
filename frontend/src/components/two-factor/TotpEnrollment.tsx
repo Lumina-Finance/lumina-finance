@@ -49,12 +49,24 @@ interface TotpEnrollmentProps {
    * Without it, enrolment mints a fresh secret itself
    */
   onRestart?: () => void;
+  /** Classes for each step's heading, which a modal sets in its own title style */
+  titleClassName?: string;
 }
+
+const DEFAULT_TITLE_CLASS_NAME = 'text-base font-semibold';
 
 /**
  * Drives the shared TOTP enrolment flow: the QR and code confirmation, then the one-time recovery codes
  */
-export function TotpEnrollment({ onComplete, onSkip, onSwitchToPasskey, initialSetup, setupStepUp, onRestart }: TotpEnrollmentProps) {
+export function TotpEnrollment({
+  onComplete,
+  onSkip,
+  onSwitchToPasskey,
+  initialSetup,
+  setupStepUp,
+  onRestart,
+  titleClassName = DEFAULT_TITLE_CLASS_NAME,
+}: TotpEnrollmentProps) {
   // Settings supplies a secret it already stepped up for, so this only mints one for signup and re-enrol
   const setup = useSetupTotp({ enabled: !initialSetup, stepUp: setupStepUp });
   // A failed refetch keeps the previous secret cached, which a restart has already abandoned, so an error
@@ -184,7 +196,7 @@ export function TotpEnrollment({ onComplete, onSkip, onSwitchToPasskey, initialS
       {enabledViaReuse ? (
         <div className="space-y-5">
           <div className="space-y-1">
-            <h3 id={TOTP_ENROLLMENT_TITLE_ID} className="text-base font-semibold">Two-factor is on</h3>
+            <h3 id={TOTP_ENROLLMENT_TITLE_ID} className={titleClassName}>Two-factor is on</h3>
             <p className="text-sm" style={{ color: 'var(--app-text-muted)' }}>
               Your existing recovery codes also cover your authenticator, so there are no new codes to save.
             </p>
@@ -197,7 +209,7 @@ export function TotpEnrollment({ onComplete, onSkip, onSwitchToPasskey, initialS
       ) : recoveryCodes ? (
         <div className="space-y-5">
           <div className="space-y-1">
-            <h3 id={TOTP_ENROLLMENT_TITLE_ID} className="text-base font-semibold">Save your recovery codes</h3>
+            <h3 id={TOTP_ENROLLMENT_TITLE_ID} className={titleClassName}>Save your recovery codes</h3>
             <p className="text-sm" style={{ color: 'var(--app-text-muted)' }}>
               Each code works once if you lose your authenticator. Store them somewhere safe, you won't see them again.
             </p>
@@ -209,6 +221,7 @@ export function TotpEnrollment({ onComplete, onSkip, onSwitchToPasskey, initialS
             <label className="flex items-center gap-2 text-sm" style={{ color: 'var(--app-text-muted)' }}>
               <input
                 type="checkbox"
+                className="app-checkbox"
                 checked={savedAcknowledged}
                 onChange={(event) => setSavedAcknowledged(event.target.checked)}
               />
@@ -218,7 +231,7 @@ export function TotpEnrollment({ onComplete, onSkip, onSwitchToPasskey, initialS
             <label className="flex items-start gap-2 text-sm" style={{ color: 'var(--app-text-muted)' }}>
               <input
                 type="checkbox"
-                className="mt-1 shrink-0"
+                className="app-checkbox mt-1 shrink-0"
                 checked={lockoutAcknowledged}
                 onChange={(event) => setLockoutAcknowledged(event.target.checked)}
               />
@@ -253,7 +266,7 @@ export function TotpEnrollment({ onComplete, onSkip, onSwitchToPasskey, initialS
       ) : (
         <div className="space-y-5">
           <div className="space-y-1">
-            <h3 id={TOTP_ENROLLMENT_TITLE_ID} className="text-base font-semibold">Set up two-factor authentication</h3>
+            <h3 id={TOTP_ENROLLMENT_TITLE_ID} className={titleClassName}>Set up two-factor authentication</h3>
             <p className="text-sm" style={{ color: 'var(--app-text-muted)' }}>
               Scan this with an authenticator app, then enter the 6-digit code to confirm.
             </p>

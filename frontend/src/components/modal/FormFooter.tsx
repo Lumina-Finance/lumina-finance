@@ -1,3 +1,4 @@
+import { useEffect, useRef } from 'react'
 import { MODAL_INSET_CLASS_NAME } from '@/components/modal/inset'
 import type { ModalLevel } from '@/components/modal/Shell'
 
@@ -47,6 +48,18 @@ export function ModalFormFooter({
   primaryOnLeft = false,
   tone = 'primary',
 }: ModalFormFooterProps) {
+  const primaryRef = useRef<HTMLButtonElement>(null)
+  const primaryHadFocus = useRef(false)
+
+  // Disabling a focused button drops focus to the page, which leaves the next Tab starting from the top of
+  // the modal after a refused submission. A press of the button is noted, and once it is live again it
+  // takes focus back, unless the person moved focus somewhere else meanwhile
+  useEffect(() => {
+    if (submitDisabled) return
+    if (primaryHadFocus.current && document.activeElement === document.body) primaryRef.current?.focus()
+    primaryHadFocus.current = false
+  }, [submitDisabled])
+
   // Below sm an error between the buttons would split them across rows, so it is drawn first on a row of
   // its own, while it stays between them in the DOM and in the single row from sm
   const errorMessage = error && (
@@ -72,8 +85,12 @@ export function ModalFormFooter({
   )
   const primaryButton = (
     <button
+      ref={primaryRef}
       type={onPrimary ? 'button' : 'submit'}
-      onClick={onPrimary}
+      onClick={() => {
+        primaryHadFocus.current = true
+        onPrimary?.()
+      }}
       disabled={submitDisabled}
       aria-busy={submitDisabled}
       className={`${tone === 'danger' ? 'app-danger-button' : 'app-primary-button'} overflow-hidden whitespace-nowrap duration-300 ${submitDisabled ? 'app-primary-button-loading justify-self-center sm:justify-self-auto' : submitWidthClassName}`}

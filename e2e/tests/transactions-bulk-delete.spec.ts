@@ -121,8 +121,8 @@ test('lines the delete confirmation actions up with its header', AT_EVERY_SIZE, 
 })
 
 // A refused delete shows its error without splitting the actions: on a phone Delete and Cancel stay side
-// by side as equal halves of one row under a full-width error, and from 640px the error sits between
-// them on their row, as before
+// by side on one row, a half of it each, under a full-width error, and from 640px the error sits
+// between them on their row, as before
 test('keeps the delete confirmation actions on one row when it shows an error', AT_EVERY_SIZE, async ({ page, request }) => {
   const user = await signUpUser(request)
   const account = await createAccount(request, user, { name: 'Everyday' })
@@ -159,9 +159,11 @@ test('keeps the delete confirmation actions on one row when it shows an error', 
     if (phone) {
       return {
         actionsOnOneRow,
-        equalHalves: Math.round(removeBox!.width) === Math.round(cancelBox!.width),
+        // The row is split in halves, from the error's start to the error's end
+        equalHalves: Math.abs(removeBox!.width - cancelBox!.width) <= 1,
+        fillsRow: Math.round(removeBox!.x) === Math.round(errorBox!.x) &&
+          Math.round(cancelBox!.x + cancelBox!.width) === Math.round(errorBox!.x + errorBox!.width),
         errorAboveActions: errorBox!.y + errorBox!.height <= removeBox!.y,
-        errorSpansActions: Math.round(errorBox!.width) === Math.round(cancelBox!.x + cancelBox!.width - removeBox!.x),
       }
     }
     return {
@@ -172,6 +174,37 @@ test('keeps the delete confirmation actions on one row when it shows an error', 
   }
 
   await expect.poll(readLayout).toEqual(phone
-    ? { actionsOnOneRow: true, equalHalves: true, errorAboveActions: true, errorSpansActions: true }
+    ? { actionsOnOneRow: true, equalHalves: true, fillsRow: true, errorAboveActions: true }
     : { actionsOnOneRow: true, errorBetweenActions: true, errorOnActionsRow: true })
+})
+
+// Disabling the button while the delete is in flight drops keyboard focus to the page, so the next Tab after
+// a refusal would start over from the top of the confirmation instead of at Delete
+test('keeps keyboard focus on Delete after a refused delete', async ({ page, request }) => {
+  const user = await signUpUser(request)
+  const account = await createAccount(request, user, { name: 'Everyday' })
+  const date = daysFromTodayInTestTimezone(-1)
+  await createTransaction(request, user, { accountId: account.id, categoryName: 'Groceries', amount: -1000, date })
+
+  await page.route(/\/transactions\/bulk\/delete$/, (route) => route.fulfill({
+    status: 409,
+    contentType: 'application/json',
+    body: JSON.stringify({ detail: 'These transactions changed. Please try again.' }),
+  }))
+
+  await logInViaApi(page, user)
+  await openPage(page, `/accounts/${account.id}`)
+  await page.getByRole('button', { name: 'Select transactions', exact: true }).click()
+  await page.getByRole('checkbox', { name: new RegExp(`^Select .+ on ${date}$`) }).check()
+  await page.getByRole('button', { name: 'Delete the selected transactions', exact: true }).click()
+
+  const confirm = page.getByRole('dialog', { name: 'Delete 1 transaction?', exact: true })
+  const remove = confirm.getByRole('button', { name: 'Delete', exact: true })
+  // The confirmation opens on Cancel, which Delete sits before
+  await page.keyboard.press('Shift+Tab')
+  await expect(remove).toBeFocused()
+  await page.keyboard.press('Enter')
+
+  await expect(confirm.getByRole('alert')).toBeVisible()
+  await expect(remove).toBeFocused()
 })

@@ -21,7 +21,7 @@ export function OtpInput({ value, onChange, length = OTP_LENGTH, disabled = fals
   const inputRef = useRef<HTMLInputElement>(null);
   const [isFocused, setIsFocused] = useState(false);
 
-  // The active box is where the next digit lands, so it carries the focus ring while the field is focused
+  // The active box is where the next digit lands, so it takes the shared field focus look while the field is focused
   const activeIndex = Math.min(value.length, length - 1);
 
   return (
@@ -55,13 +55,14 @@ export function OtpInput({ value, onChange, length = OTP_LENGTH, disabled = fals
         return (
           <div
             key={index}
+            data-testid="otp-box"
             aria-hidden
             className="app-input flex h-12 w-12 items-center justify-center text-lg"
             style={{
               paddingLeft: 0,
               paddingRight: 0,
               ...(isActive
-                ? { borderColor: 'var(--app-accent-border)', boxShadow: '0 0 0 2px var(--app-accent-soft)' }
+                ? { borderColor: 'var(--app-focus-ring)', boxShadow: 'var(--app-focus-border)' }
                 : {}),
             }}
           >

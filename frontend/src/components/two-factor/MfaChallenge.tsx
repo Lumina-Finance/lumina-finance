@@ -6,6 +6,11 @@ import { OtpInput, OTP_LENGTH } from '@/components/OtpInput';
 import { WarningCallout } from '@/components/WarningCallout';
 import { onUserPress } from '@/utils/userPress';
 
+// Centred links take the width of their text, so a keyboard focus ring hugs the words instead of
+// spanning the whole row
+const LINK_BUTTON_CLASS_NAME =
+  'mx-auto block text-center text-sm font-medium underline underline-offset-2 transition-colors duration-200';
+
 /**
  * What this screen may offer for a second-factor challenge
  *
@@ -138,7 +143,7 @@ export function MfaChallenge({
         <button
           type="button"
           onClick={onToggleRecoveryCode}
-          className="block w-full text-center text-sm font-medium underline underline-offset-2 transition-colors duration-200"
+          className={LINK_BUTTON_CLASS_NAME}
           style={{ color: 'var(--app-accent)' }}
         >
           {useRecoveryCode ? 'Use authenticator code' : 'Enter a recovery code instead'}
@@ -149,7 +154,7 @@ export function MfaChallenge({
         <button
           type="button"
           onClick={onSwitchToPasskey}
-          className="block w-full text-center text-sm font-medium underline underline-offset-2 transition-colors duration-200"
+          className={LINK_BUTTON_CLASS_NAME}
           style={{ color: 'var(--app-accent)' }}
         >
           Use a passkey instead
@@ -188,7 +193,7 @@ export function MfaChallenge({
             <button
               type="button"
               onClick={onSwitchToAuthenticator}
-              className="block w-full text-center text-sm font-medium underline underline-offset-2 transition-colors duration-200"
+              className={LINK_BUTTON_CLASS_NAME}
               style={{ color: 'var(--app-accent)' }}
             >
               Use authenticator code instead
@@ -198,7 +203,7 @@ export function MfaChallenge({
           <button
             type="button"
             onClick={onSwitchToRecovery}
-            className="block w-full text-center text-sm font-medium underline underline-offset-2 transition-colors duration-200"
+            className={LINK_BUTTON_CLASS_NAME}
             style={{ color: 'var(--app-accent)' }}
           >
             Enter a recovery code instead
@@ -217,7 +222,7 @@ export function MfaChallenge({
         // A password manager that fills the code then clicks what it takes for the sign-in button can
         // pick this one, since translations of it name logging in
         onClick={onUserPress(onCancel)}
-        className="block w-full text-center text-sm font-medium underline underline-offset-2 transition-colors duration-200"
+        className={LINK_BUTTON_CLASS_NAME}
         style={{ color: 'var(--app-text-muted)' }}
       >
         Back to login

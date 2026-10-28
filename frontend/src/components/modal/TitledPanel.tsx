@@ -1,6 +1,7 @@
 import type { FormEvent, ReactNode } from 'react'
 import { X, type LucideIcon } from 'lucide-react'
 import { MODAL_INSET_CLASS_NAME } from '@/components/modal/inset'
+import { MODAL_TITLE_CLASS_NAME, ModalRail } from '@/components/modal/Rail'
 import { ModalShell, type ModalLevel } from '@/components/modal/Shell'
 
 // Chrome sizing per level. A stacked panel is narrower and its padding tighter, so it reads as the smaller
@@ -9,24 +10,12 @@ const CHROME = {
   page: {
     panelClassName: 'flex max-h-[86vh] w-full overflow-hidden',
     widthClassName: 'max-w-2xl',
-    railClassName: 'hidden w-16 shrink-0 flex-col items-center justify-between py-6 sm:flex',
-    railStyle: { background: 'var(--app-button-primary-bg)', color: 'var(--app-button-primary-text)' },
-    railIconSize: 20,
-    railLabelClassName: 'text-xs',
     headerClassName: `shrink-0 pb-5 pt-6 sm:pt-7 ${MODAL_INSET_CLASS_NAME.page}`,
     bodyClassName: `min-h-0 flex-1 overflow-y-auto pb-3 pt-4 ${MODAL_INSET_CLASS_NAME.page}`,
   },
   stacked: {
     panelClassName: 'flex max-h-[84vh] w-full overflow-hidden',
     widthClassName: 'max-w-xl',
-    railClassName: 'app-secondary-modal-rail hidden w-12 shrink-0 flex-col items-center justify-between py-5 sm:flex',
-    railStyle: {
-      background: 'var(--app-surface-soft)',
-      borderRight: '1px solid var(--app-border)',
-      color: 'var(--app-accent)',
-    },
-    railIconSize: 18,
-    railLabelClassName: 'text-[0.6875rem]',
     headerClassName: `shrink-0 pb-5 pt-6 ${MODAL_INSET_CLASS_NAME.stacked}`,
     bodyClassName: `min-h-0 flex-1 overflow-y-auto pb-3 pt-4 ${MODAL_INSET_CLASS_NAME.stacked}`,
   },
@@ -103,7 +92,7 @@ export function ModalTitledPanel({
                 </>
               )}
             </p>
-            <h2 id={titleId} className="font-serif text-3xl font-normal">
+            <h2 id={titleId} className={MODAL_TITLE_CLASS_NAME}>
               {title}
             </h2>
           </div>
@@ -136,17 +125,7 @@ export function ModalTitledPanel({
       closeDisabled={closeDisabled}
       onExitComplete={onExitComplete}
     >
-      {RailIcon && railLabel && (
-        <div className={chrome.railClassName} style={chrome.railStyle} aria-hidden>
-          <RailIcon size={chrome.railIconSize} strokeWidth={2} />
-          <span
-            className={`${chrome.railLabelClassName} rotate-180 font-semibold uppercase`}
-            style={{ writingMode: 'vertical-rl' }}
-          >
-            {railLabel}
-          </span>
-        </div>
-      )}
+      {RailIcon && railLabel && <ModalRail level={level} Icon={RailIcon} label={railLabel} />}
 
       {/* Fields go in a form so Enter submits them. A panel that only manages things through their own
           controls has nothing to submit, and a form there would announce one that does nothing */}

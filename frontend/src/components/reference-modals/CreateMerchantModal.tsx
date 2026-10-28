@@ -5,6 +5,7 @@ import { ApiError } from '@/api/auth'
 import { useCreateMerchant, type Merchant } from '@/api/merchants'
 import Dropdown, { type DropdownOption } from '@/components/dropdown/Dropdown'
 import CreateModalSectionFrame from '@/components/create-modal/SectionFrame'
+import CreateModalSectionHeadingRow from '@/components/create-modal/SectionHeadingRow'
 import { ModalTitledPanel } from '@/components/modal/TitledPanel'
 import { ModalFormFooter } from '@/components/modal/FormFooter'
 import type { ModalLevel } from '@/components/modal/Shell'
@@ -126,24 +127,7 @@ export default function CreateMerchantModal({
       <div className="space-y-5">
         <CreateModalSectionFrame step="01">
           <div className="min-w-0 space-y-3">
-            <div className="flex min-h-4 items-start justify-between gap-3">
-              <p className="flex h-4 items-center text-base font-bold leading-none" style={{ color: 'var(--app-accent)' }}>Merchant name</p>
-              <AnimatePresence initial={false}>
-                {showError('name') && (
-                  <motion.p
-                    key="name-error"
-                    className="text-right text-xs font-medium leading-5"
-                    style={{ color: 'var(--app-negative)' }}
-                    initial={{ opacity: 0, x: 4 }}
-                    animate={{ opacity: 1, x: 0 }}
-                    exit={{ opacity: 0, x: 4 }}
-                    transition={{ duration: 0.15 }}
-                  >
-                    {fieldErrors.name}
-                  </motion.p>
-                )}
-              </AnimatePresence>
-            </div>
+            <CreateModalSectionHeadingRow label="Merchant name" error={showError('name')} />
             <div>
               <label htmlFor={CREATE_MERCHANT_FIELD_IDS.name} className="sr-only">Merchant name</label>
               <input
