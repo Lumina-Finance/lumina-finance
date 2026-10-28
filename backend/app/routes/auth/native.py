@@ -94,7 +94,7 @@ async def native_exchange_route(
         session_id = uuid.UUID(str(claims["sid"]))
         jti = uuid.UUID(str(claims["jti"]))
         code_challenge = str(claims["code_challenge"])
-    except (jwt.PyJWTError, KeyError, ValueError):
+    except jwt.PyJWTError, KeyError, ValueError:
         _raise_invalid_handoff()
 
     current_user_id_ctx.set(user_id)

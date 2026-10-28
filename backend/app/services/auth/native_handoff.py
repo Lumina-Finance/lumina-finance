@@ -25,9 +25,7 @@ NATIVE_HANDOFF_PURPOSE = "native_handoff"
 HANDOFF_WINDOW = timedelta(minutes=10)
 
 
-async def issue_native_handoff_code(
-    db: AsyncSession, user_id: uuid.UUID, session_id: uuid.UUID, code_challenge: str
-) -> str | None:
+async def issue_native_handoff_code(db: AsyncSession, user_id: uuid.UUID, session_id: uuid.UUID, code_challenge: str) -> str | None:
     """Return a single-use code that hands a fresh web session to the app holding the challenge's verifier
 
     Args:
@@ -39,9 +37,7 @@ async def issue_native_handoff_code(
     Returns:
         The code, or None when the session didn't begin within the handoff window
     """
-    signed_in_at = await db.scalar(
-        select(AuthSession.created_at).where(AuthSession.id == session_id, AuthSession.user_id == user_id)
-    )
+    signed_in_at = await db.scalar(select(AuthSession.created_at).where(AuthSession.id == session_id, AuthSession.user_id == user_id))
     if signed_in_at is None or datetime.now(UTC) - signed_in_at > HANDOFF_WINDOW:
         return None
 
