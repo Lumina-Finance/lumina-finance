@@ -299,7 +299,7 @@ export function ImportProgressOverlay({
             <AnimatePresence mode="wait">
               <motion.div
                 key={phase}
-                className="flex flex-col items-center"
+                className={`flex flex-col items-center ${failed && errorReason ? 'w-full max-w-sm' : ''}`}
                 variants={contentVariants}
                 initial="hidden"
                 animate="visible"
@@ -310,11 +310,11 @@ export function ImportProgressOverlay({
                 </motion.p>
                 {/* Balanced, so a summary or message one word over a line doesn't leave it alone below */}
                 <motion.p
-                  className="mt-3 max-w-sm text-balance text-sm leading-6"
+                  className={`mt-3 max-w-sm text-balance text-sm leading-6 ${failed && errorReason ? 'w-full' : ''}`}
                   style={messageStyle}
                   variants={itemVariants}
                 >
-                  {failed && errorReason && <><span lang="en">{errorReason}</span>{' '}</>}
+                  {failed && errorReason && <span lang="en" className="block">{errorReason}</span>}
                   {renderEmphasis(message, failed ? errorEmphasis : undefined)}
                 </motion.p>
 

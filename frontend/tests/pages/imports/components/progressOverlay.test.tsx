@@ -28,8 +28,8 @@ describe('the overlay of a failed import', () => {
     const markup = render('Account is archived')
 
     // The screen reader's status line holds the reason too, so the marked reason shows twice
-    expect(markup.match(/<span lang="en">Account is archived<\/span>/g)).toHaveLength(2)
-    expect(markup).toContain('</span> Nothing was added to your ledger.')
+    expect(markup.match(/<span lang="en"[^>]*>Account is archived<\/span>/g)).toHaveLength(2)
+    expect(markup).toMatch(/Account is archived<\/span>\s*Nothing was added to your ledger\./)
     expect(markup).not.toContain('Nothing was added to your ledger.</span>')
   })
 
