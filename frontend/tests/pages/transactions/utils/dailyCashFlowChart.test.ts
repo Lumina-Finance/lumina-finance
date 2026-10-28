@@ -19,7 +19,7 @@ describe('daily cash-flow chart helpers', () => {
 
     expect(series).toHaveLength(1)
     expect(series[0].date).toBe('2026-02-31')
-    expect(series[0].rangeLabel).toBe('2026-02-31 - 2026-03-06')
+    expect(series[0].rangeLabel).toBe('2026-02-31, Mar 6, 2026')
     expect(series[0].net).toBe(7500)
   })
 
@@ -42,7 +42,7 @@ describe('daily cash-flow chart helpers', () => {
       {
         key: '2026-01-01',
         date: 'Jan 1',
-        rangeLabel: 'Jan 1, 2026 - Jan 7, 2026',
+        rangeLabel: 'Jan 1 – 7, 2026',
         inflow: 10000,
         outflow: -2500,
         net: 7500,

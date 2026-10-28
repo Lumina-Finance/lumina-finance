@@ -21,7 +21,7 @@ describe('getCashFlowTooltipBucket', () => {
 
   // Two Mars of different years read the same on the axis, so the chart's category is the unique range
   it('finds the bucket of the active range when two buckets read the same on the axis', () => {
-    const marches: CashFlowBarBucket[] = ['Mar 1, 2025 – Mar 31, 2025', 'Mar 1, 2026 – Mar 31, 2026'].map((rangeLabel) => ({
+    const marches: CashFlowBarBucket[] = ['Mar 1 – 31, 2025', 'Mar 1 – 31, 2026'].map((rangeLabel) => ({
       label: 'Mar',
       rangeLabel,
       marksYear: false,
@@ -30,7 +30,7 @@ describe('getCashFlowTooltipBucket', () => {
       net: 50,
     }));
 
-    expect(getCashFlowTooltipBucket({ activeLabel: 'Mar 1, 2026 – Mar 31, 2026' }, marches)).toBe(marches[1]);
+    expect(getCashFlowTooltipBucket({ activeLabel: 'Mar 1 – 31, 2026' }, marches)).toBe(marches[1]);
   });
 
   // Recharts reports no active bar as a null index, which Number() turned into the first bar, so the
@@ -59,7 +59,7 @@ describe('getCashFlowBarData', () => {
 
     expect(granularity).toBe('week');
     expect(buckets.map((bucket) => bucket.label)).toEqual(['Jan 5', 'Jan 12']);
-    expect(buckets[0].rangeLabel).toBe('Jan 5 – Jan 11');
+    expect(buckets[0].rangeLabel).toBe('Jan 5 – 11');
   });
 
   it('labels the monthly bars of a long range by month', () => {
@@ -94,7 +94,7 @@ describe('getCashFlowBarData', () => {
     expect(granularity).toBe('month');
     expect(buckets.map((bucket) => bucket.label)).toEqual(['Jan 2025', 'Mar', 'Jan 2026', 'Mar']);
     expect(buckets.map((bucket) => bucket.marksYear)).toEqual([true, false, true, false]);
-    expect(buckets[3].rangeLabel).toBe('Mar 1, 2026 – Mar 31, 2026');
+    expect(buckets[3].rangeLabel).toBe('Mar 1 – 31, 2026');
     // The two March bars read the same on the axis, so the tooltip lookup tells them apart by range
     expect(new Set(buckets.map((bucket) => bucket.rangeLabel)).size).toBe(4);
   });

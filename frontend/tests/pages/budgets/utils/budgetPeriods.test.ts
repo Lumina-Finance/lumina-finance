@@ -109,8 +109,8 @@ describe('budget period helpers', () => {
 
     expect(budgetCadenceLabel(baseBudget)).toBe('Monthly')
     expect(nextBudgetPeriods(baseBudget, latestPeriod)).toEqual([
-      'Jul 1, 2026 - Jul 31, 2026',
-      'Aug 1, 2026 - Aug 31, 2026',
+      'Jul 1 – 31, 2026',
+      'Aug 1 – 31, 2026',
     ])
   })
 

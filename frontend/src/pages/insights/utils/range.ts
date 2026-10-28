@@ -11,7 +11,7 @@ import type {
 import {
   DATE_FORMATS,
   addDays,
-  formatDate,
+  formatDateRange,
   formatYmd,
   getStartOfWeek,
   getTodayDate,
@@ -174,10 +174,8 @@ export function formatResolvedRangeLabel(from: string, to: string) {
   const toDate = parseYmd(to)
   if (!fromDate || !toDate) return ''
 
-  if (fromDate.getFullYear() === toDate.getFullYear()) {
-    return `${formatDate(fromDate, DATE_FORMATS.monthDay)} – ${formatDate(toDate, DATE_FORMATS.monthDay)}`
-  }
-  return `${formatDate(fromDate, DATE_FORMATS.monthDayYear)} – ${formatDate(toDate, DATE_FORMATS.monthDayYear)}`
+  const sameYear = fromDate.getFullYear() === toDate.getFullYear()
+  return formatDateRange(fromDate, toDate, sameYear ? DATE_FORMATS.monthDay : DATE_FORMATS.monthDayYear)
 }
 
 /**

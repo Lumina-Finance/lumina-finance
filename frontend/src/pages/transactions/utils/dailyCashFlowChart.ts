@@ -1,6 +1,6 @@
 import type { DailyCashFlow } from '@/api/transactions'
 import { getChartGranularity, type ChartGranularity } from '@/utils/chartGranularity'
-import { DATE_FORMATS, formatDate, formatYmd, parseYmd } from '@/utils/date'
+import { DATE_FORMATS, formatDate, formatDateRange, formatUnreadableRange, formatYmd, parseYmd } from '@/utils/date'
 
 export type DailyCashFlowChartMode = 'net' | 'gross'
 export type DailyCashFlowGranularity = ChartGranularity
@@ -92,7 +92,7 @@ function formatCashFlowRangeLabel(start: Date, end: Date, granularity: DailyCash
     return formatCashFlowTooltipDate(start)
   }
 
-  return `${formatCashFlowTooltipDate(start)} - ${formatCashFlowTooltipDate(end)}`
+  return formatDateRange(start, end, DATE_FORMATS.monthDayYear)
 }
 
 /**
@@ -113,7 +113,7 @@ export function getDailyCashFlowSeries(
       date: bucketStart ? formatCashFlowPointLabel(bucketStart, granularity) : entry.date,
       rangeLabel: bucketStart && bucketEnd
         ? formatCashFlowRangeLabel(bucketStart, bucketEnd, granularity)
-        : `${entry.date} - ${entry.end_date}`,
+        : formatUnreadableRange(entry.date, entry.end_date),
       inflow: entry.inflow,
       outflow: entry.outflow,
       net: entry.inflow + entry.outflow,

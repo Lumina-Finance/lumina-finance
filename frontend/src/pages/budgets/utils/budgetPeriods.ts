@@ -5,6 +5,8 @@ import {
   addDays,
   addMonths,
   formatDate,
+  formatDateRange,
+  formatUnreadableRange,
   formatYmd,
   getDaysInMonth,
   getWeekdayIndex,
@@ -111,15 +113,10 @@ export function budgetCadenceLabel(baseBudget: BaseBudget) {
  */
 export function formatBudgetPeriod(period: Budget | undefined) {
   if (!period) return 'No period yet'
-  return `${formatPeriodBound(period.period_start)} - ${formatPeriodBound(period.period_end)}`
-}
-
-/**
- * Formats one end of a stored period, falling back to the value itself when it is not a real date
- */
-function formatPeriodBound(ymd: string) {
-  const parsed = parseYmd(ymd)
-  return parsed ? formatPeriodDate(parsed) : ymd
+  const start = parseYmd(period.period_start)
+  const end = parseYmd(period.period_end)
+  if (!start || !end) return formatUnreadableRange(period.period_start, period.period_end)
+  return formatDateRange(start, end, DATE_FORMATS.monthDayYear)
 }
 
 /**
@@ -151,7 +148,7 @@ function addBudgetPeriod(start: Date, baseBudget: BaseBudget) {
  */
 function formatPeriodRange(start: Date, baseBudget: BaseBudget) {
   const nextStart = addBudgetPeriod(start, baseBudget)
-  return `${formatPeriodDate(start)} - ${formatPeriodDate(addDays(nextStart, -1))}`
+  return formatDateRange(start, addDays(nextStart, -1), DATE_FORMATS.monthDayYear)
 }
 
 /**
