@@ -22,7 +22,7 @@ import {
   reviewBlock,
   reviewItem,
 } from '../support/bankSync'
-import { getTransactionRowButton } from '../support/selectors'
+import { expectStretchedFocusRing, getTransactionRowButton } from '../support/selectors'
 import { AT_EVERY_SIZE } from '../support/sizes'
 import { API_BASE_URL, BASE_URL } from '../support/target'
 
@@ -241,7 +241,12 @@ async function seedOneTransaction(page: Page, request: Parameters<typeof signUpU
   })
   await logInViaApi(page, user)
   await openPage(page, '/transactions')
-  return page.getByTestId(`transaction-row-${id}`)
+  return getTransactionRowButton(page.getByTestId(`transaction-row-${id}`))
+}
+
+/** The row's own box, which carries its padding and separator and is what a focused row's ring goes round */
+function rowFrameOf(rowButton: Locator): Locator {
+  return rowButton.locator('xpath=ancestor::*[contains(concat(" ", normalize-space(@class), " "), " app-transaction-row ")][1]')
 }
 
 /**
@@ -340,17 +345,16 @@ for (const colorScheme of ['light', 'dark'] as const) {
   })
 
   // A row has no border, so it keeps the ring, drawn around the row itself inside its edges where the
-  // next row can't cover it, and shows its hover look as well. The same holds when its checkbox while
-  // selecting holds focus, which also turns its own border the focus colour
-  test(`shows a transaction row's ring and hover look on keyboard focus in the ${colorScheme} theme`, async ({ page, request }) => {
+  // next row can't cover it. The row's title lays the ring from its own layer and leaves the row unlit,
+  // whereas the checkbox while selecting rings the row and turns its own border the focus colour
+  test(`shows a transaction row's ring on keyboard focus in the ${colorScheme} theme`, async ({ page, request }) => {
     await page.emulateMedia({ colorScheme, reducedMotion: 'reduce' })
     const rowButton = await seedOneTransaction(page, request)
-    const row = rowButton.locator('..')
+    const row = rowFrameOf(rowButton)
 
-    const { rest, focused } = await expectHoverLook(page, rowButton, null)
-    expect(focused.frame.backgroundColor).not.toBe(rest.frame.backgroundColor)
-    await focusFromKeyboard(page, rowButton)
-    await expectSharedRing(row, 'outline', '-2px')
+    await expectStretchedFocusRing(rowButton, row)
+    // Only the title's layer rings the row, so the row itself draws none beside it
+    await expect.poll(() => row.evaluate((node) => getComputedStyle(node).outlineStyle)).toBe('none')
 
     await page.getByRole('button', { name: 'Select transactions', exact: true }).click()
     const checkbox = row.getByRole('checkbox')
@@ -358,7 +362,6 @@ for (const colorScheme of ['light', 'dark'] as const) {
     await expect(checkbox).toBeFocused()
     await expectSharedRing(checkbox, 'border')
     await expectSharedRing(row, 'outline', '-2px')
-    await expect.poll(async () => (await readLook(row)).button.backgroundColor).toBe(focused.frame.backgroundColor)
   })
 }
 
@@ -544,6 +547,8 @@ test('shows every Tab stop with a whole ring or a visible hover look', async ({ 
       const label = await focused.evaluate((node) => `${node.tagName} ${node.getAttribute('aria-label') ?? node.textContent?.trim().slice(0, 30)}`)
       // Chart marks draw their own focus and are not buttons, and a stop on the page itself is focus leaving it
       if (await focused.evaluate((node) => node.tagName === 'BODY' || node instanceof SVGElement || Boolean(node.closest('.group')?.querySelector('[role="tooltip"]')))) continue
+      // A row's title rings the row from a layer laid over it, which the transactions test measures
+      if (await focused.evaluate((node) => node.hasAttribute('data-row-title'))) continue
       // Read once a dialog's fade and the control's own transitions have finished
       const withFocus = await settledLook(focused)
       const ring = await readFocusRing(focused)
@@ -622,9 +627,10 @@ for (const colorScheme of ['light', 'dark'] as const) {
     // The rows are already covered on desktop by the row test above, so this adds the tablet and phone
     // sizes for the issue's two row examples
     for (const id of rows) {
-      const row = page.getByTestId(`transaction-row-${id}`)
-      await focusFromKeyboard(page, row)
-      await expectWholeRing(row)
+      await expectStretchedFocusRing(
+        getTransactionRowButton(page.getByTestId(`transaction-row-${id}`)),
+        page.getByTestId(`transaction-box-${id}`),
+      )
     }
     await expectEveryChart()
 
@@ -1134,7 +1140,7 @@ test('lists the outline colour in the transition of every control that draws the
 // it with a 200ms curve, such as Tailwind's duration-200, has it about 0.77 drawn, so it fails both the length and the midpoint
 test('fades the keyboard focus ring in and out', async ({ page, request }) => {
   await page.emulateMedia({ reducedMotion: 'no-preference' })
-  const rowButton = await seedOneTransaction(page, request)
+  await seedOneTransaction(page, request)
 
   const expectFades = async (name: string, target: Locator, frame: Locator, offset: string) => {
     const fades = await readRingFades(page, target, frame)
@@ -1152,7 +1158,8 @@ test('fades the keyboard focus ring in and out', async ({ page, request }) => {
     await expectSharedRing(frame, 'outline', offset)
   }
 
-  await expectFades('transaction row', rowButton, rowButton.locator('..'), '-2px')
+  // A row's title rings the row from a layer laid over it rather than from an outline of its own,
+  // so the row is left out here, and the transactions test measures that ring
   const chart = page.locator('svg.recharts-surface[tabindex="0"]').filter({ visible: true }).first()
   await expect(chart).toBeVisible()
   await expectFades('chart', chart, chart, '-2px')
@@ -1169,7 +1176,7 @@ test('fades the keyboard focus ring in and out', async ({ page, request }) => {
 test('shows the keyboard focus ring at once with reduced motion', async ({ page, request }) => {
   await page.emulateMedia({ reducedMotion: 'reduce' })
   const rowButton = await seedOneTransaction(page, request)
-  expect(await readRingFades(page, rowButton, rowButton.locator('..'))).toEqual({ atOnce: 1, fadeIn: null, fadeOut: null })
+  expect(await readRingFades(page, rowButton, rowFrameOf(rowButton))).toEqual({ atOnce: 1, fadeIn: null, fadeOut: null })
 })
 
 // Forced colours would draw the clear outline a control holds at rest, so none is held there
