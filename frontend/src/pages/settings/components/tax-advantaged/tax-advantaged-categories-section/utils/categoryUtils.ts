@@ -8,6 +8,7 @@ import {
   isValidMoneyInput as isValidMoneyInputCanonical,
   toMinorUnits as toMinorUnitsCanonical,
 } from '@/utils/moneyInput'
+import { formatValueList } from '@/utils/formatList'
 
 /**
  * Latest year not already used by an existing limit, counting backward from the current year so a
@@ -90,7 +91,7 @@ export function formatLimitYears(years: number[]) {
   const span = isContiguous
     ? `${uniqueYears[0]}-${uniqueYears[uniqueYears.length - 1]}`
     : uniqueYears.length <= 3
-      ? uniqueYears.join(', ')
+      ? formatValueList(uniqueYears.map(String))
       : `${uniqueYears.length} years configured`
 
   if (!isContiguous && uniqueYears.length > 3) return span

@@ -1,5 +1,6 @@
 import { WarningCallout } from '@/components/WarningCallout';
 import { copyText } from '@/utils/clipboard';
+import { formatList } from '@/utils/formatList';
 
 const RECOVERY_CODES_FILENAME = 'lumina-recovery-codes.txt';
 
@@ -22,8 +23,8 @@ function lockoutWarning({ authenticator, passkeys }: RecoveryFactors): string {
     ...(authenticator ? ['your authenticator app'] : []),
     ...(passkeys === 1 ? ['your passkey'] : passkeys > 1 ? ['your passkeys'] : []),
   ];
-  const lost = names.length === 1 ? `both ${names[0]}` : names.join(', ');
-  return `If you lose access to ${lost} and these recovery codes, you may be permanently locked out of your account.`;
+  const lost = `${names.length === 1 ? 'both ' : ''}${formatList([...names, 'these recovery codes'])}`;
+  return `If you lose access to ${lost}, you may be permanently locked out of your account.`;
 }
 
 /**

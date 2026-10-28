@@ -178,7 +178,7 @@ describe('the rows, notes and warnings a bulk edit choice produces', () => {
     expect(result.rows).toEqual([{
       label: 'From',
       value: 'Cash',
-      detail: '1 of the 2 moves into Cash, 1 of the 2 now comes from Cash',
+      detail: '1 of the 2 moves into Cash and 1 of the 2 now comes from Cash',
     }])
     // Both rows are transfers whose own account it moves or records, so leftAlone stays at zero and
     // only the other-half note, not the not-a-transfer note, is left standing
@@ -373,7 +373,7 @@ describe('the rows, notes and warnings a bulk edit choice produces', () => {
     expect(result.rows).toEqual([{
       label: 'To',
       value: 'Cash',
-      detail: '1 of the 3 moves into Cash, 1 of the 3 now goes to Cash',
+      detail: '1 of the 3 moves into Cash and 1 of the 3 now goes to Cash',
     }])
     expect(result.notes).toEqual([
       {
@@ -405,7 +405,7 @@ describe('the rows, notes and warnings a bulk edit choice produces', () => {
     expect(result.rows).toEqual([{
       label: 'To',
       value: 'Cash',
-      detail: '1 of the 2 moves into Cash, 1 of the 2 now goes to Cash',
+      detail: '1 of the 2 moves into Cash and 1 of the 2 now goes to Cash',
     }])
   })
 

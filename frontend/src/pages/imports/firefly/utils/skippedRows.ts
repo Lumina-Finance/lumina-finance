@@ -14,6 +14,7 @@ import {
   resolveFireflyRowLegs,
   type FireflyRowResolutionOptions,
 } from './rowResolution'
+import { formatValueList } from '@/utils/formatList'
 
 // How much of an overlong tag the skip reason shows, mirroring the backend's
 // own truncation of tag names in error details
@@ -77,7 +78,7 @@ export function forecastFireflyImport(
         rowFileId,
         row,
         index,
-        `${FIREFLY_MISSING_REQUIRED_VALUES_REASON}: ${missingFields.join(', ')}`,
+        `${FIREFLY_MISSING_REQUIRED_VALUES_REASON}: ${formatValueList(missingFields)}`,
       ))
       continue
     }

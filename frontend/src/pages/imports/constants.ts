@@ -1,4 +1,5 @@
 import type { CSSProperties } from 'react'
+import { formatList } from '@/utils/formatList'
 import type { AccountsOverview } from '@/api/accounts'
 import type { Category } from '@/api/categories'
 import type { DropdownOption } from '@/components/dropdown/Dropdown'
@@ -129,7 +130,7 @@ export function getTooManyDirectionValuesError(count: number) {
  */
 export function getUnansweredDirectionValuesError(values: string[]) {
   const isOne = values.length === 1
-  return `Specify what ${values.join(' and ')} ${isOne ? 'means' : 'mean'} in the Direction column above.`
+  return `Specify what ${formatList(values)} ${isOne ? 'means' : 'mean'} in the Direction column above.`
 }
 
 /**
@@ -245,7 +246,7 @@ export function getImportCategoryRenameRequiredError(label: string) {
 
 // The commit folds two new categories of one name, capitals aside, into one, which can hold only one kind
 export function getCategoryCreateClashError(firstLabel: string, secondLabel: string) {
-  return `${firstLabel} and ${secondLabel} would be created as one category, so they need the same type.`
+  return `${formatList([firstLabel, secondLabel])} would be created as one category, so they need the same type.`
 }
 
 // A provider import writes the user's own records, so it links to no group account or category,

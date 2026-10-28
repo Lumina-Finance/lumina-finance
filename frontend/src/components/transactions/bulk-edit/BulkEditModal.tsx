@@ -44,6 +44,7 @@ import type { TransactionListAccount } from '@/components/transactions/types/tra
 import { useDebouncedReferenceSearch } from '@/components/transactions/transaction-modal/hooks/useDebouncedReferenceSearch'
 import { buildCategoryOptions } from '@/components/transactions/transaction-modal/utils/categories'
 import { OUTSIDE_ACCOUNT_LABEL, OUTSIDE_ACCOUNT_VALUE } from '@/utils/transfers'
+import { formatValueList } from '@/utils/formatList'
 
 // This option clears assignments rather than identifying a stored tag
 const REMOVE_ALL_TAGS_VALUE = 'remove-all-tags'
@@ -316,7 +317,7 @@ export function BulkEditModal({
   // The trigger uses the blank value required by the multi-select dropdown
   // An empty selection with Override enabled represents an intentional clear
   const chosenTagsOption = chosenTags.length > 0
-    ? { value: '', label: chosenTags.map((tag) => tag.label).join(', ') }
+    ? { value: '', label: formatValueList(chosenTags.map((tag) => tag.label)) }
     : overrideTags ? { value: '', label: REMOVE_ALL_TAGS_LABEL } : undefined
 
   // An implied direction is tied to the pairing of ends that produced it, so it drops out once

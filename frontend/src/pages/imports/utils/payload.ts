@@ -54,6 +54,7 @@ import {
   resolveImportRow,
 } from './rowResolution'
 import { type ImportDateFormat, type ImportDateSeparator } from './valueParsers'
+import { formatValueList } from '@/utils/formatList'
 
 /**
  * Builds the commit payload for the generic CSV import flow from the staged files and every mapping
@@ -151,7 +152,7 @@ export function buildTransactionImportPayload({
   }
 
   const missingRequired = getMissingRequiredColumnLabels(columnMap)
-  if (missingRequired.length > 0) addError(`Map the required columns: ${missingRequired.join(', ')}.`)
+  if (missingRequired.length > 0) addError(`Map the required columns: ${formatValueList(missingRequired)}.`)
 
   const arrangementClash = getAmountArrangementClashError(columnMap)
   if (arrangementClash) addError(arrangementClash.message)

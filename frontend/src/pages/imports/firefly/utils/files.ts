@@ -8,6 +8,7 @@ import {
 import type { FireflyFileKind } from '@/pages/imports/firefly/types'
 import { findFireflyUnreadableActiveAccount } from './accountsExport'
 import { readFireflyCsvRecords } from './csvRecords'
+import { formatValueList } from '@/utils/formatList'
 
 const REQUIRED_HEADERS_BY_KIND: Record<FireflyFileKind, string[]> = {
   transactions: FIREFLY_TRANSACTIONS_REQUIRED_HEADERS,
@@ -48,7 +49,7 @@ export async function readFireflyCsvFile(
   const headers = new Set(draft.headers)
   const missing = REQUIRED_HEADERS_BY_KIND[kind].filter((header) => !headers.has(header))
   if (missing.length > 0) {
-    return { ...draft, error: `This is not a Firefly III ${kind} export. It is missing the columns: ${missing.join(', ')}.` }
+    return { ...draft, error: `This is not a Firefly III ${kind} export. It is missing the columns: ${formatValueList(missing)}.` }
   }
 
   if (kind === 'accounts') {
