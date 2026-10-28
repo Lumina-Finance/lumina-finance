@@ -1,4 +1,4 @@
-@import 'tailwindcss';
+@import "tailwindcss";
 @config "../../tailwind.config.js";
 
 /* Every hover: utility on a button also applies while the button is keyboard focused, so a button
@@ -12,7 +12,7 @@
     }
   }
 
-  &:is(button, [role='button'], [role='tab'], [role='radio'], [role='menuitem']):focus-visible {
+  &:is(button, [role="button"], [role="tab"], [role="radio"], [role="menuitem"]):focus-visible {
     @slot;
   }
 }
@@ -279,11 +279,11 @@
     overflow-x: clip;
     background-color: var(--app-bg);
     color: var(--app-text);
-    font-family: 'DM Sans Variable', system-ui, sans-serif;
+    font-family: "DM Sans Variable", system-ui, sans-serif;
   }
 
   button:not(:disabled),
-  [role='button']:not([aria-disabled='true']) {
+  [role="button"]:not([aria-disabled="true"]) {
     cursor: pointer;
   }
 
@@ -309,10 +309,10 @@
       textarea,
       summary,
       [tabindex],
-      [role='button'],
-      [role='tab'],
-      [role='radio'],
-      [role='menuitem'],
+      [role="button"],
+      [role="tab"],
+      [role="radio"],
+      [role="menuitem"],
       .app-focus-ring,
       .app-focus-inset,
       .app-transaction-row,
@@ -342,7 +342,7 @@
      button, keeps the ring above on top of its hover look. A menu item counts as bordered, since its
      hover look adds a border, as the sidebar's log out button and collapse toggle do too. A border is the
      shared classes that draw one, and the border utility unless it is transparent */
-  :is(a, button, [role='button'], [role='tab'], [role='radio'], [role='menuitem']):is(
+  :is(a, button, [role="button"], [role="tab"], [role="radio"], [role="menuitem"]):is(
       .app-secondary-button,
       .app-glass-button,
       .app-glass-icon-button,
@@ -352,7 +352,7 @@
       .app-nav-user-logout,
       .app-desktop-nav-toggle,
       .border:not(.border-transparent)
-    ):not(svg *):not([aria-disabled='true']):focus-visible {
+    ):not(svg *):not([aria-disabled="true"]):focus-visible {
     outline: none;
   }
 
@@ -741,7 +741,7 @@
   }
 
   /* An unticked box a refused press found missing. A shadow rather than an outline, so the focus ring stays */
-  .app-checkbox[aria-invalid='true'] {
+  .app-checkbox[aria-invalid="true"] {
     border-radius: 2px;
     box-shadow: 0 0 0 2px var(--app-negative);
   }
@@ -844,7 +844,7 @@
   /* The calendar opens outside the field and takes focus, so the button that opened it keeps the
      field looking focused until it closes */
   .app-date-field:focus-within,
-  .app-date-field:has([aria-expanded='true']) {
+  .app-date-field:has([aria-expanded="true"]) {
     border-color: var(--app-focus-ring);
     box-shadow: var(--app-focus-border);
   }
@@ -855,7 +855,7 @@
   }
 
   .app-date-field.app-input-error:focus-within,
-  .app-date-field.app-input-error:has([aria-expanded='true']) {
+  .app-date-field.app-input-error:has([aria-expanded="true"]) {
     border-color: var(--app-negative);
     box-shadow: var(--app-focus-border-error);
   }
@@ -1047,7 +1047,7 @@
   }
 
   .app-dropdown-head:disabled,
-  .app-dropdown-head[aria-disabled='true'] {
+  .app-dropdown-head[aria-disabled="true"] {
     cursor: not-allowed;
   }
 
@@ -1513,7 +1513,7 @@
     cursor: pointer;
   }
 
-  .app-breakdown-sector[aria-disabled='true'] {
+  .app-breakdown-sector[aria-disabled="true"] {
     cursor: default;
   }
 
@@ -1804,19 +1804,19 @@
   }
 
   /* The pointer look is kept off touch screens, where a tapped button would otherwise stay darker */
-  .app-primary-button:not([aria-disabled='true']):focus-visible {
+  .app-primary-button:not([aria-disabled="true"]):focus-visible {
     background: color-mix(in srgb, var(--app-button-primary-bg-hover) 88%, transparent);
     border-color: color-mix(in srgb, var(--app-button-primary-bg-hover) 70%, var(--app-border-strong));
   }
 
   @media (hover: hover) {
-    .app-primary-button:not([aria-disabled='true']):hover {
+    .app-primary-button:not([aria-disabled="true"]):hover {
       background: color-mix(in srgb, var(--app-button-primary-bg-hover) 88%, transparent);
       border-color: color-mix(in srgb, var(--app-button-primary-bg-hover) 70%, var(--app-border-strong));
     }
   }
 
-  .app-primary-button:not([aria-disabled='true']):active {
+  .app-primary-button:not([aria-disabled="true"]):active {
     transform: translateY(1px);
   }
 
@@ -1835,14 +1835,14 @@
     background: color-mix(in srgb, var(--app-input-bg) 62%, transparent);
   }
 
-  .app-secondary-button:not([aria-disabled='true']):hover,
-  .app-secondary-button:not([aria-disabled='true']):focus-visible {
+  .app-secondary-button:not([aria-disabled="true"]):hover,
+  .app-secondary-button:not([aria-disabled="true"]):focus-visible {
     color: var(--app-text);
     background: color-mix(in srgb, var(--app-input-bg) 76%, transparent);
     border-color: var(--app-hover-border);
   }
 
-  .app-secondary-button:not([aria-disabled='true']):active {
+  .app-secondary-button:not([aria-disabled="true"]):active {
     transform: translateY(1px);
   }
 
@@ -1878,11 +1878,11 @@
     An Insights amount that changes between its full and its compact form, such as on a window resize,
     fades in. Two names, one per form, so each change plays its own animation (useFittedAmount.ts)
   */
-  [data-fit-swap='to-compact'] {
+  [data-fit-swap="to-compact"] {
     animation: app-fitted-amount-to-compact 300ms var(--ease-app, cubic-bezier(0.22, 1, 0.36, 1));
   }
 
-  [data-fit-swap='to-full'] {
+  [data-fit-swap="to-full"] {
     animation: app-fitted-amount-to-full 300ms var(--ease-app, cubic-bezier(0.22, 1, 0.36, 1));
   }
 
@@ -1914,19 +1914,19 @@
     background: color-mix(in srgb, var(--app-danger-fill) 82%, transparent);
   }
 
-  .app-danger-button:not([aria-disabled='true']):focus-visible {
+  .app-danger-button:not([aria-disabled="true"]):focus-visible {
     background: color-mix(in srgb, var(--app-danger-fill-hover) 90%, transparent);
     border-color: color-mix(in srgb, var(--app-danger-fill-hover) 72%, var(--app-border-strong));
   }
 
   @media (hover: hover) {
-    .app-danger-button:not([aria-disabled='true']):hover {
+    .app-danger-button:not([aria-disabled="true"]):hover {
       background: color-mix(in srgb, var(--app-danger-fill-hover) 90%, transparent);
       border-color: color-mix(in srgb, var(--app-danger-fill-hover) 72%, var(--app-border-strong));
     }
   }
 
-  .app-danger-button:not([aria-disabled='true']):active {
+  .app-danger-button:not([aria-disabled="true"]):active {
     transform: translateY(1px);
   }
 
@@ -1970,19 +1970,19 @@
     background: color-mix(in srgb, var(--app-button-primary-bg) 82%, transparent);
   }
 
-  .app-glass-button-primary:not([aria-disabled='true']):focus-visible {
+  .app-glass-button-primary:not([aria-disabled="true"]):focus-visible {
     background: color-mix(in srgb, var(--app-button-primary-bg-hover) 88%, transparent);
     border-color: color-mix(in srgb, var(--app-button-primary-bg-hover) 70%, var(--app-border-strong));
   }
 
   @media (hover: hover) {
-    .app-glass-button-primary:not([aria-disabled='true']):hover {
+    .app-glass-button-primary:not([aria-disabled="true"]):hover {
       background: color-mix(in srgb, var(--app-button-primary-bg-hover) 88%, transparent);
       border-color: color-mix(in srgb, var(--app-button-primary-bg-hover) 70%, var(--app-border-strong));
     }
   }
 
-  .app-glass-button-primary:not([aria-disabled='true']):active {
+  .app-glass-button-primary:not([aria-disabled="true"]):active {
     transform: translateY(1px);
   }
 
@@ -2004,14 +2004,14 @@
     backdrop-filter: blur(20px) saturate(160%);
   }
 
-  .app-glass-button:not([aria-disabled='true']):hover,
-  .app-glass-button:not([aria-disabled='true']):focus-visible {
+  .app-glass-button:not([aria-disabled="true"]):hover,
+  .app-glass-button:not([aria-disabled="true"]):focus-visible {
     color: var(--app-text);
     background: color-mix(in srgb, var(--app-input-bg) 76%, transparent);
     border-color: var(--app-hover-border);
   }
 
-  .app-glass-button:not([aria-disabled='true']):active {
+  .app-glass-button:not([aria-disabled="true"]):active {
     transform: translateY(1px);
   }
 
@@ -2030,13 +2030,13 @@
     .app-danger-button,
     .app-glass-button-primary,
     .app-glass-button
-  )[aria-disabled='true'] {
+  )[aria-disabled="true"] {
     cursor: not-allowed;
   }
 
   /* Faded by halving the alpha of its own colours rather than with opacity, which would fade the focus
      ring too and leave it under 3:1. The ring stays whole and only the control behind it reads as off */
-  :is(.app-primary-button, .app-glass-button-primary)[aria-disabled='true'] {
+  :is(.app-primary-button, .app-glass-button-primary)[aria-disabled="true"] {
     color: color-mix(in srgb, var(--app-button-primary-text) 50%, transparent);
     border-color: color-mix(
       in srgb,
@@ -2048,17 +2048,17 @@
 
   /* A primary button that keeps its box whole and fades only what is written on it, for one where the
      unavailable state is explained by its tooltip and the shape should stay put */
-  .app-glass-button-primary.app-fade-label-only[aria-disabled='true'] {
+  .app-glass-button-primary.app-fade-label-only[aria-disabled="true"] {
     color: var(--app-button-primary-text);
     border-color: color-mix(in srgb, var(--app-button-primary-bg) 65%, var(--app-border-strong));
     background: color-mix(in srgb, var(--app-button-primary-bg) 82%, transparent);
   }
 
-  .app-fade-label-only[aria-disabled='true'] > * {
+  .app-fade-label-only[aria-disabled="true"] > * {
     opacity: 0.5;
   }
 
-  .app-danger-button[aria-disabled='true'] {
+  .app-danger-button[aria-disabled="true"] {
     color: color-mix(in srgb, white 50%, transparent);
     border-color: color-mix(
       in srgb,
@@ -2068,13 +2068,13 @@
     background: color-mix(in srgb, var(--app-danger-fill) 41%, transparent);
   }
 
-  :is(.app-secondary-button, .app-glass-button)[aria-disabled='true'] {
+  :is(.app-secondary-button, .app-glass-button)[aria-disabled="true"] {
     color: color-mix(in srgb, var(--app-text-muted) 50%, transparent);
     border-color: color-mix(in srgb, var(--app-border-strong) 50%, transparent);
     background: color-mix(in srgb, var(--app-input-bg) 31%, transparent);
   }
 
-  button[aria-disabled='true']:not(.app-dropdown-head):focus-visible {
+  button[aria-disabled="true"]:not(.app-dropdown-head):focus-visible {
     outline: var(--app-focus-outline);
     outline-offset: var(--app-focus-offset);
   }
@@ -2520,8 +2520,8 @@
       var(--app-focus-fade);
   }
 
-  .app-upload-card:not([aria-disabled='true']):hover,
-  .app-upload-card:not([aria-disabled='true']):focus-visible {
+  .app-upload-card:not([aria-disabled="true"]):hover,
+  .app-upload-card:not([aria-disabled="true"]):focus-visible {
     background-color: var(--app-hover-on-import-panel) !important;
   }
 
@@ -2532,12 +2532,12 @@
     transition: color 300ms cubic-bezier(0.22, 1, 0.36, 1);
   }
 
-  .app-upload-card:not([aria-disabled='true']):hover .app-upload-card-hint,
-  .app-upload-card:not([aria-disabled='true']):focus-visible .app-upload-card-hint {
+  .app-upload-card:not([aria-disabled="true"]):hover .app-upload-card-hint,
+  .app-upload-card:not([aria-disabled="true"]):focus-visible .app-upload-card-hint {
     color: var(--app-hover-on-import-panel-hint);
   }
 
-  .app-upload-card:not([aria-disabled='true']):active {
+  .app-upload-card:not([aria-disabled="true"]):active {
     transform: translateY(1px);
   }
 
@@ -2700,16 +2700,16 @@
     transform: translateX(0);
   }
 
-  .app-marquee-trigger:hover .app-marquee-text[data-overflow='true'] .app-marquee-text-track,
-  .app-marquee-trigger:focus-visible .app-marquee-text[data-overflow='true'] .app-marquee-text-track,
-  .app-marquee-text[data-active='true'][data-overflow='true'] .app-marquee-text-track {
+  .app-marquee-trigger:hover .app-marquee-text[data-overflow="true"] .app-marquee-text-track,
+  .app-marquee-trigger:focus-visible .app-marquee-text[data-overflow="true"] .app-marquee-text-track,
+  .app-marquee-text[data-active="true"][data-overflow="true"] .app-marquee-text-track {
     opacity: 1;
     animation: app-marquee-text var(--app-marquee-duration) ease-in-out infinite;
   }
 
-  .app-marquee-trigger:hover .app-marquee-text[data-overflow='true'] .app-marquee-text-static,
-  .app-marquee-trigger:focus-visible .app-marquee-text[data-overflow='true'] .app-marquee-text-static,
-  .app-marquee-text[data-active='true'][data-overflow='true'] .app-marquee-text-static {
+  .app-marquee-trigger:hover .app-marquee-text[data-overflow="true"] .app-marquee-text-static,
+  .app-marquee-trigger:focus-visible .app-marquee-text[data-overflow="true"] .app-marquee-text-static,
+  .app-marquee-text[data-active="true"][data-overflow="true"] .app-marquee-text-static {
     opacity: 0;
   }
 
@@ -2937,18 +2937,18 @@
   /* Every modal portals its dialog panel into the body, so this locks page scroll for any open modal
      at once. The viewport scrolls the root element, not the body, so the lock has to sit on html, and
      the stable scrollbar gutter keeps the content from shifting when the scrollbar disappears */
-  html:has(.app-modal-panel[role='dialog'][aria-modal='true']) {
+  html:has(.app-modal-panel[role="dialog"][aria-modal="true"]) {
     overflow: hidden;
   }
 
   @media (max-width: 1049.98px) {
-    body :has(> .app-modal-panel[role='dialog'][aria-modal='true']) {
+    body :has(> .app-modal-panel[role="dialog"][aria-modal="true"]) {
       align-items: stretch !important;
       justify-content: stretch !important;
       padding: 0 !important;
     }
 
-    .app-modal-panel[role='dialog'][aria-modal='true'] {
+    .app-modal-panel[role="dialog"][aria-modal="true"] {
       width: 100dvw !important;
       max-width: none !important;
       height: 100dvh !important;
@@ -2959,7 +2959,7 @@
       box-shadow: none !important;
     }
 
-    .app-modal-panel[role='dialog'][aria-modal='true'] > [aria-hidden='true']:first-child {
+    .app-modal-panel[role="dialog"][aria-modal="true"] > [aria-hidden="true"]:first-child {
       display: block !important;
       width: 0.375rem !important;
       min-width: 0.375rem !important;
@@ -2968,7 +2968,7 @@
       border-radius: 0 !important;
     }
 
-    .app-modal-panel[role='dialog'][aria-modal='true'] > [aria-hidden='true']:first-child > * {
+    .app-modal-panel[role="dialog"][aria-modal="true"] > [aria-hidden="true"]:first-child > * {
       display: none !important;
     }
 
@@ -2984,7 +2984,7 @@
       display: block;
     }
 
-    .app-modal-panel[role='dialog'][aria-modal='true'] > .app-secondary-modal-rail:first-child {
+    .app-modal-panel[role="dialog"][aria-modal="true"] > .app-secondary-modal-rail:first-child {
       display: none !important;
       width: 0 !important;
       min-width: 0 !important;
@@ -3052,7 +3052,7 @@
   .app-page-title {
     font-size: var(--app-page-title-size);
     line-height: 1;
-    font-family: 'Cormorant Garamond Variable', Georgia, serif;
+    font-family: "Cormorant Garamond Variable", Georgia, serif;
     font-weight: 400;
     letter-spacing: -0.01em;
     color: var(--app-text);
@@ -3066,7 +3066,7 @@
 
   /* Financial figures — currency amounts, balances, percentages */
   .font-financial {
-    font-family: 'Space Grotesk Variable', 'DM Sans Variable', system-ui, sans-serif;
+    font-family: "Space Grotesk Variable", "DM Sans Variable", system-ui, sans-serif;
     font-variant-numeric: tabular-nums;
   }
 }
