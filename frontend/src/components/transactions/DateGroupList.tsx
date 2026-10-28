@@ -56,7 +56,7 @@ export interface TransactionDateHeadingSelection {
 // the list toolbar that sticks above the headings. While a tooltip shows, whether from hover, keyboard
 // focus or a tap that opened it, the heading rises over the toolbar so the tooltip is drawn whole.
 // At rest a stuck heading sits over the row controls laid at 10 that scroll under it, and under the
-// tooltips rows open at 40, so a row's tooltip opening down over the next day's heading stays readable
+// tooltips rows open at 40 and 50, so a row's tooltip opening down over the next day's heading stays readable
 // rather than going under it
 const DAY_HEADING_STICKY_CLASS = 'sticky z-20 hover:z-40 focus-within:z-40 has-[[aria-expanded=true]]:z-40'
 
