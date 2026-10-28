@@ -51,7 +51,8 @@ test('preserves seeded budget history across a month boundary', AT_EVERY_SIZE, a
   const [year, month] = periodStart.split('-').map(Number)
   const periodEnd = new Date(Date.UTC(year, month, 0, 12))
   const nextMonth = new Date(Date.UTC(year, month, 1, 12))
-  const periodLabel = `${PERIOD_DATE.format(new Date(`${periodStart}T12:00:00Z`))} - ${PERIOD_DATE.format(periodEnd)}`
+  // The app writes ranges in the locale's range format with one plain space each side of the en dash
+  const periodLabel = PERIOD_DATE.formatRange(new Date(`${periodStart}T12:00:00Z`), periodEnd).replace(/\s*–\s*/, ' – ')
 
   const id = await createMonthlyBudget(request, user, {
     name: 'Monthly Food',
