@@ -1,7 +1,7 @@
 """Native app sign-in handoff routes
 
-Passkeys and identity providers can't sign in natively on a self-hosted server, since the app can't
-declare that server's domain in advance. The app instead opens the server's own sign-in page in a
+Passkeys and identity providers can't sign in natively, since the app can't declare the server's
+domain in advance. The app instead opens the server's own sign-in page in a
 private system browser sheet, and once that sign-in finishes the page hands its session to the app
 """
 
