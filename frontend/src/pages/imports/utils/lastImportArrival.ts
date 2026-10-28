@@ -15,7 +15,12 @@ export type LastImportArrivalTracker = {
   entry: LastImport | null
 }
 
-export const INITIAL_LAST_IMPORT_ARRIVAL: LastImportArrivalTracker = { isBaselined: false, shownId: null, count: 0, entry: null }
+export const INITIAL_LAST_IMPORT_ARRIVAL: LastImportArrivalTracker = {
+  isBaselined: false,
+  shownId: null,
+  count: 0,
+  entry: null,
+}
 
 /**
  * Moves the tracker on for one look at the card's import, and gives back the same object when

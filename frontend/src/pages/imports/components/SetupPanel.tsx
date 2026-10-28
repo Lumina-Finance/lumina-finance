@@ -84,14 +84,23 @@ const OVER_STEPS_EDGE = '1px 0 0 var(--app-border), 8px 0 16px -10px var(--app-b
  * @param hasFile - Whether a file is staged, which collapses the panel on desktop
  * @param expandCount - Rises when the page needs the sections in view, which expands a collapsed panel
  */
-export function ImportSetupPanel({ hasFile, onPointerInsideChange, expandCount, children }: {
+export function ImportSetupPanel({
+  hasFile,
+  onPointerInsideChange,
+  expandCount,
+  children,
+}: {
   hasFile: boolean
   onPointerInsideChange?: (isInside: boolean) => void
   expandCount?: number
   children: ReactNode
 }) {
   const panelId = useId()
-  const { panelRef, isDesktop, isCollapsed, isOpen, isPlacedAtOnce, toggle, peekHandlers } = useImportSetupPanel(hasFile, onPointerInsideChange, expandCount)
+  const { panelRef, isDesktop, isCollapsed, isOpen, isPlacedAtOnce, toggle, peekHandlers } = useImportSetupPanel(
+    hasFile,
+    onPointerInsideChange,
+    expandCount,
+  )
 
   // The strip the steps sit beside, and the bar they sit below
   const isStrip = isDesktop && isCollapsed
@@ -107,11 +116,15 @@ export function ImportSetupPanel({ hasFile, onPointerInsideChange, expandCount, 
   const header = (
     <button
       type="button"
-      className={`app-icon-button z-20 transition-[background-color,border-color,color,outline-color] ${PANEL_MOTION} ${isDesktop
-        ? `absolute left-0 top-0 ${isOpen
-          ? 'h-9 w-[var(--setup-open-width)]'
-          : 'h-full w-(--setup-strip-width) hover:[background:transparent] hover:[border-color:transparent]'}`
-        : `relative h-9 w-full ${isCollapsed ? '[border-color:var(--app-border)]' : ''}`}`}
+      className={`app-icon-button z-20 transition-[background-color,border-color,color,outline-color] ${PANEL_MOTION} ${
+        isDesktop
+          ? `absolute left-0 top-0 ${
+              isOpen
+                ? 'h-9 w-[var(--setup-open-width)]'
+                : 'h-full w-(--setup-strip-width) hover:[background:transparent] hover:[border-color:transparent]'
+            }`
+          : `relative h-9 w-full ${isCollapsed ? '[border-color:var(--app-border)]' : ''}`
+      }`}
       onClick={toggle}
       aria-label={isCollapsed ? 'Expand import setup' : 'Collapse import setup'}
       aria-expanded={!isCollapsed}
@@ -137,7 +150,7 @@ export function ImportSetupPanel({ hasFile, onPointerInsideChange, expandCount, 
           translate: isOpen || !isDesktop ? 'none' : CARET_IN_STRIP,
           // Points the way the panel goes when clicked: left to collapse and right to expand on desktop,
           // up to collapse and down to expand below it
-          rotate: isDesktop ? (isCollapsed ? '180deg' : 'none') : (isCollapsed ? '-90deg' : '90deg'),
+          rotate: isDesktop ? (isCollapsed ? '180deg' : 'none') : isCollapsed ? '-90deg' : '90deg',
         }}
         aria-hidden
       />
@@ -148,15 +161,19 @@ export function ImportSetupPanel({ hasFile, onPointerInsideChange, expandCount, 
     <aside
       ref={panelRef}
       aria-label="Import setup"
-      className={`relative flex flex-col [--setup-open-width:340px] ${PANEL_MOTION} ${isDesktop
-        ? `h-full shrink-0 ${isPlacedAtOnce ? 'transition-none' : 'transition-[width,margin]'} ${isStrip ? 'w-(--setup-strip-width)' : 'w-[340px]'}`
-        : 'transition-[margin]'}`}
-      style={{
-        '--setup-motion': `${IMPORT_SETUP_MOTION_MS}ms`,
-        '--setup-strip-width': `${STRIP_WIDTH}px`,
-        '--setup-sheet-width': `calc(var(--setup-open-width) + ${SHEET_ROOM}px)`,
-        ...collapsedMargin,
-      } as CSSProperties}
+      className={`relative flex flex-col [--setup-open-width:340px] ${PANEL_MOTION} ${
+        isDesktop
+          ? `h-full shrink-0 ${isPlacedAtOnce ? 'transition-none' : 'transition-[width,margin]'} ${isStrip ? 'w-(--setup-strip-width)' : 'w-[340px]'}`
+          : 'transition-[margin]'
+      }`}
+      style={
+        {
+          '--setup-motion': `${IMPORT_SETUP_MOTION_MS}ms`,
+          '--setup-strip-width': `${STRIP_WIDTH}px`,
+          '--setup-sheet-width': `calc(var(--setup-open-width) + ${SHEET_ROOM}px)`,
+          ...collapsedMargin,
+        } as CSSProperties
+      }
       {...peekHandlers}
     >
       {/* The strip's edge is drawn apart from the button that is its hit area, so it fades in whole rather than growing
@@ -182,9 +199,11 @@ export function ImportSetupPanel({ hasFile, onPointerInsideChange, expandCount, 
       <div
         id={panelId}
         inert={!isOpen}
-        className={`${PANEL_MOTION} ${isDesktop
-          ? `absolute inset-y-0 left-0 z-10 flex flex-col transition-[width,box-shadow,visibility] [overflow:clip] [background:var(--app-bg)] ${isOpen ? 'w-(--setup-sheet-width)' : 'w-(--setup-strip-width)'}`
-          : 'grid transition-[grid-template-rows,visibility]'} ${isOpen ? '' : 'invisible'}`}
+        className={`${PANEL_MOTION} ${
+          isDesktop
+            ? `absolute inset-y-0 left-0 z-10 flex flex-col transition-[width,box-shadow,visibility] [overflow:clip] [background:var(--app-bg)] ${isOpen ? 'w-(--setup-sheet-width)' : 'w-(--setup-strip-width)'}`
+            : 'grid transition-[grid-template-rows,visibility]'
+        } ${isOpen ? '' : 'invisible'}`}
         style={{
           paddingTop: isDesktop ? SECTIONS_TOP : undefined,
           gridTemplateRows: isDesktop ? undefined : isOpen ? '1fr' : '0fr',
@@ -196,14 +215,20 @@ export function ImportSetupPanel({ hasFile, onPointerInsideChange, expandCount, 
             the sections as the room closes, and carries no vertical padding, since a box animating to zero would leave it behind */}
         <div
           className={`relative min-h-0 ${isDesktop ? 'flex flex-1 flex-col' : '-mx-1 overflow-hidden px-1'}`}
-          style={isDesktop ? { marginLeft: -RING_ROOM, width: `calc(var(--setup-sheet-width) + ${RING_ROOM}px)` } : undefined}
+          style={
+            isDesktop ? { marginLeft: -RING_ROOM, width: `calc(var(--setup-sheet-width) + ${RING_ROOM}px)` } : undefined
+          }
         >
           <div
-            className={`flex flex-col gap-8 transition-[opacity,translate] ${PANEL_MOTION} ${isOpen ? 'opacity-100' : 'opacity-0'} ${isDesktop
-              ? 'min-h-0 flex-1 overflow-y-auto overscroll-contain'
-              : 'pb-1 pt-4'}`}
+            className={`flex flex-col gap-8 transition-[opacity,translate] ${PANEL_MOTION} ${isOpen ? 'opacity-100' : 'opacity-0'} ${
+              isDesktop ? 'min-h-0 flex-1 overflow-y-auto overscroll-contain' : 'pb-1 pt-4'
+            }`}
             style={{
-              translate: isOpen ? 'none' : isDesktop ? 'calc(var(--setup-strip-width) - var(--setup-sheet-width))' : `0 -${SECTIONS_RISE}px`,
+              translate: isOpen
+                ? 'none'
+                : isDesktop
+                  ? 'calc(var(--setup-strip-width) - var(--setup-sheet-width))'
+                  : `0 -${SECTIONS_RISE}px`,
               ...(isDesktop && { paddingLeft: RING_ROOM, paddingRight: SHEET_ROOM }),
             }}
           >

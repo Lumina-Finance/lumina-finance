@@ -44,12 +44,13 @@ import {
 } from './firefly/sections'
 import { useOfxImportWorkflow } from './ofx/hooks'
 import { OfxAccountMappingStep, OfxFilesStep, OfxPreviewStep } from './ofx/sections'
-import { useImportAccountScope, useImportUndoneElsewhere, useLastImportArrival, useTransactionImportWorkflow } from './hooks'
 import {
-  ACCOUNT_DATA_SOURCES,
-  DEFAULT_DATA_SOURCE,
-  getRememberedDataSource,
-} from './utils'
+  useImportAccountScope,
+  useImportUndoneElsewhere,
+  useLastImportArrival,
+  useTransactionImportWorkflow,
+} from './hooks'
+import { ACCOUNT_DATA_SOURCES, DEFAULT_DATA_SOURCE, getRememberedDataSource } from './utils'
 import {
   chooseImportUndoOutcome,
   IMPORT_UNDONE_EMPTY_MESSAGE,
@@ -113,10 +114,10 @@ export default function ImportsPage() {
   // switch, and a list that fails to load opens on CSV with no notice. Once settled, reading the
   // list again changes nothing
   const importSources = useImportSources(accountScope.state === 'ready')
-  const hasCurrentList = !importSources.isStale
-    && importSources.data !== undefined && importSources.dataUpdatedAt >= TAB_OPENED_AT
-  const isWaitingForSources = accountScope.state === 'ready' && !isChoiceSettled
-    && !(importSources.isError || hasCurrentList)
+  const hasCurrentList =
+    !importSources.isStale && importSources.data !== undefined && importSources.dataUpdatedAt >= TAB_OPENED_AT
+  const isWaitingForSources =
+    accountScope.state === 'ready' && !isChoiceSettled && !(importSources.isError || hasCurrentList)
   const scopeLoadingVisible = useMinimumVisibleFlag(
     accountScope.state === 'loading' || isWaitingForSources,
     LOADING_ANIMATION_MIN_MS,
@@ -149,12 +150,10 @@ export default function ImportsPage() {
   // overlay reporting it with an idle one and leave the page looking finished while the write was
   // still going. Read from each workflow rather than from the flow on screen, so neither can be
   // swapped away while it is the busy one
-  const isFireflyBusy = fireflyWorkflow.importOverlayOpen
-    || fireflyWorkflow.processingFileKind !== null
-    || fireflyWorkflow.isImportInFlight
-  const isActualBusy = actualWorkflow.importOverlayOpen
-    || actualWorkflow.isProcessingFile
-    || actualWorkflow.isImportInFlight
+  const isFireflyBusy =
+    fireflyWorkflow.importOverlayOpen || fireflyWorkflow.processingFileKind !== null || fireflyWorkflow.isImportInFlight
+  const isActualBusy =
+    actualWorkflow.importOverlayOpen || actualWorkflow.isProcessingFile || actualWorkflow.isImportInFlight
   const isOfxBusy = ofxWorkflow.importOverlayOpen || ofxWorkflow.isProcessingFile || ofxWorkflow.isImportInFlight
   const isGenericBusy = workflow.importOverlayOpen || workflow.isProcessingFiles || workflow.isImportInFlight
   const activeFlow: ImportDataSource = isFireflyBusy
@@ -178,15 +177,23 @@ export default function ImportsPage() {
   // are in view. Firefly takes three files, so it waits for all of them. A refused file or an intake
   // message keeps the panel open, since its reason is shown there. So does the OFX notice of
   // statements left out, which is the only place that says how many, for as long as the files stay
-  const hasStagedFile = !overlayWorkflow.importResult && {
-    generic: hasOnlyAcceptedFiles(workflow.files) && workflow.fileIntakeError === null,
-    firefly: [fireflyWorkflow.transactionsFile, fireflyWorkflow.budgetsFile, fireflyWorkflow.accountsFile].every((file) => file !== null)
-      && hasOnlyAcceptedFiles([fireflyWorkflow.transactionsFile, fireflyWorkflow.budgetsFile, fireflyWorkflow.accountsFile])
-      && Object.values(fireflyWorkflow.fileIntakeErrors).every((message) => message === null),
-    actual: actualWorkflow.stagedFile !== null && actualWorkflow.fileIntakeError === null,
-    ofx: ofxWorkflow.stagedFiles.length > 0 && ofxWorkflow.fileIntakeError === null
-      && !ofxWorkflow.leftOutNotice,
-  }[activeFlow]
+  const hasStagedFile =
+    !overlayWorkflow.importResult &&
+    {
+      generic: hasOnlyAcceptedFiles(workflow.files) && workflow.fileIntakeError === null,
+      firefly:
+        [fireflyWorkflow.transactionsFile, fireflyWorkflow.budgetsFile, fireflyWorkflow.accountsFile].every(
+          (file) => file !== null,
+        ) &&
+        hasOnlyAcceptedFiles([
+          fireflyWorkflow.transactionsFile,
+          fireflyWorkflow.budgetsFile,
+          fireflyWorkflow.accountsFile,
+        ]) &&
+        Object.values(fireflyWorkflow.fileIntakeErrors).every((message) => message === null),
+      actual: actualWorkflow.stagedFile !== null && actualWorkflow.fileIntakeError === null,
+      ofx: ofxWorkflow.stagedFiles.length > 0 && ofxWorkflow.fileIntakeError === null && !ofxWorkflow.leftOutNotice,
+    }[activeFlow]
 
   // Where the page came from, which is also where its two exits go: the account while the scope
   // holds, otherwise the page that opened this one. A direct visit has neither, so each exit falls
@@ -300,7 +307,8 @@ export default function ImportsPage() {
 
   // An import undone in another tab leaves the same finished importer here as it would in the tab
   // that undid it. Focus stays where the user has it, since no control of this page went with it
-  const finishedRunId = Object.values(overlayWorkflows).find((importer) => importer.committedRunId !== null)?.committedRunId ?? null
+  const finishedRunId =
+    Object.values(overlayWorkflows).find((importer) => importer.committedRunId !== null)?.committedRunId ?? null
   useImportUndoneElsewhere(finishedRunId, putImportersRight)
 
   // An import saved in another tab shows as the last import here: the setup panel opens so the card
@@ -413,9 +421,7 @@ export default function ImportsPage() {
                 <p className="mb-2 text-xs font-semibold uppercase" style={{ color: 'var(--app-accent)' }}>
                   {FLOW_EYEBROWS[activeFlow]}
                 </p>
-                <h1 className="font-serif text-3xl font-normal">
-                  Import transactions
-                </h1>
+                <h1 className="font-serif text-3xl font-normal">Import transactions</h1>
                 <p className="mt-2 max-w-2xl text-sm leading-6" style={{ color: 'var(--app-text-muted)' }}>
                   {FLOW_DESCRIPTIONS[activeFlow]}
                 </p>
@@ -430,13 +436,23 @@ export default function ImportsPage() {
               className={[
                 'flex min-h-full flex-col gap-8 xl:h-full xl:min-h-0 xl:flex-row',
                 overlayWorkflow.importResult && 'import-record',
-              ].filter(Boolean).join(' ')}
+              ]
+                .filter(Boolean)
+                .join(' ')}
             >
               {/* Each arrival replaces the line's text node, so two with the same file name are both read out */}
               <p role="status" className="sr-only">
-                {arrivedEntry && <span key={arrivalCount}>{`Your last import changed to ${arrivedEntry.file_name ?? UNNAMED_IMPORT_FILE}.`}</span>}
+                {arrivedEntry && (
+                  <span
+                    key={arrivalCount}
+                  >{`Your last import changed to ${arrivedEntry.file_name ?? UNNAMED_IMPORT_FILE}.`}</span>
+                )}
               </p>
-              <ImportSetupPanel hasFile={hasStagedFile} onPointerInsideChange={workflow.setIsPointerInDatePanel} expandCount={arrivalCount}>
+              <ImportSetupPanel
+                hasFile={hasStagedFile}
+                onPointerInsideChange={workflow.setIsPointerInDatePanel}
+                expandCount={arrivalCount}
+              >
                 {/* First, so the way to undo the last import is in view without scrolling the steps below */}
                 <LastImportCard
                   onUndone={handleImportUndone}
@@ -459,7 +475,11 @@ export default function ImportsPage() {
                 </div>
               </ImportSetupPanel>
 
-              <div role="region" aria-label="Import steps" className="min-w-0 xl:h-full xl:min-h-0 xl:flex-1 xl:overflow-y-auto xl:pr-1">
+              <div
+                role="region"
+                aria-label="Import steps"
+                className="min-w-0 xl:h-full xl:min-h-0 xl:flex-1 xl:overflow-y-auto xl:pr-1"
+              >
                 <SkippedRowsReviewContext.Provider value={skippedReviewCount}>
                   <div className="space-y-8">
                     {/* Shown whether or not a file is staged, since what the import does with one is worth
@@ -467,7 +487,10 @@ export default function ImportsPage() {
                         The undo notice sits close above it, as part of the same briefing */}
                     <div className="space-y-3">
                       <ImportUndoNoticeCard />
-                      <ImportExpectationsCard key={activeFlow} expectations={getImportExpectations(activeFlow, accountScope.account?.name ?? null)} />
+                      <ImportExpectationsCard
+                        key={activeFlow}
+                        expectations={getImportExpectations(activeFlow, accountScope.account?.name ?? null)}
+                      />
                     </div>
                     {activeFlow === 'actual' && (
                       <>
@@ -536,13 +559,14 @@ export default function ImportsPage() {
         note={overlayWorkflow.importOverlayNote}
         onDone={handleDone}
         onReturnToImport={overlayWorkflow.closeImportOverlay}
-        onReview={overlayWorkflow.importOverlayPhase === 'success'
-          && overlayWorkflow.completedSkippedCount > 0
-          ? () => {
-            reviewsSkippedOnClose.current = true
-            overlayWorkflow.closeImportOverlay()
-          }
-          : undefined}
+        onReview={
+          overlayWorkflow.importOverlayPhase === 'success' && overlayWorkflow.completedSkippedCount > 0
+            ? () => {
+                reviewsSkippedOnClose.current = true
+                overlayWorkflow.closeImportOverlay()
+              }
+            : undefined
+        }
         onClosed={() => {
           setOverlayOnScreen(false)
           if (!reviewsSkippedOnClose.current) return

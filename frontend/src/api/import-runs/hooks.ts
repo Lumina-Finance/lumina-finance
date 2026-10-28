@@ -1,9 +1,9 @@
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { invalidateAppData } from '@/api/cache/invalidation';
-import { lastImportKeys } from '@/api/cache/queryKeys';
-import { fetchIsImportRunSaved, fetchLastImport, undoImportRun } from '@/api/import-runs/requests';
-import { ImportRunError } from '@/api/import-runs/run';
-import { useAuth } from '@/hooks/useAuth';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { invalidateAppData } from '@/api/cache/invalidation'
+import { lastImportKeys } from '@/api/cache/queryKeys'
+import { fetchIsImportRunSaved, fetchLastImport, undoImportRun } from '@/api/import-runs/requests'
+import { ImportRunError } from '@/api/import-runs/run'
+import { useAuth } from '@/hooks/useAuth'
 
 /**
  * Provides the mutation boundary for any request that saves an import run
@@ -15,17 +15,17 @@ import { useAuth } from '@/hooks/useAuth';
  * @param save - Uploads and saves an import, or saves one already uploaded
  */
 export function useImportRunMutation<TVariables, TResponse>(save: (variables: TVariables) => Promise<TResponse>) {
-  const queryClient = useQueryClient();
+  const queryClient = useQueryClient()
   return useMutation({
     mutationFn: save,
     onSuccess: () => {
-      invalidateAppData(queryClient);
+      invalidateAppData(queryClient)
     },
     onError: (error) => {
-      if (!(error instanceof ImportRunError) || error.phase !== 'commit') return;
-      invalidateAppData(queryClient);
+      if (!(error instanceof ImportRunError) || error.phase !== 'commit') return
+      invalidateAppData(queryClient)
     },
-  });
+  })
 }
 
 /**
@@ -34,14 +34,14 @@ export function useImportRunMutation<TVariables, TResponse>(save: (variables: TV
  * Read again every time the Imports page opens, since any change made elsewhere ends the undo
  */
 export function useLastImport() {
-  const { accessToken } = useAuth();
+  const { accessToken } = useAuth()
   return useQuery({
     queryKey: lastImportKeys.all,
     queryFn: ({ signal }) => fetchLastImport(signal),
     enabled: !!accessToken,
     staleTime: 0,
     refetchOnMount: 'always',
-  });
+  })
 }
 
 /**
@@ -57,7 +57,7 @@ export function useIsImportRunSaved(runId: string | null) {
     queryFn: ({ signal }) => fetchIsImportRunSaved(runId ?? '', signal),
     enabled: runId !== null,
     staleTime: 0,
-  });
+  })
 }
 
 /**
@@ -67,11 +67,11 @@ export function useIsImportRunSaved(runId: string | null) {
  * and a second attempt then finds the import gone
  */
 export function useUndoImportRun() {
-  const queryClient = useQueryClient();
+  const queryClient = useQueryClient()
   return useMutation({
     mutationFn: undoImportRun,
     onSettled: () => {
-      invalidateAppData(queryClient);
+      invalidateAppData(queryClient)
     },
-  });
+  })
 }
