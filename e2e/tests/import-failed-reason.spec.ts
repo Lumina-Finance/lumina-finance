@@ -46,9 +46,16 @@ test('shows the server\'s reason of a failed import on its own line at desktop a
     ])
     expect(noteTop).toBeGreaterThanOrEqual(reasonBox!.y + reasonBox!.height - 1)
 
-    // The reason fills the message, which on a phone fills the card, as wide as the button under it
+    // The reason fills the message, which on a phone fills the card's inner width, as wide as the button under it
     const messageBox = (await message.boundingBox())!
     expect(reasonBox!.width).toBeCloseTo(messageBox.width, 0)
-    if (size.width === 390) expect((await backToImport.boundingBox())!.width).toBeCloseTo(messageBox.width, 0)
+    if (size.width === 390) {
+      const cardInnerWidth = await overlay.locator(':scope > div').first().evaluate((card) => {
+        const style = getComputedStyle(card)
+        return card.clientWidth - parseFloat(style.paddingLeft) - parseFloat(style.paddingRight)
+      })
+      expect(messageBox.width).toBeCloseTo(cardInnerWidth, 0)
+      expect((await backToImport.boundingBox())!.width).toBeCloseTo(cardInnerWidth, 0)
+    }
   }
 })
