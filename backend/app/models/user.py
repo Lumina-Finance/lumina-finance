@@ -3,16 +3,22 @@
 import uuid
 from datetime import datetime
 
-from sqlalchemy import VARCHAR, Boolean, DateTime, Float, ForeignKey, Text, func
+from sqlalchemy import VARCHAR, Boolean, CheckConstraint, DateTime, Float, ForeignKey, Text, func
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.models.base import Base
+from app.preferences import DATE_FORMATS, DEFAULT_DATE_FORMAT
+
+DATE_FORMAT_MAX_LENGTH = 32
+
+_DATE_FORMAT_CHECK_VALUES = ", ".join(f"'{value}'" for value in DATE_FORMATS)
 
 
 class User(Base):
     """Core user profile. Every user has exactly one row here."""
 
     __tablename__ = "users"
+    __table_args__ = (CheckConstraint(f"date_format IN ({_DATE_FORMAT_CHECK_VALUES})", name="ck_users_date_format"),)
 
     id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
     email: Mapped[str] = mapped_column(VARCHAR(254), unique=True, nullable=False)  # RFC 3696
@@ -24,6 +30,11 @@ class User(Base):
     runway_risky_below_months: Mapped[float] = mapped_column(Float, nullable=False, default=1.0, server_default="1")
     runway_healthy_at_months: Mapped[float] = mapped_column(Float, nullable=False, default=3.0, server_default="3")
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, server_default=func.now())
+
+    # Fits the longest date format name with room for later formats
+    date_format: Mapped[str] = mapped_column(
+        VARCHAR(DATE_FORMAT_MAX_LENGTH), nullable=False, default=DEFAULT_DATE_FORMAT, server_default=DEFAULT_DATE_FORMAT
+    )
 
     # Set when a recovery-code login wipes every factor, forcing re-enrolment before the account unlocks
     second_factor_reenrollment_required: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False, server_default="false")

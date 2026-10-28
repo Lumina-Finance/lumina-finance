@@ -6,8 +6,10 @@ from typing import Literal
 
 from pydantic import BaseModel, Field, field_validator, model_validator
 
+from app.preferences import DateFormat
 from app.schemas.auth import validate_iana_timezone
 from app.schemas.fx import FxStatus
+from app.schemas.profile_preferences import ProfilePreferences
 
 RUNWAY_THRESHOLD_MIN_MONTHS = 0
 RUNWAY_THRESHOLD_MAX_MONTHS = 12
@@ -17,7 +19,7 @@ RUNWAY_DEFAULT_RISKY_BELOW_MONTHS = 1
 RUNWAY_DEFAULT_HEALTHY_AT_MONTHS = 3
 
 
-class UserProfile(BaseModel):
+class UserProfile(ProfilePreferences):
     """Full user profile returned by /users/me."""
 
     id: uuid.UUID
@@ -28,8 +30,6 @@ class UserProfile(BaseModel):
     tz: str
     base_currency: str
     created_at: datetime
-
-    model_config = {"from_attributes": True}
 
 
 class CacheScopeStatus(BaseModel):
@@ -58,6 +58,7 @@ class UpdateProfileRequest(BaseModel):
     profile_pic: str | None = None
     tz: str | None = Field(None, max_length=40)
     base_currency: str | None = Field(None, min_length=3, max_length=3)
+    date_format: DateFormat | None = None
 
     @field_validator("tz")
     @classmethod

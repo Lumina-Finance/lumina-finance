@@ -3,6 +3,7 @@ import { BrowserRouter, Routes, Route, Navigate, Outlet, useLocation, type Locat
 import { AnimatePresence, motion } from 'motion/react'
 import { useCurrencies } from '@/api/currency'
 import { AuthProvider } from '@/contexts/AuthProvider'
+import { DateFormatProvider } from '@/contexts/DateFormatProvider'
 import { NavCollapseProvider } from '@/contexts/NavCollapseProvider'
 import { ToastProvider } from '@/contexts/ToastProvider'
 import { useNavCollapse } from '@/hooks/useNavCollapse'
@@ -259,7 +260,9 @@ function ProtectedRoute({ displayLocation, onContentReady, pageTransitionPhase, 
                     {/* A focused page covers the viewport above the navigation, so a card there
                         would float over a menu the user cannot reach. It gets the standalone
                         screen instead, which is what that route already looks like */}
-                    <ErrorBoundary variant={isFocusedPage ? 'screen' : 'card'}>
+                    {/* Keyed on the date format, so a new setting rewrites every date on the page, including
+                        those memoized on their data, without a reload */}
+                    <ErrorBoundary key={user?.date_format} variant={isFocusedPage ? 'screen' : 'card'}>
                       <Outlet />
                     </ErrorBoundary>
                   </>
@@ -435,9 +438,11 @@ function App() {
   return (
     <BrowserRouter>
       <AuthProvider>
-        <ToastProvider>
-          <AppShell />
-        </ToastProvider>
+        <DateFormatProvider>
+          <ToastProvider>
+            <AppShell />
+          </ToastProvider>
+        </DateFormatProvider>
       </AuthProvider>
     </BrowserRouter>
   )

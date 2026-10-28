@@ -1,3 +1,5 @@
+import pytest
+
 from app.models.currency import Currency
 from tests.conftest import TestSession
 from tests.routes.support import SIGNUP_PAYLOAD, _create_user, _get_auth_header
@@ -252,3 +254,53 @@ async def test_patch_persists_across_requests(client):
     assert resp.status_code == 200
     assert resp.json()["first_name"] == "Persisted"
 
+
+# --- date format ---
+
+
+async def test_new_user_starts_on_the_month_day_year_date_format(client):
+    """A new account reads dates as before until it picks another format, in the profile and the sign-up response"""
+    signup_resp = await _create_user(client)
+    headers = _get_auth_header(signup_resp)
+
+    resp = await client.get("/me", headers=headers)
+
+    assert signup_resp.json()["user"]["date_format"] == "month-day-year"
+    assert resp.json()["date_format"] == "month-day-year"
+
+
+@pytest.mark.parametrize("date_format", ["day-month-year", "iso", "month-day-year"])
+async def test_patch_saves_each_date_format(client, date_format):
+    """Each offered date format is saved and read back on the next request."""
+    signup_resp = await _create_user(client)
+    headers = _get_auth_header(signup_resp)
+
+    resp = await client.patch("/me", json={"date_format": date_format}, headers=headers)
+    reread = await client.get("/me", headers=headers)
+
+    assert resp.status_code == 200
+    assert resp.json()["date_format"] == date_format
+    assert reread.json()["date_format"] == date_format
+
+
+@pytest.mark.parametrize("date_format", ["match-language", "dd/mm/yyyy", ""])
+async def test_patch_unknown_date_format_returns_422(client, date_format):
+    """PATCH /me refuses a date format the app does not offer, and keeps the saved one."""
+    signup_resp = await _create_user(client)
+    headers = _get_auth_header(signup_resp)
+
+    resp = await client.patch("/me", json={"date_format": date_format}, headers=headers)
+    reread = await client.get("/me", headers=headers)
+
+    assert resp.status_code == 422
+    assert reread.json()["date_format"] == "month-day-year"
+
+
+async def test_patch_null_date_format_returns_422(client):
+    """PATCH /me with null date_format returns 422 (non-nullable field)."""
+    signup_resp = await _create_user(client)
+    headers = _get_auth_header(signup_resp)
+
+    resp = await client.patch("/me", json={"date_format": None}, headers=headers)
+
+    assert resp.status_code == 422

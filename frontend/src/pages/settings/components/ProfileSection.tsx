@@ -4,11 +4,14 @@ import Dropdown from '@/components/dropdown/Dropdown'
 import SettingsField from '@/pages/settings/components/Field'
 import SettingsSectionHeader from '@/pages/settings/components/SectionHeader'
 import SettingsCard from '@/pages/settings/components/Card'
+import { buildDateFormatOptions } from '@/pages/settings/formatOptions'
 import type { ProfileFormState } from '@/pages/settings/profileForm'
+import type { DateFormatSetting } from '@/utils/dateFormat'
 import { formatCurrencyLabel } from '@/utils/formatCurrency'
 import { buildTimezoneOptions } from '@/utils/timezoneOptions'
 
 const PROFILE_TIMEZONE_FIELD_ID = 'profile-timezone'
+const PROFILE_DATE_FORMAT_FIELD_ID = 'profile-date-format'
 
 const TIMEZONES = Intl.supportedValuesOf('timeZone')
 
@@ -113,6 +116,14 @@ export default function ProfileSection({
                   onChange={(v) => onFieldChange('tz', v)}
                   searchable
                   searchPlaceholder="Search timezones..."
+                />
+              </SettingsField>
+              <SettingsField label="Date format" htmlFor={PROFILE_DATE_FORMAT_FIELD_ID}>
+                <Dropdown
+                  id={PROFILE_DATE_FORMAT_FIELD_ID}
+                  options={buildDateFormatOptions()}
+                  value={form.date_format}
+                  onChange={(v) => onFieldChange('date_format', v as DateFormatSetting)}
                 />
               </SettingsField>
               <SettingsField label="Base currency" htmlFor="profile-base-currency" hint="Planned, currently not supported to change">
