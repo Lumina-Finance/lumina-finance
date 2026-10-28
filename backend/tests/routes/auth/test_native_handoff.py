@@ -2,6 +2,7 @@
 
 import asyncio
 import base64
+import contextlib
 import hashlib
 import secrets
 from datetime import UTC, datetime, timedelta
@@ -14,6 +15,7 @@ from sqlalchemy import update
 
 from app.main import app
 from app.models.auth_session import AuthSession
+from app.services.auth import native_handoff as native_handoff_service
 from app.services.auth import tokens
 from tests.conftest import TestSession
 from tests.routes.support import _create_user
@@ -99,23 +101,38 @@ async def test_handoff_from_long_open_session_is_refused(client):
 
 
 async def test_handoff_within_window_succeeds(client):
-    """A sign-in still passing its second factor minutes after it began can hand off"""
+    """A session that began minutes ago, inside the window, can still hand off"""
     query = await _hand_off_session_started_ago(client, timedelta(minutes=5))
 
     assert "code" in query
 
 
 @pytest.mark.parametrize(
-    "form",
-    [
-        {"access_token": "token"},
-        {"access_token": "token", "code_challenge": "short"},
-        {"code_challenge": "A" * 43},
-        {"access_token": ["one", "two"], "code_challenge": "A" * 43},
-    ],
+    "challenge",
+    [None, "short", "A" * 44, "A" * 42 + "+"],
+    ids=["missing", "short", "too-long", "outside-base64url"],
 )
-async def test_handoff_with_malformed_form_tells_app_it_failed(client, form):
-    """A missing, repeated or badly formed field never yields a code"""
+async def test_handoff_with_bad_challenge_tells_app_it_failed(client, challenge):
+    """A valid sign-in still gets no code for a challenge that isn't a SHA-256 digest"""
+    signup = await _create_user(client)
+    form = {"access_token": signup.json()["access_token"]}
+    if challenge is not None:
+        form["code_challenge"] = challenge
+
+    resp = await client.post("/auth/native/handoff", data=form, follow_redirects=False)
+
+    assert resp.status_code == 303
+    assert resp.headers["location"] == "luminafinance://auth/callback?error=handoff_failed"
+
+
+@pytest.mark.parametrize("repeated", ["access_token", "code_challenge"])
+async def test_handoff_with_repeated_field_tells_app_it_failed(client, repeated):
+    """A field sent twice is refused, since which value counts would be ambiguous"""
+    signup = await _create_user(client)
+    _, challenge = _pkce_pair()
+    form = {"access_token": signup.json()["access_token"], "code_challenge": challenge}
+    form[repeated] = [form[repeated], form[repeated]]
+
     resp = await client.post("/auth/native/handoff", data=form, follow_redirects=False)
 
     assert resp.status_code == 303
@@ -182,8 +199,25 @@ async def test_exchange_after_web_sign_out_is_refused(client):
     assert resp.json()["detail"] == "Invalid or expired handoff"
 
 
-async def test_concurrent_exchanges_of_one_session_start_one_native_session(client):
-    """Two codes handed off from one web session can't both turn into native sessions"""
+async def test_concurrent_exchanges_of_one_session_start_one_native_session(client, monkeypatch):
+    """Two codes handed off from one web session can't both turn into native sessions
+
+    Each exchange waits at the point where it spends its code until the other arrives, so unless the
+    web session's lock keeps the second one out, both always get there together and both succeed
+    """
+    arrivals = []
+    both_arrived = asyncio.Event()
+    spend_code = native_handoff_service.consume_mfa_challenge
+
+    async def wait_for_other_exchange(*args, **kwargs):
+        arrivals.append(args)
+        if len(arrivals) == 2:
+            both_arrived.set()
+        with contextlib.suppress(TimeoutError):
+            await asyncio.wait_for(both_arrived.wait(), timeout=2)
+        return await spend_code(*args, **kwargs)
+
+    monkeypatch.setattr(native_handoff_service, "consume_mfa_challenge", wait_for_other_exchange)
     signup = await _create_user(client)
     access_token = signup.json()["access_token"]
     pairs = [_pkce_pair(), _pkce_pair()]
