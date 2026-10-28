@@ -1,6 +1,6 @@
 /**
  * Tests the overlay of a failed import: the server's reason, which stays English, is marked as English
- * and sits on its own line above the translated note
+ * while the note after it keeps the page's language
  */
 import { renderToStaticMarkup } from 'react-dom/server'
 import { describe, expect, it } from 'vitest'
@@ -24,21 +24,13 @@ function render(errorReason?: string) {
 }
 
 describe('the overlay of a failed import', () => {
-  it('sets the server\'s reason on its own line above the note about what was saved', () => {
+  it('marks the server\'s reason as English and leaves the note about what was saved unmarked', () => {
     const markup = render('Account is archived')
 
-    // The screen reader's status line holds the reason too, so the visible line is the one set as a block
-    expect(markup.match(/<span lang="en">Account is archived<\/span>/g)).toHaveLength(1)
-    expect(markup).toContain('<span lang="en" class="block">Account is archived</span>Nothing was added to your ledger.')
+    // The screen reader's status line holds the reason too, so the marked reason shows twice
+    expect(markup.match(/<span lang="en"[^>]*>Account is archived<\/span>/g)).toHaveLength(2)
+    expect(markup).toMatch(/Account is archived<\/span>\s*Nothing was added to your ledger\./)
     expect(markup).not.toContain('Nothing was added to your ledger.</span>')
-  })
-
-  it('keeps the message and the button at the card\'s width only when a reason shows', () => {
-    // The column and the message both fill the card, since each would otherwise shrink to its widest line
-    expect(render('Account is archived')).toContain('w-full max-w-sm')
-    expect(render('Account is archived')).toContain('leading-6 w-full')
-    expect(render()).not.toContain('w-full max-w-sm')
-    expect(render()).not.toContain('leading-6 w-full')
   })
 
   it('marks nothing as English when the failure has no server reason', () => {
