@@ -56,7 +56,9 @@ describe('upload card hover easing', () => {
     const colours: string[] = []
     stylesheet.walkRules((rule: Rule) => {
       if (!rule.selector.includes('.app-upload-card:not([aria-disabled="true"]):hover') || rule.selector.includes('hint')) return
-      rule.walkDecls('background-color', (declaration) => colours.push(`${declaration.value}${declaration.important ? ' !important' : ''}`))
+      rule.walkDecls('background-color', (declaration) => {
+        colours.push(`${declaration.value}${declaration.important ? ' !important' : ''}`)
+      })
     })
     expect(colours).toEqual(['var(--app-hover-on-import-panel) !important'])
   })
