@@ -252,7 +252,7 @@ async def stage_run_batch(
         if account_mapping.outside and not allows_outside_accounts:
             raise HTTPException(
                 status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
-                detail=f"Account source cannot be outside the tracked accounts: {account_mapping.source}",
+                detail=f"The account source {account_mapping.source} cannot be answered as outside the tracked accounts",
             )
         await validate_account_mapping(db, user, account_mapping, references)
     for category_mapping in categories:
@@ -393,7 +393,7 @@ def merge_import_mappings(
         if existing is not None and existing != declared:
             raise HTTPException(
                 status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
-                detail=f"{label} is declared twice with different answers: {source}",
+                detail=f"The {label.lower()} {source} is declared twice with different answers",
             )
         merged[key] = declared
 
@@ -475,14 +475,14 @@ async def validate_account_mapping(
         if mapping.account_id is not None or mapping.create is not None:
             raise HTTPException(
                 status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
-                detail=f"Account source must map to exactly one account action: {source}",
+                detail=f"The account source {source} must map to exactly one account action",
             )
         return
 
     if (mapping.account_id is None) == (mapping.create is None):
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
-            detail=f"Account source must map to exactly one account action: {source}",
+            detail=f"The account source {source} must map to exactly one account action",
         )
 
     if mapping.account_id is not None:
@@ -526,7 +526,7 @@ async def validate_category_mapping(
     if (mapping.category_id is None) == (mapping.create is None):
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
-            detail=f"Category source must map to exactly one category action: {source}",
+            detail=f"The category source {source} must map to exactly one category action",
         )
 
     if mapping.category_id is not None:
@@ -563,7 +563,7 @@ async def _validate_merchant_mapping(
     if stated_actions != 1:
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
-            detail=f"Merchant source must map to exactly one merchant action: {source}",
+            detail=f"The merchant source {source} must map to exactly one merchant action",
         )
 
     if mapping.merchant_id is not None:

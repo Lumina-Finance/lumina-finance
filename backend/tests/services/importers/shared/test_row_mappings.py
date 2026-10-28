@@ -24,7 +24,7 @@ def test_a_row_naming_a_category_source_the_payload_never_declared_is_refused():
         get_import_row_category({}, "Groceries")
 
     assert exc_info.value.status_code == 422
-    assert exc_info.value.detail == "Category source is not mapped: Groceries"
+    assert exc_info.value.detail == "The category source Groceries is not mapped"
 
 
 def test_a_group_categorys_group_not_matching_the_accounts_is_refused():

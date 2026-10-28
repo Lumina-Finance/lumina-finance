@@ -53,18 +53,20 @@ def _car_payment_row(**overrides):
     Returns:
         Row payload dictionary for the import request
     """
-    return _actual_row(**{
-        "journal_id": "a1f0c7e2-0006",
-        "type": "transfer",
-        "dt": "2026-02-01",
-        "amount": "300.00",
-        "description": "Car loan payment",
-        "destination_account": "Car Loan",
-        "destination_name": None,
-        "category": "Car Payment",
-        "category_leg": "source",
-        **overrides,
-    })
+    return _actual_row(
+        **{
+            "journal_id": "a1f0c7e2-0006",
+            "type": "transfer",
+            "dt": "2026-02-01",
+            "amount": "300.00",
+            "description": "Car loan payment",
+            "destination_account": "Car Loan",
+            "destination_name": None,
+            "category": "Car Payment",
+            "category_leg": "source",
+            **overrides,
+        }
+    )
 
 
 async def test_an_actual_run_commits_a_journal_with_a_categorized_loan_payment_and_its_budget(client):
@@ -72,114 +74,127 @@ async def test_an_actual_run_commits_a_journal_with_a_categorized_loan_payment_a
     headers = _get_auth_header(await _create_user(client))
     transfer_category_id = await _get_system_category_id(client, headers, "Transfer")
 
-    resp = await _import_run(client, headers, {
-        "accounts": [_CHECKING, _OLD_SAVINGS, _CAR_LOAN],
-        "categories": [
-            _FOOD,
-            _PAYCHECK,
-            _CAR_PAYMENT,
-
-            # Actual Budget files a transfer to a deleted account as a payee under this category
-            {"source": "Closed account", "category_id": transfer_category_id},
-        ],
-        "rows": [
-            _actual_row(
-                journal_id="a1f0c7e2-0001",
-                type="opening balance",
-                dt="2026-01-01",
-                amount="5000.00",
-                description="Starting balance",
-                source_account=None,
-                source_name="Starting Balance",
-                destination_account="Checking",
-                destination_name=None,
-                category=None,
-            ),
-            _actual_row(
-                journal_id="a1f0c7e2-0002",
-                type="opening balance",
-                dt="2026-01-01",
-                amount="10000.00",
-                description="Loan principal",
-                source_account="Car Loan",
-                destination_name=None,
-                category=None,
-            ),
-            _actual_row(
-                journal_id="a1f0c7e2-0003",
-                type="opening balance",
-                dt="2025-12-31",
-                amount="100.00",
-                description="Old savings balance",
-                source_account=None,
-                source_name="Starting Balance",
-                destination_account="Old Savings",
-                destination_name=None,
-                category=None,
-            ),
-            _actual_row(
-                journal_id="a1f0c7e2-0004",
-                type="transfer",
-                dt="2026-01-05",
-                amount="100.00",
-                description="Close old savings",
-                source_account="Old Savings",
-                destination_account="Checking",
-                destination_name=None,
-                category=None,
-            ),
-            _actual_row(journal_id="a1f0c7e2-0005"),
-            _actual_row(
-                journal_id="a1f0c7e2-0007",
-                type="deposit",
-                dt="2026-01-15",
-                amount="2000.00",
-                description="Salary",
-                source_account=None,
-                source_name="Employer",
-                destination_account="Checking",
-                destination_name=None,
-                category="Paycheck",
-            ),
-            _car_payment_row(),
-            _actual_row(
-                journal_id="a1f0c7e2-0008",
-                dt="2026-02-05",
-                amount="250.00",
-                description="Move to closed brokerage",
-                destination_name="Closed Brokerage",
-                category="Closed account",
-            ),
-        ],
-    }, budgets={
-        "categories": [_CAR_PAYMENT],
-        "budgets": [{
-            "name": "Car Payment",
-            "currency": "CAD",
-            "category_sources": ["Car Payment"],
-
-            # March is missing, as it is for a month Actual Budget budgeted nothing in
-            "limits": [
-                {"start": "2026-01-01", "end": "2026-01-31", "amount": "300.00"},
-                {"start": "2026-02-01", "end": "2026-02-28", "amount": "300.00"},
-                {"start": "2026-04-01", "end": "2026-04-30", "amount": "300.00"},
+    resp = await _import_run(
+        client,
+        headers,
+        {
+            "accounts": [_CHECKING, _OLD_SAVINGS, _CAR_LOAN],
+            "categories": [
+                _FOOD,
+                _PAYCHECK,
+                _CAR_PAYMENT,
+                # Actual Budget files a transfer to a deleted account as a payee under this category
+                {"source": "Closed account", "category_id": transfer_category_id},
             ],
-            "recurrence": None,
-        }],
-    }, source="actual_budget", archive={"account_sources": ["Old Savings"]})
+            "rows": [
+                _actual_row(
+                    journal_id="a1f0c7e2-0001",
+                    type="opening balance",
+                    dt="2026-01-01",
+                    amount="5000.00",
+                    description="Starting balance",
+                    source_account=None,
+                    source_name="Starting Balance",
+                    destination_account="Checking",
+                    destination_name=None,
+                    category=None,
+                ),
+                _actual_row(
+                    journal_id="a1f0c7e2-0002",
+                    type="opening balance",
+                    dt="2026-01-01",
+                    amount="10000.00",
+                    description="Loan principal",
+                    source_account="Car Loan",
+                    destination_name=None,
+                    category=None,
+                ),
+                _actual_row(
+                    journal_id="a1f0c7e2-0003",
+                    type="opening balance",
+                    dt="2025-12-31",
+                    amount="100.00",
+                    description="Old savings balance",
+                    source_account=None,
+                    source_name="Starting Balance",
+                    destination_account="Old Savings",
+                    destination_name=None,
+                    category=None,
+                ),
+                _actual_row(
+                    journal_id="a1f0c7e2-0004",
+                    type="transfer",
+                    dt="2026-01-05",
+                    amount="100.00",
+                    description="Close old savings",
+                    source_account="Old Savings",
+                    destination_account="Checking",
+                    destination_name=None,
+                    category=None,
+                ),
+                _actual_row(journal_id="a1f0c7e2-0005"),
+                _actual_row(
+                    journal_id="a1f0c7e2-0007",
+                    type="deposit",
+                    dt="2026-01-15",
+                    amount="2000.00",
+                    description="Salary",
+                    source_account=None,
+                    source_name="Employer",
+                    destination_account="Checking",
+                    destination_name=None,
+                    category="Paycheck",
+                ),
+                _car_payment_row(),
+                _actual_row(
+                    journal_id="a1f0c7e2-0008",
+                    dt="2026-02-05",
+                    amount="250.00",
+                    description="Move to closed brokerage",
+                    destination_name="Closed Brokerage",
+                    category="Closed account",
+                ),
+            ],
+        },
+        budgets={
+            "categories": [_CAR_PAYMENT],
+            "budgets": [
+                {
+                    "name": "Car Payment",
+                    "currency": "CAD",
+                    "category_sources": ["Car Payment"],
+                    # March is missing, as it is for a month Actual Budget budgeted nothing in
+                    "limits": [
+                        {"start": "2026-01-01", "end": "2026-01-31", "amount": "300.00"},
+                        {"start": "2026-02-01", "end": "2026-02-28", "amount": "300.00"},
+                        {"start": "2026-04-01", "end": "2026-04-30", "amount": "300.00"},
+                    ],
+                    "recurrence": None,
+                }
+            ],
+        },
+        source="actual_budget",
+        archive={"account_sources": ["Old Savings"]},
+    )
 
     assert resp.status_code == 201, resp.text
     summary = resp.json()
-    assert {key: summary[key] for key in (
-        "rows_imported", "transactions_created", "accounts_created", "budgets_created", "accounts_archived",
-        "archive_adjustments_created",
-    )} == {
+    assert {
+        key: summary[key]
+        for key in (
+            "rows_imported",
+            "transactions_created",
+            "accounts_created",
+            "budgets_created",
+            "accounts_archived",
+            "archive_adjustments_created",
+        )
+    } == {
         "rows_imported": 8,
         "transactions_created": 10,
         "accounts_created": 3,
         "budgets_created": 1,
         "accounts_archived": 1,
-
         # The transfer out left the closed account at zero, so archiving it needs no adjustment
         "archive_adjustments_created": 0,
     }
@@ -195,21 +210,29 @@ async def test_an_actual_run_commits_a_journal_with_a_categorized_loan_payment_a
     assert loan["current_balance"] == -1000000 + 30000
     assert (old_savings["current_balance"], old_savings["is_archived"]) == (0, True)
 
-    transactions = (await client.get(
-        "/transactions",
-        params={"account_id": [checking_id, loan_id]},
-        headers=headers,
-    )).json()
+    transactions = (
+        await client.get(
+            "/transactions",
+            params={"account_id": [checking_id, loan_id]},
+            headers=headers,
+        )
+    ).json()
     by_notes_and_account = {(transaction["notes"], transaction["account_id"]): transaction for transaction in transactions}
 
     # Only the checking leg carries the budget category, so the loan leg cannot cancel it out
     payment = by_notes_and_account[("Car loan payment", checking_id)]
     loan_leg = by_notes_and_account[("Car loan payment", loan_id)]
     assert (payment["amount"], payment["category_id"], payment["counterparty_account_id"], payment["counterparty_account_scope"]) == (
-        -30000, car_payment_id, loan_id, "tracked",
+        -30000,
+        car_payment_id,
+        loan_id,
+        "tracked",
     )
     assert (loan_leg["amount"], loan_leg["category_id"], loan_leg["counterparty_account_id"], loan_leg["counterparty_account_scope"]) == (
-        30000, transfer_category_id, checking_id, "tracked",
+        30000,
+        transfer_category_id,
+        checking_id,
+        "tracked",
     )
 
     closed_payment = by_notes_and_account[("Move to closed brokerage", checking_id)]
@@ -222,7 +245,9 @@ async def test_an_actual_run_commits_a_journal_with_a_categorized_loan_payment_a
 
     plain_transfer = by_notes_and_account[("Close old savings", checking_id)]
     assert (plain_transfer["amount"], plain_transfer["category_id"], plain_transfer["counterparty_account_id"]) == (
-        10000, transfer_category_id, old_savings_id,
+        10000,
+        transfer_category_id,
+        old_savings_id,
     )
 
     [budget] = (await client.get("/base-budgets", headers=headers)).json()
@@ -239,21 +264,28 @@ async def test_an_actual_run_commits_a_journal_with_a_categorized_loan_payment_a
     assert utilizations[1]["categories"] == [{"category_id": car_payment_id, "spent": 30000}]
 
 
-@pytest.mark.parametrize("overrides", [
-    {"type": "withdrawal", "destination_account": None, "destination_name": "Car Dealer"},
-    {"category": None},
-])
+@pytest.mark.parametrize(
+    "overrides",
+    [
+        {"type": "withdrawal", "destination_account": None, "destination_name": "Car Dealer"},
+        {"category": None},
+    ],
+)
 async def test_an_actual_row_naming_a_category_leg_off_a_categorized_transfer_is_refused_by_the_schema(client, overrides):
     """A category leg only means something on a transfer that carries a category."""
     headers = _get_auth_header(await _create_user(client))
     run_id = await _open_run(client, headers, 1, "actual_budget")
 
-    resp = await client.post(f"/transactions/import/runs/{run_id}/journal/rows", json={
-        "accounts": [_CHECKING, _CAR_LOAN],
-        "categories": [_CAR_PAYMENT],
-        "rows": [_car_payment_row(**overrides)],
-        "start_row_index": 0,
-    }, headers=headers)
+    resp = await client.post(
+        f"/transactions/import/runs/{run_id}/journal/rows",
+        json={
+            "accounts": [_CHECKING, _CAR_LOAN],
+            "categories": [_CAR_PAYMENT],
+            "rows": [_car_payment_row(**overrides)],
+            "start_row_index": 0,
+        },
+        headers=headers,
+    )
 
     # Request validation answers with a list of field errors, where a refusal later on names a reason
     assert resp.status_code == 422
@@ -265,59 +297,81 @@ async def test_an_actual_categorized_transfer_refuses_a_transfer_category_that_c
     headers = _get_auth_header(await _create_user(client))
     balance_adjustment_id = await _get_system_category_id(client, headers, "Balance Adjustment")
 
-    resp = await _import_run(client, headers, {
-        "accounts": [_CHECKING, _CAR_LOAN],
-        "categories": [{"source": "Car Payment", "category_id": balance_adjustment_id}],
-        "rows": [_car_payment_row()],
-    }, source="actual_budget")
+    resp = await _import_run(
+        client,
+        headers,
+        {
+            "accounts": [_CHECKING, _CAR_LOAN],
+            "categories": [{"source": "Car Payment", "category_id": balance_adjustment_id}],
+            "rows": [_car_payment_row()],
+        },
+        source="actual_budget",
+    )
 
     assert resp.status_code == 422
     assert resp.json()["detail"] == (
-        "Actual Budget transaction a1f0c7e2-0006: The source leg of a transfer can't use a transfer category that "
+        "Actual Budget transaction a1f0c7e2-0006 can't be imported. The source leg of a transfer can't use a transfer category that "
         "doesn't record the other account, and category source Car Payment maps to Balance Adjustment"
     )
 
 
-@pytest.mark.parametrize(("category", "category_leg", "row_overrides", "merchant_name"), [
-    (
-        {"source": "Car Payment", "create": {"name": "Car Payment", "kind": "expense"}},
-        "source",
-        {"destination_name": "Car Loan"},
-        "Car Loan",
-    ),
-    (
-        {"source": "Car Payment", "create": {"name": "Loan Refund", "kind": "income"}},
-        "destination",
-        {
-            "source_account": "Car Loan",
-            "source_name": "Car Loan",
-            "destination_account": "Checking",
-            "destination_name": None,
-        },
-        "Car Loan",
-    ),
-])
+@pytest.mark.parametrize(
+    ("category", "category_leg", "row_overrides", "merchant_name"),
+    [
+        (
+            {"source": "Car Payment", "create": {"name": "Car Payment", "kind": "expense"}},
+            "source",
+            {"destination_name": "Car Loan"},
+            "Car Loan",
+        ),
+        (
+            {"source": "Car Payment", "create": {"name": "Loan Refund", "kind": "income"}},
+            "destination",
+            {
+                "source_account": "Car Loan",
+                "source_name": "Car Loan",
+                "destination_account": "Checking",
+                "destination_name": None,
+            },
+            "Car Loan",
+        ),
+    ],
+)
 async def test_an_actual_categorized_transfer_files_its_budget_leg_as_an_expense_or_income(
-    client, category, category_leg, row_overrides, merchant_name,
+    client,
+    category,
+    category_leg,
+    row_overrides,
+    merchant_name,
 ):
     """The budget leg takes a plain category with the other account as its merchant, and the other leg stays a transfer."""
     headers = _get_auth_header(await _create_user(client))
     transfer_category_id = await _get_system_category_id(client, headers, "Transfer")
 
-    resp = await _import_run(client, headers, {
-        "accounts": [_CHECKING, _CAR_LOAN],
-        "categories": [category],
-        "rows": [_car_payment_row(category_leg=category_leg, **row_overrides)],
-    }, budgets={
-        "categories": [category],
-        "budgets": [{
-            "name": "Car Payment",
-            "currency": "CAD",
-            "category_sources": ["Car Payment"],
-            "limits": [{"start": "2026-02-01", "end": "2026-02-28", "amount": "300.00"}],
-            "recurrence": None,
-        }],
-    } if category["create"]["kind"] == "expense" else None, source="actual_budget")
+    resp = await _import_run(
+        client,
+        headers,
+        {
+            "accounts": [_CHECKING, _CAR_LOAN],
+            "categories": [category],
+            "rows": [_car_payment_row(category_leg=category_leg, **row_overrides)],
+        },
+        budgets={
+            "categories": [category],
+            "budgets": [
+                {
+                    "name": "Car Payment",
+                    "currency": "CAD",
+                    "category_sources": ["Car Payment"],
+                    "limits": [{"start": "2026-02-01", "end": "2026-02-28", "amount": "300.00"}],
+                    "recurrence": None,
+                }
+            ],
+        }
+        if category["create"]["kind"] == "expense"
+        else None,
+        source="actual_budget",
+    )
 
     assert resp.status_code == 201, resp.text
     summary = resp.json()
@@ -325,8 +379,7 @@ async def test_an_actual_categorized_transfer_files_its_budget_leg_as_an_expense
     loan_id = summary["account_source_ids"]["Car Loan"]
     category_id = summary["category_source_ids"]["Car Payment"]
     transactions_by_account = {
-        transaction["account_id"]: transaction
-        for transaction in (await client.get("/transactions", headers=headers)).json()
+        transaction["account_id"]: transaction for transaction in (await client.get("/transactions", headers=headers)).json()
     }
 
     budget_leg = transactions_by_account[checking_id]
@@ -354,17 +407,21 @@ async def test_an_actual_categorized_transfer_can_name_its_destination_leg(clien
     headers = _get_auth_header(await _create_user(client))
     transfer_category_id = await _get_system_category_id(client, headers, "Transfer")
 
-    resp = await _import_run(client, headers, {
-        "accounts": [_CHECKING, _CAR_LOAN],
-        "categories": [_CAR_PAYMENT],
-        "rows": [_car_payment_row(category_leg="destination")],
-    }, source="actual_budget")
+    resp = await _import_run(
+        client,
+        headers,
+        {
+            "accounts": [_CHECKING, _CAR_LOAN],
+            "categories": [_CAR_PAYMENT],
+            "rows": [_car_payment_row(category_leg="destination")],
+        },
+        source="actual_budget",
+    )
 
     assert resp.status_code == 201, resp.text
     summary = resp.json()
     categories_by_account = {
-        transaction["account_id"]: transaction["category_id"]
-        for transaction in (await client.get("/transactions", headers=headers)).json()
+        transaction["account_id"]: transaction["category_id"] for transaction in (await client.get("/transactions", headers=headers)).json()
     }
     assert categories_by_account == {
         summary["account_source_ids"]["Checking"]: transfer_category_id,
@@ -378,11 +435,16 @@ async def test_an_actual_transfer_naming_both_legs_files_each_under_its_transfer
     credit_card_payment_id = await _get_system_category_id(client, headers, "Credit Card Payment")
     visa = {"source": "Visa", "create": {"name": "Visa", "account_type": "credit_card", "currency": "CAD"}}
 
-    resp = await _import_run(client, headers, {
-        "accounts": [_CHECKING, visa],
-        "categories": [{"source": "credit-payment:", "category_id": credit_card_payment_id}],
-        "rows": [_car_payment_row(destination_account="Visa", category="credit-payment:", category_leg="both")],
-    }, source="actual_budget")
+    resp = await _import_run(
+        client,
+        headers,
+        {
+            "accounts": [_CHECKING, visa],
+            "categories": [{"source": "credit-payment:", "category_id": credit_card_payment_id}],
+            "rows": [_car_payment_row(destination_account="Visa", category="credit-payment:", category_leg="both")],
+        },
+        source="actual_budget",
+    )
 
     assert resp.status_code == 201, resp.text
     accounts = resp.json()["account_source_ids"]
@@ -400,14 +462,19 @@ async def test_an_actual_transfer_naming_both_legs_refuses_a_category_that_is_no
     """Spending on one leg and the same category on the other would cancel out, so both legs need a transfer category."""
     headers = _get_auth_header(await _create_user(client))
 
-    resp = await _import_run(client, headers, {
-        "accounts": [_CHECKING, _CAR_LOAN],
-        "categories": [{"source": "Car Payment", "create": {"name": "Car Payment", "kind": "expense"}}],
-        "rows": [_car_payment_row(category_leg="both")],
-    }, source="actual_budget")
+    resp = await _import_run(
+        client,
+        headers,
+        {
+            "accounts": [_CHECKING, _CAR_LOAN],
+            "categories": [{"source": "Car Payment", "create": {"name": "Car Payment", "kind": "expense"}}],
+            "rows": [_car_payment_row(category_leg="both")],
+        },
+        source="actual_budget",
+    )
 
     assert resp.status_code == 422
     assert resp.json()["detail"] == (
-        "Actual Budget transaction a1f0c7e2-0006: Both legs of a transfer can only share a transfer category, "
+        "Actual Budget transaction a1f0c7e2-0006 can't be imported. Both legs of a transfer can only share a transfer category, "
         "and category source Car Payment maps to Car Payment"
     )

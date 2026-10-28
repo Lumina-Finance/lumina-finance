@@ -220,13 +220,16 @@ def _future_date():
     [
         (
             "row",
-            "Firefly III journal 2: Neither the amount nor the foreign amount is in the account's currency (CAD)",
+            "Firefly III journal 2 can't be imported. Neither the amount nor the foreign amount is in the account's currency (CAD)",
         ),
-        ("row-unmapped", "Firefly III journal 2: Category source is not mapped: Dining"),
-        ("budget", "Travel: category source Travel has no category mapping in this import"),
+        ("row-unmapped", "Firefly III journal 2 can't be imported. The category source Dining is not mapped"),
+        ("budget", "The Travel budget uses the category source Travel, which has no category mapping in this import"),
         ("archive-unmapped", "Account source Holiday Fund is not an account this import creates, so it can't be archived"),
         ("archive-existing", "Account source Old Chequing is not an account this import creates, so it can't be archived"),
-        ("archive-future", "Account source Everyday Chequing: This account can't be archived because it has future dated transactions."),
+        (
+            "archive-future",
+            "The account Everyday Chequing has transactions after its archive date, so it can't be archived",
+        ),
     ],
 )
 async def test_a_firefly_run_failing_at_any_stage_saves_nothing(client, case, detail):
@@ -320,7 +323,7 @@ async def test_a_firefly_run_refuses_an_outside_account_when_staged_and_takes_th
     )
     assert (refused.status_code, refused.json()["detail"]) == (
         422,
-        "Account source cannot be outside the tracked accounts: Brokerage elsewhere",
+        "The account source Brokerage elsewhere cannot be answered as outside the tracked accounts",
     )
 
     brokerage = {"source": "Brokerage elsewhere", "create": {"name": "Brokerage", "account_type": "checking", "currency": "CAD"}}

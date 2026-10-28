@@ -1,4 +1,5 @@
 """Transaction import merchant lookup and creation"""
+
 import uuid
 from collections.abc import Iterable
 from dataclasses import dataclass, field
@@ -74,7 +75,9 @@ def get_import_merchant_scope_filter(user_id: uuid.UUID):
 
 
 async def load_usable_import_merchants(
-    db: AsyncSession, merchant_ids: set[uuid.UUID], user_id: uuid.UUID,
+    db: AsyncSession,
+    merchant_ids: set[uuid.UUID],
+    user_id: uuid.UUID,
 ) -> dict[uuid.UUID, Merchant]:
     """Read selected merchant references under the existing system-or-personal import scope
 
@@ -90,15 +93,27 @@ async def load_usable_import_merchants(
         return {}
 
     # Resolve reference eligibility in one query before the ordered declaration checks
-    merchants = (await db.execute(select(Merchant).where(
-        Merchant.id.in_(merchant_ids), get_import_merchant_scope_filter(user_id),
-    ))).scalars().all()
+    merchants = (
+        (
+            await db.execute(
+                select(Merchant).where(
+                    Merchant.id.in_(merchant_ids),
+                    get_import_merchant_scope_filter(user_id),
+                )
+            )
+        )
+        .scalars()
+        .all()
+    )
     return {merchant.id: merchant for merchant in merchants}
 
 
 async def require_usable_import_merchant(
-    db: AsyncSession, merchant_id: uuid.UUID, user_id: uuid.UUID,
-    *, merchants_by_id: dict[uuid.UUID, Merchant] | None = None,
+    db: AsyncSession,
+    merchant_id: uuid.UUID,
+    user_id: uuid.UUID,
+    *,
+    merchants_by_id: dict[uuid.UUID, Merchant] | None = None,
 ) -> Merchant:
     """Return a merchant an import may file rows under, refusing any other
 
@@ -117,7 +132,6 @@ async def require_usable_import_merchant(
             matching one does
     """
     if merchants_by_id is None:
-
         # Resolve the selected merchant within the importer's system-or-personal scope
         result = await db.execute(
             select(Merchant).where(Merchant.id == merchant_id, get_import_merchant_scope_filter(user_id)),
@@ -300,10 +314,7 @@ async def create_missing_import_merchants(
     inserted = await insert_import_records_if_absent(
         db,
         Merchant,
-        [
-            {"owner_id": user_id, "group_id": None, "name": name, "default_category_id": None}
-            for name in names_by_key.values()
-        ],
+        [{"owner_id": user_id, "group_id": None, "name": name, "default_category_id": None} for name in names_by_key.values()],
         index_elements=[Merchant.owner_id, literal_column("lower(name)")],
         index_where=text("group_id IS NULL"),
     )
@@ -367,7 +378,7 @@ def _index_import_merchant_answers(
         if stated_actions != 1:
             raise HTTPException(
                 status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
-                detail=f"Merchant source must map to exactly one merchant action: {source}",
+                detail=f"The merchant source {source} must map to exactly one merchant action",
             )
 
         # Two spellings of one merchant name resolve to one merchant, so answering both leaves nothing to
@@ -376,7 +387,7 @@ def _index_import_merchant_answers(
         if key in answers:
             raise HTTPException(
                 status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
-                detail=f"Merchant source is answered twice: {source}",
+                detail=f"The merchant source {source} is answered twice",
             )
         answers[key] = mapping
 

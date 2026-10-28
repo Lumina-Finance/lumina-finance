@@ -36,7 +36,7 @@ async def test_naming_one_source_twice_is_refused_once_the_first_mapping_has_res
             await get_or_create_import_categories_by_source(session, user, mappings, ImportStats())
 
         assert exc_info.value.status_code == 422
-        assert exc_info.value.detail == "Duplicate category source: Groceries"
+        assert exc_info.value.detail == "The category source Groceries is listed more than once"
 
 
 def test_an_unsupported_category_kind_is_refused():

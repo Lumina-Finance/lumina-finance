@@ -104,14 +104,10 @@ async def write_journal_budgets(
         if budget.currency not in currencies_by_code:
             raise HTTPException(
                 status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
-                detail=f"{budget.name}: currency {budget.currency} is not supported",
+                detail=f"The {budget.name} budget uses the currency {budget.currency}, which is not supported",
             )
 
-    requested_category_ids = {
-        category_id
-        for budget in budgets
-        for category_id in budget.category_ids
-    }
+    requested_category_ids = {category_id for budget in budgets for category_id in budget.category_ids}
 
     # Every category comes from the run's category mappings, which staging caps at
     # MAX_IMPORT_MAPPINGS, so one query stays within the database's parameter limit
@@ -119,38 +115,43 @@ async def write_journal_budgets(
 
     prepared_budgets: list[_PreparedBudget] = []
     for budget in budgets:
-        prepared_budgets.append(_prepare_imported_budget(
-            user,
-            budget,
-            currencies_by_code,
-            allowed_category_ids,
-        ))
+        prepared_budgets.append(
+            _prepare_imported_budget(
+                user,
+                budget,
+                currencies_by_code,
+                allowed_category_ids,
+            )
+        )
 
     db.add_all([prepared.base_budget for prepared in prepared_budgets])
     await db.flush()
 
     pending_children: list[Budget | BudgetTrackedCategory] = []
     for prepared in prepared_budgets:
-
         # Categories join at the first period start so the earliest period sees them
         for category_id in prepared.category_ids:
-            pending_children.append(BudgetTrackedCategory(
-                base_budget_id=prepared.base_budget.id,
-                category_id=category_id,
-                added_at=prepared.limit_periods[0][0],
-            ))
+            pending_children.append(
+                BudgetTrackedCategory(
+                    base_budget_id=prepared.base_budget.id,
+                    category_id=category_id,
+                    added_at=prepared.limit_periods[0][0],
+                )
+            )
             if len(pending_children) == CHILD_WRITE_BUFFER_SIZE:
                 db.add_all(pending_children)
                 await db.flush()
                 pending_children = []
 
         for period_start, period_end, overall_limit in prepared.limit_periods:
-            pending_children.append(Budget(
-                base_budget_id=prepared.base_budget.id,
-                period_start=period_start,
-                period_end=period_end,
-                overall_limit=overall_limit,
-            ))
+            pending_children.append(
+                Budget(
+                    base_budget_id=prepared.base_budget.id,
+                    period_start=period_start,
+                    period_end=period_end,
+                    overall_limit=overall_limit,
+                )
+            )
             if len(pending_children) == CHILD_WRITE_BUFFER_SIZE:
                 db.add_all(pending_children)
                 await db.flush()
@@ -197,7 +198,7 @@ def _prepare_imported_budget(
     if not set(category_ids).issubset(allowed_category_ids):
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
-            detail=f"{budget.name}: a tracked category was not found",
+            detail=f"The {budget.name} budget tracks a category that was not found",
         )
     limit_periods = _parse_limit_periods(budget, currencies_by_code[budget.currency])
 
@@ -238,7 +239,7 @@ def _parse_limit_periods(
         if limit.end < limit.start:
             raise HTTPException(
                 status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
-                detail=f"{budget.name}: a limit period ends before it starts",
+                detail=f"The {budget.name} budget has a limit period that ends before it starts",
             )
         try:
             amount = parse_decimal_amount_to_minor_units(
@@ -249,12 +250,12 @@ def _parse_limit_periods(
         except (DecimalAmountParseError, DecimalAmountPrecisionError) as exc:
             raise HTTPException(
                 status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
-                detail=f"{budget.name}: invalid limit amount \"{limit.amount}\"",
+                detail=f'The {budget.name} budget has an invalid limit amount "{limit.amount}"',
             ) from exc
         if amount <= 0:
             raise HTTPException(
                 status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
-                detail=f"{budget.name}: limit amounts must be positive",
+                detail=f"The {budget.name} budget has a limit amount that is not positive",
             )
         periods.append((limit.start, limit.end, amount))
 
@@ -263,7 +264,7 @@ def _parse_limit_periods(
         if next_start <= previous_end:
             raise HTTPException(
                 status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
-                detail=f"{budget.name}: two limit periods overlap",
+                detail=f"The {budget.name} budget has two limit periods that overlap",
             )
     return periods
 
@@ -298,13 +299,16 @@ def _cadence_fields(budget: JournalBudgetImport, limit_periods: list[tuple[date,
         }
 
     latest_start, latest_end, _ = limit_periods[-1]
-    aligned = validate_period_start(
-        latest_start,
-        recurrence.freq,
-        weekday=recurrence.weekday,
-        dom=recurrence.dom,
-        month=recurrence.month,
-    ) is None
+    aligned = (
+        validate_period_start(
+            latest_start,
+            recurrence.freq,
+            weekday=recurrence.weekday,
+            dom=recurrence.dom,
+            month=recurrence.month,
+        )
+        is None
+    )
 
     # A cadence whose period would end past the last representable date cannot fit either
     try:
@@ -315,12 +319,12 @@ def _cadence_fields(budget: JournalBudgetImport, limit_periods: list[tuple[date,
             dom=recurrence.dom,
             month=recurrence.month,
         )
-    except (ValueError, OverflowError):
+    except ValueError, OverflowError:
         period_end = None
     if not aligned or period_end != latest_end:
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
-            detail=f"{budget.name}: the cadence does not fit the latest limit period",
+            detail=f"The cadence of the {budget.name} budget does not fit its latest limit period",
         )
     return {
         "recurrence_freq": recurrence.freq,
