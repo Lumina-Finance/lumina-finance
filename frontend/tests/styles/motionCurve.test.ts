@@ -44,6 +44,8 @@ describe('hover looks that name their own transition', () => {
     '.app-dropdown-row-edit',
     '.app-range-glass',
     '.app-range-glass-clear',
+    '.app-range-apply',
+    '.app-range-unit-option',
     '.app-range-seg-option',
     '.app-time-selector .app-segmented-option',
     '.app-navigation-theme-toggle',

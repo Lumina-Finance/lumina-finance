@@ -1399,6 +1399,10 @@
     cursor: pointer;
     font-size: 0.8125rem;
     font-weight: 500;
+    transition:
+      background-color 0.15s cubic-bezier(0.22, 1, 0.36, 1),
+      border-color 0.15s cubic-bezier(0.22, 1, 0.36, 1),
+      var(--app-focus-fade);
   }
 
   .app-range-apply:hover,
@@ -1605,6 +1609,9 @@
     text-align: left;
     font-size: 0.8125rem;
     color: var(--app-text);
+    transition:
+      background-color 0.15s cubic-bezier(0.22, 1, 0.36, 1),
+      var(--app-focus-fade);
   }
 
   .app-range-unit-option:hover,
