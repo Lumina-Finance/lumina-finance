@@ -78,9 +78,11 @@ test('hands a sign-in finished with an authenticator code to the app', async ({ 
   await page.getByLabel('Email').fill(user.email)
   await page.getByLabel('Password', { exact: true }).fill(user.password)
   await page.getByRole('button', { name: 'Log in' }).click()
-  await page.getByLabel('One-time code').fill(totpCode(secret, 1))
+  await expect(page.getByLabel('One-time code')).toBeVisible()
+
+  // The last digit submits the code, so the handoff is awaited before it is typed
   const code = waitForHandoffCode(page)
-  await page.getByRole('button', { name: 'Verify', exact: true }).click()
+  await page.getByLabel('One-time code').pressSequentially(totpCode(secret, 1))
 
   expect((await exchange(request, await code, verifier)).status()).toBe(200)
 })
