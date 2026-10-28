@@ -951,3 +951,33 @@ test('holds no outline at rest in forced colours', async ({ page, request }) => 
   const security = page.getByRole('navigation', { name: 'Settings sections' }).getByRole('button', { name: 'Security', exact: true })
   expect(await security.evaluate((node) => getComputedStyle(node).outlineStyle)).toBe('none')
 })
+
+// The login page's "Forgot password?" link has no border of its own, and the box it slides in and out in
+// hides what spills past its edge while it moves, so it must keep its whole ring once it has settled.
+// It runs at every size and in both themes for the same reason as the whole-ring test above, and with motion
+// on as well as off, since the box only lets the ring show once its slide has finished
+for (const colorScheme of ['light', 'dark'] as const) {
+  for (const reducedMotion of ['reduce', 'no-preference'] as const) {
+    const motion = reducedMotion === 'reduce' ? 'reduced' : 'full'
+    test(`keeps the whole ring on the login page's forgot password link in the ${colorScheme} theme with ${motion} motion`, AT_EVERY_SIZE, async ({ page }) => {
+      await page.emulateMedia({ colorScheme, reducedMotion })
+      await page.goto('/login')
+      await expect(page.locator('html')).toHaveClass(colorScheme === 'dark' ? /\bdark\b/ : /^(?!.*\bdark\b)/)
+      const link = page.getByRole('button', { name: 'Forgot password?', exact: true })
+      await focusFromKeyboard(page, link)
+      await expectWholeRing(link)
+    })
+  }
+}
+
+// Focus can reach the link while it is still sliding in, and its ring must still be whole once the slide ends
+test('keeps the whole ring on the forgot password link focused while it slides in', AT_EVERY_SIZE, async ({ page }) => {
+  await page.emulateMedia({ reducedMotion: 'no-preference' })
+  await page.goto('/login')
+  await page.getByRole('button', { name: 'Sign up', exact: true }).click()
+  await expect(page.getByRole('button', { name: 'Forgot password?', exact: true })).toHaveCount(0)
+  await page.getByRole('button', { name: 'Log in', exact: true }).click()
+  const link = page.getByRole('button', { name: 'Forgot password?', exact: true })
+  await focusFromKeyboard(page, link)
+  await expectWholeRing(link)
+})
