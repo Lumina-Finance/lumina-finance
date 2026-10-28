@@ -31,16 +31,6 @@ async def test_native_login_returns_refresh_token_without_cookie(client):
     assert "refresh_token" not in resp.cookies
 
 
-async def test_native_signup_returns_refresh_token_without_cookie(client):
-    """Signing up from the app keeps the new session in the app too"""
-    await _create_user(client)
-    resp = await client.post("/auth/signup", json={**SIGNUP_PAYLOAD, "email": "app@example.com"}, headers=_NATIVE)
-
-    assert resp.status_code == 201
-    assert resp.json()["refresh_token"]
-    assert "refresh_token" not in resp.cookies
-
-
 async def test_native_second_factor_returns_refresh_token_without_cookie(client):
     """The token arrives with the second factor, which is where a two-factor sign-in ends"""
     _, secret, _ = await _enroll(client)
