@@ -37,7 +37,7 @@ export function useFittedAmount(value: string, compactValue: string, maxRem: num
   const [textElement, setTextElement] = useState<HTMLParagraphElement | null>(null)
   // The font size, as a share of the container's width, at which the shown text fills it, and
   // whether the shown text is the compact form
-  const [fit, setFit] = useState<{ fillRatio: number | null, compact: boolean }>({ fillRatio: null, compact: false })
+  const [fit, setFit] = useState<{ fillRatio: number | null; compact: boolean }>({ fillRatio: null, compact: false })
 
   useLayoutEffect(() => {
     if (!textElement) return undefined
@@ -78,8 +78,11 @@ export function useFittedAmount(value: string, compactValue: string, maxRem: num
       const full = measureText(value)
       const containerWidth = container?.getBoundingClientRect().width ?? 0
       // An amount with no shorter form, such as one under a million, stays in full
-      const wantsCompact = full.width > 0 && containerWidth > 0 && compactValue !== value
-        && full.width * (minRem / maxRem) > containerWidth + 0.01
+      const wantsCompact =
+        full.width > 0 &&
+        containerWidth > 0 &&
+        compactValue !== value &&
+        full.width * (minRem / maxRem) > containerWidth + 0.01
       // A container passes through odd widths while the page around it moves, such as the layout
       // sliding on a window resize, so a form that differs from the one shown waits until the width
       // has stayed put, and the form shown keeps fitting meanwhile
@@ -117,9 +120,10 @@ export function useFittedAmount(value: string, compactValue: string, maxRem: num
         measuredTextElement.style.removeProperty('--fit-pending-size')
       }
 
-      const update = () => setFit((previous) => (
-        previous.fillRatio === fillRatio && previous.compact === compact ? previous : { fillRatio, compact }
-      ))
+      const update = () =>
+        setFit((previous) =>
+          previous.fillRatio === fillRatio && previous.compact === compact ? previous : { fillRatio, compact },
+        )
       // Rendered before the browser paints, since a frame drawn with the old measurement shows the
       // text at a size fitted for another text or font. The first measure runs inside a layout
       // effect, which renders before the paint anyway
@@ -136,9 +140,8 @@ export function useFittedAmount(value: string, compactValue: string, maxRem: num
       if (!cancelled) measure()
     })
     // Which form fits depends on the container's width, so a resize decides it again
-    const resizeObserver = typeof ResizeObserver === 'undefined' || !container
-      ? null
-      : new ResizeObserver(() => measure())
+    const resizeObserver =
+      typeof ResizeObserver === 'undefined' || !container ? null : new ResizeObserver(() => measure())
     if (container) resizeObserver?.observe(container)
     const clearSwap = () => measuredTextElement.removeAttribute('data-fit-swap')
     measuredTextElement.addEventListener('animationend', clearSwap)

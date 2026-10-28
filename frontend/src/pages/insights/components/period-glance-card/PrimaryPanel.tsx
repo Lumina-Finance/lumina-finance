@@ -50,7 +50,11 @@ export function PeriodGlancePrimaryPanel({
     PRIMARY_AMOUNT_MAX_REM,
     PRIMARY_AMOUNT_MIN_REM,
   )
-  const primaryAmountStyle = getFittedAmountStyle(primaryAmountFillRatio, PRIMARY_AMOUNT_MAX_REM, PRIMARY_AMOUNT_MIN_REM)
+  const primaryAmountStyle = getFittedAmountStyle(
+    primaryAmountFillRatio,
+    PRIMARY_AMOUNT_MAX_REM,
+    PRIMARY_AMOUNT_MIN_REM,
+  )
   const formattedIncome = formatCurrency(income, displayCurrency)
   const formattedExpenses = formatCurrency(expenses, displayCurrency)
   const compactIncome = formatCompactTotalCurrency(income, displayCurrency, currencies, 'income')
@@ -70,9 +74,8 @@ export function PeriodGlancePrimaryPanel({
 
   // Both figures take the smaller fitted size, so a long amount never sits beside a larger short one.
   // Their containers are always equally wide, so the smaller fill ratio fits both
-  const figureFillRatio = incomeFillRatio === null || expensesFillRatio === null
-    ? null
-    : Math.min(incomeFillRatio, expensesFillRatio)
+  const figureFillRatio =
+    incomeFillRatio === null || expensesFillRatio === null ? null : Math.min(incomeFillRatio, expensesFillRatio)
   const figureStyle = getFittedAmountStyle(figureFillRatio, FIGURE_MAX_REM, FIGURE_MIN_REM)
 
   return (
@@ -80,10 +83,7 @@ export function PeriodGlancePrimaryPanel({
       <div className="min-w-0 [container-type:inline-size]">
         <p className="app-label inline-flex items-center gap-2">
           {primaryMetric.label}
-          <InsightCalculationTooltip
-            label={primaryMetric.label}
-            calculation={primaryMetric.calculation}
-          />
+          <InsightCalculationTooltip label={primaryMetric.label} calculation={primaryMetric.calculation} />
           {incomeExpenseFxStatus && (
             <FxStatusBadge
               label="Income and expense FX status"
@@ -91,7 +91,11 @@ export function PeriodGlancePrimaryPanel({
               getMessage={getPeriodIncomeExpenseFxStatusMessage}
             />
           )}
-          <FullAmountTooltip label={primaryMetric.label} compact={primaryAmountCompact} fullAmount={primaryMetric.value} />
+          <FullAmountTooltip
+            label={primaryMetric.label}
+            compact={primaryAmountCompact}
+            fullAmount={primaryMetric.value}
+          />
         </p>
         <p
           ref={primaryAmountRef}
@@ -103,9 +107,7 @@ export function PeriodGlancePrimaryPanel({
         >
           {renderFittedText(primaryAmountCompact, primaryMetric.compactValue, primaryMetric.value)}
         </p>
-        <p className="mt-2 max-w-3xl text-sm leading-6 text-[var(--app-text-muted)]">
-          {primaryMetric.detail}
-        </p>
+        <p className="mt-2 max-w-3xl text-sm leading-6 text-[var(--app-text-muted)]">{primaryMetric.detail}</p>
       </div>
 
       <div className="grid grid-cols-2 gap-4 border-t border-[var(--app-border)] pt-3 @max-[17.5rem]:grid-cols-1 min-[750px]:grid-cols-1 min-[750px]:border-l min-[750px]:border-t-0 min-[750px]:pl-5 min-[750px]:pt-0 min-[1500px]:mt-5 min-[1500px]:grid-cols-2 min-[1500px]:border-l-0 min-[1500px]:border-t min-[1500px]:pl-0 min-[1500px]:pt-3">
@@ -118,11 +120,7 @@ export function PeriodGlancePrimaryPanel({
             />
             <FullAmountTooltip label="Income" compact={incomeCompact} fullAmount={formattedIncome} />
           </p>
-          <p
-            ref={incomeRef}
-            className="mt-1 whitespace-nowrap font-financial text-lg leading-7"
-            style={figureStyle}
-          >
+          <p ref={incomeRef} className="mt-1 whitespace-nowrap font-financial text-lg leading-7" style={figureStyle}>
             {renderFittedText(incomeCompact, compactIncome, formattedIncome)}
           </p>
         </div>
@@ -135,11 +133,7 @@ export function PeriodGlancePrimaryPanel({
             />
             <FullAmountTooltip label="Expenses" compact={expensesCompact} fullAmount={formattedExpenses} />
           </p>
-          <p
-            ref={expensesRef}
-            className="mt-1 whitespace-nowrap font-financial text-lg leading-7"
-            style={figureStyle}
-          >
+          <p ref={expensesRef} className="mt-1 whitespace-nowrap font-financial text-lg leading-7" style={figureStyle}>
             {renderFittedText(expensesCompact, compactExpenses, formattedExpenses)}
           </p>
         </div>

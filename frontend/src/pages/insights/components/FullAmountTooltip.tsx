@@ -14,13 +14,7 @@ export function FullAmountTooltip({ label, compact, fullAmount }: FullAmountTool
   if (!compact) return null
 
   return (
-    <IconTooltip
-      label={`${label} in full`}
-      placement="top"
-      widthClassName="w-64"
-      size={14}
-      strokeWidth={2.25}
-    >
+    <IconTooltip label={`${label} in full`} placement="top" widthClassName="w-64" size={14} strokeWidth={2.25}>
       <span className="font-financial">{fullAmount}</span>
     </IconTooltip>
   )

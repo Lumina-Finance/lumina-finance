@@ -16,7 +16,13 @@ const COMPACT_MOVED_MONEY_RULES: CompactMoneyRule[] = [
  */
 export function formatCompactMovedCurrency(minorUnits: number, currency: string, currencies: Currency[]): string {
   const magnitude = Math.abs(Math.round(minorUnits))
-  const compact = formatCompactMoney(magnitude, currency, COMPACT_MOVED_MONEY_RULES, currencies, minorUnits < 0 ? 'up' : 'down')
+  const compact = formatCompactMoney(
+    magnitude,
+    currency,
+    COMPACT_MOVED_MONEY_RULES,
+    currencies,
+    minorUnits < 0 ? 'up' : 'down',
+  )
   return signMovedAmount(getShownAmountSign(minorUnits), compact)
 }
 

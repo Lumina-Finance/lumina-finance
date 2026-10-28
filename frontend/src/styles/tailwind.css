@@ -1,4 +1,4 @@
-@import "tailwindcss";
+@import 'tailwindcss';
 @config "../../tailwind.config.js";
 
 /* Every hover: utility on a button also applies while the button is keyboard focused, so a button
@@ -12,7 +12,7 @@
     }
   }
 
-  &:is(button, [role="button"], [role="tab"], [role="radio"], [role="menuitem"]):focus-visible {
+  &:is(button, [role='button'], [role='tab'], [role='radio'], [role='menuitem']):focus-visible {
     @slot;
   }
 }
@@ -20,15 +20,15 @@
 @layer base {
   :root {
     /* Light — warm parchment */
-    --app-bg: #F2EDE4;
-    --app-surface-soft: #FBF8F0;
+    --app-bg: #f2ede4;
+    --app-surface-soft: #fbf8f0;
     /* Shared hover feedback for rows and controls, plus transaction pending backgrounds and the
        loading skeletons' shimmer sweep.
        Kept apart from
        .app-dropdown-row-highlighted, which mixes the same proportion in both themes rather than
        taking this token, since pointing that rule at this token would carry the flat light value
        below into the dropdown and lose the mix it depends on there */
-    --app-hover-soft: #FBF8F0;
+    --app-hover-soft: #fbf8f0;
     /* Hover feedback on a surface shaded --app-surface-soft, which the flat value above matches. The wash
        shows the same on it, where the flat value nearly vanishes. A wash of the text colour, light enough
        that subtle text on it keeps its contrast */
@@ -49,10 +49,10 @@
 
     --app-border: #4b37231c;
     --app-border-strong: #4b372333;
-    --app-text: #1C1510;
-    --app-text-muted: #63513F;
+    --app-text: #1c1510;
+    --app-text-muted: #63513f;
     --app-text-subtle: #786858;
-    --app-accent: #8A5F25;
+    --app-accent: #8a5f25;
     --app-accent-soft: #9b6c2c1a;
     --app-accent-border: #9b6c2c38;
     /* A menu item's text on the soft accent tint. The accent itself reads 4.28:1 there on the page, where
@@ -81,9 +81,9 @@
     --app-accent-on-page-tint: color-mix(in srgb, var(--app-accent) 85%, var(--app-text));
     /* The gold gradient behind a user's initials and the initials on it, the same in both themes. The end stop is
        the darkest point the initials sit on, kept light enough for them to read at 4.5:1 */
-    --app-avatar-start: #C9A96A;
-    --app-avatar-end: #A87A33;
-    --app-avatar-text: #1C1510;
+    --app-avatar-start: #c9a96a;
+    --app-avatar-end: #a87a33;
+    --app-avatar-text: #1c1510;
     /* The subtle colour falls short of the contrast text needs on the accent tint here, so faint text there,
        such as on the budget details panel or a chosen row, is drawn partway toward muted while staying the quieter of the two */
     --app-text-subtle-on-accent: color-mix(in srgb, var(--app-text-subtle) 60%, var(--app-text-muted));
@@ -92,7 +92,7 @@
        control with no border of its own, or a filled one, takes it as an outline with a gap. A field
        or outlined button turns its own border this colour and doubles it from the inside, so it never draws a second frame, and
        neither adds anything to the control's size, so focusing never moves anything */
-    --app-focus-ring: #A17E4F;
+    --app-focus-ring: #a17e4f;
     --app-focus-outline: 2px solid var(--app-focus-ring);
     /* The ring's look before focus arrives, so it can fade in and out: an outline can't be eased
        between none and solid, but its colour can be eased from clear to the focus colour. With reduced
@@ -103,40 +103,40 @@
     --app-focus-offset: 2px;
     --app-focus-border: inset 0 0 0 1px var(--app-focus-ring);
     --app-focus-border-error: inset 0 0 0 1px var(--app-negative);
-    --app-input-bg: #FFFFFF;
+    --app-input-bg: #ffffff;
     --app-input-border: #4b372338;
 
     /* Fields strengthen their own hover edge without changing borders used by panels */
     --app-input-border-hover: #4b372359;
-    --app-positive: #3A7850;
+    --app-positive: #3a7850;
     --app-positive-soft: #3a78501a;
-    --app-chart-positive: #5D8F6D;
-    --app-chart-negative: #AB5E56;
-    --app-warning: #D6B400;
+    --app-chart-positive: #5d8f6d;
+    --app-chart-negative: #ab5e56;
+    --app-warning: #d6b400;
     --app-warning-soft: #d6b40029;
-    --app-warning-text: #6F5700;
+    --app-warning-text: #6f5700;
     /* Muted text on the warning tint, such as the archive warning's explanation, which the tint leaves readable here */
     --app-text-muted-on-warning: var(--app-text-muted);
     /* The FX badge's blue, for its border, fill tint and hover fill, and the darker blue its label is drawn in,
        since the plain blue falls short of the contrast small text needs on its own tint */
-    --app-fx-blue: #2563EB;
-    --app-fx-blue-text: #1D4ED8;
+    --app-fx-blue: #2563eb;
+    --app-fx-blue-text: #1d4ed8;
     /* The gray FX badge's hover and open fill, which its white label sits on */
     --app-fx-gray-fill: var(--app-text-muted);
-    --app-negative: #9A3C34;
+    --app-negative: #9a3c34;
     --app-negative-soft: #9a3c341a;
     --app-negative-border: #9a3c344d;
     /* Filled destructive buttons need a darker red than negative text to keep white labels readable */
-    --app-danger-fill: #9A3C34;
+    --app-danger-fill: #9a3c34;
     /* Their fill under the pointer or keyboard focus, darker in both themes, since a lighter red would
        take the white label under 4.5:1 in the dark one */
     --app-danger-fill-hover: color-mix(in srgb, var(--app-danger-fill) 75%, black);
-    --app-button-primary-bg: #6E4818;
+    --app-button-primary-bg: #6e4818;
     /* Darker than the rest fill, so the change shows through the button's translucency, which a lighter
        bronze evened out */
-    --app-button-primary-bg-hover: #5A3A12;
-    --app-button-primary-text: #FFF8EC;
-    --app-nav-bg: #F8F4EC;
+    --app-button-primary-bg-hover: #5a3a12;
+    --app-button-primary-text: #fff8ec;
+    --app-nav-bg: #f8f4ec;
     --app-shadow-soft: 0 2px 20px #1c151012, 0 1px 4px #1c15100a;
     --app-page-title-size: 3.4rem;
     --app-page-description-size: 1.0625rem;
@@ -196,8 +196,8 @@
 
   .dark {
     /* Dark — warm charcoal */
-    --app-bg: #0F0E0C;
-    --app-surface-soft: #13100E;
+    --app-bg: #0f0e0c;
+    --app-surface-soft: #13100e;
     --app-hover-soft: color-mix(in srgb, var(--app-text) 6%, transparent);
     --app-hover-on-surface-soft: var(--app-hover-soft);
     --app-hover-on-import-panel: color-mix(in srgb, var(--app-text) 3.5%, var(--app-import-panel));
@@ -205,10 +205,10 @@
 
     --app-border: #d2b47817;
     --app-border-strong: #d2b4782b;
-    --app-text: #ECE6DA;
-    --app-text-muted: #A09488;
+    --app-text: #ece6da;
+    --app-text-muted: #a09488;
     --app-text-subtle: #918579;
-    --app-accent: #C9A96A;
+    --app-accent: #c9a96a;
     --app-accent-soft: #c9a96a1f;
     --app-accent-border: #c9a96a38;
     --app-accent-nav-text: var(--app-accent);
@@ -217,33 +217,33 @@
     /* The subtle colour falls short on the accent tint here too, so faint text there is drawn the same way partway
        toward muted */
     --app-text-subtle-on-accent: color-mix(in srgb, var(--app-text-subtle) 60%, var(--app-text-muted));
-    --app-focus-ring: #8F794D;
-    --app-input-bg: #241F19;
+    --app-focus-ring: #8f794d;
+    --app-input-bg: #241f19;
     --app-input-border: #d2b47833;
     --app-input-border-hover: #d2b47859;
-    --app-positive: #72A781;
+    --app-positive: #72a781;
     --app-positive-soft: #72a78124;
-    --app-chart-positive: #5D8F6D;
-    --app-chart-negative: #AB5E56;
-    --app-warning: #F5D547;
+    --app-chart-positive: #5d8f6d;
+    --app-chart-negative: #ab5e56;
+    --app-warning: #f5d547;
     --app-warning-soft: #f5d5472e;
-    --app-warning-text: #F8E28A;
+    --app-warning-text: #f8e28a;
     /* The muted colour falls short of the contrast text needs on the warning tint here, so it is drawn a quarter of
        the way toward the full text colour, as an Upcoming day total is */
     --app-text-muted-on-warning: color-mix(in srgb, var(--app-text-muted) 75%, var(--app-text));
-    --app-fx-blue: #2563EB;
-    --app-fx-blue-text: #6B95F0;
+    --app-fx-blue: #2563eb;
+    --app-fx-blue-text: #6b95f0;
     /* The muted colour is too light here for a white label to read on, so the fill is drawn 30% of the way toward
        the page, which keeps its warm gray */
     --app-fx-gray-fill: color-mix(in srgb, var(--app-text-muted) 70%, var(--app-bg));
-    --app-negative: #D8776A;
+    --app-negative: #d8776a;
     --app-negative-soft: #b8584e1f;
     --app-negative-border: #b8584e59;
-    --app-danger-fill: #B8584E;
-    --app-button-primary-bg: #C9A96A;
-    --app-button-primary-bg-hover: #D5B978;
-    --app-button-primary-text: #100F0E;
-    --app-nav-bg: #12100D;
+    --app-danger-fill: #b8584e;
+    --app-button-primary-bg: #c9a96a;
+    --app-button-primary-bg-hover: #d5b978;
+    --app-button-primary-text: #100f0e;
+    --app-nav-bg: #12100d;
     --app-shadow-soft: 0 2px 20px #00000061, 0 1px 4px #0000003d;
   }
 
@@ -279,11 +279,11 @@
     overflow-x: clip;
     background-color: var(--app-bg);
     color: var(--app-text);
-    font-family: "DM Sans Variable", system-ui, sans-serif;
+    font-family: 'DM Sans Variable', system-ui, sans-serif;
   }
 
   button:not(:disabled),
-  [role="button"]:not([aria-disabled="true"]) {
+  [role='button']:not([aria-disabled='true']) {
     cursor: pointer;
   }
 
@@ -309,10 +309,10 @@
       textarea,
       summary,
       [tabindex],
-      [role="button"],
-      [role="tab"],
-      [role="radio"],
-      [role="menuitem"],
+      [role='button'],
+      [role='tab'],
+      [role='radio'],
+      [role='menuitem'],
       .app-focus-ring,
       .app-focus-inset,
       .app-transaction-row,
@@ -342,17 +342,17 @@
      button, keeps the ring above on top of its hover look. A menu item counts as bordered, since its
      hover look adds a border, as the sidebar's log out button and collapse toggle do too. A border is the
      shared classes that draw one, and the border utility unless it is transparent */
-  :is(a, button, [role="button"], [role="tab"], [role="radio"], [role="menuitem"]):is(
-    .app-secondary-button,
-    .app-glass-button,
-    .app-glass-icon-button,
-    .app-range-glass-head,
-    .app-card,
-    .app-nav-link,
-    .app-nav-user-logout,
-    .app-desktop-nav-toggle,
-    .border:not(.border-transparent)
-  ):not(svg *):not([aria-disabled="true"]):focus-visible {
+  :is(a, button, [role='button'], [role='tab'], [role='radio'], [role='menuitem']):is(
+      .app-secondary-button,
+      .app-glass-button,
+      .app-glass-icon-button,
+      .app-range-glass-head,
+      .app-card,
+      .app-nav-link,
+      .app-nav-user-logout,
+      .app-desktop-nav-toggle,
+      .border:not(.border-transparent)
+    ):not(svg *):not([aria-disabled='true']):focus-visible {
     outline: none;
   }
 
@@ -395,7 +395,6 @@
       pointer-events: none;
     }
   }
-
 }
 
 @layer components {
@@ -410,7 +409,11 @@
        snapping the filter on, alongside the background and border easing between the two states */
     -webkit-backdrop-filter: blur(0) saturate(100%);
     backdrop-filter: blur(0) saturate(100%);
-    transition: background-color 0.3s ease, border-color 0.3s ease, backdrop-filter 0.3s ease, -webkit-backdrop-filter 0.3s ease;
+    transition:
+      background-color 0.3s ease,
+      border-color 0.3s ease,
+      backdrop-filter 0.3s ease,
+      -webkit-backdrop-filter 0.3s ease;
   }
 
   @supports (height: 100dvh) {
@@ -434,7 +437,10 @@
   .app-nav-brand-logo {
     width: 2.5rem;
     height: 2.5rem;
-    transition: width 0.28s ease, height 0.28s ease, margin-left 0.28s ease;
+    transition:
+      width 0.28s ease,
+      height 0.28s ease,
+      margin-left 0.28s ease;
   }
 
   /* At full width the logo reads as the sidebar header, so it grows back to its original size and its
@@ -491,7 +497,9 @@
   .app-nav-user-meta,
   .app-nav-user-logout {
     overflow: hidden;
-    transition: opacity 0.2s ease, max-width 0.28s ease;
+    transition:
+      opacity 0.2s ease,
+      max-width 0.28s ease;
   }
 
   .app-nav-link-label {
@@ -534,7 +542,9 @@
   .app-nav-brand-text {
     overflow: hidden;
     max-width: 9rem;
-    transition: max-width 0.28s ease, opacity 0.2s ease;
+    transition:
+      max-width 0.28s ease,
+      opacity 0.2s ease;
   }
 
   .app-desktop-nav-collapsed .app-nav-brand-text {
@@ -571,7 +581,9 @@
     max-width: 12rem;
     overflow: hidden;
     vertical-align: bottom;
-    transition: max-width 0.28s ease, opacity 0.2s ease;
+    transition:
+      max-width 0.28s ease,
+      opacity 0.2s ease;
   }
 
   /* In the rail the update notice keeps only its pulsing dot, with the wording and the arrow
@@ -587,7 +599,9 @@
   .app-nav-version-update-text,
   .app-nav-version-update-icon {
     overflow: hidden;
-    transition: max-width 0.28s ease, opacity 0.2s ease;
+    transition:
+      max-width 0.28s ease,
+      opacity 0.2s ease;
   }
 
   .app-nav-version-update-text {
@@ -650,7 +664,11 @@
     padding: 0.625rem 0.75rem;
     background: var(--app-surface-soft);
     border: 1px solid var(--app-border);
-    transition: gap 0.28s ease, padding 0.28s ease, background 0.2s ease, border-color 0.2s ease;
+    transition:
+      gap 0.28s ease,
+      padding 0.28s ease,
+      background 0.2s ease,
+      border-color 0.2s ease;
   }
 
   .app-desktop-nav-collapsed .app-nav-user {
@@ -676,7 +694,9 @@
     @apply relative flex w-full items-center gap-3 rounded-xl px-3 py-2.5
            font-medium no-underline;
     font-size: 0.9375rem;
-    transition: color 200ms cubic-bezier(0.4, 0, 0.2, 1), background-color 200ms cubic-bezier(0.4, 0, 0.2, 1),
+    transition:
+      color 200ms cubic-bezier(0.4, 0, 0.2, 1),
+      background-color 200ms cubic-bezier(0.4, 0, 0.2, 1),
       border-color 200ms cubic-bezier(0.4, 0, 0.2, 1);
     color: var(--app-text-muted);
     border: 1px solid transparent;
@@ -939,7 +959,10 @@
     background: var(--app-dropdown-bg);
     color: var(--app-text);
 
-    transition: border-color 0.2s, background 0.2s, box-shadow 0.2s;
+    transition:
+      border-color 0.2s,
+      background 0.2s,
+      box-shadow 0.2s;
   }
 
   /* Opening upward stacks the contents in reverse, so the list appears above the head while the head
@@ -1024,7 +1047,7 @@
   }
 
   .app-dropdown-head:disabled,
-  .app-dropdown-head[aria-disabled="true"] {
+  .app-dropdown-head[aria-disabled='true'] {
     cursor: not-allowed;
   }
 
@@ -1257,7 +1280,10 @@
     background: color-mix(in srgb, var(--app-input-bg) 62%, transparent);
     -webkit-backdrop-filter: blur(20px) saturate(160%);
     backdrop-filter: blur(20px) saturate(160%);
-    transition: background-color 150ms ease, border-color 150ms ease, var(--app-focus-fade);
+    transition:
+      background-color 150ms ease,
+      border-color 150ms ease,
+      var(--app-focus-fade);
   }
 
   /* The head fills the glass, so its hover look is drawn on the glass, the fill and border the glass
@@ -1384,7 +1410,10 @@
   .app-range-glass-clear {
     color: var(--app-text-subtle);
     border-radius: 9999px;
-    transition: color 0.15s ease, background 0.15s ease, var(--app-focus-fade);
+    transition:
+      color 0.15s ease,
+      background 0.15s ease,
+      var(--app-focus-fade);
   }
 
   .app-range-glass-clear:hover,
@@ -1427,7 +1456,9 @@
      content rises into place with the same overshoot for a matching fluid feel */
   .app-range-glass-full .app-range-glass-inner {
     transform: translateY(14px);
-    transition: opacity 0.28s ease, transform 0.55s var(--app-range-glass-bounce);
+    transition:
+      opacity 0.28s ease,
+      transform 0.55s var(--app-range-glass-bounce);
   }
 
   .app-range-glass-full.app-range-glass-open .app-range-glass-inner {
@@ -1472,14 +1503,17 @@
     text-align: center;
     white-space: nowrap;
     color: var(--app-text-muted);
-    transition: color 180ms ease, background-color 180ms ease, var(--app-focus-fade);
+    transition:
+      color 180ms ease,
+      background-color 180ms ease,
+      var(--app-focus-fade);
   }
 
   .app-breakdown-sector {
     cursor: pointer;
   }
 
-  .app-breakdown-sector[aria-disabled="true"] {
+  .app-breakdown-sector[aria-disabled='true'] {
     cursor: default;
   }
 
@@ -1596,7 +1630,10 @@
     background-color: transparent;
     -webkit-backdrop-filter: blur(0px);
     backdrop-filter: blur(0px);
-    transition: background-color 0.2s ease-out, -webkit-backdrop-filter 0.2s ease-out, backdrop-filter 0.2s ease-out;
+    transition:
+      background-color 0.2s ease-out,
+      -webkit-backdrop-filter 0.2s ease-out,
+      backdrop-filter 0.2s ease-out;
   }
 
   .group:hover .app-tag-tooltip-glass {
@@ -1722,10 +1759,14 @@
 
   @keyframes import-auto-fill-field {
     0% {
-      box-shadow: 0 0 0 1px var(--app-accent-border), 0 10px 26px var(--app-accent-soft);
+      box-shadow:
+        0 0 0 1px var(--app-accent-border),
+        0 10px 26px var(--app-accent-soft);
     }
     55% {
-      box-shadow: 0 0 0 2px var(--app-accent-soft), 0 6px 18px var(--app-accent-soft);
+      box-shadow:
+        0 0 0 2px var(--app-accent-soft),
+        0 6px 18px var(--app-accent-soft);
     }
     100% {
       box-shadow: none;
@@ -1763,19 +1804,19 @@
   }
 
   /* The pointer look is kept off touch screens, where a tapped button would otherwise stay darker */
-  .app-primary-button:not([aria-disabled="true"]):focus-visible {
+  .app-primary-button:not([aria-disabled='true']):focus-visible {
     background: color-mix(in srgb, var(--app-button-primary-bg-hover) 88%, transparent);
     border-color: color-mix(in srgb, var(--app-button-primary-bg-hover) 70%, var(--app-border-strong));
   }
 
   @media (hover: hover) {
-    .app-primary-button:not([aria-disabled="true"]):hover {
+    .app-primary-button:not([aria-disabled='true']):hover {
       background: color-mix(in srgb, var(--app-button-primary-bg-hover) 88%, transparent);
       border-color: color-mix(in srgb, var(--app-button-primary-bg-hover) 70%, var(--app-border-strong));
     }
   }
 
-  .app-primary-button:not([aria-disabled="true"]):active {
+  .app-primary-button:not([aria-disabled='true']):active {
     transform: translateY(1px);
   }
 
@@ -1794,14 +1835,14 @@
     background: color-mix(in srgb, var(--app-input-bg) 62%, transparent);
   }
 
-  .app-secondary-button:not([aria-disabled="true"]):hover,
-  .app-secondary-button:not([aria-disabled="true"]):focus-visible {
+  .app-secondary-button:not([aria-disabled='true']):hover,
+  .app-secondary-button:not([aria-disabled='true']):focus-visible {
     color: var(--app-text);
     background: color-mix(in srgb, var(--app-input-bg) 76%, transparent);
     border-color: var(--app-hover-border);
   }
 
-  .app-secondary-button:not([aria-disabled="true"]):active {
+  .app-secondary-button:not([aria-disabled='true']):active {
     transform: translateY(1px);
   }
 
@@ -1873,19 +1914,19 @@
     background: color-mix(in srgb, var(--app-danger-fill) 82%, transparent);
   }
 
-  .app-danger-button:not([aria-disabled="true"]):focus-visible {
+  .app-danger-button:not([aria-disabled='true']):focus-visible {
     background: color-mix(in srgb, var(--app-danger-fill-hover) 90%, transparent);
     border-color: color-mix(in srgb, var(--app-danger-fill-hover) 72%, var(--app-border-strong));
   }
 
   @media (hover: hover) {
-    .app-danger-button:not([aria-disabled="true"]):hover {
+    .app-danger-button:not([aria-disabled='true']):hover {
       background: color-mix(in srgb, var(--app-danger-fill-hover) 90%, transparent);
       border-color: color-mix(in srgb, var(--app-danger-fill-hover) 72%, var(--app-border-strong));
     }
   }
 
-  .app-danger-button:not([aria-disabled="true"]):active {
+  .app-danger-button:not([aria-disabled='true']):active {
     transform: translateY(1px);
   }
 
@@ -1929,19 +1970,19 @@
     background: color-mix(in srgb, var(--app-button-primary-bg) 82%, transparent);
   }
 
-  .app-glass-button-primary:not([aria-disabled="true"]):focus-visible {
+  .app-glass-button-primary:not([aria-disabled='true']):focus-visible {
     background: color-mix(in srgb, var(--app-button-primary-bg-hover) 88%, transparent);
     border-color: color-mix(in srgb, var(--app-button-primary-bg-hover) 70%, var(--app-border-strong));
   }
 
   @media (hover: hover) {
-    .app-glass-button-primary:not([aria-disabled="true"]):hover {
+    .app-glass-button-primary:not([aria-disabled='true']):hover {
       background: color-mix(in srgb, var(--app-button-primary-bg-hover) 88%, transparent);
       border-color: color-mix(in srgb, var(--app-button-primary-bg-hover) 70%, var(--app-border-strong));
     }
   }
 
-  .app-glass-button-primary:not([aria-disabled="true"]):active {
+  .app-glass-button-primary:not([aria-disabled='true']):active {
     transform: translateY(1px);
   }
 
@@ -1963,14 +2004,14 @@
     backdrop-filter: blur(20px) saturate(160%);
   }
 
-  .app-glass-button:not([aria-disabled="true"]):hover,
-  .app-glass-button:not([aria-disabled="true"]):focus-visible {
+  .app-glass-button:not([aria-disabled='true']):hover,
+  .app-glass-button:not([aria-disabled='true']):focus-visible {
     color: var(--app-text);
     background: color-mix(in srgb, var(--app-input-bg) 76%, transparent);
     border-color: var(--app-hover-border);
   }
 
-  .app-glass-button:not([aria-disabled="true"]):active {
+  .app-glass-button:not([aria-disabled='true']):active {
     transform: translateY(1px);
   }
 
@@ -1989,43 +2030,51 @@
     .app-danger-button,
     .app-glass-button-primary,
     .app-glass-button
-  )[aria-disabled="true"] {
+  )[aria-disabled='true'] {
     cursor: not-allowed;
   }
 
   /* Faded by halving the alpha of its own colours rather than with opacity, which would fade the focus
      ring too and leave it under 3:1. The ring stays whole and only the control behind it reads as off */
-  :is(.app-primary-button, .app-glass-button-primary)[aria-disabled="true"] {
+  :is(.app-primary-button, .app-glass-button-primary)[aria-disabled='true'] {
     color: color-mix(in srgb, var(--app-button-primary-text) 50%, transparent);
-    border-color: color-mix(in srgb, color-mix(in srgb, var(--app-button-primary-bg) 65%, var(--app-border-strong)) 50%, transparent);
+    border-color: color-mix(
+      in srgb,
+      color-mix(in srgb, var(--app-button-primary-bg) 65%, var(--app-border-strong)) 50%,
+      transparent
+    );
     background: color-mix(in srgb, var(--app-button-primary-bg) 41%, transparent);
   }
 
   /* A primary button that keeps its box whole and fades only what is written on it, for one where the
      unavailable state is explained by its tooltip and the shape should stay put */
-  .app-glass-button-primary.app-fade-label-only[aria-disabled="true"] {
+  .app-glass-button-primary.app-fade-label-only[aria-disabled='true'] {
     color: var(--app-button-primary-text);
     border-color: color-mix(in srgb, var(--app-button-primary-bg) 65%, var(--app-border-strong));
     background: color-mix(in srgb, var(--app-button-primary-bg) 82%, transparent);
   }
 
-  .app-fade-label-only[aria-disabled="true"] > * {
+  .app-fade-label-only[aria-disabled='true'] > * {
     opacity: 0.5;
   }
 
-  .app-danger-button[aria-disabled="true"] {
+  .app-danger-button[aria-disabled='true'] {
     color: color-mix(in srgb, white 50%, transparent);
-    border-color: color-mix(in srgb, color-mix(in srgb, var(--app-danger-fill) 65%, var(--app-border-strong)) 50%, transparent);
+    border-color: color-mix(
+      in srgb,
+      color-mix(in srgb, var(--app-danger-fill) 65%, var(--app-border-strong)) 50%,
+      transparent
+    );
     background: color-mix(in srgb, var(--app-danger-fill) 41%, transparent);
   }
 
-  :is(.app-secondary-button, .app-glass-button)[aria-disabled="true"] {
+  :is(.app-secondary-button, .app-glass-button)[aria-disabled='true'] {
     color: color-mix(in srgb, var(--app-text-muted) 50%, transparent);
     border-color: color-mix(in srgb, var(--app-border-strong) 50%, transparent);
     background: color-mix(in srgb, var(--app-input-bg) 31%, transparent);
   }
 
-  button[aria-disabled="true"]:not(.app-dropdown-head):focus-visible {
+  button[aria-disabled='true']:not(.app-dropdown-head):focus-visible {
     outline: var(--app-focus-outline);
     outline-offset: var(--app-focus-offset);
   }
@@ -2189,7 +2238,11 @@
     width: 2.625rem;
     background: transparent;
     box-shadow: none;
-    transition: color 180ms ease, background-color 180ms ease, transform 180ms ease, var(--app-focus-fade);
+    transition:
+      color 180ms ease,
+      background-color 180ms ease,
+      transform 180ms ease,
+      var(--app-focus-fade);
   }
 
   .app-time-selector .app-segmented-option:hover,
@@ -2232,7 +2285,9 @@
   }
 
   .app-navigation-theme-toggle {
-    transition: background-color 0.2s ease, border-color 0.2s ease;
+    transition:
+      background-color 0.2s ease,
+      border-color 0.2s ease;
   }
 
   .app-navigation-theme-toggle .app-segmented-option {
@@ -2241,7 +2296,13 @@
     overflow: hidden;
     background: transparent;
     box-shadow: none;
-    transition: color 180ms ease, background-color 180ms ease, transform 180ms ease, opacity 200ms ease, flex-grow 280ms ease, var(--app-focus-fade);
+    transition:
+      color 180ms ease,
+      background-color 180ms ease,
+      transform 180ms ease,
+      opacity 200ms ease,
+      flex-grow 280ms ease,
+      var(--app-focus-fade);
   }
 
   .app-navigation-theme-toggle .app-segmented-option:hover,
@@ -2287,7 +2348,11 @@
     @apply relative z-10;
     background: transparent;
     box-shadow: none;
-    transition: color 180ms ease, background-color 180ms ease, transform 180ms ease, var(--app-focus-fade);
+    transition:
+      color 180ms ease,
+      background-color 180ms ease,
+      transform 180ms ease,
+      var(--app-focus-fade);
   }
 
   .app-balance-chart-mode-selector .app-segmented-option:hover,
@@ -2328,7 +2393,11 @@
   .app-create-transaction-pill-selector .app-segmented-option {
     background: transparent;
     box-shadow: none;
-    transition: color 180ms ease, background-color 180ms ease, transform 180ms ease, var(--app-focus-fade);
+    transition:
+      color 180ms ease,
+      background-color 180ms ease,
+      transform 180ms ease,
+      var(--app-focus-fade);
   }
 
   .app-create-transaction-pill-selector .app-segmented-option:hover,
@@ -2451,8 +2520,8 @@
       var(--app-focus-fade);
   }
 
-  .app-upload-card:not([aria-disabled="true"]):hover,
-  .app-upload-card:not([aria-disabled="true"]):focus-visible {
+  .app-upload-card:not([aria-disabled='true']):hover,
+  .app-upload-card:not([aria-disabled='true']):focus-visible {
     background-color: var(--app-hover-on-import-panel) !important;
   }
 
@@ -2463,12 +2532,12 @@
     transition: color 300ms cubic-bezier(0.22, 1, 0.36, 1);
   }
 
-  .app-upload-card:not([aria-disabled="true"]):hover .app-upload-card-hint,
-  .app-upload-card:not([aria-disabled="true"]):focus-visible .app-upload-card-hint {
+  .app-upload-card:not([aria-disabled='true']):hover .app-upload-card-hint,
+  .app-upload-card:not([aria-disabled='true']):focus-visible .app-upload-card-hint {
     color: var(--app-hover-on-import-panel-hint);
   }
 
-  .app-upload-card:not([aria-disabled="true"]):active {
+  .app-upload-card:not([aria-disabled='true']):active {
     transform: translateY(1px);
   }
 
@@ -2497,7 +2566,10 @@
   /* A row that takes this also eases its colours on hover, which Tailwind's transition-colors would do
      with its own curve over the ring's, so the row lists both here */
   .app-focus-inset {
-    transition: color 150ms cubic-bezier(0.4, 0, 0.2, 1), background-color 150ms cubic-bezier(0.4, 0, 0.2, 1), var(--app-focus-fade);
+    transition:
+      color 150ms cubic-bezier(0.4, 0, 0.2, 1),
+      background-color 150ms cubic-bezier(0.4, 0, 0.2, 1),
+      var(--app-focus-fade);
   }
 
   /* A transaction row is focused through the button inside it, or its checkbox while selecting, and
@@ -2505,7 +2577,9 @@
      the next row and the list's own edge cannot cover it. The row also shows the hover look while its
      button is focused */
   .app-transaction-row {
-    transition: background-color 100ms cubic-bezier(0.4, 0, 0.2, 1), var(--app-focus-fade);
+    transition:
+      background-color 100ms cubic-bezier(0.4, 0, 0.2, 1),
+      var(--app-focus-fade);
   }
 
   .app-transaction-row:has(:focus-visible) {
@@ -2573,7 +2647,9 @@
   }
 
   @keyframes spin {
-    to { transform: rotate(360deg); }
+    to {
+      transform: rotate(360deg);
+    }
   }
 
   .app-merchant-more-glyph {
@@ -2582,11 +2658,15 @@
   }
 
   @keyframes app-merchant-more-glyph-dance {
-    0%, 8%, 18%, 100% {
+    0%,
+    8%,
+    18%,
+    100% {
       transform: translateY(0);
     }
 
-    4%, 13% {
+    4%,
+    13% {
       transform: translateY(3px);
     }
   }
@@ -2620,16 +2700,16 @@
     transform: translateX(0);
   }
 
-  .app-marquee-trigger:hover .app-marquee-text[data-overflow="true"] .app-marquee-text-track,
-  .app-marquee-trigger:focus-visible .app-marquee-text[data-overflow="true"] .app-marquee-text-track,
-  .app-marquee-text[data-active="true"][data-overflow="true"] .app-marquee-text-track {
+  .app-marquee-trigger:hover .app-marquee-text[data-overflow='true'] .app-marquee-text-track,
+  .app-marquee-trigger:focus-visible .app-marquee-text[data-overflow='true'] .app-marquee-text-track,
+  .app-marquee-text[data-active='true'][data-overflow='true'] .app-marquee-text-track {
     opacity: 1;
     animation: app-marquee-text var(--app-marquee-duration) ease-in-out infinite;
   }
 
-  .app-marquee-trigger:hover .app-marquee-text[data-overflow="true"] .app-marquee-text-static,
-  .app-marquee-trigger:focus-visible .app-marquee-text[data-overflow="true"] .app-marquee-text-static,
-  .app-marquee-text[data-active="true"][data-overflow="true"] .app-marquee-text-static {
+  .app-marquee-trigger:hover .app-marquee-text[data-overflow='true'] .app-marquee-text-static,
+  .app-marquee-trigger:focus-visible .app-marquee-text[data-overflow='true'] .app-marquee-text-static,
+  .app-marquee-text[data-active='true'][data-overflow='true'] .app-marquee-text-static {
     opacity: 0;
   }
 
@@ -2715,7 +2795,9 @@
 
   .recharts-tooltip-wrapper {
     pointer-events: none !important;
-    transition: transform 280ms cubic-bezier(0.22, 1, 0.36, 1), opacity 150ms ease-out !important;
+    transition:
+      transform 280ms cubic-bezier(0.22, 1, 0.36, 1),
+      opacity 150ms ease-out !important;
   }
 
   .recharts-default-tooltip.app-chart-tooltip-default,
@@ -2855,18 +2937,18 @@
   /* Every modal portals its dialog panel into the body, so this locks page scroll for any open modal
      at once. The viewport scrolls the root element, not the body, so the lock has to sit on html, and
      the stable scrollbar gutter keeps the content from shifting when the scrollbar disappears */
-  html:has(.app-modal-panel[role="dialog"][aria-modal="true"]) {
+  html:has(.app-modal-panel[role='dialog'][aria-modal='true']) {
     overflow: hidden;
   }
 
   @media (max-width: 1049.98px) {
-    body :has(> .app-modal-panel[role="dialog"][aria-modal="true"]) {
+    body :has(> .app-modal-panel[role='dialog'][aria-modal='true']) {
       align-items: stretch !important;
       justify-content: stretch !important;
       padding: 0 !important;
     }
 
-    .app-modal-panel[role="dialog"][aria-modal="true"] {
+    .app-modal-panel[role='dialog'][aria-modal='true'] {
       width: 100dvw !important;
       max-width: none !important;
       height: 100dvh !important;
@@ -2877,7 +2959,7 @@
       box-shadow: none !important;
     }
 
-    .app-modal-panel[role="dialog"][aria-modal="true"] > [aria-hidden="true"]:first-child {
+    .app-modal-panel[role='dialog'][aria-modal='true'] > [aria-hidden='true']:first-child {
       display: block !important;
       width: 0.375rem !important;
       min-width: 0.375rem !important;
@@ -2886,7 +2968,7 @@
       border-radius: 0 !important;
     }
 
-    .app-modal-panel[role="dialog"][aria-modal="true"] > [aria-hidden="true"]:first-child > * {
+    .app-modal-panel[role='dialog'][aria-modal='true'] > [aria-hidden='true']:first-child > * {
       display: none !important;
     }
 
@@ -2902,7 +2984,7 @@
       display: block;
     }
 
-    .app-modal-panel[role="dialog"][aria-modal="true"] > .app-secondary-modal-rail:first-child {
+    .app-modal-panel[role='dialog'][aria-modal='true'] > .app-secondary-modal-rail:first-child {
       display: none !important;
       width: 0 !important;
       min-width: 0 !important;
@@ -2970,7 +3052,7 @@
   .app-page-title {
     font-size: var(--app-page-title-size);
     line-height: 1;
-    font-family: "Cormorant Garamond Variable", Georgia, serif;
+    font-family: 'Cormorant Garamond Variable', Georgia, serif;
     font-weight: 400;
     letter-spacing: -0.01em;
     color: var(--app-text);
@@ -2984,10 +3066,9 @@
 
   /* Financial figures — currency amounts, balances, percentages */
   .font-financial {
-    font-family: "Space Grotesk Variable", "DM Sans Variable", system-ui, sans-serif;
+    font-family: 'Space Grotesk Variable', 'DM Sans Variable', system-ui, sans-serif;
     font-variant-numeric: tabular-nums;
   }
-
 }
 
 /*
@@ -3065,7 +3146,9 @@
 
   @media (prefers-reduced-motion: no-preference) {
     :is(a, button).underline {
-      transition: background-size 250ms cubic-bezier(0.65, 0, 0.35, 1), color 150ms cubic-bezier(0.22, 1, 0.36, 1),
+      transition:
+        background-size 250ms cubic-bezier(0.65, 0, 0.35, 1),
+        color 150ms cubic-bezier(0.22, 1, 0.36, 1),
         var(--app-focus-fade);
     }
   }
@@ -3084,7 +3167,9 @@
      its focus ring still fades in the shared 150ms: the later entry for outline-color wins the list */
   @media (prefers-reduced-motion: no-preference) {
     :is(.app-primary-button, .app-danger-button, .app-secondary-button).duration-300 {
-      transition: all 300ms cubic-bezier(0.22, 1, 0.36, 1), var(--app-focus-fade);
+      transition:
+        all 300ms cubic-bezier(0.22, 1, 0.36, 1),
+        var(--app-focus-fade);
     }
   }
 
