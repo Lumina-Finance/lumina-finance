@@ -9,6 +9,7 @@ import { CLEAR_FILTERS_DISABLED_REASON } from '@/components/list-controls/filter
 import { FILTER_GLASS_SPRING } from '@/components/list-controls/toolbarStyles'
 import { DisabledReasonButton } from '@/components/tooltips/DisabledReasonButton'
 import { joinClassNames } from '@/utils/classNames'
+import { formatOpenDateRangeLabel } from '@/utils/date'
 import { getSymbolInputStyle, type SymbolPlacement } from '@/utils/formatCurrency'
 import { getMoneyPlaceholder } from '@/utils/moneyInput'
 import {
@@ -662,7 +663,7 @@ function ActiveFilterSummary({
     : []
 
   const dateChip = dateRange.from || dateRange.to
-    ? [{ key: 'date', label: `${dateRange.from || '…'} → ${dateRange.to || '…'}`, onRemove: onClearDate }]
+    ? [{ key: 'date', label: formatOpenDateRangeLabel(dateRange.from, dateRange.to), onRemove: onClearDate }]
     : []
 
   const chips = [...multiChips, ...amountChip, ...dateChip]
