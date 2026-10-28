@@ -20,8 +20,8 @@ from app.services.auth.tokens import create_native_handoff_token
 # The handoff's single use rides on the challenge table, under a purpose no other flow accepts
 NATIVE_HANDOFF_PURPOSE = "native_handoff"
 
-# How long after a sign-in its page may hand the session over, so a long-open tab can't. A sign-up
-# hands off only once its second factor and recovery codes are set up, which takes a few minutes
+# How long after a sign-in its page may hand the session over, so a long-open tab can't. A sign-in
+# that still has a second factor to pass takes a few minutes at most
 HANDOFF_WINDOW = timedelta(minutes=10)
 
 
