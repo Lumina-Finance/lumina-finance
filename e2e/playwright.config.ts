@@ -5,6 +5,7 @@ import { TEST_TIMEZONE } from './support/api'
 import { ACROSS_ORIGINS_TESTS } from './support/origins'
 import { EVERY_SIZE_TESTS } from './support/sizes'
 import { BASE_URL } from './support/target'
+import { VISUAL_TEST_TIMEOUT_MS } from './support/visual-limit-reporter'
 
 // The development runner preserves the host-derived count when reserving an app CPU.
 // Playwright CLI worker overrides still take precedence over this default
@@ -12,6 +13,12 @@ const configuredWorkers = process.env.E2E_WORKERS
 if (configuredWorkers !== undefined && (!/^[1-9]\d*$/.test(configuredWorkers) || !Number.isSafeInteger(Number(configuredWorkers)))) {
   throw new Error('E2E_WORKERS must be a positive integer')
 }
+
+// Set by the development runner for a screenshot or visual check run, whose throwaway specs fail
+// fast: a test over the limit fails, one that outlasts it by the teardown allowance stops the run,
+// and a failed test is not retried. A test that cannot finish in that time is broken, and waiting
+// it out only delays the report
+const isVisualRun = process.env.E2E_VISUAL === '1'
 
 // What Playwright's headless Chromium passes as `--blink-settings` to report a mouse that hovers
 const PLAYWRIGHT_HEADLESS_BLINK_SETTINGS = 'primaryHoverType=2,availableHoverTypes=2,primaryPointerType=4,availablePointerTypes=4'
@@ -40,14 +47,17 @@ export default defineConfig({
 
   // Three everywhere, so one slow moment on a busy runner doesn't fail a whole run. A spec that
   // passes only on a retry is still listed as flaky in the report, so the race stays visible
-  retries: 3,
+  retries: isVisualRun ? 0 : 3,
 
   // Long real flows need a total budget that tolerates CPU contention at high worker counts.
   // Each assertion still bounds the expected UI update independently
-  timeout: 180_000,
+  timeout: isVisualRun ? VISUAL_TEST_TIMEOUT_MS : 180_000,
   expect: { timeout: 15_000 },
 
-  reporter: process.env.CI ? [['list'], ['html', { open: 'never' }]] : 'list',
+  reporter: [
+    ...(process.env.CI ? ([['list'], ['html', { open: 'never' }]] as const) : ([['list']] as const)),
+    ...(isVisualRun ? ([['./support/visual-limit-reporter.ts']] as const) : []),
+  ],
 
   globalSetup: './support/global-setup.ts',
 
