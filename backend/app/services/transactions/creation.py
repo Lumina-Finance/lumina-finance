@@ -81,7 +81,14 @@ async def create_transaction_and_get_response(
     # A refund names its expense up front, so a pairing that is not a refund fails before any write
     original = None
     if data.refund_of_transaction_id is not None:
-        original = await validate_refund_original(db, user, data.refund_of_transaction_id, data.amount, account)
+        original = await validate_refund_original(
+            db,
+            user,
+            data.refund_of_transaction_id,
+            data.amount,
+            account,
+            category,
+        )
 
     # Insert the transaction first so optional tag assignments can reference its id
     txn = Transaction(

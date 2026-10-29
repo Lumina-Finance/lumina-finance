@@ -103,6 +103,29 @@ async def _import_everyday(client, headers, amounts=("-4.50", "-3.25", "-6.00"))
     return (await _last(client, headers))["id"], committed.json()
 
 
+async def test_a_refund_made_after_an_import_ends_its_undo(client):
+    """Refunding an imported expense changes the user's data, so the import can no longer be undone.
+
+    This is what keeps undo from ever leaving a refund behind, unlinked, when it deletes the expense
+    """
+    headers, _, _ = await _setup_user_with_deps(client)
+    run_id, _ = await _import_everyday(client, headers)
+    expense = (await client.get("/transactions", headers=headers)).json()[0]
+
+    refund = await _create_transaction(
+        client,
+        headers,
+        expense["account_id"],
+        expense["category_id"],
+        amount=100,
+        refund_of_transaction_id=expense["id"],
+    )
+
+    assert refund.status_code == 201, refund.text
+    assert await _last(client, headers) is None
+    assert (await _undo(client, headers, run_id)).status_code == 409
+
+
 async def test_undo_deletes_everything_the_import_wrote_and_keeps_what_it_reused(client):
     """Undo would leave the records the import created behind, or take an account that existed before it"""
     headers, main_id, _ = await _setup_user_with_deps(client)

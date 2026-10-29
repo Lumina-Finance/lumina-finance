@@ -1,4 +1,5 @@
 """Transaction deletion service"""
+
 import uuid
 from datetime import date
 
@@ -20,6 +21,7 @@ from app.services.transactions.accounts import (
     validate_transaction_account_is_not_archived,
 )
 from app.services.transactions.bulk_access import load_locked_transactions, load_writable_accounts
+from app.services.transactions.links import get_linked_transaction_ids, mark_linked_scopes_changed
 from app.services.transactions.tags import delete_transaction_tag_assignments
 
 
@@ -27,24 +29,43 @@ async def delete_transaction_for_user(
     db: AsyncSession,
     user: User,
     transaction_id: uuid.UUID,
+    delete_linked: bool = False,
 ) -> None:
     """Delete one transaction after checking write access
 
     The service loads the writable transaction, validates its parent account,
     removes attached tag assignments, deletes the transaction row, rebuilds
-    affected account snapshots, and marks the cache scope changed
+    affected account snapshots, and marks the cache scope changed. Its refund link, if any, goes
+    with it and the transaction on the other side stays, unless the caller chose to delete that too
 
     Args:
         db: Active database session
         user: Authenticated user deleting the transaction
         transaction_id: Transaction identifier from the route path
+        delete_linked: Also delete the transactions linked to it, the expense of a refund or the
+            refunds of an expense
 
     Returns:
         None
     """
+    if delete_linked:
+        linked_ids = await get_linked_transaction_ids(db, [transaction_id])
+        if linked_ids:
+            # The same all-or-nothing path as a bulk delete, which locks and checks every row
+            await bulk_delete_transactions(
+                db,
+                user,
+                BulkDeleteTransactionsRequest(transaction_ids=[transaction_id, *sorted(linked_ids)]),
+            )
+            return
+
     # Take the same row lock before tag deletion so an edit and delete cannot interleave
     txn = await check_transaction_access(
-        db, transaction_id, user.id, PermissionLevel.WRITE, lock_for_update=True,
+        db,
+        transaction_id,
+        user.id,
+        PermissionLevel.WRITE,
+        lock_for_update=True,
     )
 
     # Load the parent account for archive validation and cache scope updates
@@ -53,6 +74,9 @@ async def delete_transaction_for_user(
 
     account_id = txn.account_id
     deleted_dt = txn.dt
+
+    # The transaction on the other side of a link stays, and its cached lists stop showing the link
+    await mark_linked_scopes_changed(db, [transaction_id])
 
     # Remove tag assignments before deleting the transaction row in the same commit
     await delete_transaction_tag_assignments(db, transaction_id)
@@ -96,6 +120,11 @@ async def bulk_delete_transactions(
             belongs to a group, or another change reached one of the transactions first
     """
     requested_ids = list(dict.fromkeys(data.transaction_ids))
+    if data.delete_linked:
+        requested_ids = list(dict.fromkeys([*requested_ids, *sorted(await get_linked_transaction_ids(db, requested_ids))]))
+    else:
+        # Transactions linked to the deleted ones stay, and their cached lists stop showing the link
+        await mark_linked_scopes_changed(db, requested_ids)
     transactions = await load_locked_transactions(db, user, requested_ids)
     accounts = await load_writable_accounts(db, user, {t.account_id for t in transactions})
     _refuse_grouped_accounts(accounts)

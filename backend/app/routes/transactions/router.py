@@ -34,6 +34,7 @@ from app.schemas.transaction import (
     BulkUpdateTransactionsRequest,
     BulkUpdateTransactionsResponse,
     CreateTransactionRequest,
+    LinkRefundRequest,
     TransactionResponse,
     TransactionsOverview,
     UpdateTransactionRequest,
@@ -58,7 +59,7 @@ from app.services.transactions.bulk_update import bulk_update_transactions
 from app.services.transactions.creation import create_transaction_and_get_response
 from app.services.transactions.deletion import bulk_delete_transactions, delete_transaction_for_user
 from app.services.transactions.detail import get_transaction_response_for_user
-from app.services.transactions.links import unlink_refund
+from app.services.transactions.links import link_existing_refund, unlink_refund
 from app.services.transactions.listing import list_transaction_responses
 from app.services.transactions.overview import get_transactions_overview as get_transactions_overview_response
 from app.services.transactions.update import update_transaction_and_get_response
@@ -563,6 +564,29 @@ async def update_transaction(
     return await update_transaction_and_get_response(db, user, transaction_id, data)
 
 
+@router.post("/{transaction_id}/refund-link", status_code=status.HTTP_204_NO_CONTENT)
+async def link_refund_route(
+    transaction_id: uuid.UUID,
+    data: LinkRefundRequest,
+    user: Annotated[User, Depends(get_current_user)],
+    db: Annotated[AsyncSession, Depends(get_db)],
+):
+    """Link an existing transaction as the refund of an expense
+
+    Both transactions stay as they are and no total changes. The refund is the transaction in the path
+
+    Args:
+        transaction_id: The refund, from the route path
+        data: The expense it refunds
+        user: Authenticated user linking them
+        db: Active database session
+
+    Returns:
+        None
+    """
+    await link_existing_refund(db, user, transaction_id, data.original_transaction_id)
+
+
 @router.delete("/{transaction_id}/refund-link", status_code=status.HTTP_204_NO_CONTENT)
 async def unlink_refund_route(
     transaction_id: uuid.UUID,
@@ -589,6 +613,7 @@ async def delete_transaction(
     transaction_id: uuid.UUID,
     user: Annotated[User, Depends(get_current_user)],
     db: Annotated[AsyncSession, Depends(get_db)],
+    delete_linked: bool = False,
 ):
     """Delete a transaction after checking write access
 
@@ -599,8 +624,9 @@ async def delete_transaction(
         transaction_id: Transaction identifier from the route path
         user: Authenticated user deleting the transaction
         db: Active database session
+        delete_linked: Also delete the transactions linked to it. Left out, only the link goes
 
     Returns:
         None
     """
-    await delete_transaction_for_user(db, user, transaction_id)
+    await delete_transaction_for_user(db, user, transaction_id, delete_linked)

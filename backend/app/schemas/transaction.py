@@ -104,6 +104,12 @@ class TransactionResponse(BaseModel):
     model_config = {"from_attributes": True}
 
 
+class LinkRefundRequest(BaseModel):
+    """Link an existing transaction as the refund of an expense."""
+
+    original_transaction_id: uuid.UUID
+
+
 class CreateTransactionRequest(BaseModel):
     """Create a new transaction for the authenticated user."""
 
@@ -310,6 +316,9 @@ class BulkDeleteTransactionsRequest(BaseModel):
     """Delete several transactions at once, all of them or none."""
 
     transaction_ids: list[uuid.UUID] = Field(min_length=1, max_length=MAX_BULK_UPDATE_TRANSACTIONS)
+
+    # Also delete the transactions linked to the chosen ones. Left out, only the links go
+    delete_linked: bool = Field(default=False, strict=True)
 
 
 class BulkDeleteTransactionsResponse(BaseModel):

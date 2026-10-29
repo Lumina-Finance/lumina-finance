@@ -38,6 +38,7 @@ from app.services.transactions.access_helpers import accessible_account_ids_subq
 from app.services.transactions.accounts import validate_transaction_account_is_not_archived
 from app.services.transactions.bank_transaction_ids import BankTransactionKey, find_held_bank_transactions
 from app.services.transactions.bulk_access import load_locked_transactions, load_writable_accounts
+from app.services.transactions.links import mark_linked_scopes_changed, refuse_broken_links
 from app.services.transactions.tags import add_transaction_tag_assignments, clear_transaction_tag_assignments
 from app.services.transactions.validation import (
     get_valid_transaction_tag_ids,
@@ -157,6 +158,9 @@ async def bulk_update_transactions(
             detail="Another change reached one of these transactions first",
         ) from error
 
+    # A linked transaction must stay a refund or an expense, so an edit that would undo that is refused
+    await refuse_broken_links(db, transaction_ids)
+
     if snapshot_starts:
         await recompute_account_snapshots(db, snapshot_starts)
 
@@ -170,6 +174,7 @@ async def bulk_update_transactions(
     # One mark per scope rather than one per transaction, since every row in a scope shares it
     for owner_id, group_id in {(account.owner_id, account.group_id) for account in affected_accounts}:
         await mark_cache_changed_for_scope(db, user_id=owner_id, group_id=group_id)
+    await mark_linked_scopes_changed(db, transaction_ids)
 
     await db.commit()
 
