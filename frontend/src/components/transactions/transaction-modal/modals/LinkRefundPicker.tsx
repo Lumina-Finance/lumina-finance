@@ -35,7 +35,7 @@ const RESTING_ROW_STYLE = { boxShadow: 'inset 0 0 0 1px transparent' }
 const PICKED_ROW_STYLE = { background: 'var(--app-accent-soft)', boxShadow: 'inset 0 0 0 1px var(--app-accent)' }
 
 // How strongly a row that was not picked shows, as a share of full strength. Low enough that the picked row
-// stands out at a glance. A row that can't be picked at all is held at the same strength
+// stands out at a glance
 const RECEDED_ROW_OPACITY = 0.5
 
 interface LinkRefundPickerProps {
@@ -256,8 +256,8 @@ export default function TransactionModalLinkRefundPicker({
                   const isPicked = candidate.id === picked?.id
                   const refusal = refusalFor(candidate)
 
-                  // Once one is picked the rest recede, and a row that can't be picked always does
-                  const receded = refusal !== null || (picked !== null && !isPicked)
+                  // Rows recede only while one is picked. A refused row stays at full strength with its reason
+                  const receded = picked !== null && !isPicked
                   const contentStyle: CSSProperties = { opacity: receded ? RECEDED_ROW_OPACITY : 1 }
                   return (
                     <div
