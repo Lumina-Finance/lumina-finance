@@ -141,7 +141,7 @@ export function TaxAdvantagedCompactLimitMeter({
         chartRef={meterRef}
         className="min-w-44"
         showGuide={false}
-        tooltipTransition="opacity 150ms cubic-bezier(0.22, 1, 0.36, 1)"
+        tooltipTransition="opacity var(--app-ease-duration) var(--app-ease-curve)"
         getKey={(item) => item.key}
         renderContent={(item) => (
           <TaxAdvantagedLimitMeterTooltipContent

@@ -213,7 +213,9 @@ export function ImportSkippedTable({
       isAmount ? 'text-right' : '',
       cell === 'header' ? 'font-medium' : '',
       isAmount && cell === 'value' ? AMOUNT_VALUE_CLASS_NAME : '',
-    ].filter(Boolean).join(' ')
+    ]
+      .filter(Boolean)
+      .join(' ')
   }
 
   return (
@@ -223,7 +225,7 @@ export function ImportSkippedTable({
       <button
         type="button"
         ref={toggleRef}
-        className="-mx-2 -my-1.5 flex w-[calc(100%+1rem)] cursor-pointer items-center justify-between gap-3 px-2 py-1.5 app-accent-hover rounded-md text-left transition-colors motion-reduce:transition-none"
+        className="-mx-2 -my-1.5 flex w-[calc(100%+1rem)] cursor-pointer items-center justify-between gap-3 px-2 py-1.5 app-accent-hover rounded-md text-left transition-control motion-reduce:transition-none"
         onClick={() => setExpanded((current) => !current)}
         aria-expanded={expanded}
         aria-label={expanded ? `Collapse ${toggleLabel}` : `Expand ${toggleLabel}`}
@@ -240,7 +242,7 @@ export function ImportSkippedTable({
         </span>
         <ChevronDown
           size={17}
-          className="shrink-0 transition-transform duration-150"
+          className="shrink-0 transition-transform"
           style={{ transform: expanded ? 'rotate(180deg)' : 'rotate(0deg)', color: 'var(--app-text-muted)' }}
           aria-hidden
         />

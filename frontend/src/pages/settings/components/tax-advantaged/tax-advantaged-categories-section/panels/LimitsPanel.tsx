@@ -163,7 +163,7 @@ export default function TaxAdvantagedLimitsPanel({
                   return (
                     <tr
                       key={limit.year}
-                      className={`app-card-row-focus-visible group grid cursor-pointer grid-cols-[minmax(0,1fr)_auto] gap-x-3 rounded-xl border px-3.5 py-3 transition-colors duration-150 hover:bg-[var(--app-accent-soft)] min-[750px]:table-row min-[750px]:rounded-none min-[750px]:border-x-0 min-[750px]:border-t-0 min-[750px]:p-0 ${index === sortedLimits.length - 1 ? 'min-[750px]:border-b-0' : 'min-[750px]:border-b'}`}
+                      className={`app-card-row-focus-visible group grid cursor-pointer grid-cols-[minmax(0,1fr)_auto] gap-x-3 rounded-xl border px-3.5 py-3 transition-colors hover:bg-[var(--app-accent-soft)] min-[750px]:table-row min-[750px]:rounded-none min-[750px]:border-x-0 min-[750px]:border-t-0 min-[750px]:p-0 ${index === sortedLimits.length - 1 ? 'min-[750px]:border-b-0' : 'min-[750px]:border-b'}`}
                       style={{
                         borderColor: isSelected ? 'var(--app-accent-border)' : 'var(--app-border)',
                         background: isSelected ? 'var(--app-accent-soft)' : undefined,
@@ -215,7 +215,7 @@ export default function TaxAdvantagedLimitsPanel({
                       <td className="col-start-2 row-start-1 flex items-center justify-end py-0 pl-0 min-[750px]:table-cell min-[750px]:py-3 min-[750px]:pl-2">
                         <ChevronRight
                           size={16}
-                          className={`min-[750px]:hidden transition-colors duration-150 ${LIMIT_FAINT_CONTROL_CLASS}`}
+                          className={`min-[750px]:hidden transition-colors ${LIMIT_FAINT_CONTROL_CLASS}`}
                           aria-hidden
                         />
                         <div
@@ -226,7 +226,7 @@ export default function TaxAdvantagedLimitsPanel({
                           <button
                             ref={confirmingDelete ? limitDeleteButtonRef : undefined}
                             type="button"
-                            className={`inline-flex h-7 min-w-7 items-center justify-center rounded-md px-2 text-xs font-medium transition-colors duration-150 hover:bg-[var(--app-negative-soft)] ${
+                            className={`inline-flex h-7 min-w-7 items-center justify-center rounded-md px-2 text-xs font-medium transition-colors hover:bg-[var(--app-negative-soft)] ${
                               confirmingDelete || deletingLimit
                                 ? 'text-[var(--app-negative)]'
                                 : LIMIT_FAINT_CONTROL_CLASS
@@ -313,7 +313,7 @@ export default function TaxAdvantagedLimitsPanel({
                 <button
                   key={limit.year}
                   type="button"
-                  className={`group grid w-full min-w-0 cursor-pointer grid-cols-[minmax(0,1fr)_auto] gap-x-3 rounded-xl border px-3.5 py-3 text-left transition-colors duration-150 ${
+                  className={`group grid w-full min-w-0 cursor-pointer grid-cols-[minmax(0,1fr)_auto] gap-x-3 rounded-xl border px-3.5 py-3 text-left transition-colors ${
                     isSelected
                       ? 'bg-[var(--app-accent-soft)] hover:bg-[var(--app-accent-border)]'
                       : 'bg-transparent hover:bg-[var(--app-accent-soft)]'
@@ -328,7 +328,7 @@ export default function TaxAdvantagedLimitsPanel({
                   <span className="col-start-1 row-start-1 min-w-0 truncate text-base font-medium">{limit.year}</span>
                   <ChevronRight
                     size={16}
-                    className={`col-start-2 row-start-1 self-center transition-colors duration-150 ${LIMIT_FAINT_CONTROL_CLASS}`}
+                    className={`col-start-2 row-start-1 self-center transition-colors ${LIMIT_FAINT_CONTROL_CLASS}`}
                     aria-hidden
                   />
                   <span className="col-span-2 row-start-2 mt-3 grid min-w-0 grid-cols-2 items-center gap-3 border-t pt-3 text-sm">

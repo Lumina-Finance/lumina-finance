@@ -119,18 +119,16 @@ export function ImportAccountMappingStep({
   const [counterpartyBatchInstitution, setCounterpartyBatchInstitution] = useState(UNSET_BATCH_INSTITUTION)
 
   /** Holds same-tab archived-account navigation until the user confirms leaving */
-  const handleArchivedAccountLinkClick = (
-    event: MouseEvent<HTMLAnchorElement>,
-    destination: string,
-  ) => {
+  const handleArchivedAccountLinkClick = (event: MouseEvent<HTMLAnchorElement>, destination: string) => {
     if (
-      event.defaultPrevented
-      || event.button !== 0
-      || event.metaKey
-      || event.ctrlKey
-      || event.shiftKey
-      || event.altKey
-    ) return
+      event.defaultPrevented ||
+      event.button !== 0 ||
+      event.metaKey ||
+      event.ctrlKey ||
+      event.shiftKey ||
+      event.altKey
+    )
+      return
 
     event.preventDefault()
     setPendingAccountDestination(destination)
@@ -146,35 +144,38 @@ export function ImportAccountMappingStep({
     navigate(destination, { state: { editAccount: true } })
   }
 
-  const { openInstitutionModal, institutionModalKey, institutionModalProps } = useImportInstitutionModal((target, institutionId) => {
-    if (target === IMPORTED_BATCH_TARGET) {
-      setBatchAccountInstitution(institutionId)
-    } else if (target === COUNTERPARTY_BATCH_TARGET) {
-      setCounterpartyBatchInstitution(institutionId)
-    } else {
-      setAccountCreateInstitutions((current) => ({ ...current, [target]: institutionId }))
-    }
-  })
+  const { openInstitutionModal, institutionModalKey, institutionModalProps } = useImportInstitutionModal(
+    (target, institutionId) => {
+      if (target === IMPORTED_BATCH_TARGET) {
+        setBatchAccountInstitution(institutionId)
+      } else if (target === COUNTERPARTY_BATCH_TARGET) {
+        setCounterpartyBatchInstitution(institutionId)
+      } else {
+        setAccountCreateInstitutions((current) => ({ ...current, [target]: institutionId }))
+      }
+    },
+  )
 
   /**
    * Builds the table rows for a set of sources, keeping both tables identical apart from the
    * outside answer that only a counterparty source is offered
    */
-  const buildRows = (sources: ImportAccountSource[]) => buildImportAccountMappingRows(sources, {
-    accountMappings,
-    accountById,
-    autoFilledAccountSources,
-    handAnsweredAccountSources,
-    getCreateDetails: (source) => ({
-      accountType: accountCreateTypes[source],
-      currency: accountCreateCurrencies[source],
-      institutionId: accountCreateInstitutions[source],
-    }),
-    onAccountMappingChange: updateSourceAccount,
-    setAccountCreateTypes,
-    setAccountCreateCurrencies,
-    setAccountCreateInstitutions,
-  })
+  const buildRows = (sources: ImportAccountSource[]) =>
+    buildImportAccountMappingRows(sources, {
+      accountMappings,
+      accountById,
+      autoFilledAccountSources,
+      handAnsweredAccountSources,
+      getCreateDetails: (source) => ({
+        accountType: accountCreateTypes[source],
+        currency: accountCreateCurrencies[source],
+        institutionId: accountCreateInstitutions[source],
+      }),
+      onAccountMappingChange: updateSourceAccount,
+      setAccountCreateTypes,
+      setAccountCreateCurrencies,
+      setAccountCreateInstitutions,
+    })
 
   const sharedTableProps = {
     accountTypeOptions: ACCOUNT_TYPE_OPTIONS,
@@ -204,11 +205,10 @@ export function ImportAccountMappingStep({
           more than one account has to be sent elsewhere before it is uploaded rather than after */}
       {fixedAccount && (
         <ImportNotice tone="danger" title={FIXED_ACCOUNT_WARNING_TITLE}>
-          {getFixedAccountWarning(fixedAccount.name)}
-          {' '}
+          {getFixedAccountWarning(fixedAccount.name)}{' '}
           <Link
             to="/settings/imports"
-            className="font-medium underline underline-offset-2 transition-colors duration-200 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2"
+            className="font-medium underline underline-offset-2 transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2"
             style={{ color: 'var(--app-accent)' }}
           >
             {FIXED_ACCOUNT_WARNING_LINK_LABEL}
@@ -222,12 +222,14 @@ export function ImportAccountMappingStep({
 
         // A fixed account has already been told what will happen, by the notice above, so nothing
         // asks it for a file a second time
-        empty={fixedAccount ? null : (
-          <EmptyState
-            title="No accounts yet"
-            description="Upload a file, or check which column is mapped as the account."
-          />
-        )}
+        empty={
+          fixedAccount ? null : (
+            <EmptyState
+              title="No accounts yet"
+              description="Upload a file, or check which column is mapped as the account."
+            />
+          )
+        }
       >
         <>
           {clearedAccountSourceLabels.length > 0 && (
@@ -247,7 +249,7 @@ export function ImportAccountMappingStep({
                   state={{ editAccount: true }}
                   aria-label={`Open ${match.name} to unarchive it`}
                   onClick={(event) => handleArchivedAccountLinkClick(event, `/accounts/${match.id}`)}
-                  className="font-medium underline underline-offset-2 transition-colors duration-200 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2"
+                  className="font-medium underline underline-offset-2 transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2"
                   style={{ color: 'var(--app-accent)' }}
                 >
                   {match.name}
@@ -305,9 +307,12 @@ export function ImportAccountMappingStep({
         titleId={leaveImportTitleId}
       >
         <div className="space-y-1">
-          <h3 id={leaveImportTitleId} className="text-base font-semibold">Leave the import page?</h3>
+          <h3 id={leaveImportTitleId} className="text-base font-semibold">
+            Leave the import page?
+          </h3>
           <p className="text-sm" style={{ color: 'var(--app-text-muted)' }}>
-            Opening the account will discard any progress you made in the imports page. You may need to start from the beginning again after you unarchive your account.
+            Opening the account will discard any progress you made in the imports page. You may need to start from the
+            beginning again after you unarchive your account.
           </p>
         </div>
 
@@ -323,7 +328,7 @@ export function ImportAccountMappingStep({
           <button
             type="button"
             onClick={confirmLeaveImport}
-            className="block w-full text-center text-sm font-medium underline underline-offset-2 transition-colors duration-200"
+            className="block w-full text-center text-sm font-medium underline underline-offset-2 transition-colors"
             style={{ color: 'var(--app-text-muted)' }}
           >
             Leave the import page

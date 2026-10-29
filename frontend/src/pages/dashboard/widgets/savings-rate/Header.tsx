@@ -13,30 +13,26 @@ type SavingsRateHeaderProps = {
 /**
  * Renders the savings rate label, FX tooltip, and bounded chart toggle
  */
-export function SavingsRateHeader({
-  fxStatus,
-  capSavingsRateChart,
-  onCapToggle,
-}: SavingsRateHeaderProps) {
+export function SavingsRateHeader({ fxStatus, capSavingsRateChart, onCapToggle }: SavingsRateHeaderProps) {
   return (
     <div className="flex items-center gap-2 mb-3">
       <DashboardWidgetHeaderIcon icon={Repeat} />
       <span className="app-label">Savings rate</span>
-      <FxStatusBadge
-        label="Savings rate FX status"
-        fxStatus={fxStatus}
-        getMessage={getSavingsRateFxStatusMessage}
-      />
+      <FxStatusBadge label="Savings rate FX status" fxStatus={fxStatus} getMessage={getSavingsRateFxStatusMessage} />
       <button
         type="button"
         onClick={onCapToggle}
-        title={capSavingsRateChart ? 'Show uncapped savings rate chart' : 'Cap savings rate chart at plus or minus 100%'}
-        aria-label={capSavingsRateChart ? 'Show uncapped savings rate chart' : 'Cap savings rate chart at plus or minus 100%'}
+        title={
+          capSavingsRateChart ? 'Show uncapped savings rate chart' : 'Cap savings rate chart at plus or minus 100%'
+        }
+        aria-label={
+          capSavingsRateChart ? 'Show uncapped savings rate chart' : 'Cap savings rate chart at plus or minus 100%'
+        }
         className="app-icon-button ml-auto"
       >
         <ArrowUpToLine
           size={12}
-          className={`transition-transform duration-150 motion-reduce:transition-none ${capSavingsRateChart ? 'rotate-180' : ''}`}
+          className={`transition-transform motion-reduce:transition-none ${capSavingsRateChart ? 'rotate-180' : ''}`}
         />
       </button>
     </div>

@@ -28,7 +28,7 @@ export function PasswordRequirements({
   const rules = NEW_PASSWORD_RULES.map((rule) => {
     const passed = rule.test(password)
     return (
-      <li key={rule.label} className="flex items-center gap-2 text-sm transition-colors duration-200">
+      <li key={rule.label} className="flex items-center gap-2 text-sm transition-colors">
         {passed ? (
           <Check size={14} strokeWidth={2.5} style={{ color: 'var(--app-accent)' }} aria-hidden />
         ) : (

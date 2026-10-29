@@ -98,7 +98,10 @@ function DesktopTimeRangeSelector<T extends string>({
   className,
 }: TimeRangeSelectorProps<T>) {
   const shouldReduceMotion = useReducedMotion()
-  const activeIndex = Math.max(options.findIndex((option) => option.value === value), 0)
+  const activeIndex = Math.max(
+    options.findIndex((option) => option.value === value),
+    0,
+  )
 
   return (
     <div
@@ -232,7 +235,10 @@ function MobileTimeRangeSelector<T extends string>({
             <CalendarRange size={18} aria-hidden className="shrink-0" />
             <span className="truncate">{selectedDisplay}</span>
           </span>
-          <span className="flex shrink-0 items-center gap-1.5 text-xs font-semibold uppercase" style={{ color: 'var(--app-accent)' }}>
+          <span
+            className="flex shrink-0 items-center gap-1.5 text-xs font-semibold uppercase"
+            style={{ color: 'var(--app-accent)' }}
+          >
             {selectedShortcut && <span>{selectedShortcut}</span>}
             <motion.span
               className="app-range-glass-chev"
@@ -267,7 +273,7 @@ function MobileTimeRangeSelector<T extends string>({
                     type="button"
                     role="option"
                     aria-selected={active}
-                    className="flex w-full items-center justify-between gap-3 rounded-lg px-3 py-2.5 text-left transition-colors duration-150 hover:bg-[var(--app-hover-on-surface-soft)] motion-reduce:transition-none"
+                    className="flex w-full items-center justify-between gap-3 rounded-lg px-3 py-2.5 text-left transition-colors hover:bg-[var(--app-hover-on-surface-soft)] motion-reduce:transition-none"
                     style={{
                       background: active ? 'var(--app-accent-soft)' : undefined,
                       color: active ? 'var(--app-accent)' : 'var(--app-text)',
@@ -277,7 +283,10 @@ function MobileTimeRangeSelector<T extends string>({
                     <span className="min-w-0">
                       <span className="block truncate text-sm font-semibold">{optionDisplay}</span>
                       {optionShortcut && (
-                        <span className="mt-0.5 block text-xs font-medium uppercase" style={{ color: active ? 'var(--app-accent)' : 'var(--app-text-muted)' }}>
+                        <span
+                          className="mt-0.5 block text-xs font-medium uppercase"
+                          style={{ color: active ? 'var(--app-accent)' : 'var(--app-text-muted)' }}
+                        >
                           {optionShortcut}
                         </span>
                       )}

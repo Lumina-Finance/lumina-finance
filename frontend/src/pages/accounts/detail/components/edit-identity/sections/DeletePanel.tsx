@@ -99,8 +99,8 @@ export function DeleteAccountPanel({
                   Delete {account.name}?
                 </p>
                 <p className="mt-0.5 text-sm leading-5" style={{ color: 'var(--app-text-muted)' }}>
-                  Permanent deletion removes its transactions, budgets, and balance history. Archive it instead
-                  if you only want it out of view.
+                  Permanent deletion removes its transactions, budgets, and balance history. Archive it instead if you
+                  only want it out of view.
                 </p>
 
                 <div className="mt-3 overflow-hidden">
@@ -121,7 +121,9 @@ export function DeleteAccountPanel({
                               style={{ color: 'var(--app-text-muted)' }}
                               onClick={onArchiveInstead}
                               disabled={isBusy}
-                              disabledReason={!isBusy && isArchiveBlocked ? ARCHIVE_BLOCKED_BY_LATER_TRANSACTIONS_REASON : undefined}
+                              disabledReason={
+                                !isBusy && isArchiveBlocked ? ARCHIVE_BLOCKED_BY_LATER_TRANSACTIONS_REASON : undefined
+                              }
                               // The archive section above already prints this reason, so it describes the button
                               reasonShownById={EDIT_ACCOUNT_IDENTITY_FIELD_IDS.archiveBlockedReason}
                             >
@@ -191,7 +193,7 @@ export function DeleteAccountPanel({
 
                           <div className="mt-4 flex justify-end">
                             <DisabledReasonButton
-                              className={`app-danger-button justify-center overflow-hidden whitespace-nowrap duration-300 ${deleteLoading ? 'app-primary-button-loading shrink-0' : 'w-full min-[1050px]:w-auto'}`}
+                              className={`app-danger-button justify-center overflow-hidden whitespace-nowrap${deleteLoading ? ' app-primary-button-loading shrink-0' : ' w-full min-[1050px]:w-auto'}`}
                               onClick={onDelete}
                               disabled={isBusy}
                               disabledReason={isBusy ? undefined : blockedReason}

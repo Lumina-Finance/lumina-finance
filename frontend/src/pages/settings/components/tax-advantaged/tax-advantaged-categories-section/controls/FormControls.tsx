@@ -143,7 +143,7 @@ export function CompactCurrencyInput({
 
   return (
     <div
-      className="group flex h-9 w-full min-w-0 items-center gap-1.5 rounded-md border border-transparent px-2 transition-colors duration-150 hover:border-[var(--app-border)] app-field-focus"
+      className="group flex h-9 w-full min-w-0 items-center gap-1.5 rounded-md border border-transparent px-2 transition-colors hover:border-[var(--app-border)] app-field-focus"
       style={getCompactFieldFrameStyle(hasError)}
     >
       {symbol && (
@@ -163,7 +163,7 @@ export function CompactCurrencyInput({
       />
       <Pencil
         size={13}
-        className="shrink-0 opacity-45 transition-opacity duration-150 group-hover:opacity-70 group-focus-within:opacity-80"
+        className="shrink-0 opacity-45 transition-opacity group-hover:opacity-70 group-focus-within:opacity-80"
         style={{ color: 'var(--app-text-subtle)' }}
         aria-hidden
       />

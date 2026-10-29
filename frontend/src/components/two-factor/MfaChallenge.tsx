@@ -1,15 +1,15 @@
-import { useRef, type FormEvent } from 'react';
-import { flushSync } from 'react-dom';
-import { KeyRound } from 'lucide-react';
-import { DisabledReasonButton } from '@/components/tooltips/DisabledReasonButton';
-import { OtpInput, OTP_LENGTH } from '@/components/OtpInput';
-import { WarningCallout } from '@/components/WarningCallout';
-import { onUserPress } from '@/utils/userPress';
+import { useRef, type FormEvent } from 'react'
+import { flushSync } from 'react-dom'
+import { KeyRound } from 'lucide-react'
+import { DisabledReasonButton } from '@/components/tooltips/DisabledReasonButton'
+import { OtpInput, OTP_LENGTH } from '@/components/OtpInput'
+import { WarningCallout } from '@/components/WarningCallout'
+import { onUserPress } from '@/utils/userPress'
 
 // Centred links take the width of their text, so a keyboard focus ring hugs the words instead of
 // spanning the whole row
 const LINK_BUTTON_CLASS_NAME =
-  'mx-auto block text-center text-sm font-medium underline underline-offset-2 transition-colors duration-200';
+  'mx-auto block text-center text-sm font-medium underline underline-offset-2 transition-colors'
 
 /**
  * What this screen may offer for a second-factor challenge
@@ -19,36 +19,36 @@ const LINK_BUTTON_CLASS_NAME =
  * to support the ceremony before it offers the option, and sign-in does not
  */
 export interface MfaChallengeInfo {
-  canEnterAuthenticatorCode: boolean;
-  canOfferPasskey: boolean;
-  isRecoveryOnly: boolean;
+  canEnterAuthenticatorCode: boolean
+  canOfferPasskey: boolean
+  isRecoveryOnly: boolean
 }
 
 interface MfaChallengeProps {
-  challenge: MfaChallengeInfo;
-  usePasskey: boolean;
-  useRecoveryCode: boolean;
-  code: string;
-  onCodeChange: (value: string) => void;
-  submitting: boolean;
-  passkeySubmitting: boolean;
+  challenge: MfaChallengeInfo
+  usePasskey: boolean
+  useRecoveryCode: boolean
+  code: string
+  onCodeChange: (value: string) => void
+  submitting: boolean
+  passkeySubmitting: boolean
 
   // Called only when hasAncestorForm is false — otherwise the page's own surrounding form already
   // owns submission and this prop is left unset
-  onSubmitCode?: (event: FormEvent<HTMLFormElement>) => void;
-  onVerifyPasskey: () => void;
-  onSwitchToAuthenticator: () => void;
-  onSwitchToRecovery: () => void;
-  onSwitchToPasskey: () => void;
-  onToggleRecoveryCode: () => void;
-  onCancel: () => void;
+  onSubmitCode?: (event: FormEvent<HTMLFormElement>) => void
+  onVerifyPasskey: () => void
+  onSwitchToAuthenticator: () => void
+  onSwitchToRecovery: () => void
+  onSwitchToPasskey: () => void
+  onToggleRecoveryCode: () => void
+  onCancel: () => void
 
   /** Sentence under the passkey prompt naming what verifying finishes */
-  passkeyVerifyDescription: string;
+  passkeyVerifyDescription: string
 
   // Login wraps its whole page in one form that already switches its submit handler for this step,
   // so only a page without such a form, like the reset flow, needs this component to render its own
-  hasAncestorForm: boolean;
+  hasAncestorForm: boolean
 }
 
 /**
@@ -74,9 +74,9 @@ export function MfaChallenge({
   passkeyVerifyDescription,
   hasAncestorForm,
 }: MfaChallengeProps) {
-  const verifyButtonRef = useRef<HTMLButtonElement>(null);
-  const trimmedCode = useRecoveryCode ? code.trim() : code;
-  const codeReady = useRecoveryCode ? trimmedCode.length > 0 : trimmedCode.length >= OTP_LENGTH;
+  const verifyButtonRef = useRef<HTMLButtonElement>(null)
+  const trimmedCode = useRecoveryCode ? code.trim() : code
+  const codeReady = useRecoveryCode ? trimmedCode.length > 0 : trimmedCode.length >= OTP_LENGTH
 
   /**
    * Submits an authenticator code as soon as it's complete, whether it was typed, pasted or filled
@@ -86,9 +86,9 @@ export function MfaChallenge({
    */
   const changeAuthenticatorCode = (value: string) => {
     // The submit handler reads the code from state, so the new code renders before the submit
-    flushSync(() => onCodeChange(value));
-    if (value.length === OTP_LENGTH) verifyButtonRef.current?.form?.requestSubmit();
-  };
+    flushSync(() => onCodeChange(value))
+    if (value.length === OTP_LENGTH) verifyButtonRef.current?.form?.requestSubmit()
+  }
 
   const codeBranch = (
     <>
@@ -130,10 +130,14 @@ export function MfaChallenge({
           ref={verifyButtonRef}
           type="submit"
           disabled={submitting}
-          disabledReason={!submitting && !codeReady ? (useRecoveryCode ? 'Enter a recovery code first' : 'Enter the full code first') : undefined}
-          className={`app-primary-button transition-all duration-300 ${
-            submitting ? 'app-primary-button-loading' : 'w-full'
-          }`}
+          disabledReason={
+            !submitting && !codeReady
+              ? useRecoveryCode
+                ? 'Enter a recovery code first'
+                : 'Enter the full code first'
+              : undefined
+          }
+          className={`app-primary-button transition-all ${submitting ? 'app-primary-button-loading' : 'w-full'}`}
         >
           {submitting ? <div className="app-spinner" /> : 'Verify'}
         </DisabledReasonButton>
@@ -161,7 +165,7 @@ export function MfaChallenge({
         </button>
       )}
     </>
-  );
+  )
 
   return (
     <>
@@ -176,7 +180,7 @@ export function MfaChallenge({
               type="button"
               onClick={onVerifyPasskey}
               disabled={passkeySubmitting}
-              className={`app-primary-button transition-all duration-300 ${passkeySubmitting ? 'app-primary-button-loading' : 'flex w-full items-center justify-center gap-2'}`}
+              className={`app-primary-button ${passkeySubmitting ? 'app-primary-button-loading' : 'flex w-full items-center justify-center gap-2'}`}
             >
               {passkeySubmitting ? (
                 <div className="app-spinner" />
@@ -228,5 +232,5 @@ export function MfaChallenge({
         Back to login
       </button>
     </>
-  );
+  )
 }

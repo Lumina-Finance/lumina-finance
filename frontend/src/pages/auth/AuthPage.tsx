@@ -1,53 +1,57 @@
-import { useRef, useState } from 'react';
-import { Navigate, useLocation } from 'react-router';
-import { KeyRound } from 'lucide-react';
-import { AnimatePresence, motion } from 'motion/react';
-import { useRegistrationStatus } from '@/api/auth';
-import { useCurrencies } from '@/api/currency';
-import { useOidcProviders } from '@/api/oidc';
-import { MfaChallenge } from '@/components/two-factor/MfaChallenge';
-import { AuthAnimatedTitle } from '@/pages/auth/components/AnimatedTitle';
-import { CurrencyRetryWarning } from '@/pages/auth/components/feedback/CurrencyRetryWarning';
-import { AuthErrorBanner } from '@/pages/auth/components/feedback/ErrorBanner';
-import { OidcProviderButtons } from '@/pages/auth/components/OidcProviderButtons';
-import { AuthSignupNameFields } from '@/pages/auth/components/fields/SignupNameFields';
-import { AuthSignupReferenceFields } from '@/pages/auth/components/fields/SignupReferenceFields';
-import { AuthTextField } from '@/pages/auth/components/fields/TextField';
-import { AUTH_VIEW_TRANSITION, FORGOT_LINK_ANIMATION, SIGNUP_FIELD_ANIMATION } from '@/pages/auth/constants/authAnimations';
-import { useAuthFormWorkflow } from '@/pages/auth/hooks/useAuthFormWorkflow';
-import { getAuthMode, REGISTRATION_CLOSED_NOTICE } from '@/pages/auth/utils/authForm';
-import { DisabledReasonButton } from '@/components/tooltips/DisabledReasonButton';
-import { getBrowserTimeZone } from '@/utils/date';
-import { focusWhenShown } from '@/utils/focusWhenShown';
-import { isNativeSignIn, rememberNativeChallenge } from '@/utils/nativeHandoff';
-import { buildTimezoneOptions } from '@/utils/timezoneOptions';
+import { useRef, useState } from 'react'
+import { Navigate, useLocation } from 'react-router'
+import { KeyRound } from 'lucide-react'
+import { AnimatePresence, motion } from 'motion/react'
+import { useRegistrationStatus } from '@/api/auth'
+import { useCurrencies } from '@/api/currency'
+import { useOidcProviders } from '@/api/oidc'
+import { MfaChallenge } from '@/components/two-factor/MfaChallenge'
+import { AuthAnimatedTitle } from '@/pages/auth/components/AnimatedTitle'
+import { CurrencyRetryWarning } from '@/pages/auth/components/feedback/CurrencyRetryWarning'
+import { AuthErrorBanner } from '@/pages/auth/components/feedback/ErrorBanner'
+import { OidcProviderButtons } from '@/pages/auth/components/OidcProviderButtons'
+import { AuthSignupNameFields } from '@/pages/auth/components/fields/SignupNameFields'
+import { AuthSignupReferenceFields } from '@/pages/auth/components/fields/SignupReferenceFields'
+import { AuthTextField } from '@/pages/auth/components/fields/TextField'
+import {
+  AUTH_VIEW_TRANSITION,
+  FORGOT_LINK_ANIMATION,
+  SIGNUP_FIELD_ANIMATION,
+} from '@/pages/auth/constants/authAnimations'
+import { useAuthFormWorkflow } from '@/pages/auth/hooks/useAuthFormWorkflow'
+import { getAuthMode, REGISTRATION_CLOSED_NOTICE } from '@/pages/auth/utils/authForm'
+import { DisabledReasonButton } from '@/components/tooltips/DisabledReasonButton'
+import { getBrowserTimeZone } from '@/utils/date'
+import { focusWhenShown } from '@/utils/focusWhenShown'
+import { isNativeSignIn, rememberNativeChallenge } from '@/utils/nativeHandoff'
+import { buildTimezoneOptions } from '@/utils/timezoneOptions'
 
-const DETECTED_TZ = getBrowserTimeZone();
+const DETECTED_TZ = getBrowserTimeZone()
 
-const TIMEZONES = Intl.supportedValuesOf('timeZone');
+const TIMEZONES = Intl.supportedValuesOf('timeZone')
 
 /**
  * Renders the auth shell for the login, signup, and forgot-password modes, which share a route key so
  * switching between them morphs the form in place instead of remounting
  */
 const AuthPage = () => {
-  const location = useLocation();
-  const containerRef = useRef<HTMLDivElement>(null);
-  const mode = getAuthMode(location.pathname);
+  const location = useLocation()
+  const containerRef = useRef<HTMLDivElement>(null)
+  const mode = getAuthMode(location.pathname)
 
   // A provider sign-in that collided with an existing account hands its email over here, and one
   // refused because registration is closed says so
-  const handoff = location.state as { prefillEmail?: string; registrationClosed?: boolean } | null;
-  const prefillEmail = handoff?.prefillEmail;
-  const isLogin = mode === 'login';
-  const isSignup = mode === 'signup';
-  const isForgot = mode === 'forgot';
+  const handoff = location.state as { prefillEmail?: string; registrationClosed?: boolean } | null
+  const prefillEmail = handoff?.prefillEmail
+  const isLogin = mode === 'login'
+  const isSignup = mode === 'signup'
+  const isForgot = mode === 'forgot'
   const {
     data: currencies = [],
     isError: currenciesError,
     isFetching: currenciesFetching,
     refetch: refetchCurrencies,
-  } = useCurrencies();
+  } = useCurrencies()
   const {
     currencyPlaceholder,
     displayError,
@@ -93,36 +97,36 @@ const AuthPage = () => {
     detectedTimezone: DETECTED_TZ,
     mode,
     initialEmail: prefillEmail,
-  });
+  })
 
-  const { data: oidcProviders = [] } = useOidcProviders();
+  const { data: oidcProviders = [] } = useOidcProviders()
 
   // Sign-up stays hidden until the server answers on this visit, so a closed instance never flashes
   // it, even to a browser that remembers it open
-  const { data: registration, isFetchedAfterMount: registrationKnown } = useRegistrationStatus();
-  const registrationOpen = registrationKnown && registration?.enabled === true;
-  const registrationClosed = registrationKnown && registration?.enabled === false;
+  const { data: registration, isFetchedAfterMount: registrationKnown } = useRegistrationStatus()
+  const registrationOpen = registrationKnown && registration?.enabled === true
+  const registrationClosed = registrationKnown && registration?.enabled === false
 
   // A native app opening this page to sign in for it may also name the provider its user picked
   const [nativeProviderSlug] = useState(() => {
-    rememberNativeChallenge(location.search);
-    return isNativeSignIn() ? new URLSearchParams(location.search).get('provider') : null;
-  });
+    rememberNativeChallenge(location.search)
+    return isNativeSignIn() ? new URLSearchParams(location.search).get('provider') : null
+  })
 
   // Provider sign-in also onboards new users, so the buttons show on signup as well
-  const showPasskeyButton = isLogin && canUsePasskeys;
-  const showOidcButtons = (isLogin || isSignup) && oidcProviders.length > 0;
+  const showPasskeyButton = isLogin && canUsePasskeys
+  const showOidcButtons = (isLogin || isSignup) && oidcProviders.length > 0
 
-  const submitLabel = isLogin ? 'Log in' : isSignup ? 'Sign up' : 'Send reset link';
+  const submitLabel = isLogin ? 'Log in' : isSignup ? 'Sign up' : 'Send reset link'
   const switchPrompt = isLogin
     ? "Don't have an account? "
     : isForgot
       ? 'Remembered your password? '
-      : 'Already have an account? ';
-  const showSwitchPrompt = !isLogin || registrationOpen;
+      : 'Already have an account? '
+  const showSwitchPrompt = !isLogin || registrationOpen
 
   if (isSignup && registrationClosed) {
-    return <Navigate to="/login" replace />;
+    return <Navigate to="/login" replace />
   }
 
   return (
@@ -134,16 +138,10 @@ const AuthPage = () => {
       animate={{ opacity: 1 }}
       transition={{ duration: 0.3 }}
     >
-      <form
-        onSubmit={mfaActive ? handleMfaSubmit : handleSubmit}
-        className="w-full max-w-sm"
-        noValidate
-      >
+      <form onSubmit={mfaActive ? handleMfaSubmit : handleSubmit} className="w-full max-w-sm" noValidate>
         <AuthAnimatedTitle mode={mode} />
 
-        <AuthErrorBanner
-          error={displayError || (handoff?.registrationClosed ? REGISTRATION_CLOSED_NOTICE : null)}
-        />
+        <AuthErrorBanner error={displayError || (handoff?.registrationClosed ? REGISTRATION_CLOSED_NOTICE : null)} />
         {isSignup && (
           <CurrencyRetryWarning
             failed={currenciesError && currencies.length === 0}
@@ -203,8 +201,8 @@ const AuthPage = () => {
                 Check your email to finish creating your account
               </p>
               <p className="text-sm" style={{ color: 'var(--app-text-muted)' }}>
-                We've sent a message to {form.email}. Open its link to finish creating your account before you
-                log in. Check your spam folder if it does not arrive.
+                We've sent a message to {form.email}. Open its link to finish creating your account before you log in.
+                Check your spam folder if it does not arrive.
               </p>
               {signupRepeated && (
                 <p className="text-sm" style={{ color: 'var(--app-text-muted)' }}>
@@ -214,7 +212,7 @@ const AuthPage = () => {
               <button
                 type="button"
                 onClick={switchMode}
-                className="font-medium underline underline-offset-2 transition-colors duration-200"
+                className="font-medium underline underline-offset-2 transition-colors"
                 style={{ color: 'var(--app-accent)' }}
               >
                 Back to login
@@ -233,14 +231,14 @@ const AuthPage = () => {
               </p>
               {forgotRepeated && (
                 <p className="text-sm" style={{ color: 'var(--app-text-muted)' }}>
-                  Requested a link before? Check your spam folder too. Your most recent link keeps
-                  working until it expires, and a new one can only be sent after that.
+                  Requested a link before? Check your spam folder too. Your most recent link keeps working until it
+                  expires, and a new one can only be sent after that.
                 </p>
               )}
               <button
                 type="button"
                 onClick={switchMode}
-                className="font-medium underline underline-offset-2 transition-colors duration-200"
+                className="font-medium underline underline-offset-2 transition-colors"
                 style={{ color: 'var(--app-accent)' }}
               >
                 Back to login
@@ -304,16 +302,12 @@ const AuthPage = () => {
 
               <AnimatePresence initial={false}>
                 {isLogin && (
-                  <motion.div
-                    key="forgot-link"
-                    className="-mx-[4px] overflow-hidden"
-                    {...FORGOT_LINK_ANIMATION}
-                  >
+                  <motion.div key="forgot-link" className="-mx-[4px] overflow-hidden" {...FORGOT_LINK_ANIMATION}>
                     <div className="flex justify-end p-[4px]">
                       <button
                         type="button"
                         onClick={goToForgot}
-                        className="text-sm font-medium underline underline-offset-2 transition-colors duration-200"
+                        className="text-sm font-medium underline underline-offset-2 transition-colors"
                         style={{ color: 'var(--app-accent)' }}
                       >
                         Forgot password?
@@ -337,9 +331,7 @@ const AuthPage = () => {
                   type="submit"
                   disabled={submitDisabled}
                   disabledReason={submitBlockReason}
-                  className={`app-primary-button transition-all duration-300 ${
-                    submitting ? 'app-primary-button-loading' : 'w-full'
-                  }`}
+                  className={`app-primary-button ${submitting ? 'app-primary-button-loading' : 'w-full'}`}
                 >
                   {submitting ? <div className="app-spinner" /> : submitLabel}
                 </DisabledReasonButton>
@@ -361,7 +353,7 @@ const AuthPage = () => {
                         type="button"
                         onClick={handlePasskeySignIn}
                         disabled={passkeySigningIn}
-                        className={`app-secondary-button transition-all duration-300 ${passkeySigningIn ? 'app-primary-button-loading' : 'flex w-full items-center justify-center gap-2'}`}
+                        className={`app-secondary-button ${passkeySigningIn ? 'app-primary-button-loading' : 'flex w-full items-center justify-center gap-2'}`}
                       >
                         {passkeySigningIn ? (
                           <div className="app-spinner" />
@@ -375,7 +367,9 @@ const AuthPage = () => {
                     </div>
                   )}
 
-                  {showOidcButtons && <OidcProviderButtons providers={oidcProviders} autoStartSlug={nativeProviderSlug} />}
+                  {showOidcButtons && (
+                    <OidcProviderButtons providers={oidcProviders} autoStartSlug={nativeProviderSlug} />
+                  )}
                 </div>
               )}
 
@@ -385,7 +379,7 @@ const AuthPage = () => {
                   <button
                     type="button"
                     onClick={switchMode}
-                    className="font-medium underline underline-offset-2 transition-colors duration-200"
+                    className="font-medium underline underline-offset-2 transition-colors"
                     style={{ color: 'var(--app-accent)' }}
                   >
                     {isLogin ? 'Sign up' : 'Log in'}
@@ -397,7 +391,7 @@ const AuthPage = () => {
         </AnimatePresence>
       </form>
     </motion.div>
-  );
-};
+  )
+}
 
-export default AuthPage;
+export default AuthPage

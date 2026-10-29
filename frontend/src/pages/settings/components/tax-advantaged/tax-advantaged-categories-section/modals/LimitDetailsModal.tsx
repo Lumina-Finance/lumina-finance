@@ -2,10 +2,7 @@ import { Pencil, Trash2, X } from 'lucide-react'
 import { ModalShell } from '@/components/modal/Shell'
 import { DisabledReasonButton } from '@/components/tooltips/DisabledReasonButton'
 import type { Currency } from '@/api/currency'
-import type {
-  TaxAdvantagedCategory,
-  TaxAdvantagedCategoryLimit,
-} from '@/api/tax-advantaged-categories'
+import type { TaxAdvantagedCategory, TaxAdvantagedCategoryLimit } from '@/api/tax-advantaged-categories'
 import type {
   TaxPlanLimitDraftField,
   TaxPlanLimitDraftState,
@@ -81,7 +78,10 @@ export default function TaxAdvantagedLimitDetailsModal({
       level="stacked"
       boundsTooltips
     >
-      <div className="flex shrink-0 items-start justify-between gap-4 border-b p-5" style={{ borderColor: 'var(--app-border)' }}>
+      <div
+        className="flex shrink-0 items-start justify-between gap-4 border-b p-5"
+        style={{ borderColor: 'var(--app-border)' }}
+      >
         <div className="min-w-0">
           <h4 id="tax-year-limit-title" className="font-serif text-2xl font-medium tracking-tight">
             {showAddTaxYear ? 'New year' : selectedLimit?.year}
@@ -114,7 +114,7 @@ export default function TaxAdvantagedLimitDetailsModal({
                 spacingClassName="mb-1"
               />
               <div
-                className="group flex h-9 w-full items-center gap-1.5 rounded-md border border-transparent px-2 transition-colors duration-150 hover:border-[var(--app-border)] app-field-focus"
+                className="group flex h-9 w-full items-center gap-1.5 rounded-md border border-transparent px-2 transition-colors hover:border-[var(--app-border)] app-field-focus"
                 style={getCompactFieldFrameStyle(!!problems.year)}
               >
                 <input
@@ -132,7 +132,7 @@ export default function TaxAdvantagedLimitDetailsModal({
                 />
                 <Pencil
                   size={13}
-                  className="shrink-0 opacity-45 transition-opacity duration-150 group-hover:opacity-70 group-focus-within:opacity-80"
+                  className="shrink-0 opacity-45 transition-opacity group-hover:opacity-70 group-focus-within:opacity-80"
                   style={{ color: 'var(--app-text-subtle)' }}
                   aria-hidden
                 />
@@ -141,15 +141,53 @@ export default function TaxAdvantagedLimitDetailsModal({
             <div className="space-y-2">
               <p className="text-sm font-medium">Contribution</p>
               <div className="grid grid-cols-2 gap-3">
-                {renderNewLimitEditorField('contribution_limit', 'Limit', 'New tax-year contribution limit', currencies, plan, newLimitForm, problems, onNewLimitFieldChange, 'Required')}
-                {renderNewLimitEditorField('accrued_contributions', 'Opening', 'New tax-year opening contributions', currencies, plan, newLimitForm, problems, onNewLimitFieldChange)}
+                {renderNewLimitEditorField(
+                  'contribution_limit',
+                  'Limit',
+                  'New tax-year contribution limit',
+                  currencies,
+                  plan,
+                  newLimitForm,
+                  problems,
+                  onNewLimitFieldChange,
+                  'Required',
+                )}
+                {renderNewLimitEditorField(
+                  'accrued_contributions',
+                  'Opening',
+                  'New tax-year opening contributions',
+                  currencies,
+                  plan,
+                  newLimitForm,
+                  problems,
+                  onNewLimitFieldChange,
+                )}
               </div>
             </div>
             <div className="space-y-2">
               <p className="text-sm font-medium">Withdrawal</p>
               <div className="grid grid-cols-2 gap-3">
-                {renderNewLimitEditorField('withdrawal_limit', 'Limit', 'New tax-year withdrawal limit', currencies, plan, newLimitForm, problems, onNewLimitFieldChange, 'Optional')}
-                {renderNewLimitEditorField('accrued_withdrawals', 'Opening', 'New tax-year opening withdrawals', currencies, plan, newLimitForm, problems, onNewLimitFieldChange)}
+                {renderNewLimitEditorField(
+                  'withdrawal_limit',
+                  'Limit',
+                  'New tax-year withdrawal limit',
+                  currencies,
+                  plan,
+                  newLimitForm,
+                  problems,
+                  onNewLimitFieldChange,
+                  'Optional',
+                )}
+                {renderNewLimitEditorField(
+                  'accrued_withdrawals',
+                  'Opening',
+                  'New tax-year opening withdrawals',
+                  currencies,
+                  plan,
+                  newLimitForm,
+                  problems,
+                  onNewLimitFieldChange,
+                )}
               </div>
             </div>
             <FormError message={limitError} />
@@ -159,15 +197,57 @@ export default function TaxAdvantagedLimitDetailsModal({
             <div className="space-y-2">
               <p className="text-sm font-medium">Contribution</p>
               <div className="grid grid-cols-2 gap-3">
-                {renderLimitEditorField(selectedLimit.year, 'contribution_limit', 'Limit', 'Contribution limit', selectedDraft.contribution_limit, currencies, plan, problems, onLimitFieldChange, 'Required')}
-                {renderLimitEditorField(selectedLimit.year, 'accrued_contributions', 'Opening', 'Opening contributions', selectedDraft.accrued_contributions, currencies, plan, problems, onLimitFieldChange)}
+                {renderLimitEditorField(
+                  selectedLimit.year,
+                  'contribution_limit',
+                  'Limit',
+                  'Contribution limit',
+                  selectedDraft.contribution_limit,
+                  currencies,
+                  plan,
+                  problems,
+                  onLimitFieldChange,
+                  'Required',
+                )}
+                {renderLimitEditorField(
+                  selectedLimit.year,
+                  'accrued_contributions',
+                  'Opening',
+                  'Opening contributions',
+                  selectedDraft.accrued_contributions,
+                  currencies,
+                  plan,
+                  problems,
+                  onLimitFieldChange,
+                )}
               </div>
             </div>
             <div className="space-y-2">
               <p className="text-sm font-medium">Withdrawal</p>
               <div className="grid grid-cols-2 gap-3">
-                {renderLimitEditorField(selectedLimit.year, 'withdrawal_limit', 'Limit', 'Withdrawal limit', selectedDraft.withdrawal_limit, currencies, plan, problems, onLimitFieldChange, 'Optional')}
-                {renderLimitEditorField(selectedLimit.year, 'accrued_withdrawals', 'Opening', 'Opening withdrawals', selectedDraft.accrued_withdrawals, currencies, plan, problems, onLimitFieldChange)}
+                {renderLimitEditorField(
+                  selectedLimit.year,
+                  'withdrawal_limit',
+                  'Limit',
+                  'Withdrawal limit',
+                  selectedDraft.withdrawal_limit,
+                  currencies,
+                  plan,
+                  problems,
+                  onLimitFieldChange,
+                  'Optional',
+                )}
+                {renderLimitEditorField(
+                  selectedLimit.year,
+                  'accrued_withdrawals',
+                  'Opening',
+                  'Opening withdrawals',
+                  selectedDraft.accrued_withdrawals,
+                  currencies,
+                  plan,
+                  problems,
+                  onLimitFieldChange,
+                )}
               </div>
             </div>
             <FormError message={limitError} />
@@ -258,7 +338,14 @@ function renderLimitEditorField(
 
   return (
     <div className="min-w-0">
-      <FieldLabelRow compact htmlFor={id} label={label} error={problems[key]} errorId={errorId} spacingClassName="mb-1" />
+      <FieldLabelRow
+        compact
+        htmlFor={id}
+        label={label}
+        error={problems[key]}
+        errorId={errorId}
+        spacingClassName="mb-1"
+      />
       <CompactCurrencyInput
         ariaLabel={`${year} ${ariaLabel.toLowerCase()}`}
         hasError={!!problems[key]}
@@ -293,7 +380,14 @@ function renderNewLimitEditorField(
 
   return (
     <div className="min-w-0">
-      <FieldLabelRow compact htmlFor={id} label={label} error={problems[key]} errorId={errorId} spacingClassName="mb-1" />
+      <FieldLabelRow
+        compact
+        htmlFor={id}
+        label={label}
+        error={problems[key]}
+        errorId={errorId}
+        spacingClassName="mb-1"
+      />
       <CompactCurrencyInput
         ariaLabel={ariaLabel}
         hasError={!!problems[key]}

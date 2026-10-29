@@ -93,15 +93,23 @@ function resolveColour(value: string, theme: Theme): Colour {
   const secondShare = second.share ?? 1 - firstShare
   // Mixed with premultiplied alpha, as CSS mixes colours
   const alpha = first.colour.alpha * firstShare + second.colour.alpha * secondShare
-  const rgb = first.colour.rgb.map((channel, index) => (
-    channel * first.colour.alpha * firstShare + second.colour.rgb[index] * second.colour.alpha * secondShare
-  ) / alpha) as Rgb
+  const rgb = first.colour.rgb.map(
+    (channel, index) =>
+      (channel * first.colour.alpha * firstShare + second.colour.rgb[index] * second.colour.alpha * secondShare) /
+      alpha,
+  ) as Rgb
   return { rgb, alpha }
 }
 
 /** A rule's selectors with the line breaks a long :is() list is written across closed up */
 function selectorsOf(rule: Rule): string[] {
-  return rule.selectors.map((selector) => selector.replace(/\(\s+/g, '(').replace(/,\s+/g, ', ').replace(/,?\s+\)/g, ')').trim())
+  return rule.selectors.map((selector) =>
+    selector
+      .replace(/\(\s+/g, '(')
+      .replace(/,\s+/g, ', ')
+      .replace(/,?\s+\)/g, ')')
+      .trim(),
+  )
 }
 
 function rulesListing(selector: string): Rule[] {
@@ -163,7 +171,9 @@ describe('button keyboard focus', () => {
   for (const { selector, rule } of hoverSelectors) {
     it(`shows ${selector} focused by keyboard exactly as hovered`, () => {
       // Apart from the gap a clipped container gives the ring, which belongs to the ring and not the look
-      const focusRules = rulesListing(focusCounterpart(selector)).filter((focusRule) => declared(focusRule, 'outline-offset') === undefined)
+      const focusRules = rulesListing(focusCounterpart(selector)).filter(
+        (focusRule) => declared(focusRule, 'outline-offset') === undefined,
+      )
       expect(focusRules.length).toBeGreaterThan(0)
 
       // The same declarations, so the two looks can't differ by a property, a value or a later rule
@@ -210,7 +220,9 @@ describe('button keyboard focus', () => {
 
   // Hover looks added by this change, which a touch screen would otherwise keep showing after a tap
   const POINTER_ONLY_HOVER = [
-    ...SELECTED_OPTIONS.map((name) => (GUARDED_SELECTED_OPTIONS.includes(name) ? `${name}:not(:disabled):hover` : `${name}:hover`)),
+    ...SELECTED_OPTIONS.map((name) =>
+      GUARDED_SELECTED_OPTIONS.includes(name) ? `${name}:not(:disabled):hover` : `${name}:hover`,
+    ),
     '.app-nav-link:hover',
     '.app-nav-link-active:hover',
     '.app-calendar-day[data-selected]:hover',
@@ -256,7 +268,7 @@ describe('button keyboard focus', () => {
   // The rows and toggles on shaded surfaces opt in with app-accent-hover to the menu items' accent text and soft
   // fill, with no border, so nothing shifts and keyboard focus keeps the ring. They show on touch screens too, so
   // the pointer look sits in the hover-only media query and a tap leaves nothing stuck
-  it('gives .app-accent-hover the menu item\'s text and fill with no border, under the pointer only on hover screens', () => {
+  it("gives .app-accent-hover the menu item's text and fill with no border, under the pointer only on hover screens", () => {
     const [item] = rulesListing('.app-nav-link:hover')
     const hover = rulesListing('.app-accent-hover:hover')
     const focus = rulesListing('.app-accent-hover:focus-visible')
@@ -276,7 +288,7 @@ describe('button keyboard focus', () => {
 
   // The selected item rests in the accent look, so keyboard focus can only show on its border, which turns
   // stronger than its resting one, and the pointer shows the same border
-  it('strengthens only the selected menu item\'s border on keyboard focus and under the pointer', () => {
+  it("strengthens only the selected menu item's border on keyboard focus and under the pointer", () => {
     const [selected] = rulesListing('.app-nav-link-active')
     const [focus] = rulesListing('.app-nav-link-active:focus-visible')
     const [hover] = rulesListing('.app-nav-link-active:hover')
@@ -290,7 +302,10 @@ describe('button keyboard focus', () => {
   // colour does, and turns darker in the light theme and lighter in the dark one
   describe.each(['light', 'dark'] as const)('selected menu item focus border in the %s theme', (theme) => {
     const focusBorder = resolveColour('var(--app-accent-nav-focus-border)', theme).rgb
-    const surfaces = ['--app-nav-bg', '--app-bg', '--app-surface-soft'].map((name) => ({ name, rgb: resolveColour(`var(${name})`, theme).rgb }))
+    const surfaces = ['--app-nav-bg', '--app-bg', '--app-surface-soft'].map((name) => ({
+      name,
+      rgb: resolveColour(`var(${name})`, theme).rgb,
+    }))
 
     it.each(surfaces)('reads at 3:1 or better against the resting border and $name', ({ rgb }) => {
       const fill = resolveColour('var(--app-accent-soft)', theme)
@@ -345,7 +360,13 @@ describe('button keyboard focus', () => {
         const dimming: Rule[] = []
         stylesheet.walkRules((rule) => {
           const [selector] = selectorsOf(rule)
-          if (selectorsOf(rule).length === 1 && selector.includes(name) && selector.endsWith('[aria-disabled="true"]') && !selector.includes(':not(')) dimming.push(rule)
+          if (
+            selectorsOf(rule).length === 1 &&
+            selector.includes(name) &&
+            selector.endsWith('[aria-disabled="true"]') &&
+            !selector.includes(':not(')
+          )
+            dimming.push(rule)
         })
         const colours = dimming.filter((rule) => declared(rule, 'background') !== undefined)
         expect(colours.length).toBeGreaterThan(0)
@@ -385,14 +406,15 @@ describe('button keyboard focus', () => {
       const [head] = rulesListing('.app-dropdown-glass.app-dropdown-glass-disabled:focus-within .app-dropdown-head')
       expect(head).toBeDefined()
       expect(declared(head, 'opacity')).toBe('var(--app-dropdown-disabled-opacity-control)')
-      // The fill, the ring and the content move together, over the time and easing of the focus fade
-      let fade = ''
-      stylesheet.walkDecls('--app-focus-fade', (decl) => {
-        fade = decl.value
-      })
-      const [time, easing] = [/(\d+ms)/.exec(fade)?.[1], /(cubic-bezier\([^)]*\))/.exec(fade)?.[1]]
-      const restBox = rulesListing('.app-dropdown-glass.app-dropdown-glass-disabled').find((rule) => declared(rule, 'transition') !== undefined)
-      const restHead = rulesListing('.app-dropdown-glass-disabled .app-dropdown-head').find((rule) => declared(rule, 'transition') !== undefined)
+      // The fill, the ring and the content move together, over the app's duration and curve, since the ring
+      // here is the box's own border and shadow rather than an outline
+      const [time, easing] = ['var(--app-ease-duration)', 'var(--app-ease-curve)']
+      const restBox = rulesListing('.app-dropdown-glass.app-dropdown-glass-disabled').find(
+        (rule) => declared(rule, 'transition') !== undefined,
+      )
+      const restHead = rulesListing('.app-dropdown-glass-disabled .app-dropdown-head').find(
+        (rule) => declared(rule, 'transition') !== undefined,
+      )
       expect(time).toBeDefined()
       expect(easing).toBeDefined()
       expect(restBox).toBeDefined()
@@ -402,13 +424,23 @@ describe('button keyboard focus', () => {
       }
       expect(declared(restHead!, 'transition')).toBe(`opacity ${time} ${easing}`)
       // Reduced motion turns the move off, for the box and for its content
-      for (const selector of ['.app-dropdown-glass.app-dropdown-glass-disabled', '.app-dropdown-glass-disabled .app-dropdown-head']) {
-        const still = rulesListing(selector).filter((rule) => rule.parent instanceof AtRule && /prefers-reduced-motion:\s*reduce/.test(rule.parent.params) && declared(rule, 'transition') === 'none')
+      for (const selector of [
+        '.app-dropdown-glass.app-dropdown-glass-disabled',
+        '.app-dropdown-glass-disabled .app-dropdown-head',
+      ]) {
+        const still = rulesListing(selector).filter(
+          (rule) =>
+            rule.parent instanceof AtRule &&
+            /prefers-reduced-motion:\s*reduce/.test(rule.parent.params) &&
+            declared(rule, 'transition') === 'none',
+        )
         expect(still).toHaveLength(1)
       }
       // A finished import's answers read at full strength, focused or not
       const [recordBox] = rulesListing('.import-record .app-dropdown-glass.app-dropdown-glass-disabled:focus-within')
-      const [recordHead] = rulesListing('.import-record .app-dropdown-glass.app-dropdown-glass-disabled:focus-within .app-dropdown-head')
+      const [recordHead] = rulesListing(
+        '.import-record .app-dropdown-glass.app-dropdown-glass-disabled:focus-within .app-dropdown-head',
+      )
       expect(declared(recordBox, 'background')).toBe('var(--app-dropdown-bg)')
       expect(declared(recordHead, 'opacity')).toBe('1')
     })
@@ -463,7 +495,11 @@ describe('button keyboard focus', () => {
       const compact = rulesListing('.app-segmented-control-compact .app-segmented-option:focus-visible')
       expect(compact).toHaveLength(1)
       expect(declared(compact[0], 'outline-offset')).toBeDefined()
-      expect(rulesListing('.app-time-selector .app-segmented-option:focus-visible').every((rule) => declared(rule, 'outline-offset') === undefined)).toBe(true)
+      expect(
+        rulesListing('.app-time-selector .app-segmented-option:focus-visible').every(
+          (rule) => declared(rule, 'outline-offset') === undefined,
+        ),
+      ).toBe(true)
     })
   })
 
@@ -483,7 +519,9 @@ describe('button keyboard focus', () => {
     it('draws the shared ring around the switch, and nothing on the track itself', () => {
       const [ring] = rulesListing('.app-switch:has(> .app-switch-input:focus-visible)')
       expect(declared(ring, 'outline')).toBe('var(--app-focus-outline)')
-      expect(focus.concat(rulesListing('.app-switch-track')).some((rule) => declared(rule, 'outline') !== undefined)).toBe(false)
+      expect(
+        focus.concat(rulesListing('.app-switch-track')).some((rule) => declared(rule, 'outline') !== undefined),
+      ).toBe(false)
     })
 
     for (const theme of ['light', 'dark'] as const) {

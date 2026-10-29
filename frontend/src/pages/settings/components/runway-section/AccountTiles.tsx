@@ -41,7 +41,9 @@ export function ArchivedRunwayAccountTile({ account }: ArchivedRunwayAccountTile
         <Archive size={12} aria-hidden />
       </span>
       <span className="min-w-0 flex-1 overflow-hidden">
-        <MarqueeText active className="font-medium">{account.name}</MarqueeText>
+        <MarqueeText active className="font-medium">
+          {account.name}
+        </MarqueeText>
         <span className="block text-xs truncate" style={{ color: 'var(--app-text-muted)' }}>
           {institutionName} · Archived
         </span>
@@ -68,7 +70,7 @@ export function RunwayAccountTile({ account, selected, onToggle }: RunwayAccount
       role="checkbox"
       aria-checked={selected}
       onClick={onToggle}
-      className={`app-marquee-trigger flex w-full min-w-0 items-center gap-3 overflow-hidden rounded-xl border px-3 py-2.5 text-left transition-colors duration-200 hover:border-[var(--app-hover-border)] ${
+      className={`app-marquee-trigger flex w-full min-w-0 items-center gap-3 overflow-hidden rounded-xl border px-3 py-2.5 text-left transition-colors hover:border-[var(--app-hover-border)] ${
         selected
           ? 'border-[var(--app-accent-border)] bg-[var(--app-accent-soft)] hover:bg-[var(--app-accent-border)]'
           : 'border-[var(--app-input-border)] bg-[var(--app-input-bg)] hover:bg-[var(--app-accent-soft)]'
@@ -85,7 +87,9 @@ export function RunwayAccountTile({ account, selected, onToggle }: RunwayAccount
         {selected && <Check size={13} strokeWidth={3} aria-hidden />}
       </span>
       <span className="min-w-0 flex-1 overflow-hidden">
-        <MarqueeText active className="font-medium">{account.name}</MarqueeText>
+        <MarqueeText active className="font-medium">
+          {account.name}
+        </MarqueeText>
         <span className="block text-xs truncate" style={{ color: 'var(--app-text-muted)' }}>
           {institutionName}
         </span>
@@ -98,10 +102,7 @@ export function RunwayAccountTile({ account, selected, onToggle }: RunwayAccount
           {formatCurrency(account.current_balance, account.currency)}
         </span>
         {account.credit_limit !== null && (
-          <span
-            className="block font-financial text-xs"
-            style={{ color: 'var(--app-text-muted)' }}
-          >
+          <span className="block font-financial text-xs" style={{ color: 'var(--app-text-muted)' }}>
             {formatCurrency(account.credit_limit + account.current_balance, account.currency)} avail.
           </span>
         )}

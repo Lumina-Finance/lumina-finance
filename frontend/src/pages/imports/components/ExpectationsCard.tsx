@@ -44,8 +44,15 @@ export function ImportExpectationsCard({ expectations }: { expectations: ImportE
             </p>
           </ConceptGroup>
 
-          <CollapsedConceptGroup title="Imported in a different form" toggleLabel="data imported in a different form" railColour="var(--app-accent)">
-            <ul className="mt-1.5 flex flex-col gap-1.5 text-sm leading-5 text-pretty" style={{ color: 'var(--app-text)' }}>
+          <CollapsedConceptGroup
+            title="Imported in a different form"
+            toggleLabel="data imported in a different form"
+            railColour="var(--app-accent)"
+          >
+            <ul
+              className="mt-1.5 flex flex-col gap-1.5 text-sm leading-5 text-pretty"
+              style={{ color: 'var(--app-text)' }}
+            >
               {expectations.changes.map((mapping) => (
                 <li key={mapping.source}>
                   {mapping.source}
@@ -111,20 +118,17 @@ function CollapsedConceptGroup({
     <div className="mt-3 flow-root border-l-2 pl-3" style={{ borderColor: railColour }}>
       <button
         type="button"
-        className="-mx-2 -my-1.5 flex w-[calc(100%+1rem)] cursor-pointer items-center justify-between gap-2 px-2 py-1.5 app-accent-hover rounded-md text-left transition-colors motion-reduce:transition-none"
+        className="-mx-2 -my-1.5 flex w-[calc(100%+1rem)] cursor-pointer items-center justify-between gap-2 px-2 py-1.5 app-accent-hover rounded-md text-left transition-control motion-reduce:transition-none"
         onClick={() => setExpanded((current) => !current)}
         aria-expanded={expanded}
         aria-label={expanded ? `Collapse ${toggleLabel}` : `Expand ${toggleLabel}`}
       >
-        <span
-          className="text-xs font-semibold uppercase tracking-wide"
-          style={{ color: 'var(--app-accent)' }}
-        >
+        <span className="text-xs font-semibold uppercase tracking-wide" style={{ color: 'var(--app-accent)' }}>
           {title}
         </span>
         <ChevronDown
           size={15}
-          className="shrink-0 transition-transform duration-150"
+          className="shrink-0 transition-transform"
           style={{ transform: expanded ? 'rotate(180deg)' : 'rotate(0deg)', color: 'var(--app-text-muted)' }}
           aria-hidden
         />
@@ -165,10 +169,7 @@ function ConceptGroup({
         background: tinted ? 'color-mix(in srgb, var(--app-negative) 7%, transparent)' : undefined,
       }}
     >
-      <p
-        className="mb-1.5 text-xs font-semibold uppercase tracking-wide"
-        style={{ color: titleColour }}
-      >
+      <p className="mb-1.5 text-xs font-semibold uppercase tracking-wide" style={{ color: titleColour }}>
         {title}
       </p>
       {children}

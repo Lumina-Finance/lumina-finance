@@ -222,7 +222,7 @@ function DeferredChartTooltipOverlayInner<T>(
                   ? 'translate3d(calc(var(--chart-tooltip-guide-x, 0px) + var(--chart-tooltip-guide-offset, -14px)), 0, 0)'
                   : 'translate3d(var(--chart-tooltip-guide-x, 0px), 0, 0)',
               transition:
-                'opacity 150ms cubic-bezier(0.22, 1, 0.36, 1), transform 120ms cubic-bezier(0.22, 1, 0.36, 1)',
+                'opacity var(--app-ease-duration) var(--app-ease-curve), transform var(--app-ease-duration) var(--app-ease-curve)',
               width: guideVariant === 'bar' ? 'var(--chart-tooltip-guide-width, 28px)' : 1,
             }}
           />

@@ -7,10 +7,7 @@ import { Check, Trash2, X } from 'lucide-react'
 import type { AccountsOverview } from '@/api/accounts'
 import type { Currency } from '@/api/currency'
 import type { TaxAdvantagedCategory } from '@/api/tax-advantaged-categories'
-import type {
-  AutosaveNotice,
-  CategoryModalTab,
-} from '@/pages/settings/components/tax-advantaged/types'
+import type { AutosaveNotice, CategoryModalTab } from '@/pages/settings/components/tax-advantaged/types'
 import TaxAdvantagedAccountLinksPanel from '@/pages/settings/components/tax-advantaged/tax-advantaged-categories-section/panels/AccountLinksPanel'
 import TaxAdvantagedAutosaveStatusIcon from '@/pages/settings/components/tax-advantaged/tax-advantaged-categories-section/controls/AutosaveStatusIcon'
 import TaxAdvantagedInfoItem from '@/pages/settings/components/tax-advantaged/tax-advantaged-categories-section/controls/InfoItem'
@@ -130,12 +127,14 @@ export default function TaxAdvantagedCategoryModal({
     toggleAccount,
   } = useTaxAdvantagedAccountLinks({ accounts, plan, showAutosaveNotice })
 
-
-  useEffect(() => () => {
-    if (autosaveTimerRef.current !== null) {
-      window.clearTimeout(autosaveTimerRef.current)
-    }
-  }, [])
+  useEffect(
+    () => () => {
+      if (autosaveTimerRef.current !== null) {
+        window.clearTimeout(autosaveTimerRef.current)
+      }
+    },
+    [],
+  )
 
   useLayoutEffect(() => {
     if (planDeleteIdleLabelRef.current && planDeleteConfirmLabelRef.current) {
@@ -215,7 +214,10 @@ export default function TaxAdvantagedCategoryModal({
           >
             <div className="flex min-w-0 items-start justify-between gap-4">
               <div className="min-w-0 flex-1 overflow-hidden">
-                <h3 id="tax-advantaged-category-title" className="truncate font-serif text-2xl font-medium leading-8 tracking-tight min-[750px]:text-3xl min-[750px]:leading-10">
+                <h3
+                  id="tax-advantaged-category-title"
+                  className="truncate font-serif text-2xl font-medium leading-8 tracking-tight min-[750px]:text-3xl min-[750px]:leading-10"
+                >
                   {plan.name}
                 </h3>
               </div>
@@ -230,23 +232,26 @@ export default function TaxAdvantagedCategoryModal({
             </div>
 
             <div className="space-y-2.5 min-[750px]:hidden">
-              <div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1 text-sm font-medium" style={{ color: 'var(--app-text-muted)' }}>
-                <span className="truncate">
-                  {formatTaxTreatment(plan.tax_treatment)}
+              <div
+                className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1 text-sm font-medium"
+                style={{ color: 'var(--app-text-muted)' }}
+              >
+                <span className="truncate">{formatTaxTreatment(plan.tax_treatment)}</span>
+                <span aria-hidden style={{ color: 'var(--app-text-subtle)' }}>
+                  ·
                 </span>
-                <span aria-hidden style={{ color: 'var(--app-text-subtle)' }}>·</span>
                 <span className="inline-flex min-w-0 items-center gap-1">
                   {plan.currency}
                   <TaxAdvantagedCurrencyWarning />
                 </span>
-                <span aria-hidden style={{ color: 'var(--app-text-subtle)' }}>·</span>
-                <span className="truncate">
-                  {plan.group_id ? 'Group' : 'Personal'}
+                <span aria-hidden style={{ color: 'var(--app-text-subtle)' }}>
+                  ·
                 </span>
-                <span aria-hidden style={{ color: 'var(--app-text-subtle)' }}>·</span>
-                <span className="truncate">
-                  {linkedAccountsMobileSummary}
+                <span className="truncate">{plan.group_id ? 'Group' : 'Personal'}</span>
+                <span aria-hidden style={{ color: 'var(--app-text-subtle)' }}>
+                  ·
                 </span>
+                <span className="truncate">{linkedAccountsMobileSummary}</span>
               </div>
             </div>
 
@@ -267,7 +272,10 @@ export default function TaxAdvantagedCategoryModal({
 
             <FormError message={planError} />
 
-            <div className="grid grid-cols-2 gap-2 border-t pt-3 min-[750px]:flex min-[750px]:items-center min-[750px]:justify-between min-[750px]:pt-4 min-[1050px]:mt-auto" style={{ borderColor: 'var(--app-border)' }}>
+            <div
+              className="grid grid-cols-2 gap-2 border-t pt-3 min-[750px]:flex min-[750px]:items-center min-[750px]:justify-between min-[750px]:pt-4 min-[1050px]:mt-auto"
+              style={{ borderColor: 'var(--app-border)' }}
+            >
               <button
                 type="button"
                 className="app-secondary-button w-full justify-center min-[750px]:w-[72px]"
@@ -317,14 +325,14 @@ export default function TaxAdvantagedCategoryModal({
                       Yes, delete
                     </span>
                     <span
-                      className="absolute inset-0 inline-flex items-center justify-center gap-2 whitespace-nowrap transition-opacity duration-150"
+                      className="absolute inset-0 inline-flex items-center justify-center gap-2 whitespace-nowrap transition-opacity"
                       style={{ opacity: confirmingPlanDelete ? 0 : 1 }}
                     >
                       <Trash2 size={16} aria-hidden />
                       Delete
                     </span>
                     <span
-                      className="absolute inset-0 inline-flex items-center justify-center gap-2 whitespace-nowrap transition-opacity duration-150"
+                      className="absolute inset-0 inline-flex items-center justify-center gap-2 whitespace-nowrap transition-opacity"
                       style={{ opacity: confirmingPlanDelete ? 1 : 0 }}
                     >
                       <Check size={16} aria-hidden />
@@ -334,7 +342,6 @@ export default function TaxAdvantagedCategoryModal({
                 )}
               </button>
             </div>
-
           </aside>
 
           <div className="flex min-h-0 min-w-0 flex-1 flex-col">
@@ -342,22 +349,22 @@ export default function TaxAdvantagedCategoryModal({
               className="flex shrink-0 items-stretch justify-between gap-3 border-b px-5 min-[750px]:px-6"
               style={{ borderColor: 'var(--app-border)' }}
             >
-              <div
-                className="flex items-stretch gap-6"
-                role="tablist"
-                aria-label="Category settings"
-              >
-                {([
-                  ['limits', 'Limits'],
-                  ['accounts', 'Accounts'],
-                ] as const).map(([tab, label]) => (
+              <div className="flex items-stretch gap-6" role="tablist" aria-label="Category settings">
+                {(
+                  [
+                    ['limits', 'Limits'],
+                    ['accounts', 'Accounts'],
+                  ] as const
+                ).map(([tab, label]) => (
                   <button
                     key={tab}
                     type="button"
                     role="tab"
                     aria-selected={activeTab === tab}
-                    className={`border-b-2 px-0 pb-2 pt-4 text-sm font-medium transition-colors duration-150 ${
-                      activeTab === tab ? 'text-[var(--app-text)]' : 'text-[var(--app-text-muted)] hover:text-[var(--app-text)]'
+                    className={`border-b-2 px-0 pb-2 pt-4 text-sm font-medium transition-colors ${
+                      activeTab === tab
+                        ? 'text-[var(--app-text)]'
+                        : 'text-[var(--app-text-muted)] hover:text-[var(--app-text)]'
                     }`}
                     onClick={() => setActiveTab(tab)}
                     style={{
@@ -378,7 +385,10 @@ export default function TaxAdvantagedCategoryModal({
               </button>
             </div>
 
-            <div className={`min-h-0 flex-1 p-5 min-[750px]:p-6 ${activeTab === 'accounts' ? 'overflow-hidden' : 'overflow-y-auto'}`} data-dropdown-bounds>
+            <div
+              className={`min-h-0 flex-1 p-5 min-[750px]:p-6 ${activeTab === 'accounts' ? 'overflow-hidden' : 'overflow-y-auto'}`}
+              data-dropdown-bounds
+            >
               {activeTab === 'limits' ? (
                 <TaxAdvantagedLimitsPanel
                   deleteConfirmYear={deleteConfirmYear}
@@ -390,7 +400,9 @@ export default function TaxAdvantagedCategoryModal({
                   limitDeleteLabelWidths={limitDeleteLabelWidths}
                   limitError={limitError}
                   limitsLoading={limitsLoading}
-                  onDeleteLimit={(limit) => { void handleDeleteLimit(limit) }}
+                  onDeleteLimit={(limit) => {
+                    void handleDeleteLimit(limit)
+                  }}
                   onSelectLimitYear={selectLimitYear}
                   onStartNewLimitForm={startNewLimitForm}
                   pendingDeleteLimitYear={pendingDeleteLimitYear}
@@ -404,7 +416,9 @@ export default function TaxAdvantagedCategoryModal({
                   accountError={accountError}
                   bindableAccounts={bindableAccounts}
                   linkedAccountsCount={linkedAccountsCount}
-                  onToggleAccount={(account) => { void toggleAccount(account) }}
+                  onToggleAccount={(account) => {
+                    void toggleAccount(account)
+                  }}
                   pendingAccountId={pendingAccountId}
                   plan={plan}
                 />
@@ -419,7 +433,9 @@ export default function TaxAdvantagedCategoryModal({
         currencies={currencies}
         onClose={closeCategoryDetailsModal}
         onPlanFieldChange={setPlanField}
-        onSave={() => { void handleSaveCategoryDetails() }}
+        onSave={() => {
+          void handleSaveCategoryDetails()
+        }}
         open={categoryEditOpen}
         plan={plan}
         planError={planError}
@@ -437,8 +453,12 @@ export default function TaxAdvantagedCategoryModal({
         problems={limitProblems}
         newLimitForm={newLimitForm}
         onClose={closeLimitDetailsModal}
-        onCreateLimit={() => { void handleCreateLimit() }}
-        onDeleteLimit={(limit) => { void handleDeleteLimit(limit) }}
+        onCreateLimit={() => {
+          void handleCreateLimit()
+        }}
+        onDeleteLimit={(limit) => {
+          void handleDeleteLimit(limit)
+        }}
         onLimitFieldChange={setLimitField}
         onNewLimitFieldChange={setNewLimitField}
         onSaveLimit={handleSaveLimit}
@@ -453,4 +473,3 @@ export default function TaxAdvantagedCategoryModal({
     </>
   )
 }
-

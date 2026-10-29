@@ -13,10 +13,7 @@ import CreditRepaymentNotice from '@/components/transactions/transaction-modal/c
 import TransferCashFlowNotice from '@/components/transactions/transaction-modal/controls/TransferCashFlowNotice'
 import type { CreditRepaymentSteer } from '@/components/transactions/transaction-modal/utils/creditRepayment'
 import { doesTransferRecordCounterpartyAccount } from '@/utils/transfers'
-import type {
-  TransactionDirection,
-  TransactionModalKind,
-} from '@/components/transactions/transaction-modal/types'
+import type { TransactionDirection, TransactionModalKind } from '@/components/transactions/transaction-modal/types'
 import { useMoneyFormatters } from '@/hooks/useMoneyFormatters'
 import { getFieldLabelId } from '@/utils/fieldLabel'
 
@@ -208,16 +205,13 @@ export default function TransactionReferencesSection({
   // Goes through the same handler the dropdown does, so the switch behaves exactly as picking the
   // category by hand. Left undefined where no switch is offered, which is what hides the button
   const switchTargetId = creditRepaymentSteer.switchTargetId
-  const useCreditCardPayment = switchTargetId
-    ? () => onCategoryChange(switchTargetId)
-    : undefined
+  const useCreditCardPayment = switchTargetId ? () => onCategoryChange(switchTargetId) : undefined
 
   // Ticking the checkbox writes a transaction in both accounts, so neither one is the single account
   // it was recorded in. The two fields then read source first, which is why the one below says the
   // money went to it whatever the direction toggle is set to
-  const accountLabel = kind === 'transfer' && isSymmetricTransfer
-    ? 'From account'
-    : recordsCounterpartyAccount ? 'Recorded in' : 'Account'
+  const accountLabel =
+    kind === 'transfer' && isSymmetricTransfer ? 'From account' : recordsCounterpartyAccount ? 'Recorded in' : 'Account'
 
   return (
     <CreateModalSectionFrame step="02" title="Source/Destination">
@@ -258,7 +252,7 @@ export default function TransactionReferencesSection({
               <div className="pt-3">
                 <CreateModalFieldLabelRow
                   htmlFor={TRANSACTION_MODAL_FIELD_IDS.counterpartyAccount}
-                  label={(
+                  label={
                     <>
                       {/* Only the part that changes rolls, so "Money" stays put rather than
                           re-animating every character on a direction switch */}
@@ -268,7 +262,7 @@ export default function TransactionReferencesSection({
                         reserveText="came from"
                       />
                     </>
-                  )}
+                  }
                   error={counterpartyAccountError}
                   errorId={TRANSACTION_MODAL_ERROR_IDS.counterparty_account_id}
                 />
@@ -280,7 +274,9 @@ export default function TransactionReferencesSection({
                   value={counterpartyAccountValue}
                   onChange={onCounterpartyAccountChange}
                   hasError={!!counterpartyAccountError}
-                  describedBy={counterpartyAccountError ? TRANSACTION_MODAL_ERROR_IDS.counterparty_account_id : undefined}
+                  describedBy={
+                    counterpartyAccountError ? TRANSACTION_MODAL_ERROR_IDS.counterparty_account_id : undefined
+                  }
                   labelledBy={getFieldLabelId(TRANSACTION_MODAL_FIELD_IDS.counterpartyAccount)}
                   placeholder="Select account..."
                   searchable
@@ -375,7 +371,7 @@ export default function TransactionReferencesSection({
           hasMore={merchantHasMore}
           onLoadMore={onMerchantLoadMore}
           onCreateNew={readOnly ? undefined : onCreateMerchant}
-          createNewLabel={readOnly ? undefined : (query) => query ? `Create merchant "${query}"` : 'Create merchant'}
+          createNewLabel={readOnly ? undefined : (query) => (query ? `Create merchant "${query}"` : 'Create merchant')}
           disabled={readOnly}
         />
       </div>
@@ -386,18 +382,20 @@ export default function TransactionReferencesSection({
           label="Category"
           error={categoryError}
           errorId={TRANSACTION_MODAL_ERROR_IDS.category_id}
-          action={showMerchantDefaultCategoryAction && (
-            <button
-              type="button"
-              className="block h-5 min-w-0 max-w-full truncate text-left text-xs font-medium leading-5 disabled:cursor-not-allowed disabled:opacity-60 sm:text-right"
-              style={{ color: 'var(--app-accent)' }}
-              title={merchantDefaultCategoryActionLabel}
-              disabled={merchantDefaultCategoryPending || readOnly}
-              onClick={onMakeMerchantDefaultCategory}
-            >
-              {merchantDefaultCategoryActionLabel}
-            </button>
-          )}
+          action={
+            showMerchantDefaultCategoryAction && (
+              <button
+                type="button"
+                className="block h-5 min-w-0 max-w-full truncate text-left text-xs font-medium leading-5 disabled:cursor-not-allowed disabled:opacity-60 sm:text-right"
+                style={{ color: 'var(--app-accent)' }}
+                title={merchantDefaultCategoryActionLabel}
+                disabled={merchantDefaultCategoryPending || readOnly}
+                onClick={onMakeMerchantDefaultCategory}
+              >
+                {merchantDefaultCategoryActionLabel}
+              </button>
+            )
+          }
         />
         <Dropdown
           id={TRANSACTION_MODAL_FIELD_IDS.category}
@@ -411,14 +409,11 @@ export default function TransactionReferencesSection({
           searchable
           searchPlaceholder="Search categories..."
           onCreateNew={readOnly ? undefined : onCreateCategory}
-          createNewLabel={readOnly ? undefined : (query) => query ? `Create category "${query}"` : 'Create category'}
+          createNewLabel={readOnly ? undefined : (query) => (query ? `Create category "${query}"` : 'Create category')}
           disabled={readOnly}
         />
         <TransferCashFlowNotice show={isBalanceAdjustmentCategory} />
-        <CreditRepaymentNotice
-          show={creditRepaymentSteer.show}
-          onUseCreditCardPayment={useCreditCardPayment}
-        />
+        <CreditRepaymentNotice show={creditRepaymentSteer.show} onUseCreditCardPayment={useCreditCardPayment} />
       </div>
 
       <div>
@@ -443,7 +438,7 @@ export default function TransactionReferencesSection({
           hasMore={tagHasMore}
           onLoadMore={onTagLoadMore}
           onCreateNew={readOnly ? undefined : onCreateTag}
-          createNewLabel={readOnly ? undefined : (query) => query ? `Create tag "${query}"` : 'Create tag'}
+          createNewLabel={readOnly ? undefined : (query) => (query ? `Create tag "${query}"` : 'Create tag')}
           disabled={tagsDisabled || readOnly}
           disabledReason={tagsDisabled && !readOnly ? 'Select an account first' : undefined}
         />
@@ -472,7 +467,7 @@ export default function TransactionReferencesSection({
                         if (!readOnly) onRemoveTag(tag.id)
                       }}
                       disabled={readOnly}
-                      className="inline-flex max-w-full items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-medium transition-colors duration-100 enabled:hover:bg-[var(--app-accent-soft)] disabled:cursor-not-allowed"
+                      className="inline-flex max-w-full items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-medium transition-colors enabled:hover:bg-[var(--app-accent-soft)] disabled:cursor-not-allowed"
                       style={{
                         background: 'var(--app-surface-soft)',
                         color: 'var(--app-text-muted)',

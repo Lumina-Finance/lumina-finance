@@ -12,8 +12,8 @@ import {
 import { getMostExpensiveTransactionsFxStatusMessage } from '@/pages/transactions/utils/fxTooltipMessages'
 
 const emptyOutliersHeight =
-  OUTLIER_TRANSACTION_LIMIT * OUTLIER_TRANSACTION_ROW_HEIGHT
-  + (OUTLIER_TRANSACTION_LIMIT - 1) * OUTLIER_TRANSACTION_ROW_GAP
+  OUTLIER_TRANSACTION_LIMIT * OUTLIER_TRANSACTION_ROW_HEIGHT +
+  (OUTLIER_TRANSACTION_LIMIT - 1) * OUTLIER_TRANSACTION_ROW_GAP
 
 /**
  * Renders the transaction overview outlier list and opens selected transactions for editing
@@ -48,7 +48,8 @@ export default function MostExpensiveTransactionsPanel({
           placement="bottom"
           widthClassName="w-64"
         >
-          The three largest single outflows in the selected period, excluding transfers. A refund is its own transaction, so it does not reduce the amounts shown here.
+          The three largest single outflows in the selected period, excluding transfers. A refund is its own
+          transaction, so it does not reduce the amounts shown here.
         </IconTooltip>
         <FxStatusBadge
           label="Most expensive transactions FX status"
@@ -75,7 +76,8 @@ export default function MostExpensiveTransactionsPanel({
             >
               No qualifying transactions found
             </motion.p>
-          ) : outliers.map((transaction) => {
+          ) : (
+            outliers.map((transaction) => {
               const loading = openingOutlierId === transaction.id
               const label = transaction.merchant_name ?? transaction.notes ?? 'Unknown'
               return (
@@ -83,7 +85,7 @@ export default function MostExpensiveTransactionsPanel({
                   key={transaction.id}
                   layout
                   type="button"
-                  className="flex w-full items-center justify-between gap-3 rounded-md px-2.5 py-2 bg-[var(--app-accent-soft)] text-left transition-colors hover:bg-[var(--app-accent-border)]"
+                  className="flex w-full items-center justify-between gap-3 rounded-md px-2.5 py-2 bg-[var(--app-accent-soft)] text-left transition-control hover:bg-[var(--app-accent-border)]"
                   style={{ borderLeft: '2px solid var(--app-accent)' }}
                   aria-busy={loading}
                   aria-label={`Edit transaction: ${label}`}
@@ -94,9 +96,7 @@ export default function MostExpensiveTransactionsPanel({
                   exit={{ opacity: 0 }}
                   transition={contentTransition}
                 >
-                  <p className="truncate min-w-0 text-sm font-medium">
-                    {label}
-                  </p>
+                  <p className="truncate min-w-0 text-sm font-medium">{label}</p>
                   {loading ? (
                     <span
                       className="app-spinner shrink-0"
@@ -110,7 +110,8 @@ export default function MostExpensiveTransactionsPanel({
                   )}
                 </motion.button>
               )
-            })}
+            })
+          )}
         </AnimatePresence>
         {outlierLoadError && (
           <p className="text-xs" style={{ color: 'var(--app-negative)' }}>

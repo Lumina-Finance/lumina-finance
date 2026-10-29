@@ -1,11 +1,7 @@
 import type { RefObject } from 'react'
 import { ChevronDown, Upload } from 'lucide-react'
 import { AnimatePresence, motion } from 'motion/react'
-import {
-  SETTINGS_SECTIONS,
-  type SettingsSection,
-  type SettingsSectionId,
-} from '@/pages/settings/settingsNavigation'
+import { SETTINGS_SECTIONS, type SettingsSection, type SettingsSectionId } from '@/pages/settings/settingsNavigation'
 
 type SettingsSectionButtonProps = {
   section: SettingsSection
@@ -34,11 +30,7 @@ type SettingsDesktopSectionSidebarProps = {
 /**
  * Renders one settings navigation row with the section icon and active state
  */
-function SettingsSectionButton({
-  section,
-  activeSection,
-  onSelect,
-}: SettingsSectionButtonProps) {
+function SettingsSectionButton({ section, activeSection, onSelect }: SettingsSectionButtonProps) {
   const Icon = section.icon
   const isActive = activeSection === section.id
 
@@ -89,7 +81,7 @@ export function SettingsMobileSectionMenu({
         >
           <button
             type="button"
-            className="relative flex h-11 w-full items-center gap-3 rounded-xl border bg-[var(--app-surface-soft)] px-4 text-left font-medium shadow-sm transition-colors duration-150 hover:bg-[var(--app-accent-soft)]"
+            className="relative flex h-11 w-full items-center gap-3 rounded-xl border bg-[var(--app-surface-soft)] px-4 text-left font-medium shadow-sm transition-colors hover:bg-[var(--app-accent-soft)]"
             style={{
               borderColor: 'var(--app-border)',
               color: 'var(--app-text)',
@@ -103,7 +95,7 @@ export function SettingsMobileSectionMenu({
             <ChevronDown
               size={18}
               aria-hidden
-              className={`shrink-0 transition-transform duration-200 ${menuOpen ? 'rotate-180' : ''}`}
+              className={`shrink-0 transition-transform ${menuOpen ? 'rotate-180' : ''}`}
             />
           </button>
 
@@ -130,11 +122,7 @@ export function SettingsMobileSectionMenu({
                       onSelect={onSectionSelect}
                     />
                   ))}
-                  <button
-                    type="button"
-                    onClick={onImportSelect}
-                    className="app-nav-link"
-                  >
+                  <button type="button" onClick={onImportSelect} className="app-nav-link">
                     <Upload size={17} strokeWidth={1.75} className="shrink-0" aria-hidden />
                     Import
                   </button>
@@ -169,11 +157,7 @@ export function SettingsDesktopSectionSidebar({
         ))}
       </nav>
       <div className="sticky bottom-6 row-start-3">
-        <button
-          type="button"
-          onClick={onImportSelect}
-          className="app-nav-link"
-        >
+        <button type="button" onClick={onImportSelect} className="app-nav-link">
           <Upload size={17} strokeWidth={1.75} className="shrink-0" aria-hidden />
           Import
         </button>

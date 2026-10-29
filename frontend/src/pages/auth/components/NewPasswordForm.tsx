@@ -117,9 +117,7 @@ export function NewPasswordForm({
           type="submit"
           disabled={submitting}
           disabledReason={blockReason}
-          className={`app-primary-button transition-all duration-300 ${
-            submitting ? 'app-primary-button-loading' : 'w-full'
-          }`}
+          className={`app-primary-button ${submitting ? 'app-primary-button-loading' : 'w-full'}`}
         >
           {submitting ? <div className="app-spinner" /> : submitLabel}
         </DisabledReasonButton>

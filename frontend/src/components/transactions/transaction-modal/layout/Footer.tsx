@@ -105,9 +105,7 @@ export default function TransactionModalFooter({
             <span
               className="relative block"
               style={{
-                width: labelWidths
-                  ? `${confirmingDelete ? labelWidths.confirm : labelWidths.idle}px`
-                  : 'auto',
+                width: labelWidths ? `${confirmingDelete ? labelWidths.confirm : labelWidths.idle}px` : 'auto',
                 height: '1.25rem',
                 transition: 'width 220ms cubic-bezier(0.25, 0.1, 0.25, 1)',
               }}
@@ -129,14 +127,14 @@ export default function TransactionModalFooter({
                 Yes, delete
               </span>
               <span
-                className="absolute inset-0 inline-flex items-center justify-center gap-2 whitespace-nowrap transition-opacity duration-150"
+                className="absolute inset-0 inline-flex items-center justify-center gap-2 whitespace-nowrap transition-opacity"
                 style={{ opacity: confirmingDelete ? 0 : 1 }}
               >
                 <Trash2 size={16} aria-hidden />
                 Delete
               </span>
               <span
-                className="absolute inset-0 inline-flex items-center justify-center gap-2 whitespace-nowrap transition-opacity duration-150"
+                className="absolute inset-0 inline-flex items-center justify-center gap-2 whitespace-nowrap transition-opacity"
                 style={{ opacity: confirmingDelete ? 1 : 0 }}
               >
                 <Check size={16} aria-hidden />
@@ -147,10 +145,7 @@ export default function TransactionModalFooter({
         </button>
       ) : !editing ? (
         <div className="min-w-0 sm:max-w-xs">
-          <label
-            htmlFor="txn-keep-open"
-            className="-ml-1 flex cursor-pointer items-center gap-3 rounded-xl px-1 py-1"
-          >
+          <label htmlFor="txn-keep-open" className="-ml-1 flex cursor-pointer items-center gap-3 rounded-xl px-1 py-1">
             <input
               id="txn-keep-open"
               type="checkbox"
@@ -174,7 +169,9 @@ export default function TransactionModalFooter({
       <div className="grid grid-cols-2 gap-3 sm:ml-auto sm:flex sm:items-center">
         <button
           type="button"
-          className={readOnly ? 'app-secondary-button col-span-2 w-full sm:w-auto' : 'app-secondary-button w-full sm:w-auto'}
+          className={
+            readOnly ? 'app-secondary-button col-span-2 w-full sm:w-auto' : 'app-secondary-button w-full sm:w-auto'
+          }
           onClick={onCancel}
           disabled={isPending}
         >
@@ -188,7 +185,7 @@ export default function TransactionModalFooter({
             aria-busy={submitLoading}
             disabled={isPending}
             disabledReason={isPending ? undefined : submitBlockedReason}
-            className={`app-primary-button overflow-hidden whitespace-nowrap duration-300 ${submitLoading ? 'app-primary-button-loading justify-self-center sm:justify-self-auto' : editing ? 'w-full sm:w-24' : 'w-full sm:w-44'}`}
+            className={`app-primary-button overflow-hidden whitespace-nowrap${submitLoading ? ' app-primary-button-loading justify-self-center sm:justify-self-auto' : editing ? ' w-full sm:w-24' : ' w-full sm:w-44'}`}
           >
             {submitLoading ? <div className="app-spinner" /> : editing ? 'Save' : 'Add transaction'}
           </DisabledReasonButton>

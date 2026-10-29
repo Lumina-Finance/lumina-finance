@@ -1,18 +1,18 @@
-import { useState } from 'react';
-import { motion } from 'motion/react';
-import type { StepUpPayload } from '@/api/two-factor';
-import { PasskeyEnrollment } from '@/components/passkeys/PasskeyEnrollment';
-import { TotpEnrollment } from '@/components/two-factor/TotpEnrollment';
-import { ModalContentPanel } from '@/components/modal/ContentPanel';
-import { AUTH_VIEW_TRANSITION } from '@/pages/auth/constants/authAnimations';
+import { useState } from 'react'
+import { motion } from 'motion/react'
+import type { StepUpPayload } from '@/api/two-factor'
+import { PasskeyEnrollment } from '@/components/passkeys/PasskeyEnrollment'
+import { TotpEnrollment } from '@/components/two-factor/TotpEnrollment'
+import { ModalContentPanel } from '@/components/modal/ContentPanel'
+import { AUTH_VIEW_TRANSITION } from '@/pages/auth/constants/authAnimations'
 
 interface SignupFactorSetupProps {
   /** Whether this origin can run a passkey ceremony, deciding whether passkey setup is offered first */
-  passkeysSupported: boolean;
+  passkeysSupported: boolean
   /** Password-only reauthorization carried into whichever enrolment the user picks */
-  setupStepUp: StepUpPayload;
+  setupStepUp: StepUpPayload
   /** Called when a factor is set up or the user confirms skipping */
-  onFinish: () => void;
+  onFinish: () => void
 }
 
 /**
@@ -21,16 +21,16 @@ interface SignupFactorSetupProps {
  * before letting the user into the app unprotected
  */
 export function SignupFactorSetup({ passkeysSupported, setupStepUp, onFinish }: SignupFactorSetupProps) {
-  const [method, setMethod] = useState<'passkey' | 'totp'>(passkeysSupported ? 'passkey' : 'totp');
-  const [skipConfirmOpen, setSkipConfirmOpen] = useState(false);
+  const [method, setMethod] = useState<'passkey' | 'totp'>(passkeysSupported ? 'passkey' : 'totp')
+  const [skipConfirmOpen, setSkipConfirmOpen] = useState(false)
 
   /**
    * Confirms the skip and leaves the setup step for the app
    */
   const confirmSkip = () => {
-    setSkipConfirmOpen(false);
-    onFinish();
-  };
+    setSkipConfirmOpen(false)
+    onFinish()
+  }
 
   return (
     <>
@@ -59,13 +59,19 @@ export function SignupFactorSetup({ passkeysSupported, setupStepUp, onFinish }: 
         )}
       </motion.div>
 
-      <ModalContentPanel open={skipConfirmOpen} onClose={() => setSkipConfirmOpen(false)} titleId="skip-two-factor-title">
+      <ModalContentPanel
+        open={skipConfirmOpen}
+        onClose={() => setSkipConfirmOpen(false)}
+        titleId="skip-two-factor-title"
+      >
         <div className="space-y-1">
-          <h3 id="skip-two-factor-title" className="text-base font-semibold">Skip two-factor setup?</h3>
+          <h3 id="skip-two-factor-title" className="text-base font-semibold">
+            Skip two-factor setup?
+          </h3>
           <p className="text-sm" style={{ color: 'var(--app-text-muted)' }}>
-            Your password would be the only thing standing between your financial data and anyone who
-            gets hold of it. A passkey or authenticator app keeps your account safe even if your
-            password is compromised, and setup only takes a minute.
+            Your password would be the only thing standing between your financial data and anyone who gets hold of it. A
+            passkey or authenticator app keeps your account safe even if your password is compromised, and setup only
+            takes a minute.
           </p>
         </div>
 
@@ -77,7 +83,7 @@ export function SignupFactorSetup({ passkeysSupported, setupStepUp, onFinish }: 
           <button
             type="button"
             onClick={confirmSkip}
-            className="block w-full text-center text-sm font-medium underline underline-offset-2 transition-colors duration-200"
+            className="block w-full text-center text-sm font-medium underline underline-offset-2 transition-colors"
             style={{ color: 'var(--app-text-muted)' }}
           >
             I still want to skip
@@ -85,5 +91,5 @@ export function SignupFactorSetup({ passkeysSupported, setupStepUp, onFinish }: 
         </div>
       </ModalContentPanel>
     </>
-  );
+  )
 }

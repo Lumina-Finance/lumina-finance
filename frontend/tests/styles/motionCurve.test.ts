@@ -8,6 +8,7 @@ import { describe, expect, it } from 'vitest'
 import { stylesheet } from './fixtures'
 
 const APP_EASE = 'cubic-bezier(0.22, 1, 0.36, 1)'
+const APP_EASE_TOKEN = 'var(--app-ease-curve)'
 const MATERIAL_EASE = /cubic-bezier\(\s*0?\.4\s*,\s*0\s*,\s*0?\.2\s*,\s*1\s*\)/
 
 describe('hover and colour transitions', () => {
@@ -29,7 +30,7 @@ describe('hover and colour transitions', () => {
       })
     })
     expect(values.length).toBeGreaterThan(0)
-    expect(values.every((value) => value.includes(APP_EASE))).toBe(true)
+    expect(values.every((value) => value.includes(APP_EASE) || value.includes(APP_EASE_TOKEN))).toBe(true)
   })
 })
 
@@ -71,13 +72,18 @@ describe('hover looks that name their own transition', () => {
     )
   })
 
-  it('makes the curve a transition utility takes when it names none the app curve', () => {
-    const values: string[] = []
+  it('makes the curve and duration a transition utility takes when it names none the app ones', () => {
+    const tokens: Record<string, string> = {}
     stylesheet.walkAtRules('theme', (rule) => {
-      rule.walkDecls('--default-transition-timing-function', (decl) => {
-        values.push(decl.value)
+      rule.walkDecls(/^--(app-ease|default-transition)/, (decl) => {
+        tokens[decl.prop] = decl.value
       })
     })
-    expect(values).toEqual([APP_EASE])
+    expect(tokens).toEqual({
+      '--app-ease-duration': '300ms',
+      '--app-ease-curve': APP_EASE,
+      '--default-transition-duration': 'var(--app-ease-duration)',
+      '--default-transition-timing-function': APP_EASE_TOKEN,
+    })
   })
 })

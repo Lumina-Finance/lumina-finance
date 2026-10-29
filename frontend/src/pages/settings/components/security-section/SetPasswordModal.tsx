@@ -40,7 +40,9 @@ export function SetPasswordModal({ open, onClose, onDone, onExitComplete }: SetP
       // The rules list shows only once something is typed, so an empty field asks for a password instead
       newPassword: isNewPasswordValid(newPassword)
         ? undefined
-        : newPassword.length === 0 ? 'Enter a password' : 'Password must meet the rules',
+        : newPassword.length === 0
+          ? 'Enter a password'
+          : 'Password must meet the rules',
       confirmPassword: confirmMatches
         ? undefined
         : confirmPassword.length === 0
@@ -74,13 +76,20 @@ export function SetPasswordModal({ open, onClose, onDone, onExitComplete }: SetP
   }
 
   return (
-    <ModalContentPanel open={open} onClose={onClose} closeDisabled={submitting} onExitComplete={handleExitComplete} titleId="set-password-title">
+    <ModalContentPanel
+      open={open}
+      onClose={onClose}
+      closeDisabled={submitting}
+      onExitComplete={handleExitComplete}
+      titleId="set-password-title"
+    >
       <form onSubmit={handleSubmit} className="space-y-5" noValidate>
         <div className="space-y-1">
-          <h3 id="set-password-title" className="text-base font-semibold">Set a password</h3>
+          <h3 id="set-password-title" className="text-base font-semibold">
+            Set a password
+          </h3>
           <p className="text-sm" style={{ color: 'var(--app-text-muted)' }}>
-            Choose a password to sign in with alongside your provider. Your other sessions will be
-            signed out.
+            Choose a password to sign in with alongside your provider. Your other sessions will be signed out.
           </p>
         </div>
 
@@ -141,7 +150,7 @@ export function SetPasswordModal({ open, onClose, onDone, onExitComplete }: SetP
               type="submit"
               disabled={submitting}
               disabledReason={submitting ? undefined : refusal.blockedReason}
-              className={`app-primary-button transition-all duration-300 ${submitting ? 'app-primary-button-loading' : 'w-full'}`}
+              className={`app-primary-button ${submitting ? 'app-primary-button-loading' : 'w-full'}`}
             >
               {submitting ? <div className="app-spinner" /> : 'Set password'}
             </DisabledReasonButton>

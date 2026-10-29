@@ -53,7 +53,7 @@ export function FundFlowCategoryList({
       <div className="relative flex min-h-14 w-full items-center justify-between gap-4 px-3 py-2">
         <button
           type="button"
-          className="peer app-accent-hover absolute inset-0 rounded-xl text-left transition-colors duration-150 motion-reduce:transition-none"
+          className="peer app-accent-hover absolute inset-0 rounded-xl text-left transition-control motion-reduce:transition-none"
           aria-expanded={open}
           aria-controls={listId}
           onClick={onToggle}
@@ -61,21 +61,19 @@ export function FundFlowCategoryList({
           <span className="sr-only">Toggle {title}</span>
         </button>
         <span className="pointer-events-none relative z-10 min-w-0 peer-hover:[&_*]:text-[var(--app-accent-nav-text)] peer-focus-visible:[&_*]:text-[var(--app-accent-nav-text)]">
-          <span className="app-label inline-flex items-center gap-2 transition-colors duration-150">
+          <span className="app-label inline-flex items-center gap-2 transition-colors">
             {title}
             <span className="pointer-events-auto">
               <InsightCalculationTooltip label={title} calculation={calculation} />
             </span>
           </span>
-          <span className="mt-1 block font-financial text-xl leading-none transition-colors duration-150">
-            {displayCount}
-          </span>
+          <span className="mt-1 block font-financial text-xl leading-none transition-colors">{displayCount}</span>
         </span>
         <ChevronDown
           size={14}
           aria-hidden
           className={joinClassNames(
-            'pointer-events-none relative z-10 shrink-0 transition-transform duration-150 motion-reduce:transition-none',
+            'pointer-events-none relative z-10 shrink-0 transition-transform motion-reduce:transition-none',
             open && 'rotate-180',
           )}
           style={{ color: 'var(--app-accent)' }}

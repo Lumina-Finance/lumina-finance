@@ -87,7 +87,7 @@ export default function MergeDeleteReferenceModal<TItem>({
   const [mergeInProgress, setMergeInProgress] = useState(false)
   const selectedReplacementId = options.some((option) => option.value === replacementId)
     ? replacementId
-    : options[0]?.value ?? ''
+    : (options[0]?.value ?? '')
   const isSubmitting = isPending || mergeInProgress
   const idSlug = wording.entityLabel.toLowerCase()
   const titleId = `merge-delete-${idSlug}-title`
@@ -103,12 +103,12 @@ export default function MergeDeleteReferenceModal<TItem>({
     REPLACEMENT_FIELDS,
     { replacement: selectId },
   )
-  const dropdownPlaceholder = replacementQuery.isLoading && wording.loadingPlaceholder
-    ? wording.loadingPlaceholder
-    : options.length === 0
-      ? wording.emptyOptionsPlaceholder
-      : wording.selectPlaceholder
-
+  const dropdownPlaceholder =
+    replacementQuery.isLoading && wording.loadingPlaceholder
+      ? wording.loadingPlaceholder
+      : options.length === 0
+        ? wording.emptyOptionsPlaceholder
+        : wording.selectPlaceholder
 
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
@@ -117,10 +117,7 @@ export default function MergeDeleteReferenceModal<TItem>({
     setFormError(null)
     setMergeInProgress(true)
     try {
-      await Promise.all([
-        onMerge(selectedReplacementId),
-        waitForMilliseconds(submitMinVisibleMs),
-      ])
+      await Promise.all([onMerge(selectedReplacementId), waitForMilliseconds(submitMinVisibleMs)])
       onClose()
     } catch (error) {
       setFormError(error instanceof Error ? error.message : wording.deleteErrorFallback)
@@ -140,85 +137,83 @@ export default function MergeDeleteReferenceModal<TItem>({
       RailIcon={Icon}
       railLabel={wording.entityLabel}
       closeDisabled={isSubmitting}
-      footer={(
-          <div
-            className={`flex shrink-0 flex-col-reverse gap-3 py-5 sm:flex-row sm:items-center sm:justify-end ${MODAL_INSET_CLASS_NAME.page}`}
-            style={{ borderTop: '1px solid var(--app-border)' }}
+      footer={
+        <div
+          className={`flex shrink-0 flex-col-reverse gap-3 py-5 sm:flex-row sm:items-center sm:justify-end ${MODAL_INSET_CLASS_NAME.page}`}
+          style={{ borderTop: '1px solid var(--app-border)' }}
+        >
+          <FormError message={formError} className="sm:mr-auto" />
+          <button
+            type="button"
+            className="app-secondary-button w-full sm:w-auto"
+            onClick={onClose}
+            disabled={isSubmitting}
           >
-            <FormError message={formError} className="sm:mr-auto" />
-            <button
-              type="button"
-              className="app-secondary-button w-full sm:w-auto"
-              onClick={onClose}
-              disabled={isSubmitting}
-            >
-              Cancel
-            </button>
-            <DisabledReasonButton
-              type="submit"
-              className={`app-danger-button overflow-hidden whitespace-nowrap duration-300 ${isSubmitting ? 'app-primary-button-loading' : 'w-full sm:w-40'}`}
-              disabled={isSubmitting}
-              disabledReason={isSubmitting ? undefined : noReplacementReason ?? refusal.blockedReason}
-            >
-              {isSubmitting ? (
-                <div className="app-spinner" aria-label="Deleting" />
-              ) : (
-                'Replace & Delete'
-              )}
-            </DisabledReasonButton>
-          </div>
-      )}
+            Cancel
+          </button>
+          <DisabledReasonButton
+            type="submit"
+            className={`app-danger-button overflow-hidden whitespace-nowrap${isSubmitting ? ' app-primary-button-loading' : ' w-full sm:w-40'}`}
+            disabled={isSubmitting}
+            disabledReason={isSubmitting ? undefined : (noReplacementReason ?? refusal.blockedReason)}
+          >
+            {isSubmitting ? <div className="app-spinner" aria-label="Deleting" /> : 'Replace & Delete'}
+          </DisabledReasonButton>
+        </div>
+      }
     >
-        <section className="grid grid-cols-[1rem_minmax(0,1fr)] gap-x-3">
-          <div className="flex min-h-0 flex-col items-center">
-            <span className="flex h-4 shrink-0 items-center text-xs font-semibold leading-none" style={{ color: 'var(--app-accent)' }} aria-hidden>
-              01
-            </span>
-            <span
-              className="mt-1 w-px flex-1"
-              style={{ backgroundColor: 'var(--app-border-strong)' }}
-              aria-hidden
+      <section className="grid grid-cols-[1rem_minmax(0,1fr)] gap-x-3">
+        <div className="flex min-h-0 flex-col items-center">
+          <span
+            className="flex h-4 shrink-0 items-center text-xs font-semibold leading-none"
+            style={{ color: 'var(--app-accent)' }}
+            aria-hidden
+          >
+            01
+          </span>
+          <span className="mt-1 w-px flex-1" style={{ backgroundColor: 'var(--app-border-strong)' }} aria-hidden />
+        </div>
+
+        <div className="min-w-0 space-y-3">
+          <div>
+            <CreateModalSectionHeadingRow
+              label={wording.fieldLabel}
+              error={refusal.errors.replacement}
+              errorId={errorId}
+            />
+            <p className="mt-2 text-sm leading-5" style={{ color: 'var(--app-text-muted)' }}>
+              {wording.description}
+            </p>
+          </div>
+          <div>
+            <label htmlFor={selectId} className="sr-only">
+              {wording.selectSrLabel}
+            </label>
+            <Dropdown
+              id={selectId}
+              options={options}
+              value={selectedReplacementId}
+              onChange={(value) => {
+                setReplacementId(value)
+                setFormError(null)
+              }}
+              hasError={!!refusal.errors.replacement}
+              describedBy={refusal.errors.replacement ? errorId : undefined}
+              placeholder={dropdownPlaceholder}
+              searchable
+              searchPlaceholder={wording.searchPlaceholder}
+              searchValue={replacementSearch}
+              onSearchChange={setReplacementSearch}
+              filterOptions={filterOptionsLocally}
+              isLoading={replacementQuery.isLoading || replacementQuery.isFetchingNextPage}
+              hasMore={replacementQuery.hasNextPage}
+              onLoadMore={replacementQuery.fetchNextPage}
+              disabled={isSubmitting || hasNoReplacement}
+              disabledReason={noReplacementReason}
             />
           </div>
-
-          <div className="min-w-0 space-y-3">
-            <div>
-              <CreateModalSectionHeadingRow
-                label={wording.fieldLabel}
-                error={refusal.errors.replacement}
-                errorId={errorId}
-              />
-              <p className="mt-2 text-sm leading-5" style={{ color: 'var(--app-text-muted)' }}>
-                {wording.description}
-              </p>
-            </div>
-            <div>
-              <label htmlFor={selectId} className="sr-only">{wording.selectSrLabel}</label>
-              <Dropdown
-                id={selectId}
-                options={options}
-                value={selectedReplacementId}
-                onChange={(value) => {
-                  setReplacementId(value)
-                  setFormError(null)
-                }}
-                hasError={!!refusal.errors.replacement}
-                describedBy={refusal.errors.replacement ? errorId : undefined}
-                placeholder={dropdownPlaceholder}
-                searchable
-                searchPlaceholder={wording.searchPlaceholder}
-                searchValue={replacementSearch}
-                onSearchChange={setReplacementSearch}
-                filterOptions={filterOptionsLocally}
-                isLoading={replacementQuery.isLoading || replacementQuery.isFetchingNextPage}
-                hasMore={replacementQuery.hasNextPage}
-                onLoadMore={replacementQuery.fetchNextPage}
-                disabled={isSubmitting || hasNoReplacement}
-                disabledReason={noReplacementReason}
-              />
-            </div>
-          </div>
-        </section>
+        </div>
+      </section>
     </ModalTitledPanel>
   )
 }

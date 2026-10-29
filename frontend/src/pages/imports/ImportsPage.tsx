@@ -388,7 +388,7 @@ export default function ImportsPage() {
           The dimming follows the same flag, so the page never looks reachable before it is */}
       <div
         aria-busy={overlayOnScreen}
-        className={`flex h-full min-h-full transition duration-200 ${overlayOnScreen ? 'select-none opacity-40 grayscale' : 'opacity-100'}`}
+        className={`flex h-full min-h-full transition${overlayOnScreen ? ' select-none opacity-40 grayscale' : ' opacity-100'}`}
         inert={overlayOnScreen}
       >
         <button
