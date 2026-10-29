@@ -105,9 +105,7 @@ export default function TransactionModalFooter({
             <span
               className="relative block"
               style={{
-                width: labelWidths
-                  ? `${confirmingDelete ? labelWidths.confirm : labelWidths.idle}px`
-                  : 'auto',
+                width: labelWidths ? `${confirmingDelete ? labelWidths.confirm : labelWidths.idle}px` : 'auto',
                 height: '1.25rem',
                 transition: 'width 220ms cubic-bezier(0.25, 0.1, 0.25, 1)',
               }}
@@ -147,10 +145,7 @@ export default function TransactionModalFooter({
         </button>
       ) : !editing ? (
         <div className="min-w-0 sm:max-w-xs">
-          <label
-            htmlFor="txn-keep-open"
-            className="-ml-1 flex cursor-pointer items-center gap-3 rounded-xl px-1 py-1"
-          >
+          <label htmlFor="txn-keep-open" className="-ml-1 flex cursor-pointer items-center gap-3 rounded-xl px-1 py-1">
             <input
               id="txn-keep-open"
               type="checkbox"
@@ -174,7 +169,9 @@ export default function TransactionModalFooter({
       <div className="grid grid-cols-2 gap-3 sm:ml-auto sm:flex sm:items-center">
         <button
           type="button"
-          className={readOnly ? 'app-secondary-button col-span-2 w-full sm:w-auto' : 'app-secondary-button w-full sm:w-auto'}
+          className={
+            readOnly ? 'app-secondary-button col-span-2 w-full sm:w-auto' : 'app-secondary-button w-full sm:w-auto'
+          }
           onClick={onCancel}
           disabled={isPending}
         >

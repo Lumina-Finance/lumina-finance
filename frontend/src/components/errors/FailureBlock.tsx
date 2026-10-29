@@ -1,34 +1,34 @@
-import { AlertTriangle, Check, Copy, RefreshCw } from 'lucide-react';
-import { useEffect, useRef, useState, type ReactNode } from 'react';
-import { copyText } from '@/utils/clipboard';
-import { buildErrorReport } from '@/utils/errorReport';
-import { clearStoredData } from '@/utils/storedData';
+import { AlertTriangle, Check, Copy, RefreshCw } from 'lucide-react'
+import { useEffect, useRef, useState, type ReactNode } from 'react'
+import { copyText } from '@/utils/clipboard'
+import { buildErrorReport } from '@/utils/errorReport'
+import { clearStoredData } from '@/utils/storedData'
 
 /** How much of the app the block stands in for: the whole window, a page area, or one card's contents */
-export type FailureBlockSize = 'card' | 'inline' | 'screen';
+export type FailureBlockSize = 'card' | 'inline' | 'screen'
 
-type CopyStatus = 'idle' | 'copied' | 'failed';
+type CopyStatus = 'idle' | 'copied' | 'failed'
 
 const COPY_LABELS: Record<CopyStatus, string> = {
   idle: 'Copy error details',
   copied: 'Copied',
   failed: 'Could not copy',
-};
+}
 
 // The issue list rather than a blank new issue, so the repository's own template picker is what
 // the user lands on
-const BUG_REPORT_URL = 'https://github.com/Lumina-Finance/lumina-finance/issues';
+const BUG_REPORT_URL = 'https://github.com/Lumina-Finance/lumina-finance/issues'
 
 // How long the copy button confirms before returning to its usual label
-const COPY_CONFIRMATION_MS = 2000;
+const COPY_CONFIRMATION_MS = 2000
 
-const ICON_SIZE: Record<FailureBlockSize, number> = { screen: 26, card: 22, inline: 18 };
+const ICON_SIZE: Record<FailureBlockSize, number> = { screen: 26, card: 22, inline: 18 }
 
 const HEADING_CLASS: Record<FailureBlockSize, string> = {
   screen: 'text-3xl',
   card: 'text-2xl',
   inline: 'text-lg',
-};
+}
 
 // The inline size sits inside a card that has its own padding around it, so it closes the gaps the
 // two standalone sizes need to fill a window
@@ -36,27 +36,27 @@ const MESSAGE_SPACING_CLASS: Record<FailureBlockSize, string> = {
   screen: 'mt-4',
   card: 'mt-4',
   inline: 'mt-2',
-};
+}
 
 const CONTROLS_SPACING_CLASS: Record<FailureBlockSize, string> = {
   screen: 'mt-6',
   card: 'mt-6',
   inline: 'mt-4',
-};
+}
 
 // Two lines is what the shortest widget on the dashboard has room for once its heading and its
 // Reload button are placed. A server message runs to whatever length the server chose, so without
 // this the button is pushed out of a card that cannot grow to follow it
-const COMPACT_MESSAGE_CAP_CLASS = 'line-clamp-2';
+const COMPACT_MESSAGE_CAP_CLASS = 'line-clamp-2'
 
 interface FailureBlockProps {
-  componentStack?: string | null;
+  componentStack?: string | null
 
   /** The API's own explanation, quoted in place of the app's wording where the response carried one */
-  detail?: string | null;
+  detail?: string | null
 
-  error: unknown;
-  heading: ReactNode;
+  error: unknown
+  heading: ReactNode
 
   // Set by the container rather than taken from the size, because every caller of the inline size
   // asks for the same size while only some of them sit somewhere that cannot grow
@@ -64,18 +64,18 @@ interface FailureBlockProps {
    * Draws the box for a container whose height is fixed before its contents are known: shorter
    * wording, and a quoted server message cut off after two lines
    */
-  compact?: boolean;
+  compact?: boolean
 
   // Keeps the reload from emptying this browser's storage. Set it where the failure is known to be a
   // request that failed rather than saved state that broke a render, since the wipe exists to clear
   // that state, and it otherwise takes the theme, the sidebar width and the whole cached query data
   // with it for nothing
-  preserveStoredData?: boolean;
+  preserveStoredData?: boolean
 
   /** Chooses the lost-connection wording over the general one, the caller having decided which fits */
-  serverUnreachable: boolean;
+  serverUnreachable: boolean
 
-  size: FailureBlockSize;
+  size: FailureBlockSize
 }
 
 /**
@@ -105,12 +105,15 @@ export default function FailureBlock({
   serverUnreachable,
   size,
 }: FailureBlockProps) {
-  const [copyStatus, setCopyStatus] = useState<CopyStatus>('idle');
-  const copyResetTimer = useRef<number | null>(null);
+  const [copyStatus, setCopyStatus] = useState<CopyStatus>('idle')
+  const copyResetTimer = useRef<number | null>(null)
 
-  useEffect(() => () => {
-    if (copyResetTimer.current !== null) window.clearTimeout(copyResetTimer.current);
-  }, []);
+  useEffect(
+    () => () => {
+      if (copyResetTimer.current !== null) window.clearTimeout(copyResetTimer.current)
+    },
+    [],
+  )
 
   /**
    * Reloads, by default onto empty storage, because state saved in this browser can be what broke the
@@ -121,9 +124,9 @@ export default function FailureBlock({
    * making the reload any likelier to work
    */
   const handleReload = () => {
-    if (!preserveStoredData) clearStoredData();
-    window.location.reload();
-  };
+    if (!preserveStoredData) clearStoredData()
+    window.location.reload()
+  }
 
   /**
    * Puts the technical detail on the clipboard for a bug report, keeping it off the screen
@@ -141,13 +144,13 @@ export default function FailureBlock({
       path: window.location.pathname,
       occurredAt: new Date(),
       userAgent: navigator.userAgent,
-    });
+    })
 
-    setCopyStatus((await copyText(report)) ? 'copied' : 'failed');
+    setCopyStatus((await copyText(report)) ? 'copied' : 'failed')
 
-    if (copyResetTimer.current !== null) window.clearTimeout(copyResetTimer.current);
-    copyResetTimer.current = window.setTimeout(() => setCopyStatus('idle'), COPY_CONFIRMATION_MS);
-  };
+    if (copyResetTimer.current !== null) window.clearTimeout(copyResetTimer.current)
+    copyResetTimer.current = window.setTimeout(() => setCopyStatus('idle'), COPY_CONFIRMATION_MS)
+  }
 
   return (
     <>
@@ -167,29 +170,31 @@ export default function FailureBlock({
         className={`${MESSAGE_SPACING_CLASS[size]} text-sm leading-relaxed ${compact && detail ? COMPACT_MESSAGE_CAP_CLASS : ''}`}
         style={{ color: 'var(--app-text-muted)' }}
       >
-        {detail ?? (compact ? (
-          serverUnreachable
-            ? <>The app can&apos;t reach the server right now.</>
-            : <>Something went wrong. Please try reloading the application.</>
-        ) : serverUnreachable ? (
-          <>
-            The app can&apos;t reach the server right now. Reload once your connection is back.
-          </>
-        ) : (
-          <>
-            Something went wrong while the app was responding to your request. Reloading usually
-            fixes it. If it keeps happening, please submit a{' '}
-            <a
-              href={BUG_REPORT_URL}
-              target="_blank"
-              rel="noreferrer"
-              className="underline underline-offset-2"
-              style={{ color: 'var(--app-accent)' }}
-            >
-              bug report
-            </a>.
-          </>
-        ))}
+        {detail ??
+          (compact ? (
+            serverUnreachable ? (
+              <>The app can&apos;t reach the server right now.</>
+            ) : (
+              <>Something went wrong. Please try reloading the application.</>
+            )
+          ) : serverUnreachable ? (
+            <>The app can&apos;t reach the server right now. Reload once your connection is back.</>
+          ) : (
+            <>
+              Something went wrong while the app was responding to your request. Reloading usually fixes it. If it keeps
+              happening, please submit a{' '}
+              <a
+                href={BUG_REPORT_URL}
+                target="_blank"
+                rel="noreferrer"
+                className="underline underline-offset-2"
+                style={{ color: 'var(--app-accent)' }}
+              >
+                bug report
+              </a>
+              .
+            </>
+          ))}
       </p>
 
       <div className={`${CONTROLS_SPACING_CLASS[size]} flex flex-wrap items-center gap-4`}>
@@ -213,5 +218,5 @@ export default function FailureBlock({
         </button>
       </div>
     </>
-  );
+  )
 }

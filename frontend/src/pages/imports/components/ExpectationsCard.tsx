@@ -44,8 +44,15 @@ export function ImportExpectationsCard({ expectations }: { expectations: ImportE
             </p>
           </ConceptGroup>
 
-          <CollapsedConceptGroup title="Imported in a different form" toggleLabel="data imported in a different form" railColour="var(--app-accent)">
-            <ul className="mt-1.5 flex flex-col gap-1.5 text-sm leading-5 text-pretty" style={{ color: 'var(--app-text)' }}>
+          <CollapsedConceptGroup
+            title="Imported in a different form"
+            toggleLabel="data imported in a different form"
+            railColour="var(--app-accent)"
+          >
+            <ul
+              className="mt-1.5 flex flex-col gap-1.5 text-sm leading-5 text-pretty"
+              style={{ color: 'var(--app-text)' }}
+            >
               {expectations.changes.map((mapping) => (
                 <li key={mapping.source}>
                   {mapping.source}
@@ -116,10 +123,7 @@ function CollapsedConceptGroup({
         aria-expanded={expanded}
         aria-label={expanded ? `Collapse ${toggleLabel}` : `Expand ${toggleLabel}`}
       >
-        <span
-          className="text-xs font-semibold uppercase tracking-wide"
-          style={{ color: 'var(--app-accent)' }}
-        >
+        <span className="text-xs font-semibold uppercase tracking-wide" style={{ color: 'var(--app-accent)' }}>
           {title}
         </span>
         <ChevronDown
@@ -165,10 +169,7 @@ function ConceptGroup({
         background: tinted ? 'color-mix(in srgb, var(--app-negative) 7%, transparent)' : undefined,
       }}
     >
-      <p
-        className="mb-1.5 text-xs font-semibold uppercase tracking-wide"
-        style={{ color: titleColour }}
-      >
+      <p className="mb-1.5 text-xs font-semibold uppercase tracking-wide" style={{ color: titleColour }}>
         {title}
       </p>
       {children}

@@ -41,7 +41,9 @@ export function ArchivedRunwayAccountTile({ account }: ArchivedRunwayAccountTile
         <Archive size={12} aria-hidden />
       </span>
       <span className="min-w-0 flex-1 overflow-hidden">
-        <MarqueeText active className="font-medium">{account.name}</MarqueeText>
+        <MarqueeText active className="font-medium">
+          {account.name}
+        </MarqueeText>
         <span className="block text-xs truncate" style={{ color: 'var(--app-text-muted)' }}>
           {institutionName} · Archived
         </span>
@@ -85,7 +87,9 @@ export function RunwayAccountTile({ account, selected, onToggle }: RunwayAccount
         {selected && <Check size={13} strokeWidth={3} aria-hidden />}
       </span>
       <span className="min-w-0 flex-1 overflow-hidden">
-        <MarqueeText active className="font-medium">{account.name}</MarqueeText>
+        <MarqueeText active className="font-medium">
+          {account.name}
+        </MarqueeText>
         <span className="block text-xs truncate" style={{ color: 'var(--app-text-muted)' }}>
           {institutionName}
         </span>
@@ -98,10 +102,7 @@ export function RunwayAccountTile({ account, selected, onToggle }: RunwayAccount
           {formatCurrency(account.current_balance, account.currency)}
         </span>
         {account.credit_limit !== null && (
-          <span
-            className="block font-financial text-xs"
-            style={{ color: 'var(--app-text-muted)' }}
-          >
+          <span className="block font-financial text-xs" style={{ color: 'var(--app-text-muted)' }}>
             {formatCurrency(account.credit_limit + account.current_balance, account.currency)} avail.
           </span>
         )}

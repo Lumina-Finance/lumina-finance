@@ -213,7 +213,9 @@ export function ImportSkippedTable({
       isAmount ? 'text-right' : '',
       cell === 'header' ? 'font-medium' : '',
       isAmount && cell === 'value' ? AMOUNT_VALUE_CLASS_NAME : '',
-    ].filter(Boolean).join(' ')
+    ]
+      .filter(Boolean)
+      .join(' ')
   }
 
   return (

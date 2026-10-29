@@ -9,15 +9,7 @@ import { scopeLabel } from '@/pages/settings/components/tag-settings-section/uti
  * Submitting with nothing changed just cancels the edit rather than sending a pointless update,
  * and an empty name is rejected before the request goes out
  */
-export default function InlineTagEdit({
-  isLast,
-  tag,
-  onCancel,
-}: {
-  isLast: boolean
-  tag: Tag
-  onCancel: () => void
-}) {
+export default function InlineTagEdit({ isLast, tag, onCancel }: { isLast: boolean; tag: Tag; onCancel: () => void }) {
   const updateTag = useUpdateTag()
   const [name, setName] = useState(tag.name)
   const [formError, setFormError] = useState<string | null>(null)
@@ -51,9 +43,7 @@ export default function InlineTagEdit({
   }
 
   return (
-    <tr
-      style={{ borderBottom: isLast ? 'none' : '1px solid var(--app-border)' }}
-    >
+    <tr style={{ borderBottom: isLast ? 'none' : '1px solid var(--app-border)' }}>
       <td colSpan={2} className="py-2 pl-4 pr-4 align-top">
         <form
           className="grid min-h-10 grid-cols-[minmax(0,1fr)_7rem] items-start gap-3"
@@ -104,7 +94,11 @@ export default function InlineTagEdit({
               aria-label={`Save ${tag.name}`}
               title="Save"
             >
-              {updateTag.isPending ? <div className="app-spinner" aria-label="Saving" /> : <Check size={16} aria-hidden />}
+              {updateTag.isPending ? (
+                <div className="app-spinner" aria-label="Saving" />
+              ) : (
+                <Check size={16} aria-hidden />
+              )}
             </button>
             <button
               type="button"

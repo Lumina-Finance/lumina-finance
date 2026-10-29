@@ -3,19 +3,13 @@ import { AnimatePresence, motion } from 'motion/react'
 import { ArrowUpToLine, Repeat } from 'lucide-react'
 import type { FxStatus } from '@/api/shared/fx'
 import LoadFailure from '@/components/errors/LoadFailure'
-import {
-  LoadingContent,
-  LoadingOverlay,
-} from '@/components/loading/Transition'
+import { LoadingContent, LoadingOverlay } from '@/components/loading/Transition'
 import { useLoadingSnapshot } from '@/hooks/useLoadingSnapshot'
 import type { SavingsRateHistoryPoint } from '@/pages/insights/types/savingsRate'
 import { getSavingsRateTrendFxStatusMessage } from '@/pages/insights/utils/fxTooltipMessages'
 import { formatSavingsRateValue } from '@/pages/insights/utils/money'
 import { getSavingsRateSummary } from '@/pages/insights/utils/savingsRateChart'
-import {
-  SAVINGS_RATE_TIER_LABELS,
-  SAVINGS_RATE_TIERS,
-} from '@/utils/savingsRateTier'
+import { SAVINGS_RATE_TIER_LABELS, SAVINGS_RATE_TIERS } from '@/utils/savingsRateTier'
 import { getValueMarkColor } from '@/utils/valueMarkColor'
 import { FxStatusBadge } from '@/components/tooltips/FxStatusBadge'
 import { InsightCalculationTooltip } from '@/pages/insights/components/CalculationTooltip'
@@ -53,9 +47,12 @@ type SavingsRateTrendSnapshot = {
 // failed, so a failure does not resize it. Below that the card sizes to whichever is showing
 const BODY_CLASS = 'flex flex-col min-[750px]:h-[430px]'
 
-const savingsRateCalculation = 'Monthly savings rate is income minus expenses, divided by income. Income and expense categories are netted first. Transfers are excluded'
-const latestSavingsRateCalculation = 'Savings rate for the latest available month. The current month may be partial. Shows −∞% when expenses exist without income because the calculation divides by zero'
-const averageSavingsRateCalculation = 'Average savings rate across completed months with income. The current month and months without income are left out'
+const savingsRateCalculation =
+  'Monthly savings rate is income minus expenses, divided by income. Income and expense categories are netted first. Transfers are excluded'
+const latestSavingsRateCalculation =
+  'Savings rate for the latest available month. The current month may be partial. Shows −∞% when expenses exist without income because the calculation divides by zero'
+const averageSavingsRateCalculation =
+  'Average savings rate across completed months with income. The current month and months without income are left out'
 const bestSavingsRateCalculation = 'Highest savings rate across completed months. The current month is excluded'
 const worstSavingsRateCalculation = 'Lowest savings rate across completed months. The current month is excluded'
 const savingsRateStatLabelClass = 'app-label inline-flex items-center gap-2 text-sm leading-5'
@@ -77,43 +74,34 @@ export function SavingsRateTrendCard({
 }: SavingsRateTrendCardProps) {
   // The failure travels in the snapshot rather than beside it, so the box arrives with the reveal
   // instead of growing the card while the spinner is still turning
-  const incomingSnapshot = useMemo<SavingsRateTrendSnapshot>(() => ({
-    series,
-    fxStatus,
-    displayCurrency,
-    capRates,
-    emptyLabel: loading ? 'Loading savings-rate history...' : 'No savings-rate history available',
-    error,
-    failed,
-  }), [capRates, displayCurrency, error, failed, fxStatus, loading, series])
-  const {
-    displaySnapshot,
-    contentConcealed,
-    loadingVisible,
-    shouldReduceMotion,
-  } = useLoadingSnapshot<SavingsRateTrendSnapshot>({
-    snapshot: incomingSnapshot,
-    loading,
-    transitionKey,
-  })
-  const {
-    latestPoint,
-    averageRate,
-    bestPoint,
-    worstPoint,
-  } = getSavingsRateSummary(displaySnapshot.series)
+  const incomingSnapshot = useMemo<SavingsRateTrendSnapshot>(
+    () => ({
+      series,
+      fxStatus,
+      displayCurrency,
+      capRates,
+      emptyLabel: loading ? 'Loading savings-rate history...' : 'No savings-rate history available',
+      error,
+      failed,
+    }),
+    [capRates, displayCurrency, error, failed, fxStatus, loading, series],
+  )
+  const { displaySnapshot, contentConcealed, loadingVisible, shouldReduceMotion } =
+    useLoadingSnapshot<SavingsRateTrendSnapshot>({
+      snapshot: incomingSnapshot,
+      loading,
+      transitionKey,
+    })
+  const { latestPoint, averageRate, bestPoint, worstPoint } = getSavingsRateSummary(displaySnapshot.series)
 
   return (
     <section className="app-card">
       <InsightSectionHeader
         icon={Repeat}
-        label={(
+        label={
           <span className="inline-flex items-center gap-2">
             Savings rate trend
-            <InsightCalculationTooltip
-              label="Savings rate trend"
-              calculation={savingsRateCalculation}
-            />
+            <InsightCalculationTooltip label="Savings rate trend" calculation={savingsRateCalculation} />
             {displaySnapshot.fxStatus && (
               <FxStatusBadge
                 label="Savings rate trend FX status"
@@ -122,8 +110,8 @@ export function SavingsRateTrendCard({
               />
             )}
           </span>
-        )}
-        action={(
+        }
+        action={
           <InsightActionButton
             title={capRates ? 'Show uncapped savings rate chart' : 'Cap savings rate chart at plus or minus 100%'}
             ariaLabel={capRates ? 'Show uncapped savings rate chart' : 'Cap savings rate chart at plus or minus 100%'}
@@ -134,18 +122,13 @@ export function SavingsRateTrendCard({
               className={`transition-transform motion-reduce:transition-none ${capRates ? 'rotate-180' : ''}`}
             />
           </InsightActionButton>
-        )}
+        }
       />
       <div className="relative overflow-visible" data-tooltip-bounds>
         <LoadingContent concealed={contentConcealed} shouldReduceMotion={shouldReduceMotion}>
           {displaySnapshot.failed && (
             <div className={BODY_CLASS}>
-              <LoadFailure
-                compact
-                error={displaySnapshot.error}
-                standalone
-                subject="Savings rate trend"
-              />
+              <LoadFailure compact error={displaySnapshot.error} standalone subject="Savings rate trend" />
             </div>
           )}
 
@@ -155,10 +138,7 @@ export function SavingsRateTrendCard({
                 <div className="min-w-0">
                   <p className="app-label inline-flex items-center gap-2">
                     Latest savings rate
-                    <InsightCalculationTooltip
-                      label="Latest savings rate"
-                      calculation={latestSavingsRateCalculation}
-                    />
+                    <InsightCalculationTooltip label="Latest savings rate" calculation={latestSavingsRateCalculation} />
                   </p>
                   <p className="mt-1 font-financial text-4xl leading-none tracking-tight">
                     {formatSavingsRateValue(latestPoint?.rate ?? null)}
@@ -186,10 +166,7 @@ export function SavingsRateTrendCard({
                   <div className="min-w-0 rounded-md border border-[var(--app-border)] px-2.5 py-2 min-[750px]:px-3 min-[750px]:py-2.5">
                     <p className={savingsRateStatLabelClass}>
                       Best
-                      <InsightCalculationTooltip
-                        label="Best savings rate"
-                        calculation={bestSavingsRateCalculation}
-                      />
+                      <InsightCalculationTooltip label="Best savings rate" calculation={bestSavingsRateCalculation} />
                     </p>
                     <div className="mt-1 flex items-baseline justify-between gap-3 min-[750px]:block">
                       <p className="font-financial text-xl leading-none tracking-tight min-[750px]:text-2xl">
@@ -203,10 +180,7 @@ export function SavingsRateTrendCard({
                   <div className="min-w-0 rounded-md border border-[var(--app-border)] px-2.5 py-2 min-[750px]:px-3 min-[750px]:py-2.5">
                     <p className={savingsRateStatLabelClass}>
                       Worst
-                      <InsightCalculationTooltip
-                        label="Worst savings rate"
-                        calculation={worstSavingsRateCalculation}
-                      />
+                      <InsightCalculationTooltip label="Worst savings rate" calculation={worstSavingsRateCalculation} />
                     </p>
                     <div className="mt-1 flex items-baseline justify-between gap-3 min-[750px]:block">
                       <p className="font-financial text-xl leading-none tracking-tight min-[750px]:text-2xl">
@@ -228,8 +202,7 @@ export function SavingsRateTrendCard({
               />
               <div className="mt-3 flex flex-wrap items-center justify-between gap-3 border-t border-[var(--app-border)] pt-3">
                 <p className="text-xs" style={{ color: 'var(--app-text-muted)' }}>
-                  <span>Latest 12 months, up to available data</span>
-                  {' '}
+                  <span>Latest 12 months, up to available data</span>{' '}
                   <AnimatePresence initial={false}>
                     {displaySnapshot.capRates && (
                       <motion.span
@@ -244,7 +217,10 @@ export function SavingsRateTrendCard({
                     )}
                   </AnimatePresence>
                 </p>
-                <div className="flex w-full items-center justify-center gap-4 text-xs min-[750px]:w-auto" style={{ color: 'var(--app-text-muted)' }}>
+                <div
+                  className="flex w-full items-center justify-center gap-4 text-xs min-[750px]:w-auto"
+                  style={{ color: 'var(--app-text-muted)' }}
+                >
                   {SAVINGS_RATE_TIERS.map((tier) => (
                     <span key={tier} className="flex items-center gap-1.5">
                       <span className="h-2 w-2 rounded-sm" style={{ background: getValueMarkColor(tier) }} />

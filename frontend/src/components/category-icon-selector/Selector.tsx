@@ -69,7 +69,7 @@ function loadEmojiMartData(): Promise<EmojiMartData> {
   if (!emojiMartDataPromise) {
     emojiMartDataPromise = fetch(EMOJI_MART_DATA_URL).then(async (response) => {
       if (!response.ok) throw new Error('Failed to load emoji data.')
-      const data = await response.json() as EmojiMartData
+      const data = (await response.json()) as EmojiMartData
       cachedEmojiMartData = data
       return data
     })
@@ -119,7 +119,10 @@ export default function CategoryIconSelector({
     if (!open) return
     const onPointerDown = (event: PointerEvent) => {
       if (selectorRef.current?.contains(event.target as Node)) return
-      if (event.composedPath().some((node) => node instanceof HTMLElement && node.dataset.categoryEmojiPicker === 'true')) return
+      if (
+        event.composedPath().some((node) => node instanceof HTMLElement && node.dataset.categoryEmojiPicker === 'true')
+      )
+        return
       setOpen(false)
       setPickerPosition(null)
     }
@@ -134,7 +137,8 @@ export default function CategoryIconSelector({
       const selector = selectorRef.current
       if (!selector) return
 
-      const anchor = pickerAnchorRef?.current ?? (pickerAnchor === 'row' ? selector.closest('form') ?? selector : selector)
+      const anchor =
+        pickerAnchorRef?.current ?? (pickerAnchor === 'row' ? (selector.closest('form') ?? selector) : selector)
       const rect = selector.getBoundingClientRect()
       const anchorRect = anchor.getBoundingClientRect()
       const visualViewport = window.visualViewport

@@ -1,69 +1,65 @@
-import { useId, useState } from 'react';
-import { KeyRound } from 'lucide-react';
-import { AcknowledgementGroup } from '@/components/forms/AcknowledgementGroup';
+import { useId, useState } from 'react'
+import { KeyRound } from 'lucide-react'
+import { AcknowledgementGroup } from '@/components/forms/AcknowledgementGroup'
 import {
   getAcknowledgementItemId,
   getAcknowledgementProblem,
   getFirstUntickedKey,
-} from '@/components/forms/acknowledgement';
-import { FieldLabelRow } from '@/components/forms/FieldLabelRow';
-import { FormError } from '@/components/forms/FormError';
-import { useRefusedSubmit } from '@/hooks/useRefusedSubmit';
-import { DisabledReasonButton } from '@/components/tooltips/DisabledReasonButton';
-import { ModalContentFooter } from '@/components/modal/ContentPanel';
-import { useConfirmPasskeyRegistration, useRegisterPasskey } from '@/api/passkeys';
-import type { StepUpPayload } from '@/api/two-factor';
-import { RecoveryCodesPanel } from '@/components/two-factor/RecoveryCodesPanel';
-import { SetupRestart } from '@/components/two-factor/SetupRestart';
-import { StepTransition } from '@/components/two-factor/StepTransition';
-import { getPasskeyRegistrationMessage, isPasskeyCeremonyCancelled } from '@/utils/passkeyErrors';
-import { SERVER_UNREACHABLE_MESSAGE } from '@/api/server';
-import { isSetupRefused } from '@/utils/setupFailure';
+} from '@/components/forms/acknowledgement'
+import { FieldLabelRow } from '@/components/forms/FieldLabelRow'
+import { FormError } from '@/components/forms/FormError'
+import { useRefusedSubmit } from '@/hooks/useRefusedSubmit'
+import { DisabledReasonButton } from '@/components/tooltips/DisabledReasonButton'
+import { ModalContentFooter } from '@/components/modal/ContentPanel'
+import { useConfirmPasskeyRegistration, useRegisterPasskey } from '@/api/passkeys'
+import type { StepUpPayload } from '@/api/two-factor'
+import { RecoveryCodesPanel } from '@/components/two-factor/RecoveryCodesPanel'
+import { SetupRestart } from '@/components/two-factor/SetupRestart'
+import { StepTransition } from '@/components/two-factor/StepTransition'
+import { getPasskeyRegistrationMessage, isPasskeyCeremonyCancelled } from '@/utils/passkeyErrors'
+import { SERVER_UNREACHABLE_MESSAGE } from '@/api/server'
+import { isSetupRefused } from '@/utils/setupFailure'
 
-const NAME_FIELDS = ['name'] as const;
-const ACK_FIELDS = ['acknowledgements'] as const;
-const ACK_KEYS = ['saved', 'lockout'] as const;
+const NAME_FIELDS = ['name'] as const
+const ACK_FIELDS = ['acknowledgements'] as const
+const ACK_KEYS = ['saved', 'lockout'] as const
 
 interface PasskeyEnrollmentProps {
   /** Called once the passkey is active and, for a first passkey, its recovery codes are acknowledged */
-  onComplete: () => void;
+  onComplete: () => void
   /** Optional skip affordance, shown during signup but not in settings */
-  onSkip?: () => void;
+  onSkip?: () => void
   /** Optional switch to authenticator-app enrolment, shown when both methods are on offer */
-  onSwitchToTotp?: () => void;
+  onSwitchToTotp?: () => void
   /**
    * Password-only reauthorization for minting the registration challenge, used at signup where the
    * just-set password gates the account's first factor
    */
-  setupStepUp: StepUpPayload;
+  setupStepUp: StepUpPayload
 }
 
 /**
  * Drives passkey enrolment at signup: the naming and browser ceremony, then the one-time recovery codes
  */
 export function PasskeyEnrollment({ onComplete, onSkip, onSwitchToTotp, setupStepUp }: PasskeyEnrollmentProps) {
-  const register = useRegisterPasskey();
-  const confirmRegistration = useConfirmPasskeyRegistration();
-  const [name, setName] = useState('');
-  const [error, setError] = useState('');
-  const [recoveryCodes, setRecoveryCodes] = useState<string[] | null>(null);
-  const [savedAcknowledged, setSavedAcknowledged] = useState(false);
-  const [lockoutAcknowledged, setLockoutAcknowledged] = useState(false);
-  const [activateFailed, setActivateFailed] = useState(false);
-  const nameId = useId();
-  const nameErrorId = `${nameId}-error`;
-  const ackGroupId = useId();
-  const nameRefusal = useRefusedSubmit(
-    { name: name.trim() ? undefined : 'Name is required' },
-    NAME_FIELDS,
-    { name: nameId },
-  );
-  const ackTicks = [savedAcknowledged, lockoutAcknowledged];
-  const ackRefusal = useRefusedSubmit(
-    { acknowledgements: getAcknowledgementProblem(ackTicks) },
-    ACK_FIELDS,
-    { acknowledgements: getAcknowledgementItemId(ackGroupId, getFirstUntickedKey(ACK_KEYS, ackTicks)) },
-  );
+  const register = useRegisterPasskey()
+  const confirmRegistration = useConfirmPasskeyRegistration()
+  const [name, setName] = useState('')
+  const [error, setError] = useState('')
+  const [recoveryCodes, setRecoveryCodes] = useState<string[] | null>(null)
+  const [savedAcknowledged, setSavedAcknowledged] = useState(false)
+  const [lockoutAcknowledged, setLockoutAcknowledged] = useState(false)
+  const [activateFailed, setActivateFailed] = useState(false)
+  const nameId = useId()
+  const nameErrorId = `${nameId}-error`
+  const ackGroupId = useId()
+  const nameRefusal = useRefusedSubmit({ name: name.trim() ? undefined : 'Name is required' }, NAME_FIELDS, {
+    name: nameId,
+  })
+  const ackTicks = [savedAcknowledged, lockoutAcknowledged]
+  const ackRefusal = useRefusedSubmit({ acknowledgements: getAcknowledgementProblem(ackTicks) }, ACK_FIELDS, {
+    acknowledgements: getAcknowledgementItemId(ackGroupId, getFirstUntickedKey(ACK_KEYS, ackTicks)),
+  })
 
   /**
    * Runs the registration ceremony, staging the recovery codes to acknowledge when a batch is issued
@@ -72,50 +68,50 @@ export function PasskeyEnrollment({ onComplete, onSkip, onSwitchToTotp, setupSte
    * retry, switch method, or skip
    */
   const handleRegister = async () => {
-    if (register.isPending || !nameRefusal.guard()) return;
-    const trimmed = name.trim();
+    if (register.isPending || !nameRefusal.guard()) return
+    const trimmed = name.trim()
 
-    setError('');
+    setError('')
     try {
-      const result = await register.mutateAsync({ name: trimmed, step_up: setupStepUp });
+      const result = await register.mutateAsync({ name: trimmed, step_up: setupStepUp })
       if (result.recovery_codes) {
-        setRecoveryCodes(result.recovery_codes);
+        setRecoveryCodes(result.recovery_codes)
       } else {
-        onComplete();
+        onComplete()
       }
     } catch (registrationError) {
-      if (isPasskeyCeremonyCancelled(registrationError)) return;
-      setError(getPasskeyRegistrationMessage(registrationError));
+      if (isPasskeyCeremonyCancelled(registrationError)) return
+      setError(getPasskeyRegistrationMessage(registrationError))
     }
-  };
+  }
 
   /**
    * Activates the staged passkey once the recovery codes are acknowledged, then hands back to the caller
    */
   const handleActivate = async () => {
-    if (confirmRegistration.isPending || !ackRefusal.guard()) return;
+    if (confirmRegistration.isPending || !ackRefusal.guard()) return
 
-    setError('');
+    setError('')
     try {
-      await confirmRegistration.mutateAsync();
-      onComplete();
+      await confirmRegistration.mutateAsync()
+      onComplete()
     } catch (failure) {
-      if (isSetupRefused(failure)) setActivateFailed(true);
-      else setError(SERVER_UNREACHABLE_MESSAGE);
+      if (isSetupRefused(failure)) setActivateFailed(true)
+      else setError(SERVER_UNREACHABLE_MESSAGE)
     }
-  };
+  }
 
   /**
    * Returns to naming the passkey, so registering again stages a fresh one with its own recovery codes
    */
   const startAgain = () => {
-    setRecoveryCodes(null);
-    setSavedAcknowledged(false);
-    setLockoutAcknowledged(false);
-    setActivateFailed(false);
-    nameRefusal.reset();
-    ackRefusal.reset();
-  };
+    setRecoveryCodes(null)
+    setSavedAcknowledged(false)
+    setLockoutAcknowledged(false)
+    setActivateFailed(false)
+    nameRefusal.reset()
+    ackRefusal.reset()
+  }
 
   return (
     <StepTransition stepKey={recoveryCodes ? 'recovery-codes' : 'passkey-register'}>
@@ -177,8 +173,8 @@ export function PasskeyEnrollment({ onComplete, onSkip, onSwitchToTotp, setupSte
           <div className="space-y-1">
             <h3 className="text-base font-semibold">Protect your account with a passkey</h3>
             <p className="text-sm" style={{ color: 'var(--app-text-muted)' }}>
-              Verify with your fingerprint, face, or device PIN when you sign in. Name it so you can tell
-              your passkeys apart later.
+              Verify with your fingerprint, face, or device PIN when you sign in. Name it so you can tell your passkeys
+              apart later.
             </p>
           </div>
 
@@ -246,5 +242,5 @@ export function PasskeyEnrollment({ onComplete, onSkip, onSwitchToTotp, setupSte
         </div>
       )}
     </StepTransition>
-  );
+  )
 }

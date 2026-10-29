@@ -29,7 +29,15 @@ const DATE_CLEAR_EASE = [0.22, 1, 0.36, 1] as const
  * That is tracked in state, since a `transitionEnd` on the animation was seen to leave it clipped.
  * Reduced motion only fades it, and the field's width changes at once
  */
-function DateClearSlot({ label, startsAtRest, onClear }: { label: string; startsAtRest: boolean; onClear: () => void }) {
+function DateClearSlot({
+  label,
+  startsAtRest,
+  onClear,
+}: {
+  label: string
+  startsAtRest: boolean
+  onClear: () => void
+}) {
   const shouldReduceMotion = useReducedMotion() ?? false
   const isPresent = useIsPresent()
 
@@ -43,7 +51,9 @@ function DateClearSlot({ label, startsAtRest, onClear }: { label: string; starts
       exit={shouldReduceMotion ? { opacity: 0 } : { width: 0, opacity: 0 }}
       transition={{ duration: DATE_RANGE_SECONDS, ease: DATE_CLEAR_EASE }}
       onAnimationStart={() => setIsClipped(true)}
-      onAnimationComplete={() => { if (isPresent) setIsClipped(false) }}
+      onAnimationComplete={() => {
+        if (isPresent) setIsClipped(false)
+      }}
     >
       {/* The gap to the field sits inside, since padding on a box whose width animates stays behind at
           either end */}
@@ -122,7 +132,6 @@ export function ImportDateRangeFields({
   startSuggestion,
   onChange,
 }: {
-
   /** Whether a column is mapped as the date, which is what the range is read through */
   isShown: boolean
   dateRange: ImportDateRange
@@ -165,7 +174,9 @@ export function ImportDateRangeFields({
             data-import-dates=""
             className="flex flex-col gap-4 border-t border-[var(--app-border)] pt-4"
           >
-            <span id={titleId} className="text-sm">{IMPORT_DATE_RANGE_TITLE}</span>
+            <span id={titleId} className="text-sm">
+              {IMPORT_DATE_RANGE_TITLE}
+            </span>
             {fields.map(({ end, label }) => {
               const fieldId = `${baseId}-${end}`
 
@@ -174,9 +185,12 @@ export function ImportDateRangeFields({
 
               // The field's own error, which holds the label row's right side while it lasts
               const errorId = `${fieldId}-error`
-              const errorText = dateRange[end] === null
-                ? IMPORT_DATE_RANGE_INCOMPLETE_FIELD_ERROR
-                : end === 'from' && isStartCrossed ? IMPORT_DATE_RANGE_CROSSED_FIELD_ERROR : null
+              const errorText =
+                dateRange[end] === null
+                  ? IMPORT_DATE_RANGE_INCOMPLETE_FIELD_ERROR
+                  : end === 'from' && isStartCrossed
+                    ? IMPORT_DATE_RANGE_CROSSED_FIELD_ERROR
+                    : null
               const shortcut = end === 'from' && startSuggestion && !disabled ? startSuggestion : null
               return (
                 <div key={end} className="flex min-w-0 flex-col gap-1">
@@ -190,7 +204,12 @@ export function ImportDateRangeFields({
                     <AnimatePresence initial={false} mode="wait">
                       {errorText ? (
                         <DateLabelNote key="error" shouldReduceMotion={shouldReduceMotion}>
-                          <p id={errorId} role="alert" className="text-xs font-medium text-balance" style={{ color: 'var(--app-negative)' }}>
+                          <p
+                            id={errorId}
+                            role="alert"
+                            className="text-xs font-medium text-balance"
+                            style={{ color: 'var(--app-negative)' }}
+                          >
                             {errorText}
                           </p>
                         </DateLabelNote>
@@ -210,7 +229,9 @@ export function ImportDateRangeFields({
                   <div className="flex min-w-0 items-center">
                     <div className="min-w-0 flex-1">
                       <DateField
-                        ref={(handle) => { fieldRefs.current[end] = handle }}
+                        ref={(handle) => {
+                          fieldRefs.current[end] = handle
+                        }}
                         id={fieldId}
                         ariaLabel={label}
                         value={dateRange[end] ?? ''}
@@ -220,7 +241,11 @@ export function ImportDateRangeFields({
                         onChange={(value, isPartlyTyped) => onChange(end, value, isPartlyTyped)}
                       />
                     </div>
-                    <DateClear isShown={!disabled && hasValue} label={label} onClear={() => fieldRefs.current[end]?.clear()} />
+                    <DateClear
+                      isShown={!disabled && hasValue}
+                      label={label}
+                      onClear={() => fieldRefs.current[end]?.clear()}
+                    />
                   </div>
                 </div>
               )

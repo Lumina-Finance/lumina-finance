@@ -67,9 +67,7 @@ export function FundFlowCategoryList({
               <InsightCalculationTooltip label={title} calculation={calculation} />
             </span>
           </span>
-          <span className="mt-1 block font-financial text-xl leading-none transition-colors">
-            {displayCount}
-          </span>
+          <span className="mt-1 block font-financial text-xl leading-none transition-colors">{displayCount}</span>
         </span>
         <ChevronDown
           size={14}

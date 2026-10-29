@@ -62,17 +62,17 @@ export function ImportStep({
         >
           {index}
         </span>
-        <span
-          className="mt-1 w-px flex-1"
-          style={{ backgroundColor: 'var(--app-border-strong)' }}
-          aria-hidden
-        />
+        <span className="mt-1 w-px flex-1" style={{ backgroundColor: 'var(--app-border-strong)' }} aria-hidden />
       </div>
 
       <div className={`min-w-0 pb-1 ${contentClassName}`}>
         <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
           <div className="min-w-0">
-            <p id={titleId} className="flex h-4 items-center text-base font-bold leading-none" style={{ color: 'var(--app-accent)' }}>
+            <p
+              id={titleId}
+              className="flex h-4 items-center text-base font-bold leading-none"
+              style={{ color: 'var(--app-accent)' }}
+            >
               {title}
             </p>
             {description && (
@@ -223,15 +223,15 @@ export function ImportNotice({
       style={{
         ...IMPORT_INSET_STYLE,
         // The inset style carries a background and no border, so the danger tone brings its own
-        ...(isDanger
-          ? { border: '1px solid var(--app-negative-border)', background: 'var(--app-negative-soft)' }
-          : {}),
+        ...(isDanger ? { border: '1px solid var(--app-negative-border)', background: 'var(--app-negative-soft)' } : {}),
         color: 'var(--app-text-muted)',
       }}
     >
       <span
         className="mt-0.5 flex h-4 w-4 shrink-0 items-center justify-center"
-        style={{ color: isDanger ? 'var(--app-negative)' : isQuestion ? 'var(--app-accent)' : 'var(--app-warning-text)' }}
+        style={{
+          color: isDanger ? 'var(--app-negative)' : isQuestion ? 'var(--app-accent)' : 'var(--app-warning-text)',
+        }}
         aria-hidden
       >
         <NoticeIcon size={16} strokeWidth={2.25} />
@@ -246,15 +246,16 @@ export function ImportNotice({
         {children && (
           // Beside a list, the paragraph joins its column: pulled left to the bullet text's edge (the
           // list's 16px indent sits 12px left of the title's). Alone, it stays under the title
-          <p className={`mt-1 text-sm leading-5${items && items.length > 0 ? ' -ml-3' : ''}`}>
-            {children}
-          </p>
+          <p className={`mt-1 text-sm leading-5${items && items.length > 0 ? ' -ml-3' : ''}`}>{children}</p>
         )}
         {items && items.length > 0 && (
           // Pulled left by the icon and its gap, so each bullet is drawn centred on the icon's centre (8px
           // in) and a wrapped line stays under its own text. Under a paragraph it is spaced as the bullets
           // are from each other
-          <ul className={`-ml-7 ${children ? 'mt-0.5' : 'mt-1'} space-y-0.5 text-sm leading-5`} style={{ color: 'var(--app-text)' }}>
+          <ul
+            className={`-ml-7 ${children ? 'mt-0.5' : 'mt-1'} space-y-0.5 text-sm leading-5`}
+            style={{ color: 'var(--app-text)' }}
+          >
             {items.map((item, index) => (
               <li
                 key={index}
@@ -294,12 +295,8 @@ export function ImportInfoCard({ title, children }: { title: string; children: R
         <p className="text-[0.9375rem] font-semibold leading-5" style={{ color: 'var(--app-text)' }}>
           {title}
         </p>
-        <p className="mt-1 text-sm leading-5">
-          {children}
-        </p>
+        <p className="mt-1 text-sm leading-5">{children}</p>
       </div>
     </div>
   )
 }
-
-

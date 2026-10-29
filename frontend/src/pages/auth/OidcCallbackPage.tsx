@@ -229,8 +229,8 @@ const OidcCallbackPage = () => {
             <motion.div key="account-exists" {...AUTH_VIEW_TRANSITION}>
               <h1 className="font-serif text-4xl font-normal tracking-tight">Account already exists</h1>
               <p className="mt-5 text-sm" style={{ color: 'var(--app-text-muted)' }}>
-                An account with {conflictEmail} already exists. Sign in with your password, then
-                link this provider from your security settings to use it next time.
+                An account with {conflictEmail} already exists. Sign in with your password, then link this provider from
+                your security settings to use it next time.
               </p>
               <div className="mt-5 flex justify-center">
                 <button type="button" onClick={handleBackToLogin} className="app-primary-button w-full">
@@ -295,13 +295,15 @@ function OidcOnboardingForm({ onboarding, onBackToLogin }: OidcOnboardingFormPro
     setSubmitting(true)
     setError(null)
     try {
-      const response = await withMinDelay(() => completeOidcSignup({
-        onboarding_token: onboarding.onboarding_token,
-        first_name: firstName.trim(),
-        last_name: lastName.trim() || undefined,
-        tz,
-        base_currency: baseCurrency,
-      }))
+      const response = await withMinDelay(() =>
+        completeOidcSignup({
+          onboarding_token: onboarding.onboarding_token,
+          first_name: firstName.trim(),
+          last_name: lastName.trim() || undefined,
+          tz,
+          base_currency: baseCurrency,
+        }),
+      )
 
       // The route sits outside the public-only wrapper, so the new session must be
       // followed by an explicit move into the app

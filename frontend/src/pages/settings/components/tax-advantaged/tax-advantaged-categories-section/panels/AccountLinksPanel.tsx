@@ -29,7 +29,8 @@ export default function TaxAdvantagedAccountLinksPanel({
     <div className="flex h-full min-h-0 flex-col gap-4">
       <div className="shrink-0">
         <p className="text-[0.9375rem]" style={{ color: 'var(--app-text-muted)' }}>
-          Choose eligible {plan.currency} accounts for this category. Archived accounts stay visible for history but cannot be linked or unlinked until unarchived.
+          Choose eligible {plan.currency} accounts for this category. Archived accounts stay visible for history but
+          cannot be linked or unlinked until unarchived.
         </p>
       </div>
 

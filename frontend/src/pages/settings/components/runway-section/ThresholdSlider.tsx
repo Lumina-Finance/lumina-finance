@@ -1,9 +1,4 @@
-import {
-  useRef,
-  useState,
-  type KeyboardEvent,
-  type PointerEvent,
-} from 'react'
+import { useRef, useState, type KeyboardEvent, type PointerEvent } from 'react'
 import {
   RUNWAY_BAND_STYLE,
   RUNWAY_THRESHOLD_MAX_MONTHS,
@@ -55,22 +50,17 @@ interface RunwayTrackLabelProps {
 /**
  * Renders the runway threshold slider with pointer, keyboard, and text-input editing
  */
-export function RunwayThresholdSlider({
-  thresholds,
-  onThresholdChange,
-}: RunwayThresholdSliderProps) {
+export function RunwayThresholdSlider({ thresholds, onThresholdChange }: RunwayThresholdSliderProps) {
   const railRef = useRef<HTMLDivElement>(null)
   const [draggingField, setDraggingField] = useState<keyof RunwayThresholds | null>(null)
   const [dragPreview, setDragPreview] = useState<{ field: keyof RunwayThresholds; value: number } | null>(null)
   const safeThresholds = normalizeRunwayThresholds(thresholds)
   const riskyMax = safeThresholds.healthyAtMonths - RUNWAY_THRESHOLD_MIN_SEPARATION_MONTHS
   const healthyMin = safeThresholds.riskyBelowMonths + RUNWAY_THRESHOLD_MIN_SEPARATION_MONTHS
-  const displayRiskyMonths = dragPreview?.field === 'riskyBelowMonths'
-    ? dragPreview.value
-    : safeThresholds.riskyBelowMonths
-  const displayHealthyMonths = dragPreview?.field === 'healthyAtMonths'
-    ? dragPreview.value
-    : safeThresholds.healthyAtMonths
+  const displayRiskyMonths =
+    dragPreview?.field === 'riskyBelowMonths' ? dragPreview.value : safeThresholds.riskyBelowMonths
+  const displayHealthyMonths =
+    dragPreview?.field === 'healthyAtMonths' ? dragPreview.value : safeThresholds.healthyAtMonths
   const riskyPct = thresholdPct(displayRiskyMonths)
   const healthyPct = thresholdPct(displayHealthyMonths)
   const riskySegmentPct = riskyPct
@@ -84,20 +74,14 @@ export function RunwayThresholdSlider({
    * Keeps the risky threshold below the healthy threshold by the configured separation
    */
   const updateRiskyThreshold = (value: number) => {
-    onThresholdChange(
-      'riskyBelowMonths',
-      clamp(value, RUNWAY_THRESHOLD_MIN_MONTHS, riskyMax),
-    )
+    onThresholdChange('riskyBelowMonths', clamp(value, RUNWAY_THRESHOLD_MIN_MONTHS, riskyMax))
   }
 
   /**
    * Keeps the healthy threshold above the risky threshold by the configured separation
    */
   const updateHealthyThreshold = (value: number) => {
-    onThresholdChange(
-      'healthyAtMonths',
-      clamp(value, healthyMin, RUNWAY_THRESHOLD_MAX_MONTHS),
-    )
+    onThresholdChange('healthyAtMonths', clamp(value, healthyMin, RUNWAY_THRESHOLD_MAX_MONTHS))
   }
   const updateThreshold = (field: keyof RunwayThresholds, value: number) => {
     if (field === 'riskyBelowMonths') updateRiskyThreshold(value)
@@ -128,10 +112,7 @@ export function RunwayThresholdSlider({
   /**
    * Captures pointer movement so dragging remains stable when the cursor leaves the handle
    */
-  const startDragging = (
-    field: keyof RunwayThresholds,
-    event: PointerEvent<HTMLButtonElement>,
-  ) => {
+  const startDragging = (field: keyof RunwayThresholds, event: PointerEvent<HTMLButtonElement>) => {
     event.preventDefault()
     event.currentTarget.setPointerCapture(event.pointerId)
     setDraggingField(field)
@@ -141,10 +122,7 @@ export function RunwayThresholdSlider({
   /**
    * Ignores pointer movement from the inactive handle during a drag interaction
    */
-  const moveDragging = (
-    field: keyof RunwayThresholds,
-    event: PointerEvent<HTMLButtonElement>,
-  ) => {
+  const moveDragging = (field: keyof RunwayThresholds, event: PointerEvent<HTMLButtonElement>) => {
     if (draggingField !== field) return
     updateThresholdFromPointer(field, event.clientX)
   }
@@ -164,13 +142,8 @@ export function RunwayThresholdSlider({
   /**
    * Supports keyboard slider controls using the same threshold boundaries as pointer input
    */
-  const handleThresholdKeyDown = (
-    field: keyof RunwayThresholds,
-    event: KeyboardEvent<HTMLButtonElement>,
-  ) => {
-    const currentValue = field === 'riskyBelowMonths'
-      ? safeThresholds.riskyBelowMonths
-      : safeThresholds.healthyAtMonths
+  const handleThresholdKeyDown = (field: keyof RunwayThresholds, event: KeyboardEvent<HTMLButtonElement>) => {
+    const currentValue = field === 'riskyBelowMonths' ? safeThresholds.riskyBelowMonths : safeThresholds.healthyAtMonths
     const lowerBound = field === 'riskyBelowMonths' ? RUNWAY_THRESHOLD_MIN_MONTHS : healthyMin
     const upperBound = field === 'riskyBelowMonths' ? riskyMax : RUNWAY_THRESHOLD_MAX_MONTHS
     const keyValue: Record<string, number> = {
@@ -236,11 +209,7 @@ export function RunwayThresholdSlider({
               pct={riskySegmentPct / 2}
               visible={riskySegmentPct >= RUNWAY_TRACK_LABEL_MIN_PCT}
             />
-            <RunwayTrackLabel
-              band="low"
-              pct={lowMidPct}
-              visible={lowPct >= RUNWAY_TRACK_LABEL_MIN_PCT}
-            />
+            <RunwayTrackLabel band="low" pct={lowMidPct} visible={lowPct >= RUNWAY_TRACK_LABEL_MIN_PCT} />
             <RunwayTrackLabel
               band="healthy"
               pct={healthyMidPct}

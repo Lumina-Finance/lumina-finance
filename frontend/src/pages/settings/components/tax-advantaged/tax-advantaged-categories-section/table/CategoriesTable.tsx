@@ -102,10 +102,7 @@ function TaxAdvantagedCategoryRow({
               {formatTaxTreatment(plan.tax_treatment)} · {plan.currency}
             </span>
           </span>
-          <span
-            className="mt-1 shrink-0 rounded-full px-2.5 py-1 text-xs font-medium"
-            style={statusStyle}
-          >
+          <span className="mt-1 shrink-0 rounded-full px-2.5 py-1 text-xs font-medium" style={statusStyle}>
             {statusLabel}
           </span>
         </div>
@@ -159,4 +156,3 @@ function TaxAdvantagedCategoryRow({
     </tr>
   )
 }
-

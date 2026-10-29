@@ -73,10 +73,7 @@ export function ImportMerchantMatchingStep({
           onRetry={refetchMatches}
         />
       ) : importedMerchants.length === 0 ? (
-        <EmptyState
-          title="No merchants yet"
-          description="Map the column holding the merchant first."
-        />
+        <EmptyState title="No merchants yet" description="Map the column holding the merchant first." />
       ) : (
         <ImportValueMatchTable
           sourceLabel="Merchant from file"
@@ -102,28 +99,31 @@ export function ImportMerchantMatchingStep({
               // A row filed under a merchant that already exists creates nothing, so the name it
               // would create is greyed out rather than taken away: the column keeps its shape down
               // the table, and switching the row back to creating shows what it was already holding
-              detailNode: rowState === 'skipped' ? (
-                <span className="text-sm font-medium" style={{ color: 'var(--app-text-muted)' }}>
-                  Skipped
-                </span>
-              ) : (
-                <input
-                  type="text"
-                  className={`app-field-focus-visible w-full rounded-lg px-3 py-1.5 text-sm transition-[border-color,box-shadow,opacity] ${rowState === 'creating' ? '' : 'opacity-60'}`}
-                  style={{
-                    background: 'var(--app-input-bg)',
-                    color: 'var(--app-text)',
-                    border: '1px solid var(--app-border)',
-                  }}
-                  value={merchantCreateNames[value] ?? value}
-                  aria-label={`Name for the merchant created from ${value}`}
-                  onChange={(event) => setMerchantCreateNames((current) => ({
-                    ...current,
-                    [value]: event.target.value,
-                  }))}
-                  disabled={isAnswerLocked || rowState !== 'creating'}
-                />
-              ),
+              detailNode:
+                rowState === 'skipped' ? (
+                  <span className="text-sm font-medium" style={{ color: 'var(--app-text-muted)' }}>
+                    Skipped
+                  </span>
+                ) : (
+                  <input
+                    type="text"
+                    className={`app-field-focus-visible w-full rounded-lg px-3 py-1.5 text-sm transition-[border-color,box-shadow,opacity] ${rowState === 'creating' ? '' : 'opacity-60'}`}
+                    style={{
+                      background: 'var(--app-input-bg)',
+                      color: 'var(--app-text)',
+                      border: '1px solid var(--app-border)',
+                    }}
+                    value={merchantCreateNames[value] ?? value}
+                    aria-label={`Name for the merchant created from ${value}`}
+                    onChange={(event) =>
+                      setMerchantCreateNames((current) => ({
+                        ...current,
+                        [value]: event.target.value,
+                      }))
+                    }
+                    disabled={isAnswerLocked || rowState !== 'creating'}
+                  />
+                ),
               onChange: (nextValue) => {
                 // A merchant is held on to as it is chosen, since the option it came from goes when
                 // the search that found it clears, and the row would then show nothing for its own

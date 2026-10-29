@@ -71,9 +71,7 @@ export default function InlineMerchantEdit({
   }
 
   return (
-    <tr
-      style={{ borderBottom: isLast ? 'none' : '1px solid var(--app-border)' }}
-    >
+    <tr style={{ borderBottom: isLast ? 'none' : '1px solid var(--app-border)' }}>
       <td colSpan={3} className="py-2 pl-4 pr-4 align-top">
         <form
           className="grid min-h-10 grid-cols-[minmax(9rem,14rem)_minmax(0,1fr)_7rem] items-start gap-3"
@@ -133,7 +131,11 @@ export default function InlineMerchantEdit({
               aria-label={`Save ${merchant.name}`}
               title="Save"
             >
-              {updateMerchant.isPending ? <div className="app-spinner" aria-label="Saving" /> : <Check size={16} aria-hidden />}
+              {updateMerchant.isPending ? (
+                <div className="app-spinner" aria-label="Saving" />
+              ) : (
+                <Check size={16} aria-hidden />
+              )}
             </button>
             <button
               type="button"

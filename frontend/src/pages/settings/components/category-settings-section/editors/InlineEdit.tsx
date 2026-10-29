@@ -119,7 +119,11 @@ export default function InlineCategoryEdit({
           aria-label={`Save ${category.name}`}
           title="Save"
         >
-          {updateCategory.isPending ? <div className="app-spinner" aria-label="Saving" /> : <Check size={16} aria-hidden />}
+          {updateCategory.isPending ? (
+            <div className="app-spinner" aria-label="Saving" />
+          ) : (
+            <Check size={16} aria-hidden />
+          )}
         </button>
         <button
           type="button"

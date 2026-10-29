@@ -50,13 +50,16 @@ const levelConfig: Record<IconTooltipLevel, { Icon: LucideIcon; color: string }>
 
 // Keyboard focus shows what hovering shows, the filled icon and the open tooltip, so the trigger draws
 // no ring of its own
-const ICON_TRIGGER_CLASS = 'inline-flex cursor-pointer appearance-none border-0 bg-transparent p-0 focus-visible:outline-none'
+const ICON_TRIGGER_CLASS =
+  'inline-flex cursor-pointer appearance-none border-0 bg-transparent p-0 focus-visible:outline-none'
 const ICON_CLASS = 'transition-colors [&>*:first-child]:transition-colors [&>*:not(:first-child)]:transition-colors'
-const ICON_HOVER_CLASS = 'group-hover:[&>*:first-child]:fill-current group-hover:[&>*:not(:first-child)]:stroke-[var(--app-bg)]'
+const ICON_HOVER_CLASS =
+  'group-hover:[&>*:first-child]:fill-current group-hover:[&>*:not(:first-child)]:stroke-[var(--app-bg)]'
 const ICON_ACTIVE_CLASS = '[&>*:first-child]:fill-current [&>*:not(:first-child)]:stroke-[var(--app-bg)]'
 const ROOT_CLASS = 'group relative inline-flex'
 const FX_ROOT_CLASS = 'shrink-0 items-center align-middle leading-none'
-const FX_TRIGGER_CLASS = 'inline-flex h-4 cursor-pointer appearance-none items-center justify-center rounded-[4px] border px-[3px] text-[0.625rem] font-bold leading-none transition-colors focus-visible:outline-none'
+const FX_TRIGGER_CLASS =
+  'inline-flex h-4 cursor-pointer appearance-none items-center justify-center rounded-[4px] border px-[3px] text-[0.625rem] font-bold leading-none transition-colors focus-visible:outline-none'
 // Above the list toolbars, which stick at z-30 over the page as it scrolls, so a panel that opens
 // across a toolbar is drawn over it rather than under it. Fixed rather than absolute, so a scrolling
 // box around the trigger, such as a dialog's body, never cuts the panel off
@@ -133,7 +136,8 @@ function getTooltipSide(
   preferredPlacement: IconTooltipPlacement,
   sideBoundary: IconTooltipSideBoundary,
 ): IconTooltipPlacement {
-  const boundaryRect = sideBoundary === 'bounds' ? trigger.closest('[data-tooltip-bounds]')?.getBoundingClientRect() : undefined
+  const boundaryRect =
+    sideBoundary === 'bounds' ? trigger.closest('[data-tooltip-bounds]')?.getBoundingClientRect() : undefined
   return getAvailablePlacement({
     preferredPlacement,
     triggerRect: trigger.getBoundingClientRect(),
@@ -149,12 +153,19 @@ function getTooltipSide(
  * it measures from, as a frosted toolbar's backdrop filter does. The panel's current place on screen,
  * against the coordinates it was given, shows where that box starts, so the result is written in its terms
  */
-function getTooltipPosition(trigger: HTMLElement, tooltip: HTMLElement, placement: IconTooltipPlacement): TooltipPosition {
+function getTooltipPosition(
+  trigger: HTMLElement,
+  tooltip: HTMLElement,
+  placement: IconTooltipPlacement,
+): TooltipPosition {
   const triggerRect = trigger.getBoundingClientRect()
   const tooltipRect = tooltip.getBoundingClientRect()
   const boundaryRect = trigger.closest('[data-tooltip-bounds]')?.getBoundingClientRect()
-  const left = triggerRect.left + triggerRect.width / 2 - tooltipRect.width / 2
-    + getHorizontalOffset({ triggerRect, tooltipRect, boundaryRect })
+  const left =
+    triggerRect.left +
+    triggerRect.width / 2 -
+    tooltipRect.width / 2 +
+    getHorizontalOffset({ triggerRect, tooltipRect, boundaryRect })
   const top = placement === 'top' ? triggerRect.top - tooltipRect.height : triggerRect.bottom
   const originLeft = tooltipRect.left - (parseFloat(tooltip.style.left) || 0)
   const originTop = tooltipRect.top - (parseFloat(tooltip.style.top) || 0)
@@ -187,7 +198,7 @@ export default function IconTooltip({
 }: IconTooltipProps) {
   const { Icon: DefaultIcon, color } = levelConfig[level]
   const isFxIcon = IconOverride === 'fx'
-  const Icon = isFxIcon ? DefaultIcon : IconOverride ?? DefaultIcon
+  const Icon = isFxIcon ? DefaultIcon : (IconOverride ?? DefaultIcon)
   const [isOpen, setIsOpen] = useState(false)
   const [isHovered, setIsHovered] = useState(false)
   const [isKeyboardFocused, setIsKeyboardFocused] = useState(false)
@@ -250,7 +261,9 @@ export default function IconTooltip({
     const trigger = triggerRef.current
     if (!isPlaced || !trigger) return undefined
 
-    const observer = new IntersectionObserver((entries) => setIsTriggerOutOfView(!entries[entries.length - 1].isIntersecting))
+    const observer = new IntersectionObserver((entries) =>
+      setIsTriggerOutOfView(!entries[entries.length - 1].isIntersecting),
+    )
     observer.observe(trigger)
     // Hidden, the panel forgets where the trigger was, so it never shows again hidden for a frame
     return () => {
@@ -309,16 +322,7 @@ export default function IconTooltip({
         onFocus={updatePlacement}
         onMouseEnter={updatePlacement}
       >
-        {isFxIcon ? (
-          'FX'
-        ) : (
-          <Icon
-            size={size}
-            strokeWidth={strokeWidth}
-            aria-hidden
-            className={iconClassName}
-          />
-        )}
+        {isFxIcon ? 'FX' : <Icon size={size} strokeWidth={strokeWidth} aria-hidden className={iconClassName} />}
       </button>
       <span
         ref={tooltipRef}

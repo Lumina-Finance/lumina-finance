@@ -43,17 +43,17 @@ function TopBudgetRow({ budget, showDivider }: TopBudgetRowProps) {
       <div className="flex items-baseline justify-between gap-4">
         <div className="min-w-0">
           <p className="truncate text-base font-semibold max-[1000px]:text-[0.9rem]">{budget.name}</p>
-          <p
-            className="mt-0.5 text-base max-[1000px]:text-[0.9rem]"
-            style={{ color: 'var(--app-text-muted)' }}
-          >
+          <p className="mt-0.5 text-base max-[1000px]:text-[0.9rem]" style={{ color: 'var(--app-text-muted)' }}>
             {formatCurrency(budget.total_spent, budget.currency)}
             {' / '}
             {formatCurrency(budget.overall_limit, budget.currency)}
           </p>
         </div>
         <div className="shrink-0 text-right">
-          <p className="text-base font-semibold leading-none max-[1000px]:text-[0.9rem]" style={{ color: attention.textColor }}>
+          <p
+            className="text-base font-semibold leading-none max-[1000px]:text-[0.9rem]"
+            style={{ color: attention.textColor }}
+          >
             {budget.usagePct}%
           </p>
           <p className="mt-1 text-xs font-medium max-[1000px]:text-[0.675rem]" style={{ color: attention.textColor }}>
@@ -102,17 +102,10 @@ export function TopBudgetsList({ budgets }: TopBudgetsListProps) {
     <>
       <div className="min-h-0 flex-1">
         {budgets.map((budget, index) => (
-          <TopBudgetRow
-            key={budget.budget_id}
-            budget={budget}
-            showDivider={index < budgets.length - 1}
-          />
+          <TopBudgetRow key={budget.budget_id} budget={budget} showDivider={index < budgets.length - 1} />
         ))}
       </div>
-      <Link
-        to="/budgets"
-        className="app-secondary-button mt-3 h-9 text-xs max-[1000px]:text-[0.675rem]"
-      >
+      <Link to="/budgets" className="app-secondary-button mt-3 h-9 text-xs max-[1000px]:text-[0.675rem]">
         View all budgets
       </Link>
     </>

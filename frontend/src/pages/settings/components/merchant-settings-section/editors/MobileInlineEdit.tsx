@@ -107,7 +107,9 @@ export default function MobileInlineMerchantEdit({
           </p>
         </div>
         <div>
-          <label htmlFor={defaultCategoryFieldId} className="app-label-compact mb-1 block">Default category</label>
+          <label htmlFor={defaultCategoryFieldId} className="app-label-compact mb-1 block">
+            Default category
+          </label>
           <Dropdown
             id={defaultCategoryFieldId}
             className="w-full"
@@ -133,7 +135,11 @@ export default function MobileInlineMerchantEdit({
           aria-label={`Save ${merchant.name}`}
           title="Save"
         >
-          {updateMerchant.isPending ? <div className="app-spinner" aria-label="Saving" /> : <Check size={16} aria-hidden />}
+          {updateMerchant.isPending ? (
+            <div className="app-spinner" aria-label="Saving" />
+          ) : (
+            <Check size={16} aria-hidden />
+          )}
         </button>
         <button
           type="button"
