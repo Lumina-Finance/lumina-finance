@@ -162,15 +162,25 @@ export function useTransactionSubmit({
       setSubmitErrorTitle('')
       setEditSaving(true)
       const minimumLoading = waitForMilliseconds(LOADING_ANIMATION_MIN_MS)
+      pendingLinks.startSave()
+      let patchSaved = false
       try {
         await pendingLinks.applyUnlinks()
-        if (patch) await updateMutation.mutateAsync({ id: transaction.id, patch })
+        if (patch) {
+          await updateMutation.mutateAsync({ id: transaction.id, patch })
+          patchSaved = true
+        }
         await pendingLinks.applyAdditions()
         await minimumLoading
         closeModal()
       } catch (err) {
         await minimumLoading
-        setSubmitError(err instanceof ApiError ? err.message : 'Something went wrong. Please try again.')
+        const reason = err instanceof ApiError ? err.message : 'Something went wrong. Please try again.'
+
+        // What already went through stays, so the window says so and shows it as the server has it
+        const savedSome = patchSaved || pendingLinks.appliedCount() > 0
+        if (savedSome) pendingLinks.refreshApplied()
+        setSubmitError(savedSome ? `Some changes were saved, but not all. ${reason}` : reason)
       } finally {
         setEditSaving(false)
       }

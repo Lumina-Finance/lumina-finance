@@ -1,7 +1,8 @@
-import { useCallback, useState } from 'react'
+import { useCallback, useRef, useState } from 'react'
 import {
   useCreateTransaction,
   useLinkRefund,
+  useRefreshCreatedTransactions,
   useUnlinkRefund,
   type CreateTransactionPayload,
   type Transaction,
@@ -40,6 +41,15 @@ export interface PendingLinks extends PendingLinksState {
 
   /** Makes the picked links and creates the new refunds, once the edit is saved */
   applyAdditions: () => Promise<void>
+
+  /** How many changes this save has made so far, which is what a save that stopped partway leaves saved */
+  appliedCount: () => number
+
+  /** Starts counting the changes of a new save from none */
+  startSave: () => void
+
+  /** Refreshes what the screen shows of the changes already made, so it matches the server after a failure */
+  refreshApplied: () => void
 }
 
 /**
@@ -58,6 +68,8 @@ export function usePendingLinks(
   const linkMutation = useLinkRefund()
   const unlinkMutation = useUnlinkRefund()
   const createMutation = useCreateTransaction({ deferAccountInvalidation: true, deferTransactionInvalidation: true })
+  const refreshCreatedTransactions = useRefreshCreatedTransactions()
+  const applied = useRef({ count: 0, accountIds: [] as string[] })
 
   const addLink = useCallback(
     (transaction: Transaction) =>
@@ -87,6 +99,7 @@ export function usePendingLinks(
   const applyUnlinks = async () => {
     for (const refundId of state.unlinkedRefundIds) {
       await unlinkMutation.mutateAsync(refundId)
+      applied.current.count += 1
       setState((current) => ({
         ...current,
         unlinkedRefundIds: current.unlinkedRefundIds.filter((id) => id !== refundId),
@@ -102,11 +115,14 @@ export function usePendingLinks(
     for (const picked of state.links) {
       const [refundId, originalId] = anchorIsExpense ? [picked.id, anchor.id] : [anchor.id, picked.id]
       await linkMutation.mutateAsync({ refundId, originalId })
+      applied.current.count += 1
       setState((current) => ({ ...current, links: current.links.filter((link) => link.id !== picked.id) }))
     }
     for (const refund of state.refunds) {
       const created = await createMutation.mutateAsync({ ...refund.payload, refund_of_transaction_id: anchor.id })
       recordCreatedAccountId(created.account_id)
+      applied.current.count += 1
+      applied.current.accountIds.push(created.account_id)
       setState((current) => ({ ...current, refunds: current.refunds.filter((r) => r.key !== refund.key) }))
     }
   }
@@ -122,5 +138,10 @@ export function usePendingLinks(
     reset,
     applyUnlinks,
     applyAdditions,
+    appliedCount: () => applied.current.count,
+    startSave: () => {
+      applied.current = { count: 0, accountIds: [] }
+    },
+    refreshApplied: () => refreshCreatedTransactions(applied.current.accountIds),
   }
 }
