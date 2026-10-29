@@ -2601,11 +2601,12 @@
     line-height: 1.25rem;
   }
 
+  /* The look an outlined .app-secondary-button takes, eased on the app's curve by transition-control */
   .app-expanding-button:focus-visible,
   .app-expanding-button:hover {
-    color: var(--app-accent);
-    background: var(--app-accent-soft);
-    border-color: var(--app-accent);
+    color: var(--app-text);
+    background: color-mix(in srgb, var(--app-input-bg) 76%, transparent);
+    border-color: var(--app-hover-border);
   }
 
   .app-expanding-button:focus-visible .app-expanding-button-label,
