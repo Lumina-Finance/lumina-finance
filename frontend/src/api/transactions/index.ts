@@ -6,6 +6,7 @@ export type {
   BulkUpdateTransactionsResult,
   CreateTransactionPayload,
   DailyCashFlow,
+  LinkCandidateFilters,
   OutlierTransaction,
   OverviewFilters,
   TopCategorySpend,

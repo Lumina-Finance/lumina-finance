@@ -40,6 +40,14 @@ describe('fetchRefundLinkCandidates', () => {
     })
     expect(authenticatedFetchMock.mock.calls[1][0]).toBe('/transactions/expense-1/refund-link-candidates?q=store+credit')
   })
+
+  it('sends the list filters it is given, each selected value as its own key', async () => {
+    await fetchRefundLinkCandidates('expense-1', '', { account_id: ['a', 'b'], from_date: '2026-03-01' })
+
+    expect(authenticatedFetchMock.mock.calls[0][0]).toBe(
+      '/transactions/expense-1/refund-link-candidates?account_id=a&account_id=b&from_date=2026-03-01',
+    )
+  })
 })
 
 describe('bulkDeleteTransactions', () => {

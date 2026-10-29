@@ -24,7 +24,8 @@ export function LinkedDeleteChoice({ linkedCount, subject, checked, disabled, on
   return (
     <div className="space-y-3" data-testid="linked-delete-choice">
       <p className="text-sm leading-6" style={{ color: 'var(--app-text)' }}>
-        {subject.charAt(0).toUpperCase() + subject.slice(1)} {linkedCount === 1 ? 'is' : 'are'} linked to {linkedCount === 1 ? 'another transaction' : `${linkedCount} other transactions`}.
+        {subject.charAt(0).toUpperCase() + subject.slice(1)} {linkedCount === 1 ? 'is' : 'are'} linked to{' '}
+        {linkedCount === 1 ? 'another transaction' : `${linkedCount} other transactions`}.
       </p>
       <div className="flex items-start gap-3">
         <Checkbox checked={checked} disabled={disabled} label={label} onChange={() => onChange(!checked)} />

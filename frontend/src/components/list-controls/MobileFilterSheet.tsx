@@ -23,6 +23,10 @@ type MobileFilterSheetProps = {
   // Greys out Apply, with this as its reason, while the body holds an entry the draft will refuse, so
   // the button never looks live for a commit that cannot happen
   applyDisabledReason?: string
+
+  // Opens above a dialog that opened it, such as the picker for linking a transaction, since a dialog reached from
+  // another sits above the sheet's own level
+  aboveDialog?: boolean
   children: (headingId: string) => ReactNode
 }
 
@@ -42,6 +46,7 @@ export function MobileFilterSheet({
   clearAll,
   applyFilters,
   applyDisabledReason,
+  aboveDialog = false,
   children,
 }: MobileFilterSheetProps) {
   const panelRef = useMobileFilterSheetEffects({ isOpen, onClose, lockScroll: false })
@@ -77,7 +82,7 @@ export function MobileFilterSheet({
           aria-label={ariaLabel}
           tabIndex={-1}
           inert={covered}
-          className="fixed inset-x-0 top-0 z-sheet flex flex-col min-[750px]:hidden"
+          className={`fixed inset-x-0 top-0 ${aboveDialog ? 'z-stacked-modal' : 'z-sheet'} flex flex-col min-[750px]:hidden`}
           style={{
             // 100dvh tracks the dynamic viewport so the sheet covers the screen even as the mobile
             // browser chrome shows or hides, leaving no strip of the list peeking below it

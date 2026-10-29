@@ -42,6 +42,9 @@ interface ModalTitledPanelProps {
   railLabel?: string
   /** Overrides the level's own panel width, for a body that needs more room than the usual form */
   widthClassName?: string
+
+  /** Added to the panel's own classes, for a panel that limits its height more tightly than the level does */
+  extraPanelClassName?: string
   level?: ModalLevel
   /** Blocks dismissal while an action is in flight */
   closeDisabled?: boolean
@@ -68,6 +71,7 @@ export function ModalTitledPanel({
   RailIcon,
   railLabel,
   widthClassName,
+  extraPanelClassName = '',
   level = 'page',
   closeDisabled = false,
   onExitComplete,
@@ -114,7 +118,9 @@ export function ModalTitledPanel({
         </div>
       </div>
 
-      <div className={chrome.bodyClassName} data-tooltip-bounds data-dropdown-bounds>{children}</div>
+      <div className={chrome.bodyClassName} data-tooltip-bounds data-dropdown-bounds>
+        {children}
+      </div>
 
       {footer}
     </>
@@ -126,7 +132,7 @@ export function ModalTitledPanel({
       onClose={onClose}
       titleId={titleId}
       descriptionId={descriptionId}
-      panelClassName={`${chrome.panelClassName} ${widthClassName ?? chrome.widthClassName}`}
+      panelClassName={`${chrome.panelClassName} ${widthClassName ?? chrome.widthClassName} ${extraPanelClassName}`}
       level={level}
       closeDisabled={closeDisabled}
       onExitComplete={onExitComplete}

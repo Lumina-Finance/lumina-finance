@@ -114,6 +114,9 @@ export interface TransactionFilters {
   offset?: number;
 }
 
+/** The filters that narrow the transactions offered for a refund link, the list's own without paging or sorting */
+export type LinkCandidateFilters = Omit<TransactionFilters, 'q' | 'sort_by' | 'sort_order' | 'limit' | 'offset'>;
+
 export interface OverviewFilters {
   from_date?: string;
   to_date?: string;
@@ -166,9 +169,7 @@ export interface UpdateTransactionPayload {
  * the tracked accounts entirely. Distinct from `TransferCounterpartyScope`, which shapes the
  * single-transaction counterparty pair this replaces on the bulk request
  */
-export type BulkTransferEnd =
-  | { scope: 'tracked'; account_id: string }
-  | { scope: 'outside' };
+export type BulkTransferEnd = { scope: 'tracked'; account_id: string } | { scope: 'outside' };
 
 /** Which way a bulk direction change points: a fixed direction, or `reverse` to flip each row's own */
 export type BulkDirectionChange = TransactionDirection | 'reverse';

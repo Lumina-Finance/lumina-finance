@@ -20,6 +20,8 @@ type TransactionFilterPanelProps = {
   showAccountFilter: boolean
   // The account's currency on its own transaction list, which pins the amount currency
   lockedCurrency?: string
+  // The open width, for a place whose row the panel must cover edge to edge, instead of the usual width
+  openWidth?: number
 }
 
 /**
@@ -33,6 +35,7 @@ export function TransactionFilterPanel({
   setFilter,
   showAccountFilter,
   lockedCurrency,
+  openWidth = OPEN_WIDTH,
 }: TransactionFilterPanelProps) {
   const [open, setOpen] = useState(false)
 
@@ -49,7 +52,7 @@ export function TransactionFilterPanel({
   return (
     <FilterGlassPanel
       ariaLabel="Transaction filters"
-      openWidth={OPEN_WIDTH}
+      openWidth={openWidth}
       open={open}
       onOpenChange={setOpen}
       activeFacetCount={open ? draft.activeFacetCount : getActiveFacetCount(filters, showAccountFilter, lockedCurrency)}

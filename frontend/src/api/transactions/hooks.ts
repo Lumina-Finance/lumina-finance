@@ -39,6 +39,7 @@ import {
   updateTransaction,
 } from '@/api/transactions/requests';
 import type {
+  LinkCandidateFilters,
   OverviewFilters,
   TransactionFilters,
   UpdateTransactionPayload,
@@ -116,11 +117,15 @@ export function useTransaction(transactionId: string | null | undefined) {
  * Reads the transactions one can be linked to as a refund or as the expense it refunds. Stays idle
  * until a transaction is given, and keeps the previous result on screen while a search is typed
  */
-export function useRefundLinkCandidates(transactionId: string | null | undefined, searchText: string) {
+export function useRefundLinkCandidates(
+  transactionId: string | null | undefined,
+  searchText: string,
+  filters: LinkCandidateFilters,
+) {
   const { accessToken } = useAuth();
   return useQuery({
-    queryKey: transactionKeys.refundLinkCandidates(transactionId ?? undefined, searchText),
-    queryFn: ({ signal }) => fetchRefundLinkCandidates(transactionId as string, searchText, signal),
+    queryKey: transactionKeys.refundLinkCandidates(transactionId ?? undefined, searchText, filters),
+    queryFn: ({ signal }) => fetchRefundLinkCandidates(transactionId as string, searchText, filters, signal),
     enabled: !!accessToken && !!transactionId,
     placeholderData: keepPreviousData,
   });

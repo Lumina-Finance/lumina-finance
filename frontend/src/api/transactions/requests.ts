@@ -5,6 +5,7 @@ import type {
   BulkUpdateTransactionsPayload,
   BulkUpdateTransactionsResult,
   CreateTransactionPayload,
+  LinkCandidateFilters,
   OverviewFilters,
   Transaction,
   TransactionFilters,
@@ -121,11 +122,21 @@ export function linkRefund(refundId: string, originalTransactionId: string) {
  * Fetches the transactions one can be linked to: the money that came in for an expense, the
  * expenses for a refund. The server applies the rules, so every one returned would be accepted
  *
+ * The list comes with the exact amount first, then the nearest amounts, and takes the transaction list's
+ * filters to narrow it
+ *
+ * @param filters - The transaction list's filters, narrowing the candidates the way they narrow the list
  * @param signal - Aborts the request when the search that asked for it is replaced
  */
-export function fetchRefundLinkCandidates(transactionId: string, searchText: string, signal?: AbortSignal) {
+export function fetchRefundLinkCandidates(
+  transactionId: string,
+  searchText: string,
+  filters: LinkCandidateFilters = {},
+  signal?: AbortSignal,
+) {
   return authenticatedFetch<Transaction[]>(
-    `/transactions/${transactionId}/refund-link-candidates` + buildQueryString({ q: searchText || undefined }),
+    `/transactions/${transactionId}/refund-link-candidates` +
+      buildQueryString({ ...filters, q: searchText || undefined } as Record<string, QueryStringValue>),
     { signal },
   );
 }
