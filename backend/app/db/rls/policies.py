@@ -68,6 +68,13 @@ SECURED_TABLES = (
         "EXISTS (SELECT 1 FROM public.tax_advantaged_categories t WHERE t.id = tax_advantaged_category_id)",
     ),
     (
+        "transaction_links",
+        "EXISTS (SELECT 1 FROM public.transactions t WHERE t.id = refund_transaction_id) "
+        "AND EXISTS (SELECT 1 FROM public.transactions t WHERE t.id = original_transaction_id)",
+        "EXISTS (SELECT 1 FROM public.transactions t WHERE t.id = refund_transaction_id) "
+        "AND EXISTS (SELECT 1 FROM public.transactions t WHERE t.id = original_transaction_id)",
+    ),
+    (
         "transaction_tags",
         "EXISTS (SELECT 1 FROM public.transactions t WHERE t.id = transaction_id)",
         "EXISTS (SELECT 1 FROM public.transactions t WHERE t.id = transaction_id) AND EXISTS (SELECT 1 FROM public.tags g WHERE g.id = tag_id)",
