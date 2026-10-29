@@ -1,6 +1,6 @@
 import { useContext, useState } from 'react'
 import { AnimatePresence, motion } from 'motion/react'
-import { StickyNote, Tag as TagIcon } from 'lucide-react'
+import { Link2, StickyNote, Tag as TagIcon } from 'lucide-react'
 import type { Institution } from '@/api/institutions'
 import type { Category } from '@/api/categories'
 import type { Transaction } from '@/api/transactions'
@@ -16,6 +16,7 @@ import {
 } from '@/components/transactions/constants/transactionList'
 import { useMoneyFormatters } from '@/hooks/useMoneyFormatters'
 import { FADED_ROW_COLOURS, FadedRowsContext } from '@/contexts/FadedRowsContext'
+import { getRefundLinkLabel, type RefundLinkLabel } from '@/components/transactions/utils/refundLink'
 import { getAmountSign } from '@/utils/negativeAmount'
 import { useUsableLogo } from '@/hooks/useUsableLogo'
 import { resolveInstitutionLogoUrl } from '@/utils/institutionLogo'
@@ -24,10 +25,8 @@ const MAX_VISIBLE_TAGS = 1
 const DEFAULT_CATEGORY_ICON = '🏷️'
 const ROW_EXIT_EASE = [0.25, 0.1, 0.25, 1] as const
 
-export type TransactionRowMetadata = Pick<
-  Transaction,
-  'id' | 'dt' | 'merchant_name' | 'notes' | 'tags' | 'counterparty_account_scope'
->
+export type TransactionRowMetadata = Pick<Transaction, 'id' | 'dt' | 'merchant_name' | 'notes' | 'tags' | 'counterparty_account_scope'> &
+  Partial<Pick<Transaction, 'refund_of_transaction_id' | 'refund_transaction_ids'>>
 export type TransactionFxNote = 'unavailable' | 'rateNotPublished'
 
 /**
@@ -197,14 +196,21 @@ function TagTooltip({ tags }: { tags: Transaction['tags'] }) {
 function NoteAndTagIcons({
   hasNotes,
   tagCount,
+  refundLink = null,
   className = '',
 }: {
   hasNotes: boolean
   tagCount: number
+  refundLink?: RefundLinkLabel | null
   className?: string
 }) {
   return (
     <span className={`inline-flex shrink-0 items-center gap-2 ${className}`}>
+      {refundLink && (
+        <span className="inline-flex" role="img" aria-label={refundLink.full} title={refundLink.full} data-testid="transaction-refund-link">
+          <Link2 size={14} strokeWidth={2} aria-hidden />
+        </span>
+      )}
       {hasNotes && (
         <span className="inline-flex" aria-label="Has note">
           <StickyNote size={14} strokeWidth={2} aria-hidden />
@@ -297,7 +303,8 @@ export function TransactionRowView({
   const visibleTags = tags.slice(0, MAX_VISIBLE_TAGS)
   const extraTagCount = Math.max(tags.length - visibleTags.length, 0)
   const hasVisibleTags = visibleTags.length > 0
-  const hasSupplementalMeta = hasNotes || hasVisibleTags
+  const refundLink = getRefundLinkLabel(transaction)
+  const hasSupplementalMeta = hasNotes || hasVisibleTags || refundLink !== null
   const hasAccountMeta = !!accountName || !!accountInstitution
   const readOnly = Boolean(readOnlyReason)
   const isInFadedSection = useContext(FadedRowsContext)
@@ -460,18 +467,36 @@ export function TransactionRowView({
           8rem of text where most notes would be cut to a few letters. Being a container makes the
           track its own stacking context, so a hovered one rises over the pinned day heading for the
           tag list that opens above it */}
-        <span className="@container/extras hidden min-w-0 hover:z-50 min-[750px]:block">
-          <span
-            className="flex min-w-0 items-center gap-3 text-sm leading-5 @min-[12rem]/extras:pl-5"
-            style={{ color: 'var(--app-text-muted)' }}
-          >
-            <span className="hidden min-w-0 truncate @min-[12rem]/extras:block">{transaction.notes}</span>
-            {hasNotes && <NoteAndTagIcons hasNotes tagCount={0} className="@min-[12rem]/extras:hidden" />}
-            <span className="ml-auto flex shrink-0 justify-end gap-1.5">
-              {hasVisibleTags && (
-                <span className="group relative inline-flex @min-[22rem]/extras:hidden">
-                  <NoteAndTagIcons hasNotes={false} tagCount={tags.length} />
-                  <TagTooltip tags={tags} />
+      <span className="@container/extras hidden min-w-0 hover:z-50 min-[750px]:block">
+        <span
+          className="flex min-w-0 items-center gap-3 text-sm leading-5 @min-[12rem]/extras:pl-5"
+          style={{ color: 'var(--app-text-muted)' }}
+        >
+          <span className="hidden min-w-0 truncate @min-[12rem]/extras:block">{transaction.notes}</span>
+          {hasNotes && <NoteAndTagIcons hasNotes tagCount={0} className="@min-[12rem]/extras:hidden" />}
+          <span className="ml-auto flex shrink-0 items-center justify-end gap-1.5">
+            {refundLink && <NoteAndTagIcons hasNotes={false} tagCount={0} refundLink={refundLink} />}
+            {hasVisibleTags && (
+              <span className="group relative inline-flex @min-[22rem]/extras:hidden">
+                <NoteAndTagIcons hasNotes={false} tagCount={tags.length} />
+                <TagTooltip tags={tags} />
+              </span>
+            )}
+            {visibleTags.map((tag) => (
+              <span
+                key={tag.id}
+                className="group relative hidden max-w-[8rem] shrink-0 @min-[22rem]/extras:inline-flex"
+              >
+                <span
+                  className="inline-flex min-w-0 items-center gap-1 rounded-full px-2 py-0.5 text-sm font-medium"
+                  style={{
+                    background: 'var(--app-surface-soft)',
+                    color: 'var(--app-text-muted)',
+                    border: '1px solid var(--app-border)',
+                  }}
+                >
+                  <TagIcon size={11} aria-hidden className="shrink-0" />
+                  <span className="truncate">{tag.name}</span>
                 </span>
               )}
               {visibleTags.map((tag) => (
@@ -545,7 +570,18 @@ export function TransactionRowView({
             className={`col-start-2 row-start-2 min-w-0 truncate text-sm leading-[1.125rem] ${fxNote ? '' : 'col-span-2'}`}
             style={{ color: 'var(--app-text-muted)' }}
           >
-            {categoryName}
+            <span className="flex min-w-0 flex-1 flex-col gap-1">
+              {hasAccountMeta && (
+                <span className="inline-flex min-w-0 items-center gap-1.5">
+                  <AccountLogo accountName={accountName} institution={accountInstitution} />
+                  {accountName && <span className="min-w-0 truncate">{accountName}</span>}
+                </span>
+              )}
+              {readOnlyReason && <ReadOnlyReasonPill reason={readOnlyReason} />}
+            </span>
+            {hasSupplementalMeta && (
+              <NoteAndTagIcons hasNotes={hasNotes} tagCount={tags.length} refundLink={refundLink} className="shrink-0 pt-0.5" />
+            )}
           </span>
 
           {/* In the category line's own row beside it, so the marker never moves the lines in the left column */}
