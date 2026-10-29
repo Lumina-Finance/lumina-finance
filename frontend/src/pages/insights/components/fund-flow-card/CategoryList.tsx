@@ -53,7 +53,7 @@ export function FundFlowCategoryList({
       <div className="relative flex min-h-14 w-full items-center justify-between gap-4 px-3 py-2">
         <button
           type="button"
-          className="peer app-accent-hover absolute inset-0 rounded-xl text-left transition-colors motion-reduce:transition-none"
+          className="peer app-accent-hover absolute inset-0 rounded-xl text-left transition-control motion-reduce:transition-none"
           aria-expanded={open}
           aria-controls={listId}
           onClick={onToggle}

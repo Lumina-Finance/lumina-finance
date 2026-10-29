@@ -225,7 +225,7 @@ export function ImportSkippedTable({
       <button
         type="button"
         ref={toggleRef}
-        className="-mx-2 -my-1.5 flex w-[calc(100%+1rem)] cursor-pointer items-center justify-between gap-3 px-2 py-1.5 app-accent-hover rounded-md text-left transition-colors motion-reduce:transition-none"
+        className="-mx-2 -my-1.5 flex w-[calc(100%+1rem)] cursor-pointer items-center justify-between gap-3 px-2 py-1.5 app-accent-hover rounded-md text-left transition-control motion-reduce:transition-none"
         onClick={() => setExpanded((current) => !current)}
         aria-expanded={expanded}
         aria-label={expanded ? `Collapse ${toggleLabel}` : `Expand ${toggleLabel}`}

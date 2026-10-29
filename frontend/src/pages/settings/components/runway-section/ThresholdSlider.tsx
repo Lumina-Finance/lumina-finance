@@ -282,7 +282,7 @@ function ThresholdHandle({
         aria-valuemax={maxValue}
         aria-valuenow={currentValue}
         aria-valuetext={value}
-        className={`absolute left-1/2 top-6 h-5 w-5 -translate-x-1/2 -translate-y-1/2 rounded-full border-2 transition-[transform,outline-color] ease-app ${isDragging ? 'scale-110 cursor-grabbing' : 'cursor-grab'}`}
+        className={`absolute left-1/2 top-6 h-5 w-5 -translate-x-1/2 -translate-y-1/2 rounded-full border-2 [transition:transform_var(--app-ease-duration)_var(--app-ease-curve),var(--app-focus-fade)] ${isDragging ? 'scale-110 cursor-grabbing' : 'cursor-grab'}`}
         style={{
           background: 'var(--app-bg)',
           borderColor: style.fg,

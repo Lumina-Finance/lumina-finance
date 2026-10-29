@@ -43,7 +43,7 @@ export default function CategorySettingsGroup({
     <div className="flow-root">
       <button
         type="button"
-        className="group/row -mx-2 -my-1.5 flex h-14 w-[calc(100%+1rem)] items-center gap-3 px-2 app-accent-hover rounded-md text-left transition-colors motion-reduce:transition-none"
+        className="group/row -mx-2 -my-1.5 flex h-14 w-[calc(100%+1rem)] items-center gap-3 px-2 app-accent-hover rounded-md text-left transition-control motion-reduce:transition-none"
         onClick={onToggle}
         aria-expanded={expanded}
       >

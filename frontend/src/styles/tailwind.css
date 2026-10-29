@@ -8,8 +8,20 @@
 @theme static {
   --app-ease-duration: 300ms;
   --app-ease-curve: cubic-bezier(0.22, 1, 0.36, 1);
+  --app-focus-fade-duration: 150ms;
   --default-transition-duration: var(--app-ease-duration);
   --default-transition-timing-function: var(--app-ease-curve);
+}
+
+/* transition-colors for a control that draws the keyboard focus ring: its colours ease over the shared
+   duration while the ring fades in the shorter --app-focus-fade-duration, since transition-colors would
+   give the ring the same long fade. Tailwind's own utility can't be overridden, as its declarations come last */
+@utility transition-control {
+  transition-property: color, background-color, border-color, text-decoration-color, fill, stroke, outline-color;
+  transition-timing-function: var(--app-ease-curve);
+  transition-duration:
+    var(--app-ease-duration), var(--app-ease-duration), var(--app-ease-duration), var(--app-ease-duration),
+    var(--app-ease-duration), var(--app-ease-duration), var(--app-focus-fade-duration);
 }
 
 /* Every hover: utility on a button also applies while the button is keyboard focused, so a button
@@ -110,7 +122,7 @@
        motion it is the focus colour but not drawn, so nothing eases at all */
     --app-focus-outline-rest: 2px solid transparent;
     /* The ring's fade, for a control whose own transition list has to carry it */
-    --app-focus-fade: outline-color 150ms var(--app-ease-curve);
+    --app-focus-fade: outline-color var(--app-focus-fade-duration) var(--app-ease-curve);
     --app-focus-offset: 2px;
     --app-focus-border: inset 0 0 0 1px var(--app-focus-ring);
     --app-focus-border-error: inset 0 0 0 1px var(--app-negative);
@@ -310,7 +322,8 @@
      clear outline of the same size at rest, since the outline's colour is all that can be eased. The
      ones that draw it inside their edge hold the same inward gap, so it doesn't jump as it fades. The
      clear outline is left off in forced colours, which would draw it. A control that sets its own
-     transition lists outline-color in it, as transition-colors does, or its ring appears at once */
+     transition lists outline-color in it, as transition-control does for a colour look, or its ring appears at once. Tailwind's
+     transition-colors would fade the ring over the long duration, so a control uses transition-control */
   @media (forced-colors: none) {
     :where(
       a[href],
@@ -2501,7 +2514,7 @@
   }
 
   .app-icon-button {
-    @apply inline-flex h-8 w-8 items-center justify-center rounded-lg transition-colors motion-reduce:transition-none;
+    @apply inline-flex h-8 w-8 items-center justify-center rounded-lg transition-control motion-reduce:transition-none;
     color: var(--app-text-muted);
     background: transparent;
     border: 1px solid transparent;
