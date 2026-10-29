@@ -35,6 +35,14 @@ test('shows why a refund that would pass the expense cannot be picked', async ({
   // More than the whole expense is refused from the start, and the rest can be picked
   await expect(candidate('$31.00')).toHaveAttribute('data-refused', 'true')
   await expect(candidate('$31.00').getByTestId('link-candidate-reason')).toHaveText('Only $30.00 is left to refund')
+  // The refused row stays in the accessibility tree, marked unavailable, so a screen reader reads its reason
+  await expect(candidate('$31.00').getByRole('button')).toHaveAttribute('aria-disabled', 'true')
+  await expect(candidate('$31.00').getByRole('button', { name: /Only \$30\.00 is left to refund/ })).toBeVisible()
+  // The reason sits inside its own row, above the row's divider, so it reads as part of the row it explains
+  const rowBox = (await candidate('$31.00').locator('.app-transaction-row').boundingBox())!
+  const reasonBox = (await candidate('$31.00').getByTestId('link-candidate-reason').boundingBox())!
+  expect(reasonBox.y).toBeGreaterThanOrEqual(rowBox.y)
+  expect(reasonBox.y + reasonBox.height).toBeLessThanOrEqual(rowBox.y + rowBox.height - 1)
   await expect(candidate('$20.00')).not.toHaveAttribute('data-refused', 'true')
   await candidate('$12.00').getByRole('button').click()
   await picker.getByRole('button', { name: 'Link', exact: true }).click()

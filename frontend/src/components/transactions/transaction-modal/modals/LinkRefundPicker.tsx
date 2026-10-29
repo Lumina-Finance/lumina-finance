@@ -250,7 +250,7 @@ export default function TransactionModalLinkRefundPicker({
                   data-picked={isPicked ? 'true' : undefined}
                   data-refused={refusal ? 'true' : undefined}
                 >
-                  <div className={ROW_CONTENT_CLASS_NAME} style={contentStyle} inert={refusal !== null}>
+                  <div className={ROW_CONTENT_CLASS_NAME} style={contentStyle}>
                     <TransactionRow
                       transaction={candidate}
                       currency={candidate.currency}
@@ -259,19 +259,11 @@ export default function TransactionModalLinkRefundPicker({
                       accountInstitution={account?.institution}
                       skipEnterAnimation
                       phoneLayout
+                      note={refusal ?? undefined}
                       pressed={isPicked}
                       onOpen={() => setPickedId(isPicked ? null : candidate.id)}
                     />
                   </div>
-                  {refusal && (
-                    <p
-                      className="px-3 pb-2 text-sm"
-                      style={{ color: 'var(--app-text-muted)' }}
-                      data-testid="link-candidate-reason"
-                    >
-                      {refusal}
-                    </p>
-                  )}
                 </div>
               )
             })}

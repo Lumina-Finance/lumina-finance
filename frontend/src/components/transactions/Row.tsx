@@ -100,6 +100,9 @@ interface TransactionRowProps {
   // Lays the row out as it is on a phone at every width, for a list that is not on the transaction list's columns
   phoneLayout?: boolean
 
+  // A short line under the account line, inside the row and its separator, for a row that says why it can't be used
+  note?: string
+
   // Marks the row as a toggle, for a list where pressing a row picks it instead of opening it
   pressed?: boolean
   selection?: TransactionRowSelection
@@ -299,6 +302,7 @@ export function TransactionRowView({
   prefersReducedMotion,
   skipEnterAnimation = false,
   phoneLayout = false,
+  note,
   pressed,
   selection,
   onOpen,
@@ -437,6 +441,8 @@ export function TransactionRowView({
         // two controls doing the same thing
         tabIndex={selection ? -1 : undefined}
         onClick={(event) => {
+          // A row with a note says why it can't be used, so pressing it does nothing
+          if (note) return
           if (!selection) {
             onOpen()
             return
@@ -448,7 +454,8 @@ export function TransactionRowView({
           if (selection.isSelectable || event.shiftKey) selection.onToggle(event.shiftKey)
         }}
         aria-pressed={pressed}
-        className={`block w-full min-w-0 flex-1 cursor-pointer px-3 text-left focus-visible:outline-none ${wide ? 'min-[750px]:col-span-5 min-[750px]:grid min-[750px]:grid-cols-subgrid min-[750px]:items-center min-[750px]:gap-x-3 min-[1300px]:gap-x-4' : ''}`}
+        aria-disabled={note ? true : undefined}
+        className={`block w-full min-w-0 flex-1 ${note ? 'cursor-default' : 'cursor-pointer'} px-3 text-left focus-visible:outline-none ${wide ? 'min-[750px]:col-span-5 min-[750px]:grid min-[750px]:grid-cols-subgrid min-[750px]:items-center min-[750px]:gap-x-3 min-[1300px]:gap-x-4' : ''}`}
         style={{ scrollMarginTop: TRANSACTION_ROW_SCROLL_MARGIN }}
       >
         {/* Row from 750px wide: each cell is a direct child of this button's subgrid, which spans the
@@ -621,6 +628,16 @@ export function TransactionRowView({
                   className="shrink-0 pt-0.5"
                 />
               )}
+            </span>
+          )}
+
+          {note && (
+            <span
+              className="col-start-2 col-span-2 row-start-4 text-sm leading-[1.125rem]"
+              style={{ color: 'var(--app-text-muted)' }}
+              data-testid="link-candidate-reason"
+            >
+              {note}
             </span>
           )}
         </span>
