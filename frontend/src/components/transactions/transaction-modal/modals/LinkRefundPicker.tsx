@@ -17,9 +17,13 @@ import { useMoneyFormatters } from '@/hooks/useMoneyFormatters'
 // How long typing pauses before the search is sent, so a word is one request rather than one per letter
 const SEARCH_DEBOUNCE_MS = 250
 
-// From 750px the filter panel opens downward over the list, so the body always keeps room for it. The dialog then has
-// the same height with the panel open or closed, and opening it moves nothing
-const BODY_CLASS_NAME = 'min-[750px]:min-h-[38rem]'
+// From 750px the dialog fits its rows and stops at 60vh, which is 70% of the edit window's 86vh, scrolling beyond
+// that. The filter panel opens downward over the list, so while it is open the dialog may grow to the stacked
+// window's 84vh to make room for it, and eases back when it closes, on the app's default transition timing
+const PANEL_CLASS_NAME =
+  'min-[750px]:max-h-[60vh]! min-[750px]:has-[[aria-expanded=true]]:max-h-[84vh]! min-[750px]:transition-[max-height] motion-reduce:transition-none'
+const BODY_CLASS_NAME =
+  'min-[750px]:min-h-0 min-[750px]:has-[[aria-expanded=true]]:min-h-[34rem] min-[750px]:transition-[min-height] motion-reduce:transition-none'
 
 // A picked row takes the accent fill and an accent border. The others keep a clear border so it eases in and out, and
 // ease to a lower strength as a whole when one is picked, on the app's curve
@@ -170,6 +174,7 @@ export default function TransactionModalLinkRefundPicker({
       title={picksRefund ? 'Link a refund' : 'Link to an expense'}
       RailIcon={Link2}
       railLabel="Refund link"
+      extraPanelClassName={PANEL_CLASS_NAME}
       footer={
         <ModalFormFooter
           level="stacked"
@@ -183,8 +188,8 @@ export default function TransactionModalLinkRefundPicker({
         />
       }
     >
-      {/* From 750px the filter panel opens downward over the list, so the body keeps room for all of it */}
-      <div className={BODY_CLASS_NAME}>
+      {/* From 750px the filter panel opens downward over the list, so the body grows to hold it while it is open */}
+      <div className={BODY_CLASS_NAME} data-testid="link-picker-body">
         {/* Stays at the top of the scrolling body, so only the rows scroll beneath it. The body's padding is not
             part of what sticks, so the negative margin and offset reach it and the padding inside covers it. While the filter
             panel is open the block scrolls with the rows, so the panel adds to the scroll height */}

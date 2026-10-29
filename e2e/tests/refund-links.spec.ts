@@ -339,7 +339,7 @@ test('lists the closest amounts first and links the row that is picked', async (
 })
 
 // The explanation, search field and Filters button stay put while only the candidate rows scroll under them, and
-// the picker stays within the stacked window's 84% of the screen's height
+// the picker stays within 70% of the edit window's height from 750px wide, and the stacked window's 84% below that
 test('keeps the picker header in place while its rows scroll', async ({ page, request }) => {
   const user = await signUpUser(request)
   const account = await createAccount(request, user, { name: 'Everyday' })
@@ -359,7 +359,9 @@ test('keeps the picker header in place while its rows scroll', async ({ page, re
   const search = picker.getByPlaceholder('Merchant or note…')
   const viewport = page.viewportSize()!
   const panel = await picker.boundingBox()
-  expect(panel!.height).toBeLessThanOrEqual(viewport.height * 0.84 + 1)
+  // The edit window is 86vh tall, though it shrinks a little behind the picker, so its size is taken from the screen
+  const share = viewport.width >= 750 ? 0.7 * viewport.height * 0.86 : viewport.height * 0.84
+  expect(panel!.height).toBeLessThanOrEqual(share + 1)
 
   // The last row starts below the dialog's visible body, and scrolling it into view leaves the header where it was
   const searchBefore = await search.boundingBox()
@@ -398,7 +400,7 @@ test('narrows the picker with the filter sheet on a phone', async ({ page, reque
 })
 
 // Opening and closing Filters moves only the list area: the explanation, the search field and the Filters button
-// keep their top edges before, during and after, at a desktop, a laptop and a phone size
+// keep their places in the dialog before, during and after, at a desktop, a laptop and a phone size
 for (const size of [
   { width: 1920, height: 1080 },
   { width: 1280, height: 800 },
@@ -426,7 +428,11 @@ for (const size of [
       picker.getByPlaceholder('Merchant or note…'),
       phone ? picker.getByRole('button', { name: /^Filters/ }) : picker.getByRole('button', { name: 'Transaction filters' }),
     ]
-    const tops = () => Promise.all(header.map((element) => element.evaluate((node) => node.getBoundingClientRect().top)))
+    // Measured from the dialog's own top, since a dialog that grows with the panel is centred and so moves as a whole
+    const tops = async () => {
+      const dialogTop = await picker.evaluate((node) => node.getBoundingClientRect().top)
+      return Promise.all(header.map((element) => element.evaluate((node, top) => node.getBoundingClientRect().top - top, dialogTop)))
+    }
     const resting = await tops()
 
     // Opening Filters from a body scrolled down is the case that moved the header, since the pinned block un-sticks

@@ -108,6 +108,43 @@ for (const size of [
   })
 }
 
+// From 750px the picker is only as tall as its rows, and opening Filters eases it taller, then back
+test('fits the picker to three rows and eases its height with the filter panel', async ({ page, request }) => {
+  await page.setViewportSize({ width: 1920, height: 1080 })
+  const user = await signUpUser(request)
+  const account = await createAccount(request, user, { name: 'Everyday' })
+  const row = { accountId: account.id, categoryName: 'Groceries' }
+  const expenseId = await createTransaction(request, user, { ...row, amount: -5000, date: daysFromTodayInTestTimezone(-6) })
+  for (let day = 1; day <= 3; day++) {
+    await createTransaction(request, user, { ...row, amount: 1000 + day * 100, date: daysFromTodayInTestTimezone(-day) })
+  }
+
+  await logInViaApi(page, user)
+  await openPage(page, `/accounts/${account.id}`)
+  await openRow(page, expenseId)
+  // The edit window is 86vh tall, though it shrinks a little behind the picker, so its size is taken from the screen
+  const screenHeight = page.viewportSize()!.height
+  const editWindowHeight = screenHeight * 0.86
+  await page.getByTestId('link-existing').click()
+  const picker = page.getByRole('dialog', { name: 'Link a refund', exact: true })
+  await expect(picker.getByTestId('link-candidate')).toHaveCount(3)
+  const height = async () => (await picker.boundingBox())!.height
+  const rowsOnly = await height()
+  expect(rowsOnly).toBeLessThan(editWindowHeight * 0.7 - 40)
+
+  // The body eases its height on the app's default transition timing
+  const body = picker.getByTestId('link-picker-body')
+  await expect(body).toHaveCSS('transition-property', 'min-height')
+  await expect(body).toHaveCSS('transition-duration', '0.3s')
+  await expect(body).toHaveCSS('transition-timing-function', 'cubic-bezier(0.22, 1, 0.36, 1)')
+
+  await picker.getByRole('button', { name: 'Transaction filters' }).click()
+  await expect.poll(height).toBeGreaterThan(rowsOnly + 100)
+  expect(await height()).toBeLessThanOrEqual(screenHeight * 0.84 + 1)
+  await page.keyboard.press('Escape')
+  await expect.poll(height).toBeLessThan(rowsOnly + 2)
+})
+
 // A refund whose link is removed in the window, but not saved yet, can be linked to an expense again, since Save
 // removes the link first
 test('offers expenses again to a refund unlinked in the window', async ({ page, request }) => {
