@@ -38,6 +38,14 @@ test('shows why a refund that would pass the expense cannot be picked', async ({
   // The refused row stays in the accessibility tree, marked unavailable, so a screen reader reads its reason
   await expect(candidate('$31.00').getByRole('button')).toHaveAttribute('aria-disabled', 'true')
   await expect(candidate('$31.00').getByRole('button', { name: /Only \$30\.00 is left to refund/ })).toBeVisible()
+  // The refused row shows the not-allowed cursor and takes no hover fill, while a row that can be picked takes both
+  const refusedRow = candidate('$31.00').locator('.app-transaction-row')
+  await expect(candidate('$31.00').getByRole('button')).toHaveCSS('cursor', 'not-allowed')
+  await refusedRow.hover({ force: true })
+  await page.waitForTimeout(400)
+  await expect(refusedRow).toHaveCSS('background-color', 'rgba(0, 0, 0, 0)')
+  await candidate('$12.00').locator('.app-transaction-row').hover()
+  await expect(candidate('$12.00').locator('.app-transaction-row')).not.toHaveCSS('background-color', 'rgba(0, 0, 0, 0)')
   // The reason sits inside its own row, above the row's divider, so it reads as part of the row it explains
   const rowBox = (await candidate('$31.00').locator('.app-transaction-row').boundingBox())!
   const reasonBox = (await candidate('$31.00').getByTestId('link-candidate-reason').boundingBox())!

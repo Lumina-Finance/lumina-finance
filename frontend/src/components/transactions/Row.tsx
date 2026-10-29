@@ -385,7 +385,7 @@ export function TransactionRowView({
       transition={{ duration: prefersReducedMotion ? 0 : 0.24, ease: ROW_EXIT_EASE }}
       onAnimationStart={() => setIsAnimatingHeight(true)}
       onAnimationComplete={() => setIsAnimatingHeight(false)}
-      className={`app-transaction-row relative flex items-center hover:bg-[var(--app-hover-soft)] ${wide ? 'min-[750px]:col-span-full min-[750px]:grid min-[750px]:grid-cols-subgrid min-[750px]:items-center min-[750px]:gap-x-3 min-[1300px]:gap-x-4' : ''}`}
+      className={`app-transaction-row relative flex items-center ${note ? '' : 'hover:bg-[var(--app-hover-soft)]'} ${wide ? 'min-[750px]:col-span-full min-[750px]:grid min-[750px]:grid-cols-subgrid min-[750px]:items-center min-[750px]:gap-x-3 min-[1300px]:gap-x-4' : ''}`}
       style={{
         borderBottom: '1px solid var(--app-border)',
         overflow: isAnimatingHeight ? 'hidden' : 'visible',
@@ -455,7 +455,7 @@ export function TransactionRowView({
         }}
         aria-pressed={pressed}
         aria-disabled={note ? true : undefined}
-        className={`block w-full min-w-0 flex-1 ${note ? 'cursor-default' : 'cursor-pointer'} px-3 text-left focus-visible:outline-none ${wide ? 'min-[750px]:col-span-5 min-[750px]:grid min-[750px]:grid-cols-subgrid min-[750px]:items-center min-[750px]:gap-x-3 min-[1300px]:gap-x-4' : ''}`}
+        className={`block w-full min-w-0 flex-1 ${note ? 'cursor-not-allowed' : 'cursor-pointer'} px-3 text-left focus-visible:outline-none ${wide ? 'min-[750px]:col-span-5 min-[750px]:grid min-[750px]:grid-cols-subgrid min-[750px]:items-center min-[750px]:gap-x-3 min-[1300px]:gap-x-4' : ''}`}
         style={{ scrollMarginTop: TRANSACTION_ROW_SCROLL_MARGIN }}
       >
         {/* Row from 750px wide: each cell is a direct child of this button's subgrid, which spans the
