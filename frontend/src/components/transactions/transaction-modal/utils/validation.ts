@@ -59,9 +59,8 @@ export function validateTransactionForm(
     // Editing answers this too, so a transfer recorded before the field existed says where the
     // money went the next time it is touched at all
     if (!form.counterparty_account_id) {
-      errors.counterparty_account_id = form.direction === 'debit'
-        ? 'Select where the money went'
-        : 'Select where the money came from'
+      errors.counterparty_account_id =
+        form.direction === 'debit' ? 'Select where the money went' : 'Select where the money came from'
     } else if (form.counterparty_account_id === form.account_id) {
       errors.counterparty_account_id = 'Choose a different account'
     }

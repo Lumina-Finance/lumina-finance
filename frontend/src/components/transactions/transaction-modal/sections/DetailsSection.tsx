@@ -78,12 +78,7 @@ export default function TransactionDetailsSection({
     <CreateModalSectionFrame step="03" title="Details">
       <div className="grid gap-3 sm:grid-cols-[11rem_8.5rem_minmax(0,1fr)]">
         <div>
-          <CreateModalFieldLabelRow
-            htmlFor={ids.date}
-            label="Date"
-            error={dateError}
-            errorId={ids.errors.date}
-          />
+          <CreateModalFieldLabelRow htmlFor={ids.date} label="Date" error={dateError} errorId={ids.errors.date} />
           <DateField
             id={ids.date}
             ariaLabel="Date"
@@ -97,7 +92,9 @@ export default function TransactionDetailsSection({
         </div>
         <div>
           <div className="mb-1.5 flex items-center gap-2">
-            <label htmlFor={ids.currency} className="app-label block text-[0.9375rem] leading-5">Currency</label>
+            <label htmlFor={ids.currency} className="app-label block text-[0.9375rem] leading-5">
+              Currency
+            </label>
             {currencyState === 'loading' && (
               <IconTooltip label="Loading currencies" modalFieldTabStop>
                 {CURRENCY_LIST_LOADING}
@@ -124,20 +121,24 @@ export default function TransactionDetailsSection({
         <div>
           <CreateModalFieldLabelRow
             htmlFor={ids.amount}
-            label={isAmountLocked ? (
-              <span className="inline-flex items-center gap-2">
-                Amount
-                {currencyState === 'loading' ? (
-                  <IconTooltip label="Loading currencies" modalFieldTabStop>
-                    {CURRENCY_LIST_LOADING}
-                  </IconTooltip>
-                ) : (
-                  <IconTooltip label="Amount unavailable" level="important" modalFieldTabStop>
-                    {currencyState === 'unavailable' ? CURRENCY_AMOUNT_NOTICE : CURRENCY_AMOUNT_UNKNOWN}
-                  </IconTooltip>
-                )}
-              </span>
-            ) : 'Amount'}
+            label={
+              isAmountLocked ? (
+                <span className="inline-flex items-center gap-2">
+                  Amount
+                  {currencyState === 'loading' ? (
+                    <IconTooltip label="Loading currencies" modalFieldTabStop>
+                      {CURRENCY_LIST_LOADING}
+                    </IconTooltip>
+                  ) : (
+                    <IconTooltip label="Amount unavailable" level="important" modalFieldTabStop>
+                      {currencyState === 'unavailable' ? CURRENCY_AMOUNT_NOTICE : CURRENCY_AMOUNT_UNKNOWN}
+                    </IconTooltip>
+                  )}
+                </span>
+              ) : (
+                'Amount'
+              )
+            }
             error={amountError}
             errorId={ids.errors.amount}
           />
@@ -169,7 +170,9 @@ export default function TransactionDetailsSection({
       </div>
 
       <div>
-        <label htmlFor={ids.notes} className="app-label mb-1.5 block text-[0.9375rem] leading-5">Notes</label>
+        <label htmlFor={ids.notes} className="app-label mb-1.5 block text-[0.9375rem] leading-5">
+          Notes
+        </label>
         <input
           id={ids.notes}
           type="text"

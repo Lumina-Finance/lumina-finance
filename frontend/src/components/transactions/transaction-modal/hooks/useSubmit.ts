@@ -1,11 +1,7 @@
 import { useState, type Dispatch, type FormEvent, type MutableRefObject, type SetStateAction } from 'react'
 import type { AccountsOverview } from '@/api/accounts'
 import { ApiError } from '@/api/auth'
-import {
-  useCreateTransaction,
-  useUpdateTransaction,
-  type Transaction,
-} from '@/api/transactions'
+import { useCreateTransaction, useUpdateTransaction, type Transaction } from '@/api/transactions'
 import { getCreateFailureMessage, getTransferFailureNotice } from '@/utils/createFailure'
 import { createRandomId } from '@/utils/randomId'
 import { LOADING_ANIMATION_MIN_MS, waitForMilliseconds } from '@/utils/timing'
@@ -109,9 +105,7 @@ export function useTransactionSubmit({
   const isPending = createLoading || updateMutation.isPending || editSaving || deleteLoading
 
   const selectedAccountSessionDelta = selectedAccount ? (sessionAccountDeltas[selectedAccount.id] ?? 0) : 0
-  const runningBalance = selectedAccount
-    ? selectedAccount.current_balance + selectedAccountSessionDelta
-    : 0
+  const runningBalance = selectedAccount ? selectedAccount.current_balance + selectedAccountSessionDelta : 0
 
   // Resets the form after a create so a keep-open batch starts its next row from the same
   // account, category, merchant, currency, and date instead of blank fields
@@ -145,11 +139,7 @@ export function useTransactionSubmit({
     if (isPending || readOnly || !guard()) return
 
     if (editing && transaction) {
-      const patch = buildUpdateTransactionPatch(
-        form,
-        transaction,
-        isAmountLocked ? null : selectedCurrencyExponent,
-      )
+      const patch = buildUpdateTransactionPatch(form, transaction, isAmountLocked ? null : selectedCurrencyExponent)
 
       if (!patch && pendingLinks.count === 0) {
         closeModal()
@@ -193,7 +183,12 @@ export function useTransactionSubmit({
       stageRefund({
         key: createRandomId(),
         payload,
-        preview: { merchant_name: refundMerchantName, dt: payload.dt, amount: payload.amount, currency: payload.currency },
+        preview: {
+          merchant_name: refundMerchantName,
+          dt: payload.dt,
+          amount: payload.amount,
+          currency: payload.currency,
+        },
       })
       closeModal()
       return
@@ -245,7 +240,8 @@ export function useTransactionSubmit({
       if (failedLegs.length > 0) {
         const notice = getTransferFailureNotice(
           failedLegs.map(({ leg, reason }) => {
-            const accountName = accounts.find((account) => account.id === leg.accountId)?.name ?? 'the counterparty account'
+            const accountName =
+              accounts.find((account) => account.id === leg.accountId)?.name ?? 'the counterparty account'
             return { description: `a ${leg.failedKind} transfer in ${accountName}`, reason }
           }),
           legs.length,

@@ -3,16 +3,11 @@ import type { AccountsOverview } from '@/api/accounts'
 import type { Category } from '@/api/categories'
 import type { Currency } from '@/api/currency'
 import type { Transaction } from '@/api/transactions'
-import {
-  INITIAL_TRANSACTION_FORM,
-} from '@/components/transactions/transaction-modal/constants'
+import { INITIAL_TRANSACTION_FORM } from '@/components/transactions/transaction-modal/constants'
 import { amountToInputString } from '@/components/transactions/transaction-modal/utils/money'
 import { buildRefundNote } from '@/components/transactions/transaction-modal/utils/refund'
 import { findCurrencyExponent } from '@/utils/moneyInput'
-import type {
-  TransactionFormValues,
-  TransactionModalKind,
-} from '@/components/transactions/transaction-modal/types'
+import type { TransactionFormValues, TransactionModalKind } from '@/components/transactions/transaction-modal/types'
 import { getTodayYmd } from '@/utils/date'
 
 interface BuildInitialTransactionFormOptions {
@@ -91,8 +86,9 @@ function buildFormFromTransaction(
     date: transaction.dt,
     tag_ids: transaction.tags?.map((tag) => tag.id) ?? transaction.tag_ids,
     symmetric_transfer: false,
-    counterparty_account_id: transaction.counterparty_account_scope === 'outside'
-      ? OUTSIDE_ACCOUNT_VALUE
-      : transaction.counterparty_account_id ?? '',
+    counterparty_account_id:
+      transaction.counterparty_account_scope === 'outside'
+        ? OUTSIDE_ACCOUNT_VALUE
+        : (transaction.counterparty_account_id ?? ''),
   }
 }

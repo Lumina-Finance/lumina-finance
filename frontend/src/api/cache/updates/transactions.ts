@@ -1,4 +1,4 @@
-import type { InfiniteData, QueryClient } from '@tanstack/react-query';
+import type { InfiniteData, QueryClient } from '@tanstack/react-query'
 import {
   invalidateAccountActivity,
   invalidateAccountBalances,
@@ -18,15 +18,11 @@ import {
   invalidateTaxAdvantagedCategories,
   invalidateTransactionOverview as invalidateTransactionOverviewQueries,
   invalidateTransactions,
-} from '@/api/cache/invalidation';
-import { accountKeys, transactionKeys } from '@/api/cache/queryKeys';
-import { uniqueIds } from '@/api/cache/invalidation/types';
-import type { Account, AccountKind, AccountsOverview } from '@/api/accounts/types';
-import type {
-  BulkUpdateTransactionsPayload,
-  Transaction,
-  UpdateTransactionPayload,
-} from '@/api/transactions/types';
+} from '@/api/cache/invalidation'
+import { accountKeys, transactionKeys } from '@/api/cache/queryKeys'
+import { uniqueIds } from '@/api/cache/invalidation/types'
+import type { Account, AccountKind, AccountsOverview } from '@/api/accounts/types'
+import type { BulkUpdateTransactionsPayload, Transaction, UpdateTransactionPayload } from '@/api/transactions/types'
 
 const TRANSACTION_LIST_FIELDS = new Set<keyof UpdateTransactionPayload>([
   'account_id',
@@ -38,7 +34,7 @@ const TRANSACTION_LIST_FIELDS = new Set<keyof UpdateTransactionPayload>([
   'tag_ids',
   'counterparty_account_id',
   'counterparty_account_scope',
-]);
+])
 
 const TRANSACTION_OVERVIEW_FIELDS = new Set<keyof UpdateTransactionPayload>([
   'account_id',
@@ -47,20 +43,11 @@ const TRANSACTION_OVERVIEW_FIELDS = new Set<keyof UpdateTransactionPayload>([
   'amount',
   'merchant_id',
   'notes',
-]);
+])
 
-const ACCOUNT_BALANCE_FIELDS = new Set<keyof UpdateTransactionPayload>([
-  'account_id',
-  'dt',
-  'amount',
-]);
+const ACCOUNT_BALANCE_FIELDS = new Set<keyof UpdateTransactionPayload>(['account_id', 'dt', 'amount'])
 
-const ACCOUNT_ACTIVITY_FIELDS = new Set<keyof UpdateTransactionPayload>([
-  'account_id',
-  'dt',
-  'category_id',
-  'amount',
-]);
+const ACCOUNT_ACTIVITY_FIELDS = new Set<keyof UpdateTransactionPayload>(['account_id', 'dt', 'category_id', 'amount'])
 
 const DASHBOARD_RECENT_FIELDS = new Set<keyof UpdateTransactionPayload>([
   'account_id',
@@ -68,14 +55,9 @@ const DASHBOARD_RECENT_FIELDS = new Set<keyof UpdateTransactionPayload>([
   'category_id',
   'amount',
   'merchant_id',
-]);
+])
 
-const INCOME_EXPENSE_FIELDS = new Set<keyof UpdateTransactionPayload>([
-  'account_id',
-  'dt',
-  'category_id',
-  'amount',
-]);
+const INCOME_EXPENSE_FIELDS = new Set<keyof UpdateTransactionPayload>(['account_id', 'dt', 'category_id', 'amount'])
 
 // Wider than the income and expense set, because a transfer between two accounts of one
 // tax-advantaged category counts toward its limits or not depending on the account recorded on it,
@@ -87,12 +69,9 @@ const TAX_ADVANTAGED_FIELDS = new Set<keyof UpdateTransactionPayload>([
   'amount',
   'counterparty_account_id',
   'counterparty_account_scope',
-]);
+])
 
-const CREDIT_ACTIVITY_FIELDS = new Set<keyof UpdateTransactionPayload>([
-  'account_id',
-  'amount',
-]);
+const CREDIT_ACTIVITY_FIELDS = new Set<keyof UpdateTransactionPayload>(['account_id', 'amount'])
 
 const MERCHANT_ACTIVITY_FIELDS = new Set<keyof UpdateTransactionPayload>([
   'account_id',
@@ -100,18 +79,13 @@ const MERCHANT_ACTIVITY_FIELDS = new Set<keyof UpdateTransactionPayload>([
   'category_id',
   'amount',
   'merchant_id',
-]);
+])
 
 // Usage is ranked by decayed transaction count, excluding Balance Adjustment categories
-const MERCHANT_USAGE_FIELDS = new Set<keyof UpdateTransactionPayload>([
-  'dt', 'category_id', 'merchant_id',
-]);
+const MERCHANT_USAGE_FIELDS = new Set<keyof UpdateTransactionPayload>(['dt', 'category_id', 'merchant_id'])
 
-function patchTouches(
-  patch: UpdateTransactionPayload,
-  fields: Set<keyof UpdateTransactionPayload>,
-): boolean {
-  return Object.keys(patch).some((key) => fields.has(key as keyof UpdateTransactionPayload));
+function patchTouches(patch: UpdateTransactionPayload, fields: Set<keyof UpdateTransactionPayload>): boolean {
+  return Object.keys(patch).some((key) => fields.has(key as keyof UpdateTransactionPayload))
 }
 
 /**
@@ -119,78 +93,70 @@ function patchTouches(
  */
 function isInfiniteTransactionsData(data: unknown): data is InfiniteData<Transaction[]> {
   return (
-    typeof data === 'object'
-    && data !== null
-    && 'pages' in data
-    && Array.isArray((data as InfiniteData<Transaction[]>).pages)
-  );
+    typeof data === 'object' &&
+    data !== null &&
+    'pages' in data &&
+    Array.isArray((data as InfiniteData<Transaction[]>).pages)
+  )
 }
 
 /**
  * Finds a cached transaction in detail or list responses to invalidate old and new account scopes
  */
-export function findCachedTransaction(
-  queryClient: QueryClient,
-  transactionId: string,
-): Transaction | undefined {
+export function findCachedTransaction(queryClient: QueryClient, transactionId: string): Transaction | undefined {
   const transactionQueries = queryClient.getQueriesData<Transaction | Transaction[] | InfiniteData<Transaction[]>>({
     queryKey: transactionKeys.all,
     exact: false,
-  });
+  })
 
   for (const [, data] of transactionQueries) {
-    if (!data) continue;
+    if (!data) continue
     if (isInfiniteTransactionsData(data)) {
-      const transaction = data.pages.flat().find((item) => item.id === transactionId);
-      if (transaction) return transaction;
+      const transaction = data.pages.flat().find((item) => item.id === transactionId)
+      if (transaction) return transaction
     } else if (Array.isArray(data)) {
-      const transaction = data.find((item) => item.id === transactionId);
-      if (transaction) return transaction;
+      const transaction = data.find((item) => item.id === transactionId)
+      if (transaction) return transaction
     } else if (data.id === transactionId) {
-      return data;
+      return data
     }
   }
-  return undefined;
+  return undefined
 }
 
 /**
  * Drops a transaction from every cached list right away so a deletion clears from the screen at once
  * instead of lingering until the refetch that invalidation schedules
  */
-export function removeTransactionFromLists(
-  queryClient: QueryClient,
-  transactionId: string,
-): void {
-  removeTransactionsFromLists(queryClient, [transactionId]);
+export function removeTransactionFromLists(queryClient: QueryClient, transactionId: string): void {
+  removeTransactionsFromLists(queryClient, [transactionId])
 }
 
 /**
  * Drops several transactions from every cached list in one pass per list, for a bulk delete
  */
-export function removeTransactionsFromLists(
-  queryClient: QueryClient,
-  transactionIds: string[],
-): void {
-  const removed = new Set(transactionIds);
+export function removeTransactionsFromLists(queryClient: QueryClient, transactionIds: string[]): void {
+  const removed = new Set(transactionIds)
   const transactionQueries = queryClient.getQueriesData<Transaction | Transaction[] | InfiniteData<Transaction[]>>({
     queryKey: transactionKeys.all,
     exact: false,
-  });
+  })
 
   // The ones left behind drop their link to a deleted one, so a refund shows no link at once
-  const keep = (page: Transaction[]) => page.filter((item) => !removed.has(item.id)).map((item) => withoutLinksTo(item, removed));
+  const keep = (page: Transaction[]) =>
+    page.filter((item) => !removed.has(item.id)).map((item) => withoutLinksTo(item, removed))
 
   for (const [queryKey, data] of transactionQueries) {
-    if (!data) continue;
+    if (!data) continue
     if (isInfiniteTransactionsData(data)) {
       queryClient.setQueryData<InfiniteData<Transaction[]>>(queryKey, {
         ...data,
         pages: data.pages.map(keep),
-      });
+      })
     } else if (Array.isArray(data)) {
-      queryClient.setQueryData<Transaction[]>(queryKey, keep(data));
+      queryClient.setQueryData<Transaction[]>(queryKey, keep(data))
     } else if (!removed.has(data.id)) {
-      queryClient.setQueryData<Transaction>(queryKey, withoutLinksTo(data, removed));
+      queryClient.setQueryData<Transaction>(queryKey, withoutLinksTo(data, removed))
     }
   }
 }
@@ -199,16 +165,16 @@ export function removeTransactionsFromLists(
  * Returns the transaction without any link to the removed ones, or the same object when it has none
  */
 function withoutLinksTo(transaction: Transaction, removed: Set<string>): Transaction {
-  const refundOf = transaction.refund_of_transaction_id;
-  const refunds = transaction.refund_transaction_ids;
-  const dropsOriginal = refundOf != null && removed.has(refundOf);
-  const dropsRefund = refunds?.some((id) => removed.has(id)) ?? false;
-  if (!dropsOriginal && !dropsRefund) return transaction;
+  const refundOf = transaction.refund_of_transaction_id
+  const refunds = transaction.refund_transaction_ids
+  const dropsOriginal = refundOf != null && removed.has(refundOf)
+  const dropsRefund = refunds?.some((id) => removed.has(id)) ?? false
+  if (!dropsOriginal && !dropsRefund) return transaction
   return {
     ...transaction,
     refund_of_transaction_id: dropsOriginal ? null : refundOf,
     refund_transaction_ids: refunds?.filter((id) => !removed.has(id)),
-  };
+  }
 }
 
 /**
@@ -218,29 +184,26 @@ function getCachedAccountTaxAdvantagedCategoryId(
   queryClient: QueryClient,
   accountId: string,
 ): string | null | undefined {
-  const detail = queryClient.getQueryData<Account>(accountKeys.detail(accountId));
-  if (detail) return detail.tax_advantaged_category_id;
+  const detail = queryClient.getQueryData<Account>(accountKeys.detail(accountId))
+  if (detail) return detail.tax_advantaged_category_id
 
-  const accounts = queryClient.getQueryData<AccountsOverview[]>(accountKeys.list());
-  return accounts?.find((account) => account.id === accountId)?.tax_advantaged_category_id;
+  const accounts = queryClient.getQueryData<AccountsOverview[]>(accountKeys.list())
+  return accounts?.find((account) => account.id === accountId)?.tax_advantaged_category_id
 }
 
 /**
  * Reads cached account kind so credit widgets only refresh when credit accounts may be affected
  */
-function getCachedAccountKind(
-  queryClient: QueryClient,
-  accountId: string,
-): AccountKind | undefined {
-  const detail = queryClient.getQueryData<Account>(accountKeys.detail(accountId));
-  if (detail) return detail.account_kind;
+function getCachedAccountKind(queryClient: QueryClient, accountId: string): AccountKind | undefined {
+  const detail = queryClient.getQueryData<Account>(accountKeys.detail(accountId))
+  if (detail) return detail.account_kind
 
-  const accounts = queryClient.getQueryData<AccountsOverview[]>(accountKeys.list());
-  return accounts?.find((account) => account.id === accountId)?.account_kind;
+  const accounts = queryClient.getQueryData<AccountsOverview[]>(accountKeys.list())
+  return accounts?.find((account) => account.id === accountId)?.account_kind
 }
 
 export interface AccountActivityInvalidationOptions {
-  refetchAccountList?: boolean;
+  refetchAccountList?: boolean
 }
 
 /**
@@ -248,11 +211,11 @@ export interface AccountActivityInvalidationOptions {
  */
 function invalidateTransactionAccountBalances(queryClient: QueryClient, accountIds: string[]) {
   if (accountIds.length > 0) {
-    invalidateAccountBalances(queryClient, accountIds);
-    return;
+    invalidateAccountBalances(queryClient, accountIds)
+    return
   }
 
-  invalidateAccounts(queryClient);
+  invalidateAccounts(queryClient)
 }
 
 /**
@@ -260,24 +223,25 @@ function invalidateTransactionAccountBalances(queryClient: QueryClient, accountI
  */
 function invalidateTransactionAccountActivity(queryClient: QueryClient, accountIds: string[]) {
   if (accountIds.length > 0) {
-    invalidateAccountActivity(queryClient, accountIds);
-    return;
+    invalidateAccountActivity(queryClient, accountIds)
+    return
   }
 
-  invalidateAccounts(queryClient);
+  invalidateAccounts(queryClient)
 }
 
 /**
  * Refreshes credit data only when changed transactions could affect revolving accounts
  */
 function invalidateCreditActivity(queryClient: QueryClient, accountIds: string[]) {
-  const mayAffectCredit = accountIds.length === 0
-    || accountIds.some((accountId) => {
-      const accountKind = getCachedAccountKind(queryClient, accountId);
-      return accountKind === undefined || accountKind === 'revolving';
-    });
+  const mayAffectCredit =
+    accountIds.length === 0 ||
+    accountIds.some((accountId) => {
+      const accountKind = getCachedAccountKind(queryClient, accountId)
+      return accountKind === undefined || accountKind === 'revolving'
+    })
 
-  if (mayAffectCredit) invalidateDashboardCredit(queryClient);
+  if (mayAffectCredit) invalidateDashboardCredit(queryClient)
 }
 
 /**
@@ -286,8 +250,8 @@ function invalidateCreditActivity(queryClient: QueryClient, accountIds: string[]
 function invalidateTaxAdvantagedActivity(queryClient: QueryClient, accountIds: string[]) {
   const categoryIds = uniqueIds(
     accountIds.map((accountId) => getCachedAccountTaxAdvantagedCategoryId(queryClient, accountId)),
-  );
-  invalidateTaxAdvantagedCategories(queryClient, categoryIds);
+  )
+  invalidateTaxAdvantagedCategories(queryClient, categoryIds)
 }
 
 /**
@@ -298,19 +262,19 @@ export function invalidateTransactionAccountData(
   accountIds: string[],
   options: AccountActivityInvalidationOptions = {},
 ) {
-  if (options.refetchAccountList) invalidateTransactionAccountBalances(queryClient, accountIds);
-  invalidateTransactionAccountActivity(queryClient, accountIds);
-  invalidateCreditActivity(queryClient, accountIds);
-  invalidateTaxAdvantagedActivity(queryClient, accountIds);
+  if (options.refetchAccountList) invalidateTransactionAccountBalances(queryClient, accountIds)
+  invalidateTransactionAccountActivity(queryClient, accountIds)
+  invalidateCreditActivity(queryClient, accountIds)
+  invalidateTaxAdvantagedActivity(queryClient, accountIds)
 }
 
 export interface FinancialTransactionInvalidationOptions {
-  deferAccountInvalidation?: boolean;
+  deferAccountInvalidation?: boolean
   // Holds the transaction overview refresh for the caller to flush, so an open create modal does not
   // refetch the transactions page behind it on every save
-  deferTransactionOverview?: boolean;
+  deferTransactionOverview?: boolean
   // Holds ranked merchant lookup refresh until a deferred create session is flushed
-  deferMerchantLookupInvalidation?: boolean;
+  deferMerchantLookupInvalidation?: boolean
 }
 
 /**
@@ -321,21 +285,21 @@ export function invalidateFinancialTransactionData(
   accountIds: string[],
   options: FinancialTransactionInvalidationOptions = {},
 ) {
-  if (!options.deferTransactionOverview) invalidateTransactionOverviewQueries(queryClient);
-  if (!options.deferMerchantLookupInvalidation) invalidateMerchantLookupPages(queryClient);
-  invalidateDashboardBalance(queryClient);
-  invalidateDashboardIncomeExpense(queryClient);
-  invalidateDashboardRecent(queryClient);
-  invalidateInsightsBalance(queryClient);
-  invalidateInsightsIncomeExpense(queryClient);
-  invalidateBudgets(queryClient);
-  invalidateDashboardBudgets(queryClient);
-  invalidateRunway(queryClient);
+  if (!options.deferTransactionOverview) invalidateTransactionOverviewQueries(queryClient)
+  if (!options.deferMerchantLookupInvalidation) invalidateMerchantLookupPages(queryClient)
+  invalidateDashboardBalance(queryClient)
+  invalidateDashboardIncomeExpense(queryClient)
+  invalidateDashboardRecent(queryClient)
+  invalidateInsightsBalance(queryClient)
+  invalidateInsightsIncomeExpense(queryClient)
+  invalidateBudgets(queryClient)
+  invalidateDashboardBudgets(queryClient)
+  invalidateRunway(queryClient)
   if (!options.deferAccountInvalidation) {
-    invalidateTransactionAccountBalances(queryClient, accountIds);
-    invalidateTransactionAccountActivity(queryClient, accountIds);
-    invalidateTaxAdvantagedActivity(queryClient, accountIds);
-    invalidateCreditActivity(queryClient, accountIds);
+    invalidateTransactionAccountBalances(queryClient, accountIds)
+    invalidateTransactionAccountActivity(queryClient, accountIds)
+    invalidateTaxAdvantagedActivity(queryClient, accountIds)
+    invalidateCreditActivity(queryClient, accountIds)
   }
 }
 
@@ -347,30 +311,30 @@ export function invalidatePatchedTransactionData(
   patch: UpdateTransactionPayload,
   accountIds: string[],
 ) {
-  if (patchTouches(patch, TRANSACTION_LIST_FIELDS)) invalidateTransactions(queryClient);
-  if (patchTouches(patch, TRANSACTION_OVERVIEW_FIELDS)) invalidateTransactionOverviewQueries(queryClient);
+  if (patchTouches(patch, TRANSACTION_LIST_FIELDS)) invalidateTransactions(queryClient)
+  if (patchTouches(patch, TRANSACTION_OVERVIEW_FIELDS)) invalidateTransactionOverviewQueries(queryClient)
   if (patchTouches(patch, ACCOUNT_BALANCE_FIELDS)) {
-    invalidateTransactionAccountBalances(queryClient, accountIds);
-    invalidateDashboardBalance(queryClient);
-    invalidateInsightsBalance(queryClient);
+    invalidateTransactionAccountBalances(queryClient, accountIds)
+    invalidateDashboardBalance(queryClient)
+    invalidateInsightsBalance(queryClient)
   }
   if (patchTouches(patch, ACCOUNT_ACTIVITY_FIELDS)) {
-    invalidateTransactionAccountActivity(queryClient, accountIds);
+    invalidateTransactionAccountActivity(queryClient, accountIds)
   } else if (Object.hasOwn(patch, 'merchant_id')) {
-    invalidateAccountSpending(queryClient, accountIds);
+    invalidateAccountSpending(queryClient, accountIds)
   }
-  if (patchTouches(patch, DASHBOARD_RECENT_FIELDS)) invalidateDashboardRecent(queryClient);
+  if (patchTouches(patch, DASHBOARD_RECENT_FIELDS)) invalidateDashboardRecent(queryClient)
   if (patchTouches(patch, INCOME_EXPENSE_FIELDS)) {
-    invalidateDashboardIncomeExpense(queryClient);
-    invalidateInsightsIncomeExpense(queryClient);
-    invalidateBudgets(queryClient);
-    invalidateDashboardBudgets(queryClient);
-    invalidateRunway(queryClient);
+    invalidateDashboardIncomeExpense(queryClient)
+    invalidateInsightsIncomeExpense(queryClient)
+    invalidateBudgets(queryClient)
+    invalidateDashboardBudgets(queryClient)
+    invalidateRunway(queryClient)
   }
-  if (patchTouches(patch, TAX_ADVANTAGED_FIELDS)) invalidateTaxAdvantagedActivity(queryClient, accountIds);
-  if (patchTouches(patch, CREDIT_ACTIVITY_FIELDS)) invalidateCreditActivity(queryClient, accountIds);
-  if (patchTouches(patch, MERCHANT_ACTIVITY_FIELDS)) invalidateInsightsMerchants(queryClient);
-  if (patchTouches(patch, MERCHANT_USAGE_FIELDS)) invalidateMerchantLookupPages(queryClient);
+  if (patchTouches(patch, TAX_ADVANTAGED_FIELDS)) invalidateTaxAdvantagedActivity(queryClient, accountIds)
+  if (patchTouches(patch, CREDIT_ACTIVITY_FIELDS)) invalidateCreditActivity(queryClient, accountIds)
+  if (patchTouches(patch, MERCHANT_ACTIVITY_FIELDS)) invalidateInsightsMerchants(queryClient)
+  if (patchTouches(patch, MERCHANT_USAGE_FIELDS)) invalidateMerchantLookupPages(queryClient)
 }
 
 /**
@@ -387,25 +351,25 @@ export function invalidateBulkUpdatedTransactionData(
   payload: BulkUpdateTransactionsPayload,
   accountIds: string[],
 ) {
-  const patch: UpdateTransactionPayload = {};
-  if (payload.category_id !== undefined) patch.category_id = payload.category_id;
-  if (payload.merchant_id !== undefined) patch.merchant_id = payload.merchant_id;
-  if (payload.account_id !== undefined) patch.account_id = payload.account_id;
-  if (payload.dt !== undefined) patch.dt = payload.dt;
-  if (payload.notes !== undefined) patch.notes = payload.notes;
-  if (payload.add_tag_ids?.length || payload.override_tags) patch.tag_ids = payload.add_tag_ids ?? [];
+  const patch: UpdateTransactionPayload = {}
+  if (payload.category_id !== undefined) patch.category_id = payload.category_id
+  if (payload.merchant_id !== undefined) patch.merchant_id = payload.merchant_id
+  if (payload.account_id !== undefined) patch.account_id = payload.account_id
+  if (payload.dt !== undefined) patch.dt = payload.dt
+  if (payload.notes !== undefined) patch.notes = payload.notes
+  if (payload.add_tag_ids?.length || payload.override_tags) patch.tag_ids = payload.add_tag_ids ?? []
 
   // A direction change, whether it reaches every row or only the transfer rows, writes the sign of
   // the amount column, and a set end writes account_id on whichever rows resolve to be their own.
   // The request cannot say which rows those are, so a sent direction or end marks the column it
   // could touch rather than the column it always does. The placeholder values below are read only
   // for their key, never for what they hold
-  if (payload.direction !== undefined || payload.transfer_direction !== undefined) patch.amount ??= 0;
-  if (payload.transfer_from !== undefined || payload.transfer_to !== undefined) patch.account_id ??= '';
+  if (payload.direction !== undefined || payload.transfer_direction !== undefined) patch.amount ??= 0
+  if (payload.transfer_from !== undefined || payload.transfer_to !== undefined) patch.account_id ??= ''
 
   // Every bulk edit drops a counterparty account left recorded under a category that does not
   // record one, so the totals reading that field are refreshed whatever the request set
-  patch.counterparty_account_id = null;
+  patch.counterparty_account_id = null
 
-  invalidatePatchedTransactionData(queryClient, patch, accountIds);
+  invalidatePatchedTransactionData(queryClient, patch, accountIds)
 }

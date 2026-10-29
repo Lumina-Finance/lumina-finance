@@ -36,7 +36,10 @@ export const FILTER_PANEL_MIN_HEIGHT = 440
 const VIEWPORT_MARGIN = 24
 const NAVIGATION_GAP = 16
 
-export const DEFAULT_FILTER_PANEL_PLACEMENT: FilterPanelPlacement = { direction: 'down', height: FILTER_PANEL_MIN_HEIGHT }
+export const DEFAULT_FILTER_PANEL_PLACEMENT: FilterPanelPlacement = {
+  direction: 'down',
+  height: FILTER_PANEL_MIN_HEIGHT,
+}
 
 /** Keeps the expanded panel beside the navigation and inside the viewport. */
 export function getFilterPanelHorizontalPlacement({

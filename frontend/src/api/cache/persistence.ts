@@ -5,22 +5,22 @@ import {
   type Query,
   type QueryCacheNotifyEvent,
   type QueryClient,
-} from '@tanstack/react-query';
-import { createAsyncStoragePersister } from '@tanstack/query-async-storage-persister';
-import type { PersistedClient } from '@tanstack/react-query-persist-client';
-import { SESSION_KEY } from '@/api/auth/session';
-import { twoFactorKeys } from '@/api/cache/queryKeys';
-import { hasUncacheableFxStatus } from '@/api/shared/fxCache';
-import { readStoredValue, removeStoredValue, writeStoredValue } from '@/utils/browserStorage';
+} from '@tanstack/react-query'
+import { createAsyncStoragePersister } from '@tanstack/query-async-storage-persister'
+import type { PersistedClient } from '@tanstack/react-query-persist-client'
+import { SESSION_KEY } from '@/api/auth/session'
+import { twoFactorKeys } from '@/api/cache/queryKeys'
+import { hasUncacheableFxStatus } from '@/api/shared/fxCache'
+import { readStoredValue, removeStoredValue, writeStoredValue } from '@/utils/browserStorage'
 
 // The local storage key holding the saved query cache, one copy shared by every tab
-export const QUERY_CACHE_STORAGE_KEY = 'lumina:query-cache';
+export const QUERY_CACHE_STORAGE_KEY = 'lumina:query-cache'
 
 // When this tab loaded the app. Told apart from a restored entry by when its data was fetched, since a
 // restored entry keeps the time of the visit that saved it
-export const TAB_OPENED_AT = Date.now();
+export const TAB_OPENED_AT = Date.now()
 
-const SIX_MONTHS_MS = 180 * 24 * 60 * 60 * 1000;
+const SIX_MONTHS_MS = 180 * 24 * 60 * 60 * 1000
 
 // Throws away every persisted entry whenever a stored response changes shape, so the app cannot
 // restore a payload whose fields the code then looks for and fails to find. Persisted data
@@ -31,7 +31,7 @@ const SIX_MONTHS_MS = 180 * 24 * 60 * 60 * 1000;
 // write capability to every account response. Version 3 sends the amounts behind the Insights
 // percentages in place of percentages, which changes the period glance and the category and merchant rows.
 // Version 4 adds the refund links every transaction response carries
-const PERSISTED_CACHE_SHAPE = '4';
+const PERSISTED_CACHE_SHAPE = '4'
 
 /**
  * Persists successful query data while leaving failed FX responses and the authenticator setup
@@ -46,29 +46,29 @@ function shouldDehydrateQuery(query: Query) {
     defaultShouldDehydrateQuery(query) &&
     !hasUncacheableFxStatus(query.state.data) &&
     !matchQuery({ queryKey: twoFactorKeys.setup(), exact: true }, query)
-  );
+  )
 }
 
 // Query data only. A request held while offline would otherwise be written out in plain text with
 // what it sends, such as both passwords of a password change, and could never be sent after a reload
-const dehydrateOptions = { shouldDehydrateQuery, shouldDehydrateMutation: () => false };
+const dehydrateOptions = { shouldDehydrateQuery, shouldDehydrateMutation: () => false }
 
 // The query cache events that change what a save writes, the ones the persister itself saves on
-const SAVED_CACHE_EVENT_TYPES = new Set<QueryCacheNotifyEvent['type']>(['added', 'removed', 'updated']);
+const SAVED_CACHE_EVENT_TYPES = new Set<QueryCacheNotifyEvent['type']>(['added', 'removed', 'updated'])
 
 // The user this tab is signed in as, from its own sign-in state, and the user the session flag
 // named as the page loaded, whose saved copy alone the restore takes
-let tabUserId: string | null = null;
-let restoredUserId: string | null = null;
+let tabUserId: string | null = null
+let restoredUserId: string | null = null
 
 // Cache changes since the restore, the count the saved copy reflects, and the count and user the
 // timed save's latest serialized copy reflects until it reaches storage
-let changeCount = 0;
-let savedChangeCount = 0;
-let serializedChangeCount = 0;
-let serializedUserId: string | null = null;
+let changeCount = 0
+let savedChangeCount = 0
+let serializedChangeCount = 0
+let serializedUserId: string | null = null
 
-let isSavingStopped = false;
+let isSavingStopped = false
 
 /**
  * The version a saved copy carries: its shape and the user whose data it holds
@@ -78,7 +78,7 @@ let isSavingStopped = false;
  * flag held a user, takes none
  */
 function savedCopyVersion(userId: string | null) {
-  return `${PERSISTED_CACHE_SHAPE}:${userId ?? ''}`;
+  return `${PERSISTED_CACHE_SHAPE}:${userId ?? ''}`
 }
 
 /**
@@ -94,19 +94,19 @@ function savedCopyVersion(userId: string | null) {
  * @param userId - The user whose data the copy holds
  */
 function writeSavedCopy(serialize: () => string, changes: number, userId: string | null) {
-  if (isSavingStopped) return;
-  const sessionUserId = readStoredValue(SESSION_KEY);
+  if (isSavingStopped) return
+  const sessionUserId = readStoredValue(SESSION_KEY)
   if (sessionUserId === null) {
-    removeStoredValue(QUERY_CACHE_STORAGE_KEY);
-    return;
+    removeStoredValue(QUERY_CACHE_STORAGE_KEY)
+    return
   }
-  if (userId !== sessionUserId) return;
+  if (userId !== sessionUserId) return
   if (writeStoredValue(QUERY_CACHE_STORAGE_KEY, serialize())) {
-    savedChangeCount = changes;
+    savedChangeCount = changes
   } else {
     // Storage is full, so the older copy left behind would be restored as fresh on the next load.
     // Without it that load starts empty and fetches everything
-    removeStoredValue(QUERY_CACHE_STORAGE_KEY);
+    removeStoredValue(QUERY_CACHE_STORAGE_KEY)
   }
 }
 
@@ -120,7 +120,7 @@ function writeSavedCopy(serialize: () => string, changes: number, userId: string
 export function createQueryCachePersistOptions() {
   // A browser that blocks storage reads as holding no session, so the app starts with nothing restored
   // rather than throwing before anything renders
-  restoredUserId = readStoredValue(SESSION_KEY);
+  restoredUserId = readStoredValue(SESSION_KEY)
   return {
     persister: createAsyncStoragePersister({
       // Counted when the persister serializes, since that copy reflects every change so far, and
@@ -128,14 +128,13 @@ export function createQueryCachePersistOptions() {
       // as unsaved. The user is the one at writing, since this tab may have signed in since the
       // restore
       serialize: (persistedClient) => {
-        serializedChangeCount = changeCount;
-        serializedUserId = tabUserId;
-        return JSON.stringify({ ...persistedClient, buster: savedCopyVersion(serializedUserId) });
+        serializedChangeCount = changeCount
+        serializedUserId = tabUserId
+        return JSON.stringify({ ...persistedClient, buster: savedCopyVersion(serializedUserId) })
       },
       storage: {
         getItem: (key: string) => readStoredValue(key),
-        setItem: (_key: string, value: string) =>
-          writeSavedCopy(() => value, serializedChangeCount, serializedUserId),
+        setItem: (_key: string, value: string) => writeSavedCopy(() => value, serializedChangeCount, serializedUserId),
         removeItem: (key: string) => removeStoredValue(key),
       },
       key: QUERY_CACHE_STORAGE_KEY,
@@ -143,7 +142,7 @@ export function createQueryCachePersistOptions() {
     buster: savedCopyVersion(restoredUserId),
     maxAge: SIX_MONTHS_MS,
     dehydrateOptions,
-  };
+  }
 }
 
 /**
@@ -151,14 +150,14 @@ export function createQueryCachePersistOptions() {
  * as one signed in elsewhere since the page loaded, starts without it
  */
 export function isRestoredCacheFor(userId: string) {
-  return restoredUserId === userId;
+  return restoredUserId === userId
 }
 
 /**
  * Records the user this tab is signed in as, or null once it signs out, which alone lets it save
  */
 export function setQueryCacheUser(userId: string | null) {
-  tabUserId = userId;
+  tabUserId = userId
 }
 
 /**
@@ -175,34 +174,38 @@ export function setQueryCacheUser(userId: string | null) {
  */
 export function saveQueryCacheOnPageHide(queryClient: QueryClient) {
   // The restore has just made the cache and the saved copy the same
-  changeCount = 0;
-  savedChangeCount = 0;
+  changeCount = 0
+  savedChangeCount = 0
   queryClient.getQueryCache().subscribe((event) => {
-    if (SAVED_CACHE_EVENT_TYPES.has(event.type)) changeCount += 1;
-  });
+    if (SAVED_CACHE_EVENT_TYPES.has(event.type)) changeCount += 1
+  })
 
   const save = () => {
-    if (changeCount === savedChangeCount) return;
-    const changes = changeCount;
-    const userId = tabUserId;
-    writeSavedCopy(() => {
-      const persistedClient: PersistedClient = {
-        buster: savedCopyVersion(userId),
-        timestamp: Date.now(),
-        clientState: dehydrate(queryClient, dehydrateOptions),
-      };
-      return JSON.stringify(persistedClient);
-    }, changes, userId);
-  };
-  window.addEventListener('pagehide', save);
+    if (changeCount === savedChangeCount) return
+    const changes = changeCount
+    const userId = tabUserId
+    writeSavedCopy(
+      () => {
+        const persistedClient: PersistedClient = {
+          buster: savedCopyVersion(userId),
+          timestamp: Date.now(),
+          clientState: dehydrate(queryClient, dehydrateOptions),
+        }
+        return JSON.stringify(persistedClient)
+      },
+      changes,
+      userId,
+    )
+  }
+  window.addEventListener('pagehide', save)
   document.addEventListener('visibilitychange', () => {
-    if (document.visibilityState === 'hidden') save();
-  });
+    if (document.visibilityState === 'hidden') save()
+  })
 }
 
 /**
  * Stops every save of the query cache, so a reload after clearing storage starts from nothing
  */
 export function stopSavingQueryCache() {
-  isSavingStopped = true;
+  isSavingStopped = true
 }

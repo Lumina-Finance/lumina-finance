@@ -98,14 +98,24 @@ export function MobileFilterSheet({
           exit={panelExit}
           transition={{ duration: shouldReduceMotion ? 0.01 : 0.28, ease: [0.22, 1, 0.36, 1] }}
         >
-          <div className="flex items-center justify-between border-b px-5 py-4" style={{ borderColor: 'var(--app-border)' }}>
+          <div
+            className="flex items-center justify-between border-b px-5 py-4"
+            style={{ borderColor: 'var(--app-border)' }}
+          >
             <div>
-              <h2 id={headingId} className="text-base font-semibold">Filters</h2>
+              <h2 id={headingId} className="text-base font-semibold">
+                Filters
+              </h2>
               <p className="text-sm" style={{ color: 'var(--app-text-muted)' }}>
                 {activeFacetCount === 0 ? 'No active filters' : `${activeFacetCount} active`}
               </p>
             </div>
-            <button type="button" className="app-secondary-button h-10 w-10 rounded-full px-0" onClick={onClose} aria-label="Close filters">
+            <button
+              type="button"
+              className="app-secondary-button h-10 w-10 rounded-full px-0"
+              onClick={onClose}
+              aria-label="Close filters"
+            >
               <X size={18} aria-hidden />
             </button>
           </div>
@@ -114,7 +124,10 @@ export function MobileFilterSheet({
             {children(headingId)}
           </div>
 
-          <div className="flex items-center justify-between gap-3 border-t px-5 py-4" style={{ borderColor: 'var(--app-border)' }}>
+          <div
+            className="flex items-center justify-between gap-3 border-t px-5 py-4"
+            style={{ borderColor: 'var(--app-border)' }}
+          >
             <DisabledReasonButton
               className="app-secondary-button"
               disabledReason={activeFacetCount === 0 ? CLEAR_FILTERS_DISABLED_REASON : undefined}
@@ -122,7 +135,11 @@ export function MobileFilterSheet({
             >
               Clear all
             </DisabledReasonButton>
-            <DisabledReasonButton className="app-glass-button-primary" disabledReason={applyDisabledReason} onClick={applyFilters}>
+            <DisabledReasonButton
+              className="app-glass-button-primary"
+              disabledReason={applyDisabledReason}
+              onClick={applyFilters}
+            >
               Apply filters
             </DisabledReasonButton>
           </div>

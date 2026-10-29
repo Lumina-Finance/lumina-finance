@@ -1,5 +1,5 @@
-import { authenticatedFetch } from '@/api/client';
-import { buildQueryString, type QueryStringValue } from '@/api/utils/queryString';
+import { authenticatedFetch } from '@/api/client'
+import { buildQueryString, type QueryStringValue } from '@/api/utils/queryString'
 import type {
   BulkDeleteTransactionsResult,
   BulkUpdateTransactionsPayload,
@@ -11,7 +11,7 @@ import type {
   TransactionFilters,
   TransactionsOverview,
   UpdateTransactionPayload,
-} from '@/api/transactions/types';
+} from '@/api/transactions/types'
 
 /**
  * Fetches one transaction by ID
@@ -19,7 +19,7 @@ import type {
  * @param signal - Aborts the request when the load that asked for it is abandoned
  */
 export function fetchTransaction(transactionId: string, signal?: AbortSignal) {
-  return authenticatedFetch<Transaction>(`/transactions/${transactionId}`, { signal });
+  return authenticatedFetch<Transaction>(`/transactions/${transactionId}`, { signal })
 }
 
 /**
@@ -31,7 +31,7 @@ export function fetchTransactions(filters: TransactionFilters = {}, signal?: Abo
   return authenticatedFetch<Transaction[]>(
     '/transactions' + buildQueryString(filters as Record<string, QueryStringValue>),
     { signal },
-  );
+  )
 }
 
 /**
@@ -52,7 +52,7 @@ export function fetchTransactionPage(
       offset,
     },
     signal,
-  );
+  )
 }
 
 /**
@@ -64,7 +64,7 @@ export function fetchTransactionsOverview(filters: OverviewFilters = {}, signal?
   return authenticatedFetch<TransactionsOverview>(
     '/transactions/overview' + buildQueryString(filters as Record<string, QueryStringValue>),
     { signal },
-  );
+  )
 }
 
 /**
@@ -74,7 +74,7 @@ export function createTransaction(payload: CreateTransactionPayload) {
   return authenticatedFetch<Transaction>('/transactions', {
     method: 'POST',
     body: JSON.stringify(payload),
-  });
+  })
 }
 
 /**
@@ -84,7 +84,7 @@ export function updateTransaction({ id, patch }: { id: string; patch: UpdateTran
   return authenticatedFetch<Transaction>(`/transactions/${id}`, {
     method: 'PATCH',
     body: JSON.stringify(patch),
-  });
+  })
 }
 
 /**
@@ -94,7 +94,7 @@ export function bulkUpdateTransactions(payload: BulkUpdateTransactionsPayload) {
   return authenticatedFetch<BulkUpdateTransactionsResult>('/transactions/bulk', {
     method: 'PATCH',
     body: JSON.stringify(payload),
-  });
+  })
 }
 
 /**
@@ -105,7 +105,7 @@ export function bulkDeleteTransactions(transactionIds: string[]) {
   return authenticatedFetch<BulkDeleteTransactionsResult>('/transactions/bulk/delete', {
     method: 'POST',
     body: JSON.stringify({ transaction_ids: transactionIds }),
-  });
+  })
 }
 
 /**
@@ -115,7 +115,7 @@ export function linkRefund(refundId: string, originalTransactionId: string) {
   return authenticatedFetch<void>(`/transactions/${refundId}/refund-link`, {
     method: 'POST',
     body: JSON.stringify({ original_transaction_id: originalTransactionId }),
-  });
+  })
 }
 
 /**
@@ -138,19 +138,19 @@ export function fetchRefundLinkCandidates(
     `/transactions/${transactionId}/refund-link-candidates` +
       buildQueryString({ ...filters, q: searchText || undefined } as Record<string, QueryStringValue>),
     { signal },
-  );
+  )
 }
 
 /**
  * Removes the link between a refund and the expense it refunds, leaving both transactions as they are
  */
 export function unlinkRefund(refundId: string) {
-  return authenticatedFetch<void>(`/transactions/${refundId}/refund-link`, { method: 'DELETE' });
+  return authenticatedFetch<void>(`/transactions/${refundId}/refund-link`, { method: 'DELETE' })
 }
 
 /**
  * Deletes one transaction by ID
  */
 export function deleteTransaction(id: string) {
-  return authenticatedFetch<void>(`/transactions/${id}`, { method: 'DELETE' });
+  return authenticatedFetch<void>(`/transactions/${id}`, { method: 'DELETE' })
 }

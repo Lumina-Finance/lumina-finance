@@ -82,9 +82,10 @@ export function buildPreviewTransactionRow(input: PreviewTransactionInput): Prev
     counterpartyAccountName: input.counterpartyAccount?.name,
 
     // The two branches keep one amount type across the three amount fields, as the row's type requires
-    transaction: typeof amount === 'bigint'
-      ? { ...transaction, amount, account_amount: amount, base_currency_amount: amount }
-      : { ...transaction, amount, account_amount: amount, base_currency_amount: amount },
+    transaction:
+      typeof amount === 'bigint'
+        ? { ...transaction, amount, account_amount: amount, base_currency_amount: amount }
+        : { ...transaction, amount, account_amount: amount, base_currency_amount: amount },
   }
 }
 

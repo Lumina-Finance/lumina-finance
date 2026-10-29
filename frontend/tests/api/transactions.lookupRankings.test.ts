@@ -7,12 +7,17 @@ import type { Transaction } from '@/api/transactions'
 
 const requests = vi.hoisted(() => ({ create: vi.fn(), remove: vi.fn() }))
 vi.mock('@/api/transactions/requests', async (importOriginal) => ({
-  ...await importOriginal<typeof import('@/api/transactions/requests')>(),
+  ...(await importOriginal<typeof import('@/api/transactions/requests')>()),
   createTransaction: requests.create,
   deleteTransaction: requests.remove,
 }))
 
-import { applyTransactionDeletion, useCreateTransaction, useDeleteTransaction, useRefreshCreatedTransactions } from '@/api/transactions/hooks'
+import {
+  applyTransactionDeletion,
+  useCreateTransaction,
+  useDeleteTransaction,
+  useRefreshCreatedTransactions,
+} from '@/api/transactions/hooks'
 
 const clients: QueryClient[] = []
 const lookup = merchantKeys.infinite({}, 20)
@@ -39,18 +44,31 @@ function harness(deferred: boolean) {
 }
 
 const payload = {
-  account_id: 'checking', dt: '2026-09-18', category_id: 'groceries', merchant_id: 'merchant',
-  amount: -4250, currency: 'CAD',
+  account_id: 'checking',
+  dt: '2026-09-18',
+  category_id: 'groceries',
+  merchant_id: 'merchant',
+  amount: -4250,
+  currency: 'CAD',
 }
 
 const transaction: Transaction = {
   ...payload,
-  id: 'transaction', created_by_user_id: 'user', merchant_name: 'Merchant',
-  account_amount: null, base_currency_amount: null, fx_rate: null, notes: null,
-  counterparty_account_id: null, counterparty_account_scope: null,
-  refund_of_transaction_id: null, refund_transaction_ids: [],
-  created_at: '2026-09-18T12:00:00Z', updated_at: '2026-09-18T12:00:00Z',
-  tag_ids: [], tags: [],
+  id: 'transaction',
+  created_by_user_id: 'user',
+  merchant_name: 'Merchant',
+  account_amount: null,
+  base_currency_amount: null,
+  fx_rate: null,
+  notes: null,
+  counterparty_account_id: null,
+  counterparty_account_scope: null,
+  refund_of_transaction_id: null,
+  refund_transaction_ids: [],
+  created_at: '2026-09-18T12:00:00Z',
+  updated_at: '2026-09-18T12:00:00Z',
+  tag_ids: [],
+  tags: [],
 }
 
 describe('actual transaction mutation lookup refresh boundaries', () => {
@@ -72,8 +90,8 @@ describe('actual transaction mutation lookup refresh boundaries', () => {
     await create.mutateAsync(payload)
     await create.mutateAsync(payload)
     expect(client.getQueryState(lookup)?.isInvalidated).toBe(false)
-    const lookupCalls = () => invalidate.mock.calls.filter(([filters]) =>
-      filters?.queryKey?.[0] === 'merchants' && Boolean(filters.predicate))
+    const lookupCalls = () =>
+      invalidate.mock.calls.filter(([filters]) => filters?.queryKey?.[0] === 'merchants' && Boolean(filters.predicate))
     expect(lookupCalls()).toHaveLength(0)
     flush(['checking'])
     expect(client.getQueryState(lookup)?.isInvalidated).toBe(true)

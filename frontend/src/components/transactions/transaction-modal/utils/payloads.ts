@@ -9,10 +9,7 @@ import {
   amountInputToMinorUnits,
   applyTransactionDirection,
 } from '@/components/transactions/transaction-modal/utils/money'
-import type {
-  TransactionDirection,
-  TransactionFormValues,
-} from '@/components/transactions/transaction-modal/types'
+import type { TransactionDirection, TransactionFormValues } from '@/components/transactions/transaction-modal/types'
 
 /**
  * Splits the form's single counterparty-account selection into the API's id-and-scope pair
@@ -25,7 +22,8 @@ function splitCounterpartyAccountSelection(counterpartyAccountId: string): {
   counterparty_account_scope: TransferCounterpartyScope | null
 } {
   if (!counterpartyAccountId) return { counterparty_account_id: null, counterparty_account_scope: null }
-  if (counterpartyAccountId === OUTSIDE_ACCOUNT_VALUE) return { counterparty_account_id: null, counterparty_account_scope: 'outside' }
+  if (counterpartyAccountId === OUTSIDE_ACCOUNT_VALUE)
+    return { counterparty_account_id: null, counterparty_account_scope: 'outside' }
   return { counterparty_account_id: counterpartyAccountId, counterparty_account_scope: 'tracked' }
 }
 
@@ -147,7 +145,9 @@ export function buildUpdateTransactionPatch(
   // Left out entirely once the category leaves transfer, since the backend clears the stored
   // answer itself when the category it ends up with no longer records a counterparty account
   if (form.kind === 'transfer') {
-    const { counterparty_account_id, counterparty_account_scope } = splitCounterpartyAccountSelection(form.counterparty_account_id)
+    const { counterparty_account_id, counterparty_account_scope } = splitCounterpartyAccountSelection(
+      form.counterparty_account_id,
+    )
     const storedScope = transaction.counterparty_account_scope ?? null
     const storedId = transaction.counterparty_account_id ?? null
     if (counterparty_account_id !== storedId || counterparty_account_scope !== storedScope) {

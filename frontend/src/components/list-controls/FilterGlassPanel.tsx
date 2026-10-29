@@ -77,7 +77,10 @@ export function FilterGlassPanel({
 }: FilterGlassPanelProps) {
   const [collapsedSize, setCollapsedSize] = useState(COLLAPSED_FALLBACK)
   const [placement, setPlacement] = useState(DEFAULT_FILTER_PANEL_PLACEMENT)
-  const [horizontalPlacement, setHorizontalPlacement] = useState<FilterPanelHorizontalPlacement>({ direction: 'left', width: openWidth })
+  const [horizontalPlacement, setHorizontalPlacement] = useState<FilterPanelHorizontalPlacement>({
+    direction: 'left',
+    width: openWidth,
+  })
   // The side the body is drawn on, which lags a measured change of direction until the body has
   // pulled back into the pill, so the anchoring never switches under content that is on screen
   const [renderedDirection, setRenderedDirection] = useState(DEFAULT_FILTER_PANEL_PLACEMENT.direction)
@@ -162,14 +165,14 @@ export function FilterGlassPanel({
       openDirection = next.direction
       // Scrolling calls this on every frame, so an unchanged placement keeps the object it already
       // has rather than re-rendering the panel
-      setPlacement((current) => (
-        current.direction === next.direction && current.height === next.height ? current : next
-      ))
+      setPlacement((current) =>
+        current.direction === next.direction && current.height === next.height ? current : next,
+      )
 
       const anchor = wrapper.getBoundingClientRect()
       const navigation = document.querySelector<HTMLElement>('.app-desktop-nav')
-      const navigationRight = navigation && getComputedStyle(navigation).display !== 'none'
-        ? navigation.getBoundingClientRect().right : 0
+      const navigationRight =
+        navigation && getComputedStyle(navigation).display !== 'none' ? navigation.getBoundingClientRect().right : 0
       const horizontal = getFilterPanelHorizontalPlacement({
         anchorLeft: anchor.left,
         anchorRight: anchor.right,
@@ -177,9 +180,9 @@ export function FilterGlassPanel({
         openWidth,
         viewportWidth: document.documentElement.clientWidth,
       })
-      setHorizontalPlacement((current) => (
-        current.direction === horizontal.direction && current.width === horizontal.width ? current : horizontal
-      ))
+      setHorizontalPlacement((current) =>
+        current.direction === horizontal.direction && current.width === horizontal.width ? current : horizontal,
+      )
     }
 
     measurePlacement()
@@ -340,16 +343,14 @@ export function FilterGlassPanel({
           transition={
             shouldReduceMotion
               ? { duration: 0 }
-              : isRetracting ? FILTER_PANEL_RETRACT_TRANSITION : FILTER_PANEL_BODY_TRANSITION
+              : isRetracting
+                ? FILTER_PANEL_RETRACT_TRANSITION
+                : FILTER_PANEL_BODY_TRANSITION
           }
           onAnimationComplete={handleBodyAnimationComplete}
         >
           {/* The whole body scrolls only once its natural height reaches the viewport limit */}
-          <div
-            ref={bodyViewportRef}
-            className="overflow-y-auto"
-            style={{ height: placement.height }}
-          >
+          <div ref={bodyViewportRef} className="overflow-y-auto" style={{ height: placement.height }}>
             <div
               ref={bodyContentRef}
               className="flex flex-col"

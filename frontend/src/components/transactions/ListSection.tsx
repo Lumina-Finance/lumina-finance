@@ -146,14 +146,8 @@ export default function TransactionListSection({
   }
 
   const { data: categories } = useCategories()
-  const categoryMap = useMemo(
-    () => new Map(categories?.map((category) => [category.id, category]) ?? []),
-    [categories],
-  )
-  const accountMap = useMemo(
-    () => new Map(accounts.map((account) => [account.id, account])),
-    [accounts],
-  )
+  const categoryMap = useMemo(() => new Map(categories?.map((category) => [category.id, category]) ?? []), [categories])
+  const accountMap = useMemo(() => new Map(accounts.map((account) => [account.id, account])), [accounts])
   const today = useTodayYmd()
   const [isUpcomingExpanded, setIsUpcomingExpanded] = useState(false)
   const { upcoming: upcomingTransactions, rest: pastTransactions } = useMemo(
@@ -162,14 +156,8 @@ export default function TransactionListSection({
   )
   // A section that empties closes, so it comes back collapsed as it first appeared
   if (upcomingTransactions.length === 0 && isUpcomingExpanded) setIsUpcomingExpanded(false)
-  const upcomingDateGroups = useMemo(
-    () => groupTransactionsByDate(upcomingTransactions),
-    [upcomingTransactions],
-  )
-  const dateGroups = useMemo(
-    () => groupTransactionsByDate(pastTransactions),
-    [pastTransactions],
-  )
+  const upcomingDateGroups = useMemo(() => groupTransactionsByDate(upcomingTransactions), [upcomingTransactions])
+  const dateGroups = useMemo(() => groupTransactionsByDate(pastTransactions), [pastTransactions])
 
   // The rows on screen, in the order they appear. Upcoming rows count only while their section is open,
   // so a range never runs through rows nobody can see and closing the section drops their ticks
@@ -208,10 +196,11 @@ export default function TransactionListSection({
   // The rows a range runs along, in the order they appear, carrying the same editable rule the row
   // itself shows
   const selectableRows = useMemo(
-    () => shownTransactions.map((transaction) => ({
-      id: transaction.id,
-      isReadOnly: Boolean(getTransactionReadOnlyReason(transaction, accountMap, categoryMap, fixedAccount)),
-    })),
+    () =>
+      shownTransactions.map((transaction) => ({
+        id: transaction.id,
+        isReadOnly: Boolean(getTransactionReadOnlyReason(transaction, accountMap, categoryMap, fixedAccount)),
+      })),
     [shownTransactions, accountMap, categoryMap, fixedAccount],
   )
 
@@ -221,10 +210,7 @@ export default function TransactionListSection({
   )
 
   // The search text is not part of the filters, so both go into the key that empties a selection
-  const requestKey = useMemo(
-    () => `${JSON.stringify(filters)}|${activeSearch}`,
-    [filters, activeSearch],
-  )
+  const requestKey = useMemo(() => `${JSON.stringify(filters)}|${activeSearch}`, [filters, activeSearch])
 
   const selection = useBulkSelection(selectableRows, requestKey, !filterListLoading)
   const { clear: clearSelection } = selection
@@ -309,9 +295,7 @@ export default function TransactionListSection({
   // A list fixed to one account is often showing an account the account list does not carry, and both
   // the move targets and the far account options have to be able to name it
   const accountsForBulkEdit = useMemo(
-    () => (fixedAccount
-      ? [fixedAccount, ...accounts.filter((account) => account.id !== fixedAccount.id)]
-      : accounts),
+    () => (fixedAccount ? [fixedAccount, ...accounts.filter((account) => account.id !== fixedAccount.id)] : accounts),
     [fixedAccount, accounts],
   )
 
@@ -335,10 +319,10 @@ export default function TransactionListSection({
   // Keep a sent request visible until it settles. If its confirmation then remains open after a
   // refusal, the refreshed values still invalidate it on that render
   if (
-    pendingChange !== null
-    && pendingChangeSignature !== null
-    && pendingChangeSignature !== selectedChangeSignature
-    && !bulkUpdate.isPending
+    pendingChange !== null &&
+    pendingChangeSignature !== null &&
+    pendingChangeSignature !== selectedChangeSignature &&
+    !bulkUpdate.isPending
   ) {
     setPendingChange(null)
     setPendingChangeIds([])
@@ -402,7 +386,12 @@ export default function TransactionListSection({
   }
 
   const deleteDisabledReason = useMemo(
-    () => getBulkDeleteBlockReason(selectedFacts.map((row) => row.accountId), accountMap, fixedAccount),
+    () =>
+      getBulkDeleteBlockReason(
+        selectedFacts.map((row) => row.accountId),
+        accountMap,
+        fixedAccount,
+      ),
     [selectedFacts, accountMap, fixedAccount],
   )
 
@@ -413,19 +402,22 @@ export default function TransactionListSection({
     if (!pendingDeleteIds) return
     setDeleteError(null)
     const takeLinked = deleteLinked && linkedIdsOutside.length > 0
-    bulkDelete.mutate({ transactionIds: pendingDeleteIds, linkedIds: takeLinked ? linkedIdsOutside : [] }, {
-      onSuccess: (result) => {
-        setPendingDeleteIds(null)
-        stopSelecting()
-        showToast({
-          status: 'success',
-          text: `${result.transactions_deleted} ${result.transactions_deleted === 1 ? 'transaction' : 'transactions'} deleted.`,
-        })
+    bulkDelete.mutate(
+      { transactionIds: pendingDeleteIds, linkedIds: takeLinked ? linkedIdsOutside : [] },
+      {
+        onSuccess: (result) => {
+          setPendingDeleteIds(null)
+          stopSelecting()
+          showToast({
+            status: 'success',
+            text: `${result.transactions_deleted} ${result.transactions_deleted === 1 ? 'transaction' : 'transactions'} deleted.`,
+          })
+        },
+        onError: (error) => {
+          setDeleteError(error instanceof ApiError ? error.message : 'Something went wrong. Please try again.')
+        },
       },
-      onError: (error) => {
-        setDeleteError(error instanceof ApiError ? error.message : 'Something went wrong. Please try again.')
-      },
-    })
+    )
   }
 
   // Only a list fixed to one account can be blocked, since only that one writes rows to an account
@@ -439,7 +431,9 @@ export default function TransactionListSection({
     hasNextPage,
     isFetchingNextPage,
     disabled: filterListLoading,
-    fetchNextPage: () => { void fetchNextPage() },
+    fetchNextPage: () => {
+      void fetchNextPage()
+    },
   })
 
   // A finished page load appends a whole batch of older rows at once, which looks chaotic if each grows
@@ -491,7 +485,9 @@ export default function TransactionListSection({
           setDeleteError(null)
           setDeleteLinked(false)
           setLinkedIdsOutside(
-            getLinkedIdsOutside(displayedTransactions.filter((transaction) => selection.selectedIds.includes(transaction.id))),
+            getLinkedIdsOutside(
+              displayedTransactions.filter((transaction) => selection.selectedIds.includes(transaction.id)),
+            ),
           )
           setPendingDeleteIds([...selection.selectedIds])
           setDeleteCount(selection.selectedIds.length)
@@ -499,11 +495,7 @@ export default function TransactionListSection({
         onToggleSelecting={() => (isSelecting ? stopSelecting() : setIsSelecting(true))}
       />
 
-      <div
-        className="relative"
-        aria-busy={filterListLoading}
-        onMouseLeave={selection.handlePointerLeaveList}
-      >
+      <div className="relative" aria-busy={filterListLoading} onMouseLeave={selection.handlePointerLeaveList}>
         <AnimatePresence>
           {filterListLoading && <TransactionFilterLoadingOverlay reducedMotion={prefersReducedMotion} />}
         </AnimatePresence>

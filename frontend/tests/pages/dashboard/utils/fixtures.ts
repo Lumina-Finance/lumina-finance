@@ -17,9 +17,7 @@ import type { RunwayResult } from '@/api/user'
 
 export const fxStatus: FxStatus = { state: 'none', missing_pairs: [] }
 
-export const currencies: Currency[] = [
-  { id: 'USD', name: 'US Dollar', symbol: 'US$', minor_unit_exponent: 2 },
-]
+export const currencies: Currency[] = [{ id: 'USD', name: 'US Dollar', symbol: 'US$', minor_unit_exponent: 2 }]
 
 export function createAccount(overrides: Partial<AccountsOverview>): AccountsOverview {
   return {

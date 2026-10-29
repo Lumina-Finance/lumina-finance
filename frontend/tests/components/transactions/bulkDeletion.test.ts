@@ -11,7 +11,10 @@ import type { TransactionListAccount } from '@/components/transactions/types/tra
 
 const personal: TransactionListAccount = { id: 'personal', can_write: true, group_id: null }
 const shared: TransactionListAccount = { id: 'shared', can_write: true, group_id: 'household' }
-const accountMap = new Map([[personal.id, personal], [shared.id, shared]])
+const accountMap = new Map([
+  [personal.id, personal],
+  [shared.id, shared],
+])
 
 describe('whether the ticked transactions can be deleted together', () => {
   it('allows a selection in personal accounts only', () => {

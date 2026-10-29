@@ -168,10 +168,7 @@ export default function TransactionModalFooter({
         </button>
       ) : !editing && !hideKeepOpen ? (
         <div className="min-w-0 sm:max-w-xs">
-          <label
-            htmlFor={ids.keepOpen}
-            className="-ml-1 flex cursor-pointer items-center gap-3 rounded-xl px-1 py-1"
-          >
+          <label htmlFor={ids.keepOpen} className="-ml-1 flex cursor-pointer items-center gap-3 rounded-xl px-1 py-1">
             <input
               id={ids.keepOpen}
               type="checkbox"

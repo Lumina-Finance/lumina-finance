@@ -66,12 +66,9 @@ const storedValueChanges = [
 ] satisfies [string, Partial<Transaction>][]
 
 describe('the values bound to bulk-edit confirmation', () => {
-  it.each(storedValueChanges)(
-    'changes when the selected transaction changes its %s',
-    (_field, patch) => {
-      expect(signature({ ...selected, ...patch })).not.toBe(signature(selected))
-    },
-  )
+  it.each(storedValueChanges)('changes when the selected transaction changes its %s', (_field, patch) => {
+    expect(signature({ ...selected, ...patch })).not.toBe(signature(selected))
+  })
 
   it('changes when tag membership changes without an update timestamp change', () => {
     expect(signature({ ...selected, tag_ids: ['tag-a', 'tag-c'] })).not.toBe(signature(selected))
@@ -84,10 +81,7 @@ describe('the values bound to bulk-edit confirmation', () => {
   it('matches when selected rows and their tags arrive in another order', () => {
     const first = selectedTransactionsSignature([selected, unselected], ['txn-1', 'txn-2'])
     const second = selectedTransactionsSignature(
-      [
-        { ...unselected },
-        { ...selected, tag_ids: ['tag-a', 'tag-b'] },
-      ],
+      [{ ...unselected }, { ...selected, tag_ids: ['tag-a', 'tag-b'] }],
       ['txn-2', 'txn-1'],
     )
 

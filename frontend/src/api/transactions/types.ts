@@ -123,8 +123,8 @@ export interface TransactionFilters {
 /** The filters that narrow the transactions offered for a refund link, the list's own without paging or sorting */
 export type LinkCandidateFilters = Omit<TransactionFilters, 'q' | 'sort_by' | 'sort_order' | 'limit' | 'offset'> & {
   /** Refunds whose link the open edit window will remove on Save, offered as if already unlinked */
-  unlinked_id?: string[];
-};
+  unlinked_id?: string[]
+}
 
 export interface OverviewFilters {
   from_date?: string

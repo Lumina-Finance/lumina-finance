@@ -259,11 +259,7 @@ async def test_the_picker_offers_only_what_linking_accepts(client):
     transfer_id = (await _create_category(client, headers, name="Move", kind="transfer")).json()["id"]
     expense = (await _create_transaction(client, headers, account_id, category_id)).json()
     refund = (await _create_transaction(client, headers, account_id, category_id, amount=700)).json()
-    transfer_in = (
-        await _create_transaction(
-            client, headers, account_id, transfer_id, amount=900, counterparty_account_scope="outside"
-        )
-    ).json()
+    transfer_in = (await _create_transaction(client, headers, account_id, transfer_id, amount=900, counterparty_account_scope="outside")).json()
     income_out = (await _create_transaction(client, headers, account_id, income_id, amount=-300)).json()
 
     assert await _candidates(client, headers, expense["id"]) == [refund["id"]]

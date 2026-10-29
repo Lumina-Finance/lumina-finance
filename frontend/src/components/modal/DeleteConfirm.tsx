@@ -61,7 +61,7 @@ export function ModalDeleteConfirm({
       RailIcon={RailIcon}
       railLabel={label}
       closeDisabled={isDeleting}
-      footer={(
+      footer={
         <ModalFormFooter
           submitLabel={confirmLabel}
           level={level}
@@ -73,7 +73,7 @@ export function ModalDeleteConfirm({
           primaryOnLeft
           tone="danger"
         />
-      )}
+      }
     >
       <div id={descriptionId} className="space-y-4">
         {children}

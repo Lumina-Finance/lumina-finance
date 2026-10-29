@@ -16,7 +16,12 @@ export function canLinkAsRefund(
   transaction: Pick<Transaction, 'amount' | 'refund_of_transaction_id'>,
   categoryKind: string | undefined,
 ): boolean {
-  return transaction.amount > 0 && categoryKind !== undefined && categoryKind !== 'transfer' && !transaction.refund_of_transaction_id
+  return (
+    transaction.amount > 0 &&
+    categoryKind !== undefined &&
+    categoryKind !== 'transfer' &&
+    !transaction.refund_of_transaction_id
+  )
 }
 
 /**
@@ -26,7 +31,10 @@ export function canLinkAsRefund(
 export function getLinkedTransactionIds(
   transaction: Pick<Transaction, 'refund_of_transaction_id' | 'refund_transaction_ids'>,
 ): string[] {
-  return [...(transaction.refund_of_transaction_id ? [transaction.refund_of_transaction_id] : []), ...transaction.refund_transaction_ids]
+  return [
+    ...(transaction.refund_of_transaction_id ? [transaction.refund_of_transaction_id] : []),
+    ...transaction.refund_transaction_ids,
+  ]
 }
 
 type Amounted = Pick<Transaction, 'amount' | 'currency'>

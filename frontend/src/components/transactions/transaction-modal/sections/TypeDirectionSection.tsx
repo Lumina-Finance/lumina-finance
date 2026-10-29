@@ -1,14 +1,7 @@
 import { AnimatePresence, motion } from 'motion/react'
 import CreateModalSectionFrame from '@/components/create-modal/SectionFrame'
-import {
-  DIRECTION_OPTIONS,
-  EASE,
-  KIND_OPTIONS,
-} from '@/components/transactions/transaction-modal/constants'
-import type {
-  TransactionDirection,
-  TransactionModalKind,
-} from '@/components/transactions/transaction-modal/types'
+import { DIRECTION_OPTIONS, EASE, KIND_OPTIONS } from '@/components/transactions/transaction-modal/constants'
+import type { TransactionDirection, TransactionModalKind } from '@/components/transactions/transaction-modal/types'
 import TransactionModalPillSelector from '@/components/transactions/transaction-modal/controls/PillSelector'
 
 interface TransactionTypeDirectionSectionProps {
@@ -55,7 +48,13 @@ export default function TransactionTypeDirectionSection({
                 key={directionHighlightKey}
                 className="pointer-events-none absolute inset-0 rounded-lg"
                 initial={{ boxShadow: '0 0 0 0 var(--app-accent-soft)' }}
-                animate={{ boxShadow: ['0 0 0 0 var(--app-accent-soft)', '0 0 0 3px var(--app-accent-soft)', '0 0 0 0 var(--app-accent-soft)'] }}
+                animate={{
+                  boxShadow: [
+                    '0 0 0 0 var(--app-accent-soft)',
+                    '0 0 0 3px var(--app-accent-soft)',
+                    '0 0 0 0 var(--app-accent-soft)',
+                  ],
+                }}
                 exit={{ opacity: 0 }}
                 transition={{ duration: 0.45, ease: EASE }}
                 aria-hidden

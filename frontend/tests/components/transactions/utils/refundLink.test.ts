@@ -11,12 +11,16 @@ describe('getRefundLinkLabel', () => {
   })
 
   it('names the refund as the refund', () => {
-    expect(getRefundLinkLabel({ refund_of_transaction_id: 'expense', refund_transaction_ids: [] })).toBe('Refund of an expense')
+    expect(getRefundLinkLabel({ refund_of_transaction_id: 'expense', refund_transaction_ids: [] })).toBe(
+      'Refund of an expense',
+    )
   })
 
   it('names the expense as refunded, counting its refunds', () => {
     expect(getRefundLinkLabel({ refund_of_transaction_id: null, refund_transaction_ids: ['a'] })).toBe('Refunded once')
-    expect(getRefundLinkLabel({ refund_of_transaction_id: null, refund_transaction_ids: ['a', 'b'] })).toBe('Refunded 2 times')
+    expect(getRefundLinkLabel({ refund_of_transaction_id: null, refund_transaction_ids: ['a', 'b'] })).toBe(
+      'Refunded 2 times',
+    )
   })
 
   it('names both sides of a refund that was itself refunded', () => {

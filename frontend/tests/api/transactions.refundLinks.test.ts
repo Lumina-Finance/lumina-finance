@@ -38,7 +38,9 @@ describe('fetchRefundLinkCandidates', () => {
     expect(authenticatedFetchMock).toHaveBeenNthCalledWith(1, '/transactions/expense-1/refund-link-candidates', {
       signal: undefined,
     })
-    expect(authenticatedFetchMock.mock.calls[1][0]).toBe('/transactions/expense-1/refund-link-candidates?q=store+credit')
+    expect(authenticatedFetchMock.mock.calls[1][0]).toBe(
+      '/transactions/expense-1/refund-link-candidates?q=store+credit',
+    )
   })
 
   it('sends the list filters it is given, each selected value as its own key', async () => {

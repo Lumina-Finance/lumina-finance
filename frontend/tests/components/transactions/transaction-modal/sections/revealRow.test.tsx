@@ -1,7 +1,10 @@
 import { createElement, type ReactNode } from 'react'
 import { renderToStaticMarkup } from 'react-dom/server'
 import { describe, expect, it, vi } from 'vitest'
-import { COLLAPSIBLE_SECTION_EASE, COLLAPSIBLE_SECTION_TRANSITION_SECONDS } from '@/components/collapsible-section/motion'
+import {
+  COLLAPSIBLE_SECTION_EASE,
+  COLLAPSIBLE_SECTION_TRANSITION_SECONDS,
+} from '@/components/collapsible-section/motion'
 import RevealRow from '@/components/transactions/transaction-modal/sections/RevealRow'
 
 const motion = vi.hoisted(() => ({ props: null as Record<string, unknown> | null, reduced: false }))

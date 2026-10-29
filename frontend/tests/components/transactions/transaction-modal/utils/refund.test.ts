@@ -135,7 +135,12 @@ describe('refund room', () => {
 
   it('leaves what the refunds in the expense currency have not given back', () => {
     expect(getRefundRoom(expense, [])).toBe(5000)
-    expect(getRefundRoom(expense, [{ amount: 1500, currency: 'CAD' }, { amount: 1000, currency: 'CAD' }])).toBe(2500)
+    expect(
+      getRefundRoom(expense, [
+        { amount: 1500, currency: 'CAD' },
+        { amount: 1000, currency: 'CAD' },
+      ]),
+    ).toBe(2500)
   })
 
   it('ignores a refund in another currency, which cannot be added to the expense', () => {

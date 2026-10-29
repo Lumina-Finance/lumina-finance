@@ -73,7 +73,10 @@ export function usePendingLinks(
 
   const addLink = useCallback(
     (transaction: Transaction) =>
-      setState((current) => ({ ...current, links: [...current.links.filter((l) => l.id !== transaction.id), transaction] })),
+      setState((current) => ({
+        ...current,
+        links: [...current.links.filter((l) => l.id !== transaction.id), transaction],
+      })),
     [],
   )
   const removeLink = useCallback(

@@ -41,7 +41,15 @@ export function MobileFilterPanel({
   lockedCurrency,
   aboveDialog,
 }: MobileFilterPanelProps) {
-  const draft = useTransactionFilterDraft({ filters, setFilter, accountOptions, categoryOptions, showAccountFilter, lockedCurrency, onClose })
+  const draft = useTransactionFilterDraft({
+    filters,
+    setFilter,
+    accountOptions,
+    categoryOptions,
+    showAccountFilter,
+    lockedCurrency,
+    onClose,
+  })
 
   useSeedDraftOnOpen(isOpen, draft.seedDraftFromFilters)
 
@@ -55,7 +63,9 @@ export function MobileFilterPanel({
       activeFacetCount={draft.activeFacetCount}
       clearAll={draft.clearAll}
       applyFilters={draft.applyFilters}
-      applyDisabledReason={draft.applyBlockedReason ?? (draft.isDraftApplied ? APPLY_FILTERS_DISABLED_REASON : undefined)}
+      applyDisabledReason={
+        draft.applyBlockedReason ?? (draft.isDraftApplied ? APPLY_FILTERS_DISABLED_REASON : undefined)
+      }
     >
       {(headingId) => (
         <FilterPanelBody

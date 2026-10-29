@@ -17,7 +17,7 @@ export type {
   TransactionDirection,
   TransferCounterpartyScope,
   UpdateTransactionPayload,
-} from '@/api/transactions/types';
+} from '@/api/transactions/types'
 
 export {
   bulkDeleteTransactions,
@@ -32,7 +32,7 @@ export {
   linkRefund,
   unlinkRefund,
   updateTransaction,
-} from '@/api/transactions/requests';
+} from '@/api/transactions/requests'
 
 export {
   applyBulkTransactionDeletion,
@@ -52,4 +52,4 @@ export {
   useTransactionsOverview,
   useUnlinkRefund,
   useUpdateTransaction,
-} from '@/api/transactions/hooks';
+} from '@/api/transactions/hooks'

@@ -10,9 +10,25 @@ import { TransactionRowView } from '@/components/transactions/Row'
 function render(props: { phoneLayout?: boolean; pressed?: boolean }) {
   return renderToStaticMarkup(
     createElement(TransactionRowView, {
-      transaction: { id: 'refund', dt: '2026-10-03', merchant_name: 'Grocer', notes: 'Store credit', tags: [], counterparty_account_scope: null },
+      transaction: {
+        id: 'refund',
+        dt: '2026-10-03',
+        merchant_name: 'Grocer',
+        notes: 'Store credit',
+        tags: [],
+        counterparty_account_scope: null,
+      },
       amountPresentation: { text: '+$20.00', sign: 1 },
-      category: { id: 'groceries', owner_id: null, group_id: null, name: 'Groceries', kind: 'expense', icon: null, is_system: true, created_at: '2024-01-01T00:00:00Z' },
+      category: {
+        id: 'groceries',
+        owner_id: null,
+        group_id: null,
+        name: 'Groceries',
+        kind: 'expense',
+        icon: null,
+        is_system: true,
+        created_at: '2024-01-01T00:00:00Z',
+      },
       accountName: 'Everyday',
       skipEnterAnimation: true,
       onOpen: () => {},

@@ -21,7 +21,16 @@ interface LinkedRowFrameProps {
   onUnlink: () => void
 }
 
-function LinkedRowFrame({ merchantName, dt, amount, currency, notSaved, readOnly, disabled, onUnlink }: LinkedRowFrameProps) {
+function LinkedRowFrame({
+  merchantName,
+  dt,
+  amount,
+  currency,
+  notSaved,
+  readOnly,
+  disabled,
+  onUnlink,
+}: LinkedRowFrameProps) {
   const { formatMovedCurrency } = useMoneyFormatters()
   return (
     <div
@@ -204,7 +213,9 @@ export default function TransactionModalLinkedRefundsSection({
                   />
                 </RevealRow>
               ) : (
-                <RevealRow key="prompt">{prompt('If this gives money back for an expense, link them.', 'Link to an expense')}</RevealRow>
+                <RevealRow key="prompt">
+                  {prompt('If this gives money back for an expense, link them.', 'Link to an expense')}
+                </RevealRow>
               )}
             </AnimatePresence>
           </div>
@@ -253,7 +264,9 @@ export default function TransactionModalLinkedRefundsSection({
                 </RevealRow>
               ))}
               {canLinkRefund && (
-                <RevealRow key="prompt">{prompt('Link a refund that is already recorded.', 'Link an existing refund')}</RevealRow>
+                <RevealRow key="prompt">
+                  {prompt('Link a refund that is already recorded.', 'Link an existing refund')}
+                </RevealRow>
               )}
             </AnimatePresence>
           </div>

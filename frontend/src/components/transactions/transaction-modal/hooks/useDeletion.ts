@@ -42,7 +42,10 @@ export function useTransactionDeletion({
   setSubmitErrorTitle,
 }: UseTransactionDeletionOptions): TransactionDeletionState {
   const queryClient = useQueryClient()
-  const deleteMutation = useDeleteTransaction({ minimumPendingMs: MIN_DELETE_TRANSACTION_LOADING_MS, deferRemoval: true })
+  const deleteMutation = useDeleteTransaction({
+    minimumPendingMs: MIN_DELETE_TRANSACTION_LOADING_MS,
+    deferRemoval: true,
+  })
   const bulkDeleteMutation = useBulkDeleteTransactions({
     minimumPendingMs: MIN_DELETE_TRANSACTION_LOADING_MS,
     deferRemoval: true,

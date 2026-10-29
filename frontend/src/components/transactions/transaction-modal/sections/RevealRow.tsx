@@ -1,6 +1,9 @@
 import type { ReactNode } from 'react'
 import { motion, useReducedMotion } from 'motion/react'
-import { COLLAPSIBLE_SECTION_EASE, COLLAPSIBLE_SECTION_TRANSITION_SECONDS } from '@/components/collapsible-section/motion'
+import {
+  COLLAPSIBLE_SECTION_EASE,
+  COLLAPSIBLE_SECTION_TRANSITION_SECONDS,
+} from '@/components/collapsible-section/motion'
 
 interface RevealRowProps {
   children: ReactNode

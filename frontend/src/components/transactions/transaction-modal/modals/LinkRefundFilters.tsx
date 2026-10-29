@@ -4,7 +4,11 @@ import type { Category } from '@/api/categories'
 import { MobileFilterPanel } from '@/components/transactions/toolbar/MobileFilterPanel'
 import { TransactionFilterPanel } from '@/components/transactions/toolbar/FilterPanel'
 import type { TransactionFilterSetter } from '@/components/transactions/toolbar/types'
-import { getAccountOptions, getActiveFilterCount, getCategoryOptions } from '@/components/transactions/utils/filterOptions'
+import {
+  getAccountOptions,
+  getActiveFilterCount,
+  getCategoryOptions,
+} from '@/components/transactions/utils/filterOptions'
 import type { TransactionListAccount, TransactionListFilters } from '@/components/transactions/types/transactionList'
 
 interface LinkRefundFiltersProps {
