@@ -47,6 +47,7 @@ export {
   useRefreshCreatedTransactions,
   useRefundLinkCandidates,
   useTransaction,
+  useTransactionsById,
   useTransactions,
   useTransactionsOverview,
   useUnlinkRefund,

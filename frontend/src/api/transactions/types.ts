@@ -46,6 +46,12 @@ export interface Transaction {
 
   /** The refunds linked to this transaction, oldest first */
   refund_transaction_ids: string[];
+
+  /**
+   * How much of an expense its refunds already give back, in its own currency. Set only on the
+   * expenses offered as link candidates, so the picker can tell what one more refund leaves room for
+   */
+  refunded_amount?: number | null;
   created_at: string;
   updated_at: string;
   tag_ids: string[];

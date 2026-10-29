@@ -3,6 +3,7 @@ import {
   keepPreviousData,
   useInfiniteQuery,
   useMutation,
+  useQueries,
   useQuery,
   useQueryClient,
   type QueryClient,
@@ -111,6 +112,23 @@ export function useTransaction(transactionId: string | null | undefined) {
     enabled: !!accessToken && !!transactionId,
     staleTime: TRANSACTION_DETAIL_STALE_TIME_MS,
   });
+}
+
+/**
+ * Reads several transactions by id through the same cache entries as `useTransaction`, in the order
+ * given, with undefined for one that has not loaded yet
+ */
+export function useTransactionsById(transactionIds: readonly string[]) {
+  const { accessToken } = useAuth()
+  return useQueries({
+    queries: transactionIds.map((transactionId) => ({
+      queryKey: transactionKeys.detail(transactionId),
+      queryFn: ({ signal }: { signal: AbortSignal }) => fetchTransaction(transactionId, signal),
+      enabled: !!accessToken,
+      staleTime: TRANSACTION_DETAIL_STALE_TIME_MS,
+    })),
+    combine: (results) => results.map((result) => result.data),
+  })
 }
 
 /**

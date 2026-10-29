@@ -8,7 +8,9 @@ import { buildCreateTransactionPayload } from '@/components/transactions/transac
 import {
   buildRefundNote,
   canLinkAsRefund,
+  exceedsRefundRoom,
   getLinkedTransactionIds,
+  getRefundRoom,
   isRefundable,
 } from '@/components/transactions/transaction-modal/utils/refund'
 import { createAccount, createCategory, createTransaction, currencies } from './fixtures'
@@ -125,5 +127,24 @@ describe('getLinkedTransactionIds', () => {
       'a',
       'b',
     ])
+  })
+})
+
+describe('refund room', () => {
+  const expense = { amount: -5000, currency: 'CAD' }
+
+  it('leaves what the refunds in the expense currency have not given back', () => {
+    expect(getRefundRoom(expense, [])).toBe(5000)
+    expect(getRefundRoom(expense, [{ amount: 1500, currency: 'CAD' }, { amount: 1000, currency: 'CAD' }])).toBe(2500)
+  })
+
+  it('ignores a refund in another currency, which cannot be added to the expense', () => {
+    expect(getRefundRoom(expense, [{ amount: 4000, currency: 'USD' }])).toBe(5000)
+  })
+
+  it('refuses a refund that passes the room, and accepts one that fills it exactly', () => {
+    expect(exceedsRefundRoom({ amount: 2501, currency: 'CAD' }, 'CAD', 2500)).toBe(true)
+    expect(exceedsRefundRoom({ amount: 2500, currency: 'CAD' }, 'CAD', 2500)).toBe(false)
+    expect(exceedsRefundRoom({ amount: 9999, currency: 'USD' }, 'CAD', 2500)).toBe(false)
   })
 })

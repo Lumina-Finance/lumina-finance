@@ -103,6 +103,33 @@ describe('transaction form validation', () => {
   })
 })
 
+describe('refund limit', () => {
+  const refundForm = {
+    kind: 'expense' as const,
+    direction: 'credit' as const,
+    account_id: 'account',
+    category_id: 'groceries',
+    merchant_id: 'store',
+    amount: '25.01',
+    currency: 'CAD',
+    notes: '',
+    date: '2026-06-11',
+    tag_ids: [],
+    symmetric_transfer: false,
+    counterparty_account_id: '',
+  }
+  const refundLimit = { minor: 2500, currency: 'CAD', exponent: 2, message: 'Only $25.00 is left to refund' }
+
+  it('refuses an amount past what is left to refund and accepts one that fills it', () => {
+    expect(validateTransactionForm(refundForm, { refundLimit }).amount).toBe('Only $25.00 is left to refund')
+    expect(validateTransactionForm({ ...refundForm, amount: '25.00' }, { refundLimit }).amount).toBeUndefined()
+  })
+
+  it('leaves an amount in another currency alone, since it cannot be compared', () => {
+    expect(validateTransactionForm({ ...refundForm, currency: 'USD' }, { refundLimit }).amount).toBeUndefined()
+  })
+})
+
 describe('transaction problems', () => {
   const pairForm = {
     kind: 'transfer' as const,

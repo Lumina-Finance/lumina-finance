@@ -29,6 +29,27 @@ export function getLinkedTransactionIds(
   return [...(transaction.refund_of_transaction_id ? [transaction.refund_of_transaction_id] : []), ...transaction.refund_transaction_ids]
 }
 
+type Amounted = Pick<Transaction, 'amount' | 'currency'>
+
+/**
+ * How much of an expense is still left to refund: its amount less the refunds in its own currency. A
+ * refund in another currency can't be added to it, so it takes nothing off, as on the server
+ */
+export function getRefundRoom(original: Amounted, refunds: readonly Amounted[]): number {
+  const refunded = refunds
+    .filter((refund) => refund.currency === original.currency)
+    .reduce((total, refund) => total + refund.amount, 0)
+  return -original.amount - refunded
+}
+
+/**
+ * Whether a refund of this amount, in this currency, would pass what is left to refund of an expense
+ * in the given currency. The server refuses the same link, so the UI keeps it from being made
+ */
+export function exceedsRefundRoom(refund: Amounted, originalCurrency: string, room: number): boolean {
+  return refund.currency === originalCurrency && refund.amount > room
+}
+
 /**
  * The note a refund starts with, naming what it refunds so the two read as a pair in the list
  */
