@@ -46,6 +46,7 @@ async def list_refund_link_candidates(
     transaction_id: uuid.UUID,
     search_text: str | None,
     filters: CandidateFilters | None = None,
+    unlinked_ids: list[uuid.UUID] | None = None,
 ) -> list[TransactionResponse]:
     """Return the transactions a transaction can be linked to, the closest amounts first
 
@@ -61,6 +62,8 @@ async def list_refund_link_candidates(
         transaction_id: The transaction a link is wanted for
         search_text: Optional text to find in merchant names and notes
         filters: Optional list filters to keep candidates within
+        unlinked_ids: Refunds whose link the open window will remove on Save, which are offered as if
+            already unlinked
 
     Returns:
         Up to thirty candidates, which linking would accept
@@ -74,17 +77,20 @@ async def list_refund_link_candidates(
     # Linking accepts individually owned, unarchived accounts only
     linkable_account = Transaction.account_id.in_(select(Account.id).where(Account.group_id.is_(None), Account.is_archived.is_(False)))
     conditions: list[ColumnElement[bool]] = [Transaction.id != anchor.id, linkable_account]
+    unlinked_ids = unlinked_ids or []
+    own_original_id: uuid.UUID | None = None
     if anchor.amount < 0:
         if category.kind != CategoryKind.EXPENSE:
             return []
 
         # Money that came in, which no expense has claimed as its own
-        refunds = select(TransactionLink.refund_transaction_id)
+        refunds = select(TransactionLink.refund_transaction_id).where(TransactionLink.refund_transaction_id.not_in(unlinked_ids))
         conditions += [Transaction.amount > 0, Category.kind != CategoryKind.TRANSFER, Transaction.id.not_in(refunds)]
     elif anchor.amount > 0:
-        already_linked = (await db.execute(select(TransactionLink.id).where(TransactionLink.refund_transaction_id == anchor.id))).first()
-        if already_linked is not None:
+        own_link = (await db.execute(select(TransactionLink).where(TransactionLink.refund_transaction_id == anchor.id))).scalar_one_or_none()
+        if own_link is not None and anchor.id not in unlinked_ids:
             return []
+        own_original_id = own_link.original_transaction_id if own_link is not None else None
         conditions += [Transaction.amount < 0, Category.kind == CategoryKind.EXPENSE]
     else:
         return []
@@ -102,5 +108,10 @@ async def list_refund_link_candidates(
     # Expenses say how much is already refunded, so the picker can refuse a refund that would not fit
     if anchor.amount > 0:
         refunded = await get_refunded_amounts(db, [candidate.id for candidate in candidates])
+
+        # The refund being unlinked is no longer counted against the expense it was linked to
+        own_original = next((candidate for candidate in candidates if candidate.id == own_original_id), None)
+        if own_original is not None and own_original.currency == anchor.currency:
+            refunded[own_original.id] -= anchor.amount
         candidates = [candidate.model_copy(update={"refunded_amount": refunded.get(candidate.id, 0)}) for candidate in candidates]
     return candidates

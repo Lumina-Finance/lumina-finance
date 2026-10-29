@@ -189,6 +189,7 @@ async def list_refund_link_candidates_route(
     from_date: Annotated[date | None, Query()] = None,
     to_date: Annotated[date | None, Query()] = None,
     search_text: Annotated[str | None, Query(alias="q", max_length=200)] = None,
+    unlinked_id: Annotated[list[uuid.UUID] | None, Query()] = None,
 ):
     """Return the transactions this one can be linked to as a refund or as the expense it refunds
 
@@ -208,6 +209,7 @@ async def list_refund_link_candidates_route(
         from_date: Optional inclusive start date for transaction dates
         to_date: Optional inclusive end date for transaction dates
         search_text: Optional text to find in merchant names and notes
+        unlinked_id: Optional refunds whose link the open edit window will remove on Save, offered as unlinked
 
     Returns:
         The candidates linking would accept, exact amount first and then the nearest, newest first among
@@ -226,7 +228,7 @@ async def list_refund_link_candidates_route(
         from_date=from_date,
         to_date=to_date,
     )
-    return await list_refund_link_candidates(db, user, transaction_id, search_text, filters)
+    return await list_refund_link_candidates(db, user, transaction_id, search_text, filters, unlinked_id)
 
 
 @router.get("/{transaction_id}", response_model=TransactionResponse)

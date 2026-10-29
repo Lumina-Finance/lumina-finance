@@ -66,3 +66,31 @@ async def test_candidates_say_how_much_of_each_expense_is_already_refunded(clien
     resp = await client.get(f"/transactions/{refund['id']}/refund-link-candidates", headers=headers)
 
     assert [row["refunded_amount"] for row in resp.json()] == [1500]
+
+
+async def test_a_refund_being_unlinked_is_offered_expenses_again(client):
+    """With its link marked as removed, a linked refund lists the expenses, its own not counting its amount."""
+    headers, account_id, category_id = await _setup_user_with_deps(client)
+    expense = (await _create_transaction(client, headers, account_id, category_id)).json()
+    refund = await _refund(client, headers, account_id, category_id, expense["id"], amount=1500)
+    url = f"/transactions/{refund['id']}/refund-link-candidates"
+
+    still_linked = await client.get(url, headers=headers)
+    unlinked = await client.get(url, params={"unlinked_id": refund["id"]}, headers=headers)
+
+    assert still_linked.json() == []
+    assert [(row["id"], row["refunded_amount"]) for row in unlinked.json()] == [(expense["id"], 0)]
+
+
+async def test_an_expense_is_offered_the_refund_being_unlinked(client):
+    """With a refund's link marked as removed, its expense lists it among the money that can be linked."""
+    headers, account_id, category_id = await _setup_user_with_deps(client)
+    expense = (await _create_transaction(client, headers, account_id, category_id)).json()
+    refund = await _refund(client, headers, account_id, category_id, expense["id"], amount=1500)
+    url = f"/transactions/{expense['id']}/refund-link-candidates"
+
+    still_linked = await client.get(url, headers=headers)
+    unlinked = await client.get(url, params={"unlinked_id": refund["id"]}, headers=headers)
+
+    assert [row["id"] for row in still_linked.json()] == []
+    assert [row["id"] for row in unlinked.json()] == [refund["id"]]
