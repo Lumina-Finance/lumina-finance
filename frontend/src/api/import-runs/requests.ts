@@ -1,17 +1,17 @@
-import { authenticatedFetch } from '@/api/client';
+import { authenticatedFetch } from '@/api/client'
 import type {
   LastImport,
   ImportRun,
   ImportRunRoutes,
   ImportUndoResult,
   OpenImportRunRequest,
-} from '@/api/import-runs/types';
+} from '@/api/import-runs/types'
 
-const IMPORT_RUNS_PATH = '/transactions/import/runs';
+const IMPORT_RUNS_PATH = '/transactions/import/runs'
 
 // How long a request that sends, writes or deletes an import's rows may go unanswered. These scale
 // with the file, so a large import on a slow connection can take far longer than an ordinary request
-const IMPORT_REQUEST_TIMEOUT_MS = 5 * 60_000;
+const IMPORT_REQUEST_TIMEOUT_MS = 5 * 60_000
 
 /**
  * Opens a run for an import about to be uploaded
@@ -21,7 +21,7 @@ export function openImportRun(request: OpenImportRunRequest, signal?: AbortSigna
     method: 'POST',
     body: JSON.stringify(request),
     signal,
-  });
+  })
 }
 
 /**
@@ -33,7 +33,7 @@ export function stageImportRunRows(runId: string, routes: ImportRunRoutes, batch
     body: JSON.stringify(batch),
     signal,
     timeoutMs: IMPORT_REQUEST_TIMEOUT_MS,
-  });
+  })
 }
 
 /**
@@ -47,7 +47,7 @@ export function commitImportRun<TResponse>(runId: string, routes: ImportRunRoute
     method: 'POST',
     signal,
     timeoutMs: IMPORT_REQUEST_TIMEOUT_MS,
-  });
+  })
 }
 
 /**
@@ -60,7 +60,7 @@ export function deleteImportRun(runId: string) {
   return authenticatedFetch<void>(`${IMPORT_RUNS_PATH}/${runId}`, {
     method: 'DELETE',
     timeoutMs: IMPORT_REQUEST_TIMEOUT_MS,
-  });
+  })
 }
 
 /**
@@ -70,7 +70,19 @@ export function deleteImportRun(runId: string) {
  * @param signal - Aborts the request when the load that asked for it is abandoned
  */
 export function fetchLastImport(signal?: AbortSignal) {
-  return authenticatedFetch<LastImport | null>('/transactions/import/last', { signal });
+  return authenticatedFetch<LastImport | null>('/transactions/import/last', { signal })
+}
+
+/**
+ * Asks whether a saved import is still there, which undoing it and the end of its undo window end,
+ * though saving a later import does not
+ *
+ * @param runId - The run the import was saved under
+ * @param signal - Aborts the request when the load that asked for it is abandoned
+ */
+export async function fetchIsImportRunSaved(runId: string, signal?: AbortSignal) {
+  const answer = await authenticatedFetch<{ is_saved: boolean }>(`${IMPORT_RUNS_PATH}/${runId}`, { signal })
+  return answer.is_saved
 }
 
 /**
@@ -80,5 +92,5 @@ export function undoImportRun(runId: string) {
   return authenticatedFetch<ImportUndoResult>(`${IMPORT_RUNS_PATH}/${runId}/undo`, {
     method: 'POST',
     timeoutMs: IMPORT_REQUEST_TIMEOUT_MS,
-  });
+  })
 }

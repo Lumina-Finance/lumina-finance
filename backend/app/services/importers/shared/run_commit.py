@@ -123,7 +123,9 @@ async def _finish_run_commit(db: AsyncSession, run: ImportRun, summary: BaseMode
     The staged copy has served its purpose once the rows are in the ledger, and it goes in the
     same transaction as the rows so neither can outlive the other
 
-    Every earlier run the user committed goes too, since only the last import can be undone
+    Earlier committed runs stay until their undo window passes, though only the last import can be
+    undone. A run missing within its window then means its import was undone, and not that a later
+    import took its place
 
     Args:
         db: Active database session
@@ -134,13 +136,6 @@ async def _finish_run_commit(db: AsyncSession, run: ImportRun, summary: BaseMode
         None
     """
     await db.execute(delete(ImportStagedRow).where(ImportStagedRow.import_run_id == run.id))
-    # Only the last saved import can be undone, so the runs of earlier ones go with this commit. Their
-    # transactions stay and only lose the link to them
-    await db.execute(delete(ImportRun).where(
-        ImportRun.owner_id == run.owner_id,
-        ImportRun.committed_at.is_not(None),
-        ImportRun.id != run.id,
-    ))
     # Stamped with the user's change marker once the import's own writes have moved it, so any later
     # change to their data moves it past this and ends the undo
     await mark_user_cache_changed(db, run.owner_id)

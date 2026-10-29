@@ -91,7 +91,8 @@ async def _count_unlinked_rows(account_id):
     """Return how many of an account's transactions are linked to no import"""
     async with TestSession() as session:
         return await session.scalar(
-            text("SELECT count(*) FROM transactions WHERE account_id = :id AND import_run_id IS NULL"), {"id": account_id},
+            text("SELECT count(*) FROM transactions WHERE account_id = :id AND import_run_id IS NULL"),
+            {"id": account_id},
         )
 
 
@@ -123,8 +124,10 @@ async def test_undo_deletes_everything_the_import_wrote_and_keeps_what_it_reused
     assert resp.json()["transactions_deleted"] == 2
 
     for table, field in (
-        ("accounts", "created_account_ids"), ("categories", "created_category_ids"),
-        ("merchants", "created_merchant_ids"), ("tags", "created_tag_ids"),
+        ("accounts", "created_account_ids"),
+        ("categories", "created_category_ids"),
+        ("merchants", "created_merchant_ids"),
+        ("tags", "created_tag_ids"),
     ):
         for record_id in summary[field]:
             assert await _count(table, record_id) == 0, table
@@ -185,17 +188,24 @@ async def test_undo_deletes_a_provider_import_with_the_accounts_it_archived_and_
     }
     budgets = {
         "categories": [_GROCERIES],
-        "budgets": [{
-            "name": "Groceries",
-            "currency": "CAD",
-            "category_sources": ["Groceries"],
-            "limits": [{"start": "2026-04-01", "end": "2026-04-30", "amount": "300.00"}],
-            "recurrence": None,
-        }],
+        "budgets": [
+            {
+                "name": "Groceries",
+                "currency": "CAD",
+                "category_sources": ["Groceries"],
+                "limits": [{"start": "2026-04-01", "end": "2026-04-30", "amount": "300.00"}],
+                "recurrence": None,
+            }
+        ],
     }
     committed = await _import_run(
-        client, headers, payload, source="firefly", budgets=budgets,
-        archive={"account_sources": ["Everyday Chequing", "Savings"]}, file_name="firefly-export.csv",
+        client,
+        headers,
+        payload,
+        source="firefly",
+        budgets=budgets,
+        archive={"account_sources": ["Everyday Chequing", "Savings"]},
+        file_name="firefly-export.csv",
     )
     assert committed.status_code == 201, committed.text
     summary = committed.json()
@@ -298,8 +308,8 @@ async def test_two_undos_at_once_delete_the_import_once(client, monkeypatch):
     assert responses[0].json()["transactions_deleted"] == 3
 
 
-async def test_saving_an_import_removes_the_previous_one_and_keeps_its_rows(client):
-    """An earlier import would stay undoable, its run and links kept for good, or a staged upload lost"""
+async def test_saving_an_import_ends_the_previous_ones_undo_and_keeps_its_rows(client):
+    """An earlier import would stay undoable, its rows deleted or a staged upload lost"""
     headers, _, _ = await _setup_user_with_deps(client)
     older, older_summary = await _import_everyday(client, headers, amounts=("-1.00",))
     # A file staged in another tab while the next import saves is not a saved import, so it stays
@@ -308,10 +318,49 @@ async def test_saving_an_import_removes_the_previous_one_and_keeps_its_rows(clie
 
     assert (await _last(client, headers))["id"] == newer
     gone = await _undo(client, headers, older)
-    assert (gone.status_code, gone.json()["detail"]) == (404, "Import not found")
-    assert await _count("import_runs", older) == 0
-    assert await _count_unlinked_rows(older_summary["created_account_ids"][0]) == 1
+    assert (gone.status_code, gone.json()["detail"]) == (409, "This import can no longer be undone")
+    kept = await client.get("/transactions", params={"account_id": older_summary["created_account_ids"][0]}, headers=headers)
+    assert len(kept.json()) == 1
     assert await _count("import_runs", staged) == 1
+
+
+async def test_a_saved_import_is_found_until_undone_and_never_for_another_user_or_an_unsaved_run(client):
+    """A screen showing a saved import is told it is gone only once undoing deleted it, or if it never was one"""
+    headers, _, _ = await _setup_user_with_deps(client)
+    other_headers, _, _ = await _setup_user_with_deps(client, email="other@example.com", name_prefix="Other")
+    run_id, _ = await _import_everyday(client, headers)
+    staged = await _open_staged_run(client, headers, _csv_payload(["-2.00"]))
+
+    async def is_saved(looked_for, caller):
+        resp = await client.get(f"/transactions/import/runs/{looked_for}", headers=caller)
+        assert resp.status_code == 200, resp.text
+        return resp.json()["is_saved"]
+
+    assert await is_saved(run_id, headers) is True
+    assert await is_saved(run_id, other_headers) is False
+    assert await is_saved(staged, headers) is False
+
+    assert (await _undo(client, headers, run_id)).status_code == 200
+    assert await is_saved(run_id, headers) is False
+
+
+async def test_an_import_replaced_by_a_later_one_is_found_even_after_that_one_is_undone(client):
+    """A screen would reopen an import whose rows are still saved, and importing it again would repeat every row"""
+    headers, _, _ = await _setup_user_with_deps(client)
+    replaced, _ = await _import_everyday(client, headers, amounts=("-1.00",))
+    later, _ = await _import_everyday(client, headers)
+
+    async def is_saved(looked_for):
+        resp = await client.get(f"/transactions/import/runs/{looked_for}", headers=headers)
+        assert resp.status_code == 200, resp.text
+        return resp.json()["is_saved"]
+
+    assert await is_saved(replaced) is True
+    assert (await _undo(client, headers, later)).status_code == 200
+
+    assert await is_saved(replaced) is True
+    assert await is_saved(later) is False
+    assert await _last(client, headers) is None
 
 
 async def test_an_import_is_offered_for_the_whole_undo_window(client):
@@ -411,8 +460,12 @@ async def test_a_group_transaction_referencing_what_the_import_created_makes_und
     else:
         transfer_category = await _get_system_category_id(client, headers, "Transfer")
         group_row = await _create_transaction(
-            client, headers, joint_id, transfer_category,
-            counterparty_account_id=everyday_id, counterparty_account_scope="tracked",
+            client,
+            headers,
+            joint_id,
+            transfer_category,
+            counterparty_account_id=everyday_id,
+            counterparty_account_scope="tracked",
         )
     assert group_row.status_code == 201, group_row.text
 

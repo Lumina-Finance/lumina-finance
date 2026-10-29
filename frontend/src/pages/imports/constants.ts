@@ -3,7 +3,14 @@ import { formatList } from '@/utils/formatList'
 import type { AccountsOverview } from '@/api/accounts'
 import type { Category } from '@/api/categories'
 import type { DropdownOption } from '@/components/dropdown/Dropdown'
-import type { ColumnMap, ColumnTarget, ColumnTargetGroup, ImportAmountDirection, ImportCategoryKind, ImportCategoryRename } from './types'
+import type {
+  ColumnMap,
+  ColumnTarget,
+  ColumnTargetGroup,
+  ImportAmountDirection,
+  ImportCategoryKind,
+  ImportCategoryRename,
+} from './types'
 import type { ImportDateFormat } from './utils/valueParsers'
 import type { ImportAmountFormat } from './utils/amountFormats'
 import type { ImportDelimiter } from './utils/csv'
@@ -29,30 +36,65 @@ export const COLUMN_TARGETS: Array<{
   hint: string
   group: ColumnTargetGroup
 }> = [
-  { id: 'account_id', label: 'Account', hint: 'Resolved from the source account when the import contains one.', group: 'optional' },
+  {
+    id: 'account_id',
+    label: 'Account',
+    hint: 'Resolved from the source account when the import contains one.',
+    group: 'optional',
+  },
 
   // Straight after the account it belongs beside, and before every target that scores on values
   // alone, since those would otherwise claim a column of account names first
   {
     id: 'counterparty_account_id',
     label: 'Counterparty account',
-    hint: 'Specifies which account a transfer\'s money went to, or came from, without writing a transaction into that account. Only transfer rows can use it, and a blank cell records the transfer as going outside this app.',
+    hint: "Specifies which account a transfer's money went to, or came from, without writing a transaction into that account. Only transfer rows can use it, and a blank cell records the transfer as going outside this app.",
     group: 'optional',
   },
   { id: 'dt', label: 'Date', hint: 'Transaction date.', group: 'required' },
-  { id: 'category_id', label: 'Category', hint: 'Resolved from imported category text. Rows without one go to Miscellaneous for money out, Other Income for money in, or Transfer when they name a transfer account.', group: 'optional' },
+  {
+    id: 'category_id',
+    label: 'Category',
+    hint: 'Resolved from imported category text. Rows without one go to Miscellaneous for money out, Other Income for money in, or Transfer when they name a transfer account.',
+    group: 'optional',
+  },
 
   // The three ways a file can carry the amount, one arrangement of which every import needs. The two
   // sides follow the single column they are an alternative to
-  { id: 'amount', label: 'Amount', hint: 'One column carrying the whole transaction, negative for money out and positive for money in. Map this, or map the two sides below where they are written separately. An unsigned column belongs here too when a Direction column specifies whether each row is money in or money out.', group: 'amount' },
-  { id: 'amount_out', label: 'Money out', hint: 'A column holding only the money leaving the account, written either unsigned or with a minus sign. A plus sign there is refused, since money coming in belongs in the Money in column. Map it beside Money in, or on its own where the import holds nothing but money going out.', group: 'amount' },
-  { id: 'amount_in', label: 'Money in', hint: 'A column holding only the money coming into the account, written either unsigned or with a plus sign. A minus sign there is refused, since money going out belongs in the Money out column. Map it beside Money out, or on its own where the import holds nothing but money coming in.', group: 'amount' },
+  {
+    id: 'amount',
+    label: 'Amount',
+    hint: 'One column carrying the whole transaction, negative for money out and positive for money in. Map this, or map the two sides below where they are written separately. An unsigned column belongs here too when a Direction column specifies whether each row is money in or money out.',
+    group: 'amount',
+  },
+  {
+    id: 'amount_out',
+    label: 'Money out',
+    hint: 'A column holding only the money leaving the account, written either unsigned or with a minus sign. A plus sign there is refused, since money coming in belongs in the Money in column. Map it beside Money in, or on its own where the import holds nothing but money going out.',
+    group: 'amount',
+  },
+  {
+    id: 'amount_in',
+    label: 'Money in',
+    hint: 'A column holding only the money coming into the account, written either unsigned or with a plus sign. A minus sign there is refused, since money going out belongs in the Money out column. Map it beside Money out, or on its own where the import holds nothing but money coming in.',
+    group: 'amount',
+  },
 
   // Declared after the three fields carrying money so those pick their columns first while the file
   // is being read. Where it sits in the dropdown is settled by its group instead, which is why it
   // has a separate one rather than sitting among the optional fields
-  { id: 'amount_direction', label: 'Direction', hint: 'A column of words specifying whether each row is money in or money out, such as DEBIT and CREDIT. Map it beside an Amount column of unsigned amounts, then specify below the table what each word means. It holds two words, or one where the import only covers money moving one way.', group: 'direction' },
-  { id: 'currency', label: 'Currency', hint: 'ISO currency code. Checked against the account each row is written to.', group: 'optional' },
+  {
+    id: 'amount_direction',
+    label: 'Direction',
+    hint: 'A column of words specifying whether each row is money in or money out, such as DEBIT and CREDIT. Map it beside an Amount column of unsigned amounts, then specify below the table what each word means. It holds two words, or one where the import only covers money moving one way.',
+    group: 'direction',
+  },
+  {
+    id: 'currency',
+    label: 'Currency',
+    hint: 'ISO currency code. Checked against the account each row is written to.',
+    group: 'optional',
+  },
   { id: 'merchant_id', label: 'Merchant', hint: 'Resolved from imported merchant text.', group: 'optional' },
   { id: 'notes', label: 'Notes', hint: 'Optional transaction notes.', group: 'optional' },
   { id: 'tag_ids', label: 'Tags', hint: 'Resolved from imported tag text.', group: 'optional' },
@@ -90,21 +132,24 @@ export const MISSING_AMOUNT_COLUMN_LABEL = 'Amount (or Money out / Money in)'
 // nothing to say which reading wins. Shown on the mapping step beside the dropdowns that caused it,
 // as well as over the commit button, since the mapping step is where it can be answered
 export const AMOUNT_ARRANGEMENT_CLASH_TITLE = 'Amount mapped twice'
-export const AMOUNT_ARRANGEMENT_CLASH_ERROR = 'This import is mapped with an Amount column and with a Money out or Money in column. Map one or the other: a single Amount column carrying its own sign, or the two sides in columns of their own.'
+export const AMOUNT_ARRANGEMENT_CLASH_ERROR =
+  'This import is mapped with an Amount column and with a Money out or Money in column. Map one or the other: a single Amount column carrying its own sign, or the two sides in columns of their own.'
 
 // Said where a file is mapped with a Direction column beside Money out or Money in, which specifies
 // the direction twice over. A Direction column only means anything beside the single Amount column,
 // since the two sides already carry their own direction
 export const DIRECTION_ARRANGEMENT_CLASH_TITLE = 'Direction stated twice'
-export const DIRECTION_ARRANGEMENT_CLASH_ERROR = 'This import is mapped with a Direction column and with a Money out or Money in column. Money out and Money in already specify their own direction, so either map the Direction column beside a single Amount column, or set it to Do not import.'
+export const DIRECTION_ARRANGEMENT_CLASH_ERROR =
+  'This import is mapped with a Direction column and with a Money out or Money in column. Money out and Money in already specify their own direction, so either map the Direction column beside a single Amount column, or set it to Do not import.'
 
 // Shown above the panel where each word in the Direction column is given its meaning. It settles
 // whose point of view the two answers take, which is the one thing the panel cannot show: a bank
 // writes DEBIT and CREDIT from its own side, and the user is answering from theirs. That a
 // recognised word arrives filled in is left to the glow on the row, which is how every other field
 // the app filled in says so
-export const DIRECTION_VALUES_TITLE = 'What this import\'s direction words mean'
-export const DIRECTION_VALUES_EXPLANATION = 'Specify what each word in the Direction column means. Money out is money leaving your account, money in is money arriving in it.'
+export const DIRECTION_VALUES_TITLE = "What this import's direction words mean"
+export const DIRECTION_VALUES_EXPLANATION =
+  'Specify what each word in the Direction column means. Money out is money leaving your account, money in is money arriving in it.'
 
 // How many different words a Direction column may hold. Two, because it separates money in from
 // money out and does nothing else: a column naming more things than that is a category, a payment
@@ -334,7 +379,7 @@ export const IMPORT_DATE_RANGE_CROSSED_ERROR = 'Choose a start date on or before
 export const IMPORT_DATE_RANGE_INCOMPLETE_FIELD_ERROR = 'Enter the whole date, or clear it'
 
 /** Said beside Commit import while either date is only partly typed */
-export const IMPORT_DATE_RANGE_INCOMPLETE_ERROR = 'Finish the chosen dates, or clear any you don\'t need.'
+export const IMPORT_DATE_RANGE_INCOMPLETE_ERROR = "Finish the chosen dates, or clear any you don't need."
 
 /** Said where a file has rows, but none of them is dated within the chosen dates */
 export const IMPORT_NO_ROWS_IN_DATE_RANGE_ERROR = 'No rows in this import fall within the chosen dates.'
@@ -349,8 +394,8 @@ export const ROWS_OUTSIDE_DATE_RANGE_TITLE = 'Rows outside the chosen dates'
 export function getRowsOutsideDateRangeExplanation(count: number, isFinished: boolean) {
   if (count === 1) {
     return isFinished
-      ? '1 row was dated outside the chosen dates, so it wasn\'t imported.'
-      : '1 row is dated outside the chosen dates, so it won\'t be imported.'
+      ? "1 row was dated outside the chosen dates, so it wasn't imported."
+      : "1 row is dated outside the chosen dates, so it won't be imported."
   }
   const rows = count.toLocaleString()
   return isFinished
@@ -423,7 +468,8 @@ export function getRowsWithNoMerchantExplanation(rowCount: number, isMerchantCol
 // tell a cell holding a currency from a header word shaped like one, and that decision is kept on
 // the staged file, so a file read without the list stays wrongly read once it arrives
 export const CURRENCIES_LOADING_UPLOAD_BLOCK = 'Loading currencies...'
-export const CURRENCIES_FAILED_UPLOAD_BLOCK = 'Currencies could not be loaded, and a file cannot be read without them. Reload the page to try again.'
+export const CURRENCIES_FAILED_UPLOAD_BLOCK =
+  'Currencies could not be loaded, and a file cannot be read without them. Reload the page to try again.'
 
 // Shown over the CSV upload control while the saved import settings are loading. A file is matched
 // against them once, as it is read, so one read before they arrive would open with detection's
@@ -469,31 +515,39 @@ export const ROW_AMOUNT_UNREADABLE_REASON = 'The amount is not a number.'
 export const ROW_AMOUNT_TOO_LARGE_REASON = 'The amount is larger than this app can store.'
 
 // Shared by both import previews so the same category decision receives the same guidance
-export const DEBT_PAYMENT_IMPORT_NOTE = 'Make sure this payment is really an expense. Repayments of a credit card, line of credit or HELOC belong in Credit Card Payment. Debt Payment can remain selected for a loan or mortgage payment.'
+export const DEBT_PAYMENT_IMPORT_NOTE =
+  'Make sure this payment is really an expense. Repayments of a credit card, line of credit or HELOC belong in Credit Card Payment. Debt Payment can remain selected for a loan or mortgage payment.'
 
 // The five ways a row cannot be read from the columns holding money out and money in. The first
 // needs both mapped to happen at all, since one side alone leaves the other empty. The next two each
 // send the user to map the column holding the other direction, which is the fix whichever way the
 // file leaves the unstated side
-export const ROW_AMOUNT_BOTH_SIDES_REASON = 'Both a money out and a money in amount are filled in, so the direction is unclear.'
-export const ROW_AMOUNT_NO_SIDE_REASON = 'Every amount column mapped is blank. If the other direction is held in a column of its own, map that column too.'
+export const ROW_AMOUNT_BOTH_SIDES_REASON =
+  'Both a money out and a money in amount are filled in, so the direction is unclear.'
+export const ROW_AMOUNT_NO_SIDE_REASON =
+  'Every amount column mapped is blank. If the other direction is held in a column of its own, map that column too.'
 // Told apart from the reason above because the row is not empty and the table shows the user the
 // zero it holds, so being told it states nothing would contradict what is in front of them
-export const ROW_AMOUNT_SIDE_STATES_ZERO_REASON = 'The one amount column mapped states zero, which counts as the direction that column doesn\'t hold. If that direction is held in a separate column, map that column too.'
+export const ROW_AMOUNT_SIDE_STATES_ZERO_REASON =
+  "The one amount column mapped states zero, which counts as the direction that column doesn't hold. If that direction is held in a separate column, map that column too."
 
 // The last two are a sign the column cannot mean. Both fixes are offered because either one can be
 // what happened: the sign was written where the column already states the direction, or the value
 // belongs in the column for the other direction and this row did not use it. They are separate
 // constants rather than one, since the reason is looked up by problem alone and a single sentence
 // could not say which of the two columns it meant
-export const ROW_AMOUNT_OUT_SIDE_PLUS_REASON = 'The money out column carries a plus sign. Write it unsigned or with a minus sign, or move it to the money in column where it is money arriving.'
-export const ROW_AMOUNT_IN_SIDE_MINUS_REASON = 'The money in column carries a minus sign. Write it unsigned or with a plus sign, or move it to the money out column where it is money leaving.'
+export const ROW_AMOUNT_OUT_SIDE_PLUS_REASON =
+  'The money out column carries a plus sign. Write it unsigned or with a minus sign, or move it to the money in column where it is money arriving.'
+export const ROW_AMOUNT_IN_SIDE_MINUS_REASON =
+  'The money in column carries a minus sign. Write it unsigned or with a plus sign, or move it to the money out column where it is money leaving.'
 
 // The two ways a row cannot be read from a file carrying its direction in a column of words. Neither
 // can be answered in the app, since one is a cell nobody filled in and the other is two cells of the
 // same row contradicting each other, so both send the user to the file
-export const ROW_DIRECTION_BLANK_REASON = 'The direction cell is blank, so it isn\'t clear whether the money is coming in or going out.'
-export const ROW_DIRECTION_SIGN_DISAGREES_REASON = 'The amount\'s sign contradicts the direction column. Write the amount unsigned, or give it the sign matching its direction.'
+export const ROW_DIRECTION_BLANK_REASON =
+  "The direction cell is blank, so it isn't clear whether the money is coming in or going out."
+export const ROW_DIRECTION_SIGN_DISAGREES_REASON =
+  "The amount's sign contradicts the direction column. Write the amount unsigned, or give it the sign matching its direction."
 
 /**
  * Says an amount carries decimal places its currency does not have
@@ -519,8 +573,10 @@ function getImportGroupingDescription(grouping: ImportAmountFormat['groupingSepa
 // The two ways the counterparty column contradicts the rest of the row. Both open with what this row
 // states rather than with the rule it breaks, since a rule leaves the user working out which of
 // their cells it was about
-export const ROW_COUNTERPARTY_NOT_A_TRANSFER_REASON = 'A counterparty account is filled in, but the category isn\'t a transfer category. Only a transfer records where the money went, so clear that cell or change the category.'
-export const ROW_COUNTERPARTY_IS_OWN_ACCOUNT_REASON = 'The counterparty is the same account the money is written to, so the transfer would go nowhere. That cell holds the account on the other side of the transfer.'
+export const ROW_COUNTERPARTY_NOT_A_TRANSFER_REASON =
+  "A counterparty account is filled in, but the category isn't a transfer category. Only a transfer records where the money went, so clear that cell or change the category."
+export const ROW_COUNTERPARTY_IS_OWN_ACCOUNT_REASON =
+  'The counterparty is the same account the money is written to, so the transfer would go nowhere. That cell holds the account on the other side of the transfer.'
 
 /**
  * Says a row states a currency code this app does not keep accounts in
@@ -569,36 +625,44 @@ export function getRowSignDisagreesWithCategoryReason(kind: 'expense' | 'income'
 // Shown once for the whole file where every amount reads as money coming in, which is either a file
 // of nothing but income or one being read backwards. It cannot tell those apart, so it says what the
 // rows come to and lists what to check, rather than asserting which of the two this is
-export const NO_OUTFLOWS_WARNING = 'Every row in this import reads as money coming in. If that is right, there is nothing to do. If it is not, check three things: that the money going out is mapped to the column actually holding it, that a file using one Amount column writes its money out with a minus sign, and that a file using a Direction column has its words set the way round the file means them.'
+export const NO_OUTFLOWS_WARNING =
+  'Every row in this import reads as money coming in. If that is right, there is nothing to do. If it is not, check three things: that the money going out is mapped to the column actually holding it, that a file using one Amount column writes its money out with a minus sign, and that a file using a Direction column has its words set the way round the file means them.'
 
 // Shown where a source rows are written to matches an account the user has archived, which is the
 // one account that source is not offered. The matched account names follow it
-export const ARCHIVED_ACCOUNT_MATCH_EXPLANATION = 'An archived account takes no new transactions, so it is not offered as a choice here. Unarchive one of these to import rows into it, which means leaving this import and uploading your files again:'
+export const ARCHIVED_ACCOUNT_MATCH_EXPLANATION =
+  'An archived account takes no new transactions, so it is not offered as a choice here. Unarchive one of these to import rows into it, which means leaving this import and uploading your files again:'
 
 // Shown once any source on either table is answered create, since nothing else in the flow says
 // what an account made this way is and is not given
 export const CREATED_ACCOUNT_TITLE = 'New accounts'
-export const CREATED_ACCOUNT_EXPLANATION = 'These will be created as new accounts, each starting with no opening balance and no credit limit:'
+export const CREATED_ACCOUNT_EXPLANATION =
+  'These will be created as new accounts, each starting with no opening balance and no credit limit:'
 // A balance adjustment rather than a field, because an account that already exists has no starting
 // balance to set. Left to the user to want one rather than told to enter one, since a Firefly
 // export carries its own opening balances and the import writes those as balance adjustments
 // already
-export const CREATED_ACCOUNT_BALANCE_NOTE = 'To give one an opening balance, add a balance adjustment transaction in that account'
+export const CREATED_ACCOUNT_BALANCE_NOTE =
+  'To give one an opening balance, add a balance adjustment transaction in that account'
 // The edit button this describes is the pencil on the account's own card, which is the only place a
 // credit limit can be set once the account exists
-export const CREATED_ACCOUNT_CREDIT_LIMIT_NOTE = 'To set a credit limit, open the account from Accounts and use the edit button on its card'
+export const CREATED_ACCOUNT_CREDIT_LIMIT_NOTE =
+  'To set a credit limit, open the account from Accounts and use the edit button on its card'
 
 // Shown in place of a mapping step whose list could not be fetched at all, since answering one
 // against nothing maps every value to a new record and duplicates what the user already has
 export const ACCOUNTS_LOAD_FAILURE_TITLE = 'Your accounts could not be loaded'
-export const ACCOUNTS_LOAD_FAILURE_EXPLANATION = 'Without them every source here would have to become a new account, which would duplicate accounts you already have.'
+export const ACCOUNTS_LOAD_FAILURE_EXPLANATION =
+  'Without them every source here would have to become a new account, which would duplicate accounts you already have.'
 export const CATEGORIES_LOAD_FAILURE_TITLE = 'Your categories could not be loaded'
-export const CATEGORIES_LOAD_FAILURE_EXPLANATION = 'Without them every category in this import would have to become a new one, which would duplicate categories you already have.'
+export const CATEGORIES_LOAD_FAILURE_EXPLANATION =
+  'Without them every category in this import would have to become a new one, which would duplicate categories you already have.'
 
 // Shown when the page could not ask which of the file's merchant names already have a merchant.
 // Every name would then read as one about to be created, which is what the step exists to stop
 export const MERCHANT_MATCHES_LOAD_FAILURE_TITLE = 'Your merchants could not be checked'
-export const MERCHANT_MATCHES_LOAD_FAILURE_EXPLANATION = 'Without that check every merchant in this import reads as a new one, and importing would create merchants you already have.'
+export const MERCHANT_MATCHES_LOAD_FAILURE_EXPLANATION =
+  'Without that check every merchant in this import reads as a new one, and importing would create merchants you already have.'
 
 // Shown when a mapping was answered with an account that has since been deleted. The answer is
 // dropped rather than sent, and nothing fills the row back in, so the user is told why a source
@@ -606,14 +670,17 @@ export const MERCHANT_MATCHES_LOAD_FAILURE_EXPLANATION = 'Without that check eve
 export const CLEARED_ACCOUNT_SOURCES_TITLE = 'Answers cleared'
 // The answers a row can be given differ between the two tables, and one notice covers both, so it
 // asks for an answer rather than listing which ones are on offer
-export const CLEARED_ACCOUNT_SOURCES_EXPLANATION = 'An account these sources were matched to no longer exists, so their answers were cleared. Answer each one again:'
+export const CLEARED_ACCOUNT_SOURCES_EXPLANATION =
+  'An account these sources were matched to no longer exists, so their answers were cleared. Answer each one again:'
 export const CLEARED_CATEGORY_SOURCES_TITLE = 'Answers cleared'
-export const CLEARED_CATEGORY_SOURCES_EXPLANATION = 'A category these values were matched to no longer exists, so their answers were cleared. Choose a category for each one, or queue a new one for it:'
+export const CLEARED_CATEGORY_SOURCES_EXPLANATION =
+  'A category these values were matched to no longer exists, so their answers were cleared. Choose a category for each one, or queue a new one for it:'
 
 // Opens the transfers card on a provider import's Category matching step, which then says how that
 // import files its own transfers and debt payments
 export const TRANSFERS_AND_DEBT_PAYMENTS_TITLE = 'Transfers and debt payments'
-export const TRANSFERS_EXPLANATION = "Money you move between your own accounts is a transfer, so it counts as neither spending nor income, and budgets leave it out. Paying your credit card works this way, since the purchases already counted when you made them."
+export const TRANSFERS_EXPLANATION =
+  'Money you move between your own accounts is a transfer, so it counts as neither spending nor income, and budgets leave it out. Paying your credit card works this way, since the purchases already counted when you made them.'
 
 // Shown in place of the whole import page when the address points at an account no import can be
 // written to. The button offering the import is disabled in those states, so this is reached by a
@@ -622,20 +689,23 @@ export const TRANSFERS_EXPLANATION = "Money you move between your own accounts i
 // an account that has gone and one belonging to someone else, so the wording covers being unable to
 // import into it rather than claiming to know which of those it is
 export const IMPORT_NOT_PERMITTED_TITLE = 'This action is not permitted'
-export const IMPORT_NOT_PERMITTED_EXPLANATION = 'Transactions can only be imported into an available, unarchived account. This one is archived or not an account you can import into.'
+export const IMPORT_NOT_PERMITTED_EXPLANATION =
+  'Transactions can only be imported into an available, unarchived account. This one is archived or not an account you can import into.'
 
 // Shown in place of the whole page where the accounts list cannot say whether this account takes an
 // import. The mapping step's own failure text is about mapping sources onto a list, which is a
 // question this page never reaches
 export const IMPORT_SCOPE_FAILURE_TITLE = 'Your accounts could not be loaded'
-export const IMPORT_SCOPE_FAILURE_EXPLANATION = 'Without them this import cannot tell whether it may write to the account it was started from.'
+export const IMPORT_SCOPE_FAILURE_EXPLANATION =
+  'Without them this import cannot tell whether it may write to the account it was started from.'
 
 // Shown above the column mapping table, under the note about amounts, because what currency an
 // amount lands in is the other half of how a number is read and the Currency column is mapped here.
 // It speaks of the account each source is mapped to, which is the step after this one, since that is
 // where the answer comes from even though the question arises while the columns are being chosen
 export const CURRENCY_HANDLING_TITLE = 'How currencies are read'
-export const CURRENCY_HANDLING_NOTE = 'Imported amounts use the format selected below. Each one is assigned the currency of the account its row is mapped to, or the currency shown against a new account, which is taken from the import where it states one and can be changed on any row.'
+export const CURRENCY_HANDLING_NOTE =
+  'Imported amounts use the format selected below. Each one is assigned the currency of the account its row is mapped to, or the currency shown against a new account, which is taken from the import where it states one and can be changed on any row.'
 
 /**
  * Says what a scoped import does with the currency of the account it writes to
@@ -667,7 +737,8 @@ export function getFixedAccountWarning(accountName: string) {
 
 // Shown over the accounts that appear only as a counterparty, which the import writes nothing to
 export const COUNTERPARTY_ONLY_TABLE_TITLE = 'Counterparty accounts'
-export const COUNTERPARTY_ONLY_EXPLANATION = 'These only ever appeared as the other side of a transfer. Matching one records where the money came from or went to without writing a transaction into that account, which is why an archived account can be chosen here and stays archived. Choose Outside this app to record the transfer without linking another account. To bring a name in as an account of your own, choose Create new account in its Existing account column.'
+export const COUNTERPARTY_ONLY_EXPLANATION =
+  'These only ever appeared as the other side of a transfer. Matching one records where the money came from or went to without writing a transaction into that account, which is why an archived account can be chosen here and stays archived. Choose Outside this app to record the transfer without linking another account. To bring a name in as an account of your own, choose Create new account in its Existing account column.'
 
 // Date-order presets are named by their shape rather than a standard because year-first accepts
 // slashes and unpadded parts, while the separate ISO preset requires padded dates. Keyed by format
@@ -771,3 +842,7 @@ export const IMPORT_SIDE_BY_SIDE_QUERY = '(min-width: 1280px)'
 // How long the setup panel's collapse and expand take, which is the page's usual 240ms. The sections,
 // the label, the caret and the steps beside the panel all move within it
 export const IMPORT_SETUP_MOTION_MS = 240
+
+// How long the page waits, once the setup panel has opened, before the "Last import" card flashes, so
+// the user's eye has arrived at the panel first
+export const IMPORT_FLASH_PAUSE_MS = 400

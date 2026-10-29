@@ -621,6 +621,12 @@ class LastImportResponse(BaseModel):
     budget_count: int
 
 
+class SavedImportRunResponse(BaseModel):
+    """Whether a saved import is still there"""
+
+    is_saved: bool
+
+
 class ImportUndoResponse(BaseModel):
     """Summary of an undone import"""
 

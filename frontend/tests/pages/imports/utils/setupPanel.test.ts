@@ -53,7 +53,9 @@ describe('setup panel', () => {
     expect(isSetupPanelOpen(caretClosed, false)).toBe(false)
     expect(isSetupPanelOpen(reduceSetupPanel(caretClosed, { type: 'pointer-entered' }), false)).toBe(false)
     expect(isSetupPanelOpen(reduceSetupPanel(caretClosed, { type: 'focus-entered' }), false)).toBe(false)
-    expect(isSetupPanelOpen(reduceSetupPanel(caretClosed, { type: 'content-hold-changed', isHeldByContent: true }), false)).toBe(false)
+    expect(
+      isSetupPanelOpen(reduceSetupPanel(caretClosed, { type: 'content-hold-changed', isHeldByContent: true }), false),
+    ).toBe(false)
     expect(isSetupPanelOpen(reduceSetupPanel(caretClosed, { type: 'toggled' }), false)).toBe(true)
   })
 
@@ -67,7 +69,9 @@ describe('setup panel', () => {
     const invalid = run(STAGED_ON_DESKTOP, { type: 'content-hold-changed', isHeldByContent: true })
     expect(isSetupPanelOpen(invalid, true)).toBe(true)
     expect(isSetupPanelOpen(reduceSetupPanel(invalid, { type: 'pointer-left' }), true)).toBe(true)
-    expect(isSetupPanelOpen(reduceSetupPanel(invalid, { type: 'content-hold-changed', isHeldByContent: false }), true)).toBe(false)
+    expect(
+      isSetupPanelOpen(reduceSetupPanel(invalid, { type: 'content-hold-changed', isHeldByContent: false }), true),
+    ).toBe(false)
   })
 
   it('lets the caret pin a hovered panel open, or collapse one the pointer or focus is on', () => {
@@ -97,10 +101,16 @@ describe('setup panel placement', () => {
       { type: 'focus-entered' },
       { type: 'content-hold-changed', isHeldByContent: true },
     ]
-    expect(events.map((event) => {
-      const shown = reduceSetupPanel(collapsed, event)
-      return [isSetupPanelOpen(shown, true), shown.isCollapsed]
-    })).toEqual([[true, true], [true, true], [true, true]])
+    expect(
+      events.map((event) => {
+        const shown = reduceSetupPanel(collapsed, event)
+        return [isSetupPanelOpen(shown, true), shown.isCollapsed]
+      }),
+    ).toEqual([
+      [true, true],
+      [true, true],
+      [true, true],
+    ])
   })
 
   it('takes its place in the layout at once when the files go while something shows it over the steps', () => {
@@ -110,7 +120,13 @@ describe('setup panel placement', () => {
       { type: 'focus-entered' },
       { type: 'content-hold-changed', isHeldByContent: true },
     ]
-    expect(events.map((event) => reduceSetupPanel(reduceSetupPanel(collapsed, event), { type: 'files-cleared', isDesktop: true }).isPlacedAtOnce)).toEqual([true, true, true])
+    expect(
+      events.map(
+        (event) =>
+          reduceSetupPanel(reduceSetupPanel(collapsed, event), { type: 'files-cleared', isDesktop: true })
+            .isPlacedAtOnce,
+      ),
+    ).toEqual([true, true, true])
   })
 
   it('slides into place instead when nothing shows the panel, or when it already was in place', () => {
@@ -129,6 +145,27 @@ describe('setup panel placement', () => {
     expect(placed.isPlacedAtOnce).toBe(true)
     expect(reduceSetupPanel(placed, STAGED_ON_DESKTOP).isPlacedAtOnce).toBe(false)
     expect(reduceSetupPanel(placed, { type: 'toggled' }).isPlacedAtOnce).toBe(false)
+  })
+})
+
+describe('setup panel expanding for the page', () => {
+  it('opens a panel a file collapsed, through the open state the caret sets and not the hover peek', () => {
+    const expanded = run(STAGED_ON_DESKTOP, { type: 'expand-requested' })
+    expect(expanded.isCollapsed).toBe(false)
+    expect(isSetupPanelOpen(expanded, true)).toBe(true)
+
+    const peeking = run(STAGED_ON_DESKTOP, { type: 'pointer-entered' })
+    expect(reduceSetupPanel(peeking, { type: 'expand-requested' }).isCollapsed).toBe(false)
+  })
+
+  it('opens a panel the caret collapsed at any size, and leaves an open one as it is', () => {
+    expect(run({ type: 'toggled' }, { type: 'expand-requested' }).isCollapsed).toBe(false)
+    expect(reduceSetupPanel(INITIAL_SETUP_PANEL_STATE, { type: 'expand-requested' })).toBe(INITIAL_SETUP_PANEL_STATE)
+  })
+
+  it('lets the next file collapse it again', () => {
+    const expanded = run(STAGED_ON_DESKTOP, { type: 'expand-requested' }, { type: 'files-cleared', isDesktop: true })
+    expect(reduceSetupPanel(expanded, STAGED_ON_DESKTOP).isCollapsed).toBe(true)
   })
 })
 

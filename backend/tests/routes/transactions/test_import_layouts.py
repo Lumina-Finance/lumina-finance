@@ -65,9 +65,9 @@ def _saved(account_id, layout):
 async def _stored_layouts():
     """Every saved layout with the run it links to, read past row-level security"""
     async with TestSession() as session:
-        rows = await session.execute(text(
-            "SELECT account_id::text, headers, date_format, import_run_id::text FROM account_import_layouts ORDER BY updated_at"
-        ))
+        rows = await session.execute(
+            text("SELECT account_id::text, headers, date_format, import_run_id::text FROM account_import_layouts ORDER BY updated_at")
+        )
         return [tuple(row) for row in rows]
 
 
@@ -82,19 +82,19 @@ async def test_a_completed_import_into_one_account_saves_how_its_file_was_read(c
     assert await _stored_layouts() == [(account_id, _WEB_EXPORT["headers"], "dayFirst", run_id)]
 
 
-async def test_a_file_with_other_headers_is_saved_beside_the_first_and_unlinks_it(client):
-    """A second layout for the account replaced the first, or a later import took the first one's undo link with it."""
+async def test_a_file_with_other_headers_is_saved_beside_the_first_and_keeps_its_link(client):
+    """A second layout for the account replaced the first, or a later import took the first one's link with it."""
     headers, account_id, category_id = await _setup_user_with_deps(client)
-    await _import(client, headers, _into(account_id, category_id), _WEB_EXPORT)
+    web_run_id, _ = await _import(client, headers, _into(account_id, category_id), _WEB_EXPORT)
 
     mobile_run_id, committed = await _import(client, headers, _into(account_id, category_id), _MOBILE_EXPORT)
 
     assert committed.status_code == 201, committed.text
     assert await _list_layouts(client, headers) == [_saved(account_id, _MOBILE_EXPORT), _saved(account_id, _WEB_EXPORT)]
 
-    # Only the last import can be undone, so the earlier run goes with this commit and its layout stays unlinked
+    # Only the last import can be undone, though the earlier run stays for the undo window
     assert await _stored_layouts() == [
-        (account_id, _WEB_EXPORT["headers"], "dayFirst", None),
+        (account_id, _WEB_EXPORT["headers"], "dayFirst", web_run_id),
         (account_id, _MOBILE_EXPORT["headers"], "yearFirst", mobile_run_id),
     ]
 
@@ -120,9 +120,7 @@ async def test_each_account_keeps_its_own_layouts(client):
     await _import(client, headers, _into(savings_id, category_id), _MOBILE_EXPORT)
 
     layouts = await _list_layouts(client, headers)
-    assert sorted((layout["account_id"], layout["headers"][0]) for layout in layouts) == sorted(
-        [(checking_id, "Date"), (savings_id, "Booked")]
-    )
+    assert sorted((layout["account_id"], layout["headers"][0]) for layout in layouts) == sorted([(checking_id, "Date"), (savings_id, "Booked")])
 
 
 async def test_an_import_left_uncommitted_saves_nothing(client):
@@ -277,7 +275,9 @@ async def test_another_users_layouts_are_not_listed(client):
     headers, account_id, category_id = await _setup_user_with_deps(client)
     await _import(client, headers, _into(account_id, category_id), _WEB_EXPORT)
     other, _other_account_id, _other_category_id = await _setup_user_with_deps(
-        client, email="other@example.com", name_prefix="Other",
+        client,
+        email="other@example.com",
+        name_prefix="Other",
     )
 
     assert await _list_layouts(client, other) == []
@@ -288,13 +288,17 @@ async def test_another_users_layouts_are_not_listed(client):
     [
         ({"delimiter": "|"}, ["body", "csv_layout", "delimiter"]),
         ({"date_format": "julian"}, ["body", "csv_layout", "date_format"]),
-        ({"amount_format": {"decimal_separator": "'", "grouping_separator": ","}},
-         ["body", "csv_layout", "amount_format", "decimal_separator"]),
+        (
+            {"amount_format": {"decimal_separator": "'", "grouping_separator": ","}},
+            ["body", "csv_layout", "amount_format", "decimal_separator"],
+        ),
         ({"header_row": 0}, ["body", "csv_layout", "header_row"]),
         ({"header_row": MAX_CSV_LAYOUT_LINE + 1}, ["body", "csv_layout", "header_row"]),
         ({"headers": ["Date"]}, ["body", "csv_layout", "headers"]),
-        ({"headers": ["Date", "Description", "Amount", *(f"Extra {n}" for n in range(MAX_CSV_LAYOUT_COLUMNS - 2))]},
-         ["body", "csv_layout", "headers"]),
+        (
+            {"headers": ["Date", "Description", "Amount", *(f"Extra {n}" for n in range(MAX_CSV_LAYOUT_COLUMNS - 2))]},
+            ["body", "csv_layout", "headers"],
+        ),
         ({"headers": ["Date", "x" * 257]}, ["body", "csv_layout", "headers", 1]),
         ({"column_map": {"account_id": "Date"}}, ["body", "csv_layout", "column_map", "account_id", "[key]"]),
         ({"column_map": {"dt": "Posted"}}, ["body", "csv_layout"]),

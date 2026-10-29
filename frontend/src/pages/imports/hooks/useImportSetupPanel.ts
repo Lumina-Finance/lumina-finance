@@ -12,7 +12,8 @@ const NON_TEXT_INPUT_TYPES = new Set(['button', 'checkbox', 'file', 'image', 'ra
 
 // What in the panel's markup holds it open: a field marked invalid, an open dropdown, and the button of a date field
 // whose calendar is open. A dropdown's list and a calendar both sit outside the panel, where the pointer and focus go
-const CONTENT_HOLD_SELECTOR = '[aria-invalid="true"], [role="combobox"][aria-expanded="true"], [aria-haspopup="dialog"][aria-expanded="true"]'
+const CONTENT_HOLD_SELECTOR =
+  '[aria-invalid="true"], [role="combobox"][aria-expanded="true"], [aria-haspopup="dialog"][aria-expanded="true"]'
 
 /**
  * The outermost group a field sits in, which holds the field with its message, or the field itself
@@ -22,7 +23,12 @@ const CONTENT_HOLD_SELECTOR = '[aria-invalid="true"], [role="combobox"][aria-exp
  */
 function groupHoldingMessage(field: Element): Element {
   let group = field.closest('[role="group"]')
-  for (let outer = group?.parentElement?.closest('[role="group"]'); outer; outer = outer.parentElement?.closest('[role="group"]')) group = outer
+  for (
+    let outer = group?.parentElement?.closest('[role="group"]');
+    outer;
+    outer = outer.parentElement?.closest('[role="group"]')
+  )
+    group = outer
   return group ?? field
 }
 
@@ -51,9 +57,10 @@ function revealWhileResizing(element: Element): () => void {
  */
 function holdsPanelOpen(element: Element | null): boolean {
   if (!(element instanceof HTMLElement)) return false
-  const isTextField = element instanceof HTMLTextAreaElement
-    || (element instanceof HTMLInputElement && !NON_TEXT_INPUT_TYPES.has(element.type))
-    || element.isContentEditable
+  const isTextField =
+    element instanceof HTMLTextAreaElement ||
+    (element instanceof HTMLInputElement && !NON_TEXT_INPUT_TYPES.has(element.type)) ||
+    element.isContentEditable
   const isOpenDropdown = element.getAttribute('role') === 'combobox' && element.getAttribute('aria-expanded') === 'true'
   return isTextField || isOpenDropdown || element.matches(':focus-visible')
 }
@@ -74,8 +81,14 @@ function holdsPanelOpen(element: Element | null): boolean {
  *
  * @param hasFile - Whether a file is staged and nothing about it needs the user's attention
  * @param onPointerInsideChange - Told when a mouse enters the panel and when it leaves, since a touch has no hover to end
+ * @param expandCount - Rises each time the page wants the panel's sections in view, which expands a
+ *   collapsed panel the way the caret does. The value it opens with asks for nothing
  */
-export function useImportSetupPanel(hasFile: boolean, onPointerInsideChange?: (isInside: boolean) => void) {
+export function useImportSetupPanel(
+  hasFile: boolean,
+  onPointerInsideChange?: (isInside: boolean) => void,
+  expandCount = 0,
+) {
   const panelRef = useRef<HTMLElement>(null)
   const onPointerInsideChangeRef = useRef(onPointerInsideChange)
   useEffect(() => {
@@ -104,10 +117,12 @@ export function useImportSetupPanel(hasFile: boolean, onPointerInsideChange?: (i
     let revealed: Element | null = null
     let stopFollowing = () => {}
     const read = () => {
-      setState((current) => reduceSetupPanel(current, {
-        type: 'content-hold-changed',
-        isHeldByContent: panel.querySelector(CONTENT_HOLD_SELECTOR) !== null,
-      }))
+      setState((current) =>
+        reduceSetupPanel(current, {
+          type: 'content-hold-changed',
+          isHeldByContent: panel.querySelector(CONTENT_HOLD_SELECTOR) !== null,
+        }),
+      )
 
       // A field that has just gone invalid is scrolled into view, with its message, since the panel
       // scrolls and the message can sit below its fold
@@ -119,7 +134,12 @@ export function useImportSetupPanel(hasFile: boolean, onPointerInsideChange?: (i
     }
     read()
     const observer = new MutationObserver(read)
-    observer.observe(panel, { subtree: true, childList: true, attributes: true, attributeFilter: ['aria-invalid', 'aria-expanded'] })
+    observer.observe(panel, {
+      subtree: true,
+      childList: true,
+      attributes: true,
+      attributeFilter: ['aria-invalid', 'aria-expanded'],
+    })
     return () => {
       observer.disconnect()
       stopFollowing()
@@ -153,9 +173,17 @@ export function useImportSetupPanel(hasFile: boolean, onPointerInsideChange?: (i
   useLayoutEffect(() => {
     if (hasFile === hadFileRef.current) return
     hadFileRef.current = hasFile
-    const isFocusInside = (panelRef.current?.contains(document.activeElement) ?? false) && holdsPanelOpen(document.activeElement)
+    const isFocusInside =
+      (panelRef.current?.contains(document.activeElement) ?? false) && holdsPanelOpen(document.activeElement)
     send(hasFile ? { type: 'file-staged', isDesktop, isFocusInside } : { type: 'files-cleared', isDesktop })
   }, [hasFile, isDesktop])
+
+  const expandedForCountRef = useRef(expandCount)
+  useEffect(() => {
+    if (expandCount === expandedForCountRef.current) return
+    expandedForCountRef.current = expandCount
+    setState((current) => reduceSetupPanel(current, { type: 'expand-requested' }))
+  }, [expandCount])
 
   return {
     panelRef,
@@ -173,7 +201,8 @@ export function useImportSetupPanel(hasFile: boolean, onPointerInsideChange?: (i
       onBlur: (event: FocusEvent) => {
         if (!event.currentTarget.contains(event.target)) return
         // A native file dialog blurs the window and leaves focus where it was, which is not leaving
-        if (event.currentTarget.contains(event.relatedTarget) || event.currentTarget.contains(document.activeElement)) return
+        if (event.currentTarget.contains(event.relatedTarget) || event.currentTarget.contains(document.activeElement))
+          return
         send({ type: 'focus-left' })
       },
     },

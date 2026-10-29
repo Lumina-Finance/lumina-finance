@@ -19,6 +19,7 @@ export type SetupPanelEvent =
   | { type: 'file-staged'; isDesktop: boolean; isFocusInside: boolean }
   | { type: 'files-cleared'; isDesktop: boolean }
   | { type: 'toggled' }
+  | { type: 'expand-requested' }
   | { type: 'pointer-entered' }
   | { type: 'pointer-left' }
   | { type: 'focus-entered' }
@@ -50,12 +51,32 @@ export function reduceSetupPanel(state: SetupPanelState, event: SetupPanelEvent)
   switch (event.type) {
     case 'file-staged':
       return event.isDesktop
-        ? { ...state, isCollapsed: true, isPointerInside: false, isFocusInside: event.isFocusInside, isPlacedAtOnce: false }
+        ? {
+            ...state,
+            isCollapsed: true,
+            isPointerInside: false,
+            isFocusInside: event.isFocusInside,
+            isPlacedAtOnce: false,
+          }
         : { ...state, isPlacedAtOnce: false }
     case 'files-cleared':
-      return { ...state, isCollapsed: false, isPlacedAtOnce: state.isCollapsed && isSetupPanelOpen(state, event.isDesktop) }
+      return {
+        ...state,
+        isCollapsed: false,
+        isPlacedAtOnce: state.isCollapsed && isSetupPanelOpen(state, event.isDesktop),
+      }
     case 'toggled':
-      return { ...state, isCollapsed: !state.isCollapsed, isPointerInside: false, isFocusInside: false, isPlacedAtOnce: false }
+      return {
+        ...state,
+        isCollapsed: !state.isCollapsed,
+        isPointerInside: false,
+        isFocusInside: false,
+        isPlacedAtOnce: false,
+      }
+    case 'expand-requested':
+      // The page has news for the panel's sections, so it opens the way the caret opens it, and does
+      // nothing to a panel that is open. Pointer and focus stay as they are
+      return state.isCollapsed ? { ...state, isCollapsed: false, isPlacedAtOnce: false } : state
     case 'pointer-entered':
       return { ...state, isPointerInside: true }
     case 'pointer-left':
@@ -74,8 +95,7 @@ export function reduceSetupPanel(state: SetupPanelState, event: SetupPanelEvent)
  * for counting only on desktop, where the panel collapses by itself
  */
 export function isSetupPanelOpen(state: SetupPanelState, isDesktop: boolean): boolean {
-  return !state.isCollapsed
-    || (isDesktop && (state.isPointerInside || state.isFocusInside || state.isHeldByContent))
+  return !state.isCollapsed || (isDesktop && (state.isPointerInside || state.isFocusInside || state.isHeldByContent))
 }
 
 /**

@@ -22,6 +22,7 @@ from app.schemas.import_run import (
     JournalImportRunResponse,
     JournalImportStageRequest,
     LastImportResponse,
+    SavedImportRunResponse,
     TransactionImportResponse,
     TransactionImportRunRequest,
     TransactionImportRunResponse,
@@ -43,6 +44,7 @@ from app.services.importers import (
     delete_import_run,
     find_held_import_rows,
     get_last_import,
+    is_import_run_saved,
     list_import_layouts,
     list_import_sources,
     open_import_run,
@@ -393,6 +395,25 @@ async def get_last_transaction_import(
         The last import saved within the undo window, or None
     """
     return await get_last_import(db, user)
+
+
+@router.get("/import/runs/{run_id}", response_model=SavedImportRunResponse)
+async def get_saved_transaction_import_run(
+    run_id: uuid.UUID,
+    user: Annotated[User, Depends(get_current_user)],
+    db: Annotated[AsyncSession, Depends(get_db)],
+):
+    """Answer whether one of the caller's saved imports is still there, which undoing it ends
+
+    Args:
+        run_id: Import to look for
+        user: Authenticated user
+        db: Active database session
+
+    Returns:
+        Whether the import is saved, which is false for one that is absent, not the caller's or not yet saved
+    """
+    return SavedImportRunResponse(is_saved=await is_import_run_saved(db, user, run_id))
 
 
 @router.get("/import/layouts", response_model=list[CsvImportLayoutResponse])
