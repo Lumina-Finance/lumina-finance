@@ -73,6 +73,6 @@ describe('UpcomingSection', () => {
     const markup = render(['2026-10-03'], true, groceriesRefund)
 
     expect(markup).not.toContain('var(--app-positive)')
-    expect(markup.match(/opacity:var\(--app-faded-icon-opacity, ?0\.75\)/g)).toHaveLength(2)
+    expect(markup.match(/opacity:0.75/g)).toHaveLength(2)
   })
 })

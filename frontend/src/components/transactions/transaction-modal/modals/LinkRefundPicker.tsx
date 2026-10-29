@@ -1,52 +1,36 @@
-import { useEffect, useId, useMemo, useState, type CSSProperties } from 'react'
+import { useEffect, useId, useMemo, useRef, useState, type CSSProperties } from 'react'
 import { Link2 } from 'lucide-react'
-import { ApiError } from '@/api/auth'
 import { useAccounts } from '@/api/accounts'
 import { useCategories } from '@/api/categories'
-import { useLinkRefund, useRefundLinkCandidates, type Transaction } from '@/api/transactions'
+import { useRefundLinkCandidates, type Transaction } from '@/api/transactions'
 import { GlassSearchField } from '@/components/list-controls/GlassSearchField'
 import LoadFailure from '@/components/errors/LoadFailure'
 import { ModalFormFooter } from '@/components/modal/FormFooter'
 import { ModalTitledPanel } from '@/components/modal/TitledPanel'
 import TransactionRow from '@/components/transactions/Row'
 import TransactionModalLinkRefundFilters from '@/components/transactions/transaction-modal/modals/LinkRefundFilters'
+import { exceedsRefundRoom } from '@/components/transactions/transaction-modal/utils/refund'
 import { toTransactionListAccount, type TransactionListFilters } from '@/components/transactions/types/transactionList'
 import { normalizeTransactionFilters } from '@/components/transactions/utils/normalizeTransactionFilters'
-import { FADED_ROW_COLOURS, FadedRowsContext } from '@/contexts/FadedRowsContext'
+import { useMoneyFormatters } from '@/hooks/useMoneyFormatters'
 
 // How long typing pauses before the search is sent, so a word is one request rather than one per letter
 const SEARCH_DEBOUNCE_MS = 250
 
-// From 1050px, where the shell stops filling the screen, the panel grows with its rows up to about 70% of the create
-// transaction window's 86vh. Below that it keeps the full height the shell gives it
-const PANEL_HEIGHT_CLASS_NAME = 'min-[1050px]:max-h-[60vh]'
+// From 750px the filter panel opens downward over the list, so the body always keeps room for it. The dialog then has
+// the same height with the panel open or closed, and opening it moves nothing
+const BODY_CLASS_NAME = 'min-[750px]:min-h-[38rem]'
 
 // A picked row takes the accent fill and an accent border. The others keep a clear border so it eases in and out, and
-// every part inside a row eases with it, on the app's curve
-const ROW_CLASS_NAME =
-  'scroll-mt-44 rounded-lg transition-[background-color,box-shadow,color] motion-reduce:transition-none [&_*]:transition-[color,background-color,opacity] motion-reduce:[&_*]:transition-none'
+// ease to a lower strength as a whole when one is picked, on the app's curve
+const ROW_CLASS_NAME = 'scroll-mt-44 rounded-lg transition-[background-color,box-shadow] motion-reduce:transition-none'
+const ROW_CONTENT_CLASS_NAME = 'transition-opacity motion-reduce:transition-none'
 const RESTING_ROW_STYLE = { boxShadow: 'inset 0 0 0 1px transparent' }
 const PICKED_ROW_STYLE = { background: 'var(--app-accent-soft)', boxShadow: 'inset 0 0 0 1px var(--app-accent)' }
 
-// Opening or closing the filter panel un-pins or re-pins the block above the rows. The body goes back to the top in the
-// same frame, which is where the pinned block was, so the explanation, search field and Filters button do not move
-function watchFilterPanel(block: HTMLDivElement | null) {
-  if (!block) return
-  const observer = new MutationObserver(() => {
-    const body = block.closest('[data-tooltip-bounds]')
-    if (body) body.scrollTop = 0
-  })
-  observer.observe(block, { subtree: true, attributes: true, attributeFilter: ['aria-expanded'] })
-  return () => observer.disconnect()
-}
-
-// How far the icon of a row that was not picked is dimmed. An icon has no text, so contrast doesn't bound it
-const GREYED_ICON_OPACITY = 0.3
-const GREYED_ROW_STYLE = {
-  ...FADED_ROW_COLOURS,
-  ...RESTING_ROW_STYLE,
-  '--app-faded-icon-opacity': GREYED_ICON_OPACITY,
-} as CSSProperties
+// How strongly a row that was not picked shows, as a share of full strength. Low enough that the picked row
+// stands out at a glance. A row that can't be picked at all is held at the same strength
+const RECEDED_ROW_OPACITY = 0.5
 
 interface LinkRefundPickerProps {
   open: boolean
@@ -54,30 +38,65 @@ interface LinkRefundPickerProps {
 
   /** The open transaction. An expense picks the refund to link, and a refund picks its expense */
   transaction: Transaction
+
+  /** Candidates already picked in the window, which are not offered again */
+  heldIds: string[]
+
+  /** What is left to refund of the open expense once its refunds, saved and held, are counted */
+  refundRoom: number | undefined
+
+  /** Holds the pick until the window is saved */
+  onPick: (picked: Transaction) => void
 }
 
 /**
  * Opens over the transaction modal to link an existing refund to an expense, or an existing expense to
  * a refund. The server lists only what linking would accept, the exact amount first and then the nearest,
- * and the list's own filters narrow it. Pressing a row picks it and greys the others out, and the
- * modal's Link button, live once one is picked, links it
+ * and the list's own filters narrow it. A refund that would take the total refunded past the expense is
+ * shown with the reason and can't be picked. Pressing a row picks it and fades the others, and the
+ * modal's Link button, live once one is picked, holds the pick until the window it opened from is saved
  */
-export default function TransactionModalLinkRefundPicker({ open, onClose, transaction }: LinkRefundPickerProps) {
+export default function TransactionModalLinkRefundPicker({
+  open,
+  onClose,
+  transaction,
+  heldIds,
+  refundRoom,
+  onPick,
+}: LinkRefundPickerProps) {
   const titleId = useId()
+  const { formatCurrency } = useMoneyFormatters()
   const [search, setSearch] = useState('')
   const [sentSearch, setSentSearch] = useState('')
   const [filters, setFilters] = useState<TransactionListFilters>({})
   const [pickedId, setPickedId] = useState<string | null>(null)
 
+  // The dialog's scrolling body, which holds the open filter panel inside it
+  const bodyRef = useRef<HTMLElement | null>(null)
+
+  // Opening or closing the filter panel un-pins or re-pins the block above the rows. The body goes back to the
+  // top in the same frame, which is where the pinned block was, so the explanation, search field and Filters
+  // button do not move
+  const watchFilterPanel = (block: HTMLDivElement | null) => {
+    if (!block) return
+    const observer = new MutationObserver(() => {
+      const body = block.closest<HTMLElement>('[data-tooltip-bounds]')
+      bodyRef.current = body
+      if (body) body.scrollTop = 0
+    })
+    observer.observe(block, { subtree: true, attributes: true, attributeFilter: ['aria-expanded'] })
+    return () => observer.disconnect()
+  }
+
   // The open filter panel is as wide as the search row, so it covers the row and the list under it edge to edge
   const [searchRowWidth, setSearchRowWidth] = useState<number>()
   const watchSearchRowWidth = (row: HTMLDivElement | null) => {
     if (!row) return
+    bodyRef.current = row.closest<HTMLElement>('[data-tooltip-bounds]')
     const observer = new ResizeObserver(() => setSearchRowWidth(row.getBoundingClientRect().width))
     observer.observe(row)
     return () => observer.disconnect()
   }
-  const link = useLinkRefund()
   const picksRefund = transaction.amount < 0
   const candidates = useRefundLinkCandidates(open ? transaction.id : null, sentSearch, filters)
   const { data: accounts } = useAccounts()
@@ -98,7 +117,6 @@ export default function TransactionModalLinkRefundPicker({ open, onClose, transa
   }, [search])
 
   const handleClose = () => {
-    link.reset()
     setSearch('')
     setSentSearch('')
     setFilters({})
@@ -106,10 +124,22 @@ export default function TransactionModalLinkRefundPicker({ open, onClose, transa
     onClose()
   }
 
-  const rows = candidates.data ?? []
+  const rows = (candidates.data ?? []).filter((candidate) => !heldIds.includes(candidate.id))
+
+  // Why a candidate can't be picked: linking it would take the refunds past the expense. An expense is
+  // offered refunds against the room it has left, and a refund is offered expenses by their own room
+  const refusalFor = (candidate: Transaction): string | null => {
+    const [room, currency] = picksRefund
+      ? [refundRoom, transaction.currency]
+      : [-candidate.amount - (candidate.refunded_amount ?? 0), candidate.currency]
+    if (room === undefined) return null
+    const refund = picksRefund ? candidate : transaction
+    if (!exceedsRefundRoom(refund, currency, room)) return null
+    return room > 0 ? `Only ${formatCurrency(room, currency)} is left to refund` : 'Already fully refunded'
+  }
 
   // A pick that a search or filter has taken off the list is dropped, so it does not come back when they clear
-  const picked = rows.find((candidate) => candidate.id === pickedId) ?? null
+  const picked = rows.find((candidate) => candidate.id === pickedId && !refusalFor(candidate)) ?? null
   if (pickedId !== null && picked === null && candidates.data !== undefined) setPickedId(null)
 
   const setFilter = (patch: Partial<TransactionListFilters>) =>
@@ -117,11 +147,8 @@ export default function TransactionModalLinkRefundPicker({ open, onClose, transa
 
   const handleLink = () => {
     if (!picked) return
-    const [refundId, originalId] = picksRefund ? [picked.id, transaction.id] : [transaction.id, picked.id]
-    link.mutate(
-      { refundId, originalId },
-      { onSuccess: handleClose },
-    )
+    onPick(picked)
+    handleClose()
   }
 
   const hasNarrowing = sentSearch !== '' || Object.keys(filters).length > 0
@@ -135,32 +162,24 @@ export default function TransactionModalLinkRefundPicker({ open, onClose, transa
       title={picksRefund ? 'Link a refund' : 'Link to an expense'}
       RailIcon={Link2}
       railLabel="Refund link"
-      closeDisabled={link.isPending}
-      extraPanelClassName={PANEL_HEIGHT_CLASS_NAME}
       footer={
         <ModalFormFooter
           level="stacked"
           submitLabel="Link"
-          submitDisabled={link.isPending}
+          submitDisabled={false}
           submitBlockedReason={picked ? undefined : 'Pick a transaction first'}
           submitWidthClassName="w-full sm:w-auto"
-          error={
-            link.isError
-              ? link.error instanceof ApiError
-                ? link.error.message
-                : 'Oops, something went wrong. Please try again.'
-              : null
-          }
+          error={null}
           onCancel={handleClose}
           onPrimary={handleLink}
         />
       }
     >
-      {/* From 750px the filter panel opens downward over the list, so the body keeps room for most of it */}
-      <div className="min-[750px]:min-h-[26rem]">
+      {/* From 750px the filter panel opens downward over the list, so the body keeps room for all of it */}
+      <div className={BODY_CLASS_NAME}>
         {/* Stays at the top of the scrolling body, so only the rows scroll beneath it. The body's padding is not
             part of what sticks, so the negative margin and offset reach it and the padding inside covers it. While the filter
-            panel is open the block scrolls with the rows, so the panel adds to the scroll height and its last button can scroll above the footer */}
+            panel is open the block scrolls with the rows, so the panel adds to the scroll height */}
         <div
           ref={watchFilterPanel}
           className="sticky -top-4 z-10 -mt-4 space-y-4 pb-3 pt-4 has-[[aria-expanded=true]]:relative has-[[aria-expanded=true]]:top-0"
@@ -185,6 +204,7 @@ export default function TransactionModalLinkRefundPicker({ open, onClose, transa
               accounts={transactionAccounts}
               categories={categories}
               panelWidth={searchRowWidth}
+              constrainTo={bodyRef}
             />
           </div>
         </div>
@@ -208,19 +228,21 @@ export default function TransactionModalLinkRefundPicker({ open, onClose, transa
             {rows.map((candidate) => {
               const account = accountById.get(candidate.account_id)
               const isPicked = candidate.id === picked?.id
+              const refusal = refusalFor(candidate)
 
-              // Once one is picked the rest are greyed out the way the Upcoming section greys its rows, with their
-              // icons dimmed much further, since their text can't go below the muted token and stay readable
-              const isGreyed = picked !== null && !isPicked
+              // Once one is picked the rest recede, and a row that can't be picked always does
+              const receded = refusal !== null || (picked !== null && !isPicked)
+              const contentStyle: CSSProperties = { opacity: receded ? RECEDED_ROW_OPACITY : 1 }
               return (
                 <div
                   key={candidate.id}
                   className={ROW_CLASS_NAME}
-                  style={isPicked ? PICKED_ROW_STYLE : isGreyed ? GREYED_ROW_STYLE : RESTING_ROW_STYLE}
+                  style={isPicked ? PICKED_ROW_STYLE : RESTING_ROW_STYLE}
                   data-testid="link-candidate"
                   data-picked={isPicked ? 'true' : undefined}
+                  data-refused={refusal ? 'true' : undefined}
                 >
-                  <FadedRowsContext.Provider value={isGreyed}>
+                  <div className={ROW_CONTENT_CLASS_NAME} style={contentStyle} inert={refusal !== null}>
                     <TransactionRow
                       transaction={candidate}
                       currency={candidate.currency}
@@ -232,7 +254,16 @@ export default function TransactionModalLinkRefundPicker({ open, onClose, transa
                       pressed={isPicked}
                       onOpen={() => setPickedId(isPicked ? null : candidate.id)}
                     />
-                  </FadedRowsContext.Provider>
+                  </div>
+                  {refusal && (
+                    <p
+                      className="px-3 pb-2 text-sm"
+                      style={{ color: 'var(--app-text-muted)' }}
+                      data-testid="link-candidate-reason"
+                    >
+                      {refusal}
+                    </p>
+                  )}
                 </div>
               )
             })}

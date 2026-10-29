@@ -336,7 +336,7 @@ export function TransactionRowView({
   // muted colour, and dims the category icon, which colour can't reach, so nothing in the row reads as
   // strongly as one that counts
   const transactionAmountColor = isFaded ? 'var(--app-text)' : amountColor(category, amountPresentation.sign)
-  const categoryIconStyle = { opacity: isFaded ? `var(--app-faded-icon-opacity, ${FADED_CATEGORY_ICON_OPACITY})` : 1 }
+  const categoryIconStyle = { opacity: isFaded ? FADED_CATEGORY_ICON_OPACITY : 1 }
 
   // Only the limit gets a title here, since a read-only row already explains itself through the
   // pill beside its account name

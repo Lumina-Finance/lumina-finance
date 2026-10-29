@@ -7,6 +7,7 @@ import {
   type Transaction,
 } from '@/api/transactions'
 import { getCreateFailureMessage, getTransferFailureNotice } from '@/utils/createFailure'
+import { createRandomId } from '@/utils/randomId'
 import { LOADING_ANIMATION_MIN_MS, waitForMilliseconds } from '@/utils/timing'
 import {
   INITIAL_TRANSACTION_FORM,
@@ -21,6 +22,7 @@ import {
 } from '@/components/transactions/transaction-modal/utils/payloads'
 import { isSymmetricTransferForm } from '@/components/transactions/transaction-modal/utils/validation'
 import type { TransactionFormValues } from '@/components/transactions/transaction-modal/types'
+import type { PendingLinks, PendingRefund } from '@/components/transactions/transaction-modal/hooks/usePendingLinks'
 
 interface UseTransactionSubmitOptions {
   editing: boolean
@@ -28,6 +30,13 @@ interface UseTransactionSubmitOptions {
 
   /** The expense a new transaction refunds, saved as the link in the same request */
   refundOfTransactionId?: string
+
+  /** Hands a refund to the edit window it was made from, which creates it on its own Save */
+  stageRefund?: (refund: PendingRefund) => void
+  refundMerchantName: string | null
+
+  /** The link changes the edit window holds until Save */
+  pendingLinks: PendingLinks
   form: TransactionFormValues
   setForm: Dispatch<SetStateAction<TransactionFormValues>>
 
@@ -67,6 +76,9 @@ export function useTransactionSubmit({
   editing,
   transaction,
   refundOfTransactionId,
+  stageRefund,
+  refundMerchantName,
+  pendingLinks,
   form,
   setForm,
   guard,
@@ -90,9 +102,11 @@ export function useTransactionSubmit({
   const [sessionAccountDeltas, setSessionAccountDeltas] = useState<Record<string, number>>({})
   const [createDelayPending, setCreateDelayPending] = useState(false)
 
+  const [editSaving, setEditSaving] = useState(false)
+
   const createLoading = createMutation.isPending || createDelayPending
-  const submitLoading = editing ? updateMutation.isPending : createLoading
-  const isPending = createLoading || updateMutation.isPending || deleteLoading
+  const submitLoading = editing ? updateMutation.isPending || editSaving : createLoading
+  const isPending = createLoading || updateMutation.isPending || editSaving || deleteLoading
 
   const selectedAccountSessionDelta = selectedAccount ? (sessionAccountDeltas[selectedAccount.id] ?? 0) : 0
   const runningBalance = selectedAccount
@@ -137,20 +151,41 @@ export function useTransactionSubmit({
         isAmountLocked ? null : selectedCurrencyExponent,
       )
 
-      if (!patch) {
+      if (!patch && pendingLinks.count === 0) {
         closeModal()
         return
       }
 
-      updateMutation.mutate(
-        { id: transaction.id, patch },
-        {
-          onSuccess: () => closeModal(),
-          onError: (err) => {
-            setSubmitError(err instanceof ApiError ? err.message : 'Something went wrong. Please try again.')
-          },
-        },
-      )
+      // Link changes made in the window are held until here. Unlinking comes first, so the room it frees
+      // is there for a new link, and the edit comes before any link that depends on it
+      setSubmitError('')
+      setSubmitErrorTitle('')
+      setEditSaving(true)
+      const minimumLoading = waitForMilliseconds(LOADING_ANIMATION_MIN_MS)
+      try {
+        await pendingLinks.applyUnlinks()
+        if (patch) await updateMutation.mutateAsync({ id: transaction.id, patch })
+        await pendingLinks.applyAdditions()
+        await minimumLoading
+        closeModal()
+      } catch (err) {
+        await minimumLoading
+        setSubmitError(err instanceof ApiError ? err.message : 'Something went wrong. Please try again.')
+      } finally {
+        setEditSaving(false)
+      }
+      return
+    }
+
+    // A refund made from an edit window is held by that window and created when it is saved
+    if (stageRefund && refundOfTransactionId) {
+      const payload = buildCreateTransactionPayload(form, selectedCurrencyExponent, refundOfTransactionId)
+      stageRefund({
+        key: createRandomId(),
+        payload,
+        preview: { merchant_name: refundMerchantName, dt: payload.dt, amount: payload.amount, currency: payload.currency },
+      })
+      closeModal()
       return
     }
 

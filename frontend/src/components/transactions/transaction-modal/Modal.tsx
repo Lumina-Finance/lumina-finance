@@ -11,9 +11,18 @@ import { useAuth } from '@/hooks/useAuth'
 import { KIND_LABELS } from '@/components/transactions/transaction-modal/constants'
 import { buildInitialTransactionForm } from '@/components/transactions/transaction-modal/utils/initialForm'
 import { buildCurrencyOptions } from '@/components/transactions/transaction-modal/utils/options'
-import { getTransactionProblems, isSymmetricTransferForm } from '@/components/transactions/transaction-modal/utils/validation'
-import { getTransactionFieldLayout, orderAccountFields } from '@/components/transactions/transaction-modal/utils/accountFields'
+import {
+  getTransactionProblems,
+  isSymmetricTransferForm,
+} from '@/components/transactions/transaction-modal/utils/validation'
+import {
+  getTransactionFieldLayout,
+  orderAccountFields,
+} from '@/components/transactions/transaction-modal/utils/accountFields'
 import { useRefusedSubmit } from '@/hooks/useRefusedSubmit'
+import { useMoneyFormatters } from '@/hooks/useMoneyFormatters'
+import { usePendingLinks } from '@/components/transactions/transaction-modal/hooks/usePendingLinks'
+import { useRefundRoom } from '@/components/transactions/transaction-modal/hooks/useRefundRoom'
 import type {
   CreateTransactionModalProps,
   TransactionFormFieldErrors,
@@ -62,6 +71,8 @@ export default function CreateTransactionModal({
   onClose,
   transaction,
   refundOf,
+  onStageRefund,
+  refundRoom: refundRoomLimit,
   defaultAccountId,
   defaultCurrency,
   readOnly: readOnlyProp = false,
@@ -76,10 +87,7 @@ export default function CreateTransactionModal({
   const { data: categories = [] } = useCategories()
   const { data: currencies = [] } = useCurrencies()
   const currencyState = useCurrencyListState()
-  const selectableAccounts = useMemo(
-    () => accounts.filter((account) => !account.is_archived),
-    [accounts],
-  )
+  const selectableAccounts = useMemo(() => accounts.filter((account) => !account.is_archived), [accounts])
 
   // Build the initial form from the existing transaction (edit) or sensible defaults (create)
   const initialForm = useMemo<TransactionFormValues>(() => {
@@ -165,10 +173,7 @@ export default function CreateTransactionModal({
     tagById: tagField.tagById,
   })
 
-  const currencyOptions = useMemo(
-    () => buildCurrencyOptions(currencies, form.currency),
-    [currencies, form.currency],
-  )
+  const currencyOptions = useMemo(() => buildCurrencyOptions(currencies, form.currency), [currencies, form.currency])
   const selectedCurrency = currencies.find((c) => c.id === form.currency)
   const selectedCurrencySymbol = selectedCurrency ? formatCurrencySymbol(selectedCurrency.id) : ''
   const knownCurrencyExponent = findCurrencyExponent(currencies, form.currency)
@@ -184,9 +189,25 @@ export default function CreateTransactionModal({
 
   const isSymmetricTransfer = isSymmetricTransferForm(form)
   const fieldLayout = getTransactionFieldLayout({ isSymmetricTransfer, direction: form.direction })
+
+  // A refund can't give back more than is left of its expense, so the amount field says so
+  const { formatCurrency } = useMoneyFormatters()
+  const refundLimit =
+    refunding && refundOf && refundRoomLimit !== undefined
+      ? {
+          minor: Math.max(refundRoomLimit, 0),
+          currency: refundOf.currency,
+          exponent: selectedCurrencyExponent,
+          message:
+            refundRoomLimit > 0
+              ? `Only ${formatCurrency(refundRoomLimit, refundOf.currency)} is left to refund`
+              : 'This expense is already fully refunded',
+        }
+      : undefined
   const refusal = useRefusedSubmit(
     getTransactionProblems(form, {
       editing,
+      refundLimit,
       isAmountLocked,
       isBalanceAdjustmentCategory: categoryField.isBalanceAdjustmentCategory,
       selectedAccount,
@@ -207,6 +228,10 @@ export default function CreateTransactionModal({
   const liveTransaction = useTransaction(transaction?.id).data ?? transaction
   const linkedIds = liveTransaction ? getLinkedTransactionIds(liveTransaction) : []
 
+  // Links, unlinks and refunds made in this window are held until Save and dropped on Cancel
+  const pending = usePendingLinks(editing ? liveTransaction : undefined, recordCreatedAccountId)
+  const refundRoom = useRefundRoom(editing ? liveTransaction : undefined, pending)
+
   // Delete on a linked transaction opens a dialog asking what happens to the transactions linked to it
   const [linkedDelete, setLinkedDelete] = useState({ open: false, deleteLinked: false })
 
@@ -219,44 +244,47 @@ export default function CreateTransactionModal({
     setSubmitErrorTitle,
   })
 
-  const {
-    handleSubmit,
-    submitLoading,
-    isPending,
-    keepOpenAfterCreate,
-    setKeepOpenAfterCreate,
-    runningBalance,
-  } = useTransactionSubmit({
-    editing,
-    transaction,
-    refundOfTransactionId: refunding ? refundOf?.id : undefined,
-    form,
-    setForm,
-    guard: refusal.guard,
-    resetRefusal: refusal.reset,
-    setSubmitError,
-    setSubmitErrorTitle,
-    readOnly,
-    accounts,
-    selectedAccount,
-    selectedCurrencyExponent,
-    isAmountLocked,
-    deleteLoading,
-    openRef,
-    recordCreatedAccountId,
-    flushDeferredRefresh,
-    closeModal,
-  })
-
+  const { handleSubmit, submitLoading, isPending, keepOpenAfterCreate, setKeepOpenAfterCreate, runningBalance } =
+    useTransactionSubmit({
+      editing,
+      transaction,
+      refundOfTransactionId: refunding ? refundOf?.id : undefined,
+      stageRefund: refunding ? onStageRefund : undefined,
+      refundMerchantName: merchantField.selectedMerchantOption?.label ?? null,
+      pendingLinks: pending,
+      form,
+      setForm,
+      guard: refusal.guard,
+      resetRefusal: refusal.reset,
+      setSubmitError,
+      setSubmitErrorTitle,
+      readOnly,
+      accounts,
+      selectedAccount,
+      selectedCurrencyExponent,
+      isAmountLocked,
+      deleteLoading,
+      openRef,
+      recordCreatedAccountId,
+      flushDeferredRefresh,
+      closeModal,
+    })
 
   const level = refunding ? 'stacked' : 'page'
 
   // Links are kept for individually owned accounts, as the server does, so a group account's
   // transactions are offered neither the Refund button nor the link pickers
-  const transactionCategoryKind = transaction ? categoryField.categoryById.get(transaction.category_id)?.kind : undefined
+  const transactionCategoryKind = transaction
+    ? categoryField.categoryById.get(transaction.category_id)?.kind
+    : undefined
   const canLinkHere = editing && !readOnly && !selectedAccount?.group_id
   const canOfferRefund = canLinkHere && !!transaction && isRefundable(transaction, transactionCategoryKind)
-  const canLinkExpense = canLinkHere && !!liveTransaction && canLinkAsRefund(liveTransaction, transactionCategoryKind)
+
+  // Asked as if the refund were not linked, since unlinking in this window frees it to be linked again
+  const canLinkExpense =
+    canLinkHere &&
+    !!liveTransaction &&
+    canLinkAsRefund({ ...liveTransaction, refund_of_transaction_id: null }, transactionCategoryKind)
 
   const showRunningBalance = !editing && keepOpenAfterCreate && !!selectedAccount
 
@@ -271,9 +299,10 @@ export default function CreateTransactionModal({
 
     // The balance belongs to the account the transaction is recorded in, so it travels with that
     // field rather than staying under whichever dropdown happens to be on top
-    runningBalance: showRunningBalance && selectedAccount
-      ? { amount: runningBalance, currency: selectedAccount.currency }
-      : undefined,
+    runningBalance:
+      showRunningBalance && selectedAccount
+        ? { amount: runningBalance, currency: selectedAccount.currency }
+        : undefined,
   }
   const counterpartyAccountField = {
     options: accountField.counterpartyAccountOptions,
@@ -283,11 +312,10 @@ export default function CreateTransactionModal({
     onChange: accountField.handleCounterpartyAccountChange,
     runningBalance: undefined,
   }
-  const [topAccountField, secondAccountField] = orderAccountFields(
-    recordedAccountField,
-    counterpartyAccountField,
-    { isSymmetricTransfer, direction: form.direction },
-  )
+  const [topAccountField, secondAccountField] = orderAccountFields(recordedAccountField, counterpartyAccountField, {
+    isSymmetricTransfer,
+    direction: form.direction,
+  })
 
   return (
     <TransactionModalIdSuffix.Provider value={idSuffix}>
@@ -304,13 +332,20 @@ export default function CreateTransactionModal({
               : `${KIND_LABELS[form.kind]} transaction`
         }
         headerStatus={readOnly ? 'Archived account' : undefined}
-        headerAction={canOfferRefund ? <RefundButton onClick={() => setRefundModal((state) => ({ open: true, key: state.key + 1 }))} /> : undefined}
+        headerAction={
+          canOfferRefund ? (
+            <RefundButton onClick={() => setRefundModal((state) => ({ open: true, key: state.key + 1 }))} />
+          ) : undefined
+        }
         RailIcon={ReceiptText}
         railLabel="Transaction"
         onClose={closeModal}
-        onExitComplete={applyPendingDeletion}
+        onExitComplete={() => {
+          applyPendingDeletion()
+          pending.reset()
+        }}
         onSubmit={handleSubmit}
-        footer={(
+        footer={
           <TransactionModalFooter
             level={level}
             hideKeepOpen={refunding}
@@ -329,7 +364,7 @@ export default function CreateTransactionModal({
             onCancel={closeModal}
             onDelete={deleteTransaction}
           />
-        )}
+        }
       >
         <div className="space-y-5">
           <TransactionTypeDirectionSection
@@ -430,13 +465,15 @@ export default function CreateTransactionModal({
             <TransactionModalLinkedRefundsSection
               transaction={liveTransaction}
               readOnly={readOnly}
+              disabled={isPending}
               canLinkRefund={canOfferRefund}
               canLinkExpense={canLinkExpense}
+              pending={pending}
+              refundRoom={refundRoom}
             />
           )}
 
           <FormError message={submitError} title={submitErrorTitle} />
-
         </div>
       </ModalTitledPanel>
       <TransactionModalLinkedDeleteConfirm
@@ -463,6 +500,8 @@ export default function CreateTransactionModal({
           open={open && refundModal.open}
           onClose={() => setRefundModal((state) => ({ ...state, open: false }))}
           refundOf={transaction}
+          onStageRefund={pending.addRefund}
+          refundRoom={refundRoom}
         />
       )}
       <TransactionReferenceCreationModals

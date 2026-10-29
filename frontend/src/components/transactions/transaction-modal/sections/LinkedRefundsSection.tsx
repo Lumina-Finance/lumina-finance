@@ -1,26 +1,74 @@
 import { useState } from 'react'
-import { ApiError } from '@/api/auth'
+import { AnimatePresence } from 'motion/react'
 import TransactionModalLinkRefundPicker from '@/components/transactions/transaction-modal/modals/LinkRefundPicker'
-import { useTransaction, useUnlinkRefund, type Transaction } from '@/api/transactions'
+import RevealRow from '@/components/transactions/transaction-modal/sections/RevealRow'
+import { useTransaction, type Transaction } from '@/api/transactions'
 import CreateModalSectionFrame from '@/components/create-modal/SectionFrame'
+import type { PendingLinks } from '@/components/transactions/transaction-modal/hooks/usePendingLinks'
 import { useMoneyFormatters } from '@/hooks/useMoneyFormatters'
 import { formatDateLabel } from '@/utils/date'
 
-interface LinkedTransactionRowProps {
-  /** The transaction on the other side of the link */
-  linkedId: string
+interface LinkedRowFrameProps {
+  merchantName: string
+  dt: string
+  amount: number
+  currency: string
 
-  /** The refund of the pair, which is the one the server unlinks by */
-  refundId: string
+  /** Marks a link that Save has yet to make */
+  notSaved: boolean
   readOnly: boolean
+  disabled: boolean
+  onUnlink: () => void
 }
 
-function LinkedTransactionRow({ linkedId, refundId, readOnly }: LinkedTransactionRowProps) {
+function LinkedRowFrame({ merchantName, dt, amount, currency, notSaved, readOnly, disabled, onUnlink }: LinkedRowFrameProps) {
   const { formatMovedCurrency } = useMoneyFormatters()
-  const linked = useTransaction(linkedId)
-  const unlink = useUnlinkRefund()
-  const merchantName = linked.data?.merchant_name ?? 'No merchant'
+  return (
+    <div
+      className="flex items-center justify-between gap-3 rounded-lg px-3 py-2"
+      style={{ background: 'var(--app-surface-soft)', border: '1px solid var(--app-border)' }}
+      data-testid="linked-transaction"
+      data-not-saved={notSaved ? 'true' : undefined}
+    >
+      <div className="min-w-0">
+        <p className="truncate text-sm font-medium leading-5" style={{ color: 'var(--app-text)' }}>
+          {merchantName}
+        </p>
+        <p className="flex flex-wrap gap-x-2 text-xs leading-4" style={{ color: 'var(--app-text-muted)' }}>
+          <span>{formatDateLabel(dt)}</span>
+          {notSaved && <span>Not saved yet</span>}
+        </p>
+      </div>
+      <div className="flex shrink-0 items-center gap-3">
+        <span className="font-financial text-sm" style={{ color: 'var(--app-text)' }}>
+          {formatMovedCurrency(amount, currency)}
+        </span>
+        {!readOnly && (
+          <button
+            type="button"
+            className="app-secondary-button"
+            aria-label={`Unlink ${merchantName}`}
+            disabled={disabled}
+            onClick={onUnlink}
+          >
+            Unlink
+          </button>
+        )}
+      </div>
+    </div>
+  )
+}
 
+interface SavedRowProps {
+  /** The transaction on the other side of a link that is already saved */
+  linkedId: string
+  readOnly: boolean
+  disabled: boolean
+  onUnlink: () => void
+}
+
+function SavedRow({ linkedId, readOnly, disabled, onUnlink }: SavedRowProps) {
+  const linked = useTransaction(linkedId)
   if (linked.isError) {
     return (
       <p role="alert" className="text-sm" style={{ color: 'var(--app-negative)' }}>
@@ -28,54 +76,30 @@ function LinkedTransactionRow({ linkedId, refundId, readOnly }: LinkedTransactio
       </p>
     )
   }
-
-  return (
-    <div>
+  if (!linked.data) {
+    return (
       <div
-        className="flex items-center justify-between gap-3 rounded-lg px-3 py-2"
+        className="flex items-center rounded-lg px-3 py-2"
         style={{ background: 'var(--app-surface-soft)', border: '1px solid var(--app-border)' }}
         data-testid="linked-transaction"
       >
-        {linked.data ? (
-          <>
-            <div className="min-w-0">
-              <p className="truncate text-sm font-medium leading-5" style={{ color: 'var(--app-text)' }}>
-                {merchantName}
-              </p>
-              <p className="text-xs leading-4" style={{ color: 'var(--app-text-muted)' }}>
-                {formatDateLabel(linked.data.dt)}
-              </p>
-            </div>
-            <div className="flex shrink-0 items-center gap-3">
-              <span className="font-financial text-sm" style={{ color: 'var(--app-text)' }}>
-                {formatMovedCurrency(linked.data.amount, linked.data.currency)}
-              </span>
-              {!readOnly && (
-                <button
-                  type="button"
-                  className="app-secondary-button"
-                  aria-label={`Unlink ${merchantName}`}
-                  aria-busy={unlink.isPending}
-                  disabled={unlink.isPending}
-                  onClick={() => unlink.mutate(refundId)}
-                >
-                  Unlink
-                </button>
-              )}
-            </div>
-          </>
-        ) : (
-          <p role="status" className="text-sm" style={{ color: 'var(--app-text-muted)' }}>
-            Loading…
-          </p>
-        )}
-      </div>
-      {unlink.isError && (
-        <p role="alert" className="mt-1 text-sm" style={{ color: 'var(--app-negative)' }}>
-          {unlink.error instanceof ApiError ? unlink.error.message : 'Oops, something went wrong. Please try again.'}
+        <p role="status" className="text-sm" style={{ color: 'var(--app-text-muted)' }}>
+          Loading…
         </p>
-      )}
-    </div>
+      </div>
+    )
+  }
+  return (
+    <LinkedRowFrame
+      merchantName={linked.data.merchant_name ?? 'No merchant'}
+      dt={linked.data.dt}
+      amount={linked.data.amount}
+      currency={linked.data.currency}
+      notSaved={false}
+      readOnly={readOnly}
+      disabled={disabled}
+      onUnlink={onUnlink}
+    />
   )
 }
 
@@ -83,71 +107,155 @@ interface LinkedRefundsSectionProps {
   transaction: Transaction
   readOnly: boolean
 
+  /** True while Save is applying the window's changes, which locks the controls that make more */
+  disabled: boolean
+
   /** Money out that can be refunded, so a refund that already exists can be linked to it */
   canLinkRefund: boolean
 
   /** Money in that is not yet the refund of anything, so it can be linked to the expense it refunds */
   canLinkExpense: boolean
+
+  /** The link changes made in the window, which Save applies */
+  pending: PendingLinks
+
+  /** What is left to refund of an expense once the refunds saved and held are counted */
+  refundRoom: number | undefined
 }
 
 /**
  * Names the other side of a refund link from either transaction, with a way to remove it, and offers
  * to link an existing refund or expense where none is linked. A refund shows the expense it refunds
- * and an expense shows its refunds. It draws nothing where there is no link and none can be made
+ * and an expense shows its refunds. Links made, removed or created here are held, and shown as such,
+ * until the window is saved. It draws nothing where there is no link and none can be made
  */
 export default function TransactionModalLinkedRefundsSection({
   transaction,
   readOnly,
+  disabled,
   canLinkRefund,
   canLinkExpense,
+  pending,
+  refundRoom,
 }: LinkedRefundsSectionProps) {
   const [pickerOpen, setPickerOpen] = useState(false)
 
   // The list row the modal opened from is a snapshot, so the links come from the live copy once it loads
   const live = useTransaction(transaction.id)
   const current = live.data ?? transaction
-  const refundOfId = current.refund_of_transaction_id
-  const refundIds = current.refund_transaction_ids
-  const showRefunds = refundIds.length > 0 || canLinkRefund
-  const showRefundOf = Boolean(refundOfId) || canLinkExpense
+  const savedOriginalId = pending.unlinkedRefundIds.includes(current.id) ? null : current.refund_of_transaction_id
+
+  // Links picked for a refund name its one expense, and links picked for an expense name its refunds
+  const isRefund = current.amount > 0
+  const pendingOriginal = isRefund ? pending.links[0] : undefined
+  const pendingRefundLinks = isRefund ? [] : pending.links
+  const savedRefundIds = current.refund_transaction_ids.filter((id) => !pending.unlinkedRefundIds.includes(id))
+  const refundCount = savedRefundIds.length + pendingRefundLinks.length + pending.refunds.length
+  const showRefunds = refundCount > 0 || canLinkRefund
+  const showRefundOf = Boolean(savedOriginalId) || pendingOriginal !== undefined || canLinkExpense
   if (!showRefunds && !showRefundOf) return null
 
   const linkButton = (label: string) => (
-    <button type="button" className="app-secondary-button whitespace-nowrap" data-testid="link-existing" onClick={() => setPickerOpen(true)}>
+    <button
+      type="button"
+      className="app-secondary-button whitespace-nowrap"
+      data-testid="link-existing"
+      disabled={disabled}
+      onClick={() => setPickerOpen(true)}
+    >
       {label}
     </button>
+  )
+  const prompt = (text: string, label: string) => (
+    <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-2">
+      <p className="text-sm" style={{ color: 'var(--app-text-muted)' }}>
+        {text}
+      </p>
+      {linkButton(label)}
+    </div>
   )
 
   return (
     <>
       {showRefundOf && (
         <CreateModalSectionFrame step="04" title="Refund of">
-          {refundOfId ? (
-            <LinkedTransactionRow linkedId={refundOfId} refundId={current.id} readOnly={readOnly} />
-          ) : (
-            <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-2">
-              <p className="text-sm" style={{ color: 'var(--app-text-muted)' }}>
-                If this gives money back for an expense, link them.
-              </p>
-              {linkButton('Link to an expense')}
-            </div>
-          )}
+          <div className="-mb-2">
+            <AnimatePresence initial={false}>
+              {savedOriginalId ? (
+                <RevealRow key={savedOriginalId} testId="linked-row">
+                  <SavedRow
+                    linkedId={savedOriginalId}
+                    readOnly={readOnly}
+                    disabled={disabled}
+                    onUnlink={() => pending.unlink(current.id)}
+                  />
+                </RevealRow>
+              ) : pendingOriginal ? (
+                <RevealRow key={pendingOriginal.id} testId="linked-row">
+                  <LinkedRowFrame
+                    merchantName={pendingOriginal.merchant_name ?? 'No merchant'}
+                    dt={pendingOriginal.dt}
+                    amount={pendingOriginal.amount}
+                    currency={pendingOriginal.currency}
+                    notSaved
+                    readOnly={readOnly}
+                    disabled={disabled}
+                    onUnlink={() => pending.removeLink(pendingOriginal.id)}
+                  />
+                </RevealRow>
+              ) : (
+                <RevealRow key="prompt">{prompt('If this gives money back for an expense, link them.', 'Link to an expense')}</RevealRow>
+              )}
+            </AnimatePresence>
+          </div>
         </CreateModalSectionFrame>
       )}
       {showRefunds && (
         <CreateModalSectionFrame step={showRefundOf ? '05' : '04'} title="Refunds">
-          <div className="space-y-2">
-            {refundIds.map((refundId) => (
-              <LinkedTransactionRow key={refundId} linkedId={refundId} refundId={refundId} readOnly={readOnly} />
-            ))}
-            {canLinkRefund && (
-              <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-2">
-                <p className="text-sm" style={{ color: 'var(--app-text-muted)' }}>
-                  {refundIds.length === 0 ? 'No refund is linked yet.' : 'Another refund can be linked.'}
-                </p>
-                {linkButton('Link an existing refund')}
-              </div>
-            )}
+          <div className="-mb-2">
+            <AnimatePresence initial={false}>
+              {savedRefundIds.map((refundId) => (
+                <RevealRow key={refundId} testId="linked-row">
+                  <SavedRow
+                    linkedId={refundId}
+                    readOnly={readOnly}
+                    disabled={disabled}
+                    onUnlink={() => pending.unlink(refundId)}
+                  />
+                </RevealRow>
+              ))}
+              {pendingRefundLinks.map((refund) => (
+                <RevealRow key={refund.id} testId="linked-row">
+                  <LinkedRowFrame
+                    merchantName={refund.merchant_name ?? 'No merchant'}
+                    dt={refund.dt}
+                    amount={refund.amount}
+                    currency={refund.currency}
+                    notSaved
+                    readOnly={readOnly}
+                    disabled={disabled}
+                    onUnlink={() => pending.removeLink(refund.id)}
+                  />
+                </RevealRow>
+              ))}
+              {pending.refunds.map((refund) => (
+                <RevealRow key={refund.key} testId="linked-row">
+                  <LinkedRowFrame
+                    merchantName={refund.preview.merchant_name ?? 'No merchant'}
+                    dt={refund.preview.dt}
+                    amount={refund.preview.amount}
+                    currency={refund.preview.currency}
+                    notSaved
+                    readOnly={readOnly}
+                    disabled={disabled}
+                    onUnlink={() => pending.removeRefund(refund.key)}
+                  />
+                </RevealRow>
+              ))}
+              {canLinkRefund && (
+                <RevealRow key="prompt">{prompt('Link a refund that is already recorded.', 'Link an existing refund')}</RevealRow>
+              )}
+            </AnimatePresence>
           </div>
         </CreateModalSectionFrame>
       )}
@@ -155,6 +263,9 @@ export default function TransactionModalLinkedRefundsSection({
         open={pickerOpen}
         onClose={() => setPickerOpen(false)}
         transaction={current}
+        heldIds={pending.links.map((link) => link.id)}
+        refundRoom={refundRoom}
+        onPick={pending.addLink}
       />
     </>
   )

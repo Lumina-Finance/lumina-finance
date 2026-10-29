@@ -1,0 +1,126 @@
+import { useCallback, useState } from 'react'
+import {
+  useCreateTransaction,
+  useLinkRefund,
+  useUnlinkRefund,
+  type CreateTransactionPayload,
+  type Transaction,
+} from '@/api/transactions'
+
+/** A refund the edit window will create when it is saved, with what the Refunds section shows of it */
+export interface PendingRefund {
+  key: string
+  payload: CreateTransactionPayload
+  preview: Pick<Transaction, 'merchant_name' | 'dt' | 'amount' | 'currency'>
+}
+
+interface PendingLinksState {
+  /** Existing transactions to link on save: the refunds of an expense, or the one expense of a refund */
+  links: Transaction[]
+
+  /** Refunds whose saved link is removed on save */
+  unlinkedRefundIds: string[]
+  refunds: PendingRefund[]
+}
+
+const NOTHING_PENDING: PendingLinksState = { links: [], unlinkedRefundIds: [], refunds: [] }
+
+export interface PendingLinks extends PendingLinksState {
+  /** How many changes are held back until Save */
+  count: number
+  addLink: (transaction: Transaction) => void
+  removeLink: (transactionId: string) => void
+  unlink: (refundId: string) => void
+  addRefund: (refund: PendingRefund) => void
+  removeRefund: (key: string) => void
+  reset: () => void
+
+  /** Removes the saved links that were unlinked, before the edit is saved, so their room is free */
+  applyUnlinks: () => Promise<void>
+
+  /** Makes the picked links and creates the new refunds, once the edit is saved */
+  applyAdditions: () => Promise<void>
+}
+
+/**
+ * Holds the link changes made in an edit window until Save: picks from the picker, unlinks, and
+ * refunds still to be created. Cancelling or closing drops them, and each one is forgotten as soon as
+ * it is applied, so a save that fails partway repeats none of what already went through
+ *
+ * @param anchor The transaction the window edits, whose side of each link decides who is the refund
+ * @param recordCreatedAccountId Remembers an account a created refund touched, so it refreshes on close
+ */
+export function usePendingLinks(
+  anchor: Transaction | undefined,
+  recordCreatedAccountId: (accountId: string) => void,
+): PendingLinks {
+  const [state, setState] = useState(NOTHING_PENDING)
+  const linkMutation = useLinkRefund()
+  const unlinkMutation = useUnlinkRefund()
+  const createMutation = useCreateTransaction({ deferAccountInvalidation: true, deferTransactionInvalidation: true })
+
+  const addLink = useCallback(
+    (transaction: Transaction) =>
+      setState((current) => ({ ...current, links: [...current.links.filter((l) => l.id !== transaction.id), transaction] })),
+    [],
+  )
+  const removeLink = useCallback(
+    (transactionId: string) =>
+      setState((current) => ({ ...current, links: current.links.filter((link) => link.id !== transactionId) })),
+    [],
+  )
+  const unlink = useCallback(
+    (refundId: string) =>
+      setState((current) => ({ ...current, unlinkedRefundIds: [...current.unlinkedRefundIds, refundId] })),
+    [],
+  )
+  const addRefund = useCallback(
+    (refund: PendingRefund) => setState((current) => ({ ...current, refunds: [...current.refunds, refund] })),
+    [],
+  )
+  const removeRefund = useCallback(
+    (key: string) => setState((current) => ({ ...current, refunds: current.refunds.filter((r) => r.key !== key) })),
+    [],
+  )
+  const reset = useCallback(() => setState(NOTHING_PENDING), [])
+
+  const applyUnlinks = async () => {
+    for (const refundId of state.unlinkedRefundIds) {
+      await unlinkMutation.mutateAsync(refundId)
+      setState((current) => ({
+        ...current,
+        unlinkedRefundIds: current.unlinkedRefundIds.filter((id) => id !== refundId),
+      }))
+    }
+  }
+
+  const applyAdditions = async () => {
+    if (!anchor) return
+
+    // An expense is linked to the refunds picked for it, and a refund to the one expense picked for it
+    const anchorIsExpense = anchor.amount < 0
+    for (const picked of state.links) {
+      const [refundId, originalId] = anchorIsExpense ? [picked.id, anchor.id] : [anchor.id, picked.id]
+      await linkMutation.mutateAsync({ refundId, originalId })
+      setState((current) => ({ ...current, links: current.links.filter((link) => link.id !== picked.id) }))
+    }
+    for (const refund of state.refunds) {
+      const created = await createMutation.mutateAsync({ ...refund.payload, refund_of_transaction_id: anchor.id })
+      recordCreatedAccountId(created.account_id)
+      setState((current) => ({ ...current, refunds: current.refunds.filter((r) => r.key !== refund.key) }))
+    }
+  }
+
+  return {
+    ...state,
+    count: state.links.length + state.unlinkedRefundIds.length + state.refunds.length,
+    addLink,
+    removeLink,
+    unlink,
+    addRefund,
+    removeRefund,
+    reset,
+    applyUnlinks,
+    applyAdditions,
+  }
+}

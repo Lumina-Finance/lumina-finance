@@ -1,0 +1,179 @@
+// The refund total limit, the filter panel's room inside the picker, and the motion of a link joining or leaving the
+// edit window. Runs on desktop only, as the sizes are covered by the visual spec
+import { expect, test, type Page } from '@playwright/test'
+
+import { createAccount, createTransaction, daysFromTodayInTestTimezone, signUpUser } from '../support/api'
+import { logInViaApi, openPage } from '../support/app'
+
+async function openRow(page: Page, id: string) {
+  await page.getByTestId(`transaction-row-${id}`).click()
+  const dialog = page.getByRole('dialog', { name: 'Edit transaction', exact: true })
+  await expect(dialog).toBeVisible()
+  return dialog
+}
+
+// A refund that would take the refunds past the expense is shown with the reason and cannot be picked, counting
+// the ones held in the window, and the Refund button's amount is held to what is left too
+test('shows why a refund that would pass the expense cannot be picked', async ({ page, request }) => {
+  const user = await signUpUser(request)
+  const account = await createAccount(request, user, { name: 'Everyday', startingBalance: 50000 })
+  const row = { accountId: account.id, categoryName: 'Groceries' }
+  const expenseId = await createTransaction(request, user, { ...row, amount: -3000, date: daysFromTodayInTestTimezone(-5) })
+  for (const [amount, daysAgo] of [[1200, 1], [2000, 2], [3100, 3]] as const) {
+    await createTransaction(request, user, { ...row, amount, date: daysFromTodayInTestTimezone(-daysAgo) })
+  }
+
+  await logInViaApi(page, user)
+  await openPage(page, `/accounts/${account.id}`)
+  const expense = await openRow(page, expenseId)
+  await expense.getByRole('button', { name: 'Link an existing refund', exact: true }).click()
+  const picker = page.getByRole('dialog', { name: 'Link a refund', exact: true })
+  const rows = picker.getByTestId('link-candidate')
+  const candidate = (amount: string) => rows.filter({ hasText: amount })
+
+  // More than the whole expense is refused from the start, and the rest can be picked
+  await expect(candidate('$31.00')).toHaveAttribute('data-refused', 'true')
+  await expect(candidate('$31.00').getByTestId('link-candidate-reason')).toHaveText('Only $30.00 is left to refund')
+  await expect(candidate('$20.00')).not.toHaveAttribute('data-refused', 'true')
+  await candidate('$12.00').getByRole('button').click()
+  await picker.getByRole('button', { name: 'Link', exact: true }).click()
+
+  // With $12.00 held, $18.00 is left, so $20.00 is refused too
+  await expense.getByRole('button', { name: 'Link an existing refund', exact: true }).click()
+  await expect(rows).toHaveCount(2)
+  await expect(candidate('$20.00').getByTestId('link-candidate-reason')).toHaveText('Only $18.00 is left to refund')
+  await expect(candidate('$31.00').getByTestId('link-candidate-reason')).toHaveText('Only $18.00 is left to refund')
+  await candidate('$20.00').getByRole('button').click({ force: true })
+  await expect(picker.getByRole('button', { name: 'Link', exact: true })).toBeDisabled()
+  await picker.getByRole('button', { name: 'Cancel', exact: true }).click()
+
+  // A refund made from the window can't pass it either
+  await expense.getByTestId('transaction-refund').click()
+  const refund = page.getByRole('dialog', { name: 'Add refund', exact: true })
+  await refund.getByTestId('transaction-submit').click()
+  await expect(refund.getByText('Only $18.00 is left to refund', { exact: true }).first()).toBeVisible()
+  await expect(refund).toBeVisible()
+})
+
+// The open filter panel stays inside the dialog's scrolling body with its footer buttons on screen, even with a
+// long list of accounts
+for (const size of [
+  { width: 1920, height: 1080 },
+  { width: 1280, height: 800 },
+]) {
+  test(`keeps the whole filter panel inside the picker at ${size.width}x${size.height}`, async ({ page, request }) => {
+    await page.setViewportSize(size)
+    const user = await signUpUser(request)
+    const account = await createAccount(request, user, { name: 'Everyday' })
+    for (const name of ['Savings', 'Travel', 'Bills', 'Joint', 'Cash']) await createAccount(request, user, { name })
+    const row = { accountId: account.id, categoryName: 'Groceries' }
+    const expenseId = await createTransaction(request, user, { ...row, amount: -5000, date: daysFromTodayInTestTimezone(-6) })
+    for (let day = 1; day <= 4; day++) {
+      await createTransaction(request, user, { ...row, amount: 1000 + day * 100, date: daysFromTodayInTestTimezone(-day) })
+    }
+
+    await logInViaApi(page, user)
+    await openPage(page, `/accounts/${account.id}`)
+    await openRow(page, expenseId)
+    await page.getByTestId('link-existing').click()
+    const picker = page.getByRole('dialog', { name: 'Link a refund', exact: true })
+    await picker.getByRole('button', { name: 'Transaction filters' }).click()
+
+    // Everything of the panel is inside the scrolling body, from its top to its Apply button, once it has opened
+    const insideBody = async () => {
+      const body = await picker.locator('[data-tooltip-bounds]').boundingBox()
+      const parts = [
+        picker.locator('.app-range-glass'),
+        picker.getByRole('button', { name: 'Apply filters' }),
+        picker.getByText('No filters applied'),
+      ]
+      return Promise.all(
+        parts.map(async (part) => {
+          const box = await part.boundingBox()
+          return box !== null && box.y >= body!.y - 0.5 && box.y + box.height <= body!.y + body!.height + 0.5
+        }),
+      )
+    }
+    await expect.poll(insideBody).toEqual([true, true, true])
+    await expect(picker.getByRole('button', { name: 'Apply filters' })).toBeInViewport({ ratio: 1 })
+  })
+}
+
+// Escape closes the topmost layer only: the open filter panel (the full-screen sheet on a phone) first, and the
+// picker under it on the next press
+for (const size of [
+  { width: 1280, height: 800, filters: 'Transaction filters', panel: 'Apply filters' },
+  { width: 390, height: 844, filters: /^Filters/, panel: 'Apply filters' },
+]) {
+  test(`closes the filter panel before the picker on Escape at ${size.width}x${size.height}`, async ({ page, request }) => {
+    await page.setViewportSize(size)
+    const user = await signUpUser(request)
+    const account = await createAccount(request, user, { name: 'Everyday' })
+    const row = { accountId: account.id, categoryName: 'Groceries' }
+    const expenseId = await createTransaction(request, user, { ...row, amount: -5000, date: daysFromTodayInTestTimezone(-4) })
+    await createTransaction(request, user, { ...row, amount: 1500, date: daysFromTodayInTestTimezone(-1) })
+
+    await logInViaApi(page, user)
+    await openPage(page, `/accounts/${account.id}`)
+    await openRow(page, expenseId)
+    await page.getByTestId('link-existing').click()
+    const picker = page.getByRole('dialog', { name: 'Link a refund', exact: true })
+    await picker.getByRole('button', { name: size.filters }).click()
+    const apply = (size.width >= 750 ? picker : page).getByRole('button', { name: size.panel })
+    await expect(apply).toBeVisible()
+    if (size.width >= 750) await expect(picker.getByRole('button', { name: size.filters })).toHaveAttribute('aria-expanded', 'true')
+
+    await page.keyboard.press('Escape')
+    if (size.width >= 750) await expect(picker.getByRole('button', { name: size.filters })).toHaveAttribute('aria-expanded', 'false')
+    else await expect(apply).toBeHidden()
+    await expect(picker).toBeVisible()
+
+    await page.keyboard.press('Escape')
+    await expect(picker).toBeHidden()
+    await expect(page.getByRole('dialog', { name: 'Edit transaction', exact: true })).toBeVisible()
+  })
+}
+
+// A link that joins or leaves the Refunds section grows or collapses its row, and the section's height with it,
+// over several frames instead of snapping
+test('eases a link in and out of the Refunds section', async ({ page, request }) => {
+  const user = await signUpUser(request)
+  const account = await createAccount(request, user, { name: 'Everyday' })
+  const row = { accountId: account.id, categoryName: 'Groceries' }
+  const expenseId = await createTransaction(request, user, { ...row, amount: -5000, date: daysFromTodayInTestTimezone(-4) })
+  await createTransaction(request, user, { ...row, amount: 1500, date: daysFromTodayInTestTimezone(-1) })
+
+  await logInViaApi(page, user)
+  await openPage(page, `/accounts/${account.id}`)
+  const expense = await openRow(page, expenseId)
+  const rows = expense.getByTestId('linked-row')
+  const heights = () => rows.evaluateAll((nodes) => nodes.map((node) => node.getBoundingClientRect().height))
+
+  // Samples the row's height from the click for well over the 240ms the sections take
+  const watchHeight = async (action: () => Promise<unknown>) => {
+    await action()
+    const samples: number[] = []
+    for (let sample = 0; sample < 24; sample++) {
+      samples.push((await heights())[0] ?? 0)
+
+      // A headless browser draws a frame only when asked, so a throwaway screenshot drives the animation on
+      await page.screenshot({ clip: { x: 0, y: 0, width: 1, height: 1 } })
+      await page.waitForTimeout(10)
+    }
+    return samples
+  }
+  await expense.getByRole('button', { name: 'Link an existing refund', exact: true }).click()
+  const picker = page.getByRole('dialog', { name: 'Link a refund', exact: true })
+  await picker.getByTestId('link-candidate').getByRole('button').click()
+  const entering = await watchHeight(() => picker.getByRole('button', { name: 'Link', exact: true }).click())
+  const settled = Math.max(...entering)
+  expect(settled).toBeGreaterThan(30)
+
+  // A snap would show only 0 and the full height, so a frame between them, however few the headless browser draws,
+  // is the row easing
+  expect(entering.some((height) => height > 0.5 && height < settled - 0.5), `heights ${entering}`).toBe(true)
+
+  const leaving = await watchHeight(() => expense.getByRole('button', { name: /^Unlink / }).click())
+  expect(leaving.some((height) => height > 0.5 && height < settled - 0.5), `heights ${leaving}`).toBe(true)
+  expect(leaving.at(-1)).toBe(0)
+})

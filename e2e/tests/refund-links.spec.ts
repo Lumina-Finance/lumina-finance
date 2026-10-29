@@ -11,6 +11,45 @@ function linkIcon(page: Page, id: string) {
   return page.getByTestId(`transaction-row-${id}`).getByTestId('transaction-refund-link').filter({ visible: true })
 }
 
+// The WCAG contrast ratio of a row's amount against what it sits on, with the opacity of every ancestor applied
+// to the text and the first filled background found on the way up taken as what is behind it
+function amountContrast(row: Locator) {
+  return row.getByTestId('transaction-amount').evaluate((amount) => {
+    const parse = (colour: string) => {
+      const [r, g, b, a = 1] = (colour.match(/[\d.]+/g) ?? []).map(Number)
+      return { r, g, b, a }
+    }
+    const luminance = ({ r, g, b }: { r: number; g: number; b: number }) => {
+      const [lr, lg, lb] = [r, g, b].map((channel) => {
+        const unit = channel / 255
+        return unit <= 0.03928 ? unit / 12.92 : ((unit + 0.055) / 1.055) ** 2.4
+      })
+      return 0.2126 * lr + 0.7152 * lg + 0.0722 * lb
+    }
+    let strength = 1
+    let behind = { r: 255, g: 255, b: 255, a: 1 }
+    let foundBehind = false
+    for (let node: Element | null = amount; node; node = node.parentElement) {
+      const style = getComputedStyle(node)
+      strength *= Number(style.opacity)
+      const fill = parse(style.backgroundColor)
+      if (!foundBehind && fill.a > 0.5) {
+        behind = fill
+        foundBehind = true
+      }
+    }
+    const text = parse(getComputedStyle(amount).color)
+    const alpha = text.a * strength
+    const blended = {
+      r: text.r * alpha + behind.r * (1 - alpha),
+      g: text.g * alpha + behind.g * (1 - alpha),
+      b: text.b * alpha + behind.b * (1 - alpha),
+    }
+    const [light, dark] = [luminance(blended), luminance(behind)].sort((a, b) => b - a)
+    return (light + 0.05) / (dark + 0.05)
+  })
+}
+
 async function openRow(page: Page, id: string) {
   await page.getByTestId(`transaction-row-${id}`).click()
   const dialog = page.getByRole('dialog', { name: 'Edit transaction', exact: true })
@@ -18,8 +57,14 @@ async function openRow(page: Page, id: string) {
   return dialog
 }
 
-// The Refund button opens a second transaction prefilled as money coming back, and saving it links the
-// two, which both rows then show without a reload, and Unlink takes the link off both again
+// The edit window's Save button, which makes every link change held in the window
+function saveButton(dialog: Locator) {
+  return dialog.getByTestId('transaction-submit')
+}
+
+// The Refund button opens a second transaction prefilled as money coming back. Adding it only holds it in the
+// expense's window, which creates and links it on Save, and both rows then show the link without a reload.
+// Unlink is held the same way, and takes the link off both rows once saved
 test('refunds an expense from its modal and shows the link on both rows', async ({ page, request }) => {
   const user = await signUpUser(request)
   const account = await createAccount(request, user, { name: 'Everyday', startingBalance: 50000 })
@@ -40,14 +85,53 @@ test('refunds an expense from its modal and shows the link on both rows', async 
   await refund.getByTestId('transaction-submit').click()
   await expect(refund).toBeHidden()
 
-  // The expense's own window stays open and now names the refund, and both rows on the list show the link
+  // The expense's window names the refund as not saved yet, and nothing is created or linked until Save
   await expect(expense.getByTestId('linked-transaction')).toHaveCount(1)
+  await expect(expense.getByTestId('linked-transaction')).toContainText('Not saved yet')
+  await expect(page.getByTestId('transaction-refund-link').filter({ visible: true })).toHaveCount(0)
+  await saveButton(expense).click()
+  await expect(expense).toBeHidden()
   await expect(linkIcon(page, expenseId)).toHaveAccessibleName('Refunded once')
 
-  // Unlinking from the expense's modal takes the icon off both rows at once
-  await expense.getByRole('button', { name: /^Unlink / }).click()
-  await expect(expense.getByTestId('linked-transaction')).toHaveCount(0)
+  // Unlinking is held too, and takes the icon off both rows once saved
+  const reopened = await openRow(page, expenseId)
+  await reopened.getByRole('button', { name: /^Unlink / }).click()
+  await expect(reopened.getByTestId('linked-transaction')).toHaveCount(0)
+  await expect(linkIcon(page, expenseId)).toBeVisible()
+  await saveButton(reopened).click()
+  await expect(reopened).toBeHidden()
   await expect(page.getByTestId('transaction-refund-link').filter({ visible: true })).toHaveCount(0)
+})
+
+// Cancelling or closing the window drops every held change, the new refund and the picked link included
+test('drops held links and refunds when the edit window is cancelled', async ({ page, request }) => {
+  const user = await signUpUser(request)
+  const account = await createAccount(request, user, { name: 'Everyday', startingBalance: 50000 })
+  const row = { accountId: account.id, categoryName: 'Groceries' }
+  const expenseId = await createTransaction(request, user, { ...row, amount: -5000, date: daysFromTodayInTestTimezone(-3) })
+  await createTransaction(request, user, { ...row, amount: 1500, date: daysFromTodayInTestTimezone(-1) })
+
+  await logInViaApi(page, user)
+  await openPage(page, `/accounts/${account.id}`)
+  const expense = await openRow(page, expenseId)
+  await expense.getByRole('button', { name: 'Link an existing refund', exact: true }).click()
+  const picker = page.getByRole('dialog', { name: 'Link a refund', exact: true })
+  await picker.getByTestId('link-candidate').getByRole('button').click()
+  await picker.getByRole('button', { name: 'Link', exact: true }).click()
+  await expect(expense.getByTestId('linked-transaction')).toHaveCount(1)
+
+  await expense.getByTestId('transaction-refund').click()
+  const refund = page.getByRole('dialog', { name: 'Add refund', exact: true })
+  await refund.getByLabel('Amount').fill('10.00')
+  await refund.getByTestId('transaction-submit').click()
+  await expect(expense.getByTestId('linked-transaction')).toHaveCount(2)
+
+  await expense.getByRole('button', { name: 'Cancel', exact: true }).click()
+  await expect(expense).toBeHidden()
+  await expect(page.getByTestId('transaction-refund-link').filter({ visible: true })).toHaveCount(0)
+  const reopened = await openRow(page, expenseId)
+  await expect(reopened.getByTestId('linked-transaction')).toHaveCount(0)
+  await expect(page.getByTestId('transaction-amount').filter({ hasText: '$10.00' })).toHaveCount(0)
 })
 
 // Delete on a linked transaction asks what happens to the other side. The default keeps it and removes
@@ -70,9 +154,11 @@ test('asks whether deleting a linked expense also deletes its refund', async ({ 
     await picker.getByTestId('link-candidate').filter({ hasText: amount }).getByRole('button').click()
     await picker.getByRole('button', { name: 'Link', exact: true }).click()
     await expect(picker).toBeHidden()
-    await expect(linkIcon(page, expenseId)).toBeVisible()
-    await page.keyboard.press('Escape')
+
+    // The link is held by the edit window and made when it is saved
+    await saveButton(page.getByRole('dialog', { name: 'Edit transaction', exact: true })).click()
     await expect(page.getByRole('dialog', { name: 'Edit transaction', exact: true })).toBeHidden()
+    await expect(linkIcon(page, expenseId)).toBeVisible()
   }
 
   // Leaving the choice alone keeps the refund and removes the link
@@ -113,8 +199,9 @@ test('asks whether deleting a linked expense also deletes its refund', async ({ 
   await expect(page.getByTestId(`transaction-row-${goneRefund}`)).toHaveCount(0)
 })
 
-// A link the server refuses leaves the picker open with the reason, instead of closing on a link that was not made
-test('keeps the picker open when the link is refused', async ({ page, request }) => {
+// A link the server refuses on Save leaves the edit window open with the reason, instead of closing on a link that was
+// not made
+test('keeps the edit window open with the reason when Save is refused', async ({ page, request }) => {
   const user = await signUpUser(request)
   const account = await createAccount(request, user, { name: 'Everyday' })
   const row = { accountId: account.id, categoryName: 'Groceries' }
@@ -136,9 +223,10 @@ test('keeps the picker open when the link is refused', async ({ page, request })
   })
   expect(linked.ok()).toBe(true)
   await picker.getByRole('button', { name: 'Link', exact: true }).click()
+  await expect(picker).toBeHidden()
+  await saveButton(expense).click()
 
-  await expect(picker.getByRole('alert')).toBeVisible()
-  await expect(picker).toBeVisible()
+  await expect(expense.getByRole('alert')).toContainText('already linked')
   await expect(expense).toBeVisible()
 })
 
@@ -164,9 +252,15 @@ test('links an existing refund to an expense from the picker', async ({ page, re
   await picker.getByTestId('link-candidate').getByRole('button').click()
   await picker.getByRole('button', { name: 'Link', exact: true }).click()
 
-  // The picker closes and the edit window stays, now naming the refund, with both rows on the list showing the link
+  // The picker closes and the edit window stays, naming the refund as not saved yet, and the rows show no link
   await expect(picker).toBeHidden()
   await expect(expense.getByTestId('linked-transaction')).toHaveCount(1)
+  await expect(expense.getByTestId('linked-transaction')).toContainText('Not saved yet')
+  await expect(linkIcon(page, refundId)).toHaveCount(0)
+
+  // Save makes the link, and both rows show it
+  await saveButton(expense).click()
+  await expect(expense).toBeHidden()
   await expect(linkIcon(page, refundId)).toHaveAccessibleName('Refund of an expense')
   await expect(linkIcon(page, expenseId)).toBeVisible()
 })
@@ -177,7 +271,7 @@ test('lists the closest amounts first and links the row that is picked', async (
   const user = await signUpUser(request)
   const account = await createAccount(request, user, { name: 'Everyday' })
   const expenseId = await createTransaction(request, user, { accountId: account.id, categoryName: 'Groceries', amount: -5000, date: daysFromTodayInTestTimezone(-6) })
-  for (const [amount, daysAgo, category] of [[9000, 1, 'Groceries'], [4800, 2, 'Groceries'], [5000, 5, 'Groceries'], [5200, 3, 'Dining']] as const) {
+  for (const [amount, daysAgo, category] of [[9000, 1, 'Groceries'], [4800, 2, 'Groceries'], [5000, 5, 'Groceries'], [4900, 3, 'Dining']] as const) {
     await createTransaction(request, user, { accountId: account.id, categoryName: category, amount, date: daysFromTodayInTestTimezone(-daysAgo) })
   }
 
@@ -189,10 +283,9 @@ test('lists the closest amounts first and links the row that is picked', async (
   const rows = picker.getByTestId('link-candidate')
   const linkButton = picker.getByRole('button', { name: 'Link', exact: true })
 
-  // The exact amount leads even though it is the oldest, then 4800 and 5200 are the same distance away,
-  // so the newer of them, 4800, comes first, and 9000 is the farthest
+  // The exact amount leads even though it is the oldest, then the nearer 4900 and 4800, and 9000 is the farthest
   await expect(rows).toHaveCount(4)
-  await expect(rows.getByTestId('transaction-amount')).toHaveText(['+$50.00', '+$48.00', '+$52.00', '+$90.00'])
+  await expect(rows.getByTestId('transaction-amount')).toHaveText(['+$50.00', '+$49.00', '+$48.00', '+$90.00'])
   await expect(linkButton).toBeDisabled()
 
   // Pressing a row picks it and fades the others. Pressing it again clears the pick
@@ -201,11 +294,13 @@ test('lists the closest amounts first and links the row that is picked', async (
   await expect(rows.nth(0).getByRole('button')).toHaveAttribute('aria-pressed', 'false')
   await expect(linkButton).toBeEnabled()
 
-  // The picked row takes the accent border and fill, and the others dim their icons well past a faded section's
+  // The picked row takes the accent border and fill, and the others recede: their amount's contrast against the
+  // dialog falls to under half the picked row's, while staying readable
   await expect(rows.nth(1)).not.toHaveCSS('background-color', 'rgba(0, 0, 0, 0)')
   await expect(rows.nth(1)).not.toHaveCSS('box-shadow', await rows.nth(0).evaluate((row) => getComputedStyle(row).boxShadow))
-  await expect(rows.nth(0)).toHaveCSS('--app-faded-icon-opacity', '0.3')
-  await expect(rows.nth(1)).not.toHaveCSS('--app-faded-icon-opacity', '0.3')
+  await expect.poll(async () => (await amountContrast(rows.nth(0))) / (await amountContrast(rows.nth(1)))).toBeLessThan(0.5)
+  expect(await amountContrast(rows.nth(1))).toBeGreaterThanOrEqual(4.5)
+  expect(await amountContrast(rows.nth(0))).toBeGreaterThanOrEqual(1.5)
 
   // The open filter panel covers the search row and the list edge to edge, so nothing behind shows beside it
   const filtersButton = picker.getByRole('button', { name: 'Transaction filters' })
@@ -231,18 +326,20 @@ test('lists the closest amounts first and links the row that is picked', async (
   await picker.getByRole('checkbox', { name: 'Dining' }).click()
   await picker.getByRole('button', { name: 'Apply filters' }).click()
   await expect(rows).toHaveCount(1)
-  await expect(rows.getByTestId('transaction-amount')).toHaveText('+$52.00')
+  await expect(rows.getByTestId('transaction-amount')).toHaveText('+$49.00')
 
   await rows.getByRole('button').click()
   await expect(linkButton).toBeEnabled()
   await linkButton.click()
   await expect(picker).toBeHidden()
   await expect(expense.getByTestId('linked-transaction')).toHaveCount(1)
+  await saveButton(expense).click()
+  await expect(expense).toBeHidden()
   await expect(linkIcon(page, expenseId)).toBeVisible()
 })
 
 // The explanation, search field and Filters button stay put while only the candidate rows scroll under them, and
-// the picker is held to about 70% of the create transaction window's height
+// the picker stays within the stacked window's 84% of the screen's height
 test('keeps the picker header in place while its rows scroll', async ({ page, request }) => {
   const user = await signUpUser(request)
   const account = await createAccount(request, user, { name: 'Everyday' })
@@ -262,7 +359,7 @@ test('keeps the picker header in place while its rows scroll', async ({ page, re
   const search = picker.getByPlaceholder('Merchant or note…')
   const viewport = page.viewportSize()!
   const panel = await picker.boundingBox()
-  expect(panel!.height).toBeLessThanOrEqual(viewport.height * 0.6 + 1)
+  expect(panel!.height).toBeLessThanOrEqual(viewport.height * 0.84 + 1)
 
   // The last row starts below the dialog's visible body, and scrolling it into view leaves the header where it was
   const searchBefore = await search.boundingBox()
