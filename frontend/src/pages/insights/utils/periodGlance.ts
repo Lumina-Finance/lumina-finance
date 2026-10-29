@@ -1,15 +1,14 @@
 import type { InsightsPeriodGlanceResponse } from '@/api/insights'
 import type { Currency } from '@/api/currency'
 import { formatMovedCurrency } from '@/utils/formatCurrency'
+import { formatCompactMovedCurrency } from '@/pages/insights/utils/compactMovedMoney'
 import { formatMovedPercent, getShownAmountSign, type AmountSign } from '@/utils/negativeAmount'
 import type {
   PeriodGlancePrimaryMetric,
   PeriodGlanceTone,
   PeriodGlanceSupportItem,
 } from '@/pages/insights/types/periodGlance'
-import {
-  formatSavingsRateValue,
-} from './money'
+import { formatSavingsRateValue } from './money'
 import { getRoundedPercent } from '@/utils/rounding'
 import { getSavingsRate } from '@/utils/savingsRate'
 import {
@@ -132,9 +131,16 @@ function getPeriodGlanceBrief(
       {
         label: 'Biggest change',
         value: data.biggest_change_name ?? 'N/A',
-        detail: data.biggest_change_name && data.biggest_change_amount !== undefined
-          ? getPeriodGlanceChangeDetail(data.biggest_change_amount, data.biggest_change_basis, data.biggest_change_kind, displayCurrency, currencies)
-          : 'No comparable category movement in this range',
+        detail:
+          data.biggest_change_name && data.biggest_change_amount !== undefined
+            ? getPeriodGlanceChangeDetail(
+                data.biggest_change_amount,
+                data.biggest_change_basis,
+                data.biggest_change_kind,
+                displayCurrency,
+                currencies,
+              )
+            : 'No comparable category movement in this range',
         calculation: 'Category with the largest dollar change from the previous matching period',
         fxStatus: data.biggest_change_fx_status,
         getFxStatusMessage: getBiggestChangeFxStatusMessage,
@@ -150,9 +156,10 @@ function getPeriodGlanceBrief(
       {
         label: 'Savings rate',
         value: formatSavingsRateValue(savingsRate),
-        detail: savingsRate === null
-          ? 'No recorded income in the selected range'
-          : 'Income kept after expenses, excluding transfers',
+        detail:
+          savingsRate === null
+            ? 'No recorded income in the selected range'
+            : 'Income kept after expenses, excluding transfers',
         calculation: '(Income - expenses) / income for this range. Transfers are excluded',
         fxStatus: data.income_expense_fx_status,
         getFxStatusMessage: getPeriodSavingsRateFxStatusMessage,
@@ -236,9 +243,7 @@ export function getPeriodGlanceCardData(
   displayCurrency: string,
   currencies: Currency[],
 ): PeriodGlanceCardData {
-  const brief = data
-    ? getPeriodGlanceBrief(data, displayCurrency, currencies)
-    : getLoadingPeriodGlanceBrief()
+  const brief = data ? getPeriodGlanceBrief(data, displayCurrency, currencies) : getLoadingPeriodGlanceBrief()
   const primaryMetric = brief.metrics[0]
   const secondaryMetric = brief.metrics[1]
 
@@ -246,6 +251,7 @@ export function getPeriodGlanceCardData(
     primaryMetric: {
       label: primaryMetric.label,
       value: formatMovedCurrency(primaryMetric.value, displayCurrency, currencies),
+      compactValue: formatCompactMovedCurrency(primaryMetric.value, displayCurrency, currencies),
       detail: primaryMetric.detail,
       calculation: primaryMetric.calculation,
       tone: primaryMetric.tone,

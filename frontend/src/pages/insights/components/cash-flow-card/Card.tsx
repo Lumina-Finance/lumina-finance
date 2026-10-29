@@ -2,16 +2,16 @@ import { useMemo } from 'react'
 import { CalendarDays } from 'lucide-react'
 import type { FxStatus } from '@/api/shared/fx'
 import LoadFailure from '@/components/errors/LoadFailure'
-import {
-  LoadingContent,
-  LoadingOverlay,
-} from '@/components/loading/Transition'
+import { LoadingContent, LoadingOverlay } from '@/components/loading/Transition'
 import { useLoadingSnapshot } from '@/hooks/useLoadingSnapshot'
 import { useMoneyFormatters } from '@/hooks/useMoneyFormatters'
 import { getFittedAmountStyle, useFittedAmount } from '@/pages/insights/hooks/useFittedAmount'
 import { CashFlowBarChart } from './BarChart'
 import type { CashFlowBarBucket, CashFlowGranularity } from '@/pages/insights/types/cashFlow'
 import { getInsightsCashFlowFxStatusMessage } from '@/pages/insights/utils/fxTooltipMessages'
+import { formatCompactMovedCurrency } from '@/pages/insights/utils/compactMovedMoney'
+import { renderFittedText } from '@/pages/insights/components/renderFittedText'
+import { FullAmountTooltip } from '@/pages/insights/components/FullAmountTooltip'
 import { getSignedAmountColor } from '@/utils/negativeAmount'
 import { FxStatusBadge } from '@/components/tooltips/FxStatusBadge'
 import { InsightCalculationTooltip } from '@/pages/insights/components/CalculationTooltip'
@@ -50,7 +50,8 @@ const BODY_CLASS = 'flex h-[390px] flex-col'
 const TOTAL_NET_MAX_REM = 1.875
 const TOTAL_NET_MIN_REM = 1.25
 
-const cashFlowCalculation = 'Bars group money moving in and out by period. Net equals inflow minus outflow. Transfers are included. Balance adjustments are excluded'
+const cashFlowCalculation =
+  'Bars group money moving in and out by period. Net equals inflow minus outflow. Transfers are included. Balance adjustments are excluded'
 const netCashFlowCalculation = 'The cumulative net cash flow at the end of the chosen time range'
 
 /**
@@ -66,46 +67,49 @@ export function CashFlowCard({
   loading = false,
   transitionKey,
 }: CashFlowCardProps) {
-  const { formatMovedCurrency } = useMoneyFormatters()
+  const { currencies, formatMovedCurrency } = useMoneyFormatters()
   // The failure travels in the snapshot rather than beside it, so the box arrives with the reveal
   // instead of growing the card while the spinner is still turning
-  const incomingSnapshot = useMemo<CashFlowSnapshot>(() => ({
-    granularity,
-    buckets,
-    fxStatus,
-    displayCurrency,
-    error,
-    failed,
-  }), [buckets, displayCurrency, error, failed, fxStatus, granularity])
-  const {
-    displaySnapshot,
-    contentConcealed,
-    loadingVisible,
-    shouldReduceMotion,
-  } = useLoadingSnapshot<CashFlowSnapshot>({
-    snapshot: incomingSnapshot,
-    loading,
-    transitionKey,
-  })
-  const label = displaySnapshot.granularity === 'day' ? 'Daily' : displaySnapshot.granularity === 'week' ? 'Weekly' : 'Monthly'
+  const incomingSnapshot = useMemo<CashFlowSnapshot>(
+    () => ({
+      granularity,
+      buckets,
+      fxStatus,
+      displayCurrency,
+      error,
+      failed,
+    }),
+    [buckets, displayCurrency, error, failed, fxStatus, granularity],
+  )
+  const { displaySnapshot, contentConcealed, loadingVisible, shouldReduceMotion } =
+    useLoadingSnapshot<CashFlowSnapshot>({
+      snapshot: incomingSnapshot,
+      loading,
+      transitionKey,
+    })
+  const label =
+    displaySnapshot.granularity === 'day' ? 'Daily' : displaySnapshot.granularity === 'week' ? 'Weekly' : 'Monthly'
   const totalInflow = displaySnapshot.buckets.reduce((sum, bucket) => sum + bucket.inflow, 0)
   const totalOutflow = displaySnapshot.buckets.reduce((sum, bucket) => sum + bucket.outflow, 0)
   const totalNet = totalInflow - totalOutflow
   const formattedTotalNet = formatMovedCurrency(totalNet, displaySnapshot.displayCurrency)
-  const [totalNetRef, totalNetFillRatio] = useFittedAmount(formattedTotalNet, TOTAL_NET_MAX_REM, TOTAL_NET_MIN_REM)
+  const compactTotalNet = formatCompactMovedCurrency(totalNet, displaySnapshot.displayCurrency, currencies)
+  const [totalNetRef, totalNetFillRatio, totalNetCompact] = useFittedAmount(
+    formattedTotalNet,
+    compactTotalNet,
+    TOTAL_NET_MAX_REM,
+    TOTAL_NET_MIN_REM,
+  )
   const totalNetFitStyle = getFittedAmountStyle(totalNetFillRatio, TOTAL_NET_MAX_REM, TOTAL_NET_MIN_REM)
 
   return (
     <section className="app-card">
       <InsightSectionHeader
         icon={CalendarDays}
-        label={(
+        label={
           <span className="inline-flex items-center gap-2">
             Cash flow
-            <InsightCalculationTooltip
-              label="Cash flow"
-              calculation={cashFlowCalculation}
-            />
+            <InsightCalculationTooltip label="Cash flow" calculation={cashFlowCalculation} />
             {displaySnapshot.fxStatus && (
               <FxStatusBadge
                 label="Cash flow FX status"
@@ -114,18 +118,13 @@ export function CashFlowCard({
               />
             )}
           </span>
-        )}
+        }
       />
       <div className="relative overflow-visible" data-tooltip-bounds>
         <LoadingContent concealed={contentConcealed} shouldReduceMotion={shouldReduceMotion}>
           {displaySnapshot.failed && (
             <div className={BODY_CLASS}>
-              <LoadFailure
-                compact
-                error={displaySnapshot.error}
-                standalone
-                subject="Cash flow"
-              />
+              <LoadFailure compact error={displaySnapshot.error} standalone subject="Cash flow" />
             </div>
           )}
 
@@ -134,17 +133,15 @@ export function CashFlowCard({
               <div className="mb-3 [container-type:inline-size]">
                 <p className="app-label app-label-compact inline-flex items-center gap-2">
                   Net cash flow
-                  <InsightCalculationTooltip
-                    label="Net cash flow"
-                    calculation={netCashFlowCalculation}
-                  />
+                  <InsightCalculationTooltip label="Net cash flow" calculation={netCashFlowCalculation} />
+                  <FullAmountTooltip label="Net cash flow" compact={totalNetCompact} fullAmount={formattedTotalNet} />
                 </p>
                 <p
                   ref={totalNetRef}
                   className="mt-1 max-w-full whitespace-nowrap font-financial text-3xl leading-none tracking-tight"
                   style={{ ...totalNetFitStyle, color: getSignedAmountColor(totalNet) }}
                 >
-                  {formattedTotalNet}
+                  {renderFittedText(totalNetCompact, compactTotalNet, formattedTotalNet)}
                 </p>
               </div>
               <CashFlowBarChart
