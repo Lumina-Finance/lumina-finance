@@ -55,10 +55,11 @@ jobs:
           build-args: |
             APP_VERSION=ci
 
+      # The E2E image action loads the image by this name
       - name: Share the built image with the import job
         uses: actions/upload-artifact@v7
         with:
-          name: firefly-check-image
+          name: e2e-image-amd64
           path: ${{ runner.temp }}/lumina-image.tar
           if-no-files-found: error
           retention-days: 1
@@ -171,30 +172,13 @@ jobs:
       - name: Check out repository
         uses: actions/checkout@v7
 
-      - name: Download the Lumina image
-        uses: actions/download-artifact@v8
+      - name: Prepare the image and env file
+        uses: ./.github/actions/e2e-image
         with:
-          name: firefly-check-image
-          path: ${{ runner.temp }}
-
-      - name: Load the image
-        run: docker load --input "${RUNNER_TEMP}/lumina-image.tar"
-
-      - name: Log in to Docker Hub
-        uses: docker/login-action@v4
-        with:
-          username: ${{ vars.DOCKERHUB_USERNAME }}
-          password: ${{ secrets.DOCKERHUB_TOKEN }}
-
-      - name: Write the operator env file
-        run: |
-          cat > docker/.env <<EOF
-          DB_HOST=${DB_HOST}
-          DB_PORT=${DB_PORT}
-          DB_NAME=${DB_NAME}
-          DB_USER=${DB_USER}
-          DB_PASSWORD=${DB_PASSWORD}
-          EOF
+          platform: amd64
+          app-url: http://localhost:8080
+          registry-username: ${{ vars.DOCKERHUB_USERNAME }}
+          registry-token: ${{ secrets.DOCKERHUB_TOKEN }}
 
       - name: Start the stack
         run: docker compose -f docker/compose.yml -f e2e/compose.mail.yaml up -d
