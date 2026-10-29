@@ -32,7 +32,12 @@ const BODY_CLASS_NAME =
 const ROW_CLASS_NAME = 'scroll-mt-44 rounded-lg transition-[background-color,box-shadow] motion-reduce:transition-none'
 const ROW_CONTENT_CLASS_NAME = 'transition-opacity motion-reduce:transition-none'
 const RESTING_ROW_STYLE = { boxShadow: 'inset 0 0 0 1px transparent' }
-const PICKED_ROW_STYLE = { background: 'var(--app-accent-soft)', boxShadow: 'inset 0 0 0 1px var(--app-accent)' }
+const PICKED_ROW_STYLE = { boxShadow: 'inset 0 0 0 1px var(--app-accent)' }
+
+// The picked row rests in the accent fill and deepens it under the pointer, as a chosen option in the filter panels
+// does. The row inside draws no hover fill of its own over it
+const PICKED_ROW_CLASS_NAME =
+  'bg-[var(--app-accent-soft)] hover:bg-[var(--app-accent-chosen-hover-fill)] [&_.app-transaction-row]:bg-transparent!'
 
 // How strongly a row that was not picked shows, as a share of full strength. Low enough that the picked row
 // stands out at a glance
@@ -262,7 +267,7 @@ export default function TransactionModalLinkRefundPicker({
                   return (
                     <div
                       key={candidate.id}
-                      className={ROW_CLASS_NAME}
+                      className={isPicked ? `${ROW_CLASS_NAME} ${PICKED_ROW_CLASS_NAME}` : ROW_CLASS_NAME}
                       style={isPicked ? PICKED_ROW_STYLE : RESTING_ROW_STYLE}
                       data-testid="link-candidate"
                       data-picked={isPicked ? 'true' : undefined}
