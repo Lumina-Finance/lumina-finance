@@ -47,19 +47,22 @@ type DeferredChartTooltipOverlayProps<T> = {
 
 const DEFAULT_DEFERRED_TOOLTIP_DELAY_MS = 45
 
-function DeferredChartTooltipOverlayInner<T>({
-  chartRef,
-  boundsRef,
-  getKey,
-  renderContent,
-  className = '',
-  delayMs = DEFAULT_DEFERRED_TOOLTIP_DELAY_MS,
-  showGuide = true,
-  guideVariant = 'line',
-  guideWidth = 28,
-  guideMaxWidth,
-  tooltipTransition,
-}: DeferredChartTooltipOverlayProps<T>, ref: ForwardedRef<DeferredChartTooltipOverlayHandle<T>>) {
+function DeferredChartTooltipOverlayInner<T>(
+  {
+    chartRef,
+    boundsRef,
+    getKey,
+    renderContent,
+    className = '',
+    delayMs = DEFAULT_DEFERRED_TOOLTIP_DELAY_MS,
+    showGuide = true,
+    guideVariant = 'line',
+    guideWidth = 28,
+    guideMaxWidth,
+    tooltipTransition,
+  }: DeferredChartTooltipOverlayProps<T>,
+  ref: ForwardedRef<DeferredChartTooltipOverlayHandle<T>>,
+) {
   const tooltipRef = useRef<HTMLDivElement>(null)
   const guideRef = useRef<HTMLDivElement>(null)
   const [item, setItem] = useState<T | null>(null)
@@ -70,34 +73,41 @@ function DeferredChartTooltipOverlayInner<T>({
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const visibleRef = useRef(false)
 
-  const positionTooltip = useCallback((pointer: ChartTooltipPointer) => {
-    const chart = chartRef.current
-    const rect = chart?.getBoundingClientRect()
-    const bounds = boundsRef?.current ?? undefined
-    const tooltip = tooltipRef.current
-    if (!chart || !rect || !tooltip) return
+  const positionTooltip = useCallback(
+    (pointer: ChartTooltipPointer) => {
+      const chart = chartRef.current
+      const rect = chart?.getBoundingClientRect()
+      const bounds = boundsRef?.current ?? undefined
+      const tooltip = tooltipRef.current
+      if (!chart || !rect || !tooltip) return
 
-    const { x: tooltipX, y: tooltipY, flipY, maxWidth } = getCursorTooltipPosition({
-      origin: chart,
-      tooltip,
-      clientX: pointer.clientX,
-      clientY: pointer.clientY,
-      bounds,
-    })
-    const guideX = Math.min(Math.max(pointer.chartX ?? pointer.clientX - rect.left, 0), rect.width)
-    const maxGuideWidth = typeof guideMaxWidth === 'function' ? guideMaxWidth(rect.width) : guideMaxWidth
-    const resolvedGuideWidth = guideVariant === 'bar'
-      ? Math.max(1, Math.min(guideWidth, maxGuideWidth ?? guideWidth))
-      : 1
+      const {
+        x: tooltipX,
+        y: tooltipY,
+        flipY,
+        maxWidth,
+      } = getCursorTooltipPosition({
+        origin: chart,
+        tooltip,
+        clientX: pointer.clientX,
+        clientY: pointer.clientY,
+        bounds,
+      })
+      const guideX = Math.min(Math.max(pointer.chartX ?? pointer.clientX - rect.left, 0), rect.width)
+      const maxGuideWidth = typeof guideMaxWidth === 'function' ? guideMaxWidth(rect.width) : guideMaxWidth
+      const resolvedGuideWidth =
+        guideVariant === 'bar' ? Math.max(1, Math.min(guideWidth, maxGuideWidth ?? guideWidth)) : 1
 
-    tooltip.style.setProperty('--chart-tooltip-x', `${tooltipX}px`)
-    tooltip.style.setProperty('--chart-tooltip-y', `${tooltipY}px`)
-    tooltip.style.setProperty('--cursor-tooltip-flip-y', `${flipY}px`)
-    tooltip.style.setProperty('--app-cursor-tooltip-max-width', `${maxWidth}px`)
-    guideRef.current?.style.setProperty('--chart-tooltip-guide-x', `${guideX}px`)
-    guideRef.current?.style.setProperty('--chart-tooltip-guide-width', `${resolvedGuideWidth}px`)
-    guideRef.current?.style.setProperty('--chart-tooltip-guide-offset', `${resolvedGuideWidth / -2}px`)
-  }, [boundsRef, chartRef, guideMaxWidth, guideVariant, guideWidth])
+      tooltip.style.setProperty('--chart-tooltip-x', `${tooltipX}px`)
+      tooltip.style.setProperty('--chart-tooltip-y', `${tooltipY}px`)
+      tooltip.style.setProperty('--cursor-tooltip-flip-y', `${flipY}px`)
+      tooltip.style.setProperty('--app-cursor-tooltip-max-width', `${maxWidth}px`)
+      guideRef.current?.style.setProperty('--chart-tooltip-guide-x', `${guideX}px`)
+      guideRef.current?.style.setProperty('--chart-tooltip-guide-width', `${resolvedGuideWidth}px`)
+      guideRef.current?.style.setProperty('--chart-tooltip-guide-offset', `${resolvedGuideWidth / -2}px`)
+    },
+    [boundsRef, chartRef, guideMaxWidth, guideVariant, guideWidth],
+  )
 
   const clearPending = useCallback(() => {
     if (timerRef.current) {
@@ -137,26 +147,29 @@ function DeferredChartTooltipOverlayInner<T>({
     timerRef.current = setTimeout(commitPending, delayMs)
   }, [commitPending, delayMs])
 
-  const show = useCallback((nextItem: T | null, pointer: ChartTooltipPointer) => {
-    lastPointerRef.current = pointer
-    positionTooltip(pointer)
+  const show = useCallback(
+    (nextItem: T | null, pointer: ChartTooltipPointer) => {
+      lastPointerRef.current = pointer
+      positionTooltip(pointer)
 
-    if (!nextItem) {
-      pendingItemRef.current = null
+      if (!nextItem) {
+        pendingItemRef.current = null
+        scheduleCommit()
+        return
+      }
+
+      const nextKey = getKey(nextItem)
+      if (itemKeyRef.current === nextKey) {
+        clearPending()
+        setTooltipVisible(true)
+        return
+      }
+
+      pendingItemRef.current = nextItem
       scheduleCommit()
-      return
-    }
-
-    const nextKey = getKey(nextItem)
-    if (itemKeyRef.current === nextKey) {
-      clearPending()
-      setTooltipVisible(true)
-      return
-    }
-
-    pendingItemRef.current = nextItem
-    scheduleCommit()
-  }, [clearPending, getKey, positionTooltip, scheduleCommit, setTooltipVisible])
+    },
+    [clearPending, getKey, positionTooltip, scheduleCommit, setTooltipVisible],
+  )
 
   const hide = useCallback(() => {
     clearPending()
@@ -204,10 +217,12 @@ function DeferredChartTooltipOverlayInner<T>({
               background: guideVariant === 'bar' ? 'var(--app-border)' : 'var(--app-border-strong)',
               borderRadius: guideVariant === 'bar' ? 4 : undefined,
               opacity: visible && item ? (guideVariant === 'bar' ? 0.4 : 1) : 0,
-              transform: guideVariant === 'bar'
-                ? 'translate3d(calc(var(--chart-tooltip-guide-x, 0px) + var(--chart-tooltip-guide-offset, -14px)), 0, 0)'
-                : 'translate3d(var(--chart-tooltip-guide-x, 0px), 0, 0)',
-              transition: 'opacity 150ms ease-out, transform 120ms cubic-bezier(0.22, 1, 0.36, 1)',
+              transform:
+                guideVariant === 'bar'
+                  ? 'translate3d(calc(var(--chart-tooltip-guide-x, 0px) + var(--chart-tooltip-guide-offset, -14px)), 0, 0)'
+                  : 'translate3d(var(--chart-tooltip-guide-x, 0px), 0, 0)',
+              transition:
+                'opacity 150ms cubic-bezier(0.22, 1, 0.36, 1), transform 120ms cubic-bezier(0.22, 1, 0.36, 1)',
               width: guideVariant === 'bar' ? 'var(--chart-tooltip-guide-width, 28px)' : 1,
             }}
           />

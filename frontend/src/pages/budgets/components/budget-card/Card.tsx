@@ -33,15 +33,19 @@ export default function BudgetCard({
   const remaining = latestPeriod ? latestPeriod.overall_limit - spent : 0
   const isOverBudget = remaining < 0
   const displayBalance = isOverBudget ? Math.abs(remaining) : remaining
-  const progress = latestPeriod ? Math.min(Math.max(getBudgetUtilizationPercent(spent, latestPeriod.overall_limit), 0), 100) : 0
+  const progress = latestPeriod
+    ? Math.min(Math.max(getBudgetUtilizationPercent(spent, latestPeriod.overall_limit), 0), 100)
+    : 0
   const attention = attentionState(latestPeriod, utilization)
   const upcomingPeriods = nextBudgetPeriods(baseBudget, latestPeriod)
 
   return (
     <article
       data-testid={`budget-card-${baseBudget.id}`}
-      className={`app-card app-budget-card flex w-full min-w-0 cursor-pointer flex-col transition-transform duration-150 hover:-translate-y-0.5 ${
-        isArchived ? 'opacity-80 transition-opacity hover:opacity-100' : 'min-h-[21.5rem]'
+      className={`app-card app-budget-card flex w-full min-w-0 cursor-pointer flex-col duration-150 hover:-translate-y-0.5 ${
+        isArchived
+          ? 'opacity-80 transition-[translate,opacity] hover:opacity-100'
+          : 'min-h-[21.5rem] transition-transform'
       }`}
       style={{
         borderTop: `5px solid ${isArchived ? 'var(--app-text-muted)' : attention.indicatorColor}`,
@@ -62,11 +66,7 @@ export default function BudgetCard({
             <h2 className="truncate text-lg font-semibold" style={{ color: 'var(--app-text)' }}>
               {baseBudget.name}
             </h2>
-            <BudgetFxStatusBadge
-              fxStatus={utilization?.fx_status}
-              label="Budget FX status"
-              stopPropagation
-            />
+            <BudgetFxStatusBadge fxStatus={utilization?.fx_status} label="Budget FX status" stopPropagation />
           </div>
           <p className="mt-1 truncate text-sm" style={{ color: 'var(--app-text-subtle)' }}>
             {budgetCadenceLabel(baseBudget)} · {baseBudget.group_id ? 'Shared' : 'Personal'} · {baseBudget.currency}
@@ -89,12 +89,15 @@ export default function BudgetCard({
       {!isArchived && (
         <div className="mt-5">
           <div className="app-budget-card-summary">
-            <p className="flex min-w-0 items-baseline gap-2 text-3xl font-semibold tracking-tight" style={{ color: 'var(--app-text)' }}>
-              <span className="truncate">{latestPeriod ? formatCurrency(displayBalance, baseBudget.currency) : 'Not set'}</span>
+            <p
+              className="flex min-w-0 items-baseline gap-2 text-3xl font-semibold tracking-tight"
+              style={{ color: 'var(--app-text)' }}
+            >
+              <span className="truncate">
+                {latestPeriod ? formatCurrency(displayBalance, baseBudget.currency) : 'Not set'}
+              </span>
               {latestPeriod && (
-                <span className="shrink-0 text-lg font-bold uppercase">
-                  {isOverBudget ? 'over' : 'left'}
-                </span>
+                <span className="shrink-0 text-lg font-bold uppercase">{isOverBudget ? 'over' : 'left'}</span>
               )}
             </p>
             <p className="app-budget-card-used text-sm" style={{ color: 'var(--app-text-subtle)' }}>
@@ -124,11 +127,15 @@ export default function BudgetCard({
             Upcoming periods
           </p>
           <div className="mt-2 space-y-1.5 text-sm leading-5" style={{ color: 'var(--app-text-muted)' }}>
-            {upcomingPeriods.length > 0
-              ? upcomingPeriods.map((period) => (
-                <p key={period} className="truncate">{period}</p>
+            {upcomingPeriods.length > 0 ? (
+              upcomingPeriods.map((period) => (
+                <p key={period} className="truncate">
+                  {period}
+                </p>
               ))
-              : <p className="truncate">No upcoming periods</p>}
+            ) : (
+              <p className="truncate">No upcoming periods</p>
+            )}
           </div>
         </div>
 
@@ -137,9 +144,9 @@ export default function BudgetCard({
             Categories
           </p>
           <div className="grid gap-2">
-            {shownCategories.length > 0 ? shownCategories.map((name) => (
-              <BudgetCategoryRow key={name} label={name} />
-            )) : (
+            {shownCategories.length > 0 ? (
+              shownCategories.map((name) => <BudgetCategoryRow key={name} label={name} />)
+            ) : (
               <BudgetCategoryRow label="No categories selected" />
             )}
             {extraCategoryCount > 0 && <BudgetCategoryRow label={`+${extraCategoryCount} more`} />}

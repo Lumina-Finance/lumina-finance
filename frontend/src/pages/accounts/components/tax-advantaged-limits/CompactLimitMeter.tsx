@@ -1,7 +1,4 @@
-import {
-  useRef,
-  type MouseEvent as ReactMouseEvent,
-} from 'react'
+import { useRef, type MouseEvent as ReactMouseEvent } from 'react'
 import {
   DeferredChartTooltipOverlay,
   type DeferredChartTooltipOverlayHandle,
@@ -57,7 +54,10 @@ export function TaxAdvantagedCompactLimitMeter({
           <p className="truncate text-xs font-medium uppercase" style={{ color: 'var(--app-text-subtle)' }}>
             {label}
           </p>
-          <p className="font-financial truncate text-xs font-medium tabular-nums" style={{ color: 'var(--app-text-muted)' }}>
+          <p
+            className="font-financial truncate text-xs font-medium tabular-nums"
+            style={{ color: 'var(--app-text-muted)' }}
+          >
             {emptyLabel}
           </p>
         </div>
@@ -71,8 +71,7 @@ export function TaxAdvantagedCompactLimitMeter({
   const { usageLabel, remainingLabel } = getTaxAdvantagedMeterLabels(used, limit, currency, currencies)
   const remaining = limit - used
   const valueLabel = valueMode === 'remaining' ? remainingLabel : usageLabel
-  const availablePercent =
-    availableBoundary === null ? 0 : getTaxAdvantagedUsagePercent(availableBoundary, limit)
+  const availablePercent = availableBoundary === null ? 0 : getTaxAdvantagedUsagePercent(availableBoundary, limit)
   const availableWidth = Math.max(availablePercent - Math.min(barWidth, 100), 0)
   const tooltipData: LimitMeterTooltipData = {
     key: `${label}-${used}-${limit}-${currency}`,
@@ -98,7 +97,12 @@ export function TaxAdvantagedCompactLimitMeter({
         <p className="truncate text-xs font-medium uppercase" style={{ color: 'var(--app-text-subtle)' }}>
           {label}
         </p>
-        <p className="font-financial truncate text-xs font-medium tabular-nums" style={{ color: valueMode === 'remaining' ? getTaxAdvantagedRemainingColor(remaining) : 'var(--app-text-muted)' }}>
+        <p
+          className="font-financial truncate text-xs font-medium tabular-nums"
+          style={{
+            color: valueMode === 'remaining' ? getTaxAdvantagedRemainingColor(remaining) : 'var(--app-text-muted)',
+          }}
+        >
           {valueLabel}
         </p>
       </div>
@@ -137,7 +141,7 @@ export function TaxAdvantagedCompactLimitMeter({
         chartRef={meterRef}
         className="min-w-44"
         showGuide={false}
-        tooltipTransition="opacity 150ms ease-out"
+        tooltipTransition="opacity 150ms cubic-bezier(0.22, 1, 0.36, 1)"
         getKey={(item) => item.key}
         renderContent={(item) => (
           <TaxAdvantagedLimitMeterTooltipContent

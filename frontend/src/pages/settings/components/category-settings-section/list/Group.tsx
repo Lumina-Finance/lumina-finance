@@ -2,11 +2,7 @@ import { AnimatePresence, motion } from 'motion/react'
 import { ChevronDown } from 'lucide-react'
 import type { Category } from '@/api/categories'
 import CategorySettingsRow from '@/pages/settings/components/category-settings-section/list/Row'
-import {
-  EASE,
-  KIND_LABELS,
-  type CategoryKind,
-} from '@/pages/settings/components/category-settings-section/constants'
+import { EASE, KIND_LABELS, type CategoryKind } from '@/pages/settings/components/category-settings-section/constants'
 
 /**
  * One collapsible kind of category, with a header giving the kind name and how many it holds,
@@ -58,8 +54,10 @@ export default function CategorySettingsGroup({
           aria-hidden
         />
         <span className="min-w-0">
-          <span className="app-label block group-hover/row:text-[var(--app-accent-nav-text)] group-focus-visible/row:text-[var(--app-accent-nav-text)]">{KIND_LABELS[kind]}</span>
-          <span className="block text-xs text-[var(--app-text-subtle)] group-hover/row:text-[var(--app-text-subtle-on-accent)] group-focus-visible/row:text-[var(--app-text-subtle-on-accent)]">
+          <span className="app-label block transition-colors duration-150 group-hover/row:text-[var(--app-accent-nav-text)] group-focus-visible/row:text-[var(--app-accent-nav-text)]">
+            {KIND_LABELS[kind]}
+          </span>
+          <span className="block text-xs text-[var(--app-text-subtle)] transition-colors duration-150 group-hover/row:text-[var(--app-text-subtle-on-accent)] group-focus-visible/row:text-[var(--app-text-subtle-on-accent)]">
             {categories.length} {categories.length === 1 ? 'category' : 'categories'}
           </span>
         </span>
