@@ -1,9 +1,11 @@
 name: Pull request checks
 
 on:
+  # A patch release is built on a release branch cut from its tag, so its fixes get the same checks
   pull_request:
     branches:
       - main
+      - 'release/**'
 
 permissions:
   contents: read
