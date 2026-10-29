@@ -24,7 +24,9 @@ describe('hover and colour transitions', () => {
   it.each(['.app-nav-link', '.app-focus-inset', '.app-transaction-row'])('%s eases on the app curve', (selector) => {
     const values: string[] = []
     stylesheet.walkRules(selector, (rule) => {
-      rule.walkDecls('transition', (decl) => values.push(decl.value))
+      rule.walkDecls('transition', (decl) => {
+        values.push(decl.value)
+      })
     })
     expect(values.length).toBeGreaterThan(0)
     expect(values.every((value) => value.includes(APP_EASE))).toBe(true)
@@ -58,7 +60,9 @@ describe('hover looks that name their own transition', () => {
   it.each(HOVER_SELECTORS)('%s eases every entry on the app curve', (selector) => {
     const entries: string[] = []
     stylesheet.walkRules(selector, (rule) => {
-      rule.walkDecls('transition', (decl) => entries.push(...splitTransitions(decl.value)))
+      rule.walkDecls('transition', (decl) => {
+        entries.push(...splitTransitions(decl.value))
+      })
     })
     expect(entries.length).toBeGreaterThan(0)
     // Reduced motion's own `transition: none` names no curve
@@ -70,7 +74,9 @@ describe('hover looks that name their own transition', () => {
   it('makes the curve a transition utility takes when it names none the app curve', () => {
     const values: string[] = []
     stylesheet.walkAtRules('theme', (rule) => {
-      rule.walkDecls('--default-transition-timing-function', (decl) => values.push(decl.value))
+      rule.walkDecls('--default-transition-timing-function', (decl) => {
+        values.push(decl.value)
+      })
     })
     expect(values).toEqual([APP_EASE])
   })
