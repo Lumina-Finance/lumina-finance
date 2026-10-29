@@ -20,7 +20,7 @@ from app.services.transactions.accounts import (
     validate_transaction_account_is_not_archived,
 )
 from app.services.transactions.bank_transaction_ids import find_held_bank_transactions
-from app.services.transactions.links import mark_linked_scopes_changed, refuse_broken_links
+from app.services.transactions.links import refuse_broken_links
 from app.services.transactions.response_helpers import get_transaction_response
 from app.services.transactions.snapshots import recompute_snapshots_after_transaction_update
 from app.services.transactions.tags import replace_transaction_tag_assignments
@@ -190,9 +190,6 @@ async def update_transaction_and_get_response(
     await mark_cache_changed_for_scope(db, user_id=current_account.owner_id, group_id=current_account.group_id)
     if new_account is not None and new_account.id != current_account.id:
         await mark_cache_changed_for_scope(db, user_id=new_account.owner_id, group_id=new_account.group_id)
-
-    # The other side of a link shows this transaction's amount and date, in a scope that may differ
-    await mark_linked_scopes_changed(db, [txn.id])
 
     # Build the response before committing, since a delete of the account may take the row the moment
     # this commits

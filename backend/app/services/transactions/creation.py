@@ -11,7 +11,6 @@ from app.schemas.transaction import CreateTransactionRequest, TransactionRespons
 from app.services.accounts.snapshots import recompute_account_snapshots
 from app.services.cache_state import mark_cache_changed_for_scope
 from app.services.transactions.accounts import (
-    get_parent_account_for_transaction,
     validate_transaction_account_is_not_archived,
 )
 from app.services.transactions.links import validate_refund_original
@@ -111,20 +110,15 @@ async def create_transaction_and_get_response(
     if validated_tag_ids:
         await replace_transaction_tag_assignments(db, txn.id, validated_tag_ids)
 
-    scopes = {(account.owner_id, account.group_id)}
+    # Both accounts of a refund are the user's own, so one scope holds every list showing the link
     if original is not None:
         db.add(TransactionLink(refund_transaction_id=txn.id, original_transaction_id=original.id))
-
-        # The expense may sit in another account, whose cached lists now show the refund
-        original_account = await get_parent_account_for_transaction(db, original)
-        scopes.add((original_account.owner_id, original_account.group_id))
 
     # Rebuild balance snapshots from this transaction's day forward
     await recompute_account_snapshots(db, {data.account_id: data.dt})
 
     # Mark the affected user or group cache after all transaction writes are flushed
-    for owner_id, group_id in scopes:
-        await mark_cache_changed_for_scope(db, user_id=owner_id, group_id=group_id)
+    await mark_cache_changed_for_scope(db, user_id=account.owner_id, group_id=account.group_id)
     # Build the response before committing, since a delete of the account may take the row the moment
     # this commits
     await db.flush()

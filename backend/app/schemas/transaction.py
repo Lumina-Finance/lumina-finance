@@ -317,9 +317,6 @@ class BulkDeleteTransactionsRequest(BaseModel):
 
     transaction_ids: list[uuid.UUID] = Field(min_length=1, max_length=MAX_BULK_UPDATE_TRANSACTIONS)
 
-    # Also delete the transactions linked to the chosen ones. Left out, only the links go
-    delete_linked: bool = Field(default=False, strict=True)
-
 
 class BulkDeleteTransactionsResponse(BaseModel):
     """Summary of a bulk transaction delete."""

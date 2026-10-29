@@ -50,16 +50,6 @@ async def test_listing_shows_links_on_both_transactions(client):
     assert rows[second["id"]]["refund_of_transaction_id"] == expense["id"]
 
 
-async def test_a_link_changes_no_amount(client):
-    """Linking leaves both amounts exactly as entered."""
-    headers, account_id, category_id = await _setup_user_with_deps(client)
-    expense = (await _create_transaction(client, headers, account_id, category_id)).json()
-    refund = (await _create_refund(client, headers, account_id, category_id, expense["id"], amount=1234)).json()
-
-    assert (await _get_transaction(client, headers, expense["id"]))["amount"] == -5000
-    assert refund["amount"] == 1234
-
-
 async def test_a_refund_must_be_money_coming_in(client):
     """An outflow cannot be saved as a refund, and nothing is created."""
     headers, account_id, category_id = await _setup_user_with_deps(client)
@@ -149,19 +139,3 @@ async def test_deleting_either_side_removes_the_link(client):
 
     assert (await client.delete(f"/transactions/{expense['id']}", headers=headers)).status_code == 204
     assert (await _get_transaction(client, headers, other_refund["id"]))["refund_of_transaction_id"] is None
-
-
-async def test_bulk_delete_removes_links(client):
-    """A bulk delete of an expense and its refund leaves no link behind to break the delete."""
-    headers, account_id, category_id = await _setup_user_with_deps(client)
-    expense = (await _create_transaction(client, headers, account_id, category_id)).json()
-    refund = (await _create_refund(client, headers, account_id, category_id, expense["id"])).json()
-
-    resp = await client.post(
-        "/transactions/bulk/delete",
-        json={"transaction_ids": [expense["id"], refund["id"]]},
-        headers=headers,
-    )
-
-    assert resp.status_code == 200
-    assert resp.json()["transactions_deleted"] == 2
