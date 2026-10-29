@@ -264,6 +264,7 @@ export default function TransactionModalLinkedRefundsSection({
         onClose={() => setPickerOpen(false)}
         transaction={current}
         heldIds={pending.links.map((link) => link.id)}
+        unlinkedIds={pending.unlinkedRefundIds}
         refundRoom={refundRoom}
         onPick={pending.addLink}
       />

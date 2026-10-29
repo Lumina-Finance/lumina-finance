@@ -42,6 +42,9 @@ interface LinkRefundPickerProps {
   /** Candidates already picked in the window, which are not offered again */
   heldIds: string[]
 
+  /** Refunds whose link the window will remove on Save, which the list offers as if unlinked already */
+  unlinkedIds: string[]
+
   /** What is left to refund of the open expense once its refunds, saved and held, are counted */
   refundRoom: number | undefined
 
@@ -61,6 +64,7 @@ export default function TransactionModalLinkRefundPicker({
   onClose,
   transaction,
   heldIds,
+  unlinkedIds,
   refundRoom,
   onPick,
 }: LinkRefundPickerProps) {
@@ -98,7 +102,11 @@ export default function TransactionModalLinkRefundPicker({
     return () => observer.disconnect()
   }
   const picksRefund = transaction.amount < 0
-  const candidates = useRefundLinkCandidates(open ? transaction.id : null, sentSearch, filters)
+  const candidates = useRefundLinkCandidates(
+    open ? transaction.id : null,
+    sentSearch,
+    unlinkedIds.length > 0 ? { ...filters, unlinked_id: unlinkedIds } : filters,
+  )
   const { data: accounts } = useAccounts()
   const { data: categories } = useCategories()
   const transactionAccounts = useMemo(() => (accounts ?? []).map(toTransactionListAccount), [accounts])

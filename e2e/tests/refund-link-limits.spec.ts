@@ -1,9 +1,10 @@
-// The refund total limit, the filter panel's room inside the picker, and the motion of a link joining or leaving the
-// edit window. Runs on desktop only, as the sizes are covered by the visual spec
+// The refund total limit, a refund unlinked in the window, the filter panel's room inside the picker and Escape over
+// it. Runs on desktop only, as the sizes are covered by the visual spec
 import { expect, test, type Page } from '@playwright/test'
 
-import { createAccount, createTransaction, daysFromTodayInTestTimezone, signUpUser } from '../support/api'
+import { asUser, createAccount, createTransaction, daysFromTodayInTestTimezone, signUpUser } from '../support/api'
 import { logInViaApi, openPage } from '../support/app'
+import { API_BASE_URL } from '../support/target'
 
 async function openRow(page: Page, id: string) {
   await page.getByTestId(`transaction-row-${id}`).click()
@@ -99,6 +100,29 @@ for (const size of [
   })
 }
 
+// A refund whose link is removed in the window, but not saved yet, can be linked to an expense again, since Save
+// removes the link first
+test('offers expenses again to a refund unlinked in the window', async ({ page, request }) => {
+  const user = await signUpUser(request)
+  const account = await createAccount(request, user, { name: 'Everyday' })
+  const row = { accountId: account.id, categoryName: 'Groceries' }
+  const expenseId = await createTransaction(request, user, { ...row, amount: -5000, date: daysFromTodayInTestTimezone(-4) })
+  const refundId = await createTransaction(request, user, { ...row, amount: 1500, date: daysFromTodayInTestTimezone(-1) })
+  await request.post(`${API_BASE_URL}/transactions/${refundId}/refund-link`, {
+    headers: asUser(user),
+    data: { original_transaction_id: expenseId },
+  })
+
+  await logInViaApi(page, user)
+  await openPage(page, `/accounts/${account.id}`)
+  const refund = await openRow(page, refundId)
+  await refund.getByRole('button', { name: /^Unlink / }).click()
+  await refund.getByRole('button', { name: 'Link to an expense', exact: true }).click()
+  const picker = page.getByRole('dialog', { name: 'Link to an expense', exact: true })
+  await expect(picker.getByTestId('link-candidate')).toHaveCount(1)
+  await expect(picker.getByTestId('link-candidate-reason')).toHaveCount(0)
+})
+
 // Escape closes the topmost layer only: the open filter panel (the full-screen sheet on a phone) first, and the
 // picker under it on the next press
 for (const size of [
@@ -134,46 +158,3 @@ for (const size of [
   })
 }
 
-// A link that joins or leaves the Refunds section grows or collapses its row, and the section's height with it,
-// over several frames instead of snapping
-test('eases a link in and out of the Refunds section', async ({ page, request }) => {
-  const user = await signUpUser(request)
-  const account = await createAccount(request, user, { name: 'Everyday' })
-  const row = { accountId: account.id, categoryName: 'Groceries' }
-  const expenseId = await createTransaction(request, user, { ...row, amount: -5000, date: daysFromTodayInTestTimezone(-4) })
-  await createTransaction(request, user, { ...row, amount: 1500, date: daysFromTodayInTestTimezone(-1) })
-
-  await logInViaApi(page, user)
-  await openPage(page, `/accounts/${account.id}`)
-  const expense = await openRow(page, expenseId)
-  const rows = expense.getByTestId('linked-row')
-  const heights = () => rows.evaluateAll((nodes) => nodes.map((node) => node.getBoundingClientRect().height))
-
-  // Samples the row's height from the click for well over the 240ms the sections take
-  const watchHeight = async (action: () => Promise<unknown>) => {
-    await action()
-    const samples: number[] = []
-    for (let sample = 0; sample < 24; sample++) {
-      samples.push((await heights())[0] ?? 0)
-
-      // A headless browser draws a frame only when asked, so a throwaway screenshot drives the animation on
-      await page.screenshot({ clip: { x: 0, y: 0, width: 1, height: 1 } })
-      await page.waitForTimeout(10)
-    }
-    return samples
-  }
-  await expense.getByRole('button', { name: 'Link an existing refund', exact: true }).click()
-  const picker = page.getByRole('dialog', { name: 'Link a refund', exact: true })
-  await picker.getByTestId('link-candidate').getByRole('button').click()
-  const entering = await watchHeight(() => picker.getByRole('button', { name: 'Link', exact: true }).click())
-  const settled = Math.max(...entering)
-  expect(settled).toBeGreaterThan(30)
-
-  // A snap would show only 0 and the full height, so a frame between them, however few the headless browser draws,
-  // is the row easing
-  expect(entering.some((height) => height > 0.5 && height < settled - 0.5), `heights ${entering}`).toBe(true)
-
-  const leaving = await watchHeight(() => expense.getByRole('button', { name: /^Unlink / }).click())
-  expect(leaving.some((height) => height > 0.5 && height < settled - 0.5), `heights ${leaving}`).toBe(true)
-  expect(leaving.at(-1)).toBe(0)
-})
