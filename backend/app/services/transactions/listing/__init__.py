@@ -1,4 +1,5 @@
 """Transaction listing service"""
+
 import uuid
 from datetime import date
 
@@ -7,6 +8,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.user import User
 from app.schemas.transaction import TransactionResponse
+from app.services.transactions.links import get_transaction_links_batch
 from app.services.transactions.listing.amounts import get_transaction_listing_converted_amounts
 from app.services.transactions.listing.queries import (
     build_transaction_listing_query,
@@ -116,6 +118,10 @@ async def list_transaction_responses(
     tag_ids_by_transaction_id = await get_tag_ids_batch(db, [transaction.id for transaction in transactions])
     tag_summaries_by_transaction_id = await get_tags_batch(db, [transaction.id for transaction in transactions])
     merchant_names_by_id = await get_merchant_names_batch(db, [transaction.merchant_id for transaction in transactions])
+    original_by_refund, refunds_by_original = await get_transaction_links_batch(
+        db,
+        [transaction.id for transaction in transactions],
+    )
 
     account_amounts_by_transaction_id, base_amounts_by_transaction_id = await get_transaction_listing_converted_amounts(
         db,
@@ -131,6 +137,8 @@ async def list_transaction_responses(
             tag_summaries_by_transaction_id[transaction.id],
             account_amount=account_amounts_by_transaction_id[transaction.id],
             base_currency_amount=base_amounts_by_transaction_id[transaction.id],
+            refund_of_transaction_id=original_by_refund.get(transaction.id),
+            refund_transaction_ids=refunds_by_original.get(transaction.id),
         )
         for transaction in transactions
     ]

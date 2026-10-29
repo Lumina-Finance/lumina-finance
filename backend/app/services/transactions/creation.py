@@ -1,14 +1,20 @@
 """Transaction creation service"""
+
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.base import PermissionLevel
 from app.models.transaction import Transaction
+from app.models.transaction_link import TransactionLink
 from app.models.user import User
 from app.permissions import check_account_access
 from app.schemas.transaction import CreateTransactionRequest, TransactionResponse
 from app.services.accounts.snapshots import recompute_account_snapshots
 from app.services.cache_state import mark_cache_changed_for_scope
-from app.services.transactions.accounts import validate_transaction_account_is_not_archived
+from app.services.transactions.accounts import (
+    get_parent_account_for_transaction,
+    validate_transaction_account_is_not_archived,
+)
+from app.services.transactions.links import validate_refund_original
 from app.services.transactions.response_helpers import get_transaction_response
 from app.services.transactions.tags import replace_transaction_tag_assignments
 from app.services.transactions.validation import (
@@ -72,6 +78,11 @@ async def create_transaction_and_get_response(
     if data.tag_ids:
         validated_tag_ids = await get_valid_transaction_tag_ids(db, user.id, data.tag_ids, account.group_id)
 
+    # A refund names its expense up front, so a pairing that is not a refund fails before any write
+    original = None
+    if data.refund_of_transaction_id is not None:
+        original = await validate_refund_original(db, user, data.refund_of_transaction_id, data.amount, account)
+
     # Insert the transaction first so optional tag assignments can reference its id
     txn = Transaction(
         created_by_user_id=user.id,
@@ -93,11 +104,20 @@ async def create_transaction_and_get_response(
     if validated_tag_ids:
         await replace_transaction_tag_assignments(db, txn.id, validated_tag_ids)
 
+    scopes = {(account.owner_id, account.group_id)}
+    if original is not None:
+        db.add(TransactionLink(refund_transaction_id=txn.id, original_transaction_id=original.id))
+
+        # The expense may sit in another account, whose cached lists now show the refund
+        original_account = await get_parent_account_for_transaction(db, original)
+        scopes.add((original_account.owner_id, original_account.group_id))
+
     # Rebuild balance snapshots from this transaction's day forward
     await recompute_account_snapshots(db, {data.account_id: data.dt})
 
     # Mark the affected user or group cache after all transaction writes are flushed
-    await mark_cache_changed_for_scope(db, user_id=account.owner_id, group_id=account.group_id)
+    for owner_id, group_id in scopes:
+        await mark_cache_changed_for_scope(db, user_id=owner_id, group_id=group_id)
     # Build the response before committing, since a delete of the account may take the row the moment
     # this commits
     await db.flush()

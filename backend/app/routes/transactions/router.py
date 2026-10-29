@@ -58,6 +58,7 @@ from app.services.transactions.bulk_update import bulk_update_transactions
 from app.services.transactions.creation import create_transaction_and_get_response
 from app.services.transactions.deletion import bulk_delete_transactions, delete_transaction_for_user
 from app.services.transactions.detail import get_transaction_response_for_user
+from app.services.transactions.links import unlink_refund
 from app.services.transactions.listing import list_transaction_responses
 from app.services.transactions.overview import get_transactions_overview as get_transactions_overview_response
 from app.services.transactions.update import update_transaction_and_get_response
@@ -560,6 +561,27 @@ async def update_transaction(
         Updated transaction response with current related display data
     """
     return await update_transaction_and_get_response(db, user, transaction_id, data)
+
+
+@router.delete("/{transaction_id}/refund-link", status_code=status.HTTP_204_NO_CONTENT)
+async def unlink_refund_route(
+    transaction_id: uuid.UUID,
+    user: Annotated[User, Depends(get_current_user)],
+    db: Annotated[AsyncSession, Depends(get_db)],
+):
+    """Remove the link between a refund and the expense it refunds
+
+    Both transactions stay as they are. The refund is the transaction in the path
+
+    Args:
+        transaction_id: The refund, from the route path
+        user: Authenticated user unlinking the refund
+        db: Active database session
+
+    Returns:
+        None
+    """
+    await unlink_refund(db, user, transaction_id)
 
 
 @router.delete("/{transaction_id}", status_code=status.HTTP_204_NO_CONTENT)
