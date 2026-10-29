@@ -18,7 +18,7 @@ export function useStartChoice(range: BankImportRange | undefined, accountName: 
   const [customStart, setCustomStart] = useState('')
 
   const choices = range ? listStartChoices(range, accountName) : []
-  const start = choice === CUSTOM_START ? customStart : choices.find((preset) => preset.key === choice)?.date ?? ''
+  const start = choice === CUSTOM_START ? customStart : (choices.find((preset) => preset.key === choice)?.date ?? '')
   const isDateDisabled = (iso: string) => Boolean(range && (iso < range.earliest_allowed || iso > range.latest_allowed))
 
   return {

@@ -7,7 +7,11 @@ import { useActionFeedback } from '@/hooks/useActionFeedback'
 import { useFittedButtonWidth } from '@/hooks/useFittedButtonWidth'
 import { useRelativeTimeRefresh } from '@/hooks/useRelativeTimeRefresh'
 import { useToast } from '@/hooks/useToast'
-import { describeSyncNow, describeSyncNowBlock, SYNC_FAILED_MESSAGE } from '@/pages/accounts/detail/components/bank-link/syncNow'
+import {
+  describeSyncNow,
+  describeSyncNowBlock,
+  SYNC_FAILED_MESSAGE,
+} from '@/pages/accounts/detail/components/bank-link/syncNow'
 import { callWhenPassed } from '@/utils/timing'
 
 const SYNC_NOW_LABEL = 'Sync now'
@@ -60,9 +64,11 @@ export function SyncNowButton({ link, connection, providers, focusProps }: SyncN
   const { 'data-modal-initial-focus': initialFocus, ...actionProps } = focusProps
 
   const syncNow = () => {
-    void feedback.run(() => sync.mutateAsync(link.account_id)).catch((cause: unknown) => {
-      showToast({ status: 'error', text: cause instanceof ApiError ? cause.message : SYNC_FAILED_MESSAGE })
-    })
+    void feedback
+      .run(() => sync.mutateAsync(link.account_id))
+      .catch((cause: unknown) => {
+        showToast({ status: 'error', text: cause instanceof ApiError ? cause.message : SYNC_FAILED_MESSAGE })
+      })
   }
 
   return (

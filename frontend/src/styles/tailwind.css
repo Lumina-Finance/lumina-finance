@@ -165,7 +165,6 @@
     /* Items waiting for review. Light mode keeps the card neutral and marks it with an ochre dashed edge,
        since a yellow wash turns sickly on the cream background; dark mode can carry a faint wash */
     --app-review-bg: #fbf8f0;
-       since a yellow wash turns sickly on the cream background. Dark mode can carry a faint wash */
     --app-review-border: #a8840080;
     --app-review-count-bg: #6f5700;
     --app-review-count-text: #fbf8f0;
@@ -3484,7 +3483,11 @@
   }
 
   .app-filing-card-ruled {
-    background-image: repeating-linear-gradient(to bottom, transparent 0 calc(1.75rem - 1px), var(--app-filing-card-rule) calc(1.75rem - 1px) 1.75rem);
+    background-image: repeating-linear-gradient(
+      to bottom,
+      transparent 0 calc(1.75rem - 1px),
+      var(--app-filing-card-rule) calc(1.75rem - 1px) 1.75rem
+    );
 
     /* Ruled across the text only, leaving the card's side margins blank */
     background-origin: content-box;

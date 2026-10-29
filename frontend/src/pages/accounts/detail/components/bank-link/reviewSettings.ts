@@ -15,7 +15,11 @@ export const REVIEW_DECISION_OPTIONS = [
 
 /** The kinds of bank data with a choice of their own, in the order Custom lists them */
 export const REVIEW_KINDS: readonly { key: keyof ReviewPreferences; label: string; description: string }[] = [
-  { key: 'new_transactions', label: 'New transactions', description: 'Still need a merchant and category before they are added' },
+  {
+    key: 'new_transactions',
+    label: 'New transactions',
+    description: 'Still need a merchant and category before they are added',
+  },
   { key: 'corrections', label: 'Corrections', description: 'The bank changes the date, amount or description' },
   { key: 'removals', label: 'Removals', description: 'The bank reports a transaction as removed' },
 ]

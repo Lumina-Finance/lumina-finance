@@ -46,7 +46,9 @@ export function SyncStatusDot({ tone, pulse = false, size = 'sm' }: SyncStatusDo
   // animation inside a presence that skips its children's, such as a modal's opening view, so a dot
   // shown already fetching would never blink there
   useEffect(() => {
-    const animation = isBlinking ? animate(dot.current, BLINK_ANIMATE, BLINK_TRANSITION) : animate(dot.current, { opacity: 1 }, SETTLE_TRANSITION)
+    const animation = isBlinking
+      ? animate(dot.current, BLINK_ANIMATE, BLINK_TRANSITION)
+      : animate(dot.current, { opacity: 1 }, SETTLE_TRANSITION)
     return () => animation.stop()
   }, [animate, dot, isBlinking])
 

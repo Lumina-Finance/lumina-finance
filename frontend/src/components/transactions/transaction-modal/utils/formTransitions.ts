@@ -1,8 +1,5 @@
 import { getDefaultDirectionForKind } from '@/components/transactions/transaction-modal/utils/categories'
-import type {
-  TransactionFormValues,
-  TransactionModalKind,
-} from '@/components/transactions/transaction-modal/types'
+import type { TransactionFormValues, TransactionModalKind } from '@/components/transactions/transaction-modal/types'
 
 /**
  * Applies a transaction-kind choice while preserving the form fields supplied by its caller

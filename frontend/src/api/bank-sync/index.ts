@@ -50,9 +50,9 @@ export type {
   TransactionBankSource,
   UnavailableBankAccountReason,
   UnlinkResult,
-} from '@/api/bank-sync/types';
+} from '@/api/bank-sync/types'
 
-export type { ReviewResolution } from '@/api/bank-sync/requests';
+export type { ReviewResolution } from '@/api/bank-sync/requests'
 
 export {
   useAccountBankStatus,
@@ -84,7 +84,7 @@ export {
   useSyncBankAccount,
   useUnlinkBankAccount,
   useUpdateReviewPreferences,
-} from '@/api/bank-sync/hooks';
+} from '@/api/bank-sync/hooks'
 
 export {
   CONNECTION_NICKNAME_MAX_LENGTH,
@@ -94,4 +94,4 @@ export {
   REVIEW_WARNING_COUNT,
   UNANSWERED_CLAIM_POLL_MS,
   UNANSWERED_CLAIM_WATCH_MS,
-} from '@/api/bank-sync/constants';
+} from '@/api/bank-sync/constants'

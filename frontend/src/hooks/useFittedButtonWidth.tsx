@@ -33,8 +33,10 @@ export function useFittedButtonWidth(
       if (cancelled || !button || !measured) return
 
       const style = window.getComputedStyle(button)
-      const chrome = BUTTON_CHROME_PROPERTIES
-        .reduce((total, property) => total + (Number.parseFloat(style.getPropertyValue(property)) || 0), 0)
+      const chrome = BUTTON_CHROME_PROPERTIES.reduce(
+        (total, property) => total + (Number.parseFloat(style.getPropertyValue(property)) || 0),
+        0,
+      )
       const widest = Math.max(0, ...Array.from(measured.children, (label) => label.getBoundingClientRect().width))
       setWidth(Math.ceil(widest + chrome))
     }

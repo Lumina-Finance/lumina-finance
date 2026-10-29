@@ -28,7 +28,9 @@ describe('withMinDelay', () => {
   it('holds an immediate request failure for 800 ms', async () => {
     const failure = new Error('Currency request failed')
     const rejected = vi.fn()
-    const result = withMinDelay(async () => { throw failure }, RETRY_MIN_MS).catch(rejected)
+    const result = withMinDelay(async () => {
+      throw failure
+    }, RETRY_MIN_MS).catch(rejected)
     await vi.advanceTimersByTimeAsync(799)
     expect(rejected).not.toHaveBeenCalled()
     await vi.advanceTimersByTimeAsync(1)

@@ -28,8 +28,18 @@ const POPOVER_ESTIMATED_HEIGHT = 320
 const VIEWPORT_MARGIN = 8
 const WEEKDAY_LABELS = ['Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa', 'Su']
 const MONTH_LABELS = [
-  'January', 'February', 'March', 'April', 'May', 'June',
-  'July', 'August', 'September', 'October', 'November', 'December',
+  'January',
+  'February',
+  'March',
+  'April',
+  'May',
+  'June',
+  'July',
+  'August',
+  'September',
+  'October',
+  'November',
+  'December',
 ]
 const GRID_CELL_COUNT = 42
 const DAYS_PER_WEEK = 7
@@ -43,9 +53,10 @@ function buildMonthGrid(year: number, month: number): Date[] {
   // Columns run Monday to Sunday to match WEEKDAY_LABELS and the week the rest of the product buckets by
   const gridStart = new Date(year, month - 1, 1 - getWeekdayIndex(firstOfMonth))
 
-  return Array.from({ length: GRID_CELL_COUNT }, (_, index) => (
-    new Date(gridStart.getFullYear(), gridStart.getMonth(), gridStart.getDate() + index)
-  ))
+  return Array.from(
+    { length: GRID_CELL_COUNT },
+    (_, index) => new Date(gridStart.getFullYear(), gridStart.getMonth(), gridStart.getDate() + index),
+  )
 }
 
 /**
@@ -92,7 +103,14 @@ function useCalendarPosition(open: boolean, anchorRef: RefObject<HTMLElement | n
  * Renders a floating month grid for picking a date, keeping the browser calendar out of the flow so
  * the date field stays consistent across browsers
  */
-export default function CalendarPopover({ open, anchorRef, value, onSelect, onClose, isDateDisabled }: CalendarPopoverProps) {
+export default function CalendarPopover({
+  open,
+  anchorRef,
+  value,
+  onSelect,
+  onClose,
+  isDateDisabled,
+}: CalendarPopoverProps) {
   const position = useCalendarPosition(open, anchorRef)
   const gridRef = useRef<HTMLDivElement>(null)
   const restoreFocusRef = useRef(true)
@@ -127,9 +145,10 @@ export default function CalendarPopover({ open, anchorRef, value, onSelect, onCl
     restoreFocusRef.current = true
     const anchor = anchorRef.current
     const previousFocus = document.activeElement
-    const field = previousFocus instanceof HTMLElement && anchor?.contains(previousFocus)
-      ? previousFocus
-      : anchor?.querySelector<HTMLInputElement>('input:not([disabled])')
+    const field =
+      previousFocus instanceof HTMLElement && anchor?.contains(previousFocus)
+        ? previousFocus
+        : anchor?.querySelector<HTMLInputElement>('input:not([disabled])')
     const grid = gridRef.current
 
     return () => {

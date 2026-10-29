@@ -10,7 +10,10 @@ import { DisabledReasonButton } from '@/components/tooltips/DisabledReasonButton
 import { ConnectionModal } from '@/pages/settings/components/bank-connections-section/ConnectionModal'
 import { ConnectionRow } from '@/pages/settings/components/bank-connections-section/ConnectionRow'
 import { ConnectModal } from '@/pages/settings/components/bank-connections-section/ConnectModal'
-import { CONNECTION_COLUMNS_CLASS, CONNECTION_LIST_HEIGHT_TRANSITION } from '@/pages/settings/components/bank-connections-section/constants'
+import {
+  CONNECTION_COLUMNS_CLASS,
+  CONNECTION_LIST_HEIGHT_TRANSITION,
+} from '@/pages/settings/components/bank-connections-section/constants'
 import { matchesConnectionSearch } from '@/pages/settings/components/bank-connections-section/utils'
 import SettingsCard from '@/pages/settings/components/Card'
 import SettingsSectionHeader from '@/pages/settings/components/SectionHeader'
@@ -46,11 +49,15 @@ export function BankConnectionsSection() {
   const workerDown = providers !== undefined && offeredProviders.length > 0 && !providers.sync_running
   const addReason = workerDown
     ? "Bank sync isn't running right now. You can add one once it's back."
-    : !providers && providersError ? 'Bank providers could not load. Reload the page to try again.' : null
+    : !providers && providersError
+      ? 'Bank providers could not load. Reload the page to try again.'
+      : null
 
   // Connections are few and already loaded, so the search filters them here rather than on the server
   const [search, setSearch] = useState('')
-  const shownConnections = connections?.filter((connection) => matchesConnectionSearch(connection, search, accountNameFor))
+  const shownConnections = connections?.filter((connection) =>
+    matchesConnectionSearch(connection, search, accountNameFor),
+  )
   const rowsLayoutKey = shownConnections?.map((connection) => connection.id).join(',') ?? ''
 
   const { ref: contentRef, height: contentHeight } = useMeasuredHeight<HTMLDivElement>()
@@ -141,7 +148,11 @@ export function BankConnectionsSection() {
                   <>
                     <div
                       className={`hidden gap-x-4 py-3 pl-4 pr-3 min-[750px]:grid ${CONNECTION_COLUMNS_CLASS}`}
-                      style={{ color: 'var(--app-text-muted)', borderBottom: '1px solid var(--app-border)', background: 'var(--app-surface-soft)' }}
+                      style={{
+                        color: 'var(--app-text-muted)',
+                        borderBottom: '1px solid var(--app-border)',
+                        background: 'var(--app-surface-soft)',
+                      }}
                     >
                       <span className="text-xs font-medium uppercase">Connection</span>
                       <span className="text-xs font-medium uppercase">Bank accounts</span>

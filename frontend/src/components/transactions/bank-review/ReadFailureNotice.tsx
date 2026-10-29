@@ -15,7 +15,11 @@ export type BankReadFailure = {
  *
  * The retry stays focusable while it waits, so a keyboard user who pressed it keeps their place
  */
-export function ReadFailureNotice({ subject, failure, retryRef }: {
+export function ReadFailureNotice({
+  subject,
+  failure,
+  retryRef,
+}: {
   /** What failed, as in "Sync pause status" */
   subject: string
   failure: BankReadFailure

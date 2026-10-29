@@ -50,12 +50,18 @@ function renderPanel(balance: BankBalance): string {
 }
 
 function textOf(markup: string): string {
-  return markup.replace(/<[^>]*>/g, '').replaceAll('&#x27;', '\'').trim()
+  return markup
+    .replace(/<[^>]*>/g, '')
+    .replaceAll('&#x27;', "'")
+    .trim()
 }
 
 /** Each fact's label, without any tooltip after it, and its value, in the order they show */
 function readFacts(markup: string): [string, string][] {
-  return [...markup.matchAll(/<dt[^>]*>(.*?)<\/dt><dd[^>]*>(.*?)<\/dd>/g)].map(([, term, value]) => [textOf(term.split('<span')[0]), textOf(value)])
+  return [...markup.matchAll(/<dt[^>]*>(.*?)<\/dt><dd[^>]*>(.*?)<\/dd>/g)].map(([, term, value]) => [
+    textOf(term.split('<span')[0]),
+    textOf(value),
+  ])
 }
 
 /** The colour of the value of the fact the label names */
@@ -77,7 +83,11 @@ describe('bank balance panel', () => {
   it('reads None in the positive colour without a tooltip when the ledger matches the bank', () => {
     const markup = renderPanel(createBalance())
 
-    expect(readFacts(markup)).toEqual([['SimpleFIN', 'CA$1,250.00'], ['Ledger', 'CA$1,250.00'], ['Difference', 'None']])
+    expect(readFacts(markup)).toEqual([
+      ['SimpleFIN', 'CA$1,250.00'],
+      ['Ledger', 'CA$1,250.00'],
+      ['Difference', 'None'],
+    ])
     expect(readColour(markup, 'Difference')).toBe('var(--app-positive)')
     expect(readTooltips(markup)).toEqual([])
     expect(readCaption(markup)).toMatch(/^As of Oct 3, 6:00\sp\.m\.$/)
@@ -86,18 +96,25 @@ describe('bank balance panel', () => {
   it.each([
     { bank: 120000, difference: 5000, shown: '+CA$50.00' },
     { bank: 130000, difference: -5000, shown: `${MINUS}CA$50.00` },
-  ])('gives the ledger against the bank of $bank as $shown in the warning colour, with the tooltip', ({ bank, difference, shown }) => {
-    const markup = renderPanel(createBalance({ amount: bank, difference }))
+  ])(
+    'gives the ledger against the bank of $bank as $shown in the warning colour, with the tooltip',
+    ({ bank, difference, shown }) => {
+      const markup = renderPanel(createBalance({ amount: bank, difference }))
 
-    expect(readFacts(markup)[2]).toEqual(['Difference', shown])
-    expect(readColour(markup, 'Difference')).toBe('var(--app-warning-text)')
-    expect(readTooltips(markup)).toEqual(['Why the balances differ'])
-  })
+      expect(readFacts(markup)[2]).toEqual(['Difference', shown])
+      expect(readColour(markup, 'Difference')).toBe('var(--app-warning-text)')
+      expect(readTooltips(markup)).toEqual(['Why the balances differ'])
+    },
+  )
 
   it('writes what a card owes as negative balances, held amounts in parentheses', () => {
     const markup = renderPanel(createBalance({ amount: -120000, ledger_balance: -125000, difference: -5000 }))
 
-    expect(readFacts(markup)).toEqual([['SimpleFIN', '(CA$1,200.00)'], ['Ledger', '(CA$1,250.00)'], ['Difference', `${MINUS}CA$50.00`]])
+    expect(readFacts(markup)).toEqual([
+      ['SimpleFIN', '(CA$1,200.00)'],
+      ['Ledger', '(CA$1,250.00)'],
+      ['Difference', `${MINUS}CA$50.00`],
+    ])
   })
 
   it('adds the available balance to the caption when SimpleFIN gives one', () => {
@@ -106,15 +123,18 @@ describe('bank balance panel', () => {
     expect(readCaption(markup)).toMatch(/^As of Oct 3, 6:00\sp\.m\. · CA\$1,180\.00 available$/)
   })
 
-  it('shows a balance that can\'t be read exactly as unavailable, saying why, with no Difference', () => {
+  it("shows a balance that can't be read exactly as unavailable, saying why, with no Difference", () => {
     const markup = renderPanel(createBalance({ amount: null, difference: null }))
 
-    expect(readFacts(markup)).toEqual([['SimpleFIN', 'Unavailable'], ['Ledger', 'CA$1,250.00']])
+    expect(readFacts(markup)).toEqual([
+      ['SimpleFIN', 'Unavailable'],
+      ['Ledger', 'CA$1,250.00'],
+    ])
     expect(readColour(markup, 'SimpleFIN')).toBe('var(--app-text-muted)')
     expect(readTooltips(markup)).toEqual(['Why the balance is unavailable'])
   })
 
-  it('marks an available balance that can\'t be read exactly as unavailable in the caption, saying why', () => {
+  it("marks an available balance that can't be read exactly as unavailable in the caption, saying why", () => {
     const markup = renderPanel(createBalance({ available_unreadable: true }))
 
     expect(readCaption(markup)).toMatch(/^As of Oct 3, 6:00\sp\.m\. · Available balance unavailable/)
@@ -123,8 +143,12 @@ describe('bank balance panel', () => {
 
   it('puts a footer under the caption, and nothing there without one', () => {
     const footer = <p data-testid="footer">Offer</p>
-    const markup = renderToStaticMarkup(<BalancePanel balance={createBalance()} currency="CAD" providerName="SimpleFIN" footer={footer} />)
-    const withoutFooter = renderToStaticMarkup(<BalancePanel balance={createBalance()} currency="CAD" providerName="SimpleFIN" footer={null} />)
+    const markup = renderToStaticMarkup(
+      <BalancePanel balance={createBalance()} currency="CAD" providerName="SimpleFIN" footer={footer} />,
+    )
+    const withoutFooter = renderToStaticMarkup(
+      <BalancePanel balance={createBalance()} currency="CAD" providerName="SimpleFIN" footer={null} />,
+    )
 
     expect(markup).toMatch(/As of .*data-testid="footer"/s)
     expect(withoutFooter).toBe(renderPanel(createBalance()))

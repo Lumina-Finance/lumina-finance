@@ -1,37 +1,37 @@
-import { Info, LoaderCircle, X, type LucideIcon } from 'lucide-react';
-import { useId, type ReactNode } from 'react';
+import { Info, LoaderCircle, X, type LucideIcon } from 'lucide-react'
+import { useId, type ReactNode } from 'react'
 
 /**
  * Guidance that is not a warning or an error, something stopped until the user fixes it, or
  * something waiting on the user's review, in the status dot's colours
  */
-type InfoCalloutTone = 'info' | 'stopped' | 'review';
+type InfoCalloutTone = 'info' | 'stopped' | 'review'
 
 const TONE_COLORS: Record<InfoCalloutTone, { background: string; icon: string }> = {
   info: { background: 'var(--app-accent-soft)', icon: 'var(--app-accent)' },
   stopped: { background: 'var(--app-negative-soft)', icon: 'var(--app-negative)' },
   review: { background: 'var(--app-warning-soft)', icon: 'var(--app-warning-text)' },
-};
+}
 
 type InfoCalloutProps = {
-  children: ReactNode;
-  tone?: InfoCalloutTone;
+  children: ReactNode
+  tone?: InfoCalloutTone
 
   /** Stands in for the info icon */
-  icon?: LucideIcon;
+  icon?: LucideIcon
 
   /** What the user does about it, beside the text, or on its own row on a phone. A titled callout has none */
-  action?: ReactNode;
+  action?: ReactNode
 
   /** What happened, in a few words, with the text under it as its detail */
-  title?: string;
+  title?: string
 
   /** Closes a titled callout from the corner beside its title */
-  onDismiss?: () => void;
+  onDismiss?: () => void
 
   /** Whether the close is running, while its control spins, keeps its focus and takes no other press */
-  dismissing?: boolean;
-};
+  dismissing?: boolean
+}
 
 /**
  * Banner with an icon, neutral unless a tone says otherwise. Only the icon takes the tone's colour, so
@@ -48,9 +48,9 @@ export function InfoCallout({
   onDismiss,
   dismissing = false,
 }: InfoCalloutProps) {
-  const titleId = useId();
-  const colors = TONE_COLORS[tone];
-  const icon = <Icon size={16} strokeWidth={2} className="mt-0.5 shrink-0" style={{ color: colors.icon }} aria-hidden />;
+  const titleId = useId()
+  const colors = TONE_COLORS[tone]
+  const icon = <Icon size={16} strokeWidth={2} className="mt-0.5 shrink-0" style={{ color: colors.icon }} aria-hidden />
 
   if (title !== undefined) {
     return (
@@ -63,7 +63,9 @@ export function InfoCallout({
         {icon}
         <div className="min-w-0 flex-1">
           <div className="flex items-start justify-between gap-3">
-            <p id={titleId} className="font-semibold">{title}</p>
+            <p id={titleId} className="font-semibold">
+              {title}
+            </p>
             {onDismiss && (
               <button
                 type="button"
@@ -73,16 +75,23 @@ export function InfoCallout({
                 aria-busy={dismissing}
                 onClick={dismissing ? undefined : onDismiss}
               >
-                {dismissing
-                  ? <LoaderCircle size={14} strokeWidth={2.4} className="animate-spin motion-reduce:animate-none" aria-hidden />
-                  : <X size={14} aria-hidden />}
+                {dismissing ? (
+                  <LoaderCircle
+                    size={14}
+                    strokeWidth={2.4}
+                    className="animate-spin motion-reduce:animate-none"
+                    aria-hidden
+                  />
+                ) : (
+                  <X size={14} aria-hidden />
+                )}
               </button>
             )}
           </div>
           <p className="mt-0.5">{children}</p>
         </div>
       </div>
-    );
+    )
   }
 
   const message = (
@@ -90,7 +99,7 @@ export function InfoCallout({
       {icon}
       <span>{children}</span>
     </>
-  );
+  )
 
   return (
     <div
@@ -98,14 +107,14 @@ export function InfoCallout({
       style={{ backgroundColor: colors.background, color: 'var(--app-text)' }}
       role="note"
     >
-      {action
-        ? (
-            <>
-              <p className="flex min-w-0 flex-1 items-start gap-2">{message}</p>
-              <div className="shrink-0">{action}</div>
-            </>
-          )
-        : message}
+      {action ? (
+        <>
+          <p className="flex min-w-0 flex-1 items-start gap-2">{message}</p>
+          <div className="shrink-0">{action}</div>
+        </>
+      ) : (
+        message
+      )}
     </div>
-  );
+  )
 }

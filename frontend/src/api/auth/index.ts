@@ -6,11 +6,11 @@ export {
   isRefreshAlreadyRotatedError,
   NO_EXPLANATION_MESSAGE,
   type ApiFieldError,
-} from '@/api/auth/errors';
+} from '@/api/auth/errors'
 
-export { SESSION_KEY } from '@/api/auth/session';
+export { SESSION_KEY } from '@/api/auth/session'
 
-export { getAccessTokenExpiresAt } from '@/api/auth/tokenAge';
+export { getAccessTokenExpiresAt } from '@/api/auth/tokenAge'
 
 export type {
   AuthResponse,
@@ -26,7 +26,7 @@ export type {
   ResetPasswordVerifyPayload,
   SignupPayload,
   User,
-} from '@/api/auth/types';
+} from '@/api/auth/types'
 
 export {
   confirmSignup,
@@ -41,6 +41,6 @@ export {
   signup,
   verifyMfa,
   verifyResetMfa,
-} from '@/api/auth/requests';
+} from '@/api/auth/requests'
 
-export { useRegistrationStatus } from '@/api/auth/hooks';
+export { useRegistrationStatus } from '@/api/auth/hooks'

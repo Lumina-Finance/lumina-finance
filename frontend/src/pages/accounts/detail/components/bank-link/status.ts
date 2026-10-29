@@ -18,7 +18,10 @@ import { formatRelativeFutureTime, formatRelativeTime } from '@/utils/relativeTi
  * @param providers - The deployment's providers and whether the user may link, undefined until read
  * @param status - The account's link, undefined until read and for any account but the user's own personal ones
  */
-export function showsBankSync(providers: BankProvidersResponse | undefined, status: AccountBankStatus | undefined): boolean {
+export function showsBankSync(
+  providers: BankProvidersResponse | undefined,
+  status: AccountBankStatus | undefined,
+): boolean {
   const offered = providers !== undefined && providers.may_link && providers.providers.length > 0
   return offered || Boolean(status?.link)
 }
@@ -74,16 +77,24 @@ function describeLinkSync(link: BankLink, timeZone: string | undefined): BankSyn
   // A link that never synced can still be retrying its import, or reconnected and waiting on its
   // catch-up, which reads as synced until the catch-up runs
   const synced = sync.last_success_at ? `Synced ${formatRelativeTime(sync.last_success_at)}` : 'Not synced yet'
-  const failure = sync.last_failure ? `Last attempt failed ${formatRelativeTime(sync.last_failure.at)}: ${sync.last_failure.reason}` : null
+  const failure = sync.last_failure
+    ? `Last attempt failed ${formatRelativeTime(sync.last_failure.at)}: ${sync.last_failure.reason}`
+    : null
   const next = sync.waiting_on_budget
     ? describeBudgetWait(link)
-    : sync.next_attempt_at ? `Next sync ${formatRelativeFutureTime(sync.next_attempt_at)}` : null
-  const importing = (progress: BankImportProgress) => `Importing · ${progress.windows_done} of ${progress.windows_total}`
+    : sync.next_attempt_at
+      ? `Next sync ${formatRelativeFutureTime(sync.next_attempt_at)}`
+      : null
+  const importing = (progress: BankImportProgress) =>
+    `Importing · ${progress.windows_done} of ${progress.windows_total}`
   const waiting = sync.waiting_new_count.toLocaleString()
 
   switch (sync.state) {
     case 'reconnect_needed':
-      return label('stopped', 'Reconnect needed', [`Reconnect ${link.provider_name} in Settings with a new setup token`, failure])
+      return label('stopped', 'Reconnect needed', [
+        `Reconnect ${link.provider_name} in Settings with a new setup token`,
+        failure,
+      ])
     case 'bank_signin_needed':
       return label('stopped', 'Bank sign-in needed', ['The app checks daily', failure])
     case 'choose_account':
@@ -95,9 +106,17 @@ function describeLinkSync(link: BankLink, timeZone: string | undefined): BankSyn
         `Next part at ${formatAttemptTime(sync.next_attempt_at!, timeZone)}, when the ${link.provider_name} request limit allows another request`,
       ])
     case 'paused':
-      return label('review', `Paused · ${waiting} new to review`, [`Resumes at ${REVIEW_RESUME_COUNT} or fewer`, failure])
+      return label('review', `Paused · ${waiting} new to review`, [
+        `Resumes at ${REVIEW_RESUME_COUNT} or fewer`,
+        failure,
+      ])
     case 'syncing':
-      return label('working', 'Syncing', [sync.last_success_at ? `Last synced ${formatRelativeTime(sync.last_success_at)}` : 'Not synced yet'], true)
+      return label(
+        'working',
+        'Syncing',
+        [sync.last_success_at ? `Last synced ${formatRelativeTime(sync.last_success_at)}` : 'Not synced yet'],
+        true,
+      )
     case 'opening_balance':
       return label('review', 'Opening balance to confirm', [synced, failure, next])
     case 'review_warning':
@@ -122,7 +141,12 @@ function describeLinkSync(link: BankLink, timeZone: string | undefined): BankSyn
  * @param failed - Whether reading the link failed
  * @param timeZone - The user's profile zone, which decides whether a retry falls today
  */
-export function describeBankSync(ownPersonal: boolean, status: AccountBankStatus | undefined, failed: boolean, timeZone?: string): BankSyncLabel {
+export function describeBankSync(
+  ownPersonal: boolean,
+  status: AccountBankStatus | undefined,
+  failed: boolean,
+  timeZone?: string,
+): BankSyncLabel {
   if (!ownPersonal) return { label: 'Manual only', tone: 'off', pulse: false, details: [] }
   if (!status) return { label: failed ? "Couldn't check" : 'Checking…', tone: 'off', pulse: false, details: [] }
   if (!status.link) return { label: 'Not linked', tone: 'off', pulse: false, details: [] }

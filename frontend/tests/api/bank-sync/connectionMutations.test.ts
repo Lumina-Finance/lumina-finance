@@ -6,27 +6,27 @@
  * failed reconnect holding its message back until the reads it starts end, and a rename showing the
  * old name until the list is read again
  */
-import { MutationObserver, onlineManager, QueryClient, QueryObserver } from '@tanstack/react-query';
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { ApiError } from '@/api/auth/errors';
+import { MutationObserver, onlineManager, QueryClient, QueryObserver } from '@tanstack/react-query'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { ApiError } from '@/api/auth/errors'
 
 const { authenticatedFetchMock } = vi.hoisted(() => ({
   authenticatedFetchMock: vi.fn(),
-}));
+}))
 
 vi.mock('@/api/client', () => ({
   authenticatedFetch: authenticatedFetchMock,
-}));
+}))
 
 import {
   claimSetupTokenMutationOptions,
   reconnectBankConnectionMutationOptions,
   renameBankConnectionMutationOptions,
-} from '@/api/bank-sync/hooks';
-import type { BankConnection } from '@/api/bank-sync/types';
-import { bankSyncKeys } from '@/api/cache/queryKeys';
+} from '@/api/bank-sync/hooks'
+import type { BankConnection } from '@/api/bank-sync/types'
+import { bankSyncKeys } from '@/api/cache/queryKeys'
 
-let queryClient: QueryClient;
+let queryClient: QueryClient
 
 function connection(overrides: Partial<BankConnection> = {}): BankConnection {
   return {
@@ -42,95 +42,98 @@ function connection(overrides: Partial<BankConnection> = {}): BankConnection {
     discovery_pending: false,
     request_budget: { limit: 20, used: 0, available_again_at: null, held_by_provider: false },
     ...overrides,
-  };
+  }
 }
 
 beforeEach(() => {
-  authenticatedFetchMock.mockReset();
-  vi.useFakeTimers();
-  queryClient = new QueryClient();
-});
+  authenticatedFetchMock.mockReset()
+  vi.useFakeTimers()
+  queryClient = new QueryClient()
+})
 
 afterEach(() => {
-  onlineManager.setOnline(true);
-  queryClient.clear();
-  vi.useRealTimers();
-});
+  onlineManager.setOnline(true)
+  queryClient.clear()
+  vi.useRealTimers()
+})
 
 describe('a setup token sent while offline', () => {
   beforeEach(() => {
-    onlineManager.setOnline(false);
-    authenticatedFetchMock.mockRejectedValue(new TypeError('Failed to fetch'));
-  });
+    onlineManager.setOnline(false)
+    authenticatedFetchMock.mockRejectedValue(new TypeError('Failed to fetch'))
+  })
 
   it('fails at once for a claim rather than waiting for a connection', async () => {
-    const observer = new MutationObserver(queryClient, claimSetupTokenMutationOptions(queryClient));
+    const observer = new MutationObserver(queryClient, claimSetupTokenMutationOptions(queryClient))
 
-    const sent = observer.mutate({ provider: 'simplefin', setup_token: 'token' }).catch((error: unknown) => error);
-    await vi.runAllTimersAsync();
+    const sent = observer.mutate({ provider: 'simplefin', setup_token: 'token' }).catch((error: unknown) => error)
+    await vi.runAllTimersAsync()
 
-    expect(observer.getCurrentResult()).toMatchObject({ status: 'error', isPaused: false });
-    expect(await sent).toBeInstanceOf(TypeError);
-  });
+    expect(observer.getCurrentResult()).toMatchObject({ status: 'error', isPaused: false })
+    expect(await sent).toBeInstanceOf(TypeError)
+  })
 
   it('fails at once for a reconnect rather than waiting for a connection', async () => {
-    const observer = new MutationObserver(queryClient, reconnectBankConnectionMutationOptions(queryClient));
+    const observer = new MutationObserver(queryClient, reconnectBankConnectionMutationOptions(queryClient))
 
-    const sent = observer.mutate({ connectionId: 'connection-1', setupToken: 'token' }).catch((error: unknown) => error);
-    await vi.runAllTimersAsync();
+    const sent = observer.mutate({ connectionId: 'connection-1', setupToken: 'token' }).catch((error: unknown) => error)
+    await vi.runAllTimersAsync()
 
-    expect(observer.getCurrentResult()).toMatchObject({ status: 'error', isPaused: false });
-    expect(await sent).toBeInstanceOf(TypeError);
-  });
-});
+    expect(observer.getCurrentResult()).toMatchObject({ status: 'error', isPaused: false })
+    expect(await sent).toBeInstanceOf(TypeError)
+  })
+})
 
 describe('a claim the server refused', () => {
   it('reads the connections again, since an earlier try with the same token may have saved one unseen', async () => {
-    const refusal = 'This setup token has already been used. Create a new one in SimpleFIN Bridge';
-    queryClient.setQueryData(bankSyncKeys.connections(), []);
-    authenticatedFetchMock.mockRejectedValue(new ApiError(refusal, 422, { detail: refusal }));
-    const observer = new MutationObserver(queryClient, claimSetupTokenMutationOptions(queryClient));
+    const refusal = 'This setup token has already been used. Create a new one in SimpleFIN Bridge'
+    queryClient.setQueryData(bankSyncKeys.connections(), [])
+    authenticatedFetchMock.mockRejectedValue(new ApiError(refusal, 422, { detail: refusal }))
+    const observer = new MutationObserver(queryClient, claimSetupTokenMutationOptions(queryClient))
 
-    const sent = observer.mutate({ provider: 'simplefin', setup_token: 'token' }).catch(() => undefined);
-    await vi.runAllTimersAsync();
-    await sent;
+    const sent = observer.mutate({ provider: 'simplefin', setup_token: 'token' }).catch(() => undefined)
+    await vi.runAllTimersAsync()
+    await sent
 
-    expect(queryClient.getQueryState(bankSyncKeys.connections())?.isInvalidated).toBe(true);
-  });
-});
+    expect(queryClient.getQueryState(bankSyncKeys.connections())?.isInvalidated).toBe(true)
+  })
+})
 
 describe('a reconnect that loses its answer', () => {
   it('shows its failure while the reads it starts are still on their way', async () => {
-    queryClient.setQueryData(bankSyncKeys.connections(), [connection()]);
+    queryClient.setQueryData(bankSyncKeys.connections(), [connection()])
     const heldRead = new QueryObserver(queryClient, {
       queryKey: bankSyncKeys.connections(),
       queryFn: () => new Promise<BankConnection[]>(() => {}),
       staleTime: Infinity,
-    });
-    const unsubscribe = heldRead.subscribe(() => {});
-    authenticatedFetchMock.mockRejectedValue(new TypeError('Failed to fetch'));
-    const observer = new MutationObserver(queryClient, reconnectBankConnectionMutationOptions(queryClient));
+    })
+    const unsubscribe = heldRead.subscribe(() => {})
+    authenticatedFetchMock.mockRejectedValue(new TypeError('Failed to fetch'))
+    const observer = new MutationObserver(queryClient, reconnectBankConnectionMutationOptions(queryClient))
 
-    void observer.mutate({ connectionId: 'connection-1', setupToken: 'token' }).catch(() => undefined);
-    await vi.runAllTimersAsync();
+    void observer.mutate({ connectionId: 'connection-1', setupToken: 'token' }).catch(() => undefined)
+    await vi.runAllTimersAsync()
 
-    expect(heldRead.getCurrentResult().isFetching).toBe(true);
-    expect(observer.getCurrentResult().status).toBe('error');
-    unsubscribe();
-  });
-});
+    expect(heldRead.getCurrentResult().isFetching).toBe(true)
+    expect(observer.getCurrentResult().status).toBe('error')
+    unsubscribe()
+  })
+})
 
 describe('a rename', () => {
   it('puts the new name in the cached list before the list is read again', async () => {
-    queryClient.setQueryData(bankSyncKeys.connections(), [connection(), connection({ id: 'connection-2' })]);
-    authenticatedFetchMock.mockResolvedValue(connection({ nickname: 'Household' }));
-    const observer = new MutationObserver(queryClient, renameBankConnectionMutationOptions(queryClient));
+    queryClient.setQueryData(bankSyncKeys.connections(), [connection(), connection({ id: 'connection-2' })])
+    authenticatedFetchMock.mockResolvedValue(connection({ nickname: 'Household' }))
+    const observer = new MutationObserver(queryClient, renameBankConnectionMutationOptions(queryClient))
 
-    const renamed = observer.mutate({ connectionId: 'connection-1', nickname: 'Household' });
-    await vi.runAllTimersAsync();
-    await renamed;
+    const renamed = observer.mutate({ connectionId: 'connection-1', nickname: 'Household' })
+    await vi.runAllTimersAsync()
+    await renamed
 
-    const cached = queryClient.getQueryData<BankConnection[]>(bankSyncKeys.connections());
-    expect(cached?.map((entry) => [entry.id, entry.nickname])).toEqual([['connection-1', 'Household'], ['connection-2', null]]);
-  });
-});
+    const cached = queryClient.getQueryData<BankConnection[]>(bankSyncKeys.connections())
+    expect(cached?.map((entry) => [entry.id, entry.nickname])).toEqual([
+      ['connection-1', 'Household'],
+      ['connection-2', null],
+    ])
+  })
+})

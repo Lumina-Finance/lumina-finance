@@ -130,7 +130,11 @@ export function ModalTitledPanel({
       </div>
 
       {/* Marked so a message shown while the modal fills the screen can sit above the whole of it */}
-      {footer && <div className="shrink-0" data-modal-footer>{footer}</div>}
+      {footer && (
+        <div className="shrink-0" data-modal-footer>
+          {footer}
+        </div>
+      )}
     </>
   )
 

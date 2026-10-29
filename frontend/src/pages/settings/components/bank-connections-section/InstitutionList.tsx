@@ -19,7 +19,8 @@ import { countNoun, providerSite } from '@/utils/bankSync'
 
 // On phones the bank account spans the row, with the arrow and the account under it. From tablets up
 // the three sit side by side
-const MAPPING_ROW_CLASS = 'grid grid-cols-[1rem_minmax(0,1fr)] items-center gap-2 py-2.5 min-[750px]:grid-cols-[minmax(0,1fr)_1rem_minmax(0,1fr)] min-[750px]:gap-3'
+const MAPPING_ROW_CLASS =
+  'grid grid-cols-[1rem_minmax(0,1fr)] items-center gap-2 py-2.5 min-[750px]:grid-cols-[minmax(0,1fr)_1rem_minmax(0,1fr)] min-[750px]:gap-3'
 const MAPPING_SOURCE_CLASS = 'col-span-2 min-w-0 text-sm min-[750px]:col-span-1'
 const TILE_CLASS = 'flex min-h-10 w-full min-w-0 items-center gap-2 rounded-lg px-3 text-sm'
 
@@ -82,7 +83,15 @@ interface BankAccountRowProps {
  * where it goes, or offers the accounts the server says could take it in a dropdown. Choosing one
  * opens the link flow at its start step
  */
-function BankAccountRow({ bankAccount, canLink, overLimit, linkingPaused, linking, accountNameFor, onLink }: BankAccountRowProps) {
+function BankAccountRow({
+  bankAccount,
+  canLink,
+  overLimit,
+  linkingPaused,
+  linking,
+  accountNameFor,
+  onLink,
+}: BankAccountRowProps) {
   const prefersReducedMotion = useReducedMotion()
   const nameId = useId()
   const linkedId = bankAccount.linked_account_id
@@ -95,7 +104,11 @@ function BankAccountRow({ bankAccount, canLink, overLimit, linkingPaused, linkin
   return (
     <div className={MAPPING_ROW_CLASS}>
       <span className={MAPPING_SOURCE_CLASS}>
-        <span id={nameId} className="block truncate" style={{ color: bankAccount.custom_currency ? 'var(--app-text-muted)' : 'var(--app-text)' }}>
+        <span
+          id={nameId}
+          className="block truncate"
+          style={{ color: bankAccount.custom_currency ? 'var(--app-text-muted)' : 'var(--app-text)' }}
+        >
           {bankAccount.name}
         </span>
         <span className="block truncate text-xs" style={{ color: 'var(--app-text-muted)' }}>
@@ -105,7 +118,9 @@ function BankAccountRow({ bankAccount, canLink, overLimit, linkingPaused, linkin
       {bankAccount.custom_currency && !linkedId ? (
         <>
           <span aria-hidden />
-          <span className="px-3 text-xs" style={{ color: 'var(--app-text-muted)' }}>Can&apos;t be linked</span>
+          <span className="px-3 text-xs" style={{ color: 'var(--app-text-muted)' }}>
+            Can&apos;t be linked
+          </span>
         </>
       ) : (
         <>
@@ -121,18 +136,27 @@ function BankAccountRow({ bankAccount, canLink, overLimit, linkingPaused, linkin
                 initial={prefersReducedMotion ? { opacity: 0 } : { opacity: 0, y: 6, scale: 0.98 }}
                 animate={{ opacity: 1, y: 0, scale: 1 }}
                 exit={prefersReducedMotion ? { opacity: 0 } : { opacity: 0, y: -4, scale: 0.98 }}
-                transition={prefersReducedMotion ? { duration: 0.12 } : { type: 'spring', visualDuration: 0.3, bounce: 0.15 }}
+                transition={
+                  prefersReducedMotion ? { duration: 0.12 } : { type: 'spring', visualDuration: 0.3, bounce: 0.15 }
+                }
               >
                 {slot === 'linked' && linkedId ? (
                   <LinkedAccountTile accountId={linkedId} name={accountNameFor(linkedId) ?? ACCOUNT_FALLBACK_NAME} />
                 ) : slot === 'linking' ? (
-                  <span className={`${TILE_CLASS} border`} style={{ borderColor: 'var(--app-border)', color: 'var(--app-text-muted)' }} role="status">
+                  <span
+                    className={`${TILE_CLASS} border`}
+                    style={{ borderColor: 'var(--app-border)', color: 'var(--app-text-muted)' }}
+                    role="status"
+                  >
                     <span className="app-spinner h-4 w-4 shrink-0" aria-hidden />
                     Linking…
                   </span>
                 ) : targets.length === 0 && !overLimit ? (
                   // Plain text rather than an empty, disabled dropdown, whose faded text would be unreadable
-                  <span className={`${TILE_CLASS} border`} style={{ borderColor: 'var(--app-border)', color: 'var(--app-text-muted)' }}>
+                  <span
+                    className={`${TILE_CLASS} border`}
+                    style={{ borderColor: 'var(--app-border)', color: 'var(--app-text-muted)' }}
+                  >
                     No account can take it
                   </span>
                 ) : (
@@ -200,7 +224,15 @@ export interface InstitutionEntry {
  * about any problem, so a long list reads at a glance while closed. A name too long for the row is cut
  * short before the count, and scrolls in place while the row is hovered or focused
  */
-export function InstitutionRow({ entry, defaultOpen, prefersReducedMotion }: { entry: InstitutionEntry; defaultOpen: boolean; prefersReducedMotion: boolean | null }) {
+export function InstitutionRow({
+  entry,
+  defaultOpen,
+  prefersReducedMotion,
+}: {
+  entry: InstitutionEntry
+  defaultOpen: boolean
+  prefersReducedMotion: boolean | null
+}) {
   // Follows the default until the row is toggled, so an institution whose problem shows up after the
   // modal opens still starts open
   const [toggled, setToggled] = useState<boolean | null>(null)
@@ -229,9 +261,15 @@ export function InstitutionRow({ entry, defaultOpen, prefersReducedMotion }: { e
             style={{ color: 'var(--app-text-subtle)' }}
           />
           <span className="min-w-0 flex-1">
-            <MarqueeText className="font-semibold text-[var(--app-text)] transition-colors duration-150 group-hover/row:text-[var(--app-accent)]">{entry.name}</MarqueeText>
+            <MarqueeText className="font-semibold text-[var(--app-text)] transition-colors duration-150 group-hover/row:text-[var(--app-accent)]">
+              {entry.name}
+            </MarqueeText>
             {entry.problem && <ProblemLine>{entry.problem}</ProblemLine>}
-            {entry.countNote && <span className="mt-0.5 block text-xs sm:hidden" style={{ color: 'var(--app-text-muted)' }}>{counted}</span>}
+            {entry.countNote && (
+              <span className="mt-0.5 block text-xs sm:hidden" style={{ color: 'var(--app-text-muted)' }}>
+                {counted}
+              </span>
+            )}
           </span>
         </button>
         {entry.hint && (
@@ -243,7 +281,9 @@ export function InstitutionRow({ entry, defaultOpen, prefersReducedMotion }: { e
         )}
         {/* Keeps its width, so a long name gives way to the count rather than running into it */}
         <span className={`${entry.countNote ? 'hidden sm:flex' : 'flex'} ml-auto shrink-0 self-stretch py-3.5 pl-3`}>
-          <span className="shrink-0 text-xs leading-6" style={{ color: 'var(--app-text-muted)' }}>{counted}</span>
+          <span className="shrink-0 text-xs leading-6" style={{ color: 'var(--app-text-muted)' }}>
+            {counted}
+          </span>
         </span>
       </div>
       <AnimatePresence initial={false}>
@@ -259,7 +299,11 @@ export function InstitutionRow({ entry, defaultOpen, prefersReducedMotion }: { e
             transition={{ duration: prefersReducedMotion ? 0 : 0.2, ease: EASE }}
           >
             <div className="pb-3 pl-7 pr-1">
-              {entry.note && <p className="pb-1 text-xs" style={{ color: 'var(--app-warning-text)' }}>{entry.note}</p>}
+              {entry.note && (
+                <p className="pb-1 text-xs" style={{ color: 'var(--app-warning-text)' }}>
+                  {entry.note}
+                </p>
+              )}
               {entry.body}
             </div>
           </motion.div>
@@ -271,7 +315,10 @@ export function InstitutionRow({ entry, defaultOpen, prefersReducedMotion }: { e
 
 function GroupLabel({ tone, children }: { tone?: 'negative'; children: ReactNode }) {
   return (
-    <h4 className={`pb-2 text-xs uppercase ${tone === 'negative' ? 'font-semibold' : 'font-medium'}`} style={{ color: tone === 'negative' ? 'var(--app-negative)' : 'var(--app-text-muted)' }}>
+    <h4
+      className={`pb-2 text-xs uppercase ${tone === 'negative' ? 'font-semibold' : 'font-medium'}`}
+      style={{ color: tone === 'negative' ? 'var(--app-negative)' : 'var(--app-text-muted)' }}
+    >
       {children}
     </h4>
   )
@@ -316,16 +363,18 @@ export function InstitutionList({
   prefersReducedMotion,
 }: InstitutionListProps) {
   const isActive = connection.status === 'active'
-  const groups = groupInstitutions(connection, { institutionLimit, institutionsInUse })
-    .filter((group) => matchesInstitutionSearch(group, query))
+  const groups = groupInstitutions(connection, { institutionLimit, institutionsInUse }).filter((group) =>
+    matchesInstitutionSearch(group, query),
+  )
 
   const entries: InstitutionEntry[] = groups.map((group) => ({
     key: `institution:${group.name}`,
     name: group.name,
     problem: group.signInNeeded ? `Sign in again in ${providerSite(connection)}` : undefined,
-    note: group.overLimit && institutionLimit !== null
-      ? `Linking here would go over your limit of ${countNoun(institutionLimit, 'institution')}.`
-      : undefined,
+    note:
+      group.overLimit && institutionLimit !== null
+        ? `Linking here would go over your limit of ${countNoun(institutionLimit, 'institution')}.`
+        : undefined,
     linked: group.linked,
     total: group.bankAccounts.length,
     body: (
@@ -350,8 +399,11 @@ export function InstitutionList({
   // First, since nothing on these syncs until each account gets its bank account back
   const chooseAgain = connection.choose_again_links
   const needle = query.trim().toLowerCase()
-  const mismatchMatches = !needle || ['mismatch detected', ...chooseAgain.map((link) => link.external_account_name)]
-    .some((text) => text.toLowerCase().includes(needle))
+  const mismatchMatches =
+    !needle ||
+    ['mismatch detected', ...chooseAgain.map((link) => link.external_account_name)].some((text) =>
+      text.toLowerCase().includes(needle),
+    )
   if (chooseAgain.length > 0 && mismatchMatches) {
     entries.unshift({
       key: 'mismatch',
@@ -367,11 +419,16 @@ export function InstitutionList({
             <li key={link.account_id}>
               <div className={MAPPING_ROW_CLASS}>
                 <span className={MAPPING_SOURCE_CLASS}>
-                  <span className="block truncate" style={{ color: 'var(--app-text-muted)' }}>Was {link.external_account_name}</span>
+                  <span className="block truncate" style={{ color: 'var(--app-text-muted)' }}>
+                    Was {link.external_account_name}
+                  </span>
                   <ProblemLine>Choose bank account</ProblemLine>
                 </span>
                 <MappingArrow />
-                <LinkedAccountTile accountId={link.account_id} name={accountNameFor(link.account_id) ?? ACCOUNT_FALLBACK_NAME} />
+                <LinkedAccountTile
+                  accountId={link.account_id}
+                  name={accountNameFor(link.account_id) ?? ACCOUNT_FALLBACK_NAME}
+                />
               </div>
             </li>
           ))}
@@ -389,7 +446,12 @@ export function InstitutionList({
   const renderGroup = (group: InstitutionEntry[]) => (
     <div className="divide-y divide-[var(--app-border)] border-y border-[var(--app-border)]">
       {group.map((entry) => (
-        <InstitutionRow key={entry.key} entry={entry} defaultOpen={Boolean(entry.problem) || onlyOne} prefersReducedMotion={prefersReducedMotion} />
+        <InstitutionRow
+          key={entry.key}
+          entry={entry}
+          defaultOpen={Boolean(entry.problem) || onlyOne}
+          prefersReducedMotion={prefersReducedMotion}
+        />
       ))}
     </div>
   )
@@ -398,16 +460,22 @@ export function InstitutionList({
   // connections read is polled meanwhile, so they arrive here by themselves
   if (connection.accounts.length === 0 && chooseAgain.length === 0) {
     return connection.discovery_pending ? (
-      <p className="py-6 text-center text-sm" role="status" style={{ color: 'var(--app-text-muted)' }}>Listing the bank accounts…</p>
+      <p className="py-6 text-center text-sm" role="status" style={{ color: 'var(--app-text-muted)' }}>
+        Listing the bank accounts…
+      </p>
     ) : (
-      <p className="py-6 text-center text-sm" style={{ color: 'var(--app-text-muted)' }}>{providerSite(connection)} returned no bank accounts for this connection.</p>
+      <p className="py-6 text-center text-sm" style={{ color: 'var(--app-text-muted)' }}>
+        {providerSite(connection)} returned no bank accounts for this connection.
+      </p>
     )
   }
 
   return (
     <div className="space-y-5">
       {entries.length === 0 && needle && (
-        <p className="py-6 text-center text-sm" style={{ color: 'var(--app-text-muted)' }}>No institutions match &ldquo;{query.trim()}&rdquo;.</p>
+        <p className="py-6 text-center text-sm" style={{ color: 'var(--app-text-muted)' }}>
+          No institutions match &ldquo;{query.trim()}&rdquo;.
+        </p>
       )}
       {attention.length > 0 && (
         <div>

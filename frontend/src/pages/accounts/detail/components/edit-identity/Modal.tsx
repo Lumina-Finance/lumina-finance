@@ -1,10 +1,6 @@
 import { useEffect, useMemo, useRef, useState, type FormEvent } from 'react'
 import { useReducedMotion } from 'motion/react'
-import {
-  useDeleteAccount,
-  useUpdateAccount,
-  type Account,
-} from '@/api/accounts'
+import { useDeleteAccount, useUpdateAccount, type Account } from '@/api/accounts'
 import { useCurrencies } from '@/api/currency'
 import { FormError } from '@/components/forms/FormError'
 import { useCurrencyListState } from '@/hooks/useCurrencyListState'
@@ -16,11 +12,7 @@ import { useTaxAdvantagedCategories } from '@/api/tax-advantaged-categories'
 import InstitutionModal from '@/components/reference-modals/InstitutionModal'
 import type { DropdownOption } from '@/components/dropdown/Dropdown'
 import { ModalShell } from '@/components/modal/Shell'
-import {
-  DEFAULT_MINOR_UNIT_EXPONENT,
-  findCurrencyExponent,
-  fromMinorUnits,
-} from '@/utils/moneyInput'
+import { DEFAULT_MINOR_UNIT_EXPONENT, findCurrencyExponent, fromMinorUnits } from '@/utils/moneyInput'
 import { formatCurrencySymbol } from '@/utils/formatCurrency'
 import { ACTION_LOADING_MIN_MS, LOADING_ANIMATION_MIN_MS, waitForMilliseconds } from '@/utils/timing'
 import {
@@ -98,9 +90,7 @@ export default function EditAccountIdentityModal({
     error: taxAdvantagedCategoriesError,
     isError: taxAdvantagedCategoriesFailed,
   } = useTaxAdvantagedCategories()
-  const [form, setForm] = useState<IdentityFormValues>(() => (
-    createIdentityFormValues(account, currencies)
-  ))
+  const [form, setForm] = useState<IdentityFormValues>(() => createIdentityFormValues(account, currencies))
   const [submitError, setSubmitError] = useState<string | null>(null)
   const [deleteError, setDeleteError] = useState<string | null>(null)
   const [deleteStage, setDeleteStage] = useState<DeleteStage>('idle')
@@ -126,14 +116,20 @@ export default function EditAccountIdentityModal({
       const section = bankLinkSectionRef.current
       if (!area || !section) return
       const offset = section.getBoundingClientRect().top - area.getBoundingClientRect().top
-      area.scrollTo({ top: area.scrollTop + offset - BANK_LINK_SCROLL_GAP_PX, behavior: prefersReducedMotion ? 'auto' : 'smooth' })
+      area.scrollTo({
+        top: area.scrollTop + offset - BANK_LINK_SCROLL_GAP_PX,
+        behavior: prefersReducedMotion ? 'auto' : 'smooth',
+      })
     }, BANK_LINK_SCROLL_DELAY_MS)
     return () => window.clearTimeout(timer)
   }, [open, showBankLink, prefersReducedMotion])
 
   const isRevolving = account.account_kind === 'revolving'
-  const canLinkTaxAdvantagedCategory = account.account_kind === 'asset' && account.group_id === null && !account.is_archived
-  const selectedCurrencySymbol = currencies.some((currency) => currency.id === account.currency) ? formatCurrencySymbol(account.currency) : ''
+  const canLinkTaxAdvantagedCategory =
+    account.account_kind === 'asset' && account.group_id === null && !account.is_archived
+  const selectedCurrencySymbol = currencies.some((currency) => currency.id === account.currency)
+    ? formatCurrencySymbol(account.currency)
+    : ''
   const knownCreditLimitExponent = findCurrencyExponent(currencies, account.currency)
   const isCreditLimitLocked = isRevolving && knownCreditLimitExponent === null
   const refusal = useRefusedSubmit<(typeof EDIT_ACCOUNT_IDENTITY_FIELDS)[number]>(
@@ -148,19 +144,19 @@ export default function EditAccountIdentityModal({
     DELETE_ACCOUNT_CONTROL_IDS,
   )
 
-  const readyCreditLimit = knownCreditLimitExponent === null
-    ? null
-    : fromMinorUnits(account.credit_limit, knownCreditLimitExponent)
+  const readyCreditLimit =
+    knownCreditLimitExponent === null ? null : fromMinorUnits(account.credit_limit, knownCreditLimitExponent)
 
   // Each opening reseeds the form, so it also gets one new chance to restore a blank stored limit
   useRestoreOnceWhenReady({
     open,
     shouldRestore: isCreditLimitLocked && account.credit_limit !== null,
     readyValue: readyCreditLimit,
-    restore: (creditLimit) => setForm((current) => ({
-      ...current,
-      credit_limit: creditLimit,
-    })),
+    restore: (creditLimit) =>
+      setForm((current) => ({
+        ...current,
+        credit_limit: creditLimit,
+      })),
   })
 
   // The modal stays mounted between openings, so everything typed, failed or half-confirmed last time is
@@ -315,9 +311,8 @@ export default function EditAccountIdentityModal({
   const visibilitySectionNumber = String(bankLinkSectionIndex + (showsBankLinkSection ? 1 : 0)).padStart(2, '0')
   const isArchiving = !account.is_archived && form.is_archived
 
-  const archiveLinkedReason = bankLink && !account.is_archived
-    ? getArchiveBlockedByLinkReason(bankLink.provider_name)
-    : null
+  const archiveLinkedReason =
+    bankLink && !account.is_archived ? getArchiveBlockedByLinkReason(bankLink.provider_name) : null
 
   // Left until the account is unlinked, so the switch gives one reason at a time
   const isArchiveBlocked = !archiveLinkedReason && !account.is_archived && account.has_transactions_after_today
@@ -350,19 +345,16 @@ export default function EditAccountIdentityModal({
         {/* No layout animation here, for the reason given beside the panel in components/modal/Shell.tsx.
             The sections that appear and disappear animate their own height instead, and this form follows
             them because it is sized by what it holds */}
-        <form
-          onSubmit={handleSubmit}
-          className="flex min-h-0 w-full flex-col"
-          noValidate
-        >
-          <EditModalHeader
-            accountType={account.account_type}
-            isBusy={isBusy}
-            onClose={requestClose}
-          />
+        <form onSubmit={handleSubmit} className="flex min-h-0 w-full flex-col" noValidate>
+          <EditModalHeader accountType={account.account_type} isBusy={isBusy} onClose={requestClose} />
 
           {/* A tooltip in a section flips and shifts to stay within what this area shows */}
-          <div ref={scrollAreaRef} className="min-h-0 flex-1 overflow-y-auto pb-3 pl-4 pr-5 pt-4 min-[1050px]:px-7" data-tooltip-bounds data-dropdown-bounds>
+          <div
+            ref={scrollAreaRef}
+            className="min-h-0 flex-1 overflow-y-auto pb-3 pl-4 pr-5 pt-4 min-[1050px]:px-7"
+            data-tooltip-bounds
+            data-dropdown-bounds
+          >
             <div className="space-y-5">
               <AccountIdentitySection
                 form={form}

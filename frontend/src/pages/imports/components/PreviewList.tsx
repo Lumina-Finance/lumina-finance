@@ -24,11 +24,7 @@ function isExactPreview(transaction: Transaction | ExactPreviewTransaction): tra
  * wide, so the wrapper must define the same column tracks the transactions page
  * uses or the cells collapse into a vertical stack
  */
-export function ImportPreviewList({
-  groups,
-}: {
-  groups: PreviewGroup[]
-}) {
+export function ImportPreviewList({ groups }: { groups: PreviewGroup[] }) {
   const { currencies } = useMoneyFormatters()
   const today = useTodayYmd()
   const [isUpcomingExpanded, setIsUpcomingExpanded] = useState(false)
@@ -74,9 +70,16 @@ export function ImportPreviewList({
             dateHeadingId: `${dayHeadingIdPrefix}-${set}-${groupIndex}`,
             onOpen: () => undefined,
           }
-          return isExactPreview(row.transaction)
-            ? <TransactionRowView key={row.id} {...props} transaction={row.transaction} amountPresentation={formatPreviewMoney(row.transaction.amount, row.currency, currencies)} />
-            : <TransactionRow key={row.id} {...props} currency={row.currency} transaction={row.transaction} />
+          return isExactPreview(row.transaction) ? (
+            <TransactionRowView
+              key={row.id}
+              {...props}
+              transaction={row.transaction}
+              amountPresentation={formatPreviewMoney(row.transaction.amount, row.currency, currencies)}
+            />
+          ) : (
+            <TransactionRow key={row.id} {...props} currency={row.currency} transaction={row.transaction} />
+          )
         })}
       </div>
     ))

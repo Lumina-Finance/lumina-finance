@@ -46,7 +46,7 @@ describe('bank value captions', () => {
     })
   })
 
-  it('show an amount the bank sent with more decimal places than the currency holds exactly as sent, saying why it can\'t be restored', () => {
+  it("show an amount the bank sent with more decimal places than the currency holds exactly as sent, saying why it can't be restored", () => {
     const source = {
       ...BANK_SOURCE,
       bank_values: { ...BANK_SOURCE.bank_values, amount: null, raw_amount: '-42.505' },
@@ -57,7 +57,7 @@ describe('bank value captions', () => {
       date: null,
       amount: {
         value: `${MINUS}CA$42.505`,
-        unavailableReason: 'The bank\'s amount has more decimal places than CAD allows, so it can\'t be restored.',
+        unavailableReason: "The bank's amount has more decimal places than CAD allows, so it can't be restored.",
       },
     })
   })

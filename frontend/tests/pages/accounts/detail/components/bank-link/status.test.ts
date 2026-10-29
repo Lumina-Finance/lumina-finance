@@ -11,7 +11,12 @@
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { BankLink } from '@/api/bank-sync'
-import { describeBankSync, describeImportHeading, showsBankSync, type BankSyncLabel } from '@/pages/accounts/detail/components/bank-link/status'
+import {
+  describeBankSync,
+  describeImportHeading,
+  showsBankSync,
+  type BankSyncLabel,
+} from '@/pages/accounts/detail/components/bank-link/status'
 import { createImport, createLink, createPreviousLink, createProviders, createStatus, createSync } from './fixtures'
 
 const TIME_ZONE = 'America/Toronto'
@@ -61,17 +66,39 @@ describe('showsBankSync', () => {
 
 describe('describeBankSync without a live link', () => {
   it('labels an account that is not the user own personal one as manual only', () => {
-    expect(describeBankSync(false, undefined, false)).toEqual({ label: 'Manual only', tone: 'off', pulse: false, details: [] })
+    expect(describeBankSync(false, undefined, false)).toEqual({
+      label: 'Manual only',
+      tone: 'off',
+      pulse: false,
+      details: [],
+    })
   })
 
   it('says it is checking until the link is read, and that it could not check once the read fails', () => {
-    expect(describeBankSync(true, undefined, false)).toEqual({ label: 'Checking…', tone: 'off', pulse: false, details: [] })
-    expect(describeBankSync(true, undefined, true)).toEqual({ label: "Couldn't check", tone: 'off', pulse: false, details: [] })
+    expect(describeBankSync(true, undefined, false)).toEqual({
+      label: 'Checking…',
+      tone: 'off',
+      pulse: false,
+      details: [],
+    })
+    expect(describeBankSync(true, undefined, true)).toEqual({
+      label: "Couldn't check",
+      tone: 'off',
+      pulse: false,
+      details: [],
+    })
   })
 
   it('labels an account without a live link as not linked, whether or not it was linked before', () => {
-    expect(describeBankSync(true, createStatus(), false)).toEqual({ label: 'Not linked', tone: 'off', pulse: false, details: [] })
-    expect(describeBankSync(true, createStatus({ previous_link: createPreviousLink() }), false).label).toBe('Not linked')
+    expect(describeBankSync(true, createStatus(), false)).toEqual({
+      label: 'Not linked',
+      tone: 'off',
+      pulse: false,
+      details: [],
+    })
+    expect(describeBankSync(true, createStatus({ previous_link: createPreviousLink() }), false).label).toBe(
+      'Not linked',
+    )
   })
 })
 
@@ -95,7 +122,12 @@ describe('describeBankSync for a live link', () => {
     [
       "a synced link whose next sync waits on the connection's own request limit",
       { sync: createSync({ waiting_on_budget: true }) },
-      { label: 'Synced 1 hour ago', tone: 'ok', pulse: false, details: ["Next sync is waiting on this connection's 24-hour SimpleFIN request limit"] },
+      {
+        label: 'Synced 1 hour ago',
+        tone: 'ok',
+        pulse: false,
+        details: ["Next sync is waiting on this connection's 24-hour SimpleFIN request limit"],
+      },
     ],
     [
       'a rejected connection',
@@ -126,7 +158,11 @@ describe('describeBankSync for a live link', () => {
       "an import waiting on the request budget, steady, with its next part's time",
       {
         import: createImport({ state: 'waiting_on_budget' }),
-        sync: createSync({ state: 'import_waiting_on_budget', last_success_at: null, next_attempt_at: '2026-10-05T20:30:00Z' }),
+        sync: createSync({
+          state: 'import_waiting_on_budget',
+          last_success_at: null,
+          next_attempt_at: '2026-10-05T20:30:00Z',
+        }),
       },
       {
         label: 'Importing · 1 of 2',
@@ -148,17 +184,32 @@ describe('describeBankSync for a live link', () => {
     [
       'an opening balance to confirm',
       { sync: createSync({ state: 'opening_balance' }) },
-      { label: 'Opening balance to confirm', tone: 'review', pulse: false, details: ['Synced 1 hour ago', 'Next sync in 3 hours'] },
+      {
+        label: 'Opening balance to confirm',
+        tone: 'review',
+        pulse: false,
+        details: ['Synced 1 hour ago', 'Next sync in 3 hours'],
+      },
     ],
     [
       'a review backlog nearing the pause',
       { sync: createSync({ state: 'review_warning', review_warning: true, waiting_new_count: 85 }) },
-      { label: '85 new to review', tone: 'review', pulse: false, details: ['Sync pauses at 100', 'Next sync in 3 hours'] },
+      {
+        label: '85 new to review',
+        tone: 'review',
+        pulse: false,
+        details: ['Sync pauses at 100', 'Next sync in 3 hours'],
+      },
     ],
     [
       'a failed attempt waiting on its retry',
       { sync: createSync({ state: 'retrying', last_failure: FAILURE, next_attempt_at: '2026-10-05T16:30:00Z' }) },
-      { label: 'Retrying at 12:30 p.m.', tone: 'working', pulse: false, details: ['Last attempt failed: Bank unavailable', 'Synced 1 hour ago'] },
+      {
+        label: 'Retrying at 12:30 p.m.',
+        tone: 'working',
+        pulse: false,
+        details: ['Last attempt failed: Bank unavailable', 'Synced 1 hour ago'],
+      },
     ],
   ])('words %s', (_, link, expected) => {
     expect(describeLink(createLink(link))).toEqual(expected)
@@ -167,7 +218,8 @@ describe('describeBankSync for a live link', () => {
   it("times a retry by the user's day, west of UTC, giving the date only when it falls on another day", () => {
     // 7 p.m. in Toronto, when UTC has already reached Oct 6
     vi.setSystemTime(new Date('2026-10-05T23:00:00Z'))
-    const retrying = (at: string) => createLink({ sync: createSync({ state: 'retrying', last_failure: FAILURE, next_attempt_at: at }) })
+    const retrying = (at: string) =>
+      createLink({ sync: createSync({ state: 'retrying', last_failure: FAILURE, next_attempt_at: at }) })
 
     expect(describeLink(retrying('2026-10-06T01:00:00Z')).label).toBe('Retrying at 9:00 p.m.')
     expect(describeLink(retrying('2026-10-06T13:00:00Z')).label).toBe('Retrying at Oct 6, 9:00 a.m.')
@@ -188,10 +240,14 @@ describe('describeImportHeading', () => {
 
   it('describes a relink catching up since the unlink, then caught up', () => {
     expect(describeImportHeading(createImport({ kind: 'relink' }))).toBe('Catching up since the account was unlinked')
-    expect(describeImportHeading(createImport({ kind: 'relink', state: 'complete' }))).toBe('Caught up since the account was unlinked')
+    expect(describeImportHeading(createImport({ kind: 'relink', state: 'complete' }))).toBe(
+      'Caught up since the account was unlinked',
+    )
   })
 
   it('describes a bank account chosen again catching up from its new start', () => {
-    expect(describeImportHeading(createImport({ kind: 'choose_again', requested_start: '2026-09-15' }))).toBe('Catching up from Sep 15, 2026')
+    expect(describeImportHeading(createImport({ kind: 'choose_again', requested_start: '2026-09-15' }))).toBe(
+      'Catching up from Sep 15, 2026',
+    )
   })
 })

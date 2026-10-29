@@ -8,7 +8,9 @@ import { ModalFormFooter } from '@/components/modal/FormFooter'
 
 describe('modal form footer', () => {
   it('blocks cancelling while the submission is in flight', () => {
-    const markup = renderToStaticMarkup(<ModalFormFooter submitLabel="Save" submitDisabled submitWidthClassName="w-32" onCancel={() => {}} />)
+    const markup = renderToStaticMarkup(
+      <ModalFormFooter submitLabel="Save" submitDisabled submitWidthClassName="w-32" onCancel={() => {}} />,
+    )
     expect(markup.match(/<button[^>]*>Cancel<\/button>/)?.[0]).toContain('disabled')
   })
 })

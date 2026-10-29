@@ -41,7 +41,9 @@ function SlidingLabel({ label, underlinesOnHover }: { label: string; underlinesO
   const transition = { duration: prefersReducedMotion ? 0 : LABEL_DURATION_S, ease: LABEL_EASE }
   return (
     <>
-      <span ref={measureRef} aria-hidden className="pointer-events-none invisible absolute whitespace-nowrap">{label}</span>
+      <span ref={measureRef} aria-hidden className="pointer-events-none invisible absolute whitespace-nowrap">
+        {label}
+      </span>
       <motion.span
         className="grid min-w-0 max-w-full overflow-hidden"
         initial={false}
@@ -82,26 +84,32 @@ export function SyncFact({ name, sync, showsDetails = false, onOpen }: SyncFactP
 
   return (
     <div className="col-span-2 min-w-0">
-      <dt className="text-xs font-medium uppercase" style={{ color: 'var(--app-text-subtle)' }}>{name}</dt>
+      <dt className="text-xs font-medium uppercase" style={{ color: 'var(--app-text-subtle)' }}>
+        {name}
+      </dt>
       <dd className="relative mt-0.5 flex min-w-0 items-center gap-2 text-sm font-medium">
-        {onOpen
-          ? (
-              <button
-                type="button"
-                onClick={onOpen}
-                aria-label={`${name}: ${sentence} Open bank link`}
-                className="group flex max-w-full items-center gap-2 rounded-sm text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--app-focus-ring)]"
-              >
-                {value}
-                {/* Shows at rest that the status opens the bank link, as the hover underline only shows it to a pointer */}
-                <ChevronRight aria-hidden className="size-4 shrink-0" style={{ color: 'var(--app-text-subtle)' }} />
-              </button>
-            )
-          : <span className="flex min-w-0 max-w-full items-center gap-2">{value}</span>}
+        {onOpen ? (
+          <button
+            type="button"
+            onClick={onOpen}
+            aria-label={`${name}: ${sentence} Open bank link`}
+            className="group flex max-w-full items-center gap-2 rounded-sm text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--app-focus-ring)]"
+          >
+            {value}
+            {/* Shows at rest that the status opens the bank link, as the hover underline only shows it to a pointer */}
+            <ChevronRight aria-hidden className="size-4 shrink-0" style={{ color: 'var(--app-text-subtle)' }} />
+          </button>
+        ) : (
+          <span className="flex min-w-0 max-w-full items-center gap-2">{value}</span>
+        )}
         {showsDetails && sync.details.length > 0 && (
           <IconTooltip label="Sync details" placement="bottom">
             <span className="block space-y-1">
-              {sync.details.map((line) => <span key={line} className="block">{line}</span>)}
+              {sync.details.map((line) => (
+                <span key={line} className="block">
+                  {line}
+                </span>
+              ))}
             </span>
           </IconTooltip>
         )}

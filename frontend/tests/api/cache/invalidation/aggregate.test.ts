@@ -5,20 +5,20 @@
  * or a connection made elsewhere leaves the review block, the pending strip, the sync status or the
  * connections as they were when the user comes back
  */
-import { QueryClient, type QueryKey } from '@tanstack/react-query';
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { invalidateAppData } from '@/api/cache/invalidation';
-import { bankSyncKeys } from '@/api/cache/queryKeys';
+import { QueryClient, type QueryKey } from '@tanstack/react-query'
+import { afterEach, beforeEach, describe, expect, it } from 'vitest'
+import { invalidateAppData } from '@/api/cache/invalidation'
+import { bankSyncKeys } from '@/api/cache/queryKeys'
 
-let queryClient: QueryClient;
+let queryClient: QueryClient
 
 beforeEach(() => {
-  queryClient = new QueryClient();
-});
+  queryClient = new QueryClient()
+})
 
 afterEach(() => {
-  queryClient.clear();
-});
+  queryClient.clear()
+})
 
 describe('data changed elsewhere', () => {
   it('reads bank sync again: the review inbox and its backlogs, any bulk approval preview, the pending rows, the links and the connections', () => {
@@ -30,13 +30,13 @@ describe('data changed elsewhere', () => {
       bankSyncKeys.pending(['account-1']),
       bankSyncKeys.links(),
       bankSyncKeys.connections(),
-    ];
-    for (const key of keys) queryClient.setQueryData(key, {});
+    ]
+    for (const key of keys) queryClient.setQueryData(key, {})
 
-    invalidateAppData(queryClient);
+    invalidateAppData(queryClient)
 
     for (const key of keys) {
-      expect(queryClient.getQueryState(key)?.isInvalidated, JSON.stringify(key)).toBe(true);
+      expect(queryClient.getQueryState(key)?.isInvalidated, JSON.stringify(key)).toBe(true)
     }
-  });
-});
+  })
+})

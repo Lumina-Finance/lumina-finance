@@ -25,10 +25,16 @@ type BalanceFactProps = {
 function BalanceFact({ label, value, color, hint }: BalanceFactProps) {
   return (
     <div className="flex flex-wrap items-center justify-between gap-x-3 sm:block sm:min-w-max sm:flex-1">
-      <dt className="flex shrink-0 items-center gap-1 text-xs font-medium uppercase" style={{ color: 'var(--app-text-subtle)' }}>
+      <dt
+        className="flex shrink-0 items-center gap-1 text-xs font-medium uppercase"
+        style={{ color: 'var(--app-text-subtle)' }}
+      >
         <LabelWithHint label={label} hint={hint?.text} hintLabel={hint?.label} hintPlacement="top" />
       </dt>
-      <dd className="ml-auto whitespace-nowrap text-right font-financial text-lg font-semibold tabular-nums sm:mt-0.5 sm:text-left" style={{ color }}>
+      <dd
+        className="ml-auto whitespace-nowrap text-right font-financial text-lg font-semibold tabular-nums sm:mt-0.5 sm:text-left"
+        style={{ color }}
+      >
         {value}
       </dd>
     </div>
@@ -50,7 +56,7 @@ function CaptionPart({ children }: { children: ReactNode }) {
 
 const GAP_HINT = {
   label: 'Why the balances differ',
-  text: 'Most gaps come from items still waiting for review, or from transactions the bank hasn\'t posted yet.',
+  text: "Most gaps come from items still waiting for review, or from transactions the bank hasn't posted yet.",
 }
 
 type BalancePanelProps = {
@@ -82,27 +88,37 @@ export function BalancePanel({ balance, currency, providerName, footer }: Balanc
   return (
     <div className="rounded-xl p-4" style={{ background: 'var(--app-surface-soft)' }}>
       <dl className="flex flex-col gap-y-2 sm:flex-row sm:flex-wrap sm:gap-x-5 sm:gap-y-3" data-tooltip-subject>
-        {amount === null
-          ? (
-              <BalanceFact
-                label={providerName}
-                value="Unavailable"
-                color="var(--app-text-muted)"
-                hint={{
-                  label: 'Why the balance is unavailable',
-                  text: `${providerName}'s balance for this account can't be read exactly in ${currency}, so it isn't compared with your ledger.`,
-                }}
-              />
-            )
-          : <BalanceFact label={providerName} value={formatCurrency(amount, currency)} color="var(--app-text)" />}
+        {amount === null ? (
+          <BalanceFact
+            label={providerName}
+            value="Unavailable"
+            color="var(--app-text-muted)"
+            hint={{
+              label: 'Why the balance is unavailable',
+              text: `${providerName}'s balance for this account can't be read exactly in ${currency}, so it isn't compared with your ledger.`,
+            }}
+          />
+        ) : (
+          <BalanceFact label={providerName} value={formatCurrency(amount, currency)} color="var(--app-text)" />
+        )}
         <BalanceFact label="Ledger" value={formatCurrency(balance.ledger_balance, currency)} color="var(--app-text)" />
-        {difference !== null && (difference === 0
-          ? <BalanceFact label="Difference" value="None" color="var(--app-positive)" />
-          : <BalanceFact label="Difference" value={formatMovedCurrency(difference, currency)} color="var(--app-warning-text)" hint={GAP_HINT} />)}
+        {difference !== null &&
+          (difference === 0 ? (
+            <BalanceFact label="Difference" value="None" color="var(--app-positive)" />
+          ) : (
+            <BalanceFact
+              label="Difference"
+              value={formatMovedCurrency(difference, currency)}
+              color="var(--app-warning-text)"
+              hint={GAP_HINT}
+            />
+          ))}
       </dl>
       <p className="mt-3 text-xs" style={{ color: 'var(--app-text-muted)' }}>
         As of {asOf}
-        {balance.available !== null && <CaptionPart>{formatCurrency(balance.available, currency)} available</CaptionPart>}
+        {balance.available !== null && (
+          <CaptionPart>{formatCurrency(balance.available, currency)} available</CaptionPart>
+        )}
         {balance.available_unreadable && (
           <CaptionPart>
             <LabelWithHint
@@ -117,7 +133,9 @@ export function BalancePanel({ balance, currency, providerName, footer }: Balanc
       <AnimatePresence initial={false}>
         {footer && (
           <Unfold key="footer" clipsOnlyWhileChanging>
-            <div className="border-t pt-4" style={{ borderColor: 'var(--app-border)' }}>{footer}</div>
+            <div className="border-t pt-4" style={{ borderColor: 'var(--app-border)' }}>
+              {footer}
+            </div>
           </Unfold>
         )}
       </AnimatePresence>

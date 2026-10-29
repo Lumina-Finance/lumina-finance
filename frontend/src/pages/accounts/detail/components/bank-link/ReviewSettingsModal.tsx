@@ -2,7 +2,12 @@ import { useId, useState } from 'react'
 import { AnimatePresence } from 'motion/react'
 import { SlidersHorizontal } from 'lucide-react'
 import { ApiError } from '@/api/auth'
-import { useReviewPreferences, useUpdateReviewPreferences, type ReviewDecision, type ReviewPreferences } from '@/api/bank-sync'
+import {
+  useReviewPreferences,
+  useUpdateReviewPreferences,
+  type ReviewDecision,
+  type ReviewPreferences,
+} from '@/api/bank-sync'
 import { Unfold } from '@/components/display/Unfold'
 import LoadFailure from '@/components/errors/LoadFailure'
 import { InfoCallout } from '@/components/InfoCallout'
@@ -81,7 +86,7 @@ export function ReviewSettingsModal({ open, accountId, level = 'page', onClose }
       railLabel="Review"
       level={level}
       closeDisabled={update.isPending}
-      footer={(
+      footer={
         <ModalFormFooter
           submitLabel="Save"
           submitDisabled={update.isPending}
@@ -93,62 +98,71 @@ export function ReviewSettingsModal({ open, accountId, level = 'page', onClose }
           onCancel={onClose}
           onPrimary={save}
         />
-      )}
+      }
     >
-      {readError && !saved
-        ? <LoadFailure error={readError} subject="Review settings" />
-        : (
-            <LoadingRegion loading={!current} label="Loading review settings" animateLoadingHeight>
-              {/* Spaced by padding inside each part rather than margins between them, so the Custom rows
+      {readError && !saved ? (
+        <LoadFailure error={readError} subject="Review settings" />
+      ) : (
+        <LoadingRegion loading={!current} label="Loading review settings" animateLoadingHeight>
+          {/* Spaced by padding inside each part rather than margins between them, so the Custom rows
                   fold away with their space and nothing below jumps as they go */}
-              <div className="min-h-32 pb-2">
-                <p className="text-sm" style={{ color: 'var(--app-text-muted)' }}>
-                  Reviewed changes wait above the transaction list. Auto-approved ones are applied as they arrive, which can change ledger values without a review step.
-                </p>
-                <div className="pt-4">
-                  <TransactionModalPillSelector
-                    value={preset ?? ''}
-                    options={REVIEW_PRESET_OPTIONS}
-                    ariaLabel="Review preset"
-                    onChange={choosePreset}
-                    disabled={!current || update.isPending}
-                    compactOnMobile
-                  />
-                </div>
-                <AnimatePresence initial={false}>
-                  {preset === 'custom' && current && (
-                    <Unfold key="custom">
-                      <div className="space-y-3">
-                        {REVIEW_KINDS.map((kind) => (
-                          <div key={kind.key} className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-                            <div className="min-w-0">
-                              <p className="text-sm font-medium" style={{ color: 'var(--app-text)' }}>{kind.label}</p>
-                              <p className="text-xs" style={{ color: 'var(--app-text-muted)' }}>{kind.description}</p>
-                            </div>
-                            {/* Wide enough beside the description for Auto-approve to fit its half on one line */}
-                            <div className="shrink-0 sm:w-64">
-                              <TransactionModalPillSelector
-                                value={current[kind.key]}
-                                options={REVIEW_DECISION_OPTIONS}
-                                ariaLabel={kind.label}
-                                onChange={(decision) => chooseDecision(kind.key, decision)}
-                                disabled={update.isPending}
-                              />
-                            </div>
-                          </div>
-                        ))}
+          <div className="min-h-32 pb-2">
+            <p className="text-sm" style={{ color: 'var(--app-text-muted)' }}>
+              Reviewed changes wait above the transaction list. Auto-approved ones are applied as they arrive, which can
+              change ledger values without a review step.
+            </p>
+            <div className="pt-4">
+              <TransactionModalPillSelector
+                value={preset ?? ''}
+                options={REVIEW_PRESET_OPTIONS}
+                ariaLabel="Review preset"
+                onChange={choosePreset}
+                disabled={!current || update.isPending}
+                compactOnMobile
+              />
+            </div>
+            <AnimatePresence initial={false}>
+              {preset === 'custom' && current && (
+                <Unfold key="custom">
+                  <div className="space-y-3">
+                    {REVIEW_KINDS.map((kind) => (
+                      <div
+                        key={kind.key}
+                        className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between"
+                      >
+                        <div className="min-w-0">
+                          <p className="text-sm font-medium" style={{ color: 'var(--app-text)' }}>
+                            {kind.label}
+                          </p>
+                          <p className="text-xs" style={{ color: 'var(--app-text-muted)' }}>
+                            {kind.description}
+                          </p>
+                        </div>
+                        {/* Wide enough beside the description for Auto-approve to fit its half on one line */}
+                        <div className="shrink-0 sm:w-64">
+                          <TransactionModalPillSelector
+                            value={current[kind.key]}
+                            options={REVIEW_DECISION_OPTIONS}
+                            ariaLabel={kind.label}
+                            onChange={(decision) => chooseDecision(kind.key, decision)}
+                            disabled={update.isPending}
+                          />
+                        </div>
                       </div>
-                    </Unfold>
-                  )}
-                </AnimatePresence>
-                <div className="pt-4">
-                  <InfoCallout>
-                    New transactions need a merchant and category before they can be added, so they wait for review whichever you choose.
-                  </InfoCallout>
-                </div>
-              </div>
-            </LoadingRegion>
-          )}
+                    ))}
+                  </div>
+                </Unfold>
+              )}
+            </AnimatePresence>
+            <div className="pt-4">
+              <InfoCallout>
+                New transactions need a merchant and category before they can be added, so they wait for review
+                whichever you choose.
+              </InfoCallout>
+            </div>
+          </div>
+        </LoadingRegion>
+      )}
     </ModalTitledPanel>
   )
 }

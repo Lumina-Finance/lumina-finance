@@ -21,11 +21,14 @@ export function useBankItemScope(listAccountIds: string[] | undefined) {
   // Undefined reads every account's items, and an empty list reads none
   const accountIds = accounts && user ? getReviewAccountIds(accounts, user.id, listAccountIds) : []
   const accountById = useMemo(() => new Map((accounts ?? []).map((account) => [account.id, account])), [accounts])
-  const accountFor = useCallback((accountId: string): ReviewItemAccount => {
-    const account = accountById.get(accountId)
-    if (!account) throw new Error(`Account ${accountId} is not loaded, so its bank items cannot be shown`)
-    return { name: account.name, currency: account.currency }
-  }, [accountById])
+  const accountFor = useCallback(
+    (accountId: string): ReviewItemAccount => {
+      const account = accountById.get(accountId)
+      if (!account) throw new Error(`Account ${accountId} is not loaded, so its bank items cannot be shown`)
+      return { name: account.name, currency: account.currency }
+    },
+    [accountById],
+  )
 
   return {
     accounts,

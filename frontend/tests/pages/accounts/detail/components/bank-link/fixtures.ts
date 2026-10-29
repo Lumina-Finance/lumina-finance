@@ -107,7 +107,14 @@ export function createPreviousLink(overrides: Partial<PreviousBankLink> = {}): P
 
 /** Builds Everyday's read of its link: never linked, unless told otherwise */
 export function createStatus(overrides: Partial<AccountBankStatus> = {}): AccountBankStatus {
-  return { account_id: 'account-1', link: null, previous_link: null, balance: null, opening_adjustment: null, ...overrides }
+  return {
+    account_id: 'account-1',
+    link: null,
+    previous_link: null,
+    balance: null,
+    opening_adjustment: null,
+    ...overrides,
+  }
 }
 
 /** Builds a working SimpleFIN connection with no nickname, reaching the given bank accounts */
@@ -133,17 +140,19 @@ export function createProviders(overrides: Partial<BankProvidersResponse> = {}):
   return {
     may_link: true,
     sync_running: true,
-    providers: [{
-      id: 'simplefin',
-      name: 'SimpleFIN',
-      description: 'Connects to banks through SimpleFIN Bridge',
-      connects_from: 'settings',
-      offered: true,
-      history_limit_months: 12,
-      advertises_history: false,
-      institution_limit: null,
-      institutions_in_use: [],
-    }],
+    providers: [
+      {
+        id: 'simplefin',
+        name: 'SimpleFIN',
+        description: 'Connects to banks through SimpleFIN Bridge',
+        connects_from: 'settings',
+        offered: true,
+        history_limit_months: 12,
+        advertises_history: false,
+        institution_limit: null,
+        institutions_in_use: [],
+      },
+    ],
     ...overrides,
   }
 }

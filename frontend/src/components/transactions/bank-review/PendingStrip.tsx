@@ -51,7 +51,9 @@ export function BankPendingStrip({
 }: BankPendingStripProps) {
   const { formatMovedCurrency } = useMoneyFormatters()
   const listId = useId()
-  useRelativeTimeRefresh(() => transactions.map((transaction) => formatRelativeTime(transaction.observed_at)).join('\n'))
+  useRelativeTimeRefresh(() =>
+    transactions.map((transaction) => formatRelativeTime(transaction.observed_at)).join('\n'),
+  )
   const { collapsed, enterTransition, leave } = REVIEW_MOTION[prefersReducedMotion ? 'reduced' : 'full']
 
   // Transactions that load on a retry take focus on the strip's toggle, so focus doesn't drop to the
@@ -60,7 +62,13 @@ export function BankPendingStrip({
   const failureRef = useRef<HTMLDivElement>(null)
   useFocusAfterRetry(failure !== null, failureRef, () => toggleRef.current)
 
-  const swap = { className: 'overflow-hidden', initial: collapsed, animate: { height: 'auto', opacity: 1 }, exit: leave, transition: enterTransition }
+  const swap = {
+    className: 'overflow-hidden',
+    initial: collapsed,
+    animate: { height: 'auto', opacity: 1 },
+    exit: leave,
+    transition: enterTransition,
+  }
 
   return (
     <section
@@ -121,9 +129,10 @@ export function BankPendingStrip({
                   <ul>
                     {transactions.map((transaction) => {
                       const account = accountFor(transaction.account_id)
-                      const amount = transaction.amount === null
-                        ? formatRawAmount(transaction.raw_amount ?? '', account.currency).text
-                        : formatMovedCurrency(transaction.amount, account.currency)
+                      const amount =
+                        transaction.amount === null
+                          ? formatRawAmount(transaction.raw_amount ?? '', account.currency).text
+                          : formatMovedCurrency(transaction.amount, account.currency)
                       const details = [
                         formatReviewDate(transaction.date, today),
                         showAccountNames && account.name,
@@ -132,7 +141,10 @@ export function BankPendingStrip({
                       return (
                         <li key={transaction.id} className="px-4 sm:px-5">
                           {/* The divider sits on the content rather than the row, so it stops short of the card's edges */}
-                          <div className="flex items-center gap-3 py-2.5" style={{ borderTop: '1px dashed var(--app-border-strong)' }}>
+                          <div
+                            className="flex items-center gap-3 py-2.5"
+                            style={{ borderTop: '1px dashed var(--app-border-strong)' }}
+                          >
                             <div className="min-w-0 flex-1">
                               <p className="break-words text-sm italic" style={{ color: 'var(--app-text-muted)' }}>
                                 {transaction.description}
@@ -141,10 +153,15 @@ export function BankPendingStrip({
                                 {details.filter(Boolean).join(' · ')}
                                 {' · '}
                                 {/* The relative time stays whole, so a narrow row wraps before it rather than inside it */}
-                                <span className="whitespace-nowrap">Checked {formatRelativeTime(transaction.observed_at)}</span>
+                                <span className="whitespace-nowrap">
+                                  Checked {formatRelativeTime(transaction.observed_at)}
+                                </span>
                               </p>
                             </div>
-                            <span className="shrink-0 font-financial text-sm tabular-nums" style={{ color: 'var(--app-text-muted)' }}>
+                            <span
+                              className="shrink-0 font-financial text-sm tabular-nums"
+                              style={{ color: 'var(--app-text-muted)' }}
+                            >
                               {amount}
                             </span>
                           </div>

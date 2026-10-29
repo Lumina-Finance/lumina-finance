@@ -59,7 +59,13 @@ type OpeningAdjustmentOfferProps = {
  * currency list lacks the account's currency, the amount and Record adjustment lock, with the reason
  * beside the label, as other stored amounts do
  */
-export function OpeningAdjustmentOffer({ accountId, offer, currency, providerName, onAnswered }: OpeningAdjustmentOfferProps) {
+export function OpeningAdjustmentOffer({
+  accountId,
+  offer,
+  currency,
+  providerName,
+  onAnswered,
+}: OpeningAdjustmentOfferProps) {
   const rootRef = useRef<HTMLDivElement>(null)
   const amountId = useId()
   const signId = useId()
@@ -108,12 +114,9 @@ export function OpeningAdjustmentOffer({ accountId, offer, currency, providerNam
   // the offer has gone, so a refusal still says why after a read of the link has left it out. Focus
   // elsewhere stays where the person put it while the answer ran
   const answer = (send: () => Promise<unknown>) => {
-    void send().then(
-      () => {
-        if (rootRef.current?.contains(document.activeElement)) onAnswered()
-      },
-      reportError,
-    )
+    void send().then(() => {
+      if (rootRef.current?.contains(document.activeElement)) onAnswered()
+    }, reportError)
   }
 
   const recordOffer = () => {
@@ -141,27 +144,36 @@ export function OpeningAdjustmentOffer({ accountId, offer, currency, providerNam
   return (
     <div ref={rootRef} className="space-y-3">
       <p className="text-sm" style={{ color: 'var(--app-text-muted)' }}>
-        Record an opening adjustment on {formatDateLabel(offer.adjustment_date)}, to bring your ledger&apos;s balance in line with {providerName}&apos;s.
-        {' '}{offer.amount < 0 ? 'This lowers your ledger\'s balance.' : 'This raises your ledger\'s balance.'}
-        {offer.waiting_amount !== 0 && ` Approving the items waiting for review would ${waitingDirection} your ledger's balance by ${waitingSize}, so this leaves them out. Review them first if you entered any of them by hand.`}
+        Record an opening adjustment on {formatDateLabel(offer.adjustment_date)}, to bring your ledger&apos;s balance in
+        line with {providerName}&apos;s.{' '}
+        {offer.amount < 0 ? "This lowers your ledger's balance." : "This raises your ledger's balance."}
+        {offer.waiting_amount !== 0 &&
+          ` Approving the items waiting for review would ${waitingDirection} your ledger's balance by ${waitingSize}, so this leaves them out. Review them first if you entered any of them by hand.`}
       </p>
       {/* The label row spans the answers too, so the message beside the label keeps to one line
           wherever the amount and the answers share a row */}
       <div>
         <AccountIdentityFieldLabelRow
-          label={(
+          label={
             <span className="inline-flex items-center gap-2">
               Adjustment amount
-              <CurrencyUnavailableTooltip unavailable={locked} currencyState={currencyState} label="Adjustment amount unavailable" />
+              <CurrencyUnavailableTooltip
+                unavailable={locked}
+                currencyState={currencyState}
+                label="Adjustment amount unavailable"
+              />
             </span>
-          )}
+          }
           htmlFor={amountId}
           error={error ?? undefined}
         />
         <div className="flex flex-col gap-3 sm:flex-row">
           <div className="relative min-w-0 sm:flex-1">
             {prefix && (
-              <span className="app-input-prefix pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-base" aria-hidden>
+              <span
+                className="app-input-prefix pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-base"
+                aria-hidden
+              >
                 {prefix}
               </span>
             )}
@@ -178,7 +190,9 @@ export function OpeningAdjustmentOffer({ accountId, offer, currency, providerNam
               onKeyDown={handleKeyDown}
             />
             {/* The sign beside the field is drawn, so the field's description says it in words */}
-            <span id={signId} className="sr-only">{describeSign(offer.amount)}</span>
+            <span id={signId} className="sr-only">
+              {describeSign(offer.amount)}
+            </span>
           </div>
           <div className="flex flex-col gap-2 sm:flex-row">
             <ActionFeedbackButton

@@ -40,14 +40,17 @@ describe('transaction kind transitions', () => {
   })
 
   it('clears the category and transfer references when changing from Transfer to Expense', () => {
-    const result = getFormAfterKindChange({
-      ...expenseForm,
-      kind: 'transfer',
-      direction: 'credit',
-      category_id: 'transfer',
-      counterparty_account_id: 'savings',
-      symmetric_transfer: true,
-    }, 'expense')
+    const result = getFormAfterKindChange(
+      {
+        ...expenseForm,
+        kind: 'transfer',
+        direction: 'credit',
+        category_id: 'transfer',
+        counterparty_account_id: 'savings',
+        symmetric_transfer: true,
+      },
+      'expense',
+    )
 
     expect(result).toMatchObject({
       kind: 'expense',
@@ -59,12 +62,17 @@ describe('transaction kind transitions', () => {
   })
 
   it('clears the category when changing from Income to Transfer', () => {
-    expect(getFormAfterKindChange({
-      ...expenseForm,
-      kind: 'income',
-      direction: 'credit',
-      category_id: 'salary',
-    }, 'transfer')).toMatchObject({
+    expect(
+      getFormAfterKindChange(
+        {
+          ...expenseForm,
+          kind: 'income',
+          direction: 'credit',
+          category_id: 'salary',
+        },
+        'transfer',
+      ),
+    ).toMatchObject({
       kind: 'transfer',
       direction: 'debit',
       category_id: '',

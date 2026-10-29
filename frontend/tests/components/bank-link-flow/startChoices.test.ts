@@ -38,14 +38,26 @@ describe('bank link start choices', () => {
   })
 
   it('leaves out the shorter choices a provider limit reaches no further than', () => {
-    const fourMonths = { ...EMPTY_ACCOUNT, earliest_allowed: '2026-06-01', provider_limit_date: '2026-06-01', provider_history_months: 4 }
-    const threeMonths = { ...EMPTY_ACCOUNT, earliest_allowed: '2026-07-01', provider_limit_date: '2026-07-01', provider_history_months: 3 }
+    const fourMonths = {
+      ...EMPTY_ACCOUNT,
+      earliest_allowed: '2026-06-01',
+      provider_limit_date: '2026-06-01',
+      provider_history_months: 4,
+    }
+    const threeMonths = {
+      ...EMPTY_ACCOUNT,
+      earliest_allowed: '2026-07-01',
+      provider_limit_date: '2026-07-01',
+      provider_history_months: 3,
+    }
 
     expect(listStartChoices(fourMonths, 'Everyday').map((choice) => [choice.label, choice.date])).toEqual([
       ['3 months', '2026-07-01'],
       ['4 months', '2026-06-01'],
     ])
-    expect(listStartChoices(threeMonths, 'Everyday').map((choice) => [choice.label, choice.date])).toEqual([['3 months', '2026-07-01']])
+    expect(listStartChoices(threeMonths, 'Everyday').map((choice) => [choice.label, choice.date])).toEqual([
+      ['3 months', '2026-07-01'],
+    ])
   })
 
   it("raises a choice reaching into the account's own transactions to the day after them, once", () => {
@@ -61,7 +73,12 @@ describe('bank link start choices', () => {
   })
 
   it('offers only the day after a transaction dated today when every choice reaches before it', () => {
-    const coveredToday = { ...ACCOUNT_WITH_HISTORY, earliest_allowed: '2026-10-06', latest_allowed: '2026-10-06', ledger_floor: '2026-10-06' }
+    const coveredToday = {
+      ...ACCOUNT_WITH_HISTORY,
+      earliest_allowed: '2026-10-06',
+      latest_allowed: '2026-10-06',
+      ledger_floor: '2026-10-06',
+    }
 
     expect(listStartChoices(coveredToday, 'Everyday').map((choice) => [choice.label, choice.date])).toEqual([
       ['After the latest transaction', '2026-10-06'],

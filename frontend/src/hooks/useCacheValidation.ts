@@ -33,7 +33,9 @@ export function createHoldGate() {
     isHeld: () => holdCount > 0,
     onRelease(listener: () => void) {
       releaseListeners.add(listener)
-      return () => { releaseListeners.delete(listener) }
+      return () => {
+        releaseListeners.delete(listener)
+      }
     },
   }
 }
@@ -117,20 +119,29 @@ export function useCacheValidation(
     if (!enabled || !userId) return
     let midnightTimer: ReturnType<typeof setTimeout> | undefined
     let active = true
-    const heldRunner = createHeldRunner(cacheValidationGate, () => { void validate() })
+    const heldRunner = createHeldRunner(cacheValidationGate, () => {
+      void validate()
+    })
 
     const scheduleMidnightCheck = (nextBoundaryAt: string) => {
       if (!active) return
       clearTimeout(midnightTimer)
       const remaining = Date.parse(nextBoundaryAt) - Date.now()
       if (!Number.isFinite(remaining)) return
-      midnightTimer = setTimeout(() => { void validate() }, remaining > 0 ? remaining + 1000 : CACHE_STATUS_RETRY_INTERVAL_MS)
+      midnightTimer = setTimeout(
+        () => {
+          void validate()
+        },
+        remaining > 0 ? remaining + 1000 : CACHE_STATUS_RETRY_INTERVAL_MS,
+      )
     }
 
     const scheduleRetry = () => {
       if (!active) return
       clearTimeout(midnightTimer)
-      midnightTimer = setTimeout(() => { void validate() }, CACHE_STATUS_RETRY_INTERVAL_MS)
+      midnightTimer = setTimeout(() => {
+        void validate()
+      }, CACHE_STATUS_RETRY_INTERVAL_MS)
     }
 
     // A profile change in another session marks the same personal cache as app data, so the profile
@@ -143,7 +154,9 @@ export function useCacheValidation(
           profileStale = false
           if (active) onProfileRefreshed(profile)
         })
-        .catch(() => { profileStale = true })
+        .catch(() => {
+          profileStale = true
+        })
     }
 
     const validate = async () => {
@@ -177,17 +190,20 @@ export function useCacheValidation(
     const unsubscribeFocus = focusManager.subscribe((focused) => {
       if (focused) void validate()
     })
-    const onWindowFocus = () => { void validate() }
+    const onWindowFocus = () => {
+      void validate()
+    }
     const onStorageChange = (event: StorageEvent) => {
       const changedAtKey = `${PERSONAL_CACHE_CHANGED_AT_KEY_PREFIX}:${userId}`
       const dateKey = `${CALCULATION_DATE_TOKEN_KEY_PREFIX}:${userId}`
       if (
-        event.storageArea === window.localStorage
-        && (event.key === changedAtKey || event.key === dateKey)
-        && event.newValue !== null
-        && event.newValue !== readStoredValue(event.key, 'session')
-        && document.visibilityState === 'visible'
-      ) void validate()
+        event.storageArea === window.localStorage &&
+        (event.key === changedAtKey || event.key === dateKey) &&
+        event.newValue !== null &&
+        event.newValue !== readStoredValue(event.key, 'session') &&
+        document.visibilityState === 'visible'
+      )
+        void validate()
     }
     window.addEventListener('focus', onWindowFocus)
     window.addEventListener('storage', onStorageChange)
@@ -202,17 +218,12 @@ export function useCacheValidation(
   }, [enabled, onProfileRefreshed, queryClient, userId])
 }
 
-async function validateAppData(
-  queryClient: QueryClient,
-  userId: string,
-) {
+async function validateAppData(queryClient: QueryClient, userId: string) {
   const storageKey = `${PERSONAL_CACHE_CHANGED_AT_KEY_PREFIX}:${userId}`
   const dateStorageKey = `${CALCULATION_DATE_TOKEN_KEY_PREFIX}:${userId}`
   const status = await fetchCacheStatus()
   const currentChangedAt = toUtcCacheTimestamp(status.personal.changed_at) ?? ''
-  const previousChangedAt = toUtcCacheTimestamp(
-    readStoredValue(storageKey, 'session') ?? readStoredValue(storageKey),
-  )
+  const previousChangedAt = toUtcCacheTimestamp(readStoredValue(storageKey, 'session') ?? readStoredValue(storageKey))
   const previousDate = readStoredValue(dateStorageKey, 'session') ?? readStoredValue(dateStorageKey)
   writeStoredValue(storageKey, currentChangedAt, 'session')
   writeStoredValue(dateStorageKey, status.calculation_date_token, 'session')
@@ -238,11 +249,7 @@ function toUtcCacheTimestamp(value: string | null) {
   return new Date(time).toISOString()
 }
 
-function validateFxData(
-  queryClient: QueryClient,
-  userId: string,
-  appInvalidated: boolean,
-) {
+function validateFxData(queryClient: QueryClient, userId: string, appInvalidated: boolean) {
   const storageKey = `${FX_REFRESHED_AT_KEY_PREFIX}:${userId}`
   const now = Date.now()
   const previousRefreshedAt = readStoredValue(storageKey)

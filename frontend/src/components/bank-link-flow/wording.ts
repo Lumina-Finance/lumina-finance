@@ -20,7 +20,11 @@ export const LINK_FLOW_STEP_NAMES: Record<LinkFlowStep, string> = {
 export const LINK_FLOW_WORDING: Record<LinkFlowMode, { title: string; submitLabel: string; confirmation: string }> = {
   link: { title: 'Link bank account', submitLabel: 'Link and import', confirmation: 'Linked. Importing history now.' },
   relink: { title: 'Reconnect bank account', submitLabel: 'Relink', confirmation: 'Relinked. Catching up now.' },
-  choose_again: { title: 'Choose bank account again', submitLabel: 'Relink', confirmation: 'Relinked. Catching up now.' },
+  choose_again: {
+    title: 'Choose bank account again',
+    submitLabel: 'Relink',
+    confirmation: 'Relinked. Catching up now.',
+  },
 }
 
 /** The bank account an account followed before, which the flow names so the user can find it again */
@@ -50,7 +54,9 @@ export function pickListedConnection(
   status: AccountBankStatus | undefined,
 ): BankConnection | undefined {
   const waitingId = status?.link?.state === 'choose_account' ? status.link.connection_id : null
-  return working.find((entry) => entry.id === switchedId) ?? working.find((entry) => entry.id === waitingId) ?? working[0]
+  return (
+    working.find((entry) => entry.id === switchedId) ?? working.find((entry) => entry.id === waitingId) ?? working[0]
+  )
 }
 
 /**
@@ -79,13 +85,16 @@ export function describeConnectFirst(
 ): { message: string; canOpenSettings: boolean } {
   if (connections.some((connection) => connection.status === 'credential_rejected')) {
     return {
-      message: 'Your bank connection needs a new setup token before it can link accounts. Reconnect it in Settings, then come back here.',
+      message:
+        'Your bank connection needs a new setup token before it can link accounts. Reconnect it in Settings, then come back here.',
       canOpenSettings: true,
     }
   }
-  if (!providers.providers.some((provider) => provider.offered)) return { message: NOTHING_TO_LINK_REASON, canOpenSettings: false }
+  if (!providers.providers.some((provider) => provider.offered))
+    return { message: NOTHING_TO_LINK_REASON, canOpenSettings: false }
   return {
-    message: 'Add a bank connection in Settings first. One connection reaches every bank account you hold with that provider, and each account then chooses one of them here.',
+    message:
+      'Add a bank connection in Settings first. One connection reaches every bank account you hold with that provider, and each account then chooses one of them here.',
     canOpenSettings: true,
   }
 }

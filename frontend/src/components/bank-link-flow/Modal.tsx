@@ -71,7 +71,14 @@ type BankLinkFlowModalProps = {
  * It takes the stacked frame wherever it opens. Settings and the edit modal open it over a modal, and
  * the new account's page over the page itself, and one frame keeps it the same flow from each
  */
-export function BankLinkFlowModal({ open, account, chosen, onClose, onLinked, onExitComplete }: BankLinkFlowModalProps) {
+export function BankLinkFlowModal({
+  open,
+  account,
+  chosen,
+  onClose,
+  onLinked,
+  onExitComplete,
+}: BankLinkFlowModalProps) {
   const navigate = useNavigate()
   const { showToast } = useToast()
   const { data: status, error: statusError } = useAccountBankStatus(account.id, open)
@@ -94,15 +101,21 @@ export function BankLinkFlowModal({ open, account, chosen, onClose, onLinked, on
   // The flow waits on the account's link for its wording and, opened from the account, on the
   // connections and providers, which decide whether there is anything to choose from
   const ready = status !== undefined && (chosen !== undefined || (connections !== undefined && providers !== undefined))
-  const loadError = statusError ?? (chosen ? null : connectionsError ?? providersError)
-  const step: LinkFlowStep | null = !ready ? null : chosenStep ?? (chosen ? 'start' : connection ? 'account' : 'connect-first')
+  const loadError = statusError ?? (chosen ? null : (connectionsError ?? providersError))
+  const step: LinkFlowStep | null = !ready
+    ? null
+    : (chosenStep ?? (chosen ? 'start' : connection ? 'account' : 'connect-first'))
 
   // Listed only while open, since a closed flow stays mounted beside an account that may be linked or
   // archived, which the server refuses a listing for
   const choosesBankAccount = open && !chosen && (step === 'account' || step === 'start')
 
-  const { data: discovered, error: discoveredError } = useDiscoveredBankAccounts(choosesBankAccount ? connection?.id ?? null : null, account.id)
-  const bankAccountName = chosen?.bankAccount.name ?? discovered?.accounts.find((entry) => entry.external_id === externalId)?.name ?? ''
+  const { data: discovered, error: discoveredError } = useDiscoveredBankAccounts(
+    choosesBankAccount ? (connection?.id ?? null) : null,
+    account.id,
+  )
+  const bankAccountName =
+    chosen?.bankAccount.name ?? discovered?.accounts.find((entry) => entry.external_id === externalId)?.name ?? ''
   const chosenBankAccount = discovered?.accounts.find((entry) => entry.external_id === externalId)
   const provider = providers?.providers.find((entry) => entry.id === connection?.provider)
   const { data: range, error: rangeError } = useImportRange(
@@ -132,24 +145,40 @@ export function BankLinkFlowModal({ open, account, chosen, onClose, onLinked, on
     if (!connection || !externalAccountId || !startChoice.start || startChoice.outOfRange || linkingPaused) return
     setError(null)
     link.mutate(
-      { account_id: account.id, connection_id: connection.id, external_account_id: externalAccountId, start_date: startChoice.start },
+      {
+        account_id: account.id,
+        connection_id: connection.id,
+        external_account_id: externalAccountId,
+        start_date: startChoice.start,
+      },
       {
         onSuccess: () => {
           showToast({ status: 'success', text: wording.confirmation })
           onLinked?.()
           onClose()
         },
-        onError: (cause) => setError(cause instanceof ApiError ? cause.message : 'Something went wrong. Please try again.'),
+        onError: (cause) =>
+          setError(cause instanceof ApiError ? cause.message : 'Something went wrong. Please try again.'),
       },
     )
   }
 
-  const connectFirst = step === 'connect-first' && connections && providers ? describeConnectFirst(connections, providers) : null
-  const primary = step === 'connect-first'
-    ? { label: connectFirst?.canOpenSettings ? 'Open settings' : 'Close', unavailable: false, onPrimary: connectFirst?.canOpenSettings ? openSettings : onClose }
-    : step === 'account'
-      ? { label: 'Continue', unavailable: !chosenBankAccount?.linkable, onPrimary: () => goTo('start') }
-      : { label: wording.submitLabel, unavailable: step === null || !range || !startChoice.start || startChoice.outOfRange, onPrimary: confirmLink }
+  const connectFirst =
+    step === 'connect-first' && connections && providers ? describeConnectFirst(connections, providers) : null
+  const primary =
+    step === 'connect-first'
+      ? {
+          label: connectFirst?.canOpenSettings ? 'Open settings' : 'Close',
+          unavailable: false,
+          onPrimary: connectFirst?.canOpenSettings ? openSettings : onClose,
+        }
+      : step === 'account'
+        ? { label: 'Continue', unavailable: !chosenBankAccount?.linkable, onPrimary: () => goTo('start') }
+        : {
+            label: wording.submitLabel,
+            unavailable: step === null || !range || !startChoice.start || startChoice.outOfRange,
+            onPrimary: confirmLink,
+          }
   const backsToAccount = step === 'start' && !chosen
 
   return (
@@ -164,7 +193,7 @@ export function BankLinkFlowModal({ open, account, chosen, onClose, onLinked, on
       level="stacked"
       closeDisabled={busy}
       onExitComplete={onExitComplete}
-      footer={(
+      footer={
         <ModalFormFooter
           submitLabel={primary.label}
           submitDisabled={busy}
@@ -177,62 +206,73 @@ export function BankLinkFlowModal({ open, account, chosen, onClose, onLinked, on
           cancelLabel={backsToAccount ? 'Back' : 'Cancel'}
           onPrimary={primary.onPrimary}
         />
-      )}
+      }
     >
-      {loadError && !ready
-        ? <LoadFailure error={loadError} subject="Bank link" />
-        : (
-            <LoadingRegion loading={step === null} label="Loading bank link" animateLoadingHeight overlayClassName={LOADING_OVERLAY_CLASS}>
-              {/* Room for the spinner only while loading, so a short step is not padded out below */}
-              <div className={step === null ? 'min-h-32 pb-2' : 'pb-2'}>
-                <StepTransition stepKey={step ?? 'loading'}>
-                  {connectFirst && (
-                    <p className="text-sm" style={{ color: 'var(--app-text-muted)' }}>{connectFirst.message}</p>
-                  )}
-                  {step === 'account' && connection && (
-                    <BankAccountStep
-                      account={account}
-                      mode={mode}
-                      previous={previous}
-                      connections={workingConnections}
-                      connection={connection}
-                      onConnectionChange={(connectionId) => {
-                        setChosenConnectionId(connectionId)
-                        setExternalId(null)
-                        startChoice.reset()
-                      }}
-                      discovered={discovered}
-                      discoveredError={discoveredError}
-                      chosenId={externalId}
-                      onChoose={setExternalId}
-                      disabled={busy}
-                      onOpenSettings={openSettings}
-                    />
-                  )}
-                  {step === 'start' && (
-                    !range && rangeError
-                      ? <LoadFailure error={rangeError} subject="Import start" />
-                      : (
-                          <LoadingRegion loading={!range} label="Loading the import range" animateLoadingHeight overlayClassName={LOADING_OVERLAY_CLASS}>
-                            {range
-                              ? (
-                                  <StartStep
-                                    range={range}
-                                    bankAccountName={bankAccountName}
-                                    providerName={connection?.provider_name ?? ''}
-                                    advertisesHistory={provider?.advertises_history ?? true}
-                                    startChoice={startChoice}
-                                    disabled={busy}
-                                  />
-                                )
-                              : <div className="min-h-32" />}
-                          </LoadingRegion>
-                        )
-                  )}
-                </StepTransition>
-              </div>
-            </LoadingRegion>
-          )}
+      {loadError && !ready ? (
+        <LoadFailure error={loadError} subject="Bank link" />
+      ) : (
+        <LoadingRegion
+          loading={step === null}
+          label="Loading bank link"
+          animateLoadingHeight
+          overlayClassName={LOADING_OVERLAY_CLASS}
+        >
+          {/* Room for the spinner only while loading, so a short step is not padded out below */}
+          <div className={step === null ? 'min-h-32 pb-2' : 'pb-2'}>
+            <StepTransition stepKey={step ?? 'loading'}>
+              {connectFirst && (
+                <p className="text-sm" style={{ color: 'var(--app-text-muted)' }}>
+                  {connectFirst.message}
+                </p>
+              )}
+              {step === 'account' && connection && (
+                <BankAccountStep
+                  account={account}
+                  mode={mode}
+                  previous={previous}
+                  connections={workingConnections}
+                  connection={connection}
+                  onConnectionChange={(connectionId) => {
+                    setChosenConnectionId(connectionId)
+                    setExternalId(null)
+                    startChoice.reset()
+                  }}
+                  discovered={discovered}
+                  discoveredError={discoveredError}
+                  chosenId={externalId}
+                  onChoose={setExternalId}
+                  disabled={busy}
+                  onOpenSettings={openSettings}
+                />
+              )}
+              {step === 'start' &&
+                (!range && rangeError ? (
+                  <LoadFailure error={rangeError} subject="Import start" />
+                ) : (
+                  <LoadingRegion
+                    loading={!range}
+                    label="Loading the import range"
+                    animateLoadingHeight
+                    overlayClassName={LOADING_OVERLAY_CLASS}
+                  >
+                    {range ? (
+                      <StartStep
+                        range={range}
+                        bankAccountName={bankAccountName}
+                        providerName={connection?.provider_name ?? ''}
+                        advertisesHistory={provider?.advertises_history ?? true}
+                        startChoice={startChoice}
+                        disabled={busy}
+                      />
+                    ) : (
+                      <div className="min-h-32" />
+                    )}
+                  </LoadingRegion>
+                ))}
+            </StepTransition>
+          </div>
+        </LoadingRegion>
+      )}
     </ModalTitledPanel>
   )
 }

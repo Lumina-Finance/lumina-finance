@@ -13,7 +13,11 @@ import { formatPreviewMoney } from '@/pages/imports/utils/formatPreviewMoney'
 import { formatCurrency, formatMovedCurrency } from '@/utils/formatCurrency'
 
 type PointerEventStub = { shiftKey: boolean; preventDefault?: () => void }
-type RowContentProps = { 'data-testid'?: string; onClick: (event: PointerEventStub) => void; onMouseDown: (event: PointerEventStub) => void }
+type RowContentProps = {
+  'data-testid'?: string
+  onClick: (event: PointerEventStub) => void
+  onMouseDown: (event: PointerEventStub) => void
+}
 const captured = vi.hoisted(() => ({ rows: [] as RowContentProps[] }))
 
 vi.mock('motion/react', () => ({
@@ -22,8 +26,9 @@ vi.mock('motion/react', () => ({
   motion: {
     div: ({ children }: { children: ReactNode }) => {
       // The row's content, which every press on the row reaches, the title's own included
-      const content = ([children].flat() as ReactElement<RowContentProps>[])
-        .find((child) => child?.props?.['data-testid']?.startsWith('transaction-row-'))
+      const content = ([children].flat() as ReactElement<RowContentProps>[]).find((child) =>
+        child?.props?.['data-testid']?.startsWith('transaction-row-'),
+      )
       if (content) captured.rows.push(content.props)
       return createElement('div', null, children)
     },
@@ -43,7 +48,9 @@ vi.mock('@/hooks/useMoneyFormatters', () => ({
 const LATER_THAN_EVERY_ROW = '9999-12-31'
 const today = vi.hoisted(() => ({ ymd: '9999-12-31' }))
 vi.mock('@/hooks/useTodayYmd', () => ({ useTodayYmd: () => today.ymd }))
-afterEach(() => { today.ymd = LATER_THAN_EVERY_ROW })
+afterEach(() => {
+  today.ymd = LATER_THAN_EVERY_ROW
+})
 
 import { ImportPreviewList } from '@/pages/imports/components/PreviewList'
 import TransactionRow from '@/components/transactions/Row'
@@ -54,37 +61,67 @@ const CURRENCIES: Currency[] = [
   { id: 'IQD', name: 'Iraqi Dinar', symbol: 'IQD', minor_unit_exponent: 3 },
 ]
 const CATEGORY: Category = {
-  id: 'category', owner_id: null, group_id: null, name: 'Groceries', kind: 'expense',
-  icon: null, is_system: true, created_at: '2024-01-01T00:00:00Z',
+  id: 'category',
+  owner_id: null,
+  group_id: null,
+  name: 'Groceries',
+  kind: 'expense',
+  icon: null,
+  is_system: true,
+  created_at: '2024-01-01T00:00:00Z',
 }
 
 /** Builds the actual generic preview and payload from the same resolved CSV cells */
 function build(currency: string, amounts: string[], category: Category = CATEGORY) {
   const file: ImportFileDraft = {
-    id: 'file', name: 'Exact.csv', size: 100, hasHeaderRow: true, headers: ['Date', 'Amount', 'Category'], error: null,
+    id: 'file',
+    name: 'Exact.csv',
+    size: 100,
+    hasHeaderRow: true,
+    headers: ['Date', 'Amount', 'Category'],
+    error: null,
     rows: amounts.map((Amount) => ({ Date: '2024-03-15', Amount, Category: category.name })),
   }
   const shared = {
-    files: [file], columnMap: { ...EMPTY_COLUMN_MAP, dt: 'Date', amount: 'Amount', category_id: 'Category' },
-    dateFormat: 'yearFirst' as const, dateRange: WHOLE_FILE_DATE_RANGE, currencies: CURRENCIES, directionAnswers: {},
-    accountById: new Map(), accountCreateCurrencies: { file: currency }, accountCreateInstitutions: {},
-    categoryById: new Map([[category.id, category]]), categoryCreateKinds: {}, categoryTypesBySource: {},
+    files: [file],
+    columnMap: { ...EMPTY_COLUMN_MAP, dt: 'Date', amount: 'Amount', category_id: 'Category' },
+    dateFormat: 'yearFirst' as const,
+    dateRange: WHOLE_FILE_DATE_RANGE,
+    currencies: CURRENCIES,
+    directionAnswers: {},
+    accountById: new Map(),
+    accountCreateCurrencies: { file: currency },
+    accountCreateInstitutions: {},
+    categoryById: new Map([[category.id, category]]),
+    categoryCreateKinds: {},
+    categoryTypesBySource: {},
   }
   const rows = buildImportPreviewRows({
-    ...shared, missingRequiredColumnLabels: [], institutionById: new Map(),
-    resolvedAccountMappings: { file: CREATE_ACCOUNT_VALUE }, resolvedCategoryMappings: { [category.name]: category.id }, rowProblems: [],
+    ...shared,
+    missingRequiredColumnLabels: [],
+    institutionById: new Map(),
+    resolvedAccountMappings: { file: CREATE_ACCOUNT_VALUE },
+    resolvedCategoryMappings: { [category.name]: category.id },
+    rowProblems: [],
   })
   const payload = buildTransactionImportPayload({
-    ...shared, accountCreateTypes: { file: 'checking' }, accountMappings: { file: CREATE_ACCOUNT_VALUE },
+    ...shared,
+    accountCreateTypes: { file: 'checking' },
+    accountMappings: { file: CREATE_ACCOUNT_VALUE },
     accountSources: [{ id: 'file', label: 'Exact.csv', matchText: 'Exact.csv', isCounterpartyOnly: false }],
-    categoryMappings: { [category.name]: category.id }, importedCategories: [category.name], columnValidationErrors: {},
+    categoryMappings: { [category.name]: category.id },
+    importedCategories: [category.name],
+    columnValidationErrors: {},
   })
   return { rows, payload }
 }
 
 /** Reads all three responsive amount nodes from actual shared row markup */
 function amountNodes(markup: string) {
-  return Array.from(markup.matchAll(/<span[^>]*data-testid="transaction-amount"[^>]*>(.*?)<\/span>/g), (match) => match[1])
+  return Array.from(
+    markup.matchAll(/<span[^>]*data-testid="transaction-amount"[^>]*>(.*?)<\/span>/g),
+    (match) => match[1],
+  )
 }
 
 /** Reads the opening tag of each of the row's two responsive title buttons, the ones a description names */
@@ -118,9 +155,12 @@ describe('exact generic import presentation', () => {
   })
 
   it.each([
-    ['JPY', '9223372036854775808'], ['JPY', '-9223372036854775809'],
-    ['CAD', '92233720368547758.08'], ['CAD', '-92233720368547758.09'],
-    ['IQD', '9223372036854775.808'], ['IQD', '-9223372036854775.809'],
+    ['JPY', '9223372036854775808'],
+    ['JPY', '-9223372036854775809'],
+    ['CAD', '92233720368547758.08'],
+    ['CAD', '-92233720368547758.09'],
+    ['IQD', '9223372036854775.808'],
+    ['IQD', '-9223372036854775.809'],
   ])('still excludes and refuses out-of-range amounts: %s %s', (currency, raw) => {
     const result = build(currency, [raw])
     expect(result.rows).toEqual([])
@@ -128,14 +168,17 @@ describe('exact generic import presentation', () => {
   })
 
   it.each([
-    [0n, 'CAD', 'CA$0.00', 0], [-1n, 'CAD', '−CA$0.01', -1],
-    [10n, 'IQD', '+IQD\u00a00.010', 1], [1000n, 'IQD', '+IQD\u00a01.000', 1],
+    [0n, 'CAD', 'CA$0.00', 0],
+    [-1n, 'CAD', '−CA$0.01', -1],
+    [10n, 'IQD', '+IQD\u00a00.010', 1],
+    [1000n, 'IQD', '+IQD\u00a01.000', 1],
   ] as const)('preserves small fractions, padded zeros and sign: %s %s', (amount, currency, text, sign) => {
     expect(formatPreviewMoney(amount, currency, CURRENCIES)).toEqual({ text, sign })
   })
 
   it.each([
-    ['expense', '1.00', 'var(--app-positive)'], ['income', '-1.00', 'var(--app-negative)'],
+    ['expense', '1.00', 'var(--app-positive)'],
+    ['income', '-1.00', 'var(--app-negative)'],
     ['expense', '0.00', 'var(--app-text)'],
   ] as const)('uses exact sign for reversal color: %s %s', (kind, raw, color) => {
     const { rows } = build('CAD', [raw], { ...CATEGORY, kind })
@@ -145,7 +188,10 @@ describe('exact generic import presentation', () => {
     expect(spans.every((span) => span.includes(`color:${color}`))).toBe(true)
   })
 
-  it.each([['1.00', 'From outside this app'], ['-1.00', 'To outside this app']])('uses exact sign for transfer direction: %s', (raw, direction) => {
+  it.each([
+    ['1.00', 'From outside this app'],
+    ['-1.00', 'To outside this app'],
+  ])('uses exact sign for transfer direction: %s', (raw, direction) => {
     const { rows } = build('CAD', [raw], { ...CATEGORY, kind: 'transfer' })
     rows[0].transaction.counterparty_account_scope = 'outside'
     const markup = renderToStaticMarkup(createElement(ImportPreviewList, { groups: groupPreviewRowsByDate(rows) }))
@@ -165,27 +211,48 @@ describe('exact generic import presentation', () => {
 
   it('retains the numeric Firefly presentation branch', () => {
     const { rows } = build('CAD', ['-12.34'])
-    const numeric: Transaction = { ...rows[0].transaction, amount: -1234, account_amount: -1234, base_currency_amount: -1234 }
-    const markup = renderToStaticMarkup(createElement(ImportPreviewList, { groups: [{ dateLabel: rows[0].dateLabel, rows: [{ ...rows[0], transaction: numeric }] }] }))
+    const numeric: Transaction = {
+      ...rows[0].transaction,
+      amount: -1234,
+      account_amount: -1234,
+      base_currency_amount: -1234,
+    }
+    const markup = renderToStaticMarkup(
+      createElement(ImportPreviewList, {
+        groups: [{ dateLabel: rows[0].dateLabel, rows: [{ ...rows[0], transaction: numeric }] }],
+      }),
+    )
     expect(new Set(amountNodes(markup))).toEqual(new Set(['−CA$12.34']))
   })
 
   it('preserves the ordinary ledger callback and selection routing', () => {
     const { rows } = build('CAD', ['-12.34'])
-    const transaction: Transaction = { ...rows[0].transaction, amount: -1234, account_amount: -1234, base_currency_amount: -1234 }
+    const transaction: Transaction = {
+      ...rows[0].transaction,
+      amount: -1234,
+      account_amount: -1234,
+      base_currency_amount: -1234,
+    }
     const onOpen = vi.fn()
     captured.rows = []
-    const markup = renderToStaticMarkup(createElement(TransactionRow, { transaction, currency: 'CAD', category: CATEGORY, onOpen }))
+    const markup = renderToStaticMarkup(
+      createElement(TransactionRow, { transaction, currency: 'CAD', category: CATEGORY, onOpen }),
+    )
     captured.rows.at(-1)!.onClick({ shiftKey: false })
     expect(onOpen).toHaveBeenCalledWith(transaction)
     expect(onOpen.mock.calls[0][0]).toBe(transaction)
     expect(titleButtons(markup).map((tag) => tag.includes('tabindex'))).toEqual([false, false])
 
     const onToggle = vi.fn()
-    const selectingMarkup = renderToStaticMarkup(createElement(TransactionRow, {
-      transaction, currency: 'CAD', category: CATEGORY, onOpen,
-      selection: { mark: 'selected', isSelectable: true, onToggle, onPointerEnter: () => {} },
-    }))
+    const selectingMarkup = renderToStaticMarkup(
+      createElement(TransactionRow, {
+        transaction,
+        currency: 'CAD',
+        category: CATEGORY,
+        onOpen,
+        selection: { mark: 'selected', isSelectable: true, onToggle, onPointerEnter: () => {} },
+      }),
+    )
     const selected = captured.rows.at(-1)!
     expect(titleButtons(selectingMarkup).map((tag) => tag.includes('tabindex="-1"'))).toEqual([true, true])
     selected.onClick({ shiftKey: false })
@@ -196,13 +263,23 @@ describe('exact generic import presentation', () => {
 
   it('takes a shift-press on a row the app will not edit for a range, and holds back the text selection it would stretch', () => {
     const { rows } = build('CAD', ['-12.34'])
-    const transaction: Transaction = { ...rows[0].transaction, amount: -1234, account_amount: -1234, base_currency_amount: -1234 }
+    const transaction: Transaction = {
+      ...rows[0].transaction,
+      amount: -1234,
+      account_amount: -1234,
+      base_currency_amount: -1234,
+    }
     const onToggle = vi.fn()
     captured.rows = []
-    renderToStaticMarkup(createElement(TransactionRow, {
-      transaction, currency: 'CAD', category: CATEGORY, onOpen: () => {},
-      selection: { mark: 'none', isSelectable: false, onToggle, onPointerEnter: () => {} },
-    }))
+    renderToStaticMarkup(
+      createElement(TransactionRow, {
+        transaction,
+        currency: 'CAD',
+        category: CATEGORY,
+        onOpen: () => {},
+        selection: { mark: 'none', isSelectable: false, onToggle, onPointerEnter: () => {} },
+      }),
+    )
     const row = captured.rows.at(-1)!
 
     row.onClick({ shiftKey: false })

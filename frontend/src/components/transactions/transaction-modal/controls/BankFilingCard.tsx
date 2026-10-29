@@ -27,10 +27,16 @@ type BankFilingCardProps = {
 function Field({ label, value, strong = false }: { label: string; value: ReactNode; strong?: boolean }) {
   return (
     <div className="flex items-start justify-between gap-4">
-      <dt className="shrink-0 text-xs leading-7 uppercase tracking-wider" style={{ color: 'var(--app-filing-card-muted)' }}>
+      <dt
+        className="shrink-0 text-xs leading-7 uppercase tracking-wider"
+        style={{ color: 'var(--app-filing-card-muted)' }}
+      >
         {label}
       </dt>
-      <dd className={`min-w-0 break-words text-right ${strong ? 'font-semibold' : ''}`} style={{ color: 'var(--app-text)' }}>
+      <dd
+        className={`min-w-0 break-words text-right ${strong ? 'font-semibold' : ''}`}
+        style={{ color: 'var(--app-text)' }}
+      >
         {value}
       </dd>
     </div>
@@ -45,13 +51,7 @@ function Field({ label, value, strong = false }: { label: string; value: ReactNo
  * The card is ruled every 1.75rem, and every line written on it is that high, so the text sits on the
  * rules
  */
-export default function BankFilingCard({
-  item,
-  link,
-  accountName,
-  currency,
-  timeZone,
-}: BankFilingCardProps) {
+export default function BankFilingCard({ item, link, accountName, currency, timeZone }: BankFilingCardProps) {
   const { formatMovedCurrency } = useMoneyFormatters()
   const amount = getReviewItemAmount(item, currency, formatMovedCurrency)
 
@@ -94,11 +94,16 @@ export default function BankFilingCard({
           <p className="text-xs leading-7 uppercase tracking-wider" style={{ color: 'var(--app-filing-card-muted)' }}>
             Description from {item.provider_name}
           </p>
-          <p className="break-words font-semibold" style={{ color: 'var(--app-text)' }}>{item.bank.description}</p>
+          <p className="break-words font-semibold" style={{ color: 'var(--app-text)' }}>
+            {item.bank.description}
+          </p>
           <dl>
             <Field label="Amount" value={<span className="font-financial">{amount.text}</span>} strong />
             <Field label="Date" value={formatDateLabel(item.bank.date)} />
-            <Field label="Received" value={formatDate(new Date(item.received_at), DATE_FORMATS.monthDayTime, timeZone)} />
+            <Field
+              label="Received"
+              value={formatDate(new Date(item.received_at), DATE_FORMATS.monthDayTime, timeZone)}
+            />
           </dl>
         </div>
       </div>

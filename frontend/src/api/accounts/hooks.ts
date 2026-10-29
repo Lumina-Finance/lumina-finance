@@ -1,5 +1,5 @@
-import { useCallback } from 'react';
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useCallback } from 'react'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import {
   applyRecordedStartingBalance,
   getCachedAccount,
@@ -10,8 +10,8 @@ import {
   invalidateCreatedAccountData,
   refreshAfterInterruptedStartingBalance,
   updateCachedAccountList,
-} from '@/api/cache/updates/accounts';
-import { clearDeletedAccountBankData, forgetDeletedAccountBankData } from '@/api/cache/updates/bankSync';
+} from '@/api/cache/updates/accounts'
+import { clearDeletedAccountBankData, forgetDeletedAccountBankData } from '@/api/cache/updates/bankSync'
 import {
   createAccount,
   deleteAccount,
@@ -21,38 +21,34 @@ import {
   fetchAccountSpendingBreakdown,
   fetchAccounts,
   updateAccount,
-} from '@/api/accounts/requests';
-import type {
-  AccountSnapshotRange,
-  AccountsOverview,
-  SpendingRange,
-} from '@/api/accounts/types';
+} from '@/api/accounts/requests'
+import type { AccountSnapshotRange, AccountsOverview, SpendingRange } from '@/api/accounts/types'
 import {
   recordStartingBalanceSettled,
   StartingBalanceNotSavedError,
   StartingBalanceUnsettledError,
-} from '@/api/accounts/startingBalance';
-import { runWithMinimumPendingTime } from '@/api/utils/mutationFeedback';
-import { LOADING_ANIMATION_MIN_MS } from '@/utils/timing';
-import { accountKeys } from '@/api/cache/queryKeys';
-import { getFxAwareStaleTime } from '@/api/shared/fxCache';
-import { useAuth } from '@/hooks/useAuth';
+} from '@/api/accounts/startingBalance'
+import { runWithMinimumPendingTime } from '@/api/utils/mutationFeedback'
+import { LOADING_ANIMATION_MIN_MS } from '@/utils/timing'
+import { accountKeys } from '@/api/cache/queryKeys'
+import { getFxAwareStaleTime } from '@/api/shared/fxCache'
+import { useAuth } from '@/hooks/useAuth'
 
-const ACCOUNT_FX_STALE_TIME_MS = 10 * 60 * 1000;
+const ACCOUNT_FX_STALE_TIME_MS = 10 * 60 * 1000
 
 /**
  * Creates accounts and refreshes account-dependent rollups
  */
 export function useCreateAccount() {
-  const queryClient = useQueryClient();
+  const queryClient = useQueryClient()
   return useMutation({
     mutationFn: (payload: Parameters<typeof createAccount>[0]) =>
       runWithMinimumPendingTime(LOADING_ANIMATION_MIN_MS, () => createAccount(payload)),
     onSuccess: (account, payload) => {
-      updateCachedAccountList(queryClient, account);
-      invalidateCreatedAccountData(queryClient, account, payload);
+      updateCachedAccountList(queryClient, account)
+      invalidateCreatedAccountData(queryClient, account, payload)
     },
-  });
+  })
 }
 
 /**
@@ -61,7 +57,7 @@ export function useCreateAccount() {
  * the views are read again, as the save may still land
  */
 export function useRecordStartingBalance() {
-  const queryClient = useQueryClient();
+  const queryClient = useQueryClient()
   return useMutation({
     mutationFn: (variables: Parameters<typeof recordStartingBalanceSettled>[0]) =>
       runWithMinimumPendingTime(LOADING_ANIMATION_MIN_MS, () => recordStartingBalanceSettled(variables)),
@@ -70,79 +66,70 @@ export function useRecordStartingBalance() {
       // A save read as not landed may still land after the read, as a gateway can give up on one
       // still running, so the views are read again either way rather than left at zero after Skip
       if (error instanceof StartingBalanceNotSavedError || error instanceof StartingBalanceUnsettledError) {
-        refreshAfterInterruptedStartingBalance(queryClient, accountId);
+        refreshAfterInterruptedStartingBalance(queryClient, accountId)
       }
     },
-  });
+  })
 }
 
 /**
  * Updates accounts and refreshes only the account views affected by changed fields
  */
 export function useUpdateAccount() {
-  const queryClient = useQueryClient();
+  const queryClient = useQueryClient()
   return useMutation({
     mutationFn: updateAccount,
     onSuccess: (account, variables) => {
-      const previousAccount = getCachedAccount(queryClient, account.id);
-      const previousPlanId = previousAccount?.tax_advantaged_category_id;
-      const previousIsArchived = previousAccount?.is_archived;
-      const previousCreditLimit = previousAccount?.credit_limit;
+      const previousAccount = getCachedAccount(queryClient, account.id)
+      const previousPlanId = previousAccount?.tax_advantaged_category_id
+      const previousIsArchived = previousAccount?.is_archived
+      const previousCreditLimit = previousAccount?.credit_limit
 
-      queryClient.setQueryData(accountKeys.detail(account.id), account);
-      updateCachedAccountList(queryClient, account);
+      queryClient.setQueryData(accountKeys.detail(account.id), account)
+      updateCachedAccountList(queryClient, account)
 
       if ('is_archived' in variables.payload && previousIsArchived !== account.is_archived) {
-        invalidateAccountAggregateData(queryClient, account.id, account);
+        invalidateAccountAggregateData(queryClient, account.id, account)
       }
 
-      if (
-        'credit_limit' in variables.payload
-        && previousCreditLimit !== account.credit_limit
-      ) {
-        invalidateAccountCreditData(queryClient, account);
+      if ('credit_limit' in variables.payload && previousCreditLimit !== account.credit_limit) {
+        invalidateAccountCreditData(queryClient, account)
       }
 
       if ('name' in variables.payload || 'institution_id' in variables.payload) {
-        invalidateAccountCreditPicker(queryClient, previousAccount, account);
+        invalidateAccountCreditPicker(queryClient, previousAccount, account)
       }
 
-      if (
-        'tax_advantaged_category_id' in variables.payload
-        && previousPlanId !== account.tax_advantaged_category_id
-      ) {
-        invalidateAccountTaxAdvantagedCategoryData(queryClient, [
-          previousPlanId,
-          account.tax_advantaged_category_id,
-        ]);
+      if ('tax_advantaged_category_id' in variables.payload && previousPlanId !== account.tax_advantaged_category_id) {
+        invalidateAccountTaxAdvantagedCategoryData(queryClient, [previousPlanId, account.tax_advantaged_category_id])
       }
     },
-  });
+  })
 }
 
 /**
  * Deletes accounts and removes every cache entry scoped to the deleted account
  */
 export function useDeleteAccount({ minimumPendingMs = 0 }: { minimumPendingMs?: number } = {}) {
-  const queryClient = useQueryClient();
+  const queryClient = useQueryClient()
   return useMutation({
-    mutationFn: (accountId: string) =>
-      runWithMinimumPendingTime(minimumPendingMs, () => deleteAccount(accountId)),
+    mutationFn: (accountId: string) => runWithMinimumPendingTime(minimumPendingMs, () => deleteAccount(accountId)),
     onMutate: (accountId) => ({
       deletedAccount: getCachedAccount(queryClient, accountId),
     }),
     onSuccess: (_, accountId, context) => {
-      queryClient.setQueryData<AccountsOverview[]>(accountKeys.list(), (accounts) =>
-        accounts?.filter((account) => account.id !== accountId) ?? accounts,
-      );
+      queryClient.setQueryData<AccountsOverview[]>(
+        accountKeys.list(),
+        (accounts) => accounts?.filter((account) => account.id !== accountId) ?? accounts,
+      )
       // Only the queries nothing is showing go now. The account's page keeps showing it while it
       // animates out, and a query dropped from under it would be fetched again from a server that
       // answers not found, so the page forgets the rest as it leaves (useForgetDeletedAccount)
-      queryClient.removeQueries({ queryKey: accountKeys.accountScope(accountId), type: 'inactive' });
-      invalidateAccountAggregateData(queryClient, accountId, context?.deletedAccount, { isDeleted: true });
-      clearDeletedAccountBankData(queryClient, accountId);
+      queryClient.removeQueries({ queryKey: accountKeys.accountScope(accountId), type: 'inactive' })
+      invalidateAccountAggregateData(queryClient, accountId, context?.deletedAccount, { isDeleted: true })
+      clearDeletedAccountBankData(queryClient, accountId)
     },
-  });
+  })
 }
 
 /**
@@ -150,51 +137,48 @@ export function useDeleteAccount({ minimumPendingMs = 0 }: { minimumPendingMs?: 
  * opening the account's address again asks the server rather than showing the old values
  */
 export function useForgetDeletedAccount() {
-  const queryClient = useQueryClient();
+  const queryClient = useQueryClient()
   return useCallback(
     (accountId: string) => {
-      queryClient.removeQueries({ queryKey: accountKeys.accountScope(accountId) });
-      forgetDeletedAccountBankData(queryClient, accountId);
+      queryClient.removeQueries({ queryKey: accountKeys.accountScope(accountId) })
+      forgetDeletedAccountBankData(queryClient, accountId)
     },
     [queryClient],
-  );
+  )
 }
 
 /**
  * Reads account overview rows for lists and selectors
  */
 export function useAccounts() {
-  const { accessToken } = useAuth();
+  const { accessToken } = useAuth()
   return useQuery({
     queryKey: accountKeys.list(),
     queryFn: ({ signal }) => fetchAccounts(signal),
     enabled: !!accessToken,
     staleTime: getFxAwareStaleTime(ACCOUNT_FX_STALE_TIME_MS),
-  });
+  })
 }
 
 /**
  * Reads one account detail record
  */
 export function useAccount(accountId: string | undefined) {
-  const { accessToken } = useAuth();
+  const { accessToken } = useAuth()
   return useQuery({
     queryKey: accountKeys.detail(accountId),
     queryFn: ({ signal }) => fetchAccount(accountId, signal),
     enabled: !!accessToken && !!accountId,
     staleTime: getFxAwareStaleTime(ACCOUNT_FX_STALE_TIME_MS),
-  });
+  })
 }
 
 /**
  * Reads balance snapshots for account detail charts
  */
-export function useAccountSnapshots(
-  accountId: string | undefined,
-  range: AccountSnapshotRange = {},
-) {
-  const { accessToken } = useAuth();
-  const { fromDate, toDate, granularity = 'day', includeAnchor = false } = range;
+export function useAccountSnapshots(accountId: string | undefined, range: AccountSnapshotRange = {}) {
+  const { accessToken } = useAuth()
+  const { fromDate, toDate, granularity = 'day', includeAnchor = false } = range
   return useQuery({
     queryKey: accountKeys.snapshots(accountId, {
       fromDate,
@@ -205,17 +189,14 @@ export function useAccountSnapshots(
     queryFn: ({ signal }) => fetchAccountSnapshots(accountId, range, signal),
     enabled: !!accessToken && !!accountId,
     staleTime: 5 * 60 * 1000,
-  });
+  })
 }
 
 /**
  * Reads account spending cards for a backend-defined calendar range
  */
-export function useAccountSpendingBreakdown(
-  accountId: string | undefined,
-  range: SpendingRange,
-) {
-  const { accessToken } = useAuth();
+export function useAccountSpendingBreakdown(accountId: string | undefined, range: SpendingRange) {
+  const { accessToken } = useAuth()
   return useQuery({
     queryKey: accountKeys.spendingBreakdown(accountId, range),
     queryFn: ({ signal }) => fetchAccountSpendingBreakdown(accountId, range, signal),
@@ -223,18 +204,18 @@ export function useAccountSpendingBreakdown(
     placeholderData: (previousData, previousQuery) =>
       previousQuery?.queryKey[1] === accountId ? previousData : undefined,
     staleTime: 5 * 60 * 1000,
-  });
+  })
 }
 
 /**
  * Reads monthly account cash-flow totals for the detail chart
  */
 export function useAccountCashFlow(accountId: string | undefined, months: number = 6) {
-  const { accessToken } = useAuth();
+  const { accessToken } = useAuth()
   return useQuery({
     queryKey: accountKeys.cashFlow(accountId, months),
     queryFn: ({ signal }) => fetchAccountCashFlow(accountId, months, signal),
     enabled: !!accessToken && !!accountId,
     staleTime: 5 * 60 * 1000,
-  });
+  })
 }

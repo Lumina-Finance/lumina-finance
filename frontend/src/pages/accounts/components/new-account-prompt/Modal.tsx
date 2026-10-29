@@ -6,7 +6,11 @@ import { StartingBalanceNotSavedError, useRecordStartingBalance, type AccountsOv
 import { ApiError } from '@/api/auth'
 import { useBankConnections, useBankProviders } from '@/api/bank-sync'
 import { ChoiceCard } from '@/components/bank-link-flow/ChoiceCard'
-import { GROUP_ACCOUNT_LINK_REASON, LINKING_PAUSED_REASON, NOTHING_TO_LINK_REASON } from '@/components/bank-link-flow/constants'
+import {
+  GROUP_ACCOUNT_LINK_REASON,
+  LINKING_PAUSED_REASON,
+  NOTHING_TO_LINK_REASON,
+} from '@/components/bank-link-flow/constants'
 import CreateModalFieldLabelRow from '@/components/create-modal/FieldLabelRow'
 import { Unfold } from '@/components/display/Unfold'
 import { ModalFormFooter } from '@/components/modal/FormFooter'
@@ -33,8 +37,9 @@ const MINUS_SIGN = /[-−]/
 // landed. These answer the other two outcomes, keeping the prompt and the typed balance, since the
 // page behind is out of reach and nothing records a starting balance once the prompt is gone. A
 // save sent again after one that landed unseen also closes as saved
-const NOT_SAVED_MESSAGE = 'Your starting balance wasn\'t saved. Continue again to save it.'
-const UNSETTLED_SAVE_MESSAGE = 'The connection was lost. Continue again once you\'re back online, and your starting balance won\'t be saved twice.'
+const NOT_SAVED_MESSAGE = "Your starting balance wasn't saved. Continue again to save it."
+const UNSETTLED_SAVE_MESSAGE =
+  "The connection was lost. Continue again once you're back online, and your starting balance won't be saved twice."
 
 type NewAccountPromptModalProps = {
   open: boolean
@@ -93,7 +98,7 @@ export default function NewAccountPromptModal({ open, account, onClose, onExitCo
       : !hasWorkingConnection && !providers?.providers.some((provider) => provider.offered)
         ? NOTHING_TO_LINK_REASON
         : null
-  const choice: KeepUpToDate = !offersLink ? 'manual' : chosen ?? (linkReason ? 'manual' : 'bank')
+  const choice: KeepUpToDate = !offersLink ? 'manual' : (chosen ?? (linkReason ? 'manual' : 'bank'))
   const ready = !providersPending && (!offersLink || !connectionsPending)
 
   // Deleting in a field the refused text left empty changes no text, so no change arrives to clear
@@ -173,7 +178,7 @@ export default function NewAccountPromptModal({ open, account, onClose, onExitCo
       RailIcon={Landmark}
       railLabel="Account"
       closeDisabled={recordStartingBalance.isPending}
-      footer={(
+      footer={
         <ModalFormFooter
           submitLabel="Continue"
           submitDisabled={recordStartingBalance.isPending}
@@ -182,37 +187,44 @@ export default function NewAccountPromptModal({ open, account, onClose, onExitCo
           onCancel={onClose}
           cancelLabel={offersLink ? 'Decide later' : 'Skip'}
         />
-      )}
+      }
     >
-      {offersLink
-        ? (
-            <div className="pb-2">
-              <div className="space-y-3" role="radiogroup" aria-label="How this account stays up to date">
-                <ChoiceCard
-                  selected={choice === 'bank'}
-                  disabled={linkReason !== null || recordStartingBalance.isPending}
-                  onSelect={() => setChosen('bank')}
-                >
-                  <span className="block text-sm font-medium" style={{ color: 'var(--app-text)' }}>Link a bank account</span>
-                  <span className="block text-xs" style={{ color: 'var(--app-text-muted)' }}>
-                    {linkReason ?? 'Choose one of the bank accounts on your connections. Transactions arrive from the bank and wait for your review, and once the import is reviewed the app offers to line up the opening balance.'}
-                  </span>
-                </ChoiceCard>
-                <ChoiceCard selected={choice === 'manual'} disabled={recordStartingBalance.isPending} onSelect={() => setChosen('manual')}>
-                  <span className="block text-sm font-medium" style={{ color: 'var(--app-text)' }}>Keep it manual</span>
-                  <span className="block text-xs" style={{ color: 'var(--app-text-muted)' }}>
-                    Add transactions yourself or import files. You can link a bank later.
-                  </span>
-                </ChoiceCard>
-              </div>
-              <AnimatePresence initial={false}>
-                {choice === 'manual' && (
-                  <Unfold key="starting-balance">{startingBalanceField}</Unfold>
-                )}
-              </AnimatePresence>
-            </div>
-          )
-        : <div className="pb-2">{startingBalanceField}</div>}
+      {offersLink ? (
+        <div className="pb-2">
+          <div className="space-y-3" role="radiogroup" aria-label="How this account stays up to date">
+            <ChoiceCard
+              selected={choice === 'bank'}
+              disabled={linkReason !== null || recordStartingBalance.isPending}
+              onSelect={() => setChosen('bank')}
+            >
+              <span className="block text-sm font-medium" style={{ color: 'var(--app-text)' }}>
+                Link a bank account
+              </span>
+              <span className="block text-xs" style={{ color: 'var(--app-text-muted)' }}>
+                {linkReason ??
+                  'Choose one of the bank accounts on your connections. Transactions arrive from the bank and wait for your review, and once the import is reviewed the app offers to line up the opening balance.'}
+              </span>
+            </ChoiceCard>
+            <ChoiceCard
+              selected={choice === 'manual'}
+              disabled={recordStartingBalance.isPending}
+              onSelect={() => setChosen('manual')}
+            >
+              <span className="block text-sm font-medium" style={{ color: 'var(--app-text)' }}>
+                Keep it manual
+              </span>
+              <span className="block text-xs" style={{ color: 'var(--app-text-muted)' }}>
+                Add transactions yourself or import files. You can link a bank later.
+              </span>
+            </ChoiceCard>
+          </div>
+          <AnimatePresence initial={false}>
+            {choice === 'manual' && <Unfold key="starting-balance">{startingBalanceField}</Unfold>}
+          </AnimatePresence>
+        </div>
+      ) : (
+        <div className="pb-2">{startingBalanceField}</div>
+      )}
     </ModalTitledPanel>
   )
 }

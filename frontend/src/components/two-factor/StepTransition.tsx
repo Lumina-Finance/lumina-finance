@@ -1,29 +1,29 @@
-import { useLayoutEffect, useRef, useState, type ReactNode } from 'react';
-import { AnimatePresence, motion, useReducedMotion } from 'motion/react';
+import { useLayoutEffect, useRef, useState, type ReactNode } from 'react'
+import { AnimatePresence, motion, useReducedMotion } from 'motion/react'
 
-const EASE = [0.25, 0.1, 0.25, 1] as const;
-const HEIGHT_TRANSITION = { duration: 0.26, ease: EASE };
+const EASE = [0.25, 0.1, 0.25, 1] as const
+const HEIGHT_TRANSITION = { duration: 0.26, ease: EASE }
 // The outgoing step is gone before the incoming one shows, so the two never sit over each other
-const FADE_OUT_TRANSITION = { duration: 0.1, ease: EASE };
-const FADE_IN_TRANSITION = { duration: 0.2, ease: EASE };
-const INSTANT = { duration: 0 };
+const FADE_OUT_TRANSITION = { duration: 0.1, ease: EASE }
+const FADE_IN_TRANSITION = { duration: 0.2, ease: EASE }
+const INSTANT = { duration: 0 }
 
 interface StepTransitionProps {
   /** Identity of the visible step, so a change fades the old body out, then the new one in, and eases the panel height */
-  stepKey: string;
+  stepKey: string
   /** Heading shared by every step, rendered above the body without cross-fading */
-  header?: ReactNode;
+  header?: ReactNode
   /** On a phone, where the modal fills the screen, stretches the step so a footer inside it can sit at the
    *  bottom of the screen, as the form modals' footers do */
-  fillPhone?: boolean;
+  fillPhone?: boolean
   /**
    * Whether the height also eases when the step's own content changes size. Off for a step whose parts
    * unfold on their own, which the height then follows at once, easing only between steps
    */
-  easeContentChanges?: boolean;
+  easeContentChanges?: boolean
   /** Runs once an outgoing step has faded and left */
-  onExitComplete?: () => void;
-  children: ReactNode;
+  onExitComplete?: () => void
+  children: ReactNode
 }
 
 /**
@@ -42,29 +42,29 @@ export function StepTransition({
   onExitComplete,
   children,
 }: StepTransitionProps) {
-  const prefersReducedMotion = useReducedMotion();
-  const contentRef = useRef<HTMLDivElement>(null);
-  const [height, setHeight] = useState<number | 'auto'>('auto');
-  const [isEasing, setIsEasing] = useState(false);
-  const [shownKey, setShownKey] = useState(stepKey);
-  const [isSwapping, setIsSwapping] = useState(false);
+  const prefersReducedMotion = useReducedMotion()
+  const contentRef = useRef<HTMLDivElement>(null)
+  const [height, setHeight] = useState<number | 'auto'>('auto')
+  const [isEasing, setIsEasing] = useState(false)
+  const [shownKey, setShownKey] = useState(stepKey)
+  const [isSwapping, setIsSwapping] = useState(false)
   if (shownKey !== stepKey) {
-    setShownKey(stepKey);
-    setIsSwapping(true);
+    setShownKey(stepKey)
+    setIsSwapping(true)
   }
 
   // Track the in-flow content height so the wrapper can ease to it whenever the step or its content
   // changes, such as an error line appearing under the code field
   useLayoutEffect(() => {
-    const node = contentRef.current;
-    if (!node) return;
+    const node = contentRef.current
+    if (!node) return
 
-    const observer = new ResizeObserver(() => setHeight(node.offsetHeight));
-    observer.observe(node);
-    return () => observer.disconnect();
-  }, []);
+    const observer = new ResizeObserver(() => setHeight(node.offsetHeight))
+    observer.observe(node)
+    return () => observer.disconnect()
+  }, [])
 
-  const easesHeight = !prefersReducedMotion && (easeContentChanges || isSwapping);
+  const easesHeight = !prefersReducedMotion && (easeContentChanges || isSwapping)
 
   return (
     <motion.div
@@ -77,8 +77,8 @@ export function StepTransition({
       style={{ overflowX: 'visible', overflowY: isEasing ? 'clip' : 'visible' }}
       onAnimationStart={() => setIsEasing(true)}
       onAnimationComplete={() => {
-        setIsEasing(false);
-        setIsSwapping(false);
+        setIsEasing(false)
+        setIsSwapping(false)
       }}
     >
       <div ref={contentRef} className={`relative flex flex-col gap-5 ${fillPhone ? 'max-[1049px]:flex-1' : ''}`}>
@@ -90,7 +90,9 @@ export function StepTransition({
             initial={{ opacity: 0 }}
             animate={{
               opacity: 1,
-              transition: prefersReducedMotion ? INSTANT : { ...FADE_IN_TRANSITION, delay: FADE_OUT_TRANSITION.duration },
+              transition: prefersReducedMotion
+                ? INSTANT
+                : { ...FADE_IN_TRANSITION, delay: FADE_OUT_TRANSITION.duration },
             }}
             exit={{ opacity: 0, transition: prefersReducedMotion ? INSTANT : FADE_OUT_TRANSITION }}
           >
@@ -99,5 +101,5 @@ export function StepTransition({
         </AnimatePresence>
       </div>
     </motion.div>
-  );
+  )
 }

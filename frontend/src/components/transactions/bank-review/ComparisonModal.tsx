@@ -1,7 +1,13 @@
 import { useId, useState } from 'react'
 import { Landmark, Lock } from 'lucide-react'
 import { ApiError } from '@/api/auth'
-import { useResolveReviewItem, type BankReviewItem, type BankValues, type CorrectableBankField, type ReviewResolution } from '@/api/bank-sync'
+import {
+  useResolveReviewItem,
+  type BankReviewItem,
+  type BankValues,
+  type CorrectableBankField,
+  type ReviewResolution,
+} from '@/api/bank-sync'
 import { MODAL_INSET_CLASS_NAME } from '@/components/modal/inset'
 import { ModalTitledPanel } from '@/components/modal/TitledPanel'
 import { useMoneyFormatters } from '@/hooks/useMoneyFormatters'
@@ -32,7 +38,11 @@ const DECISIONS: Record<'correction' | 'removal', { keep: Decision; apply: Decis
   },
   removal: {
     keep: { resolution: 'keep-transaction', label: 'Keep transaction', toast: 'Transaction kept.' },
-    apply: { resolution: 'remove-from-ledger', label: 'Remove from ledger', toast: 'Transaction removed from the ledger.' },
+    apply: {
+      resolution: 'remove-from-ledger',
+      label: 'Remove from ledger',
+      toast: 'Transaction removed from the ledger.',
+    },
   },
 }
 
@@ -83,7 +93,9 @@ export function BankComparisonModal({ open, item, currency, onClose }: BankCompa
     if (field === 'description') return values.description
 
     // An amount the currency can't hold is shown exactly as the bank sent it, never rounded
-    return values.amount === null ? formatRawAmount(values.raw_amount ?? '', currency).text : formatMovedCurrency(values.amount, currency)
+    return values.amount === null
+      ? formatRawAmount(values.raw_amount ?? '', currency).text
+      : formatMovedCurrency(values.amount, currency)
   }
 
   const decide = ({ resolution, toast }: Decision) => {
@@ -110,7 +122,7 @@ export function BankComparisonModal({ open, item, currency, onClose }: BankCompa
       RailIcon={Landmark}
       railLabel="Review"
       closeDisabled={resolve.isPending}
-      footer={(
+      footer={
         // The action that changes the ledger sits on the left and the keeping one on the right, as in the
         // other confirmations, and each takes half the width on phones
         <div
@@ -133,7 +145,7 @@ export function BankComparisonModal({ open, item, currency, onClose }: BankCompa
             onClick={() => decide(keep)}
           />
         </div>
-      )}
+      }
     >
       <div className="space-y-5 pb-2">
         <p className="text-sm" style={{ color: 'var(--app-text-muted)' }}>
@@ -153,9 +165,15 @@ export function BankComparisonModal({ open, item, currency, onClose }: BankCompa
             </colgroup>
             <thead style={{ background: 'var(--app-surface-soft)' }}>
               <tr className="text-xs font-medium uppercase tracking-wide" style={{ color: 'var(--app-text-muted)' }}>
-                <th scope="col" className={`${CELL_CLASS_NAME} py-2 font-medium`}>Field</th>
-                <th scope="col" className={`${CELL_CLASS_NAME} py-2 font-medium`}>In your ledger</th>
-                <th scope="col" className={`${CELL_CLASS_NAME} py-2 font-medium`}>{isRemoval ? 'Bank' : 'From bank'}</th>
+                <th scope="col" className={`${CELL_CLASS_NAME} py-2 font-medium`}>
+                  Field
+                </th>
+                <th scope="col" className={`${CELL_CLASS_NAME} py-2 font-medium`}>
+                  In your ledger
+                </th>
+                <th scope="col" className={`${CELL_CLASS_NAME} py-2 font-medium`}>
+                  {isRemoval ? 'Bank' : 'From bank'}
+                </th>
               </tr>
             </thead>
 
@@ -166,7 +184,8 @@ export function BankComparisonModal({ open, item, currency, onClose }: BankCompa
 
               // A value the user kept apart from the bank's before, which this change leaves alone. A
               // removal shows no bank value to differ from
-              const isKept = !isRemoval && !isChanged && formatValue(field, item.current) !== formatValue(field, item.bank)
+              const isKept =
+                !isRemoval && !isChanged && formatValue(field, item.current) !== formatValue(field, item.bank)
               const rowPadding = `pt-2.5 ${isEdited || isKept ? 'pb-1' : 'pb-2.5'}`
               const valueClassName = `${CELL_CLASS_NAME} ${rowPadding} break-words ${field === 'amount' ? 'font-financial tabular-nums' : ''}`
 
@@ -174,7 +193,10 @@ export function BankComparisonModal({ open, item, currency, onClose }: BankCompa
                 <tbody
                   key={field}
                   data-testid={`comparison-${field}`}
-                  style={{ borderTop: '1px solid var(--app-border)', background: isChanged ? 'var(--app-warning-soft)' : undefined }}
+                  style={{
+                    borderTop: '1px solid var(--app-border)',
+                    background: isChanged ? 'var(--app-warning-soft)' : undefined,
+                  }}
                 >
                   <tr>
                     {/* Muted text falls short of AA contrast on the warning tint in the dark theme, so a
@@ -190,9 +212,14 @@ export function BankComparisonModal({ open, item, currency, onClose }: BankCompa
                       {formatValue(field, item.current)}
                     </td>
                     {isRemoval ? (
-                      <td className={`${CELL_CLASS_NAME} py-2.5`} style={{ color: 'var(--app-text-muted)' }}>No longer reported</td>
+                      <td className={`${CELL_CLASS_NAME} py-2.5`} style={{ color: 'var(--app-text-muted)' }}>
+                        No longer reported
+                      </td>
                     ) : (
-                      <td className={valueClassName} style={{ color: isChanged ? 'var(--app-warning-text)' : 'var(--app-text)' }}>
+                      <td
+                        className={valueClassName}
+                        style={{ color: isChanged ? 'var(--app-warning-text)' : 'var(--app-text)' }}
+                      >
                         {formatValue(field, item.bank)}
                       </td>
                     )}

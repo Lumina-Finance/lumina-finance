@@ -9,10 +9,7 @@ import ProfileSection from '@/pages/settings/components/ProfileSection'
 import RunwaySection from '@/pages/settings/components/runway-section/Section'
 import { StepUpModal } from '@/components/two-factor/StepUpModal'
 import SecuritySection from '@/pages/settings/components/security-section/Section'
-import {
-  SettingsDesktopSectionSidebar,
-  SettingsMobileSectionMenu,
-} from '@/pages/settings/components/SectionNavigation'
+import { SettingsDesktopSectionSidebar, SettingsMobileSectionMenu } from '@/pages/settings/components/SectionNavigation'
 import { SettingsPaneActions } from '@/pages/settings/components/PaneActions'
 import TaxAdvantagedCategoriesSection from '@/pages/settings/components/tax-advantaged/tax-advantaged-categories-section/Section'
 import { useProfileSettingsForm } from '@/pages/settings/hooks/useProfileSettingsForm'

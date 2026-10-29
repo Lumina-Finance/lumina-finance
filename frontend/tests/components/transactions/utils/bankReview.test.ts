@@ -53,8 +53,17 @@ function createReviewItem(kind: BankReviewItemKind, overrides: Partial<BankRevie
   }
 }
 
-function createBacklog(accountId: string, waiting: number, state: { paused?: boolean; warned?: boolean } = {}): BankReviewBacklog {
-  return { account_id: accountId, waiting_new_count: waiting, paused: state.paused ?? false, review_warning: state.warned ?? false }
+function createBacklog(
+  accountId: string,
+  waiting: number,
+  state: { paused?: boolean; warned?: boolean } = {},
+): BankReviewBacklog {
+  return {
+    account_id: accountId,
+    waiting_new_count: waiting,
+    paused: state.paused ?? false,
+    review_warning: state.warned ?? false,
+  }
 }
 
 const EVERYDAY = { id: 'everyday', name: 'Everyday', owner_id: 'user-1', group_id: null }
@@ -65,15 +74,34 @@ const SHARED = { id: 'shared', name: 'Shared', owner_id: 'user-2', group_id: nul
 describe('the line under an item', () => {
   it.each([
     ['a new item', createReviewItem('new'), 'Needs merchant and category'],
-    ['a new item whose amount its currency cannot hold', createReviewItem('new', {
-      bank: { ...createReviewItem('new').bank, amount: null, raw_amount: '-12.345' },
-    }), 'Needs amount, merchant and category'],
+    [
+      'a new item whose amount its currency cannot hold',
+      createReviewItem('new', {
+        bank: { ...createReviewItem('new').bank, amount: null, raw_amount: '-12.345' },
+      }),
+      'Needs amount, merchant and category',
+    ],
     ['a removal', createReviewItem('removal'), 'The bank no longer reports this transaction'],
-    ['a correction to the amount', createReviewItem('correction', { changed_fields: ['amount'] }), 'The bank changed the amount'],
-    ['a correction to the date and amount', createReviewItem('correction', { changed_fields: ['date', 'amount'] }), 'The bank changed the amount and date'],
-    ['a correction to every field', createReviewItem('correction', { changed_fields: ['description', 'date', 'amount'] }),
-      'The bank changed the amount, date and bank description'],
-    ['a correction naming no field it knows', createReviewItem('correction', { changed_fields: [] }), 'The bank changed this transaction'],
+    [
+      'a correction to the amount',
+      createReviewItem('correction', { changed_fields: ['amount'] }),
+      'The bank changed the amount',
+    ],
+    [
+      'a correction to the date and amount',
+      createReviewItem('correction', { changed_fields: ['date', 'amount'] }),
+      'The bank changed the amount and date',
+    ],
+    [
+      'a correction to every field',
+      createReviewItem('correction', { changed_fields: ['description', 'date', 'amount'] }),
+      'The bank changed the amount, date and bank description',
+    ],
+    [
+      'a correction naming no field it knows',
+      createReviewItem('correction', { changed_fields: [] }),
+      'The bank changed this transaction',
+    ],
   ])('says what %s asks', (_, item, line) => {
     expect(describeReviewItem(item)).toBe(line)
   })
@@ -81,25 +109,45 @@ describe('the line under an item', () => {
 
 describe('the amount an item shows', () => {
   it('shows the ledger amount a removal would take out, struck through', () => {
-    expect(getReviewItemAmount(createReviewItem('removal'), 'USD', formatMoved)).toEqual({ text: `${MINUS}$18.00`, sign: -1, isStruckThrough: true })
+    expect(getReviewItemAmount(createReviewItem('removal'), 'USD', formatMoved)).toEqual({
+      text: `${MINUS}$18.00`,
+      sign: -1,
+      isStruckThrough: true,
+    })
   })
 
   it('shows the bank amount of a new item, with money in signed for the positive colour', () => {
     const refund = createReviewItem('new', { bank: { ...createReviewItem('new').bank, amount: 4250 } })
 
-    expect(getReviewItemAmount(refund, 'USD', formatMoved)).toEqual({ text: '+$42.50', sign: 1, isStruckThrough: false })
+    expect(getReviewItemAmount(refund, 'USD', formatMoved)).toEqual({
+      text: '+$42.50',
+      sign: 1,
+      isStruckThrough: false,
+    })
   })
 
   it('shows every decimal place the bank sent when the currency holds fewer', () => {
-    const exact = createReviewItem('new', { bank: { ...createReviewItem('new').bank, amount: null, raw_amount: '-1234.567' } })
+    const exact = createReviewItem('new', {
+      bank: { ...createReviewItem('new').bank, amount: null, raw_amount: '-1234.567' },
+    })
 
-    expect(getReviewItemAmount(exact, 'USD', formatMoved)).toEqual({ text: `${MINUS}$1,234.567`, sign: -1, isStruckThrough: false })
+    expect(getReviewItemAmount(exact, 'USD', formatMoved)).toEqual({
+      text: `${MINUS}$1,234.567`,
+      sign: -1,
+      isStruckThrough: false,
+    })
   })
 
   it('shows a bank amount that is not a number as it came, unsigned', () => {
-    const unreadable = createReviewItem('new', { bank: { ...createReviewItem('new').bank, amount: null, raw_amount: 'about 12' } })
+    const unreadable = createReviewItem('new', {
+      bank: { ...createReviewItem('new').bank, amount: null, raw_amount: 'about 12' },
+    })
 
-    expect(getReviewItemAmount(unreadable, 'USD', formatMoved)).toEqual({ text: 'about 12', sign: 0, isStruckThrough: false })
+    expect(getReviewItemAmount(unreadable, 'USD', formatMoved)).toEqual({
+      text: 'about 12',
+      sign: 0,
+      isStruckThrough: false,
+    })
   })
 })
 
@@ -112,7 +160,11 @@ describe('the date an item shows', () => {
 
 describe('the backlog notice', () => {
   it('names every paused account, in the order the accounts are given, over any warning', () => {
-    const backlogs = [createBacklog('savings', 120, { paused: true }), createBacklog('everyday', 105, { paused: true }), createBacklog('visa', 85, { warned: true })]
+    const backlogs = [
+      createBacklog('savings', 120, { paused: true }),
+      createBacklog('everyday', 105, { paused: true }),
+      createBacklog('visa', 85, { warned: true }),
+    ]
 
     expect(describeBacklogNotice(backlogs, [EVERYDAY, SAVINGS, { id: 'visa', name: 'Visa' }])).toEqual({
       tone: 'paused',
@@ -121,7 +173,12 @@ describe('the backlog notice', () => {
   })
 
   it('warns for an account at 80 or more when none is paused', () => {
-    expect(describeBacklogNotice([createBacklog('savings', 85, { warned: true }), createBacklog('everyday', 3)], [EVERYDAY, SAVINGS])).toEqual({
+    expect(
+      describeBacklogNotice(
+        [createBacklog('savings', 85, { warned: true }), createBacklog('everyday', 3)],
+        [EVERYDAY, SAVINGS],
+      ),
+    ).toEqual({
       tone: 'warning',
       text: '85 new to review in Savings. Sync pauses at 100.',
     })

@@ -70,7 +70,14 @@ export function createBankAccount(overrides: Partial<DiscoveredBankAccount> = {}
 
 /** Builds Everyday's read of its link: never linked, unless told otherwise */
 export function createStatus(overrides: Partial<AccountBankStatus> = {}): AccountBankStatus {
-  return { account_id: 'account-1', link: null, previous_link: null, balance: null, opening_adjustment: null, ...overrides }
+  return {
+    account_id: 'account-1',
+    link: null,
+    previous_link: null,
+    balance: null,
+    opening_adjustment: null,
+    ...overrides,
+  }
 }
 
 /** Builds the providers read: SimpleFIN, open to new connections unless told otherwise, with sync running */
@@ -78,16 +85,18 @@ export function createProviders(offered = true): BankProvidersResponse {
   return {
     may_link: true,
     sync_running: true,
-    providers: [{
-      id: 'simplefin',
-      name: 'SimpleFIN',
-      description: 'Connects to banks through SimpleFIN Bridge',
-      connects_from: 'settings',
-      offered,
-      history_limit_months: 12,
-      advertises_history: false,
-      institution_limit: null,
-      institutions_in_use: [],
-    }],
+    providers: [
+      {
+        id: 'simplefin',
+        name: 'SimpleFIN',
+        description: 'Connects to banks through SimpleFIN Bridge',
+        connects_from: 'settings',
+        offered,
+        history_limit_months: 12,
+        advertises_history: false,
+        institution_limit: null,
+        institutions_in_use: [],
+      },
+    ],
   }
 }

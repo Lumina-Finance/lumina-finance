@@ -18,14 +18,24 @@ describe('the sideways shift of an icon’s tooltip', () => {
 
   it('keeps clear of the sidebar where the surface around the icon leaves room', () => {
     // An icon near the left of a dialog's wide body, which lies across the sidebar's edge behind it
-    const offset = getIconTooltipOffset({ icon: { left: 294, width: 12 }, tooltipWidth, surface: { left: 189, right: 861 }, ...sidebarEdge })
+    const offset = getIconTooltipOffset({
+      icon: { left: 294, width: 12 },
+      tooltipWidth,
+      surface: { left: 189, right: 861 },
+      ...sidebarEdge,
+    })
 
     // Centred it would start at 188, so it starts at the sidebar's edge and the margin instead
     expect(offset).toBe(80)
   })
 
   it('stays inside a narrow column lying across the sidebar’s edge rather than clearing that edge', () => {
-    const offset = getIconTooltipOffset({ icon: { left: 310, width: 12 }, tooltipWidth, surface: { left: 160, right: 448 }, ...sidebarEdge })
+    const offset = getIconTooltipOffset({
+      icon: { left: 310, width: 12 },
+      tooltipWidth,
+      surface: { left: 160, right: 448 },
+      ...sidebarEdge,
+    })
 
     // Centred it would start at 204, and held right of the sidebar's edge at 268 it would end at 492,
     // past the column's 440. It goes only as far right as the column leaves room for
@@ -40,7 +50,12 @@ describe('the sideways shift of an icon’s tooltip', () => {
   it('stays inside a card that starts right of the sidebar’s edge', () => {
     // An icon near the left of a card in the page, where centred it would start at 304, clear of the
     // sidebar's edge but left of the card's 408
-    const offset = getIconTooltipOffset({ icon: { left: 410, width: 12 }, tooltipWidth, surface: { left: 400, right: 800 }, ...sidebarEdge })
+    const offset = getIconTooltipOffset({
+      icon: { left: 410, width: 12 },
+      tooltipWidth,
+      surface: { left: 400, right: 800 },
+      ...sidebarEdge,
+    })
 
     expect(offset).toBe(104)
   })
@@ -62,14 +77,19 @@ describe('the side an icon’s tooltip opens on', () => {
   })
 
   it('opens below the whole fact even where the surface leaves no room below either', () => {
-    expect(getIconTooltipPlacement({ ...screen, ...factAt(100), surface: { top: 0, bottom: 300 } }))
-      .toEqual({ placement: 'bottom', shift: 24 })
+    expect(getIconTooltipPlacement({ ...screen, ...factAt(100), surface: { top: 0, bottom: 300 } })).toEqual({
+      placement: 'bottom',
+      shift: 24,
+    })
   })
 
   it('keeps to the preferred side, from the icon, without a fact around it where neither side fits', () => {
     const { icon } = factAt(100)
 
-    expect(getIconTooltipPlacement({ ...screen, icon, surface: { top: 0, bottom: 300 } })).toEqual({ placement: 'top', shift: 0 })
+    expect(getIconTooltipPlacement({ ...screen, icon, surface: { top: 0, bottom: 300 } })).toEqual({
+      placement: 'top',
+      shift: 0,
+    })
   })
 })
 
@@ -99,7 +119,7 @@ describe('the bars a tooltip opening upwards keeps clear of', () => {
     expect(getTooltipCoverBottom(iconIn(null), ICON)).toBe(STUCK_TOOLBAR.bottom)
   })
 
-  it('leave out the page\'s toolbar for an icon in a dialog drawn over it', () => {
+  it("leave out the page's toolbar for an icon in a dialog drawn over it", () => {
     stubPageWithStuckToolbar()
 
     expect(getTooltipCoverBottom(iconIn({}), ICON)).toBe(0)

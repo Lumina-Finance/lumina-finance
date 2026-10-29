@@ -2,7 +2,12 @@ import { Fragment, useId, useRef, useState } from 'react'
 import { AnimatePresence } from 'motion/react'
 import { ChevronDown, ListChecks } from 'lucide-react'
 import { ApiError } from '@/api/auth'
-import { useApplyBulkApproval, useBulkApprovalPreview, type BulkApprovalGroup, type BulkApprovalKind } from '@/api/bank-sync'
+import {
+  useApplyBulkApproval,
+  useBulkApprovalPreview,
+  type BulkApprovalGroup,
+  type BulkApprovalKind,
+} from '@/api/bank-sync'
 import { Unfold } from '@/components/display/Unfold'
 import { InfoCallout } from '@/components/InfoCallout'
 import LoadFailure from '@/components/errors/LoadFailure'
@@ -24,7 +29,8 @@ import {
 const APPROVAL_FAILED_MESSAGE = 'Something went wrong. Please try again.'
 
 // A net effect is toned as the list's day totals are: green for money in, red for money out
-const netEffectColor = (amount: number) => (amount > 0 ? 'var(--app-positive)' : amount < 0 ? 'var(--app-negative)' : 'var(--app-text)')
+const netEffectColor = (amount: number) =>
+  amount > 0 ? 'var(--app-positive)' : amount < 0 ? 'var(--app-negative)' : 'var(--app-text)'
 
 type BulkApprovalModalProps = {
   open: boolean
@@ -56,7 +62,11 @@ export function BulkApprovalModal({ open, scope, accountFor, today, onClose }: B
 
   // Applied, the preview stays as it is while the modal closes, rather than being read again empty
   const isLocked = apply.isPending || apply.isSuccess
-  const { data: readPreview, error: previewError, isFetchedAfterMount } = useBulkApprovalPreview(scope, open && !isLocked)
+  const {
+    data: readPreview,
+    error: previewError,
+    isFetchedAfterMount,
+  } = useBulkApprovalPreview(scope, open && !isLocked)
 
   // Each opening reads the preview anew, so one cached from before, which may list items decided
   // since, never shows. Nor does one a later read failed to bring up to date
@@ -108,10 +118,11 @@ export function BulkApprovalModal({ open, scope, accountFor, today, onClose }: B
               {describeBulkApprovalGroup(group.kind, group.count)}
             </span>
             <span className="block font-financial text-xs tabular-nums" style={{ color: 'var(--app-text-muted)' }}>
-              {group.net_effect.length === 0 ? 'No balance change' : (
+              {group.net_effect.length === 0 ? (
+                'No balance change'
+              ) : (
                 <>
-                  Net effect:
-                  {' '}
+                  Net effect:{' '}
                   {group.net_effect.map(({ currency, amount }, index) => (
                     <Fragment key={currency}>
                       {index > 0 && ', '}
@@ -138,9 +149,15 @@ export function BulkApprovalModal({ open, scope, accountFor, today, onClose }: B
                 {group.items.map((item) => {
                   const amount = getReviewItemAmount(item, accountFor(item.account_id).currency, formatMovedCurrency)
                   return (
-                    <li key={item.id} className="flex items-center gap-3 py-2 text-sm" style={{ borderTop: '1px solid var(--app-border)' }}>
+                    <li
+                      key={item.id}
+                      className="flex items-center gap-3 py-2 text-sm"
+                      style={{ borderTop: '1px solid var(--app-border)' }}
+                    >
                       <span className="min-w-0 flex-1">
-                        <span className="block break-words" style={{ color: 'var(--app-text)' }}>{item.bank.description}</span>
+                        <span className="block break-words" style={{ color: 'var(--app-text)' }}>
+                          {item.bank.description}
+                        </span>
                         <span className="block text-xs" style={{ color: 'var(--app-text-muted)' }}>
                           {formatReviewDate(item.bank.date, today)} · {describeReviewItem(item)}
                         </span>
@@ -175,7 +192,7 @@ export function BulkApprovalModal({ open, scope, accountFor, today, onClose }: B
       RailIcon={ListChecks}
       railLabel="Approve"
       closeDisabled={apply.isPending}
-      footer={(
+      footer={
         <ModalFormFooter
           submitLabel={approveLabel}
           submitDisabled={apply.isPending}
@@ -186,7 +203,7 @@ export function BulkApprovalModal({ open, scope, accountFor, today, onClose }: B
           onPrimary={approve}
           primaryOnLeft
         />
-      )}
+      }
     >
       <LoadingRegion loading={isLoading} label="Working out what would change" animateLoadingHeight>
         <div className="min-h-32 space-y-4 pb-2">
@@ -204,7 +221,9 @@ export function BulkApprovalModal({ open, scope, accountFor, today, onClose }: B
             </p>
           )}
 
-          {preview && preview.excluded_count > 0 && <InfoCallout>{describeExcludedNewItems(preview.excluded_count)}</InfoCallout>}
+          {preview && preview.excluded_count > 0 && (
+            <InfoCallout>{describeExcludedNewItems(preview.excluded_count)}</InfoCallout>
+          )}
         </div>
       </LoadingRegion>
     </ModalTitledPanel>

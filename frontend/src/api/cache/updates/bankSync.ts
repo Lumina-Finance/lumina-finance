@@ -1,18 +1,18 @@
-import type { InfiniteData, Query, QueryClient } from '@tanstack/react-query';
+import type { InfiniteData, Query, QueryClient } from '@tanstack/react-query'
 import {
   invalidateBankLinks,
   invalidateBankReview,
   invalidateBankReviewItems,
   invalidateBankSyncStatus,
   invalidateTransactions,
-} from '@/api/cache/invalidation';
-import { invalidateTargets } from '@/api/cache/invalidation/types';
-import { bankSyncKeys, transactionKeys } from '@/api/cache/queryKeys';
+} from '@/api/cache/invalidation'
+import { invalidateTargets } from '@/api/cache/invalidation/types'
+import { bankSyncKeys, transactionKeys } from '@/api/cache/queryKeys'
 import {
   invalidateFinancialTransactionData,
   invalidatePatchedTransactionData,
   replaceCachedTransaction,
-} from '@/api/cache/updates/transactions';
+} from '@/api/cache/updates/transactions'
 import type {
   AccountBankStatus,
   BankConnection,
@@ -22,10 +22,10 @@ import type {
   BankReviewPage,
   EditableBankField,
   ReviewPreferences,
-} from '@/api/bank-sync/types';
-import type { Transaction } from '@/api/transactions/types';
+} from '@/api/bank-sync/types'
+import type { Transaction } from '@/api/transactions/types'
 
-type CachedReviewPages = InfiniteData<BankReviewPage, string | null>;
+type CachedReviewPages = InfiniteData<BankReviewPage, string | null>
 
 /**
  * Takes decided items out of every cached page of the review inbox at once, and out of its counts
@@ -38,15 +38,15 @@ export function removeReviewItemsFromPages(
   isDecided: (item: BankReviewItem) => boolean,
 ): void {
   queryClient.setQueriesData<CachedReviewPages>({ queryKey: bankSyncKeys.reviewItemsAll }, (data) => {
-    if (!data) return data;
-    return withoutReviewItems(data, isDecided, countByKind(data.pages.flatMap((page) => page.items).filter(isDecided)));
-  });
+    if (!data) return data
+    return withoutReviewItems(data, isDecided, countByKind(data.pages.flatMap((page) => page.items).filter(isDecided)))
+  })
 }
 
 function countByKind(items: BankReviewItem[]): BankReviewCounts {
-  const counts: BankReviewCounts = { new: 0, correction: 0, removal: 0 };
-  for (const item of items) counts[item.kind] += 1;
-  return counts;
+  const counts: BankReviewCounts = { new: 0, correction: 0, removal: 0 }
+  for (const item of items) counts[item.kind] += 1
+  return counts
 }
 
 /** The pages without the decided items, each page's counts lowered by those given */
@@ -55,7 +55,7 @@ function withoutReviewItems(
   isDecided: (item: BankReviewItem) => boolean,
   removed: BankReviewCounts,
 ): CachedReviewPages {
-  if (removed.new + removed.correction + removed.removal === 0) return data;
+  if (removed.new + removed.correction + removed.removal === 0) return data
 
   return {
     ...data,
@@ -68,7 +68,7 @@ function withoutReviewItems(
         removal: Math.max(0, page.counts.removal - removed.removal),
       },
     })),
-  };
+  }
 }
 
 /**
@@ -77,13 +77,13 @@ function withoutReviewItems(
  * section that reads them rather than ahead of it
  */
 export async function refreshBankLinkState(queryClient: QueryClient): Promise<void> {
-  invalidateBankReview(queryClient);
+  invalidateBankReview(queryClient)
   await Promise.all([
     queryClient.invalidateQueries({ queryKey: bankSyncKeys.links(), exact: true, refetchType: 'active' }),
     queryClient.invalidateQueries({ queryKey: bankSyncKeys.accountAll, refetchType: 'active' }),
     queryClient.invalidateQueries({ queryKey: bankSyncKeys.connections(), exact: true, refetchType: 'active' }),
     queryClient.invalidateQueries({ queryKey: bankSyncKeys.providers(), exact: true, refetchType: 'active' }),
-  ]);
+  ])
 }
 
 /**
@@ -94,10 +94,10 @@ export async function refreshBankLinkState(queryClient: QueryClient): Promise<vo
  */
 export function putCachedBankLink(queryClient: QueryClient, link: BankLink): void {
   queryClient.setQueryData<BankLink[]>(bankSyncKeys.links(), (links) => {
-    if (!links) return links;
-    if (!links.some((cached) => cached.account_id === link.account_id)) return [...links, link];
-    return links.map((cached) => (cached.account_id === link.account_id ? link : cached));
-  });
+    if (!links) return links
+    if (!links.some((cached) => cached.account_id === link.account_id)) return [...links, link]
+    return links.map((cached) => (cached.account_id === link.account_id ? link : cached))
+  })
 }
 
 /**
@@ -106,7 +106,7 @@ export function putCachedBankLink(queryClient: QueryClient, link: BankLink): voi
 export function replaceCachedBankConnection(queryClient: QueryClient, connection: BankConnection): void {
   queryClient.setQueryData<BankConnection[]>(bankSyncKeys.connections(), (connections) =>
     connections?.map((cached) => (cached.id === connection.id ? connection : cached)),
-  );
+  )
 }
 
 /**
@@ -117,7 +117,7 @@ export function putCachedReviewPreferences(
   accountId: string,
   preferences: ReviewPreferences,
 ): void {
-  queryClient.setQueryData<ReviewPreferences>(bankSyncKeys.reviewPreferences(accountId), preferences);
+  queryClient.setQueryData<ReviewPreferences>(bankSyncKeys.reviewPreferences(accountId), preferences)
 }
 
 /**
@@ -126,8 +126,10 @@ export function putCachedReviewPreferences(
  * trusted, ledger transactions
  */
 function hasNewBankData(previous: BankLink, link: BankLink): boolean {
-  return previous.sync.last_success_at !== link.sync.last_success_at
-    || previous.import?.windows_done !== link.import?.windows_done;
+  return (
+    previous.sync.last_success_at !== link.sync.last_success_at ||
+    previous.import?.windows_done !== link.import?.windows_done
+  )
 }
 
 /**
@@ -135,7 +137,7 @@ function hasNewBankData(previous: BankLink, link: BankLink): boolean {
  * only the user can fix ends both without bringing in data
  */
 function hasNewBacklogNotice(previous: BankLink, link: BankLink): boolean {
-  return previous.sync.paused !== link.sync.paused || previous.sync.review_warning !== link.sync.review_warning;
+  return previous.sync.paused !== link.sync.paused || previous.sync.review_warning !== link.sync.review_warning
 }
 
 /**
@@ -156,34 +158,34 @@ export function applyBankLinkChanges(
   before: BankLink[] | undefined,
   after: BankLink[] | undefined,
 ): void {
-  if (!before || !after || before === after) return;
+  if (!before || !after || before === after) return
 
-  const previousByAccount = new Map(before.map((link) => [link.account_id, link]));
-  const withNewData: string[] = [];
-  let changed = before.length !== after.length;
-  let backlogNoticeChanged = false;
+  const previousByAccount = new Map(before.map((link) => [link.account_id, link]))
+  const withNewData: string[] = []
+  let changed = before.length !== after.length
+  let backlogNoticeChanged = false
 
   for (const link of after) {
-    const previous = previousByAccount.get(link.account_id);
+    const previous = previousByAccount.get(link.account_id)
     if (!previous) {
-      changed = true;
-      continue;
+      changed = true
+      continue
     }
-    if (JSON.stringify(previous) !== JSON.stringify(link)) changed = true;
-    if (hasNewBacklogNotice(previous, link)) backlogNoticeChanged = true;
-    if (hasNewBankData(previous, link)) withNewData.push(link.account_id);
+    if (JSON.stringify(previous) !== JSON.stringify(link)) changed = true
+    if (hasNewBacklogNotice(previous, link)) backlogNoticeChanged = true
+    if (hasNewBankData(previous, link)) withNewData.push(link.account_id)
   }
 
-  if (!changed) return;
+  if (!changed) return
 
-  invalidateBankSyncStatus(queryClient);
-  invalidateTargets(queryClient, [{ queryKey: bankSyncKeys.pendingAll }]);
-  if (backlogNoticeChanged) invalidateTargets(queryClient, [{ queryKey: bankSyncKeys.reviewBacklogsAll }]);
-  if (withNewData.length === 0) return;
+  invalidateBankSyncStatus(queryClient)
+  invalidateTargets(queryClient, [{ queryKey: bankSyncKeys.pendingAll }])
+  if (backlogNoticeChanged) invalidateTargets(queryClient, [{ queryKey: bankSyncKeys.reviewBacklogsAll }])
+  if (withNewData.length === 0) return
 
-  invalidateBankReviewItems(queryClient);
-  invalidateTransactions(queryClient);
-  invalidateFinancialTransactionData(queryClient, withNewData);
+  invalidateBankReviewItems(queryClient)
+  invalidateTransactions(queryClient)
+  invalidateFinancialTransactionData(queryClient, withNewData)
 }
 
 /**
@@ -198,10 +200,10 @@ export async function applyLedgerReviewOutcome(
   accountIds: string[],
   isDecided: (item: BankReviewItem) => boolean,
 ): Promise<void> {
-  await refetchLedgerAndWaitingCounts(queryClient, accountIds);
-  removeReviewItemsFromPages(queryClient, isDecided);
-  invalidateBankSyncStatus(queryClient);
-  invalidateTargets(queryClient, [{ queryKey: bankSyncKeys.bulkPreviews }]);
+  await refetchLedgerAndWaitingCounts(queryClient, accountIds)
+  removeReviewItemsFromPages(queryClient, isDecided)
+  invalidateBankSyncStatus(queryClient)
+  invalidateTargets(queryClient, [{ queryKey: bankSyncKeys.bulkPreviews }])
 }
 
 /**
@@ -222,16 +224,16 @@ export async function applyBulkApprovalOutcome(
   scope: string[] | undefined,
   applied: BankReviewItem[],
 ): Promise<void> {
-  const appliedIds = new Set(applied.map((item) => item.id));
-  const isApplied = (item: BankReviewItem) => appliedIds.has(item.id);
-  await refetchLedgerAndWaitingCounts(queryClient, [...new Set(applied.map((item) => item.account_id))]);
+  const appliedIds = new Set(applied.map((item) => item.id))
+  const isApplied = (item: BankReviewItem) => appliedIds.has(item.id)
+  await refetchLedgerAndWaitingCounts(queryClient, [...new Set(applied.map((item) => item.account_id))])
   queryClient.setQueryData<CachedReviewPages>(
     bankSyncKeys.reviewItems(scope),
     (data) => data && withoutReviewItems(data, isApplied, countByKind(applied)),
-  );
-  removeReviewItemsFromPages(queryClient, isApplied);
-  invalidateBankSyncStatus(queryClient);
-  invalidateTargets(queryClient, [{ queryKey: bankSyncKeys.reviewItemsAll }, { queryKey: bankSyncKeys.bulkPreviews }]);
+  )
+  removeReviewItemsFromPages(queryClient, isApplied)
+  invalidateBankSyncStatus(queryClient)
+  invalidateTargets(queryClient, [{ queryKey: bankSyncKeys.reviewItemsAll }, { queryKey: bankSyncKeys.bulkPreviews }])
 }
 
 /**
@@ -241,12 +243,12 @@ export async function applyBulkApprovalOutcome(
  * notice in step with the block's count
  */
 async function refetchLedgerAndWaitingCounts(queryClient: QueryClient, accountIds: string[]): Promise<void> {
-  invalidateFinancialTransactionData(queryClient, accountIds);
+  invalidateFinancialTransactionData(queryClient, accountIds)
   await Promise.all([
     queryClient.invalidateQueries({ queryKey: transactionKeys.all, refetchType: 'active' }),
     queryClient.invalidateQueries({ queryKey: bankSyncKeys.links(), exact: true, refetchType: 'active' }),
     queryClient.invalidateQueries({ queryKey: bankSyncKeys.reviewBacklogsAll, refetchType: 'active' }),
-  ]);
+  ])
 }
 
 /**
@@ -267,16 +269,16 @@ export async function applyReviewDecision(
   isDecided: (item: BankReviewItem) => boolean,
   transaction: Transaction | undefined,
 ): Promise<void> {
-  const stillWaitingId = transaction?.bank_source?.review_item_id ?? null;
+  const stillWaitingId = transaction?.bank_source?.review_item_id ?? null
   await Promise.all([
     queryClient.invalidateQueries({ queryKey: bankSyncKeys.links(), exact: true, refetchType: 'active' }),
     queryClient.invalidateQueries({ queryKey: bankSyncKeys.reviewBacklogsAll, refetchType: 'active' }),
     stillWaitingId && queryClient.invalidateQueries({ queryKey: bankSyncKeys.reviewItemsAll, refetchType: 'active' }),
-  ]);
-  if (transaction) replaceCachedTransaction(queryClient, transaction);
-  removeReviewItemsFromPages(queryClient, (item) => isDecided(item) && item.id !== stillWaitingId);
-  invalidateBankSyncStatus(queryClient);
-  invalidateTargets(queryClient, [{ queryKey: bankSyncKeys.bulkPreviews }]);
+  ])
+  if (transaction) replaceCachedTransaction(queryClient, transaction)
+  removeReviewItemsFromPages(queryClient, (item) => isDecided(item) && item.id !== stillWaitingId)
+  invalidateBankSyncStatus(queryClient)
+  invalidateTargets(queryClient, [{ queryKey: bankSyncKeys.bulkPreviews }])
 }
 
 /**
@@ -286,8 +288,8 @@ export async function applyReviewDecision(
  * waiting counts are read again, so an item that no longer waits leaves the block
  */
 export function applyRefusedReviewDecision(queryClient: QueryClient): void {
-  invalidateBankReviewItems(queryClient);
-  invalidateBankLinks(queryClient);
+  invalidateBankReviewItems(queryClient)
+  invalidateBankLinks(queryClient)
 }
 
 /**
@@ -302,13 +304,13 @@ export function applyRestoredBankValue(
   transaction: Transaction,
   field: EditableBankField,
 ): void {
-  replaceCachedTransaction(queryClient, transaction);
+  replaceCachedTransaction(queryClient, transaction)
   invalidatePatchedTransactionData(
     queryClient,
     field === 'date' ? { dt: transaction.dt } : { amount: transaction.amount },
     [transaction.account_id],
-  );
-  invalidateBankReviewItems(queryClient);
+  )
+  invalidateBankReviewItems(queryClient)
 }
 
 /**
@@ -320,8 +322,8 @@ export function applyRestoredBankValue(
  * the status and the reminders too, is read again
  */
 export function applyAccountBankStatus(queryClient: QueryClient, status: AccountBankStatus): void {
-  queryClient.setQueryData(bankSyncKeys.accountStatus(status.account_id), status);
-  invalidateBankLinks(queryClient);
+  queryClient.setQueryData(bankSyncKeys.accountStatus(status.account_id), status)
+  invalidateBankLinks(queryClient)
 }
 
 /**
@@ -335,17 +337,17 @@ export function applyOpeningAdjustmentAnswer(
   status: AccountBankStatus,
   recorded: boolean,
 ): void {
-  applyAccountBankStatus(queryClient, status);
-  if (!recorded) return;
-  invalidateTransactions(queryClient);
-  invalidateFinancialTransactionData(queryClient, [status.account_id]);
+  applyAccountBankStatus(queryClient, status)
+  if (!recorded) return
+  invalidateTransactions(queryClient)
+  invalidateFinancialTransactionData(queryClient, [status.account_id])
 }
 
 /**
  * Whether a bank sync query asks about the account, on its own or among others
  */
 function asksAboutAccount(query: Query, accountId: string): boolean {
-  return query.queryKey.some((part) => part === accountId || (Array.isArray(part) && part.includes(accountId)));
+  return query.queryKey.some((part) => part === accountId || (Array.isArray(part) && part.includes(accountId)))
 }
 
 /**
@@ -358,22 +360,22 @@ function asksAboutAccount(query: Query, accountId: string): boolean {
  * forgets the rest as it leaves (forgetDeletedAccountBankData)
  */
 export function clearDeletedAccountBankData(queryClient: QueryClient, accountId: string): void {
-  queryClient.removeQueries({ queryKey: bankSyncKeys.bulkPreviews });
+  queryClient.removeQueries({ queryKey: bankSyncKeys.bulkPreviews })
   queryClient.removeQueries({
     queryKey: bankSyncKeys.all,
     type: 'inactive',
     predicate: (query) => asksAboutAccount(query, accountId),
-  });
+  })
   queryClient.invalidateQueries({
     queryKey: bankSyncKeys.all,
     refetchType: 'active',
     predicate: (query) => !asksAboutAccount(query, accountId),
-  });
+  })
 }
 
 /**
  * Forgets a deleted account's bank views, for its page to call once it is no longer on screen
  */
 export function forgetDeletedAccountBankData(queryClient: QueryClient, accountId: string): void {
-  queryClient.removeQueries({ queryKey: bankSyncKeys.all, predicate: (query) => asksAboutAccount(query, accountId) });
+  queryClient.removeQueries({ queryKey: bankSyncKeys.all, predicate: (query) => asksAboutAccount(query, accountId) })
 }

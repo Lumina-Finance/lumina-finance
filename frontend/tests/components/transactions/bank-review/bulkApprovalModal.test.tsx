@@ -38,7 +38,12 @@ vi.mock('@/hooks/useToast', () => ({ useToast: () => ({ showToast: () => {} }) }
 
 // The real panel renders into a portal, which markup rendered to a string can't hold
 vi.mock('@/components/modal/TitledPanel', () => ({
-  ModalTitledPanel: ({ footer, children }: { footer: ReactNode; children: ReactNode }) => <div>{children}{footer}</div>,
+  ModalTitledPanel: ({ footer, children }: { footer: ReactNode; children: ReactNode }) => (
+    <div>
+      {children}
+      {footer}
+    </div>
+  ),
 }))
 
 import { BulkApprovalModal } from '@/components/transactions/bank-review/BulkApprovalModal'
@@ -52,7 +57,10 @@ const EVERYDAY: BulkApprovalPreview = {
       kind: 'correction',
       count: 2,
       net_effect: [{ currency: 'USD', amount: -300 }],
-      items: [createReviewItem('countdown', 'correction', 'everyday'), createReviewItem('uber', 'correction', 'everyday')],
+      items: [
+        createReviewItem('countdown', 'correction', 'everyday'),
+        createReviewItem('uber', 'correction', 'everyday'),
+      ],
     },
     {
       kind: 'removal',
@@ -67,7 +75,13 @@ const EVERYDAY: BulkApprovalPreview = {
 function render(preview: PreviewRead): string {
   read.preview = preview
   return renderToStaticMarkup(
-    <BulkApprovalModal open scope={undefined} accountFor={() => ({ name: 'Everyday', currency: 'USD' })} today="2026-10-05" onClose={() => {}} />,
+    <BulkApprovalModal
+      open
+      scope={undefined}
+      accountFor={() => ({ name: 'Everyday', currency: 'USD' })}
+      today="2026-10-05"
+      onClose={() => {}}
+    />,
   )
 }
 
@@ -77,8 +91,12 @@ function renderPreview(data: BulkApprovalPreview): string {
 
 /** The text lines of each group's heading: its count, then its net effect */
 function groupsOf(markup: string): string[][] {
-  return [...markup.matchAll(/<button[^>]*aria-expanded="[^"]*"[^>]*>(.*?)<\/button>/g)]
-    .map(([, content]) => content.split('<span class="block').slice(1).map((line) => line.replace(/^[^>]*>/, '').replace(/<[^>]+>/g, '')))
+  return [...markup.matchAll(/<button[^>]*aria-expanded="[^"]*"[^>]*>(.*?)<\/button>/g)].map(([, content]) =>
+    content
+      .split('<span class="block')
+      .slice(1)
+      .map((line) => line.replace(/^[^>]*>/, '').replace(/<[^>]+>/g, '')),
+  )
 }
 
 /** The colour a net effect's figure is drawn in */
@@ -114,7 +132,10 @@ describe('a preview with items to apply', () => {
         {
           kind: 'removal',
           count: 2,
-          net_effect: [{ currency: 'JPY', amount: 500 }, { currency: 'USD', amount: -1250 }],
+          net_effect: [
+            { currency: 'JPY', amount: 500 },
+            { currency: 'USD', amount: -1250 },
+          ],
           items: [createReviewItem('tokyo', 'removal', 'yen'), createReviewItem('refund', 'removal', 'everyday')],
         },
       ],

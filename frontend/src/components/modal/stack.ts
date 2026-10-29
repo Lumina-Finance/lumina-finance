@@ -19,7 +19,11 @@ const stackListeners = new Set<() => void>()
  */
 export function registerOpenModal(
   token: string,
-  { blurPage = true, inertPage = true, panel = null }: { blurPage?: boolean; inertPage?: boolean; panel?: HTMLElement | null } = {},
+  {
+    blurPage = true,
+    inertPage = true,
+    panel = null,
+  }: { blurPage?: boolean; inertPage?: boolean; panel?: HTMLElement | null } = {},
 ) {
   openModalLayers.push({ token, blurPage, inertPage, panel })
   syncPageBehindModals()
@@ -83,8 +87,14 @@ function syncPageBehindModals() {
   const appRoot = document.getElementById(APP_ROOT_ID)
   if (!appRoot) return
 
-  appRoot.toggleAttribute('inert', openModalLayers.some((layer) => layer.inertPage))
-  appRoot.classList.toggle(PAGE_BEHIND_MODAL_CLASS, openModalLayers.some((layer) => layer.blurPage))
+  appRoot.toggleAttribute(
+    'inert',
+    openModalLayers.some((layer) => layer.inertPage),
+  )
+  appRoot.classList.toggle(
+    PAGE_BEHIND_MODAL_CLASS,
+    openModalLayers.some((layer) => layer.blurPage),
+  )
 }
 
 /**

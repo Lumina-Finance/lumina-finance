@@ -143,7 +143,9 @@ export function ModalShell({
             <motion.div className={`app-modal-frame relative ${panelClassName} !overflow-visible`} {...entrance}>
               <div
                 ref={panelRef}
-                aria-describedby={[descriptionId, asideHasRoom ? asideId : undefined].filter(Boolean).join(' ') || undefined}
+                aria-describedby={
+                  [descriptionId, asideHasRoom ? asideId : undefined].filter(Boolean).join(' ') || undefined
+                }
                 {...dialogAttributes}
               >
                 {children}

@@ -48,7 +48,9 @@ export function countLinkedBankAccounts(connection: BankConnection): { linked: n
 export function listShownBankAccounts(connection: BankConnection): ConnectionBankAccount[] {
   const waiting = new Set(connection.choose_again_links.map((link) => link.account_id))
   return connection.accounts.map((account) =>
-    account.linked_account_id !== null && waiting.has(account.linked_account_id) ? { ...account, linked_account_id: null } : account,
+    account.linked_account_id !== null && waiting.has(account.linked_account_id)
+      ? { ...account, linked_account_id: null }
+      : account,
   )
 }
 
@@ -58,7 +60,11 @@ export function listShownBankAccounts(connection: BankConnection): ConnectionBan
  * whose reconnect comes first
  */
 export function listSignInInstitutions(connection: BankConnection): string[] {
-  return [...new Set(connection.accounts.filter((account) => account.signin_needed).map((account) => account.institution_name))]
+  return [
+    ...new Set(
+      connection.accounts.filter((account) => account.signin_needed).map((account) => account.institution_name),
+    ),
+  ]
 }
 
 /**
@@ -87,7 +93,11 @@ export function describeSignInDetail(connection: BankConnection): string | null 
  *
  * @param query - The search as typed, matched without regard to case or surrounding spaces
  */
-export function matchesConnectionSearch(connection: BankConnection, query: string, accountNameFor: AccountNameLookup): boolean {
+export function matchesConnectionSearch(
+  connection: BankConnection,
+  query: string,
+  accountNameFor: AccountNameLookup,
+): boolean {
   const needle = query.trim().toLowerCase()
   if (!needle) return true
 
@@ -98,7 +108,7 @@ export function matchesConnectionSearch(connection: BankConnection, query: strin
     ...connection.accounts.flatMap((account) => [
       account.name,
       account.institution_name,
-      account.linked_account_id ? accountNameFor(account.linked_account_id) ?? '' : '',
+      account.linked_account_id ? (accountNameFor(account.linked_account_id) ?? '') : '',
     ]),
   ].some((text) => text.toLowerCase().includes(needle))
 }
@@ -138,7 +148,9 @@ export function describeReconnected(result: ReconnectConnectionResult): string {
   const chooseAgain = result.choose_again_account_ids.length
   if (resumed > 0) parts.push(`${countNoun(resumed, 'account')} ${resumed === 1 ? 'resumes' : 'resume'} syncing.`)
   if (chooseAgain > 0) {
-    parts.push(`${countNoun(chooseAgain, 'account')} ${chooseAgain === 1 ? 'needs its bank account' : 'need their bank accounts'} chosen again.`)
+    parts.push(
+      `${countNoun(chooseAgain, 'account')} ${chooseAgain === 1 ? 'needs its bank account' : 'need their bank accounts'} chosen again.`,
+    )
   }
   return parts.join(' ')
 }
@@ -149,7 +161,10 @@ export function describeReconnected(result: ReconnectConnectionResult): string {
  *
  * @param provider - The provider as the server describes it, undefined while it loads
  */
-export function describeInstitutionAllowance(provider: BankProvider | undefined, providerName: string): { value: string; hint: string } {
+export function describeInstitutionAllowance(
+  provider: BankProvider | undefined,
+  providerName: string,
+): { value: string; hint: string } {
   const counted = `Counts each institution with a linked bank account once, across all your ${providerName} connections.`
   if (!provider) return { value: '—', hint: counted }
 
@@ -197,7 +212,8 @@ export function groupInstitutions(
   allowance: { institutionLimit: number | null; institutionsInUse: string[] },
 ): InstitutionGroup[] {
   const signIn = new Set(listSignInInstitutions(connection))
-  const limitReached = allowance.institutionLimit !== null && allowance.institutionsInUse.length >= allowance.institutionLimit
+  const limitReached =
+    allowance.institutionLimit !== null && allowance.institutionsInUse.length >= allowance.institutionLimit
   const shown = listShownBankAccounts(connection)
   const names = [...new Set(shown.map((account) => account.institution_name))]
 
@@ -207,7 +223,8 @@ export function groupInstitutions(
     return {
       name,
       signInNeeded: signIn.has(name),
-      overLimit: connection.status === 'active' && limitReached && hasLinkable && !allowance.institutionsInUse.includes(name),
+      overLimit:
+        connection.status === 'active' && limitReached && hasLinkable && !allowance.institutionsInUse.includes(name),
       linked: countLinked(bankAccounts),
       bankAccounts,
     }
@@ -220,7 +237,12 @@ export function groupInstitutions(
  */
 export function matchesInstitutionSearch(group: InstitutionGroup, query: string): boolean {
   const needle = query.trim().toLowerCase()
-  return !needle || [group.name, ...group.bankAccounts.map((account) => account.name)].some((text) => text.toLowerCase().includes(needle))
+  return (
+    !needle ||
+    [group.name, ...group.bankAccounts.map((account) => account.name)].some((text) =>
+      text.toLowerCase().includes(needle),
+    )
+  )
 }
 
 /**

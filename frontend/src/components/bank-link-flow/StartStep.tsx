@@ -22,29 +22,51 @@ type StartStepProps = {
  * Chooses the day an import starts on: a preset counted back from the provider's limit, raised to
  * the day after the account's latest transaction, or a custom date inside the range
  */
-export function StartStep({ range, bankAccountName, providerName, advertisesHistory, startChoice, disabled }: StartStepProps) {
-  const { choice, choose, customStart, setCustomStart, choices, outOfRange, isDateDisabled, uncoveredUntil } = startChoice
+export function StartStep({
+  range,
+  bankAccountName,
+  providerName,
+  advertisesHistory,
+  startChoice,
+  disabled,
+}: StartStepProps) {
+  const { choice, choose, customStart, setCustomStart, choices, outOfRange, isDateDisabled, uncoveredUntil } =
+    startChoice
 
   return (
     <div className="space-y-4">
       <p className="text-sm" style={{ color: 'var(--app-text-muted)' }}>
-        {bankAccountName} brings in transactions from the start you choose through today. Each one waits for your review first.
+        {bankAccountName} brings in transactions from the start you choose through today. Each one waits for your review
+        first.
       </p>
       <div className="space-y-3" role="radiogroup" aria-label="Start">
         {choices.map((preset) => (
-          <ChoiceCard key={preset.key} selected={choice === preset.key} disabled={disabled} onSelect={() => choose(preset.key)}>
+          <ChoiceCard
+            key={preset.key}
+            selected={choice === preset.key}
+            disabled={disabled}
+            onSelect={() => choose(preset.key)}
+          >
             <span className="flex flex-wrap items-baseline justify-between gap-x-3">
-              <span className="text-sm font-medium" style={{ color: 'var(--app-text)' }}>{preset.label}</span>
-              <span className="text-sm tabular-nums" style={{ color: 'var(--app-text)' }}>From {formatDateLabel(preset.date)}</span>
+              <span className="text-sm font-medium" style={{ color: 'var(--app-text)' }}>
+                {preset.label}
+              </span>
+              <span className="text-sm tabular-nums" style={{ color: 'var(--app-text)' }}>
+                From {formatDateLabel(preset.date)}
+              </span>
             </span>
-            {preset.note && <span className="block text-xs" style={{ color: 'var(--app-text-muted)' }}>{preset.note}</span>}
+            {preset.note && (
+              <span className="block text-xs" style={{ color: 'var(--app-text-muted)' }}>
+                {preset.note}
+              </span>
+            )}
           </ChoiceCard>
         ))}
         <ChoiceCard
           selected={choice === CUSTOM_START}
           disabled={disabled}
           onSelect={() => choose(CUSTOM_START)}
-          extra={(
+          extra={
             // From sm up the field sits where the other choices show their date and stays in
             // view, choosing Custom once it's pressed or typed in. Focus alone doesn't choose it,
             // since the modal focuses its first field on opening. Narrower, it opens beneath the
@@ -76,9 +98,11 @@ export function StartStep({ range, bankAccountName, providerName, advertisesHist
                 </div>
               </div>
             </div>
-          )}
+          }
         >
-          <span className="block text-sm font-medium" style={{ color: 'var(--app-text)' }}>Custom date</span>
+          <span className="block text-sm font-medium" style={{ color: 'var(--app-text)' }}>
+            Custom date
+          </span>
           <span className="block text-xs" style={{ color: 'var(--app-text-muted)' }}>
             Any day from {formatDateLabel(range.earliest_allowed)}
           </span>
@@ -86,12 +110,14 @@ export function StartStep({ range, bankAccountName, providerName, advertisesHist
       </div>
       {!advertisesHistory && (
         <InfoCallout>
-          You can import up to {range.provider_history_months} months from {providerName}, but it doesn't say how much history each bank keeps. Some return less.
+          You can import up to {range.provider_history_months} months from {providerName}, but it doesn't say how much
+          history each bank keeps. Some return less.
         </InfoCallout>
       )}
       {uncoveredUntil && range.ledger_floor && (
         <InfoCallout>
-          Nothing covers {formatDateLabel(range.ledger_floor)} to {formatDateLabel(uncoveredUntil)}. Add those days by hand if you need them.
+          Nothing covers {formatDateLabel(range.ledger_floor)} to {formatDateLabel(uncoveredUntil)}. Add those days by
+          hand if you need them.
         </InfoCallout>
       )}
     </div>

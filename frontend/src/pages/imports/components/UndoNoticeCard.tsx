@@ -31,8 +31,8 @@ export function ImportUndoNoticeCard() {
             You can undo it
           </h2>
           <p className="mt-1 text-sm leading-5 text-pretty" style={{ color: 'var(--app-text)' }}>
-            You can undo this import within 24 hours of saving it, until you make another change in the app or a
-            bank sync corrects or removes a transaction.
+            You can undo this import within 24 hours of saving it, until you make another change in the app or a bank
+            sync corrects or removes a transaction.
           </p>
         </div>
       </div>

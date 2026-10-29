@@ -1,10 +1,7 @@
 import { useState, type Dispatch, type SetStateAction } from 'react'
 import { getFormAfterKindChange } from '@/components/transactions/transaction-modal/utils/formTransitions'
 import { getDirectionFromAmountInputSign } from '@/components/transactions/transaction-modal/utils/money'
-import type {
-  TransactionFormValues,
-  TransactionModalKind,
-} from '@/components/transactions/transaction-modal/types'
+import type { TransactionFormValues, TransactionModalKind } from '@/components/transactions/transaction-modal/types'
 
 interface TransactionFormState {
   form: TransactionFormValues

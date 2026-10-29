@@ -44,13 +44,15 @@ const ITEM: BankReviewItem = {
 }
 
 function renderCard(item: BankReviewItem, isLinkKnown = true): string {
-  return renderToStaticMarkup(createElement(BankFilingCard, {
-    item,
-    link: isLinkKnown ? LINK : undefined,
-    accountName: 'Everyday',
-    currency: 'USD',
-    timeZone: 'America/Phoenix',
-  }))
+  return renderToStaticMarkup(
+    createElement(BankFilingCard, {
+      item,
+      link: isLinkKnown ? LINK : undefined,
+      accountName: 'Everyday',
+      currency: 'USD',
+      timeZone: 'America/Phoenix',
+    }),
+  )
 }
 
 function withBank(bank: Partial<BankReviewItem['bank']>): BankReviewItem {
@@ -64,8 +66,10 @@ function textOf(markup: string): string[] {
 
 /** Each labelled line of the card as [label, value], in order, with the value's markup taken out */
 function fieldsOf(markup: string): [string, string][] {
-  return [...markup.matchAll(/<dt[^>]*>(.*?)<\/dt><dd[^>]*>(.*?)<\/dd>/g)]
-    .map(([, label, value]) => [label, value.replace(/<[^>]+>/g, '')])
+  return [...markup.matchAll(/<dt[^>]*>(.*?)<\/dt><dd[^>]*>(.*?)<\/dd>/g)].map(([, label, value]) => [
+    label,
+    value.replace(/<[^>]+>/g, ''),
+  ])
 }
 
 describe('the filing card', () => {
@@ -73,14 +77,22 @@ describe('the filing card', () => {
     const markup = renderCard(ITEM)
 
     expect(markup).toContain('aria-label="SimpleFIN filing card"')
-    expect(textOf(markup).slice(0, 5)).toEqual(['SimpleFIN', 'Example Bank', 'New', 'Chequing', 'Description from SimpleFIN'])
+    expect(textOf(markup).slice(0, 5)).toEqual([
+      'SimpleFIN',
+      'Example Bank',
+      'New',
+      'Chequing',
+      'Description from SimpleFIN',
+    ])
   })
 
   it('gives the description its own heading and lists the amount, date and when it was received', () => {
-    const markup = renderCard(withBank({
-      amount: -4210,
-      description: 'COUNTDOWN 123 AUCKLAND',
-    }))
+    const markup = renderCard(
+      withBank({
+        amount: -4210,
+        description: 'COUNTDOWN 123 AUCKLAND',
+      }),
+    )
 
     expect(markup).toMatch(/>Description from SimpleFIN<\/p><p[^>]*>COUNTDOWN 123 AUCKLAND<\/p>/)
     expect(fieldsOf(markup)).toEqual([
@@ -97,6 +109,11 @@ describe('the filing card', () => {
   })
 
   it('is headed by the account in the app when its link is not known', () => {
-    expect(textOf(renderCard(ITEM, false)).slice(0, 4)).toEqual(['SimpleFIN', 'Everyday', 'New', 'Description from SimpleFIN'])
+    expect(textOf(renderCard(ITEM, false)).slice(0, 4)).toEqual([
+      'SimpleFIN',
+      'Everyday',
+      'New',
+      'Description from SimpleFIN',
+    ])
   })
 })

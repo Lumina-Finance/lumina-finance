@@ -138,7 +138,9 @@ export function BankReviewBlock({
   // Unavailable with nothing it can apply, or while the items can't load, which it says as the block does
   const bulkApproveReason = itemsFailure
     ? `${ITEMS_SUBJECT} could not load.`
-    : canBulkApprove ? undefined : BULK_APPROVE_UNAVAILABLE_REASON
+    : canBulkApprove
+      ? undefined
+      : BULK_APPROVE_UNAVAILABLE_REASON
   const titleId = useId()
   const listId = useId()
   const visibleItems = expanded ? items : items.slice(0, COLLAPSED_ITEM_COUNT)
@@ -151,7 +153,9 @@ export function BankReviewBlock({
   const listRef = useRef<HTMLDivElement>(null)
   const itemsFailureRef = useRef<HTMLDivElement>(null)
   const backlogFailureRef = useRef<HTMLDivElement>(null)
-  useFocusAfterRetry(itemsFailure !== null, itemsFailureRef, () => listRef.current?.querySelector<HTMLElement>('[role="listitem"]'))
+  useFocusAfterRetry(itemsFailure !== null, itemsFailureRef, () =>
+    listRef.current?.querySelector<HTMLElement>('[role="listitem"]'),
+  )
   useFocusAfterRetry(backlogFailure !== null, backlogFailureRef, () => backlogNoticeRef.current ?? headingRef.current)
 
   // Each notice grows in and collapses out under the title, its room kept inside it
@@ -176,7 +180,13 @@ export function BankReviewBlock({
       {/* The subtitle shares the header's rows, so on a phone Bulk approve takes a full-width row of its
           own beneath it, leaving the title its line */}
       <div className="flex flex-wrap items-center gap-x-2.5 px-4 pt-3.5 sm:px-5">
-        <Landmark size={17} strokeWidth={2} aria-hidden className="shrink-0" style={{ color: 'var(--app-warning-text)' }} />
+        <Landmark
+          size={17}
+          strokeWidth={2}
+          aria-hidden
+          className="shrink-0"
+          style={{ color: 'var(--app-warning-text)' }}
+        />
         {/* Titled like the page's other cards. Focusable once a retry succeeds, but never a tab stop */}
         <h2 ref={headingRef} id={titleId} tabIndex={-1} className="app-label leading-snug focus:outline-none">
           Waiting for review
@@ -239,9 +249,21 @@ export function BankReviewBlock({
                 className="flex items-start gap-2 rounded-lg px-3 py-2 text-xs focus:outline-none"
                 style={{ background: 'var(--app-warning-soft)', color: 'var(--app-text)' }}
               >
-                {backlogNotice.tone === 'paused'
-                  ? <PauseCircle size={14} aria-hidden className="mt-px shrink-0" style={{ color: 'var(--app-warning-text)' }} />
-                  : <TriangleAlert size={14} aria-hidden className="mt-px shrink-0" style={{ color: 'var(--app-warning-text)' }} />}
+                {backlogNotice.tone === 'paused' ? (
+                  <PauseCircle
+                    size={14}
+                    aria-hidden
+                    className="mt-px shrink-0"
+                    style={{ color: 'var(--app-warning-text)' }}
+                  />
+                ) : (
+                  <TriangleAlert
+                    size={14}
+                    aria-hidden
+                    className="mt-px shrink-0"
+                    style={{ color: 'var(--app-warning-text)' }}
+                  />
+                )}
                 <span>{backlogNotice.text}</span>
               </p>
             </div>
@@ -272,11 +294,18 @@ export function BankReviewBlock({
           {visibleItems.map((item) => {
             const account = accountFor(item.account_id)
             const amount = getReviewItemAmount(item, account.currency, formatMovedCurrency)
-            const details = [formatReviewDate(item.bank.date, today), showAccountNames && account.name, describeReviewItem(item)]
+            const details = [
+              formatReviewDate(item.bank.date, today),
+              showAccountNames && account.name,
+              describeReviewItem(item),
+            ]
 
             // The divider sits on the content rather than the row, so it stops short of the card's edges
             const content = (
-              <div className="flex items-center gap-3 py-2.5" style={{ borderTop: '1px solid var(--app-review-divider)' }}>
+              <div
+                className="flex items-center gap-3 py-2.5"
+                style={{ borderTop: '1px solid var(--app-review-divider)' }}
+              >
                 <div data-testid="review-item-text" className="min-w-0 flex-1">
                   {/* The label runs inline after the text, so a wrapped description keeps it beside its last word */}
                   <p className="break-words text-sm font-medium" style={{ color: 'var(--app-text)' }}>
@@ -318,7 +347,8 @@ export function BankReviewBlock({
                 initial={skipEnterAnimation ? false : collapsed}
                 animate={{ height: 'auto', opacity: 1 }}
                 variants={{
-                  leave: (inView: ReadonlySet<string> | null) => (inView === null || inView.has(item.id) ? leave : LEAVE_AT_ONCE),
+                  leave: (inView: ReadonlySet<string> | null) =>
+                    inView === null || inView.has(item.id) ? leave : LEAVE_AT_ONCE,
                 }}
                 exit="leave"
                 transition={enterTransition}
@@ -339,7 +369,11 @@ export function BankReviewBlock({
                 {/* Ringed on hover and keyboard focus like the highlight above, so the two read alike,
                     with a ring of its own so neither waits on the other's fade. The hover variant also
                     matches a focused button, so the focus ring is marked important to win over it */}
-                <button type="button" onClick={() => onOpenItem(item)} className="group relative block w-full px-4 text-left focus-visible:outline-none sm:px-5">
+                <button
+                  type="button"
+                  onClick={() => onOpenItem(item)}
+                  className="group relative block w-full px-4 text-left focus-visible:outline-none sm:px-5"
+                >
                   <span
                     aria-hidden
                     className="pointer-events-none absolute inset-x-2 bottom-0 top-px rounded-lg transition-shadow motion-reduce:transition-none group-hover:ring-1 group-hover:ring-inset group-hover:ring-[var(--app-review-border)] group-focus-visible:ring-2! group-focus-visible:ring-inset group-focus-visible:ring-[var(--app-focus-ring)]! sm:inset-x-2.5"
@@ -356,7 +390,11 @@ export function BankReviewBlock({
         <>
           <div ref={loadMoreSentinelRef} aria-hidden style={{ height: 1 }} />
           {isLoadingMore && (
-            <p role="status" className="px-4 py-2.5 text-center text-sm sm:px-5" style={{ color: 'var(--app-text-muted)' }}>
+            <p
+              role="status"
+              className="px-4 py-2.5 text-center text-sm sm:px-5"
+              style={{ color: 'var(--app-text-muted)' }}
+            >
               Loading more items…
             </p>
           )}

@@ -38,7 +38,7 @@ describe('account row', () => {
     expect(markup).toContain('aria-label="Account balance FX status"')
   })
 
-  it('describes the link by what the row shows beside the name, in the row\'s order', () => {
+  it("describes the link by what the row shows beside the name, in the row's order", () => {
     const plan = createPlan()
     const markup = renderToStaticMarkup(
       <MemoryRouter>
@@ -62,7 +62,9 @@ describe('account row', () => {
     // The text of the element each id names, with the markers React leaves between joined text taken out
     const textOf = (id: string) => {
       const escaped = id.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
-      return markup.match(new RegExp(`<(p|span)\\b[^>]*\\bid="${escaped}"[^>]*>(.*?)</\\1>`))?.[2].replaceAll('<!-- -->', '')
+      return markup
+        .match(new RegExp(`<(p|span)\\b[^>]*\\bid="${escaped}"[^>]*>(.*?)</\\1>`))?.[2]
+        .replaceAll('<!-- -->', '')
     }
 
     // The logo and the FX badge are left out: the type line names the bank, and the badge is a control of its own

@@ -61,95 +61,92 @@ export default function TagSettingsList({
 
   // With no rows in hand nothing about the list is known, so the failure takes the place of the
   // empty text. With rows cached from an earlier session it sits above them and they stay
-  const rows = visibleTags.length === 0 && !showInitialTagLoading ? (
-    listFailed ? null : (
-      <p className="py-3 text-center text-sm italic" style={{ color: 'var(--app-text-subtle)' }}>
-        {activeSearch.trim() ? 'No tags match your search.' : 'No tags yet.'}
-      </p>
-    )
-  ) : (
-    <div className="relative">
-      <div
-        ref={tagListRef}
-        className={shouldScrollTags ? 'max-h-[35rem] min-w-0 overflow-x-auto overflow-y-auto pr-2' : 'min-w-0 overflow-x-auto'}
-        onScroll={shouldScrollTags ? onListScroll : undefined}
-      >
-        <table className="w-full table-fixed text-left text-[0.9375rem]">
-          <colgroup>
-            <col />
-            <col style={{ width: '7rem' }} />
-          </colgroup>
-          <thead>
-            <tr style={{ color: 'var(--app-text-muted)', borderBottom: '1px solid var(--app-border)' }}>
-              <th
-                scope="col"
-                className={`app-label py-3 pl-4 pr-4 ${shouldScrollTags ? 'sticky top-0 z-10' : ''}`}
-                style={{ background: 'var(--app-surface-soft)' }}
-              >
-                Tag
-              </th>
-              <th
-                scope="col"
-                className={`app-label py-3 pr-4 text-right ${shouldScrollTags ? 'sticky top-0 z-10' : ''}`}
-                style={{ background: 'var(--app-surface-soft)' }}
-              >
-                Actions
-              </th>
-            </tr>
-          </thead>
-          <tbody>
-            <AnimatePresence initial={false}>
-              {visibleTags.map((tag, index) => (
-                <TagRow
-                  key={tag.id}
-                  confirmingDelete={confirmingDeleteTagId === tag.id}
-                  deleting={deletingTagId === tag.id}
-                  isEditing={editingTagId === tag.id}
-                  isLast={!showTagListEnd && !hasMoreTags && index === visibleTags.length - 1}
-                  shouldReduceMotion={shouldReduceMotion}
-                  tag={tag}
-                  onDeleteCancel={onDeleteCancel}
-                  onDeleteConfirm={onDeleteConfirm}
-                  onDeleteRequest={onDeleteRequest}
-                  onEdit={onEdit}
-                  onEditCancel={onEditCancel}
-                />
-              ))}
-            </AnimatePresence>
-            {showTagListEnd && !showFetchingMoreTags && !showInitialTagLoading && (
-              <tr>
-                <td colSpan={2}>
-                  <p
-                    className="py-4 text-center text-sm italic"
-                    style={{ color: 'var(--app-text-subtle)' }}
-                  >
-                    You've reached the end.
-                  </p>
-                </td>
+  const rows =
+    visibleTags.length === 0 && !showInitialTagLoading ? (
+      listFailed ? null : (
+        <p className="py-3 text-center text-sm italic" style={{ color: 'var(--app-text-subtle)' }}>
+          {activeSearch.trim() ? 'No tags match your search.' : 'No tags yet.'}
+        </p>
+      )
+    ) : (
+      <div className="relative">
+        <div
+          ref={tagListRef}
+          className={
+            shouldScrollTags ? 'max-h-[35rem] min-w-0 overflow-x-auto overflow-y-auto pr-2' : 'min-w-0 overflow-x-auto'
+          }
+          onScroll={shouldScrollTags ? onListScroll : undefined}
+        >
+          <table className="w-full table-fixed text-left text-[0.9375rem]">
+            <colgroup>
+              <col />
+              <col style={{ width: '7rem' }} />
+            </colgroup>
+            <thead>
+              <tr style={{ color: 'var(--app-text-muted)', borderBottom: '1px solid var(--app-border)' }}>
+                <th
+                  scope="col"
+                  className={`app-label py-3 pl-4 pr-4 ${shouldScrollTags ? 'sticky top-0 z-10' : ''}`}
+                  style={{ background: 'var(--app-surface-soft)' }}
+                >
+                  Tag
+                </th>
+                <th
+                  scope="col"
+                  className={`app-label py-3 pr-4 text-right ${shouldScrollTags ? 'sticky top-0 z-10' : ''}`}
+                  style={{ background: 'var(--app-surface-soft)' }}
+                >
+                  Actions
+                </th>
               </tr>
-            )}
-            {showFetchingMoreTags && visibleTags.length > 0 && (
-              <tr>
-                <td colSpan={2}>
-                  <p
-                    className="py-4 text-center text-sm italic"
-                    style={{ color: 'var(--app-text-subtle)' }}
-                  >
-                    Fetching more
-                  </p>
-                </td>
-              </tr>
-            )}
-          </tbody>
-        </table>
+            </thead>
+            <tbody>
+              <AnimatePresence initial={false}>
+                {visibleTags.map((tag, index) => (
+                  <TagRow
+                    key={tag.id}
+                    confirmingDelete={confirmingDeleteTagId === tag.id}
+                    deleting={deletingTagId === tag.id}
+                    isEditing={editingTagId === tag.id}
+                    isLast={!showTagListEnd && !hasMoreTags && index === visibleTags.length - 1}
+                    shouldReduceMotion={shouldReduceMotion}
+                    tag={tag}
+                    onDeleteCancel={onDeleteCancel}
+                    onDeleteConfirm={onDeleteConfirm}
+                    onDeleteRequest={onDeleteRequest}
+                    onEdit={onEdit}
+                    onEditCancel={onEditCancel}
+                  />
+                ))}
+              </AnimatePresence>
+              {showTagListEnd && !showFetchingMoreTags && !showInitialTagLoading && (
+                <tr>
+                  <td colSpan={2}>
+                    <p className="py-4 text-center text-sm italic" style={{ color: 'var(--app-text-subtle)' }}>
+                      You've reached the end.
+                    </p>
+                  </td>
+                </tr>
+              )}
+              {showFetchingMoreTags && visibleTags.length > 0 && (
+                <tr>
+                  <td colSpan={2}>
+                    <p className="py-4 text-center text-sm italic" style={{ color: 'var(--app-text-subtle)' }}>
+                      Fetching more
+                    </p>
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+        <ScrollableListMoreButton
+          show={showTagListMoreIndicator}
+          onClick={onListMoreClick}
+          ariaLabel={hasMoreTags ? 'Show more tags' : 'Scroll tags down'}
+        />
       </div>
-      <ScrollableListMoreButton
-        show={showTagListMoreIndicator}
-        onClick={onListMoreClick}
-        ariaLabel={hasMoreTags ? 'Show more tags' : 'Scroll tags down'}
-      />
-    </div>
-  )
+    )
 
   const content = (
     <>
@@ -165,9 +162,7 @@ export default function TagSettingsList({
       transition={TAG_LIST_HEIGHT_TRANSITION}
       style={shouldReduceMotion ? undefined : { overflow: 'hidden' }}
     >
-      <div ref={contentRef}>
-        {content}
-      </div>
+      <div ref={contentRef}>{content}</div>
     </motion.div>
   )
 }

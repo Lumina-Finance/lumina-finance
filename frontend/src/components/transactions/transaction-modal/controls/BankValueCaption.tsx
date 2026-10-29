@@ -86,7 +86,9 @@ export default function TransactionBankValueCaption({
                 </span>
               </span>
               <span className="inline-flex items-center">
-                <span aria-hidden className="w-4 shrink-0 text-center">&middot;</span>
+                <span aria-hidden className="w-4 shrink-0 text-center">
+                  &middot;
+                </span>
                 <DisabledReasonButton
                   id={actionId}
                   onClick={onRestore}
@@ -105,9 +107,18 @@ export default function TransactionBankValueCaption({
                   className={`inline-flex scroll-my-1 cursor-pointer items-center gap-1 border-0 bg-transparent py-1 font-medium focus-visible:outline-offset-0 disabled:cursor-not-allowed aria-disabled:cursor-not-allowed ${restoring ? '' : 'disabled:opacity-60'}`}
                 >
                   {restoring && (
-                    <LoaderCircle size={12} strokeWidth={2.4} className="animate-spin motion-reduce:animate-none" aria-hidden />
+                    <LoaderCircle
+                      size={12}
+                      strokeWidth={2.4}
+                      className="animate-spin motion-reduce:animate-none"
+                      aria-hidden
+                    />
                   )}
-                  <span className={unavailableReason ? 'underline underline-offset-2 opacity-60' : 'underline underline-offset-2'}>
+                  <span
+                    className={
+                      unavailableReason ? 'underline underline-offset-2 opacity-60' : 'underline underline-offset-2'
+                    }
+                  >
                     {restoring ? 'Restoring' : 'Restore bank value'}
                   </span>
                 </DisabledReasonButton>

@@ -4,7 +4,12 @@ import { ApiError } from '@/api/auth'
 import { useDismissCutOffDay, useDismissHistoryReminder, type BankHistoryReminder } from '@/api/bank-sync'
 import { InfoCallout } from '@/components/InfoCallout'
 import { useToast } from '@/hooks/useToast'
-import { describeCutOffDay, describeHistoryReminder, DISMISS_FAILED_MESSAGE, type ReminderCopy } from '@/pages/accounts/detail/components/bank-link/reminders'
+import {
+  describeCutOffDay,
+  describeHistoryReminder,
+  DISMISS_FAILED_MESSAGE,
+  type ReminderCopy,
+} from '@/pages/accounts/detail/components/bank-link/reminders'
 import { useMoveFocusOnFold } from '@/pages/accounts/detail/components/bank-link/useMoveFocusOnFold'
 
 /** Marks each reminder, so focus leaving one that folds away can find the next */
@@ -49,7 +54,8 @@ function DismissibleReminder({ copy, dismissing, dismiss, onDismissed }: Dismiss
       () => {
         if (rootRef.current?.contains(document.activeElement)) onDismissed(rootRef.current)
       },
-      (cause: unknown) => showToast({ status: 'error', text: cause instanceof ApiError ? cause.message : DISMISS_FAILED_MESSAGE }),
+      (cause: unknown) =>
+        showToast({ status: 'error', text: cause instanceof ApiError ? cause.message : DISMISS_FAILED_MESSAGE }),
     )
   }
 
@@ -66,7 +72,12 @@ function DismissibleReminder({ copy, dismissing, dismiss, onDismissed }: Dismiss
  * The reminder that the link's last import or catch-up that fell short returned less history than it
  * asked for, or none
  */
-export function HistoryReminder({ accountId, providerName, reminder, onDismissed }: ReminderProps & { reminder: BankHistoryReminder }) {
+export function HistoryReminder({
+  accountId,
+  providerName,
+  reminder,
+  onDismissed,
+}: ReminderProps & { reminder: BankHistoryReminder }) {
   const dismissal = useDismissHistoryReminder()
   return (
     <DismissibleReminder

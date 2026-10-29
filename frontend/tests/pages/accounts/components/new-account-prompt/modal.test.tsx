@@ -17,7 +17,11 @@ import { renderToStaticMarkup } from 'react-dom/server'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { AccountsOverview } from '@/api/accounts'
 import type { BankConnection, BankProvidersResponse } from '@/api/bank-sync'
-import { GROUP_ACCOUNT_LINK_REASON, LINKING_PAUSED_REASON, NOTHING_TO_LINK_REASON } from '@/components/bank-link-flow/constants'
+import {
+  GROUP_ACCOUNT_LINK_REASON,
+  LINKING_PAUSED_REASON,
+  NOTHING_TO_LINK_REASON,
+} from '@/components/bank-link-flow/constants'
 import NewAccountPromptModal from '@/pages/accounts/components/new-account-prompt/Modal'
 import { createAccount, createConnection, createProviders } from './fixtures'
 
@@ -42,7 +46,9 @@ vi.mock('@/api/accounts', async (importOriginal) => ({
   useRecordStartingBalance: () => ({ isPending: false, mutate: () => {} }),
 }))
 vi.mock('@/hooks/useMoneyFormatters', () => ({
-  useMoneyFormatters: () => ({ currencies: [{ id: 'CAD', name: 'Canadian Dollar', symbol: '$', minor_unit_exponent: 2 }] }),
+  useMoneyFormatters: () => ({
+    currencies: [{ id: 'CAD', name: 'Canadian Dollar', symbol: '$', minor_unit_exponent: 2 }],
+  }),
 }))
 vi.mock('@/hooks/useAuth', () => ({
   useAuth: () => ({ user: { id: 'user-1' } }),
@@ -60,11 +66,17 @@ function escaped(text: string): string {
 }
 
 function renderPrompt(account: AccountsOverview = createAccount()): string {
-  return renderToStaticMarkup(<NewAccountPromptModal open account={account} onClose={() => {}} onExitComplete={() => {}} />)
+  return renderToStaticMarkup(
+    <NewAccountPromptModal open account={account} onClose={() => {}} onExitComplete={() => {}} />,
+  )
 }
 
 function getRadio(markup: string, label: string): string {
-  return markup.match(new RegExp(`<button[^>]*role="radio"(?:(?!</button>).)*${label}(?:(?!</button>).)*</button>`, 's'))?.[0] ?? ''
+  return (
+    markup.match(
+      new RegExp(`<button[^>]*role="radio"(?:(?!</button>).)*${label}(?:(?!</button>).)*</button>`, 's'),
+    )?.[0] ?? ''
+  )
 }
 
 beforeEach(() => {
@@ -119,7 +131,9 @@ describe('NewAccountPromptModal', () => {
 
   it('refuses linking a group account for being one while bank sync is not running too', () => {
     reads.providers = { ...createProviders(), sync_running: false }
-    expect(getRadio(renderPrompt(createAccount({ group_id: 'group-1' })), 'Link a bank account')).toContain(escaped(GROUP_ACCOUNT_LINK_REASON))
+    expect(getRadio(renderPrompt(createAccount({ group_id: 'group-1' })), 'Link a bank account')).toContain(
+      escaped(GROUP_ACCOUNT_LINK_REASON),
+    )
   })
 
   it('offers linking through a working connection after its provider stops taking new ones', () => {

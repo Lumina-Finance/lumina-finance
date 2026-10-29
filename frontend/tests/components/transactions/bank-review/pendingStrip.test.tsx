@@ -54,21 +54,26 @@ function renderStrip(
   transactions: PendingBankTransaction[],
   { open = false, showAccountNames = true }: { open?: boolean; showAccountNames?: boolean } = {},
 ): string {
-  return renderToStaticMarkup(createElement(BankPendingStrip, {
-    transactions,
-    failure: null,
-    accountFor: (accountId: string) => ACCOUNTS[accountId],
-    showAccountNames,
-    today: '2026-10-05',
-    open,
-    onToggleOpen: () => {},
-    prefersReducedMotion: true,
-  }))
+  return renderToStaticMarkup(
+    createElement(BankPendingStrip, {
+      transactions,
+      failure: null,
+      accountFor: (accountId: string) => ACCOUNTS[accountId],
+      showAccountNames,
+      today: '2026-10-05',
+      open,
+      onToggleOpen: () => {},
+      prefersReducedMotion: true,
+    }),
+  )
 }
 
 /** The markup of the one row holding this text */
 function rowWith(markup: string, text: string): string {
-  const rows = markup.split('<li').slice(1).filter((row) => row.includes(text))
+  const rows = markup
+    .split('<li')
+    .slice(1)
+    .filter((row) => row.includes(text))
   expect(rows).toHaveLength(1)
   return rows[0]
 }
@@ -106,16 +111,25 @@ describe('the opened strip', () => {
   })
 
   it("writes each amount in its own account's currency, and one the currency can't hold exactly as the bank sent it", () => {
-    const markup = renderStrip([
-      createPendingTransaction('tokyo', 'tokyo', { description: 'TOKYO TAXI', amount: -1800 }),
-      createPendingTransaction('amazon', 'everyday', { description: 'AMZN MKTP US', amount: null, raw_amount: '-12.345' }),
-    ], { open: true })
+    const markup = renderStrip(
+      [
+        createPendingTransaction('tokyo', 'tokyo', { description: 'TOKYO TAXI', amount: -1800 }),
+        createPendingTransaction('amazon', 'everyday', {
+          description: 'AMZN MKTP US',
+          amount: null,
+          raw_amount: '-12.345',
+        }),
+      ],
+      { open: true },
+    )
 
     expect(rowWith(markup, 'TOKYO TAXI')).toContain(`>${MINUS}¥1,800<`)
     expect(rowWith(markup, 'AMZN MKTP US')).toContain(`>${MINUS}$12.345<`)
   })
 
   it("leaves the account's name off each row on its own page", () => {
-    expect(textOf(renderStrip([UBER], { open: true, showAccountNames: false }))).toContain('Sep 23 · Pending · Checked 3 hours ago')
+    expect(textOf(renderStrip([UBER], { open: true, showAccountNames: false }))).toContain(
+      'Sep 23 · Pending · Checked 3 hours ago',
+    )
   })
 })

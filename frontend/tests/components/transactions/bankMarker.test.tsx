@@ -50,7 +50,7 @@ function hasNestedButton(markup: string): boolean {
 }
 
 describe('bank marker', () => {
-  it('names the provider in each of the row\'s two layouts and nothing more while it is untouched', () => {
+  it("names the provider in each of the row's two layouts and nothing more while it is untouched", () => {
     const markup = renderRow({ providerName: 'SimpleFIN', isEdited: false, needsReview: false })
 
     expect(markup.split('aria-label="From SimpleFIN"')).toHaveLength(LAYOUTS + 1)
@@ -66,18 +66,20 @@ describe('bank marker', () => {
     expect(hasNestedButton(markup)).toBe(false)
   })
 
-  it('says the value was edited in the marker\'s own name, since its closed panel is not read', () => {
+  it("says the value was edited in the marker's own name, since its closed panel is not read", () => {
     const markup = renderRow({ providerName: 'SimpleFIN', isEdited: true, needsReview: false })
 
     expect(markup.split('aria-label="From SimpleFIN, edited"')).toHaveLength(LAYOUTS + 1)
   })
 
-  it('makes the title the row\'s button, so the row is read once with the provider named once', () => {
+  it("makes the title the row's button, so the row is read once with the provider named once", () => {
     const markup = renderRow({ providerName: 'SimpleFIN', isEdited: false, needsReview: true, onShowReview: () => {} })
 
     expect(markup.match(/<button [^>]*><span [^>]*>Corner Grocer<\/span><\/button>/g)).toHaveLength(LAYOUTS)
     expect(markup).not.toContain('aria-labelledby')
-    expect(markup.match(/aria-hidden="true"[^>]*><span class="app-tooltip-panel[^>]*><span [^>]*>From SimpleFIN</g)).toHaveLength(LAYOUTS)
+    expect(
+      markup.match(/aria-hidden="true"[^>]*><span class="app-tooltip-panel[^>]*><span [^>]*>From SimpleFIN</g),
+    ).toHaveLength(LAYOUTS)
   })
 
   it('describes each title by the amount in its own layout and by the heading that names its day', () => {
@@ -93,8 +95,9 @@ describe('bank marker', () => {
         />
       </>,
     )
-    const descriptions = [...markup.matchAll(/<button [^>]*aria-describedby="([^"]+)"[^>]*><span [^>]*>Corner Grocer</g)]
-      .map(([, ids]) => ids.split(' ').map((id) => textOf(markup, id)))
+    const descriptions = [
+      ...markup.matchAll(/<button [^>]*aria-describedby="([^"]+)"[^>]*><span [^>]*>Corner Grocer</g),
+    ].map(([, ids]) => ids.split(' ').map((id) => textOf(markup, id)))
 
     expect(descriptions).toEqual(Array.from({ length: LAYOUTS }, () => ['+CA$42.50', 'October 4, 2026']))
     expect(new Set([...markup.matchAll(/aria-describedby="([^" ]+) /g)].map(([, id]) => id)).size).toBe(LAYOUTS)

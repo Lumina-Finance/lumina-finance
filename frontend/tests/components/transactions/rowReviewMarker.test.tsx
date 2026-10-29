@@ -66,7 +66,13 @@ function createTransaction(source: TransactionBankSource | null): Transaction {
 
 function renderRow(source: TransactionBankSource | null, onShowReview?: (reviewItemId: string) => void): string {
   return renderToStaticMarkup(
-    <TransactionRow category={undefined} currency="USD" transaction={createTransaction(source)} onShowReview={onShowReview} onOpen={() => {}} />,
+    <TransactionRow
+      category={undefined}
+      currency="USD"
+      transaction={createTransaction(source)}
+      onShowReview={onShowReview}
+      onOpen={() => {}}
+    />,
   )
 }
 
@@ -87,7 +93,9 @@ describe('the bank marker a row builds', () => {
   })
 
   it('says a bank value was edited once one of them is', () => {
-    expect(renderRow({ ...SOURCE, edited_fields: ['amount'] }, () => {})).toContain('aria-label="From SimpleFIN, edited"')
+    expect(renderRow({ ...SOURCE, edited_fields: ['amount'] }, () => {})).toContain(
+      'aria-label="From SimpleFIN, edited"',
+    )
   })
 
   it('names no provider on a row entered by hand', () => {

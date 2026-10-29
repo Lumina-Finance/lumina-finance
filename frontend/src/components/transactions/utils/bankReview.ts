@@ -143,7 +143,9 @@ export function describeBacklogNotice(backlogs: BankReviewBacklog[], accounts: R
     return backlog ? [{ name: account.name, backlog }] : []
   })
   const list = (entries: typeof named) =>
-    entries.map(({ name, backlog }) => `${backlog.waiting_new_count.toLocaleString()} new to review in ${name}`).join(', ')
+    entries
+      .map(({ name, backlog }) => `${backlog.waiting_new_count.toLocaleString()} new to review in ${name}`)
+      .join(', ')
 
   const paused = named.filter(({ backlog }) => backlog.paused)
   if (paused.length > 0) {
@@ -172,7 +174,9 @@ export function getReviewAccountIds(
   listAccountIds: string[] | undefined,
 ): string[] | undefined {
   if (!listAccountIds || listAccountIds.length === 0) return undefined
-  const ownPersonal = new Set(accounts.filter((account) => isOwnPersonalAccount(account, userId)).map((account) => account.id))
+  const ownPersonal = new Set(
+    accounts.filter((account) => isOwnPersonalAccount(account, userId)).map((account) => account.id),
+  )
   return listAccountIds.filter((accountId) => ownPersonal.has(accountId))
 }
 
@@ -213,10 +217,15 @@ export function describeBulkApprovalResult(result: BulkApprovalResult): { status
   const applied = [
     result.corrected > 0 && `${result.corrected.toLocaleString()} corrected`,
     result.removed > 0 && `${result.removed.toLocaleString()} removed`,
-  ].filter(Boolean).join(', ')
+  ]
+    .filter(Boolean)
+    .join(', ')
   if (result.failed > 0) {
     const waiting = `${result.failed.toLocaleString()} could not be applied and stay in review.`
     return { status: 'error', text: `${applied || 'Nothing applied'}. ${waiting}` }
   }
-  return { status: 'success', text: applied ? `${applied}.` : 'Nothing applied, since each item was decided elsewhere.' }
+  return {
+    status: 'success',
+    text: applied ? `${applied}.` : 'Nothing applied, since each item was decided elsewhere.',
+  }
 }

@@ -172,120 +172,130 @@ export default function TransactionDateGroupList({
                       transition: { duration: TRANSACTION_LIST_EXIT_DURATION_S, ease: TRANSACTION_LIST_EASE },
                     }
               }
-              transition={{ duration: prefersReducedMotion ? 0 : TRANSACTION_LIST_ENTER_DURATION_S, ease: TRANSACTION_LIST_EASE }}
-            >
-            <div
-              data-testid="day-heading"
-              ref={!isUpcoming && groupIndex === 0 ? measureDayHeading : undefined}
-              className={`${isUpcoming ? 'relative' : DAY_HEADING_STICKY_CLASS} flex items-center justify-between rounded-lg py-2 pr-3 min-[750px]:col-span-full`}
-              style={{
-                top: isUpcoming ? undefined : stickyTop,
-                background: 'var(--app-input-bg)',
-                borderBottom: '1px solid var(--app-border)',
-                ...REACHES_ACROSS_TRANSACTION_CHECKBOX_RAIL,
-                // The rail on top of the same padding the other side carries as pr-3, so the label
-                // starts level with the category icon under it
-                paddingLeft: `calc(0.75rem + ${TRANSACTION_CHECKBOX_RAIL})`,
+              transition={{
+                duration: prefersReducedMotion ? 0 : TRANSACTION_LIST_ENTER_DURATION_S,
+                ease: TRANSACTION_LIST_EASE,
               }}
             >
-              {/* Laid over the rail the way a row's tick is, so it takes none of the list's columns
-                  and lines up with the ticks below it, while staying inside the heading's own bar */}
-              <AnimatePresence initial={false}>
-                {headingSelection && (
-                  <motion.span
-                    key="heading-checkbox"
-                    className="absolute inset-y-0 left-0 flex items-center justify-center"
-                    style={{ width: TRANSACTION_CHECKBOX_RAIL_WIDTH }}
-                    initial={prefersReducedMotion ? { opacity: 0 } : { opacity: 0, scale: 0.72 }}
-                    animate={{ opacity: 1, scale: 1 }}
-                    exit={prefersReducedMotion ? { opacity: 0 } : { opacity: 0, scale: 0.72 }}
-                    transition={{
-                      duration: prefersReducedMotion ? 0 : TRANSACTION_CHECKBOX_RAIL_DURATION_S,
-                      ease: TRANSACTION_LIST_EASE,
-                    }}
-                    // On a move rather than on entry, since a stuck heading travels under a still
-                    // pointer as the list scrolls and would otherwise light each day it passed
-                    onMouseMove={headingSelection.onPointerMove}
-                    onMouseLeave={headingSelection.onPointerLeave}
-                  >
-                    <Checkbox
-                      checked={headingSelection.mark === 'all'}
-                      indeterminate={headingSelection.mark === 'some'}
-                      disabled={headingSelection.mark === 'unselectable'}
-                      // The heading's bar is the colour an empty box fills with by default, so the
-                      // box takes the page colour instead and reads as a well cut into the bar
-                      uncheckedBackground="var(--app-bg)"
-                      // Says the rows it covers rather than the day, since the list loads a page at
-                      // a time and the last heading usually stands over only part of its day
-                      label={`Select the transactions shown on ${dateLabel}`}
-                      onChange={(event) => headingSelection.onToggle(!isMouseClick(event))}
-                    />
-                  </motion.span>
-                )}
-              </AnimatePresence>
-
-              <p
-                id={dayHeadingId(isUpcoming, groupIndex)}
-                className="text-sm font-semibold uppercase tracking-wide"
-                style={{ color: 'var(--app-text-subtle)' }}
+              <div
+                data-testid="day-heading"
+                ref={!isUpcoming && groupIndex === 0 ? measureDayHeading : undefined}
+                className={`${isUpcoming ? 'relative' : DAY_HEADING_STICKY_CLASS} flex items-center justify-between rounded-lg py-2 pr-3 min-[750px]:col-span-full`}
+                style={{
+                  top: isUpcoming ? undefined : stickyTop,
+                  background: 'var(--app-input-bg)',
+                  borderBottom: '1px solid var(--app-border)',
+                  ...REACHES_ACROSS_TRANSACTION_CHECKBOX_RAIL,
+                  // The rail on top of the same padding the other side carries as pr-3, so the label
+                  // starts level with the category icon under it
+                  paddingLeft: `calc(0.75rem + ${TRANSACTION_CHECKBOX_RAIL})`,
+                }}
               >
-                {dateLabel}
-              </p>
-              <div className="flex items-center gap-1.5">
-                {dayFxStatus && (
-                  <FxStatusBadge
-                    label={`FX status for ${dateLabel}`}
-                    fxStatus={dayFxStatus}
-                    getMessage={() => getDayTotalFxStatusMessage(isUpcoming)}
-                    tone={isUpcoming ? 'gray' : undefined}
-                  />
-                )}
+                {/* Laid over the rail the way a row's tick is, so it takes none of the list's columns
+                  and lines up with the ticks below it, while staying inside the heading's own bar */}
+                <AnimatePresence initial={false}>
+                  {headingSelection && (
+                    <motion.span
+                      key="heading-checkbox"
+                      className="absolute inset-y-0 left-0 flex items-center justify-center"
+                      style={{ width: TRANSACTION_CHECKBOX_RAIL_WIDTH }}
+                      initial={prefersReducedMotion ? { opacity: 0 } : { opacity: 0, scale: 0.72 }}
+                      animate={{ opacity: 1, scale: 1 }}
+                      exit={prefersReducedMotion ? { opacity: 0 } : { opacity: 0, scale: 0.72 }}
+                      transition={{
+                        duration: prefersReducedMotion ? 0 : TRANSACTION_CHECKBOX_RAIL_DURATION_S,
+                        ease: TRANSACTION_LIST_EASE,
+                      }}
+                      // On a move rather than on entry, since a stuck heading travels under a still
+                      // pointer as the list scrolls and would otherwise light each day it passed
+                      onMouseMove={headingSelection.onPointerMove}
+                      onMouseLeave={headingSelection.onPointerLeave}
+                    >
+                      <Checkbox
+                        checked={headingSelection.mark === 'all'}
+                        indeterminate={headingSelection.mark === 'some'}
+                        disabled={headingSelection.mark === 'unselectable'}
+                        // The heading's bar is the colour an empty box fills with by default, so the
+                        // box takes the page colour instead and reads as a well cut into the bar
+                        uncheckedBackground="var(--app-bg)"
+                        // Says the rows it covers rather than the day, since the list loads a page at
+                        // a time and the last heading usually stands over only part of its day
+                        label={`Select the transactions shown on ${dateLabel}`}
+                        onChange={(event) => headingSelection.onToggle(!isMouseClick(event))}
+                      />
+                    </motion.span>
+                  )}
+                </AnimatePresence>
+
                 <p
-                  className="font-financial text-sm font-medium"
-                  data-testid="day-total"
-                  style={{ color: dailyColor }}
+                  id={dayHeadingId(isUpcoming, groupIndex)}
+                  className="text-sm font-semibold uppercase tracking-wide"
+                  style={{ color: 'var(--app-text-subtle)' }}
                 >
-                  {formatMovedCurrency(dailyTotal, currency)}
+                  {dateLabel}
                 </p>
+                <div className="flex items-center gap-1.5">
+                  {dayFxStatus && (
+                    <FxStatusBadge
+                      label={`FX status for ${dateLabel}`}
+                      fxStatus={dayFxStatus}
+                      getMessage={() => getDayTotalFxStatusMessage(isUpcoming)}
+                      tone={isUpcoming ? 'gray' : undefined}
+                    />
+                  )}
+                  <p
+                    className="font-financial text-sm font-medium"
+                    data-testid="day-total"
+                    style={{ color: dailyColor }}
+                  >
+                    {formatMovedCurrency(dailyTotal, currency)}
+                  </p>
+                </div>
               </div>
-            </div>
 
-            <AnimatePresence initial={false}>
-              {transactions.map((transaction) => {
-                const category = categoryMap.get(transaction.category_id)
-                const rowAccount = fixedAccount ?? accountMap.get(transaction.account_id)
+              <AnimatePresence initial={false}>
+                {transactions.map((transaction) => {
+                  const category = categoryMap.get(transaction.category_id)
+                  const rowAccount = fixedAccount ?? accountMap.get(transaction.account_id)
 
-                // Always from the full account list, since the counterparty account of a transfer is
-                // often an account the current view is not showing
-                const counterpartyAccount = transaction.counterparty_account_id
-                  ? accountMap.get(transaction.counterparty_account_id)
-                  : undefined
-                const readOnlyReason = getTransactionReadOnlyReason(transaction, accountMap, categoryMap, fixedAccount)
-                return (
-                  <TransactionRow
-                    key={transaction.id}
-                    selection={buildRowSelection?.(transaction.id, Boolean(readOnlyReason))}
-                    accountInstitution={rowAccount?.institution}
-                    accountName={rowAccount?.name}
-                    counterpartyAccountName={counterpartyAccount?.name}
-                    category={category}
-                    currency={transaction.currency}
-                    readOnlyReason={readOnlyReason}
-                    fxNote={
-                      isTransactionAmountUnconverted(transaction, fixedAccount)
-                        ? isUpcoming ? 'rateNotPublished' : 'unavailable'
-                        : undefined
-                    }
-                    transaction={transaction}
-                    prefersReducedMotion={prefersReducedMotion}
-                    skipEnterAnimation={skipEnterAnimation}
-                    dateHeadingId={dayHeadingId(isUpcoming, groupIndex)}
-                    onShowReview={onShowReview}
-                    onOpen={onEditTransaction}
-                  />
-                )
-              })}
-            </AnimatePresence>
+                  // Always from the full account list, since the counterparty account of a transfer is
+                  // often an account the current view is not showing
+                  const counterpartyAccount = transaction.counterparty_account_id
+                    ? accountMap.get(transaction.counterparty_account_id)
+                    : undefined
+                  const readOnlyReason = getTransactionReadOnlyReason(
+                    transaction,
+                    accountMap,
+                    categoryMap,
+                    fixedAccount,
+                  )
+                  return (
+                    <TransactionRow
+                      key={transaction.id}
+                      selection={buildRowSelection?.(transaction.id, Boolean(readOnlyReason))}
+                      accountInstitution={rowAccount?.institution}
+                      accountName={rowAccount?.name}
+                      counterpartyAccountName={counterpartyAccount?.name}
+                      category={category}
+                      currency={transaction.currency}
+                      readOnlyReason={readOnlyReason}
+                      fxNote={
+                        isTransactionAmountUnconverted(transaction, fixedAccount)
+                          ? isUpcoming
+                            ? 'rateNotPublished'
+                            : 'unavailable'
+                          : undefined
+                      }
+                      transaction={transaction}
+                      prefersReducedMotion={prefersReducedMotion}
+                      skipEnterAnimation={skipEnterAnimation}
+                      dateHeadingId={dayHeadingId(isUpcoming, groupIndex)}
+                      onShowReview={onShowReview}
+                      onOpen={onEditTransaction}
+                    />
+                  )
+                })}
+              </AnimatePresence>
             </motion.div>
           )
         })}
@@ -300,11 +310,13 @@ export default function TransactionDateGroupList({
       // animating one out against a list that has already dropped the column has nowhere to put its
       // content but a second line
       className={TRANSACTION_LIST_COLUMNS}
-      style={{
-        paddingLeft: TRANSACTION_CHECKBOX_RAIL,
-        // A row scrolled into view clears the toolbar and the day heading pinned below it
-        [TRANSACTION_ROW_SCROLL_MARGIN_VARIABLE]: `${stickyTop + dayHeadingHeight + TRANSACTION_ROW_GAP_BELOW_PINNED_BARS_PX}px`,
-      } as React.CSSProperties}
+      style={
+        {
+          paddingLeft: TRANSACTION_CHECKBOX_RAIL,
+          // A row scrolled into view clears the toolbar and the day heading pinned below it
+          [TRANSACTION_ROW_SCROLL_MARGIN_VARIABLE]: `${stickyTop + dayHeadingHeight + TRANSACTION_ROW_GAP_BELOW_PINNED_BARS_PX}px`,
+        } as React.CSSProperties
+      }
       initial={false}
       animate={{
         [TRANSACTION_CHECKBOX_RAIL_VARIABLE]: isSelecting ? TRANSACTION_CHECKBOX_RAIL_WIDTH : '0rem',
@@ -316,7 +328,9 @@ export default function TransactionDateGroupList({
     >
       {upcomingDateGroups && today && onToggleUpcoming && (
         <UpcomingSection
-          transactionDates={upcomingDateGroups.flatMap((group) => group.transactions.map((transaction) => transaction.dt))}
+          transactionDates={upcomingDateGroups.flatMap((group) =>
+            group.transactions.map((transaction) => transaction.dt),
+          )}
           today={today}
           expanded={isUpcomingExpanded}
           onToggle={onToggleUpcoming}

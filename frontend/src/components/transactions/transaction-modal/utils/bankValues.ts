@@ -36,7 +36,10 @@ export function getBankValueCaptions(
   const amountCaption = (): BankValueCaption | null => {
     if (!source.edited_fields.includes('amount')) return null
     if (amount === null) {
-      return { value: formatRawAmount(rawAmount ?? '', currency).text, unavailableReason: getUnstorableAmountReason(currency) }
+      return {
+        value: formatRawAmount(rawAmount ?? '', currency).text,
+        unavailableReason: getUnstorableAmountReason(currency),
+      }
     }
     return { value: formatMovedCurrency(amount, currency, currencies), unavailableReason: null }
   }

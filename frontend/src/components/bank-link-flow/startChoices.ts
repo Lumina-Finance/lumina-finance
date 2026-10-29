@@ -30,7 +30,10 @@ export function listStartChoices(range: BankImportRange, accountName: string): S
   const providerLimit = parseYmd(range.provider_limit_date)
   if (!providerLimit) return []
 
-  const months = [...START_CHOICE_MONTHS.filter((count) => count < range.provider_history_months), range.provider_history_months]
+  const months = [
+    ...START_CHOICE_MONTHS.filter((count) => count < range.provider_history_months),
+    range.provider_history_months,
+  ]
   const choices: StartChoice[] = []
   for (const count of months) {
     const reached = formatYmd(addMonths(providerLimit, range.provider_history_months - count))
@@ -38,9 +41,16 @@ export function listStartChoices(range: BankImportRange, accountName: string): S
     const date = raised ? range.earliest_allowed : reached
     if (choices.some((choice) => choice.date === date)) continue
 
-    choices.push(raised
-      ? { key: `${count}`, label: 'After the latest transaction', date, note: `Picks up the day after the latest transaction in ${accountName}` }
-      : { key: `${count}`, label: `${count} months`, date })
+    choices.push(
+      raised
+        ? {
+            key: `${count}`,
+            label: 'After the latest transaction',
+            date,
+            note: `Picks up the day after the latest transaction in ${accountName}`,
+          }
+        : { key: `${count}`, label: `${count} months`, date },
+    )
   }
 
   return choices

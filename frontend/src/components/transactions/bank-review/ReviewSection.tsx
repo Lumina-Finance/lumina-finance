@@ -125,12 +125,10 @@ export const BankReviewSection = memo(function BankReviewSection({
   // A read that has failed and never succeeded, each retried on its own so the other is left as it
   // is. Read from the count of failures rather than the error, which a retry of a read with nothing
   // loaded clears while it runs, so the failure stays in place, saying it is retrying, until it settles
-  const itemsFailure: BankReadFailure | null = isInScope && itemsErrorCount > 0 && !pages
-    ? { retry: () => void refetchItems(), isRetrying: isFetching }
-    : null
-  const backlogFailure: BankReadFailure | null = backlogsErrorCount > 0 && !backlogs
-    ? { retry: () => void refetchBacklogs(), isRetrying: isFetchingBacklogs }
-    : null
+  const itemsFailure: BankReadFailure | null =
+    isInScope && itemsErrorCount > 0 && !pages ? { retry: () => void refetchItems(), isRetrying: isFetching } : null
+  const backlogFailure: BankReadFailure | null =
+    backlogsErrorCount > 0 && !backlogs ? { retry: () => void refetchBacklogs(), isRetrying: isFetchingBacklogs } : null
 
   const items = useMemo(() => itemsOf(pages?.pages ?? [], accountById), [pages, accountById])
   const counts = pages?.pages[0]?.counts
@@ -138,7 +136,10 @@ export const BankReviewSection = memo(function BankReviewSection({
 
   // The notice names accounts in the order the server lists them, which is the order they were created
   const scopedAccounts = (accounts ?? []).filter((account) =>
-    accountIds === undefined ? user !== null && isOwnPersonalAccount(account, user.id) : accountIds.includes(account.id))
+    accountIds === undefined
+      ? user !== null && isOwnPersonalAccount(account, user.id)
+      : accountIds.includes(account.id),
+  )
   const backlogNotice = backlogs ? describeBacklogNotice(backlogs, scopedAccounts) : null
 
   // A block left with no more than its first few items closes, so it comes back showing only those
@@ -220,7 +221,9 @@ export const BankReviewSection = memo(function BankReviewSection({
     hasNextPage,
     isFetchingNextPage,
     disabled: !expanded,
-    fetchNextPage: () => { void fetchNextPage() },
+    fetchNextPage: () => {
+      void fetchNextPage()
+    },
   })
   const skipAppendedEnter = useSkipAppendedEnter(isFetchingNextPage)
 

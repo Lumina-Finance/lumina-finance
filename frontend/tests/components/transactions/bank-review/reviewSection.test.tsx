@@ -46,7 +46,10 @@ const ACCOUNTS = [
 const VISA_CORRECTION = createReviewItem('visa-1', 'correction', 'visa', {
   bank: { date: '2026-09-21', amount: -2310, raw_amount: null, description: 'COUNTDOWN 123' },
 })
-const EVERYDAY_ITEMS = [createReviewItem('everyday-1', 'new', 'everyday'), createReviewItem('everyday-2', 'new', 'everyday')]
+const EVERYDAY_ITEMS = [
+  createReviewItem('everyday-1', 'new', 'everyday'),
+  createReviewItem('everyday-2', 'new', 'everyday'),
+]
 
 let client: QueryClient
 
@@ -56,17 +59,26 @@ beforeEach(() => {
   client.setQueryData(accountKeys.list(), ACCOUNTS)
 })
 
-function renderSection(listAccountIds?: string[], isFixedAccount = false, focusRequest: ReviewFocusRequest | null = null): string {
-  return renderToStaticMarkup(createElement(
-    QueryClientProvider,
-    { client },
-    createElement(BankReviewSection, { listAccountIds, isFixedAccount, focusRequest, prefersReducedMotion: true }),
-  ))
+function renderSection(
+  listAccountIds?: string[],
+  isFixedAccount = false,
+  focusRequest: ReviewFocusRequest | null = null,
+): string {
+  return renderToStaticMarkup(
+    createElement(
+      QueryClientProvider,
+      { client },
+      createElement(BankReviewSection, { listAccountIds, isFixedAccount, focusRequest, prefersReducedMotion: true }),
+    ),
+  )
 }
 
 /** The markup of the one row holding this text */
 function rowWith(markup: string, text: string): string {
-  const rows = markup.split('role="listitem"').slice(1).filter((row) => row.includes(text))
+  const rows = markup
+    .split('role="listitem"')
+    .slice(1)
+    .filter((row) => row.includes(text))
   expect(rows).toHaveLength(1)
   return rows[0]
 }
@@ -88,10 +100,10 @@ describe('the block for every account', () => {
 
   it("writes each item's amount in its own account's currency", () => {
     client.setQueryData(accountKeys.list(), [...ACCOUNTS, createAccount('tokyo', 'Tokyo', { currency: 'JPY' })])
-    client.setQueryData(bankSyncKeys.reviewItems(undefined), toPages([
-      createReviewItem('everyday-1', 'new', 'everyday'),
-      createReviewItem('tokyo-1', 'new', 'tokyo'),
-    ]))
+    client.setQueryData(
+      bankSyncKeys.reviewItems(undefined),
+      toPages([createReviewItem('everyday-1', 'new', 'everyday'), createReviewItem('tokyo-1', 'new', 'tokyo')]),
+    )
 
     const markup = renderSection()
 
@@ -101,7 +113,10 @@ describe('the block for every account', () => {
 
   it('counts every waiting item while only the first page of a 1,500 item backlog has loaded', () => {
     const firstPage = Array.from({ length: 50 }, (_, index) => createReviewItem(`item-${index}`, 'new', 'everyday'))
-    client.setQueryData(bankSyncKeys.reviewItems(undefined), toPages(firstPage, { new: 1500, correction: 0, removal: 0 }, 'cursor-2'))
+    client.setQueryData(
+      bankSyncKeys.reviewItems(undefined),
+      toPages(firstPage, { new: 1500, correction: 0, removal: 0 }, 'cursor-2'),
+    )
 
     const markup = renderSection()
 
@@ -117,25 +132,35 @@ describe('the block for every account', () => {
   })
 
   it('says inside the block that the items could not load, rather than disappearing', () => {
-    client.getQueryCache().build(client, { queryKey: bankSyncKeys.reviewItems(undefined) }).setState({
-      status: 'error',
-      error: new ApiError('Request failed', 500),
-      errorUpdateCount: 1,
-    })
+    client
+      .getQueryCache()
+      .build(client, { queryKey: bankSyncKeys.reviewItems(undefined) })
+      .setState({
+        status: 'error',
+        error: new ApiError('Request failed', 500),
+        errorUpdateCount: 1,
+      })
 
-    expect(renderSection()).toMatch(/Waiting for review<\/h2>.*Bank items to review could not load\.<\/span><button[^>]*>Try again</)
+    expect(renderSection()).toMatch(
+      /Waiting for review<\/h2>.*Bank items to review could not load\.<\/span><button[^>]*>Try again</,
+    )
   })
 
   // A retry of a read with nothing loaded clears its error while it runs
   it('keeps saying the items could not load while they are read again', () => {
-    client.getQueryCache().build(client, { queryKey: bankSyncKeys.reviewItems(undefined) }).setState({
-      status: 'pending',
-      fetchStatus: 'fetching',
-      error: null,
-      errorUpdateCount: 1,
-    })
+    client
+      .getQueryCache()
+      .build(client, { queryKey: bankSyncKeys.reviewItems(undefined) })
+      .setState({
+        status: 'pending',
+        fetchStatus: 'fetching',
+        error: null,
+        errorUpdateCount: 1,
+      })
 
-    expect(renderSection()).toMatch(/Bank items to review could not load\.<\/span><button[^>]*aria-busy="true"[^>]*>Retrying…</)
+    expect(renderSection()).toMatch(
+      /Bank items to review could not load\.<\/span><button[^>]*aria-busy="true"[^>]*>Retrying…</,
+    )
   })
 })
 
@@ -173,7 +198,10 @@ describe('a Needs review marker', () => {
     client.setQueryData(bankSyncKeys.reviewItems(undefined), toPages([VISA_CORRECTION, ...EVERYDAY_ITEMS]))
 
     // Read again, as after a sync, so the item could still arrive and the marker's request stays open
-    client.getQueryCache().find({ queryKey: bankSyncKeys.reviewItems(undefined) })?.setState({ fetchStatus: 'fetching' })
+    client
+      .getQueryCache()
+      .find({ queryKey: bankSyncKeys.reviewItems(undefined) })
+      ?.setState({ fetchStatus: 'fetching' })
 
     const markup = renderSection(undefined, false, { itemId: 'item-elsewhere', nonce: 1 })
 
@@ -190,7 +218,10 @@ describe('the backlog notice', () => {
 
   beforeEach(() => {
     client.setQueryData(bankSyncKeys.reviewItems(undefined), toPages(EVERYDAY_ITEMS))
-    client.setQueryData(bankSyncKeys.reviewItems(['savings']), toPages([createReviewItem('savings-1', 'new', 'savings')]))
+    client.setQueryData(
+      bankSyncKeys.reviewItems(['savings']),
+      toPages([createReviewItem('savings-1', 'new', 'savings')]),
+    )
   })
 
   it('says a paused account has stopped syncing, over a warned one', () => {
@@ -206,23 +237,31 @@ describe('the backlog notice', () => {
   })
 
   it('says the pause status could not load while the items did', () => {
-    client.getQueryCache().build(client, { queryKey: bankSyncKeys.reviewBacklogs(undefined) }).setState({
-      status: 'error',
-      error: new ApiError('Request failed', 500),
-      errorUpdateCount: 1,
-    })
+    client
+      .getQueryCache()
+      .build(client, { queryKey: bankSyncKeys.reviewBacklogs(undefined) })
+      .setState({
+        status: 'error',
+        error: new ApiError('Request failed', 500),
+        errorUpdateCount: 1,
+      })
 
     expect(renderSection()).toContain('Sync pause status could not load')
   })
 
   it('keeps saying the pause status could not load while it is read again', () => {
-    client.getQueryCache().build(client, { queryKey: bankSyncKeys.reviewBacklogs(undefined) }).setState({
-      status: 'pending',
-      fetchStatus: 'fetching',
-      error: null,
-      errorUpdateCount: 1,
-    })
+    client
+      .getQueryCache()
+      .build(client, { queryKey: bankSyncKeys.reviewBacklogs(undefined) })
+      .setState({
+        status: 'pending',
+        fetchStatus: 'fetching',
+        error: null,
+        errorUpdateCount: 1,
+      })
 
-    expect(renderSection()).toMatch(/Sync pause status could not load\.<\/span><button[^>]*aria-busy="true"[^>]*>Retrying…</)
+    expect(renderSection()).toMatch(
+      /Sync pause status could not load\.<\/span><button[^>]*aria-busy="true"[^>]*>Retrying…</,
+    )
   })
 })

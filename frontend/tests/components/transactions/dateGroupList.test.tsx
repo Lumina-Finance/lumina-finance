@@ -213,7 +213,10 @@ describe('a transaction with no exchange rate', () => {
 
 describe('day headings as the name of a row’s date', () => {
   it('describe each row’s button by its own day, in the Upcoming section and the rest alike', () => {
-    const day = (dateLabel: string, id: string, amount: number) => ({ dateLabel, transactions: [transaction(id, amount)] })
+    const day = (dateLabel: string, id: string, amount: number) => ({
+      dateLabel,
+      transactions: [transaction(id, amount)],
+    })
     const markup = renderHeadings([], {
       dateGroups: [day('Oct 3, 2026', 'a', -100), day('Oct 2, 2026', 'b', 200)],
       upcomingDateGroups: [day('Oct 9, 2026', 'u', 300)],

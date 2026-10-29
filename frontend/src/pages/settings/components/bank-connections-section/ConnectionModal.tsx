@@ -19,7 +19,11 @@ import { LabelWithHint } from '@/components/tooltips/LabelWithHint'
 import { useAuth } from '@/hooks/useAuth'
 import { useRelativeTimeRefresh } from '@/hooks/useRelativeTimeRefresh'
 import { useToast } from '@/hooks/useToast'
-import { EASE, INSTITUTION_SEARCH_AFTER, LINKING_HOLD_MS } from '@/pages/settings/components/bank-connections-section/constants'
+import {
+  EASE,
+  INSTITUTION_SEARCH_AFTER,
+  LINKING_HOLD_MS,
+} from '@/pages/settings/components/bank-connections-section/constants'
 import { InstitutionList, InstitutionRow } from '@/pages/settings/components/bank-connections-section/InstitutionList'
 import { NicknameTitle } from '@/pages/settings/components/bank-connections-section/NicknameTitle'
 import {
@@ -41,13 +45,25 @@ import { DATE_FORMATS, formatDate } from '@/utils/date'
  * status's, opens below it. Each goes to the other side of the whole fact where its own has no room,
  * so neither covers the value
  */
-function ConnectionFact({ label, hint, wide = false, children }: { label: string; hint?: ReactNode; wide?: boolean; children: ReactNode }) {
+function ConnectionFact({
+  label,
+  hint,
+  wide = false,
+  children,
+}: {
+  label: string
+  hint?: ReactNode
+  wide?: boolean
+  children: ReactNode
+}) {
   return (
     <div className={`min-w-0 ${wide ? 'sm:max-[1050px]:col-span-2' : ''}`} data-tooltip-subject>
       <dt className="flex items-center gap-1 text-xs font-medium uppercase" style={{ color: 'var(--app-text-muted)' }}>
         <LabelWithHint label={label} hint={hint} hintPlacement="top" />
       </dt>
-      <dd className="mt-0.5 min-w-0 text-sm font-medium" style={{ color: 'var(--app-text)' }}>{children}</dd>
+      <dd className="mt-0.5 min-w-0 text-sm font-medium" style={{ color: 'var(--app-text)' }}>
+        {children}
+      </dd>
     </div>
   )
 }
@@ -56,11 +72,21 @@ function ConnectionFact({ label, hint, wide = false, children }: { label: string
  * The rolling request count Lumina Finance allows the connection, as a thin meter that turns red once
  * it is spent
  */
-function RequestBudgetMeter({ connection, prefersReducedMotion }: { connection: BankConnection; prefersReducedMotion: boolean | null }) {
+function RequestBudgetMeter({
+  connection,
+  prefersReducedMotion,
+}: {
+  connection: BankConnection
+  prefersReducedMotion: boolean | null
+}) {
   const { used, limit } = connection.request_budget
   const exhausted = used >= limit
   return (
-    <span className="block h-1 overflow-hidden rounded-full" style={{ background: 'var(--app-border-strong)' }} aria-hidden>
+    <span
+      className="block h-1 overflow-hidden rounded-full"
+      style={{ background: 'var(--app-border-strong)' }}
+      aria-hidden
+    >
       <motion.span
         className="block h-full rounded-full"
         style={{ background: exhausted ? 'var(--app-negative)' : 'var(--app-text-muted)' }}
@@ -95,7 +121,15 @@ interface ConnectionModalProps {
  * A rename or a disconnect on its way holds the modal open, so what comes of it is said beside the
  * connection it was for
  */
-export function ConnectionModal({ open, connection, accountNameFor, onReconnect, onClose, onExitComplete, onDisconnected }: ConnectionModalProps) {
+export function ConnectionModal({
+  open,
+  connection,
+  accountNameFor,
+  onReconnect,
+  onClose,
+  onExitComplete,
+  onDisconnected,
+}: ConnectionModalProps) {
   const prefersReducedMotion = useReducedMotion()
   const { showToast } = useToast()
   const { user } = useAuth()
@@ -173,7 +207,10 @@ export function ConnectionModal({ open, connection, accountNameFor, onReconnect,
       },
       onError: (cause) => {
         setConfirmingDisconnect(false)
-        showToast({ status: 'error', text: cause instanceof ApiError ? cause.message : 'Could not disconnect. Please try again.' })
+        showToast({
+          status: 'error',
+          text: cause instanceof ApiError ? cause.message : 'Could not disconnect. Please try again.',
+        })
       },
     })
   }
@@ -195,16 +232,24 @@ export function ConnectionModal({ open, connection, accountNameFor, onReconnect,
         </span>
       </ConnectionFact>
       {connection.nickname && <ConnectionFact label="Provider">{connection.provider_name}</ConnectionFact>}
-      <ConnectionFact label="Server"><span className="block truncate" title={connection.server_label}>{connection.server_label}</span></ConnectionFact>
-      <ConnectionFact label="Added">{formatDate(new Date(connection.created_at), DATE_FORMATS.monthDayYear, user?.tz)}</ConnectionFact>
-      <ConnectionFact label="Institutions linked" hint={allowance.hint}>{allowance.value}</ConnectionFact>
-      <ConnectionFact
-        label="Requests, 24 hours"
-        wide
-        hint={describeRequestBudget(connection)}
-      >
-        <span className="block tabular-nums">{requestsUsed} of {requestLimit}</span>
-        <span className="mt-1.5 block"><RequestBudgetMeter connection={connection} prefersReducedMotion={prefersReducedMotion} /></span>
+      <ConnectionFact label="Server">
+        <span className="block truncate" title={connection.server_label}>
+          {connection.server_label}
+        </span>
+      </ConnectionFact>
+      <ConnectionFact label="Added">
+        {formatDate(new Date(connection.created_at), DATE_FORMATS.monthDayYear, user?.tz)}
+      </ConnectionFact>
+      <ConnectionFact label="Institutions linked" hint={allowance.hint}>
+        {allowance.value}
+      </ConnectionFact>
+      <ConnectionFact label="Requests, 24 hours" wide hint={describeRequestBudget(connection)}>
+        <span className="block tabular-nums">
+          {requestsUsed} of {requestLimit}
+        </span>
+        <span className="mt-1.5 block">
+          <RequestBudgetMeter connection={connection} prefersReducedMotion={prefersReducedMotion} />
+        </span>
       </ConnectionFact>
     </dl>
   )
@@ -229,12 +274,18 @@ export function ConnectionModal({ open, connection, accountNameFor, onReconnect,
         aria-label={confirmingDisconnect ? 'Yes, disconnect' : 'Disconnect'}
         aria-busy={disconnect.isPending}
         className={`${confirmingDisconnect || disconnect.isPending ? 'app-danger-button' : 'app-secondary-button hover:bg-[var(--app-negative-soft)]'} relative h-9 flex-1 justify-center overflow-hidden whitespace-nowrap px-3 text-sm duration-300 ${disconnect.isPending ? 'app-primary-button-loading' : ''}`}
-        style={confirmingDisconnect || disconnect.isPending ? undefined : { color: 'var(--app-negative)', borderColor: 'var(--app-negative-border)' }}
+        style={
+          confirmingDisconnect || disconnect.isPending
+            ? undefined
+            : { color: 'var(--app-negative)', borderColor: 'var(--app-negative-border)' }
+        }
         disabled={disconnect.isPending}
         onClick={handleDisconnect}
         onBlur={() => !disconnect.isPending && setConfirmingDisconnect(false)}
       >
-        {disconnect.isPending ? <div className="app-spinner" /> : (
+        {disconnect.isPending ? (
+          <div className="app-spinner" />
+        ) : (
           <AnimatePresence initial={false} mode="wait">
             <motion.span
               key={confirmingDisconnect ? 'confirm' : 'idle'}
@@ -291,7 +342,7 @@ export function ConnectionModal({ open, connection, accountNameFor, onReconnect,
       onExitComplete={onExitComplete}
       titleId="bank-connection-title"
       eyebrow="Bank connection"
-      title={(
+      title={
         <NicknameTitle
           connection={connection}
           rename={rename}
@@ -300,7 +351,7 @@ export function ConnectionModal({ open, connection, accountNameFor, onReconnect,
           onEditingChange={setRenaming}
           prefersReducedMotion={prefersReducedMotion}
         />
-      )}
+      }
       facts={facts}
       actions={actions}
       partsLabel={`Institutions · ${linkedCount} of ${countNoun(bankAccountCount, 'bank account')} linked`}
@@ -311,14 +362,22 @@ export function ConnectionModal({ open, connection, accountNameFor, onReconnect,
         // to what to do about it, and the institutions fold into one row that still opens to show the links
         <div className="flex flex-1 flex-col gap-4">
           <div className="flex flex-1 flex-col items-center justify-center px-2 py-3 text-center sm:px-8 sm:py-6">
-            <span className="flex h-11 w-11 items-center justify-center rounded-xl" style={{ background: 'var(--app-negative-soft)', color: 'var(--app-negative)' }}>
+            <span
+              className="flex h-11 w-11 items-center justify-center rounded-xl"
+              style={{ background: 'var(--app-negative-soft)', color: 'var(--app-negative)' }}
+            >
               <AlertTriangle size={20} aria-hidden />
             </span>
             <p className="mt-3.5 font-serif text-2xl leading-8">{connection.provider_name} rejected this connection</p>
             <p className="mt-1.5 max-w-sm text-sm" style={{ color: 'var(--app-text-muted)' }}>
               Every account on it has stopped syncing. Reconnect it with a new setup token to pick up where it left off.
             </p>
-            <button type="button" className="app-primary-button mt-4 h-9 justify-center px-4 text-sm" disabled={disconnect.isPending} onClick={onReconnect}>
+            <button
+              type="button"
+              className="app-primary-button mt-4 h-9 justify-center px-4 text-sm"
+              disabled={disconnect.isPending}
+              onClick={onReconnect}
+            >
               <RefreshCw size={14} aria-hidden />
               Reconnect
             </button>
@@ -338,7 +397,9 @@ export function ConnectionModal({ open, connection, accountNameFor, onReconnect,
             />
           </div>
         </div>
-      ) : institutionList}
+      ) : (
+        institutionList
+      )}
 
       {linkTarget && (
         <BankLinkFlowModal

@@ -52,7 +52,11 @@ function renderDialog(connection: BankConnection | undefined): string {
 }
 
 function getRadio(markup: string, label: string): string {
-  return markup.match(new RegExp(`<button[^>]*role="radio"(?:(?!</button>).)*${label}(?:(?!</button>).)*</button>`, 's'))?.[0] ?? ''
+  return (
+    markup.match(
+      new RegExp(`<button[^>]*role="radio"(?:(?!</button>).)*${label}(?:(?!</button>).)*</button>`, 's'),
+    )?.[0] ?? ''
+  )
 }
 
 describe('UnlinkModal', () => {
@@ -72,11 +76,17 @@ describe('UnlinkModal', () => {
   })
 
   it('counts the other accounts on the connection, one waiting to choose again among them', () => {
-    const markup = renderDialog(createConnection({
-      nickname: 'Household',
-      accounts: [bankAccountLinkedTo('account-1', 'ACT-1'), bankAccountLinkedTo('account-2', 'ACT-2'), bankAccountLinkedTo(null, 'ACT-3')],
-      choose_again_links: [{ account_id: 'account-3', external_account_name: 'Savings' }],
-    }))
+    const markup = renderDialog(
+      createConnection({
+        nickname: 'Household',
+        accounts: [
+          bankAccountLinkedTo('account-1', 'ACT-1'),
+          bankAccountLinkedTo('account-2', 'ACT-2'),
+          bankAccountLinkedTo(null, 'ACT-3'),
+        ],
+        choose_again_links: [{ account_id: 'account-3', external_account_name: 'Savings' }],
+      }),
+    )
     expect(markup).toContain('The connection stays in Settings for the 2 other accounts using it.')
     expect(getRadio(markup, 'Disconnect Household')).not.toBe('')
   })

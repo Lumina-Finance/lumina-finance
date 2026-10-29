@@ -63,7 +63,8 @@ export function DeleteAccountPanel({
 }: DeleteAccountPanelProps) {
   const questionId = useId()
   const { ref: panelRef, reveal: revealPanel } = useRevealWhenGrown<HTMLDivElement>(deleteStage !== 'idle')
-  const archiveReason = archiveLinkedReason ?? (isArchiveBlocked ? ARCHIVE_BLOCKED_BY_LATER_TRANSACTIONS_REASON : undefined)
+  const archiveReason =
+    archiveLinkedReason ?? (isArchiveBlocked ? ARCHIVE_BLOCKED_BY_LATER_TRANSACTIONS_REASON : undefined)
 
   // The trash button that opens the panel and the Continue button that leads on are gone once pressed, so
   // each step that grows in takes focus on its first control rather than leaving it on the page. A control
@@ -71,7 +72,9 @@ export function DeleteAccountPanel({
   const revealStep = () => {
     const panel = revealPanel()
     if (!panel) return
-    const firstAvailable = getFocusableElements(panel).find((control) => control.getAttribute('aria-disabled') !== 'true')
+    const firstAvailable = getFocusableElements(panel).find(
+      (control) => control.getAttribute('aria-disabled') !== 'true',
+    )
     firstAvailable?.focus({ preventScroll: true })
   }
 

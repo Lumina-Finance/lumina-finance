@@ -1,5 +1,5 @@
-import type { BankLink, BankReviewBacklog, BankReviewItem, BankReviewItemKind } from '@/api/bank-sync/types';
-import type { Transaction } from '@/api/transactions/types';
+import type { BankLink, BankReviewBacklog, BankReviewItem, BankReviewItemKind } from '@/api/bank-sync/types'
+import type { Transaction } from '@/api/transactions/types'
 
 /**
  * Builds a link that last synced successfully and has nothing running
@@ -35,14 +35,14 @@ export function createBankLink(overrides: Partial<BankLink> = {}): BankLink {
     history_reminder: null,
     cut_off_day: null,
     ...overrides,
-  };
+  }
 }
 
 /**
  * Builds account-1's review backlog with three new items waiting, neither paused nor warned
  */
 export function createBacklog(): BankReviewBacklog {
-  return { account_id: 'account-1', waiting_new_count: 3, review_warning: false, paused: false };
+  return { account_id: 'account-1', waiting_new_count: 3, review_warning: false, paused: false }
 }
 
 /**
@@ -68,7 +68,7 @@ export function createReviewItem(id: string, kind: BankReviewItemKind): BankRevi
     current: null,
     changed_fields: kind === 'correction' ? ['amount'] : [],
     protected_fields: [],
-  };
+  }
 }
 
 /**
@@ -110,5 +110,5 @@ export function createBankTransaction(id: string, reviewItemId: string | null = 
       edited_fields: [],
       review_item_id: reviewItemId,
     },
-  };
+  }
 }

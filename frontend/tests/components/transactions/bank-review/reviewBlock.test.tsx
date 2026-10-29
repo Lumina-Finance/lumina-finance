@@ -33,35 +33,39 @@ const ITEMS = Array.from({ length: 6 }, (_, index) => createReviewItem(`item-${i
 function renderBlock(
   items: BankReviewItem[],
   expanded: boolean,
-  overrides: Partial<Pick<Parameters<typeof BankReviewBlock>[0], 'itemsFailure' | 'backlogFailure' | 'canBulkApprove'>> = {},
+  overrides: Partial<
+    Pick<Parameters<typeof BankReviewBlock>[0], 'itemsFailure' | 'backlogFailure' | 'canBulkApprove'>
+  > = {},
 ): string {
-  return renderToStaticMarkup(createElement(BankReviewBlock, {
-    items,
-    total: items.length,
-    itemsFailure: null,
-    itemsRetryRef: null,
-    accountFor: () => ({ name: 'Everyday', currency: 'USD' }),
-    showAccountNames: true,
-    today: '2026-10-05',
-    backlogNotice: null,
-    backlogFailure: null,
-    canBulkApprove: true,
-    onBulkApprove: () => {},
-    ...overrides,
-    expanded,
-    onToggleExpanded: () => {},
-    rowsInViewAtClose: null,
-    onRowsLeft: () => {},
-    hasMoreItems: false,
-    isLoadingMore: false,
-    loadMoreSentinelRef: () => {},
-    skipEnterAnimation: false,
-    highlightedId: null,
-    isGoingToItem: false,
-    registerRow: () => {},
-    onOpenItem: () => {},
-    prefersReducedMotion: true,
-  }))
+  return renderToStaticMarkup(
+    createElement(BankReviewBlock, {
+      items,
+      total: items.length,
+      itemsFailure: null,
+      itemsRetryRef: null,
+      accountFor: () => ({ name: 'Everyday', currency: 'USD' }),
+      showAccountNames: true,
+      today: '2026-10-05',
+      backlogNotice: null,
+      backlogFailure: null,
+      canBulkApprove: true,
+      onBulkApprove: () => {},
+      ...overrides,
+      expanded,
+      onToggleExpanded: () => {},
+      rowsInViewAtClose: null,
+      onRowsLeft: () => {},
+      hasMoreItems: false,
+      isLoadingMore: false,
+      loadMoreSentinelRef: () => {},
+      skipEnterAnimation: false,
+      highlightedId: null,
+      isGoingToItem: false,
+      registerRow: () => {},
+      onOpenItem: () => {},
+      prefersReducedMotion: true,
+    }),
+  )
 }
 
 describe('the rows the block shows', () => {
@@ -101,21 +105,24 @@ describe('the rows the block shows', () => {
 
   it('strikes through the ledger amount a removal would take out, and colours money in', () => {
     const refund = createReviewItem('refund', 'new', 'everyday')
-    const markup = renderBlock([
-      createReviewItem('uber', 'removal', 'everyday'),
-      { ...refund, bank: { ...refund.bank, amount: 4250 } },
-    ], false)
+    const markup = renderBlock(
+      [createReviewItem('uber', 'removal', 'everyday'), { ...refund, bank: { ...refund.bank, amount: 4250 } }],
+      false,
+    )
 
     expect(markup).toMatch(new RegExp(`text-decoration:line-through[^>]*>${MINUS}\\$18\\.00<`))
     expect(markup).toMatch(/color:var\(--app-positive\)[^>]*>\+\$42\.50</)
   })
 
   it("makes every kind of item's row a button that opens it", () => {
-    const markup = renderBlock([
-      createReviewItem('fresh', 'new', 'everyday'),
-      createReviewItem('changed', 'correction', 'everyday'),
-      createReviewItem('gone', 'removal', 'everyday'),
-    ], false)
+    const markup = renderBlock(
+      [
+        createReviewItem('fresh', 'new', 'everyday'),
+        createReviewItem('changed', 'correction', 'everyday'),
+        createReviewItem('gone', 'removal', 'everyday'),
+      ],
+      false,
+    )
     const rows = markup.split('role="listitem"').slice(1)
 
     expect(rows[0]).toMatch(/<button type="button"[^>]*>.*GROCER fresh/)
@@ -155,7 +162,9 @@ describe('a read that failed', () => {
     const markup = renderBlock([], false, { itemsFailure: failed })
 
     expect(markup).toContain('Waiting for review')
-    expect(markup).toMatch(/role="alert"[^>]*>.*Bank items to review could not load\.<\/span><button[^>]*>Try again<\/button>/)
+    expect(markup).toMatch(
+      /role="alert"[^>]*>.*Bank items to review could not load\.<\/span><button[^>]*>Try again<\/button>/,
+    )
     expect(markup).not.toMatch(/>0<\/span>/)
     expect(bulkApproveOf(markup).button).toContain('aria-disabled="true"')
     expect(bulkApproveOf(markup).reason).toBe('Bank items to review could not load.')
@@ -165,7 +174,9 @@ describe('a read that failed', () => {
   it('says the pause status could not load above the rows, offering to try again', () => {
     const markup = renderBlock(ITEMS, false, { backlogFailure: failed })
 
-    expect(markup).toMatch(/role="alert"[^>]*>.*Sync pause status could not load\.<\/span><button[^>]*>Try again<\/button>/)
+    expect(markup).toMatch(
+      /role="alert"[^>]*>.*Sync pause status could not load\.<\/span><button[^>]*>Try again<\/button>/,
+    )
     expect(markup).toMatch(/>6<\/span>/)
     expect(rowCount(markup)).toBe(4)
   })

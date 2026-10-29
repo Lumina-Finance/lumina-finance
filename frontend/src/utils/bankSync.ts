@@ -5,7 +5,10 @@ import type { BankConnection } from '@/api/bank-sync'
  * Whether an account is the user's own personal account, the only kind bank sync links and lists
  * bank items for. A group account, even for its admin, and one shared with the user aren't
  */
-export function isOwnPersonalAccount(account: Pick<AccountsOverview, 'owner_id' | 'group_id'>, userId: string): boolean {
+export function isOwnPersonalAccount(
+  account: Pick<AccountsOverview, 'owner_id' | 'group_id'>,
+  userId: string,
+): boolean {
   return account.owner_id === userId && account.group_id === null
 }
 

@@ -10,15 +10,19 @@ import { describe, expect, it } from 'vitest'
 import { ReadFailureNotice } from '@/components/transactions/bank-review/ReadFailureNotice'
 
 function renderNotice(isRetrying: boolean): string {
-  return renderToStaticMarkup(createElement(ReadFailureNotice, {
-    subject: 'Pending bank transactions',
-    failure: { retry: () => {}, isRetrying },
-  }))
+  return renderToStaticMarkup(
+    createElement(ReadFailureNotice, {
+      subject: 'Pending bank transactions',
+      failure: { retry: () => {}, isRetrying },
+    }),
+  )
 }
 
 describe('a failed bank read', () => {
   it('says what could not load, offering to try again', () => {
-    expect(renderNotice(false)).toMatch(/role="alert"[^>]*>.*Pending bank transactions could not load\.<\/span><button[^>]*>Try again<\/button>/)
+    expect(renderNotice(false)).toMatch(
+      /role="alert"[^>]*>.*Pending bank transactions could not load\.<\/span><button[^>]*>Try again<\/button>/,
+    )
   })
 
   it('says it is trying again, with the retry busy but still focusable', () => {

@@ -1,26 +1,26 @@
-import type { QueryClient } from '@tanstack/react-query';
-import { bankSyncKeys } from '@/api/cache/queryKeys';
-import { invalidateTargets, type InvalidationTarget } from '@/api/cache/invalidation/types';
+import type { QueryClient } from '@tanstack/react-query'
+import { bankSyncKeys } from '@/api/cache/queryKeys'
+import { invalidateTargets, type InvalidationTarget } from '@/api/cache/invalidation/types'
 
 // The review inbox with its backlogs, and any bulk approval preview listing its items
 const reviewItemTargets: InvalidationTarget[] = [
   { queryKey: bankSyncKeys.reviewAll },
   { queryKey: bankSyncKeys.bulkPreviews },
-];
+]
 
 // What waits outside the ledger: the review items and the pending strip
-const reviewTargets: InvalidationTarget[] = [...reviewItemTargets, { queryKey: bankSyncKeys.pendingAll }];
+const reviewTargets: InvalidationTarget[] = [...reviewItemTargets, { queryKey: bankSyncKeys.pendingAll }]
 
-const linkListTarget: InvalidationTarget = { queryKey: bankSyncKeys.links(), exact: true };
+const linkListTarget: InvalidationTarget = { queryKey: bankSyncKeys.links(), exact: true }
 
-const connectionsTarget: InvalidationTarget = { queryKey: bankSyncKeys.connections(), exact: true };
+const connectionsTarget: InvalidationTarget = { queryKey: bankSyncKeys.connections(), exact: true }
 
 /**
  * What bank sync shows of the user's data besides each account's bank link: the review inbox with its
  * backlogs, any bulk approval preview, the pending rows, the link list and the connections. A review
  * decision, sync, link or connection made in another tab or on another device changes them
  */
-export const bankSyncTargets: InvalidationTarget[] = [...reviewTargets, linkListTarget, connectionsTarget];
+export const bankSyncTargets: InvalidationTarget[] = [...reviewTargets, linkListTarget, connectionsTarget]
 
 /**
  * Invalidates what shows how links and connections stand: each account's bank link status, the
@@ -31,7 +31,7 @@ export function invalidateBankSyncStatus(queryClient: QueryClient) {
     { queryKey: bankSyncKeys.accountAll },
     connectionsTarget,
     { queryKey: bankSyncKeys.providers(), exact: true },
-  ]);
+  ])
 }
 
 /**
@@ -39,7 +39,7 @@ export function invalidateBankSyncStatus(queryClient: QueryClient) {
  * pending strip
  */
 export function invalidateBankReview(queryClient: QueryClient) {
-  invalidateTargets(queryClient, reviewTargets);
+  invalidateTargets(queryClient, reviewTargets)
 }
 
 /**
@@ -47,14 +47,14 @@ export function invalidateBankReview(queryClient: QueryClient) {
  * strip, which only a sync changes
  */
 export function invalidateBankReviewItems(queryClient: QueryClient) {
-  invalidateTargets(queryClient, reviewItemTargets);
+  invalidateTargets(queryClient, reviewItemTargets)
 }
 
 /**
  * Invalidates the link list, whose waiting counts and pause move with every review decision
  */
 export function invalidateBankLinks(queryClient: QueryClient) {
-  invalidateTargets(queryClient, [linkListTarget]);
+  invalidateTargets(queryClient, [linkListTarget])
 }
 
 /**
@@ -62,8 +62,5 @@ export function invalidateBankLinks(queryClient: QueryClient) {
  * showing its status
  */
 export function invalidateAccountBankLink(queryClient: QueryClient, accountId: string) {
-  invalidateTargets(queryClient, [
-    { queryKey: bankSyncKeys.accountStatus(accountId), exact: true },
-    linkListTarget,
-  ]);
+  invalidateTargets(queryClient, [{ queryKey: bankSyncKeys.accountStatus(accountId), exact: true }, linkListTarget])
 }

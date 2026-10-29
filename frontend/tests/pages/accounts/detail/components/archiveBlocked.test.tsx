@@ -10,7 +10,11 @@ const RENDERED_REASON = ARCHIVE_BLOCKED_BY_LATER_TRANSACTIONS_REASON.replaceAll(
 
 const LINKED_REASON = 'Unlink it first.'
 
-function renderArchiveSection(isArchiveBlocked: boolean, archiveLinkedReason: string | null = null, isLinkLoading = false) {
+function renderArchiveSection(
+  isArchiveBlocked: boolean,
+  archiveLinkedReason: string | null = null,
+  isLinkLoading = false,
+) {
   return renderToStaticMarkup(
     <AccountArchiveSection
       sectionNumber="02"
@@ -26,7 +30,11 @@ function renderArchiveSection(isArchiveBlocked: boolean, archiveLinkedReason: st
   )
 }
 
-function renderDeletePanel(isArchiveBlocked: boolean, archiveLinkedReason: string | null = null, isLinkLoading = false) {
+function renderDeletePanel(
+  isArchiveBlocked: boolean,
+  archiveLinkedReason: string | null = null,
+  isLinkLoading = false,
+) {
   const account = { name: 'Chequing', is_archived: false } as Account
   return renderToStaticMarkup(
     <DeleteAccountPanel

@@ -87,7 +87,13 @@ export function BankAccountStep({
       )}
       {connections.length > 1 && (
         <div>
-          <span id={CONNECTION_LABEL_ID} className="mb-1.5 block text-sm font-medium" style={{ color: 'var(--app-text)' }}>Connection</span>
+          <span
+            id={CONNECTION_LABEL_ID}
+            className="mb-1.5 block text-sm font-medium"
+            style={{ color: 'var(--app-text)' }}
+          >
+            Connection
+          </span>
           <Dropdown
             labelledBy={CONNECTION_LABEL_ID}
             options={connections.map((entry) => describeConnection(entry, user?.tz))}
@@ -98,51 +104,73 @@ export function BankAccountStep({
         </div>
       )}
       {/* A connection's first listing can still be running, and polls until it arrives */}
-      {discoveredError && !discovered
-        ? <LoadFailure error={discoveredError} subject="Bank accounts" />
-        : discovered?.accounts.length === 0
-          ? (
-              <p className="py-6 text-center text-sm" role={discovered.discovery_pending ? 'status' : undefined} style={{ color: 'var(--app-text-muted)' }}>
-                {discovered.discovery_pending ? 'Listing the bank accounts…' : `${providerSite(connection)} returned no bank accounts for this connection.`}
-              </p>
-            )
-          : (
-            <LoadingRegion loading={!discovered} label="Loading bank accounts" animateLoadingHeight overlayClassName={LOADING_OVERLAY_CLASS}>
-              <div className={`space-y-3 ${discovered ? '' : 'min-h-32'}`} role="radiogroup" aria-label="Bank account">
-                {discovered?.accounts.map((entry) => (
-                  <ChoiceCard
-                    key={entry.external_id}
-                    selected={chosenId === entry.external_id}
-                    disabled={disabled || !entry.linkable}
-                    onSelect={() => onChoose(entry.external_id)}
-                  >
-                    <span className="flex flex-wrap items-baseline justify-between gap-x-3">
-                      <span className="text-sm font-medium" style={{ color: 'var(--app-text)' }}>{entry.name}</span>
-                      {/* A currency of the provider's own has no format to show its balance in. Pushed right,
+      {discoveredError && !discovered ? (
+        <LoadFailure error={discoveredError} subject="Bank accounts" />
+      ) : discovered?.accounts.length === 0 ? (
+        <p
+          className="py-6 text-center text-sm"
+          role={discovered.discovery_pending ? 'status' : undefined}
+          style={{ color: 'var(--app-text-muted)' }}
+        >
+          {discovered.discovery_pending
+            ? 'Listing the bank accounts…'
+            : `${providerSite(connection)} returned no bank accounts for this connection.`}
+        </p>
+      ) : (
+        <LoadingRegion
+          loading={!discovered}
+          label="Loading bank accounts"
+          animateLoadingHeight
+          overlayClassName={LOADING_OVERLAY_CLASS}
+        >
+          <div className={`space-y-3 ${discovered ? '' : 'min-h-32'}`} role="radiogroup" aria-label="Bank account">
+            {discovered?.accounts.map((entry) => (
+              <ChoiceCard
+                key={entry.external_id}
+                selected={chosenId === entry.external_id}
+                disabled={disabled || !entry.linkable}
+                onSelect={() => onChoose(entry.external_id)}
+              >
+                <span className="flex flex-wrap items-baseline justify-between gap-x-3">
+                  <span className="text-sm font-medium" style={{ color: 'var(--app-text)' }}>
+                    {entry.name}
+                  </span>
+                  {/* A currency of the provider's own has no format to show its balance in. Pushed right,
                           so a long name wrapping it onto its own line leaves it at the edge */}
-                      {entry.balance !== null && entry.unavailable_reason !== 'custom_currency' && (
-                        <span className="ml-auto text-sm tabular-nums" style={{ color: 'var(--app-text)' }}>{formatCurrency(entry.balance, entry.currency)}</span>
-                      )}
+                  {entry.balance !== null && entry.unavailable_reason !== 'custom_currency' && (
+                    <span className="ml-auto text-sm tabular-nums" style={{ color: 'var(--app-text)' }}>
+                      {formatCurrency(entry.balance, entry.currency)}
                     </span>
-                    <span className="block text-xs" style={{ color: 'var(--app-text-muted)' }}>
-                      {entry.institution_name}{describeLikeBefore(entry, previous)}
-                    </span>
-                    {entry.unavailable_message && (
-                      <span className="mt-1 block text-xs" style={{ color: 'var(--app-negative)' }}>{entry.unavailable_message}</span>
-                    )}
-                    {entry.linkable && entry.institution_differs && (
-                      <span className="mt-1 block text-xs" style={{ color: 'var(--app-warning-text)' }}>
-                        The institution differs from the one on {account.name}. That can be normal for a card issued through another bank.
-                      </span>
-                    )}
-                  </ChoiceCard>
-                ))}
-              </div>
-            </LoadingRegion>
-          )}
+                  )}
+                </span>
+                <span className="block text-xs" style={{ color: 'var(--app-text-muted)' }}>
+                  {entry.institution_name}
+                  {describeLikeBefore(entry, previous)}
+                </span>
+                {entry.unavailable_message && (
+                  <span className="mt-1 block text-xs" style={{ color: 'var(--app-negative)' }}>
+                    {entry.unavailable_message}
+                  </span>
+                )}
+                {entry.linkable && entry.institution_differs && (
+                  <span className="mt-1 block text-xs" style={{ color: 'var(--app-warning-text)' }}>
+                    The institution differs from the one on {account.name}. That can be normal for a card issued through
+                    another bank.
+                  </span>
+                )}
+              </ChoiceCard>
+            ))}
+          </div>
+        </LoadingRegion>
+      )}
       <p className="text-xs" style={{ color: 'var(--app-text-muted)' }}>
         Missing a bank account? Add it in {providerSite(connection)}, or add another connection in{' '}
-        <button type="button" className="font-medium underline underline-offset-2" style={{ color: 'var(--app-text)' }} onClick={onOpenSettings}>
+        <button
+          type="button"
+          className="font-medium underline underline-offset-2"
+          style={{ color: 'var(--app-text)' }}
+          onClick={onOpenSettings}
+        >
           Settings
         </button>
         .

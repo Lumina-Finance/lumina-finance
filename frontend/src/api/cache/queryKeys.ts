@@ -175,18 +175,20 @@ export const bankSyncKeys = {
   links: () => ['bank-sync', 'links'] as const,
   accountAll: ['bank-sync', 'account'] as const,
   accountStatus: (accountId: string) => ['bank-sync', 'account', accountId] as const,
-  importRange: (accountId: string, provider: string | null) => ['bank-sync', 'account', accountId, 'import-range', provider] as const,
+  importRange: (accountId: string, provider: string | null) =>
+    ['bank-sync', 'account', accountId, 'import-range', provider] as const,
   reviewPreferences: (accountId: string) => ['bank-sync', 'account', accountId, 'review-preferences'] as const,
   reviewAll: ['bank-sync', 'review'] as const,
   reviewItemsAll: ['bank-sync', 'review', 'items'] as const,
   reviewItems: (accountIds: string[] | undefined) => ['bank-sync', 'review', 'items', accountIds ?? 'all'] as const,
   reviewBacklogsAll: ['bank-sync', 'review', 'backlogs'] as const,
-  reviewBacklogs: (accountIds: string[] | undefined) => ['bank-sync', 'review', 'backlogs', accountIds ?? 'all'] as const,
+  reviewBacklogs: (accountIds: string[] | undefined) =>
+    ['bank-sync', 'review', 'backlogs', accountIds ?? 'all'] as const,
   pendingAll: ['bank-sync', 'pending'] as const,
   pending: (accountIds: string[] | undefined) => ['bank-sync', 'pending', accountIds ?? 'all'] as const,
   bulkPreviews: ['bank-sync', 'bulk-preview'] as const,
   bulkPreview: (accountIds: string[] | undefined) => ['bank-sync', 'bulk-preview', accountIds ?? 'all'] as const,
-};
+}
 
 export const lastImportKeys = {
   all: ['last-import'] as const,

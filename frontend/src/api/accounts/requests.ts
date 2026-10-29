@@ -1,5 +1,5 @@
-import { authenticatedFetch } from '@/api/client';
-import { buildQueryString } from '@/api/utils/queryString';
+import { authenticatedFetch } from '@/api/client'
+import { buildQueryString } from '@/api/utils/queryString'
 import type {
   Account,
   AccountBalanceSnapshot,
@@ -11,7 +11,7 @@ import type {
   RecordStartingBalancePayload,
   SpendingRange,
   UpdateAccountPayload,
-} from '@/api/accounts/types';
+} from '@/api/accounts/types'
 
 /**
  * Creates one account
@@ -20,23 +20,17 @@ export function createAccount(payload: CreateAccountPayload) {
   return authenticatedFetch<AccountsOverview>('/accounts', {
     method: 'POST',
     body: JSON.stringify(payload),
-  });
+  })
 }
 
 /**
  * Updates mutable account identity, archive, and tax-plan fields
  */
-export function updateAccount({
-  accountId,
-  payload,
-}: {
-  accountId: string;
-  payload: UpdateAccountPayload;
-}) {
+export function updateAccount({ accountId, payload }: { accountId: string; payload: UpdateAccountPayload }) {
   return authenticatedFetch<Account>(`/accounts/${accountId}`, {
     method: 'PATCH',
     body: JSON.stringify(payload),
-  });
+  })
 }
 
 /**
@@ -46,13 +40,13 @@ export function recordStartingBalance({
   accountId,
   payload,
 }: {
-  accountId: string;
-  payload: RecordStartingBalancePayload;
+  accountId: string
+  payload: RecordStartingBalancePayload
 }) {
   return authenticatedFetch<Account>(`/accounts/${accountId}/starting-balance`, {
     method: 'POST',
     body: JSON.stringify(payload),
-  });
+  })
 }
 
 /**
@@ -61,7 +55,7 @@ export function recordStartingBalance({
 export function deleteAccount(accountId: string) {
   return authenticatedFetch<void>(`/accounts/${accountId}`, {
     method: 'DELETE',
-  });
+  })
 }
 
 /**
@@ -70,7 +64,7 @@ export function deleteAccount(accountId: string) {
  * @param signal - Aborts the request when the load that asked for it is abandoned
  */
 export function fetchAccounts(signal?: AbortSignal) {
-  return authenticatedFetch<AccountsOverview[]>('/accounts', { signal });
+  return authenticatedFetch<AccountsOverview[]>('/accounts', { signal })
 }
 
 /**
@@ -79,7 +73,7 @@ export function fetchAccounts(signal?: AbortSignal) {
  * @param signal - Aborts the request when the load that asked for it is abandoned
  */
 export function fetchAccount(accountId: string | undefined, signal?: AbortSignal) {
-  return authenticatedFetch<Account>(`/accounts/${accountId}`, { signal });
+  return authenticatedFetch<Account>(`/accounts/${accountId}`, { signal })
 }
 
 /**
@@ -92,7 +86,7 @@ export function fetchAccountSnapshots(
   range: AccountSnapshotRange = {},
   signal?: AbortSignal,
 ) {
-  const { fromDate, toDate, granularity = 'day', includeAnchor = false } = range;
+  const { fromDate, toDate, granularity = 'day', includeAnchor = false } = range
   return authenticatedFetch<AccountBalanceSnapshot[]>(
     `/accounts/${accountId}/snapshots${buildQueryString({
       from_date: fromDate,
@@ -101,7 +95,7 @@ export function fetchAccountSnapshots(
       include_anchor: includeAnchor || undefined,
     })}`,
     { signal },
-  );
+  )
 }
 
 /**
@@ -117,7 +111,7 @@ export function fetchAccountSpendingBreakdown(
   return authenticatedFetch<AccountSpendingBreakdown>(
     `/accounts/${accountId}/spending-breakdown${buildQueryString({ range })}`,
     { signal },
-  );
+  )
 }
 
 /**
@@ -125,13 +119,9 @@ export function fetchAccountSpendingBreakdown(
  *
  * @param signal - Aborts the request when the load that asked for it is abandoned
  */
-export function fetchAccountCashFlow(
-  accountId: string | undefined,
-  months: number = 6,
-  signal?: AbortSignal,
-) {
+export function fetchAccountCashFlow(accountId: string | undefined, months: number = 6, signal?: AbortSignal) {
   return authenticatedFetch<AccountMonthlyCashFlow[]>(
     `/accounts/${accountId}/cash-flow${buildQueryString({ months })}`,
     { signal },
-  );
+  )
 }

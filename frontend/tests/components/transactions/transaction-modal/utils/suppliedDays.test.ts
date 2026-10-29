@@ -7,10 +7,7 @@ import { describe, expect, it } from 'vitest'
 import type { Transaction } from '@/api/transactions'
 import { INITIAL_TRANSACTION_FORM } from '@/components/transactions/transaction-modal/constants'
 import type { TransactionFormValues } from '@/components/transactions/transaction-modal/types'
-import {
-  getSuppliedDays,
-  type SuppliedDays,
-} from '@/components/transactions/transaction-modal/utils/suppliedDays'
+import { getSuppliedDays, type SuppliedDays } from '@/components/transactions/transaction-modal/utils/suppliedDays'
 import { BANK_SOURCE, createAccount, createTransaction } from './fixtures'
 
 const TODAY = '2026-10-04'
@@ -57,7 +54,13 @@ function expectNothingRefused(days: SuppliedDays) {
 
 // A new transfer recorded in both accounts
 function pair(accountId: string, counterpartyAccountId: string, date: string, symmetric_transfer = true) {
-  return check({ kind: 'transfer', account_id: accountId, counterparty_account_id: counterpartyAccountId, symmetric_transfer, date })
+  return check({
+    kind: 'transfer',
+    account_id: accountId,
+    counterparty_account_id: counterpartyAccountId,
+    symmetric_transfer,
+    date,
+  })
 }
 
 describe('days a linked account’s bank supplies', () => {
@@ -116,17 +119,26 @@ describe('days a linked account’s bank supplies', () => {
   it('checks both linked accounts of a new pair, each from its own start, naming the recorded one first', () => {
     // Visa's bank supplies nothing before September, Everyday's does from June
     const july = pair(VISA.id, EVERYDAY.id, '2026-07-01')
-    expect(july.message).toBe(`SimpleFIN supplies the transactions in Everyday from ${unbroken('Jun 1, 2026')} to today`)
+    expect(july.message).toBe(
+      `SimpleFIN supplies the transactions in Everyday from ${unbroken('Jun 1, 2026')} to today`,
+    )
     expect(july.isDateDisabled?.('2026-07-01')).toBe(true)
 
     // Both supply mid-September, and the message names the account the transfer is recorded in
-    expect(pair(VISA.id, EVERYDAY.id, '2026-09-15').message)
-      .toBe(`SimpleFIN supplies the transactions in Visa from ${unbroken('Sep 1, 2026')} to today`)
+    expect(pair(VISA.id, EVERYDAY.id, '2026-09-15').message).toBe(
+      `SimpleFIN supplies the transactions in Visa from ${unbroken('Sep 1, 2026')} to today`,
+    )
   })
 
   it('leaves the other account alone when a transfer is edited, since only the one transaction changes', () => {
     const days = check(
-      { kind: 'transfer', account_id: SAVINGS.id, counterparty_account_id: VISA.id, symmetric_transfer: true, date: '2026-09-15' },
+      {
+        kind: 'transfer',
+        account_id: SAVINGS.id,
+        counterparty_account_id: VISA.id,
+        symmetric_transfer: true,
+        date: '2026-09-15',
+      },
       createTransaction({ account_id: SAVINGS.id, dt: '2026-08-20' }),
     )
 

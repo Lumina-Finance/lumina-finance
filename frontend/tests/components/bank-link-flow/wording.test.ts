@@ -71,10 +71,16 @@ describe('the link flow wording', () => {
   it('compares the listed bank accounts with the one unlinked, or the one the waiting link followed', () => {
     expect(findPreviousBankAccount(createStatus())).toBeNull()
     expect(findPreviousBankAccount(createStatus({ previous_link: PREVIOUS_LINK }))).toEqual({
-      externalAccountId: 'ACT-old', name: 'Everyday Account', institution: 'CommBank', providerName: 'SimpleFIN',
+      externalAccountId: 'ACT-old',
+      name: 'Everyday Account',
+      institution: 'CommBank',
+      providerName: 'SimpleFIN',
     })
     expect(findPreviousBankAccount(createStatus({ link: WAITING_LINK }))).toEqual({
-      externalAccountId: 'ACT-gone', name: 'Rewards Visa', institution: 'Harbour Bank', providerName: 'SimpleFIN',
+      externalAccountId: 'ACT-gone',
+      name: 'Rewards Visa',
+      institution: 'Harbour Bank',
+      providerName: 'SimpleFIN',
     })
   })
 })
@@ -104,12 +110,18 @@ describe('the link flow without a working connection', () => {
   })
 
   it('sends a user whose connection was rejected to Settings to reconnect it, even with no provider taking new connections', () => {
-    const connectFirst = describeConnectFirst([createConnection({ status: 'credential_rejected' })], createProviders(false))
+    const connectFirst = describeConnectFirst(
+      [createConnection({ status: 'credential_rejected' })],
+      createProviders(false),
+    )
     expect(connectFirst.canOpenSettings).toBe(true)
     expect(connectFirst.message).toContain('Reconnect it in Settings')
   })
 
   it('only closes when no provider takes new connections and there is nothing to reconnect', () => {
-    expect(describeConnectFirst([], createProviders(false))).toEqual({ message: NOTHING_TO_LINK_REASON, canOpenSettings: false })
+    expect(describeConnectFirst([], createProviders(false))).toEqual({
+      message: NOTHING_TO_LINK_REASON,
+      canOpenSettings: false,
+    })
   })
 })

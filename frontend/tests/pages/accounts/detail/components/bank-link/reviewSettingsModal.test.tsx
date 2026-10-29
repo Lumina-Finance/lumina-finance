@@ -30,8 +30,10 @@ vi.mock('@/api/bank-sync', async (importOriginal) => ({
   useUpdateReviewPreferences: () => ({ isPending: read.saving, mutate: () => {} }),
 }))
 
-const INTRO = 'Reviewed changes wait above the transaction list. Auto-approved ones are applied as they arrive, which can change ledger values without a review step.'
-const NOTE = 'New transactions need a merchant and category before they can be added, so they wait for review whichever you choose.'
+const INTRO =
+  'Reviewed changes wait above the transaction list. Auto-approved ones are applied as they arrive, which can change ledger values without a review step.'
+const NOTE =
+  'New transactions need a merchant and category before they can be added, so they wait for review whichever you choose.'
 const ROWS = [
   ['New transactions', 'Still need a merchant and category before they are added'],
   ['Corrections', 'The bank changes the date, amount or description'],
@@ -40,11 +42,18 @@ const ROWS = [
 
 // Static rendering marks where one text node meets the next, which text is matched without
 function renderDialog(): string {
-  return renderToStaticMarkup(<ReviewSettingsModal open accountId="account-1" onClose={() => {}} />).replaceAll('<!-- -->', '')
+  return renderToStaticMarkup(<ReviewSettingsModal open accountId="account-1" onClose={() => {}} />).replaceAll(
+    '<!-- -->',
+    '',
+  )
 }
 
 function getTablist(markup: string, label: string): string {
-  return markup.match(new RegExp(`<div[^>]*role="tablist"[^>]*aria-label="${label}"[^>]*>(?:(?!role="tablist").)*`, 's'))?.[0] ?? ''
+  return (
+    markup.match(
+      new RegExp(`<div[^>]*role="tablist"[^>]*aria-label="${label}"[^>]*>(?:(?!role="tablist").)*`, 's'),
+    )?.[0] ?? ''
+  )
 }
 
 // The opening tag of each tab in the tablist
@@ -54,8 +63,9 @@ function getTabs(tablist: string): string[] {
 
 // The text of each tab marked selected
 function getSelected(tablist: string): string[] {
-  return [...tablist.matchAll(/<button[^>]*aria-selected="true"[^>]*>(.*?)<\/button>/gs)]
-    .map(([, content]) => content.replace(/<[^>]+>/g, ''))
+  return [...tablist.matchAll(/<button[^>]*aria-selected="true"[^>]*>(.*?)<\/button>/gs)].map(([, content]) =>
+    content.replace(/<[^>]+>/g, ''),
+  )
 }
 
 function getButton(markup: string, label: string): string {

@@ -1,12 +1,12 @@
-import { ApiError } from '@/api/auth/errors';
+import { ApiError } from '@/api/auth/errors'
 import {
   BANK_DISCOVERY_POLL_MS,
   BANK_LINKS_ACTIVE_POLL_MS,
   BANK_LINKS_IDLE_POLL_MS,
   UNANSWERED_CLAIM_POLL_MS,
   UNANSWERED_CLAIM_WATCH_MS,
-} from '@/api/bank-sync/constants';
-import type { BankConnection, BankLink } from '@/api/bank-sync/types';
+} from '@/api/bank-sync/constants'
+import type { BankConnection, BankLink } from '@/api/bank-sync/types'
 
 /**
  * How often the connections are read: while one waits on a listing of its bank accounts, and for a
@@ -22,9 +22,9 @@ export function getBankConnectionsPollInterval(
   claimUnansweredAt: number | null,
   now: number,
 ): number | false {
-  if (connections?.some((connection) => connection.discovery_pending)) return BANK_DISCOVERY_POLL_MS;
-  if (claimUnansweredAt !== null && now < claimUnansweredAt + UNANSWERED_CLAIM_WATCH_MS) return UNANSWERED_CLAIM_POLL_MS;
-  return false;
+  if (connections?.some((connection) => connection.discovery_pending)) return BANK_DISCOVERY_POLL_MS
+  if (claimUnansweredAt !== null && now < claimUnansweredAt + UNANSWERED_CLAIM_WATCH_MS) return UNANSWERED_CLAIM_POLL_MS
+  return false
 }
 
 /**
@@ -34,7 +34,12 @@ export function getBankConnectionsPollInterval(
  * so it is read at the slower pace until a request frees up
  */
 function isLinkBusy(link: BankLink): boolean {
-  return link.sync.state === 'syncing' || link.sync.state === 'importing' || link.sync.sync_running || link.sync.sync_requested;
+  return (
+    link.sync.state === 'syncing' ||
+    link.sync.state === 'importing' ||
+    link.sync.sync_running ||
+    link.sync.sync_requested
+  )
 }
 
 /**
@@ -42,7 +47,7 @@ function isLinkBusy(link: BankLink): boolean {
  * the way there that the next attempt may not meet
  */
 export function isRefusedRead(error: Error | null): boolean {
-  return error instanceof ApiError && error.status >= 400 && error.status < 500;
+  return error instanceof ApiError && error.status >= 400 && error.status < 500
 }
 
 /**
@@ -53,9 +58,9 @@ export function isRefusedRead(error: Error | null): boolean {
  * tried again at the slow pace, while one the server refused is left alone
  */
 export function getBankLinksPollInterval(links: BankLink[] | undefined, error: Error | null): number | false {
-  if (!links) return error && !isRefusedRead(error) ? BANK_LINKS_IDLE_POLL_MS : false;
-  if (links.length === 0) return false;
-  return links.some(isLinkBusy) ? BANK_LINKS_ACTIVE_POLL_MS : BANK_LINKS_IDLE_POLL_MS;
+  if (!links) return error && !isRefusedRead(error) ? BANK_LINKS_IDLE_POLL_MS : false
+  if (links.length === 0) return false
+  return links.some(isLinkBusy) ? BANK_LINKS_ACTIVE_POLL_MS : BANK_LINKS_IDLE_POLL_MS
 }
 
 /**
@@ -65,7 +70,7 @@ export function getBankLinksPollInterval(links: BankLink[] | undefined, error: E
  * reads nothing either
  */
 export function getBankLinksRefetchOnReturn(links: BankLink[] | undefined, error: Error | null): 'always' | false {
-  return getBankLinksPollInterval(links, error) === false ? false : 'always';
+  return getBankLinksPollInterval(links, error) === false ? false : 'always'
 }
 
 /**
@@ -75,5 +80,5 @@ export function getBankLinksRefetchOnReturn(links: BankLink[] | undefined, error
  * opened a minute later
  */
 export function getBankLinksStaleTime(links: BankLink[] | undefined): number {
-  return getBankLinksPollInterval(links, null) || BANK_LINKS_IDLE_POLL_MS;
+  return getBankLinksPollInterval(links, null) || BANK_LINKS_IDLE_POLL_MS
 }

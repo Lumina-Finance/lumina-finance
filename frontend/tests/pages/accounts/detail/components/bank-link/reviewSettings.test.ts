@@ -8,7 +8,11 @@ import { describe, expect, it } from 'vitest'
 import type { ReviewDecision, ReviewPreferences } from '@/api/bank-sync'
 import { getReviewPreset, presetPreferences } from '@/pages/accounts/detail/components/bank-link/reviewSettings'
 
-function choices(new_transactions: ReviewDecision, corrections: ReviewDecision, removals: ReviewDecision): ReviewPreferences {
+function choices(
+  new_transactions: ReviewDecision,
+  corrections: ReviewDecision,
+  removals: ReviewDecision,
+): ReviewPreferences {
   return { new_transactions, corrections, removals }
 }
 

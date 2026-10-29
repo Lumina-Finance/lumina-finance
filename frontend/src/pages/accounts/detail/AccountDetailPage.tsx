@@ -84,16 +84,18 @@ export default function AccountDetailPage() {
 
   // The deleted account's queries stay cached while the page shows them on its way out, and go once
   // it has left, however it leaves
-  useEffect(() => () => {
-    if (deletedAccountIdRef.current) forgetDeletedAccount(deletedAccountIdRef.current)
-  }, [forgetDeletedAccount])
+  useEffect(
+    () => () => {
+      if (deletedAccountIdRef.current) forgetDeletedAccount(deletedAccountIdRef.current)
+    },
+    [forgetDeletedAccount],
+  )
 
   const visibleAccount = account ?? (deleteExitPhase !== 'idle' ? deletedAccountSnapshot : null)
-  const linkedTaxAdvantagedCategoryId = visibleAccount?.group_id === null ? visibleAccount.tax_advantaged_category_id : null
-  const {
-    data: linkedTaxAdvantagedCategory,
-    error: linkedTaxAdvantagedCategoryError,
-  } = useTaxAdvantagedCategory(linkedTaxAdvantagedCategoryId)
+  const linkedTaxAdvantagedCategoryId =
+    visibleAccount?.group_id === null ? visibleAccount.tax_advantaged_category_id : null
+  const { data: linkedTaxAdvantagedCategory, error: linkedTaxAdvantagedCategoryError } =
+    useTaxAdvantagedCategory(linkedTaxAdvantagedCategoryId)
 
   // A deletion holds a copy of the account, so this stays false throughout one and the page keeps
   // rendering the copy rather than dropping into the loading branch mid-exit

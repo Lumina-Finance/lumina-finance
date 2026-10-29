@@ -45,7 +45,8 @@ export function AccountArchiveSection({
   const { ref: warningRef, reveal: revealWarning } = useRevealWhenGrown<HTMLDivElement>(isArchiving)
 
   // The two reasons never hold together, since a linked account's later transactions don't block it
-  const unavailableReason = archiveLinkedReason ?? (isArchiveBlocked ? ARCHIVE_BLOCKED_BY_LATER_TRANSACTIONS_REASON : null)
+  const unavailableReason =
+    archiveLinkedReason ?? (isArchiveBlocked ? ARCHIVE_BLOCKED_BY_LATER_TRANSACTIONS_REASON : null)
 
   return (
     <EditModalSection number={sectionNumber} title="Archive">

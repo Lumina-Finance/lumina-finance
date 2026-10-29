@@ -14,7 +14,11 @@ import {
   type BankSyncState,
   type OpeningAdjustment,
 } from '@/api/bank-sync'
-import { BANK_CONNECTIONS_SETTINGS_PATH, GROUP_ACCOUNT_LINK_REASON, LINKING_PAUSED_REASON } from '@/components/bank-link-flow/constants'
+import {
+  BANK_CONNECTIONS_SETTINGS_PATH,
+  GROUP_ACCOUNT_LINK_REASON,
+  LINKING_PAUSED_REASON,
+} from '@/components/bank-link-flow/constants'
 import { BankLinkFlowModal } from '@/components/bank-link-flow/Modal'
 import { Unfold } from '@/components/display/Unfold'
 import LoadFailure from '@/components/errors/LoadFailure'
@@ -27,7 +31,11 @@ import { DisabledReasonButton } from '@/components/tooltips/DisabledReasonButton
 import { BalancePanel } from '@/pages/accounts/detail/components/bank-link/BalancePanel'
 import { ImportProgress } from '@/pages/accounts/detail/components/bank-link/ImportProgress'
 import { OpeningAdjustmentOffer } from '@/pages/accounts/detail/components/bank-link/OpeningAdjustmentOffer'
-import { CutOffDayReminder, HistoryReminder, REMINDER_ATTRIBUTE } from '@/pages/accounts/detail/components/bank-link/Reminder'
+import {
+  CutOffDayReminder,
+  HistoryReminder,
+  REMINDER_ATTRIBUTE,
+} from '@/pages/accounts/detail/components/bank-link/Reminder'
 import { ReviewSettingsModal } from '@/pages/accounts/detail/components/bank-link/ReviewSettingsModal'
 import type { BankSyncLabel } from '@/pages/accounts/detail/components/bank-link/status'
 import { SyncFact } from '@/pages/accounts/detail/components/bank-link/SyncFact'
@@ -113,8 +121,9 @@ function LinkedView({
   // A dismissed reminder folds away with the ✕ holding focus, which moves on to the next reminder's ✕,
   // or with none left, to the link's actions
   const moveOnFromReminder = (reminder: HTMLElement) => {
-    const later = Array.from(viewRef.current?.querySelectorAll<HTMLElement>(`[${REMINDER_ATTRIBUTE}]`) ?? [])
-      .find((other) => reminder.compareDocumentPosition(other) & Node.DOCUMENT_POSITION_FOLLOWING)
+    const later = Array.from(viewRef.current?.querySelectorAll<HTMLElement>(`[${REMINDER_ATTRIBUTE}]`) ?? []).find(
+      (other) => reminder.compareDocumentPosition(other) & Node.DOCUMENT_POSITION_FOLLOWING,
+    )
     const dismiss = later?.querySelector<HTMLElement>('button')
     if (!dismiss) {
       focusFirstAction(actionsRef.current)
@@ -149,13 +158,20 @@ function LinkedView({
             <InfoCallout
               tone="stopped"
               icon={TriangleAlert}
-              action={(
-                <button type="button" className={NOTICE_ACTION_CLASS} {...ACTION_PROPS} {...initialFocus} onClick={() => navigate(BANK_CONNECTIONS_SETTINGS_PATH)}>
+              action={
+                <button
+                  type="button"
+                  className={NOTICE_ACTION_CLASS}
+                  {...ACTION_PROPS}
+                  {...initialFocus}
+                  onClick={() => navigate(BANK_CONNECTIONS_SETTINGS_PATH)}
+                >
                   Open settings
                 </button>
-              )}
+              }
             >
-              {providerSite(link)} rejected the connection this account uses. Automatic sync is stopped for every account on it until you reconnect it in Settings with a new setup token.
+              {providerSite(link)} rejected the connection this account uses. Automatic sync is stopped for every
+              account on it until you reconnect it in Settings with a new setup token.
             </InfoCallout>
           </Unfold>
         )}
@@ -164,31 +180,43 @@ function LinkedView({
             <InfoCallout
               tone="stopped"
               icon={TriangleAlert}
-              action={(
-                <button type="button" className={NOTICE_ACTION_CLASS} {...ACTION_PROPS} {...initialFocus} onClick={onChooseBankAccount}>
+              action={
+                <button
+                  type="button"
+                  className={NOTICE_ACTION_CLASS}
+                  {...ACTION_PROPS}
+                  {...initialFocus}
+                  onClick={onChooseBankAccount}
+                >
                   Choose bank account
                 </button>
-              )}
+              }
             >
-              {link.provider_name} now lists {link.external_account_name} differently, so Lumina Finance can't tell whether it's the same account. Choose its bank account again to resume syncing.
+              {link.provider_name} now lists {link.external_account_name} differently, so Lumina Finance can't tell
+              whether it's the same account. Choose its bank account again to resume syncing.
             </InfoCallout>
           </Unfold>
         )}
         {state === 'bank_signin_needed' && (
           <Unfold key="bank-sign-in">
-            <InfoCallout tone="stopped" icon={TriangleAlert}>Sign in to your bank again in {providerSite(link)}.</InfoCallout>
+            <InfoCallout tone="stopped" icon={TriangleAlert}>
+              Sign in to your bank again in {providerSite(link)}.
+            </InfoCallout>
           </Unfold>
         )}
         {paused && (
           <Unfold key="paused">
             <InfoCallout tone="review" icon={PauseCircle}>
-              Sync is paused with {waiting} new items waiting for review. It resumes on its own once {REVIEW_RESUME_COUNT} or fewer are left.
+              Sync is paused with {waiting} new items waiting for review. It resumes on its own once{' '}
+              {REVIEW_RESUME_COUNT} or fewer are left.
             </InfoCallout>
           </Unfold>
         )}
         {warned && (
           <Unfold key="warning">
-            <InfoCallout tone="review" icon={TriangleAlert}>{waiting} new to review. Sync pauses at {REVIEW_PAUSE_COUNT}.</InfoCallout>
+            <InfoCallout tone="review" icon={TriangleAlert}>
+              {waiting} new to review. Sync pauses at {REVIEW_PAUSE_COUNT}.
+            </InfoCallout>
           </Unfold>
         )}
         {link.history_reminder && (
@@ -203,7 +231,12 @@ function LinkedView({
         )}
         {link.cut_off_day && (
           <Unfold key="cut-off-day">
-            <CutOffDayReminder accountId={link.account_id} providerName={link.provider_name} day={link.cut_off_day} onDismissed={moveOnFromReminder} />
+            <CutOffDayReminder
+              accountId={link.account_id}
+              providerName={link.provider_name}
+              day={link.cut_off_day}
+              onDismissed={moveOnFromReminder}
+            />
           </Unfold>
         )}
         {balance && (
@@ -212,15 +245,17 @@ function LinkedView({
               balance={balance}
               currency={currency}
               providerName={link.provider_name}
-              footer={openingAdjustment && (
-                <OpeningAdjustmentOffer
-                  accountId={link.account_id}
-                  offer={openingAdjustment}
-                  currency={currency}
-                  providerName={link.provider_name}
-                  onAnswered={() => focusFirstAction(actionsRef.current)}
-                />
-              )}
+              footer={
+                openingAdjustment && (
+                  <OpeningAdjustmentOffer
+                    accountId={link.account_id}
+                    offer={openingAdjustment}
+                    currency={currency}
+                    providerName={link.provider_name}
+                    onAnswered={() => focusFirstAction(actionsRef.current)}
+                  />
+                )
+              }
             />
           </Unfold>
         )}
@@ -228,8 +263,19 @@ function LinkedView({
 
       {/* The link's actions, in one row that wraps, each taking a full row on a phone */}
       <div ref={actionsRef} className="flex flex-wrap items-center gap-2 pt-4">
-        <SyncNowButton link={link} connection={connection} providers={providers} focusProps={{ ...ACTION_PROPS, ...initialFocus }} />
-        <button type="button" className={LINK_ACTION_CLASS} {...ACTION_PROPS} {...initialFocus} onClick={onReviewSettings}>
+        <SyncNowButton
+          link={link}
+          connection={connection}
+          providers={providers}
+          focusProps={{ ...ACTION_PROPS, ...initialFocus }}
+        />
+        <button
+          type="button"
+          className={LINK_ACTION_CLASS}
+          {...ACTION_PROPS}
+          {...initialFocus}
+          onClick={onReviewSettings}
+        >
           <SlidersHorizontal size={14} aria-hidden />
           Review settings
         </button>
@@ -299,7 +345,9 @@ export function BankLinkSection({ account, sectionNumber, autoFocus = false }: B
   const viewKey = !ownPersonal ? 'group' : !status ? 'loading' : link ? 'linked' : 'unlinked'
   const contentRef = useRef<HTMLDivElement>(null)
   const showsControls = viewKey === 'linked' || viewKey === 'unlinked'
-  const initialFocus: InitialFocusProps = autoFocus ? { 'data-modal-field-tab-stop': 'true', 'data-modal-initial-focus': 'true' } : {}
+  const initialFocus: InitialFocusProps = autoFocus
+    ? { 'data-modal-field-tab-stop': 'true', 'data-modal-initial-focus': 'true' }
+    : {}
 
   // The modal focuses the marked control as it opens. One that shows only once the link has loaded
   // misses that, so it waits for the modal to have opened and put focus in its first field instead.
@@ -334,7 +382,8 @@ export function BankLinkSection({ account, sectionNumber, autoFocus = false }: B
   useEffect(() => {
     if (exitsReported === 0) return undefined
     const frame = window.requestAnimationFrame(() => {
-      if (document.activeElement === null || document.activeElement === document.body) focusFirstAction(contentRef.current)
+      if (document.activeElement === null || document.activeElement === document.body)
+        focusFirstAction(contentRef.current)
     })
     return () => window.cancelAnimationFrame(frame)
   }, [exitsReported])
@@ -342,70 +391,74 @@ export function BankLinkSection({ account, sectionNumber, autoFocus = false }: B
   return (
     <EditModalSection number={sectionNumber} title="Bank link">
       <div ref={contentRef}>
-      {ownPersonal && statusError && !status
-        ? <LoadFailure error={statusError} subject="Bank link" />
-        : (
-            <LoadingRegion
-              loading={viewKey === 'loading'}
-              label="Loading bank link"
-              animateLoadingHeight
-              clipsOnlyWhileChanging
-              overlayClassName={LOADING_OVERLAY_CLASS}
-            >
-              <StepTransition stepKey={viewKey} easeContentChanges={false} onExitComplete={restoreLostFocus}>
-                {viewKey === 'loading' && <div className="min-h-16" />}
-                {viewKey === 'group' && (
-                  <p className="text-sm" style={{ color: 'var(--app-text-muted)' }}>{GROUP_ACCOUNT_LINK_REASON} Its transactions stay manual.</p>
-                )}
-                {/* The reason a pause gives for Link bank account keeps to the section's sides. The Sync
+        {ownPersonal && statusError && !status ? (
+          <LoadFailure error={statusError} subject="Bank link" />
+        ) : (
+          <LoadingRegion
+            loading={viewKey === 'loading'}
+            label="Loading bank link"
+            animateLoadingHeight
+            clipsOnlyWhileChanging
+            overlayClassName={LOADING_OVERLAY_CLASS}
+          >
+            <StepTransition stepKey={viewKey} easeContentChanges={false} onExitComplete={restoreLostFocus}>
+              {viewKey === 'loading' && <div className="min-h-16" />}
+              {viewKey === 'group' && (
+                <p className="text-sm" style={{ color: 'var(--app-text-muted)' }}>
+                  {GROUP_ACCOUNT_LINK_REASON} Its transactions stay manual.
+                </p>
+              )}
+              {/* The reason a pause gives for Link bank account keeps to the section's sides. The Sync
                     details in the linked view take the room the modal has, which a short section lacks */}
-                {viewKey === 'unlinked' && (
-                  <div className="space-y-3" data-tooltip-bounds>
-                    <p className="text-sm" style={{ color: 'var(--app-text-muted)' }}>
-                      {previous
-                        ? `Previously linked to ${previous.external_account_name} at ${previous.institution_name} through ${previous.provider_name}, until ${formatDate(new Date(previous.unlinked_at), DATE_FORMATS.monthDayYear, user?.tz)}. Reconnecting fetches what the bank reported since then.`
-                        : 'Link this account to one of the bank accounts on your connections to bring in its transactions automatically. Everything the bank sends waits for your review before it touches a balance.'}
+              {viewKey === 'unlinked' && (
+                <div className="space-y-3" data-tooltip-bounds>
+                  <p className="text-sm" style={{ color: 'var(--app-text-muted)' }}>
+                    {previous
+                      ? `Previously linked to ${previous.external_account_name} at ${previous.institution_name} through ${previous.provider_name}, until ${formatDate(new Date(previous.unlinked_at), DATE_FORMATS.monthDayYear, user?.tz)}. Reconnecting fetches what the bank reported since then.`
+                      : 'Link this account to one of the bank accounts on your connections to bring in its transactions automatically. Everything the bank sends waits for your review before it touches a balance.'}
+                  </p>
+                  <DisabledReasonButton
+                    className="app-primary-button"
+                    {...ACTION_PROPS}
+                    {...initialFocus}
+                    disabledReason={linkBlockReason}
+                    reasonShownById={account.is_archived ? archivedReasonId : undefined}
+                    onClick={openLinkFlow}
+                  >
+                    <Link2 size={16} aria-hidden />
+                    {previous ? 'Reconnect bank account' : 'Link bank account'}
+                  </DisabledReasonButton>
+                  {account.is_archived && (
+                    <p id={archivedReasonId} className="text-sm" style={{ color: 'var(--app-text-muted)' }}>
+                      {ARCHIVED_REASON}
                     </p>
-                    <DisabledReasonButton
-                      className="app-primary-button"
-                      {...ACTION_PROPS}
-                      {...initialFocus}
-                      disabledReason={linkBlockReason}
-                      reasonShownById={account.is_archived ? archivedReasonId : undefined}
-                      onClick={openLinkFlow}
-                    >
-                      <Link2 size={16} aria-hidden />
-                      {previous ? 'Reconnect bank account' : 'Link bank account'}
-                    </DisabledReasonButton>
-                    {account.is_archived && (
-                      <p id={archivedReasonId} className="text-sm" style={{ color: 'var(--app-text-muted)' }}>{ARCHIVED_REASON}</p>
-                    )}
-                  </div>
-                )}
-                {viewKey === 'linked' && link && (
-                  <LinkedView
-                    link={link}
-                    balance={status?.balance ?? null}
-                    openingAdjustment={status?.opening_adjustment ?? null}
-                    currency={account.currency}
-                    sync={syncLabel}
-                    connection={connections?.find((connection) => connection.id === link.connection_id)}
-                    providers={providers}
-                    initialFocus={initialFocus}
-                    onChooseBankAccount={openLinkFlow}
-                    onReviewSettings={() => {
-                      setReviewSettingsKey((key) => key + 1)
-                      setReviewSettingsOpen(true)
-                    }}
-                    onUnlink={() => {
-                      setUnlinking(link)
-                      setUnlinkOpen(true)
-                    }}
-                  />
-                )}
-              </StepTransition>
-            </LoadingRegion>
-          )}
+                  )}
+                </div>
+              )}
+              {viewKey === 'linked' && link && (
+                <LinkedView
+                  link={link}
+                  balance={status?.balance ?? null}
+                  openingAdjustment={status?.opening_adjustment ?? null}
+                  currency={account.currency}
+                  sync={syncLabel}
+                  connection={connections?.find((connection) => connection.id === link.connection_id)}
+                  providers={providers}
+                  initialFocus={initialFocus}
+                  onChooseBankAccount={openLinkFlow}
+                  onReviewSettings={() => {
+                    setReviewSettingsKey((key) => key + 1)
+                    setReviewSettingsOpen(true)
+                  }}
+                  onUnlink={() => {
+                    setUnlinking(link)
+                    setUnlinkOpen(true)
+                  }}
+                />
+              )}
+            </StepTransition>
+          </LoadingRegion>
+        )}
       </div>
 
       {ownPersonal && (

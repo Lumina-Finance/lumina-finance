@@ -76,10 +76,20 @@ const accountNameFor = (accountId: string) => accountNames[accountId]
 const HARBOUR = [
   bankAccount({ external_id: 'ACT-chequing', linked_account_id: 'everyday', signin_needed: true }),
   bankAccount({ external_id: 'ACT-visa', name: 'Rewards Visa', linked_account_id: 'travel', signin_needed: true }),
-  bankAccount({ external_id: 'ACT-miles', name: 'Flight Miles', currency: 'https://example.com/miles', custom_currency: true }),
+  bankAccount({
+    external_id: 'ACT-miles',
+    name: 'Flight Miles',
+    currency: 'https://example.com/miles',
+    custom_currency: true,
+  }),
 ]
 const TIDEWATER = [
-  bankAccount({ external_id: 'ACT-savings', name: 'High Interest Savings', institution_name: 'Tidewater Credit Union', signin_needed: true }),
+  bankAccount({
+    external_id: 'ACT-savings',
+    name: 'High Interest Savings',
+    institution_name: 'Tidewater Credit Union',
+    signin_needed: true,
+  }),
 ]
 
 describe('bank connection status', () => {
@@ -97,7 +107,9 @@ describe('bank connection status', () => {
   })
 
   it('reads Reconnect needed for a rejected connection', () => {
-    expect(describeConnectionStatus(connection({ status: 'credential_rejected', accounts: [bankAccount({})] }))).toEqual({
+    expect(
+      describeConnectionStatus(connection({ status: 'credential_rejected', accounts: [bankAccount({})] })),
+    ).toEqual({
       tone: 'stopped',
       label: 'Reconnect needed',
     })
@@ -136,7 +148,9 @@ describe('bank connection confirmations', () => {
   })
 
   it('says the bank accounts are on the way when the claim could not list them yet', () => {
-    expect(describeConnected(connection({ discovery_pending: true }))).toBe('SimpleFIN connected. Its bank accounts will appear here shortly.')
+    expect(describeConnected(connection({ discovery_pending: true }))).toBe(
+      'SimpleFIN connected. Its bank accounts will appear here shortly.',
+    )
   })
 
   it('takes a connection as added once its bank accounts are listed or a listing is due, never partway', () => {
@@ -162,9 +176,14 @@ describe('bank connection confirmations', () => {
   })
 
   it('says linked accounts wait on a listing when the reconnect could not list the bank accounts', () => {
-    expect(describeReconnected({ connection: connection(), resumed_account_ids: [], choose_again_account_ids: [], accounts_pending: true })).toBe(
-      'SimpleFIN reconnected. Linked accounts pick up once their bank accounts are listed again.',
-    )
+    expect(
+      describeReconnected({
+        connection: connection(),
+        resumed_account_ids: [],
+        choose_again_account_ids: [],
+        accounts_pending: true,
+      }),
+    ).toBe('SimpleFIN reconnected. Linked accounts pick up once their bank accounts are listed again.')
   })
 })
 
@@ -174,22 +193,34 @@ describe('bank connection requests', () => {
   })
 
   it('names the cap Lumina Finance keeps each connection under', () => {
-    expect(describeRequestBudget(connection({ request_budget: { limit: 20, used: 3, available_again_at: null, held_by_provider: false } }))).toBe(
+    expect(
+      describeRequestBudget(
+        connection({ request_budget: { limit: 20, used: 3, available_again_at: null, held_by_provider: false } }),
+      ),
+    ).toBe(
       'Lumina Finance makes up to 20 requests a day for each connection. Automatic syncs and Sync now share them across every account linked through it.',
     )
   })
 
   it('counts a cap of one in the singular', () => {
-    expect(describeRequestBudget(connection({ request_budget: { limit: 1, used: 0, available_again_at: null, held_by_provider: false } }))).toContain('up to 1 request a day')
+    expect(
+      describeRequestBudget(
+        connection({ request_budget: { limit: 1, used: 0, available_again_at: null, held_by_provider: false } }),
+      ),
+    ).toContain('up to 1 request a day')
   })
 
   it('says when automatic syncs pick up once the requests are spent', () => {
     vi.useFakeTimers()
     vi.setSystemTime(new Date('2026-10-05T12:00:00Z'))
 
-    expect(describeRequestBudget(connection({ request_budget: { limit: 20, used: 20, available_again_at: '2026-10-05T16:00:00Z', held_by_provider: false } }))).toMatch(
-      / Automatic syncs wait until one frees up in 4 hours\.$/,
-    )
+    expect(
+      describeRequestBudget(
+        connection({
+          request_budget: { limit: 20, used: 20, available_again_at: '2026-10-05T16:00:00Z', held_by_provider: false },
+        }),
+      ),
+    ).toMatch(/ Automatic syncs wait until one frees up in 4 hours\.$/)
   })
 })
 
@@ -202,16 +233,30 @@ describe('bank connection institutions', () => {
   })
 
   it('counts institutions in use against a limit, without speaking of none', () => {
-    const allowance = describeInstitutionAllowance(provider({ institution_limit: 3, institutions_in_use: ['Harbour Bank'] }), 'SimpleFIN')
+    const allowance = describeInstitutionAllowance(
+      provider({ institution_limit: 3, institutions_in_use: ['Harbour Bank'] }),
+      'SimpleFIN',
+    )
 
     expect(allowance.value).toBe('1 of 3')
     expect(allowance.hint).not.toContain('no limit')
   })
 
   it('gathers bank accounts by institution with their sign-ins and linked counts', () => {
-    const groups = groupInstitutions(connection({ accounts: [...HARBOUR, ...TIDEWATER] }), { institutionLimit: null, institutionsInUse: [] })
+    const groups = groupInstitutions(connection({ accounts: [...HARBOUR, ...TIDEWATER] }), {
+      institutionLimit: null,
+      institutionsInUse: [],
+    })
 
-    expect(groups.map(({ name, signInNeeded, overLimit, linked, bankAccounts }) => [name, signInNeeded, overLimit, linked, bankAccounts.length])).toEqual([
+    expect(
+      groups.map(({ name, signInNeeded, overLimit, linked, bankAccounts }) => [
+        name,
+        signInNeeded,
+        overLimit,
+        linked,
+        bankAccounts.length,
+      ]),
+    ).toEqual([
       ['Harbour Bank', true, false, 2, 3],
       ['Tidewater Credit Union', true, false, 0, 1],
     ])
@@ -223,7 +268,11 @@ describe('an institution over a reached limit', () => {
   const reached: Allowance = { institutionLimit: 1, institutionsInUse: ['Harbour Bank'] }
 
   /** Whether Tidewater, holding the given bank accounts, is over the limit on a connection otherwise as given */
-  function tidewaterOverLimit(accounts: ConnectionBankAccount[], overrides: Partial<BankConnection> = {}, allowance: Allowance = reached): boolean {
+  function tidewaterOverLimit(
+    accounts: ConnectionBankAccount[],
+    overrides: Partial<BankConnection> = {},
+    allowance: Allowance = reached,
+  ): boolean {
     const [tidewater] = groupInstitutions(connection({ accounts, ...overrides }), allowance)
     return tidewater.overLimit
   }
@@ -233,7 +282,9 @@ describe('an institution over a reached limit', () => {
   })
 
   it('is not one already in use', () => {
-    expect(tidewaterOverLimit(TIDEWATER, {}, { institutionLimit: 1, institutionsInUse: ['Tidewater Credit Union'] })).toBe(false)
+    expect(
+      tidewaterOverLimit(TIDEWATER, {}, { institutionLimit: 1, institutionsInUse: ['Tidewater Credit Union'] }),
+    ).toBe(false)
   })
 
   it('is not one below the limit', () => {
@@ -241,7 +292,9 @@ describe('an institution over a reached limit', () => {
   })
 
   it('is not one without a limit', () => {
-    expect(tidewaterOverLimit(TIDEWATER, {}, { institutionLimit: null, institutionsInUse: ['Harbour Bank'] })).toBe(false)
+    expect(tidewaterOverLimit(TIDEWATER, {}, { institutionLimit: null, institutionsInUse: ['Harbour Bank'] })).toBe(
+      false,
+    )
   })
 
   it('is not one whose bank accounts are all linked', () => {
@@ -249,7 +302,9 @@ describe('an institution over a reached limit', () => {
   })
 
   it('is not one whose only free bank account is in a custom currency', () => {
-    expect(tidewaterOverLimit([{ ...TIDEWATER[0], currency: 'https://example.com/miles', custom_currency: true }])).toBe(false)
+    expect(
+      tidewaterOverLimit([{ ...TIDEWATER[0], currency: 'https://example.com/miles', custom_currency: true }]),
+    ).toBe(false)
   })
 
   it('is not one on a rejected connection, which links nothing until it is back', () => {
@@ -279,7 +334,10 @@ describe('bank connection institution search and mismatches', () => {
   })
 
   it('finds an institution by its name or one of its bank accounts', () => {
-    const [harbour] = groupInstitutions(connection({ accounts: HARBOUR }), { institutionLimit: null, institutionsInUse: [] })
+    const [harbour] = groupInstitutions(connection({ accounts: HARBOUR }), {
+      institutionLimit: null,
+      institutionsInUse: [],
+    })
 
     expect(matchesInstitutionSearch(harbour, ' HARBOUR ')).toBe(true)
     expect(matchesInstitutionSearch(harbour, 'flight')).toBe(true)

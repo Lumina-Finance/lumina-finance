@@ -31,20 +31,40 @@ vi.mock('@/hooks/useToast', () => ({ useToast: () => ({ showToast: () => {} }) }
 
 // The real panel renders into a portal, which markup rendered to a string can't hold
 vi.mock('@/components/modal/TitledPanel', () => ({
-  ModalTitledPanel: ({ title, eyebrow, footer, children }: { title: string; eyebrow: string; footer: ReactNode; children: ReactNode }) => (
-    <div><p>{eyebrow}</p><h2>{title}</h2>{children}{footer}</div>
+  ModalTitledPanel: ({
+    title,
+    eyebrow,
+    footer,
+    children,
+  }: {
+    title: string
+    eyebrow: string
+    footer: ReactNode
+    children: ReactNode
+  }) => (
+    <div>
+      <p>{eyebrow}</p>
+      <h2>{title}</h2>
+      {children}
+      {footer}
+    </div>
   ),
 }))
 
 import { BankComparisonModal } from '@/components/transactions/bank-review/ComparisonModal'
 
-const EDITED_NOTE = 'You edited this. Accepting replaces your value with the bank\'s.'
+const EDITED_NOTE = "You edited this. Accepting replaces your value with the bank's."
 const KEPT_NOTE = 'Your own value. Accepting leaves it as it is.'
 const FIELDS = ['date', 'amount', 'description'] as const
 const TINT = 'var(--app-warning-soft)'
 
 /** Countdown, approved at $42.10 out on Sep 21, which the bank now says was $45.10 */
-const LEDGER: BankValues = { date: '2026-09-21', amount: -4210, raw_amount: null, description: 'COUNTDOWN 123 AUCKLAND' }
+const LEDGER: BankValues = {
+  date: '2026-09-21',
+  amount: -4210,
+  raw_amount: null,
+  description: 'COUNTDOWN 123 AUCKLAND',
+}
 const COUNTDOWN = createReviewItem('countdown', 'correction', 'everyday', {
   current: LEDGER,
   bank: { ...LEDGER, amount: -4510 },
@@ -62,10 +82,15 @@ function render(item: BankReviewItem, currency = 'USD'): string {
 /** A tag's style attribute read into its properties, so a check doesn't depend on how React writes it */
 function styleOf(tag: string): Record<string, string> {
   const style = /\sstyle="([^"]*)"/.exec(tag)?.[1] ?? ''
-  return Object.fromEntries(style.split(';').filter(Boolean).map((rule) => {
-    const at = rule.indexOf(':')
-    return [rule.slice(0, at).trim(), rule.slice(at + 1).trim()]
-  }))
+  return Object.fromEntries(
+    style
+      .split(';')
+      .filter(Boolean)
+      .map((rule) => {
+        const at = rule.indexOf(':')
+        return [rule.slice(0, at).trim(), rule.slice(at + 1).trim()]
+      }),
+  )
 }
 
 /** One field's body of the table: its tint, its label, ledger and bank cells, and the text of any note under them */
@@ -74,19 +99,28 @@ function rowOf(markup: string, field: string) {
   expect(body).not.toBeNull()
   const [, opening = '', content = ''] = body ?? []
   const [row = '', note] = content.split('</tr>').filter((part) => part.includes('<td'))
-  const cells = [...row.matchAll(/<(th|td)\b([^>]*)>([\s\S]*?)<\/\1>/g)]
-    .map(([, , attributes = '', text = '']) => ({ text: textOf(text), color: styleOf(attributes).color }))
+  const cells = [...row.matchAll(/<(th|td)\b([^>]*)>([\s\S]*?)<\/\1>/g)].map(([, , attributes = '', text = '']) => ({
+    text: textOf(text),
+    color: styleOf(attributes).color,
+  }))
   return { tint: styleOf(opening).background, cells, note: note === undefined ? undefined : textOf(note) }
 }
 
 function textOf(markup: string): string {
-  return markup.replace(/<[^>]*>/g, '').replaceAll('&#x27;', '\'').trim()
+  return markup
+    .replace(/<[^>]*>/g, '')
+    .replaceAll('&#x27;', "'")
+    .trim()
 }
 
 /** The tone of the button named `label`, read from its class whatever order its attributes come in */
 function toneOf(markup: string, label: string): string | undefined {
   const tag = new RegExp(`<button\\b[^>]*\\saria-label="${label}"[^>]*>`).exec(markup)?.[0] ?? ''
-  return /\sclass="([^"]*)"/.exec(tag)?.[1]?.split(/\s+/).map((name) => /^app-(\w+)-button$/.exec(name)?.[1]).find(Boolean)
+  return /\sclass="([^"]*)"/
+    .exec(tag)?.[1]
+    ?.split(/\s+/)
+    .map((name) => /^app-(\w+)-button$/.exec(name)?.[1])
+    .find(Boolean)
 }
 
 function columnHeadings(markup: string): string[] {
@@ -94,15 +128,20 @@ function columnHeadings(markup: string): string[] {
 }
 
 describe('a correction', () => {
-  it('compares each value in its column and the account\'s currency, tinting the rows the bank changed with its value in the warning colour', () => {
-    const markup = render(createReviewItem('countdown', 'correction', 'everyday', {
-      current: LEDGER,
-      bank: { ...LEDGER, amount: -4510, description: 'COUNTDOWN AUCKLAND CENTRAL' },
-      changed_fields: ['amount', 'description'],
-    }), 'JPY')
+  it("compares each value in its column and the account's currency, tinting the rows the bank changed with its value in the warning colour", () => {
+    const markup = render(
+      createReviewItem('countdown', 'correction', 'everyday', {
+        current: LEDGER,
+        bank: { ...LEDGER, amount: -4510, description: 'COUNTDOWN AUCKLAND CENTRAL' },
+        changed_fields: ['amount', 'description'],
+      }),
+      'JPY',
+    )
 
     expect(markup).toContain('<p>Correction from SimpleFIN</p><h2>Review bank change</h2>')
-    expect(markup).toContain('SimpleFIN sent new values for a transaction you already approved. Nothing changes unless you accept.')
+    expect(markup).toContain(
+      'SimpleFIN sent new values for a transaction you already approved. Nothing changes unless you accept.',
+    )
     expect(columnHeadings(markup)).toEqual(['Field', 'In your ledger', 'From bank'])
     expect([...markup.matchAll(/data-testid="comparison-(\w+)"/g)].map(([, field]) => field)).toEqual([...FIELDS])
 
@@ -113,7 +152,11 @@ describe('a correction', () => {
       ['Bank description', 'COUNTDOWN 123 AUCKLAND', 'COUNTDOWN AUCKLAND CENTRAL'],
     ])
     expect(rows.map(({ tint }) => tint)).toEqual([undefined, TINT, TINT])
-    expect(rows.map(({ cells }) => cells[2]?.color)).toEqual(['var(--app-text)', 'var(--app-warning-text)', 'var(--app-warning-text)'])
+    expect(rows.map(({ cells }) => cells[2]?.color)).toEqual([
+      'var(--app-text)',
+      'var(--app-warning-text)',
+      'var(--app-warning-text)',
+    ])
     expect(rows.map(({ note }) => note)).toEqual([undefined, undefined, undefined])
 
     expect(toneOf(markup, 'Keep current value')).toBe('secondary')
@@ -132,7 +175,7 @@ describe('a correction', () => {
     expect(rowOf(markup, 'date')).toMatchObject({ tint: TINT, note: undefined })
   })
 
-  it('notes under a value the user kept apart from the bank\'s, which the change doesn\'t touch, that accepting leaves it', () => {
+  it("notes under a value the user kept apart from the bank's, which the change doesn't touch, that accepting leaves it", () => {
     const markup = render({
       ...COUNTDOWN,
       bank: { ...COUNTDOWN.bank, date: '2026-09-22' },
@@ -140,12 +183,16 @@ describe('a correction', () => {
     })
 
     expect(rowOf(markup, 'amount')).toMatchObject({ tint: undefined, note: KEPT_NOTE })
-    expect(rowOf(markup, 'amount').cells.map(({ text }) => text)).toEqual(['Amount', `${MINUS}$42.10`, `${MINUS}$45.10`])
+    expect(rowOf(markup, 'amount').cells.map(({ text }) => text)).toEqual([
+      'Amount',
+      `${MINUS}$42.10`,
+      `${MINUS}$45.10`,
+    ])
     expect(rowOf(markup, 'date').note).toBeUndefined()
     expect(rowOf(markup, 'description').note).toBeUndefined()
   })
 
-  it('shows an amount the currency can\'t hold exactly as the bank sent it', () => {
+  it("shows an amount the currency can't hold exactly as the bank sent it", () => {
     const markup = render({ ...COUNTDOWN, bank: { ...COUNTDOWN.bank, amount: null, raw_amount: '-45.105' } })
 
     expect(rowOf(markup, 'amount').cells[2]?.text).toBe(`${MINUS}$45.105`)
@@ -154,14 +201,18 @@ describe('a correction', () => {
 
 describe('a removal', () => {
   it('says the bank no longer reports the transaction on every row, offering to remove it in the danger tone', () => {
-    const markup = render(createReviewItem('uber', 'removal', 'everyday', {
-      current: { ...LEDGER, amount: -1800, description: 'UBER TRIP' },
-      // Last reported at an amount the user changed, which a removal still doesn't offer to keep apart
-      bank: { ...LEDGER, amount: -1750, description: 'UBER TRIP' },
-    }))
+    const markup = render(
+      createReviewItem('uber', 'removal', 'everyday', {
+        current: { ...LEDGER, amount: -1800, description: 'UBER TRIP' },
+        // Last reported at an amount the user changed, which a removal still doesn't offer to keep apart
+        bank: { ...LEDGER, amount: -1750, description: 'UBER TRIP' },
+      }),
+    )
 
     expect(markup).toContain('<p>Removal from SimpleFIN</p><h2>Review bank removal</h2>')
-    expect(markup).toContain('SimpleFIN no longer reports this transaction. It stays in your ledger unless you remove it.')
+    expect(markup).toContain(
+      'SimpleFIN no longer reports this transaction. It stays in your ledger unless you remove it.',
+    )
     expect(columnHeadings(markup)).toEqual(['Field', 'In your ledger', 'Bank'])
 
     const rows = FIELDS.map((field) => rowOf(markup, field))

@@ -17,7 +17,12 @@ type LabelWithHintProps = {
  * plain case and weight, as the facts in the Bank link section and a bank connection's modal set them
  * out. The explanation opens as the keyboard reaches the icon, as it does on hover
  */
-export function LabelWithHint({ label, hint, hintLabel = `About ${label.toLowerCase()}`, hintPlacement = 'bottom' }: LabelWithHintProps) {
+export function LabelWithHint({
+  label,
+  hint,
+  hintLabel = `About ${label.toLowerCase()}`,
+  hintPlacement = 'bottom',
+}: LabelWithHintProps) {
   return (
     <>
       {label}

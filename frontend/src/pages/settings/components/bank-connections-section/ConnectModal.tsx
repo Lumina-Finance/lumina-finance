@@ -43,7 +43,8 @@ const UNANSWERED_RECONNECT_MESSAGE = 'Something went wrong. Please try again.'
 // works only once. The dialogue waits for that connection to show in the list, and says this only
 // when none has by the time the claim must have finished. Sent again, the token is refused as used,
 // and a new one would add the same connection twice
-const UNANSWERED_CLAIM_MESSAGE = 'Oops, something went wrong. The connection may have been added, so please check before you create a new setup token.'
+const UNANSWERED_CLAIM_MESSAGE =
+  'Oops, something went wrong. The connection may have been added, so please check before you create a new setup token.'
 
 /** A claim whose answer was lost, waited on until its connection shows or the claim must have finished */
 type UnansweredClaim = {
@@ -87,7 +88,15 @@ interface ConnectModalProps {
  * its reason sits on that field, and anything else, such as the Bridge being out of reach, sits beside
  * the actions. Callers remount it with a key for each opening, so nothing typed carries over
  */
-export function ConnectModal({ open, providers, reconnecting, connections, level = 'page', onClose, onClaimUnanswered }: ConnectModalProps) {
+export function ConnectModal({
+  open,
+  providers,
+  reconnecting,
+  connections,
+  level = 'page',
+  onClose,
+  onClaimUnanswered,
+}: ConnectModalProps) {
   const { showToast } = useToast()
   const { user } = useAuth()
   const claim = useClaimSetupToken()
@@ -108,7 +117,10 @@ export function ConnectModal({ open, providers, reconnecting, connections, level
   const settled = saved !== undefined && isClaimSettled(saved)
   const provider = providers.find((entry) => entry.id === providerId)
   const providerName = reconnecting?.provider_name ?? provider?.name ?? 'SimpleFIN'
-  const site = providerSite({ provider: reconnecting?.provider ?? providerId ?? 'simplefin', provider_name: providerName })
+  const site = providerSite({
+    provider: reconnecting?.provider ?? providerId ?? 'simplefin',
+    provider_name: providerName,
+  })
 
   const reportAnswered = (cause: ApiError) => {
     if (cause.status === 422) {
@@ -198,12 +210,16 @@ export function ConnectModal({ open, providers, reconnecting, connections, level
       onSubmit={submit}
       titleId="bank-connection-add-title"
       title={reconnecting ? `Reconnect ${connectionName(reconnecting)}` : 'Add a connection'}
-      eyebrow={reconnecting ? `Added ${formatDate(new Date(reconnecting.created_at), DATE_FORMATS.monthDayYear, user?.tz)}` : 'Bank connection'}
+      eyebrow={
+        reconnecting
+          ? `Added ${formatDate(new Date(reconnecting.created_at), DATE_FORMATS.monthDayYear, user?.tz)}`
+          : 'Bank connection'
+      }
       RailIcon={Landmark}
       railLabel="Bank"
       level={level}
       closeDisabled={sending}
-      footer={(
+      footer={
         <ModalFormFooter
           submitLabel={reconnecting ? 'Reconnect' : 'Connect'}
           submitDisabled={busy}
@@ -214,7 +230,7 @@ export function ConnectModal({ open, providers, reconnecting, connections, level
           level={level}
           onCancel={onClose}
         />
-      )}
+      }
     >
       <div className="space-y-4 pb-2">
         {!reconnecting && (
@@ -222,7 +238,11 @@ export function ConnectModal({ open, providers, reconnecting, connections, level
             <CreateModalFieldLabelRow htmlFor={FIELD_IDS.provider} label="Provider" />
             <Dropdown
               id={FIELD_IDS.provider}
-              options={providers.map((entry) => ({ value: entry.id, label: entry.name, description: entry.description }))}
+              options={providers.map((entry) => ({
+                value: entry.id,
+                label: entry.name,
+                description: entry.description,
+              }))}
               value={providerId ?? ''}
               disabled={busy}
               onChange={(value) => {
@@ -238,7 +258,11 @@ export function ConnectModal({ open, providers, reconnecting, connections, level
             <CreateModalFieldLabelRow
               htmlFor={FIELD_IDS.nickname}
               label="Nickname"
-              accessory={<span className="text-sm" style={{ color: 'var(--app-text-muted)' }}>(optional)</span>}
+              accessory={
+                <span className="text-sm" style={{ color: 'var(--app-text-muted)' }}>
+                  (optional)
+                </span>
+              }
             />
             <input
               id={FIELD_IDS.nickname}
@@ -253,11 +277,13 @@ export function ConnectModal({ open, providers, reconnecting, connections, level
         )}
         {reconnecting ? (
           <WarningCallout>
-            {site} no longer accepts this connection. Create a new setup token there and paste it below. Linked accounts pick up where they stopped.
+            {site} no longer accepts this connection. Create a new setup token there and paste it below. Linked accounts
+            pick up where they stopped.
           </WarningCallout>
         ) : (
           <p className="text-sm" style={{ color: 'var(--app-text-muted)' }}>
-            One connection reaches every bank account you added in {site}. Connecting links nothing yet: each account then chooses its bank account.
+            One connection reaches every bank account you added in {site}. Connecting links nothing yet: each account
+            then chooses its bank account.
           </p>
         )}
         <ol className="list-decimal space-y-1 pl-5 text-sm" style={{ color: 'var(--app-text-muted)' }}>
@@ -266,7 +292,11 @@ export function ConnectModal({ open, providers, reconnecting, connections, level
           <li>Paste it here. Lumina Finance exchanges it for access and never sees your bank login.</li>
         </ol>
         <div>
-          <CreateModalFieldLabelRow htmlFor={FIELD_IDS.setupToken} label="Setup token" error={tokenError ?? undefined} />
+          <CreateModalFieldLabelRow
+            htmlFor={FIELD_IDS.setupToken}
+            label="Setup token"
+            error={tokenError ?? undefined}
+          />
           <textarea
             id={FIELD_IDS.setupToken}
             className={`app-input h-24 w-full resize-none py-2.5 font-mono text-xs ${tokenError ? 'app-input-error' : ''}`}

@@ -1,4 +1,4 @@
-import type { BankImportState, BankLink, BankSyncState, BankSyncStatus } from '@/api/bank-sync/types';
+import type { BankImportState, BankLink, BankSyncState, BankSyncStatus } from '@/api/bank-sync/types'
 
 /**
  * Builds a link's sync status: synced at noon on Sep 30 and due again at midnight, with nothing waiting
@@ -17,7 +17,7 @@ export function createSyncStatus(overrides: Partial<BankSyncStatus> = {}): BankS
     paused: false,
     review_warning: false,
     ...overrides,
-  };
+  }
 }
 
 /**
@@ -40,7 +40,7 @@ export function createBankLink(overrides: Partial<BankLink> = {}): BankLink {
     history_reminder: null,
     cut_off_day: null,
     ...overrides,
-  };
+  }
 }
 
 /** The state the server gives a link whose import is in each state */
@@ -49,7 +49,7 @@ const IMPORT_SYNC_STATES: Record<BankImportState, BankSyncState> = {
   waiting: 'retrying',
   waiting_on_budget: 'import_waiting_on_budget',
   complete: 'synced',
-};
+}
 
 /**
  * Builds a link partway through its first import, in the given state
@@ -67,5 +67,5 @@ export function createImportingBankLink(state: BankImportState): BankLink {
       earliest_returned_date: null,
     },
     sync: createSyncStatus({ state: IMPORT_SYNC_STATES[state], last_success_at: null }),
-  });
+  })
 }

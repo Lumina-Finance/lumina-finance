@@ -453,8 +453,19 @@ describe('dropdown box placement', () => {
     it('grows past the panel toward the roomier side of the screen when neither side of the panel holds five rows', () => {
       const shortPanel = { ...panel, top: 200, bottom: 420 }
       const anchorRect = { bottom: 400, left: 700, top: 360, width: 150 }
-      const inPanel = getDropdownBoxPosition({ ...head, searchable: true, anchorRect, viewport: clampDropdownViewportToPanel(wide, shortPanel) })
-      const position = getDropdownBoxPosition({ ...head, searchable: true, anchorRect, panel: shortPanel, viewport: wide })
+      const inPanel = getDropdownBoxPosition({
+        ...head,
+        searchable: true,
+        anchorRect,
+        viewport: clampDropdownViewportToPanel(wide, shortPanel),
+      })
+      const position = getDropdownBoxPosition({
+        ...head,
+        searchable: true,
+        anchorRect,
+        panel: shortPanel,
+        viewport: wide,
+      })
 
       // Kept to the panel, 188 above leaves the list 92 after the head, search and box edges, under
       // three rows of 36, and 48 below leaves none
@@ -475,14 +486,34 @@ describe('dropdown box placement', () => {
       // A measured box, such as getBoundingClientRect returns, keeps its edges on its prototype, so
       // copying its own fields gives none of them
       class MeasuredBox {
-        get bottom() { return 420 }
-        get left() { return 300 }
-        get right() { return 900 }
-        get top() { return 200 }
+        get bottom() {
+          return 420
+        }
+        get left() {
+          return 300
+        }
+        get right() {
+          return 900
+        }
+        get top() {
+          return 200
+        }
       }
       const anchorRect = { bottom: 400, left: 700, top: 360, width: 150 }
-      const measured = getDropdownBoxPosition({ ...head, searchable: true, anchorRect, panel: new MeasuredBox(), viewport: wide })
-      const plain = getDropdownBoxPosition({ ...head, searchable: true, anchorRect, panel: { ...panel, top: 200, bottom: 420 }, viewport: wide })
+      const measured = getDropdownBoxPosition({
+        ...head,
+        searchable: true,
+        anchorRect,
+        panel: new MeasuredBox(),
+        viewport: wide,
+      })
+      const plain = getDropdownBoxPosition({
+        ...head,
+        searchable: true,
+        anchorRect,
+        panel: { ...panel, top: 200, bottom: 420 },
+        viewport: wide,
+      })
 
       expect(measured).toEqual(plain)
     })
@@ -493,18 +524,21 @@ describe('dropdown box placement', () => {
       { list: 179, panelTop: 155, openAbove: false, listMaxHeight: 346 },
       { list: 180, panelTop: 154, openAbove: true, listMaxHeight: 180 },
       { list: 181, panelTop: 153, openAbove: true, listMaxHeight: 181 },
-    ])('keeps a box whose list would be $list inside the panel only from five rows up', ({ panelTop, openAbove, listMaxHeight }) => {
-      const position = getDropdownBoxPosition({
-        ...head,
-        anchorRect: { bottom: 400, left: 320, top: 360, width: 200 },
-        panel: { ...panel, top: panelTop, bottom: 420 },
-        viewport: wide,
-      })
+    ])(
+      'keeps a box whose list would be $list inside the panel only from five rows up',
+      ({ panelTop, openAbove, listMaxHeight }) => {
+        const position = getDropdownBoxPosition({
+          ...head,
+          anchorRect: { bottom: 400, left: 320, top: 360, width: 200 },
+          panel: { ...panel, top: panelTop, bottom: 420 },
+          viewport: wide,
+        })
 
-      // Below five rows it leaves the panel for the screen's 428 below, against 388 above
-      expect(position.openAbove).toBe(openAbove)
-      expect(position.listMaxHeight).toBe(listMaxHeight)
-    })
+        // Below five rows it leaves the panel for the screen's 428 below, against 388 above
+        expect(position.openAbove).toBe(openAbove)
+        expect(position.listMaxHeight).toBe(listMaxHeight)
+      },
+    )
 
     it('grows past the panel’s top over the modal’s title when the screen has more room above', () => {
       const position = getDropdownBoxPosition({

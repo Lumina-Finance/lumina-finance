@@ -116,7 +116,9 @@ export function ModalWorkspacePanel({
             >
               {partsLabel}
             </h3>
-            {partsTools && <div className="order-last w-full min-[1050px]:order-none min-[1050px]:w-60">{partsTools}</div>}
+            {partsTools && (
+              <div className="order-last w-full min-[1050px]:order-none min-[1050px]:w-60">{partsTools}</div>
+            )}
             {closeButton('hidden min-[1050px]:inline-flex')}
           </div>
           <div

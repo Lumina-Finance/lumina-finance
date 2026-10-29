@@ -10,7 +10,10 @@ const DONE_HOLD_MS = 1500
  * is held as complete, all its windows done, then dropped. A link whose bank account must be chosen again stops
  * reporting its import too, but that import was cut short, so it goes at once without reading as done
  */
-export function useLingeringImport(current: BankImportProgress | null, linkState: BankLinkState): BankImportProgress | null {
+export function useLingeringImport(
+  current: BankImportProgress | null,
+  linkState: BankLinkState,
+): BankImportProgress | null {
   const [shown, setShown] = useState<BankImportProgress | null>(current)
 
   // Adjusted during render rather than in an effect, so the shown import never lags a read behind

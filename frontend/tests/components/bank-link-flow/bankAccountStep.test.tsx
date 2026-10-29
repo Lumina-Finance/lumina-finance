@@ -74,7 +74,10 @@ function renderStep({
 
 /** The markup of the one choice card naming this bank account */
 function cardFor(markup: string, name: string): string {
-  const cards = markup.split('role="radio"').slice(1).filter((card) => card.includes(`>${name}<`))
+  const cards = markup
+    .split('role="radio"')
+    .slice(1)
+    .filter((card) => card.includes(`>${name}<`))
   expect(cards).toHaveLength(1)
   return cards[0]
 }
@@ -93,8 +96,23 @@ describe('the bank account step', () => {
   it("lists a bank account that can't be linked as unavailable, with the server's reason", () => {
     const markup = renderStep({
       accounts: [
-        createBankAccount({ external_id: 'ACT-2', name: 'Travel Card', currency: 'USD', linkable: false, unavailable_reason: 'currency_mismatch', unavailable_message: 'In USD, but Everyday is in CAD' }),
-        createBankAccount({ external_id: 'ACT-3', name: 'Points', currency: 'https://example.com/points', balance: 900, linkable: false, unavailable_reason: 'custom_currency', unavailable_message: "Uses a currency of its own, which Lumina Finance can't track" }),
+        createBankAccount({
+          external_id: 'ACT-2',
+          name: 'Travel Card',
+          currency: 'USD',
+          linkable: false,
+          unavailable_reason: 'currency_mismatch',
+          unavailable_message: 'In USD, but Everyday is in CAD',
+        }),
+        createBankAccount({
+          external_id: 'ACT-3',
+          name: 'Points',
+          currency: 'https://example.com/points',
+          balance: 900,
+          linkable: false,
+          unavailable_reason: 'custom_currency',
+          unavailable_message: "Uses a currency of its own, which Lumina Finance can't track",
+        }),
       ],
     })
 
@@ -115,8 +133,11 @@ describe('the bank account step', () => {
 
   it('offers a choice of connection only when there is more than one', () => {
     expect(renderStep()).not.toContain('>Connection<')
-    expect(renderStep({ connections: [createConnection(), createConnection({ id: 'connection-2', nickname: 'Joint banks' })] }))
-      .toContain('>Connection<')
+    expect(
+      renderStep({
+        connections: [createConnection(), createConnection({ id: 'connection-2', nickname: 'Joint banks' })],
+      }),
+    ).toContain('>Connection<')
   })
 
   it('names the bank account unlinked before, and marks the same account and one under the same name', () => {
@@ -137,7 +158,11 @@ describe('the bank account step', () => {
   })
 
   it('names the bank account the provider now lists differently when choosing it again', () => {
-    const markup = renderStep({ mode: 'choose_again', previous: PREVIOUS, accounts: [createBankAccount({ external_id: 'ACT-9' })] })
+    const markup = renderStep({
+      mode: 'choose_again',
+      previous: PREVIOUS,
+      accounts: [createBankAccount({ external_id: 'ACT-9' })],
+    })
 
     expect(markup).toContain('SimpleFIN now lists Everyday Chequing at Harbour Bank differently.')
     expect(markup).not.toContain('Previously linked to')

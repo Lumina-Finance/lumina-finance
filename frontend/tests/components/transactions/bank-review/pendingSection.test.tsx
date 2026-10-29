@@ -38,7 +38,10 @@ const ACCOUNTS = [
   createAccount('joint', 'Joint', { owner_id: null, group_id: 'group-1' }),
 ]
 
-const EVERYDAY_PENDING = [createPendingTransaction('everyday-1', 'everyday'), createPendingTransaction('everyday-2', 'everyday')]
+const EVERYDAY_PENDING = [
+  createPendingTransaction('everyday-1', 'everyday'),
+  createPendingTransaction('everyday-2', 'everyday'),
+]
 const VISA_PENDING = createPendingTransaction('visa-1', 'visa')
 
 let client: QueryClient
@@ -50,11 +53,13 @@ beforeEach(() => {
 })
 
 function renderSection(listAccountIds?: string[]): string {
-  return renderToStaticMarkup(createElement(
-    QueryClientProvider,
-    { client },
-    createElement(BankPendingSection, { listAccountIds, isFixedAccount: false, prefersReducedMotion: true }),
-  ))
+  return renderToStaticMarkup(
+    createElement(
+      QueryClientProvider,
+      { client },
+      createElement(BankPendingSection, { listAccountIds, isFixedAccount: false, prefersReducedMotion: true }),
+    ),
+  )
 }
 
 describe('the strip for every account', () => {
@@ -65,7 +70,10 @@ describe('the strip for every account', () => {
   })
 
   it("leaves out a pending transaction whose account isn't loaded, rather than failing the page", () => {
-    client.setQueryData(bankSyncKeys.pending(undefined), [VISA_PENDING, createPendingTransaction('gone-1', 'deleted-elsewhere')])
+    client.setQueryData(bankSyncKeys.pending(undefined), [
+      VISA_PENDING,
+      createPendingTransaction('gone-1', 'deleted-elsewhere'),
+    ])
 
     expect(renderSection()).toContain('>1 pending<')
   })
@@ -77,25 +85,35 @@ describe('the strip for every account', () => {
   })
 
   it('says inside the strip that the pending transactions could not load, rather than disappearing', () => {
-    client.getQueryCache().build(client, { queryKey: bankSyncKeys.pending(undefined) }).setState({
-      status: 'error',
-      error: new ApiError('Request failed', 500),
-      errorUpdateCount: 1,
-    })
+    client
+      .getQueryCache()
+      .build(client, { queryKey: bankSyncKeys.pending(undefined) })
+      .setState({
+        status: 'error',
+        error: new ApiError('Request failed', 500),
+        errorUpdateCount: 1,
+      })
 
-    expect(renderSection()).toMatch(/aria-label="Pending bank transactions".*Pending bank transactions could not load\.<\/span><button[^>]*>Try again</)
+    expect(renderSection()).toMatch(
+      /aria-label="Pending bank transactions".*Pending bank transactions could not load\.<\/span><button[^>]*>Try again</,
+    )
   })
 
   // A retry of a read with nothing loaded clears its error while it runs
   it('keeps saying they could not load while they are read again', () => {
-    client.getQueryCache().build(client, { queryKey: bankSyncKeys.pending(undefined) }).setState({
-      status: 'pending',
-      fetchStatus: 'fetching',
-      error: null,
-      errorUpdateCount: 1,
-    })
+    client
+      .getQueryCache()
+      .build(client, { queryKey: bankSyncKeys.pending(undefined) })
+      .setState({
+        status: 'pending',
+        fetchStatus: 'fetching',
+        error: null,
+        errorUpdateCount: 1,
+      })
 
-    expect(renderSection()).toMatch(/Pending bank transactions could not load\.<\/span><button[^>]*aria-busy="true"[^>]*>Retrying…</)
+    expect(renderSection()).toMatch(
+      /Pending bank transactions could not load\.<\/span><button[^>]*aria-busy="true"[^>]*>Retrying…</,
+    )
   })
 })
 

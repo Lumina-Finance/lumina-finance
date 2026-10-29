@@ -16,7 +16,15 @@ type RenameMutation = ReturnType<typeof useRenameBankConnection>
 /**
  * The nickname field, which starts from the current nickname each time it opens
  */
-function NicknameField({ connection, rename, onDone }: { connection: BankConnection; rename: RenameMutation; onDone: () => void }) {
+function NicknameField({
+  connection,
+  rename,
+  onDone,
+}: {
+  connection: BankConnection
+  rename: RenameMutation
+  onDone: () => void
+}) {
   const { showToast } = useToast()
   const [draft, setDraft] = useState(connection.nickname ?? '')
 
@@ -44,7 +52,10 @@ function NicknameField({ connection, rename, onDone }: { connection: BankConnect
       {
         onSuccess: onDone,
         onError: (cause) => {
-          showToast({ status: 'error', text: cause instanceof ApiError ? cause.message : 'Could not rename this connection. Please try again.' })
+          showToast({
+            status: 'error',
+            text: cause instanceof ApiError ? cause.message : 'Could not rename this connection. Please try again.',
+          })
         },
         onSettled: () => {
           saveSent.current = false
@@ -78,10 +89,23 @@ function NicknameField({ connection, rename, onDone }: { connection: BankConnect
           }
         }}
       />
-      <button type="button" className="app-icon-button shrink-0" aria-label="Save nickname" aria-busy={isSaving} disabled={rename.isPending} onClick={save}>
+      <button
+        type="button"
+        className="app-icon-button shrink-0"
+        aria-label="Save nickname"
+        aria-busy={isSaving}
+        disabled={rename.isPending}
+        onClick={save}
+      >
         {isSaving ? <div className="app-spinner" /> : <Check size={16} aria-hidden />}
       </button>
-      <button type="button" className="app-icon-button shrink-0" aria-label="Cancel renaming" disabled={rename.isPending} onClick={cancel}>
+      <button
+        type="button"
+        className="app-icon-button shrink-0"
+        aria-label="Cancel renaming"
+        disabled={rename.isPending}
+        onClick={cancel}
+      >
         <X size={16} aria-hidden />
       </button>
     </>
@@ -102,7 +126,14 @@ interface NicknameTitleProps {
  * into the nickname field while the modal's Rename is in use. Saving a blank nickname clears it, so the
  * provider's name comes back
  */
-export function NicknameTitle({ connection, rename, titleId, editing, onEditingChange, prefersReducedMotion }: NicknameTitleProps) {
+export function NicknameTitle({
+  connection,
+  rename,
+  titleId,
+  editing,
+  onEditingChange,
+  prefersReducedMotion,
+}: NicknameTitleProps) {
   const transition = prefersReducedMotion ? { duration: 0 } : FIELD_TRANSITION
 
   return (

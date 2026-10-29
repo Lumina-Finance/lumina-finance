@@ -80,7 +80,11 @@ export function describeSyncNow(
   return { status, block: status === 'idle' ? describeSyncNowBlock(link, connection, providers) : null }
 }
 
-function chooseSyncNowStatus(feedback: ActionFeedbackStatus, link: BankLink, workerDown: boolean): ActionFeedbackStatus {
+function chooseSyncNowStatus(
+  feedback: ActionFeedbackStatus,
+  link: BankLink,
+  workerDown: boolean,
+): ActionFeedbackStatus {
   if (workerDown) return feedback === 'loading' ? 'idle' : feedback
   return feedback === 'idle' && link.sync.sync_requested ? 'loading' : feedback
 }

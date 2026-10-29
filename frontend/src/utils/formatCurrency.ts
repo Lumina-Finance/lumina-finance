@@ -131,11 +131,7 @@ export function formatMoneyParts(value: number, currency: string, fractionDigits
   if (value >= 0) return formatter.formatToParts(value)
 
   const { prefix, suffix } = getNegativeAffixes('held')
-  return [
-    { type: 'literal', value: prefix },
-    ...formatter.formatToParts(-value),
-    { type: 'literal', value: suffix },
-  ]
+  return [{ type: 'literal', value: prefix }, ...formatter.formatToParts(-value), { type: 'literal', value: suffix }]
 }
 
 /**
@@ -153,9 +149,10 @@ export function resolveDisplayExponent(currency: string, currencies: Currency[])
   const seeded = findCurrencyExponent(currencies, currency)
   if (seeded !== null) return seeded
 
-  return new Intl.NumberFormat(undefined, { style: 'currency', currency })
-    .resolvedOptions()
-    .maximumFractionDigits ?? DEFAULT_MINOR_UNIT_EXPONENT
+  return (
+    new Intl.NumberFormat(undefined, { style: 'currency', currency }).resolvedOptions().maximumFractionDigits ??
+    DEFAULT_MINOR_UNIT_EXPONENT
+  )
 }
 
 /**
@@ -222,9 +219,13 @@ export function formatExactMovedAmount(amount: bigint, currency: string, decimal
   const whole = absolute / divisor
   const remainder = absolute % divisor
   const fraction = new Intl.NumberFormat(undefined, {
-    useGrouping: false, minimumIntegerDigits: Math.max(1, decimalPlaces), maximumFractionDigits: 0,
+    useGrouping: false,
+    minimumIntegerDigits: Math.max(1, decimalPlaces),
+    maximumFractionDigits: 0,
   }).format(remainder)
-  const magnitude = createMoneyFormatter(currency, decimalPlaces).formatToParts(whole)
-    .map((part) => part.type === 'fraction' ? fraction : part.value).join('')
+  const magnitude = createMoneyFormatter(currency, decimalPlaces)
+    .formatToParts(whole)
+    .map((part) => (part.type === 'fraction' ? fraction : part.value))
+    .join('')
   return signMovedAmount(getAmountSign(amount), magnitude)
 }

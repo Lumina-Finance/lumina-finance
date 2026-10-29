@@ -37,7 +37,8 @@ export default function AccountIdentityCard({
   // An account with no institution of its own names the bank it is linked to. Until its link is read,
   // the line stays empty rather than saying it has none
   const linkUnread = ownPersonal && status === undefined && statusError === null
-  const institutionName = account.institution?.name ?? status?.link?.institution_name ?? (linkUnread ? null : 'No institution')
+  const institutionName =
+    account.institution?.name ?? status?.link?.institution_name ?? (linkUnread ? null : 'No institution')
 
   const identityFacts = [
     { label: 'Kind', value: ACCOUNT_KIND_LABEL[account.account_kind] ?? account.account_kind },

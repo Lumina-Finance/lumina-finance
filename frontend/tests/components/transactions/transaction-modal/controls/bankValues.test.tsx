@@ -13,7 +13,7 @@ import TransactionBankSourcePanel from '@/components/transactions/transaction-mo
 import TransactionBankValueCaption from '@/components/transactions/transaction-modal/controls/BankValueCaption'
 
 const MINUS = String.fromCodePoint(0x2212)
-const UNSTORABLE_REASON = 'The bank\'s amount has more decimal places than CAD allows, so it can\'t be restored.'
+const UNSTORABLE_REASON = "The bank's amount has more decimal places than CAD allows, so it can't be restored."
 
 // Static rendering escapes the apostrophes in the reason, so markup is matched against the escaped text
 const RENDERED_UNSTORABLE_REASON = UNSTORABLE_REASON.replaceAll("'", '&#x27;')
@@ -58,7 +58,9 @@ describe('bank value caption', () => {
   it('shows the bank value in the figures typeface with an action to restore it, described by that value', () => {
     const markup = renderCaption()
 
-    expect(markup).toContain(`<span id="txn-amount-bank-value">Bank: <span class="font-financial">${MINUS}CA$42.10</span></span>`)
+    expect(markup).toContain(
+      `<span id="txn-amount-bank-value">Bank: <span class="font-financial">${MINUS}CA$42.10</span></span>`,
+    )
     const { tag, text } = restoreButton(markup)
     expect(text).toBe('Restore bank value')
     expect(tag).toContain('aria-describedby="txn-amount-bank-value"')
@@ -86,7 +88,7 @@ describe('bank value caption', () => {
     expect(tag).toContain('disabled=""')
   })
 
-  it('greys out the action for a bank value the ledger can\'t store, still focusable and described by why', () => {
+  it("greys out the action for a bank value the ledger can't store, still focusable and described by why", () => {
     const markup = renderCaption({ bankValue: `${MINUS}CA$42.505`, unavailableReason: UNSTORABLE_REASON })
 
     expect(markup).toContain(`Bank: <span class="font-financial">${MINUS}CA$42.505</span>`)

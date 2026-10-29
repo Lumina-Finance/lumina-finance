@@ -31,11 +31,17 @@ function renderAfter(...reads: BankLink[]): string {
 }
 
 // An import from Jun 1 halfway through, then the next read of the same link
-const importing = createLink({ import: createImport(), sync: createSync({ state: 'importing', last_success_at: null }) })
+const importing = createLink({
+  import: createImport(),
+  sync: createSync({ state: 'importing', last_success_at: null }),
+})
 
 describe('useLingeringImport', () => {
   it('drops a running import without reading as done once its link must have its bank account chosen again', () => {
-    const markup = renderAfter(importing, createLink({ state: 'choose_account', sync: createSync({ state: 'choose_account' }) }))
+    const markup = renderAfter(
+      importing,
+      createLink({ state: 'choose_account', sync: createSync({ state: 'choose_account' }) }),
+    )
 
     expect(markup).toBe('')
   })

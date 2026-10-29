@@ -2,7 +2,12 @@ import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react'
 import { Info, TriangleAlert, type LucideIcon } from 'lucide-react'
 import { joinClassNames } from '@/utils/classNames'
 import { FX_TONE_CLASS, type IconTooltipFxTone } from '@/components/tooltips/fxToneClass'
-import { getIconTooltipOffset, getIconTooltipPlacement, getTooltipCoverBottom, type IconTooltipPlacement } from '@/utils/tooltipPosition'
+import {
+  getIconTooltipOffset,
+  getIconTooltipPlacement,
+  getTooltipCoverBottom,
+  type IconTooltipPlacement,
+} from '@/utils/tooltipPosition'
 
 export type IconTooltipLevel = 'info' | 'warn' | 'important'
 
@@ -66,13 +71,16 @@ const ICON_TRIGGER_CLASS = 'inline-flex cursor-pointer appearance-none border-0 
 // no ring of its own unless it asks for the ring below, which takes this one's place
 const ICON_NO_RING_CLASS = 'focus-visible:outline-none'
 const ICON_HIT_AREA_CLASS = "relative before:absolute before:-inset-1.5 before:content-['']"
-const ICON_FOCUS_RING_CLASS = 'rounded-sm focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--app-focus-ring)]'
+const ICON_FOCUS_RING_CLASS =
+  'rounded-sm focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--app-focus-ring)]'
 const ICON_CLASS = 'transition-colors [&>*:first-child]:transition-colors [&>*:not(:first-child)]:transition-colors'
-const ICON_HOVER_CLASS = 'group-hover:[&>*:first-child]:fill-current group-hover:[&>*:not(:first-child)]:stroke-[var(--app-bg)]'
+const ICON_HOVER_CLASS =
+  'group-hover:[&>*:first-child]:fill-current group-hover:[&>*:not(:first-child)]:stroke-[var(--app-bg)]'
 const ICON_ACTIVE_CLASS = '[&>*:first-child]:fill-current [&>*:not(:first-child)]:stroke-[var(--app-bg)]'
 const ROOT_CLASS = 'group relative inline-flex'
 const FX_ROOT_CLASS = 'shrink-0 items-center align-middle leading-none'
-const FX_TRIGGER_CLASS = 'inline-flex h-4 cursor-pointer appearance-none items-center justify-center rounded-[4px] border px-[3px] text-[0.625rem] font-bold leading-none transition-colors focus-visible:outline-none'
+const FX_TRIGGER_CLASS =
+  'inline-flex h-4 cursor-pointer appearance-none items-center justify-center rounded-[4px] border px-[3px] text-[0.625rem] font-bold leading-none transition-colors focus-visible:outline-none'
 // Above the list toolbars, which stick at z-30 over the page as it scrolls, so a panel that opens
 // across a toolbar is drawn over it rather than under it. Fixed rather than absolute, so a scrolling
 // box around the trigger, such as a dialog's body, never cuts the panel off
@@ -122,14 +130,19 @@ function getTooltipSide(
 function getTooltipPosition(trigger: HTMLElement, tooltip: HTMLElement, side: TooltipSide): TooltipPosition {
   const triggerRect = trigger.getBoundingClientRect()
   const tooltipRect = tooltip.getBoundingClientRect()
-  const left = triggerRect.left + triggerRect.width / 2 - tooltipRect.width / 2 + getIconTooltipOffset({
-    icon: triggerRect,
-    tooltipWidth: tooltipRect.width,
-    surface: trigger.closest('[data-tooltip-bounds]')?.getBoundingClientRect(),
-    page: document.getElementById('app-page-content')?.getBoundingClientRect(),
-    screenWidth: window.innerWidth,
-  })
-  const top = side.placement === 'top' ? triggerRect.top + side.shift - tooltipRect.height : triggerRect.bottom + side.shift
+  const left =
+    triggerRect.left +
+    triggerRect.width / 2 -
+    tooltipRect.width / 2 +
+    getIconTooltipOffset({
+      icon: triggerRect,
+      tooltipWidth: tooltipRect.width,
+      surface: trigger.closest('[data-tooltip-bounds]')?.getBoundingClientRect(),
+      page: document.getElementById('app-page-content')?.getBoundingClientRect(),
+      screenWidth: window.innerWidth,
+    })
+  const top =
+    side.placement === 'top' ? triggerRect.top + side.shift - tooltipRect.height : triggerRect.bottom + side.shift
   const originLeft = tooltipRect.left - (parseFloat(tooltip.style.left) || 0)
   const originTop = tooltipRect.top - (parseFloat(tooltip.style.top) || 0)
   return { left: left - originLeft, top: top - originTop }
@@ -174,7 +187,7 @@ export default function IconTooltip({
 }: IconTooltipProps) {
   const { Icon: DefaultIcon, color } = levelConfig[level]
   const isFxIcon = IconOverride === 'fx'
-  const Icon = isFxIcon ? DefaultIcon : IconOverride ?? DefaultIcon
+  const Icon = isFxIcon ? DefaultIcon : (IconOverride ?? DefaultIcon)
   const [isOpen, setIsOpen] = useState(false)
   const [isHovered, setIsHovered] = useState(false)
   const [isKeyboardFocused, setIsKeyboardFocused] = useState(false)
@@ -245,7 +258,9 @@ export default function IconTooltip({
     const trigger = triggerRef.current
     if (!isPlaced || !trigger) return undefined
 
-    const observer = new IntersectionObserver((entries) => setIsTriggerOutOfView(!entries[entries.length - 1].isIntersecting))
+    const observer = new IntersectionObserver((entries) =>
+      setIsTriggerOutOfView(!entries[entries.length - 1].isIntersecting),
+    )
     observer.observe(trigger)
     // Hidden, the panel forgets where the trigger was, so it never shows again hidden for a frame
     return () => {
@@ -273,7 +288,11 @@ export default function IconTooltip({
     !isFxIcon && widensHitArea && ICON_HIT_AREA_CLASS,
     !isFxIcon && (focusRing ? ICON_FOCUS_RING_CLASS : ICON_NO_RING_CLASS),
   )
-  const iconClassName = joinClassNames(ICON_CLASS, hoverFill && ICON_HOVER_CLASS, hoverFill && isShown && ICON_ACTIVE_CLASS)
+  const iconClassName = joinClassNames(
+    ICON_CLASS,
+    hoverFill && ICON_HOVER_CLASS,
+    hoverFill && isShown && ICON_ACTIVE_CLASS,
+  )
   const tooltipWrapperClassName = joinClassNames(
     TOOLTIP_WRAPPER_CLASS,
     isShown ? TOOLTIP_OPEN_CLASS : TOOLTIP_CLOSED_CLASS,
@@ -308,16 +327,7 @@ export default function IconTooltip({
         onFocus={updatePlacement}
         onMouseEnter={updatePlacement}
       >
-        {isFxIcon ? (
-          'FX'
-        ) : (
-          <Icon
-            size={size}
-            strokeWidth={strokeWidth}
-            aria-hidden
-            className={iconClassName}
-          />
-        )}
+        {isFxIcon ? 'FX' : <Icon size={size} strokeWidth={strokeWidth} aria-hidden className={iconClassName} />}
       </button>
       {/* Hidden from assistive technology until it shows, opened or reached from the keyboard, so a
           screen reader does not read a panel nobody can see after the trigger has already named it */}

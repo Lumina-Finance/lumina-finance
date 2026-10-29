@@ -35,5 +35,7 @@ export const SETTINGS_SECTIONS: SettingsSection[] = [
  * it doesn't appear late for everyone it is meant for
  */
 export function listSettingsSections(mayLinkBanks: boolean | undefined): SettingsSection[] {
-  return mayLinkBanks === false ? SETTINGS_SECTIONS.filter((section) => section.id !== 'bank-connections') : SETTINGS_SECTIONS
+  return mayLinkBanks === false
+    ? SETTINGS_SECTIONS.filter((section) => section.id !== 'bank-connections')
+    : SETTINGS_SECTIONS
 }
