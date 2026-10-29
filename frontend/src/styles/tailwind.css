@@ -1881,18 +1881,27 @@
     pointer-events: none;
   }
 
-  .app-secondary-button {
-    @apply inline-flex h-10 items-center justify-center gap-2 px-4 font-medium transition-all motion-reduce:transition-none;
+  /* The icon button that grows a label (.app-expanding-button) wears the same fill, border, text colour and hover,
+     so the two kinds never differ */
+  .app-secondary-button,
+  .app-expanding-button {
+    @apply transition-all motion-reduce:transition-none;
     box-sizing: border-box;
     border-radius: 20px;
-    font-size: 0.9375rem;
     color: var(--app-text-muted);
     border: 1px solid var(--app-border-strong);
     background: color-mix(in srgb, var(--app-input-bg) 62%, transparent);
   }
 
+  .app-secondary-button {
+    @apply inline-flex h-10 items-center justify-center gap-2 px-4 font-medium;
+    font-size: 0.9375rem;
+  }
+
   .app-secondary-button:not([aria-disabled="true"]):hover,
-  .app-secondary-button:not([aria-disabled="true"]):focus-visible {
+  .app-secondary-button:not([aria-disabled="true"]):focus-visible,
+  .app-expanding-button:hover,
+  .app-expanding-button:focus-visible {
     color: var(--app-text);
     background: color-mix(in srgb, var(--app-input-bg) 76%, transparent);
     border-color: var(--app-hover-border);
@@ -2576,10 +2585,7 @@
      edit action does. Its accessible name is set on the button, so the label is hidden from
      assistive technology */
   .app-expanding-button {
-    @apply inline-flex h-8 items-center rounded-lg px-[0.4375rem] transition-control motion-reduce:transition-none;
-    color: var(--app-text-muted);
-    background: transparent;
-    border: 1px solid transparent;
+    @apply inline-flex h-10 items-center px-[0.6875rem];
   }
 
   .app-expanding-button-label {
@@ -2601,14 +2607,6 @@
     line-height: 1.25rem;
   }
 
-  /* The look an outlined .app-secondary-button takes, eased on the app's curve by transition-control */
-  .app-expanding-button:focus-visible,
-  .app-expanding-button:hover {
-    color: var(--app-text);
-    background: color-mix(in srgb, var(--app-input-bg) 76%, transparent);
-    border-color: var(--app-hover-border);
-  }
-
   .app-expanding-button:focus-visible .app-expanding-button-label,
   .app-expanding-button:hover .app-expanding-button-label {
     grid-template-columns: 1fr;
@@ -2620,11 +2618,6 @@
   }
 
   @media (hover: none) {
-    .app-expanding-button {
-      color: var(--app-accent);
-      border-color: var(--app-border);
-    }
-
     .app-expanding-button-label {
       grid-template-columns: 1fr;
       opacity: 1;
