@@ -131,8 +131,8 @@ async def test_deleting_either_side_removes_the_link(client):
     """Deleting the refund frees the expense, and deleting the expense leaves the refund unlinked."""
     headers, account_id, category_id = await _setup_user_with_deps(client)
     expense = (await _create_transaction(client, headers, account_id, category_id)).json()
-    refund = (await _create_refund(client, headers, account_id, category_id, expense["id"])).json()
-    other_refund = (await _create_refund(client, headers, account_id, category_id, expense["id"])).json()
+    refund = (await _create_refund(client, headers, account_id, category_id, expense["id"], amount=2500)).json()
+    other_refund = (await _create_refund(client, headers, account_id, category_id, expense["id"], amount=2500)).json()
 
     assert (await client.delete(f"/transactions/{refund['id']}", headers=headers)).status_code == 204
     assert (await _get_transaction(client, headers, expense["id"]))["refund_transaction_ids"] == [other_refund["id"]]

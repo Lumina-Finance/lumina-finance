@@ -4,7 +4,7 @@ import uuid
 from collections.abc import Collection
 
 from fastapi import HTTPException, status
-from sqlalchemy import delete, select
+from sqlalchemy import delete, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import aliased
 
@@ -56,11 +56,39 @@ async def get_transaction_links_batch(
     return original_by_refund, refunds_by_original
 
 
+async def get_refunded_amounts(db: AsyncSession, original_ids: Collection[uuid.UUID]) -> dict[uuid.UUID, int]:
+    """Return how much of each expense its linked refunds already give back
+
+    Only refunds in the expense's own currency count, since amounts in two currencies can't be added
+
+    Args:
+        db: Active database session
+        original_ids: Expenses to total the refunds of
+
+    Returns:
+        The refunded total in minor units, keyed by expense. An expense with none is absent
+    """
+    if not original_ids:
+        return {}
+    original = aliased(Transaction)
+    rows = (
+        await db.execute(
+            select(TransactionLink.original_transaction_id, func.sum(Transaction.amount))
+            .join(Transaction, Transaction.id == TransactionLink.refund_transaction_id)
+            .join(original, original.id == TransactionLink.original_transaction_id)
+            .where(TransactionLink.original_transaction_id.in_(original_ids), Transaction.currency == original.currency)
+            .group_by(TransactionLink.original_transaction_id),
+        )
+    ).all()
+    return {row[0]: int(row[1]) for row in rows}
+
+
 async def validate_refund_original(
     db: AsyncSession,
     user: User,
     original_id: uuid.UUID,
     refund_amount: int,
+    refund_currency: str,
     refund_account: Account,
     refund_category: Category,
 ) -> Transaction:
@@ -71,6 +99,7 @@ async def validate_refund_original(
         user: Authenticated user creating the refund
         original_id: Transaction the refund refunds
         refund_amount: Amount of the refund in minor units
+        refund_currency: Currency of the refund
         refund_account: Account the refund is recorded in
         refund_category: Category the refund is filed under
 
@@ -79,8 +108,8 @@ async def validate_refund_original(
 
     Raises:
         HTTPException: 404 when the expense is missing or not the user's, 422 when the expense is not
-            an outflow in an expense category, the refund is not an inflow or is a transfer, or either
-            account is in a group
+            an outflow in an expense category, the refund is not an inflow or is a transfer, either
+            account is in a group, or its refunds would total more than the expense
     """
     # Locked so an edit or delete of the expense cannot slip past the link being made
     original = await check_transaction_access(db, original_id, user.id, PermissionLevel.READ, lock_for_update=True)
@@ -108,6 +137,15 @@ async def validate_refund_original(
             status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
             detail="A transfer can't be a refund",
         )
+
+    # The expense is locked above, so no other link can add to this total before this one commits
+    if refund_currency == original.currency:
+        already_refunded = (await get_refunded_amounts(db, [original.id])).get(original.id, 0)
+        if already_refunded + refund_amount > -original.amount:
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+                detail="Refunds can't total more than the expense they refund",
+            )
     return original
 
 
@@ -161,6 +199,28 @@ async def refuse_broken_links(db: AsyncSession, transaction_ids: Collection[uuid
             ),
         )
 
+    # Every refund of an expense an edit touched counts, not only the ones it wrote
+    touched_originals = select(TransactionLink.original_transaction_id).where(
+        TransactionLink.refund_transaction_id.in_(transaction_ids) | TransactionLink.original_transaction_id.in_(transaction_ids),
+    )
+    over_refunded = (
+        await db.execute(
+            select(TransactionLink.original_transaction_id)
+            .join(refund, refund.id == TransactionLink.refund_transaction_id)
+            .join(original, original.id == TransactionLink.original_transaction_id)
+            .where(TransactionLink.original_transaction_id.in_(touched_originals), refund.currency == original.currency)
+            .group_by(TransactionLink.original_transaction_id, original.amount)
+            .having(func.sum(refund.amount) > -original.amount)
+            .limit(1),
+        )
+    ).first()
+    if over_refunded is not None:
+        await db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+            detail="Refunds can't total more than the expense they refund. Unlink one first to make this change",
+        )
+
 
 async def link_existing_refund(
     db: AsyncSession,
@@ -188,7 +248,7 @@ async def link_existing_refund(
     if (await db.execute(select(TransactionLink.id).where(TransactionLink.refund_transaction_id == refund_id))).first() is not None:
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="This refund is already linked to an expense")
     refund_category = await db.get(Category, refund.category_id)
-    await validate_refund_original(db, user, original_id, refund.amount, refund_account, refund_category)
+    await validate_refund_original(db, user, original_id, refund.amount, refund.currency, refund_account, refund_category)
 
     db.add(TransactionLink(refund_transaction_id=refund_id, original_transaction_id=original_id))
     await db.flush()

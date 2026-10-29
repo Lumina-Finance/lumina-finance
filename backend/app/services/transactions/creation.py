@@ -85,6 +85,7 @@ async def create_transaction_and_get_response(
             user,
             data.refund_of_transaction_id,
             data.amount,
+            data.currency,
             account,
             category,
         )

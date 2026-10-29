@@ -16,6 +16,7 @@ from app.models.user import User
 from app.permissions import check_transaction_access
 from app.schemas.transaction import TransactionResponse
 from app.services.transactions.accounts import get_parent_account_for_transaction
+from app.services.transactions.links import get_refunded_amounts
 from app.services.transactions.listing import list_transaction_responses
 
 # Enough to scroll, and a search or the filters narrow the rest
@@ -88,7 +89,7 @@ async def list_refund_link_candidates(
     else:
         return []
 
-    return await list_transaction_responses(
+    candidates = await list_transaction_responses(
         db,
         user,
         **asdict(filters or CandidateFilters()),
@@ -97,3 +98,9 @@ async def list_refund_link_candidates(
         extra_conditions=conditions,
         nearest_amount=(abs(anchor.amount), anchor.currency),
     )
+
+    # Expenses say how much is already refunded, so the picker can refuse a refund that would not fit
+    if anchor.amount > 0:
+        refunded = await get_refunded_amounts(db, [candidate.id for candidate in candidates])
+        candidates = [candidate.model_copy(update={"refunded_amount": refunded.get(candidate.id, 0)}) for candidate in candidates]
+    return candidates

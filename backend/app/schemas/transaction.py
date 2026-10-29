@@ -96,6 +96,10 @@ class TransactionResponse(BaseModel):
     # total, so these only say which transactions belong together
     refund_of_transaction_id: uuid.UUID | None = None
     refund_transaction_ids: list[uuid.UUID] = []
+
+    # How much of an expense its refunds already give back, in its own currency. Set on the expenses
+    # offered as link candidates only, so a picker can tell what one more refund would leave room for
+    refunded_amount: int | None = None
     created_at: datetime
     updated_at: datetime
     tag_ids: list[uuid.UUID] = []

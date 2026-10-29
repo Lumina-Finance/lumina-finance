@@ -126,8 +126,8 @@ async def test_deleting_an_expense_with_its_refunds_removes_all_of_them(client):
     """Deleting an expense with its refunds leaves nothing of them and nothing else changes."""
     headers, account_id, category_id = await _setup_user_with_deps(client)
     expense = (await _create_transaction(client, headers, account_id, category_id)).json()
-    first = await _refund(client, headers, account_id, category_id, expense["id"])
-    second = await _refund(client, headers, account_id, category_id, expense["id"])
+    first = await _refund(client, headers, account_id, category_id, expense["id"], amount=2500)
+    second = await _refund(client, headers, account_id, category_id, expense["id"], amount=2500)
     bystander = (await _create_transaction(client, headers, account_id, category_id)).json()
 
     resp = await client.post(
@@ -146,8 +146,8 @@ async def test_deleting_a_refund_with_its_expense_unlinks_its_sibling_refunds(cl
     """The expense goes with the refund, and another refund of it stays, unlinked."""
     headers, account_id, category_id = await _setup_user_with_deps(client)
     expense = (await _create_transaction(client, headers, account_id, category_id)).json()
-    refund = await _refund(client, headers, account_id, category_id, expense["id"])
-    sibling = await _refund(client, headers, account_id, category_id, expense["id"])
+    refund = await _refund(client, headers, account_id, category_id, expense["id"], amount=2500)
+    sibling = await _refund(client, headers, account_id, category_id, expense["id"], amount=2500)
 
     resp = await client.post(
         "/transactions/bulk/delete",
