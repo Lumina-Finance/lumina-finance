@@ -1,3 +1,5 @@
+import { CURRENT_APP_VERSION } from '@/api/version/build'
+
 interface SnapshotKeyParams {
   fromDate?: string
   toDate?: string
@@ -98,8 +100,10 @@ export const userKeys = {
   runway: () => ['me', 'runway'] as const,
 }
 
+// Keyed by the frontend build, so the first load after an update asks the server again rather
+// than showing the version and update notice an older build saved while still fresh
 export const appVersionKeys = {
-  version: () => ['app-version'] as const,
+  version: () => ['app-version', CURRENT_APP_VERSION] as const,
 }
 
 export const categoryKeys = {
