@@ -37,6 +37,15 @@ export interface Transaction {
    */
   counterparty_account_id: string | null;
   counterparty_account_scope: TransferCounterpartyScope | null;
+
+  /**
+   * The expense this transaction refunds, or null. A link changes no total, so these only say which
+   * transactions belong together
+   */
+  refund_of_transaction_id: string | null;
+
+  /** The refunds linked to this transaction, oldest first */
+  refund_transaction_ids: string[];
   created_at: string;
   updated_at: string;
   tag_ids: string[];
@@ -134,6 +143,9 @@ export interface CreateTransactionPayload {
    */
   counterparty_account_id?: string | null;
   counterparty_account_scope?: TransferCounterpartyScope | null;
+
+  /** Saves the new transaction as the refund of this expense, in the same request */
+  refund_of_transaction_id?: string;
 }
 
 export interface UpdateTransactionPayload {

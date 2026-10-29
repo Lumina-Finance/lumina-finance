@@ -1,5 +1,6 @@
-import { useMemo } from 'react'
+import { useMemo, useState } from 'react'
 import { useAccounts } from '@/api/accounts'
+import { useTransaction } from '@/api/transactions'
 import { useCategories } from '@/api/categories'
 import { useCurrencies } from '@/api/currency'
 import { useCurrencyListState } from '@/hooks/useCurrencyListState'
@@ -36,6 +37,13 @@ import { useAccountField } from '@/components/transactions/transaction-modal/hoo
 import { useDeferredTransactionRefresh } from '@/components/transactions/transaction-modal/hooks/useDeferredRefresh'
 import { useTransactionDeletion } from '@/components/transactions/transaction-modal/hooks/useDeletion'
 import { useTransactionSubmit } from '@/components/transactions/transaction-modal/hooks/useSubmit'
+import RefundButton from '@/components/transactions/transaction-modal/controls/RefundButton'
+import TransactionModalLinkedRefundsSection from '@/components/transactions/transaction-modal/sections/LinkedRefundsSection'
+import {
+  buildDeleteLinkNotice,
+  buildRefundNote,
+  isRefundable,
+} from '@/components/transactions/transaction-modal/utils/refund'
 
 /**
  * Modal for creating or editing a transaction, including symmetric transfers that record a
@@ -50,11 +58,15 @@ export default function CreateTransactionModal({
   open,
   onClose,
   transaction,
+  refundOf,
   defaultAccountId,
   defaultCurrency,
   readOnly: readOnlyProp = false,
 }: CreateTransactionModalProps) {
   const editing = !!transaction
+  const refunding = !editing && !!refundOf
+  // The refund modal keeps its form between opens, so each open remounts it to start from the expense again
+  const [refundModal, setRefundModal] = useState({ open: false, key: 0 })
   const { user } = useAuth()
   const { data: accounts = [] } = useAccounts()
   const { data: categories = [] } = useCategories()
@@ -69,6 +81,7 @@ export default function CreateTransactionModal({
   const initialForm = useMemo<TransactionFormValues>(() => {
     return buildInitialTransactionForm({
       transaction,
+      refundOf,
       categories,
       currencies,
       selectableAccounts,
@@ -76,7 +89,7 @@ export default function CreateTransactionModal({
       defaultCurrency,
       timeZone: user?.tz,
     })
-  }, [transaction, categories, currencies, defaultAccountId, defaultCurrency, selectableAccounts, user?.tz])
+  }, [transaction, refundOf, categories, currencies, defaultAccountId, defaultCurrency, selectableAccounts, user?.tz])
 
   const {
     form,
@@ -203,6 +216,7 @@ export default function CreateTransactionModal({
   } = useTransactionSubmit({
     editing,
     transaction,
+    refundOfTransactionId: refunding ? refundOf?.id : undefined,
     form,
     setForm,
     guard: refusal.guard,
@@ -221,6 +235,16 @@ export default function CreateTransactionModal({
     closeModal,
   })
 
+
+  // The links shown and warned about come from the live copy, since the transaction the modal opened
+  // with is the list row as it stood then
+  const liveTransaction = useTransaction(transaction?.id).data ?? transaction
+  const level = refunding ? 'stacked' : 'page'
+  const canOfferRefund =
+    editing &&
+    !readOnly &&
+    !!transaction &&
+    isRefundable(transaction, categoryField.categoryById.get(transaction.category_id)?.kind)
 
   const showRunningBalance = !editing && keepOpenAfterCreate && !!selectedAccount
 
@@ -258,9 +282,17 @@ export default function CreateTransactionModal({
       <ModalTitledPanel
         open={open}
         titleId="create-txn-title"
-        title={editing ? 'Edit transaction' : 'Add transaction'}
-        eyebrow={editing ? 'Existing transaction' : `${KIND_LABELS[form.kind]} transaction`}
+        level={level}
+        title={editing ? 'Edit transaction' : refunding ? 'Add refund' : 'Add transaction'}
+        eyebrow={
+          editing
+            ? 'Existing transaction'
+            : refunding
+              ? buildRefundNote(refundOf?.merchant_name ?? null)
+              : `${KIND_LABELS[form.kind]} transaction`
+        }
         headerStatus={readOnly ? 'Archived account' : undefined}
+        headerAction={canOfferRefund ? <RefundButton onClick={() => setRefundModal((state) => ({ open: true, key: state.key + 1 }))} /> : undefined}
         RailIcon={ReceiptText}
         railLabel="Transaction"
         onClose={closeModal}
@@ -268,6 +300,9 @@ export default function CreateTransactionModal({
         onSubmit={handleSubmit}
         footer={(
           <TransactionModalFooter
+            level={level}
+            hideKeepOpen={refunding}
+            deleteLinkNotice={liveTransaction ? buildDeleteLinkNotice(liveTransaction) : ''}
             editing={editing}
             isPending={isPending}
             readOnly={readOnly}
@@ -286,6 +321,7 @@ export default function CreateTransactionModal({
             kind={form.kind}
             direction={form.direction}
             editing={editing}
+            refunding={refunding}
             readOnly={readOnly}
             directionHighlightKey={directionHighlightKey}
             onKindChange={applyKindChange}
@@ -375,9 +411,22 @@ export default function CreateTransactionModal({
             onNotesChange={(value) => handleField('notes', value)}
           />
 
+          {liveTransaction && (
+            <TransactionModalLinkedRefundsSection transaction={liveTransaction} readOnly={readOnly} />
+          )}
+
           <FormError message={submitError} title={submitErrorTitle} />
+
         </div>
       </ModalTitledPanel>
+      {canOfferRefund && transaction && (
+        <CreateTransactionModal
+          key={refundModal.key}
+          open={open && refundModal.open}
+          onClose={() => setRefundModal((state) => ({ ...state, open: false }))}
+          refundOf={transaction}
+        />
+      )}
       <TransactionReferenceCreationModals
         parentOpen={open}
         merchantModalKey={merchantModal.remountKey}

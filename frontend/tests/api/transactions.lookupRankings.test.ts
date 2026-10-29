@@ -48,6 +48,7 @@ const transaction: Transaction = {
   id: 'transaction', created_by_user_id: 'user', merchant_name: 'Merchant',
   account_amount: null, base_currency_amount: null, fx_rate: null, notes: null,
   counterparty_account_id: null, counterparty_account_scope: null,
+  refund_of_transaction_id: null, refund_transaction_ids: [],
   created_at: '2026-09-18T12:00:00Z', updated_at: '2026-09-18T12:00:00Z',
   tag_ids: [], tags: [],
 }

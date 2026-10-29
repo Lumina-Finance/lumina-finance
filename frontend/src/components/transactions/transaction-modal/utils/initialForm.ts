@@ -7,6 +7,7 @@ import {
   INITIAL_TRANSACTION_FORM,
 } from '@/components/transactions/transaction-modal/constants'
 import { amountToInputString } from '@/components/transactions/transaction-modal/utils/money'
+import { buildRefundNote } from '@/components/transactions/transaction-modal/utils/refund'
 import { findCurrencyExponent } from '@/utils/moneyInput'
 import type {
   TransactionFormValues,
@@ -16,6 +17,9 @@ import { getTodayYmd } from '@/utils/date'
 
 interface BuildInitialTransactionFormOptions {
   transaction?: Transaction
+
+  /** The expense a new transaction refunds. It starts as a copy of the expense pointing the other way */
+  refundOf?: Transaction
   categories: Category[]
   currencies: Currency[]
   selectableAccounts: AccountsOverview[]
@@ -32,6 +36,7 @@ interface BuildInitialTransactionFormOptions {
  */
 export function buildInitialTransactionForm({
   transaction,
+  refundOf,
   categories,
   currencies,
   selectableAccounts,
@@ -39,6 +44,16 @@ export function buildInitialTransactionForm({
   defaultCurrency,
   timeZone,
 }: BuildInitialTransactionFormOptions): TransactionFormValues {
+  if (!transaction && refundOf) {
+    // The money comes back on the day it is entered, so the date is today's rather than the expense's
+    return {
+      ...buildFormFromTransaction(refundOf, categories, currencies),
+      direction: 'credit',
+      date: getTodayYmd(timeZone),
+      notes: buildRefundNote(refundOf.merchant_name),
+    }
+  }
+
   if (!transaction) {
     const defaultAccount = defaultAccountId
       ? selectableAccounts.find((account) => account.id === defaultAccountId)
@@ -51,6 +66,14 @@ export function buildInitialTransactionForm({
     }
   }
 
+  return buildFormFromTransaction(transaction, categories, currencies)
+}
+
+function buildFormFromTransaction(
+  transaction: Transaction,
+  categories: Category[],
+  currencies: Currency[],
+): TransactionFormValues {
   const category = categories.find((item) => item.id === transaction.category_id)
   // Left blank rather than scaled by an assumed two decimal places, since the stored amount can only be
   // turned into text through the real ones

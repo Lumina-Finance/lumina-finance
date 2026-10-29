@@ -26,6 +26,7 @@ export {
   fetchTransactionPage,
   fetchTransactions,
   fetchTransactionsOverview,
+  unlinkRefund,
   updateTransaction,
 } from '@/api/transactions/requests';
 
@@ -38,7 +39,9 @@ export {
   useInfiniteTransactions,
   useLoadTransaction,
   useRefreshCreatedTransactions,
+  useTransaction,
   useTransactions,
   useTransactionsOverview,
+  useUnlinkRefund,
   useUpdateTransaction,
 } from '@/api/transactions/hooks';

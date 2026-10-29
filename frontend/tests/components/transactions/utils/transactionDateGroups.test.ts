@@ -32,6 +32,8 @@ function createTransaction(overrides: Partial<Transaction>): Transaction {
     notes: null,
     counterparty_account_id: null,
     counterparty_account_scope: null,
+    refund_of_transaction_id: null,
+    refund_transaction_ids: [],
     created_at: '2026-06-01T00:00:00Z',
     updated_at: '2026-06-01T00:00:00Z',
     tag_ids: [],

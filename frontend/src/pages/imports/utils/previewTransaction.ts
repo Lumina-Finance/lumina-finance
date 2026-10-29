@@ -64,6 +64,8 @@ export function buildPreviewTransactionRow(input: PreviewTransactionInput): Prev
     notes: input.notes,
     counterparty_account_id: input.counterpartyAccount?.id ?? null,
     counterparty_account_scope: input.counterpartyScope,
+    refund_of_transaction_id: null,
+    refund_transaction_ids: [],
     created_at: input.timestamp,
     updated_at: input.timestamp,
     tag_ids: tagIds,

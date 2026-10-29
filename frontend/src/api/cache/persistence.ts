@@ -29,8 +29,9 @@ const SIX_MONTHS_MS = 180 * 24 * 60 * 60 * 1000;
 // fields that are no longer there. Bump it on any shape change. Version 1 is the account spending
 // breakdown carrying a total per card in place of one shared figure. Version 2 adds the caller's
 // write capability to every account response. Version 3 sends the amounts behind the Insights
-// percentages in place of percentages, which changes the period glance and the category and merchant rows
-const PERSISTED_CACHE_SHAPE = '3';
+// percentages in place of percentages, which changes the period glance and the category and merchant rows.
+// Version 4 adds the refund links every transaction response carries
+const PERSISTED_CACHE_SHAPE = '4';
 
 /**
  * Persists successful query data while leaving failed FX responses and the authenticator setup

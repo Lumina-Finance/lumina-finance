@@ -16,6 +16,9 @@ interface TransactionTypeDirectionSectionProps {
 
   direction: TransactionDirection
   editing: boolean
+
+  /** A refund stays an expense category coming in, so neither control changes */
+  refunding: boolean
   readOnly: boolean
   directionHighlightKey: number
   onKindChange: (kind: TransactionModalKind) => void
@@ -29,6 +32,7 @@ export default function TransactionTypeDirectionSection({
   kind,
   direction,
   editing,
+  refunding,
   readOnly,
   directionHighlightKey,
   onKindChange,
@@ -42,7 +46,7 @@ export default function TransactionTypeDirectionSection({
           options={KIND_OPTIONS}
           ariaLabel="Transaction type"
           onChange={onKindChange}
-          disabled={editing || readOnly}
+          disabled={editing || refunding || readOnly}
         />
         <div className="relative rounded-lg">
           <AnimatePresence initial={false}>
@@ -63,7 +67,7 @@ export default function TransactionTypeDirectionSection({
             options={DIRECTION_OPTIONS}
             ariaLabel="Transaction direction"
             onChange={onDirectionChange}
-            disabled={readOnly}
+            disabled={refunding || readOnly}
           />
         </div>
       </div>

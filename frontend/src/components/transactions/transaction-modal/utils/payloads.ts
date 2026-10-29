@@ -35,6 +35,7 @@ function splitCounterpartyAccountSelection(counterpartyAccountId: string): {
 export function buildCreateTransactionPayload(
   form: TransactionFormValues,
   selectedCurrencyExponent: number,
+  refundOfTransactionId?: string,
 ): CreateTransactionPayload {
   const magnitude = amountInputToMinorUnits(form.amount, selectedCurrencyExponent) ?? 0
   const payload: CreateTransactionPayload = {
@@ -47,6 +48,7 @@ export function buildCreateTransactionPayload(
     notes: form.notes.trim() || null,
   }
   if (form.tag_ids.length > 0) payload.tag_ids = form.tag_ids
+  if (refundOfTransactionId) payload.refund_of_transaction_id = refundOfTransactionId
   // Every other category rejects the pair outright, so it is only ever sent for a transfer
   if (form.kind === 'transfer') Object.assign(payload, splitCounterpartyAccountSelection(form.counterparty_account_id))
   return payload

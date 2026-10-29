@@ -25,6 +25,9 @@ import type { TransactionFormValues } from '@/components/transactions/transactio
 interface UseTransactionSubmitOptions {
   editing: boolean
   transaction?: Transaction
+
+  /** The expense a new transaction refunds, saved as the link in the same request */
+  refundOfTransactionId?: string
   form: TransactionFormValues
   setForm: Dispatch<SetStateAction<TransactionFormValues>>
 
@@ -63,6 +66,7 @@ interface TransactionSubmitState {
 export function useTransactionSubmit({
   editing,
   transaction,
+  refundOfTransactionId,
   form,
   setForm,
   guard,
@@ -215,7 +219,7 @@ export function useTransactionSubmit({
       return
     }
 
-    const payload = buildCreateTransactionPayload(form, selectedCurrencyExponent)
+    const payload = buildCreateTransactionPayload(form, selectedCurrencyExponent, refundOfTransactionId)
 
     setSubmitError('')
     setSubmitErrorTitle('')

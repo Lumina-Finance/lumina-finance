@@ -43,6 +43,12 @@ export interface CreateTransactionModalProps {
   /** When set, the modal opens in edit mode for this transaction */
   transaction?: Transaction
 
+  /**
+   * Opens a new transaction prefilled as the refund of this expense, pointing the other way. Saving
+   * it links the two. Ignored when `transaction` is set
+   */
+  refundOf?: Transaction
+
   /** Pre-selects this account in create mode, such as from an account page */
   defaultAccountId?: string
 

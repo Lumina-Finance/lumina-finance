@@ -32,6 +32,7 @@ import {
   fetchTransactionPage,
   fetchTransactions,
   fetchTransactionsOverview,
+  unlinkRefund,
   updateTransaction,
 } from '@/api/transactions/requests';
 import type {
@@ -94,6 +95,30 @@ export function useTransactionsOverview(filters: OverviewFilters = {}) {
 // A transaction opened on its own is served from cache for this long before a refetch, since the
 // only edits that matter are the ones made in this tab, which invalidate the detail themselves
 const TRANSACTION_DETAIL_STALE_TIME_MS = 10 * 60 * 1000;
+
+/**
+ * Reads one transaction by id, for showing the other side of a refund link. Stays idle until an id is given
+ */
+export function useTransaction(transactionId: string | null | undefined) {
+  const { accessToken } = useAuth();
+  return useQuery({
+    queryKey: transactionKeys.detail(transactionId ?? undefined),
+    queryFn: ({ signal }) => fetchTransaction(transactionId as string, signal),
+    enabled: !!accessToken && !!transactionId,
+    staleTime: TRANSACTION_DETAIL_STALE_TIME_MS,
+  });
+}
+
+/**
+ * Removes the link between a refund and its expense, then refreshes every list and detail showing it
+ */
+export function useUnlinkRefund() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: unlinkRefund,
+    onSuccess: () => invalidateTransactions(queryClient),
+  });
+}
 
 /**
  * Loads a single transaction by id through the query cache, for opening one that is not already

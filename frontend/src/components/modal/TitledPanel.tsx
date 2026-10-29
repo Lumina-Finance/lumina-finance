@@ -35,6 +35,8 @@ interface ModalTitledPanelProps {
   eyebrow: string
   /** Note appended to the eyebrow in warning colour, for something to take in before saving */
   headerStatus?: string
+  /** A control for the header, drawn beside the close button */
+  headerAction?: ReactNode
   /** Icon for the labelled edge of the panel. Left out together with railLabel by a panel with no rail */
   RailIcon?: LucideIcon
   railLabel?: string
@@ -62,6 +64,7 @@ export function ModalTitledPanel({
   title,
   eyebrow,
   headerStatus,
+  headerAction,
   RailIcon,
   railLabel,
   widthClassName,
@@ -96,15 +99,18 @@ export function ModalTitledPanel({
               {title}
             </h2>
           </div>
-          <button
-            type="button"
-            onClick={onClose}
-            className="app-icon-button shrink-0"
-            disabled={closeDisabled}
-            aria-label="Close"
-          >
-            <X size={20} aria-hidden />
-          </button>
+          <div className="flex shrink-0 items-center gap-1">
+            {headerAction}
+            <button
+              type="button"
+              onClick={onClose}
+              className="app-icon-button shrink-0"
+              disabled={closeDisabled}
+              aria-label="Close"
+            >
+              <X size={20} aria-hidden />
+            </button>
+          </div>
         </div>
       </div>
 

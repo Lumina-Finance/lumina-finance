@@ -240,7 +240,7 @@ export function parseYmd(ymd: string): Date | null {
  * A string that is not a real date keeps its raw value, so the label states what it was given rather
  * than the day the date constructor would have rolled it forward to
  */
-function formatDateLabel(ymd: string): string {
+export function formatDateLabel(ymd: string): string {
   const date = parseYmd(ymd)
   return date ? formatDate(date, DATE_FORMATS.monthDayYear) : ymd
 }

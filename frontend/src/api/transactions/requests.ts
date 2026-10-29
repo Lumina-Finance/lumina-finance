@@ -107,6 +107,13 @@ export function bulkDeleteTransactions(transactionIds: string[]) {
 }
 
 /**
+ * Removes the link between a refund and the expense it refunds, leaving both transactions as they are
+ */
+export function unlinkRefund(refundId: string) {
+  return authenticatedFetch<void>(`/transactions/${refundId}/refund-link`, { method: 'DELETE' });
+}
+
+/**
  * Deletes one transaction by ID
  */
 export function deleteTransaction(id: string) {

@@ -40,6 +40,7 @@ const target: Transaction = {
   category_id: 'expense', amount: -10000, account_amount: null, base_currency_amount: null,
   currency: 'CAD', fx_rate: null, notes: 'Older large expense',
   counterparty_account_id: null, counterparty_account_scope: null,
+  refund_of_transaction_id: null, refund_transaction_ids: [],
   created_at: '2026-09-01T12:00:00Z', updated_at: '2026-09-01T12:00:00Z', tag_ids: [], tags: [],
 };
 const other: Transaction = { ...target, id: 'newer-expense', amount: -100, dt: '2026-09-14' };

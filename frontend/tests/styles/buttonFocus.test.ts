@@ -35,7 +35,7 @@ const SELECTED_OPTIONS = [
 const GUARDED_SELECTED_OPTIONS = SELECTED_OPTIONS.slice(1)
 
 // Buttons whose hover change used to be too faint, or missing, to tell keyboard focus from rest
-const BORDER_CHANGING = ['.app-secondary-button', '.app-glass-button', '.app-glass-icon-button', '.app-nav-link']
+const BORDER_CHANGING = ['.app-secondary-button', '.app-glass-button', '.app-glass-icon-button', '.app-expanding-button', '.app-nav-link']
 
 // Filled buttons, whose hover look is a change of fill alone
 const FILLED_BUTTONS = ['.app-primary-button', '.app-glass-button-primary', '.app-danger-button']
@@ -451,7 +451,7 @@ describe('button keyboard focus', () => {
   // Every other button, filled buttons included, keeps the base ring on top of its hover look
   describe('ring', () => {
     const optOut = rulesListing(
-      ':is(a, button, [role="button"], [role="tab"], [role="radio"], [role="menuitem"]):is(.app-secondary-button, .app-glass-button, .app-glass-icon-button, .app-range-glass-head, .app-card, .app-nav-link, .app-nav-user-logout, .app-desktop-nav-toggle, .border:not(.border-transparent)):not(svg *):not([aria-disabled="true"]):focus-visible',
+      ':is(a, button, [role="button"], [role="tab"], [role="radio"], [role="menuitem"]):is(.app-secondary-button, .app-glass-button, .app-glass-icon-button, .app-expanding-button, .app-range-glass-head, .app-card, .app-nav-link, .app-nav-user-logout, .app-desktop-nav-toggle, .border:not(.border-transparent)):not(svg *):not([aria-disabled="true"]):focus-visible',
     )
 
     it('is dropped only from buttons that draw a border of their own', () => {

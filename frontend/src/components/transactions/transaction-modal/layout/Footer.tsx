@@ -1,11 +1,20 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react'
+import { AnimatePresence, motion } from 'motion/react'
 import { Check, Trash2 } from 'lucide-react'
 import { PendingLabel } from '@/components/loading/PendingLabel'
 import { MODAL_INSET_CLASS_NAME } from '@/components/modal/inset'
 import { DisabledReasonButton } from '@/components/tooltips/DisabledReasonButton'
+import type { ModalLevel } from '@/components/modal/Shell'
 
 interface TransactionModalFooterProps {
+  level: ModalLevel
   editing: boolean
+
+  /** A refund is saved alone, so there is no batch to keep the modal open for */
+  hideKeepOpen: boolean
+
+  /** What deleting also removes, such as a refund link, said once delete is armed. Empty when nothing */
+  deleteLinkNotice: string
   isPending: boolean
   readOnly: boolean
   submitLoading: boolean
@@ -23,7 +32,10 @@ interface TransactionModalFooterProps {
  * Renders modal actions and owns delete confirmation UI state
  */
 export default function TransactionModalFooter({
+  level,
   editing,
+  hideKeepOpen,
+  deleteLinkNotice,
   isPending,
   readOnly,
   submitLoading,
@@ -84,7 +96,7 @@ export default function TransactionModalFooter({
 
   return (
     <div
-      className={`flex shrink-0 flex-col gap-3 py-4 sm:flex-row sm:items-center min-[1050px]:py-5 ${MODAL_INSET_CLASS_NAME.page}`}
+      className={`flex shrink-0 flex-col gap-3 py-4 sm:flex-row sm:items-center min-[1050px]:py-5 ${MODAL_INSET_CLASS_NAME[level]}`}
       style={{ borderTop: '1px solid var(--app-border)' }}
     >
       {editing && !readOnly ? (
@@ -142,7 +154,7 @@ export default function TransactionModalFooter({
             </span>
           </PendingLabel>
         </button>
-      ) : !editing ? (
+      ) : !editing && !hideKeepOpen ? (
         <div className="min-w-0 sm:max-w-xs">
           <label htmlFor="txn-keep-open" className="-ml-1 flex cursor-pointer items-center gap-3 rounded-xl px-1 py-1">
             <input
@@ -165,6 +177,22 @@ export default function TransactionModalFooter({
           </label>
         </div>
       ) : null}
+      <AnimatePresence initial={false}>
+        {confirmingDelete && deleteLinkNotice && (
+          <motion.p
+            key="delete-link-notice"
+            role="status"
+            className="min-w-0 text-xs sm:max-w-xs"
+            style={{ color: 'var(--app-warning-text)' }}
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.15, ease: [0.22, 1, 0.36, 1] }}
+          >
+            {deleteLinkNotice}
+          </motion.p>
+        )}
+      </AnimatePresence>
       <div className="grid grid-cols-2 gap-3 sm:ml-auto sm:flex sm:items-center">
         <button
           type="button"
