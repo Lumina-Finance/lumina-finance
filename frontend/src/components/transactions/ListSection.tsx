@@ -14,7 +14,7 @@ import { BulkEditModal } from '@/components/transactions/bulk-edit/BulkEditModal
 import { BulkDeleteConfirm } from '@/components/transactions/bulk-edit/BulkDeleteConfirm'
 import { BulkEditConfirm } from '@/components/transactions/bulk-edit/BulkEditConfirm'
 import { selectedTransactionsSignature } from '@/components/transactions/bulk-edit/confirmation'
-import { getBulkDeleteBlockReason } from '@/components/transactions/bulk-edit/deletion'
+import { getBulkDeleteBlockReason, getLinkedIdsOutside } from '@/components/transactions/bulk-edit/deletion'
 import {
   doesChosenCategoryRecordTransferTarget,
   isRowSelectable,
@@ -195,6 +195,11 @@ export default function TransactionListSection({
   // what Delete removes. Null while it is closed
   const [pendingDeleteIds, setPendingDeleteIds] = useState<string[] | null>(null)
   const [deleteError, setDeleteError] = useState<string | null>(null)
+
+  // The transactions outside the selection that are linked to it, frozen with the ids, and whether the
+  // user chose to delete them too. Unchecked by default, so only the links go
+  const [linkedIdsOutside, setLinkedIdsOutside] = useState<string[]>([])
+  const [deleteLinked, setDeleteLinked] = useState(false)
 
   // Kept after the confirmation closes, so its title does not read 0 while it fades out
   const [deleteCount, setDeleteCount] = useState(0)
@@ -407,7 +412,8 @@ export default function TransactionListSection({
   function deletePendingSelection() {
     if (!pendingDeleteIds) return
     setDeleteError(null)
-    bulkDelete.mutate(pendingDeleteIds, {
+    const takeLinked = deleteLinked && linkedIdsOutside.length > 0
+    bulkDelete.mutate({ transactionIds: pendingDeleteIds, linkedIds: takeLinked ? linkedIdsOutside : [] }, {
       onSuccess: (result) => {
         setPendingDeleteIds(null)
         stopSelecting()
@@ -483,6 +489,10 @@ export default function TransactionListSection({
         deleteDisabledReason={deleteDisabledReason}
         onDeleteSelection={() => {
           setDeleteError(null)
+          setDeleteLinked(false)
+          setLinkedIdsOutside(
+            getLinkedIdsOutside(displayedTransactions.filter((transaction) => selection.selectedIds.includes(transaction.id))),
+          )
           setPendingDeleteIds([...selection.selectedIds])
           setDeleteCount(selection.selectedIds.length)
         }}
@@ -602,6 +612,9 @@ export default function TransactionListSection({
       <BulkDeleteConfirm
         open={pendingDeleteIds !== null}
         count={deleteCount}
+        linkedCount={linkedIdsOutside.length}
+        deleteLinked={deleteLinked}
+        onDeleteLinkedChange={setDeleteLinked}
         error={deleteError}
         isDeleting={bulkDelete.isPending}
         onConfirm={deletePendingSelection}

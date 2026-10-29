@@ -1,5 +1,6 @@
 import { useCallback } from 'react';
 import {
+  keepPreviousData,
   useInfiniteQuery,
   useMutation,
   useQuery,
@@ -28,10 +29,12 @@ import {
   bulkUpdateTransactions,
   createTransaction,
   deleteTransaction,
+  fetchRefundLinkCandidates,
   fetchTransaction,
   fetchTransactionPage,
   fetchTransactions,
   fetchTransactionsOverview,
+  linkRefund,
   unlinkRefund,
   updateTransaction,
 } from '@/api/transactions/requests';
@@ -106,6 +109,33 @@ export function useTransaction(transactionId: string | null | undefined) {
     queryFn: ({ signal }) => fetchTransaction(transactionId as string, signal),
     enabled: !!accessToken && !!transactionId,
     staleTime: TRANSACTION_DETAIL_STALE_TIME_MS,
+  });
+}
+
+/**
+ * Reads the transactions one can be linked to as a refund or as the expense it refunds. Stays idle
+ * until a transaction is given, and keeps the previous result on screen while a search is typed
+ */
+export function useRefundLinkCandidates(transactionId: string | null | undefined, searchText: string) {
+  const { accessToken } = useAuth();
+  return useQuery({
+    queryKey: transactionKeys.refundLinkCandidates(transactionId ?? undefined, searchText),
+    queryFn: ({ signal }) => fetchRefundLinkCandidates(transactionId as string, searchText, signal),
+    enabled: !!accessToken && !!transactionId,
+    placeholderData: keepPreviousData,
+  });
+}
+
+/**
+ * Links an existing transaction as the refund of an expense, then refreshes every list and detail
+ * showing either
+ */
+export function useLinkRefund() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ refundId, originalId }: { refundId: string; originalId: string }) =>
+      linkRefund(refundId, originalId),
+    onSuccess: () => invalidateTransactions(queryClient),
   });
 }
 
@@ -268,13 +298,38 @@ export function useDeleteTransaction({
  * Deletes several transactions in one request, then drops them from the cached lists and refreshes
  * the aggregate views of the accounts they were in, once for the whole set
  */
-export function useBulkDeleteTransactions({ minimumPendingMs = 0 }: { minimumPendingMs?: number } = {}) {
+export function useBulkDeleteTransactions({
+  minimumPendingMs = 0,
+  deferRemoval = false,
+}: { minimumPendingMs?: number; deferRemoval?: boolean } = {}) {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: (transactionIds: string[]) =>
-      runWithMinimumPendingTime(minimumPendingMs, () => bulkDeleteTransactions(transactionIds)),
-    onSuccess: (result, transactionIds) => {
-      applyTransactionsDeletion(queryClient, transactionIds, result.affected_account_ids);
+    mutationFn: ({ transactionIds, linkedIds = [] }: BulkDeleteVariables) =>
+      runWithMinimumPendingTime(minimumPendingMs, () => bulkDeleteTransactions([...transactionIds, ...linkedIds])),
+    onSuccess: (result, { transactionIds, linkedIds = [] }) => {
+      if (deferRemoval) return;
+      applyTransactionsDeletion(queryClient, [...transactionIds, ...linkedIds], result.affected_account_ids);
     },
   });
+}
+
+/**
+ * What a bulk delete is asked to remove. The linked ids are the linked transactions the user chose
+ * to delete too, sent with the rest so only what the dialog showed is deleted
+ */
+export interface BulkDeleteVariables {
+  transactionIds: string[];
+  linkedIds?: string[];
+}
+
+/**
+ * Removes deleted transactions from the cached lists and refreshes the aggregate views of the
+ * accounts they were in, split out so a caller that deferred the removal can run it later
+ */
+export function applyBulkTransactionDeletion(
+  queryClient: QueryClient,
+  transactionIds: string[],
+  accountIds: string[],
+) {
+  applyTransactionsDeletion(queryClient, transactionIds, accountIds);
 }

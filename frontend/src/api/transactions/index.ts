@@ -19,26 +19,32 @@ export type {
 } from '@/api/transactions/types';
 
 export {
+  bulkDeleteTransactions,
   bulkUpdateTransactions,
   createTransaction,
   deleteTransaction,
+  fetchRefundLinkCandidates,
   fetchTransaction,
   fetchTransactionPage,
   fetchTransactions,
   fetchTransactionsOverview,
+  linkRefund,
   unlinkRefund,
   updateTransaction,
 } from '@/api/transactions/requests';
 
 export {
+  applyBulkTransactionDeletion,
   applyTransactionDeletion,
   useBulkDeleteTransactions,
   useBulkUpdateTransactions,
   useCreateTransaction,
   useDeleteTransaction,
   useInfiniteTransactions,
+  useLinkRefund,
   useLoadTransaction,
   useRefreshCreatedTransactions,
+  useRefundLinkCandidates,
   useTransaction,
   useTransactions,
   useTransactionsOverview,

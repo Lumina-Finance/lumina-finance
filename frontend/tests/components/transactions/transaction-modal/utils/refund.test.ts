@@ -1,13 +1,14 @@
 /**
  * Tests what the refund flow decides in the browser: when the Refund button is offered, what a refund
- * starts as, what it is saved with, and what deleting a linked transaction warns about
+ * starts as, what it is saved with, and which transactions deleting a linked one can take with it
  */
 import { describe, expect, it } from 'vitest'
 import { buildInitialTransactionForm } from '@/components/transactions/transaction-modal/utils/initialForm'
 import { buildCreateTransactionPayload } from '@/components/transactions/transaction-modal/utils/payloads'
 import {
-  buildDeleteLinkNotice,
   buildRefundNote,
+  canLinkAsRefund,
+  getLinkedTransactionIds,
   isRefundable,
 } from '@/components/transactions/transaction-modal/utils/refund'
 import { createAccount, createCategory, createTransaction, currencies } from './fixtures'
@@ -96,20 +97,33 @@ describe('refund form', () => {
   })
 })
 
-describe('buildDeleteLinkNotice', () => {
-  it('says nothing for a transaction with no link', () => {
-    expect(buildDeleteLinkNotice({ refund_of_transaction_id: null, refund_transaction_ids: [] })).toBe('')
+describe('canLinkAsRefund', () => {
+  it('offers money in, outside a transfer, that is not yet a refund', () => {
+    expect(canLinkAsRefund({ amount: 500, refund_of_transaction_id: null }, 'income')).toBe(true)
+    expect(canLinkAsRefund({ amount: 500, refund_of_transaction_id: null }, 'expense')).toBe(true)
   })
 
-  it('counts every link the delete removes, from either side', () => {
-    expect(buildDeleteLinkNotice({ refund_of_transaction_id: 'expense', refund_transaction_ids: [] })).toBe(
-      'This also removes its refund link.',
-    )
-    expect(buildDeleteLinkNotice({ refund_of_transaction_id: null, refund_transaction_ids: ['a', 'b'] })).toBe(
-      'This also removes its 2 refund links.',
-    )
-    expect(buildDeleteLinkNotice({ refund_of_transaction_id: 'expense', refund_transaction_ids: ['a'] })).toBe(
-      'This also removes its 2 refund links.',
-    )
+  it('refuses money out, a transfer, an unknown category and a refund already linked', () => {
+    expect(canLinkAsRefund({ amount: -500, refund_of_transaction_id: null }, 'expense')).toBe(false)
+    expect(canLinkAsRefund({ amount: 0, refund_of_transaction_id: null }, 'expense')).toBe(false)
+    expect(canLinkAsRefund({ amount: 500, refund_of_transaction_id: null }, 'transfer')).toBe(false)
+    expect(canLinkAsRefund({ amount: 500, refund_of_transaction_id: null }, undefined)).toBe(false)
+    expect(canLinkAsRefund({ amount: 500, refund_of_transaction_id: 'expense' }, 'expense')).toBe(false)
+  })
+})
+
+describe('getLinkedTransactionIds', () => {
+  it('is empty for a transaction with no link', () => {
+    expect(getLinkedTransactionIds({ refund_of_transaction_id: null, refund_transaction_ids: [] })).toEqual([])
+  })
+
+  it('lists the expense of a refund and the refunds of an expense', () => {
+    expect(getLinkedTransactionIds({ refund_of_transaction_id: 'expense', refund_transaction_ids: [] })).toEqual([
+      'expense',
+    ])
+    expect(getLinkedTransactionIds({ refund_of_transaction_id: null, refund_transaction_ids: ['a', 'b'] })).toEqual([
+      'a',
+      'b',
+    ])
   })
 })

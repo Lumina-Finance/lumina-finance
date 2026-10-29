@@ -172,22 +172,43 @@ export function removeTransactionsFromLists(
   transactionIds: string[],
 ): void {
   const removed = new Set(transactionIds);
-  const transactionQueries = queryClient.getQueriesData<Transaction[] | InfiniteData<Transaction[]>>({
+  const transactionQueries = queryClient.getQueriesData<Transaction | Transaction[] | InfiniteData<Transaction[]>>({
     queryKey: transactionKeys.all,
     exact: false,
   });
+
+  // The ones left behind drop their link to a deleted one, so a refund shows no link at once
+  const keep = (page: Transaction[]) => page.filter((item) => !removed.has(item.id)).map((item) => withoutLinksTo(item, removed));
 
   for (const [queryKey, data] of transactionQueries) {
     if (!data) continue;
     if (isInfiniteTransactionsData(data)) {
       queryClient.setQueryData<InfiniteData<Transaction[]>>(queryKey, {
         ...data,
-        pages: data.pages.map((page) => page.filter((item) => !removed.has(item.id))),
+        pages: data.pages.map(keep),
       });
     } else if (Array.isArray(data)) {
-      queryClient.setQueryData<Transaction[]>(queryKey, data.filter((item) => !removed.has(item.id)));
+      queryClient.setQueryData<Transaction[]>(queryKey, keep(data));
+    } else if (!removed.has(data.id)) {
+      queryClient.setQueryData<Transaction>(queryKey, withoutLinksTo(data, removed));
     }
   }
+}
+
+/**
+ * Returns the transaction without any link to the removed ones, or the same object when it has none
+ */
+function withoutLinksTo(transaction: Transaction, removed: Set<string>): Transaction {
+  const refundOf = transaction.refund_of_transaction_id;
+  const refunds = transaction.refund_transaction_ids;
+  const dropsOriginal = refundOf != null && removed.has(refundOf);
+  const dropsRefund = refunds?.some((id) => removed.has(id)) ?? false;
+  if (!dropsOriginal && !dropsRefund) return transaction;
+  return {
+    ...transaction,
+    refund_of_transaction_id: dropsOriginal ? null : refundOf,
+    refund_transaction_ids: refunds?.filter((id) => !removed.has(id)),
+  };
 }
 
 /**

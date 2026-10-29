@@ -40,10 +40,13 @@ import { useTransactionSubmit } from '@/components/transactions/transaction-moda
 import RefundButton from '@/components/transactions/transaction-modal/controls/RefundButton'
 import TransactionModalLinkedRefundsSection from '@/components/transactions/transaction-modal/sections/LinkedRefundsSection'
 import {
-  buildDeleteLinkNotice,
   buildRefundNote,
+  canLinkAsRefund,
+  getLinkedTransactionIds,
   isRefundable,
 } from '@/components/transactions/transaction-modal/utils/refund'
+import { TransactionModalIdSuffix, suffixControlIds } from '@/components/transactions/transaction-modal/ids'
+import TransactionModalLinkedDeleteConfirm from '@/components/transactions/transaction-modal/modals/LinkedDeleteConfirm'
 
 /**
  * Modal for creating or editing a transaction, including symmetric transfers that record a
@@ -65,6 +68,7 @@ export default function CreateTransactionModal({
 }: CreateTransactionModalProps) {
   const editing = !!transaction
   const refunding = !editing && !!refundOf
+  const idSuffix = refunding ? '-refund' : ''
   // The refund modal keeps its form between opens, so each open remounts it to start from the expense again
   const [refundModal, setRefundModal] = useState({ open: false, key: 0 })
   const { user } = useAuth()
@@ -189,7 +193,7 @@ export default function CreateTransactionModal({
       selectedCounterpartyAccount,
     }),
     fieldLayout.order,
-    fieldLayout.controlIds,
+    suffixControlIds(fieldLayout.controlIds, idSuffix),
   )
   const showError = (field: keyof TransactionFormFieldErrors) => refusal.errors[field]
 
@@ -198,8 +202,17 @@ export default function CreateTransactionModal({
     onClose,
   })
 
+  // The links shown and asked about on delete come from the live copy, since the transaction the modal
+  // opened with is the list row as it stood then
+  const liveTransaction = useTransaction(transaction?.id).data ?? transaction
+  const linkedIds = liveTransaction ? getLinkedTransactionIds(liveTransaction) : []
+
+  // Delete on a linked transaction opens a dialog asking what happens to the transactions linked to it
+  const [linkedDelete, setLinkedDelete] = useState({ open: false, deleteLinked: false })
+
   const { deleteLoading, deleteTransaction, applyPendingDeletion } = useTransactionDeletion({
     transaction,
+    linkedIds,
     readOnly,
     closeModal,
     setSubmitError,
@@ -236,15 +249,14 @@ export default function CreateTransactionModal({
   })
 
 
-  // The links shown and warned about come from the live copy, since the transaction the modal opened
-  // with is the list row as it stood then
-  const liveTransaction = useTransaction(transaction?.id).data ?? transaction
   const level = refunding ? 'stacked' : 'page'
-  const canOfferRefund =
-    editing &&
-    !readOnly &&
-    !!transaction &&
-    isRefundable(transaction, categoryField.categoryById.get(transaction.category_id)?.kind)
+
+  // Links are kept for individually owned accounts, as the server does, so a group account's
+  // transactions are offered neither the Refund button nor the link pickers
+  const transactionCategoryKind = transaction ? categoryField.categoryById.get(transaction.category_id)?.kind : undefined
+  const canLinkHere = editing && !readOnly && !selectedAccount?.group_id
+  const canOfferRefund = canLinkHere && !!transaction && isRefundable(transaction, transactionCategoryKind)
+  const canLinkExpense = canLinkHere && !!liveTransaction && canLinkAsRefund(liveTransaction, transactionCategoryKind)
 
   const showRunningBalance = !editing && keepOpenAfterCreate && !!selectedAccount
 
@@ -278,10 +290,10 @@ export default function CreateTransactionModal({
   )
 
   return (
-    <>
+    <TransactionModalIdSuffix.Provider value={idSuffix}>
       <ModalTitledPanel
         open={open}
-        titleId="create-txn-title"
+        titleId={refunding ? 'create-txn-title-refund' : 'create-txn-title'}
         level={level}
         title={editing ? 'Edit transaction' : refunding ? 'Add refund' : 'Add transaction'}
         eyebrow={
@@ -302,7 +314,10 @@ export default function CreateTransactionModal({
           <TransactionModalFooter
             level={level}
             hideKeepOpen={refunding}
-            deleteLinkNotice={liveTransaction ? buildDeleteLinkNotice(liveTransaction) : ''}
+            addLabel={refunding ? 'Add refund' : 'Add transaction'}
+            onRequestLinkedDelete={
+              linkedIds.length > 0 ? () => setLinkedDelete({ open: true, deleteLinked: false }) : null
+            }
             editing={editing}
             isPending={isPending}
             readOnly={readOnly}
@@ -412,13 +427,36 @@ export default function CreateTransactionModal({
           />
 
           {liveTransaction && (
-            <TransactionModalLinkedRefundsSection transaction={liveTransaction} readOnly={readOnly} />
+            <TransactionModalLinkedRefundsSection
+              transaction={liveTransaction}
+              readOnly={readOnly}
+              canLinkRefund={canOfferRefund}
+              canLinkExpense={canLinkExpense}
+            />
           )}
 
           <FormError message={submitError} title={submitErrorTitle} />
 
         </div>
       </ModalTitledPanel>
+      <TransactionModalLinkedDeleteConfirm
+        open={open && linkedDelete.open}
+        linkedCount={linkedIds.length}
+        deleteLinked={linkedDelete.deleteLinked}
+        onDeleteLinkedChange={(deleteLinked) => setLinkedDelete((state) => ({ ...state, deleteLinked }))}
+        error={submitError || null}
+        isDeleting={deleteLoading}
+        onConfirm={() => {
+          void deleteTransaction(linkedDelete.deleteLinked).then((deleted) => {
+            if (deleted) setLinkedDelete((state) => ({ ...state, open: false }))
+          })
+        }}
+        onCancel={() => {
+          setSubmitError('')
+          setSubmitErrorTitle('')
+          setLinkedDelete((state) => ({ ...state, open: false }))
+        }}
+      />
       {canOfferRefund && transaction && (
         <CreateTransactionModal
           key={refundModal.key}
@@ -448,6 +486,6 @@ export default function CreateTransactionModal({
         onCloseTag={tagModal.closeModal}
         onTagCreated={tagField.handleTagCreated}
       />
-    </>
+    </TransactionModalIdSuffix.Provider>
   )
 }

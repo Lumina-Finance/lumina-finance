@@ -1,7 +1,7 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react'
-import { AnimatePresence, motion } from 'motion/react'
 import { Check, Trash2 } from 'lucide-react'
 import { PendingLabel } from '@/components/loading/PendingLabel'
+import { useTransactionModalIds } from '@/components/transactions/transaction-modal/ids'
 import { MODAL_INSET_CLASS_NAME } from '@/components/modal/inset'
 import { DisabledReasonButton } from '@/components/tooltips/DisabledReasonButton'
 import type { ModalLevel } from '@/components/modal/Shell'
@@ -13,8 +13,14 @@ interface TransactionModalFooterProps {
   /** A refund is saved alone, so there is no batch to keep the modal open for */
   hideKeepOpen: boolean
 
-  /** What deleting also removes, such as a refund link, said once delete is armed. Empty when nothing */
-  deleteLinkNotice: string
+  /** What the primary action says when it adds, so a refund names itself */
+  addLabel: string
+
+  /**
+   * Set when the transaction is linked to others. Delete then asks what happens to them, in a dialog
+   * the owner opens, instead of arming for a second click
+   */
+  onRequestLinkedDelete: (() => void) | null
   isPending: boolean
   readOnly: boolean
   submitLoading: boolean
@@ -35,7 +41,8 @@ export default function TransactionModalFooter({
   level,
   editing,
   hideKeepOpen,
-  deleteLinkNotice,
+  addLabel,
+  onRequestLinkedDelete,
   isPending,
   readOnly,
   submitLoading,
@@ -46,6 +53,7 @@ export default function TransactionModalFooter({
   onCancel,
   onDelete,
 }: TransactionModalFooterProps) {
+  const ids = useTransactionModalIds()
   const [confirmingDelete, setConfirmingDelete] = useState(false)
   const deleteButtonRef = useRef<HTMLButtonElement>(null)
   const idleLabelRef = useRef<HTMLSpanElement>(null)
@@ -58,6 +66,10 @@ export default function TransactionModalFooter({
    */
   const handleDeleteClick = () => {
     if (isPending) return
+    if (onRequestLinkedDelete) {
+      onRequestLinkedDelete()
+      return
+    }
     if (!confirmingDelete) {
       setConfirmingDelete(true)
       return
@@ -156,9 +168,12 @@ export default function TransactionModalFooter({
         </button>
       ) : !editing && !hideKeepOpen ? (
         <div className="min-w-0 sm:max-w-xs">
-          <label htmlFor="txn-keep-open" className="-ml-1 flex cursor-pointer items-center gap-3 rounded-xl px-1 py-1">
+          <label
+            htmlFor={ids.keepOpen}
+            className="-ml-1 flex cursor-pointer items-center gap-3 rounded-xl px-1 py-1"
+          >
             <input
-              id="txn-keep-open"
+              id={ids.keepOpen}
               type="checkbox"
               checked={keepOpenAfterCreate}
               onChange={(event) => onKeepOpenAfterCreateChange(event.target.checked)}
@@ -177,22 +192,6 @@ export default function TransactionModalFooter({
           </label>
         </div>
       ) : null}
-      <AnimatePresence initial={false}>
-        {confirmingDelete && deleteLinkNotice && (
-          <motion.p
-            key="delete-link-notice"
-            role="status"
-            className="min-w-0 text-xs sm:max-w-xs"
-            style={{ color: 'var(--app-warning-text)' }}
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            transition={{ duration: 0.15, ease: [0.22, 1, 0.36, 1] }}
-          >
-            {deleteLinkNotice}
-          </motion.p>
-        )}
-      </AnimatePresence>
       <div className="grid grid-cols-2 gap-3 sm:ml-auto sm:flex sm:items-center">
         <button
           type="button"
@@ -208,14 +207,14 @@ export default function TransactionModalFooter({
           <DisabledReasonButton
             type="submit"
             data-testid="transaction-submit"
-            aria-label={editing ? 'Save' : 'Add transaction'}
+            aria-label={editing ? 'Save' : addLabel}
             aria-busy={submitLoading}
             disabled={isPending}
             disabledReason={isPending ? undefined : submitBlockedReason}
             className={`app-primary-button overflow-hidden whitespace-nowrap${submitLoading ? ' app-primary-button-loading justify-self-center sm:justify-self-auto' : editing ? ' w-full sm:w-24' : ' w-full sm:w-44'}`}
           >
-            <PendingLabel pending={submitLoading} name={editing ? 'Save' : 'Add transaction'}>
-              {editing ? 'Save' : 'Add transaction'}
+            <PendingLabel pending={submitLoading} name={editing ? 'Save' : addLabel}>
+              {editing ? 'Save' : addLabel}
             </PendingLabel>
           </DisabledReasonButton>
         )}

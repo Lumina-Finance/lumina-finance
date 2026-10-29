@@ -175,7 +175,7 @@ describe('mutations after loading a transaction detail', () => {
       transactions_deleted: 2, affected_account_ids: ['source', 'destination'],
     })));
 
-    await useBulkDeleteTransactions().mutateAsync([target.id, moved.id]);
+    await useBulkDeleteTransactions().mutateAsync({ transactionIds: [target.id, moved.id] });
 
     expect(fetchMock).toHaveBeenCalledWith(`${API_BASE}/transactions/bulk/delete`, expect.objectContaining({
       method: 'POST', body: JSON.stringify({ transaction_ids: [target.id, moved.id] }),
@@ -185,5 +185,54 @@ describe('mutations after loading a transaction detail', () => {
     expectAccountInvalidation(client, 'source', true);
     expectAccountInvalidation(client, 'destination', true);
     expectAccountInvalidation(client, 'unrelated', false);
+  });
+
+  it('clears the link of a transaction that stays when the one it is linked to is deleted', async () => {
+    const client = hookContext.client!;
+    seedAccountViews(client);
+    const refund: Transaction = { ...other, id: 'refund', amount: 500, refund_of_transaction_id: target.id, refund_transaction_ids: [] };
+    const expense: Transaction = { ...target, refund_transaction_ids: [refund.id], refund_of_transaction_id: null };
+    client.setQueryData(transactionKeys.list({}), [expense, refund]);
+    client.setQueryData(transactionKeys.detail(refund.id), refund);
+    fetchMock.mockResolvedValue(new Response(null, { status: 204 }));
+
+    await useDeleteTransaction().mutateAsync(expense.id);
+
+    const listed = client.getQueryData<Transaction[]>(transactionKeys.list({}));
+    expect(listed).toHaveLength(1);
+    expect(listed?.[0].refund_of_transaction_id).toBeNull();
+    expect(client.getQueryData<Transaction>(transactionKeys.detail(refund.id))?.refund_of_transaction_id).toBeNull();
+  });
+
+  it('drops a deleted refund from the expense it was linked to and keeps the expense\'s other refunds', async () => {
+    const client = hookContext.client!;
+    seedAccountViews(client);
+    const gone: Transaction = { ...other, id: 'gone', amount: 500, refund_of_transaction_id: target.id };
+    const kept: Transaction = { ...other, id: 'kept', amount: 300, refund_of_transaction_id: target.id };
+    const expense: Transaction = { ...target, refund_transaction_ids: [gone.id, kept.id] };
+    client.setQueryData(transactionKeys.list({}), [expense, gone, kept]);
+    client.setQueryData(transactionKeys.detail(expense.id), expense);
+    fetchMock.mockResolvedValue(new Response(null, { status: 204 }));
+
+    await useDeleteTransaction().mutateAsync(gone.id);
+
+    expect(client.getQueryData<Transaction[]>(transactionKeys.list({}))?.[0].refund_transaction_ids).toEqual([kept.id]);
+    expect(client.getQueryData<Transaction>(transactionKeys.detail(expense.id))?.refund_transaction_ids).toEqual([kept.id]);
+  });
+
+  it('clears the links of what stays when a bulk delete takes a linked transaction and the ones it chose with it', async () => {
+    const client = hookContext.client!;
+    seedAccountViews(client);
+    const refund: Transaction = { ...other, id: 'refund', amount: 500, refund_of_transaction_id: target.id };
+    const sibling: Transaction = { ...other, id: 'sibling', amount: 300, refund_of_transaction_id: target.id };
+    const expense: Transaction = { ...target, refund_transaction_ids: [refund.id, sibling.id] };
+    client.setQueryData(transactionKeys.list({}), [expense, refund, sibling]);
+    fetchMock.mockResolvedValue(new Response(JSON.stringify({ transactions_deleted: 2, affected_account_ids: ['source'] })));
+
+    await useBulkDeleteTransactions().mutateAsync({ transactionIds: [expense.id], linkedIds: [refund.id] });
+
+    const listed = client.getQueryData<Transaction[]>(transactionKeys.list({}));
+    expect(listed?.map((row) => row.id)).toEqual([sibling.id]);
+    expect(listed?.[0].refund_of_transaction_id).toBeNull();
   });
 });

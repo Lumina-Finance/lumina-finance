@@ -4,11 +4,8 @@ import CreateModalFieldLabelRow from '@/components/create-modal/FieldLabelRow'
 import CreateModalSectionFrame from '@/components/create-modal/SectionFrame'
 import Dropdown, { type DropdownOption } from '@/components/dropdown/Dropdown'
 import { AppSlotMachineText } from '@/components/display/SlotMachineText'
-import {
-  EASE,
-  TRANSACTION_MODAL_ERROR_IDS,
-  TRANSACTION_MODAL_FIELD_IDS,
-} from '@/components/transactions/transaction-modal/constants'
+import { EASE } from '@/components/transactions/transaction-modal/constants'
+import { useTransactionModalIds } from '@/components/transactions/transaction-modal/ids'
 import CreditRepaymentNotice from '@/components/transactions/transaction-modal/controls/CreditRepaymentNotice'
 import TransferCashFlowNotice from '@/components/transactions/transaction-modal/controls/TransferCashFlowNotice'
 import type { CreditRepaymentSteer } from '@/components/transactions/transaction-modal/utils/creditRepayment'
@@ -198,6 +195,9 @@ export default function TransactionReferencesSection({
   onCreateTag,
   onRemoveTag,
 }: TransactionReferencesSectionProps) {
+  // Named as the constants were, so each field reads the id this modal gives it
+  const TRANSACTION_MODAL_FIELD_IDS = useTransactionModalIds()
+  const TRANSACTION_MODAL_ERROR_IDS = TRANSACTION_MODAL_FIELD_IDS.errors
   // Every transfer-kind category except Balance Adjustment records which counterparty account the
   // money touched
   const recordsCounterpartyAccount = doesTransferRecordCounterpartyAccount(kind, isBalanceAdjustmentCategory)
@@ -311,11 +311,11 @@ export default function TransactionReferencesSection({
               {isTransferPairOffered && (
                 <div className="pt-3">
                   <label
-                    htmlFor="txn-symmetric-transfer"
+                    htmlFor={TRANSACTION_MODAL_FIELD_IDS.symmetricTransfer}
                     className="flex cursor-pointer items-start gap-3 rounded-xl px-1 py-1"
                   >
                     <input
-                      id="txn-symmetric-transfer"
+                      id={TRANSACTION_MODAL_FIELD_IDS.symmetricTransfer}
                       type="checkbox"
                       checked={isSymmetricTransfer}
                       onChange={(event) => onSymmetricTransferChange(event.target.checked)}

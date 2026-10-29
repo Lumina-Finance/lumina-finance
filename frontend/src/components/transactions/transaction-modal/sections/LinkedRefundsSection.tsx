@@ -1,4 +1,6 @@
+import { useState } from 'react'
 import { ApiError } from '@/api/auth'
+import TransactionModalLinkRefundPicker from '@/components/transactions/transaction-modal/modals/LinkRefundPicker'
 import { useTransaction, useUnlinkRefund, type Transaction } from '@/api/transactions'
 import CreateModalSectionFrame from '@/components/create-modal/SectionFrame'
 import { useMoneyFormatters } from '@/hooks/useMoneyFormatters'
@@ -22,7 +24,7 @@ function LinkedTransactionRow({ linkedId, refundId, readOnly }: LinkedTransactio
   if (linked.isError) {
     return (
       <p role="alert" className="text-sm" style={{ color: 'var(--app-negative)' }}>
-        Could not load the linked transaction.
+        Oops, something went wrong loading the linked transaction. Please reopen this transaction.
       </p>
     )
   }
@@ -70,7 +72,7 @@ function LinkedTransactionRow({ linkedId, refundId, readOnly }: LinkedTransactio
       </div>
       {unlink.isError && (
         <p role="alert" className="mt-1 text-sm" style={{ color: 'var(--app-negative)' }}>
-          {unlink.error instanceof ApiError ? unlink.error.message : 'Could not unlink the transaction.'}
+          {unlink.error instanceof ApiError ? unlink.error.message : 'Oops, something went wrong. Please try again.'}
         </p>
       )}
     </div>
@@ -80,37 +82,80 @@ function LinkedTransactionRow({ linkedId, refundId, readOnly }: LinkedTransactio
 interface LinkedRefundsSectionProps {
   transaction: Transaction
   readOnly: boolean
+
+  /** Money out that can be refunded, so a refund that already exists can be linked to it */
+  canLinkRefund: boolean
+
+  /** Money in that is not yet the refund of anything, so it can be linked to the expense it refunds */
+  canLinkExpense: boolean
 }
 
 /**
- * Names the other side of a refund link from either transaction, with a way to remove it. A refund
- * shows the expense it refunds and an expense shows its refunds. It draws nothing when there is no link
+ * Names the other side of a refund link from either transaction, with a way to remove it, and offers
+ * to link an existing refund or expense where none is linked. A refund shows the expense it refunds
+ * and an expense shows its refunds. It draws nothing where there is no link and none can be made
  */
-export default function TransactionModalLinkedRefundsSection({ transaction, readOnly }: LinkedRefundsSectionProps) {
+export default function TransactionModalLinkedRefundsSection({
+  transaction,
+  readOnly,
+  canLinkRefund,
+  canLinkExpense,
+}: LinkedRefundsSectionProps) {
+  const [pickerOpen, setPickerOpen] = useState(false)
+
   // The list row the modal opened from is a snapshot, so the links come from the live copy once it loads
   const live = useTransaction(transaction.id)
   const current = live.data ?? transaction
   const refundOfId = current.refund_of_transaction_id
   const refundIds = current.refund_transaction_ids
-  if (!refundOfId && refundIds.length === 0) return null
+  const showRefunds = refundIds.length > 0 || canLinkRefund
+  const showRefundOf = Boolean(refundOfId) || canLinkExpense
+  if (!showRefunds && !showRefundOf) return null
 
-  // A refund edited into an outflow can be refunded itself, so one transaction can hold both sides
+  const linkButton = (label: string) => (
+    <button type="button" className="app-secondary-button whitespace-nowrap" data-testid="link-existing" onClick={() => setPickerOpen(true)}>
+      {label}
+    </button>
+  )
+
   return (
     <>
-      {refundOfId && (
+      {showRefundOf && (
         <CreateModalSectionFrame step="04" title="Refund of">
-          <LinkedTransactionRow linkedId={refundOfId} refundId={current.id} readOnly={readOnly} />
+          {refundOfId ? (
+            <LinkedTransactionRow linkedId={refundOfId} refundId={current.id} readOnly={readOnly} />
+          ) : (
+            <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-2">
+              <p className="text-sm" style={{ color: 'var(--app-text-muted)' }}>
+                If this gives money back for an expense, link them.
+              </p>
+              {linkButton('Link to an expense')}
+            </div>
+          )}
         </CreateModalSectionFrame>
       )}
-      {refundIds.length > 0 && (
-        <CreateModalSectionFrame step={refundOfId ? '05' : '04'} title="Refunds">
+      {showRefunds && (
+        <CreateModalSectionFrame step={showRefundOf ? '05' : '04'} title="Refunds">
           <div className="space-y-2">
             {refundIds.map((refundId) => (
               <LinkedTransactionRow key={refundId} linkedId={refundId} refundId={refundId} readOnly={readOnly} />
             ))}
+            {canLinkRefund && (
+              <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-2">
+                <p className="text-sm" style={{ color: 'var(--app-text-muted)' }}>
+                  {refundIds.length === 0 ? 'No refund is linked yet.' : 'Another refund can be linked.'}
+                </p>
+                {linkButton('Link an existing refund')}
+              </div>
+            )}
           </div>
         </CreateModalSectionFrame>
       )}
+      <TransactionModalLinkRefundPicker
+        open={pickerOpen}
+        onClose={() => setPickerOpen(false)}
+        transaction={current}
+      />
     </>
   )
 }

@@ -16,7 +16,7 @@ import {
 } from '@/components/transactions/constants/transactionList'
 import { useMoneyFormatters } from '@/hooks/useMoneyFormatters'
 import { FADED_ROW_COLOURS, FadedRowsContext } from '@/contexts/FadedRowsContext'
-import { getRefundLinkLabel, type RefundLinkLabel } from '@/components/transactions/utils/refundLink'
+import { getRefundLinkLabel } from '@/components/transactions/utils/refundLink'
 import { getAmountSign } from '@/utils/negativeAmount'
 import { useUsableLogo } from '@/hooks/useUsableLogo'
 import { resolveInstitutionLogoUrl } from '@/utils/institutionLogo'
@@ -201,13 +201,13 @@ function NoteAndTagIcons({
 }: {
   hasNotes: boolean
   tagCount: number
-  refundLink?: RefundLinkLabel | null
+  refundLink?: string | null
   className?: string
 }) {
   return (
     <span className={`inline-flex shrink-0 items-center gap-2 ${className}`}>
       {refundLink && (
-        <span className="inline-flex" role="img" aria-label={refundLink.full} title={refundLink.full} data-testid="transaction-refund-link">
+        <span className="inline-flex" role="img" aria-label={refundLink} title={refundLink} data-testid="transaction-refund-link">
           <Link2 size={14} strokeWidth={2} aria-hidden />
         </span>
       )}

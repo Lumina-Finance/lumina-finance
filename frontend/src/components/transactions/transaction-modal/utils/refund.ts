@@ -9,14 +9,24 @@ export function isRefundable(transaction: Transaction, categoryKind: string | un
 }
 
 /**
- * What deleting a transaction also removes, said when delete is armed. Empty when it has no refund link
+ * Whether a transaction can be linked to an expense as its refund: money that came in, outside a
+ * transfer, that is not the refund of anything yet. The server refuses anything else
  */
-export function buildDeleteLinkNotice(
+export function canLinkAsRefund(
+  transaction: Pick<Transaction, 'amount' | 'refund_of_transaction_id'>,
+  categoryKind: string | undefined,
+): boolean {
+  return transaction.amount > 0 && categoryKind !== undefined && categoryKind !== 'transfer' && !transaction.refund_of_transaction_id
+}
+
+/**
+ * The transactions linked to this one: the expense of a refund, or the refunds of an expense. These
+ * are the ones deleting it can take along
+ */
+export function getLinkedTransactionIds(
   transaction: Pick<Transaction, 'refund_of_transaction_id' | 'refund_transaction_ids'>,
-): string {
-  const linkCount = (transaction.refund_of_transaction_id ? 1 : 0) + transaction.refund_transaction_ids.length
-  if (linkCount === 0) return ''
-  return linkCount === 1 ? 'This also removes its refund link.' : `This also removes its ${linkCount} refund links.`
+): string[] {
+  return [...(transaction.refund_of_transaction_id ? [transaction.refund_of_transaction_id] : []), ...transaction.refund_transaction_ids]
 }
 
 /**

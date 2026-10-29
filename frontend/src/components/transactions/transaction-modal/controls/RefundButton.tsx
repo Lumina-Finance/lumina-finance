@@ -1,4 +1,4 @@
-import { Undo2 } from 'lucide-react'
+import { HandCoins } from 'lucide-react'
 
 interface RefundButtonProps {
   onClick: () => void
@@ -17,7 +17,7 @@ export default function RefundButton({ onClick }: RefundButtonProps) {
       onClick={onClick}
       className="app-expanding-button shrink-0"
     >
-      <Undo2 size={16} aria-hidden />
+      <HandCoins size={16} aria-hidden />
       <span className="app-expanding-button-label" aria-hidden>
         <span>Refund</span>
       </span>

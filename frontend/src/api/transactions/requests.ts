@@ -97,13 +97,37 @@ export function bulkUpdateTransactions(payload: BulkUpdateTransactionsPayload) {
 }
 
 /**
- * Deletes several transactions in one request, all of them or none
+ * Deletes several transactions in one request, all of them or none. A link to a transaction left
+ * out goes with the one deleted
  */
 export function bulkDeleteTransactions(transactionIds: string[]) {
   return authenticatedFetch<BulkDeleteTransactionsResult>('/transactions/bulk/delete', {
     method: 'POST',
     body: JSON.stringify({ transaction_ids: transactionIds }),
   });
+}
+
+/**
+ * Links an existing transaction as the refund of an expense, leaving both as they are
+ */
+export function linkRefund(refundId: string, originalTransactionId: string) {
+  return authenticatedFetch<void>(`/transactions/${refundId}/refund-link`, {
+    method: 'POST',
+    body: JSON.stringify({ original_transaction_id: originalTransactionId }),
+  });
+}
+
+/**
+ * Fetches the transactions one can be linked to: the money that came in for an expense, the
+ * expenses for a refund. The server applies the rules, so every one returned would be accepted
+ *
+ * @param signal - Aborts the request when the search that asked for it is replaced
+ */
+export function fetchRefundLinkCandidates(transactionId: string, searchText: string, signal?: AbortSignal) {
+  return authenticatedFetch<Transaction[]>(
+    `/transactions/${transactionId}/refund-link-candidates` + buildQueryString({ q: searchText || undefined }),
+    { signal },
+  );
 }
 
 /**
