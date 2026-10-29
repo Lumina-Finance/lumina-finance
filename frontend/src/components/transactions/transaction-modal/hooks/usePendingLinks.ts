@@ -21,10 +21,14 @@ interface PendingLinksState {
 
   /** Refunds whose saved link is removed on save */
   unlinkedRefundIds: string[]
+
+  /** Refunds whose link Save has removed. They stay out of the sections until the window closes, so a row that
+   * went does not come back while the transaction reloads */
+  appliedUnlinkIds: string[]
   refunds: PendingRefund[]
 }
 
-const NOTHING_PENDING: PendingLinksState = { links: [], unlinkedRefundIds: [], refunds: [] }
+const NOTHING_PENDING: PendingLinksState = { links: [], unlinkedRefundIds: [], appliedUnlinkIds: [], refunds: [] }
 
 export interface PendingLinks extends PendingLinksState {
   /** How many changes are held back until Save */
@@ -106,6 +110,7 @@ export function usePendingLinks(
       setState((current) => ({
         ...current,
         unlinkedRefundIds: current.unlinkedRefundIds.filter((id) => id !== refundId),
+        appliedUnlinkIds: [...current.appliedUnlinkIds, refundId],
       }))
     }
   }

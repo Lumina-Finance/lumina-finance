@@ -152,13 +152,14 @@ export default function TransactionModalLinkedRefundsSection({
   // The list row the modal opened from is a snapshot, so the links come from the live copy once it loads
   const live = useTransaction(transaction.id)
   const current = live.data ?? transaction
-  const savedOriginalId = pending.unlinkedRefundIds.includes(current.id) ? null : current.refund_of_transaction_id
+  const isUnlinked = (id: string) => pending.unlinkedRefundIds.includes(id) || pending.appliedUnlinkIds.includes(id)
+  const savedOriginalId = isUnlinked(current.id) ? null : current.refund_of_transaction_id
 
   // Links picked for a refund name its one expense, and links picked for an expense name its refunds
   const isRefund = current.amount > 0
   const pendingOriginal = isRefund ? pending.links[0] : undefined
   const pendingRefundLinks = isRefund ? [] : pending.links
-  const savedRefundIds = current.refund_transaction_ids.filter((id) => !pending.unlinkedRefundIds.includes(id))
+  const savedRefundIds = current.refund_transaction_ids.filter((id) => !isUnlinked(id))
   const refundCount = savedRefundIds.length + pendingRefundLinks.length + pending.refunds.length
   const showRefunds = refundCount > 0 || canLinkRefund
   const showRefundOf = Boolean(savedOriginalId) || pendingOriginal !== undefined || canLinkExpense

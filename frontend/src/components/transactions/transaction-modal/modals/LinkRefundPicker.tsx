@@ -1,5 +1,7 @@
 import { useEffect, useId, useMemo, useRef, useState, type CSSProperties } from 'react'
 import { Link2 } from 'lucide-react'
+import { AnimatePresence } from 'motion/react'
+import RevealRow from '@/components/transactions/transaction-modal/sections/RevealRow'
 import { useAccounts } from '@/api/accounts'
 import { useCategories } from '@/api/categories'
 import { useRefundLinkCandidates, type Transaction } from '@/api/transactions'
@@ -163,6 +165,13 @@ export default function TransactionModalLinkRefundPicker({
     handleClose()
   }
 
+  const resultKey = candidates.isError
+    ? 'error'
+    : candidates.isPending
+      ? 'loading'
+      : rows.length === 0
+        ? 'empty'
+        : 'rows'
   const hasNarrowing = sentSearch !== '' || Object.keys(filters).length > 0
   return (
     <ModalTitledPanel
@@ -222,58 +231,64 @@ export default function TransactionModalLinkRefundPicker({
           </div>
         </div>
 
-        {candidates.isError ? (
-          <LoadFailure error={candidates.error} subject="Transactions to link" />
-        ) : candidates.isPending ? (
-          <p role="status" className="text-sm" style={{ color: 'var(--app-text-muted)' }}>
-            Loading…
-          </p>
-        ) : rows.length === 0 ? (
-          <p role="status" className="text-sm" style={{ color: 'var(--app-text-muted)' }}>
-            {hasNarrowing
-              ? `Nothing matches ${sentSearch === '' ? 'those filters' : Object.keys(filters).length === 0 ? 'that search' : 'that search or those filters'}.`
-              : picksRefund
-                ? 'No money that came in is free to link as a refund.'
-                : 'No expense is free to link this refund to.'}
-          </p>
-        ) : (
-          <div role="group" aria-label="Transactions that can be linked" data-testid="link-candidates">
-            {rows.map((candidate) => {
-              const account = accountById.get(candidate.account_id)
-              const isPicked = candidate.id === picked?.id
-              const refusal = refusalFor(candidate)
+        {/* When the rows arrive in place of "Loading…" the window grows to fit them and they fade in, rather than
+            the list snapping in */}
+        <AnimatePresence initial={false}>
+          <RevealRow key={resultKey}>
+            {candidates.isError ? (
+              <LoadFailure error={candidates.error} subject="Transactions to link" />
+            ) : candidates.isPending ? (
+              <p role="status" className="text-sm" style={{ color: 'var(--app-text-muted)' }}>
+                Loading…
+              </p>
+            ) : rows.length === 0 ? (
+              <p role="status" className="text-sm" style={{ color: 'var(--app-text-muted)' }}>
+                {hasNarrowing
+                  ? `Nothing matches ${sentSearch === '' ? 'those filters' : Object.keys(filters).length === 0 ? 'that search' : 'that search or those filters'}.`
+                  : picksRefund
+                    ? 'No money that came in is free to link as a refund.'
+                    : 'No expense is free to link this refund to.'}
+              </p>
+            ) : (
+              <div role="group" aria-label="Transactions that can be linked" data-testid="link-candidates">
+                {rows.map((candidate) => {
+                  const account = accountById.get(candidate.account_id)
+                  const isPicked = candidate.id === picked?.id
+                  const refusal = refusalFor(candidate)
 
-              // Once one is picked the rest recede, and a row that can't be picked always does
-              const receded = refusal !== null || (picked !== null && !isPicked)
-              const contentStyle: CSSProperties = { opacity: receded ? RECEDED_ROW_OPACITY : 1 }
-              return (
-                <div
-                  key={candidate.id}
-                  className={ROW_CLASS_NAME}
-                  style={isPicked ? PICKED_ROW_STYLE : RESTING_ROW_STYLE}
-                  data-testid="link-candidate"
-                  data-picked={isPicked ? 'true' : undefined}
-                  data-refused={refusal ? 'true' : undefined}
-                >
-                  <div className={ROW_CONTENT_CLASS_NAME} style={contentStyle}>
-                    <TransactionRow
-                      transaction={candidate}
-                      currency={candidate.currency}
-                      category={categoryById.get(candidate.category_id)}
-                      accountName={account?.name}
-                      accountInstitution={account?.institution}
-                      skipEnterAnimation
-                      phoneLayout
-                      note={refusal ?? undefined}
-                      pressed={isPicked}
-                      onOpen={() => setPickedId(isPicked ? null : candidate.id)}
-                    />
-                  </div>
-                </div>
-              )
-            })}
-          </div>
-        )}
+                  // Once one is picked the rest recede, and a row that can't be picked always does
+                  const receded = refusal !== null || (picked !== null && !isPicked)
+                  const contentStyle: CSSProperties = { opacity: receded ? RECEDED_ROW_OPACITY : 1 }
+                  return (
+                    <div
+                      key={candidate.id}
+                      className={ROW_CLASS_NAME}
+                      style={isPicked ? PICKED_ROW_STYLE : RESTING_ROW_STYLE}
+                      data-testid="link-candidate"
+                      data-picked={isPicked ? 'true' : undefined}
+                      data-refused={refusal ? 'true' : undefined}
+                    >
+                      <div className={ROW_CONTENT_CLASS_NAME} style={contentStyle}>
+                        <TransactionRow
+                          transaction={candidate}
+                          currency={candidate.currency}
+                          category={categoryById.get(candidate.category_id)}
+                          accountName={account?.name}
+                          accountInstitution={account?.institution}
+                          skipEnterAnimation
+                          phoneLayout
+                          note={refusal ?? undefined}
+                          pressed={isPicked}
+                          onOpen={() => setPickedId(isPicked ? null : candidate.id)}
+                        />
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>
+            )}
+          </RevealRow>
+        </AnimatePresence>
       </div>
     </ModalTitledPanel>
   )
