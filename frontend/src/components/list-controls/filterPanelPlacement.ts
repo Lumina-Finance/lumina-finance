@@ -23,6 +23,10 @@ interface FilterPanelPlacementParams {
   currentDirection: FilterPanelDirection | null
   viewportHeight: number
   contentHeight?: number
+
+  // Viewport offsets of a container the panel must stay inside, such as a dialog's scrolling body,
+  // when the window is not the limit
+  bounds?: { top: number; bottom: number }
 }
 
 // Retains the usual opening height while letting selected chips expand the pane
@@ -70,10 +74,11 @@ export function getFilterPanelPlacement({
   currentDirection,
   viewportHeight,
   contentHeight = FILTER_PANEL_MIN_HEIGHT,
+  bounds,
 }: FilterPanelPlacementParams): FilterPanelPlacement {
   const desiredHeight = Math.max(FILTER_PANEL_MIN_HEIGHT, Math.ceil(contentHeight))
-  const spaceBelow = viewportHeight - anchorRect.bottom - VIEWPORT_MARGIN
-  const spaceAbove = anchorRect.top - VIEWPORT_MARGIN
+  const spaceBelow = Math.min(viewportHeight, bounds?.bottom ?? viewportHeight) - anchorRect.bottom - VIEWPORT_MARGIN
+  const spaceAbove = anchorRect.top - Math.max(0, bounds?.top ?? 0) - VIEWPORT_MARGIN
   const fitsBelow = spaceBelow >= desiredHeight
   const fitsAbove = spaceAbove >= desiredHeight
 

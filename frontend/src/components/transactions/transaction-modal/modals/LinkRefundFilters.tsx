@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useMemo, useState, type RefObject } from 'react'
 import { SlidersHorizontal } from 'lucide-react'
 import type { Category } from '@/api/categories'
 import { MobileFilterPanel } from '@/components/transactions/toolbar/MobileFilterPanel'
@@ -15,6 +15,9 @@ interface LinkRefundFiltersProps {
 
   // The width of the search row, so the open glass covers it edge to edge
   panelWidth?: number
+
+  // The dialog's scrolling body, which the open glass must stay inside so its buttons stay on screen
+  constrainTo?: RefObject<HTMLElement | null>
 }
 
 /**
@@ -27,6 +30,7 @@ export default function TransactionModalLinkRefundFilters({
   accounts,
   categories,
   panelWidth,
+  constrainTo,
 }: LinkRefundFiltersProps) {
   const [sheetOpen, setSheetOpen] = useState(false)
   const [sheetMounted, setSheetMounted] = useState(false)
@@ -44,6 +48,7 @@ export default function TransactionModalLinkRefundFilters({
           setFilter={setFilter}
           showAccountFilter
           openWidth={panelWidth}
+          constrainTo={constrainTo}
         />
       </div>
 

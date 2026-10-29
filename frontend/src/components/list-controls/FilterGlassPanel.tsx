@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
-import type { ReactNode } from 'react'
+import type { ReactNode, RefObject } from 'react'
 import { motion, useReducedMotion } from 'motion/react'
 import { ChevronDown, SlidersHorizontal, X } from 'lucide-react'
 import {
@@ -46,6 +46,10 @@ type FilterGlassPanelProps = {
   ariaLabel: string
   // Open width of the glass, sized by the caller to seat its own facet tabs without crowding
   openWidth: number
+
+  // A container, such as a dialog's scrolling body, the open panel must stay inside. The panel then
+  // takes the height that is left there and its option list scrolls, so its buttons stay on screen
+  constrainTo?: RefObject<HTMLElement | null>
   open: boolean
   onOpenChange: (open: boolean) => void
   activeFacetCount: number
@@ -63,6 +67,7 @@ type FilterGlassPanelProps = {
 export function FilterGlassPanel({
   ariaLabel,
   openWidth,
+  constrainTo,
   open,
   onOpenChange,
   activeFacetCount,
@@ -148,7 +153,8 @@ export function FilterGlassPanel({
         anchorRect: { bottom: rect.bottom, top: rect.top },
         currentDirection: openDirection,
         viewportHeight: window.innerHeight,
-        contentHeight: bodyContentRef.current?.offsetHeight,
+        contentHeight: constrainTo ? undefined : bodyContentRef.current?.offsetHeight,
+        bounds: constrainTo?.current ? constrainTo.current.getBoundingClientRect() : undefined,
       })
       // The first measurement of an open cycle lands before the panel has painted, so opening on
       // the other side from last time is applied whole rather than played as a flip
@@ -180,6 +186,10 @@ export function FilterGlassPanel({
     const observer = new ResizeObserver(measurePlacement)
     // Flipping upward changes padding without changing the content box
     if (bodyContentRef.current) observer.observe(bodyContentRef.current, { box: 'border-box' })
+
+    // A container the panel stays inside can grow or shrink while the panel is open, such as a dialog
+    // opening up to hold it
+    if (constrainTo?.current) observer.observe(constrainTo.current)
     window.addEventListener('resize', measurePlacement)
     window.addEventListener('scroll', measurePlacement, { passive: true })
     return () => {
@@ -187,7 +197,7 @@ export function FilterGlassPanel({
       window.removeEventListener('resize', measurePlacement)
       window.removeEventListener('scroll', measurePlacement)
     }
-  }, [open, openWidth])
+  }, [open, openWidth, constrainTo])
 
   useFocusHeadOnClose(open, bodyViewportRef, headRef)
 
@@ -210,7 +220,12 @@ export function FilterGlassPanel({
       // sits, so the panel only takes the key once nothing is layered over it
       if (isFloatingLayerOpen()) return
 
-      if (event.key === 'Escape') dismiss()
+      // Escape closes this layer only. Stopping it here keeps a dialog the panel sits in, which listens on the
+      // window, from closing with it, so the next press closes the dialog
+      if (event.key === 'Escape') {
+        event.stopPropagation()
+        dismiss()
+      }
     }
 
     document.addEventListener('pointerdown', handlePointerDown)
@@ -339,7 +354,7 @@ export function FilterGlassPanel({
               ref={bodyContentRef}
               className="flex flex-col"
               style={{
-                minHeight: FILTER_PANEL_MIN_HEIGHT,
+                ...(constrainTo ? { height: placement.height } : { minHeight: FILTER_PANEL_MIN_HEIGHT }),
                 padding: `${openUpward ? BODY_PADDING : 0}px ${BODY_PADDING}px ${BODY_PADDING}px`,
               }}
             >
