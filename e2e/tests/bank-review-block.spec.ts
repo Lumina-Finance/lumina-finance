@@ -737,15 +737,11 @@ for (const colorScheme of ['light', 'dark'] as const) {
         expect(amount!.x).toBeGreaterThanOrEqual(text!.x + text!.width)
         expect(amount!.x + amount!.width).toBeLessThanOrEqual(blockBox.x + blockBox.width)
       }
-
       // The caret ends the header's first row, a button at least 24px each way with no words to read
       const toggleBox = (await toggle.boundingBox())!
       expect(Math.min(toggleBox.width, toggleBox.height)).toBeGreaterThanOrEqual(24)
     }
 
-    // The toggle is a secondary button like Bulk approve beside it, and its words are measured below
-    // under a pointer, which restyles it
-    await toggle.hover()
 
     const texts = [
       block.getByRole('heading', { name: 'Waiting for review' }),
