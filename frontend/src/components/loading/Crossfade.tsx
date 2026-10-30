@@ -6,8 +6,10 @@ import { CONTENT_EASE_CURVE, CONTENT_EASE_MS, prefersReducedMotion } from '@/uti
 // Cut at the container's padding, so a label wider than the narrowing container never reaches its rounded ends
 const LAYER_CLASS_NAME = 'inline-flex max-w-full items-center justify-center overflow-x-clip [overflow-clip-margin:content-box]'
 
-// The outgoing layer spans the whole container, so it takes the container's side padding to cut at the same place
-const OUTGOING_LAYER_CLASS_NAME = 'absolute inset-0 [padding-inline:inherit]'
+// The outgoing layer spans the whole container, and cuts 1rem in from each side, or less once the container is
+// too narrow to leave a 1.5rem spinner between them. The container's own padding is no guide, since a
+// spinner-sized container has none
+const OUTGOING_LAYER_CLASS_NAME = 'absolute inset-0 [padding-inline:clamp(0px,calc((100%-1.5rem)/2),1rem)]'
 
 const FADE_TRANSITION = { duration: CONTENT_EASE_MS / 1000, ease: CONTENT_EASE_CURVE } as const
 

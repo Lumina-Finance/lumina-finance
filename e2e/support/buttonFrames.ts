@@ -82,10 +82,12 @@ export async function startSampling(button: Locator, label: string): Promise<voi
           }
           if (current === node) break
         }
-        const style = getComputedStyle(node)
+        // The button's resting side padding, 1rem, and less once the button is too narrow to leave the
+        // 24px spinner room between two of them
         const box = node.getBoundingClientRect()
-        const innerLeft = box.left + parseFloat(style.borderLeftWidth) + parseFloat(style.paddingLeft)
-        const innerRight = box.right - parseFloat(style.borderRightWidth) - parseFloat(style.paddingRight)
+        const padding = Math.min(16, Math.max(0, (box.width - 24) / 2))
+        const innerLeft = box.left + padding
+        const innerRight = box.right - padding
         labelPastPadding = Math.max(0, innerLeft - left, right - innerRight)
       }
       frames.push({
@@ -119,7 +121,7 @@ export function expectEased(frames: ButtonFrame[], restingWidth: number, reduced
   const between = frames.filter((frame) => frame.width > CIRCLE_WIDTH + WIDTH_TOLERANCE && frame.width < restingWidth - WIDTH_TOLERANCE)
   const bothDrawn = frames.filter((frame) => frame.label !== null && frame.spinner !== null)
   const pastPadding = frames.filter((frame) => frame.labelPastPadding > PADDING_TOLERANCE)
-  expect(pastPadding.map((frame) => `${Math.round(frame.width)}px wide, ${frame.labelPastPadding.toFixed(1)}px past`),
+  expect(pastPadding.map((frame) => `${frame.width.toFixed(1)}px wide, label ${frame.label?.toFixed(2)}, spinner ${frame.spinner?.toFixed(2)}, ${frame.labelPastPadding.toFixed(1)}px past`),
     'the label stays inside the button\'s padding on every frame').toEqual([])
   const widths = `widths ${frames.map((frame) => Math.round(frame.width)).join(' ')}`
   const layers = `label ${frames.map((frame) => frame.label?.toFixed(2) ?? '-').join(' ')}`

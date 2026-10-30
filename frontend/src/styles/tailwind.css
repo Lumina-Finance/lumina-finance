@@ -2208,21 +2208,12 @@
     border-radius: 9999px;
   }
 
-  /* A button whose label and spinner crossfade (Crossfade) while useEasedWidth eases its width. Width is
-     left out of the transitions, since that hook plays it from the measured width and a CSS transition
-     would hold the width at its old value while the hook measures the new one. After the button rules
-     above so it replaces their transition-all */
-  :has(> [data-eased-width]) {
+  /* A button whose label and spinner crossfade (Crossfade) while useEasedWidth eases its width. Its
+     transitions are further down, after the shared button transition they replace */
+  button:has(> [data-eased-width]) {
     position: relative;
     overflow: hidden;
     white-space: nowrap;
-    transition-property: color, background-color, border-color, opacity, transform, padding, border-radius;
-  }
-
-  @media (prefers-reduced-motion: reduce) {
-    :has(> [data-eased-width]) {
-      transition: none;
-    }
   }
 
   .app-segmented-control {
@@ -3246,6 +3237,27 @@
       transition:
         all var(--app-ease-duration) var(--app-ease-curve),
         var(--app-focus-fade);
+    }
+  }
+
+  /* A button whose label and spinner crossfade leaves width out of its transitions, since useEasedWidth
+     plays it from the measured width and a CSS transition would hold the width at its old value while
+     that measures the new one. Padding is left out too, so the label is cut at the same place while the
+     width eases. The button element in the selector outranks the shared button transition above */
+  button:has(> [data-eased-width]) {
+    transition:
+      color var(--app-ease-duration) var(--app-ease-curve),
+      background-color var(--app-ease-duration) var(--app-ease-curve),
+      border-color var(--app-ease-duration) var(--app-ease-curve),
+      opacity var(--app-ease-duration) var(--app-ease-curve),
+      transform var(--app-ease-duration) var(--app-ease-curve),
+      border-radius var(--app-ease-duration) var(--app-ease-curve),
+      var(--app-focus-fade);
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    button:has(> [data-eased-width]) {
+      transition: none;
     }
   }
 
