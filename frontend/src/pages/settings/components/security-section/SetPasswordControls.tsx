@@ -1,10 +1,14 @@
 import { useEffect, useRef, useState } from 'react'
 import { useLocation, useNavigate } from 'react-router'
 import { useRefreshOidcIdentities } from '@/api/oidc'
+import { Crossfade } from '@/components/loading/Crossfade'
 import { DisabledReasonButton } from '@/components/tooltips/DisabledReasonButton'
+import { useEasedWidth } from '@/hooks/useEasedWidth'
 import { ProviderReauthModal } from '@/pages/settings/components/security-section/ProviderReauthModal'
 import { SetPasswordModal } from '@/pages/settings/components/security-section/SetPasswordModal'
 import { useProviderReauth } from '@/pages/settings/hooks/useProviderReauth'
+
+const SET_PASSWORD_LABEL = 'Set up a password'
 
 /**
  * The password area for an account with no password: a reminder and a button that re-confirms it is
@@ -17,6 +21,8 @@ export function SetPasswordControls() {
   const navigate = useNavigate()
   const refreshOidcIdentities = useRefreshOidcIdentities()
   const reauth = useProviderReauth()
+  const buttonRef = useRef<HTMLButtonElement>(null)
+  useEasedWidth(buttonRef, reauth.busySlug !== null)
 
   const [modalOpen, setModalOpen] = useState<boolean>(
     () => (location.state as { setPassword?: boolean } | null)?.setPassword === true,
@@ -50,14 +56,22 @@ export function SetPasswordControls() {
         with a provider first.
       </p>
       <DisabledReasonButton
-        className="app-secondary-button"
+        ref={buttonRef}
+        className="app-secondary-button app-width-eased"
         disabled={reauth.busySlug !== null}
         disabledReason={
           reauth.linkedProviders.length === 0 ? 'No sign-in provider is linked to this account' : undefined
         }
         onClick={() => reauth.start({ kind: 'set-password' })}
       >
-        {reauth.busySlug !== null ? <div className="app-spinner" /> : 'Set up a password'}
+        {/* The spinner carries the label as its name, so a screen reader still says which action is in flight */}
+        <Crossfade swapKey={reauth.busySlug !== null ? 'pending' : 'label'}>
+          {reauth.busySlug !== null ? (
+            <div className="app-spinner" aria-label={SET_PASSWORD_LABEL} />
+          ) : (
+            SET_PASSWORD_LABEL
+          )}
+        </Crossfade>
       </DisabledReasonButton>
 
       <ProviderReauthModal
