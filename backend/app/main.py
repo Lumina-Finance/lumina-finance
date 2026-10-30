@@ -9,12 +9,15 @@ from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.abuse_log import log_source_address
+from app.config.log_level import LOG_LEVEL
 from app.config.oidc import OIDC_PROVIDER_CONFIGS
 from app.config.runtime import ALLOWED_ORIGINS, RUNTIME
 from app.database import async_session, engine, verify_app_role_is_unprivileged
 from app.db.bank_transaction_key import verify_key_matches_hashes
 from app.db.encryption_key import verify_key_matches_data
+from app.log_setup import configure_logging
 from app.request_hook import RequestObserverMiddleware, observe_requests
+from app.request_log import log_request
 from app.request_security import RequestBodySizeLimitMiddleware
 from app.request_validation import handle_request_validation_error
 from app.routes.accounts import router as account_router
@@ -40,6 +43,8 @@ from app.services.email import build_email_sender, set_email_sender
 from app.services.fx.lookup_budget import FxLookupBudgetMiddleware
 from app.services.maintenance.expired_records import prune_expired_records_on_schedule
 from app.valkey_store import use_valkey
+
+configure_logging(LOG_LEVEL)
 
 logger = logging.getLogger(__name__)
 
@@ -125,6 +130,7 @@ if ALLOWED_ORIGINS:
 # size guard answers without reaching a route
 app.add_middleware(RequestObserverMiddleware)
 observe_requests(log_source_address)
+observe_requests(log_request)
 
 app.include_router(auth_router)
 app.include_router(app_version_router)

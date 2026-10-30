@@ -37,7 +37,8 @@ SOURCE_ADDRESS_ON_FAILURE_ROUTES = frozenset(
 _FAILURE_STATUSES = range(400, 500)
 
 # A server's own logging setup can prefix or reformat records, which would leave the line invalid
-# JSON, so the line goes straight to standard output at the normal info level
+# JSON, so the line goes straight to standard output. It is an info line, so the app's log level
+# above that stops it
 abuse_log = logging.getLogger("lumina.abuse")
 abuse_log.setLevel(logging.INFO)
 abuse_log.propagate = False
