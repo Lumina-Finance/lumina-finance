@@ -26,7 +26,8 @@ function render(props: { check?: ImportCommitCheck | null; buildError?: string |
 
 /** The button's markup, and the markup of the line that has the id the button is described by */
 function readButton(markup: string) {
-  const button = markup.match(/<button[^>]*>Commit import<\/button>/)?.[0] ?? ''
+  const button =
+    markup.match(/<button[^>]*>(?:(?!<\/button>)[\s\S])*Commit import(?:(?!<\/button>)[\s\S])*<\/button>/)?.[0] ?? ''
   const describedBy = button.match(/aria-describedby="([^"]+)"/)?.[1]
   const line = describedBy ? markup.match(new RegExp(`<p[^>]*id="${describedBy}"[^>]*>([^<]*)</p>`)) : null
   return { button, describedBy, lineText: line?.[1] }
@@ -57,7 +58,9 @@ describe('Commit import while the held-rows check runs', () => {
     const withError = readButton(render({ check: RUNNING, buildError: 'Choose an account for the statement.' }))
 
     expect(withError.lineText).toBe('Choose an account for the statement.')
-    expect(render({ check: RUNNING, buildError: 'Choose an account for the statement.' })).not.toContain(OFX_HELD_CHECK_RUNNING_MESSAGE)
+    expect(render({ check: RUNNING, buildError: 'Choose an account for the statement.' })).not.toContain(
+      OFX_HELD_CHECK_RUNNING_MESSAGE,
+    )
   })
 
   it('shows neither line and is a plain button once the check has answered', () => {
@@ -70,10 +73,32 @@ describe('Commit import while the held-rows check runs', () => {
 })
 
 describe('Commit import after the server refused the import', () => {
-  it('marks the server\'s English reason with its language only when it is told to', () => {
-    const props = { importError: 'Account is archived', canCommit: true, imported: false, onCommit: () => {}, className: '' }
+  it("marks the server's English reason with its language only when it is told to", () => {
+    const props = {
+      importError: 'Account is archived',
+      canCommit: true,
+      imported: false,
+      onCommit: () => {},
+      className: '',
+    }
 
-    expect(renderToStaticMarkup(<ImportCommitFooter {...props} importErrorLang="en" />)).toContain('<span lang="en">Account is archived</span>')
+    expect(renderToStaticMarkup(<ImportCommitFooter {...props} importErrorLang="en" />)).toContain(
+      '<span lang="en">Account is archived</span>',
+    )
     expect(renderToStaticMarkup(<ImportCommitFooter {...props} />)).not.toContain('lang=')
+  })
+})
+
+describe('Commit import label', () => {
+  const props = { importError: null, canCommit: false, onCommit: () => {}, className: '' }
+
+  it('hides the label it does not show from a screen reader, so the button is named by the one it shows', () => {
+    const commit = renderToStaticMarkup(<ImportCommitFooter {...props} imported={false} />)
+    const finished = renderToStaticMarkup(<ImportCommitFooter {...props} imported />)
+
+    expect(commit).toMatch(/aria-hidden="true"[^>]*>Imported</)
+    expect(commit).toMatch(/aria-hidden="false"[^>]*>Commit import</)
+    expect(finished).toMatch(/aria-hidden="true"[^>]*>Commit import</)
+    expect(finished).toMatch(/aria-hidden="false"[^>]*>Imported</)
   })
 })
