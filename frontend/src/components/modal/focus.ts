@@ -114,8 +114,13 @@ export function useDialogFocus(
   useEffect(() => {
     if (!open || closeDisabled || !onClose) return
 
+    // One press closes one layer. The layer that takes the key marks it as handled, so the dialogue under it, whose
+    // listener can run after the top layer has closed and left the stack, does not take the same press as its own
     const closeOnEscape = (event: KeyboardEvent) => {
-      if (event.key === 'Escape' && isTopMostModal(token) && !isFloatingLayerOpen()) onClose()
+      if (event.key !== 'Escape' || event.defaultPrevented) return
+      if (!isTopMostModal(token) || isFloatingLayerOpen()) return
+      event.preventDefault()
+      onClose()
     }
 
     window.addEventListener('keydown', closeOnEscape)
