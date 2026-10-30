@@ -1,4 +1,9 @@
-import { ImportFileSlot, ImportFilesStepLayout, ImportInfoCard, ImportStagedFileTable } from '@/pages/imports/components'
+import {
+  ImportFileSlot,
+  ImportFilesStepLayout,
+  ImportInfoCard,
+  ImportStagedFileTable,
+} from '@/pages/imports/components'
 import { ACTUAL_EXPORT_DOCS_URL, ACTUAL_IMPORT_FILE_TYPE } from '@/pages/imports/actual/constants'
 import type { ActualImportWorkflow, ActualStagedFile } from '@/pages/imports/actual/hooks'
 
@@ -40,7 +45,7 @@ export function ActualFilesStep({
   return (
     <ImportFilesStepLayout
       title="Files"
-      description={(
+      description={
         <>
           Upload the budget exported from Actual Budget, following its{' '}
           <a
@@ -54,7 +59,7 @@ export function ActualFilesStep({
           </a>
           .
         </>
-      )}
+      }
       stats={[
         { label: 'Transactions', value: stagedFile?.rowCount ?? 0 },
         { label: 'Accounts', value: journal.accounts.length },
@@ -69,13 +74,15 @@ export function ActualFilesStep({
         hint="The .zip from Export data in Actual's settings, or the db.sqlite in its data folder."
         fileType={ACTUAL_IMPORT_FILE_TYPE}
         // A finished import keeps its file as a record, so it can't be removed
-        staged={stagedFile && (
-          <ImportStagedFileTable
-            files={[stagedFile]}
-            describe={describeActualFile}
-            onRemove={isImportFinished ? undefined : removeActualFile}
-          />
-        )}
+        staged={
+          stagedFile && (
+            <ImportStagedFileTable
+              files={[stagedFile]}
+              describe={describeActualFile}
+              onRemove={isImportFinished ? undefined : removeActualFile}
+            />
+          )
+        }
         isStagedFileRecord={isImportFinished}
         processing={isProcessingFile}
         disabled={isProcessingFile || uploadBlockReason !== null}
@@ -86,7 +93,9 @@ export function ActualFilesStep({
 
       {/* Shown before the upload, since it answers whether moving over costs a user their budget history */}
       <ImportInfoCard title="You can always recreate your budgets without losing historical data">
-        Lumina Finance supports creating budgets with a past start date, which automatically repopulates your historical utilization rates, so you won't lose any historical information if your budgets weren't imported the way you wanted.
+        Lumina Finance supports creating budgets with a past start date, which automatically repopulates your historical
+        utilization rates, so you won't lose any historical information if your budgets weren't imported the way you
+        wanted.
       </ImportInfoCard>
     </ImportFilesStepLayout>
   )
