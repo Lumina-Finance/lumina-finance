@@ -2873,12 +2873,16 @@
      instantly without smearing */
   .app-cursor-tooltip-flip {
     transform: translateY(var(--cursor-tooltip-flip-y, 0px));
-    transition: transform var(--app-ease-duration) var(--app-ease-curve);
     will-change: transform;
   }
 
+  /* The flip eases only once the tooltip has settled in place, never while it fades in */
+  [data-gliding] > .app-cursor-tooltip-flip {
+    transition: transform var(--app-ease-duration) var(--app-ease-curve);
+  }
+
   @media (prefers-reduced-motion: reduce) {
-    .app-cursor-tooltip-flip {
+    [data-gliding] > .app-cursor-tooltip-flip {
       transition: none;
     }
   }
