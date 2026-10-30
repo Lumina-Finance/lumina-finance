@@ -8,12 +8,9 @@ query string and headers in it, so an observer must pick fields from it and neve
 
 import logging
 import time
-import uuid
 from collections.abc import Callable, Mapping
 from dataclasses import dataclass
 from typing import Any
-
-from fastapi import Request
 
 # Stands in for the route template of a path no route matches, so a scanner's guesses never reach an observer
 UNMATCHED_ROUTE = "unmatched"
@@ -21,9 +18,6 @@ UNMATCHED_ROUTE = "unmatched"
 # Folded into one value, so a client choosing odd methods cannot grow what an observer keeps per method
 OTHER_METHOD = "OTHER"
 _STANDARD_METHODS = frozenset({"GET", "HEAD", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"})
-
-# Key under which the sign-in check leaves the user ID in the request's state, for the record to read
-_USER_ID_STATE_KEY = "observed_user_id"
 
 logger = logging.getLogger(__name__)
 
@@ -39,7 +33,6 @@ class RequestRecord:
         route: Template of the matched route, or the unmatched placeholder
         status: Response status, 500 when an unhandled error ended the request
         duration_seconds: Time from the request reaching the outermost layer to the response ending
-        user_id: Internal ID of the signed-in user, or None when the request had none
     """
 
     scope: Mapping[str, Any]
@@ -47,7 +40,6 @@ class RequestRecord:
     route: str
     status: int
     duration_seconds: float
-    user_id: uuid.UUID | None
 
 
 RequestObserver = Callable[[RequestRecord], None]
@@ -63,16 +55,6 @@ def observe_requests(observer: RequestObserver) -> None:
             return quickly, and an error it raises is logged and does not reach the request
     """
     _observers.append(observer)
-
-
-def record_request_user(request: Request, user_id: uuid.UUID) -> None:
-    """Leave the signed-in user's ID on the request, for the record observers get
-
-    Args:
-        request: Request the user signed in on
-        user_id: Internal ID of the user
-    """
-    setattr(request.state, _USER_ID_STATE_KEY, user_id)
 
 
 def _route_template(scope) -> str:
@@ -121,7 +103,6 @@ class RequestObserverMiddleware:
                 route=_route_template(scope),
                 status=status,
                 duration_seconds=time.perf_counter() - started,
-                user_id=(scope.get("state") or {}).get(_USER_ID_STATE_KEY),
             )
             for observer in tuple(_observers):
                 try:

@@ -15,12 +15,11 @@ async def _test_server_error():
     raise RuntimeError("deliberate failure")
 
 
-async def test_signed_in_request_tells_observers_the_user_and_the_route_template(client, request_records):
-    """A signed-in request carries the user's ID and the route's template, not the account's ID"""
+async def test_signed_in_request_tells_observers_the_route_template(client, request_records):
+    """A signed-in request carries the route's template, not the account's ID"""
     signup_resp = await _create_user(client)
     headers = _get_auth_header(signup_resp)
     account_id = (await _create_account(client, headers)).json()["id"]
-    user_id = (await client.get("/test/me", headers=headers)).json()["id"]
     request_records.clear()
 
     response = await client.get(f"/accounts/{account_id}", headers=headers)
@@ -28,20 +27,18 @@ async def test_signed_in_request_tells_observers_the_user_and_the_route_template
     assert response.status_code == 200
     assert len(request_records) == 1
     record = request_records[0]
-    assert str(record.user_id) == user_id
     assert (record.method, record.route, record.status) == ("GET", "/accounts/{account_id}", 200)
     assert account_id not in repr(record.route)
 
 
 async def test_sign_in_request_carries_no_user_and_no_email(client, request_records):
-    """A sign-in names its route and carries no user, and the email typed is nowhere on the record"""
+    """A sign-in names its route, and the email typed is nowhere on the record"""
     response = await client.post("/auth/login", json={"email": SIGNUP_PAYLOAD["email"], "password": "wrong-password-1"})
 
     assert response.status_code == 401
     assert len(request_records) == 1
     record = request_records[0]
     assert (record.method, record.route, record.status) == ("POST", "/auth/login", 401)
-    assert record.user_id is None
     assert SIGNUP_PAYLOAD["email"] not in repr(record.route)
 
 

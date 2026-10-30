@@ -1,11 +1,8 @@
 """Request observer middleware tests driving it as a plain ASGI app, for what a route test cannot set up"""
 
-import uuid
 from types import SimpleNamespace
 
-from fastapi import Request
-
-from app.request_hook import OTHER_METHOD, UNMATCHED_ROUTE, RequestObserverMiddleware, observe_requests, record_request_user
+from app.request_hook import OTHER_METHOD, UNMATCHED_ROUTE, RequestObserverMiddleware, observe_requests
 
 
 async def _ok_app(scope, receive, send) -> None:
@@ -42,7 +39,6 @@ async def test_an_observer_gets_the_route_template_status_and_duration(request_r
     record = request_records[0]
     assert (record.method, record.route, record.status) == ("GET", "/accounts/{account_id}", 200)
     assert record.duration_seconds >= 0
-    assert record.user_id is None
 
 
 async def test_a_request_no_route_matched_gets_the_placeholder(request_records):
@@ -69,17 +65,6 @@ async def test_a_method_outside_the_standard_set_is_folded_into_one_value(reques
     await RequestObserverMiddleware(_ok_app)(_scope(method="FUZZ-1234"), _receive, _send)
 
     assert request_records[0].method == OTHER_METHOD
-
-
-async def test_the_signed_in_user_is_on_the_record(request_records):
-    """The ID the sign-in check left on the request reaches the observers"""
-    user_id = uuid.UUID("7f2b9b1e-0000-4000-8000-000000000001")
-    scope = _scope(state={})
-    record_request_user(Request(scope), user_id)
-
-    await RequestObserverMiddleware(_ok_app)(scope, _receive, _send)
-
-    assert request_records[0].user_id == user_id
 
 
 async def test_an_observer_that_fails_does_not_stop_the_others_or_the_request(request_records, caplog):

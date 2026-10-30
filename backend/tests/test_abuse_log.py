@@ -1,7 +1,6 @@
 """Abuse log tests calling the observer directly, for what a route test cannot set up"""
 
 import json
-from types import SimpleNamespace
 
 import pytest
 
@@ -19,7 +18,7 @@ def test_every_listed_route_exists():
     assert (SOURCE_ADDRESS_ALWAYS_ROUTES | SOURCE_ADDRESS_ON_FAILURE_ROUTES) <= served
 
 
-def _record(route: str, status: int, client=_CLIENT, user_id=None) -> RequestRecord:
+def _record(route: str, status: int, client=_CLIENT) -> RequestRecord:
     """Return the record of a POST to the route, from the client"""
     return RequestRecord(
         scope={"type": "http", "client": client},
@@ -27,13 +26,12 @@ def _record(route: str, status: int, client=_CLIENT, user_id=None) -> RequestRec
         route=route,
         status=status,
         duration_seconds=0.01,
-        user_id=user_id,
     )
 
 
 def test_a_line_holds_only_the_time_method_route_status_and_address(abuse_log_lines):
     """Nothing else about the request is written, so nothing else can leak"""
-    log_source_address(_record("/auth/login", 401, user_id=SimpleNamespace(hex="a-user")))
+    log_source_address(_record("/auth/login", 401))
 
     assert len(abuse_log_lines) == 1
     line = json.loads(abuse_log_lines[0])
