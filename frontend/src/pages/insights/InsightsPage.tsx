@@ -1,6 +1,7 @@
 import { useCallback, useState } from 'react'
 import { useNavigate } from 'react-router'
 import { buildCategoryTransactionsUrl } from '@/components/transactions/utils/filterNavigation'
+import { isLoadingFirstAnswer } from '@/utils/queryLoading'
 import {
   type InsightsBreakdownCategoryKind,
   useDeleteSavedInsightsRange,
@@ -136,7 +137,7 @@ export default function InsightsPage() {
             displayCurrency={displayCurrency}
             error={queries.periodGlance.error}
             failed={queries.periodGlance.isError}
-            loading={queries.periodGlance.isFetching}
+            loading={isLoadingFirstAnswer(queries.periodGlance)}
             transitionKey={range.cardTransitionKey}
           />
         </div>
@@ -154,7 +155,7 @@ export default function InsightsPage() {
             displayCurrency={displayCurrency}
             error={queries.fundFlow.error}
             failed={queries.fundFlow.isError}
-            loading={queries.fundFlow.isFetching}
+            loading={isLoadingFirstAnswer(queries.fundFlow)}
             transitionKey={range.cardTransitionKey}
           />
         </div>
@@ -173,7 +174,7 @@ export default function InsightsPage() {
             animationKey={`${breakdownMode}-${range.cardTransitionKey}`}
             error={queries.incomeExpenseBreakdown.error}
             failed={queries.incomeExpenseBreakdown.isError}
-            loading={queries.incomeExpenseBreakdown.isFetching}
+            loading={isLoadingFirstAnswer(queries.incomeExpenseBreakdown)}
             transitionKey={range.cardTransitionKey}
           />
         </div>
@@ -189,7 +190,7 @@ export default function InsightsPage() {
             displayCurrency={displayCurrency}
             error={queries.netWorth.error}
             failed={queries.netWorth.isError}
-            loading={queries.netWorth.isFetching}
+            loading={isLoadingFirstAnswer(queries.netWorth)}
             transitionKey={range.cardTransitionKey}
           />
         </div>
@@ -202,7 +203,7 @@ export default function InsightsPage() {
             displayCurrency={displayCurrency}
             error={queries.cashFlow.error}
             failed={queries.cashFlow.isError}
-            loading={queries.cashFlow.isFetching}
+            loading={isLoadingFirstAnswer(queries.cashFlow)}
             transitionKey={range.cardTransitionKey}
           />
         </div>
@@ -216,7 +217,7 @@ export default function InsightsPage() {
             onCapRatesToggle={() => setCapSavingsRateChart((current) => !current)}
             error={queries.savingsRateTrend.error}
             failed={queries.savingsRateTrend.isError}
-            loading={queries.savingsRateTrend.isFetching}
+            loading={isLoadingFirstAnswer(queries.savingsRateTrend)}
             transitionKey="savings-rate-trend"
           />
         </div>
@@ -229,7 +230,7 @@ export default function InsightsPage() {
               currency={displayCurrency}
               error={queries.merchants.error}
               failed={queries.merchants.isError}
-              loading={queries.merchants.isFetching}
+              loading={isLoadingFirstAnswer(queries.merchants)}
               transitionKey={range.cardTransitionKey}
             />
           </div>
@@ -241,7 +242,7 @@ export default function InsightsPage() {
               currency={displayCurrency}
               error={queries.merchants.error}
               failed={queries.merchants.isError}
-              loading={queries.merchants.isFetching}
+              loading={isLoadingFirstAnswer(queries.merchants)}
               transitionKey={range.cardTransitionKey}
             />
           </div>

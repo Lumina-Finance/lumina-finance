@@ -4,6 +4,7 @@ import { flushSync } from 'react-dom'
 import { LOADING_ANIMATION_MIN_MS, withMinDelay } from '@/utils/timing'
 import { useLocation, useNavigate } from 'react-router'
 import { buildImportOriginState } from '@/utils/importOrigin'
+import { isLoadingFirstAnswer } from '@/utils/queryLoading'
 import { useAuth } from '@/hooks/useAuth'
 import { useAccounts } from '@/api/accounts'
 import { getCreateBlockReason } from '@/components/transactions/utils/createBlockReason'
@@ -107,16 +108,17 @@ export default function TransactionsPage() {
   // The overview supports a single account and the date range, so it scopes to the chosen account
   // only when exactly one is selected and otherwise spans every account
   const overviewAccountId = filters.account_id?.length === 1 ? filters.account_id[0] : undefined
+  const overviewQuery = useTransactionsOverview({
+    account_id: overviewAccountId,
+    from_date: overviewFromDate,
+    to_date: overviewToDate,
+  })
   const {
     data: overview,
     isFetching: isOverviewFetching,
     isError: isOverviewError,
     refetch: refetchOverview,
-  } = useTransactionsOverview({
-    account_id: overviewAccountId,
-    from_date: overviewFromDate,
-    to_date: overviewToDate,
-  })
+  } = overviewQuery
 
   // Chart remounts preserve the pre-refactor animation timing when filters change
   const chartAnimationKey = [
@@ -199,7 +201,7 @@ export default function TransactionsPage() {
             <TransactionsTopBand
               overview={overview}
               displayCurrency={displayCurrency}
-              loading={filterListLoading || isOverviewFetching}
+              loading={filterListLoading || isLoadingFirstAnswer(overviewQuery)}
               failed={isOverviewError}
               retrying={retrying}
               skipEntrance={recoveredKey === chartAnimationKey}

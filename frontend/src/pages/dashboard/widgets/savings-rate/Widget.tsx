@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react'
 import { useDashboardSavingsRate } from '@/api/dashboard'
 import { useLoadingSnapshot } from '@/hooks/useLoadingSnapshot'
+import { isLoadingFirstAnswer } from '@/utils/queryLoading'
 import { DashboardWidgetLoadingBody } from '@/pages/dashboard/components/WidgetLoadingBody'
 import { SavingsRateChart } from './Chart'
 import { SavingsRateHeader } from './Header'
@@ -12,12 +13,9 @@ import { getSavingsRateSeries } from '@/pages/dashboard/utils/getSavingsRateSeri
  */
 export function SavingsRateWidget() {
   const [capSavingsRateChart, setCapSavingsRateChart] = useState(false)
-  const {
-    data: incomingDashboardSavingsRate,
-    error: savingsRateError,
-    isError: savingsRateFailed,
-    isFetching: dashboardSavingsRateLoading,
-  } = useDashboardSavingsRate()
+  const savingsRateQuery = useDashboardSavingsRate()
+  const { data: incomingDashboardSavingsRate, error: savingsRateError, isError: savingsRateFailed } = savingsRateQuery
+  const dashboardSavingsRateLoading = isLoadingFirstAnswer(savingsRateQuery)
   const loadingSnapshot = useMemo(
     () => ({ dashboardSavingsRate: incomingDashboardSavingsRate }),
     [incomingDashboardSavingsRate],

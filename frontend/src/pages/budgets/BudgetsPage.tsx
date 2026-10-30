@@ -59,8 +59,14 @@ export default function BudgetsPage() {
     () => new Map((latestUtilizationsQuery.data ?? []).map((utilization) => [utilization.budget_id, utilization])),
     [latestUtilizationsQuery.data],
   )
+  // Cards need all three answers to be right, so a card from the first two waits for the third. Once they
+  // are held a fetch updates the cards in place, and only a list with no cards to show waits for its answer
   const budgetsLoading = useMinimumVisibleFlag(
-    baseBudgetsQuery.isFetching || budgetsQuery.isFetching || latestUtilizationsQuery.isFetching,
+    baseBudgetsQuery.isPending ||
+      budgetsQuery.isPending ||
+      latestUtilizationsQuery.isPending ||
+      (budgetCards.length === 0 &&
+        (baseBudgetsQuery.isFetching || budgetsQuery.isFetching || latestUtilizationsQuery.isFetching)),
     LOADING_ANIMATION_MIN_MS,
   )
   const budgetsError = baseBudgetsQuery.isError || budgetsQuery.isError || latestUtilizationsQuery.isError
@@ -140,7 +146,7 @@ export default function BudgetsPage() {
       />
 
       <AnimatePresence initial={false}>
-        {archivedBudgetCards.length > 0 && (
+        {!budgetsLoading && archivedBudgetCards.length > 0 && (
           <BudgetArchivedSection
             budgetCards={archivedBudgetCards}
             latestUtilizationByBudgetId={latestUtilizationByBudgetId}

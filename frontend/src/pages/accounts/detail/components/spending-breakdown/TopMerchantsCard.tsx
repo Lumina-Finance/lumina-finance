@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react'
 import { CircleHelp } from 'lucide-react'
 import { useAccountSpendingBreakdown, type Account, type SpendingRange } from '@/api/accounts'
 import { getDeterministicChartColor, getDeterministicChartColorMap } from '@/utils/chartColor'
+import { isLoadingFirstAnswer } from '@/utils/queryLoading'
 import { getBreakdownRows, shouldExplainMerchantsTotal } from '@/pages/accounts/detail/utils/spendingBreakdownViewModel'
 import IconTooltip from '@/components/tooltips/IconTooltip'
 import { SpendingBreakdownCard } from './Card'
@@ -32,7 +33,8 @@ function MerchantSpendingTotalTooltip() {
  */
 export function TopMerchantsBySpendingCard({ account }: { account: Account }) {
   const [range, setRange] = useState<SpendingRange>('MTD')
-  const { data, isFetching } = useAccountSpendingBreakdown(account.id, range)
+  const breakdownQuery = useAccountSpendingBreakdown(account.id, range)
+  const { data } = breakdownQuery
   const merchantColors = useMemo(
     () =>
       getDeterministicChartColorMap(
@@ -82,7 +84,7 @@ export function TopMerchantsBySpendingCard({ account }: { account: Account }) {
       totalTooltip={shouldExplainMerchantsTotal(data) ? <MerchantSpendingTotalTooltip /> : undefined}
       currency={account.currency}
       emptyLabel="No merchant activity in this range"
-      loading={isFetching}
+      loading={isLoadingFirstAnswer(breakdownQuery)}
       transitionKey={range}
     />
   )

@@ -2,6 +2,7 @@ import { useMemo } from 'react'
 import { useCategories } from '@/api/categories'
 import { useDashboardRecentActivity } from '@/api/dashboard'
 import { useLoadingSnapshot } from '@/hooks/useLoadingSnapshot'
+import { isLoadingFirstAnswer } from '@/utils/queryLoading'
 import { DashboardWidgetLoadingBody } from '@/pages/dashboard/components/WidgetLoadingBody'
 import { RecentActivityHeader } from './Header'
 import { RecentActivityList } from './List'
@@ -11,18 +12,16 @@ import { getRecentActivityRows } from '@/pages/dashboard/utils/getRecentActivity
  * Loads recent transactions and category metadata for the dashboard activity list
  */
 export function RecentActivityWidget() {
+  const recentActivityQuery = useDashboardRecentActivity()
   const {
     data: incomingDashboardRecentActivity,
     error: recentActivityError,
     isError: recentActivityFailed,
-    isFetching: recentActivityLoading,
-  } = useDashboardRecentActivity()
-  const {
-    data: incomingCategories,
-    error: categoriesError,
-    isError: categoriesFailed,
-    isFetching: categoriesLoading,
-  } = useCategories()
+  } = recentActivityQuery
+  const categoriesQuery = useCategories()
+  const { data: incomingCategories, error: categoriesError, isError: categoriesFailed } = categoriesQuery
+  const recentActivityLoading = isLoadingFirstAnswer(recentActivityQuery)
+  const categoriesLoading = isLoadingFirstAnswer(categoriesQuery)
   const loadingSnapshot = useMemo(
     () => ({
       categories: incomingCategories,

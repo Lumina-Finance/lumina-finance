@@ -25,12 +25,6 @@ type BudgetCardsSectionProps = {
   onOpenBudget: (budget: BudgetCardViewModel) => void
 }
 
-type BudgetCardsLoadingLayerProps = {
-  visible: boolean
-  shouldReduceMotion: boolean
-  fill?: boolean
-}
-
 /**
  * Renders the budget card grid and the loading, error, and empty states for the page
  */
@@ -57,9 +51,26 @@ export default function BudgetCardsSection({
     )
   }
 
+  if (loading) {
+    return (
+      <section
+        className="relative overflow-hidden rounded-lg"
+        style={{ height: BUDGET_CARDS_LOADING_AREA_HEIGHT }}
+        aria-busy
+      >
+        <LoadingOverlay
+          visible
+          shouldReduceMotion={shouldReduceMotion}
+          label="Loading budgets"
+          className="absolute inset-0 z-10 flex items-center justify-center overflow-hidden rounded-lg bg-[var(--app-bg)]"
+        />
+      </section>
+    )
+  }
+
   if (budgetCards.length > 0) {
     return (
-      <section className="relative" aria-busy={loading}>
+      <section className="relative">
         <section className="app-budget-grid">
           {/* popLayout pulls the exiting card out of layout flow immediately so the remaining cards reflow during its exit instead of after it unmounts */}
           <AnimatePresence mode="popLayout">
@@ -100,19 +111,6 @@ export default function BudgetCardsSection({
             })}
           </AnimatePresence>
         </section>
-        <BudgetCardsLoadingLayer visible={loading} shouldReduceMotion={shouldReduceMotion} />
-      </section>
-    )
-  }
-
-  if (loading) {
-    return (
-      <section
-        className="relative overflow-hidden rounded-lg"
-        style={{ height: BUDGET_CARDS_LOADING_AREA_HEIGHT }}
-        aria-busy
-      >
-        <BudgetCardsLoadingLayer visible fill shouldReduceMotion={shouldReduceMotion} />
       </section>
     )
   }
@@ -128,23 +126,5 @@ export default function BudgetCardsSection({
       </div>
       {formOptionsLoading && <p className="sr-only">Loading form options...</p>}
     </section>
-  )
-}
-
-/**
- * Uses the shared loading overlay while preserving the budget grid's custom placeholder height
- */
-function BudgetCardsLoadingLayer({ visible, shouldReduceMotion, fill = false }: BudgetCardsLoadingLayerProps) {
-  return (
-    <LoadingOverlay
-      visible={visible}
-      shouldReduceMotion={shouldReduceMotion}
-      label="Loading budgets"
-      className={[
-        'z-10 flex items-center justify-center overflow-hidden rounded-lg bg-[var(--app-bg)]',
-        fill ? 'absolute inset-0' : 'absolute inset-x-0 top-0',
-      ].join(' ')}
-      style={fill ? undefined : { height: BUDGET_CARDS_LOADING_AREA_HEIGHT }}
-    />
   )
 }

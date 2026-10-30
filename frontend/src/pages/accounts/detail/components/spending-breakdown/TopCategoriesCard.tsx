@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react'
 import { useAccountSpendingBreakdown, type Account, type SpendingRange } from '@/api/accounts'
 import { getCategoryColor, getCategoryColorMap } from '@/utils/chartColor'
+import { isLoadingFirstAnswer } from '@/utils/queryLoading'
 import { getBreakdownRows } from '@/pages/accounts/detail/utils/spendingBreakdownViewModel'
 import { SpendingBreakdownCard } from './Card'
 
@@ -9,7 +10,8 @@ import { SpendingBreakdownCard } from './Card'
  */
 export function TopCategoriesBySpendingCard({ account }: { account: Account }) {
   const [range, setRange] = useState<SpendingRange>('MTD')
-  const { data, isFetching } = useAccountSpendingBreakdown(account.id, range)
+  const breakdownQuery = useAccountSpendingBreakdown(account.id, range)
+  const { data } = breakdownQuery
   const categoryColors = useMemo(
     () =>
       getCategoryColorMap(
@@ -57,7 +59,7 @@ export function TopCategoriesBySpendingCard({ account }: { account: Account }) {
       cardTotal={data?.categories_total_spend ?? 0}
       currency={account.currency}
       emptyLabel="No spending in this range"
-      loading={isFetching}
+      loading={isLoadingFirstAnswer(breakdownQuery)}
       transitionKey={range}
     />
   )

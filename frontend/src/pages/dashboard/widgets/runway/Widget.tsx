@@ -2,6 +2,7 @@ import { useMemo, useRef } from 'react'
 import { useAccounts } from '@/api/accounts'
 import { useRunway, useRunwayAccounts } from '@/api/user'
 import { useLoadingSnapshot } from '@/hooks/useLoadingSnapshot'
+import { isLoadingFirstAnswer } from '@/utils/queryLoading'
 import { useMoneyFormatters } from '@/hooks/useMoneyFormatters'
 import { RUNWAY_BAND_STYLE, formatCompactRunway, runwayBand } from '@/utils/runway'
 import { DashboardWidgetLoadingBody } from '@/pages/dashboard/components/WidgetLoadingBody'
@@ -20,19 +21,19 @@ type RunwayWidgetProps = {
 export function RunwayWidget({ displayCurrency }: RunwayWidgetProps) {
   const runwayCardRef = useRef<HTMLDivElement>(null)
   const { currencies } = useMoneyFormatters()
-  const { data: incomingRunway, error: runwayError, isError: runwayFailed, isFetching: runwayLoading } = useRunway()
+  const runwayQuery = useRunway()
+  const { data: incomingRunway, error: runwayError, isError: runwayFailed } = runwayQuery
+  const runwayAccountsQuery = useRunwayAccounts()
   const {
     data: incomingRunwayAccountIds,
     error: runwayAccountsError,
     isError: runwayAccountsFailed,
-    isFetching: runwayAccountsLoading,
-  } = useRunwayAccounts()
-  const {
-    data: incomingAccounts,
-    error: accountsError,
-    isError: accountsFailed,
-    isFetching: accountsLoading,
-  } = useAccounts()
+  } = runwayAccountsQuery
+  const accountsQuery = useAccounts()
+  const { data: incomingAccounts, error: accountsError, isError: accountsFailed } = accountsQuery
+  const runwayLoading = isLoadingFirstAnswer(runwayQuery)
+  const runwayAccountsLoading = isLoadingFirstAnswer(runwayAccountsQuery)
+  const accountsLoading = isLoadingFirstAnswer(accountsQuery)
   const loadingSnapshot = useMemo(
     () => ({
       accounts: incomingAccounts,

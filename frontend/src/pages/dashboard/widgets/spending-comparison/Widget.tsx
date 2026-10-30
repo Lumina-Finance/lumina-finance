@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react'
 import { type SpendingRange, useSpendingComparison } from '@/api/dashboard'
 import { useLoadingSnapshot } from '@/hooks/useLoadingSnapshot'
+import { isLoadingFirstAnswer } from '@/utils/queryLoading'
 import { DashboardWidgetLoadingBody } from '@/pages/dashboard/components/WidgetLoadingBody'
 import { SpendingComparisonChart } from './Chart'
 import { SpendingComparisonHeader } from './Header'
@@ -17,12 +18,13 @@ type SpendingComparisonWidgetProps = {
  */
 export function SpendingComparisonWidget({ displayCurrency }: SpendingComparisonWidgetProps) {
   const [spendingRange, setSpendingRange] = useState<SpendingRange>('MTD')
+  const spendingComparisonQuery = useSpendingComparison(spendingRange)
   const {
     data: incomingSpendingComparison,
     error: spendingComparisonError,
     isError: spendingComparisonFailed,
-    isFetching: spendingComparisonLoading,
-  } = useSpendingComparison(spendingRange)
+  } = spendingComparisonQuery
+  const spendingComparisonLoading = isLoadingFirstAnswer(spendingComparisonQuery)
   const loadingSnapshot = useMemo(
     () => ({
       spendingComparison: incomingSpendingComparison,

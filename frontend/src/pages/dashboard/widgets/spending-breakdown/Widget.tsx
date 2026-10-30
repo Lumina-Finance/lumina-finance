@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react'
 import { type SpendingRange, useSpendingBreakdown } from '@/api/dashboard'
 import { useLoadingSnapshot } from '@/hooks/useLoadingSnapshot'
+import { isLoadingFirstAnswer } from '@/utils/queryLoading'
 import { SpendingBreakdownChart } from './Chart'
 import { SpendingBreakdownHeader } from './Header'
 import { SpendingBreakdownLegend } from './Legend'
@@ -17,12 +18,13 @@ type SpendingBreakdownWidgetProps = {
 export function SpendingBreakdownWidget({ displayCurrency }: SpendingBreakdownWidgetProps) {
   const [breakdownMode, setBreakdownMode] = useState<BreakdownMode>('spending')
   const [breakdownRange, setBreakdownRange] = useState<SpendingRange>('MTD')
+  const spendingBreakdownQuery = useSpendingBreakdown(breakdownRange)
   const {
     data: incomingSpendingBreakdown,
     error: spendingBreakdownError,
     isError: spendingBreakdownFailed,
-    isFetching: spendingBreakdownLoading,
-  } = useSpendingBreakdown(breakdownRange)
+  } = spendingBreakdownQuery
+  const spendingBreakdownLoading = isLoadingFirstAnswer(spendingBreakdownQuery)
   const loadingSnapshot = useMemo(() => ({ spendingBreakdown: incomingSpendingBreakdown }), [incomingSpendingBreakdown])
   const { displaySnapshot, contentConcealed, loadingVisible, shouldReduceMotion } = useLoadingSnapshot({
     snapshot: loadingSnapshot,

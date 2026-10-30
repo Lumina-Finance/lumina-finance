@@ -10,6 +10,7 @@ import {
   type BalanceChartSnapshot,
 } from '@/pages/accounts/detail/utils/balanceChartViewModel'
 import { formatYmd } from '@/utils/date'
+import { isLoadingFirstAnswer } from '@/utils/queryLoading'
 import { BalanceChart } from './Chart'
 import { BalanceChartHeader } from './Header'
 import { BalanceValueSummary } from './ValueSummary'
@@ -24,12 +25,13 @@ export default function BalanceChartCard({ account }: { account: Account }) {
 
   const { fromDate, toDate, granularity } = useMemo(() => getBalanceRangeWindow(range, user?.tz), [range, user?.tz])
 
-  const { data: snapshots, isFetching } = useAccountSnapshots(account.id, {
+  const snapshotsQuery = useAccountSnapshots(account.id, {
     fromDate: formatYmd(fromDate),
     toDate: formatYmd(toDate),
     granularity: 'day',
     includeAnchor: true,
   })
+  const { data: snapshots } = snapshotsQuery
 
   const incomingSnapshot = useMemo<BalanceChartSnapshot>(
     () => ({
@@ -49,7 +51,7 @@ export default function BalanceChartCard({ account }: { account: Account }) {
   const { displaySnapshot, contentConcealed, loadingVisible, shouldReduceMotion } =
     useLoadingSnapshot<BalanceChartSnapshot>({
       snapshot: incomingSnapshot,
-      loading: isFetching,
+      loading: isLoadingFirstAnswer(snapshotsQuery),
       transitionKey: range,
     })
 

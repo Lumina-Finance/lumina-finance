@@ -1,6 +1,7 @@
 import { useMemo } from 'react'
 import { useLatestBudgetUtilizations } from '@/api/budgets'
 import { useLoadingSnapshot } from '@/hooks/useLoadingSnapshot'
+import { isLoadingFirstAnswer } from '@/utils/queryLoading'
 import { DashboardWidgetLoadingBody } from '@/pages/dashboard/components/WidgetLoadingBody'
 import { TopBudgetsHeader } from './Header'
 import { TopBudgetsList } from './List'
@@ -11,12 +12,9 @@ import { getTopBudgets } from '@/pages/dashboard/utils/getTopBudgets'
  * Loads recent budget utilization data and composes the dashboard top budgets list
  */
 export function TopBudgetsWidget() {
-  const {
-    data: incomingLatestBudgetUtilizations,
-    error: budgetsError,
-    isError: budgetsFailed,
-    isFetching: loading,
-  } = useLatestBudgetUtilizations()
+  const utilizationsQuery = useLatestBudgetUtilizations()
+  const { data: incomingLatestBudgetUtilizations, error: budgetsError, isError: budgetsFailed } = utilizationsQuery
+  const loading = isLoadingFirstAnswer(utilizationsQuery)
   const loadingSnapshot = useMemo(
     () => ({ latestBudgetUtilizations: incomingLatestBudgetUtilizations }),
     [incomingLatestBudgetUtilizations],

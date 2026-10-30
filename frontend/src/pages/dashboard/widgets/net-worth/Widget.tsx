@@ -1,6 +1,7 @@
 import { useMemo } from 'react'
 import { useDashboardNetWorth } from '@/api/dashboard'
 import { useLoadingSnapshot } from '@/hooks/useLoadingSnapshot'
+import { isLoadingFirstAnswer } from '@/utils/queryLoading'
 import { DashboardWidgetLoadingBody } from '@/pages/dashboard/components/WidgetLoadingBody'
 import { NetWorthChart } from './Chart'
 import { NetWorthHeader } from './Header'
@@ -17,12 +18,9 @@ type NetWorthWidgetProps = {
  */
 export function NetWorthWidget({ displayCurrency }: NetWorthWidgetProps) {
   const { user } = useAuth()
-  const {
-    data: incomingDashboardNetWorth,
-    error: netWorthError,
-    isError: netWorthFailed,
-    isFetching: dashboardNetWorthLoading,
-  } = useDashboardNetWorth()
+  const netWorthQuery = useDashboardNetWorth()
+  const { data: incomingDashboardNetWorth, error: netWorthError, isError: netWorthFailed } = netWorthQuery
+  const dashboardNetWorthLoading = isLoadingFirstAnswer(netWorthQuery)
   const loadingSnapshot = useMemo(() => ({ dashboardNetWorth: incomingDashboardNetWorth }), [incomingDashboardNetWorth])
   const { displaySnapshot, contentConcealed, loadingVisible, shouldReduceMotion } = useLoadingSnapshot({
     snapshot: loadingSnapshot,

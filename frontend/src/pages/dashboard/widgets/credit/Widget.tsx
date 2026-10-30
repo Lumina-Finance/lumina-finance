@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react'
 import { useDashboardCreditUtilization } from '@/api/dashboard'
 import { useLoadingSnapshot } from '@/hooks/useLoadingSnapshot'
+import { isLoadingFirstAnswer } from '@/utils/queryLoading'
 import { CreditAccountsModal } from './AccountsModal'
 import { CreditHeader } from './Header'
 import { CreditUsageBody } from './UsageBody'
@@ -17,12 +18,9 @@ type CreditWidgetProps = {
  * account choice, progress ring, and amount
  */
 export function CreditWidget({ displayCurrency }: CreditWidgetProps) {
-  const {
-    data: incomingDashboardCredit,
-    error: creditError,
-    isError: creditFailed,
-    isFetching: dashboardCreditLoading,
-  } = useDashboardCreditUtilization()
+  const creditQuery = useDashboardCreditUtilization()
+  const { data: incomingDashboardCredit, error: creditError, isError: creditFailed } = creditQuery
+  const dashboardCreditLoading = isLoadingFirstAnswer(creditQuery)
   const [creditMode, setCreditMode] = useState<CreditMode>('used')
   const [accountsModalOpen, setAccountsModalOpen] = useState(false)
   const loadingSnapshot = useMemo(() => ({ dashboardCredit: incomingDashboardCredit }), [incomingDashboardCredit])
