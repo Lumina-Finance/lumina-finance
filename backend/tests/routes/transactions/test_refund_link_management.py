@@ -4,6 +4,7 @@ from tests.routes.transactions._helpers import (
     _create_account,
     _create_category,
     _create_transaction,
+    _seed_usd_currency,
     _setup_user_with_deps,
 )
 
@@ -373,3 +374,23 @@ async def test_an_edit_that_keeps_the_link_valid_is_accepted(client):
 
     assert resp.status_code == 200
     assert resp.json()["refund_of_transaction_id"] == expense["id"]
+
+
+async def test_a_refund_in_another_currency_is_neither_offered_nor_linked(client):
+    """The picker leaves out money in another currency, so a direct request to link it is refused too."""
+    headers, account_id, category_id = await _setup_user_with_deps(client)
+    expense = (await _create_transaction(client, headers, account_id, category_id)).json()
+    same = (await _create_transaction(client, headers, account_id, category_id, amount=700)).json()
+    await _seed_usd_currency()
+    usd_account_id = (await _create_account(client, headers, name="US", currency="USD")).json()["id"]
+    usd_refund = (await _create_transaction(client, headers, usd_account_id, category_id, amount=700, currency="USD")).json()
+    usd_expense = (await _create_transaction(client, headers, usd_account_id, category_id, currency="USD")).json()
+
+    assert await _candidates(client, headers, expense["id"]) == [same["id"]]
+    assert await _candidates(client, headers, same["id"]) == [expense["id"]]
+    for refund_id, original_id in ((usd_refund["id"], expense["id"]), (same["id"], usd_expense["id"])):
+        resp = await _link(client, headers, refund_id, original_id)
+        assert resp.status_code == 422
+        assert resp.json()["detail"] == "A refund can only be linked to an expense in its own currency"
+        assert (await _get(client, headers, refund_id))["refund_of_transaction_id"] is None
+

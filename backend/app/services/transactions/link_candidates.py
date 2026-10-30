@@ -76,7 +76,7 @@ async def list_refund_link_candidates(
 
     # Linking accepts individually owned, unarchived accounts only
     linkable_account = Transaction.account_id.in_(select(Account.id).where(Account.group_id.is_(None), Account.is_archived.is_(False)))
-    conditions: list[ColumnElement[bool]] = [Transaction.id != anchor.id, linkable_account]
+    conditions: list[ColumnElement[bool]] = [Transaction.id != anchor.id, Transaction.currency == anchor.currency, linkable_account]
     unlinked_ids = unlinked_ids or []
     own_original_id: uuid.UUID | None = None
     if anchor.amount < 0:

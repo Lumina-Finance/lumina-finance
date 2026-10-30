@@ -238,7 +238,8 @@ async def link_existing_refund(
 
     Raises:
         HTTPException: 404 when either is missing or not the user's, 409 when the refund is already
-            linked, and 422 when they are the same transaction or the pairing is not a refund
+            linked, and 422 when they are the same transaction, the pairing is not a refund, or they
+            are in different currencies
     """
     refund = await check_transaction_access(db, refund_id, user.id, PermissionLevel.WRITE, lock_for_update=True)
     refund_account = await get_parent_account_for_transaction(db, refund)
@@ -248,7 +249,12 @@ async def link_existing_refund(
     if (await db.execute(select(TransactionLink.id).where(TransactionLink.refund_transaction_id == refund_id))).first() is not None:
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="This refund is already linked to an expense")
     refund_category = await db.get(Category, refund.category_id)
-    await validate_refund_original(db, user, original_id, refund.amount, refund.currency, refund_account, refund_category)
+    original = await validate_refund_original(db, user, original_id, refund.amount, refund.currency, refund_account, refund_category)
+    if refund.currency != original.currency:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+            detail="A refund can only be linked to an expense in its own currency",
+        )
 
     db.add(TransactionLink(refund_transaction_id=refund_id, original_transaction_id=original_id))
     await db.flush()
