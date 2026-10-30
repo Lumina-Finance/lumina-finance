@@ -404,14 +404,15 @@ async function isInCorner(message: Locator): Promise<boolean> {
   return right === MESSAGE_IN_CORNER.right && bottom === MESSAGE_IN_CORNER.bottom
 }
 
-test("keeps the link's message clear of Cancel and Save changes where the edit modal sits in the middle", async ({ page, request }) => {
+test("leaves the link's message in the corner, clear of Cancel and Save changes, where the edit modal sits in the middle", async ({ page, request }) => {
   // The narrowest screen the modal sits in the middle of, where the message in the corner comes closest
-  // to its buttons. The message moves up only as far as the footer's own box reaches, so where it sits
-  // is not asserted, only that it shows and covers neither button
+  // to its buttons. The footer's padding reaches the corner there without any button doing so, and the
+  // message stays down as it does on main
   await page.setViewportSize(NARROWEST_CENTRED_MODAL_SIZE)
   const { dialog, message } = await linkFromEditAccount(page, request)
 
-  await runClockUntil(page, async () => await message.isVisible())
+  await runClockUntil(page, () => isInCorner(message))
+  expect(await readMessageInset(message)).toEqual(MESSAGE_IN_CORNER)
   expect(await isUncovered(dialog.getByRole('button', { name: 'Cancel', exact: true }))).toBe(true)
   expect(await isUncovered(dialog.getByRole('button', { name: 'Save changes', exact: true }))).toBe(true)
 })

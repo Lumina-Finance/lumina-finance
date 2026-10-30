@@ -1,5 +1,6 @@
 import { Trash2 } from 'lucide-react'
 import { PendingLabel } from '@/components/loading/PendingLabel'
+import { useFooterKeepClear } from '@/components/modal/footerClearance'
 import { MODAL_INSET_CLASS_NAME } from '@/components/modal/inset'
 import { DisabledReasonButton } from '@/components/tooltips/DisabledReasonButton'
 import type { DeleteStage } from '@/pages/accounts/detail/components/edit-identity/types'
@@ -26,6 +27,8 @@ export function EditModalFooter({
   onCancel,
   onStartDelete,
 }: EditModalFooterProps) {
+  const keepClear = useFooterKeepClear()
+
   // Saving and starting a delete both wait while the delete confirmation is open
   const deleteInProgressReason =
     !isBusy && deleteStage !== 'idle' ? 'Finish or cancel deleting the account first' : undefined
@@ -34,7 +37,7 @@ export function EditModalFooter({
     <div
       className={`flex shrink-0 items-center gap-3 py-4 min-[1050px]:py-5 ${MODAL_INSET_CLASS_NAME.stacked}`}
       style={{ borderTop: '1px solid var(--app-border)' }}
-      data-toast-keep-clear
+      {...keepClear}
     >
       <DisabledReasonButton
         className="app-danger-button h-10 w-10 shrink-0 px-0"

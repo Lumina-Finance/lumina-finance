@@ -1,5 +1,6 @@
 import type { FormEvent, ReactNode, Ref } from 'react'
 import { X, type LucideIcon } from 'lucide-react'
+import { useFooterKeepClear } from '@/components/modal/footerClearance'
 import { MODAL_INSET_CLASS_NAME } from '@/components/modal/inset'
 import { MODAL_TITLE_CLASS_NAME, ModalRail } from '@/components/modal/Rail'
 import { ModalShell, type ModalLevel } from '@/components/modal/Shell'
@@ -86,6 +87,7 @@ export function ModalTitledPanel({
   children,
 }: ModalTitledPanelProps) {
   const chrome = CHROME[level]
+  const keepClear = useFooterKeepClear()
 
   const content = (
     <>
@@ -131,7 +133,7 @@ export function ModalTitledPanel({
 
       {/* Marked so a message shown while the modal fills the screen can sit above the whole of it */}
       {footer && (
-        <div className="shrink-0" data-toast-keep-clear>
+        <div className="shrink-0" {...keepClear}>
           {footer}
         </div>
       )}

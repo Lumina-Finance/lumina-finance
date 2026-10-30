@@ -1,5 +1,6 @@
 import { ArrowLeftRight, Pencil, X } from 'lucide-react'
 import { Switch } from '@/components/forms/Switch'
+import { useFooterKeepClear } from '@/components/modal/footerClearance'
 import { ModalShell } from '@/components/modal/Shell'
 import type { Currency } from '@/api/currency'
 import type { TaxAdvantagedCategory } from '@/api/tax-advantaged-categories'
@@ -56,6 +57,8 @@ export default function TaxAdvantagedCategoryDetailsModal({
   problems,
   updatePending,
 }: TaxAdvantagedCategoryDetailsModalProps) {
+  const keepClear = useFooterKeepClear()
+
   return (
     <ModalShell
       open={open}
@@ -237,7 +240,7 @@ export default function TaxAdvantagedCategoryDetailsModal({
       <div
         className="grid shrink-0 grid-cols-2 gap-2 border-t px-5 py-4"
         style={{ borderColor: 'var(--app-border)' }}
-        data-toast-keep-clear
+        {...keepClear}
       >
         <button
           type="button"

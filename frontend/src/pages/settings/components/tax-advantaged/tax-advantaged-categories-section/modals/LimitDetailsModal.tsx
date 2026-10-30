@@ -1,5 +1,6 @@
 import { Pencil, Trash2, X } from 'lucide-react'
 import { PendingLabel } from '@/components/loading/PendingLabel'
+import { useFooterKeepClear } from '@/components/modal/footerClearance'
 import { ModalShell } from '@/components/modal/Shell'
 import { DisabledReasonButton } from '@/components/tooltips/DisabledReasonButton'
 import type { Currency } from '@/api/currency'
@@ -70,6 +71,8 @@ export default function TaxAdvantagedLimitDetailsModal({
   selectedDraft,
   showAddTaxYear,
 }: TaxAdvantagedLimitDetailsModalProps) {
+  const keepClear = useFooterKeepClear()
+
   return (
     <ModalShell
       open={showAddTaxYear || Boolean(selectedLimit && selectedDraft)}
@@ -256,7 +259,7 @@ export default function TaxAdvantagedLimitDetailsModal({
         ) : null}
       </div>
       <div
-        data-toast-keep-clear
+        {...keepClear}
         className="shrink-0 border-t px-5 py-4"
         style={{ borderColor: 'var(--app-border)' }}
       >
