@@ -149,12 +149,11 @@ async def test_deleting_either_side_removes_the_link(client):
     ("account_currency", "refund_overrides"),
     [
         ("USD", {"currency": "USD"}),
-        ("USD", {"currency": "CAD", "fx_rate": 1.3}),
         ("CAD", {"currency": "USD", "fx_rate": 0.7}),
     ],
 )
 async def test_creating_a_refund_in_another_currency_is_refused_and_writes_nothing(client, account_currency, refund_overrides):
-    """Either the refund's own currency or its account's being another one is refused, with no transaction left behind."""
+    """A refund whose own currency is another one is refused, whatever its account, with no transaction left behind."""
     headers, account_id, category_id = await _setup_user_with_deps(client)
     expense = (await _create_transaction(client, headers, account_id, category_id)).json()
     await _seed_usd_currency()
@@ -176,6 +175,19 @@ async def test_a_refund_from_another_account_in_the_same_currency_is_accepted(cl
     second_account_id = (await _create_account(client, headers, name="Second")).json()["id"]
 
     resp = await _create_refund(client, headers, second_account_id, category_id, expense["id"])
+
+    assert resp.status_code == 201
+    assert resp.json()["refund_of_transaction_id"] == expense["id"]
+
+
+async def test_a_refund_in_the_expenses_currency_on_an_account_in_another_is_accepted(client):
+    """The rule compares the transactions' own currencies, so the account's currency doesn't refuse it."""
+    headers, account_id, category_id = await _setup_user_with_deps(client)
+    expense = (await _create_transaction(client, headers, account_id, category_id)).json()
+    await _seed_usd_currency()
+    usd_account_id = (await _create_account(client, headers, name="US", currency="USD")).json()["id"]
+
+    resp = await _create_refund(client, headers, usd_account_id, category_id, expense["id"], fx_rate=1.3)
 
     assert resp.status_code == 201
     assert resp.json()["refund_of_transaction_id"] == expense["id"]

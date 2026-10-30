@@ -428,56 +428,54 @@ async def test_a_bulk_edit_that_files_a_linked_row_under_the_wrong_category_chan
     assert (await _get(client, headers, refund["id"]))["refund_of_transaction_id"] == expense["id"]
 
 
-async def test_a_refund_held_in_another_currencys_account_is_neither_offered_nor_linked(client):
-    """A refund moved to an account in another currency keeps its currency field, but its money is in that account's."""
-    headers, account_id, category_id = await _setup_user_with_deps(client)
-    expense = (await _create_transaction(client, headers, account_id, category_id)).json()
-    moved = (await _create_transaction(client, headers, account_id, category_id, amount=700)).json()
-    await _seed_usd_currency()
-    usd_account_id = (await _create_account(client, headers, name="US", currency="USD")).json()["id"]
-    move = await client.patch(f"/transactions/{moved['id']}", json={"account_id": usd_account_id, "fx_rate": 1.3}, headers=headers)
-    assert move.status_code == 200
-
-    assert await _candidates(client, headers, expense["id"]) == []
-    assert await _candidates(client, headers, moved["id"]) == []
-    resp = await _link(client, headers, moved["id"], expense["id"])
-    assert resp.status_code == 422
-    assert resp.json()["detail"] == "A refund can only be linked to an expense in its own currency"
-
-
-async def test_an_expense_held_in_another_currencys_account_is_neither_offered_nor_refunded(client):
-    """An expense moved to an account in another currency keeps its currency field, but its money is in that account's."""
-    headers, account_id, category_id = await _setup_user_with_deps(client)
-    expense = (await _create_transaction(client, headers, account_id, category_id)).json()
-    refund = (await _create_transaction(client, headers, account_id, category_id, amount=700)).json()
-    await _seed_usd_currency()
-    usd_account_id = (await _create_account(client, headers, name="US", currency="USD")).json()["id"]
-    move = await client.patch(f"/transactions/{expense['id']}", json={"account_id": usd_account_id, "fx_rate": 1.3}, headers=headers)
-    assert move.status_code == 200
-
-    assert await _candidates(client, headers, refund["id"]) == []
-    assert await _candidates(client, headers, expense["id"]) == []
-    resp = await _link(client, headers, refund["id"], expense["id"])
-    assert resp.status_code == 422
-    assert resp.json()["detail"] == "A refund can only be linked to an expense in its own currency"
-
-
-async def test_a_bulk_edit_moving_a_linked_row_to_another_currencys_account_changes_nothing(client):
-    """A row with a rate recorded passes the bulk rate check, so the link's own check has to refuse the whole set."""
+async def test_a_bulk_edit_moving_a_linked_row_keeps_its_currency_and_its_link(client):
+    """A bulk move leaves the row's own currency as it was, so the link still joins one currency and stays."""
     headers, account_id, category_id = await _setup_user_with_deps(client)
     expense = (await _create_transaction(client, headers, account_id, category_id)).json()
     refund = await _refund(client, headers, account_id, category_id, expense["id"], amount=100, fx_rate=1.3)
-    bystander = (await _create_transaction(client, headers, account_id, category_id, fx_rate=1.3)).json()
     await _seed_usd_currency()
     usd_account_id = (await _create_account(client, headers, name="US", currency="USD")).json()["id"]
 
-    refused = await client.patch(
+    moved = await client.patch(
         "/transactions/bulk",
-        json={"transaction_ids": [refund["id"], bystander["id"]], "account_id": usd_account_id},
+        json={"transaction_ids": [refund["id"]], "account_id": usd_account_id},
         headers=headers,
     )
 
-    assert refused.status_code == 422
-    assert "both in one currency" in refused.json()["detail"]
-    assert (await _get(client, headers, refund["id"]))["account_id"] == account_id
-    assert (await _get(client, headers, bystander["id"]))["account_id"] == account_id
+    assert moved.status_code == 200
+    after = await _get(client, headers, refund["id"])
+    assert after["account_id"] == usd_account_id
+    assert after["currency"] == "CAD"
+    assert after["refund_of_transaction_id"] == expense["id"]
+
+
+async def test_transactions_in_one_currency_on_an_account_in_another_are_offered_and_linked(client):
+    """The rule compares the transactions' own currencies, so a USD expense and refund on a CAD account can link."""
+    headers, account_id, category_id = await _setup_user_with_deps(client)
+    await _seed_usd_currency()
+    usd = {"currency": "USD", "fx_rate": 1.3}
+    expense = (await _create_transaction(client, headers, account_id, category_id, **usd)).json()
+    refund = (await _create_transaction(client, headers, account_id, category_id, amount=700, **usd)).json()
+
+    assert await _candidates(client, headers, expense["id"]) == [refund["id"]]
+    assert await _candidates(client, headers, refund["id"]) == [expense["id"]]
+    resp = await _link(client, headers, refund["id"], expense["id"])
+    assert resp.status_code == 204
+
+
+async def test_a_row_in_another_currency_on_the_same_account_is_neither_offered_nor_linked(client):
+    """Sharing an account doesn't help: a USD row on a CAD account stays out of a CAD transaction's list."""
+    headers, account_id, category_id = await _setup_user_with_deps(client)
+    await _seed_usd_currency()
+    usd = {"currency": "USD", "fx_rate": 1.3}
+    expense = (await _create_transaction(client, headers, account_id, category_id)).json()
+    refund = (await _create_transaction(client, headers, account_id, category_id, amount=700)).json()
+    usd_expense = (await _create_transaction(client, headers, account_id, category_id, **usd)).json()
+    usd_refund = (await _create_transaction(client, headers, account_id, category_id, amount=700, **usd)).json()
+
+    assert await _candidates(client, headers, expense["id"]) == [refund["id"]]
+    assert await _candidates(client, headers, refund["id"]) == [expense["id"]]
+    for refund_id, original_id in ((usd_refund["id"], expense["id"]), (refund["id"], usd_expense["id"])):
+        resp = await _link(client, headers, refund_id, original_id)
+        assert resp.status_code == 422
+        assert resp.json()["detail"] == "A refund can only be linked to an expense in its own currency"

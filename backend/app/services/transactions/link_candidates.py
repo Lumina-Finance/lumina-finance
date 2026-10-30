@@ -76,14 +76,8 @@ async def list_refund_link_candidates(
     if account.group_id is not None or account.is_archived or category is None or category.kind == CategoryKind.TRANSFER:
         return []
 
-    # Linking refuses a transaction whose account is in another currency than its own, so nothing can be offered to it
-    if account.currency != anchor.currency:
-        return []
-
-    # Linking accepts individually owned, unarchived accounts in one currency only
-    linkable_account = Transaction.account_id.in_(
-        select(Account.id).where(Account.group_id.is_(None), Account.is_archived.is_(False), Account.currency == anchor.currency),
-    )
+    # Linking accepts individually owned, unarchived accounts only
+    linkable_account = Transaction.account_id.in_(select(Account.id).where(Account.group_id.is_(None), Account.is_archived.is_(False)))
     conditions: list[ColumnElement[bool]] = [Transaction.id != anchor.id, Transaction.currency == anchor.currency, linkable_account]
     unlinked_ids = unlinked_ids or []
     own_original_id: uuid.UUID | None = None
