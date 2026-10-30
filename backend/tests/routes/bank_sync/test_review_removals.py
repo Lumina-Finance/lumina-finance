@@ -15,6 +15,7 @@ import asyncio
 import uuid
 from dataclasses import dataclass
 from datetime import UTC, date, datetime
+from unittest.mock import ANY
 
 import pytest
 from sqlalchemy import func, select, text, update
@@ -192,6 +193,8 @@ async def test_keeping_the_transaction_leaves_the_ledger_and_remembers_the_remov
             "raw_amount": None,
             "description": _GROCERIES,
         },
+        # The record was received when the test committed it
+        "received_at": ANY,
         "edited_fields": ["amount"],
         "review_item_id": None,
     }

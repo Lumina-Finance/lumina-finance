@@ -12,6 +12,7 @@ import asyncio
 import uuid
 from dataclasses import dataclass
 from datetime import date, timedelta
+from unittest.mock import ANY
 
 import pytest
 from sqlalchemy import func, select
@@ -95,6 +96,8 @@ def _tesco_source(*, amount: int | None = -2340, raw_amount: str | None = None, 
             "raw_amount": raw_amount,
             "description": _TESCO,
         },
+        # The record was received when the test committed it
+        "received_at": ANY,
         "edited_fields": edited_fields or [],
         "review_item_id": None,
     }

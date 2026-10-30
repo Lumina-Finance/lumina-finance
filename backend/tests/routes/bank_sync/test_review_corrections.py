@@ -15,6 +15,7 @@ import re
 import uuid
 from dataclasses import dataclass
 from datetime import date
+from unittest.mock import ANY
 
 import pytest
 from sqlalchemy import func, select, update
@@ -109,6 +110,8 @@ def _blue_bottle_source(*, amount: int | None = -475, raw_amount: str | None = N
             "raw_amount": raw_amount,
             "description": _BLUE_BOTTLE,
         },
+        # The record was received when the test committed it
+        "received_at": ANY,
         "edited_fields": edited_fields or [],
         "review_item_id": None,
     }
