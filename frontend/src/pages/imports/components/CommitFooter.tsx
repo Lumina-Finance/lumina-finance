@@ -10,6 +10,32 @@ export interface ImportCommitCheck {
   onRetry: () => void
 }
 
+const COMMIT_LABELS = ['Commit import', 'Imported'] as const
+
+/**
+ * The button's text, which fades from one label to the other when an undo reopens a finished import
+ *
+ * Both labels sit in one grid cell, so the button keeps the width of the longer one in either state
+ * and its edge never jumps. The one not shown is hidden from assistive technology, so the button is
+ * named by the label it shows
+ */
+function CommitLabel({ imported }: { imported: boolean }) {
+  const shown = imported ? 'Imported' : 'Commit import'
+  return (
+    <span className="grid">
+      {COMMIT_LABELS.map((label) => (
+        <span
+          key={label}
+          aria-hidden={label !== shown}
+          className={`col-start-1 row-start-1 text-center transition-opacity motion-reduce:transition-none ${label === shown ? 'opacity-100' : 'opacity-0'}`}
+        >
+          {label}
+        </span>
+      ))}
+    </span>
+  )
+}
+
 /**
  * The button that starts an import, with the reason it can't start yet or the reason an attempt came
  * back refused above it
@@ -99,7 +125,7 @@ export function ImportCommitFooter({
         disabledReason={canCommit ? undefined : imported ? 'This import is already done' : reason}
         reasonShownById={reasonIsPrinted ? reasonId : undefined}
       >
-        {imported ? 'Imported' : 'Commit import'}
+        <CommitLabel imported={imported} />
       </DisabledReasonButton>
     </div>
   )

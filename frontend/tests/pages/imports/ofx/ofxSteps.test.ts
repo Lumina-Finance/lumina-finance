@@ -197,14 +197,14 @@ describe('the account step and the preview', () => {
     expect(notice).toContain('Statements in another currency')
     expect(notice).toContain(refusal)
     expect(preview).toContain(refusal)
-    expect(preview).toMatch(/<button[^>]*disabled[^>]*>[^<]*Commit import/)
+    expect(preview).toMatch(/<button[^>]*disabled[^>]*>(?:(?!<\/button>)[\s\S])*Commit import/)
   })
 
   it("lists no refusal and enables Commit when the account is in the statement's currency", async () => {
     const state = await buildState('CAD')
 
     expect(renderMismatchNotice(state)).toBe('')
-    expect(renderPreviewStep(state)).not.toMatch(/<button[^>]*disabled[^>]*>[^<]*Commit import/)
+    expect(renderPreviewStep(state)).not.toMatch(/<button[^>]*disabled[^>]*>(?:(?!<\/button>)[\s\S])*Commit import/)
   })
 
   it('lists the skipped transaction with its reason on the preview', async () => {
