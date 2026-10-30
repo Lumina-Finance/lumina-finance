@@ -126,6 +126,25 @@ async def test_a_refund_made_after_an_import_ends_its_undo(client):
     assert (await _undo(client, headers, run_id)).status_code == 409
 
 
+async def test_linking_two_imported_rows_ends_the_import_undo(client):
+    """A link is the user's own change, so undo can't take away the rows it joins."""
+    headers, _, _ = await _setup_user_with_deps(client)
+    run_id, _ = await _import_everyday(client, headers, amounts=("-4.50", "3.25"))
+    rows = (await client.get("/transactions", headers=headers)).json()
+    expense = next(row for row in rows if row["amount"] < 0)
+    inflow = next(row for row in rows if row["amount"] > 0)
+
+    linked = await client.post(
+        f"/transactions/{inflow['id']}/refund-link",
+        json={"original_transaction_id": expense["id"]},
+        headers=headers,
+    )
+
+    assert linked.status_code == 204, linked.text
+    assert await _last(client, headers) is None
+    assert (await _undo(client, headers, run_id)).status_code == 409
+
+
 async def test_undo_deletes_everything_the_import_wrote_and_keeps_what_it_reused(client):
     """Undo would leave the records the import created behind, or take an account that existed before it"""
     headers, main_id, _ = await _setup_user_with_deps(client)

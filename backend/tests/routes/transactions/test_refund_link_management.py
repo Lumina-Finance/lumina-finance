@@ -1,6 +1,7 @@
 """Linking an existing refund, choosing what deleting a linked transaction takes, and keeping links valid"""
 
 from tests.routes.transactions._helpers import (
+    NONEXISTENT_ID,
     _create_account,
     _create_category,
     _create_transaction,
@@ -394,3 +395,58 @@ async def test_a_refund_in_another_currency_is_neither_offered_nor_linked(client
         assert resp.json()["detail"] == "A refund can only be linked to an expense in its own currency"
         assert (await _get(client, headers, refund_id))["refund_of_transaction_id"] is None
 
+
+async def test_a_missing_transaction_and_another_users_answer_the_same(client):
+    """Linking, unlinking and listing candidates can't tell someone else's transaction from one that doesn't exist."""
+    headers, account_id, category_id = await _setup_user_with_deps(client)
+    other_headers, other_account_id, other_category_id = await _setup_user_with_deps(client, email="other@example.com", name_prefix="Other")
+    expense = (await _create_transaction(client, headers, account_id, category_id)).json()
+    refund = await _refund(client, headers, account_id, category_id, expense["id"], amount=100)
+    free = (await _create_transaction(client, headers, account_id, category_id, amount=100)).json()
+    their_inflow = (await _create_transaction(client, other_headers, other_account_id, other_category_id, amount=100)).json()
+    their_expense = (await _create_transaction(client, other_headers, other_account_id, other_category_id)).json()
+
+    pairs = (
+        (await _link(client, headers, NONEXISTENT_ID, expense["id"]), await _link(client, headers, their_inflow["id"], expense["id"])),
+        (await _link(client, headers, free["id"], NONEXISTENT_ID), await _link(client, headers, free["id"], their_expense["id"])),
+        (
+            await client.delete(f"/transactions/{NONEXISTENT_ID}/refund-link", headers=other_headers),
+            await client.delete(f"/transactions/{refund['id']}/refund-link", headers=other_headers),
+        ),
+        (
+            await client.get(f"/transactions/{NONEXISTENT_ID}/refund-link-candidates", headers=other_headers),
+            await client.get(f"/transactions/{expense['id']}/refund-link-candidates", headers=other_headers),
+        ),
+    )
+
+    for missing, not_theirs in pairs:
+        assert missing.status_code == 404
+        assert not_theirs.status_code == 404
+        assert missing.json() == not_theirs.json()
+    assert their_inflow["id"] not in await _candidates(client, headers, expense["id"], unlinked_id=their_inflow["id"])
+
+
+async def test_a_bulk_edit_that_files_a_linked_row_under_the_wrong_category_changes_nothing(client):
+    """The set holding a linked expense moved to income is refused whole, and an edit that keeps the link passes."""
+    headers, account_id, category_id = await _setup_user_with_deps(client)
+    income_id = (await _create_category(client, headers, name="Pay", kind="income")).json()["id"]
+    expense = (await _create_transaction(client, headers, account_id, category_id)).json()
+    refund = await _refund(client, headers, account_id, category_id, expense["id"], amount=100)
+    bystander = (await _create_transaction(client, headers, account_id, category_id)).json()
+
+    refused = await client.patch(
+        "/transactions/bulk",
+        json={"transaction_ids": [expense["id"], bystander["id"]], "category_id": income_id},
+        headers=headers,
+    )
+    kept = await client.patch(
+        "/transactions/bulk",
+        json={"transaction_ids": [expense["id"], refund["id"]], "dt": "2026-02-02"},
+        headers=headers,
+    )
+
+    assert refused.status_code == 422
+    assert "Unlink it first" in refused.json()["detail"]
+    assert (await _get(client, headers, bystander["id"]))["category_id"] == category_id
+    assert kept.status_code == 200
+    assert (await _get(client, headers, refund["id"]))["refund_of_transaction_id"] == expense["id"]

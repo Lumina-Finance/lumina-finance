@@ -162,3 +162,43 @@ async def test_an_edit_raising_a_refund_waits_for_a_link_being_made(client, monk
     assert (await _get(client, headers, first["id"]))["amount"] == 2000
 
 
+async def test_a_refund_moved_to_another_currencys_account_still_counts(client):
+    """A move keeps the refund's own currency, so it can't step out of the total, and a sent currency is ignored."""
+    headers, account_id, category_id = await _setup_user_with_deps(client)
+    expense = (await _create_transaction(client, headers, account_id, category_id)).json()
+    refund = await _refund(client, headers, account_id, category_id, expense["id"], amount=3000)
+    await _seed_usd_currency()
+    usd_account_id = (await _create_account(client, headers, name="US", currency="USD")).json()["id"]
+
+    moved = await client.patch(
+        f"/transactions/{refund['id']}",
+        json={"account_id": usd_account_id, "fx_rate": 1.3, "currency": "USD"},
+        headers=headers,
+    )
+    raised = await client.patch(f"/transactions/{refund['id']}", json={"amount": 5001}, headers=headers)
+
+    assert moved.status_code == 200
+    assert moved.json()["currency"] == "CAD"
+    assert moved.json()["refund_of_transaction_id"] == expense["id"]
+    assert raised.status_code == 422
+
+
+async def test_a_link_changes_no_total_balance_or_budget(client):
+    """Linking and unlinking leave the overview, the account balance and the budget exactly as they were."""
+    headers, account_id, category_id = await _setup_user_with_deps(client)
+    base_id, budget_id = await _create_base_with_instance(client, headers, category_ids=[category_id])
+    expense = (await _create_transaction(client, headers, account_id, category_id, dt="2026-03-05", amount=-5000)).json()
+    inflow = (await _create_transaction(client, headers, account_id, category_id, dt="2026-03-06", amount=2000)).json()
+
+    async def figures():
+        overview = (await client.get("/transactions/overview", headers=headers)).json()
+        account = (await client.get(f"/accounts/{account_id}", headers=headers)).json()
+        budget = await _get_budget_utilization_entry(client, headers, base_id, budget_id)
+        return overview, account["current_balance"], budget["total_spent"]
+
+    before = await figures()
+    assert before[2] == 3000
+    assert (await _link(client, headers, inflow["id"], expense["id"])).status_code == 204
+    assert await figures() == before
+    assert (await client.delete(f"/transactions/{inflow['id']}/refund-link", headers=headers)).status_code == 204
+    assert await figures() == before
