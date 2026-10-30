@@ -60,8 +60,6 @@ async def get_transaction_links_batch(
 async def get_refunded_amounts(db: AsyncSession, original_ids: Collection[uuid.UUID]) -> dict[uuid.UUID, int]:
     """Return how much of each expense its linked refunds already give back
 
-    Only refunds in the expense's own currency count, since amounts in two currencies can't be added
-
     Args:
         db: Active database session
         original_ids: Expenses to total the refunds of
@@ -71,13 +69,11 @@ async def get_refunded_amounts(db: AsyncSession, original_ids: Collection[uuid.U
     """
     if not original_ids:
         return {}
-    original = aliased(Transaction)
     rows = (
         await db.execute(
             select(TransactionLink.original_transaction_id, func.sum(Transaction.amount))
             .join(Transaction, Transaction.id == TransactionLink.refund_transaction_id)
-            .join(original, original.id == TransactionLink.original_transaction_id)
-            .where(TransactionLink.original_transaction_id.in_(original_ids), Transaction.currency == original.currency)
+            .where(TransactionLink.original_transaction_id.in_(original_ids))
             .group_by(TransactionLink.original_transaction_id),
         )
     ).all()
@@ -110,7 +106,8 @@ async def validate_refund_original(
     Raises:
         HTTPException: 404 when the expense is missing or not the user's, 422 when the expense is not
             an outflow in an expense category, the refund is not an inflow or is a transfer, either
-            account is in a group, or its refunds would total more than the expense
+            account is in a group, the refund or its account is in another currency, or its refunds
+            would total more than the expense
     """
     # Locked so an edit or delete of the expense cannot slip past the link being made
     original = await check_transaction_access(db, original_id, user.id, PermissionLevel.READ, lock_for_update=True)
@@ -139,14 +136,20 @@ async def validate_refund_original(
             detail="A transfer can't be a refund",
         )
 
+    # Totals add amounts as written, and reports read a transaction's money in its account's currency, so both must match
+    if {refund_currency, refund_account.currency} != {original.currency}:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+            detail="A refund can only be linked to an expense in its own currency",
+        )
+
     # The expense is locked above, so no other link can add to this total before this one commits
-    if refund_currency == original.currency:
-        already_refunded = (await get_refunded_amounts(db, [original.id])).get(original.id, 0)
-        if already_refunded + refund_amount > -original.amount:
-            raise HTTPException(
-                status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
-                detail="Refunds can't total more than the expense they refund",
-            )
+    already_refunded = (await get_refunded_amounts(db, [original.id])).get(original.id, 0)
+    if already_refunded + refund_amount > -original.amount:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+            detail="Refunds can't total more than the expense they refund",
+        )
     return original
 
 
@@ -212,7 +215,7 @@ async def refuse_broken_links(db: AsyncSession, transaction_ids: Collection[uuid
             select(TransactionLink.original_transaction_id)
             .join(refund, refund.id == TransactionLink.refund_transaction_id)
             .join(original, original.id == TransactionLink.original_transaction_id)
-            .where(TransactionLink.original_transaction_id.in_(touched_originals), refund.currency == original.currency)
+            .where(TransactionLink.original_transaction_id.in_(touched_originals))
             .group_by(TransactionLink.original_transaction_id, original.amount)
             .having(func.sum(refund.amount) > -original.amount)
             .limit(1),
@@ -242,8 +245,7 @@ async def link_existing_refund(
 
     Raises:
         HTTPException: 404 when either is missing or not the user's, 409 when the refund is already
-            linked, and 422 when they are the same transaction, the pairing is not a refund, or they
-            are in different currencies
+            linked, and 422 when they are the same transaction or the pairing is not a refund
     """
     refund = await check_transaction_access(db, refund_id, user.id, PermissionLevel.WRITE, lock_for_update=True)
     refund_account = await get_parent_account_for_transaction(db, refund)
@@ -253,12 +255,7 @@ async def link_existing_refund(
     if (await db.execute(select(TransactionLink.id).where(TransactionLink.refund_transaction_id == refund_id))).first() is not None:
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="This refund is already linked to an expense")
     refund_category = await db.get(Category, refund.category_id)
-    original = await validate_refund_original(db, user, original_id, refund.amount, refund.currency, refund_account, refund_category)
-    if refund.currency != original.currency:
-        raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
-            detail="A refund can only be linked to an expense in its own currency",
-        )
+    await validate_refund_original(db, user, original_id, refund.amount, refund.currency, refund_account, refund_category)
 
     db.add(TransactionLink(refund_transaction_id=refund_id, original_transaction_id=original_id))
     await db.flush()

@@ -85,8 +85,17 @@ async def list_refund_link_candidates(
 
         # Money that came in, which no expense has claimed as its own
         refunds = select(TransactionLink.refund_transaction_id).where(TransactionLink.refund_transaction_id.not_in(unlinked_ids))
-        conditions += [Transaction.amount > 0, Category.kind != CategoryKind.TRANSFER, Transaction.id.not_in(refunds)]
+        same_currency_accounts = select(Account.id).where(Account.currency == anchor.currency)
+        conditions += [
+            Transaction.amount > 0,
+            Category.kind != CategoryKind.TRANSFER,
+            Transaction.id.not_in(refunds),
+            Transaction.account_id.in_(same_currency_accounts),
+        ]
     elif anchor.amount > 0:
+        # Linking refuses a refund whose account is in another currency, so no expense can be offered to it
+        if account.currency != anchor.currency:
+            return []
         own_link = (await db.execute(select(TransactionLink).where(TransactionLink.refund_transaction_id == anchor.id))).scalar_one_or_none()
         if own_link is not None and anchor.id not in unlinked_ids:
             return []
@@ -111,7 +120,7 @@ async def list_refund_link_candidates(
 
         # The refund being unlinked is no longer counted against the expense it was linked to
         own_original = next((candidate for candidate in candidates if candidate.id == own_original_id), None)
-        if own_original is not None and own_original.currency == anchor.currency:
+        if own_original is not None:
             refunded[own_original.id] -= anchor.amount
         candidates = [candidate.model_copy(update={"refunded_amount": refunded.get(candidate.id, 0)}) for candidate in candidates]
     return candidates

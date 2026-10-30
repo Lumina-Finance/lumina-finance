@@ -1,7 +1,11 @@
+import pytest
+
 from tests.routes.transactions._helpers import (
     NONEXISTENT_ID,
+    _create_account,
     _create_category,
     _create_transaction,
+    _seed_usd_currency,
     _setup_user_with_deps,
 )
 
@@ -139,3 +143,39 @@ async def test_deleting_either_side_removes_the_link(client):
 
     assert (await client.delete(f"/transactions/{expense['id']}", headers=headers)).status_code == 204
     assert (await _get_transaction(client, headers, other_refund["id"]))["refund_of_transaction_id"] is None
+
+
+@pytest.mark.parametrize(
+    ("account_currency", "refund_overrides"),
+    [
+        ("USD", {"currency": "USD"}),
+        ("USD", {"currency": "CAD", "fx_rate": 1.3}),
+        ("CAD", {"currency": "USD", "fx_rate": 0.7}),
+    ],
+)
+async def test_creating_a_refund_in_another_currency_is_refused_and_writes_nothing(client, account_currency, refund_overrides):
+    """Either the refund's own currency or its account's being another one is refused, with no transaction left behind."""
+    headers, account_id, category_id = await _setup_user_with_deps(client)
+    expense = (await _create_transaction(client, headers, account_id, category_id)).json()
+    await _seed_usd_currency()
+    refund_account_id = (await _create_account(client, headers, name="Other", currency=account_currency)).json()["id"]
+
+    resp = await _create_refund(client, headers, refund_account_id, category_id, expense["id"], **refund_overrides)
+
+    assert resp.status_code == 422
+    assert resp.json()["detail"] == "A refund can only be linked to an expense in its own currency"
+    assert (await _get_transaction(client, headers, expense["id"]))["refund_transaction_ids"] == []
+    listed = await client.get("/transactions", params={"account_id": refund_account_id}, headers=headers)
+    assert listed.json() == []
+
+
+async def test_a_refund_from_another_account_in_the_same_currency_is_accepted(client):
+    """The refusal turns on currency alone, so money back to a second account in that currency still links."""
+    headers, account_id, category_id = await _setup_user_with_deps(client)
+    expense = (await _create_transaction(client, headers, account_id, category_id)).json()
+    second_account_id = (await _create_account(client, headers, name="Second")).json()["id"]
+
+    resp = await _create_refund(client, headers, second_account_id, category_id, expense["id"])
+
+    assert resp.status_code == 201
+    assert resp.json()["refund_of_transaction_id"] == expense["id"]
