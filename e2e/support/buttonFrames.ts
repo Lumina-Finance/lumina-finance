@@ -224,7 +224,8 @@ export async function checkSubmitTransition(
   }
 }
 
-type IconFrame = { icon: number | null; spinner: number | null }
+// `off` is how far, in px, the idle content's or the spinner's vertical centre sits from the button's
+type IconFrame = { icon: number | null; spinner: number | null; off: number }
 
 /**
  * Press a button whose icon gives way to the spinner while its request is held, and check the two fade
@@ -237,6 +238,8 @@ export async function checkIconSwap(
   press: () => Promise<void> = () => button.click(),
   // Finds the idle content inside the button, which is its icon unless a label with no icon is given
   content = 'svg',
+  // A button that stays enabled while pending says so with aria-busy instead
+  options: { staysEnabled?: boolean } = {},
 ): Promise<void> {
   const sample = () => button.evaluate((node, idle) => {
     const opacityWithin = (element: Element | null): number | null => {
@@ -252,7 +255,14 @@ export async function checkIconSwap(
     holder.__iconFrames = frames
     holder.__sampling = true
     const tick = () => {
-      frames.push({ icon: opacityWithin(node.querySelector(idle)), spinner: opacityWithin(node.querySelector('.app-spinner')) })
+      const centre = node.getBoundingClientRect()
+      const middle = centre.top + centre.height / 2
+      const off = [node.querySelector(idle), node.querySelector('.app-spinner')].reduce((worst, element) => {
+        if (!element) return worst
+        const box = element.getBoundingClientRect()
+        return Math.max(worst, Math.abs(box.top + box.height / 2 - middle))
+      }, 0)
+      frames.push({ icon: opacityWithin(node.querySelector(idle)), spinner: opacityWithin(node.querySelector('.app-spinner')), off })
       if (holder.__sampling) requestAnimationFrame(tick)
     }
     tick()
@@ -275,6 +285,9 @@ export async function checkIconSwap(
     await page.emulateMedia({ reducedMotion })
     const held = await holdThenRefuse(page, request.method, request.path)
     const expectFaded = (frames: IconFrame[]) => {
+      // Whatever is fading stays on the button's middle, a row fading out from the top sat 7px off it. An icon
+      // beside text sits a pixel or so off through its own alignment, so the limit is 2px
+      expect(Math.max(...frames.map((frame) => frame.off)), 'px the content or spinner sits off the button centre').toBeLessThan(2)
       const both = frames.filter((frame) => frame.icon !== null && frame.spinner !== null)
       if (reducedMotion === 'reduce') expect(both, 'the icon and spinner swap in one frame').toHaveLength(0)
       else expect(both.length, 'the icon and spinner are drawn together').toBeGreaterThanOrEqual(2)
@@ -283,7 +296,8 @@ export async function checkIconSwap(
     await sample()
     await press()
     await held.sent
-    await expect(button).toBeDisabled()
+    if (options.staysEnabled) await expect(button).toHaveAttribute('aria-busy', 'true')
+    else await expect(button).toBeDisabled()
     await expect.poll(() => seenOpacity('.app-spinner')).toBe(1)
     const going = await stop()
     expect(going[0].icon, 'the icon is drawn before the press').toBe(1)
@@ -292,7 +306,8 @@ export async function checkIconSwap(
 
     await sample()
     held.release()
-    await expect(button).toBeEnabled()
+    if (options.staysEnabled) await expect(button).toHaveAttribute('aria-busy', 'false')
+    else await expect(button).toBeEnabled()
     await expect.poll(() => seenOpacity(content)).toBe(1)
     const returning = await stop()
     expect(returning.at(-1)!.spinner).toBeNull()
