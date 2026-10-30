@@ -3,7 +3,7 @@ import { test } from '@playwright/test'
 import { TEST_PASSWORD } from '../support/api'
 import { checkSubmitTransition } from '../support/buttonFrames'
 
-// Runs on desktop only, at the two widths set here: the button fills the form's width at both and shrinks
+// Runs at 390px and 1280px wide, both set here: the button fills the form's width at both and shrinks
 // to its circle from there
 
 for (const size of [{ width: 390, height: 844 }, { width: 1280, height: 800 }]) {

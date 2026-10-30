@@ -4,7 +4,7 @@ import { createAccount, createTransaction, daysFromTodayInTestTimezone, signUpUs
 import { logInViaApi, openPage } from '../support/app'
 import { checkSubmitTransition } from '../support/buttonFrames'
 
-// Runs on desktop only, at the two widths set here, since the submit button sits in a grid below the sm
+// Runs at 390px and 1280px wide, both set here, since the submit button sits in a grid below the sm
 // breakpoint and in a row from it
 
 const SIZES = [{ width: 390, height: 844 }, { width: 1280, height: 800 }]
