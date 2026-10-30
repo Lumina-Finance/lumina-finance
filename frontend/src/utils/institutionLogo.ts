@@ -1,8 +1,7 @@
 import type { Institution } from '@/api/institutions'
 
 // Google favicon service used as the logo source when an institution has no uploaded logo
-const FAVICON_SERVICE_BASE =
-  'https://t2.gstatic.com/faviconV2?client=SOCIAL&type=FAVICON&fallback_opts=TYPE,SIZE,URL'
+const FAVICON_SERVICE_BASE = 'https://t2.gstatic.com/faviconV2?client=SOCIAL&type=FAVICON&fallback_opts=TYPE,SIZE,URL'
 
 const FAVICON_SIZE = 256
 
