@@ -1,8 +1,10 @@
 import { useEffect, useRef } from 'react'
 import { FormError } from '@/components/forms/FormError'
+import { Crossfade } from '@/components/loading/Crossfade'
 import { MODAL_INSET_CLASS_NAME } from '@/components/modal/inset'
 import type { ModalLevel } from '@/components/modal/Shell'
 import { DisabledReasonButton } from '@/components/tooltips/DisabledReasonButton'
+import { useEasedWidth } from '@/hooks/useEasedWidth'
 
 // The justify side is applied separately below, since a footer drawn with the primary on the left
 // swaps it for sm:justify-between rather than adding to it
@@ -59,6 +61,7 @@ export function ModalFormFooter({
 }: ModalFormFooterProps) {
   const primaryRef = useRef<HTMLButtonElement>(null)
   const primaryHadFocus = useRef(false)
+  useEasedWidth(primaryRef, submitDisabled)
 
   // Disabling a focused button drops focus to the page, which leaves the next Tab starting from the top of
   // the modal after a refused submission. A press of the button is noted, and once it is live again it
@@ -100,11 +103,13 @@ export function ModalFormFooter({
       disabled={submitDisabled}
       disabledReason={submitDisabled ? undefined : submitBlockedReason}
       aria-busy={submitDisabled}
-      className={`${tone === 'danger' ? 'app-danger-button' : 'app-primary-button'} overflow-hidden whitespace-nowrap${submitDisabled ? ' app-primary-button-loading justify-self-center sm:justify-self-auto' : ` ${submitWidthClassName}`}`}
+      className={`${tone === 'danger' ? 'app-danger-button' : 'app-primary-button'} app-width-eased${submitDisabled ? ' app-primary-button-loading justify-self-center sm:justify-self-auto' : ` ${submitWidthClassName}`}`}
     >
       {/* The spinner replaces the label, so it carries the label as its own name and a screen reader still
           says which action is in flight */}
-      {submitDisabled ? <div className="app-spinner" aria-label={submitLabel} /> : submitLabel}
+      <Crossfade swapKey={submitDisabled ? 'pending' : 'label'}>
+        {submitDisabled ? <div className="app-spinner" aria-label={submitLabel} /> : submitLabel}
+      </Crossfade>
     </DisabledReasonButton>
   )
 
