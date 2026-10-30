@@ -83,8 +83,13 @@ interface SavedRowProps {
 }
 
 function SavedRow({ linkedId, readOnly, disabled, onUnlink }: SavedRowProps) {
-  const linked = useTransaction(linkedId)
-  if (linked.isError) {
+  const query = useTransaction(linkedId)
+
+  // Keeps showing what was loaded while Save has the copy reload, so the row never drops to the shorter placeholder
+  const [lastLoaded, setLastLoaded] = useState(query.data)
+  if (query.data && query.data !== lastLoaded) setLastLoaded(query.data)
+  const linked = { isError: query.isError, data: query.data ?? lastLoaded }
+  if (linked.isError && !linked.data) {
     return (
       <p role="alert" className="text-sm" style={{ color: 'var(--app-negative)' }}>
         Oops, something went wrong loading the linked transaction. Please reopen this transaction.
@@ -159,13 +164,20 @@ export default function TransactionModalLinkedRefundsSection({
   const live = useTransaction(transaction.id)
   const current = live.data ?? transaction
   const isUnlinked = (id: string) => pending.unlinkedRefundIds.includes(id) || pending.appliedUnlinkIds.includes(id)
-  const savedOriginalId = isUnlinked(current.id) ? null : current.refund_of_transaction_id
+  const isRefund = current.amount > 0
+
+  // A link or refund that Save has made keeps the row it had, from what the window already knew of it, until the
+  // window closes. The saved copy loads after Save, and swapping to it would take the row away and bring it back
+  const appliedOriginal = isRefund && !isUnlinked(current.id) ? pending.appliedLinks[0] : undefined
+  const appliedRefundLinks = isRefund ? [] : pending.appliedLinks.filter((link) => !isUnlinked(link.id))
+  const appliedIds = [...appliedRefundLinks.map((link) => link.id), ...pending.appliedRefunds.map((r) => r.id)]
+  const savedOriginalId = isUnlinked(current.id) || appliedOriginal ? null : current.refund_of_transaction_id
 
   // Links picked for a refund name its one expense, and links picked for an expense name its refunds
-  const isRefund = current.amount > 0
   const pendingOriginal = isRefund ? pending.links[0] : undefined
   const pendingRefundLinks = isRefund ? [] : pending.links
-  const savedRefundIds = current.refund_transaction_ids.filter((id) => !isUnlinked(id))
+  const savedRefundIds = current.refund_transaction_ids.filter((id) => !isUnlinked(id) && !appliedIds.includes(id))
+  const appliedRefunds = pending.appliedRefunds.filter((refund) => !isUnlinked(refund.id))
 
   // The button that opens the picker is held off while nothing in the unfiltered list could be picked. The query is
   // the picker's own with nothing searched or filtered, so the two share one request
@@ -181,9 +193,15 @@ export default function TransactionModalLinkedRefundsSection({
       candidates.data.filter((candidate) => !pending.links.some((link) => link.id === candidate.id)),
     )
   const anythingFits = unheld === undefined || unheld.length > getRefusedRooms(current, unheld, refundRoom, []).size
-  const refundCount = savedRefundIds.length + pendingRefundLinks.length + pending.refunds.length
+  const refundCount =
+    savedRefundIds.length +
+    appliedRefundLinks.length +
+    appliedRefunds.length +
+    pendingRefundLinks.length +
+    pending.refunds.length
   const showRefunds = refundCount > 0 || canLinkRefund
-  const showRefundOf = Boolean(savedOriginalId) || pendingOriginal !== undefined || canLinkExpense
+  const showRefundOf =
+    Boolean(savedOriginalId) || appliedOriginal !== undefined || pendingOriginal !== undefined || canLinkExpense
   if (!showRefunds && !showRefundOf) return null
 
   const linkButton = (label: string) => (
@@ -216,6 +234,19 @@ export default function TransactionModalLinkedRefundsSection({
                 <RevealRow key={savedOriginalId} testId="linked-row">
                   <SavedRow
                     linkedId={savedOriginalId}
+                    readOnly={readOnly}
+                    disabled={disabled}
+                    onUnlink={() => pending.unlink(current.id)}
+                  />
+                </RevealRow>
+              ) : appliedOriginal ? (
+                <RevealRow key={appliedOriginal.id} testId="linked-row">
+                  <LinkedRowFrame
+                    merchantName={appliedOriginal.merchant_name ?? 'No merchant'}
+                    dt={appliedOriginal.dt}
+                    amount={appliedOriginal.amount}
+                    currency={appliedOriginal.currency}
+                    notSaved={false}
                     readOnly={readOnly}
                     disabled={disabled}
                     onUnlink={() => pending.unlink(current.id)}
@@ -254,6 +285,34 @@ export default function TransactionModalLinkedRefundsSection({
                     readOnly={readOnly}
                     disabled={disabled}
                     onUnlink={() => pending.unlink(refundId)}
+                  />
+                </RevealRow>
+              ))}
+              {appliedRefundLinks.map((refund) => (
+                <RevealRow key={refund.id} testId="linked-row">
+                  <LinkedRowFrame
+                    merchantName={refund.merchant_name ?? 'No merchant'}
+                    dt={refund.dt}
+                    amount={refund.amount}
+                    currency={refund.currency}
+                    notSaved={false}
+                    readOnly={readOnly}
+                    disabled={disabled}
+                    onUnlink={() => pending.unlink(refund.id)}
+                  />
+                </RevealRow>
+              ))}
+              {appliedRefunds.map((refund) => (
+                <RevealRow key={refund.key} testId="linked-row">
+                  <LinkedRowFrame
+                    merchantName={refund.preview.merchant_name ?? 'No merchant'}
+                    dt={refund.preview.dt}
+                    amount={refund.preview.amount}
+                    currency={refund.preview.currency}
+                    notSaved={false}
+                    readOnly={readOnly}
+                    disabled={disabled}
+                    onUnlink={() => pending.unlink(refund.id)}
                   />
                 </RevealRow>
               ))}

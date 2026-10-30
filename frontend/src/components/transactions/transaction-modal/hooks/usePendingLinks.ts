@@ -26,9 +26,21 @@ interface PendingLinksState {
    * went does not come back while the transaction reloads */
   appliedUnlinkIds: string[]
   refunds: PendingRefund[]
+
+  /** Links and created refunds that Save has made. They stay shown as rows, in the place they held, until the window
+   * closes, so the section does not shrink while the saved copy loads. A created refund carries its new id */
+  appliedLinks: Transaction[]
+  appliedRefunds: (PendingRefund & { id: string })[]
 }
 
-const NOTHING_PENDING: PendingLinksState = { links: [], unlinkedRefundIds: [], appliedUnlinkIds: [], refunds: [] }
+const NOTHING_PENDING: PendingLinksState = {
+  links: [],
+  unlinkedRefundIds: [],
+  appliedUnlinkIds: [],
+  refunds: [],
+  appliedLinks: [],
+  appliedRefunds: [],
+}
 
 export interface PendingLinks extends PendingLinksState {
   /** How many changes are held back until Save */
@@ -124,14 +136,22 @@ export function usePendingLinks(
       const [refundId, originalId] = anchorIsExpense ? [picked.id, anchor.id] : [anchor.id, picked.id]
       await linkMutation.mutateAsync({ refundId, originalId })
       applied.current.count += 1
-      setState((current) => ({ ...current, links: current.links.filter((link) => link.id !== picked.id) }))
+      setState((current) => ({
+        ...current,
+        links: current.links.filter((link) => link.id !== picked.id),
+        appliedLinks: [...current.appliedLinks, picked],
+      }))
     }
     for (const refund of state.refunds) {
       const created = await createMutation.mutateAsync({ ...refund.payload, refund_of_transaction_id: anchor.id })
       recordCreatedAccountId(created.account_id)
       applied.current.count += 1
       applied.current.accountIds.push(created.account_id)
-      setState((current) => ({ ...current, refunds: current.refunds.filter((r) => r.key !== refund.key) }))
+      setState((current) => ({
+        ...current,
+        refunds: current.refunds.filter((r) => r.key !== refund.key),
+        appliedRefunds: [...current.appliedRefunds, { ...refund, id: created.id }],
+      }))
     }
   }
 

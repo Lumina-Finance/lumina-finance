@@ -547,3 +547,78 @@ test('leaves out refunds in another currency and greys the opening button when o
   await expect(open).toHaveAttribute('aria-disabled', 'true')
   await expect(open).toHaveAccessibleDescription(NO_REFUND_FITS)
 })
+
+// Save applies each held link one at a time and the window then closes. The linked section must hold its height, and
+// every row must stay whole inside it, on each frame from Save until the window is gone. A row that left as its link
+// was made, and came back once the transaction reloaded, shrank the section and clipped the last row
+type SavedFrame = { height: number; rows: number; clipped: number; text: string }
+for (const [name, anchor, saved, pick] of [
+  ['an expense, with a link picked', 'expense', false, true],
+  ['a refund, with its expense picked', 'refund', false, true],
+  ['an expense that has a saved link, with another picked', 'expense', true, true],
+  ['an expense that has a saved link, with nothing changed', 'expense', true, false],
+] as const) {
+  test(`keeps the linked section whole from Save until the window closes, for ${name}`, async ({ page, request }) => {
+    const user = await signUpUser(request)
+    const account = await createAccount(request, user, { name: 'Everyday', startingBalance: 100000 })
+    const row = { accountId: account.id, categoryName: 'Groceries' }
+    const expenseId = await createTransaction(request, user, { ...row, amount: -5000, date: daysFromTodayInTestTimezone(-6) })
+    const refundId = await createTransaction(request, user, { ...row, amount: 2000, date: daysFromTodayInTestTimezone(-1) })
+    await createTransaction(request, user, { ...row, amount: 1500, date: daysFromTodayInTestTimezone(-2) })
+    await logInViaApi(page, user)
+    await openPage(page, `/accounts/${account.id}`)
+    const pickerName = anchor === 'expense' ? 'Link a refund' : 'Link to an expense'
+    const pickerOf = () => page.getByRole('dialog', { name: pickerName, exact: true })
+    const linkOne = async (dialog: Locator, which: 'first' | 'last') => {
+      await dialog.getByTestId('link-existing').click()
+      const rows = pickerOf().getByTestId('link-candidate')
+      await (which === 'first' ? rows.first() : rows.last()).getByRole('button').click()
+      await pickerOf().getByRole('button', { name: 'Link', exact: true }).click()
+    }
+    if (saved) {
+      const first = await openRow(page, expenseId)
+      await linkOne(first, 'first')
+      await saveButton(first).click()
+      await expect(first).toBeHidden()
+    }
+    const dialog = await openRow(page, anchor === 'expense' ? expenseId : refundId)
+    if (saved) await expect(dialog.getByTestId('linked-transaction')).toHaveCount(1)
+    if (pick) await linkOne(dialog, saved ? 'last' : 'first')
+    await expect(dialog.getByTestId('linked-transaction')).toHaveCount(saved && pick ? 2 : 1)
+    await page.waitForTimeout(800)
+
+    // Per frame: the linked rows' total layout height, how many rows there are, and the most any row's bottom edge
+    // reaches past the bottom of its own reveal wrapper, which is what clips it
+    const handle = await dialog.elementHandle()
+    await page.evaluate((edit) => {
+      const sampled: SavedFrame[] = []
+      const start = performance.now()
+      const tick = () => {
+        const wrappers = [...(edit as HTMLElement).querySelectorAll<HTMLElement>('[data-testid="linked-row"]')]
+        const clipped = wrappers.map((wrapper) => {
+          const inner = wrapper.querySelector('[data-testid="linked-transaction"]')
+          return inner ? Math.max(0, inner.getBoundingClientRect().bottom - wrapper.getBoundingClientRect().bottom) : 0
+        })
+        sampled.push({
+          height: wrappers.reduce((sum, wrapper) => sum + wrapper.offsetHeight, 0),
+          rows: wrappers.length,
+          text: wrappers.map((wrapper) => wrapper.innerText.replace(/\s+/g, ' ')).join(' | '),
+          clipped: Math.max(0, ...clipped),
+        })
+        if ((edit as HTMLElement).isConnected && performance.now() - start < 4000) requestAnimationFrame(tick)
+      }
+      ;(window as unknown as { __sampled: SavedFrame[] }).__sampled = sampled
+      requestAnimationFrame(tick)
+    }, handle)
+    await saveButton(dialog).click()
+    await expect(dialog).toBeHidden()
+    await page.waitForTimeout(300)
+    // The frames after the window is hidden measure nothing, so they are left out
+    const everyFrame = await page.evaluate(() => (window as unknown as { __sampled: SavedFrame[] }).__sampled)
+    const sampled = everyFrame.filter((frame) => frame.height > 0)
+    const detail = `height/rows/clipped per frame: ${sampled.map((frame) => `${Math.round(frame.height)}/${frame.rows}/${Math.round(frame.clipped)}${frame.height < sampled[0].height ? ` [${frame.text}]` : ''}`).join(' ')}`
+    const drops = sampled.flatMap((frame, index) => (index > 0 && (frame.height < sampled[index - 1].height - 0.5 || frame.rows < sampled[index - 1].rows) ? [`frame ${index}`] : []))
+    expect(drops, detail).toEqual([])
+    expect(Math.max(...sampled.map((frame) => frame.clipped)), detail).toBeLessThanOrEqual(0.5)
+  })
+}
