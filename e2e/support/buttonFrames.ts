@@ -13,6 +13,9 @@ export const CIRCLE_WIDTH = 40
 // One animation frame of slack for a width measured in fractions of a pixel
 const WIDTH_TOLERANCE = 1
 
+// Half a pixel of slack for a box measured in fractions of a pixel
+const PADDING_TOLERANCE = 0.5
+
 /** One frame of the button as the sampler saw it */
 export interface ButtonFrame {
   width: number
@@ -22,6 +25,12 @@ export interface ButtonFrame {
 
   /** The spinner's opacity as a viewer sees it, or null while no spinner is drawn */
   spinner: number | null
+
+  /**
+   * How far the label's visible part reaches past the button's padding, in pixels, so a label wider than the
+   * narrowing button shows as touching or passing its rounded ends. Zero while no label is drawn
+   */
+  labelPastPadding: number
 
   /** The footer's own box, which must not move while the button changes */
   footerTop: number
@@ -51,7 +60,36 @@ export async function startSampling(button: Locator, label: string): Promise<voi
         if (current.textContent === text) labelNode = current.parentElement
       }
       const spinnerNode = node.querySelector('.app-spinner')
+
+      // The part of the label a viewer sees: its text box cut by every ancestor that clips, up to the button
+      let labelPastPadding = 0
+      if (labelNode) {
+        const range = document.createRange()
+        range.selectNodeContents(labelNode)
+        let left = range.getBoundingClientRect().left
+        let right = range.getBoundingClientRect().right
+        for (let current: Element | null = labelNode; current; current = current.parentElement) {
+          const style = getComputedStyle(current)
+          if (style.overflowX !== 'visible') {
+            const box = current.getBoundingClientRect()
+            const insets = (side: 'Left' | 'Right') => {
+              const border = parseFloat(style[`border${side}Width`])
+              const clipsAtContent = style.overflowClipMargin.includes('content-box')
+              return border + (clipsAtContent ? parseFloat(style[`padding${side}`]) : 0)
+            }
+            left = Math.max(left, box.left + insets('Left'))
+            right = Math.min(right, box.right - insets('Right'))
+          }
+          if (current === node) break
+        }
+        const style = getComputedStyle(node)
+        const box = node.getBoundingClientRect()
+        const innerLeft = box.left + parseFloat(style.borderLeftWidth) + parseFloat(style.paddingLeft)
+        const innerRight = box.right - parseFloat(style.borderRightWidth) - parseFloat(style.paddingRight)
+        labelPastPadding = Math.max(0, innerLeft - left, right - innerRight)
+      }
       frames.push({
+        labelPastPadding,
         width: node.getBoundingClientRect().width,
         label: labelNode ? opacityWithin(labelNode) : null,
         spinner: spinnerNode ? opacityWithin(spinnerNode) : null,
@@ -80,6 +118,9 @@ export async function stopSampling(page: Page): Promise<ButtonFrame[]> {
 export function expectEased(frames: ButtonFrame[], restingWidth: number, reducedMotion: boolean): void {
   const between = frames.filter((frame) => frame.width > CIRCLE_WIDTH + WIDTH_TOLERANCE && frame.width < restingWidth - WIDTH_TOLERANCE)
   const bothDrawn = frames.filter((frame) => frame.label !== null && frame.spinner !== null)
+  const pastPadding = frames.filter((frame) => frame.labelPastPadding > PADDING_TOLERANCE)
+  expect(pastPadding.map((frame) => `${Math.round(frame.width)}px wide, ${frame.labelPastPadding.toFixed(1)}px past`),
+    'the label stays inside the button\'s padding on every frame').toEqual([])
   const widths = `widths ${frames.map((frame) => Math.round(frame.width)).join(' ')}`
   const layers = `label ${frames.map((frame) => frame.label?.toFixed(2) ?? '-').join(' ')}`
   if (reducedMotion) {
@@ -179,6 +220,83 @@ export async function checkSubmitTransition(
     expect(returning.at(-1)!.spinner).toBeNull()
     expect(returning.at(-1)!.label).toBe(1)
     expectEased(returning, restingWidth, reducedMotion === 'reduce')
+    await page.unroute(`${API_BASE_URL}${request.path}`)
+  }
+}
+
+type IconFrame = { icon: number | null; spinner: number | null }
+
+/**
+ * Press a button whose icon gives way to the spinner while its request is held, and check the two fade
+ * through each other as motion allows, going and coming back. Under reduced motion they swap in one frame
+ */
+export async function checkIconSwap(
+  page: Page,
+  button: Locator,
+  request: { method: string; path: string },
+  press: () => Promise<void> = () => button.click(),
+  // Finds the idle content inside the button, which is its icon unless a label with no icon is given
+  content = 'svg',
+): Promise<void> {
+  const sample = () => button.evaluate((node, idle) => {
+    const opacityWithin = (element: Element | null): number | null => {
+      if (!element) return null
+      let opacity = 1
+      for (let current: Element | null = element; current && current !== node; current = current.parentElement) {
+        opacity *= Number(getComputedStyle(current).opacity)
+      }
+      return opacity
+    }
+    const frames: IconFrame[] = []
+    const holder = window as unknown as { __iconFrames: IconFrame[]; __sampling: boolean }
+    holder.__iconFrames = frames
+    holder.__sampling = true
+    const tick = () => {
+      frames.push({ icon: opacityWithin(node.querySelector(idle)), spinner: opacityWithin(node.querySelector('.app-spinner')) })
+      if (holder.__sampling) requestAnimationFrame(tick)
+    }
+    tick()
+  }, content)
+  // The opacity of the first match as a viewer sees it, through the layers it sits in
+  const seenOpacity = (selector: string) => button.evaluate((node, within) => {
+    let opacity = 1
+    for (let current: Element | null = node.querySelector(within); current && current !== node; current = current.parentElement) {
+      opacity *= Number(getComputedStyle(current).opacity)
+    }
+    return opacity
+  }, selector)
+  const stop = () => page.evaluate(() => {
+    const holder = window as unknown as { __iconFrames: IconFrame[]; __sampling: boolean }
+    holder.__sampling = false
+    return holder.__iconFrames
+  })
+
+  for (const reducedMotion of ['no-preference', 'reduce'] as const) {
+    await page.emulateMedia({ reducedMotion })
+    const held = await holdThenRefuse(page, request.method, request.path)
+    const expectFaded = (frames: IconFrame[]) => {
+      const both = frames.filter((frame) => frame.icon !== null && frame.spinner !== null)
+      if (reducedMotion === 'reduce') expect(both, 'the icon and spinner swap in one frame').toHaveLength(0)
+      else expect(both.length, 'the icon and spinner are drawn together').toBeGreaterThanOrEqual(2)
+    }
+
+    await sample()
+    await press()
+    await held.sent
+    await expect(button).toBeDisabled()
+    await expect.poll(() => seenOpacity('.app-spinner')).toBe(1)
+    const going = await stop()
+    expect(going[0].icon, 'the icon is drawn before the press').toBe(1)
+    expect(going.at(-1)!.icon, 'the icon is gone once the spinner has settled').toBeNull()
+    expectFaded(going)
+
+    await sample()
+    held.release()
+    await expect(button).toBeEnabled()
+    await expect.poll(() => seenOpacity(content)).toBe(1)
+    const returning = await stop()
+    expect(returning.at(-1)!.spinner).toBeNull()
+    expectFaded(returning)
     await page.unroute(`${API_BASE_URL}${request.path}`)
   }
 }

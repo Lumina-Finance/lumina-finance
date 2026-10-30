@@ -3,7 +3,11 @@ import { AnimatePresence, motion, useIsPresent } from 'motion/react'
 import { useEasedWidth } from '@/hooks/useEasedWidth'
 import { CONTENT_EASE_CURVE, CONTENT_EASE_MS, prefersReducedMotion } from '@/utils/widthEase'
 
-const LAYER_CLASS_NAME = 'inline-flex items-center justify-center'
+// Cut at the container's padding, so a label wider than the narrowing container never reaches its rounded ends
+const LAYER_CLASS_NAME = 'inline-flex max-w-full items-center justify-center overflow-x-clip [overflow-clip-margin:content-box]'
+
+// The outgoing layer spans the whole container, so it takes the container's side padding to cut at the same place
+const OUTGOING_LAYER_CLASS_NAME = 'absolute inset-0 [padding-inline:inherit]'
 
 const FADE_TRANSITION = { duration: CONTENT_EASE_MS / 1000, ease: CONTENT_EASE_CURVE } as const
 
@@ -16,7 +20,7 @@ function Layer({ className, children }: { className?: string; children: ReactNod
   const isPresent = useIsPresent()
   return (
     <motion.div
-      className={`${isPresent ? LAYER_CLASS_NAME : `absolute inset-0 ${LAYER_CLASS_NAME}`} ${className ?? ''}`}
+      className={`${isPresent ? LAYER_CLASS_NAME : `${OUTGOING_LAYER_CLASS_NAME} ${LAYER_CLASS_NAME}`} ${className ?? ''}`}
       aria-hidden={isPresent ? undefined : true}
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
