@@ -1,10 +1,10 @@
-import { useEffect, useRef, useState } from 'react';
-import { useLocation, useNavigate } from 'react-router';
-import { useRefreshOidcIdentities } from '@/api/oidc';
-import { DisabledReasonButton } from '@/components/tooltips/DisabledReasonButton';
-import { ProviderReauthModal } from '@/pages/settings/components/security-section/ProviderReauthModal';
-import { SetPasswordModal } from '@/pages/settings/components/security-section/SetPasswordModal';
-import { useProviderReauth } from '@/pages/settings/hooks/useProviderReauth';
+import { useEffect, useRef, useState } from 'react'
+import { useLocation, useNavigate } from 'react-router'
+import { useRefreshOidcIdentities } from '@/api/oidc'
+import { DisabledReasonButton } from '@/components/tooltips/DisabledReasonButton'
+import { ProviderReauthModal } from '@/pages/settings/components/security-section/ProviderReauthModal'
+import { SetPasswordModal } from '@/pages/settings/components/security-section/SetPasswordModal'
+import { useProviderReauth } from '@/pages/settings/hooks/useProviderReauth'
 
 /**
  * The password area for an account with no password: a reminder and a button that re-confirms it is
@@ -13,46 +13,48 @@ import { useProviderReauth } from '@/pages/settings/hooks/useProviderReauth';
  * The reauth returns to settings with the setPassword flag, which opens the form here
  */
 export function SetPasswordControls() {
-  const location = useLocation();
-  const navigate = useNavigate();
-  const refreshOidcIdentities = useRefreshOidcIdentities();
-  const reauth = useProviderReauth();
+  const location = useLocation()
+  const navigate = useNavigate()
+  const refreshOidcIdentities = useRefreshOidcIdentities()
+  const reauth = useProviderReauth()
 
   const [modalOpen, setModalOpen] = useState<boolean>(
     () => (location.state as { setPassword?: boolean } | null)?.setPassword === true,
-  );
+  )
 
   // The reauth arrival opens the form once, then the state is cleared so a reload does not reopen it
   useEffect(() => {
-    if (!modalOpen) return;
-    navigate(location.pathname, { replace: true, state: null });
-  }, [modalOpen, navigate, location.pathname]);
+    if (!modalOpen) return
+    navigate(location.pathname, { replace: true, state: null })
+  }, [modalOpen, navigate, location.pathname])
 
   // Refreshing the identities flips the section to the change-password form, which unmounts the modal,
   // so a successful set holds that refresh until the modal has finished animating out
-  const refreshAfterExitRef = useRef(false);
+  const refreshAfterExitRef = useRef(false)
 
   const finish = () => {
-    refreshAfterExitRef.current = true;
-    setModalOpen(false);
-  };
+    refreshAfterExitRef.current = true
+    setModalOpen(false)
+  }
 
   const handleModalExit = () => {
-    if (!refreshAfterExitRef.current) return;
-    refreshAfterExitRef.current = false;
-    void refreshOidcIdentities();
-  };
+    if (!refreshAfterExitRef.current) return
+    refreshAfterExitRef.current = false
+    void refreshOidcIdentities()
+  }
 
   return (
     <div className="space-y-3">
       <p className="text-sm" style={{ color: 'var(--app-text-muted)' }}>
-        This account signs in only through a provider. Set a password to sign in without one. You'll
-        re-confirm it's you with a provider first.
+        This account signs in only through a provider. Set a password to sign in without one. You'll re-confirm it's you
+        with a provider first.
       </p>
       <DisabledReasonButton
         className="app-secondary-button"
         disabled={reauth.busySlug !== null}
-        disabledReason={reauth.linkedProviders.length === 0 ? 'No sign-in provider is linked to this account' : undefined}
+        disabledReason={
+          reauth.linkedProviders.length === 0 ? 'No sign-in provider is linked to this account' : undefined
+        }
         onClick={() => reauth.start({ kind: 'set-password' })}
       >
         {reauth.busySlug !== null ? <div className="app-spinner" /> : 'Set up a password'}
@@ -73,5 +75,5 @@ export function SetPasswordControls() {
         onExitComplete={handleModalExit}
       />
     </div>
-  );
+  )
 }
