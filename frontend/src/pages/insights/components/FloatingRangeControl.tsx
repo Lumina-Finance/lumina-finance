@@ -120,10 +120,11 @@ function GlassRangeSelector({
   // CUSTOM while the builder is open for editing, which keeps the builder revealed and the Custom
   // segment highlighted even though the applied range may still be a fixed preset
   const isCustom = selectedPreset === 'CUSTOM'
-  const currentLabel = appliedSavedRangeName
-    ?? (appliedPreset === 'CUSTOM'
+  const currentLabel =
+    appliedSavedRangeName ??
+    (appliedPreset === 'CUSTOM'
       ? getRelativeRangeLabel(appliedAmount, appliedUnit, appliedQualifier)
-      : INSIGHTS_RANGE_OPTIONS.find((option) => option.value === appliedPreset)?.label ?? '')
+      : (INSIGHTS_RANGE_OPTIONS.find((option) => option.value === appliedPreset)?.label ?? ''))
   // The collapsed pill and the non-custom panel line show the applied window, the builder shows
   // the draft window being edited
   const appliedRangeLabel = formatResolvedRangeLabel(resolvedFrom, resolvedTo)
@@ -231,7 +232,9 @@ function GlassRangeSelector({
         fullWidth && 'app-range-glass-full',
         growUp && 'app-range-glass-up',
       )}
-      animate={fullWidth ? undefined : { width: open ? OPEN_DESKTOP_WIDTH : collapsedWidth ?? COLLAPSED_WIDTH_FALLBACK }}
+      animate={
+        fullWidth ? undefined : { width: open ? OPEN_DESKTOP_WIDTH : (collapsedWidth ?? COLLAPSED_WIDTH_FALLBACK) }
+      }
       transition={transition}
       whileTap={open || shouldReduceMotion ? undefined : { scale: 0.94 }}
       // A press animation makes Motion put the frame in the Tab order unless it already has a place
@@ -293,11 +296,7 @@ function GlassRangeSelector({
                   onClick={() => handleSelectPreset(option.value)}
                 >
                   {option.value === selectedPreset && (
-                    <motion.span
-                      layoutId={`${segId}-preset`}
-                      className="app-range-seg-thumb"
-                      transition={transition}
-                    />
+                    <motion.span layoutId={`${segId}-preset`} className="app-range-seg-thumb" transition={transition} />
                   )}
                   <span className="app-range-seg-label">{option.code}</span>
                 </motion.button>
