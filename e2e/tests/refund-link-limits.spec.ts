@@ -47,7 +47,10 @@ function pressRow(picker: Locator, amount: string) {
   return picker.getByTestId('link-candidate').filter({ has: amountText }).getByRole('button')
 }
 
-const ALL_ROWS =['+$37.19', '+$20.00', '+$15.00', '+$12.00']
+// The reason a refund bigger than the whole $37.13 expense gives, in the sentence form of the greyed opening button's
+const OVER_THE_EXPENSE = 'This refund is more than the $37.13 left to refund.'
+
+const ALL_ROWS = ['+$37.19', '+$20.00', '+$15.00', '+$12.00']
 
 // The picker keeps every refund listed and greys out the ones that don't fit what is left of the expense, with their
 // reason in the tooltip. A refund over the whole expense is greyed from the start, a pick lowers what is left for the
@@ -75,13 +78,16 @@ test('greys out the refunds that no longer fit and updates them as rows are pick
   await expect(linkButton).toBeDisabled()
   const tooltip = page.getByTestId('disabled-reason-tooltip').filter({ hasText: /\S/ })
   await press('$37.19').hover()
-  await expect(tooltip).toHaveText('Over the $37.13 left')
+  await expect(tooltip).toHaveText(OVER_THE_EXPENSE)
   await expect(tooltip).toHaveCSS('opacity', '1')
-  await expect(press('$37.19')).toHaveAccessibleDescription('Over the $37.13 left')
+  await expect(press('$37.19')).toHaveAccessibleDescription(OVER_THE_EXPENSE)
   // The greyed look eases in and out rather than snapping, at the app's disabled strength
-  const content = picker.getByTestId('link-candidate').first().locator('> div')
-  await expect(content).toHaveCSS('transition-property', 'opacity')
-  await expect(content).toHaveCSS('opacity', '0.5')
+  // Only what the row's button holds fades. The button itself, which draws the keyboard focus ring, stays at full strength
+  const greyed = picker.getByTestId('link-candidate').first()
+  await expect(greyed.locator('button > *').first()).toHaveCSS('transition-property', 'opacity')
+  await expect(greyed.locator('button > *').first()).toHaveCSS('opacity', '0.5')
+  await expect(greyed.locator('button')).toHaveCSS('opacity', '1')
+  await expect(greyed.locator('> div')).toHaveCSS('opacity', '1')
   await press('$37.19').click({ force: true })
   await expect(press('$37.19')).toHaveAttribute('aria-pressed', 'false')
   await expect(linkButton).toBeDisabled()
@@ -440,3 +446,104 @@ for (const [anchor, size] of [
     }
   })
 }
+
+// Tab goes from the Filters button into the rows, a greyed row takes the focus ring at full strength with its reason
+// in the tooltip, and the amount of a picked row reads at 4.5 to 1 against the picked fill it sits on
+test('reaches the rows from Filters with Tab and keeps the focus ring of a greyed row at full strength', async ({ page, request }) => {
+  const user = await signUpUser(request)
+  const account = await createAccount(request, user, { name: 'Everyday', startingBalance: 50000 })
+  const row = { accountId: account.id, categoryName: 'Groceries' }
+  const expenseId = await createTransaction(request, user, { ...row, amount: -3713, date: daysFromTodayInTestTimezone(-6) })
+  for (const [amount, daysAgo] of [[3719, 1], [2000, 2], [1500, 3]] as const) {
+    await createTransaction(request, user, { ...row, amount, date: daysFromTodayInTestTimezone(-daysAgo) })
+  }
+
+  await logInViaApi(page, user)
+  await openPage(page, `/accounts/${account.id}`)
+  const expense = await openRow(page, expenseId)
+  await expense.getByTestId('link-existing').click()
+  const picker = page.getByRole('dialog', { name: 'Link a refund', exact: true })
+  await expectOnlyPickableRows(picker, ['+$37.19', '+$20.00', '+$15.00'], 3713)
+  const rows = picker.getByTestId('link-candidate')
+
+  // The greyed $37.19 row is first. Tab from Filters lands on it, with its ring drawn and its reason shown
+  await picker.getByRole('button', { name: 'Transaction filters' }).focus()
+  await page.keyboard.press('Tab')
+  const greyed = rows.first().getByRole('button')
+  await expect(greyed).toBeFocused()
+  const ringed = rows.first().locator('.app-transaction-row')
+  await expect(ringed).toHaveCSS('outline-style', 'solid')
+  await expect(ringed).not.toHaveCSS('outline-color', 'rgba(0, 0, 0, 0)')
+  await expect(ringed).toHaveCSS('opacity', '1')
+  await expect(greyed).toHaveCSS('opacity', '1')
+  await expect(page.getByTestId('disabled-reason-tooltip').filter({ hasText: OVER_THE_EXPENSE })).toHaveCSS('opacity', '1')
+  await page.keyboard.press('Tab')
+  await expect(rows.nth(1).getByRole('button')).toBeFocused()
+
+  // The amount of a picked row against the picked fill, which is drawn over the page, is at least 4.5 to 1
+  await page.keyboard.press('Enter')
+  await expect(rows.nth(1)).toHaveAttribute('data-picked', 'true')
+  await page.mouse.move(0, 0)
+  await expect.poll(() => rows.nth(1).evaluate((node) => {
+    const canvas = document.createElement('canvas')
+    canvas.width = canvas.height = 1
+    const context = canvas.getContext('2d', { willReadFrequently: true })!
+    const toRgb = (color: string) => {
+      context.clearRect(0, 0, 1, 1)
+      context.fillStyle = color
+      context.fillRect(0, 0, 1, 1)
+      const [r, g, b, a] = context.getImageData(0, 0, 1, 1).data
+      return { r, g, b, a: a / 255 }
+    }
+
+    // The background is the picked fill laid over each ancestor's, from the page inwards
+    const layers: string[] = []
+    for (let element: Element | null = node; element; element = element.parentElement) {
+      layers.unshift(getComputedStyle(element).backgroundColor)
+    }
+    let background = { r: 255, g: 255, b: 255 }
+    for (const layer of layers) {
+      const { r, g, b, a } = toRgb(layer)
+      background = { r: r * a + background.r * (1 - a), g: g * a + background.g * (1 - a), b: b * a + background.b * (1 - a) }
+    }
+    const text = toRgb(getComputedStyle(node.querySelector('[data-testid="transaction-amount"]')!).color)
+    const luminance = ({ r, g, b }: { r: number; g: number; b: number }) => {
+      const [lr, lg, lb] = [r, g, b].map((channel) => {
+        const value = channel / 255
+        return value <= 0.03928 ? value / 12.92 : ((value + 0.055) / 1.055) ** 2.4
+      })
+      return 0.2126 * lr + 0.7152 * lg + 0.0722 * lb
+    }
+    const [lighter, darker] = [luminance(text), luminance(background)].sort((a, b) => b - a)
+    return (lighter + 0.05) / (darker + 0.05)
+  })).toBeGreaterThanOrEqual(4.5)
+})
+
+// A refund in another currency is not offered at all, not even greyed out, and counts as nothing that fits when the
+// opening button decides whether to grey out
+test('leaves out refunds in another currency and greys the opening button when only those are left', async ({ page, request }) => {
+  const user = await signUpUser(request)
+  const account = await createAccount(request, user, { name: 'Everyday', startingBalance: 50000 })
+  const foreign = await createAccount(request, user, { name: 'Euro account', currency: 'EUR', startingBalance: 50000 })
+  const row = { accountId: account.id, categoryName: 'Groceries' }
+  const expenseId = await createTransaction(request, user, { ...row, amount: -5000, date: daysFromTodayInTestTimezone(-6) })
+  await createTransaction(request, user, { ...row, amount: 2000, date: daysFromTodayInTestTimezone(-2) })
+  await createTransaction(request, user, { accountId: foreign.id, categoryName: 'Groceries', currency: 'EUR', amount: 3000, date: daysFromTodayInTestTimezone(-1) })
+
+  await logInViaApi(page, user)
+  await openPage(page, `/accounts/${account.id}`)
+  const expense = await openRow(page, expenseId)
+  const open = expense.getByTestId('link-existing')
+  await open.click()
+  const picker = page.getByRole('dialog', { name: 'Link a refund', exact: true })
+
+  // Only the $20.00 refund in the expense's own currency is listed, with nothing for the euro one
+  await expectOnlyPickableRows(picker, ['+$20.00'], 5000)
+  await pressRow(picker, '$20.00').click()
+  await picker.getByRole('button', { name: 'Link', exact: true }).click()
+  await expect(picker).toBeHidden()
+
+  // The euro refund is all that is left, which counts as nothing that fits
+  await expect(open).toHaveAttribute('aria-disabled', 'true')
+  await expect(open).toHaveAccessibleDescription(NO_REFUND_FITS)
+})

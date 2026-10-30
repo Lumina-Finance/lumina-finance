@@ -12,7 +12,7 @@ import { ModalTitledPanel } from '@/components/modal/TitledPanel'
 import { useMoneyFormatters } from '@/hooks/useMoneyFormatters'
 import LinkCandidateRow from '@/components/transactions/transaction-modal/modals/LinkCandidateRow'
 import TransactionModalLinkRefundFilters from '@/components/transactions/transaction-modal/modals/LinkRefundFilters'
-import { getRefusedRooms } from '@/components/transactions/transaction-modal/utils/refund'
+import { getOfferedCandidates, getRefusedRooms } from '@/components/transactions/transaction-modal/utils/refund'
 import { toTransactionListAccount, type TransactionListFilters } from '@/components/transactions/types/transactionList'
 import { normalizeTransactionFilters } from '@/components/transactions/utils/normalizeTransactionFilters'
 
@@ -132,7 +132,10 @@ export default function TransactionModalLinkRefundPicker({
     onClose()
   }
 
-  const rows = (candidates.data ?? []).filter((candidate) => !heldIds.includes(candidate.id))
+  const rows = getOfferedCandidates(
+    transaction,
+    (candidates.data ?? []).filter((candidate) => !heldIds.includes(candidate.id)),
+  )
 
   // Every row stays listed. One that can't be picked now is greyed out with what is left, and returns to full strength
   // when a pick is undone
@@ -140,7 +143,14 @@ export default function TransactionModalLinkRefundPicker({
   const refusalFor = (candidate: Transaction): string | null => {
     const room = refusedRooms.get(candidate.id)
     if (room === undefined) return null
-    return room > 0 ? `Over the ${formatCurrency(room, candidate.currency)} left` : 'Nothing left to refund'
+    if (picksRefund) {
+      return room > 0
+        ? `This refund is more than the ${formatCurrency(room, candidate.currency)} left to refund.`
+        : 'Nothing is left to refund on this expense.'
+    }
+    return room > 0
+      ? `This expense has only ${formatCurrency(room, candidate.currency)} left to refund.`
+      : 'This expense is already fully refunded.'
   }
 
   // A pick that a search or filter has taken off the list is dropped, so it does not come back when they clear

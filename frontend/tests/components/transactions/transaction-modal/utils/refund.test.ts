@@ -10,6 +10,7 @@ import {
   canLinkAsRefund,
   exceedsRefundRoom,
   getLinkedTransactionIds,
+  getOfferedCandidates,
   getRefundRoom,
   getRefusedRooms,
   isRefundable,
@@ -195,5 +196,15 @@ describe('getRefusedRooms', () => {
       createTransaction({ id: 'full', amount: -2500, currency: 'USD', refunded_amount: 2500 }),
     ]
     expect(Object.fromEntries(getRefusedRooms(money, expenses, undefined, []))).toEqual({ short: 1500, full: 0 })
+  })
+})
+
+describe('getOfferedCandidates', () => {
+  const refund = (id: string, currency: string) => createTransaction({ id, amount: 1000, currency })
+
+  it('leaves out candidates in another currency than the open transaction, so they are not even greyed out', () => {
+    const expense = createTransaction({ amount: -3713, currency: 'USD' })
+    const offered = getOfferedCandidates(expense, [refund('usd', 'USD'), refund('cad', 'CAD')])
+    expect(offered.map(({ id }) => id)).toEqual(['usd'])
   })
 })

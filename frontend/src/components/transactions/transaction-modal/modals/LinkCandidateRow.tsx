@@ -14,9 +14,10 @@ const PICKED_ROW_STYLE = { boxShadow: 'inset 0 0 0 1px var(--app-accent)' }
 const PICKED_ROW_CLASS_NAME =
   'bg-[var(--app-accent-soft)] hover:bg-[var(--app-accent-chosen-hover-fill)] [&_.app-transaction-row]:bg-transparent!'
 
-// A row that can't be picked wears the app's standard disabled strength, and eases to and from it as picks change
-const CONTENT_CLASS_NAME = 'transition-opacity motion-reduce:transition-none'
-const DISABLED_ROW_OPACITY = 0.5
+// A row that can't be picked wears the app's standard disabled strength, and eases to and from it as picks change. Only
+// what the row's button holds fades, so the keyboard focus ring drawn on the button itself stays at full strength
+const CONTENT_CLASS_NAME = '[&_button>*]:transition-opacity motion-reduce:[&_button>*]:transition-none'
+const DISABLED_CONTENT_CLASS_NAME = '[&_button>*]:opacity-50'
 
 interface LinkCandidateRowProps {
   transaction: Transaction
@@ -52,7 +53,7 @@ export default function LinkCandidateRow({
       data-picked={isPicked ? 'true' : undefined}
       data-refused={refusal ? 'true' : undefined}
     >
-      <div className={CONTENT_CLASS_NAME} style={{ opacity: refusal ? DISABLED_ROW_OPACITY : 1 }}>
+      <div className={refusal ? `${CONTENT_CLASS_NAME} ${DISABLED_CONTENT_CLASS_NAME}` : CONTENT_CLASS_NAME}>
         <TransactionRow
           transaction={transaction}
           currency={transaction.currency}

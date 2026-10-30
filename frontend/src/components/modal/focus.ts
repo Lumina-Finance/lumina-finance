@@ -25,8 +25,7 @@ const FOCUSABLE_SELECTOR = [
  * Returns enabled modal fields that should receive sequential Tab focus
  */
 export function getModalFieldTabStops(container: HTMLElement) {
-  return Array.from(container.querySelectorAll<HTMLElement>(MODAL_FIELD_TAB_STOP_SELECTOR))
-    .filter(isVisibleElement)
+  return Array.from(container.querySelectorAll<HTMLElement>(MODAL_FIELD_TAB_STOP_SELECTOR)).filter(isVisibleElement)
 }
 
 /**
@@ -36,18 +35,15 @@ export function getModalFieldTabStops(container: HTMLElement) {
  * leaves it out, since a dialog that stopped on it would hold focus inside the field it belongs to
  */
 export function getFocusableElements(container: HTMLElement) {
-  return Array.from(container.querySelectorAll<HTMLElement>(FOCUSABLE_SELECTOR))
-    .filter((element) => element.tabIndex >= 0 && isVisibleElement(element))
+  return Array.from(container.querySelectorAll<HTMLElement>(FOCUSABLE_SELECTOR)).filter(
+    (element) => element.tabIndex >= 0 && isVisibleElement(element),
+  )
 }
 
 /**
  * Gets the next stop for Tab or Shift+Tab focus wrapping
  */
-export function getNextTabStop<T>(
-  tabStops: readonly T[],
-  activeElement: T | null,
-  shiftKey: boolean,
-) {
+export function getNextTabStop<T>(tabStops: readonly T[], activeElement: T | null, shiftKey: boolean) {
   if (tabStops.length === 0) return null
 
   const activeIndex = activeElement ? tabStops.indexOf(activeElement) : -1
@@ -69,9 +65,8 @@ const MODAL_INITIAL_FOCUS_SELECTOR = '[data-modal-initial-focus="true"]:not([dis
  */
 export function requestInitialModalFocus(panel: HTMLElement) {
   return window.requestAnimationFrame(() => {
-    const target = panel.querySelector<HTMLElement>(MODAL_INITIAL_FOCUS_SELECTOR)
-      ?? getModalFieldTabStops(panel)[0]
-      ?? panel
+    const target =
+      panel.querySelector<HTMLElement>(MODAL_INITIAL_FOCUS_SELECTOR) ?? getModalFieldTabStops(panel)[0] ?? panel
     target.focus({ preventScroll: true })
   })
 }
@@ -94,8 +89,7 @@ export function useDialogFocus(
   useEffect(() => {
     if (!open) return
 
-    const opener = returnFocusOpener
-      ?? (document.activeElement instanceof HTMLElement ? document.activeElement : null)
+    const opener = returnFocusOpener ?? (document.activeElement instanceof HTMLElement ? document.activeElement : null)
     const fallback = fallbackRef?.current
 
     return () => {
@@ -158,9 +152,12 @@ export function useDialogFocus(
 }
 
 /**
- * Filters out responsive-hidden fields while preserving visually layered inputs like mobile date
+ * Filters out responsive-hidden fields while preserving visually layered inputs like mobile date. A control inside
+ * something inert, such as a closed filter panel's body, can't take focus, so Tab must not stop on it
  */
 function isVisibleElement(element: HTMLElement) {
+  if (element.closest('[inert]')) return false
+
   const style = window.getComputedStyle(element)
   if (style.display === 'none' || style.visibility === 'hidden') return false
 
