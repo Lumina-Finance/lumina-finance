@@ -1,5 +1,6 @@
 import type { DailyCashFlow } from '@/api/transactions'
 import { getChartGranularity, type ChartGranularity } from '@/utils/chartGranularity'
+import { getYearAxisTicks } from '@/utils/chartYearAxis'
 import { DATE_FORMATS, formatDate, formatDateRange, formatUnreadableRange, formatYmd, parseYmd } from '@/utils/date'
 
 export type DailyCashFlowChartMode = 'net' | 'gross'
@@ -7,7 +8,10 @@ export type DailyCashFlowGranularity = ChartGranularity
 
 export type DailyCashFlowPoint = {
   key: string
+  // What the axis writes under the point, which repeats across years, so the point is found by key
   date: string
+  // Whether the label carries the year, which marks where the year turns on a monthly range over two calendar years
+  marksYear: boolean
   rangeLabel: string
   inflow: number
   outflow: number
@@ -67,8 +71,9 @@ export function getDailyCashFlowCalculation(granularity: DailyCashFlowGranularit
 /**
  * Formats the short label shown on the chart X-axis
  */
-function formatCashFlowPointLabel(date: Date, granularity: DailyCashFlowGranularity) {
-  return formatDate(date, granularity === 'month' ? DATE_FORMATS.month : DATE_FORMATS.monthDay)
+function formatCashFlowPointLabel(date: Date, granularity: DailyCashFlowGranularity, marksYear: boolean) {
+  if (granularity !== 'month') return formatDate(date, DATE_FORMATS.monthDay)
+  return formatDate(date, marksYear ? DATE_FORMATS.monthYear : DATE_FORMATS.month)
 }
 
 /**
@@ -95,16 +100,20 @@ function formatCashFlowRangeLabel(start: Date, end: Date, granularity: DailyCash
 export function getDailyCashFlowSeries(
   raw: DailyCashFlow[],
   granularity: DailyCashFlowGranularity,
+  crossesYear: boolean,
 ): DailyCashFlowPoint[] {
   return raw.map((entry) => {
     const bucketStart = parseYmd(entry.date)
     const bucketEnd = parseYmd(entry.end_date)
+    // A monthly range over two calendar years repeats months, so each January label names its year
+    const marksYear = crossesYear && granularity === 'month' && bucketStart !== null && bucketStart.getMonth() === 0
 
     // A bucket dated with a day that does not exist falls back to its raw bounds, so the bar keeps
     // its amounts and stays in the totals instead of vanishing over a label the chart cannot build
     return {
       key: entry.date,
-      date: bucketStart ? formatCashFlowPointLabel(bucketStart, granularity) : entry.date,
+      date: bucketStart ? formatCashFlowPointLabel(bucketStart, granularity, marksYear) : entry.date,
+      marksYear,
       rangeLabel:
         bucketStart && bucketEnd
           ? formatCashFlowRangeLabel(bucketStart, bucketEnd, granularity)
@@ -117,12 +126,10 @@ export function getDailyCashFlowSeries(
 }
 
 /**
- * Calculates the maximum X-axis tick count that can fit in the current chart width
+ * The width the X-axis labels are drawn along, which is the chart's width less its margins and axis padding
  */
-export function getDailyCashFlowXAxisTickCount(chartWidth: number | undefined) {
-  if (chartWidth === undefined) return DAILY_CASH_FLOW_MAX_X_AXIS_TICK_COUNT
-
-  const usableWidth = Math.max(
+export function getDailyCashFlowPlotWidth(chartWidth: number) {
+  return Math.max(
     chartWidth -
       DAILY_CASH_FLOW_CHART_MARGIN.left -
       DAILY_CASH_FLOW_CHART_MARGIN.right -
@@ -130,6 +137,15 @@ export function getDailyCashFlowXAxisTickCount(chartWidth: number | undefined) {
       DAILY_CASH_FLOW_X_AXIS_PADDING.right,
     0,
   )
+}
+
+/**
+ * Calculates the maximum X-axis tick count that can fit in the current chart width
+ */
+export function getDailyCashFlowXAxisTickCount(chartWidth: number | undefined) {
+  if (chartWidth === undefined) return DAILY_CASH_FLOW_MAX_X_AXIS_TICK_COUNT
+
+  const usableWidth = getDailyCashFlowPlotWidth(chartWidth)
 
   return Math.max(
     2,
@@ -199,8 +215,16 @@ function getDailyCashFlowXAxisTickIndexes(dataLength: number, maxTickCount: numb
 }
 
 /**
- * Returns the data keys Recharts should render as X-axis ticks
+ * Returns the data keys Recharts should render as X-axis ticks: the buckets that name the year when a
+ * monthly range crosses one, so no month repeats unplaced, and otherwise evenly spaced buckets
+ * that keep the first and last
+ *
+ * @param plotWidth - The width the labels are drawn along, in pixels, or 0 before it is measured
  */
-export function getDailyCashFlowXAxisTicks(data: DailyCashFlowPoint[], maxTickCount: number) {
-  return getDailyCashFlowXAxisTickIndexes(data.length, maxTickCount).map((index) => data[index].key)
+export function getDailyCashFlowXAxisTicks(data: DailyCashFlowPoint[], maxTickCount: number, plotWidth: number) {
+  const yearTicks = getYearAxisTicks(
+    data.map((point) => ({ label: point.date, key: point.key, marksYear: point.marksYear })),
+    plotWidth,
+  )
+  return yearTicks ?? getDailyCashFlowXAxisTickIndexes(data.length, maxTickCount).map((index) => data[index].key)
 }

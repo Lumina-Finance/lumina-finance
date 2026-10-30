@@ -25,6 +25,7 @@ import {
   getDailyCashFlowCadenceTitle,
   getDailyCashFlowCalculation,
   getDailyCashFlowGranularity,
+  getDailyCashFlowPlotWidth,
   getDailyCashFlowSeries,
   getDailyCashFlowXAxisTickCount,
   getDailyCashFlowXAxisTicks,
@@ -32,6 +33,7 @@ import {
   type DailyCashFlowPoint,
 } from '@/pages/transactions/utils/dailyCashFlowChart'
 import { getCashFlowFxStatusMessage } from '@/pages/transactions/utils/fxTooltipMessages'
+import { crossesCalendarYear } from '@/utils/chartYearAxis'
 import { getValueMarkColor } from '@/utils/valueMarkColor'
 
 export type { DailyCashFlowChartMode } from '@/pages/transactions/utils/dailyCashFlowChart'
@@ -175,9 +177,14 @@ export default function DailyCashFlowChart({
   const dailyFlow = useMemo(
     () =>
       showPlaceholderData
-        ? PLACEHOLDER_DAILY_FLOW.map((point) => ({ ...point, key: point.date, rangeLabel: point.date }))
-        : getDailyCashFlowSeries(rawDailyFlow, dailyFlowGranularity),
-    [dailyFlowGranularity, rawDailyFlow, showPlaceholderData],
+        ? PLACEHOLDER_DAILY_FLOW.map((point) => ({
+            ...point,
+            key: point.date,
+            marksYear: false,
+            rangeLabel: point.date,
+          }))
+        : getDailyCashFlowSeries(rawDailyFlow, dailyFlowGranularity, crossesCalendarYear(fromDate, toDate)),
+    [dailyFlowGranularity, fromDate, rawDailyFlow, showPlaceholderData, toDate],
   )
   const dailyFlowPointsByKey = useMemo(() => new Map(dailyFlow.map((point) => [point.key, point])), [dailyFlow])
   // Re-key the chart on the displayed values so a placeholder-to-real swap or a refetch remounts it
@@ -191,8 +198,13 @@ export default function DailyCashFlowChart({
   const dailyFlowLabelsByKey = useMemo(() => new Map(dailyFlow.map((point) => [point.key, point.date])), [dailyFlow])
   const dailyFlowXAxisTickCount = getDailyCashFlowXAxisTickCount(dailyFlowChartWidth)
   const dailyFlowXAxisTicks = useMemo(
-    () => getDailyCashFlowXAxisTicks(dailyFlow, dailyFlowXAxisTickCount),
-    [dailyFlow, dailyFlowXAxisTickCount],
+    () =>
+      getDailyCashFlowXAxisTicks(
+        dailyFlow,
+        dailyFlowXAxisTickCount,
+        dailyFlowChartWidth === undefined ? 0 : getDailyCashFlowPlotWidth(dailyFlowChartWidth),
+      ),
+    [dailyFlow, dailyFlowChartWidth, dailyFlowXAxisTickCount],
   )
   const dailyFlowBaselineSegment = useMemo(() => {
     if (dailyFlow.length === 0) return undefined
