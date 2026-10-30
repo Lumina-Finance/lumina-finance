@@ -2,11 +2,17 @@ import { useState } from 'react'
 import { AnimatePresence } from 'motion/react'
 import TransactionModalLinkRefundPicker from '@/components/transactions/transaction-modal/modals/LinkRefundPicker'
 import RevealRow from '@/components/transactions/transaction-modal/sections/RevealRow'
-import { useTransaction, type Transaction } from '@/api/transactions'
+import { useRefundLinkCandidates, useTransaction, type Transaction } from '@/api/transactions'
 import CreateModalSectionFrame from '@/components/create-modal/SectionFrame'
+import { DisabledReasonButton } from '@/components/tooltips/DisabledReasonButton'
 import type { PendingLinks } from '@/components/transactions/transaction-modal/hooks/usePendingLinks'
+import { getPickableCandidates } from '@/components/transactions/transaction-modal/utils/refund'
 import { useMoneyFormatters } from '@/hooks/useMoneyFormatters'
 import { formatDateLabel } from '@/utils/date'
+
+// Why the button that opens the picker is held off
+const NO_REFUND_FITS = 'No money that came in fits what is left to refund'
+const NO_EXPENSE_FITS = 'No expense has room for this refund'
 
 interface LinkedRowFrameProps {
   merchantName: string
@@ -160,21 +166,37 @@ export default function TransactionModalLinkedRefundsSection({
   const pendingOriginal = isRefund ? pending.links[0] : undefined
   const pendingRefundLinks = isRefund ? [] : pending.links
   const savedRefundIds = current.refund_transaction_ids.filter((id) => !isUnlinked(id))
+
+  // The button that opens the picker is held off while nothing in the unfiltered list could be picked. The query is
+  // the picker's own with nothing searched or filtered, so the two share one request
+  const candidates = useRefundLinkCandidates(
+    canLinkRefund || canLinkExpense ? current.id : null,
+    '',
+    pending.unlinkedRefundIds.length > 0 ? { unlinked_id: pending.unlinkedRefundIds } : {},
+  )
+  const anythingFits =
+    candidates.data === undefined ||
+    getPickableCandidates(
+      current,
+      candidates.data.filter((candidate) => !pending.links.some((link) => link.id === candidate.id)),
+      refundRoom,
+      [],
+    ).length > 0
   const refundCount = savedRefundIds.length + pendingRefundLinks.length + pending.refunds.length
   const showRefunds = refundCount > 0 || canLinkRefund
   const showRefundOf = Boolean(savedOriginalId) || pendingOriginal !== undefined || canLinkExpense
   if (!showRefunds && !showRefundOf) return null
 
   const linkButton = (label: string) => (
-    <button
-      type="button"
+    <DisabledReasonButton
       className="app-secondary-button whitespace-nowrap"
       data-testid="link-existing"
       disabled={disabled}
+      disabledReason={anythingFits ? undefined : isRefund ? NO_EXPENSE_FITS : NO_REFUND_FITS}
       onClick={() => setPickerOpen(true)}
     >
       {label}
-    </button>
+    </DisabledReasonButton>
   )
   const prompt = (text: string, label: string) => (
     <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-2">
@@ -280,7 +302,7 @@ export default function TransactionModalLinkedRefundsSection({
         heldIds={pending.links.map((link) => link.id)}
         unlinkedIds={pending.unlinkedRefundIds}
         refundRoom={refundRoom}
-        onPick={pending.addLink}
+        onPick={(picked) => picked.forEach(pending.addLink)}
       />
     </>
   )

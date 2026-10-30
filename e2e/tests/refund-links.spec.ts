@@ -11,45 +11,6 @@ function linkIcon(page: Page, id: string) {
   return page.getByTestId(`transaction-row-${id}`).getByTestId('transaction-refund-link').filter({ visible: true })
 }
 
-// The WCAG contrast ratio of a row's amount against what it sits on, with the opacity of every ancestor applied
-// to the text and the first filled background found on the way up taken as what is behind it
-function amountContrast(row: Locator) {
-  return row.getByTestId('transaction-amount').evaluate((amount) => {
-    const parse = (colour: string) => {
-      const [r, g, b, a = 1] = (colour.match(/[\d.]+/g) ?? []).map(Number)
-      return { r, g, b, a }
-    }
-    const luminance = ({ r, g, b }: { r: number; g: number; b: number }) => {
-      const [lr, lg, lb] = [r, g, b].map((channel) => {
-        const unit = channel / 255
-        return unit <= 0.03928 ? unit / 12.92 : ((unit + 0.055) / 1.055) ** 2.4
-      })
-      return 0.2126 * lr + 0.7152 * lg + 0.0722 * lb
-    }
-    let strength = 1
-    let behind = { r: 255, g: 255, b: 255, a: 1 }
-    let foundBehind = false
-    for (let node: Element | null = amount; node; node = node.parentElement) {
-      const style = getComputedStyle(node)
-      strength *= Number(style.opacity)
-      const fill = parse(style.backgroundColor)
-      if (!foundBehind && fill.a > 0.5) {
-        behind = fill
-        foundBehind = true
-      }
-    }
-    const text = parse(getComputedStyle(amount).color)
-    const alpha = text.a * strength
-    const blended = {
-      r: text.r * alpha + behind.r * (1 - alpha),
-      g: text.g * alpha + behind.g * (1 - alpha),
-      b: text.b * alpha + behind.b * (1 - alpha),
-    }
-    const [light, dark] = [luminance(blended), luminance(behind)].sort((a, b) => b - a)
-    return (light + 0.05) / (dark + 0.05)
-  })
-}
-
 async function openRow(page: Page, id: string) {
   await page.getByTestId(`transaction-row-${id}`).click()
   const dialog = page.getByRole('dialog', { name: 'Edit transaction', exact: true })
@@ -283,24 +244,23 @@ test('lists the closest amounts first and links the row that is picked', async (
   const rows = picker.getByTestId('link-candidate')
   const linkButton = picker.getByRole('button', { name: 'Link', exact: true })
 
-  // The exact amount leads even though it is the oldest, then the nearer 4900 and 4800, and 9000 is the farthest
-  await expect(rows).toHaveCount(4)
-  await expect(rows.getByTestId('transaction-amount')).toHaveText(['+$50.00', '+$49.00', '+$48.00', '+$90.00'])
+  // The exact amount leads even though it is the oldest, then the nearer 4900 and 4800. 9000 is more than the whole
+  // expense, so it is not listed
+  await expect(rows).toHaveCount(3)
+  await expect(rows.getByTestId('transaction-amount')).toHaveText(['+$50.00', '+$49.00', '+$48.00'])
   await expect(linkButton).toBeDisabled()
 
-  // Pressing a row picks it and fades the others. Pressing it again clears the pick
+  // Pressing a row picks it. Pressing it again clears the pick
   await rows.nth(1).getByRole('button').click()
-  await expect(rows.nth(1).getByRole('button')).toHaveAttribute('aria-pressed', 'true')
-  await expect(rows.nth(0).getByRole('button')).toHaveAttribute('aria-pressed', 'false')
+
+  // The $49.00 pick leaves $1.00, which fits none of the others, so only the picked row stays listed
+  await expect(rows).toHaveCount(1)
+  await expect(rows.getByRole('button')).toHaveAttribute('aria-pressed', 'true')
   await expect(linkButton).toBeEnabled()
 
-  // The picked row takes the accent border and fill, and the others recede: their amount's contrast against the
-  // dialog falls to under half the picked row's, while staying readable
-  await expect(rows.nth(1)).not.toHaveCSS('background-color', 'rgba(0, 0, 0, 0)')
-  await expect(rows.nth(1)).not.toHaveCSS('box-shadow', await rows.nth(0).evaluate((row) => getComputedStyle(row).boxShadow))
-  await expect.poll(async () => (await amountContrast(rows.nth(0))) / (await amountContrast(rows.nth(1)))).toBeLessThan(0.5)
-  expect(await amountContrast(rows.nth(1))).toBeGreaterThanOrEqual(4.5)
-  expect(await amountContrast(rows.nth(0))).toBeGreaterThanOrEqual(1.5)
+  // The picked row takes the accent border and fill
+  await expect(rows).not.toHaveCSS('background-color', 'rgba(0, 0, 0, 0)')
+  await expect(rows).not.toHaveCSS('box-shadow', 'rgba(0, 0, 0, 0) 0px 0px 0px 1px inset')
 
   // The open filter panel covers the search row and the list edge to edge, so nothing behind shows beside it
   const filtersButton = picker.getByRole('button', { name: 'Transaction filters' })
@@ -316,7 +276,8 @@ test('lists the closest amounts first and links the row that is picked', async (
     return Math.max(Math.abs(glass.left - search.left), Math.abs(glass.left - list.left), Math.abs(glass.right - list.right))
   }).toBeLessThanOrEqual(0.5)
   await filtersButton.click()
-  await rows.nth(1).getByRole('button').click()
+  await rows.getByRole('button').click()
+  await expect(rows).toHaveCount(3)
   await expect(rows.nth(1).getByRole('button')).toHaveAttribute('aria-pressed', 'false')
   await expect(linkButton).toBeDisabled()
 
@@ -357,6 +318,17 @@ test('keeps the picker header in place while its rows scroll', async ({ page, re
   await expect(rows).toHaveCount(14)
 
   const search = picker.getByPlaceholder('Merchant or note…')
+
+  // The rows ease in and the centred dialog grows with them, so measuring waits until two reads in a row agree
+  let lastTop = -1
+  await expect
+    .poll(async () => {
+      const top = (await search.boundingBox())!.y
+      const settled = top === lastTop
+      lastTop = top
+      return settled
+    }, { intervals: [200] })
+    .toBe(true)
   const viewport = page.viewportSize()!
   const panel = await picker.boundingBox()
   // The edit window is 86vh tall, though it shrinks a little behind the picker, so its size is taken from the screen
@@ -381,7 +353,7 @@ test('narrows the picker with the filter sheet on a phone', async ({ page, reque
   const account = await createAccount(request, user, { name: 'Everyday' })
   const expenseId = await createTransaction(request, user, { accountId: account.id, categoryName: 'Groceries', amount: -5000, date: daysFromTodayInTestTimezone(-4) })
   await createTransaction(request, user, { accountId: account.id, categoryName: 'Groceries', amount: 4800, date: daysFromTodayInTestTimezone(-2) })
-  await createTransaction(request, user, { accountId: account.id, categoryName: 'Dining', amount: 5200, date: daysFromTodayInTestTimezone(-3) })
+  await createTransaction(request, user, { accountId: account.id, categoryName: 'Dining', amount: 4900, date: daysFromTodayInTestTimezone(-3) })
 
   await logInViaApi(page, user)
   await openPage(page, `/accounts/${account.id}`)
@@ -428,11 +400,18 @@ for (const size of [
       picker.getByPlaceholder('Merchant or note…'),
       phone ? picker.getByRole('button', { name: /^Filters/ }) : picker.getByRole('button', { name: 'Transaction filters' }),
     ]
-    // Measured from the dialog's own top, since a dialog that grows with the panel is centred and so moves as a whole
-    const tops = async () => {
-      const dialogTop = await picker.evaluate((node) => node.getBoundingClientRect().top)
-      return Promise.all(header.map((element) => element.evaluate((node, top) => node.getBoundingClientRect().top - top, dialogTop)))
-    }
+    // Measured from the dialog's own top, since a dialog that grows with the panel is centred and so moves as a whole.
+    // Everything is read in one call, as the dialog moves between separate reads while it grows
+    const tops = () =>
+      picker.evaluate((dialog, isPhone) => {
+        const dialogTop = dialog.getBoundingClientRect().top
+        const explanation = [...dialog.querySelectorAll('p')].find((p) => p.textContent?.startsWith('Pick money that came in'))
+        const filters = isPhone
+          ? [...dialog.querySelectorAll('button')].find((button) => /^Filters/.test(button.textContent ?? ''))
+          : dialog.querySelector('button[aria-label="Transaction filters"]')
+        const search = dialog.querySelector('input[placeholder="Merchant or note…"]')
+        return [explanation, search, filters].map((node) => node!.getBoundingClientRect().top - dialogTop)
+      }, phone)
     const resting = await tops()
 
     // Opening Filters from a body scrolled down is the case that moved the header, since the pinned block un-sticks

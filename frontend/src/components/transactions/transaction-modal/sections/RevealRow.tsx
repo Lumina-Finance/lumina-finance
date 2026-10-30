@@ -8,6 +8,9 @@ import {
 interface RevealRowProps {
   children: ReactNode
   testId?: string
+
+  /** The padding that spaces this row from the next, for a list that wants less than the default */
+  spacingClassName?: string
 }
 
 /**
@@ -16,7 +19,7 @@ interface RevealRowProps {
  * uses the timing the collapsible sections use. The row spaces itself with bottom padding, since a
  * margin or a gap between siblings would still snap as the row goes
  */
-export default function RevealRow({ children, testId }: RevealRowProps) {
+export default function RevealRow({ children, testId, spacingClassName = 'pb-2' }: RevealRowProps) {
   const prefersReducedMotion = useReducedMotion()
   const transition = {
     duration: prefersReducedMotion ? 0 : COLLAPSIBLE_SECTION_TRANSITION_SECONDS,
@@ -31,7 +34,7 @@ export default function RevealRow({ children, testId }: RevealRowProps) {
       style={{ overflow: 'hidden' }}
       data-testid={testId}
     >
-      <div className="pb-2">{children}</div>
+      <div className={spacingClassName}>{children}</div>
     </motion.div>
   )
 }

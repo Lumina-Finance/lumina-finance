@@ -59,6 +59,37 @@ export function exceedsRefundRoom(refund: Amounted, originalCurrency: string, ro
 }
 
 /**
+ * The candidates a press could pick now, so the picker never lists one it would have to refuse. An expense
+ * is offered the refunds that fit what is left of it after the refunds already picked, and keeps the picked
+ * ones listed. A refund is offered the expenses that have room for it. A refund in another currency is not
+ * counted against the expense, as on the server
+ *
+ * @param anchor The transaction the window edits
+ * @param candidates What the server says linking would accept
+ * @param refundRoom What is left to refund of the anchor, when it is an expense, with the links held in the window
+ * @param pickedIds The candidates picked in the picker so far
+ */
+export function getPickableCandidates(
+  anchor: Amounted,
+  candidates: readonly Transaction[],
+  refundRoom: number | undefined,
+  pickedIds: readonly string[],
+): Transaction[] {
+  if (anchor.amount > 0) {
+    return candidates.filter(
+      (expense) => !exceedsRefundRoom(anchor, expense.currency, -expense.amount - (expense.refunded_amount ?? 0)),
+    )
+  }
+  const picked = candidates.filter((candidate) => pickedIds.includes(candidate.id))
+  const remaining =
+    (refundRoom ?? Infinity) -
+    picked.reduce((total, candidate) => total + (candidate.currency === anchor.currency ? candidate.amount : 0), 0)
+  return candidates.filter(
+    (candidate) => pickedIds.includes(candidate.id) || !exceedsRefundRoom(candidate, anchor.currency, remaining),
+  )
+}
+
+/**
  * The note a refund starts with, naming what it refunds so the two read as a pair in the list
  */
 export function buildRefundNote(merchantName: string | null): string {

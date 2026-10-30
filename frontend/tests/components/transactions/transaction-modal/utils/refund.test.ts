@@ -10,6 +10,7 @@ import {
   canLinkAsRefund,
   exceedsRefundRoom,
   getLinkedTransactionIds,
+  getPickableCandidates,
   getRefundRoom,
   isRefundable,
 } from '@/components/transactions/transaction-modal/utils/refund'
@@ -151,5 +152,42 @@ describe('refund room', () => {
     expect(exceedsRefundRoom({ amount: 2501, currency: 'CAD' }, 'CAD', 2500)).toBe(true)
     expect(exceedsRefundRoom({ amount: 2500, currency: 'CAD' }, 'CAD', 2500)).toBe(false)
     expect(exceedsRefundRoom({ amount: 9999, currency: 'USD' }, 'CAD', 2500)).toBe(false)
+  })
+})
+
+describe('getPickableCandidates', () => {
+  const expense = createTransaction({ amount: -3713, currency: 'USD' })
+  const refund = (id: string, amount: number, currency = 'USD') => createTransaction({ id, amount, currency })
+  const candidates = [
+    refund('a', 2000),
+    refund('b', 1500),
+    refund('c', 1200),
+    refund('over', 3719),
+    refund('cad', 9000, 'CAD'),
+  ]
+  const ids = (picked: string[]) =>
+    getPickableCandidates(expense, candidates, 3713, picked).map((candidate) => candidate.id)
+
+  it('lists only the refunds that fit, and any in another currency, which count for nothing', () => {
+    expect(ids([])).toEqual(['a', 'b', 'c', 'cad'])
+  })
+
+  it('takes each pick off what is left for the others and gives it back when undone', () => {
+    expect(ids(['a'])).toEqual(['a', 'b', 'c', 'cad'])
+    expect(ids(['a', 'b'])).toEqual(['a', 'b', 'cad'])
+    expect(ids(['b'])).toEqual(['a', 'b', 'c', 'cad'])
+  })
+
+  it('keeps a picked row listed even when it uses up what is left', () => {
+    expect(getPickableCandidates(expense, [refund('a', 3713)], 3713, ['a']).map(({ id }) => id)).toEqual(['a'])
+  })
+
+  it('offers a refund only the expenses with room for it', () => {
+    const money = createTransaction({ amount: 2500, currency: 'USD' })
+    const expenses = [
+      createTransaction({ id: 'fits', amount: -2500, currency: 'USD', refunded_amount: 0 }),
+      createTransaction({ id: 'short', amount: -2500, currency: 'USD', refunded_amount: 1000 }),
+    ]
+    expect(getPickableCandidates(money, expenses, undefined, []).map(({ id }) => id)).toEqual(['fits'])
   })
 })

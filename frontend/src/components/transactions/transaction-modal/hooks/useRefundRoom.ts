@@ -4,7 +4,7 @@ import { getRefundRoom } from '@/components/transactions/transaction-modal/utils
 
 /**
  * Works out how much of the edited expense is still left to refund, counting its saved refunds, the
- * ones the window will link and create on Save, and not the ones it will unlink. Undefined for anything
+ * ones the window will link and create on Save, and not the ones it will unlink or already has unlinked. Undefined for anything
  * that isn't an expense
  *
  * @param transaction The transaction the window edits
@@ -13,9 +13,8 @@ import { getRefundRoom } from '@/components/transactions/transaction-modal/utils
 export function useRefundRoom(transaction: Transaction | undefined, pending: PendingLinks): number | undefined {
   const loaded = useTransactionsById(transaction?.refund_transaction_ids ?? [])
   if (!transaction || transaction.amount >= 0) return undefined
-  const saved = loaded.filter(
-    (refund): refund is Transaction => refund !== undefined && !pending.unlinkedRefundIds.includes(refund.id),
-  )
+  const isUnlinked = (id: string) => pending.unlinkedRefundIds.includes(id) || pending.appliedUnlinkIds.includes(id)
+  const saved = loaded.filter((refund): refund is Transaction => refund !== undefined && !isUnlinked(refund.id))
   const held = [...pending.links, ...pending.refunds.map((refund) => refund.preview)]
   return getRefundRoom(transaction, [...saved, ...held])
 }
