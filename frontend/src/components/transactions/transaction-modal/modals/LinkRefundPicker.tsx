@@ -9,9 +9,10 @@ import { GlassSearchField } from '@/components/list-controls/GlassSearchField'
 import LoadFailure from '@/components/errors/LoadFailure'
 import { ModalFormFooter } from '@/components/modal/FormFooter'
 import { ModalTitledPanel } from '@/components/modal/TitledPanel'
-import TransactionRow from '@/components/transactions/Row'
+import { useMoneyFormatters } from '@/hooks/useMoneyFormatters'
+import LinkCandidateRow from '@/components/transactions/transaction-modal/modals/LinkCandidateRow'
 import TransactionModalLinkRefundFilters from '@/components/transactions/transaction-modal/modals/LinkRefundFilters'
-import { getPickableCandidates } from '@/components/transactions/transaction-modal/utils/refund'
+import { getRefusedRooms } from '@/components/transactions/transaction-modal/utils/refund'
 import { toTransactionListAccount, type TransactionListFilters } from '@/components/transactions/types/transactionList'
 import { normalizeTransactionFilters } from '@/components/transactions/utils/normalizeTransactionFilters'
 
@@ -26,18 +27,8 @@ const PANEL_CLASS_NAME =
 const BODY_CLASS_NAME =
   'min-[750px]:min-h-0 min-[750px]:has-[[aria-expanded=true]]:min-h-[34rem] min-[750px]:transition-[min-height] motion-reduce:transition-none'
 
-// A picked row takes the accent fill and an accent border. The others keep a clear border so it eases in and out
-const ROW_CLASS_NAME = 'scroll-mt-44 rounded-lg transition-[background-color,box-shadow] motion-reduce:transition-none'
-
 // A little space between rows, so the borders of two picked rows next to each other stay two lines
 const ROW_SPACING_CLASS_NAME = 'pb-1'
-const RESTING_ROW_STYLE = { boxShadow: 'inset 0 0 0 1px transparent' }
-const PICKED_ROW_STYLE = { boxShadow: 'inset 0 0 0 1px var(--app-accent)' }
-
-// The picked row rests in the accent fill and deepens it under the pointer, as a chosen option in the filter panels
-// does. The row inside draws no hover fill of its own over it
-const PICKED_ROW_CLASS_NAME =
-  'bg-[var(--app-accent-soft)] hover:bg-[var(--app-accent-chosen-hover-fill)] [&_.app-transaction-row]:bg-transparent!'
 
 interface LinkRefundPickerProps {
   open: boolean
@@ -62,9 +53,9 @@ interface LinkRefundPickerProps {
 /**
  * Opens over the transaction modal to link existing refunds to an expense, or an existing expense to
  * a refund. The server lists only what linking would accept, the exact amount first and then the nearest,
- * and the list's own filters narrow it. Only what a press could pick is listed: an expense takes several
- * refunds while their total stays within it, so each pick lowers what is left for the others, which leave
- * the list when they no longer fit and return when a pick is undone. A refund takes one expense, and
+ * and the list's own filters narrow it. An expense takes several refunds while
+ * their total stays within it, so each pick lowers what is left for the others. A row that no longer fits stays
+ * listed, greyed out with its reason in the shared tooltip, and returns to full strength when a pick is undone. A refund takes one expense, and
  * pressing another moves the pick. The modal's Link button, live once one is picked, holds the picks until
  * the window it opened from is saved
  */
@@ -78,6 +69,7 @@ export default function TransactionModalLinkRefundPicker({
   onPick,
 }: LinkRefundPickerProps) {
   const titleId = useId()
+  const { formatCurrency } = useMoneyFormatters()
   const [search, setSearch] = useState('')
   const [sentSearch, setSentSearch] = useState('')
   const [filters, setFilters] = useState<TransactionListFilters>({})
@@ -140,8 +132,16 @@ export default function TransactionModalLinkRefundPicker({
     onClose()
   }
 
-  const notHeld = (candidates.data ?? []).filter((candidate) => !heldIds.includes(candidate.id))
-  const rows = getPickableCandidates(transaction, notHeld, refundRoom, pickedIds)
+  const rows = (candidates.data ?? []).filter((candidate) => !heldIds.includes(candidate.id))
+
+  // Every row stays listed. One that can't be picked now is greyed out with what is left, and returns to full strength
+  // when a pick is undone
+  const refusedRooms = getRefusedRooms(transaction, rows, refundRoom, pickedIds)
+  const refusalFor = (candidate: Transaction): string | null => {
+    const room = refusedRooms.get(candidate.id)
+    if (room === undefined) return null
+    return room > 0 ? `Over the ${formatCurrency(room, candidate.currency)} left` : 'Nothing left to refund'
+  }
 
   // A pick that a search or filter has taken off the list is dropped, so it does not come back when they clear
   const picked = rows.filter((candidate) => pickedIds.includes(candidate.id))
@@ -248,31 +248,23 @@ export default function TransactionModalLinkRefundPicker({
               </p>
             ) : (
               <div role="group" aria-label="Transactions that can be linked" data-testid="link-candidates">
-                {/* A row that no longer fits eases out, and eases back in when a pick is undone */}
                 <AnimatePresence initial={false}>
                   {rows.map((candidate) => {
                     const account = accountById.get(candidate.account_id)
-                    const isPicked = pickedIds.includes(candidate.id)
+                    const refusal = refusalFor(candidate)
                     return (
                       <RevealRow key={candidate.id} spacingClassName={ROW_SPACING_CLASS_NAME}>
-                        <div
-                          className={isPicked ? `${ROW_CLASS_NAME} ${PICKED_ROW_CLASS_NAME}` : ROW_CLASS_NAME}
-                          style={isPicked ? PICKED_ROW_STYLE : RESTING_ROW_STYLE}
-                          data-testid="link-candidate"
-                          data-picked={isPicked ? 'true' : undefined}
-                        >
-                          <TransactionRow
-                            transaction={candidate}
-                            currency={candidate.currency}
-                            category={categoryById.get(candidate.category_id)}
-                            accountName={account?.name}
-                            accountInstitution={account?.institution}
-                            skipEnterAnimation
-                            phoneLayout
-                            pressed={isPicked}
-                            onOpen={() => togglePick(candidate.id)}
-                          />
-                        </div>
+                        <LinkCandidateRow
+                          transaction={candidate}
+                          category={categoryById.get(candidate.category_id)}
+                          accountName={account?.name}
+                          accountInstitution={account?.institution}
+                          isPicked={pickedIds.includes(candidate.id)}
+                          refusal={refusal}
+                          onPick={() => {
+                            if (!refusal) togglePick(candidate.id)
+                          }}
+                        />
                       </RevealRow>
                     )
                   })}

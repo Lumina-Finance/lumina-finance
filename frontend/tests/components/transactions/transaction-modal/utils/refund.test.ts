@@ -10,8 +10,8 @@ import {
   canLinkAsRefund,
   exceedsRefundRoom,
   getLinkedTransactionIds,
-  getPickableCandidates,
   getRefundRoom,
+  getRefusedRooms,
   isRefundable,
 } from '@/components/transactions/transaction-modal/utils/refund'
 import { createAccount, createCategory, createTransaction, currencies } from './fixtures'
@@ -155,7 +155,7 @@ describe('refund room', () => {
   })
 })
 
-describe('getPickableCandidates', () => {
+describe('getRefusedRooms', () => {
   const expense = createTransaction({ amount: -3713, currency: 'USD' })
   const refund = (id: string, amount: number, currency = 'USD') => createTransaction({ id, amount, currency })
   const candidates = [
@@ -165,29 +165,35 @@ describe('getPickableCandidates', () => {
     refund('over', 3719),
     refund('cad', 9000, 'CAD'),
   ]
-  const ids = (picked: string[]) =>
-    getPickableCandidates(expense, candidates, 3713, picked).map((candidate) => candidate.id)
+  const refused = (picked: string[]) => Object.fromEntries(getRefusedRooms(expense, candidates, 3713, picked))
 
-  it('lists only the refunds that fit, and any in another currency, which count for nothing', () => {
-    expect(ids([])).toEqual(['a', 'b', 'c', 'cad'])
+  it('refuses a refund bigger than the whole expense, with what is left, and counts one in another currency for nothing', () => {
+    expect(refused([])).toEqual({ over: 3713 })
   })
 
   it('takes each pick off what is left for the others and gives it back when undone', () => {
-    expect(ids(['a'])).toEqual(['a', 'b', 'c', 'cad'])
-    expect(ids(['a', 'b'])).toEqual(['a', 'b', 'cad'])
-    expect(ids(['b'])).toEqual(['a', 'b', 'c', 'cad'])
+    expect(refused(['a'])).toEqual({ over: 1713 })
+    expect(refused(['a', 'b'])).toEqual({ c: 213, over: 213 })
+    expect(refused(['b'])).toEqual({ over: 2213 })
   })
 
-  it('keeps a picked row listed even when it uses up what is left', () => {
-    expect(getPickableCandidates(expense, [refund('a', 3713)], 3713, ['a']).map(({ id }) => id)).toEqual(['a'])
+  it('never refuses a picked row, even when it uses up what is left', () => {
+    expect(Object.fromEntries(getRefusedRooms(expense, [refund('a', 3713), refund('b', 100)], 3713, ['a']))).toEqual({
+      b: 0,
+    })
   })
 
-  it('offers a refund only the expenses with room for it', () => {
+  it('refuses nothing while what is left is not known yet', () => {
+    expect(getRefusedRooms(expense, candidates, undefined, []).size).toBe(0)
+  })
+
+  it('refuses to a refund the expenses with no room for it, with what they have left', () => {
     const money = createTransaction({ amount: 2500, currency: 'USD' })
     const expenses = [
       createTransaction({ id: 'fits', amount: -2500, currency: 'USD', refunded_amount: 0 }),
       createTransaction({ id: 'short', amount: -2500, currency: 'USD', refunded_amount: 1000 }),
+      createTransaction({ id: 'full', amount: -2500, currency: 'USD', refunded_amount: 2500 }),
     ]
-    expect(getPickableCandidates(money, expenses, undefined, []).map(({ id }) => id)).toEqual(['fits'])
+    expect(Object.fromEntries(getRefusedRooms(money, expenses, undefined, []))).toEqual({ short: 1500, full: 0 })
   })
 })

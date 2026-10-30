@@ -1,9 +1,11 @@
-import { useContext, useState } from 'react'
+import { useContext, useState, type MouseEvent } from 'react'
 import { AnimatePresence, motion } from 'motion/react'
 import { Link2, StickyNote, Tag as TagIcon } from 'lucide-react'
 import type { Institution } from '@/api/institutions'
 import type { Category } from '@/api/categories'
 import type { Transaction } from '@/api/transactions'
+import type { useDisabledReason } from '@/hooks/useDisabledReason'
+import { getDisabledReasonProps } from '@/utils/disabledReasonControl'
 import { Checkbox } from '@/components/forms/Checkbox'
 import { MAX_BULK_EDIT_TRANSACTIONS } from '@/components/transactions/bulk-edit/constants'
 import type { RowSelectionMark } from '@/components/transactions/bulk-edit/selection'
@@ -79,6 +81,8 @@ export interface TransactionRowSelection {
   onPointerEnter: () => void
 }
 
+type DisabledReasonState = ReturnType<typeof useDisabledReason>
+
 interface TransactionRowProps {
   accountName?: string
 
@@ -102,6 +106,10 @@ interface TransactionRowProps {
 
   // Marks the row as a toggle, for a list where pressing a row picks it instead of opening it
   pressed?: boolean
+
+  // Holds the row off while it can't be used, with its reason in the shared tooltip on hover, keyboard focus and tap
+  // and described for a screen reader, as for a greyed out button. The row's own reason text is not drawn
+  disabledReason?: DisabledReasonState
   selection?: TransactionRowSelection
   onOpen: (transaction: Transaction) => void
 }
@@ -300,10 +308,27 @@ export function TransactionRowView({
   skipEnterAnimation = false,
   phoneLayout = false,
   pressed,
+  disabledReason,
   selection,
   onOpen,
 }: TransactionRowViewProps) {
   const wide = !phoneLayout
+  const handleClick = (event: MouseEvent<HTMLButtonElement>) => {
+    if (!selection) {
+      onOpen()
+      return
+    }
+
+    // A shift-click lands on a row the app will not edit as readily as on any other, and the
+    // range it takes steps over that row, so it runs anyway rather than doing nothing under a
+    // pointer the highlight has already answered
+    if (selection.isSelectable || event.shiftKey) selection.onToggle(event.shiftKey)
+  }
+  const reasonProps = getDisabledReasonProps<HTMLButtonElement>(
+    disabledReason ?? { isUnavailable: false, controlProps: {}, handleBlockedClick: () => {} },
+    { onClick: handleClick },
+  )
+  const isHeldOff = disabledReason?.isUnavailable === true
   // The row clips its content only while the height animates, so the grow and collapse read cleanly
   // while the resting row still lets a tag tooltip overflow past its edges
   const [isAnimatingHeight, setIsAnimatingHeight] = useState(false)
@@ -381,7 +406,7 @@ export function TransactionRowView({
       transition={{ duration: prefersReducedMotion ? 0 : 0.24, ease: ROW_EXIT_EASE }}
       onAnimationStart={() => setIsAnimatingHeight(true)}
       onAnimationComplete={() => setIsAnimatingHeight(false)}
-      className={`app-transaction-row relative flex items-center hover:bg-[var(--app-hover-soft)] ${wide ? 'min-[750px]:col-span-full min-[750px]:grid min-[750px]:grid-cols-subgrid min-[750px]:items-center min-[750px]:gap-x-3 min-[1300px]:gap-x-4' : ''}`}
+      className={`app-transaction-row relative flex items-center ${isHeldOff ? '' : 'hover:bg-[var(--app-hover-soft)]'} ${wide ? 'min-[750px]:col-span-full min-[750px]:grid min-[750px]:grid-cols-subgrid min-[750px]:items-center min-[750px]:gap-x-3 min-[1300px]:gap-x-4' : ''}`}
       style={{
         borderBottom: '1px solid var(--app-border)',
         overflow: isAnimatingHeight ? 'hidden' : 'visible',
@@ -436,19 +461,9 @@ export function TransactionRowView({
         // In selection mode the checkbox is the row's single stop, so the same row does not offer
         // two controls doing the same thing
         tabIndex={selection ? -1 : undefined}
-        onClick={(event) => {
-          if (!selection) {
-            onOpen()
-            return
-          }
-
-          // A shift-click lands on a row the app will not edit as readily as on any other, and the
-          // range it takes steps over that row, so it runs anyway rather than doing nothing under a
-          // pointer the highlight has already answered
-          if (selection.isSelectable || event.shiftKey) selection.onToggle(event.shiftKey)
-        }}
+        {...reasonProps}
         aria-pressed={pressed}
-        className={`block w-full min-w-0 flex-1 cursor-pointer px-3 text-left focus-visible:outline-none ${wide ? 'min-[750px]:col-span-5 min-[750px]:grid min-[750px]:grid-cols-subgrid min-[750px]:items-center min-[750px]:gap-x-3 min-[1300px]:gap-x-4' : ''}`}
+        className={`block w-full min-w-0 flex-1 ${isHeldOff ? 'cursor-not-allowed' : 'cursor-pointer'} px-3 text-left focus-visible:outline-none ${wide ? 'min-[750px]:col-span-5 min-[750px]:grid min-[750px]:grid-cols-subgrid min-[750px]:items-center min-[750px]:gap-x-3 min-[1300px]:gap-x-4' : ''}`}
         style={{ scrollMarginTop: TRANSACTION_ROW_SCROLL_MARGIN }}
       >
         {/* Row from 750px wide: each cell is a direct child of this button's subgrid, which spans the

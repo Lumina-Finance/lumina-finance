@@ -20,8 +20,8 @@ async function openRow(page: Page, id: string) {
 // The reason "Link an existing refund" gives while no row fits
 const NO_REFUND_FITS = 'No money that came in fits what is left to refund'
 
-// The refunds the picker shows are in its order, with what is left to refund after the picks. Every row not picked
-// must fit that, so no row is shown that a press could not pick
+// Every refund stays listed, in the picker's order. Those that don't fit what is left of the expense after the picks
+// are marked refused and aria-disabled, and every other row is not, so a row is never refused that a press could take
 async function expectOnlyPickableRows(picker: Locator, amounts: string[], remainingCents: number) {
   const rows = picker.getByTestId('link-candidate')
   await expect(rows.getByTestId('transaction-amount')).toHaveText(amounts)
@@ -29,16 +29,30 @@ async function expectOnlyPickableRows(picker: Locator, amounts: string[], remain
     const shown = await rows.evaluateAll((nodes) =>
       nodes.map((node) => ({
         picked: node.getAttribute('data-picked') === 'true',
+        refused: node.getAttribute('data-refused') === 'true',
+        disabled: node.querySelector('button')!.getAttribute('aria-disabled') === 'true',
         cents: Math.round(Number(node.querySelector('[data-testid="transaction-amount"]')!.textContent!.replace(/[^\d.]/g, '')) * 100),
       })),
     )
-    return shown.length === amounts.length && shown.every((row) => row.picked || row.cents <= remainingCents)
+    return shown.length === amounts.length && shown.every((row) => {
+      const shouldRefuse = !row.picked && row.cents > remainingCents
+      return row.refused === shouldRefuse && row.disabled === shouldRefuse
+    })
   }).toBe(true)
 }
 
-// The picker offers only the refunds that fit what is left of the expense. A refund over the whole expense is never
-// listed, a pick lowers what is left for the others and unpicking gives it back, with the mouse and the keyboard
-test('lists only refunds that fit and updates the list as rows are picked and unpicked', async ({ page, request }) => {
+// The button of the picker row with this amount. Matched by the amount shown, as a greyed row also holds its reason as text
+function pressRow(picker: Locator, amount: string) {
+  const amountText = picker.page().getByTestId('transaction-amount').filter({ hasText: amount })
+  return picker.getByTestId('link-candidate').filter({ has: amountText }).getByRole('button')
+}
+
+const ALL_ROWS =['+$37.19', '+$20.00', '+$15.00', '+$12.00']
+
+// The picker keeps every refund listed and greys out the ones that don't fit what is left of the expense, with their
+// reason in the tooltip. A refund over the whole expense is greyed from the start, a pick lowers what is left for the
+// others and unpicking gives it back, with the mouse and the keyboard
+test('greys out the refunds that no longer fit and updates them as rows are picked and unpicked', async ({ page, request }) => {
   const user = await signUpUser(request)
   const account = await createAccount(request, user, { name: 'Everyday', startingBalance: 50000 })
   const row = { accountId: account.id, categoryName: 'Groceries' }
@@ -52,44 +66,61 @@ test('lists only refunds that fit and updates the list as rows are picked and un
   const expense = await openRow(page, expenseId)
   await expense.getByTestId('link-existing').click()
   const picker = page.getByRole('dialog', { name: 'Link a refund', exact: true })
-  const press = (amount: string) => picker.getByTestId('link-candidate').filter({ hasText: amount }).getByRole('button')
+  const press = (amount: string) => pressRow(picker, amount)
   const linkButton = picker.getByRole('button', { name: 'Link', exact: true })
 
-  // $37.19 is more than the whole expense, so it is never listed
-  await expectOnlyPickableRows(picker, ['+$20.00', '+$15.00', '+$12.00'], 3713)
+  // $37.19 is more than the whole expense, so it is listed greyed out from the start. Its reason is the shared tooltip's
+  // on hover and on keyboard focus, and its description for a screen reader, and pressing it picks nothing
+  await expectOnlyPickableRows(picker, ALL_ROWS, 3713)
   await expect(linkButton).toBeDisabled()
+  const tooltip = page.getByTestId('disabled-reason-tooltip').filter({ hasText: /\S/ })
+  await press('$37.19').hover()
+  await expect(tooltip).toHaveText('Over the $37.13 left')
+  await expect(tooltip).toHaveCSS('opacity', '1')
+  await expect(press('$37.19')).toHaveAccessibleDescription('Over the $37.13 left')
+  // The greyed look eases in and out rather than snapping, at the app's disabled strength
+  const content = picker.getByTestId('link-candidate').first().locator('> div')
+  await expect(content).toHaveCSS('transition-property', 'opacity')
+  await expect(content).toHaveCSS('opacity', '0.5')
+  await press('$37.19').click({ force: true })
+  await expect(press('$37.19')).toHaveAttribute('aria-pressed', 'false')
+  await expect(linkButton).toBeDisabled()
+  await picker.getByRole('button', { name: 'Cancel', exact: true }).hover()
+  await press('$37.19').focus()
+  await page.keyboard.press('Enter')
+  await expect(press('$37.19')).toHaveAttribute('aria-pressed', 'false')
 
   // Two rows can be picked together. The $20.00 pick leaves $17.13, the $15.00 pick $2.13, which fits nothing else
   await press('$20.00').click()
-  await expectOnlyPickableRows(picker, ['+$20.00', '+$15.00', '+$12.00'], 1713)
+  await expectOnlyPickableRows(picker, ALL_ROWS, 1713)
   await press('$15.00').click()
-  await expectOnlyPickableRows(picker, ['+$20.00', '+$15.00'], 213)
+  await expectOnlyPickableRows(picker, ALL_ROWS, 213)
   await expect(press('$20.00')).toHaveAttribute('aria-pressed', 'true')
   await expect(press('$15.00')).toHaveAttribute('aria-pressed', 'true')
   await expect(linkButton).toBeEnabled()
 
   // Pressing a picked row again gives its amount back
   await press('$20.00').click()
-  await expectOnlyPickableRows(picker, ['+$20.00', '+$15.00', '+$12.00'], 2213)
+  await expectOnlyPickableRows(picker, ALL_ROWS, 2213)
   await expect(press('$20.00')).toHaveAttribute('aria-pressed', 'false')
 
   // The keyboard picks and unpicks the same way, with Enter and with Space
   await press('$12.00').focus()
   await page.keyboard.press('Enter')
-  await expectOnlyPickableRows(picker, ['+$15.00', '+$12.00'], 1013)
+  await expectOnlyPickableRows(picker, ALL_ROWS, 1013)
   await expect(press('$12.00')).toHaveAttribute('aria-pressed', 'true')
   await press('$12.00').focus()
   await page.keyboard.press('Space')
-  await expectOnlyPickableRows(picker, ['+$20.00', '+$15.00', '+$12.00'], 2213)
+  await expectOnlyPickableRows(picker, ALL_ROWS, 2213)
   await press('$15.00').focus()
   await page.keyboard.press('Enter')
-  await expectOnlyPickableRows(picker, ['+$20.00', '+$15.00', '+$12.00'], 3713)
+  await expectOnlyPickableRows(picker, ALL_ROWS, 3713)
   await expect(linkButton).toBeDisabled()
   await press('$20.00').focus()
   await page.keyboard.press('Space')
-  await expectOnlyPickableRows(picker, ['+$20.00', '+$15.00', '+$12.00'], 1713)
+  await expectOnlyPickableRows(picker, ALL_ROWS, 1713)
   await page.keyboard.press('Space')
-  await expectOnlyPickableRows(picker, ['+$20.00', '+$15.00', '+$12.00'], 3713)
+  await expectOnlyPickableRows(picker, ALL_ROWS, 3713)
   await expect(linkButton).toBeDisabled()
 
   // Both picks are held by Link, and the window names them as not saved yet
@@ -126,8 +157,8 @@ test('greys out the link button with its reason while no refund fits', async ({ 
   // $12.00 fits and $31.00 never does, so the button is live
   await expect(open).not.toHaveAttribute('aria-disabled', 'true')
   await open.click()
-  await expectOnlyPickableRows(picker, ['+$12.00'], 3000)
-  await picker.getByTestId('link-candidate').getByRole('button').click()
+  await expectOnlyPickableRows(picker, ['+$31.00', '+$12.00'], 3000)
+  await pressRow(picker, '$12.00').click()
   await picker.getByRole('button', { name: 'Link', exact: true }).click()
 
   // The only row left is $31.00, which does not fit the $18.00 left, so the button is greyed out and a press does nothing
@@ -291,7 +322,7 @@ test('gives an unlinked refund its amount back to the picker before Save', async
   await expect(open).not.toHaveAttribute('aria-disabled', 'true')
   await open.click()
   const picker = page.getByRole('dialog', { name: 'Link a refund', exact: true })
-  await expectOnlyPickableRows(picker, ['+$37.13', '+$20.00', '+$15.00'], 3713)
+  await expectOnlyPickableRows(picker, ['+$37.13', '+$37.19', '+$20.00', '+$15.00'], 3713)
 })
 
 // Escape closes the topmost layer only: the open filter panel (the full-screen sheet on a phone) first, and the
@@ -346,13 +377,13 @@ test('keeps the second instalment listed when the first is picked', async ({ pag
   const expense = await openRow(page, expenseId)
   await expense.getByTestId('link-existing').click()
   const picker = page.getByRole('dialog', { name: 'Link a refund', exact: true })
-  const press = (amount: string) => picker.getByTestId('link-candidate').filter({ hasText: amount }).getByRole('button')
+  const press = (amount: string) => pressRow(picker, amount)
 
   await expectOnlyPickableRows(picker, ['+$40.00', '+$30.00', '+$20.00'], 5000)
   await press('$20.00').click()
-  await expectOnlyPickableRows(picker, ['+$30.00', '+$20.00'], 3000)
+  await expectOnlyPickableRows(picker, ['+$40.00', '+$30.00', '+$20.00'], 3000)
   await press('$30.00').click()
-  await expectOnlyPickableRows(picker, ['+$30.00', '+$20.00'], 0)
+  await expectOnlyPickableRows(picker, ['+$40.00', '+$30.00', '+$20.00'], 0)
   await picker.getByRole('button', { name: 'Link', exact: true }).click()
   await expect(expense.getByTestId('linked-transaction')).toHaveCount(2)
 })

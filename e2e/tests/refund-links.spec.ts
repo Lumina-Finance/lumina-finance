@@ -245,22 +245,25 @@ test('lists the closest amounts first and links the row that is picked', async (
   const linkButton = picker.getByRole('button', { name: 'Link', exact: true })
 
   // The exact amount leads even though it is the oldest, then the nearer 4900 and 4800. 9000 is more than the whole
-  // expense, so it is not listed
-  await expect(rows).toHaveCount(3)
-  await expect(rows.getByTestId('transaction-amount')).toHaveText(['+$50.00', '+$49.00', '+$48.00'])
+  // expense, so it is listed greyed out
+  await expect(rows).toHaveCount(4)
+  await expect(rows.getByTestId('transaction-amount')).toHaveText(['+$50.00', '+$49.00', '+$48.00', '+$90.00'])
+  await expect(picker.locator('[data-refused=true]')).toHaveCount(1)
   await expect(linkButton).toBeDisabled()
 
   // Pressing a row picks it. Pressing it again clears the pick
+  const picked = picker.locator('[data-picked=true]')
   await rows.nth(1).getByRole('button').click()
 
-  // The $49.00 pick leaves $1.00, which fits none of the others, so only the picked row stays listed
-  await expect(rows).toHaveCount(1)
-  await expect(rows.getByRole('button')).toHaveAttribute('aria-pressed', 'true')
+  // The $49.00 pick leaves $1.00, which fits none of the others, so they stay listed greyed out
+  await expect(rows).toHaveCount(4)
+  await expect(picker.locator('[data-refused=true]')).toHaveCount(3)
+  await expect(picked.getByRole('button')).toHaveAttribute('aria-pressed', 'true')
   await expect(linkButton).toBeEnabled()
 
   // The picked row takes the accent border and fill
-  await expect(rows).not.toHaveCSS('background-color', 'rgba(0, 0, 0, 0)')
-  await expect(rows).not.toHaveCSS('box-shadow', 'rgba(0, 0, 0, 0) 0px 0px 0px 1px inset')
+  await expect(picked).not.toHaveCSS('background-color', 'rgba(0, 0, 0, 0)')
+  await expect(picked).not.toHaveCSS('box-shadow', 'rgba(0, 0, 0, 0) 0px 0px 0px 1px inset')
 
   // The open filter panel covers the search row and the list edge to edge, so nothing behind shows beside it
   const filtersButton = picker.getByRole('button', { name: 'Transaction filters' })
@@ -276,8 +279,9 @@ test('lists the closest amounts first and links the row that is picked', async (
     return Math.max(Math.abs(glass.left - search.left), Math.abs(glass.left - list.left), Math.abs(glass.right - list.right))
   }).toBeLessThanOrEqual(0.5)
   await filtersButton.click()
-  await rows.getByRole('button').click()
-  await expect(rows).toHaveCount(3)
+  await picked.getByRole('button').click()
+  await expect(rows).toHaveCount(4)
+  await expect(picker.locator('[data-refused=true]')).toHaveCount(1)
   await expect(rows.nth(1).getByRole('button')).toHaveAttribute('aria-pressed', 'false')
   await expect(linkButton).toBeDisabled()
 

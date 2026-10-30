@@ -59,34 +59,41 @@ export function exceedsRefundRoom(refund: Amounted, originalCurrency: string, ro
 }
 
 /**
- * The candidates a press could pick now, so the picker never lists one it would have to refuse. An expense
- * is offered the refunds that fit what is left of it after the refunds already picked, and keeps the picked
- * ones listed. A refund is offered the expenses that have room for it. A refund in another currency is not
- * counted against the expense, as on the server
+ * The candidates a press can't pick now, with what is left to refund for each, so the picker greys them out and
+ * says why instead of letting a press be refused. An expense is offered refunds against what is left of it after the
+ * refunds already picked, and a picked row is never refused. A refund is offered expenses by their own room. A refund
+ * in another currency is not counted against the expense, as on the server
  *
  * @param anchor The transaction the window edits
  * @param candidates What the server says linking would accept
  * @param refundRoom What is left to refund of the anchor, when it is an expense, with the links held in the window
  * @param pickedIds The candidates picked in the picker so far
+ * @returns The id of each refused candidate and what is left to refund, never below nothing
  */
-export function getPickableCandidates(
+export function getRefusedRooms(
   anchor: Amounted,
   candidates: readonly Transaction[],
   refundRoom: number | undefined,
   pickedIds: readonly string[],
-): Transaction[] {
+): Map<string, number> {
+  const refused = new Map<string, number>()
   if (anchor.amount > 0) {
-    return candidates.filter(
-      (expense) => !exceedsRefundRoom(anchor, expense.currency, -expense.amount - (expense.refunded_amount ?? 0)),
-    )
+    for (const expense of candidates) {
+      const room = -expense.amount - (expense.refunded_amount ?? 0)
+      if (exceedsRefundRoom(anchor, expense.currency, room)) refused.set(expense.id, Math.max(room, 0))
+    }
+    return refused
   }
-  const picked = candidates.filter((candidate) => pickedIds.includes(candidate.id))
-  const remaining =
-    (refundRoom ?? Infinity) -
-    picked.reduce((total, candidate) => total + (candidate.currency === anchor.currency ? candidate.amount : 0), 0)
-  return candidates.filter(
-    (candidate) => pickedIds.includes(candidate.id) || !exceedsRefundRoom(candidate, anchor.currency, remaining),
-  )
+  const pickedTotal = candidates
+    .filter((candidate) => pickedIds.includes(candidate.id) && candidate.currency === anchor.currency)
+    .reduce((total, candidate) => total + candidate.amount, 0)
+  const remaining = (refundRoom ?? Infinity) - pickedTotal
+  for (const candidate of candidates) {
+    if (!pickedIds.includes(candidate.id) && exceedsRefundRoom(candidate, anchor.currency, remaining)) {
+      refused.set(candidate.id, Math.max(remaining, 0))
+    }
+  }
+  return refused
 }
 
 /**
