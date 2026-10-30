@@ -49,7 +49,7 @@ const FILLED_BUTTONS = ['.app-primary-button', '.app-glass-button-primary', '.ap
 // The shared buttons that can be unavailable for a reason, which keeps them hoverable and focusable and
 // marks them aria-disabled. Their hover, press and keyboard looks are written for the others only
 const REASON_GUARD = ':not([aria-disabled="true"])'
-const REASON_GUARDED = [...FILLED_BUTTONS, '.app-secondary-button', '.app-glass-button']
+const REASON_GUARDED = [...FILLED_BUTTONS, '.app-secondary-button', '.app-glass-button', '.app-expanding-button']
 
 /** A button class with the guard its hover, press and focus rules carry, when it has one */
 function guarded(name: string) {
@@ -204,6 +204,12 @@ describe('button keyboard focus', () => {
       expect(declared(hover, 'border-color')).not.toBe(borderColourOf(rest))
     })
   }
+
+  // The icon button that grows a label draws its border only under the pointer and on keyboard focus
+  it('rests .app-expanding-button with a clear border', () => {
+    const restRules = rulesListing('.app-expanding-button').filter((rule) => !rule.selector.includes(':'))
+    expect(restRules.map((rule) => declared(rule, 'border-color'))).toContain('transparent')
+  })
 
   for (const name of SELECTED_OPTIONS) {
     it(`tints ${name} further under the pointer and on keyboard focus, with text that stays readable`, () => {

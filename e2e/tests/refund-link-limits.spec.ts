@@ -182,6 +182,8 @@ test('greys out the link button with its reason while no refund fits', async ({ 
   // A refund made from the window can't pass what is left either
   await expense.getByTestId('transaction-refund').click()
   const refund = page.getByRole('dialog', { name: 'Add refund', exact: true })
+  await expect(refund.getByLabel('Amount')).toHaveValue('18.00')
+  await refund.getByLabel('Amount').fill('18.01')
   await refund.getByTestId('transaction-submit').click()
   await expect(refund.getByText('Only $18.00 is left to refund', { exact: true }).first()).toBeVisible()
   await expect(refund).toBeVisible()

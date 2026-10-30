@@ -15,6 +15,9 @@ interface BuildInitialTransactionFormOptions {
 
   /** The expense a new transaction refunds. It starts as a copy of the expense pointing the other way */
   refundOf?: Transaction
+
+  /** What is left to refund of that expense once its linked refunds are counted, which the refund starts at */
+  refundRoom?: number
   categories: Category[]
   currencies: Currency[]
   selectableAccounts: AccountsOverview[]
@@ -32,6 +35,7 @@ interface BuildInitialTransactionFormOptions {
 export function buildInitialTransactionForm({
   transaction,
   refundOf,
+  refundRoom,
   categories,
   currencies,
   selectableAccounts,
@@ -40,9 +44,16 @@ export function buildInitialTransactionForm({
   timeZone,
 }: BuildInitialTransactionFormOptions): TransactionFormValues {
   if (!transaction && refundOf) {
-    // The money comes back on the day it is entered, so the date is today's rather than the expense's
+    // The money comes back on the day it is entered, so the date is today's rather than the expense's. It starts at
+    // what is left to refund, worked out in whole minor units so no cent is lost
+    const copy = buildFormFromTransaction(refundOf, categories, currencies)
+    const exponent = findCurrencyExponent(currencies, refundOf.currency)
     return {
-      ...buildFormFromTransaction(refundOf, categories, currencies),
+      ...copy,
+      amount:
+        refundRoom === undefined || exponent === null
+          ? copy.amount
+          : amountToInputString(Math.max(refundRoom, 0), exponent),
       direction: 'credit',
       date: getTodayYmd(timeZone),
       notes: buildRefundNote(refundOf.merchant_name),

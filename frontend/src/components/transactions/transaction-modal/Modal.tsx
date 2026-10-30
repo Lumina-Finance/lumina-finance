@@ -94,6 +94,7 @@ export default function CreateTransactionModal({
     return buildInitialTransactionForm({
       transaction,
       refundOf,
+      refundRoom: refundRoomLimit,
       categories,
       currencies,
       selectableAccounts,
@@ -101,7 +102,17 @@ export default function CreateTransactionModal({
       defaultCurrency,
       timeZone: user?.tz,
     })
-  }, [transaction, refundOf, categories, currencies, defaultAccountId, defaultCurrency, selectableAccounts, user?.tz])
+  }, [
+    transaction,
+    refundOf,
+    refundRoomLimit,
+    categories,
+    currencies,
+    defaultAccountId,
+    defaultCurrency,
+    selectableAccounts,
+    user?.tz,
+  ])
 
   const {
     form,
@@ -334,7 +345,16 @@ export default function CreateTransactionModal({
         headerStatus={readOnly ? 'Archived account' : undefined}
         headerAction={
           canOfferRefund ? (
-            <RefundButton onClick={() => setRefundModal((state) => ({ open: true, key: state.key + 1 }))} />
+            <RefundButton
+              onClick={() => setRefundModal((state) => ({ open: true, key: state.key + 1 }))}
+              disabledReason={
+                refundRoom === undefined
+                  ? 'Checking what is left to refund'
+                  : refundRoom <= 0
+                    ? 'This expense is already fully refunded'
+                    : null
+              }
+            />
           ) : undefined
         }
         RailIcon={ReceiptText}

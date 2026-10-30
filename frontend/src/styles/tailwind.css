@@ -1898,10 +1898,15 @@
     font-size: 0.9375rem;
   }
 
+  /* The expanding button draws no border at rest. Its border eases in under the pointer and on keyboard focus */
+  .app-expanding-button {
+    border-color: transparent;
+  }
+
   .app-secondary-button:not([aria-disabled="true"]):hover,
   .app-secondary-button:not([aria-disabled="true"]):focus-visible,
-  .app-expanding-button:hover,
-  .app-expanding-button:focus-visible {
+  .app-expanding-button:not([aria-disabled="true"]):hover,
+  .app-expanding-button:not([aria-disabled="true"]):focus-visible {
     color: var(--app-text);
     background: color-mix(in srgb, var(--app-input-bg) 76%, transparent);
     border-color: var(--app-hover-border);
@@ -2094,7 +2099,8 @@
     .app-secondary-button,
     .app-danger-button,
     .app-glass-button-primary,
-    .app-glass-button
+    .app-glass-button,
+    .app-expanding-button
   )[aria-disabled="true"] {
     cursor: not-allowed;
   }
@@ -2136,6 +2142,13 @@
   :is(.app-secondary-button, .app-glass-button)[aria-disabled="true"] {
     color: color-mix(in srgb, var(--app-text-muted) 50%, transparent);
     border-color: color-mix(in srgb, var(--app-border-strong) 50%, transparent);
+    background: color-mix(in srgb, var(--app-input-bg) 31%, transparent);
+  }
+
+  /* The expanding button keeps no border while unavailable, so only its text and fill fade */
+  .app-expanding-button[aria-disabled="true"] {
+    color: color-mix(in srgb, var(--app-text-muted) 50%, transparent);
+    border-color: transparent;
     background: color-mix(in srgb, var(--app-input-bg) 31%, transparent);
   }
 
@@ -2613,7 +2626,7 @@
     opacity: 1;
   }
 
-  .app-expanding-button:active {
+  .app-expanding-button:not([aria-disabled="true"]):active {
     transform: translateY(1px);
   }
 
