@@ -22,5 +22,5 @@ function fillsScreen(): boolean {
  * @returns Props to spread onto the footer
  */
 export function useFooterKeepClear(): { 'data-toast-keep-clear'?: true } {
-  return useSyncExternalStore(subscribe, fillsScreen, () => false) ?{ 'data-toast-keep-clear': true } : {}
+  return useSyncExternalStore(subscribe, fillsScreen, () => false) ? { 'data-toast-keep-clear': true } : {}
 }
