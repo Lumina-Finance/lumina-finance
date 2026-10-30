@@ -4,6 +4,7 @@ import { ChevronDown, Landmark } from 'lucide-react'
 import type { BankValues } from '@/api/bank-sync'
 import { REVIEW_MOTION } from '@/components/transactions/constants/bankReview'
 import { FilingCardSheet } from '@/components/transactions/transaction-modal/controls/BankFilingCard'
+import { FILING_TAB_CLASS, FILING_TAB_STYLE } from '@/components/transactions/transaction-modal/controls/filingCardTab'
 import { formatRawAmount } from '@/components/transactions/utils/bankReview'
 import { useMoneyFormatters } from '@/hooks/useMoneyFormatters'
 import { DATE_FORMATS, formatDate } from '@/utils/date'
@@ -38,7 +39,9 @@ type BankSourcePanelProps = {
  * alone. Opened, it shows what the bank sent as the provider's filing card, as the review step did,
  * and always read-only, since the ledger has no description field and only the bank changes it
  *
- * The labels take the muted colour, which keeps them above 4.5:1 on the panel in both themes
+ * Closed, it is the filing card shrunk to its top edge: the card's own tab stretched across the card's
+ * width with "From" and the provider on it. Opened, that strip stays as the card's tab and the card
+ * unfolds beneath it, so the open and closed states are one card
  */
 export default function TransactionBankSourcePanel({
   providerName,
@@ -67,7 +70,8 @@ export default function TransactionBankSourcePanel({
         aria-expanded={open}
         aria-controls={open ? cardId : undefined}
         onClick={() => setOpen(!open)}
-        className="flex w-full items-center gap-1.5 rounded-lg px-1 py-2 text-left text-xs font-semibold uppercase text-[var(--app-text-muted)] transition-colors hover:bg-[var(--app-accent-soft)] hover:text-[var(--app-text)] focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-[var(--app-focus-ring)] motion-reduce:transition-none"
+        className={`${FILING_TAB_CLASS} flex w-full items-center gap-2 pb-1 text-left transition-[border-radius,filter] hover:brightness-95 focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-[var(--app-focus-ring)] motion-reduce:transition-none ${open ? '' : 'rounded-b-md'}`}
+        style={FILING_TAB_STYLE}
       >
         <Landmark size={13} aria-hidden className="shrink-0" />
         <span className="min-w-0 flex-1">From {providerName}</span>
@@ -93,9 +97,10 @@ export default function TransactionBankSourcePanel({
             transition={enterTransition}
           >
             {/* The room around the card is for its shadow, which the unfolding clip would otherwise cut off */}
-            <div className="pb-7 pt-1">
+            <div className="pb-7">
               <FilingCardSheet
                 showTab={false}
+                flushTop
                 providerName={providerName}
                 heading={heading}
                 bankAccountName={bankAccountName}

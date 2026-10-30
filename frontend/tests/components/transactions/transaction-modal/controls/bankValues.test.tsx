@@ -85,6 +85,26 @@ describe('bank source panel', () => {
     expect(markup).not.toMatch(/<(input|textarea)\b/)
   })
 
+  it("is the filing card shrunk to its top edge when closed, in the card tab's own colour and type", () => {
+    const closed = panel(false)
+    const button = /<button[^>]*>/.exec(closed)?.[0] ?? ''
+
+    expect(button).toContain('background:var(--app-filing-card)')
+    expect(button).toContain('tracking-[0.2em]')
+    expect(button).toContain('w-full')
+    expect(button).toContain('rounded-b-md')
+    expect(closed).not.toContain('app-filing-card ')
+  })
+
+  it("keeps the strip as the open card's tab, joined to the card with its top corners square", () => {
+    const open = panel(true)
+    const button = /<button[^>]*>/.exec(open)?.[0] ?? ''
+
+    expect(button).toContain('background:var(--app-filing-card)')
+    expect(button).not.toContain('rounded-b-md')
+    expect(open).toMatch(/class="app-filing-card relative font-mono text-sm leading-7 rounded-b-md"/)
+  })
+
   it('shows the filing card alone, in no panel of its own and without a tab repeating the heading', () => {
     const markup = panel(true)
 

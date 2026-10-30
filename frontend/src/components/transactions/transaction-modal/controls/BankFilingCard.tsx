@@ -1,5 +1,6 @@
 import type { ReactNode } from 'react'
 import type { BankAccountLink, BankReviewItem } from '@/api/bank-sync'
+import { FILING_TAB_CLASS, FILING_TAB_STYLE } from '@/components/transactions/transaction-modal/controls/filingCardTab'
 import { useMoneyFormatters } from '@/hooks/useMoneyFormatters'
 import { REVIEW_KIND_LABELS, getReviewItemAmount } from '@/components/transactions/utils/bankReview'
 import { DATE_FORMATS, formatDate, formatDateLabel } from '@/utils/date'
@@ -87,8 +88,11 @@ type FilingCardSheetProps = {
   /** When the item arrived, left out where the ledger doesn't keep it */
   receivedText?: string
 
-  /** Whether the provider's name stands above the card as its tab, left out where a heading just above already names the provider */
+  /** Whether the provider's name stands above the card as its tab, left out where the caller draws the tab itself */
   showTab?: boolean
+
+  /** Squares the card's top corners, for a tab that spans its whole top edge */
+  flushTop?: boolean
 }
 
 /**
@@ -105,23 +109,21 @@ export function FilingCardSheet({
   date,
   receivedText,
   showTab = true,
+  flushTop = false,
 }: FilingCardSheetProps) {
   return (
     <div className="relative">
       {/* The tab stands above the card's top edge, flush with its left side, so it carries the same stock but
           none of the shadow, and the card's corner under it is square */}
       {showTab && (
-        <span
-          className="inline-block rounded-t-md px-3 pt-1 font-mono text-xs font-semibold uppercase leading-5 tracking-[0.2em]"
-          style={{ background: 'var(--app-filing-card)', color: 'var(--app-filing-card-muted)' }}
-        >
+        <span className={`inline-block ${FILING_TAB_CLASS}`} style={FILING_TAB_STYLE}>
           {providerName}
         </span>
       )}
       <div
         role="region"
         aria-label={`${providerName} filing card`}
-        className={`app-filing-card relative rounded-md font-mono text-sm leading-7${showTab ? ' rounded-tl-none' : ''}`}
+        className={`app-filing-card relative font-mono text-sm leading-7 ${flushTop ? 'rounded-b-md' : showTab ? 'rounded-md rounded-tl-none' : 'rounded-md'}`}
       >
         <div className="px-5 pt-4">
           <div className="pb-2" style={{ borderBottom: '2px solid var(--app-filing-card-red)' }}>
