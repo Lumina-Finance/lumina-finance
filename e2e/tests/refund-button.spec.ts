@@ -131,6 +131,9 @@ test('shows the Refund icon with no border until the pointer or focus is on it',
   const border = () => button.evaluate((node) => getComputedStyle(node).borderTopColor)
   await button.hover()
   await expect(button).not.toHaveCSS('border-top-color', 'rgba(0, 0, 0, 0)')
+
+  // Read once the transition ends, since a value caught partway never comes back to compare against
+  await button.evaluate((node) => Promise.all(node.getAnimations().map((animation) => animation.finished)))
   const hovered = await border()
   await page.mouse.move(0, 0)
   await expect(button).toHaveCSS('border-top-color', 'rgba(0, 0, 0, 0)')
