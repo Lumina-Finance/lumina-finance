@@ -421,7 +421,7 @@ function OidcOnboardingForm({ onboarding, onBackToLogin }: OidcOnboardingFormPro
         <button
           type="button"
           onClick={onBackToLogin}
-          className="font-medium underline underline-offset-2 transition-colors"
+          className="app-inline-link font-medium underline underline-offset-2 transition-colors"
           style={{ color: 'var(--app-accent)' }}
         >
           Back to login

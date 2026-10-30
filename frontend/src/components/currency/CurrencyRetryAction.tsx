@@ -38,7 +38,7 @@ export function CurrencyRetryAction({ retrying, fetching, onRetry }: CurrencyRet
                 onClick={onRetry}
                 data-modal-field-tab-stop="true"
                 aria-label="Retry loading currencies"
-                className="font-medium underline underline-offset-2 disabled:cursor-wait disabled:opacity-50"
+                className="app-inline-link font-medium underline underline-offset-2 disabled:cursor-wait disabled:opacity-50"
               >
                 here
               </button>{' '}

@@ -187,7 +187,7 @@ export default function FailureBlock({
                 href={BUG_REPORT_URL}
                 target="_blank"
                 rel="noreferrer"
-                className="underline underline-offset-2"
+                className="app-inline-link underline underline-offset-2"
                 style={{ color: 'var(--app-accent)' }}
               >
                 bug report

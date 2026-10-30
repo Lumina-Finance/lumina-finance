@@ -70,7 +70,7 @@ export function CreditUsageBody({
           <button
             type="button"
             onClick={onChooseAccounts}
-            className="font-medium underline underline-offset-2"
+            className="app-inline-link font-medium underline underline-offset-2"
           >
             Choose a credit account
           </button>{' '}

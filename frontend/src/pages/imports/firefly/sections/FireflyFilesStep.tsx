@@ -75,7 +75,7 @@ export function FireflyFilesStep({
             href={FIREFLY_EXPORT_DOCS_URL}
             target="_blank"
             rel="noreferrer"
-            className="font-medium underline underline-offset-2"
+            className="app-inline-link font-medium underline underline-offset-2"
             style={{ color: 'var(--app-accent)' }}
           >
             guide to exporting data

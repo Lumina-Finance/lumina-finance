@@ -3237,4 +3237,28 @@
       background-size: calc(100% - var(--link-underline-start, 0px)) 1px;
     }
   }
+
+  /* A link in the middle of a sentence draws its ring inside its own box. Outside it, the ring and its
+     gap reach 4px past the text and cover the full stop or word right beside the link, as if that
+     character were part of the link. The box has 2px of room beside the text for the ring. That moves
+     the link's own text 2px and the text after it 4px along. The box also has 3px of room above and below
+     the text, so the ring's bottom edge leaves a gap under the underline and doesn't hide it. The vertical room is cancelled by an equal
+     negative margin, so a button doesn't grow its line, and the background is placed from the text's own
+     box, so the underline stays where it was. At rest the clear outline holds the same inward gap, so the
+     ring fades in without moving. A link on a line of its own keeps the ring around it */
+  .app-inline-link {
+    --app-inline-link-block-room: calc(var(--app-focus-offset) + 1px);
+  }
+
+  .app-inline-link,
+  .app-inline-link:focus-visible {
+    outline-offset: calc(var(--app-focus-offset) * -1);
+  }
+
+  .app-inline-link {
+    padding-inline: var(--app-focus-offset);
+    padding-block: var(--app-inline-link-block-room);
+    margin-block: calc(var(--app-inline-link-block-room) * -1);
+    background-origin: content-box;
+  }
 }
