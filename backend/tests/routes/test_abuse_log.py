@@ -1,6 +1,7 @@
 """Source address on the abuse log lines for sign-in, sign-up and reset requests"""
 
 import json
+import re
 
 import pytest
 from httpx import ASGITransport, AsyncClient
@@ -12,6 +13,22 @@ _CLIENT_ADDRESS = "203.0.113.9"
 _FORGED_ADDRESS = "198.51.100.7"
 _WRONG_PASSWORD = "wrong-password-1"
 
+# The failregex the public docs print for fail2ban, so a change to these lines that breaks it fails here
+_DOCS_FAILREGEX = r'\\?"route\\?":\\?"/auth/[^"\\]*\\?".*\\?"ip\\?":\\?"<ADDR>\\?"'
+# fail2ban replaces this tag with its own address pattern, which this test stands in for
+_FILTER_ADDRESS_TAG = "<ADDR>"
+_ADDRESS_PATTERN = r"(?P<address>[0-9a-fA-F:.]+)"
+
+
+def _filter_regex() -> re.Pattern:
+    """Return the docs' fail2ban failregex, with the address tag filled in"""
+    return re.compile(_DOCS_FAILREGEX.replace(_FILTER_ADDRESS_TAG, _ADDRESS_PATTERN))
+
+
+def _as_docker_log_line(line: str) -> str:
+    """Return the line as Docker's JSON log file stores it"""
+    return json.dumps({"log": line + "\n", "stream": "stdout", "time": "2026-10-27T04:11:10.512345678Z"})
+
 
 def _client_from(address: str) -> AsyncClient:
     """Return a test client whose requests arrive from the given address"""
@@ -20,7 +37,7 @@ def _client_from(address: str) -> AsyncClient:
 
 
 async def test_failed_sign_ins_log_the_address_in_one_form(abuse_log_lines):
-    """Three failed sign-ins from one address write three lines holding that address and no email"""
+    """Three failed sign-ins from one address write three lines the filter reads that address from, with no email"""
     async with _client_from(_CLIENT_ADDRESS) as client:
         for _ in range(3):
             response = await client.post("/auth/login", json={"email": SIGNUP_PAYLOAD["email"], "password": _WRONG_PASSWORD})
@@ -32,6 +49,8 @@ async def test_failed_sign_ins_log_the_address_in_one_form(abuse_log_lines):
         assert json.loads(line)["route"] == "/auth/login"
         assert SIGNUP_PAYLOAD["email"] not in line
         assert _WRONG_PASSWORD not in line
+        assert _filter_regex().search(line).group("address") == _CLIENT_ADDRESS
+        assert _filter_regex().search(_as_docker_log_line(line)).group("address") == _CLIENT_ADDRESS
 
 
 async def test_a_successful_sign_in_logs_nothing(client, abuse_log_lines):
