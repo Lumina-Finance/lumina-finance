@@ -1,6 +1,17 @@
 """Refunds linked to one expense can't total more than the expense"""
 
-from tests.routes.transactions._helpers import _create_transaction, _setup_user_with_deps
+import asyncio
+import uuid
+
+from sqlalchemy import select, text
+
+from app.models.transaction import Transaction
+from app.models.transaction_link import TransactionLink
+from app.services.transactions import update as update_module
+from tests.conftest import TestSession
+from tests.routes.budgets._utilization_helpers import _create_base_with_instance, _get_budget_utilization_entry
+from tests.routes.support import _wait_until_blocked
+from tests.routes.transactions._helpers import _create_account, _create_transaction, _seed_usd_currency, _setup_user_with_deps
 from tests.routes.transactions.test_refund_link_management import _get, _link, _refund
 
 TOTAL_REFUSAL = "Refunds can't total more than the expense they refund"
@@ -94,3 +105,60 @@ async def test_an_expense_is_offered_the_refund_being_unlinked(client):
 
     assert [row["id"] for row in still_linked.json()] == []
     assert [row["id"] for row in unlinked.json()] == [refund["id"]]
+
+
+async def test_concurrent_refunds_cannot_pass_the_expense(client):
+    """Requests racing for the last of an expense queue behind its lock, so only one of each kind fits."""
+    headers, account_id, category_id = await _setup_user_with_deps(client)
+    created_for = (await _create_transaction(client, headers, account_id, category_id)).json()
+    linked_for = (await _create_transaction(client, headers, account_id, category_id)).json()
+    inflows = [(await _create_transaction(client, headers, account_id, category_id, amount=3000)).json() for _ in range(3)]
+
+    created = await asyncio.gather(
+        *[
+            _create_transaction(client, headers, account_id, category_id, amount=3000, refund_of_transaction_id=created_for["id"])
+            for _ in range(3)
+        ],
+    )
+    linked = await asyncio.gather(*[_link(client, headers, inflow["id"], linked_for["id"]) for inflow in inflows])
+
+    assert sorted(resp.status_code for resp in created) == [201, 422, 422]
+    assert sorted(resp.status_code for resp in linked) == [204, 422, 422]
+
+
+async def test_an_edit_raising_a_refund_waits_for_a_link_being_made(client, monkeypatch):
+    """A raise that queues behind a link in flight counts it, rather than both passing and overshooting."""
+    headers, account_id, category_id = await _setup_user_with_deps(client)
+    expense = (await _create_transaction(client, headers, account_id, category_id)).json()
+    first = await _refund(client, headers, account_id, category_id, expense["id"], amount=2000)
+    second = (await _create_transaction(client, headers, account_id, category_id, amount=2500)).json()
+
+    original = update_module.check_transaction_access
+    entered = asyncio.Event()
+    edit_pid = None
+
+    async def record_edit(db, *args, **kwargs):
+        nonlocal edit_pid
+        edit_pid = await db.scalar(text("SELECT pg_backend_pid()"))
+        entered.set()
+        return await original(db, *args, **kwargs)
+
+    monkeypatch.setattr(update_module, "check_transaction_access", record_edit)
+    async with TestSession() as holder:
+        await holder.execute(select(Transaction.id).where(Transaction.id == uuid.UUID(expense["id"])).with_for_update())
+        holder.add(TransactionLink(refund_transaction_id=uuid.UUID(second["id"]), original_transaction_id=uuid.UUID(expense["id"])))
+        await holder.flush()
+        holder_pid = await holder.scalar(text("SELECT pg_backend_pid()"))
+        edit = asyncio.create_task(client.patch(f"/transactions/{first['id']}", json={"amount": 3000}, headers=headers))
+        await entered.wait()
+        try:
+            await _wait_until_blocked(holder_pid, edit_pid)
+        finally:
+            await holder.commit()
+        resp = await edit
+
+    assert resp.status_code == 422
+    assert "Refunds can't total more than the expense" in resp.json()["detail"]
+    assert (await _get(client, headers, first["id"]))["amount"] == 2000
+
+

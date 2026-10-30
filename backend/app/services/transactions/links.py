@@ -20,6 +20,7 @@ from app.services.transactions.accounts import (
     get_parent_account_for_transaction,
     validate_transaction_account_is_not_archived,
 )
+from app.services.transactions.bulk_access import lock_transactions
 
 
 async def get_transaction_links_batch(
@@ -203,6 +204,9 @@ async def refuse_broken_links(db: AsyncSession, transaction_ids: Collection[uuid
     touched_originals = select(TransactionLink.original_transaction_id).where(
         TransactionLink.refund_transaction_id.in_(transaction_ids) | TransactionLink.original_transaction_id.in_(transaction_ids),
     )
+
+    # Linking holds the expense's lock too, so an edit and a link, or two edits, can't each miss what the other adds
+    await lock_transactions(db, Transaction.id.in_(touched_originals))
     over_refunded = (
         await db.execute(
             select(TransactionLink.original_transaction_id)

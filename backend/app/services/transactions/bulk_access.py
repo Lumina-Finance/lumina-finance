@@ -9,7 +9,7 @@ from collections.abc import Collection
 from datetime import date
 
 from fastapi import HTTPException, status
-from sqlalchemy import Result, Select, select, text
+from sqlalchemy import ColumnElement, Result, Select, select, text
 from sqlalchemy.exc import DBAPIError
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -105,6 +105,19 @@ async def load_locked_run_transactions(
         .with_for_update(of=Transaction)
     )
     return [(account_id, dt) for account_id, dt in (await _execute_locking(db, query)).all()]
+
+
+async def lock_transactions(db: AsyncSession, condition: ColumnElement[bool]) -> None:
+    """Lock the transactions a condition selects, in id order, until the caller's transaction ends
+
+    Args:
+        db: Active database session
+        condition: Selects the transactions to lock
+
+    Raises:
+        HTTPException: Another change held one of the rows for longer than the wait
+    """
+    await _execute_locking(db, select(Transaction.id).where(condition).order_by(Transaction.id).with_for_update())
 
 
 async def _execute_locking(db: AsyncSession, query: Select) -> Result:

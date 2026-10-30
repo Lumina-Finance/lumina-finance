@@ -51,8 +51,8 @@ async def list_refund_link_candidates(
     """Return the transactions a transaction can be linked to, the closest amounts first
 
     The order puts the candidates with exactly the transaction's amount first. When there are none, or
-    after them, the nearer an amount is the earlier it comes, and a tie goes to the newer date. An
-    expense that can be refunded is offered the money that came in and is not yet the refund of
+    after them, the nearer an amount is the earlier it comes, and a tie goes to the newer date. Only
+    the transaction's own currency is offered. An expense that can be refunded is offered the money that came in and is not yet the refund of
     anything. A transaction that can be a refund is offered the expenses. Anything else, a transfer,
     a refund already linked, money going out of an income category or a group account, has none
 
