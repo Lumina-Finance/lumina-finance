@@ -120,10 +120,11 @@ function GlassRangeSelector({
   // CUSTOM while the builder is open for editing, which keeps the builder revealed and the Custom
   // segment highlighted even though the applied range may still be a fixed preset
   const isCustom = selectedPreset === 'CUSTOM'
-  const currentLabel = appliedSavedRangeName
-    ?? (appliedPreset === 'CUSTOM'
+  const currentLabel =
+    appliedSavedRangeName ??
+    (appliedPreset === 'CUSTOM'
       ? getRelativeRangeLabel(appliedAmount, appliedUnit, appliedQualifier)
-      : INSIGHTS_RANGE_OPTIONS.find((option) => option.value === appliedPreset)?.label ?? '')
+      : (INSIGHTS_RANGE_OPTIONS.find((option) => option.value === appliedPreset)?.label ?? ''))
   // The collapsed pill and the non-custom panel line show the applied window, the builder shows
   // the draft window being edited
   const appliedRangeLabel = formatResolvedRangeLabel(resolvedFrom, resolvedTo)
@@ -231,7 +232,9 @@ function GlassRangeSelector({
         fullWidth && 'app-range-glass-full',
         growUp && 'app-range-glass-up',
       )}
-      animate={fullWidth ? undefined : { width: open ? OPEN_DESKTOP_WIDTH : collapsedWidth ?? COLLAPSED_WIDTH_FALLBACK }}
+      animate={
+        fullWidth ? undefined : { width: open ? OPEN_DESKTOP_WIDTH : (collapsedWidth ?? COLLAPSED_WIDTH_FALLBACK) }
+      }
       transition={transition}
       whileTap={open || shouldReduceMotion ? undefined : { scale: 0.94 }}
       // A press animation makes Motion put the frame in the Tab order unless it already has a place
@@ -293,11 +296,7 @@ function GlassRangeSelector({
                   onClick={() => handleSelectPreset(option.value)}
                 >
                   {option.value === selectedPreset && (
-                    <motion.span
-                      layoutId={`${segId}-preset`}
-                      className="app-range-seg-thumb"
-                      transition={transition}
-                    />
+                    <motion.span layoutId={`${segId}-preset`} className="app-range-seg-thumb" transition={transition} />
                   )}
                   <span className="app-range-seg-label">{option.code}</span>
                 </motion.button>
@@ -411,8 +410,11 @@ export function InsightsFloatingRangeControl(props: InsightsFloatingRangeControl
 
       {/* The desktop control stays in the page rather than portalled, so this 40 lifts it over the
           cards beside it and is not the navigation level it happens to share a number with. Page
-          content is isolated as one stacking context, so it cannot reach past the page either way */}
-      <div className="pointer-events-none absolute inset-x-0 bottom-0 top-0 z-40 hidden pt-[3.8rem] min-[1050px]:block">
+          content is isolated as one stacking context, so it cannot reach past the page either way.
+          The sticky control never moves on screen, so the browser would pick it as the element that
+          holds the reading position, and a card above the reader changing height would then push
+          everything below it up or down. Opting out leaves a card to hold it */}
+      <div className="pointer-events-none absolute inset-x-0 bottom-0 top-0 z-40 hidden pt-[3.8rem] [overflow-anchor:none] min-[1050px]:block">
         <div className="sticky top-6 flex justify-end">
           <div className="pointer-events-auto w-[24rem]">
             <GlassRangeSelector {...props} fullWidth={false} growUp={false} />
