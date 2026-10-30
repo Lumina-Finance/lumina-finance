@@ -1,5 +1,6 @@
 import { useRef, useState } from 'react'
 import { Navigate, useLocation } from 'react-router'
+import { PendingLabel } from '@/components/loading/PendingLabel'
 import { KeyRound } from 'lucide-react'
 import { AnimatePresence, motion } from 'motion/react'
 import { useRegistrationStatus } from '@/api/auth'
@@ -333,7 +334,9 @@ const AuthPage = () => {
                   disabledReason={submitBlockReason}
                   className={`app-primary-button ${submitting ? 'app-primary-button-loading' : 'w-full'}`}
                 >
-                  {submitting ? <div className="app-spinner" /> : submitLabel}
+                  <PendingLabel pending={submitting} name={submitLabel}>
+                    {submitLabel}
+                  </PendingLabel>
                 </DisabledReasonButton>
               </div>
 
@@ -355,14 +358,10 @@ const AuthPage = () => {
                         disabled={passkeySigningIn}
                         className={`app-secondary-button ${passkeySigningIn ? 'app-primary-button-loading' : 'flex w-full items-center justify-center gap-2'}`}
                       >
-                        {passkeySigningIn ? (
-                          <div className="app-spinner" />
-                        ) : (
-                          <>
-                            <KeyRound size={16} aria-hidden />
-                            Sign in with a passkey
-                          </>
-                        )}
+                        <PendingLabel pending={passkeySigningIn} name="Sign in with a passkey" className="gap-2">
+                          <KeyRound size={16} aria-hidden />
+                          Sign in with a passkey
+                        </PendingLabel>
                       </button>
                     </div>
                   )}

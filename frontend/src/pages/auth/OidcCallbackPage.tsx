@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState, type CSSProperties } from 'react'
 import { useNavigate, useSearchParams } from 'react-router'
+import { PendingLabel } from '@/components/loading/PendingLabel'
 import { AnimatePresence, motion } from 'motion/react'
 import { ApiError } from '@/api/auth'
 import { useCurrencies } from '@/api/currency'
@@ -412,7 +413,9 @@ function OidcOnboardingForm({ onboarding, onBackToLogin }: OidcOnboardingFormPro
           disabledReason={submitBlockReason}
           className={`app-primary-button ${submitting ? 'app-primary-button-loading' : 'w-full'}`}
         >
-          {submitting ? <div className="app-spinner" /> : 'Create account'}
+          <PendingLabel pending={submitting} name="Create account">
+            Create account
+          </PendingLabel>
         </DisabledReasonButton>
       </div>
 

@@ -1,5 +1,6 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
+import { PendingLabel } from '@/components/loading/PendingLabel'
 import { AnimatePresence, motion } from 'motion/react'
 import { FormError } from '@/components/forms/FormError'
 import { ModalShell } from '@/components/modal/Shell'
@@ -62,10 +63,7 @@ export default function TaxAdvantagedCategoryModal({
   const planDeleteIdleLabelRef = useRef<HTMLSpanElement>(null)
   const planDeleteConfirmLabelRef = useRef<HTMLSpanElement>(null)
   const limitDeleteButtonRef = useRef<HTMLButtonElement>(null)
-  const limitDeleteIdleLabelRef = useRef<HTMLSpanElement>(null)
-  const limitDeleteConfirmLabelRef = useRef<HTMLSpanElement>(null)
   const [planDeleteLabelWidths, setPlanDeleteLabelWidths] = useState<{ idle: number; confirm: number } | null>(null)
-  const [limitDeleteLabelWidths, setLimitDeleteLabelWidths] = useState<{ idle: number; confirm: number } | null>(null)
   const [autosaveNotice, setAutosaveNotice] = useState<AutosaveNotice | null>(null)
   const autosaveTimerRef = useRef<number | null>(null)
 
@@ -141,12 +139,6 @@ export default function TaxAdvantagedCategoryModal({
       setPlanDeleteLabelWidths({
         idle: planDeleteIdleLabelRef.current.offsetWidth,
         confirm: planDeleteConfirmLabelRef.current.offsetWidth,
-      })
-    }
-    if (limitDeleteIdleLabelRef.current && limitDeleteConfirmLabelRef.current) {
-      setLimitDeleteLabelWidths({
-        idle: limitDeleteIdleLabelRef.current.offsetWidth,
-        confirm: limitDeleteConfirmLabelRef.current.offsetWidth,
       })
     }
   }, [])
@@ -295,9 +287,7 @@ export default function TaxAdvantagedCategoryModal({
                 }}
                 disabled={deletePlanPending}
               >
-                {deletePlanPending && confirmingPlanDelete ? (
-                  <div className="app-spinner" />
-                ) : (
+                <PendingLabel pending={deletePlanPending && confirmingPlanDelete} name="Deleting">
                   <span
                     className="relative block"
                     style={{
@@ -339,7 +329,7 @@ export default function TaxAdvantagedCategoryModal({
                       Yes, delete
                     </span>
                   </span>
-                )}
+                </PendingLabel>
               </button>
             </div>
           </aside>
@@ -395,9 +385,6 @@ export default function TaxAdvantagedCategoryModal({
                   hasLifetimePriorActivity={hasLifetimePriorActivity}
                   hasScrollableLimitRows={hasScrollableLimitRows}
                   limitDeleteButtonRef={limitDeleteButtonRef}
-                  limitDeleteConfirmLabelRef={limitDeleteConfirmLabelRef}
-                  limitDeleteIdleLabelRef={limitDeleteIdleLabelRef}
-                  limitDeleteLabelWidths={limitDeleteLabelWidths}
                   limitError={limitError}
                   limitsLoading={limitsLoading}
                   onDeleteLimit={(limit) => {

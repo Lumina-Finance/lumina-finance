@@ -1,4 +1,5 @@
 import { Pencil, Trash2, X } from 'lucide-react'
+import { PendingLabel } from '@/components/loading/PendingLabel'
 import { ModalShell } from '@/components/modal/Shell'
 import { DisabledReasonButton } from '@/components/tooltips/DisabledReasonButton'
 import type { Currency } from '@/api/currency'
@@ -271,7 +272,9 @@ export default function TaxAdvantagedLimitDetailsModal({
               disabled={creatingLimit}
               disabledReason={creatingLimit ? undefined : blockedReason}
             >
-              {creatingLimit ? <div className="app-spinner" aria-label="Saving" /> : 'Save'}
+              <PendingLabel pending={creatingLimit} name="Saving">
+                Save
+              </PendingLabel>
             </DisabledReasonButton>
           </div>
         ) : selectedLimit ? (
@@ -282,16 +285,16 @@ export default function TaxAdvantagedLimitDetailsModal({
               onClick={() => onDeleteLimit(selectedLimit)}
               disabled={selectedSavingLimit || selectedLimitDeleting}
             >
-              {selectedLimitDeleting ? (
-                <div className="app-spinner" aria-label="Deleting" />
-              ) : selectedLimitDeleteConfirming ? (
-                'Confirm delete'
-              ) : (
-                <>
-                  <Trash2 size={16} aria-hidden />
-                  Delete year
-                </>
-              )}
+              <PendingLabel pending={selectedLimitDeleting} name="Deleting" className="gap-2">
+                {selectedLimitDeleteConfirming ? (
+                  'Confirm delete'
+                ) : (
+                  <>
+                    <Trash2 size={16} aria-hidden />
+                    Delete year
+                  </>
+                )}
+              </PendingLabel>
             </button>
             <div className="grid grid-cols-2 gap-2">
               <button
@@ -308,7 +311,9 @@ export default function TaxAdvantagedLimitDetailsModal({
                 disabled={selectedSavingLimit}
                 disabledReason={selectedSavingLimit ? undefined : blockedReason}
               >
-                {selectedSavingLimit ? <div className="app-spinner" aria-label="Saving" /> : 'Save'}
+                <PendingLabel pending={selectedSavingLimit} name="Saving">
+                  Save
+                </PendingLabel>
               </DisabledReasonButton>
             </div>
           </div>

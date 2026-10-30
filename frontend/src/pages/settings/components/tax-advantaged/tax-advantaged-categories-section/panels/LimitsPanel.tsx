@@ -1,11 +1,11 @@
-import { motion } from 'motion/react'
 import { FormError } from '@/components/forms/FormError'
-import { ChevronRight, LoaderCircle, Plus, Trash2 } from 'lucide-react'
+import { ChevronRight, Plus, Trash2 } from 'lucide-react'
 import type { RefObject } from 'react'
 import type { TaxAdvantagedCategory, TaxAdvantagedCategoryLimit } from '@/api/tax-advantaged-categories'
+import { Crossfade } from '@/components/loading/Crossfade'
+import { NamedSpinner } from '@/components/loading/PendingLabel'
 import { DisabledReasonButton } from '@/components/tooltips/DisabledReasonButton'
 import { useMoneyFormatters } from '@/hooks/useMoneyFormatters'
-import { LIMIT_DELETE_BUTTON_TRANSITION } from '@/pages/settings/components/tax-advantaged/tax-advantaged-categories-section/constants'
 import TaxAdvantagedOpeningUsageLabel from '@/pages/settings/components/tax-advantaged/tax-advantaged-categories-section/controls/OpeningUsageLabel'
 
 interface TaxAdvantagedLimitsPanelProps {
@@ -13,9 +13,6 @@ interface TaxAdvantagedLimitsPanelProps {
   hasLifetimePriorActivity: boolean
   hasScrollableLimitRows: boolean
   limitDeleteButtonRef: RefObject<HTMLButtonElement | null>
-  limitDeleteConfirmLabelRef: RefObject<HTMLSpanElement | null>
-  limitDeleteIdleLabelRef: RefObject<HTMLSpanElement | null>
-  limitDeleteLabelWidths: { idle: number; confirm: number } | null
   limitError: string | null
   limitsLoading: boolean
   onDeleteLimit: (limit: TaxAdvantagedCategoryLimit) => void
@@ -41,9 +38,6 @@ export default function TaxAdvantagedLimitsPanel({
   hasLifetimePriorActivity,
   hasScrollableLimitRows,
   limitDeleteButtonRef,
-  limitDeleteConfirmLabelRef,
-  limitDeleteIdleLabelRef,
-  limitDeleteLabelWidths,
   limitError,
   limitsLoading,
   onDeleteLimit,
@@ -237,58 +231,15 @@ export default function TaxAdvantagedLimitsPanel({
                               confirmingDelete ? `Confirm deleting ${limit.year} limits` : `Delete ${limit.year} limits`
                             }
                           >
-                            <span
-                              className="relative block"
-                              style={{
-                                width: limitDeleteLabelWidths
-                                  ? `${confirmingDelete || deletingLimit ? limitDeleteLabelWidths.confirm : limitDeleteLabelWidths.idle}px`
-                                  : 'auto',
-                                height: '1rem',
-                                transition: 'width 150ms ease-out',
-                              }}
-                            >
-                              <span
-                                ref={limitDeleteIdleLabelRef}
-                                className="invisible absolute inline-flex items-center whitespace-nowrap"
-                                aria-hidden
-                              >
+                            <Crossfade swapKey={deletingLimit ? 'deleting' : confirmingDelete ? 'confirm' : 'idle'}>
+                              {deletingLimit ? (
+                                <NamedSpinner name={`Deleting ${limit.year} limits`} />
+                              ) : confirmingDelete ? (
+                                'Confirm'
+                              ) : (
                                 <Trash2 size={14} aria-hidden />
-                              </span>
-                              <span
-                                ref={limitDeleteConfirmLabelRef}
-                                className="invisible absolute inline-flex items-center whitespace-nowrap"
-                                aria-hidden
-                              >
-                                Confirm
-                              </span>
-                              <motion.span
-                                className="absolute inset-0 inline-flex items-center justify-center"
-                                animate={{ opacity: deletingLimit ? 1 : 0 }}
-                                initial={false}
-                                transition={LIMIT_DELETE_BUTTON_TRANSITION}
-                                aria-hidden={!deletingLimit}
-                              >
-                                <LoaderCircle size={14} className="animate-spin" aria-hidden />
-                              </motion.span>
-                              <motion.span
-                                className="absolute inset-0 inline-flex items-center justify-center"
-                                animate={{ opacity: confirmingDelete && !deletingLimit ? 1 : 0 }}
-                                initial={false}
-                                transition={LIMIT_DELETE_BUTTON_TRANSITION}
-                                aria-hidden={!confirmingDelete || deletingLimit}
-                              >
-                                Confirm
-                              </motion.span>
-                              <motion.span
-                                className="absolute inset-0 inline-flex items-center justify-center"
-                                animate={{ opacity: confirmingDelete || deletingLimit ? 0 : 1 }}
-                                initial={false}
-                                transition={LIMIT_DELETE_BUTTON_TRANSITION}
-                                aria-hidden={confirmingDelete || deletingLimit}
-                              >
-                                <Trash2 size={14} aria-hidden />
-                              </motion.span>
-                            </span>
+                              )}
+                            </Crossfade>
                           </button>
                         </div>
                       </td>

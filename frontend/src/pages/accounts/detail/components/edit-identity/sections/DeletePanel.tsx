@@ -4,6 +4,7 @@ import { AlertTriangle, EyeOff } from 'lucide-react'
 import type { Account } from '@/api/accounts'
 import { FieldError } from '@/components/forms/FieldError'
 import { FormError } from '@/components/forms/FormError'
+import { PendingLabel } from '@/components/loading/PendingLabel'
 import { getFocusableElements } from '@/components/modal/focus'
 import { useRevealWhenGrown } from '@/pages/accounts/detail/hooks/useRevealWhenGrown'
 import { DisabledReasonButton } from '@/components/tooltips/DisabledReasonButton'
@@ -200,7 +201,9 @@ export function DeleteAccountPanel({
                               aria-label="Delete account"
                               aria-busy={deleteLoading}
                             >
-                              {deleteLoading ? <span className="app-spinner" /> : 'Delete account'}
+                              <PendingLabel pending={deleteLoading} name="Delete account">
+                                Delete account
+                              </PendingLabel>
                             </DisabledReasonButton>
                           </div>
                         </div>

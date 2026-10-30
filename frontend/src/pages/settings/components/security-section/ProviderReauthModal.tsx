@@ -1,4 +1,5 @@
 import type { OidcLinkedIdentity } from '@/api/oidc'
+import { PendingLabel } from '@/components/loading/PendingLabel'
 import { ProviderMark } from '@/components/ProviderMark'
 import { ModalContentPanel } from '@/components/modal/ContentPanel'
 
@@ -38,14 +39,14 @@ export function ProviderReauthModal({ open, providers, busySlug, onChoose, onClo
               disabled={busySlug !== null}
               onClick={() => onChoose(identity.provider_slug)}
             >
-              {busySlug === identity.provider_slug ? (
-                <div className="app-spinner" />
-              ) : (
-                <>
-                  <ProviderMark name={identity.provider_display_name} />
-                  {identity.provider_display_name}
-                </>
-              )}
+              <PendingLabel
+                pending={busySlug === identity.provider_slug}
+                name={identity.provider_display_name}
+                className="gap-2"
+              >
+                <ProviderMark name={identity.provider_display_name} />
+                {identity.provider_display_name}
+              </PendingLabel>
             </button>
           ))}
         </div>

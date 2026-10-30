@@ -1,5 +1,6 @@
 import { useMemo, useState, type FormEvent } from 'react'
 import type { LucideIcon } from 'lucide-react'
+import { PendingLabel } from '@/components/loading/PendingLabel'
 import CreateModalSectionHeadingRow from '@/components/create-modal/SectionHeadingRow'
 import { MODAL_INSET_CLASS_NAME } from '@/components/modal/inset'
 import Dropdown, { type DropdownOption } from '@/components/dropdown/Dropdown'
@@ -157,7 +158,9 @@ export default function MergeDeleteReferenceModal<TItem>({
             disabled={isSubmitting}
             disabledReason={isSubmitting ? undefined : (noReplacementReason ?? refusal.blockedReason)}
           >
-            {isSubmitting ? <div className="app-spinner" aria-label="Deleting" /> : 'Replace & Delete'}
+            <PendingLabel pending={isSubmitting} name="Deleting">
+              Replace & Delete
+            </PendingLabel>
           </DisabledReasonButton>
         </div>
       }

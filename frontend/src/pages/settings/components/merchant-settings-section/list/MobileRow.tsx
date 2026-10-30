@@ -1,4 +1,5 @@
 import { Check, Pencil, Trash2, X } from 'lucide-react'
+import { PendingLabel } from '@/components/loading/PendingLabel'
 import { motion } from 'motion/react'
 import type { Category } from '@/api/categories'
 import type { Merchant } from '@/api/merchants'
@@ -96,7 +97,9 @@ export default function MobileMerchantRow({
                 aria-label={`Confirm delete ${merchant.name}`}
                 title="Confirm delete"
               >
-                {deleting ? <div className="app-spinner" aria-label="Deleting" /> : <Check size={16} aria-hidden />}
+                <PendingLabel pending={deleting} name="Deleting">
+                  <Check size={16} aria-hidden />
+                </PendingLabel>
               </button>
             </>
           ) : (

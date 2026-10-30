@@ -1,3 +1,4 @@
+import { PendingLabel } from '@/components/loading/PendingLabel'
 import { MODAL_INSET_CLASS_NAME } from '@/components/modal/inset'
 import type { ModalLevel } from '@/components/modal/Shell'
 import { DisabledReasonButton } from '@/components/tooltips/DisabledReasonButton'
@@ -45,7 +46,9 @@ export default function BudgetEditorModalFooter({
         disabled={submitDisabled}
         disabledReason={submitDisabled ? undefined : submitDisabledReason}
       >
-        {isPending ? <div className="app-spinner" /> : submitLabel}
+        <PendingLabel pending={isPending} name={submitLabel}>
+          {submitLabel}
+        </PendingLabel>
       </DisabledReasonButton>
     </div>
   )

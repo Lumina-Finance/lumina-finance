@@ -1,4 +1,5 @@
-import { Check, LoaderCircle, Pencil, Trash2, X } from 'lucide-react'
+import { Check, Pencil, Trash2, X } from 'lucide-react'
+import { PendingLabel } from '@/components/loading/PendingLabel'
 import { motion } from 'motion/react'
 import type { Tag } from '@/api/tags'
 import MarqueeText from '@/components/display/MarqueeText'
@@ -87,18 +88,9 @@ export default function TagRow({
                 aria-label={`Confirm delete ${tag.name}`}
                 title="Confirm delete"
               >
-                {deleting ? (
-                  <span className="inline-flex items-center justify-center" aria-label="Deleting">
-                    <LoaderCircle
-                      size={16}
-                      strokeWidth={2.4}
-                      className="animate-spin motion-reduce:animate-none"
-                      aria-hidden
-                    />
-                  </span>
-                ) : (
+                <PendingLabel pending={deleting} name="Deleting">
                   <Check size={16} aria-hidden />
-                )}
+                </PendingLabel>
               </button>
             </>
           ) : (

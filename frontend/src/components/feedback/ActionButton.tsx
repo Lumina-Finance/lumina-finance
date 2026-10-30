@@ -1,12 +1,18 @@
 import { forwardRef, type ReactNode } from 'react'
 import { motion, type HTMLMotionProps } from 'motion/react'
-import { Check, LoaderCircle } from 'lucide-react'
+import { Check } from 'lucide-react'
+import { Crossfade } from '@/components/loading/Crossfade'
+import { NamedSpinner } from '@/components/loading/PendingLabel'
 import { useDisabledReason } from '@/hooks/useDisabledReason'
 import { getDisabledReasonProps } from '@/utils/disabledReasonControl'
 
 export type ActionFeedbackStatus = 'idle' | 'loading' | 'success'
 
-const STATE_STYLE_TRANSITION = 'all var(--app-ease-duration) var(--app-ease-curve), var(--app-focus-fade)'
+// Not `all`: a width transition would report the old width while the crossfade measures the new one
+const STATE_STYLE_TRANSITION = ['color', 'background-color', 'border-color', 'opacity', 'transform', 'border-radius']
+  .map((property) => `${property} var(--app-ease-duration) var(--app-ease-curve)`)
+  .concat('var(--app-focus-fade)')
+  .join(', ')
 
 interface ActionFeedbackButtonProps extends Omit<HTMLMotionProps<'button'>, 'children'> {
   children: ReactNode
@@ -75,24 +81,17 @@ const ActionFeedbackButton = forwardRef<HTMLButtonElement, ActionFeedbackButtonP
           ...stateStyle,
         }}
       >
-        <span className="inline-flex h-6 min-w-6 items-center justify-center">
+        <Crossfade swapKey={status} className="h-6 min-w-6">
           {status === 'success' ? (
-            <span aria-label={successLabel}>
+            <span role="img" aria-label={successLabel}>
               <Check size={16} strokeWidth={2.5} aria-hidden />
             </span>
           ) : status === 'loading' ? (
-            <span className="inline-flex items-center justify-center" aria-label={loadingLabel}>
-              <LoaderCircle
-                size={18}
-                strokeWidth={2.4}
-                className="animate-spin motion-reduce:animate-none"
-                aria-hidden
-              />
-            </span>
+            <NamedSpinner name={loadingLabel} />
           ) : (
             children
           )}
-        </span>
+        </Crossfade>
       </motion.button>
       {reason.tooltip}
     </>

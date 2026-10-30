@@ -1,4 +1,5 @@
 import { Trash2 } from 'lucide-react'
+import { PendingLabel } from '@/components/loading/PendingLabel'
 import { MODAL_INSET_CLASS_NAME } from '@/components/modal/inset'
 import { DisabledReasonButton } from '@/components/tooltips/DisabledReasonButton'
 import type { DeleteStage } from '@/pages/accounts/detail/components/edit-identity/types'
@@ -57,7 +58,9 @@ export function EditModalFooter({
           disabled={isBusy}
           disabledReason={deleteInProgressReason ?? (isBusy ? undefined : saveBlockedReason)}
         >
-          {saveLoading ? <span className="app-spinner" /> : 'Save changes'}
+          <PendingLabel pending={saveLoading} name="Save changes">
+            Save changes
+          </PendingLabel>
         </DisabledReasonButton>
       </div>
     </div>

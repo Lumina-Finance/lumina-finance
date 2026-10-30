@@ -7,10 +7,6 @@ export const CATEGORY_FIELD_TRANSITION = {
   duration: 0.1,
   ease: 'easeOut' as const,
 }
-export const LIMIT_DELETE_BUTTON_TRANSITION = {
-  duration: 0.1,
-  ease: 'easeOut' as const,
-}
 export const EASE = [0.25, 0.1, 0.25, 1] as const
 
 export const TAX_TREATMENT_OPTIONS: { value: TaxTreatment; label: string }[] = [

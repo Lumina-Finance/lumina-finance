@@ -1,5 +1,6 @@
 import { useId, useState } from 'react'
 import { KeyRound } from 'lucide-react'
+import { PendingLabel } from '@/components/loading/PendingLabel'
 import { AcknowledgementGroup } from '@/components/forms/AcknowledgementGroup'
 import {
   getAcknowledgementItemId,
@@ -161,7 +162,9 @@ export function PasskeyEnrollment({ onComplete, onSkip, onSwitchToTotp, setupSte
                     disabledReason={confirmRegistration.isPending ? undefined : ackRefusal.blockedReason}
                     className={`app-primary-button ${confirmRegistration.isPending ? 'app-primary-button-loading' : 'w-full'}`}
                   >
-                    {confirmRegistration.isPending ? <div className="app-spinner" /> : 'Done'}
+                    <PendingLabel pending={confirmRegistration.isPending} name="Done">
+                      Done
+                    </PendingLabel>
                   </DisabledReasonButton>
                 </div>
               </div>
@@ -207,14 +210,10 @@ export function PasskeyEnrollment({ onComplete, onSkip, onSwitchToTotp, setupSte
               disabledReason={register.isPending ? undefined : nameRefusal.blockedReason}
               className={`app-primary-button ${register.isPending ? 'app-primary-button-loading' : 'flex w-full items-center justify-center gap-2'}`}
             >
-              {register.isPending ? (
-                <div className="app-spinner" />
-              ) : (
-                <>
-                  <KeyRound size={16} aria-hidden />
-                  Set up a passkey
-                </>
-              )}
+              <PendingLabel pending={register.isPending} name="Set up a passkey" className="gap-2">
+                <KeyRound size={16} aria-hidden />
+                Set up a passkey
+              </PendingLabel>
             </DisabledReasonButton>
           </div>
 

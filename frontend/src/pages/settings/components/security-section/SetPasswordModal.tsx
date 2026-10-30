@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { PendingLabel } from '@/components/loading/PendingLabel'
 import { setPassword } from '@/api/user'
 import { PasswordRequirements } from '@/components/PasswordRequirements'
 import { FieldLabelRow } from '@/components/forms/FieldLabelRow'
@@ -152,7 +153,9 @@ export function SetPasswordModal({ open, onClose, onDone, onExitComplete }: SetP
               disabledReason={submitting ? undefined : refusal.blockedReason}
               className={`app-primary-button ${submitting ? 'app-primary-button-loading' : 'w-full'}`}
             >
-              {submitting ? <div className="app-spinner" /> : 'Set password'}
+              <PendingLabel pending={submitting} name="Set password">
+                Set password
+              </PendingLabel>
             </DisabledReasonButton>
           </div>
         </ModalContentFooter>

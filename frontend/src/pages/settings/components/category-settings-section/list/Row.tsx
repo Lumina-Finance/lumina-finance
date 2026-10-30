@@ -1,4 +1,5 @@
 import { Check, Lock, Pencil, Trash2, X } from 'lucide-react'
+import { PendingLabel } from '@/components/loading/PendingLabel'
 import type { Category } from '@/api/categories'
 import InlineCategoryEdit from '@/pages/settings/components/category-settings-section/editors/InlineEdit'
 import { displayEmoji } from '@/pages/settings/components/category-settings-section/utils'
@@ -96,7 +97,9 @@ export default function CategorySettingsRow({
                   aria-label={`Confirm delete ${category.name}`}
                   title="Confirm delete"
                 >
-                  {deleting ? <div className="app-spinner" aria-label="Deleting" /> : <Check size={16} aria-hidden />}
+                  <PendingLabel pending={deleting} name="Deleting">
+                    <Check size={16} aria-hidden />
+                  </PendingLabel>
                 </button>
               </>
             ) : (

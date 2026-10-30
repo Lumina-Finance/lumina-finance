@@ -131,17 +131,22 @@ export async function checkSubmitTransition(
   button: Locator,
   label: string,
   request: { method: string; path: string },
+  press: () => Promise<void> = () => button.click(),
+  // A button that leaves the page when its request is refused has no way back to check, and runs one
+  // round of motion per call, since the page is reached again for the next
+  options: { returns?: boolean; motions?: Array<'no-preference' | 'reduce'> } = {},
 ): Promise<void> {
+  const { returns = true, motions = ['no-preference', 'reduce'] } = options
   const restingWidth = await settledWidth(button)
   expect(restingWidth).toBeGreaterThan(CIRCLE_WIDTH + 10)
 
-  for (const reducedMotion of ['no-preference', 'reduce'] as const) {
+  for (const reducedMotion of motions) {
     await page.emulateMedia({ reducedMotion })
     const held = await holdThenRefuse(page, request.method, request.path)
 
     // The button turns pending
     await startSampling(button, label)
-    await button.click()
+    await press()
     await held.sent
     await expect(button).toBeDisabled()
     await expect(button).toHaveAccessibleName(label)
@@ -157,6 +162,11 @@ export async function checkSubmitTransition(
         expect(frame.footerTop).toBeCloseTo(pending[0].footerTop, 0)
         expect(frame.footerHeight).toBeCloseTo(pending[0].footerHeight, 0)
       }
+    }
+
+    if (!returns) {
+      await page.unroute(`${API_BASE_URL}${request.path}`)
+      continue
     }
 
     // The request fails and the label comes back the same way
