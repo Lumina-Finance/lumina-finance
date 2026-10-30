@@ -1,13 +1,13 @@
-import type { OidcLinkedIdentity } from '@/api/oidc';
-import { ProviderMark } from '@/components/ProviderMark';
-import { ModalContentPanel } from '@/components/modal/ContentPanel';
+import type { OidcLinkedIdentity } from '@/api/oidc'
+import { ProviderMark } from '@/components/ProviderMark'
+import { ModalContentPanel } from '@/components/modal/ContentPanel'
 
 interface ProviderReauthModalProps {
-  open: boolean;
-  providers: OidcLinkedIdentity[];
-  busySlug: string | null;
-  onChoose: (slug: string) => void;
-  onClose: () => void;
+  open: boolean
+  providers: OidcLinkedIdentity[]
+  busySlug: string | null
+  onChoose: (slug: string) => void
+  onClose: () => void
 }
 
 /**
@@ -20,7 +20,9 @@ export function ProviderReauthModal({ open, providers, busySlug, onChoose, onClo
     <ModalContentPanel open={open} onClose={onClose} closeDisabled={busySlug !== null} titleId="provider-reauth-title">
       <div className="space-y-4">
         <div className="space-y-1">
-          <h3 id="provider-reauth-title" className="text-base font-semibold">Confirm it's you</h3>
+          <h3 id="provider-reauth-title" className="text-base font-semibold">
+            Confirm it's you
+          </h3>
           <p className="text-sm" style={{ color: 'var(--app-text-muted)' }}>
             Choose a provider to re-confirm your identity before continuing.
           </p>
@@ -49,5 +51,5 @@ export function ProviderReauthModal({ open, providers, busySlug, onChoose, onClo
         </div>
       </div>
     </ModalContentPanel>
-  );
+  )
 }

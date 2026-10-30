@@ -9,10 +9,7 @@ import {
   MERCHANT_ROW_EXIT,
   MERCHANT_ROW_EXIT_TRANSITION,
 } from '@/pages/settings/components/merchant-settings-section/constants'
-import {
-  categoryName,
-  scopeLabel,
-} from '@/pages/settings/components/merchant-settings-section/utils'
+import { categoryName, scopeLabel } from '@/pages/settings/components/merchant-settings-section/utils'
 
 /**
  * One merchant in the mobile settings list, showing its name, scope and default category
@@ -71,7 +68,9 @@ export default function MobileMerchantRow({
     >
       <div className="grid grid-cols-[minmax(0,1fr)_auto] gap-x-3 gap-y-2">
         <div className="min-w-0">
-          <MarqueeText active className="font-medium">{merchant.name}</MarqueeText>
+          <MarqueeText active className="font-medium">
+            {merchant.name}
+          </MarqueeText>
           <p className="truncate text-xs" style={{ color: 'var(--app-text-muted)' }}>
             {scopeLabel(merchant)}
           </p>

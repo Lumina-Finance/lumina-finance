@@ -8,10 +8,7 @@ import {
   MERCHANT_ROW_EXIT,
   MERCHANT_ROW_EXIT_TRANSITION,
 } from '@/pages/settings/components/merchant-settings-section/constants'
-import {
-  categoryName,
-  scopeLabel,
-} from '@/pages/settings/components/merchant-settings-section/utils'
+import { categoryName, scopeLabel } from '@/pages/settings/components/merchant-settings-section/utils'
 
 /**
  * One merchant in the desktop settings table, showing its name, scope and default category
