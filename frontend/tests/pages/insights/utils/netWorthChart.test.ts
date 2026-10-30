@@ -5,19 +5,22 @@
  */
 import { describe, expect, it } from 'vitest'
 import {
+  NET_WORTH_AXIS_TICK_COUNT,
   formatNetWorthStartLabel,
   getNetWorthChartData,
   getNetWorthChartItems,
+  getNetWorthDateAxisTicks,
+  getNetWorthXAxisTicks,
   type NetWorthPoint,
 } from '@/pages/insights/utils/netWorthChart'
 
 const GROUPS = [{ id: 'cash', name: 'Cash', kind: 'asset' as const }]
 
 /**
- * Builds a one-group series point carrying the supplied date
+ * Builds a one-group series point carrying the supplied date, labelled the way the card labels a monthly point
  */
-function createPoint(date: string): NetWorthPoint {
-  return { date, dateLabel: date, tooltipLabel: date, total: 100, values: [100] }
+function createPoint(date: string, marksYear = false): NetWorthPoint {
+  return { date, dateLabel: marksYear ? 'Jan 2026' : 'Oct', marksYear, tooltipLabel: date, total: 100, values: [100] }
 }
 
 describe('net worth chart positions', () => {
@@ -59,5 +62,35 @@ describe('net worth start label', () => {
   it('reads below 1K for 999.99, and rounds a negative net worth down, away from zero', () => {
     expect(formatNetWorthStartLabel(99_999, 'CAD', currencies)).toBe('CA$999')
     expect(formatNetWorthStartLabel(-296_000, 'CAD', currencies)).toBe('(CA$3.0K)')
+  })
+})
+
+describe('net worth x axis ticks', () => {
+  const items = getNetWorthChartItems(GROUPS, 'overview')
+  // 13 monthly points from October 2025 to October 2026, whose January is the only one marking the year
+  const monthStarts = Array.from({ length: 13 }, (_, index) => new Date(Date.UTC(2025, 9 + index, 1)))
+  const series = getNetWorthChartData(
+    monthStarts.map((start) => createPoint(start.toISOString().slice(0, 10), start.getUTCMonth() === 0)),
+    items,
+    'overview',
+  )
+
+  // The day-spaced ticks landed between months, so none of them named the January that tells the two Octobers apart
+  it('puts a tick on the January that names the year, with the rest evenly stepped from it', () => {
+    const ticks = getNetWorthXAxisTicks(series, 280)
+
+    expect(ticks).toContain(Date.UTC(2026, 0, 1))
+    expect(ticks).toEqual([0, 3, 6, 9, 12].map((index) => monthStarts[index].getTime()))
+  })
+
+  it('keeps the evenly spaced ticks when no point marks the year or the width is not measured', () => {
+    const unmarked = getNetWorthChartData(
+      monthStarts.map((start) => createPoint(start.toISOString().slice(0, 10))),
+      items,
+      'overview',
+    )
+
+    expect(getNetWorthXAxisTicks(unmarked, 280)).toEqual(getNetWorthDateAxisTicks(unmarked, NET_WORTH_AXIS_TICK_COUNT))
+    expect(getNetWorthXAxisTicks(series, 0)).toEqual(getNetWorthDateAxisTicks(series, NET_WORTH_AXIS_TICK_COUNT))
   })
 })

@@ -1,4 +1,4 @@
-import { useMemo, useRef, type MouseEvent as ReactMouseEvent } from 'react'
+import { useLayoutEffect, useMemo, useRef, useState, type MouseEvent as ReactMouseEvent } from 'react'
 import { AnimatePresence, motion } from 'motion/react'
 import {
   Area,
@@ -21,13 +21,12 @@ import { getChartDataSignature, useChartEntranceAnimation } from '@/components/c
 import { CHART_X_AXIS_TICK_FONT_SIZE } from '@/components/charts/constants'
 import { useMoneyFormatters } from '@/hooks/useMoneyFormatters'
 import {
-  NET_WORTH_AXIS_TICK_COUNT,
   formatNetWorthAxisDate,
   formatNetWorthStartLabel,
   getChangeKey,
   getChartKey,
-  getNetWorthDateAxisTicks,
   getNetWorthLegendItems,
+  getNetWorthXAxisTicks,
   getValueKey,
   netWorthChangeColor,
   netWorthChartLeftMargin,
@@ -212,7 +211,18 @@ export function NetWorthChart({
   const hasChartData = groups.length > 0 && deltaSeries.length > 0
   const dateAxisStartMs = deltaSeries[0]?.dateMs ?? 0
   const dateAxisEndMs = deltaSeries.at(-1)?.dateMs ?? dateAxisStartMs
-  const dateAxisTicks = useMemo(() => getNetWorthDateAxisTicks(deltaSeries, NET_WORTH_AXIS_TICK_COUNT), [deltaSeries])
+  const [chartWidth, setChartWidth] = useState(0)
+  // Measured before the first paint, so the labels the axis chooses are the ones it first draws
+  useLayoutEffect(() => {
+    const chart = chartRef.current
+    if (!chart) return undefined
+    setChartWidth(chart.getBoundingClientRect().width)
+    const observer = new ResizeObserver(([entry]) => setChartWidth(entry.contentRect.width))
+    observer.observe(chart)
+    return () => observer.disconnect()
+  }, [])
+  const plotWidth = chartWidth - netWorthXAxisPadding.left - netWorthXAxisPadding.right
+  const dateAxisTicks = useMemo(() => getNetWorthXAxisTicks(deltaSeries, plotWidth), [deltaSeries, plotWidth])
   const dateLabelsByMs = useMemo(
     () => new Map(deltaSeries.map((point) => [point.dateMs, point.dateLabel])),
     [deltaSeries],

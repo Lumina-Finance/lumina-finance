@@ -1,5 +1,6 @@
 import type { Currency } from '@/api/currency'
 import { formatCompactMoney, type CompactMoneyRule } from '@/utils/formatCompactMoney'
+import { getYearAxisTicks } from '@/utils/chartYearAxis'
 import { DATE_FORMATS, formatDate, parseYmd } from '@/utils/date'
 
 export type NetWorthViewMode = 'overview' | 'composition'
@@ -13,6 +14,8 @@ export type NetWorthGroup = {
 export type NetWorthPoint = {
   date: string
   dateLabel: string
+  // Whether the label carries the year, which marks where the year turns on a monthly range over two calendar years
+  marksYear: boolean
   tooltipLabel: string
   total: number
   values: number[]
@@ -30,7 +33,7 @@ export type NetWorthDeltaPoint = NetWorthPoint & {
   dateMs: number
   startTotal: number
   totalChange: number
-  [key: string]: string | number | number[]
+  [key: string]: string | number | boolean | number[]
 }
 
 export const netWorthChartLeftMargin = 0
@@ -212,6 +215,21 @@ export function getNetWorthDateAxisTicks(series: NetWorthDeltaPoint[], tickCount
       }),
     ),
   ]
+}
+
+/**
+ * Picks the timestamps the X axis labels: the points that name the year on a monthly range over two
+ * calendar years, which evenly spaced days would step over, and otherwise evenly spaced days
+ *
+ * @param series - The chart's points in date order
+ * @param plotWidth - The width the labels are drawn along, in pixels, or 0 before it is measured
+ */
+export function getNetWorthXAxisTicks(series: NetWorthDeltaPoint[], plotWidth: number): number[] {
+  const yearTicks = getYearAxisTicks(
+    series.map((point) => ({ label: point.dateLabel, key: point.dateMs, marksYear: point.marksYear })),
+    plotWidth,
+  )
+  return yearTicks ?? getNetWorthDateAxisTicks(series, NET_WORTH_AXIS_TICK_COUNT)
 }
 
 function getGroupColor(group: NetWorthGroup) {
