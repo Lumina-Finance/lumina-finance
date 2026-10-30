@@ -1,9 +1,8 @@
 import { useEffect, useRef, useState } from 'react'
 import { useLocation, useNavigate } from 'react-router'
 import { useRefreshOidcIdentities } from '@/api/oidc'
-import { Crossfade } from '@/components/loading/Crossfade'
+import { PendingLabel } from '@/components/loading/PendingLabel'
 import { DisabledReasonButton } from '@/components/tooltips/DisabledReasonButton'
-import { useEasedWidth } from '@/hooks/useEasedWidth'
 import { ProviderReauthModal } from '@/pages/settings/components/security-section/ProviderReauthModal'
 import { SetPasswordModal } from '@/pages/settings/components/security-section/SetPasswordModal'
 import { useProviderReauth } from '@/pages/settings/hooks/useProviderReauth'
@@ -21,8 +20,6 @@ export function SetPasswordControls() {
   const navigate = useNavigate()
   const refreshOidcIdentities = useRefreshOidcIdentities()
   const reauth = useProviderReauth()
-  const buttonRef = useRef<HTMLButtonElement>(null)
-  useEasedWidth(buttonRef, reauth.busySlug !== null)
 
   const [modalOpen, setModalOpen] = useState<boolean>(
     () => (location.state as { setPassword?: boolean } | null)?.setPassword === true,
@@ -56,8 +53,7 @@ export function SetPasswordControls() {
         with a provider first.
       </p>
       <DisabledReasonButton
-        ref={buttonRef}
-        className="app-secondary-button app-width-eased"
+        className="app-secondary-button"
         disabled={reauth.busySlug !== null}
         disabledReason={
           reauth.linkedProviders.length === 0 ? 'No sign-in provider is linked to this account' : undefined
@@ -65,13 +61,9 @@ export function SetPasswordControls() {
         onClick={() => reauth.start({ kind: 'set-password' })}
       >
         {/* The spinner carries the label as its name, so a screen reader still says which action is in flight */}
-        <Crossfade swapKey={reauth.busySlug !== null ? 'pending' : 'label'}>
-          {reauth.busySlug !== null ? (
-            <div className="app-spinner" aria-label={SET_PASSWORD_LABEL} />
-          ) : (
-            SET_PASSWORD_LABEL
-          )}
-        </Crossfade>
+        <PendingLabel pending={reauth.busySlug !== null} name={SET_PASSWORD_LABEL}>
+          {SET_PASSWORD_LABEL}
+        </PendingLabel>
       </DisabledReasonButton>
 
       <ProviderReauthModal

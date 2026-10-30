@@ -2212,7 +2212,7 @@
      left out of the transitions, since that hook plays it from the measured width and a CSS transition
      would hold the width at its old value while the hook measures the new one. After the button rules
      above so it replaces their transition-all */
-  .app-width-eased {
+  :has(> [data-eased-width]) {
     position: relative;
     overflow: hidden;
     white-space: nowrap;
@@ -2220,7 +2220,7 @@
   }
 
   @media (prefers-reduced-motion: reduce) {
-    .app-width-eased {
+    :has(> [data-eased-width]) {
       transition: none;
     }
   }

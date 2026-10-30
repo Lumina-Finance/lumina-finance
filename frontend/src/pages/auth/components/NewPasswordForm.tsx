@@ -1,8 +1,7 @@
-import { useRef, type FormEvent, type ReactNode } from 'react'
-import { Crossfade } from '@/components/loading/Crossfade'
+import type { FormEvent, ReactNode } from 'react'
+import { PendingLabel } from '@/components/loading/PendingLabel'
 import { PasswordRequirements } from '@/components/PasswordRequirements'
 import { DisabledReasonButton } from '@/components/tooltips/DisabledReasonButton'
-import { useEasedWidth } from '@/hooks/useEasedWidth'
 import { AuthErrorBanner } from '@/pages/auth/components/feedback/ErrorBanner'
 import { AuthTextField } from '@/pages/auth/components/fields/TextField'
 import { isNewPasswordValid } from '@/utils/passwordPolicy'
@@ -46,8 +45,6 @@ export function NewPasswordForm({
   onSubmit,
   children,
 }: NewPasswordFormProps) {
-  const submitRef = useRef<HTMLButtonElement>(null)
-  useEasedWidth(submitRef, submitting)
   const passwordValid = isNewPasswordValid(password)
   const confirmMatches = confirmPassword === password
   const blockReason = submitting
@@ -121,13 +118,12 @@ export function NewPasswordForm({
           type="submit"
           disabled={submitting}
           disabledReason={blockReason}
-          ref={submitRef}
-          className={`app-primary-button app-width-eased ${submitting ? 'app-primary-button-loading' : 'w-full'}`}
+          className={`app-primary-button ${submitting ? 'app-primary-button-loading' : 'w-full'}`}
         >
           {/* The spinner carries the label as its name, so a screen reader still says which action is in flight */}
-          <Crossfade swapKey={submitting ? 'pending' : 'label'}>
-            {submitting ? <div className="app-spinner" aria-label={submitLabel} /> : submitLabel}
-          </Crossfade>
+          <PendingLabel pending={submitting} name={submitLabel}>
+            {submitLabel}
+          </PendingLabel>
         </DisabledReasonButton>
       </div>
 

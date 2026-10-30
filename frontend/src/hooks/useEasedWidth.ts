@@ -20,9 +20,9 @@ export function useEasedWidth(ref: RefObject<HTMLElement | null>, changeKey: unk
   useEffect(() => {
     const element = ref.current
     if (!element) return
-    drawnWidth.current = element.getBoundingClientRect().width
+    drawnWidth.current = element.offsetWidth
     const observer = new ResizeObserver(() => {
-      drawnWidth.current = element.getBoundingClientRect().width
+      drawnWidth.current = element.offsetWidth
     })
     observer.observe(element)
     return () => observer.disconnect()
@@ -35,10 +35,10 @@ export function useEasedWidth(ref: RefObject<HTMLElement | null>, changeKey: unk
     lastKey.current = changeKey
 
     const playing = element.getAnimations().filter((animation) => animation.id === EASE_ANIMATION_ID)
-    const from = playing.length > 0 ? element.getBoundingClientRect().width : drawnWidth.current
+    const from = playing.length > 0 ? element.offsetWidth : drawnWidth.current
     for (const animation of playing) animation.cancel()
 
-    const to = element.getBoundingClientRect().width
+    const to = element.offsetWidth
     drawnWidth.current = to
     const keyframes = getWidthEaseKeyframes(from, to, prefersReducedMotion())
     if (!keyframes) return

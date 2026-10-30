@@ -1,5 +1,6 @@
-import type { ReactNode } from 'react'
+import { useMemo, useRef, type ReactNode } from 'react'
 import { AnimatePresence, motion, useIsPresent } from 'motion/react'
+import { useEasedWidth } from '@/hooks/useEasedWidth'
 import { CONTENT_EASE_CURVE, CONTENT_EASE_MS, prefersReducedMotion } from '@/utils/widthEase'
 
 const LAYER_CLASS_NAME = 'inline-flex items-center justify-center'
@@ -11,11 +12,11 @@ const FADE_TRANSITION = { duration: CONTENT_EASE_MS / 1000, ease: CONTENT_EASE_C
  * its container while it fades, so the container is sized by what replaced it alone, and it is hidden
  * from screen readers, which then hear only the content that is staying
  */
-function Layer({ children }: { children: ReactNode }) {
+function Layer({ className, children }: { className?: string; children: ReactNode }) {
   const isPresent = useIsPresent()
   return (
     <motion.div
-      className={isPresent ? LAYER_CLASS_NAME : `absolute inset-0 ${LAYER_CLASS_NAME}`}
+      className={`${isPresent ? LAYER_CLASS_NAME : `absolute inset-0 ${LAYER_CLASS_NAME}`} ${className ?? ''}`}
       aria-hidden={isPresent ? undefined : true}
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
@@ -35,11 +36,39 @@ function Layer({ children }: { children: ReactNode }) {
  * The container needs `position: relative` for the outgoing content to centre over it, and eases its
  * own width with `useEasedWidth` when the two differ in size
  */
-export function Crossfade({ swapKey, children }: { swapKey: string; children: ReactNode }) {
-  if (prefersReducedMotion()) return <div className={LAYER_CLASS_NAME}>{children}</div>
+export function Crossfade({
+  swapKey,
+  className,
+  children,
+}: {
+  swapKey: string
+  className?: string
+  children: ReactNode
+}) {
+  // The hidden anchor marks the container, which the stylesheet gives the rules for an eased width
+  const anchor = useRef<HTMLSpanElement>(null)
+  const container = useMemo(
+    () => ({
+      get current() {
+        return anchor.current?.parentElement ?? null
+      },
+    }),
+    [],
+  )
+  useEasedWidth(container, swapKey)
+
   return (
-    <AnimatePresence initial={false}>
-      <Layer key={swapKey}>{children}</Layer>
-    </AnimatePresence>
+    <>
+      <span ref={anchor} hidden data-eased-width="" />
+      {prefersReducedMotion() ? (
+        <div className={`${LAYER_CLASS_NAME} ${className ?? ''}`}>{children}</div>
+      ) : (
+        <AnimatePresence initial={false}>
+          <Layer key={swapKey} className={className}>
+            {children}
+          </Layer>
+        </AnimatePresence>
+      )}
+    </>
   )
 }
