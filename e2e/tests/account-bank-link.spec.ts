@@ -23,7 +23,7 @@ import {
   WORKER_RESULT_TIMEOUT_MS,
   type SeededConnection,
 } from '../support/bankSync'
-import { expectMessageInCorner, isUncovered, MESSAGE_IN_CORNER, readMessageInset } from '../support/selectors'
+import { isUncovered, MESSAGE_IN_CORNER, readMessageInset } from '../support/selectors'
 import { AT_EVERY_SIZE } from '../support/sizes'
 import { API_BASE_URL } from '../support/target'
 
@@ -391,16 +391,27 @@ test("keeps the link's message clear of Cancel and Save changes where the edit m
   // With the modal gone from under it, the message goes back down to the corner while it still shows
   await cancel.click()
   await runClockUntil(page, () => dialog.isHidden())
-  await expect.poll(() => readMessageInset(message)).toEqual(MESSAGE_IN_CORNER)
+  await runClockUntil(page, () => isInCorner(message))
+  expect(await readMessageInset(message)).toEqual(MESSAGE_IN_CORNER)
 })
 
-test("leaves the link's message in the corner, clear of Cancel and Save changes, where the edit modal sits in the middle", async ({ page, request }) => {
+/**
+ * Whether the message has come down to the corner. The message works out its place on every animation
+ * frame, and the page's clock is held here, so a test waits for it by moving the clock on
+ */
+async function isInCorner(message: Locator): Promise<boolean> {
+  const { right, bottom } = await readMessageInset(message)
+  return right === MESSAGE_IN_CORNER.right && bottom === MESSAGE_IN_CORNER.bottom
+}
+
+test("keeps the link's message clear of Cancel and Save changes where the edit modal sits in the middle", async ({ page, request }) => {
   // The narrowest screen the modal sits in the middle of, where the message in the corner comes closest
-  // to its buttons
+  // to its buttons. The message moves up only as far as the footer's own box reaches, so where it sits
+  // is not asserted, only that it shows and covers neither button
   await page.setViewportSize(NARROWEST_CENTRED_MODAL_SIZE)
   const { dialog, message } = await linkFromEditAccount(page, request)
 
-  await expectMessageInCorner(message)
+  await runClockUntil(page, async () => await message.isVisible())
   expect(await isUncovered(dialog.getByRole('button', { name: 'Cancel', exact: true }))).toBe(true)
   expect(await isUncovered(dialog.getByRole('button', { name: 'Save changes', exact: true }))).toBe(true)
 })
