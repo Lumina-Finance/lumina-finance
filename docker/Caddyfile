@@ -1,6 +1,7 @@
 {
 	servers {
 		trusted_proxies static {$TRUSTED_PROXIES:127.0.0.1/32}
+		trusted_proxies_strict
 	}
 }
 
