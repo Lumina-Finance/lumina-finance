@@ -22,8 +22,9 @@ from app.permissions import check_account_access
 from app.services.transactions.access_helpers import accessible_account_ids_subquery
 from app.services.transactions.accounts import validate_transaction_account_is_not_archived
 
-# Postgres raises this for a lock the caller waited out
-_LOCK_NOT_AVAILABLE_SQLSTATE = "55P03"
+# Postgres raises these for a lock the caller waited out, and for a lock order it broke as a deadlock,
+# as a refund's edit and a bulk change holding its expense can meet
+_LOCK_LOST_SQLSTATES = ("55P03", "40P01")
 
 # The most one lock attempt waits before the statement gives up, matching the wait load_locked_run
 # in run_locking.py gives an import run. Postgres acquires a multi-row SELECT ... FOR UPDATE's locks
@@ -141,7 +142,7 @@ async def _execute_locking(db: AsyncSession, query: Select) -> Result:
     try:
         result = await db.execute(query)
     except DBAPIError as exc:
-        if getattr(exc.orig, "sqlstate", None) != _LOCK_NOT_AVAILABLE_SQLSTATE:
+        if getattr(exc.orig, "sqlstate", None) not in _LOCK_LOST_SQLSTATES:
             raise
         await db.rollback()
         raise HTTPException(

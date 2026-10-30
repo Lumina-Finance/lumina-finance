@@ -7,6 +7,7 @@ from sqlalchemy import select, text
 
 from app.models.transaction import Transaction
 from app.models.transaction_link import TransactionLink
+from app.services.transactions import links as links_module
 from app.services.transactions import update as update_module
 from tests.conftest import TestSession
 from tests.routes.budgets._utilization_helpers import _create_base_with_instance, _get_budget_utilization_entry
@@ -209,3 +210,61 @@ async def test_a_link_changes_no_total_balance_or_budget(client):
     assert await figures() == before
     assert (await client.delete(f"/transactions/{inflow['id']}/refund-link", headers=headers)).status_code == 204
     assert await figures() == before
+
+
+async def _deadlock_against(monkeypatch, module, request, expense_id, refund_id):
+    """Hold the expense while the request holds the refund and waits for it, then close the cycle and return the answer"""
+    original = module.check_transaction_access
+    entered = asyncio.Event()
+    request_pid = None
+
+    async def record(db, *args, **kwargs):
+        nonlocal request_pid
+        request_pid = await db.scalar(text("SELECT pg_backend_pid()"))
+        entered.set()
+        return await original(db, *args, **kwargs)
+
+    monkeypatch.setattr(module, "check_transaction_access", record)
+    async with TestSession() as holder:
+        await holder.execute(select(Transaction.id).where(Transaction.id == uuid.UUID(expense_id)).with_for_update())
+        holder_pid = await holder.scalar(text("SELECT pg_backend_pid()"))
+        task = asyncio.create_task(request())
+        await entered.wait()
+        await _wait_until_blocked(holder_pid, request_pid)
+
+        # The request has waited longest, so Postgres breaks the cycle by failing the request
+        await holder.execute(select(Transaction.id).where(Transaction.id == uuid.UUID(refund_id)).with_for_update())
+        await holder.commit()
+    return await task
+
+
+async def test_an_edit_of_a_refund_caught_in_a_deadlock_answers_409_and_changes_nothing(client, monkeypatch):
+    """A bulk change holds the expense and wants the refund while the edit holds the refund and wants the expense."""
+    headers, account_id, category_id = await _setup_user_with_deps(client)
+    expense = (await _create_transaction(client, headers, account_id, category_id)).json()
+    refund = await _refund(client, headers, account_id, category_id, expense["id"], amount=2000)
+
+    async def edit():
+        return await client.patch(f"/transactions/{refund['id']}", json={"amount": 3000}, headers=headers)
+
+    resp = await _deadlock_against(monkeypatch, update_module, edit, expense["id"], refund["id"])
+
+    assert resp.status_code == 409
+    assert resp.json()["detail"] == "Another change reached one of these transactions first"
+    assert (await _get(client, headers, refund["id"]))["amount"] == 2000
+
+
+async def test_a_link_caught_in_a_deadlock_answers_409_and_links_nothing(client, monkeypatch):
+    """Linking locks the refund before the expense, so it can meet a bulk change going the other way."""
+    headers, account_id, category_id = await _setup_user_with_deps(client)
+    expense = (await _create_transaction(client, headers, account_id, category_id)).json()
+    refund = (await _create_transaction(client, headers, account_id, category_id, amount=2000)).json()
+
+    async def link():
+        return await _link(client, headers, refund["id"], expense["id"])
+
+    resp = await _deadlock_against(monkeypatch, links_module, link, expense["id"], refund["id"])
+
+    assert resp.status_code == 409
+    assert resp.json()["detail"] == "Another change reached this transaction first"
+    assert (await _get(client, headers, refund["id"]))["refund_of_transaction_id"] is None
