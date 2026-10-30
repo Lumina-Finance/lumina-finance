@@ -39,7 +39,7 @@ export function ActiveFilterChips({ chips }: { chips: FilterChip[] }) {
               className="inline-flex max-w-full shrink-0 items-center gap-1 rounded-full py-0.5 pl-2.5 pr-1 text-[11px]"
               style={{
                 background: 'color-mix(in srgb, var(--app-accent) 14%, transparent)',
-                color: 'var(--app-accent)',
+                color: 'var(--app-accent-on-page-tint)',
               }}
               initial={{ opacity: 0, scale: 0.8 }}
               animate={{ opacity: 1, scale: 1 }}
@@ -50,7 +50,7 @@ export function ActiveFilterChips({ chips }: { chips: FilterChip[] }) {
               <button
                 type="button"
                 aria-label={`Remove ${chip.label}`}
-                className="-m-0.5 flex shrink-0 rounded-full p-0.5 opacity-70 transition-control hover:bg-[var(--app-accent-hover-fill)] hover:text-[var(--app-accent-on-hover-fill)] hover:opacity-100 motion-reduce:transition-none"
+                className="-m-0.5 flex shrink-0 rounded-full p-0.5 transition-control hover:bg-[var(--app-accent-hover-fill)] hover:text-[var(--app-accent-on-hover-fill)] motion-reduce:transition-none"
                 onClick={chip.onRemove}
               >
                 <X size={13} aria-hidden />

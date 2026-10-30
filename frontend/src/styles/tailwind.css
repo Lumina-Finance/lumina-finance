@@ -99,7 +99,8 @@
        on every surface in both. The chip in the Filters panel takes it on its 22% hover tint too */
     --app-accent-on-hover-fill: color-mix(in srgb, var(--app-text) 60%, var(--app-accent));
     /* The text of a selected row whose soft tint sits straight on the page colour, such as the credit accounts
-       list in its dialog. The accent itself reads 4.28:1 on that tint here, so it is drawn a little toward the
+       list in its dialogue, and of a selected-filter chip and its remove icon. The accent itself reads 4.28:1 on
+       that tint here and 4.37:1 on the chip over the desktop Filters panel, so it is drawn a little toward the
        page text colour, which keeps it bronze and clears 4.5:1 */
     --app-accent-on-page-tint: color-mix(in srgb, var(--app-accent) 85%, var(--app-text));
     /* The gold gradient behind a user's initials and the initials on it, the same in both themes. The end stop is
