@@ -463,7 +463,7 @@ describe('button keyboard focus', () => {
   // Every other button, filled buttons included, keeps the base ring on top of its hover look
   describe('ring', () => {
     const optOut = rulesListing(
-      ':is(a, button, [role="button"], [role="tab"], [role="radio"], [role="menuitem"]):is(.app-secondary-button, .app-glass-button, .app-glass-icon-button, .app-expanding-button, .app-range-glass-head, .app-card, .app-nav-link, .app-nav-user-logout, .app-desktop-nav-toggle, .border:not(.border-transparent)):not(svg *):not([aria-disabled="true"]):focus-visible',
+      ':is(a, button, [role="button"], [role="tab"], [role="radio"], [role="menuitem"]):is(.app-secondary-button, .app-glass-button, .app-glass-icon-button, .app-range-glass-head, .app-card, .app-nav-link, .app-nav-user-logout, .app-desktop-nav-toggle, .border:not(.border-transparent)):not(svg *):not([aria-disabled="true"]):focus-visible',
     )
 
     it('is dropped only from buttons that draw a border of their own', () => {
@@ -475,6 +475,7 @@ describe('button keyboard focus', () => {
     // rest, so no rule of their own may switch the ring off
     const BORDERLESS = [
       ...FILLED_BUTTONS,
+      '.app-expanding-button',
       '.app-icon-button',
       '.app-segmented-option',
       '.app-segmented-option-active',
@@ -494,6 +495,8 @@ describe('button keyboard focus', () => {
 
     it('lists the bordered shared classes the ring is dropped from, each with a border at rest', () => {
       for (const name of BORDER_CHANGING) {
+        // Rests without a border and draws one under the pointer, so it keeps the ring beside its hover look
+        if (name === '.app-expanding-button') continue
         expect(selectorsOf(optOut[0])[0]).toContain(name)
         const [rest] = rulesListing(name)
         expect(borderColourOf(rest) ?? declared(rest, 'border-color')).toBeDefined()

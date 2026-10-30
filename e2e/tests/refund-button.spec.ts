@@ -135,11 +135,12 @@ test('shows the Refund icon with no border until the pointer or focus is on it',
   await page.mouse.move(0, 0)
   await expect(button).toHaveCSS('border-top-color', 'rgba(0, 0, 0, 0)')
 
-  // Focus from the keyboard looks as hover does, with its border and no ring on top
+  // Focus from the keyboard looks as hover does, with its border, and keeps the focus ring since it rests borderless
   await button.focus()
   await page.keyboard.press('Shift+Tab')
   await page.keyboard.press('Tab')
   await expect(button).toBeFocused()
   await expect.poll(border).toBe(hovered)
-  await expect(button).toHaveCSS('outline-style', 'none')
+  await expect(button).toHaveCSS('outline-style', 'solid')
+  await expect(button).not.toHaveCSS('outline-color', 'rgba(0, 0, 0, 0)')
 })
