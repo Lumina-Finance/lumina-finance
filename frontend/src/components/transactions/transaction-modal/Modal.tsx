@@ -51,6 +51,7 @@ import TransactionModalLinkedRefundsSection from '@/components/transactions/tran
 import {
   buildRefundNote,
   canLinkAsRefund,
+  getRefundAccounts,
   getLinkedTransactionIds,
   isRefundable,
 } from '@/components/transactions/transaction-modal/utils/refund'
@@ -87,7 +88,10 @@ export default function CreateTransactionModal({
   const { data: categories = [] } = useCategories()
   const { data: currencies = [] } = useCurrencies()
   const currencyState = useCurrencyListState()
-  const selectableAccounts = useMemo(() => accounts.filter((account) => !account.is_archived), [accounts])
+  const selectableAccounts = useMemo(() => {
+    const unarchived = accounts.filter((account) => !account.is_archived)
+    return refundOf ? getRefundAccounts(unarchived, refundOf.currency) : unarchived
+  }, [accounts, refundOf])
 
   // Build the initial form from the existing transaction (edit) or sensible defaults (create)
   const initialForm = useMemo<TransactionFormValues>(() => {
@@ -207,7 +211,6 @@ export default function CreateTransactionModal({
     refunding && refundOf && refundRoomLimit !== undefined
       ? {
           minor: Math.max(refundRoomLimit, 0),
-          currency: refundOf.currency,
           exponent: selectedCurrencyExponent,
           message:
             refundRoomLimit > 0
@@ -348,11 +351,13 @@ export default function CreateTransactionModal({
             <RefundButton
               onClick={() => setRefundModal((state) => ({ open: true, key: state.key + 1 }))}
               disabledReason={
-                refundRoom === undefined
+                refundRoom === undefined || accounts.length === 0
                   ? 'Checking what is left to refund'
                   : refundRoom <= 0
                     ? 'This expense is already fully refunded'
-                    : null
+                    : getRefundAccounts(selectableAccounts, transaction.currency).length === 0
+                      ? `You have no account in ${transaction.currency} to hold this refund`
+                      : null
               }
             />
           ) : undefined

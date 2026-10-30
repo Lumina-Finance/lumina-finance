@@ -19,9 +19,9 @@ interface ValidateTransactionFormOptions {
 
   /**
    * What is left to refund of the expense a new refund is for, so one that passes it is refused here,
-   * as the server would refuse it. Only an amount in the expense's own currency is compared
+   * as the server would refuse it
    */
-  refundLimit?: { minor: number; currency: string; exponent: number; message: string }
+  refundLimit?: { minor: number; exponent: number; message: string }
 }
 
 /**
@@ -44,7 +44,7 @@ export function validateTransactionForm(
     else {
       const amount = Number.parseFloat(form.amount)
       if (!Number.isFinite(amount) || amount <= 0) errors.amount = 'Amount must be greater than zero'
-      else if (refundLimit && form.currency === refundLimit.currency) {
+      else if (refundLimit) {
         const minor = amountInputToMinorUnits(form.amount, refundLimit.exponent)
         if (minor !== null && minor > refundLimit.minor) errors.amount = refundLimit.message
       }

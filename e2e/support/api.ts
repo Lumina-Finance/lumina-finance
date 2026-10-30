@@ -382,6 +382,9 @@ export interface CreateTransactionOptions {
   /** Plain calendar date as YYYY-MM-DD, defaulting to today in the pinned zone */
   date?: string
   currency?: string
+
+  /** Needed with a currency other than the account's, which only a direct request can record */
+  fxRate?: number
   notes?: string
 
   /** A merchant the spec has made, for a spec that asserts on it */
@@ -420,6 +423,7 @@ export async function createTransaction(
       merchant_id: merchantId,
       amount: options.amount,
       currency: options.currency ?? TEST_CURRENCY,
+      fx_rate: options.fxRate,
       notes: options.notes,
       tag_ids: options.tagIds,
     },

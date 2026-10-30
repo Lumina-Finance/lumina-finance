@@ -6,7 +6,7 @@ import { useRefundLinkCandidates, useTransaction, type Transaction } from '@/api
 import CreateModalSectionFrame from '@/components/create-modal/SectionFrame'
 import { DisabledReasonButton } from '@/components/tooltips/DisabledReasonButton'
 import type { PendingLinks } from '@/components/transactions/transaction-modal/hooks/usePendingLinks'
-import { getOfferedCandidates, getRefusedRooms } from '@/components/transactions/transaction-modal/utils/refund'
+import { getRefusedRooms } from '@/components/transactions/transaction-modal/utils/refund'
 import { useMoneyFormatters } from '@/hooks/useMoneyFormatters'
 import { formatDateLabel } from '@/utils/date'
 
@@ -186,12 +186,7 @@ export default function TransactionModalLinkedRefundsSection({
     '',
     pending.unlinkedRefundIds.length > 0 ? { unlinked_id: pending.unlinkedRefundIds } : {},
   )
-  const unheld =
-    candidates.data &&
-    getOfferedCandidates(
-      current,
-      candidates.data.filter((candidate) => !pending.links.some((link) => link.id === candidate.id)),
-    )
+  const unheld = candidates.data?.filter((candidate) => !pending.links.some((link) => link.id === candidate.id))
   const anythingFits = unheld === undefined || unheld.length > getRefusedRooms(current, unheld, refundRoom, []).size
   const refundCount =
     savedRefundIds.length +

@@ -50,6 +50,11 @@ export function buildInitialTransactionForm({
     const exponent = findCurrencyExponent(currencies, refundOf.currency)
     return {
       ...copy,
+
+      // An expense whose own account is in another currency can't take the refund, so it starts on one that can
+      account_id: selectableAccounts.some((account) => account.id === copy.account_id)
+        ? copy.account_id
+        : (selectableAccounts[0]?.id ?? ''),
       amount:
         refundRoom === undefined || exponent === null
           ? copy.amount

@@ -1,3 +1,4 @@
+import type { AccountsOverview } from '@/api/accounts'
 import type { Transaction } from '@/api/transactions'
 
 /**
@@ -37,41 +38,30 @@ export function getLinkedTransactionIds(
   ]
 }
 
-type Amounted = Pick<Transaction, 'amount' | 'currency'>
+type Amounted = Pick<Transaction, 'amount'>
 
 /**
- * How much of an expense is still left to refund: its amount less the refunds in its own currency. A
- * refund in another currency can't be added to it, so it takes nothing off, as on the server
+ * How much of an expense is still left to refund: its amount less its refunds, which the server keeps in its currency
  */
 export function getRefundRoom(original: Amounted, refunds: readonly Amounted[]): number {
-  const refunded = refunds
-    .filter((refund) => refund.currency === original.currency)
-    .reduce((total, refund) => total + refund.amount, 0)
-  return -original.amount - refunded
+  return -original.amount - refunds.reduce((total, refund) => total + refund.amount, 0)
 }
 
 /**
- * Whether a refund of this amount, in this currency, would pass what is left to refund of an expense
- * in the given currency. The server refuses the same link, so the UI keeps it from being made
+ * The accounts a refund of an expense can go to: those in the expense's currency, individually owned, since the
+ * server refuses any other
  */
-export function exceedsRefundRoom(refund: Amounted, originalCurrency: string, room: number): boolean {
-  return refund.currency === originalCurrency && refund.amount > room
-}
-
-/**
- * The candidates the picker lists: those in the open transaction's own currency. One in another currency is
- * left out altogether, not greyed out, and counts as nothing that fits when deciding whether the button that
- * opens the picker is held off
- */
-export function getOfferedCandidates(anchor: Amounted, candidates: readonly Transaction[]): Transaction[] {
-  return candidates.filter((candidate) => candidate.currency === anchor.currency)
+export function getRefundAccounts<T extends Pick<AccountsOverview, 'currency' | 'group_id'>>(
+  accounts: readonly T[],
+  currency: string,
+): T[] {
+  return accounts.filter((account) => account.currency === currency && account.group_id === null)
 }
 
 /**
  * The candidates a press can't pick now, with what is left to refund for each, so the picker greys them out and
  * says why instead of letting a press be refused. An expense is offered refunds against what is left of it after the
- * refunds already picked, and a picked row is never refused. A refund is offered expenses by their own room. A refund
- * in another currency is not counted against the expense, as on the server
+ * refunds already picked, and a picked row is never refused. A refund is offered expenses by their own room
  *
  * @param anchor The transaction the window edits
  * @param candidates What the server says linking would accept
@@ -89,16 +79,16 @@ export function getRefusedRooms(
   if (anchor.amount > 0) {
     for (const expense of candidates) {
       const room = -expense.amount - (expense.refunded_amount ?? 0)
-      if (exceedsRefundRoom(anchor, expense.currency, room)) refused.set(expense.id, Math.max(room, 0))
+      if (anchor.amount > room) refused.set(expense.id, Math.max(room, 0))
     }
     return refused
   }
   const pickedTotal = candidates
-    .filter((candidate) => pickedIds.includes(candidate.id) && candidate.currency === anchor.currency)
+    .filter((candidate) => pickedIds.includes(candidate.id))
     .reduce((total, candidate) => total + candidate.amount, 0)
   const remaining = (refundRoom ?? Infinity) - pickedTotal
   for (const candidate of candidates) {
-    if (!pickedIds.includes(candidate.id) && exceedsRefundRoom(candidate, anchor.currency, remaining)) {
+    if (!pickedIds.includes(candidate.id) && candidate.amount > remaining) {
       refused.set(candidate.id, Math.max(remaining, 0))
     }
   }

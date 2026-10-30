@@ -8,9 +8,8 @@ import { buildCreateTransactionPayload } from '@/components/transactions/transac
 import {
   buildRefundNote,
   canLinkAsRefund,
-  exceedsRefundRoom,
   getLinkedTransactionIds,
-  getOfferedCandidates,
+  getRefundAccounts,
   getRefundRoom,
   getRefusedRooms,
   isRefundable,
@@ -133,42 +132,33 @@ describe('getLinkedTransactionIds', () => {
 })
 
 describe('refund room', () => {
-  const expense = { amount: -5000, currency: 'CAD' }
+  const expense = { amount: -5000 }
 
-  it('leaves what the refunds in the expense currency have not given back', () => {
+  it('leaves what the refunds have not given back', () => {
     expect(getRefundRoom(expense, [])).toBe(5000)
-    expect(
-      getRefundRoom(expense, [
-        { amount: 1500, currency: 'CAD' },
-        { amount: 1000, currency: 'CAD' },
-      ]),
-    ).toBe(2500)
+    expect(getRefundRoom(expense, [{ amount: 1500 }, { amount: 1000 }])).toBe(2500)
   })
+})
 
-  it('ignores a refund in another currency, which cannot be added to the expense', () => {
-    expect(getRefundRoom(expense, [{ amount: 4000, currency: 'USD' }])).toBe(5000)
-  })
-
-  it('refuses a refund that passes the room, and accepts one that fills it exactly', () => {
-    expect(exceedsRefundRoom({ amount: 2501, currency: 'CAD' }, 'CAD', 2500)).toBe(true)
-    expect(exceedsRefundRoom({ amount: 2500, currency: 'CAD' }, 'CAD', 2500)).toBe(false)
-    expect(exceedsRefundRoom({ amount: 9999, currency: 'USD' }, 'CAD', 2500)).toBe(false)
+describe('getRefundAccounts', () => {
+  it('keeps only individually owned accounts in the currency of the expense', () => {
+    const accounts = [
+      { id: 'cad', currency: 'CAD', group_id: null },
+      { id: 'usd', currency: 'USD', group_id: null },
+      { id: 'group', currency: 'CAD', group_id: 'g' },
+    ]
+    expect(getRefundAccounts(accounts, 'CAD').map(({ id }) => id)).toEqual(['cad'])
+    expect(getRefundAccounts(accounts, 'EUR')).toEqual([])
   })
 })
 
 describe('getRefusedRooms', () => {
   const expense = createTransaction({ amount: -3713, currency: 'USD' })
-  const refund = (id: string, amount: number, currency = 'USD') => createTransaction({ id, amount, currency })
-  const candidates = [
-    refund('a', 2000),
-    refund('b', 1500),
-    refund('c', 1200),
-    refund('over', 3719),
-    refund('cad', 9000, 'CAD'),
-  ]
+  const refund = (id: string, amount: number) => createTransaction({ id, amount, currency: 'USD' })
+  const candidates = [refund('a', 2000), refund('b', 1500), refund('c', 1200), refund('over', 3719)]
   const refused = (picked: string[]) => Object.fromEntries(getRefusedRooms(expense, candidates, 3713, picked))
 
-  it('refuses a refund bigger than the whole expense, with what is left, and counts one in another currency for nothing', () => {
+  it('refuses a refund bigger than the whole expense, with what is left', () => {
     expect(refused([])).toEqual({ over: 3713 })
   })
 
@@ -196,15 +186,5 @@ describe('getRefusedRooms', () => {
       createTransaction({ id: 'full', amount: -2500, currency: 'USD', refunded_amount: 2500 }),
     ]
     expect(Object.fromEntries(getRefusedRooms(money, expenses, undefined, []))).toEqual({ short: 1500, full: 0 })
-  })
-})
-
-describe('getOfferedCandidates', () => {
-  const refund = (id: string, currency: string) => createTransaction({ id, amount: 1000, currency })
-
-  it('leaves out candidates in another currency than the open transaction, so they are not even greyed out', () => {
-    const expense = createTransaction({ amount: -3713, currency: 'USD' })
-    const offered = getOfferedCandidates(expense, [refund('usd', 'USD'), refund('cad', 'CAD')])
-    expect(offered.map(({ id }) => id)).toEqual(['usd'])
   })
 })

@@ -115,4 +115,12 @@ describe('a refund of an expense', () => {
     expect(buildInitialTransactionForm({ ...options, refundRoom: 0 }).amount).toBe('0.00')
     expect(buildInitialTransactionForm({ ...options, refundRoom: -200 }).amount).toBe('0.00')
   })
+
+  it('stays on the account of the expense when it is listed, and otherwise starts on the first one listed', () => {
+    const own = createAccount({ id: expense.account_id, currency: 'CAD' })
+    const other = createAccount({ id: 'other', currency: 'CAD' })
+    expect(buildInitialTransactionForm({ ...options, selectableAccounts: [other, own] }).account_id).toBe(own.id)
+    expect(buildInitialTransactionForm({ ...options, selectableAccounts: [other] }).account_id).toBe('other')
+    expect(buildInitialTransactionForm({ ...options, selectableAccounts: [] }).account_id).toBe('')
+  })
 })

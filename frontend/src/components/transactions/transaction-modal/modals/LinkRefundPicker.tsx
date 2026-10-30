@@ -12,7 +12,7 @@ import { ModalTitledPanel } from '@/components/modal/TitledPanel'
 import { useMoneyFormatters } from '@/hooks/useMoneyFormatters'
 import LinkCandidateRow from '@/components/transactions/transaction-modal/modals/LinkCandidateRow'
 import TransactionModalLinkRefundFilters from '@/components/transactions/transaction-modal/modals/LinkRefundFilters'
-import { getOfferedCandidates, getRefusedRooms } from '@/components/transactions/transaction-modal/utils/refund'
+import { getRefusedRooms } from '@/components/transactions/transaction-modal/utils/refund'
 import { toTransactionListAccount, type TransactionListFilters } from '@/components/transactions/types/transactionList'
 import { normalizeTransactionFilters } from '@/components/transactions/utils/normalizeTransactionFilters'
 
@@ -132,10 +132,7 @@ export default function TransactionModalLinkRefundPicker({
     onClose()
   }
 
-  const rows = getOfferedCandidates(
-    transaction,
-    (candidates.data ?? []).filter((candidate) => !heldIds.includes(candidate.id)),
-  )
+  const rows = (candidates.data ?? []).filter((candidate) => !heldIds.includes(candidate.id))
 
   // Every row stays listed. One that can't be picked now is greyed out with what is left, and returns to full strength
   // when a pick is undone
