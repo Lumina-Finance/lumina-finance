@@ -31,10 +31,7 @@ export function getDailyCashFlowGranularity(fromDate: string, toDate: string): D
   const to = parseYmd(toDate)
   if (!from || !to) return 'day'
 
-  const dayCount = Math.max(
-    1,
-    Math.round((to.getTime() - from.getTime()) / 86400000) + 1,
-  )
+  const dayCount = Math.max(1, Math.round((to.getTime() - from.getTime()) / 86400000) + 1)
 
   return getChartGranularity(dayCount)
 }
@@ -60,10 +57,7 @@ function getDailyCashFlowPeriodName(granularity: DailyCashFlowGranularity) {
 /**
  * Builds the calculation tooltip message for net and gross cash-flow modes
  */
-export function getDailyCashFlowCalculation(
-  granularity: DailyCashFlowGranularity,
-  mode: DailyCashFlowChartMode,
-) {
+export function getDailyCashFlowCalculation(granularity: DailyCashFlowGranularity, mode: DailyCashFlowChartMode) {
   const period = getDailyCashFlowPeriodName(granularity)
   return mode === 'net'
     ? `Each ${period}'s money in minus money out. Transfers count except Balance Adjustment.`
@@ -111,9 +105,10 @@ export function getDailyCashFlowSeries(
     return {
       key: entry.date,
       date: bucketStart ? formatCashFlowPointLabel(bucketStart, granularity) : entry.date,
-      rangeLabel: bucketStart && bucketEnd
-        ? formatCashFlowRangeLabel(bucketStart, bucketEnd, granularity)
-        : formatUnreadableRange(entry.date, entry.end_date),
+      rangeLabel:
+        bucketStart && bucketEnd
+          ? formatCashFlowRangeLabel(bucketStart, bucketEnd, granularity)
+          : formatUnreadableRange(entry.date, entry.end_date),
       inflow: entry.inflow,
       outflow: entry.outflow,
       net: entry.inflow + entry.outflow,
@@ -128,20 +123,17 @@ export function getDailyCashFlowXAxisTickCount(chartWidth: number | undefined) {
   if (chartWidth === undefined) return DAILY_CASH_FLOW_MAX_X_AXIS_TICK_COUNT
 
   const usableWidth = Math.max(
-    chartWidth
-      - DAILY_CASH_FLOW_CHART_MARGIN.left
-      - DAILY_CASH_FLOW_CHART_MARGIN.right
-      - DAILY_CASH_FLOW_X_AXIS_PADDING.left
-      - DAILY_CASH_FLOW_X_AXIS_PADDING.right,
+    chartWidth -
+      DAILY_CASH_FLOW_CHART_MARGIN.left -
+      DAILY_CASH_FLOW_CHART_MARGIN.right -
+      DAILY_CASH_FLOW_X_AXIS_PADDING.left -
+      DAILY_CASH_FLOW_X_AXIS_PADDING.right,
     0,
   )
 
   return Math.max(
     2,
-    Math.min(
-      DAILY_CASH_FLOW_MAX_X_AXIS_TICK_COUNT,
-      Math.floor(usableWidth / DAILY_CASH_FLOW_X_AXIS_TICK_SPACING) + 1,
-    ),
+    Math.min(DAILY_CASH_FLOW_MAX_X_AXIS_TICK_COUNT, Math.floor(usableWidth / DAILY_CASH_FLOW_X_AXIS_TICK_SPACING) + 1),
   )
 }
 
@@ -210,7 +202,5 @@ function getDailyCashFlowXAxisTickIndexes(dataLength: number, maxTickCount: numb
  * Returns the data keys Recharts should render as X-axis ticks
  */
 export function getDailyCashFlowXAxisTicks(data: DailyCashFlowPoint[], maxTickCount: number) {
-  return getDailyCashFlowXAxisTickIndexes(data.length, maxTickCount).map((index) => (
-    data[index].key
-  ))
+  return getDailyCashFlowXAxisTickIndexes(data.length, maxTickCount).map((index) => data[index].key)
 }

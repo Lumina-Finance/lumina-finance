@@ -39,7 +39,7 @@ const X_AXIS_LABEL_GAP_PX = 16
  * @param plotWidth - The width the labels are drawn along, in pixels, or 0 before it is measured
  */
 export function getCashFlowXAxisTicks(
-  buckets: { label: string, rangeLabel: string, marksYear: boolean }[],
+  buckets: { label: string; rangeLabel: string; marksYear: boolean }[],
   plotWidth: number,
 ): string[] | undefined {
   if (plotWidth <= 0 || !buckets.some((bucket) => bucket.marksYear)) return undefined
@@ -50,8 +50,10 @@ export function getCashFlowXAxisTicks(
   // The tightest neighbours are a year label beside a bare one, whose centres must clear half of each plus the gap
   const needed = ((longest(true) + longest(false)) / 2) * X_AXIS_CHARACTER_PX + X_AXIS_LABEL_GAP_PX
   const stride = Math.ceil(needed / (plotWidth / buckets.length))
-  return getCashFlowXAxisLabelIndexes(buckets.map((bucket) => bucket.marksYear), stride)
-    .map((index) => buckets[index].rangeLabel)
+  return getCashFlowXAxisLabelIndexes(
+    buckets.map((bucket) => bucket.marksYear),
+    stride,
+  ).map((index) => buckets[index].rangeLabel)
 }
 
 /**
@@ -70,9 +72,9 @@ export function getCashFlowAxisTicks(nets: number[]): number[] {
   const low = Math.min(0, ...nets)
   const smallestStep = Math.max((high - low) / MAX_AXIS_INTERVALS, MIN_AXIS_STEP_MINOR_UNITS)
   const magnitude = 10 ** Math.floor(Math.log10(smallestStep))
-  const step = STEP_FRACTIONS
-    .map((fraction) => fraction * magnitude)
-    .find((candidate) => Number.isInteger(candidate) && candidate >= smallestStep)!
+  const step = STEP_FRACTIONS.map((fraction) => fraction * magnitude).find(
+    (candidate) => Number.isInteger(candidate) && candidate >= smallestStep,
+  )!
   const first = Math.floor(low / step)
   // A range of all zeros still gets a second tick, so the axis has a height
   const last = Math.max(Math.ceil(high / step), first + 1)

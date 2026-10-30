@@ -2,8 +2,8 @@
  * Covers the net worth card labelling its points by the bucket size the backend grouped them into,
  * which once labelled a 91 to 183 day range of weekly points by month
  */
-import { describe, expect, it } from 'vitest';
-import { getNetWorthCardData } from '@/pages/insights/utils/netWorth';
+import { describe, expect, it } from 'vitest'
+import { getNetWorthCardData } from '@/pages/insights/utils/netWorth'
 
 describe('getNetWorthCardData', () => {
   it('labels the points of a 92-day range by their day', () => {
@@ -16,8 +16,8 @@ describe('getNetWorthCardData', () => {
       },
       '2026-01-05',
       '2026-04-06',
-    );
+    )
 
-    expect(series[0].dateLabel).toBe('Jan 5');
-  });
-});
+    expect(series[0].dateLabel).toBe('Jan 5')
+  })
+})
