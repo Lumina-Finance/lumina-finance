@@ -37,8 +37,6 @@ export function getTransactionModalIds(suffix: string) {
     suppliedDaysError: `txn-date-supplied-days${suffix}`,
     amount: `txn-amount${suffix}`,
     notes: `txn-notes${suffix}`,
-    keepOpen: `txn-keep-open${suffix}`,
-    symmetricTransfer: `txn-symmetric-transfer${suffix}`,
     title: `create-txn-title${suffix}`,
     errors: Object.fromEntries(
       Object.entries(TRANSACTION_MODAL_ERROR_IDS).map(([field, id]) => [field, `${id}${suffix}`]),

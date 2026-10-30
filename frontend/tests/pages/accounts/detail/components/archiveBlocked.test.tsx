@@ -92,7 +92,9 @@ describe('archive blocked by later-dated transactions', () => {
 describe('archive held back by a link', () => {
   it('shows the reason under the switch row and leaves the switch focusable', () => {
     const markup = renderArchiveSection(false, LINKED_REASON)
-    expect(markup).toMatch(/<\/label><p id="edit-account-archive-blocked-reason"[^>]*>Unlink it first\.<\/p>/)
+    expect(markup).toMatch(
+      /<\/label><div[^>]*><div[^>]*><p id="edit-account-archive-blocked-reason"[^>]*>Unlink it first\.<\/p>/,
+    )
     expect(markup).toMatch(/<input[^>]*role="switch"[^>]*aria-disabled="true"/)
     expect(markup).not.toMatch(/<input[^>]*role="switch"[^>]*disabled=""/)
   })

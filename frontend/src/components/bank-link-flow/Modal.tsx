@@ -196,6 +196,7 @@ export function BankLinkFlowModal({
       footer={
         <ModalFormFooter
           submitLabel={primary.label}
+          submitLabels={[...new Set(['Continue', 'Open settings', 'Close', primary.label])]}
           submitDisabled={busy}
           submitUnavailable={primary.unavailable}
           submitReason={step === 'start' && linkingPaused ? LINKING_PAUSED_REASON : null}

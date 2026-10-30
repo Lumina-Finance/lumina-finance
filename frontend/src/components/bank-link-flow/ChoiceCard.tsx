@@ -47,7 +47,7 @@ export function ChoiceCard({ selected, disabled, onSelect, children, extra, init
     borderColor: selected ? 'var(--app-accent)' : 'var(--app-border)',
     background: selected ? 'var(--app-accent-soft)' : disabled ? 'var(--app-surface-soft)' : 'transparent',
   }
-  const frameClass = 'rounded-xl border transition-colors duration-200'
+  const frameClass = 'rounded-xl border transition-colors'
 
   const choice = (
     <button
@@ -63,14 +63,21 @@ export function ChoiceCard({ selected, disabled, onSelect, children, extra, init
       style={extra === undefined ? frameStyle : undefined}
     >
       <span
-        className="mt-0.5 inline-flex h-4 w-4 shrink-0 items-center justify-center rounded-full border transition-colors duration-200"
+        className="mt-0.5 inline-flex h-4 w-4 shrink-0 items-center justify-center rounded-full border transition-all motion-reduce:transition-none"
         style={{
           borderColor: selected ? 'var(--app-accent)' : 'var(--app-border-strong)',
           background: selected ? 'var(--app-accent)' : 'transparent',
           opacity: disabled ? 0.45 : 1,
         }}
       >
-        {selected && <Check size={10} strokeWidth={3} color="var(--app-button-primary-text)" aria-hidden />}
+        {/* Always drawn, and grown in or out by the choice, so the mark never pops */}
+        <Check
+          size={10}
+          strokeWidth={3}
+          color="var(--app-button-primary-text)"
+          aria-hidden
+          className={`transition-all motion-reduce:transition-none ${selected ? 'scale-100 opacity-100' : 'scale-50 opacity-0'}`}
+        />
       </span>
       <span className="min-w-0 flex-1">{children}</span>
     </button>

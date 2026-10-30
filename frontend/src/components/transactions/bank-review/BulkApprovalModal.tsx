@@ -111,7 +111,7 @@ export function BulkApprovalModal({ open, scope, accountFor, today, onClose }: B
           aria-expanded={isExpanded}
           aria-controls={listId}
           onClick={() => setExpandedKind(isExpanded ? null : group.kind)}
-          className="flex w-full items-center gap-3 rounded-xl px-4 py-3 text-left transition-colors duration-150 hover:bg-[var(--app-accent-soft)] motion-reduce:transition-none focus-visible:outline-none focus-visible:shadow-[inset_0_0_0_2px_var(--app-focus-ring)]"
+          className="flex w-full items-center gap-3 rounded-xl px-4 py-3 text-left transition-colors hover:bg-[var(--app-accent-soft)] motion-reduce:transition-none focus-visible:outline-none focus-visible:shadow-[inset_0_0_0_2px_var(--app-focus-ring)]"
         >
           <span className="min-w-0 flex-1">
             <span className="block text-sm font-medium" style={{ color: 'var(--app-text)' }}>
@@ -136,7 +136,7 @@ export function BulkApprovalModal({ open, scope, accountFor, today, onClose }: B
           <ChevronDown
             size={16}
             aria-hidden
-            className={`shrink-0 transition-transform duration-200 motion-reduce:transition-none ${isExpanded ? 'rotate-180' : ''}`}
+            className={`shrink-0 transition-transform motion-reduce:transition-none ${isExpanded ? 'rotate-180' : ''}`}
             style={{ color: 'var(--app-text-subtle)' }}
           />
         </button>
@@ -195,6 +195,7 @@ export function BulkApprovalModal({ open, scope, accountFor, today, onClose }: B
       footer={
         <ModalFormFooter
           submitLabel={approveLabel}
+          submitLabels={[...new Set(['Approve', approveLabel])]}
           submitDisabled={apply.isPending}
           submitUnavailable={items.length === 0 || apply.isSuccess}
           submitWidthClassName="w-full sm:w-auto"

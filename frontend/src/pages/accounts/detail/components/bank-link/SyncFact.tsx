@@ -53,7 +53,7 @@ function SlidingLabel({ label, underlinesOnHover }: { label: string; underlinesO
         <AnimatePresence initial={false}>
           <motion.span
             key={label}
-            className={`min-w-0 truncate whitespace-nowrap ${underlinesOnHover ? 'underline decoration-transparent underline-offset-2 transition-[text-decoration-color] duration-150 group-hover:decoration-current' : ''}`}
+            className={`min-w-0 truncate whitespace-nowrap ${underlinesOnHover ? 'underline decoration-transparent underline-offset-2 transition-[text-decoration-color] group-hover:decoration-current' : ''}`}
             style={{ gridArea: '1 / 1' }}
             initial={{ opacity: 0, y: rise }}
             animate={{ opacity: 1, y: 0 }}

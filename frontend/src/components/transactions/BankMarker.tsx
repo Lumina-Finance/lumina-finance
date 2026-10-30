@@ -1,3 +1,5 @@
+import type { ReactNode } from 'react'
+import { AnimatePresence, motion, useReducedMotion } from 'motion/react'
 import { Landmark } from 'lucide-react'
 import IconTooltip from '@/components/tooltips/IconTooltip'
 
@@ -53,18 +55,18 @@ export function BankMarker({ providerName, isEdited, needsReview, onShowReview }
           <span className="block">From {providerName}</span>
           {isEdited && <span className="mt-0.5 block">You edited a value the bank supplied</span>}
         </IconTooltip>
-        {isEdited && (
+        <Grows show={isEdited} className="pointer-events-none absolute -right-1 -top-0.5 h-1.5 w-1.5">
           <span
             data-testid="bank-edited-dot"
-            className="pointer-events-none absolute -right-1 -top-0.5 h-1.5 w-1.5 rounded-full"
+            className="block h-full w-full rounded-full"
             style={{ background: 'var(--app-accent)' }}
           />
-        )}
+        </Grows>
       </span>
       {/* Takes presses a few pixels above and below, making it at least 24px tall to a finger, but
           none to its sides, so its edge still meets the icon's wider area. Hovering lays the row's
           hover tint over its own */}
-      {needsReview && (
+      <Grows show={needsReview} className="inline-flex">
         <button
           type="button"
           aria-label="Needs review. Show the waiting item"
@@ -74,7 +76,31 @@ export function BankMarker({ providerName, isEdited, needsReview, onShowReview }
         >
           Needs review
         </button>
-      )}
+      </Grows>
     </span>
+  )
+}
+
+/**
+ * Grows its content in and shrinks it away as `show` changes, so a pill or dot never pops. A marker
+ * already showing as the row renders does not animate, and reduced motion makes the change instant
+ */
+function Grows({ show, className, children }: { show: boolean; className: string; children: ReactNode }) {
+  const prefersReducedMotion = useReducedMotion()
+  return (
+    <AnimatePresence initial={false}>
+      {show && (
+        <motion.span
+          key="shown"
+          className={className}
+          initial={{ opacity: 0, scale: 0.8 }}
+          animate={{ opacity: 1, scale: 1 }}
+          exit={{ opacity: 0, scale: 0.8 }}
+          transition={{ duration: prefersReducedMotion ? 0 : 0.15 }}
+        >
+          {children}
+        </motion.span>
+      )}
+    </AnimatePresence>
   )
 }

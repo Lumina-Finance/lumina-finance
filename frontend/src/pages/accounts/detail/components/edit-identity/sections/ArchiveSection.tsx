@@ -1,5 +1,6 @@
 import { AnimatePresence, motion } from 'motion/react'
 import { EyeOff } from 'lucide-react'
+import { Unfold } from '@/components/display/Unfold'
 import { Switch } from '@/components/forms/Switch'
 import { useRevealWhenGrown } from '@/pages/accounts/detail/hooks/useRevealWhenGrown'
 import {
@@ -53,7 +54,7 @@ export function AccountArchiveSection({
       {/* The switch's input is visually hidden, so a press lands on the row, which refuses it as well */}
       <label
         htmlFor={EDIT_ACCOUNT_IDENTITY_FIELD_IDS.archive}
-        className={`flex items-center justify-between gap-4 rounded-xl p-4 ${unavailableReason ? 'cursor-not-allowed opacity-60' : 'cursor-pointer'}`}
+        className={`flex items-center justify-between gap-4 rounded-xl p-4 transition-opacity motion-reduce:transition-none ${unavailableReason ? 'cursor-not-allowed opacity-60' : 'cursor-pointer'}`}
         style={{
           background: 'var(--app-input-bg)',
           border: '1px solid var(--app-input-border)',
@@ -78,15 +79,19 @@ export function AccountArchiveSection({
         />
       </label>
 
-      {unavailableReason && (
-        <p
-          id={EDIT_ACCOUNT_IDENTITY_FIELD_IDS.archiveBlockedReason}
-          className="mt-2 text-sm font-medium"
-          style={{ color: 'var(--app-negative)' }}
-        >
-          {unavailableReason}
-        </p>
-      )}
+      <AnimatePresence initial={false}>
+        {unavailableReason && (
+          <Unfold key="reason" flush>
+            <p
+              id={EDIT_ACCOUNT_IDENTITY_FIELD_IDS.archiveBlockedReason}
+              className="mt-2 text-sm font-medium"
+              style={{ color: 'var(--app-negative)' }}
+            >
+              {unavailableReason}
+            </p>
+          </Unfold>
+        )}
+      </AnimatePresence>
 
       <AnimatePresence initial={false}>
         {isArchiving && (

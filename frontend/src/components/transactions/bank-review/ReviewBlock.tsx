@@ -221,18 +221,26 @@ export function BankReviewBlock({
             from its end, and ends the header's first row like the chevron of the app's other collapsible
             sections. It stays mounted as the list changes, which keeps keyboard focus on it through both.
             It turns over as they do, and its name says what pressing it does */}
-        {total > COLLAPSED_ITEM_COUNT && (
-          <button
-            type="button"
-            aria-expanded={expanded}
-            aria-controls={listId}
-            aria-label={expanded ? 'Show fewer' : `Show all ${total.toLocaleString()}`}
-            onClick={onToggleExpanded}
-            className="ml-auto flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-[var(--app-text-muted)] transition-colors hover:bg-[var(--app-accent-soft)] hover:text-[var(--app-text)] focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-[var(--app-focus-ring)] motion-reduce:transition-none min-[750px]:ml-2"
-          >
-            <ChevronDown size={16} aria-hidden className={`transition-transform ${expanded ? 'rotate-180' : ''}`} />
-          </button>
-        )}
+        {/* Grows in when the backlog passes the rows shown, and shrinks away when it falls back under */}
+        <AnimatePresence initial={false}>
+          {total > COLLAPSED_ITEM_COUNT && (
+            <motion.button
+              key="toggle"
+              initial={{ opacity: 0, scale: 0.8 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.8 }}
+              transition={{ duration: prefersReducedMotion ? 0 : 0.15 }}
+              type="button"
+              aria-expanded={expanded}
+              aria-controls={listId}
+              aria-label={expanded ? 'Show fewer' : `Show all ${total.toLocaleString()}`}
+              onClick={onToggleExpanded}
+              className="ml-auto flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-[var(--app-text-muted)] transition-colors hover:bg-[var(--app-accent-soft)] hover:text-[var(--app-text)] focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-[var(--app-focus-ring)] motion-reduce:transition-none min-[750px]:ml-2"
+            >
+              <ChevronDown size={16} aria-hidden className={`transition-transform ${expanded ? 'rotate-180' : ''}`} />
+            </motion.button>
+          )}
+        </AnimatePresence>
         <p className="basis-full pb-3 pt-1 text-xs" style={{ color: 'var(--app-text-muted)' }}>
           From your bank, and left out of every balance until you act on them.
         </p>
@@ -362,7 +370,9 @@ export function BankReviewBlock({
                   className="pointer-events-none absolute inset-x-2 bottom-0 top-px rounded-lg sm:inset-x-2.5"
                   style={{
                     boxShadow: highlightedId === item.id ? 'inset 0 0 0 2px var(--app-warning-dot)' : 'none',
-                    transition: prefersReducedMotion ? undefined : 'box-shadow 0.5s',
+                    transition: prefersReducedMotion
+                      ? undefined
+                      : 'box-shadow var(--app-ease-duration) var(--app-ease-curve)',
                   }}
                 />
 

@@ -1,7 +1,6 @@
 import { useLayoutEffect, useRef, useState } from 'react'
 import { Check, Trash2 } from 'lucide-react'
 import { PendingLabel } from '@/components/loading/PendingLabel'
-import { useTransactionModalIds } from '@/components/transactions/transaction-modal/ids'
 import { MODAL_INSET_CLASS_NAME } from '@/components/modal/inset'
 import { DisabledReasonButton } from '@/components/tooltips/DisabledReasonButton'
 import ShortcutHint from '@/components/transactions/transaction-modal/controls/ShortcutHint'
@@ -62,7 +61,6 @@ export default function TransactionModalFooter({
   onCancel,
   onDelete,
 }: TransactionModalFooterProps) {
-  const ids = useTransactionModalIds()
   const deleteButtonRef = useRef<HTMLButtonElement>(null)
   const [confirmingDelete, setConfirmingDelete] = useConfirmingClick(deleteButtonRef, deleteLoading)
   const idleLabelRef = useRef<HTMLSpanElement>(null)
@@ -161,7 +159,6 @@ export default function TransactionModalFooter({
         </DisabledReasonButton>
       ) : !editing && !hideKeepOpen ? (
         <TransactionKeepOpenOption
-          id={ids.keepOpen}
           label="Keep modal open after adding"
           description="Keep type, date, account, merchant, and category"
           checked={keepOpenAfterCreate}

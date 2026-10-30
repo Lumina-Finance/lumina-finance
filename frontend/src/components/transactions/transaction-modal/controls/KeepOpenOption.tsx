@@ -1,6 +1,6 @@
+import { Checkbox } from '@/components/forms/Checkbox'
+
 type KeepOpenOptionProps = {
-  // The checkbox's id, which the modal suffixes while a refund modal is open over it
-  id: string
   label: string
   description: string
   checked: boolean
@@ -12,7 +12,6 @@ type KeepOpenOptionProps = {
  * The footer's choice to keep the modal open after an action, so the next entry follows on from it
  */
 export default function TransactionKeepOpenOption({
-  id,
   label,
   description,
   checked,
@@ -21,19 +20,8 @@ export default function TransactionKeepOpenOption({
 }: KeepOpenOptionProps) {
   return (
     <div className="min-w-0 sm:max-w-xs">
-      <label
-        htmlFor={id}
-        className="-ml-1 flex cursor-pointer items-center gap-3 rounded-xl px-1 py-1"
-      >
-        <input
-          id={id}
-          type="checkbox"
-          checked={checked}
-          onChange={(event) => onChange(event.target.checked)}
-          disabled={disabled}
-          className="h-4 w-4 shrink-0 cursor-pointer disabled:cursor-not-allowed"
-          style={{ accentColor: 'var(--app-accent)' }}
-        />
+      <label className="-ml-1 flex cursor-pointer items-center gap-3 rounded-xl px-1 py-1">
+        <Checkbox label={label} checked={checked} disabled={disabled} onChange={() => onChange(!checked)} />
         <span className="min-w-0">
           <span className="block text-sm font-medium" style={{ color: 'var(--app-text)' }}>
             {label}

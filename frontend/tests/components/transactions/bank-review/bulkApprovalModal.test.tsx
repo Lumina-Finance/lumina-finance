@@ -106,7 +106,10 @@ function toneOf(markup: string, figure: string): string | undefined {
 
 /** Approve's label, and whether it can be pressed */
 function approveOf(markup: string): { label: string; enabled: boolean } {
-  const [, attributes = '', label = ''] = /<button([^>]*)>(Approve[^<]*)<\/button>/.exec(markup) ?? []
+  // The button stacks every label it can show, and the one on view is the one at full opacity
+  const [, attributes = '', body = ''] =
+    /<button([^>]*app-primary-button[^>]*--fit-width[^>]*)>(.*?)<\/button>/s.exec(markup) ?? []
+  const label = /opacity:1[^>]*>(Approve[^<]*)</.exec(body)?.[1] ?? ''
   return { label, enabled: !/\sdisabled=""/.test(attributes) }
 }
 

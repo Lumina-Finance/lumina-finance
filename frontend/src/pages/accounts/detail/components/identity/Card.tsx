@@ -1,4 +1,5 @@
 import { Pencil } from 'lucide-react'
+import { AnimatePresence, motion, useReducedMotion } from 'motion/react'
 import type { Account } from '@/api/accounts'
 import type { TaxAdvantagedCategory } from '@/api/tax-advantaged-categories'
 import { useMoneyFormatters } from '@/hooks/useMoneyFormatters'
@@ -31,6 +32,7 @@ export default function AccountIdentityCard({
   onOpenBankSync: () => void
 }) {
   const { formatCurrency } = useMoneyFormatters()
+  const prefersReducedMotion = useReducedMotion()
   const { ownPersonal, status, statusError, shown: showsBankSync, syncLabel } = useAccountBankLink(account)
   const linkedTaxAdvantagedCategoryId = account.group_id === null ? account.tax_advantaged_category_id : null
 
@@ -70,7 +72,20 @@ export default function AccountIdentityCard({
 
       <IdentityFacts facts={identityFacts}>
         {/* A way into the edit modal's Bank link section, where everything about the link is managed */}
-        {showsBankSync && <SyncFact name="Bank sync" sync={syncLabel} onOpen={onOpenBankSync} />}
+        <AnimatePresence initial={false}>
+          {showsBankSync && (
+            <motion.div
+              key="bank-sync"
+              className="col-span-2 min-w-0"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: prefersReducedMotion ? 0 : 0.15 }}
+            >
+              <SyncFact name="Bank sync" sync={syncLabel} onOpen={onOpenBankSync} />
+            </motion.div>
+          )}
+        </AnimatePresence>
       </IdentityFacts>
       {account.notes && <IdentityNotes notes={account.notes} />}
 

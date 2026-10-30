@@ -48,7 +48,7 @@ function LinkedAccountTile({ accountId, name }: { accountId: string; name: strin
   return (
     <Link
       to={`/accounts/${accountId}`}
-      className={`${TILE_CLASS} font-medium transition-colors duration-150 hover:bg-[var(--app-accent-soft)]`}
+      className={`${TILE_CLASS} font-medium transition-colors hover:bg-[var(--app-accent-soft)]`}
       style={{ background: 'var(--app-surface-soft)', color: 'var(--app-text)' }}
     >
       <span className="min-w-0 flex-1 truncate">{name}</span>
@@ -257,11 +257,11 @@ export function InstitutionRow({
           <ChevronRight
             size={15}
             aria-hidden
-            className={`shrink-0 transition-transform duration-150 ${open ? 'rotate-90' : ''}`}
+            className={`shrink-0 transition-transform ${open ? 'rotate-90' : ''}`}
             style={{ color: 'var(--app-text-subtle)' }}
           />
           <span className="min-w-0 flex-1">
-            <MarqueeText className="font-semibold text-[var(--app-text)] transition-colors duration-150 group-hover/row:text-[var(--app-accent)]">
+            <MarqueeText className="font-semibold text-[var(--app-text)] transition-colors group-hover/row:text-[var(--app-accent)]">
               {entry.name}
             </MarqueeText>
             {entry.problem && <ProblemLine>{entry.problem}</ProblemLine>}

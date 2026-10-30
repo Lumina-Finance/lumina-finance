@@ -81,7 +81,7 @@ export function ReviewDecisionButton({
         onClick={onClick ? handleClick : undefined}
         onBlur={() => setConfirming(false)}
         disabled={disabled}
-        className={`${TONE_CLASS_NAMES[tone]} relative overflow-hidden whitespace-nowrap duration-300 ${loading ? 'app-primary-button-loading justify-self-center sm:justify-self-auto' : 'w-full sm:w-(--fit-width)'}`}
+        className={`${TONE_CLASS_NAMES[tone]} relative overflow-hidden whitespace-nowrap ${loading ? 'app-primary-button-loading justify-self-center sm:justify-self-auto' : 'w-full sm:w-(--fit-width)'}`}
         style={style}
       >
         {measure}

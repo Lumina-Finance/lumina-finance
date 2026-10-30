@@ -919,3 +919,23 @@ test("says an account with no institution and no bank link has none, whether it'
     await expect(card.getByText('No institution', { exact: true })).toBeVisible()
   }
 })
+
+// The Bank sync fact takes a row of its own under the account's other facts, so its status has the card's
+// whole width rather than half of it, where a status such as "Synced just now" was cut short
+test('sets the Bank sync fact on a row of its own across the identity card', AT_EVERY_SIZE, async ({ page, request }) => {
+  const user = await signUpUser(request)
+  const everyday = await createAccount(request, user, { name: 'Everyday' })
+  await logInViaApi(page, user)
+  await openPage(page, `/accounts/${everyday.id}`)
+  const bankSync = bankSyncFact(page, 'Not linked')
+  await expect(bankSync).toBeVisible()
+
+  const facts = identityCard(page).locator('dl')
+  const row = facts.locator(':scope > *').filter({ has: bankSync })
+  const creditLimit = facts.locator(':scope > *').filter({ hasText: 'Credit limit' })
+  const [factsBox, rowBox, creditLimitBox] = await Promise.all([facts.boundingBox(), row.boundingBox(), creditLimit.boundingBox()])
+  expect(factsBox && rowBox && creditLimitBox).toBeTruthy()
+  expect(rowBox!.x).toBeCloseTo(factsBox!.x, 0)
+  expect(rowBox!.width).toBeCloseTo(factsBox!.width, 0)
+  expect(rowBox!.y).toBeGreaterThanOrEqual(creditLimitBox!.y + creditLimitBox!.height)
+})

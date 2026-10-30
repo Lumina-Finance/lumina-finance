@@ -72,7 +72,7 @@ export function StartStep({
             // since the modal focuses its first field on opening. Narrower, it opens beneath the
             // label once Custom is chosen, growing through its grid row rather than snapping
             <div
-              className={`grid transition-[grid-template-rows,opacity,visibility] duration-200 ease-out sm:visible sm:w-[11.875rem] sm:shrink-0 sm:grid-rows-[1fr] sm:opacity-100 ${choice === CUSTOM_START ? 'visible grid-rows-[1fr] opacity-100' : 'invisible grid-rows-[0fr] opacity-0'}`}
+              className={`grid transition-[grid-template-rows,opacity,visibility] sm:visible sm:w-[11.875rem] sm:shrink-0 sm:grid-rows-[1fr] sm:opacity-100 ${choice === CUSTOM_START ? 'visible grid-rows-[1fr] opacity-100' : 'invisible grid-rows-[0fr] opacity-0'}`}
               onPointerDownCapture={() => choose(CUSTOM_START)}
               onKeyDownCapture={(event) => {
                 if (event.key !== 'Tab' && event.key !== 'Escape') choose(CUSTOM_START)

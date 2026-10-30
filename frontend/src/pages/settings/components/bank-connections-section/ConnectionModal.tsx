@@ -179,6 +179,14 @@ export function ConnectionModal({
   }
 
   const isRejected = connection.status === 'credential_rejected'
+
+  // The pane that fills the modal fades into the other when the connection is rejected or comes back
+  const paneFade = {
+    initial: { opacity: 0 },
+    animate: { opacity: 1 },
+    exit: { opacity: 0 },
+    transition: { duration: prefersReducedMotion ? 0 : 0.15 },
+  }
   const status = describeConnectionStatus(connection)
   const statusDetail = describeSignInDetail(connection)
   const institutionCount = new Set(connection.accounts.map((bankAccount) => bankAccount.institution_name)).size
@@ -262,18 +270,24 @@ export function ConnectionModal({
         ref={renameButtonRef}
         type="button"
         aria-label="Rename"
-        className={`app-secondary-button h-9 justify-center whitespace-nowrap text-sm ${confirmingDisconnect ? 'w-9 flex-none px-0' : 'flex-1 px-3'}`}
+        className={`app-secondary-button h-9 justify-center overflow-hidden whitespace-nowrap text-sm ${confirmingDisconnect ? 'flex-[0_0_2.25rem] px-0' : 'flex-[1_1_0%] px-3'}`}
         disabled={renaming || disconnect.isPending}
         onClick={() => setRenaming(true)}
       >
-        <PencilLine size={15} aria-hidden />
-        {!confirmingDisconnect && 'Rename'}
+        <PencilLine size={15} aria-hidden className="shrink-0" />
+        {/* The word fades and folds away as the button narrows to its icon, taking the icon's gap with it */}
+        <span
+          aria-hidden
+          className={`overflow-hidden transition-all motion-reduce:transition-none ${confirmingDisconnect ? '-ml-2 max-w-0 opacity-0' : 'max-w-24 opacity-100'}`}
+        >
+          Rename
+        </span>
       </button>
       <button
         type="button"
         aria-label={confirmingDisconnect ? 'Yes, disconnect' : 'Disconnect'}
         aria-busy={disconnect.isPending}
-        className={`${confirmingDisconnect || disconnect.isPending ? 'app-danger-button' : 'app-secondary-button hover:bg-[var(--app-negative-soft)]'} relative h-9 flex-1 justify-center overflow-hidden whitespace-nowrap px-3 text-sm duration-300 ${disconnect.isPending ? 'app-primary-button-loading' : ''}`}
+        className={`${confirmingDisconnect || disconnect.isPending ? 'app-danger-button' : 'app-secondary-button hover:bg-[var(--app-negative-soft)]'} relative h-9 flex-1 justify-center overflow-hidden whitespace-nowrap px-3 text-sm ${disconnect.isPending ? 'app-primary-button-loading' : ''}`}
         style={
           confirmingDisconnect || disconnect.isPending
             ? undefined
@@ -357,49 +371,56 @@ export function ConnectionModal({
       partsLabel={`Institutions · ${linkedCount} of ${countNoun(bankAccountCount, 'bank account')} linked`}
       partsTools={search || undefined}
     >
-      {isRejected ? (
-        // Nothing in the institutions can be acted on until the connection is back, so the pane gives way
-        // to what to do about it, and the institutions fold into one row that still opens to show the links
-        <div className="flex flex-1 flex-col gap-4">
-          <div className="flex flex-1 flex-col items-center justify-center px-2 py-3 text-center sm:px-8 sm:py-6">
-            <span
-              className="flex h-11 w-11 items-center justify-center rounded-xl"
-              style={{ background: 'var(--app-negative-soft)', color: 'var(--app-negative)' }}
-            >
-              <AlertTriangle size={20} aria-hidden />
-            </span>
-            <p className="mt-3.5 font-serif text-2xl leading-8">{connection.provider_name} rejected this connection</p>
-            <p className="mt-1.5 max-w-sm text-sm" style={{ color: 'var(--app-text-muted)' }}>
-              Every account on it has stopped syncing. Reconnect it with a new setup token to pick up where it left off.
-            </p>
-            <button
-              type="button"
-              className="app-primary-button mt-4 h-9 justify-center px-4 text-sm"
-              disabled={disconnect.isPending}
-              onClick={onReconnect}
-            >
-              <RefreshCw size={14} aria-hidden />
-              Reconnect
-            </button>
-          </div>
-          <div className="border-y border-[var(--app-border)]">
-            <InstitutionRow
-              entry={{
-                key: 'folded',
-                name: countNoun(institutionCount, 'institution'),
-                countNote: 'Linking resumes after you reconnect',
-                linked: linkedCount,
-                total: bankAccountCount,
-                body: institutionList,
-              }}
-              defaultOpen={false}
-              prefersReducedMotion={prefersReducedMotion}
-            />
-          </div>
-        </div>
-      ) : (
-        institutionList
-      )}
+      <AnimatePresence initial={false} mode="wait">
+        {isRejected ? (
+          // Nothing in the institutions can be acted on until the connection is back, so the pane gives way
+          // to what to do about it, and the institutions fold into one row that still opens to show the links
+          <motion.div key="rejected" className="flex flex-1 flex-col gap-4" {...paneFade}>
+            <div className="flex flex-1 flex-col items-center justify-center px-2 py-3 text-center sm:px-8 sm:py-6">
+              <span
+                className="flex h-11 w-11 items-center justify-center rounded-xl"
+                style={{ background: 'var(--app-negative-soft)', color: 'var(--app-negative)' }}
+              >
+                <AlertTriangle size={20} aria-hidden />
+              </span>
+              <p className="mt-3.5 font-serif text-2xl leading-8">
+                {connection.provider_name} rejected this connection
+              </p>
+              <p className="mt-1.5 max-w-sm text-sm" style={{ color: 'var(--app-text-muted)' }}>
+                Every account on it has stopped syncing. Reconnect it with a new setup token to pick up where it left
+                off.
+              </p>
+              <button
+                type="button"
+                className="app-primary-button mt-4 h-9 justify-center px-4 text-sm"
+                disabled={disconnect.isPending}
+                onClick={onReconnect}
+              >
+                <RefreshCw size={14} aria-hidden />
+                Reconnect
+              </button>
+            </div>
+            <div className="border-y border-[var(--app-border)]">
+              <InstitutionRow
+                entry={{
+                  key: 'folded',
+                  name: countNoun(institutionCount, 'institution'),
+                  countNote: 'Linking resumes after you reconnect',
+                  linked: linkedCount,
+                  total: bankAccountCount,
+                  body: institutionList,
+                }}
+                defaultOpen={false}
+                prefersReducedMotion={prefersReducedMotion}
+              />
+            </div>
+          </motion.div>
+        ) : (
+          <motion.div key="institutions" className="flex flex-1 flex-col" {...paneFade}>
+            {institutionList}
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {linkTarget && (
         <BankLinkFlowModal
