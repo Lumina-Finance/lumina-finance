@@ -68,6 +68,7 @@ from app.models.bank_connection import (
     BankProviderRequest,
     ProviderRequestPurpose,
 )
+from app.models.bank_hold import BankHold
 from app.models.bank_pending_transaction import BankPendingTransaction
 from app.models.bank_sync_job import BankSyncJob, BankSyncJobKind, ProviderErrorKind
 from app.models.bank_transaction import BankTransaction, BankTransactionDisposition, OpenReviewKind
@@ -2818,6 +2819,50 @@ async def test_job_puts_no_pending_or_removed_record_in_the_review_inbox(connect
     await _run_jobs_until_none_is_due()
 
     assert await _bank_transactions(_BANK_ID) == [("TRN-coffee",)]
+
+
+async def _hold_descriptions() -> list[str]:
+    """Return the description of every stored hold"""
+    async with TestSession() as session:
+        return sorted((await session.scalars(select(BankHold.description))).all())
+
+
+async def test_job_keeps_a_zero_amount_record_as_a_hold_and_not_a_review_item(connection, provider):
+    """A $0 card check beside a booked coffee becomes a hold, and only the coffee waits in review"""
+    await _link(connection, "ACT-1", **_synced_through_yesterday())
+    check = _record("TRN-check", _TODAY, amount=0, raw_amount="0.00", description="CARD CHECK")
+    provider.outcomes = [_returned_with({"ACT-1": [_record("TRN-coffee", _TODAY), check]})]
+    await _seed_job(connection, BankSyncJobKind.SCHEDULED)
+
+    await _run_jobs_until_none_is_due()
+
+    assert await _bank_transactions(_BANK_ID) == [("TRN-coffee",)]
+    assert await _hold_descriptions() == ["CARD CHECK"]
+
+
+async def test_job_clears_a_hold_the_bank_no_longer_lists_for_the_days_it_fetched(connection, provider):
+    """Yesterday's sync stored a hold dated today, and today's fetch of those days no longer lists it"""
+    link = await _link(connection, "ACT-1", **_synced_through_yesterday())
+    async with TestSession() as session:
+        session.add(
+            BankHold(
+                owner_id=link.owner_id,
+                account_id=link.account_id,
+                provider=link.provider,
+                external_account_id=link.external_account_id,
+                external_transaction_hash=hash_bank_transaction_id(link.provider, link.external_account_id, "TRN-check"),
+                hold_date=_TODAY,
+                description="CARD CHECK",
+                observed_at=datetime(2026, 10, 3, 9, 0, tzinfo=UTC),
+            )
+        )
+        await session.commit()
+    provider.outcomes = [_returned_with({"ACT-1": [_record("TRN-coffee", _TODAY)]})]
+    await _seed_job(connection, BankSyncJobKind.SCHEDULED)
+
+    await _run_jobs_until_none_is_due()
+
+    assert await _hold_descriptions() == []
 
 
 async def test_job_replaces_each_accounts_pending_items_with_those_still_pending_at_the_bank(connection, provider, frozen_now):

@@ -83,6 +83,11 @@ SECURED_TABLES = (
         f"owner_id = {CURRENT_USER_ID}() AND {CAN_ACCESS_ACCOUNT}(account_id)",
         f"owner_id = {CURRENT_USER_ID}() AND {CAN_ACCESS_ACCOUNT}(account_id)",
     ),
+    (
+        "bank_holds",
+        f"owner_id = {CURRENT_USER_ID}() AND {CAN_ACCESS_ACCOUNT}(account_id)",
+        f"owner_id = {CURRENT_USER_ID}() AND {CAN_ACCESS_ACCOUNT}(account_id)",
+    ),
     ("bank_sync_jobs", f"owner_id = {CURRENT_USER_ID}()", f"owner_id = {CURRENT_USER_ID}() AND {_SEES_CONNECTION}"),
     ("users", f"id = {CURRENT_USER_ID}()", f"id = {CURRENT_USER_ID}()"),
     (

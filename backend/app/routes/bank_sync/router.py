@@ -23,6 +23,7 @@ from app.schemas.bank_sync import (
     AccountBankStatusResponse,
     BankAccountLinkResponse,
     BankConnectionResponse,
+    BankHoldResponse,
     BankImportRangeResponse,
     BankLinkResponse,
     BankPendingTransactionResponse,
@@ -48,6 +49,7 @@ from app.services.bank_sync.bulk_approval import apply_bulk_approval, preview_bu
 from app.services.bank_sync.claim import claim_connection, reconnect_connection
 from app.services.bank_sync.connections import list_connections, rename_connection
 from app.services.bank_sync.history_reminder import dismiss_cut_off_day, dismiss_history_reminder
+from app.services.bank_sync.holds import dismiss_hold, list_holds
 from app.services.bank_sync.import_range import get_import_range
 from app.services.bank_sync.links import (
     disconnect_connection,
@@ -272,6 +274,41 @@ async def list_pending_bank_transactions(
         Each pending item, with when the bank reported it
     """
     return await list_pending_transactions(db, user, account_ids=account_id)
+
+
+@router.get("/holds", response_model=list[BankHoldResponse])
+async def list_bank_holds(
+    user: Annotated[User, Depends(get_current_user)],
+    db: Annotated[AsyncSession, Depends(get_db)],
+    account_id: Annotated[list[uuid.UUID] | None, Query()] = None,
+):
+    """Return the bank records of no amount that haven't been dismissed, newest first, which stay out of the ledger and review
+
+    Args:
+        user: Authenticated owner of the accounts
+        db: Active database session
+        account_id: The accounts whose holds to list, repeated for each, or every account when left out
+
+    Returns:
+        Each hold, with when the bank reported it
+    """
+    return await list_holds(db, user, account_ids=account_id)
+
+
+@router.post("/holds/{hold_id}/dismiss", status_code=status.HTTP_204_NO_CONTENT)
+async def dismiss_bank_hold(
+    hold_id: uuid.UUID,
+    user: Annotated[User, Depends(get_current_user)],
+    db: Annotated[AsyncSession, Depends(get_db)],
+):
+    """Dismiss a hold so the same bank record doesn't come back
+
+    Args:
+        hold_id: The hold to dismiss
+        user: Authenticated owner of the hold's account
+        db: Active database session
+    """
+    await dismiss_hold(db, user, hold_id)
 
 
 @bank_link_router.get("", response_model=AccountBankStatusResponse)

@@ -37,6 +37,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.models.bank_connection import BankAccountLink
 from app.models.bank_transaction import BankTransaction, BankTransactionDisposition
 from app.services.bank_sync.corrections import store_accepted_observations
+from app.services.bank_sync.holds import is_hold
 from app.services.bank_sync.providers.contract import ProviderRecord
 from app.services.bank_sync.transaction_hash import hash_bank_transaction_id
 
@@ -120,7 +121,8 @@ async def store_booked_records(
 
             observation = _observation(record)
             if row is None:
-                if record.date < link.import_start:
+                # A zero amount can't be approved or put in the ledger, so it is a hold (holds.py)
+                if record.date < link.import_start or is_hold(record):
                     continue
                 db.add(
                     BankTransaction(

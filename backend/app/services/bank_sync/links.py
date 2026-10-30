@@ -63,6 +63,7 @@ from app.services.bank_sync.availability import (
     require_bank_linking,
 )
 from app.services.bank_sync.connections import get_own_connection, read_discovering_connections
+from app.services.bank_sync.holds import clear_holds
 from app.services.bank_sync.import_range import read_import_range
 from app.services.bank_sync.jobs import enqueue_bank_sync_job
 from app.services.bank_sync.pending import replace_pending_transactions
@@ -242,6 +243,7 @@ async def link_bank_account(
     elif link.state == BankLinkState.CHOOSE_ACCOUNT:
         _restart_for_new_bank_account(link)
         await replace_pending_transactions(db, account.id, [])
+        await clear_holds(db, account.id)
     else:
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=ACCOUNT_ALREADY_LINKED)
     link.connection_id = connection.id
@@ -368,6 +370,7 @@ async def _end_links(db: AsyncSession, ended: Sequence[BankAccountLink], *, now:
         link.state = BankLinkState.UNLINKED
         link.unlinked_at = now
         await replace_pending_transactions(db, link.account_id, [])
+        await clear_holds(db, link.account_id)
 
 
 async def _get_account_to_link(db: AsyncSession, user: User, account_id: uuid.UUID, *, lock: bool) -> Account:

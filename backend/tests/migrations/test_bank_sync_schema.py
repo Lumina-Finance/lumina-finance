@@ -532,6 +532,7 @@ _SECURED_BANK_TABLES = (
     "account_review_preferences",
     "bank_transactions",
     "bank_pending_transactions",
+    "bank_holds",
     "bank_sync_jobs",
 )
 

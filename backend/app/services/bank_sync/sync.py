@@ -79,6 +79,7 @@ from app.services.bank_sync.history_reminder import (
     note_history_returned,
     raise_history_reminders,
 )
+from app.services.bank_sync.holds import store_holds
 from app.services.bank_sync.ingestion import store_booked_records
 from app.services.bank_sync.jobs import ClaimedJob, JobNotHeld, enqueue_bank_sync_job, finish_job, lock_covered_links, lock_held_job
 from app.services.bank_sync.opening_adjustment import offer_opening_adjustments
@@ -542,6 +543,7 @@ class _JobRun:
             whole = [link for link in held if link.external_account_id in synced]
             deliveries = [(link, synced[link.external_account_id].records) for link in whole]
             stored = await store_booked_records(db, deliveries, observed_at=sent_at)
+            holds_changed = await store_holds(db, deliveries, first_day=part.first_day, last_day=part.last_day, observed_at=sent_at)
 
             # A part ending today is the job's last write, so the job's end tells the owner's pages of it
             if self._asks_for_pending(part):
@@ -575,7 +577,7 @@ class _JobRun:
             # saved before it permanent. Anything else here changes only what their pages show
             if stored.ledger_changed:
                 await mark_user_cache_changed(db, self.job.owner_id)
-            elif stored.changed or balances_changed or succeeded or failed or reminded or paused_or_imported or offered:
+            elif stored.changed or holds_changed or balances_changed or succeeded or failed or reminded or paused_or_imported or offered:
                 await mark_user_status_changed(db, self.job.owner_id)
             await db.commit()
             self.outbox += emails

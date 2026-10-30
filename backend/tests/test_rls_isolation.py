@@ -26,6 +26,7 @@ from app.models.bank_connection import (
     BankProviderRequest,
     ProviderRequestPurpose,
 )
+from app.models.bank_hold import BankHold
 from app.models.bank_pending_transaction import BankPendingTransaction
 from app.models.bank_sync_job import BankSyncHeartbeat, BankSyncJob, BankSyncJobKind
 from app.models.bank_transaction import BankTransaction
@@ -501,6 +502,7 @@ _BANK_MODELS = [
     AccountReviewPreference,
     BankTransaction,
     BankPendingTransaction,
+    BankHold,
     BankSyncJob,
 ]
 
@@ -524,6 +526,16 @@ async def _create_bank_records(session, owner_id) -> tuple[Account, BankConnecti
             AccountReviewPreference(account_id=account.id, owner_id=owner_id),
             _build_bank_transaction(account),
             _build_pending_transaction(account, "P-1"),
+            BankHold(
+                owner_id=owner_id,
+                account_id=account.id,
+                provider="simplefin",
+                external_account_id="ACT-1",
+                external_transaction_hash="h" * 64,
+                hold_date=date(2026, 10, 4),
+                description="CARD CHECK",
+                observed_at=datetime(2026, 10, 4, 9, 0, tzinfo=UTC),
+            ),
             BankSyncJob(owner_id=owner_id, connection_id=connection.id, kind=BankSyncJobKind.SCHEDULED),
         ]
     )
@@ -610,8 +622,18 @@ async def test_bank_record_naming_another_users_connection_is_refused(users, ban
         lambda account, _, owner_id: AccountReviewPreference(account_id=account.id, owner_id=owner_id),
         lambda account, _, owner_id: _owned_by(_build_bank_transaction(account, "TRN-B"), owner_id),
         lambda account, _, owner_id: _owned_by(_build_pending_transaction(account, "P-B"), owner_id),
+        lambda account, _, owner_id: BankHold(
+            owner_id=owner_id,
+            account_id=account.id,
+            provider="simplefin",
+            external_account_id="ACT-B",
+            external_transaction_hash="b" * 64,
+            hold_date=date(2026, 10, 4),
+            description="CARD CHECK",
+            observed_at=datetime(2026, 10, 4, 9, 0, tzinfo=UTC),
+        ),
     ],
-    ids=["account_link", "review_preferences", "bank_transaction", "pending_transaction"],
+    ids=["account_link", "review_preferences", "bank_transaction", "pending_transaction", "bank_hold"],
 )
 async def test_bank_record_on_another_users_account_is_refused(users, bank_records, build):
     """A user can't put bank records on someone else's Lumina account, even as the row's owner"""

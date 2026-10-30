@@ -524,6 +524,18 @@ class BankPendingTransactionResponse(BaseModel):
     observed_at: datetime
 
 
+class BankHoldResponse(BaseModel):
+    """A booked bank record of no amount, listed for awareness and never in the ledger, review or any total"""
+
+    id: uuid.UUID
+    account_id: uuid.UUID
+    date: date
+    description: str
+
+    # When the request that brought it was sent
+    observed_at: datetime
+
+
 class TransactionBankSource(BaseModel):
     """Where a bank-imported ledger transaction came from, readable after unlinking or disconnecting"""
 
