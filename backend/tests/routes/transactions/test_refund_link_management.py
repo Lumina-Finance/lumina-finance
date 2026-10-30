@@ -5,36 +5,12 @@ from tests.routes.transactions._helpers import (
     _create_account,
     _create_category,
     _create_transaction,
+    _get,
+    _link,
+    _refund,
     _seed_usd_currency,
     _setup_user_with_deps,
 )
-
-
-async def _refund(client, headers, account_id, category_id, expense_id, **overrides):
-    """Create a refund of an expense through POST /transactions"""
-    return (
-        await _create_transaction(
-            client,
-            headers,
-            account_id,
-            category_id,
-            **{"amount": 5000, "refund_of_transaction_id": expense_id, **overrides},
-        )
-    ).json()
-
-
-async def _get(client, headers, transaction_id):
-    """Fetch one transaction's response body"""
-    return (await client.get(f"/transactions/{transaction_id}", headers=headers)).json()
-
-
-async def _link(client, headers, refund_id, original_id):
-    """Link an existing transaction as the refund of an expense"""
-    return await client.post(
-        f"/transactions/{refund_id}/refund-link",
-        json={"original_transaction_id": original_id},
-        headers=headers,
-    )
 
 
 async def test_an_existing_transaction_can_be_linked_as_a_refund(client):
