@@ -3,11 +3,7 @@ import { useAccounts } from '@/api/accounts'
 import { useRunway, useRunwayAccounts } from '@/api/user'
 import { useLoadingSnapshot } from '@/hooks/useLoadingSnapshot'
 import { useMoneyFormatters } from '@/hooks/useMoneyFormatters'
-import {
-  RUNWAY_BAND_STYLE,
-  formatCompactRunway,
-  runwayBand,
-} from '@/utils/runway'
+import { RUNWAY_BAND_STYLE, formatCompactRunway, runwayBand } from '@/utils/runway'
 import { DashboardWidgetLoadingBody } from '@/pages/dashboard/components/WidgetLoadingBody'
 import { RunwayHeader } from './Header'
 import { RunwaySegmentsBar } from './SegmentsBar'
@@ -45,12 +41,7 @@ export function RunwayWidget({ displayCurrency }: RunwayWidgetProps) {
     }),
     [incomingAccounts, incomingRunway, incomingRunwayAccountIds],
   )
-  const {
-    displaySnapshot,
-    contentConcealed,
-    loadingVisible,
-    shouldReduceMotion,
-  } = useLoadingSnapshot({
+  const { displaySnapshot, contentConcealed, loadingVisible, shouldReduceMotion } = useLoadingSnapshot({
     snapshot: loadingSnapshot,
     loading: runwayLoading || runwayAccountsLoading || accountsLoading,
     transitionKey: 'runway',
@@ -68,10 +59,7 @@ export function RunwayWidget({ displayCurrency }: RunwayWidgetProps) {
 
   return (
     <div ref={runwayCardRef} className="app-card relative h-[15.5rem] flex flex-col">
-      <RunwayHeader
-        fxStatus={fxStatus}
-        runwayStyle={runwayStyle}
-      />
+      <RunwayHeader fxStatus={fxStatus} runwayStyle={runwayStyle} />
       <DashboardWidgetLoadingBody
         contentConcealed={contentConcealed}
         error={runwayError ?? runwayAccountsError ?? accountsError}

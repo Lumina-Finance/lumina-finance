@@ -1,8 +1,5 @@
 import { useMemo, useState } from 'react'
-import {
-  type SpendingRange,
-  useSpendingComparison,
-} from '@/api/dashboard'
+import { type SpendingRange, useSpendingComparison } from '@/api/dashboard'
 import { useLoadingSnapshot } from '@/hooks/useLoadingSnapshot'
 import { DashboardWidgetLoadingBody } from '@/pages/dashboard/components/WidgetLoadingBody'
 import { SpendingComparisonChart } from './Chart'
@@ -33,12 +30,7 @@ export function SpendingComparisonWidget({ displayCurrency }: SpendingComparison
     }),
     [incomingSpendingComparison, spendingRange],
   )
-  const {
-    displaySnapshot,
-    contentConcealed,
-    loadingVisible,
-    shouldReduceMotion,
-  } = useLoadingSnapshot({
+  const { displaySnapshot, contentConcealed, loadingVisible, shouldReduceMotion } = useLoadingSnapshot({
     snapshot: loadingSnapshot,
     loading: spendingComparisonLoading,
     transitionKey: spendingRange,
@@ -62,11 +54,7 @@ export function SpendingComparisonWidget({ displayCurrency }: SpendingComparison
   )
   return (
     <div className="app-card h-[470px] flex flex-col">
-      <SpendingComparisonHeader
-        spendingRange={spendingRange}
-        fxStatus={fxStatus}
-        onRangeChange={setSpendingRange}
-      />
+      <SpendingComparisonHeader spendingRange={spendingRange} fxStatus={fxStatus} onRangeChange={setSpendingRange} />
       <DashboardWidgetLoadingBody
         contentConcealed={contentConcealed}
         error={spendingComparisonError}

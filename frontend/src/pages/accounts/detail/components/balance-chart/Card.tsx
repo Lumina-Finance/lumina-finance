@@ -1,15 +1,9 @@
 import { useMemo, useState } from 'react'
 import { useAccountSnapshots, type Account } from '@/api/accounts'
-import {
-  LoadingContent,
-  LoadingOverlay,
-} from '@/components/loading/Transition'
+import { LoadingContent, LoadingOverlay } from '@/components/loading/Transition'
 import { useAuth } from '@/hooks/useAuth'
 import { useLoadingSnapshot } from '@/hooks/useLoadingSnapshot'
-import type {
-  BalanceChartMode,
-  BalanceRange,
-} from '@/pages/accounts/detail/constants/accountDetail'
+import type { BalanceChartMode, BalanceRange } from '@/pages/accounts/detail/constants/accountDetail'
 import {
   getBalanceChartSnapshot,
   getBalanceRangeWindow,
@@ -28,10 +22,7 @@ export default function BalanceChartCard({ account }: { account: Account }) {
   const [chartMode, setChartMode] = useState<BalanceChartMode>('balance')
   const { user } = useAuth()
 
-  const { fromDate, toDate, granularity } = useMemo(
-    () => getBalanceRangeWindow(range, user?.tz),
-    [range, user?.tz],
-  )
+  const { fromDate, toDate, granularity } = useMemo(() => getBalanceRangeWindow(range, user?.tz), [range, user?.tz])
 
   const { data: snapshots, isFetching } = useAccountSnapshots(account.id, {
     fromDate: formatYmd(fromDate),
@@ -40,37 +31,27 @@ export default function BalanceChartCard({ account }: { account: Account }) {
     includeAnchor: true,
   })
 
-  const incomingSnapshot = useMemo<BalanceChartSnapshot>(() => ({
-    ...getBalanceChartSnapshot({
-      snapshots: snapshots ?? [],
-      range,
-      chartMode,
-      currentBalance: account.current_balance,
-      currency: account.currency,
-      fromDate,
-      toDate,
-      granularity,
+  const incomingSnapshot = useMemo<BalanceChartSnapshot>(
+    () => ({
+      ...getBalanceChartSnapshot({
+        snapshots: snapshots ?? [],
+        range,
+        chartMode,
+        currentBalance: account.current_balance,
+        currency: account.currency,
+        fromDate,
+        toDate,
+        granularity,
+      }),
     }),
-  }), [
-    account.currency,
-    account.current_balance,
-    chartMode,
-    fromDate,
-    granularity,
-    range,
-    snapshots,
-    toDate,
-  ])
-  const {
-    displaySnapshot,
-    contentConcealed,
-    loadingVisible,
-    shouldReduceMotion,
-  } = useLoadingSnapshot<BalanceChartSnapshot>({
-    snapshot: incomingSnapshot,
-    loading: isFetching,
-    transitionKey: range,
-  })
+    [account.currency, account.current_balance, chartMode, fromDate, granularity, range, snapshots, toDate],
+  )
+  const { displaySnapshot, contentConcealed, loadingVisible, shouldReduceMotion } =
+    useLoadingSnapshot<BalanceChartSnapshot>({
+      snapshot: incomingSnapshot,
+      loading: isFetching,
+      transitionKey: range,
+    })
 
   return (
     <section className="app-card flex flex-col">

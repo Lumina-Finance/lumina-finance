@@ -6,10 +6,7 @@ import { CreditHeader } from './Header'
 import { CreditUsageBody } from './UsageBody'
 import { DashboardWidgetLoadingBody } from '@/pages/dashboard/components/WidgetLoadingBody'
 import { areAllAccountsLeftOut, getCreditEmptyMessage } from '@/pages/dashboard/utils/creditAccountChoice'
-import {
-  getCreditUsageSummary,
-  type CreditMode,
-} from '@/pages/dashboard/utils/getCreditUsageSummary'
+import { getCreditUsageSummary, type CreditMode } from '@/pages/dashboard/utils/getCreditUsageSummary'
 
 type CreditWidgetProps = {
   displayCurrency: string
@@ -28,16 +25,8 @@ export function CreditWidget({ displayCurrency }: CreditWidgetProps) {
   } = useDashboardCreditUtilization()
   const [creditMode, setCreditMode] = useState<CreditMode>('used')
   const [accountsModalOpen, setAccountsModalOpen] = useState(false)
-  const loadingSnapshot = useMemo(
-    () => ({ dashboardCredit: incomingDashboardCredit }),
-    [incomingDashboardCredit],
-  )
-  const {
-    displaySnapshot,
-    contentConcealed,
-    loadingVisible,
-    shouldReduceMotion,
-  } = useLoadingSnapshot({
+  const loadingSnapshot = useMemo(() => ({ dashboardCredit: incomingDashboardCredit }), [incomingDashboardCredit])
+  const { displaySnapshot, contentConcealed, loadingVisible, shouldReduceMotion } = useLoadingSnapshot({
     snapshot: loadingSnapshot,
     loading: dashboardCreditLoading,
     transitionKey: 'credit',

@@ -22,22 +22,14 @@ export function SavingsRateWidget() {
     () => ({ dashboardSavingsRate: incomingDashboardSavingsRate }),
     [incomingDashboardSavingsRate],
   )
-  const {
-    displaySnapshot,
-    contentConcealed,
-    loadingVisible,
-    shouldReduceMotion,
-  } = useLoadingSnapshot({
+  const { displaySnapshot, contentConcealed, loadingVisible, shouldReduceMotion } = useLoadingSnapshot({
     snapshot: loadingSnapshot,
     loading: dashboardSavingsRateLoading,
     transitionKey: 'savings-rate',
   })
   const dashboardSavingsRate = displaySnapshot.dashboardSavingsRate
   const fxStatus = dashboardSavingsRate?.fx_status
-  const savingsData = useMemo(
-    () => getSavingsRateSeries(dashboardSavingsRate),
-    [dashboardSavingsRate],
-  )
+  const savingsData = useMemo(() => getSavingsRateSeries(dashboardSavingsRate), [dashboardSavingsRate])
   const chartData = useMemo(
     () => getSavingsRateChartData(savingsData, capSavingsRateChart),
     [capSavingsRateChart, savingsData],
@@ -60,10 +52,7 @@ export function SavingsRateWidget() {
         label="Loading savings rate"
         className="flex-1"
       >
-        <SavingsRateChart
-          data={chartData}
-          capSavingsRateChart={capSavingsRateChart}
-        />
+        <SavingsRateChart data={chartData} capSavingsRateChart={capSavingsRateChart} />
       </DashboardWidgetLoadingBody>
     </div>
   )

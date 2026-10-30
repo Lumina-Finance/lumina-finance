@@ -30,12 +30,7 @@ export function RecentActivityWidget() {
     }),
     [incomingCategories, incomingDashboardRecentActivity],
   )
-  const {
-    displaySnapshot,
-    contentConcealed,
-    loadingVisible,
-    shouldReduceMotion,
-  } = useLoadingSnapshot({
+  const { displaySnapshot, contentConcealed, loadingVisible, shouldReduceMotion } = useLoadingSnapshot({
     snapshot: loadingSnapshot,
     loading: recentActivityLoading || categoriesLoading,
     transitionKey: 'recent-activity',

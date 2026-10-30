@@ -7,11 +7,7 @@ import { buildImportOriginState } from '@/utils/importOrigin'
 import { useAuth } from '@/hooks/useAuth'
 import { useAccounts } from '@/api/accounts'
 import { getCreateBlockReason } from '@/components/transactions/utils/createBlockReason'
-import {
-  useLoadTransaction,
-  useTransactionsOverview,
-  type Transaction,
-} from '@/api/transactions'
+import { useLoadTransaction, useTransactionsOverview, type Transaction } from '@/api/transactions'
 import TransactionListSection from '@/components/transactions/ListSection'
 import CreateTransactionModal from '@/components/transactions/transaction-modal/Modal'
 import { useCurrencyGuard } from '@/hooks/useCurrencyGuard'
@@ -100,10 +96,7 @@ export default function TransactionsPage() {
     }
   }
 
-  const { monthStart, today } = useMemo(
-    () => getCurrentMonthOverviewRange(user!.tz),
-    [user],
-  )
+  const { monthStart, today } = useMemo(() => getCurrentMonthOverviewRange(user!.tz), [user])
 
   const overviewFromDate = filters.from_date ?? monthStart
   const overviewToDate = filters.to_date ?? today
@@ -167,20 +160,23 @@ export default function TransactionsPage() {
     const result = await withMinDelay(() => refetchOverview({ cancelRefetch: false }), LOADING_ANIMATION_MIN_MS)
     if (activeRetryRef.current !== request || currentOverviewKeyRef.current !== chartAnimationKey) return
     if (!result.isError) {
-      await summaryAnimation.start({ opacity: 0, transition: { duration: prefersReducedMotion ? 0 : RETRY_FADE_SECONDS } })
+      await summaryAnimation.start({
+        opacity: 0,
+        transition: { duration: prefersReducedMotion ? 0 : RETRY_FADE_SECONDS },
+      })
       if (activeRetryRef.current !== request) return
       flushSync(() => setRetryKey(null))
-      await summaryAnimation.start({ opacity: 1, transition: { duration: prefersReducedMotion ? 0 : RETRY_FADE_SECONDS } })
+      await summaryAnimation.start({
+        opacity: 1,
+        transition: { duration: prefersReducedMotion ? 0 : RETRY_FADE_SECONDS },
+      })
     } else {
       setRetryKey(null)
     }
     if (activeRetryRef.current === request) activeRetryRef.current = null
   }
 
-  const transactionAccounts = useMemo(
-    () => (accounts ?? []).map(toTransactionListAccount),
-    [accounts],
-  )
+  const transactionAccounts = useMemo(() => (accounts ?? []).map(toTransactionListAccount), [accounts])
   const editingTransactionReadOnly = useMemo(() => {
     if (!editingTransaction) return false
 
@@ -214,8 +210,12 @@ export default function TransactionsPage() {
               prefersReducedMotion={prefersReducedMotion}
               openingOutlierId={openingOutlierId}
               outlierLoadError={outlierLoadError}
-              onRetry={() => { void handleRetryOverview() }}
-              onOpenOutlierTransaction={(transactionId) => { void openOutlierTransaction(transactionId) }}
+              onRetry={() => {
+                void handleRetryOverview()
+              }}
+              onOpenOutlierTransaction={(transactionId) => {
+                void openOutlierTransaction(transactionId)
+              }}
             />
           </motion.div>
 

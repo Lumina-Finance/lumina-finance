@@ -29,9 +29,12 @@ import type { InsightsRangeInputDates } from './types/range'
  */
 export default function InsightsPage() {
   const navigate = useNavigate()
-  const openCategoryTransactions = useCallback((categoryId: string, displayedRange: InsightsRangeInputDates) => {
-    navigate(buildCategoryTransactionsUrl(categoryId, displayedRange))
-  }, [navigate])
+  const openCategoryTransactions = useCallback(
+    (categoryId: string, displayedRange: InsightsRangeInputDates) => {
+      navigate(buildCategoryTransactionsUrl(categoryId, displayedRange))
+    },
+    [navigate],
+  )
   const { user } = useAuth()
   const [breakdownMode, setBreakdownMode] = useState<InsightsBreakdownCategoryKind>('expense')
   const [netWorthMode, setNetWorthMode] = useState<NetWorthViewMode>('overview')

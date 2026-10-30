@@ -100,10 +100,7 @@ export default function BudgetCardsSection({
             })}
           </AnimatePresence>
         </section>
-        <BudgetCardsLoadingLayer
-          visible={loading}
-          shouldReduceMotion={shouldReduceMotion}
-        />
+        <BudgetCardsLoadingLayer visible={loading} shouldReduceMotion={shouldReduceMotion} />
       </section>
     )
   }
@@ -115,30 +112,21 @@ export default function BudgetCardsSection({
         style={{ height: BUDGET_CARDS_LOADING_AREA_HEIGHT }}
         aria-busy
       >
-        <BudgetCardsLoadingLayer
-          visible
-          fill
-          shouldReduceMotion={shouldReduceMotion}
-        />
+        <BudgetCardsLoadingLayer visible fill shouldReduceMotion={shouldReduceMotion} />
       </section>
     )
   }
 
   return (
-    <section className="flex min-h-[calc(100vh-16rem)] items-center justify-center text-center italic text-sm" style={{ color: 'var(--app-text-subtle)' }}>
+    <section
+      className="flex min-h-[calc(100vh-16rem)] items-center justify-center text-center italic text-sm"
+      style={{ color: 'var(--app-text-subtle)' }}
+    >
       <div>
-        <p>
-          No budgets to display
-        </p>
-        <p className="mt-1">
-          Create a budget to start tracking limits, spending, and category progress.
-        </p>
+        <p>No budgets to display</p>
+        <p className="mt-1">Create a budget to start tracking limits, spending, and category progress.</p>
       </div>
-      {formOptionsLoading && (
-        <p className="sr-only">
-          Loading form options...
-        </p>
-      )}
+      {formOptionsLoading && <p className="sr-only">Loading form options...</p>}
     </section>
   )
 }
@@ -146,11 +134,7 @@ export default function BudgetCardsSection({
 /**
  * Uses the shared loading overlay while preserving the budget grid's custom placeholder height
  */
-function BudgetCardsLoadingLayer({
-  visible,
-  shouldReduceMotion,
-  fill = false,
-}: BudgetCardsLoadingLayerProps) {
+function BudgetCardsLoadingLayer({ visible, shouldReduceMotion, fill = false }: BudgetCardsLoadingLayerProps) {
   return (
     <LoadingOverlay
       visible={visible}

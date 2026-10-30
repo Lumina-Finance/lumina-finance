@@ -21,25 +21,14 @@ export function TopBudgetsWidget() {
     () => ({ latestBudgetUtilizations: incomingLatestBudgetUtilizations }),
     [incomingLatestBudgetUtilizations],
   )
-  const {
-    displaySnapshot,
-    contentConcealed,
-    loadingVisible,
-    shouldReduceMotion,
-  } = useLoadingSnapshot({
+  const { displaySnapshot, contentConcealed, loadingVisible, shouldReduceMotion } = useLoadingSnapshot({
     snapshot: loadingSnapshot,
     loading,
     transitionKey: 'top-budgets',
   })
   const latestBudgetUtilizations = displaySnapshot.latestBudgetUtilizations
-  const budgets = useMemo(
-    () => getTopBudgets(latestBudgetUtilizations),
-    [latestBudgetUtilizations],
-  )
-  const fxStatus = useMemo(
-    () => combineFxStatuses(budgets.map((budget) => budget.fx_status)),
-    [budgets],
-  )
+  const budgets = useMemo(() => getTopBudgets(latestBudgetUtilizations), [latestBudgetUtilizations])
+  const fxStatus = useMemo(() => combineFxStatuses(budgets.map((budget) => budget.fx_status)), [budgets])
 
   return (
     <div className="app-card h-[410px] flex flex-col">
