@@ -16,10 +16,23 @@ import { OfxFilesStep, OfxPreviewStep } from '@/pages/imports/ofx/sections'
 import { buildOfxImportPayload } from '@/pages/imports/ofx/utils/payload'
 import { readOfxFile } from '@/pages/imports/ofx/utils/readFile'
 import { combineOfxFiles } from '@/pages/imports/ofx/utils/stagedFiles'
-import { buildInvestmentMessageSet, buildMessageSet, toOfxFile, wrapMessageSets, type FixtureStatement } from './utils/fixtures'
+import {
+  buildInvestmentMessageSet,
+  buildMessageSet,
+  toOfxFile,
+  wrapMessageSets,
+  type FixtureStatement,
+} from './utils/fixtures'
 
 const CURRENCIES = [{ id: 'CAD', name: 'Canadian dollar', symbol: '$', minor_unit_exponent: 2 }] as Currency[]
-const CHEQUING = { id: 'chequing', name: 'Chequing', currency: 'CAD', can_write: true, is_archived: false, group_id: null } as AccountsOverview
+const CHEQUING = {
+  id: 'chequing',
+  name: 'Chequing',
+  currency: 'CAD',
+  can_write: true,
+  is_archived: false,
+  group_id: null,
+} as AccountsOverview
 const CATEGORIES = [
   { id: 'misc', name: 'Miscellaneous', kind: 'expense', is_system: true, group_id: null },
   { id: 'other-income', name: 'Other Income', kind: 'income', is_system: true, group_id: null },
@@ -34,22 +47,38 @@ async function readStatements(statements: FixtureStatement[], leftOut: string[] 
   return read.file
 }
 
-const CHECKING: FixtureStatement = { transactions: [{ name: 'Cafe', amount: '-4.00' }, { name: 'Broken', amount: 'n/a' }] }
+const CHECKING: FixtureStatement = {
+  transactions: [
+    { name: 'Cafe', amount: '-4.00' },
+    { name: 'Broken', amount: 'n/a' },
+  ],
+}
 
 describe('the files step', () => {
   async function renderFilesStep(leftOut: string[], fileNames = ['statement.ofx']) {
     const file = await readStatements([CHECKING], leftOut)
-    const stagedFiles = fileNames.map((name, index) => ({ id: String(index), name, size: 10, lastModified: index, file }))
-    return renderToStaticMarkup(createElement(OfxFilesStep, {
-      stagedFiles,
-      leftOutNotice: getOfxLeftOutNotice(combineOfxFiles(stagedFiles.map((staged) => staged.file)).leftOut, stagedFiles.length),
-      isProcessingFile: false,
-      fileIntakeError: null,
-      handleOfxFileChange: async () => undefined,
-      removeOfxFile: () => undefined,
-      uploadBlockReason: null,
-      importResult: null,
-    } as unknown as Parameters<typeof OfxFilesStep>[0]))
+    const stagedFiles = fileNames.map((name, index) => ({
+      id: String(index),
+      name,
+      size: 10,
+      lastModified: index,
+      file,
+    }))
+    return renderToStaticMarkup(
+      createElement(OfxFilesStep, {
+        stagedFiles,
+        leftOutNotice: getOfxLeftOutNotice(
+          combineOfxFiles(stagedFiles.map((staged) => staged.file)).leftOut,
+          stagedFiles.length,
+        ),
+        isProcessingFile: false,
+        fileIntakeError: null,
+        handleOfxFileChange: async () => undefined,
+        removeOfxFile: () => undefined,
+        uploadBlockReason: null,
+        importResult: null,
+      } as unknown as Parameters<typeof OfxFilesStep>[0]),
+    )
   }
 
   it('tells the user which statements the file holds that are not imported', async () => {
@@ -57,28 +86,34 @@ describe('the files step', () => {
 
     expect(markup).toContain('Statements left out')
     expect(markup).toContain(escapeHtml(getOfxLeftOutNotice({ investment: 2 }, 1) ?? ''))
-    expect(markup).toContain('2 investment statements in this file aren&#x27;t imported: only bank, credit card and loan statements are supported.')
+    expect(markup).toContain(
+      '2 investment statements in this file aren&#x27;t imported: only bank, credit card and loan statements are supported.',
+    )
   })
 
   it('counts what every staged file leaves out, and says so of the files', async () => {
     const markup = await renderFilesStep([buildInvestmentMessageSet(1)], ['2024-01.qfx', '2024-02.qfx'])
 
-    expect(markup).toContain('2 investment statements in these files aren&#x27;t imported: only bank, credit card and loan statements are supported.')
+    expect(markup).toContain(
+      '2 investment statements in these files aren&#x27;t imported: only bank, credit card and loan statements are supported.',
+    )
   })
 
   // A finished import's files are its record, and the card that starts the next import comes after them
   it('puts the upload card after the notice once the import has finished', async () => {
     const file = await readStatements([CHECKING], [buildInvestmentMessageSet(1)])
-    const markup = renderToStaticMarkup(createElement(OfxFilesStep, {
-      stagedFiles: [{ id: '1', name: 'statement.ofx', size: 10, lastModified: 1, file }],
-      leftOutNotice: getOfxLeftOutNotice(file.leftOut, 1),
-      isProcessingFile: false,
-      fileIntakeError: null,
-      handleOfxFileChange: async () => undefined,
-      removeOfxFile: () => undefined,
-      uploadBlockReason: null,
-      importResult: {},
-    } as unknown as Parameters<typeof OfxFilesStep>[0]))
+    const markup = renderToStaticMarkup(
+      createElement(OfxFilesStep, {
+        stagedFiles: [{ id: '1', name: 'statement.ofx', size: 10, lastModified: 1, file }],
+        leftOutNotice: getOfxLeftOutNotice(file.leftOut, 1),
+        isProcessingFile: false,
+        fileIntakeError: null,
+        handleOfxFileChange: async () => undefined,
+        removeOfxFile: () => undefined,
+        uploadBlockReason: null,
+        importResult: {},
+      } as unknown as Parameters<typeof OfxFilesStep>[0]),
+    )
 
     expect(markup.indexOf('Statements left out')).toBeGreaterThan(-1)
     expect(markup.indexOf('Statements left out')).toBeLessThan(markup.lastIndexOf('Upload statements'))
@@ -95,16 +130,19 @@ describe('the files step', () => {
   })
 
   it('says no files are staged only while none is being read', () => {
-    const render = (isProcessingFile: boolean) => renderToStaticMarkup(createElement(OfxFilesStep, {
-      stagedFiles: [],
-      leftOutNotice: null,
-      isProcessingFile,
-      fileIntakeError: null,
-      handleOfxFileChange: async () => undefined,
-      removeOfxFile: () => undefined,
-      uploadBlockReason: null,
-      importResult: null,
-    } as unknown as Parameters<typeof OfxFilesStep>[0]))
+    const render = (isProcessingFile: boolean) =>
+      renderToStaticMarkup(
+        createElement(OfxFilesStep, {
+          stagedFiles: [],
+          leftOutNotice: null,
+          isProcessingFile,
+          fileIntakeError: null,
+          handleOfxFileChange: async () => undefined,
+          removeOfxFile: () => undefined,
+          uploadBlockReason: null,
+          importResult: null,
+        } as unknown as Parameters<typeof OfxFilesStep>[0]),
+      )
 
     expect(render(false)).toContain('No files staged')
     expect(render(true)).toContain('Reading statements')
@@ -129,24 +167,25 @@ describe('the account step and the preview', () => {
     return { ofxFile, importBuild }
   }
 
-  const renderMismatchNotice = (state: Awaited<ReturnType<typeof buildState>>) => (
+  const renderMismatchNotice = (state: Awaited<ReturnType<typeof buildState>>) =>
     renderToStaticMarkup(createElement(OfxCurrencyMismatchNotice, { mismatches: state.importBuild.currencyMismatches }))
-  )
 
   function renderPreviewStep(state: Awaited<ReturnType<typeof buildState>>, fileCount = 1) {
-    return renderToStaticMarkup(createElement(OfxPreviewStep, {
-      stagedFiles: Array.from({ length: fileCount }, (_, index) => ({ id: String(index) })),
-      importEstimate: { rowCount: 1, transactionEstimate: 1 },
-      previewGroups: [],
-      predictedSkippedRows: state.importBuild.skippedRows,
-      completedImport: null,
-      newAccountCount: 0,
-      importBuild: state.importBuild,
-      importError: null,
-      importResult: null,
-      canCommitImport: state.importBuild.payload !== null,
-      handleCommitImport: () => undefined,
-    } as unknown as Parameters<typeof OfxPreviewStep>[0]))
+    return renderToStaticMarkup(
+      createElement(OfxPreviewStep, {
+        stagedFiles: Array.from({ length: fileCount }, (_, index) => ({ id: String(index) })),
+        importEstimate: { rowCount: 1, transactionEstimate: 1 },
+        previewGroups: [],
+        predictedSkippedRows: state.importBuild.skippedRows,
+        completedImport: null,
+        newAccountCount: 0,
+        importBuild: state.importBuild,
+        importError: null,
+        importResult: null,
+        canCommitImport: state.importBuild.payload !== null,
+        handleCommitImport: () => undefined,
+      } as unknown as Parameters<typeof OfxPreviewStep>[0]),
+    )
   }
 
   it('lists the statement in another currency than its account, and keeps Commit off', async () => {
@@ -161,7 +200,7 @@ describe('the account step and the preview', () => {
     expect(preview).toMatch(/<button[^>]*disabled[^>]*>[^<]*Commit import/)
   })
 
-  it('lists no refusal and enables Commit when the account is in the statement\'s currency', async () => {
+  it("lists no refusal and enables Commit when the account is in the statement's currency", async () => {
     const state = await buildState('CAD')
 
     expect(renderMismatchNotice(state)).toBe('')

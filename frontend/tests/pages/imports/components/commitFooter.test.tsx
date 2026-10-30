@@ -57,7 +57,9 @@ describe('Commit import while the held-rows check runs', () => {
     const withError = readButton(render({ check: RUNNING, buildError: 'Choose an account for the statement.' }))
 
     expect(withError.lineText).toBe('Choose an account for the statement.')
-    expect(render({ check: RUNNING, buildError: 'Choose an account for the statement.' })).not.toContain(OFX_HELD_CHECK_RUNNING_MESSAGE)
+    expect(render({ check: RUNNING, buildError: 'Choose an account for the statement.' })).not.toContain(
+      OFX_HELD_CHECK_RUNNING_MESSAGE,
+    )
   })
 
   it('shows neither line and is a plain button once the check has answered', () => {
@@ -70,10 +72,18 @@ describe('Commit import while the held-rows check runs', () => {
 })
 
 describe('Commit import after the server refused the import', () => {
-  it('marks the server\'s English reason with its language only when it is told to', () => {
-    const props = { importError: 'Account is archived', canCommit: true, imported: false, onCommit: () => {}, className: '' }
+  it("marks the server's English reason with its language only when it is told to", () => {
+    const props = {
+      importError: 'Account is archived',
+      canCommit: true,
+      imported: false,
+      onCommit: () => {},
+      className: '',
+    }
 
-    expect(renderToStaticMarkup(<ImportCommitFooter {...props} importErrorLang="en" />)).toContain('<span lang="en">Account is archived</span>')
+    expect(renderToStaticMarkup(<ImportCommitFooter {...props} importErrorLang="en" />)).toContain(
+      '<span lang="en">Account is archived</span>',
+    )
     expect(renderToStaticMarkup(<ImportCommitFooter {...props} />)).not.toContain('lang=')
   })
 })
