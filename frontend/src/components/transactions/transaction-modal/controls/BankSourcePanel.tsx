@@ -71,7 +71,8 @@ export default function TransactionBankSourcePanel({
         aria-controls={open ? cardId : undefined}
         onClick={() => setOpen(!open)}
         className={`${FILING_TAB_CLASS} flex w-full items-center gap-2 pb-1 text-left transition-[border-radius,filter] hover:brightness-95 focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-[var(--app-focus-ring)] motion-reduce:transition-none ${open ? '' : 'rounded-b-md'}`}
-        style={FILING_TAB_STYLE}
+        // Closing, the strip keeps its square bottom until the card has folded away beneath it, so no notch shows
+        style={{ ...FILING_TAB_STYLE, transitionDelay: open ? undefined : `${leave.transition.duration}s, 0s` }}
       >
         <Landmark size={13} aria-hidden className="shrink-0" />
         <span className="min-w-0 flex-1">From {providerName}</span>
