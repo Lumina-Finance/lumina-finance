@@ -1,4 +1,5 @@
 import { Check, Lock, Pencil, Trash2, X } from 'lucide-react'
+import { PendingLabel } from '@/components/loading/PendingLabel'
 import type { Category } from '@/api/categories'
 import InlineCategoryEdit from '@/pages/settings/components/category-settings-section/editors/InlineEdit'
 import { displayEmoji } from '@/pages/settings/components/category-settings-section/utils'
@@ -34,19 +35,9 @@ export default function CategorySettingsRow({
   onEditCancel: () => void
 }) {
   const systemCategory = category.is_system
-  const scopeLabel = category.is_system
-    ? 'System category'
-    : category.group_id
-      ? 'Group category'
-      : 'Personal category'
+  const scopeLabel = category.is_system ? 'System category' : category.group_id ? 'Group category' : 'Personal category'
   if (isEditing) {
-    return (
-      <InlineCategoryEdit
-        category={category}
-        isLast={isLast}
-        onCancel={onEditCancel}
-      />
-    )
+    return <InlineCategoryEdit category={category} isLast={isLast} onCancel={onEditCancel} />
   }
 
   return (
@@ -55,10 +46,7 @@ export default function CategorySettingsRow({
       style={{ borderBottom: isLast ? 'none' : '1px solid var(--app-border)' }}
     >
       <div className="flex min-w-0 items-center gap-3">
-        <span
-          className="flex h-9 w-9 shrink-0 items-center justify-center p-1 text-xl leading-none"
-          aria-hidden
-        >
+        <span className="flex h-9 w-9 shrink-0 items-center justify-center p-1 text-xl leading-none" aria-hidden>
           <span className="translate-x-px" aria-hidden>
             {displayEmoji(category)}
           </span>
@@ -109,7 +97,9 @@ export default function CategorySettingsRow({
                   aria-label={`Confirm delete ${category.name}`}
                   title="Confirm delete"
                 >
-                  {deleting ? <div className="app-spinner" aria-label="Deleting" /> : <Check size={16} aria-hidden />}
+                  <PendingLabel pending={deleting} name="Deleting">
+                    <Check size={16} aria-hidden />
+                  </PendingLabel>
                 </button>
               </>
             ) : (

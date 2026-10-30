@@ -1,4 +1,5 @@
 import { useState, type FormEvent } from 'react'
+import { PendingLabel } from '@/components/loading/PendingLabel'
 import { Check, Pencil, X } from 'lucide-react'
 import { useUpdateMerchant, type Merchant } from '@/api/merchants'
 import Dropdown, { type DropdownOption } from '@/components/dropdown/Dropdown'
@@ -131,11 +132,9 @@ export default function InlineMerchantEdit({
               aria-label={`Save ${merchant.name}`}
               title="Save"
             >
-              {updateMerchant.isPending ? (
-                <div className="app-spinner" aria-label="Saving" />
-              ) : (
+              <PendingLabel pending={updateMerchant.isPending} name="Saving">
                 <Check size={16} aria-hidden />
-              )}
+              </PendingLabel>
             </button>
             <button
               type="button"

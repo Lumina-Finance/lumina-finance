@@ -1,4 +1,5 @@
 import { KeyRound } from 'lucide-react'
+import { PendingLabel } from '@/components/loading/PendingLabel'
 import { useId, useState } from 'react'
 import { usePasskeyConfig, useConfirmPasskeyRegistration, useRegisterPasskey } from '@/api/passkeys'
 import { FieldLabelRow } from '@/components/forms/FieldLabelRow'
@@ -100,14 +101,10 @@ export function PasskeyReenrollment({ onComplete }: PasskeyReenrollmentProps) {
           disabledReason={register.isPending ? undefined : nameRefusal.blockedReason}
           className={`app-primary-button ${register.isPending ? 'app-primary-button-loading' : 'flex w-full items-center justify-center gap-2'}`}
         >
-          {register.isPending ? (
-            <div className="app-spinner" />
-          ) : (
-            <>
-              <KeyRound size={16} aria-hidden />
-              Set up a passkey
-            </>
-          )}
+          <PendingLabel pending={register.isPending} name="Set up a passkey" className="gap-2">
+            <KeyRound size={16} aria-hidden />
+            Set up a passkey
+          </PendingLabel>
         </DisabledReasonButton>
       </div>
 

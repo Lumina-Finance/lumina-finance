@@ -1,5 +1,6 @@
 import { useEffect, useId, useRef, useState } from 'react'
 import { Check, Copy } from 'lucide-react'
+import { PendingLabel } from '@/components/loading/PendingLabel'
 import { QRCodeSVG } from 'qrcode.react'
 import { AcknowledgementGroup } from '@/components/forms/AcknowledgementGroup'
 import {
@@ -289,7 +290,9 @@ export function TotpEnrollment({
                     disabledReason={completing ? undefined : ackRefusal.blockedReason}
                     className={`app-primary-button ${completing ? 'app-primary-button-loading' : 'w-full'}`}
                   >
-                    {completing ? <div className="app-spinner" /> : 'Done'}
+                    <PendingLabel pending={completing} name="Done">
+                      Done
+                    </PendingLabel>
                   </DisabledReasonButton>
                 </div>
               </div>
@@ -381,7 +384,9 @@ export function TotpEnrollment({
               disabledReason={confirming ? undefined : codeRefusal.blockedReason}
               className={`app-primary-button ${confirming ? 'app-primary-button-loading' : 'w-full'}`}
             >
-              {confirming ? <div className="app-spinner" /> : 'Confirm'}
+              <PendingLabel pending={confirming} name="Confirm">
+                Confirm
+              </PendingLabel>
             </DisabledReasonButton>
           </div>
 

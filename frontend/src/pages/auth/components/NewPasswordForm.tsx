@@ -1,4 +1,5 @@
 import type { FormEvent, ReactNode } from 'react'
+import { PendingLabel } from '@/components/loading/PendingLabel'
 import { PasswordRequirements } from '@/components/PasswordRequirements'
 import { DisabledReasonButton } from '@/components/tooltips/DisabledReasonButton'
 import { AuthErrorBanner } from '@/pages/auth/components/feedback/ErrorBanner'
@@ -119,7 +120,10 @@ export function NewPasswordForm({
           disabledReason={blockReason}
           className={`app-primary-button ${submitting ? 'app-primary-button-loading' : 'w-full'}`}
         >
-          {submitting ? <div className="app-spinner" /> : submitLabel}
+          {/* The spinner carries the label as its name, so a screen reader still says which action is in flight */}
+          <PendingLabel pending={submitting} name={submitLabel}>
+            {submitLabel}
+          </PendingLabel>
         </DisabledReasonButton>
       </div>
 

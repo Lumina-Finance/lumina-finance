@@ -1,5 +1,6 @@
 import { useEffect, useRef } from 'react'
 import { FormError } from '@/components/forms/FormError'
+import { PendingLabel } from '@/components/loading/PendingLabel'
 import { MODAL_INSET_CLASS_NAME } from '@/components/modal/inset'
 import type { ModalLevel } from '@/components/modal/Shell'
 import { DisabledReasonButton } from '@/components/tooltips/DisabledReasonButton'
@@ -100,11 +101,13 @@ export function ModalFormFooter({
       disabled={submitDisabled}
       disabledReason={submitDisabled ? undefined : submitBlockedReason}
       aria-busy={submitDisabled}
-      className={`${tone === 'danger' ? 'app-danger-button' : 'app-primary-button'} overflow-hidden whitespace-nowrap${submitDisabled ? ' app-primary-button-loading justify-self-center sm:justify-self-auto' : ` ${submitWidthClassName}`}`}
+      className={`${tone === 'danger' ? 'app-danger-button' : 'app-primary-button'}${submitDisabled ? ' app-primary-button-loading justify-self-center sm:justify-self-auto' : ` ${submitWidthClassName}`}`}
     >
       {/* The spinner replaces the label, so it carries the label as its own name and a screen reader still
           says which action is in flight */}
-      {submitDisabled ? <div className="app-spinner" aria-label={submitLabel} /> : submitLabel}
+      <PendingLabel pending={submitDisabled} name={submitLabel}>
+        {submitLabel}
+      </PendingLabel>
     </DisabledReasonButton>
   )
 

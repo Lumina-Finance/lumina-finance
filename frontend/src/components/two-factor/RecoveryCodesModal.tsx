@@ -1,5 +1,6 @@
 import { useId, useState } from 'react'
 import { KeyRound } from 'lucide-react'
+import { PendingLabel } from '@/components/loading/PendingLabel'
 import { AcknowledgementGroup } from '@/components/forms/AcknowledgementGroup'
 import {
   getAcknowledgementItemId,
@@ -178,7 +179,9 @@ export function RecoveryCodesModal({
                 disabledReason={confirming ? undefined : refusal.blockedReason}
                 className={`app-primary-button ${confirming ? 'app-primary-button-loading' : 'w-full'}`}
               >
-                {confirming ? <div className="app-spinner" /> : 'Done'}
+                <PendingLabel pending={confirming} name="Done">
+                  Done
+                </PendingLabel>
               </DisabledReasonButton>
             </div>
           </div>

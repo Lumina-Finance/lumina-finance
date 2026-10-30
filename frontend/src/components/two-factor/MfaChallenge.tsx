@@ -1,6 +1,7 @@
 import { useRef, type FormEvent } from 'react'
 import { flushSync } from 'react-dom'
 import { KeyRound } from 'lucide-react'
+import { PendingLabel } from '@/components/loading/PendingLabel'
 import { DisabledReasonButton } from '@/components/tooltips/DisabledReasonButton'
 import { OtpInput, OTP_LENGTH } from '@/components/OtpInput'
 import { WarningCallout } from '@/components/WarningCallout'
@@ -137,9 +138,11 @@ export function MfaChallenge({
                 : 'Enter the full code first'
               : undefined
           }
-          className={`app-primary-button transition-all ${submitting ? 'app-primary-button-loading' : 'w-full'}`}
+          className={`app-primary-button ${submitting ? 'app-primary-button-loading' : 'w-full'}`}
         >
-          {submitting ? <div className="app-spinner" /> : 'Verify'}
+          <PendingLabel pending={submitting} name="Verify">
+            Verify
+          </PendingLabel>
         </DisabledReasonButton>
       </div>
 
@@ -182,14 +185,10 @@ export function MfaChallenge({
               disabled={passkeySubmitting}
               className={`app-primary-button ${passkeySubmitting ? 'app-primary-button-loading' : 'flex w-full items-center justify-center gap-2'}`}
             >
-              {passkeySubmitting ? (
-                <div className="app-spinner" />
-              ) : (
-                <>
-                  <KeyRound size={16} aria-hidden />
-                  Verify with a passkey
-                </>
-              )}
+              <PendingLabel pending={passkeySubmitting} name="Verify with a passkey" className="gap-2">
+                <KeyRound size={16} aria-hidden />
+                Verify with a passkey
+              </PendingLabel>
             </button>
           </div>
 

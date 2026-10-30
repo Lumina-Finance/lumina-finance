@@ -1,4 +1,5 @@
 import { Check, Pencil, Trash2, X } from 'lucide-react'
+import { PendingLabel } from '@/components/loading/PendingLabel'
 import { motion } from 'motion/react'
 import type { Category } from '@/api/categories'
 import type { Merchant } from '@/api/merchants'
@@ -9,10 +10,7 @@ import {
   MERCHANT_ROW_EXIT,
   MERCHANT_ROW_EXIT_TRANSITION,
 } from '@/pages/settings/components/merchant-settings-section/constants'
-import {
-  categoryName,
-  scopeLabel,
-} from '@/pages/settings/components/merchant-settings-section/utils'
+import { categoryName, scopeLabel } from '@/pages/settings/components/merchant-settings-section/utils'
 
 /**
  * One merchant in the mobile settings list, showing its name, scope and default category
@@ -71,7 +69,9 @@ export default function MobileMerchantRow({
     >
       <div className="grid grid-cols-[minmax(0,1fr)_auto] gap-x-3 gap-y-2">
         <div className="min-w-0">
-          <MarqueeText active className="font-medium">{merchant.name}</MarqueeText>
+          <MarqueeText active className="font-medium">
+            {merchant.name}
+          </MarqueeText>
           <p className="truncate text-xs" style={{ color: 'var(--app-text-muted)' }}>
             {scopeLabel(merchant)}
           </p>
@@ -97,7 +97,9 @@ export default function MobileMerchantRow({
                 aria-label={`Confirm delete ${merchant.name}`}
                 title="Confirm delete"
               >
-                {deleting ? <div className="app-spinner" aria-label="Deleting" /> : <Check size={16} aria-hidden />}
+                <PendingLabel pending={deleting} name="Deleting">
+                  <Check size={16} aria-hidden />
+                </PendingLabel>
               </button>
             </>
           ) : (

@@ -1,4 +1,5 @@
-import { Check, LoaderCircle, Pencil, Trash2, X } from 'lucide-react'
+import { Check, Pencil, Trash2, X } from 'lucide-react'
+import { PendingLabel } from '@/components/loading/PendingLabel'
 import { motion } from 'motion/react'
 import type { Tag } from '@/api/tags'
 import MarqueeText from '@/components/display/MarqueeText'
@@ -44,13 +45,7 @@ export default function TagRow({
   onEditCancel: () => void
 }) {
   if (isEditing) {
-    return (
-      <InlineTagEdit
-        tag={tag}
-        isLast={isLast}
-        onCancel={onEditCancel}
-      />
-    )
+    return <InlineTagEdit tag={tag} isLast={isLast} onCancel={onEditCancel} />
   }
 
   return (
@@ -64,7 +59,9 @@ export default function TagRow({
       style={{ borderBottom: isLast ? 'none' : '1px solid var(--app-border)' }}
     >
       <td className="min-w-0 py-3 pl-4 pr-4 align-middle">
-        <MarqueeText active className="font-medium">{tag.name}</MarqueeText>
+        <MarqueeText active className="font-medium">
+          {tag.name}
+        </MarqueeText>
         <p className="truncate text-xs" style={{ color: 'var(--app-text-muted)' }}>
           {scopeLabel(tag)}
         </p>
@@ -91,13 +88,9 @@ export default function TagRow({
                 aria-label={`Confirm delete ${tag.name}`}
                 title="Confirm delete"
               >
-                {deleting ? (
-                  <span className="inline-flex items-center justify-center" aria-label="Deleting">
-                    <LoaderCircle size={16} strokeWidth={2.4} className="animate-spin motion-reduce:animate-none" aria-hidden />
-                  </span>
-                ) : (
+                <PendingLabel pending={deleting} name="Deleting">
                   <Check size={16} aria-hidden />
-                )}
+                </PendingLabel>
               </button>
             </>
           ) : (

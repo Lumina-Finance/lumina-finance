@@ -1,4 +1,5 @@
 import { KeyRound, ShieldCheck } from 'lucide-react'
+import { PendingLabel } from '@/components/loading/PendingLabel'
 import { DisabledReasonButton } from '@/components/tooltips/DisabledReasonButton'
 import { useId, useState, type FormEvent, type MouseEvent } from 'react'
 import type { AuthenticationResponseJSON } from '@simplewebauthn/browser'
@@ -341,7 +342,9 @@ export function StepUpModal({
                 disabledReason={resetting ? undefined : refusal.blockedReason}
                 className={`app-danger-button ${resetting ? 'app-primary-button-loading' : 'w-full'}`}
               >
-                {resetting ? <div className="app-spinner" /> : 'Sign out to recover'}
+                <PendingLabel pending={resetting} name="Sign out to recover">
+                  Sign out to recover
+                </PendingLabel>
               </DisabledReasonButton>
             </div>
             <button
@@ -388,7 +391,9 @@ export function StepUpModal({
                     disabledReason={verifying ? undefined : refusal.blockedReason}
                     className={`${danger ? 'app-danger-button' : 'app-primary-button'} ${verifyingPath === 'code' ? 'app-primary-button-loading' : 'w-full'}`}
                   >
-                    {verifyingPath === 'code' ? <div className="app-spinner" /> : confirmLabel}
+                    <PendingLabel pending={verifyingPath === 'code'} name={confirmLabel}>
+                      {confirmLabel}
+                    </PendingLabel>
                   </DisabledReasonButton>
                 </div>
               ) : (
@@ -413,14 +418,10 @@ export function StepUpModal({
                     disabled={verifying}
                     className={`app-primary-button ${verifyingPath === 'passkey' ? 'app-primary-button-loading' : 'flex w-full items-center justify-center gap-2'}`}
                   >
-                    {verifyingPath === 'passkey' ? (
-                      <div className="app-spinner" />
-                    ) : (
-                      <>
-                        <KeyRound size={16} aria-hidden />
-                        Verify with a passkey
-                      </>
-                    )}
+                    <PendingLabel pending={verifyingPath === 'passkey'} name="Verify with a passkey" className="gap-2">
+                      <KeyRound size={16} aria-hidden />
+                      Verify with a passkey
+                    </PendingLabel>
                   </button>
                 </div>
               )}
@@ -468,7 +469,9 @@ export function StepUpModal({
                         disabledReason={verifying ? undefined : refusal.blockedReason}
                         className={actionButtonClass}
                       >
-                        {verifyingPath === 'code' ? <div className="app-spinner" /> : confirmLabel}
+                        <PendingLabel pending={verifyingPath === 'code'} name={confirmLabel}>
+                          {confirmLabel}
+                        </PendingLabel>
                       </DisabledReasonButton>
                     </div>
                   )}

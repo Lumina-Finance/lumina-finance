@@ -1,5 +1,6 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { Check, Trash2 } from 'lucide-react'
+import { PendingLabel } from '@/components/loading/PendingLabel'
 import { MODAL_INSET_CLASS_NAME } from '@/components/modal/inset'
 import { DisabledReasonButton } from '@/components/tooltips/DisabledReasonButton'
 
@@ -99,9 +100,7 @@ export default function TransactionModalFooter({
             deleteButtonLoading ? 'app-primary-button-loading shrink-0' : 'w-full sm:w-auto'
           }`}
         >
-          {deleteButtonLoading ? (
-            <div className="app-spinner" />
-          ) : (
+          <PendingLabel pending={deleteButtonLoading} name="Deleting">
             <span
               className="relative block"
               style={{
@@ -141,7 +140,7 @@ export default function TransactionModalFooter({
                 Yes, delete
               </span>
             </span>
-          )}
+          </PendingLabel>
         </button>
       ) : !editing ? (
         <div className="min-w-0 sm:max-w-xs">
@@ -187,7 +186,9 @@ export default function TransactionModalFooter({
             disabledReason={isPending ? undefined : submitBlockedReason}
             className={`app-primary-button overflow-hidden whitespace-nowrap${submitLoading ? ' app-primary-button-loading justify-self-center sm:justify-self-auto' : editing ? ' w-full sm:w-24' : ' w-full sm:w-44'}`}
           >
-            {submitLoading ? <div className="app-spinner" /> : editing ? 'Save' : 'Add transaction'}
+            <PendingLabel pending={submitLoading} name={editing ? 'Save' : 'Add transaction'}>
+              {editing ? 'Save' : 'Add transaction'}
+            </PendingLabel>
           </DisabledReasonButton>
         )}
       </div>

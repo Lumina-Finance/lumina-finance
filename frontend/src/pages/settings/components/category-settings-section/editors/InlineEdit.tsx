@@ -1,4 +1,5 @@
 import { useRef, useState, type FormEvent } from 'react'
+import { PendingLabel } from '@/components/loading/PendingLabel'
 import { Check, Pencil, X } from 'lucide-react'
 import { useUpdateCategory, type Category } from '@/api/categories'
 import CategoryIconSelector from '@/components/category-icon-selector/Selector'
@@ -119,11 +120,9 @@ export default function InlineCategoryEdit({
           aria-label={`Save ${category.name}`}
           title="Save"
         >
-          {updateCategory.isPending ? (
-            <div className="app-spinner" aria-label="Saving" />
-          ) : (
+          <PendingLabel pending={updateCategory.isPending} name="Saving">
             <Check size={16} aria-hidden />
-          )}
+          </PendingLabel>
         </button>
         <button
           type="button"

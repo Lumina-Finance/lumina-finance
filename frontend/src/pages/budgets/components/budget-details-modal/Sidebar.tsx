@@ -4,6 +4,7 @@ import type { BaseBudget, Budget, BudgetUtilization } from '@/api/budgets'
 import { useMoneyFormatters } from '@/hooks/useMoneyFormatters'
 import { FormError } from '@/components/forms/FormError'
 import MarqueeText from '@/components/display/MarqueeText'
+import { PendingLabel } from '@/components/loading/PendingLabel'
 import ScrollableListMoreButton from '@/components/list-controls/MoreButton'
 import ArchivedPill from '@/pages/budgets/components/shared/ArchivedPill'
 import BudgetAttentionIcon from '@/pages/budgets/components/shared/AttentionIcon'
@@ -289,14 +290,10 @@ export default function BudgetDetailsSidebar({
             onClick={onDelete}
             disabled={isDeleting}
           >
-            {isDeleting ? (
-              <div className="app-spinner" />
-            ) : (
-              <>
-                <Trash2 size={16} aria-hidden />
-                {confirmDelete ? 'Confirm' : 'Delete'}
-              </>
-            )}
+            <PendingLabel pending={isDeleting} name="Deleting" className="gap-2">
+              <Trash2 size={16} aria-hidden />
+              {confirmDelete ? 'Confirm' : 'Delete'}
+            </PendingLabel>
           </button>
         </div>
       </div>

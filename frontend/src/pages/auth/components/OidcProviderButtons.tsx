@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { beginOidcSignIn, type OidcProvider } from '@/api/oidc'
+import { PendingLabel } from '@/components/loading/PendingLabel'
 import { ProviderMark } from '@/components/ProviderMark'
 import { withMinDelay } from '@/utils/timing'
 
@@ -62,14 +63,14 @@ export function OidcProviderButtons({ providers, autoStartSlug }: OidcProviderBu
                 : 'flex w-full items-center justify-center gap-2'
             }`}
           >
-            {pendingSlug === provider.slug ? (
-              <div className="app-spinner" />
-            ) : (
-              <>
-                <ProviderMark name={provider.display_name} />
-                Continue with {provider.display_name}
-              </>
-            )}
+            <PendingLabel
+              pending={pendingSlug === provider.slug}
+              name={`Continue with ${provider.display_name}`}
+              className="gap-2"
+            >
+              <ProviderMark name={provider.display_name} />
+              Continue with {provider.display_name}
+            </PendingLabel>
           </button>
         </div>
       ))}
