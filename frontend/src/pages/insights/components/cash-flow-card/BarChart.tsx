@@ -1,34 +1,18 @@
-import {
-  useLayoutEffect,
-  useMemo,
-  useRef,
-  useState,
-  type MouseEvent as ReactMouseEvent,
-} from 'react'
-import {
-  Bar,
-  BarChart,
-  Cell,
-  ReferenceLine,
-  ResponsiveContainer,
-  XAxis,
-  YAxis,
-} from 'recharts'
+import { useLayoutEffect, useMemo, useRef, useState, type MouseEvent as ReactMouseEvent } from 'react'
+import { Bar, BarChart, Cell, ReferenceLine, ResponsiveContainer, XAxis, YAxis } from 'recharts'
 import { ChartTooltipRow, ChartTooltipTitle } from '@/components/charts/TooltipContent'
 import {
   DeferredChartTooltipOverlay,
   type ChartTooltipPointer,
   type DeferredChartTooltipOverlayHandle,
 } from '@/components/charts/DeferredTooltipOverlay'
-import {
-  getChartDataSignature,
-  useChartEntranceAnimation,
-} from '@/components/charts/useChartEntranceAnimation'
+import { getChartDataSignature, useChartEntranceAnimation } from '@/components/charts/useChartEntranceAnimation'
 import { CHART_X_AXIS_TICK_FONT_SIZE } from '@/components/charts/constants'
 import { useMoneyFormatters } from '@/hooks/useMoneyFormatters'
 import type { CashFlowBarBucket } from '@/pages/insights/types/cashFlow'
 import { getCashFlowTooltipBucket } from '@/pages/insights/utils/cashFlow'
-import { getCashFlowAxisTicks, getCashFlowXAxisTicks } from '@/pages/insights/utils/cashFlowAxis'
+import { getCashFlowAxisTicks } from '@/pages/insights/utils/cashFlowAxis'
+import { getYearAxisTicks } from '@/utils/chartYearAxis'
 import { getSignedAmountColor } from '@/utils/negativeAmount'
 import {
   useFittedYAxisWidth,
@@ -111,11 +95,7 @@ function CashFlowBarTooltipContent({
 /**
  * Renders the cash flow bar chart and owns pointer-based tooltip behaviour
  */
-export function CashFlowBarChart({
-  buckets,
-  displayCurrency,
-  emptyLabel,
-}: CashFlowBarChartProps) {
+export function CashFlowBarChart({ buckets, displayCurrency, emptyLabel }: CashFlowBarChartProps) {
   const chartRef = useRef<HTMLDivElement>(null)
   const tooltipRef = useRef<DeferredChartTooltipOverlayHandle<CashFlowBarBucket>>(null)
   const { formatMovedCurrency } = useMoneyFormatters()
@@ -136,26 +116,21 @@ export function CashFlowBarChart({
   // Recharts thins labels without regard to which one marks the year, so a range over two calendar years
   // names the labels itself, keeping every one that carries the year
   const yearTicks = useMemo(
-    () => getCashFlowXAxisTicks(buckets, chartWidth - yAxisWidth),
+    () =>
+      getYearAxisTicks(
+        buckets.map((bucket) => ({ label: bucket.label, key: bucket.rangeLabel, marksYear: bucket.marksYear })),
+        chartWidth - yAxisWidth,
+      ),
     [buckets, chartWidth, yAxisWidth],
   )
-  const axisLabels = useMemo(
-    () => new Map(buckets.map((bucket) => [bucket.rangeLabel, bucket.label])),
-    [buckets],
-  )
-  const dataSignature = useMemo(
-    () => getChartDataSignature(buckets, (bucket) => bucket.net),
-    [buckets],
-  )
+  const axisLabels = useMemo(() => new Map(buckets.map((bucket) => [bucket.rangeLabel, bucket.label])), [buckets])
+  const dataSignature = useMemo(() => getChartDataSignature(buckets, (bucket) => bucket.net), [buckets])
   const barEntrance = useChartEntranceAnimation({ dataSignature })
 
   /**
    * Shows the bar tooltip for the active Recharts bucket
    */
-  function showTooltip(
-    state: CashFlowTooltipState,
-    event: ReactMouseEvent<SVGGraphicsElement>,
-  ) {
+  function showTooltip(state: CashFlowTooltipState, event: ReactMouseEvent<SVGGraphicsElement>) {
     const bucket = getCashFlowTooltipBucket(state, buckets)
     const pointer = getCashFlowTooltipPointer(state, event)
     if (!bucket) {
@@ -169,11 +144,7 @@ export function CashFlowBarChart({
   const hideTooltip = () => tooltipRef.current?.hide()
 
   return (
-    <div
-      ref={chartRef}
-      className="relative min-h-0 flex-1"
-      onMouseLeave={hideTooltip}
-    >
+    <div ref={chartRef} className="relative min-h-0 flex-1" onMouseLeave={hideTooltip}>
       {!hasActivity ? (
         <div
           className="flex h-full w-full items-center justify-center text-sm"
@@ -232,12 +203,7 @@ export function CashFlowBarChart({
           chartRef={chartRef}
           className="min-w-48"
           getKey={getCashFlowTooltipKey}
-          renderContent={(bucket) => (
-            <CashFlowBarTooltipContent
-              bucket={bucket}
-              displayCurrency={displayCurrency}
-            />
-          )}
+          renderContent={(bucket) => <CashFlowBarTooltipContent bucket={bucket} displayCurrency={displayCurrency} />}
         />
       )}
     </div>

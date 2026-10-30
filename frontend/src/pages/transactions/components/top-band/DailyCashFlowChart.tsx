@@ -1,20 +1,7 @@
-import {
-  useLayoutEffect,
-  useMemo,
-  useRef,
-  useState,
-  type MouseEvent as ReactMouseEvent,
-} from 'react'
+import { useLayoutEffect, useMemo, useRef, useState, type MouseEvent as ReactMouseEvent } from 'react'
 import { Repeat } from 'lucide-react'
 import { AnimatePresence, motion, useReducedMotion } from 'motion/react'
-import {
-  Area,
-  AreaChart,
-  ReferenceLine,
-  ResponsiveContainer,
-  XAxis,
-  YAxis,
-} from 'recharts'
+import { Area, AreaChart, ReferenceLine, ResponsiveContainer, XAxis, YAxis } from 'recharts'
 import type { FxStatus } from '@/api/shared/fx'
 import type { DailyCashFlow } from '@/api/transactions'
 import {
@@ -38,6 +25,7 @@ import {
   getDailyCashFlowCadenceTitle,
   getDailyCashFlowCalculation,
   getDailyCashFlowGranularity,
+  getDailyCashFlowPlotWidth,
   getDailyCashFlowSeries,
   getDailyCashFlowXAxisTickCount,
   getDailyCashFlowXAxisTicks,
@@ -45,6 +33,7 @@ import {
   type DailyCashFlowPoint,
 } from '@/pages/transactions/utils/dailyCashFlowChart'
 import { getCashFlowFxStatusMessage } from '@/pages/transactions/utils/fxTooltipMessages'
+import { crossesCalendarYear } from '@/utils/chartYearAxis'
 import { getValueMarkColor } from '@/utils/valueMarkColor'
 
 export type { DailyCashFlowChartMode } from '@/pages/transactions/utils/dailyCashFlowChart'
@@ -89,17 +78,9 @@ export function DailyCashFlowTooltipContent({
     <>
       <ChartTooltipTitle>{point.rangeLabel}</ChartTooltipTitle>
       {mode === 'net' && (
-        <ChartTooltipRow
-          label="Net"
-          value={formatMovedCurrency(point.net, displayCurrency)}
-          financialValue
-        />
+        <ChartTooltipRow label="Net" value={formatMovedCurrency(point.net, displayCurrency)} financialValue />
       )}
-      <ChartTooltipRow
-        label="Inflow"
-        value={formatCurrency(Math.abs(point.inflow), displayCurrency)}
-        financialValue
-      />
+      <ChartTooltipRow label="Inflow" value={formatCurrency(Math.abs(point.inflow), displayCurrency)} financialValue />
       <ChartTooltipRow
         label="Outflow"
         value={formatCurrency(Math.abs(point.outflow), displayCurrency)}
@@ -192,41 +173,38 @@ export default function DailyCashFlowChart({
   // The fixed-height wrapper reserves the plot space so deferring the recharts mount shifts nothing
   const chartReady = useDeferredMount()
   const [dailyFlowChartWidth, setDailyFlowChartWidth] = useState<number>()
-  const dailyFlowGranularity = useMemo(
-    () => getDailyCashFlowGranularity(fromDate, toDate),
-    [fromDate, toDate],
-  )
+  const dailyFlowGranularity = useMemo(() => getDailyCashFlowGranularity(fromDate, toDate), [fromDate, toDate])
   const dailyFlow = useMemo(
-    () => (
+    () =>
       showPlaceholderData
-        ? PLACEHOLDER_DAILY_FLOW.map((point) => ({ ...point, key: point.date, rangeLabel: point.date }))
-        : getDailyCashFlowSeries(rawDailyFlow, dailyFlowGranularity)
-    ),
-    [dailyFlowGranularity, rawDailyFlow, showPlaceholderData],
+        ? PLACEHOLDER_DAILY_FLOW.map((point) => ({
+            ...point,
+            key: point.date,
+            marksYear: false,
+            rangeLabel: point.date,
+          }))
+        : getDailyCashFlowSeries(rawDailyFlow, dailyFlowGranularity, crossesCalendarYear(fromDate, toDate)),
+    [dailyFlowGranularity, fromDate, rawDailyFlow, showPlaceholderData, toDate],
   )
-  const dailyFlowPointsByKey = useMemo(
-    () => new Map(dailyFlow.map((point) => [point.key, point])),
-    [dailyFlow],
-  )
+  const dailyFlowPointsByKey = useMemo(() => new Map(dailyFlow.map((point) => [point.key, point])), [dailyFlow])
   // Re-key the chart on the displayed values so a placeholder-to-real swap or a refetch remounts it
   // for one clean reveal, instead of letting Recharts cut the in-flight animation to its final frame
   // when the points change mid-animation
   const dailyFlowSignature = useMemo(
     () =>
-      `${dailyFlow.length}:${dailyFlow.reduce(
-        (total, point) => total + point.net + point.inflow + point.outflow,
-        0,
-      )}`,
+      `${dailyFlow.length}:${dailyFlow.reduce((total, point) => total + point.net + point.inflow + point.outflow, 0)}`,
     [dailyFlow],
   )
-  const dailyFlowLabelsByKey = useMemo(
-    () => new Map(dailyFlow.map((point) => [point.key, point.date])),
-    [dailyFlow],
-  )
+  const dailyFlowLabelsByKey = useMemo(() => new Map(dailyFlow.map((point) => [point.key, point.date])), [dailyFlow])
   const dailyFlowXAxisTickCount = getDailyCashFlowXAxisTickCount(dailyFlowChartWidth)
   const dailyFlowXAxisTicks = useMemo(
-    () => getDailyCashFlowXAxisTicks(dailyFlow, dailyFlowXAxisTickCount),
-    [dailyFlow, dailyFlowXAxisTickCount],
+    () =>
+      getDailyCashFlowXAxisTicks(
+        dailyFlow,
+        dailyFlowXAxisTickCount,
+        dailyFlowChartWidth === undefined ? 0 : getDailyCashFlowPlotWidth(dailyFlowChartWidth),
+      ),
+    [dailyFlow, dailyFlowChartWidth, dailyFlowXAxisTickCount],
   )
   const dailyFlowBaselineSegment = useMemo(() => {
     if (dailyFlow.length === 0) return undefined
@@ -239,9 +217,10 @@ export default function DailyCashFlowChart({
   const chartAnimationDuration = prefersReducedMotion ? 0 : 1400
   const toggleLabel = mode === 'net' ? 'Show inflow and outflow' : 'Show net cash flow'
   const cashFlowCadenceTitle = getDailyCashFlowCadenceTitle(dailyFlowGranularity)
-  const calculationTooltipLabel = mode === 'net'
-    ? `How ${cashFlowCadenceTitle.toLowerCase()} net cash flow is calculated`
-    : `How ${cashFlowCadenceTitle.toLowerCase()} cash flow is calculated`
+  const calculationTooltipLabel =
+    mode === 'net'
+      ? `How ${cashFlowCadenceTitle.toLowerCase()} net cash flow is calculated`
+      : `How ${cashFlowCadenceTitle.toLowerCase()} cash flow is calculated`
   const calculationTooltipMessage = getDailyCashFlowCalculation(dailyFlowGranularity, mode)
 
   useLayoutEffect(() => {
@@ -253,9 +232,7 @@ export default function DailyCashFlowChart({
      */
     function updateChartWidth(width: number) {
       const nextWidth = Math.max(Math.round(width), 0)
-      setDailyFlowChartWidth((currentWidth) => (
-        currentWidth === nextWidth ? currentWidth : nextWidth
-      ))
+      setDailyFlowChartWidth((currentWidth) => (currentWidth === nextWidth ? currentWidth : nextWidth))
     }
 
     updateChartWidth(element.getBoundingClientRect().width)
@@ -301,12 +278,7 @@ export default function DailyCashFlowChart({
             <DailyCashFlowTitleWord visible={mode === 'net'} />
             <span className="ml-[0.25em]">Cash flow</span>
           </span>
-          <IconTooltip
-            label={calculationTooltipLabel}
-            level="info"
-            placement="top"
-            widthClassName="w-72"
-          >
+          <IconTooltip label={calculationTooltipLabel} level="info" placement="top" widthClassName="w-72">
             {calculationTooltipMessage}
           </IconTooltip>
           <FxStatusBadge
@@ -326,94 +298,86 @@ export default function DailyCashFlowChart({
           <Repeat size={12} />
         </button>
       </div>
-      <div
-        ref={dailyFlowChartRef}
-        className="relative h-[11.75rem]"
-        onMouseLeave={hideDailyCashFlowTooltip}
-      >
+      <div ref={dailyFlowChartRef} className="relative h-[11.75rem]" onMouseLeave={hideDailyCashFlowTooltip}>
         {chartReady && (
-        <motion.div
-          key={`daily-flow-reveal-${mode}-${chartAnimationKey}-${dailyFlowSignature}`}
-          className="h-full w-full"
-          initial={prefersReducedMotion ? false : { clipPath: 'inset(0 100% 0 0)' }}
-          animate={{ clipPath: 'inset(0 0% 0 0)' }}
-          transition={
-            prefersReducedMotion
-              ? { duration: 0 }
-              : { duration: chartAnimationDuration / 1000, ease: chartRevealEasing }
-          }
-        >
-        <ResponsiveContainer width="100%" height="100%">
-          <AreaChart
-            data={dailyFlow}
-            margin={DAILY_CASH_FLOW_CHART_MARGIN}
-            onMouseMove={(state, event) => showDailyCashFlowTooltip(state, event)}
-            onMouseLeave={hideDailyCashFlowTooltip}
+          <motion.div
+            key={`daily-flow-reveal-${mode}-${chartAnimationKey}-${dailyFlowSignature}`}
+            className="h-full w-full"
+            initial={prefersReducedMotion ? false : { clipPath: 'inset(0 100% 0 0)' }}
+            animate={{ clipPath: 'inset(0 0% 0 0)' }}
+            transition={
+              prefersReducedMotion
+                ? { duration: 0 }
+                : { duration: chartAnimationDuration / 1000, ease: chartRevealEasing }
+            }
           >
-            <defs>
-              <linearGradient id="netFlowGrad" x1="0" y1="0" x2="0" y2="1">
-                <stop offset="0%" stopColor="var(--app-text-muted)" stopOpacity={0.25} />
-                <stop offset="100%" stopColor="var(--app-text-muted)" stopOpacity={0.02} />
-              </linearGradient>
-              <linearGradient id="inflowGrad" x1="0" y1="0" x2="0" y2="1">
-                <stop offset="0%" stopColor={getValueMarkColor('positive')} stopOpacity={0.25} />
-                <stop offset="100%" stopColor={getValueMarkColor('positive')} stopOpacity={0.02} />
-              </linearGradient>
-              <linearGradient id="outflowGrad" x1="0" y1="1" x2="0" y2="0">
-                <stop offset="0%" stopColor={getValueMarkColor('negative')} stopOpacity={0.25} />
-                <stop offset="100%" stopColor={getValueMarkColor('negative')} stopOpacity={0.02} />
-              </linearGradient>
-            </defs>
-            <XAxis
-              dataKey="key"
-              tick={{ fontSize: 11, fill: 'var(--app-text-subtle)' }}
-              tickFormatter={(value) => dailyFlowLabelsByKey.get(String(value)) ?? String(value)}
-              axisLine={false}
-              tickLine={false}
-              padding={DAILY_CASH_FLOW_X_AXIS_PADDING}
-              interval={0}
-              ticks={dailyFlowXAxisTicks}
-            />
-            <YAxis hide />
-            {dailyFlowBaselineSegment && (
-              <ReferenceLine
-                segment={dailyFlowBaselineSegment}
-                stroke="var(--app-border-strong)"
-                strokeWidth={1}
-              />
-            )}
-            {mode === 'net' ? (
-              <Area
-                type="monotone"
-                dataKey="net"
-                stroke="var(--app-text-muted)"
-                fill="url(#netFlowGrad)"
-                strokeWidth={1.5}
-                isAnimationActive={false}
-              />
-            ) : (
-              <>
-                <Area
-                  type="monotone"
-                  dataKey="inflow"
-                  stroke={getValueMarkColor('positive')}
-                  fill="url(#inflowGrad)"
-                  strokeWidth={1.5}
-                  isAnimationActive={false}
+            <ResponsiveContainer width="100%" height="100%">
+              <AreaChart
+                data={dailyFlow}
+                margin={DAILY_CASH_FLOW_CHART_MARGIN}
+                onMouseMove={(state, event) => showDailyCashFlowTooltip(state, event)}
+                onMouseLeave={hideDailyCashFlowTooltip}
+              >
+                <defs>
+                  <linearGradient id="netFlowGrad" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0%" stopColor="var(--app-text-muted)" stopOpacity={0.25} />
+                    <stop offset="100%" stopColor="var(--app-text-muted)" stopOpacity={0.02} />
+                  </linearGradient>
+                  <linearGradient id="inflowGrad" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0%" stopColor={getValueMarkColor('positive')} stopOpacity={0.25} />
+                    <stop offset="100%" stopColor={getValueMarkColor('positive')} stopOpacity={0.02} />
+                  </linearGradient>
+                  <linearGradient id="outflowGrad" x1="0" y1="1" x2="0" y2="0">
+                    <stop offset="0%" stopColor={getValueMarkColor('negative')} stopOpacity={0.25} />
+                    <stop offset="100%" stopColor={getValueMarkColor('negative')} stopOpacity={0.02} />
+                  </linearGradient>
+                </defs>
+                <XAxis
+                  dataKey="key"
+                  tick={{ fontSize: 11, fill: 'var(--app-text-subtle)' }}
+                  tickFormatter={(value) => dailyFlowLabelsByKey.get(String(value)) ?? String(value)}
+                  axisLine={false}
+                  tickLine={false}
+                  padding={DAILY_CASH_FLOW_X_AXIS_PADDING}
+                  interval={0}
+                  ticks={dailyFlowXAxisTicks}
                 />
-                <Area
-                  type="monotone"
-                  dataKey="outflow"
-                  stroke={getValueMarkColor('negative')}
-                  fill="url(#outflowGrad)"
-                  strokeWidth={1.5}
-                  isAnimationActive={false}
-                />
-              </>
-            )}
-          </AreaChart>
-        </ResponsiveContainer>
-        </motion.div>
+                <YAxis hide />
+                {dailyFlowBaselineSegment && (
+                  <ReferenceLine segment={dailyFlowBaselineSegment} stroke="var(--app-border-strong)" strokeWidth={1} />
+                )}
+                {mode === 'net' ? (
+                  <Area
+                    type="monotone"
+                    dataKey="net"
+                    stroke="var(--app-text-muted)"
+                    fill="url(#netFlowGrad)"
+                    strokeWidth={1.5}
+                    isAnimationActive={false}
+                  />
+                ) : (
+                  <>
+                    <Area
+                      type="monotone"
+                      dataKey="inflow"
+                      stroke={getValueMarkColor('positive')}
+                      fill="url(#inflowGrad)"
+                      strokeWidth={1.5}
+                      isAnimationActive={false}
+                    />
+                    <Area
+                      type="monotone"
+                      dataKey="outflow"
+                      stroke={getValueMarkColor('negative')}
+                      fill="url(#outflowGrad)"
+                      strokeWidth={1.5}
+                      isAnimationActive={false}
+                    />
+                  </>
+                )}
+              </AreaChart>
+            </ResponsiveContainer>
+          </motion.div>
         )}
         {!tooltipDisabled && (
           <DeferredChartTooltipOverlay
@@ -422,11 +386,7 @@ export default function DailyCashFlowChart({
             className="min-w-44"
             getKey={getDailyCashFlowTooltipKey}
             renderContent={(point) => (
-              <DailyCashFlowTooltipContent
-                point={point}
-                displayCurrency={displayCurrency}
-                mode={mode}
-              />
+              <DailyCashFlowTooltipContent point={point} displayCurrency={displayCurrency} mode={mode} />
             )}
           />
         )}

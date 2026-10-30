@@ -1,5 +1,6 @@
 import type { Currency } from '@/api/currency'
 import { formatCompactMoney, type CompactMoneyRule } from '@/utils/formatCompactMoney'
+import { getYearAxisTicks } from '@/utils/chartYearAxis'
 import { DATE_FORMATS, formatDate, parseYmd } from '@/utils/date'
 
 export type NetWorthViewMode = 'overview' | 'composition'
@@ -13,6 +14,8 @@ export type NetWorthGroup = {
 export type NetWorthPoint = {
   date: string
   dateLabel: string
+  // Whether the label carries the year, which marks where the year turns on a monthly range over two calendar years
+  marksYear: boolean
   tooltipLabel: string
   total: number
   values: number[]
@@ -30,7 +33,7 @@ export type NetWorthDeltaPoint = NetWorthPoint & {
   dateMs: number
   startTotal: number
   totalChange: number
-  [key: string]: string | number | number[]
+  [key: string]: string | number | boolean | number[]
 }
 
 export const netWorthChartLeftMargin = 0
@@ -106,10 +109,7 @@ export function getChartKey(index: number) {
  * mode, or two combined items, assets and debt, that each sum their member groups in overview
  * mode
  */
-export function getNetWorthChartItems(
-  groups: NetWorthGroup[],
-  mode: NetWorthViewMode,
-): NetWorthChartItem[] {
+export function getNetWorthChartItems(groups: NetWorthGroup[], mode: NetWorthViewMode): NetWorthChartItem[] {
   if (mode === 'composition') {
     return groups.map((group, index) => ({
       id: group.id,
@@ -126,18 +126,16 @@ export function getNetWorthChartItems(
       name: 'Assets',
       color: assetContributionColor,
       kind: 'asset',
-      getValue: (point) => groups.reduce((sum, group, index) => (
-        group.kind === 'asset' ? sum + (point.values[index] ?? 0) : sum
-      ), 0),
+      getValue: (point) =>
+        groups.reduce((sum, group, index) => (group.kind === 'asset' ? sum + (point.values[index] ?? 0) : sum), 0),
     },
     {
       id: 'debt',
       name: 'Debt',
       color: debtContributionColor,
       kind: 'debt',
-      getValue: (point) => groups.reduce((sum, group, index) => (
-        group.kind === 'debt' ? sum + (point.values[index] ?? 0) : sum
-      ), 0),
+      getValue: (point) =>
+        groups.reduce((sum, group, index) => (group.kind === 'debt' ? sum + (point.values[index] ?? 0) : sum), 0),
     },
   ]
 }
@@ -189,14 +187,9 @@ export function getNetWorthChartData(
  * Builds the chart legend entries, prefixing a net worth change swatch ahead of the chart items
  * in overview mode
  */
-export function getNetWorthLegendItems(
-  mode: NetWorthViewMode,
-  items: NetWorthChartItem[],
-) {
+export function getNetWorthLegendItems(mode: NetWorthViewMode, items: NetWorthChartItem[]) {
   return [
-    ...(mode === 'overview'
-      ? [{ id: 'net-worth-change', name: 'Net worth change', color: netWorthChangeColor }]
-      : []),
+    ...(mode === 'overview' ? [{ id: 'net-worth-change', name: 'Net worth change', color: netWorthChangeColor }] : []),
     ...items.map((item) => ({ id: item.id, name: item.name, color: item.color })),
   ]
 }
@@ -205,27 +198,43 @@ export function getNetWorthLegendItems(
  * Picks evenly spaced tick timestamps across the series' date range, always keeping the first
  * and last points so the axis anchors on the range boundaries
  */
-export function getNetWorthDateAxisTicks(
-  series: NetWorthDeltaPoint[],
-  tickCount: number,
-): number[] {
+export function getNetWorthDateAxisTicks(series: NetWorthDeltaPoint[], tickCount: number): number[] {
   const startMs = series[0]?.dateMs
   const endMs = series.at(-1)?.dateMs
   if (startMs === undefined || endMs === undefined) return []
   if (tickCount <= 1 || startMs >= endMs) return [startMs]
 
   const totalDays = Math.round((endMs - startMs) / DAY_MS)
-  return [...new Set(Array.from({ length: tickCount }, (_, index) => {
-    if (index === 0) return startMs
-    if (index === tickCount - 1) return endMs
-    const dayOffset = Math.round((totalDays * index) / (tickCount - 1))
-    return startMs + dayOffset * DAY_MS
-  }))]
+  return [
+    ...new Set(
+      Array.from({ length: tickCount }, (_, index) => {
+        if (index === 0) return startMs
+        if (index === tickCount - 1) return endMs
+        const dayOffset = Math.round((totalDays * index) / (tickCount - 1))
+        return startMs + dayOffset * DAY_MS
+      }),
+    ),
+  ]
+}
+
+/**
+ * Picks the timestamps the X axis labels: the points that name the year on a monthly range over two
+ * calendar years, which evenly spaced days would step over, and otherwise evenly spaced days
+ *
+ * @param series - The chart's points in date order
+ * @param plotWidth - The width the labels are drawn along, in pixels, or 0 before it is measured
+ */
+export function getNetWorthXAxisTicks(series: NetWorthDeltaPoint[], plotWidth: number): number[] {
+  const yearTicks = getYearAxisTicks(
+    series.map((point) => ({ label: point.dateLabel, key: point.dateMs, marksYear: point.marksYear })),
+    plotWidth,
+  )
+  return yearTicks ?? getNetWorthDateAxisTicks(series, NET_WORTH_AXIS_TICK_COUNT)
 }
 
 function getGroupColor(group: NetWorthGroup) {
-  return groupColors[group.id] ?? (
-    group.kind === 'asset' ? compositionAssetFallbackColor : compositionDebtFallbackColor
+  return (
+    groupColors[group.id] ?? (group.kind === 'asset' ? compositionAssetFallbackColor : compositionDebtFallbackColor)
   )
 }
 

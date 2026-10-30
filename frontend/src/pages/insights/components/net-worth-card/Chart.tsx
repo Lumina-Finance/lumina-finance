@@ -1,8 +1,4 @@
-import {
-  useMemo,
-  useRef,
-  type MouseEvent as ReactMouseEvent,
-} from 'react'
+import { useLayoutEffect, useMemo, useRef, useState, type MouseEvent as ReactMouseEvent } from 'react'
 import { AnimatePresence, motion } from 'motion/react'
 import {
   Area,
@@ -21,20 +17,16 @@ import {
   type ChartTooltipPointer,
   type DeferredChartTooltipOverlayHandle,
 } from '@/components/charts/DeferredTooltipOverlay'
-import {
-  getChartDataSignature,
-  useChartEntranceAnimation,
-} from '@/components/charts/useChartEntranceAnimation'
+import { getChartDataSignature, useChartEntranceAnimation } from '@/components/charts/useChartEntranceAnimation'
 import { CHART_X_AXIS_TICK_FONT_SIZE } from '@/components/charts/constants'
 import { useMoneyFormatters } from '@/hooks/useMoneyFormatters'
 import {
-  NET_WORTH_AXIS_TICK_COUNT,
   formatNetWorthAxisDate,
   formatNetWorthStartLabel,
   getChangeKey,
   getChartKey,
-  getNetWorthDateAxisTicks,
   getNetWorthLegendItems,
+  getNetWorthXAxisTicks,
   getValueKey,
   netWorthChangeColor,
   netWorthChartLeftMargin,
@@ -160,18 +152,15 @@ function NetWorthChartTooltipContent({
 }) {
   const { formatCurrency, formatMovedCurrency } = useMoneyFormatters()
   const detailItems = items.map((item, index) => ({ item, index }))
-  const displayedNetWorth = mode === 'composition'
-    ? detailItems.reduce((sum, { index }) => sum + Number(point[getValueKey(index)] ?? 0), 0)
-    : point.total
+  const displayedNetWorth =
+    mode === 'composition'
+      ? detailItems.reduce((sum, { index }) => sum + Number(point[getValueKey(index)] ?? 0), 0)
+      : point.total
 
   return (
     <>
       <ChartTooltipTitle>{point.tooltipLabel}</ChartTooltipTitle>
-      <ChartTooltipRow
-        label="Net worth"
-        value={formatCurrency(displayedNetWorth, displayCurrency)}
-        financialValue
-      />
+      <ChartTooltipRow label="Net worth" value={formatCurrency(displayedNetWorth, displayCurrency)} financialValue />
       {mode === 'overview' && (
         <ChartTooltipRow
           label="Change"
@@ -189,17 +178,12 @@ function NetWorthChartTooltipContent({
               key={item.id}
               className="mt-0"
               label={item.name}
-              value={(
+              value={
                 <>
                   {formatCurrency(displayValue, displayCurrency)}
-                  {mode === 'overview' && (
-                    <>
-                      {' '}
-                      ({formatMovedCurrency(change, displayCurrency)})
-                    </>
-                  )}
+                  {mode === 'overview' && <> ({formatMovedCurrency(change, displayCurrency)})</>}
                 </>
-              )}
+              }
               financialValue
             />
           )
@@ -227,27 +211,29 @@ export function NetWorthChart({
   const hasChartData = groups.length > 0 && deltaSeries.length > 0
   const dateAxisStartMs = deltaSeries[0]?.dateMs ?? 0
   const dateAxisEndMs = deltaSeries.at(-1)?.dateMs ?? dateAxisStartMs
-  const dateAxisTicks = useMemo(
-    () => getNetWorthDateAxisTicks(deltaSeries, NET_WORTH_AXIS_TICK_COUNT),
-    [deltaSeries],
-  )
+  const [chartWidth, setChartWidth] = useState(0)
+  // Measured before the first paint, so the labels the axis chooses are the ones it first draws
+  useLayoutEffect(() => {
+    const chart = chartRef.current
+    if (!chart) return undefined
+    setChartWidth(chart.getBoundingClientRect().width)
+    const observer = new ResizeObserver(([entry]) => setChartWidth(entry.contentRect.width))
+    observer.observe(chart)
+    return () => observer.disconnect()
+  }, [])
+  const plotWidth = chartWidth - netWorthXAxisPadding.left - netWorthXAxisPadding.right
+  const dateAxisTicks = useMemo(() => getNetWorthXAxisTicks(deltaSeries, plotWidth), [deltaSeries, plotWidth])
   const dateLabelsByMs = useMemo(
     () => new Map(deltaSeries.map((point) => [point.dateMs, point.dateLabel])),
     [deltaSeries],
   )
-  const netWorthPointsByMs = useMemo(
-    () => new Map(deltaSeries.map((point) => [point.dateMs, point])),
-    [deltaSeries],
-  )
+  const netWorthPointsByMs = useMemo(() => new Map(deltaSeries.map((point) => [point.dateMs, point])), [deltaSeries])
   const startNetWorthAxisLabel = formatNetWorthStartLabel(deltaSeries[0]?.startTotal ?? 0, displayCurrency, currencies)
   const startNetWorthLabelPoint = mode === 'overview' ? deltaSeries[0] : undefined
   const startNetWorthLabelY = startNetWorthLabelPoint
     ? getNetWorthFirstBarLabelY(startNetWorthLabelPoint, chartItems)
     : 0
-  const legendItems = useMemo(
-    () => getNetWorthLegendItems(mode, chartItems),
-    [chartItems, mode],
-  )
+  const legendItems = useMemo(() => getNetWorthLegendItems(mode, chartItems), [chartItems, mode])
   const legendAnimationKey = `${mode}-${legendItems.map((item) => item.id).join('|')}`
 
   // One signature spanning everything the plot draws, in both modes. The mapped items and the total
@@ -255,13 +241,10 @@ export function NetWorthChart({
   // rest, and the mode belongs in it because switching modes unmounts and remounts the items with
   // the same values behind them
   const dataSignature = useMemo(
-    () => `${mode}:${getChartDataSignature(
-      deltaSeries,
-      (point) => [
-        ...chartItems.map((_item, index) => Number(point[getChartKey(index)] ?? 0)),
-        point.totalChange,
-      ].join('|'),
-    )}`,
+    () =>
+      `${mode}:${getChartDataSignature(deltaSeries, (point) =>
+        [...chartItems.map((_item, index) => Number(point[getChartKey(index)] ?? 0)), point.totalChange].join('|'),
+      )}`,
     [chartItems, deltaSeries, mode],
   )
   const compositionAreasEntrance = useChartEntranceAnimation({ dataSignature })
@@ -274,10 +257,7 @@ export function NetWorthChart({
   /**
    * Shows the tooltip for the active Recharts date bucket
    */
-  function showTooltip(
-    state: NetWorthTooltipState,
-    event: ReactMouseEvent<SVGGraphicsElement>,
-  ) {
+  function showTooltip(state: NetWorthTooltipState, event: ReactMouseEvent<SVGGraphicsElement>) {
     const activeDateMs = Number(state.activeLabel)
     const point = Number.isFinite(activeDateMs) ? netWorthPointsByMs.get(activeDateMs) : undefined
     const pointer = getNetWorthTooltipPointer(state, event)
@@ -293,11 +273,7 @@ export function NetWorthChart({
 
   return (
     <>
-      <div
-        ref={chartRef}
-        className="relative min-h-0 flex-1"
-        onMouseLeave={hideTooltip}
-      >
+      <div ref={chartRef} className="relative min-h-0 flex-1" onMouseLeave={hideTooltip}>
         {!hasChartData ? (
           <div
             className="flex h-full w-full items-center justify-center rounded-lg text-sm"
@@ -323,23 +299,14 @@ export function NetWorthChart({
                 axisLine={false}
                 tickLine={false}
                 interval={0}
-                tick={(props) => (
-                  <NetWorthXAxisTick
-                    {...props}
-                    dateLabelsByMs={dateLabelsByMs}
-                  />
-                )}
+                tick={(props) => <NetWorthXAxisTick {...props} dateLabelsByMs={dateLabelsByMs} />}
                 tickMargin={4}
               />
               <YAxis
                 hide
                 domain={[(dataMin: number) => Math.min(dataMin, 0), (dataMax: number) => Math.max(dataMax, 0)]}
               />
-              <ReferenceLine
-                y={0}
-                stroke="var(--app-border-strong)"
-                strokeWidth={1}
-              />
+              <ReferenceLine y={0} stroke="var(--app-border-strong)" strokeWidth={1} />
               {startNetWorthLabelPoint && (
                 <ReferenceDot
                   x={startNetWorthLabelPoint.dateMs}
