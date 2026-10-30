@@ -99,6 +99,7 @@ export const BANK_SOURCE: TransactionBankSource = {
     raw_amount: null,
     description: 'GROCER 123',
   },
+  received_at: '2026-07-12T14:30:00Z',
   edited_fields: [],
   review_item_id: null,
 }

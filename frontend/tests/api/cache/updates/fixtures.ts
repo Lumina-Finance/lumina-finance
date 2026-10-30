@@ -107,6 +107,7 @@ export function createBankTransaction(id: string, reviewItemId: string | null = 
         raw_amount: null,
         description: 'Coffee',
       },
+      received_at: '2026-09-29T09:05:00Z',
       edited_fields: [],
       review_item_id: reviewItemId,
     },

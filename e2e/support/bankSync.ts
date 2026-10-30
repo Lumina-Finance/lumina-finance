@@ -48,6 +48,7 @@ export type BankSource = {
     raw_amount: string | null
     description: string
   }
+  received_at: string
   edited_fields: ('date' | 'amount')[]
   review_item_id: string | null
 }
@@ -141,6 +142,7 @@ export const BANK_SOURCE: BankSource = {
     raw_amount: null,
     description: 'GROCER 123',
   },
+  received_at: '2026-01-15T14:30:00Z',
   edited_fields: [],
   review_item_id: null,
 }

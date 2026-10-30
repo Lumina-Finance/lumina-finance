@@ -655,6 +655,9 @@ export type TransactionBankSource = {
   /** The latest values the bank supplied */
   bank_values: BankValues
 
+  /** When the app received the bank's record of the transaction */
+  received_at: string
+
   /** The fields whose ledger value differs from the bank's, which a trusted correction leaves alone */
   edited_fields: EditableBankField[]
 

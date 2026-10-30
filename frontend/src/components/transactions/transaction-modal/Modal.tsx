@@ -216,6 +216,7 @@ export default function CreateTransactionModal({
   // The account the stored transaction sits in, which a bank-imported one can't leave or be deleted
   // from while it is linked
   const sourceAccount = storedTransaction && accounts.find((account) => account.id === storedTransaction.account_id)
+  const sourceLink = storedTransaction && linksByAccount.get(storedTransaction.account_id)
 
   // Shown as soon as another account is picked, since picking one is already a finished answer
   const bankMoveRefusal = getBankMoveRefusal({
@@ -642,7 +643,12 @@ export default function CreateTransactionModal({
               {bankSource && (
                 <TransactionBankSourcePanel
                   providerName={bankSource.provider_name}
-                  description={bankSource.bank_values.description}
+                  bankValues={bankSource.bank_values}
+                  receivedAt={bankSource.received_at}
+                  timeZone={user?.tz}
+                  heading={sourceLink?.institution_name ?? sourceAccount?.name ?? bankSource.provider_name}
+                  bankAccountName={sourceLink?.external_account_name}
+                  currency={storedTransaction?.currency ?? form.currency}
                 />
               )}
 

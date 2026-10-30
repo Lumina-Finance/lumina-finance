@@ -141,11 +141,15 @@ test('restores the bank amount under an edited amount, bringing back its sign an
   await openPage(page, '/transactions')
   await expect(page.getByTestId(`transaction-row-${id}`).getByTestId('bank-edited-dot').filter({ visible: true })).toBeVisible()
 
-  // The provider and the bank's description head the form, read-only
+  // The provider heads the form closed to its own line, and opened shows the bank's filing card, read-only
   const dialog = await openTransaction(page, id)
-  await expect(dialog.getByText('From SimpleFIN', { exact: true })).toBeVisible()
-  await expect(dialog.getByRole('definition').filter({ hasText: BANK_DESCRIPTION })).toBeVisible()
-  await expect(dialog.getByRole('term').filter({ hasText: 'Bank description' })).toBeVisible()
+  const source = dialog.getByRole('button', { name: 'From SimpleFIN', exact: true })
+  await expect(source).toHaveAttribute('aria-expanded', 'false')
+  await expect(dialog.getByRole('region', { name: 'SimpleFIN filing card' })).toHaveCount(0)
+  await source.click()
+  const card = dialog.getByRole('region', { name: 'SimpleFIN filing card' })
+  await expect(card.getByText(BANK_DESCRIPTION)).toBeVisible()
+  await expect(card.getByText('Harbour Bank')).toBeVisible()
   await expect(dialog.getByRole('textbox', { name: 'Bank description' })).toHaveCount(0)
 
   // The bank's amount shows under the amount alone, the date left as it was

@@ -56,33 +56,88 @@ export default function BankFilingCard({ item, link, accountName, currency, time
   const amount = getReviewItemAmount(item, currency, formatMovedCurrency)
 
   return (
+    <FilingCardSheet
+      providerName={item.provider_name}
+      heading={link?.institution_name ?? accountName}
+      kindLabel={REVIEW_KIND_LABELS[item.kind]}
+      bankAccountName={link?.external_account_name}
+      description={item.bank.description}
+      amountText={amount.text}
+      date={item.bank.date}
+      receivedText={formatDate(new Date(item.received_at), DATE_FORMATS.monthDayTime, timeZone)}
+    />
+  )
+}
+
+type FilingCardSheetProps = {
+  providerName: string
+
+  /** The institution, or the account's own name where the link isn't known */
+  heading: string
+
+  /** What kind of item the card is about, left out by a card for a transaction already in the ledger */
+  kindLabel?: string
+  bankAccountName: string | undefined
+  description: string
+  amountText: string
+
+  /** The bank's date, as "YYYY-MM-DD" */
+  date: string
+
+  /** When the item arrived, left out where the ledger doesn't keep it */
+  receivedText?: string
+
+  /** Whether the provider's name stands above the card as its tab, left out where a heading just above already names the provider */
+  showTab?: boolean
+}
+
+/**
+ * The provider's filing card itself, typed up from what the bank sent. The review step hangs it
+ * beside the modal, and a transaction in the ledger keeps it closed under its From line
+ */
+export function FilingCardSheet({
+  providerName,
+  heading,
+  kindLabel,
+  bankAccountName,
+  description,
+  amountText,
+  date,
+  receivedText,
+  showTab = true,
+}: FilingCardSheetProps) {
+  return (
     <div className="relative">
       {/* The tab stands above the card's top edge, flush with its left side, so it carries the same stock but
           none of the shadow, and the card's corner under it is square */}
-      <span
-        className="inline-block rounded-t-md px-3 pt-1 font-mono text-xs font-semibold uppercase leading-5 tracking-[0.2em]"
-        style={{ background: 'var(--app-filing-card)', color: 'var(--app-filing-card-muted)' }}
-      >
-        {item.provider_name}
-      </span>
+      {showTab && (
+        <span
+          className="inline-block rounded-t-md px-3 pt-1 font-mono text-xs font-semibold uppercase leading-5 tracking-[0.2em]"
+          style={{ background: 'var(--app-filing-card)', color: 'var(--app-filing-card-muted)' }}
+        >
+          {providerName}
+        </span>
+      )}
       <div
         role="region"
-        aria-label={`${item.provider_name} filing card`}
-        className="app-filing-card relative rounded-md rounded-tl-none font-mono text-sm leading-7"
+        aria-label={`${providerName} filing card`}
+        className={`app-filing-card relative rounded-md font-mono text-sm leading-7${showTab ? ' rounded-tl-none' : ''}`}
       >
         <div className="px-5 pt-4">
           <div className="pb-2" style={{ borderBottom: '2px solid var(--app-filing-card-red)' }}>
             <div className="flex items-baseline justify-between gap-3">
               <p className="min-w-0 break-words font-semibold" style={{ color: 'var(--app-text)' }}>
-                {link?.institution_name ?? accountName}
+                {heading}
               </p>
-              <p className="shrink-0 text-xs uppercase tracking-wider" style={{ color: 'var(--app-warning-text)' }}>
-                {REVIEW_KIND_LABELS[item.kind]}
-              </p>
+              {kindLabel && (
+                <p className="shrink-0 text-xs uppercase tracking-wider" style={{ color: 'var(--app-warning-text)' }}>
+                  {kindLabel}
+                </p>
+              )}
             </div>
-            {link && (
+            {bankAccountName && (
               <p className="break-words text-xs leading-5" style={{ color: 'var(--app-filing-card-muted)' }}>
-                {link.external_account_name}
+                {bankAccountName}
               </p>
             )}
           </div>
@@ -92,18 +147,15 @@ export default function BankFilingCard({ item, link, accountName, currency, time
           {/* The description is the one field the provider writes in full, so it gets its own heading and
               as many rules as it needs rather than sharing a line with a label */}
           <p className="text-xs leading-7 uppercase tracking-wider" style={{ color: 'var(--app-filing-card-muted)' }}>
-            Description from {item.provider_name}
+            Description from {providerName}
           </p>
           <p className="break-words font-semibold" style={{ color: 'var(--app-text)' }}>
-            {item.bank.description}
+            {description}
           </p>
           <dl>
-            <Field label="Amount" value={<span className="font-financial">{amount.text}</span>} strong />
-            <Field label="Date" value={formatDateLabel(item.bank.date)} />
-            <Field
-              label="Received"
-              value={formatDate(new Date(item.received_at), DATE_FORMATS.monthDayTime, timeZone)}
-            />
+            <Field label="Amount" value={<span className="font-financial">{amountText}</span>} strong />
+            <Field label="Date" value={formatDateLabel(date)} />
+            {receivedText && <Field label="Received" value={receivedText} />}
           </dl>
         </div>
       </div>

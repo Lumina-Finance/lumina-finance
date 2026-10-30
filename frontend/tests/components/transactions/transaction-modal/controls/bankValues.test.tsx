@@ -8,7 +8,12 @@
  * details section's date field needs a page to render into
  */
 import { renderToStaticMarkup } from 'react-dom/server'
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
+
+vi.mock('@/hooks/useMoneyFormatters', () => ({
+  useMoneyFormatters: () => ({ formatMovedCurrency: (amount: number) => `CA$${(amount / 100).toFixed(2)}` }),
+}))
+
 import TransactionBankSourcePanel from '@/components/transactions/transaction-modal/controls/BankSourcePanel'
 import TransactionBankValueCaption from '@/components/transactions/transaction-modal/controls/BankValueCaption'
 
@@ -42,15 +47,50 @@ function restoreButton(markup: string): { tag: string; text: string } {
 }
 
 describe('bank source panel', () => {
-  it('names the provider and shows the bank description as text, with nothing to edit it', () => {
-    const markup = renderToStaticMarkup(
-      <TransactionBankSourcePanel providerName="SimpleFIN" description="HARBOUR CAFE #12 VANCOUVER" />,
+  const panel = (defaultOpen: boolean) =>
+    renderToStaticMarkup(
+      <TransactionBankSourcePanel
+        providerName="SimpleFIN"
+        bankValues={{ date: '2026-10-04', amount: -1250, raw_amount: null, description: 'HARBOUR CAFE #12 VANCOUVER' }}
+        receivedAt="2026-10-05T06:30:00Z"
+        timeZone="America/Vancouver"
+        heading="Harbour Bank"
+        bankAccountName="Everyday Chequing"
+        currency="CAD"
+        defaultOpen={defaultOpen}
+      />,
     )
 
+  it('starts closed to the provider line alone, with a toggle that says so', () => {
+    const markup = panel(false)
+
     expect(markup).toContain('From SimpleFIN')
-    expect(markup).toMatch(/<dt[^>]*>Bank description<\/dt>/)
-    expect(markup).toMatch(/<dd[^>]*>HARBOUR CAFE #12 VANCOUVER<\/dd>/)
-    expect(markup).not.toMatch(/<(input|textarea|button)\b/)
+    expect(markup).toMatch(/aria-expanded="false"/)
+    expect(markup).not.toContain('HARBOUR CAFE')
+    expect(markup).not.toContain('filing card')
+  })
+
+  it('opens to the provider filing card of what the bank sent, with nothing to edit it', () => {
+    const markup = panel(true)
+
+    expect(markup).toMatch(/aria-expanded="true"/)
+    expect(markup).toContain('SimpleFIN filing card')
+    expect(markup).toContain('Harbour Bank')
+    expect(markup).toContain('Everyday Chequing')
+    expect(markup).toMatch(/HARBOUR CAFE #12 VANCOUVER/)
+    expect(markup).toContain('Description from SimpleFIN')
+
+    // Told in the user's timezone, so 6:30 in the morning of the 5th in UTC is 11:30 at night on the 4th in Vancouver
+    expect(markup).toMatch(/Received<\/dt><dd[^>]*>Oct 4,? .*11:30/)
+    expect(markup).not.toMatch(/<(input|textarea)\b/)
+  })
+
+  it('shows the filing card alone, in no panel of its own and without a tab repeating the heading', () => {
+    const markup = panel(true)
+
+    expect(markup).not.toContain('app-card')
+    expect(markup.match(/class="app-filing-card /g)).toHaveLength(1)
+    expect(markup.match(/>SimpleFIN</g) ?? []).toHaveLength(0)
   })
 })
 
