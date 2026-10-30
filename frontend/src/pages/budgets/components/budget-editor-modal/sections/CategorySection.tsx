@@ -176,12 +176,19 @@ function BudgetCategoryOption({
   onToggle: (categoryId: string) => void
 }) {
   const OptionComponent = animateOptions ? motion.button : 'button'
+  // Tints under the pointer like a Transactions filter option row. A chosen row already wears its look,
+  // and a disabled one must not suggest it can be pressed
+  const stateClassName = selected
+    ? 'app-selection-option-active'
+    : disabled
+      ? ''
+      : 'hover:bg-[var(--app-accent-soft)] hover:text-[var(--app-text)]'
 
   return (
     <OptionComponent
       {...(animateOptions ? { layout: true, transition: { layout: { duration: 0.22, ease: EASE } } } : {})}
       type="button"
-      className={`app-selection-option grid-cols-[1.25rem_1.25rem_minmax(0,1fr)] ${disabled ? 'cursor-not-allowed opacity-60' : ''} ${selected ? 'app-selection-option-active' : ''}`}
+      className={`app-selection-option grid-cols-[1.25rem_1.25rem_minmax(0,1fr)] ${disabled ? 'cursor-not-allowed opacity-60' : ''} ${stateClassName}`}
       onClick={() => onToggle(category.id)}
       disabled={disabled}
     >

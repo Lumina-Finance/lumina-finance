@@ -1,8 +1,9 @@
 import { expect, test, type Locator, type Page } from '@playwright/test'
 
-import { createAccount, createTransaction, signUpUser } from '../support/api'
+import { asUser, budgetPeriodStart, createAccount, createMonthlyBudget, createTransaction, signUpUser } from '../support/api'
 import { logInViaApi, openModal, openPage } from '../support/app'
 import { contrastRatio, shownFill, type Rgb } from '../support/paint'
+import { API_BASE_URL } from '../support/target'
 
 // Runs on desktop only: hover, keyboard focus and the sidebar's collapse are the desktop's states, and the
 // colours and easing they check don't vary with width
@@ -263,5 +264,83 @@ for (const colorScheme of ['light', 'dark'] as const) {
 
     const expenseGroup = page.getByRole('button', { name: /^Expense/ }).first()
     expect(await hoverStep(page, expenseGroup)).toBeGreaterThanOrEqual(MINIMUM_HOVER_STEP)
+  })
+}
+
+/** Opens Edit budget for a budget tracking Groceries, so Dining is a category it leaves out */
+async function openEditBudget(page: Page, request: Parameters<typeof signUpUser>[0], colorScheme: 'light' | 'dark', archived: boolean) {
+  await page.emulateMedia({ colorScheme })
+  const user = await signUpUser(request)
+  const id = await createMonthlyBudget(request, user, {
+    name: 'Hover budget',
+    categoryNames: ['Groceries'],
+    overallLimit: 50_000,
+    periodStart: budgetPeriodStart(),
+  })
+  if (archived) {
+    const response = await request.patch(`${API_BASE_URL}/base-budgets/${id}`, { headers: asUser(user), data: { is_archived: true } })
+    expect(response.status()).toBe(200)
+  }
+  await logInViaApi(page, user)
+  await openPage(page, '/budgets')
+  if (archived) await page.getByRole('button', { name: /Archived budgets/ }).click()
+  await page.getByTestId(`budget-card-${id}`).click()
+  await page.getByRole('dialog', { name: 'Hover budget', exact: true }).getByRole('button', { name: 'Edit', exact: true }).click()
+  return page.getByRole('dialog', { name: 'Edit budget', exact: true })
+}
+
+/** How far a row's colour on screen steps under the pointer, which is 1 when the row does not react */
+async function stepUnderPointer(page: Page, element: Locator, options: { force?: boolean } = {}): Promise<number> {
+  await page.mouse.move(0, 0)
+  const rest = await shownFill(element)
+  await element.hover(options)
+  return contrastRatio(rest, await shownFill(element))
+}
+
+for (const colorScheme of ['light', 'dark'] as const) {
+  test(`tints an untracked Edit budget category row under the pointer and leaves a tracked one in the ${colorScheme} theme`, async ({ page, request }) => {
+    const edit = await openEditBudget(page, request, colorScheme, false)
+    const untracked = edit.getByRole('button', { name: /Dining/ })
+    const tracked = edit.getByRole('button', { name: /Groceries/ })
+    await expect(tracked).toHaveClass(/app-selection-option-active/)
+    await expect(untracked).not.toHaveClass(/app-selection-option-active/)
+
+    expect(await hoverStep(page, untracked)).toBeGreaterThanOrEqual(MINIMUM_HOVER_STEP)
+
+    // The label stays readable on the tint it hovers over
+    const label = await untracked.evaluate((node) => {
+      const context = document.createElement('canvas').getContext('2d', { willReadFrequently: true })!
+      context.fillStyle = getComputedStyle(node.lastElementChild!).color
+      context.fillRect(0, 0, 1, 1)
+      return [...context.getImageData(0, 0, 1, 1).data].slice(0, 3) as Rgb
+    })
+    expect(contrastRatio(label, await shownFill(untracked))).toBeGreaterThanOrEqual(MINIMUM_TEXT_CONTRAST)
+
+    // A tracked row is already in its chosen look, so the pointer over it changes nothing
+    expect(await stepUnderPointer(page, tracked)).toBeLessThan(1.01)
+  })
+
+  test(`leaves a disabled Edit budget category row without a hover in the ${colorScheme} theme`, async ({ page, request }) => {
+    const edit = await openEditBudget(page, request, colorScheme, true)
+    const row = edit.getByRole('button', { name: /Dining/ })
+    await expect(row).toBeDisabled()
+
+    expect(await stepUnderPointer(page, row, { force: true })).toBeLessThan(1.01)
+    expect(await row.evaluate((node) => getComputedStyle(node).cursor)).toBe('not-allowed')
+  })
+
+  test(`tints a credit account left out of the chooser under the pointer in the ${colorScheme} theme`, async ({ page, request }) => {
+    await page.emulateMedia({ colorScheme })
+    const user = await signUpUser(request)
+    await createAccount(request, user, { name: 'Card A', accountKind: 'revolving', accountType: 'credit_card', startingBalance: -50_000, creditLimit: 500_000 })
+    await logInViaApi(page, user)
+    await openPage(page, '/dashboard')
+    await page.getByRole('button', { name: 'Choose credit accounts' }).click()
+
+    const row = page.getByRole('dialog', { name: 'Credit utilization' }).getByRole('checkbox', { name: 'Card A' })
+    await row.click()
+    await expect(row).toHaveAttribute('aria-checked', 'false')
+    await row.blur()
+    expect(await hoverStep(page, row)).toBeGreaterThanOrEqual(MINIMUM_HOVER_STEP)
   })
 }
