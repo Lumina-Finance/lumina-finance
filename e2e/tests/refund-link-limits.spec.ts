@@ -48,7 +48,7 @@ function pressRow(picker: Locator, amount: string) {
 }
 
 // The reason a refund bigger than the whole $37.13 expense gives, in the sentence form of the greyed opening button's
-const OVER_THE_EXPENSE = 'This refund is more than the $37.13 left to refund.'
+const OVER_THE_EXPENSE = 'This refund is more than the $37.13 left to refund'
 
 const ALL_ROWS = ['+$37.19', '+$20.00', '+$15.00', '+$12.00']
 

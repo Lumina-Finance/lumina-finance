@@ -145,12 +145,12 @@ export default function TransactionModalLinkRefundPicker({
     if (room === undefined) return null
     if (picksRefund) {
       return room > 0
-        ? `This refund is more than the ${formatCurrency(room, candidate.currency)} left to refund.`
-        : 'Nothing is left to refund on this expense.'
+        ? `This refund is more than the ${formatCurrency(room, candidate.currency)} left to refund`
+        : 'Nothing is left to refund on this expense'
     }
     return room > 0
-      ? `This expense has only ${formatCurrency(room, candidate.currency)} left to refund.`
-      : 'This expense is already fully refunded.'
+      ? `This expense has only ${formatCurrency(room, candidate.currency)} left to refund`
+      : 'This expense is already fully refunded'
   }
 
   // A pick that a search or filter has taken off the list is dropped, so it does not come back when they clear
