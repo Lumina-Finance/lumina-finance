@@ -19,6 +19,7 @@ import type {
   DiscoveredBankAccounts,
   EditableBankField,
   LinkBankAccountPayload,
+  BankHold,
   PendingBankTransaction,
   ReconnectConnectionResult,
   ReviewPreferences,
@@ -304,6 +305,22 @@ export function fetchPendingBankTransactions(accountIds?: string[], signal?: Abo
     '/bank-sync/pending' + buildQueryString({ account_id: accountIds }),
     { signal },
   )
+}
+
+/**
+ * Lists the bank records of no amount that haven't been dismissed, newest first, for some accounts or for all of them
+ *
+ * @param signal - Aborts the request when the load that asked for it is abandoned
+ */
+export function fetchBankHolds(accountIds?: string[], signal?: AbortSignal) {
+  return authenticatedFetch<BankHold[]>('/bank-sync/holds' + buildQueryString({ account_id: accountIds }), { signal })
+}
+
+/**
+ * Dismisses a hold, so the same bank record doesn't come back
+ */
+export function dismissBankHold(holdId: string) {
+  return post<undefined>(`/bank-sync/holds/${holdId}/dismiss`)
 }
 
 /**

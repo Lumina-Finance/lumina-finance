@@ -179,7 +179,7 @@ export function applyBankLinkChanges(
   if (!changed) return
 
   invalidateBankSyncStatus(queryClient)
-  invalidateTargets(queryClient, [{ queryKey: bankSyncKeys.pendingAll }])
+  invalidateTargets(queryClient, [{ queryKey: bankSyncKeys.pendingAll }, { queryKey: bankSyncKeys.holdsAll }])
   if (backlogNoticeChanged) invalidateTargets(queryClient, [{ queryKey: bankSyncKeys.reviewBacklogsAll }])
   if (withNewData.length === 0) return
 

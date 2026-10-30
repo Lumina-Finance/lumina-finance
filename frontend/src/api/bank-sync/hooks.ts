@@ -24,9 +24,11 @@ import {
   createBankLink,
   deleteBankConnection,
   deleteBankLink,
+  dismissBankHold,
   dismissCutOffDay,
   dismissHistoryReminder,
   fetchAccountBankStatus,
+  fetchBankHolds,
   fetchBankConnections,
   fetchBankLinks,
   fetchBankProviders,
@@ -47,7 +49,7 @@ import {
   updateReviewPreferences,
   type ReviewResolution,
 } from '@/api/bank-sync/requests'
-import type { AccountBankStatus, BankLink, BankProviderId, BankReviewItem } from '@/api/bank-sync/types'
+import type { AccountBankStatus, BankHold, BankLink, BankProviderId, BankReviewItem } from '@/api/bank-sync/types'
 import { invalidateAccountBankLink, invalidateBankLinks, invalidateBankSyncStatus } from '@/api/cache/invalidation'
 import { bankSyncKeys } from '@/api/cache/queryKeys'
 import {
@@ -282,6 +284,37 @@ export function usePendingBankTransactions(accountIds: string[] | undefined, ena
     queryFn: ({ signal }) => fetchPendingBankTransactions(accountIds, signal),
     enabled: !!accessToken && enabled,
     staleTime: BANK_DATA_STALE_TIME_MS,
+  })
+}
+
+/**
+ * Reads the bank records of no amount that haven't been dismissed, for some accounts or for all of them
+ */
+export function useBankHolds(accountIds: string[] | undefined, enabled = true) {
+  const { accessToken } = useAuth()
+  return useQuery({
+    queryKey: bankSyncKeys.holds(accountIds),
+    queryFn: ({ signal }) => fetchBankHolds(accountIds, signal),
+    enabled: !!accessToken && enabled,
+    staleTime: BANK_DATA_STALE_TIME_MS,
+  })
+}
+
+/**
+ * Dismisses a hold. It leaves every cached list of holds at once, and the lists are read again so a
+ * refusal or a sync in the meantime shows as it stands
+ */
+export function useDismissBankHold() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: (holdId: string) => runWithMinimumPendingTime(ACTION_LOADING_MIN_MS, () => dismissBankHold(holdId)),
+    onSuccess: (_result, holdId) => {
+      queryClient.setQueriesData<BankHold[]>({ queryKey: bankSyncKeys.holdsAll }, (holds) =>
+        holds?.filter((hold) => hold.id !== holdId),
+      )
+      return queryClient.invalidateQueries({ queryKey: bankSyncKeys.holdsAll, refetchType: 'active' })
+    },
+    onError: () => queryClient.invalidateQueries({ queryKey: bankSyncKeys.holdsAll, refetchType: 'active' }),
   })
 }
 

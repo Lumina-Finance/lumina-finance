@@ -8,8 +8,12 @@ const reviewItemTargets: InvalidationTarget[] = [
   { queryKey: bankSyncKeys.bulkPreviews },
 ]
 
-// What waits outside the ledger: the review items and the pending strip
-const reviewTargets: InvalidationTarget[] = [...reviewItemTargets, { queryKey: bankSyncKeys.pendingAll }]
+// What waits outside the ledger: the review items, the pending strip and the holds
+const reviewTargets: InvalidationTarget[] = [
+  ...reviewItemTargets,
+  { queryKey: bankSyncKeys.pendingAll },
+  { queryKey: bankSyncKeys.holdsAll },
+]
 
 const linkListTarget: InvalidationTarget = { queryKey: bankSyncKeys.links(), exact: true }
 

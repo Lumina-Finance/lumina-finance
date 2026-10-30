@@ -631,6 +631,20 @@ export type PendingBankTransaction = {
 }
 
 /**
+ * A booked bank record of no amount, listed for awareness and kept out of the ledger, review and
+ * every total until the user dismisses it or the bank drops it
+ */
+export type BankHold = {
+  id: string
+  account_id: string
+  date: string
+  description: string
+
+  /** When the request that brought it was sent */
+  observed_at: string
+}
+
+/**
  * Where a ledger transaction came from, carried on every transaction response and null on one the
  * user entered by hand
  */

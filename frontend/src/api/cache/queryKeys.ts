@@ -186,6 +186,8 @@ export const bankSyncKeys = {
     ['bank-sync', 'review', 'backlogs', accountIds ?? 'all'] as const,
   pendingAll: ['bank-sync', 'pending'] as const,
   pending: (accountIds: string[] | undefined) => ['bank-sync', 'pending', accountIds ?? 'all'] as const,
+  holdsAll: ['bank-sync', 'holds'] as const,
+  holds: (accountIds: string[] | undefined) => ['bank-sync', 'holds', accountIds ?? 'all'] as const,
   bulkPreviews: ['bank-sync', 'bulk-preview'] as const,
   bulkPreview: (accountIds: string[] | undefined) => ['bank-sync', 'bulk-preview', accountIds ?? 'all'] as const,
 }

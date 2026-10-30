@@ -37,6 +37,7 @@ import { getTransactionReadOnlyReason } from '@/components/transactions/utils/ro
 import { getImportBlockReason, isImportableAccount } from '@/utils/importableAccount'
 import { TRANSACTION_FILTER_KEYS, TRANSACTION_LIST_EASE } from '@/components/transactions/constants/transactionList'
 import TransactionDateGroupList from '@/components/transactions/DateGroupList'
+import { BankHoldsSection } from '@/components/transactions/bank-review/HoldsSection'
 import { BankPendingSection } from '@/components/transactions/bank-review/PendingSection'
 import { BankReviewSection, type ReviewFocusRequest } from '@/components/transactions/bank-review/ReviewSection'
 import TransactionFilterLoadingOverlay from '@/components/transactions/FilterLoadingOverlay'
@@ -557,6 +558,12 @@ export default function TransactionListSection({
         listAccountIds={reviewAccountIds}
         isFixedAccount={Boolean(fixedAccount)}
         focusRequest={reviewFocus}
+        prefersReducedMotion={prefersReducedMotion}
+      />
+
+      <BankHoldsSection
+        listAccountIds={reviewAccountIds}
+        isFixedAccount={Boolean(fixedAccount)}
         prefersReducedMotion={prefersReducedMotion}
       />
 
