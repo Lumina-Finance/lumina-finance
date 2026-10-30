@@ -3,6 +3,7 @@ import { getRechartsTooltipPoint, type RechartsTooltipState } from '@/components
 import type { CashFlowBarBucket } from '@/pages/insights/types/cashFlow'
 import { DATE_FORMATS, formatDate, formatDateRange, formatUnreadableRange, parseYmd } from '@/utils/date'
 import { getChartGranularity } from '@/utils/chartGranularity'
+import { crossesCalendarYear } from '@/utils/chartYearAxis'
 import { getCustomRangeDays } from './range'
 
 /**
@@ -31,7 +32,7 @@ export function getCashFlowBarData(response: InsightsCashFlowResponse | undefine
   const granularity = getChartGranularity(dayCount)
   // A range that crosses a calendar year repeats months and days, so its tooltips name the year and its
   // axis marks where the year turns, with the year on the January label alone
-  const showYear = fromDate.slice(0, 4) !== toDate.slice(0, 4)
+  const showYear = crossesCalendarYear(fromDate, toDate)
   const dayFormat = showYear ? DATE_FORMATS.monthDayYear : DATE_FORMATS.monthDay
   const points = response?.points ?? []
   return {

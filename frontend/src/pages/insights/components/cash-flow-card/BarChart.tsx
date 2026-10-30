@@ -11,7 +11,8 @@ import { CHART_X_AXIS_TICK_FONT_SIZE } from '@/components/charts/constants'
 import { useMoneyFormatters } from '@/hooks/useMoneyFormatters'
 import type { CashFlowBarBucket } from '@/pages/insights/types/cashFlow'
 import { getCashFlowTooltipBucket } from '@/pages/insights/utils/cashFlow'
-import { getCashFlowAxisTicks, getCashFlowXAxisTicks } from '@/pages/insights/utils/cashFlowAxis'
+import { getCashFlowAxisTicks } from '@/pages/insights/utils/cashFlowAxis'
+import { getYearAxisTicks } from '@/utils/chartYearAxis'
 import { getSignedAmountColor } from '@/utils/negativeAmount'
 import {
   useFittedYAxisWidth,
@@ -115,7 +116,11 @@ export function CashFlowBarChart({ buckets, displayCurrency, emptyLabel }: CashF
   // Recharts thins labels without regard to which one marks the year, so a range over two calendar years
   // names the labels itself, keeping every one that carries the year
   const yearTicks = useMemo(
-    () => getCashFlowXAxisTicks(buckets, chartWidth - yAxisWidth),
+    () =>
+      getYearAxisTicks(
+        buckets.map((bucket) => ({ label: bucket.label, key: bucket.rangeLabel, marksYear: bucket.marksYear })),
+        chartWidth - yAxisWidth,
+      ),
     [buckets, chartWidth, yAxisWidth],
   )
   const axisLabels = useMemo(() => new Map(buckets.map((bucket) => [bucket.rangeLabel, bucket.label])), [buckets])
