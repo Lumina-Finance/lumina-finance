@@ -106,8 +106,8 @@ async def validate_refund_original(
     Raises:
         HTTPException: 404 when the expense is missing or not the user's, 422 when the expense is not
             an outflow in an expense category, the refund is not an inflow or is a transfer, either
-            account is in a group, the refund or its account is in another currency, or its refunds
-            would total more than the expense
+            account is in a group, the two or their accounts are not all in one currency, or its
+            refunds would total more than the expense
     """
     # Locked so an edit or delete of the expense cannot slip past the link being made
     original = await check_transaction_access(db, original_id, user.id, PermissionLevel.READ, lock_for_update=True)
@@ -137,7 +137,7 @@ async def validate_refund_original(
         )
 
     # Totals add amounts as written, and reports read a transaction's money in its account's currency, so both must match
-    if {refund_currency, refund_account.currency} != {original.currency}:
+    if {refund_currency, refund_account.currency, original_account.currency} != {original.currency}:
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
             detail="A refund can only be linked to an expense in its own currency",
@@ -188,7 +188,9 @@ async def refuse_broken_links(db: AsyncSession, transaction_ids: Collection[uuid
                 | (refund_category.kind == CategoryKind.TRANSFER)
                 | (original_category.kind != CategoryKind.EXPENSE)
                 | refund_account.group_id.is_not(None)
-                | original_account.group_id.is_not(None),
+                | original_account.group_id.is_not(None)
+                | (refund_account.currency != original.currency)
+                | (original_account.currency != original.currency),
             )
             .limit(1),
         )
@@ -199,7 +201,7 @@ async def refuse_broken_links(db: AsyncSession, transaction_ids: Collection[uuid
             status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
             detail=(
                 "A refund link needs money in that isn't a transfer, and an expense in an expense category that is money out, "
-                "and neither can be in a group account. Unlink it first to make this change"
+                "both in one currency, and neither can be in a group account. Unlink it first to make this change"
             ),
         )
 

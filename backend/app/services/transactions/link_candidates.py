@@ -52,7 +52,9 @@ async def list_refund_link_candidates(
 
     The order puts the candidates with exactly the transaction's amount first. When there are none, or
     after them, the nearer an amount is the earlier it comes, and a tie goes to the newer date. Only
-    the transaction's own currency is offered. An expense that can be refunded is offered the money that came in and is not yet the refund of
+    the transaction's own currency is offered.
+
+    An expense that can be refunded is offered the money that came in and is not yet the refund of
     anything. A transaction that can be a refund is offered the expenses. Anything else, a transfer,
     a refund already linked, money going out of an income category or a group account, has none
 
@@ -74,8 +76,14 @@ async def list_refund_link_candidates(
     if account.group_id is not None or account.is_archived or category is None or category.kind == CategoryKind.TRANSFER:
         return []
 
-    # Linking accepts individually owned, unarchived accounts only
-    linkable_account = Transaction.account_id.in_(select(Account.id).where(Account.group_id.is_(None), Account.is_archived.is_(False)))
+    # Linking refuses a transaction whose account is in another currency than its own, so nothing can be offered to it
+    if account.currency != anchor.currency:
+        return []
+
+    # Linking accepts individually owned, unarchived accounts in one currency only
+    linkable_account = Transaction.account_id.in_(
+        select(Account.id).where(Account.group_id.is_(None), Account.is_archived.is_(False), Account.currency == anchor.currency),
+    )
     conditions: list[ColumnElement[bool]] = [Transaction.id != anchor.id, Transaction.currency == anchor.currency, linkable_account]
     unlinked_ids = unlinked_ids or []
     own_original_id: uuid.UUID | None = None
@@ -85,17 +93,8 @@ async def list_refund_link_candidates(
 
         # Money that came in, which no expense has claimed as its own
         refunds = select(TransactionLink.refund_transaction_id).where(TransactionLink.refund_transaction_id.not_in(unlinked_ids))
-        same_currency_accounts = select(Account.id).where(Account.currency == anchor.currency)
-        conditions += [
-            Transaction.amount > 0,
-            Category.kind != CategoryKind.TRANSFER,
-            Transaction.id.not_in(refunds),
-            Transaction.account_id.in_(same_currency_accounts),
-        ]
+        conditions += [Transaction.amount > 0, Category.kind != CategoryKind.TRANSFER, Transaction.id.not_in(refunds)]
     elif anchor.amount > 0:
-        # Linking refuses a refund whose account is in another currency, so no expense can be offered to it
-        if account.currency != anchor.currency:
-            return []
         own_link = (await db.execute(select(TransactionLink).where(TransactionLink.refund_transaction_id == anchor.id))).scalar_one_or_none()
         if own_link is not None and anchor.id not in unlinked_ids:
             return []

@@ -3,6 +3,7 @@
 import asyncio
 import uuid
 
+import pytest
 from sqlalchemy import select, text
 
 from app.models.transaction import Transaction
@@ -169,25 +170,21 @@ async def test_an_edit_raising_a_refund_waits_for_a_link_being_made(client, monk
     assert (await _get(client, headers, first["id"]))["amount"] == 2000
 
 
-async def test_a_refund_moved_to_another_currencys_account_still_counts(client):
-    """A move keeps the refund's own currency, so it can't step out of the total, and a sent currency is ignored."""
+@pytest.mark.parametrize("moved_side", ["refund", "expense"])
+async def test_moving_a_linked_transaction_to_another_currencys_account_is_refused(client, moved_side):
+    """Either side of a link leaving the currency is refused, and the refused edit stays unwritten."""
     headers, account_id, category_id = await _setup_user_with_deps(client)
     expense = (await _create_transaction(client, headers, account_id, category_id)).json()
     refund = await _refund(client, headers, account_id, category_id, expense["id"], amount=3000)
     await _seed_usd_currency()
     usd_account_id = (await _create_account(client, headers, name="US", currency="USD")).json()["id"]
+    moved_id = refund["id"] if moved_side == "refund" else expense["id"]
 
-    moved = await client.patch(
-        f"/transactions/{refund['id']}",
-        json={"account_id": usd_account_id, "fx_rate": 1.3, "currency": "USD"},
-        headers=headers,
-    )
-    raised = await client.patch(f"/transactions/{refund['id']}", json={"amount": 5001}, headers=headers)
+    moved = await client.patch(f"/transactions/{moved_id}", json={"account_id": usd_account_id, "fx_rate": 1.3}, headers=headers)
 
-    assert moved.status_code == 200
-    assert moved.json()["currency"] == "CAD"
-    assert moved.json()["refund_of_transaction_id"] == expense["id"]
-    assert raised.status_code == 422
+    assert moved.status_code == 422
+    assert "both in one currency" in moved.json()["detail"]
+    assert (await _get(client, headers, moved_id))["account_id"] == account_id
 
 
 async def test_a_link_changes_no_total_balance_or_budget(client):
