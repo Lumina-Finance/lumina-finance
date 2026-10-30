@@ -4,6 +4,7 @@ A bulk edit, a bulk delete and undoing an import all lock their rows inside the 
 scope and check write access on every account behind them before writing anything, so a set
 holding one row the caller may not change is refused whole
 """
+
 import uuid
 from collections.abc import Collection
 from datetime import date
