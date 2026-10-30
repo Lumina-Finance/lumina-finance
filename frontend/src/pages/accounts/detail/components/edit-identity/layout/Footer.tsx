@@ -34,7 +34,7 @@ export function EditModalFooter({
     <div
       className={`flex shrink-0 items-center gap-3 py-4 min-[1050px]:py-5 ${MODAL_INSET_CLASS_NAME.stacked}`}
       style={{ borderTop: '1px solid var(--app-border)' }}
-      data-modal-footer
+      data-toast-keep-clear
     >
       <DisabledReasonButton
         className="app-danger-button h-10 w-10 shrink-0 px-0"

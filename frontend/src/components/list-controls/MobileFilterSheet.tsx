@@ -89,9 +89,9 @@ export function MobileFilterSheet({
   useEffect(() => {
     if (!isOpen) return
 
-    registerOpenModal(token, { blurPage: false, panel: panelRef.current })
+    registerOpenModal(token, { blurPage: false })
     return () => unregisterOpenModal(token)
-  }, [isOpen, token, panelRef])
+  }, [isOpen, token])
 
   useDialogFocus(isOpen, panelRef, token, onClose)
 
@@ -160,7 +160,7 @@ export function MobileFilterSheet({
             <div
               className={`${equalFooterButtons ? 'grid grid-cols-2' : 'flex items-center justify-between'} gap-3 border-t px-5 py-4`}
               style={{ borderColor: 'var(--app-border)' }}
-              data-modal-footer
+              data-toast-keep-clear
             >
               <DisabledReasonButton
                 className={`app-secondary-button${equalFooterButtons ? ' w-full' : ''}`}

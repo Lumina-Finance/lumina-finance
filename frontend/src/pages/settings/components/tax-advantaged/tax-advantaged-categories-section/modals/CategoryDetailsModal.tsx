@@ -237,7 +237,7 @@ export default function TaxAdvantagedCategoryDetailsModal({
       <div
         className="grid shrink-0 grid-cols-2 gap-2 border-t px-5 py-4"
         style={{ borderColor: 'var(--app-border)' }}
-        data-modal-footer
+        data-toast-keep-clear
       >
         <button
           type="button"

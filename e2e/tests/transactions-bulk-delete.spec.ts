@@ -68,7 +68,7 @@ test('shows the deleted message in the corner as the confirmation closes on a ph
   const message = await deleteOnlyTransaction(page, request)
   await expectMessageInCorner(message)
 
-  const footer = (await openModal(page, ['Add transaction'], 'Add transaction')).locator('[data-modal-footer]')
+  const footer = (await openModal(page, ['Add transaction'], 'Add transaction')).locator('[data-toast-keep-clear]')
   await expect.poll(async () => await message.isVisible() && await isUncovered(footer)).toBe(true)
 })
 
