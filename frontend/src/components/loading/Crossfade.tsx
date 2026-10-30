@@ -3,13 +3,15 @@ import { AnimatePresence, motion, useIsPresent } from 'motion/react'
 import { useEasedWidth } from '@/hooks/useEasedWidth'
 import { CONTENT_EASE_CURVE, CONTENT_EASE_MS, prefersReducedMotion } from '@/utils/widthEase'
 
-// Cut at the container's padding, so a label wider than the narrowing container never reaches its rounded ends
-const LAYER_CLASS_NAME = 'inline-flex max-w-full items-center justify-center overflow-x-clip [overflow-clip-margin:content-box]'
+// A layer cuts at its own edges, which sit inside the container's padding, so a label wider than the narrowing
+// container never reaches its rounded ends. A clip margin cannot do this, since it only moves a cut outward
+const LAYER_CLASS_NAME = 'inline-flex max-w-full items-center justify-center overflow-x-clip'
 
-// The outgoing layer spans the whole container, and cuts 1rem in from each side, or less once the container is
-// too narrow to leave a 1.5rem spinner between them. The container's own padding is no guide, since a
-// spinner-sized container has none
-const OUTGOING_LAYER_CLASS_NAME = 'absolute inset-0 [padding-inline:clamp(0px,calc((100%-1.5rem)/2),1rem)]'
+// The outgoing layer spans the container less 1rem on each side, or less once the container is too narrow to
+// leave a 1.5rem spinner between them. The container's own padding is no guide, since a spinner-sized
+// container has none. A layer given a height of its own stays on the middle through `my-auto`, since a box
+// with both edges and a height set would otherwise sit at the top
+const OUTGOING_LAYER_CLASS_NAME = 'absolute inset-y-0 my-auto [inset-inline:clamp(0px,calc((100%-1.5rem)/2),1rem)]'
 
 const FADE_TRANSITION = { duration: CONTENT_EASE_MS / 1000, ease: CONTENT_EASE_CURVE } as const
 

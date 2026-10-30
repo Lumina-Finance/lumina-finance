@@ -72,11 +72,9 @@ export async function startSampling(button: Locator, label: string): Promise<voi
           const style = getComputedStyle(current)
           if (style.overflowX !== 'visible') {
             const box = current.getBoundingClientRect()
-            const insets = (side: 'Left' | 'Right') => {
-              const border = parseFloat(style[`border${side}Width`])
-              const clipsAtContent = style.overflowClipMargin.includes('content-box')
-              return border + (clipsAtContent ? parseFloat(style[`padding${side}`]) : 0)
-            }
+            // A clip cuts at the padding edge, inside the border. A clip margin only ever moves it outward, so
+            // padding on the clipping element is no protection for the label
+            const insets = (side: 'Left' | 'Right') => parseFloat(style[`border${side}Width`])
             left = Math.max(left, box.left + insets('Left'))
             right = Math.min(right, box.right - insets('Right'))
           }
