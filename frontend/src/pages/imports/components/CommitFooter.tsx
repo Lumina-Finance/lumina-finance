@@ -48,7 +48,7 @@ export function ImportCommitFooter({
   const reasonIsPrinted = !canCommit && !imported && Boolean(reason)
 
   return (
-    <div className={`flex flex-col items-end gap-3 ${className}`}>
+    <div data-toast-keep-clear className={`flex flex-col items-end gap-3 ${className}`}>
       {buildError && (
         <p
           id={reasonId}
