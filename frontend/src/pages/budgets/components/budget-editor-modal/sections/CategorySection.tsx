@@ -4,7 +4,13 @@ import { Check } from 'lucide-react'
 import { FieldError } from '@/components/forms/FieldError'
 import { GlassSearchField } from '@/components/list-controls/GlassSearchField'
 import type { Category } from '@/api/categories'
-import type { BudgetEditorModalErrorGetter, BudgetEditorModalFieldIds, BudgetEditorModalHandlers, BudgetEditorModalOptions, BudgetEditorModalViewState } from '@/pages/budgets/components/budget-editor-modal/types'
+import type {
+  BudgetEditorModalErrorGetter,
+  BudgetEditorModalFieldIds,
+  BudgetEditorModalHandlers,
+  BudgetEditorModalOptions,
+  BudgetEditorModalViewState,
+} from '@/pages/budgets/components/budget-editor-modal/types'
 import { EASE } from '@/pages/budgets/constants'
 import { categoryIcon } from '@/pages/budgets/utils/category'
 import { budgetFieldErrorId } from '@/pages/budgets/utils/form'
@@ -67,24 +73,35 @@ export default function BudgetEditorModalCategorySection({
     <div className="flex min-h-0 min-[1050px]:overflow-hidden">
       <div className="grid min-h-0 flex-1 grid-cols-[1rem_minmax(0,1fr)] gap-x-2 min-[1050px]:gap-x-3 min-[1050px]:overflow-hidden">
         <div className="flex min-h-0 flex-col items-center">
-          <span className="flex h-4 shrink-0 items-center text-xs font-semibold leading-none" style={{ color: 'var(--app-accent)' }} aria-hidden>
+          <span
+            className="flex h-4 shrink-0 items-center text-xs font-semibold leading-none"
+            style={{ color: 'var(--app-accent)' }}
+            aria-hidden
+          >
             {number}
           </span>
-          <span
-            className="mt-1 w-px flex-1"
-            style={{ backgroundColor: 'var(--app-border-strong)' }}
-            aria-hidden
-          />
+          <span className="mt-1 w-px flex-1" style={{ backgroundColor: 'var(--app-border-strong)' }} aria-hidden />
         </div>
 
         <div className="flex min-h-0 min-w-0 flex-col">
           <div className="flex min-h-4 items-start justify-between gap-4">
-            <p className="shrink-0 whitespace-nowrap text-base font-bold leading-none" style={{ color: 'var(--app-accent)' }}>Tracked categories</p>
+            <p
+              className="shrink-0 whitespace-nowrap text-base font-bold leading-none"
+              style={{ color: 'var(--app-accent)' }}
+            >
+              Tracked categories
+            </p>
             {/* The problem takes the count's place on the heading row, so it sits opposite the label like
                 every other field's and fits on one line, the count being zero whenever it shows */}
             {/* The message stays mounted so it fades in and out like every other field's, and the count
                 waits until it has left so the two never squeeze each other */}
-            <FieldError message={categoryIdsError} id={errorId} className="min-w-0 shrink" collapse onExitComplete={() => setMessageGone(true)} />
+            <FieldError
+              message={categoryIdsError}
+              id={errorId}
+              className="min-w-0 shrink"
+              collapse
+              onExitComplete={() => setMessageGone(true)}
+            />
             {!categoryIdsError && messageGone && (
               <motion.span
                 className="shrink-0 text-sm leading-none"
@@ -115,7 +132,11 @@ export default function BudgetEditorModalCategorySection({
             <div className="relative mb-1 mt-3 min-h-0 min-[1050px]:flex-1">
               <motion.div
                 className="app-selection-list m-0 min-[1050px]:absolute min-[1050px]:inset-0 min-[1050px]:max-h-none"
-                style={categoryIdsError ? { borderColor: 'var(--app-negative-border)', background: 'var(--app-negative-soft)' } : undefined}
+                style={
+                  categoryIdsError
+                    ? { borderColor: 'var(--app-negative-border)', background: 'var(--app-negative-soft)' }
+                    : undefined
+                }
                 layout={animateOptions && !shouldReduceMotion}
               >
                 {categoryOptions}
