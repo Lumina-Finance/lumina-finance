@@ -329,3 +329,83 @@ for (const size of [
   })
 }
 
+
+// A $50 expense refunded in two instalments of $20 and $30, with a $40 refund that fits only on its own. Picking one
+// instalment keeps the other listed, and drops only the $40 one, which no longer fits beside it
+test('keeps the second instalment listed when the first is picked', async ({ page, request }) => {
+  const user = await signUpUser(request)
+  const account = await createAccount(request, user, { name: 'Everyday', startingBalance: 100000 })
+  const row = { accountId: account.id, categoryName: 'Groceries' }
+  const expenseId = await createTransaction(request, user, { ...row, amount: -5000, date: daysFromTodayInTestTimezone(-6) })
+  for (const [amount, daysAgo] of [[2000, 1], [3000, 2], [4000, 3]] as const) {
+    await createTransaction(request, user, { ...row, amount, date: daysFromTodayInTestTimezone(-daysAgo) })
+  }
+
+  await logInViaApi(page, user)
+  await openPage(page, `/accounts/${account.id}`)
+  const expense = await openRow(page, expenseId)
+  await expense.getByTestId('link-existing').click()
+  const picker = page.getByRole('dialog', { name: 'Link a refund', exact: true })
+  const press = (amount: string) => picker.getByTestId('link-candidate').filter({ hasText: amount }).getByRole('button')
+
+  await expectOnlyPickableRows(picker, ['+$40.00', '+$30.00', '+$20.00'], 5000)
+  await press('$20.00').click()
+  await expectOnlyPickableRows(picker, ['+$30.00', '+$20.00'], 3000)
+  await press('$30.00').click()
+  await expectOnlyPickableRows(picker, ['+$30.00', '+$20.00'], 0)
+  await picker.getByRole('button', { name: 'Link', exact: true }).click()
+  await expect(expense.getByTestId('linked-transaction')).toHaveCount(2)
+})
+
+// The edit window's height only eases one way after Link: it is measured on every frame from the press of Link until the
+// new section has settled, and may grow or hold but never drop. Run for an expense picking refunds and a refund picking
+// its expense, as their sections are different heights
+for (const [anchor, size] of [
+  ['expense', { width: 1920, height: 1080 }],
+  ['refund', { width: 1920, height: 1080 }],
+  ['expense', { width: 1280, height: 800 }],
+  ['expense', { width: 390, height: 844 }],
+  ['refund', { width: 390, height: 844 }],
+] as const) {
+  test(`the edit window never shrinks after Link is confirmed, from ${anchor === 'expense' ? 'an expense' : 'a refund'} at ${size.width}x${size.height}`, async ({ page, request }) => {
+    await page.setViewportSize(size)
+    const user = await signUpUser(request)
+    const account = await createAccount(request, user, { name: 'Everyday', startingBalance: 100000 })
+    const row = { accountId: account.id, categoryName: 'Groceries' }
+    const expenseId = await createTransaction(request, user, { ...row, amount: -5000, date: daysFromTodayInTestTimezone(-6) })
+    const refundId = await createTransaction(request, user, { ...row, amount: 2000, date: daysFromTodayInTestTimezone(-1) })
+    await createTransaction(request, user, { ...row, amount: 3000, date: daysFromTodayInTestTimezone(-2) })
+
+    await logInViaApi(page, user)
+    await openPage(page, `/accounts/${account.id}`)
+    const dialog = await openRow(page, anchor === 'expense' ? expenseId : refundId)
+    await dialog.getByTestId('link-existing').click()
+    const picker = page.getByRole('dialog', { name: anchor === 'expense' ? 'Link a refund' : 'Link to an expense', exact: true })
+    await picker.getByTestId('link-candidate').first().getByRole('button').click()
+    await page.waitForTimeout(800)
+
+    // Samples the edit window and the picker on every frame, from just before Link is pressed, until the picker is gone
+    const editHandle = await dialog.elementHandle()
+    const pickerHandle = await picker.elementHandle()
+    await page.evaluate(([edit, pick]) => {
+      const sampled = { edit: [] as number[], picker: [] as number[] }
+      const start = performance.now()
+      const tick = () => {
+        // The layout height, which the dialogue's own scale-down as it fades out does not change
+        sampled.edit.push((edit as HTMLElement).offsetHeight)
+        if (pick!.isConnected) sampled.picker.push((pick as HTMLElement).offsetHeight)
+        if (performance.now() - start < 2500) requestAnimationFrame(tick)
+      }
+      ;(window as unknown as { __sampled: typeof sampled }).__sampled = sampled
+      requestAnimationFrame(tick)
+    }, [editHandle, pickerHandle])
+    await picker.getByRole('button', { name: 'Link', exact: true }).click()
+    await expect(dialog.getByTestId('linked-transaction')).toHaveCount(1)
+    await page.waitForTimeout(2500)
+    const sampled = await page.evaluate(() => (window as unknown as { __sampled: { edit: number[]; picker: number[] } }).__sampled)
+    for (const [name, heights] of Object.entries(sampled)) {
+      const drops = heights.flatMap((height, index) => (index > 0 && height < heights[index - 1] - 0.5 ? [`${heights[index - 1]} -> ${height} at frame ${index}`] : []))
+      expect(drops, `${name} height per frame: ${heights.map((height) => Math.round(height)).join(',')}`).toEqual([])
+    }
+  })
+}
