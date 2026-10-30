@@ -25,8 +25,18 @@ const FIREFLY_EXPORT_DOCS_URL = 'https://docs.firefly-iii.org/tutorials/firefly-
 // Each optional slot's hint says what skipping it costs
 const FILE_SLOTS: Array<{ kind: FireflyFileKind; label: string; hint: string; required: boolean }> = [
   { kind: 'transactions', label: 'Transactions CSV', hint: 'The journal rows to import.', required: true },
-  { kind: 'budgets', label: 'Budgets CSV', hint: 'Without it, create budgets by hand after the import.', required: false },
-  { kind: 'accounts', label: 'Accounts CSV', hint: 'Without it, each new asset account is created as an active checking account unless you choose another type.', required: false },
+  {
+    kind: 'budgets',
+    label: 'Budgets CSV',
+    hint: 'Without it, create budgets by hand after the import.',
+    required: false,
+  },
+  {
+    kind: 'accounts',
+    label: 'Accounts CSV',
+    hint: 'Without it, each new asset account is created as an active checking account unless you choose another type.',
+    required: false,
+  },
 ]
 
 /**
@@ -58,21 +68,21 @@ export function FireflyFilesStep({
   return (
     <ImportFilesStepLayout
       title="Files"
-      description={(
+      description={
         <>
           Upload the CSV files exported from Firefly III, following its{' '}
           <a
             href={FIREFLY_EXPORT_DOCS_URL}
             target="_blank"
             rel="noreferrer"
-            className="font-medium underline underline-offset-2"
+            className="app-inline-link font-medium underline underline-offset-2"
             style={{ color: 'var(--app-accent)' }}
           >
             guide to exporting data
           </a>
           .
         </>
-      )}
+      }
       stats={[
         { label: 'Rows', value: fireflyRows.length },
         { label: 'Accounts', value: trackedAccounts.length },
@@ -95,9 +105,14 @@ export function FireflyFilesStep({
             uploadTitle={`Upload ${slot.label.charAt(0).toLowerCase()}${slot.label.slice(1)}`}
             hint={slot.hint}
             // A finished import keeps its files as a record, so they can't be removed
-            staged={stagedFile && (
-              <ImportStagedFileList files={[stagedFile]} onRemove={isImportFinished ? undefined : () => removeFireflyFile(slot.kind)} />
-            )}
+            staged={
+              stagedFile && (
+                <ImportStagedFileList
+                  files={[stagedFile]}
+                  onRemove={isImportFinished ? undefined : () => removeFireflyFile(slot.kind)}
+                />
+              )
+            }
             isStagedFileRecord={isImportFinished}
             processing={processingFileKind === slot.kind}
             // Every slot answers to a block, even where only one states why

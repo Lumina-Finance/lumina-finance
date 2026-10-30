@@ -30,14 +30,7 @@ export function CreditUsageBody({
   emptyMessage,
   onChooseAccounts,
 }: CreditUsageBodyProps) {
-  const {
-    creditAvailable,
-    displayAmount,
-    displayAmountRounding,
-    displayPct,
-    hasCredit,
-    tierColor,
-  } = summary
+  const { creditAvailable, displayAmount, displayAmountRounding, displayPct, hasCredit, tierColor } = summary
   const { currencies } = useMoneyFormatters()
 
   // The width the amount may take, which is what the ring and the gap leave of the row. The amount
@@ -50,7 +43,12 @@ export function CreditUsageBody({
     const ring = ringRef.current
     if (!row || !ring) return
 
-    const measure = () => setAmountWidth(row.getBoundingClientRect().width - ring.getBoundingClientRect().width - parseFloat(getComputedStyle(row).columnGap))
+    const measure = () =>
+      setAmountWidth(
+        row.getBoundingClientRect().width -
+          ring.getBoundingClientRect().width -
+          parseFloat(getComputedStyle(row).columnGap),
+      )
     measure()
     const observer = new ResizeObserver(measure)
     observer.observe(row)
@@ -72,7 +70,7 @@ export function CreditUsageBody({
           <button
             type="button"
             onClick={onChooseAccounts}
-            className="font-medium underline underline-offset-2"
+            className="app-inline-link font-medium underline underline-offset-2"
           >
             Choose a credit account
           </button>{' '}
@@ -98,13 +96,17 @@ export function CreditUsageBody({
       <div ref={ringRef} className="relative aspect-square h-full shrink-0">
         <svg viewBox={`0 0 ${size} ${size}`} className="h-full w-full -rotate-90">
           <circle
-            cx={size / 2} cy={size / 2} r={radius}
+            cx={size / 2}
+            cy={size / 2}
+            r={radius}
             fill="none"
             stroke="var(--app-border)"
             strokeWidth={strokeWidth}
           />
           <circle
-            cx={size / 2} cy={size / 2} r={radius}
+            cx={size / 2}
+            cy={size / 2}
+            r={radius}
             fill="none"
             stroke={tierColor}
             strokeWidth={strokeWidth}
@@ -121,11 +123,23 @@ export function CreditUsageBody({
         </div>
       </div>
       <div className="min-w-0">
-        <p data-testid="credit-amount" className="font-financial text-3xl font-normal leading-none tracking-tight max-[1000px]:text-[1.6875rem]">
-          <AppScrambledNumber text={formatDashboardMoney(displayAmount, displayCurrency, 'credit', currencies, displayAmountRounding)} maxWidth={amountWidth} />
+        <p
+          data-testid="credit-amount"
+          className="font-financial text-3xl font-normal leading-none tracking-tight max-[1000px]:text-[1.6875rem]"
+        >
+          <AppScrambledNumber
+            text={formatDashboardMoney(displayAmount, displayCurrency, 'credit', currencies, displayAmountRounding)}
+            maxWidth={amountWidth}
+          />
         </p>
-        <p className="font-financial mt-1.5 text-sm max-[1000px]:text-[0.7875rem]" style={{ color: 'var(--app-text-muted)' }}>
-          of <AppScrambledNumber text={formatDashboardMoney(creditAvailable, displayCurrency, 'credit', currencies, 'down')} />
+        <p
+          className="font-financial mt-1.5 text-sm max-[1000px]:text-[0.7875rem]"
+          style={{ color: 'var(--app-text-muted)' }}
+        >
+          of{' '}
+          <AppScrambledNumber
+            text={formatDashboardMoney(creditAvailable, displayCurrency, 'credit', currencies, 'down')}
+          />
         </p>
       </div>
     </div>

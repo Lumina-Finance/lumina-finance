@@ -61,7 +61,7 @@ function AmountLockNote({ currencyListState }: { currencyListState: CurrencyList
       {CURRENCY_RANGE_NOTICE}{' '}
       <button
         type="button"
-        className="underline underline-offset-2"
+        className="app-inline-link underline underline-offset-2"
         style={{ color: 'inherit' }}
         onClick={() => window.location.reload()}
       >

@@ -208,7 +208,7 @@ export function ImportAccountMappingStep({
           {getFixedAccountWarning(fixedAccount.name)}{' '}
           <Link
             to="/settings/imports"
-            className="font-medium underline underline-offset-2 transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2"
+            className="app-inline-link font-medium underline underline-offset-2 transition-colors"
             style={{ color: 'var(--app-accent)' }}
           >
             {FIXED_ACCOUNT_WARNING_LINK_LABEL}

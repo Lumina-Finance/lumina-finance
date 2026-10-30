@@ -379,7 +379,7 @@ const AuthPage = () => {
                   <button
                     type="button"
                     onClick={switchMode}
-                    className="font-medium underline underline-offset-2 transition-colors"
+                    className="app-inline-link font-medium underline underline-offset-2 transition-colors"
                     style={{ color: 'var(--app-accent)' }}
                   >
                     {isLogin ? 'Sign up' : 'Log in'}
