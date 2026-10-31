@@ -35,7 +35,7 @@ from app.services.auth.reset_send_limit import (
 from app.services.auth.sessions import delete_all_user_auth_sessions
 from app.services.auth.token_hashing import hash_token
 from app.services.auth.totp import is_totp_enabled
-from app.services.auth.user_lookup import find_user_id_by_email, fold_email
+from app.services.auth.user_lookup import find_login_account, fold_email
 from app.services.auth.webauthn import is_passkey_registered
 from app.services.email import get_email_sender, render_reset_email
 
@@ -142,7 +142,8 @@ async def _issue_password_reset(db: AsyncSession, email: str, session_factory: a
     Returns:
         The email to send, or None when no account matches or none is due
     """
-    user_id = await find_user_id_by_email(db, email)
+    account = await find_login_account(db, email)
+    user_id = account.id if account else None
     await delete_stale_password_reset_tokens(db)
 
     # Hold this user's allowance until the new token commits, including when no prior rows exist.
@@ -209,7 +210,10 @@ async def _issue_password_reset(db: AsyncSession, email: str, session_factory: a
         raise
     if ticket is None:
         return None
-    return PendingResetEmail(recipient=email, token_id=token_id, raw_token=raw_token, expires_at=expires_at, ticket=ticket)
+
+    # The link goes only to the stored address. The typed one matched it folded, and in other capitals
+    # it can be someone else's mailbox
+    return PendingResetEmail(recipient=account.email, token_id=token_id, raw_token=raw_token, expires_at=expires_at, ticket=ticket)
 
 
 async def send_password_reset_email(pending: PendingResetEmail, session_factory: async_sessionmaker[AsyncSession]) -> None:

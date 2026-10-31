@@ -1,10 +1,19 @@
 """Pre-identity user lookup"""
 
 import uuid
+from typing import NamedTuple
+
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.db.rls.functions import FIND_LOGIN_USER
+from app.db.rls.functions import FIND_LOGIN_ACCOUNT, FIND_LOGIN_USER
+
+
+class LoginAccount(NamedTuple):
+    """An account's id and its address as stored, which is the only address its mail goes to"""
+
+    id: uuid.UUID
+    email: str
 
 
 def fold_email(email: str) -> str:
@@ -37,3 +46,18 @@ async def find_user_id_by_email(db: AsyncSession, email: str) -> uuid.UUID | Non
     # the SECURITY DEFINER helper that bypasses the self-only users policy, returning
     # only the id so nothing else about the user can leak through it
     return await db.scalar(text(f"SELECT {FIND_LOGIN_USER}(:email)"), {"email": email})
+
+
+async def find_login_account(db: AsyncSession, email: str) -> LoginAccount | None:
+    """Return the id and stored address of the user with the given email, or None
+
+    Args:
+        db: Active database session
+        email: Email address to look up
+
+    Returns:
+        The matching account when one exists
+    """
+    account_query = text(f"SELECT id, email FROM {FIND_LOGIN_ACCOUNT}(:email)")  # noqa: S608
+    row = (await db.execute(account_query, {"email": email})).first()
+    return LoginAccount(row.id, row.email) if row else None

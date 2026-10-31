@@ -25,6 +25,7 @@ CAN_ACCESS_ACCOUNT = "public.can_access_account"
 CAN_ACCESS_GROUP = "public.can_access_group"
 CAN_ACCESS_BASE_BUDGET = "public.can_access_base_budget"
 FIND_LOGIN_USER = "public.find_login_user"
+FIND_LOGIN_ACCOUNT = "public.find_login_account"
 USER_TZ = "public.user_tz"
 BUMP_GROUP_MEMBER_CACHE = "public.bump_group_member_cache"
 BUDGET_SPEND_ROWS = "public.budget_spend_rows"
@@ -146,6 +147,18 @@ _HELPERS: tuple[_Helper, ...] = (
     $$
     """,
         f"{FIND_LOGIN_USER}(text)",
+    ),
+    # The same lookup for a flow that must reach the account's own mailbox, also returning the address
+    # as stored. The caller already holds the address, so this adds only its stored capitals. It
+    # takes an address rather than an id so it never turns an id into an email
+    _Helper(
+        f"""
+    CREATE OR REPLACE FUNCTION {FIND_LOGIN_ACCOUNT}(p_email text) RETURNS TABLE (id uuid, email text)
+    LANGUAGE sql STABLE SECURITY DEFINER SET search_path = '' AS $$
+        SELECT u.id, u.email FROM public.users u WHERE lower(u.email COLLATE "C") = lower(p_email COLLATE "C")
+    $$
+    """,
+        f"{FIND_LOGIN_ACCOUNT}(text)",
     ),
     # Return another user's timezone for the few group operations that need it,
     # exposing only the timezone rather than the whole user row

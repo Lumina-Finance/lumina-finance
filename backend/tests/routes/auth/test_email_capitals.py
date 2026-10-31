@@ -82,7 +82,9 @@ async def test_password_reset_with_other_capitals_sends_the_account_its_link(cli
     async with TestSession() as session:
         tokens = (await session.execute(query)).scalars().all()
     assert len(tokens) == 1
-    assert len(mailbox.sent_to(_STORED_EMAIL)) == 1
+
+    # The recipient is compared exactly, since the link belongs to the stored mailbox, not the typed one
+    assert [email.recipient for email in mailbox.sent] == [_STORED_EMAIL]
 
 
 async def test_password_reset_for_a_dotted_capital_i_spelling_sends_no_link(client):
