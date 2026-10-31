@@ -262,7 +262,7 @@ export default function TransactionModalLinkedRefundsSection({
                 </RevealRow>
               ) : (
                 <RevealRow key="prompt">
-                  {prompt('If this gives money back for an expense, link them.', 'Link to an expense')}
+                  {prompt('If this gives money back for an expense, you can link them here.', 'Link to an expense')}
                 </RevealRow>
               )}
             </AnimatePresence>
@@ -341,7 +341,10 @@ export default function TransactionModalLinkedRefundsSection({
               ))}
               {canLinkRefund && (
                 <RevealRow key="prompt">
-                  {prompt('Link a refund that is already recorded.', 'Link an existing refund')}
+                  {prompt(
+                    'If a refund for this expense is already recorded, you can link them here.',
+                    'Link an existing refund',
+                  )}
                 </RevealRow>
               )}
             </AnimatePresence>
