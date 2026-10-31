@@ -25,10 +25,7 @@ const variantClassName = {
 /**
  * Renders a consistent institution logo slot for account list and detail surfaces
  */
-export function InstitutionLogo({
-  institution,
-  variant = 'row',
-}: InstitutionLogoProps) {
+export function InstitutionLogo({ institution, variant = 'row' }: InstitutionLogoProps) {
   const logo = useUsableLogo(resolveInstitutionLogoUrl(institution))
   const faviconUrl = logo.src
   const classNames = variantClassName[variant]
@@ -54,10 +51,7 @@ export function InstitutionLogo({
           {...logo.imageProps}
         />
       ) : (
-        <span
-          className={`select-none font-semibold ${classNames.fallback}`}
-          style={{ color: 'var(--app-accent)' }}
-        >
+        <span className={`select-none font-semibold ${classNames.fallback}`} style={{ color: 'var(--app-accent)' }}>
           $
         </span>
       )}
