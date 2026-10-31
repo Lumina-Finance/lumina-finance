@@ -1,10 +1,19 @@
 """Email sender tests"""
 
 import asyncio
+import contextlib
+import ipaddress
 import logging
+import ssl
+import time
+from datetime import UTC, datetime, timedelta
 
 import aiosmtplib
 import pytest
+from cryptography import x509
+from cryptography.hazmat.primitives import hashes, serialization
+from cryptography.hazmat.primitives.asymmetric import ec
+from cryptography.x509.oid import NameOID
 
 import app.services.email.contract as contract_module
 import app.services.email.senders as senders_module
@@ -17,6 +26,9 @@ from app.services.email import (
     set_email_sender,
 )
 from app.services.email.senders import LoggingEmailSender, SmtpEmailSender
+
+# A short SMTP timeout keeps the silent-server test fast while the bound it checks scales with the timeout
+SILENT_SERVER_TEST_TIMEOUT_SECONDS = 1
 
 
 async def test_smtp_sender_delivers_multipart_message(monkeypatch):
@@ -188,6 +200,70 @@ async def test_smtp_sender_times_out_on_a_silent_server(monkeypatch):
     async with server:
         with pytest.raises(aiosmtplib.SMTPTimeoutError):
             await asyncio.wait_for(SmtpEmailSender().send("user@example.com", RenderedEmail(subject="Hi", text_body="Body")), 5)
+
+
+def create_loopback_certificate(directory):
+    """Write a self-signed certificate valid for 127.0.0.1 and its key into the folder, returning both paths"""
+    key = ec.generate_private_key(ec.SECP256R1())
+    name = x509.Name([x509.NameAttribute(NameOID.COMMON_NAME, "127.0.0.1")])
+    now = datetime.now(UTC)
+    certificate = (
+        x509.CertificateBuilder()
+        .subject_name(name)
+        .issuer_name(name)
+        .public_key(key.public_key())
+        .serial_number(x509.random_serial_number())
+        .not_valid_before(now - timedelta(minutes=1))
+        .not_valid_after(now + timedelta(hours=1))
+        .add_extension(x509.SubjectAlternativeName([x509.IPAddress(ipaddress.ip_address("127.0.0.1"))]), critical=False)
+        .sign(key, hashes.SHA256())
+    )
+    certificate_path = directory / "certificate.pem"
+    key_path = directory / "key.pem"
+    certificate_path.write_bytes(certificate.public_bytes(serialization.Encoding.PEM))
+    key_path.write_bytes(key.private_bytes(serialization.Encoding.PEM, serialization.PrivateFormat.PKCS8, serialization.NoEncryption()))
+    return certificate_path, key_path
+
+
+async def test_smtp_sender_stays_within_two_timeouts_when_a_tls_server_on_port_465_never_greets(monkeypatch, tmp_path):
+    """A server that completes the TLS handshake and never greets fails the send within the retry's two timeouts"""
+    certificate_path, key_path = create_loopback_certificate(tmp_path)
+    server_context = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
+    server_context.load_cert_chain(certificate_path, key_path)
+    client_context = ssl.create_default_context(cafile=certificate_path)
+
+    # Closes its side once the client gives up, so leaving the server never waits on an open connection
+    async def hold_connection_silently(reader, writer):
+        with contextlib.suppress(ssl.SSLError, ConnectionError):
+            await reader.read()
+        writer.close()
+
+    server = await asyncio.start_server(hold_connection_silently, "127.0.0.1", 0, ssl=server_context)
+    port = server.sockets[0].getsockname()[1]
+    real_send = aiosmtplib.send
+
+    # The client trusts only the test certificate, and the retry's STARTTLS attempt reaches the same silent port
+    async def send_trusting_the_test_certificate(email_message, **kwargs):
+        await real_send(email_message, tls_context=client_context, **kwargs)
+
+    timeout = SILENT_SERVER_TEST_TIMEOUT_SECONDS
+    monkeypatch.setattr(senders_module, "SMTP_HOST", "127.0.0.1")
+    monkeypatch.setattr(senders_module, "SMTP_PORT", port)
+    monkeypatch.setattr(senders_module, "IMPLICIT_TLS_PORT", port)
+    monkeypatch.setattr(senders_module, "SMTP_USE_TLS", True)
+    monkeypatch.setattr(senders_module, "MAIL_FROM", "no-reply@example.com")
+    monkeypatch.setattr(senders_module, "SMTP_TIMEOUT_SECONDS", timeout)
+    monkeypatch.setattr(senders_module.aiosmtplib, "send", send_trusting_the_test_certificate)
+
+    started = time.monotonic()
+    async with server:
+        with pytest.raises(aiosmtplib.SMTPTimeoutError):
+            await asyncio.wait_for(SmtpEmailSender().send("user@example.com", RenderedEmail(subject="Hi", text_body="Body")), 10 * timeout)
+    elapsed = time.monotonic() - started
+
+    # The first attempt waits one timeout for the greeting and the STARTTLS retry another, which is about 20 seconds at the
+    # production 10. The margin is under one timeout, so a third attempt would fail the test
+    assert elapsed < 2 * timeout + 0.5
 
 
 async def test_logging_sender_logs_body(caplog):
