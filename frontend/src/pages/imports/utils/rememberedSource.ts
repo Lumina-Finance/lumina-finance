@@ -16,7 +16,10 @@ export const DEFAULT_DATA_SOURCE: ImportDataSource = 'generic'
  * @param saved - The saved sources, undefined while they are unavailable
  * @param accountId - The account the page was opened for
  */
-export function getRememberedDataSource(saved: SavedAccountImportSource[] | undefined, accountId: string): ImportDataSource {
+export function getRememberedDataSource(
+  saved: SavedAccountImportSource[] | undefined,
+  accountId: string,
+): ImportDataSource {
   const source = saved?.find((entry) => entry.account_id === accountId)?.source
   return source === 'ofx' ? 'ofx' : DEFAULT_DATA_SOURCE
 }

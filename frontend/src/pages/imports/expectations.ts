@@ -19,8 +19,9 @@ export function getCsvExpectations(fixedAccountName: string | null): ImportExpec
 
   return {
     intro: `Each row of your import becomes one transaction in ${destination}.`,
-    deviation: "A transfer row only changes its own account. Import the other account's side too, or that account's "
-      + "balance won't match your bank's.",
+    deviation:
+      "A transfer row only changes its own account. Import the other account's side too, or that account's " +
+      "balance won't match your bank's.",
     changes: [
       {
         source: 'A currency column',
@@ -34,10 +35,7 @@ export function getCsvExpectations(fixedAccountName: string | null): ImportExpec
     leftBehind: [
       {
         group: 'Not imported',
-        items: [
-          'Budgets',
-          "Columns you don't map, like a running balance",
-        ],
+        items: ['Budgets', "Columns you don't map, like a running balance"],
       },
     ],
   }

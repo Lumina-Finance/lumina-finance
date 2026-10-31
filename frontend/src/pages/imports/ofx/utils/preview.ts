@@ -56,21 +56,23 @@ export function buildOfxPreviewRows(file: OfxFile, options: OfxPreviewOptions, l
       if (typeof amount !== 'bigint') continue
 
       const category = options.categories
-        ? findUnnamedSourceCategory(getOfxCategorySource(transaction), options.categories) ?? undefined
+        ? (findUnnamedSourceCategory(getOfxCategorySource(transaction), options.categories) ?? undefined)
         : undefined
-      previewRows.push(buildPreviewTransactionRow({
-        id: `ofx-preview-${getOfxSkippedRowId(statement, transaction)}`,
-        account,
-        category,
-        dt: transaction.date!,
-        amount,
-        merchantName: transaction.payee,
-        notes: transaction.memo,
-        counterpartyAccount: null,
-        counterpartyScope: getPreviewCounterpartyScope(category, null),
-        tagNames: [],
-        timestamp,
-      }))
+      previewRows.push(
+        buildPreviewTransactionRow({
+          id: `ofx-preview-${getOfxSkippedRowId(statement, transaction)}`,
+          account,
+          category,
+          dt: transaction.date!,
+          amount,
+          merchantName: transaction.payee,
+          notes: transaction.memo,
+          counterpartyAccount: null,
+          counterpartyScope: getPreviewCounterpartyScope(category, null),
+          tagNames: [],
+          timestamp,
+        }),
+      )
     }
   }
   return previewRows

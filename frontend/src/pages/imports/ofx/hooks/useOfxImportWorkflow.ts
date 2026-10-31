@@ -8,7 +8,11 @@ import {
   type TransactionImportResponse,
 } from '@/api/transaction-imports'
 import type { ImportCommitCheck } from '@/pages/imports/components'
-import { CREATE_ACCOUNT_VALUE, IMPORT_SAMPLE_PREVIEW_LIMIT, IMPORT_TRANSFER_CATEGORY_NAME } from '@/pages/imports/constants'
+import {
+  CREATE_ACCOUNT_VALUE,
+  IMPORT_SAMPLE_PREVIEW_LIMIT,
+  IMPORT_TRANSFER_CATEGORY_NAME,
+} from '@/pages/imports/constants'
 import {
   useImportAccountCreateState,
   useImportRun,
@@ -124,10 +128,10 @@ export function useOfxImportWorkflow(fixedAccount: AccountsOverview | null = nul
     answers: importAnswers,
     uploadLabel: OFX_UPLOAD_LABEL,
     mutations: [importTransactions, commitStagedImport],
-    formatSummary: ({ result, skippedRowsAtCommit, outsideRangeCountAtCommit }) => (
-      formatImportSummary(result, skippedRowsAtCommit.length, outsideRangeCountAtCommit)
-    ),
-    formatSavedEarlier: ({ answers }) => describeOfxSavedEarlier((answers as OfxImportAnswersSnapshot).stagedFiles, stagedFiles),
+    formatSummary: ({ result, skippedRowsAtCommit, outsideRangeCountAtCommit }) =>
+      formatImportSummary(result, skippedRowsAtCommit.length, outsideRangeCountAtCommit),
+    formatSavedEarlier: ({ answers }) =>
+      describeOfxSavedEarlier((answers as OfxImportAnswersSnapshot).stagedFiles, stagedFiles),
   })
 
   const {
@@ -160,7 +164,13 @@ export function useOfxImportWorkflow(fixedAccount: AccountsOverview | null = nul
   }, [selectableAccounts, statements])
 
   const accountSources = useMemo(
-    () => statements.map((statement) => ({ id: statement.id, label: statement.label, matchText: statement.name, isCounterpartyOnly: false })),
+    () =>
+      statements.map((statement) => ({
+        id: statement.id,
+        label: statement.label,
+        matchText: statement.name,
+        isCounterpartyOnly: false,
+      })),
     [statements],
   )
 
@@ -180,31 +190,39 @@ export function useOfxImportWorkflow(fixedAccount: AccountsOverview | null = nul
 
   // A new account is proposed in the statement's own currency, which the user can change. One this
   // app does not support is left for the user to choose, since the account could not be created in it
-  const resolvedAccountCreateDetails = useMemo(
-    () => {
-      const details: Record<string, ImportAccountCreateDetails> = {}
-      for (const statement of statements) {
-        details[statement.id] = {
-          accountType: accountCreateTypes[statement.id] ?? statement.proposedType,
-          currency: accountCreateCurrencies[statement.id] ?? (supportedCurrencyCodes.has(statement.currency) ? statement.currency : ''),
-          institutionId: accountCreateInstitutions[statement.id] ?? '',
-        }
+  const resolvedAccountCreateDetails = useMemo(() => {
+    const details: Record<string, ImportAccountCreateDetails> = {}
+    for (const statement of statements) {
+      details[statement.id] = {
+        accountType: accountCreateTypes[statement.id] ?? statement.proposedType,
+        currency:
+          accountCreateCurrencies[statement.id] ??
+          (supportedCurrencyCodes.has(statement.currency) ? statement.currency : ''),
+        institutionId: accountCreateInstitutions[statement.id] ?? '',
       }
-      return details
-    },
-    [accountCreateCurrencies, accountCreateInstitutions, accountCreateTypes, statements, supportedCurrencyCodes],
-  )
+    }
+    return details
+  }, [accountCreateCurrencies, accountCreateInstitutions, accountCreateTypes, statements, supportedCurrencyCodes])
 
   // The server alone can say which transactions an account already holds, since it keeps only hashes
   // of the bank IDs. Rows bound for a new account are never asked about
   const heldCheck = useMemo(
-    () => (ofxFile ? buildOfxHeldCheck(ofxFile, stagedFiles.map(({ id }) => id), resolvedAccountMappings, accountById) : null),
+    () =>
+      ofxFile
+        ? buildOfxHeldCheck(
+            ofxFile,
+            stagedFiles.map(({ id }) => id),
+            resolvedAccountMappings,
+            accountById,
+          )
+        : null,
     [accountById, ofxFile, resolvedAccountMappings, stagedFiles],
   )
   // Not asked from the moment an import starts until it is reopened or replaced, so the rows it just
   // saved are never read back as already held. The run state turns on as the import starts, before
   // anything is saved, and undoing the import reopens it, which asks again
-  const isHeldCheckPaused = run.workflow.importOverlayOpen || run.workflow.isImportInFlight || run.workflow.importResult !== null
+  const isHeldCheckPaused =
+    run.workflow.importOverlayOpen || run.workflow.isImportInFlight || run.workflow.importResult !== null
   const heldQuery = useHeldBankTransactions(heldCheck?.scope ?? null, heldCheck?.items ?? [], isHeldCheckPaused)
   const isHeldCheckAsked = heldCheck?.scope != null && !isHeldCheckPaused
   const heldRowIds = useMemo(
@@ -219,45 +237,76 @@ export function useOfxImportWorkflow(fixedAccount: AccountsOverview | null = nul
     ? null
     : heldQuery.isFetching || heldQuery.isPending
       ? 'running'
-      : heldQuery.isError ? 'failed' : null
-  const heldCheckNotice: ImportCommitCheck | null = heldCheckState === null
-    ? null
-    : {
-      state: heldCheckState,
-      message: heldCheckState === 'running' ? OFX_HELD_CHECK_RUNNING_MESSAGE : OFX_HELD_CHECK_FAILED_MESSAGE,
-      onRetry: () => { void heldQuery.refetch() },
-    }
+      : heldQuery.isError
+        ? 'failed'
+        : null
+  const heldCheckNotice: ImportCommitCheck | null =
+    heldCheckState === null
+      ? null
+      : {
+          state: heldCheckState,
+          message: heldCheckState === 'running' ? OFX_HELD_CHECK_RUNNING_MESSAGE : OFX_HELD_CHECK_FAILED_MESSAGE,
+          onRetry: () => {
+            void heldQuery.refetch()
+          },
+        }
 
   const importBuild = useMemo(
-    () => (ofxFile
-      ? buildOfxImportPayload(ofxFile, {
-        accountMappings: resolvedAccountMappings,
-        accountCreateDetails: resolvedAccountCreateDetails,
-        accountById,
-        fixedAccount,
-        categories,
-        currencies,
-        heldRowIds,
-      })
-      : EMPTY_BUILD),
-    [accountById, categories, currencies, fixedAccount, heldRowIds, ofxFile, resolvedAccountCreateDetails, resolvedAccountMappings],
+    () =>
+      ofxFile
+        ? buildOfxImportPayload(ofxFile, {
+            accountMappings: resolvedAccountMappings,
+            accountCreateDetails: resolvedAccountCreateDetails,
+            accountById,
+            fixedAccount,
+            categories,
+            currencies,
+            heldRowIds,
+          })
+        : EMPTY_BUILD,
+    [
+      accountById,
+      categories,
+      currencies,
+      fixedAccount,
+      heldRowIds,
+      ofxFile,
+      resolvedAccountCreateDetails,
+      resolvedAccountMappings,
+    ],
   )
 
   const skippedRowIds = useMemo(() => new Set(importBuild.skippedRows.map((row) => row.id)), [importBuild.skippedRows])
 
   const previewGroups = useMemo(
-    () => groupPreviewRowsByDate(ofxFile
-      ? buildOfxPreviewRows(ofxFile, {
-        accountMappings: resolvedAccountMappings,
-        accountCreateDetails: resolvedAccountCreateDetails,
-        accountById,
-        institutionById,
-        categories,
-        currencies,
-        skippedRowIds,
-      }, IMPORT_SAMPLE_PREVIEW_LIMIT)
-      : []),
-    [accountById, categories, currencies, institutionById, ofxFile, resolvedAccountCreateDetails, resolvedAccountMappings, skippedRowIds],
+    () =>
+      groupPreviewRowsByDate(
+        ofxFile
+          ? buildOfxPreviewRows(
+              ofxFile,
+              {
+                accountMappings: resolvedAccountMappings,
+                accountCreateDetails: resolvedAccountCreateDetails,
+                accountById,
+                institutionById,
+                categories,
+                currencies,
+                skippedRowIds,
+              },
+              IMPORT_SAMPLE_PREVIEW_LIMIT,
+            )
+          : [],
+      ),
+    [
+      accountById,
+      categories,
+      currencies,
+      institutionById,
+      ofxFile,
+      resolvedAccountCreateDetails,
+      resolvedAccountMappings,
+      skippedRowIds,
+    ],
   )
 
   const transactionCount = statements.reduce((total, statement) => total + statement.transactions.length, 0)
@@ -295,10 +344,19 @@ export function useOfxImportWorkflow(fixedAccount: AccountsOverview | null = nul
       files: acquiredFiles,
       unavailableReason: uploadBlockReason?.message ?? null,
       fileType: OFX_IMPORT_FILE_TYPE,
-      read: (files) => Promise.all(files.map(async (source) => {
-        const id = createRandomId()
-        return { id, name: source.name, size: source.size, lastModified: source.lastModified, read: await readOfxFile(source, id) }
-      })),
+      read: (files) =>
+        Promise.all(
+          files.map(async (source) => {
+            const id = createRandomId()
+            return {
+              id,
+              name: source.name,
+              size: source.size,
+              lastModified: source.lastModified,
+              read: await readOfxFile(source, id),
+            }
+          }),
+        ),
     })
 
     // A file removed while these were being read changed the list they were checked against
@@ -339,13 +397,14 @@ export function useOfxImportWorkflow(fixedAccount: AccountsOverview | null = nul
     if (!payload || !canCommitImport) return
 
     await run.startImport(importBuild.skippedRows, 0, {
-      upload: (signal, onStaged) => importTransactions.mutateAsync({
-        payload,
-        signal,
-        onStaged,
-        fileName: getImportFileName(labelStagedFiles(stagedFiles)),
-        source: 'ofx',
-      }),
+      upload: (signal, onStaged) =>
+        importTransactions.mutateAsync({
+          payload,
+          signal,
+          onStaged,
+          fileName: getImportFileName(labelStagedFiles(stagedFiles)),
+          source: 'ofx',
+        }),
       commit: (runId, signal) => commitStagedImport.mutateAsync({ runId, signal }),
     })
   }

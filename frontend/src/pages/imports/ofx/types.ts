@@ -98,9 +98,7 @@ export interface OfxStagedFile {
   file: OfxFile
 }
 
-export type OfxFileRead =
-  | { status: 'read'; file: OfxFile }
-  | { status: 'refused'; reason: string }
+export type OfxFileRead = { status: 'read'; file: OfxFile } | { status: 'refused'; reason: string }
 
 /** One transaction the import leaves out, with enough of it for the user to find it in the file */
 export interface OfxSkippedRow {

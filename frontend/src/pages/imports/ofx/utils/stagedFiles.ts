@@ -92,7 +92,9 @@ export function combineOfxFiles(files: OfxFile[]): OfxFile {
 function getFileNamer(files: OfxFile[]) {
   const fileCounts = new Map<string, number>()
   for (const file of files) {
-    const names = new Set(file.statements.flatMap((statement) => statement.transactions.map((transaction) => transaction.fileName)))
+    const names = new Set(
+      file.statements.flatMap((statement) => statement.transactions.map((transaction) => transaction.fileName)),
+    )
     for (const name of names) fileCounts.set(name, (fileCounts.get(name) ?? 0) + 1)
   }
   return (position: number, name: string) => ((fileCounts.get(name) ?? 0) > 1 ? `${name} (file ${position + 1})` : name)

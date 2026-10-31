@@ -1,5 +1,11 @@
 import { useRef } from 'react'
-import { EmptyState, ImportFilesStepLayout, ImportNotice, ImportStagedFileTable, ImportUploadCard } from '@/pages/imports/components'
+import {
+  EmptyState,
+  ImportFilesStepLayout,
+  ImportNotice,
+  ImportStagedFileTable,
+  ImportUploadCard,
+} from '@/pages/imports/components'
 import { useStagedFileFocus } from '@/pages/imports/hooks'
 import { OfxReveal } from '@/pages/imports/ofx/components/OfxReveal'
 import { OFX_IMPORT_FILE_TYPE } from '@/pages/imports/ofx/constants'
@@ -72,9 +78,11 @@ export function OfxFilesStep({
       />
       <ImportUploadCard
         title={isAddingFiles ? 'Add more statements' : 'Upload statements'}
-        hint={fixedAccount
-          ? `Each file is an .ofx or .qfx statement for ${fixedAccount.name}, holding one statement.`
-          : 'Each file is an .ofx or .qfx statement. One file can hold several statements.'}
+        hint={
+          fixedAccount
+            ? `Each file is an .ofx or .qfx statement for ${fixedAccount.name}, holding one statement.`
+            : 'Each file is an .ofx or .qfx statement. One file can hold several statements.'
+        }
         processing={isProcessingFile}
         disabled={isUploadBlocked}
         rejection={fileIntakeError}
@@ -94,7 +102,10 @@ export function OfxFilesStep({
       areStatsFlush
       stats={[
         { label: stagedFiles.length === 1 ? 'File' : 'Files', value: stagedFiles.length },
-        { label: 'Transactions', value: stagedFiles.reduce((total, { file }) => total + countOfxTransactions(file), 0) },
+        {
+          label: 'Transactions',
+          value: stagedFiles.reduce((total, { file }) => total + countOfxTransactions(file), 0),
+        },
         { label: 'Statements', value: stagedFiles.reduce((total, { file }) => total + file.statements.length, 0) },
       ]}
     >

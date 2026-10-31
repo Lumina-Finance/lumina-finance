@@ -32,17 +32,14 @@ export function ImportSourceStep({
   const titleId = useId()
 
   return (
-    <ImportStep
-      index="00"
-      title="Data source"
-      titleId={titleId}
-      description="Choose the app the export came from."
-    >
+    <ImportStep index="00" title="Data source" titleId={titleId} description="Choose the app the export came from.">
       <Dropdown
         labelledBy={titleId}
-        options={sources
-          ? DATA_SOURCE_OPTIONS.filter((option) => sources.includes(option.value as ImportDataSource))
-          : DATA_SOURCE_OPTIONS}
+        options={
+          sources
+            ? DATA_SOURCE_OPTIONS.filter((option) => sources.includes(option.value as ImportDataSource))
+            : DATA_SOURCE_OPTIONS
+        }
         value={value}
         onChange={(next) => onChange(next as ImportDataSource)}
       />
