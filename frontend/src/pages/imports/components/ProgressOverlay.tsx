@@ -241,7 +241,7 @@ export function ImportProgressOverlay({
         <motion.div
           ref={panelRef}
           key="import-progress-overlay"
-          className="fixed inset-0 flex items-center justify-center px-5 py-8"
+          className="fixed inset-0 flex overflow-y-auto overscroll-contain px-5 py-8"
           style={{ background: OVERLAY_BACKGROUND, color: OVERLAY_TEXT, zIndex: OVERLAY_Z_INDEX }}
           initial={{ opacity: 0 }}
           animate={{ opacity: 1, pointerEvents: 'auto' }}
@@ -260,8 +260,10 @@ export function ImportProgressOverlay({
             {failed && errorReason && <span lang="en">{errorReason}</span>} {message}
             {ended && note ? ` ${note}` : ''}
           </p>
+          {/* Centred by auto margins rather than by the overlay, since a card taller than the screen,
+              as at the largest text size, would otherwise be cut off above where the overlay scrolls to */}
           <motion.div
-            className="relative flex w-full max-w-[30rem] flex-col items-center px-4 py-8 text-center"
+            className="relative m-auto flex w-full max-w-[30rem] flex-col items-center px-4 py-8 text-center"
             initial={{ scale: 0.985 }}
             animate={{ scale: 1 }}
             exit={{ scale: 0.985 }}
