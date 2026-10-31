@@ -36,10 +36,13 @@ export function ActiveFilterChips({ chips }: { chips: FilterChip[] }) {
             <motion.span
               key={chip.key}
               layout
-              className="inline-flex max-w-full shrink-0 items-center gap-1 rounded-full py-0.5 pl-2.5 pr-1 text-[11px]"
+              className="inline-flex max-w-full shrink-0 items-center gap-2.5 rounded-full py-0.5 pl-2.5 pr-1 text-[11px]"
               style={{
                 background: 'color-mix(in srgb, var(--app-accent) 14%, transparent)',
                 color: 'var(--app-accent-on-page-tint)',
+                // The ring is drawn half over the chip's tint, where the shared focus colour falls under 3:1, so
+                // the remove button's ring takes the chip's own text colour
+                ['--app-focus-outline' as string]: '2px solid var(--app-accent-on-page-tint)',
               }}
               initial={{ opacity: 0, scale: 0.8 }}
               animate={{ opacity: 1, scale: 1 }}
