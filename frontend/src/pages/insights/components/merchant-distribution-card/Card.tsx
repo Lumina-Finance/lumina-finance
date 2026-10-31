@@ -127,7 +127,7 @@ export function MerchantDistributionCard({
                 <MerchantMarketMap merchants={displaySnapshot.merchants} currency={displaySnapshot.currency} />
               ) : (
                 <div
-                  className="flex min-h-0 flex-1 items-center justify-center rounded-lg border border-dashed border-[var(--app-border)] text-sm"
+                  className="flex min-h-0 flex-1 items-center justify-center rounded-lg border border-dashed border-[var(--app-border)] px-4 text-center text-sm"
                   style={{ color: 'var(--app-text-muted)' }}
                 >
                   {displaySnapshot.emptyLabel}
