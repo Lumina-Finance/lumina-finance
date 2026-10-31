@@ -329,9 +329,7 @@ async def list_saved_ranges_route(
     """
     # Read the caller's saved ranges, newest first so the latest save surfaces at the top
     result = await db.execute(
-        select(SavedInsightsRange)
-        .where(SavedInsightsRange.user_id == user.id)
-        .order_by(SavedInsightsRange.created_at.desc())
+        select(SavedInsightsRange).where(SavedInsightsRange.user_id == user.id).order_by(SavedInsightsRange.created_at.desc())
     )
     return result.scalars().all()
 

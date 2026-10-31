@@ -115,11 +115,7 @@ async def get_merchant_spend_stats(
             transaction_count=current_stats.transaction_count + int(row.transaction_count or 0),
         )
 
-    positive_stats_by_id = {
-        merchant_id: stats
-        for merchant_id, stats in stats_by_id.items()
-        if stats.amount > 0
-    }
+    positive_stats_by_id = {merchant_id: stats for merchant_id, stats in stats_by_id.items() if stats.amount > 0}
     fx_status = converter.get_status()
     return positive_stats_by_id, fx_status
 
