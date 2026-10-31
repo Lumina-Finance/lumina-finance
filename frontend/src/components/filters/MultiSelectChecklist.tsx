@@ -3,7 +3,11 @@ import { Check } from 'lucide-react'
 import { filterChecklistOptions } from '@/components/filters/filterChecklistOptions'
 import type { OptionItem } from '@/components/filters/OptionList'
 import { SearchField } from '@/components/filters/SearchField'
-import { getFilterOptionGapClass, getFilterOptionListClass, getFilterOptionStyle } from '@/components/filters/optionAppearance'
+import {
+  getFilterOptionGapClass,
+  getFilterOptionListClass,
+  getFilterOptionStyle,
+} from '@/components/filters/optionAppearance'
 import { useUsableLogo } from '@/hooks/useUsableLogo'
 import { joinClassNames } from '@/utils/classNames'
 
@@ -19,7 +23,13 @@ type MultiSelectChecklistProps = {
  * Renders a searchable multi-select list, grouping adjacent options under sticky headers and
  * marking the selected rows with a check, mirroring the single-select filter list conventions
  */
-export function MultiSelectChecklist({ options, selectedValues, searchPlaceholder, fillHeight, onToggle }: MultiSelectChecklistProps) {
+export function MultiSelectChecklist({
+  options,
+  selectedValues,
+  searchPlaceholder,
+  fillHeight,
+  onToggle,
+}: MultiSelectChecklistProps) {
   const [search, setSearch] = useState('')
 
   const filtered = filterChecklistOptions(options, search)
@@ -147,7 +157,11 @@ function ChecklistRow({
         ) : hasDetails || option.imageUrl ? (
           // A row whose logo was dropped keeps its slot, so its label starts where the other rows' labels do
           <span
-            className={joinClassNames('flex shrink-0 items-center justify-center font-semibold', hasDetails ? 'text-sm' : 'text-xs', logoClassName)}
+            className={joinClassNames(
+              'flex shrink-0 items-center justify-center font-semibold',
+              hasDetails ? 'text-sm' : 'text-xs',
+              logoClassName,
+            )}
             style={{
               background: 'var(--app-accent-soft)',
               border: '1px solid var(--app-border)',
