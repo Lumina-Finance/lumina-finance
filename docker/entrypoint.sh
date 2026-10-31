@@ -128,8 +128,9 @@ python -m scripts.seed_merchants
 # Caddy serves the frontend and proxies /api to this local Uvicorn process. Uvicorn keeps an idle
 # connection longer than Caddy's two minutes, so Caddy is always the side that closes it. The other
 # way round, a request Caddy sends just as Uvicorn closes the connection is reset, and Caddy answers
-# it with a 502 that a POST such as the session refresh never retries
-uvicorn app.main:app --host 127.0.0.1 --port 8000 --timeout-keep-alive 125 &
+# it with a 502 that a POST such as the session refresh never retries. Its access log stays off
+# since each of its lines holds the full path and query string
+uvicorn app.main:app --host 127.0.0.1 --port 8000 --timeout-keep-alive 125 --no-access-log &
 backend_pid="$!"
 
 caddy run --config /etc/caddy/Caddyfile --adapter caddyfile &
