@@ -24,9 +24,7 @@ import {
   signMovedAmount,
 } from '@/utils/negativeAmount'
 
-const currencies: Currency[] = [
-  { id: 'CAD', name: 'Canadian Dollar', symbol: '$', minor_unit_exponent: 2 },
-]
+const currencies: Currency[] = [{ id: 'CAD', name: 'Canadian Dollar', symbol: '$', minor_unit_exponent: 2 }]
 
 const NBSP = ' '
 const MINUS = '−'
@@ -55,7 +53,12 @@ describe('direction of an amount', () => {
   })
 
   it('reads an amount that rounds to zero as no direction', () => {
-    expect([getShownAmountSign(0.4), getShownAmountSign(-0.4), getShownAmountSign(0.6), getShownAmountSign(-0.6)]).toEqual([0, 0, 1, -1])
+    expect([
+      getShownAmountSign(0.4),
+      getShownAmountSign(-0.4),
+      getShownAmountSign(0.6),
+      getShownAmountSign(-0.6),
+    ]).toEqual([0, 0, 1, -1])
   })
 })
 
@@ -91,13 +94,21 @@ describe('an amount that moved', () => {
   })
 
   it('signs an already formatted magnitude in the moved style', () => {
-    expect([1, -1, 0].map((sign) => signMovedAmount(sign as 1 | -1 | 0, '$5.00'))).toEqual(['+$5.00', `${MINUS}$5.00`, '$5.00'])
+    expect([1, -1, 0].map((sign) => signMovedAmount(sign as 1 | -1 | 0, '$5.00'))).toEqual([
+      '+$5.00',
+      `${MINUS}$5.00`,
+      '$5.00',
+    ])
     styles.moved = 'brackets'
     expect(signMovedAmount(-1, '$5.00')).toBe('($5.00)')
   })
 
   it('signs a percentage change the same way as the amount', () => {
-    expect([formatMovedPercent(12), formatMovedPercent(-12), formatMovedPercent(0)]).toEqual(['+12%', `${MINUS}12%`, '0%'])
+    expect([formatMovedPercent(12), formatMovedPercent(-12), formatMovedPercent(0)]).toEqual([
+      '+12%',
+      `${MINUS}12%`,
+      '0%',
+    ])
     expect(formatMovedPercent(-25, 1)).toBe(`${MINUS}25.0%`)
     expect(formatMovedPercent(-0.04, 1)).toBe('0.0%')
   })
@@ -123,10 +134,16 @@ describe('a savings rate', () => {
 
 describe('the colour of an amount', () => {
   it('colours each direction, and zero and an amount that shows as zero in the neutral text colour', () => {
-    expect([getSignedAmountColor(500), getSignedAmountColor(-500)]).toEqual(['var(--app-positive)', 'var(--app-negative)'])
-    expect([getSignedAmountColor(0), getSignedAmountColor(-0), getSignedAmountColor(0.4), getSignedAmountColor(-0.4)]).toEqual(
-      Array(4).fill('var(--app-text)'),
-    )
+    expect([getSignedAmountColor(500), getSignedAmountColor(-500)]).toEqual([
+      'var(--app-positive)',
+      'var(--app-negative)',
+    ])
+    expect([
+      getSignedAmountColor(0),
+      getSignedAmountColor(-0),
+      getSignedAmountColor(0.4),
+      getSignedAmountColor(-0.4),
+    ]).toEqual(Array(4).fill('var(--app-text)'))
   })
 
   it('gives zero the quieter neutral a change figure asks for, and leaves the other directions alone', () => {

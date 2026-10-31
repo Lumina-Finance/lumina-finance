@@ -41,8 +41,7 @@ export function getCreditUsageDisplay(
   displayCurrency: string,
   currencies: Currency[],
 ): MetricDisplay {
-  const value =
-    !creditUsage.isLoading && creditUsage.hasCreditData ? `${creditUsage.utilization}%` : 'N/A'
+  const value = !creditUsage.isLoading && creditUsage.hasCreditData ? `${creditUsage.utilization}%` : 'N/A'
   const caption = creditUsage.isLoading
     ? 'Loading credit totals'
     : creditUsage.hasCreditData

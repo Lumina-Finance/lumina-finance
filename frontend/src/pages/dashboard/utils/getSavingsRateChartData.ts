@@ -33,9 +33,7 @@ function shouldShowSavingsRatePoint(point: SavingsRateSeriesPoint) {
  */
 export function getSavingsRateDisplay(point: SavingsRateChartPoint) {
   if (point.income === 0 && point.expenses === 0) return null
-  return formatRatePercent(
-    getSavingsRate(point.income, point.expenses) ?? -Infinity,
-  )
+  return formatRatePercent(getSavingsRate(point.income, point.expenses) ?? -Infinity)
 }
 
 /**
@@ -45,10 +43,8 @@ export function getSavingsRateChartData(
   savingsData: SavingsRateSeriesPoint[],
   capSavingsRateChart: boolean,
 ): SavingsRateChartPoint[] {
-  return savingsData
-    .filter(shouldShowSavingsRatePoint)
-    .map((point) => ({
-      ...point,
-      chartRate: capSavingsRateChart ? clampSavingsRate(point.rate) : point.rate,
-    }))
+  return savingsData.filter(shouldShowSavingsRatePoint).map((point) => ({
+    ...point,
+    chartRate: capSavingsRateChart ? clampSavingsRate(point.rate) : point.rate,
+  }))
 }
