@@ -318,6 +318,20 @@ async def test_overlapping_reset_requests_share_the_allowance(client, monkeypatc
     assert sent_reset_emails == [SIGNUP_PAYLOAD["email"]]
 
 
+async def test_overlapping_reset_requests_for_one_unknown_address_in_other_capitals_queue(client, monkeypatch):
+    """Spellings the lookup treats as one address take one lock, so timing shows nothing a registered address wouldn't"""
+    responses = await _overlap_reset_requests(client, monkeypatch, "Ghost@example.com", "ghost@example.com")
+
+    assert [response.status_code for response in responses] == [204, 204]
+
+
+async def test_overlapping_reset_requests_for_unknown_addresses_differing_beyond_a_to_z_are_independent(client, monkeypatch):
+    """Émile@ and émile@ are two addresses, so a request for one never queues behind the other"""
+    responses = await _overlap_reset_requests(client, monkeypatch, "Émile@example.com", "émile@example.com", independent=True)
+
+    assert [response.status_code for response in responses] == [204, 204]
+
+
 async def test_overlapping_reset_requests_for_different_users_are_independent(client, monkeypatch, sent_reset_emails):
     """Another user's reset request completes while the first issuance remains uncommitted"""
     first = await _create_user(client)

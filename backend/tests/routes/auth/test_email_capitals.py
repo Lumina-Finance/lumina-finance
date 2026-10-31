@@ -138,6 +138,16 @@ async def test_the_sign_up_email_cap_counts_capitals_beyond_a_to_z_apart(client)
     assert [email.recipient for email in mailbox.sent] == ["émile@example.com"]
 
 
+async def test_failed_logins_count_capitals_beyond_a_to_z_apart(client):
+    """Émile@ and émile@ can be two accounts, so failures on one must not lock the other"""
+    for _ in range(_ATTEMPTS_BEFORE_LOCK):
+        resp = await client.post("/auth/login", json={"email": "Émile@example.com", "password": "wrong-password"})
+        assert resp.status_code == 401
+
+    assert (await _get_login_lockout("Émile@example.com")).locked_until is not None
+    assert await _get_login_lockout("émile@example.com") is None
+
+
 async def test_letters_beyond_a_to_z_keep_their_capitals_distinct(client):
     """Émile@ and émile@ are two addresses, so the second can have its own account and neither signs in as the other"""
     first = await _create_account(client, "Émile@example.com")
