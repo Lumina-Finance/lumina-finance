@@ -1,3 +1,7 @@
+// A highlighted row darkens the surface under the pill, so the stylesheet sets this variable there to a
+// bronze that still clears 4.5:1. Everywhere else the pill is the plain accent
+const PILL_TEXT_COLOUR = 'var(--app-dropdown-pill-text, var(--app-accent))'
+
 /**
  * Renders an option's badge as a pill, sized to sit inside a row of option text
  *
@@ -10,7 +14,7 @@ export function DropdownBadge({ label }: { label: string }) {
       className="shrink-0 rounded-full px-1.5 py-0.5 text-[0.6875rem] font-semibold uppercase leading-none tracking-wide"
       style={{
         background: 'var(--app-accent-soft)',
-        color: 'var(--app-accent)',
+        color: PILL_TEXT_COLOUR,
       }}
     >
       {label}
@@ -28,7 +32,7 @@ export function DropdownCount({ count }: { count: number }) {
       className="flex h-[18px] min-w-[18px] shrink-0 items-center justify-center rounded-full px-1.5 text-[11px] font-medium"
       style={{
         background: 'var(--app-accent-soft)',
-        color: 'var(--app-accent)',
+        color: PILL_TEXT_COLOUR,
       }}
     >
       {count}
