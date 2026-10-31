@@ -29,6 +29,32 @@ export async function addPasskeyAuthenticator(page: Page): Promise<CDPSession> {
 }
 
 /**
+ * Runs the native passkey page's prompt with the server's options and returns the credential it sends
+ * the app. Chrome won't open a luminafinance:// address, so the page's request to go there is read instead
+ *
+ * @param page - Page whose virtual authenticator answers the prompt
+ * @param cdp - The session `addPasskeyAuthenticator` returned for that page
+ * @param ceremony - `create` to register a passkey, `get` to sign in with one
+ * @param options - The server's options for the ceremony, as the response text
+ */
+export async function runNativeCeremony(page: Page, cdp: CDPSession, ceremony: 'create' | 'get', options: string) {
+  const callback = new Promise<URL>((resolve) => {
+    const listener = ({ url }: { url: string }) => {
+      if (!url.startsWith('luminafinance:')) return
+      cdp.off('Page.frameRequestedNavigation', listener)
+      resolve(new URL(url))
+    }
+    cdp.on('Page.frameRequestedNavigation', listener)
+  })
+  // Each sheet opens the page afresh, where a change of fragment alone wouldn't load it again
+  await page.goto('about:blank')
+  await page.goto(`/native/passkey#${new URLSearchParams({ ceremony, options })}`)
+  const credential = (await callback).searchParams.get('credential')
+  expect(credential).toBeTruthy()
+  return JSON.parse(credential ?? '') as unknown
+}
+
+/**
  * Whether the page is at least this wide, as the app's own media queries see it.
  *
  * Asked of the page rather than worked out from the configured viewport, because a classic
