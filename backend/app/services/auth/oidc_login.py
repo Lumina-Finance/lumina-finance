@@ -312,7 +312,7 @@ async def complete_oidc_signup(
     db.add(user)
 
     # A parallel completion of the same onboarding token can claim the email or provider subject
-    # first, so the unique constraints turn that race into a conflict rather than an unhandled error
+    # first, so the unique indexes turn that race into a conflict rather than an unhandled error
     # The user is flushed first so its row exists before the identity rows that reference it
     try:
         await db.flush()
