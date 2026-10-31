@@ -649,3 +649,68 @@ for (const [name, anchor, saved, pick] of [
     expect(Math.max(...sampled.map((frame) => frame.clipped)), detail).toBeLessThanOrEqual(0.5)
   })
 }
+
+// Unlinking a saved link and linking the same transaction again before Save cancels out: the row stays through Save
+// with no call to the server, and the link is still there after a reload. A refund moved to another expense makes both
+// calls and keeps its new row. Each is sampled on every frame from the press of Save until the window has gone
+for (const [name, side, moved] of [
+  ['an expense relinking its refund', 'expense', false],
+  ['a refund relinking its expense', 'refund', false],
+  ['a refund moved to another expense', 'refund', true],
+] as const) {
+  test(`keeps the row through Save for ${name}`, async ({ page, request }) => {
+    const user = await signUpUser(request)
+    const account = await createAccount(request, user, { name: 'Everyday', startingBalance: 100000 })
+    const row = { accountId: account.id, categoryName: 'Groceries' }
+    const expenseId = await createTransaction(request, user, { ...row, amount: -5000, date: daysFromTodayInTestTimezone(-6) })
+    await createTransaction(request, user, { ...row, amount: -6000, date: daysFromTodayInTestTimezone(-5) })
+    const refundId = await createTransaction(request, user, { ...row, amount: 1500, date: daysFromTodayInTestTimezone(-1) })
+    await request.post(`${API_BASE_URL}/transactions/${refundId}/refund-link`, {
+      headers: asUser(user),
+      data: { original_transaction_id: expenseId },
+    })
+    const anchorId = side === 'expense' ? expenseId : refundId
+    const relinkedAmount = side === 'expense' ? '$15.00' : moved ? '$60.00' : '$50.00'
+
+    await logInViaApi(page, user)
+    await openPage(page, `/accounts/${account.id}`)
+    const dialog = await openRow(page, anchorId)
+    const linked = dialog.getByTestId('linked-transaction')
+    await expect(linked).toHaveCount(1)
+    await dialog.getByRole('button', { name: /^Unlink / }).click()
+    await expect(linked).toHaveCount(0)
+    await dialog.getByTestId('link-existing').click()
+    const picker = page.getByRole('dialog', { name: side === 'expense' ? 'Link a refund' : 'Link to an expense', exact: true })
+    await pressRow(picker, relinkedAmount).click()
+    await picker.getByRole('button', { name: 'Link', exact: true }).click()
+    await expect(picker).toBeHidden()
+    await expect(linked).toHaveCount(1)
+    await page.waitForTimeout(600)
+
+    const linkCalls: string[] = []
+    page.on('request', (sent) => {
+      if (sent.url().includes('/refund-link') && sent.method() !== 'GET') linkCalls.push(sent.method())
+    })
+    const dialogHandle = await dialog.elementHandle()
+    await page.evaluate((node) => {
+      const rows: number[] = []
+      const tick = () => {
+        if (!node!.isConnected) return
+        rows.push(node!.querySelectorAll('[data-testid="linked-transaction"]').length)
+        requestAnimationFrame(tick)
+      }
+      ;(window as unknown as { __rows: number[] }).__rows = rows
+      requestAnimationFrame(tick)
+    }, dialogHandle)
+    await saveButton(dialog).click()
+    await expect(dialog).toBeHidden()
+    const rows = await page.evaluate(() => (window as unknown as { __rows: number[] }).__rows)
+    expect([...new Set(rows)]).toEqual([1])
+    expect(linkCalls).toEqual(moved ? ['DELETE', 'POST'] : [])
+
+    await page.reload()
+    const reopened = await openRow(page, anchorId)
+    await expect(reopened.getByTestId('linked-transaction')).toHaveCount(1)
+    await expect(reopened.getByTestId('linked-transaction')).toContainText(relinkedAmount)
+  })
+}

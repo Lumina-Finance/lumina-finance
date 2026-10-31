@@ -87,13 +87,17 @@ export function usePendingLinks(
   const refreshCreatedTransactions = useRefreshCreatedTransactions()
   const applied = useRef({ count: 0, accountIds: [] as string[] })
 
+  // Picking again the transaction whose saved link is held for removal cancels that removal, as nothing has changed
   const addLink = useCallback(
     (transaction: Transaction) =>
-      setState((current) => ({
-        ...current,
-        links: [...current.links.filter((l) => l.id !== transaction.id), transaction],
-      })),
-    [],
+      setState((current) => {
+        const heldUnlinkId = anchor?.refund_of_transaction_id === transaction.id ? anchor.id : transaction.id
+        if (current.unlinkedRefundIds.includes(heldUnlinkId)) {
+          return { ...current, unlinkedRefundIds: current.unlinkedRefundIds.filter((id) => id !== heldUnlinkId) }
+        }
+        return { ...current, links: [...current.links.filter((l) => l.id !== transaction.id), transaction] }
+      }),
+    [anchor],
   )
   const removeLink = useCallback(
     (transactionId: string) =>
@@ -123,6 +127,9 @@ export function usePendingLinks(
         ...current,
         unlinkedRefundIds: current.unlinkedRefundIds.filter((id) => id !== refundId),
         appliedUnlinkIds: [...current.appliedUnlinkIds, refundId],
+
+        // A link this window made and has now removed. A refund's only link is the one it just lost
+        appliedLinks: current.appliedLinks.filter((link) => link.id !== refundId && anchor?.id !== refundId),
       }))
     }
   }
@@ -140,6 +147,9 @@ export function usePendingLinks(
         ...current,
         links: current.links.filter((link) => link.id !== picked.id),
         appliedLinks: [...current.appliedLinks, picked],
+
+        // The refund is linked again, so an earlier removal of its link no longer takes its row away
+        appliedUnlinkIds: current.appliedUnlinkIds.filter((id) => id !== refundId),
       }))
     }
     for (const refund of state.refunds) {
