@@ -94,3 +94,65 @@ def test_lambda_with_the_logging_email_backend_refuses_to_start():
 
     assert completed.returncode != 0
     assert "Invalid EMAIL_BACKEND='logging'. RUNTIME=lambda requires smtp" in completed.stderr
+
+
+# Answers one request on purpose with a 503 and one with a 200, then writes one abuse line and prints
+# the level the database library's lines are held to
+_LOG_LEVEL_SCRIPT = """
+import logging
+from fastapi import HTTPException
+from fastapi.testclient import TestClient
+from app.abuse_log import log_source_address
+from app.main import app
+from app.request_hook import RequestRecord
+
+@app.get("/test/unavailable")
+async def unavailable():
+    raise HTTPException(status_code=503)
+
+client = TestClient(app)
+client.get("/test/unavailable")
+client.get("/health?secret=query-value")
+log_source_address(RequestRecord({"client": ("203.0.113.9", 1)}, "POST", "/auth/login", 401, 0.01))
+print(logging.getLevelName(logging.getLogger("sqlalchemy.engine").getEffectiveLevel()))
+"""
+
+_ERROR_LINE = "ERROR app.request_log: GET /test/unavailable answered 503 in"
+_DEBUG_LINE = "DEBUG app.request_log: GET /health answered 200 in"
+_ABUSE_LINE = '"ip":"203.0.113.9"'
+
+
+@pytest.mark.parametrize(
+    ("configured", "is_debug_line_written", "is_abuse_line_written"),
+    [
+        ("debug", True, True),
+        ("", False, True),
+        ("INFO", False, True),
+        ("WARNING", False, False),
+        ("ERROR", False, False),
+    ],
+)
+def test_log_level_decides_which_lines_are_written(configured, is_debug_line_written, is_abuse_line_written):
+    """Server errors show at every level, request lines at debug only, and fail2ban's lines from info down"""
+    completed = _start_app(_LOG_LEVEL_SCRIPT, {"LOG_LEVEL": configured})
+
+    assert completed.returncode == 0, completed.stderr
+    assert _ERROR_LINE in completed.stderr
+    assert (_DEBUG_LINE in completed.stderr) is is_debug_line_written
+    assert (_ABUSE_LINE in completed.stdout) is is_abuse_line_written
+    assert "query-value" not in completed.stderr + completed.stdout
+
+
+def test_debug_level_stops_at_the_app_so_outside_libraries_write_no_values():
+    """The database library's lines hold statement values, so debug never reaches them"""
+    completed = _start_app(_LOG_LEVEL_SCRIPT, {"LOG_LEVEL": "DEBUG"})
+
+    assert completed.stdout.strip().endswith("WARNING")
+
+
+def test_an_unknown_log_level_refuses_to_start():
+    """A mistyped level stops start-up and names the accepted values"""
+    completed = _start_app("import app.main", {"LOG_LEVEL": "verbose"})
+
+    assert completed.returncode != 0
+    assert "Invalid LOG_LEVEL='verbose'. Must be one of: DEBUG, INFO, WARNING, ERROR" in completed.stderr
