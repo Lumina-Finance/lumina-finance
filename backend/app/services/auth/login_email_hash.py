@@ -16,8 +16,10 @@ import hmac
 from app.bank_transaction_key import resolve_key
 
 # Separates this use of the server key from the bank transaction hashes made with the same secret.
-# The migration that moved the counters here inlines this label and the construction below, so both
-# must change together
+# The migration that moved the counters here inlines this label and the construction below as they
+# were then, with the address's capitals kept, so it hashes a mixed-case address differently from
+# now. That only forgets a lockout in force on the day of that upgrade, and the label must still
+# change together with it
 LOCKOUT_KEY_LABEL = b"login-lockout"
 
 
@@ -31,9 +33,10 @@ def seal_login_email(email: str) -> str:
     """Return what the server keeps to recognise an email in the lockout records
 
     Args:
-        email: The address exactly as the account lookup matches it
+        email: The address as the sign-in carries it, in any capitalisation, since the account lookup
+            ignores capitals and a failure counted apart per spelling would sidestep the lockout
 
     Returns:
-        HMAC-SHA256 of the address's UTF-8 bytes, as 64 lower-case hex characters
+        HMAC-SHA256 of the lower-cased address's UTF-8 bytes, as 64 lower-case hex characters
     """
-    return hmac.new(_lockout_key(), email.encode(), hashlib.sha256).hexdigest()
+    return hmac.new(_lockout_key(), email.lower().encode(), hashlib.sha256).hexdigest()

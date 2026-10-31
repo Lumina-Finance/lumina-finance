@@ -334,3 +334,29 @@ async def test_confirming_after_registration_closes_creates_no_account(client, m
     assert resp.status_code == 403
     assert resp.json()["detail"] == "Registration is closed on this instance"
     assert await _users() == []
+
+
+async def test_a_registered_address_in_other_capitals_gets_the_same_response_and_no_email(client):
+    """Signing up again with the address typed in other capitals reveals nothing and sends nothing"""
+    await _seed_currency()
+    new_address = await client.post("/auth/signup", json={**_PROFILE, "email": "new@example.com"})
+    await sign_up_confirmed(client, {**SIGNUP_PAYLOAD, "email": "Alice@example.com"})
+    mailbox.sent.clear()
+
+    registered = await client.post("/auth/signup", json={**_PROFILE, "email": "alice@example.com"})
+
+    assert (registered.status_code, registered.content) == (new_address.status_code, new_address.content)
+    assert mailbox.sent == []
+    assert len(await _users()) == 1
+
+
+async def test_confirming_a_link_for_other_capitals_of_a_registered_address_creates_no_account(client):
+    """A link minted for alice@ is refused once Alice@ has an account, so no second account appears"""
+    await _seed_currency()
+    await sign_up_confirmed(client, {**SIGNUP_PAYLOAD, "email": "Alice@example.com"})
+
+    resp = await client.post("/auth/signup/confirm", json={"token": _link_token("alice@example.com"), "new_password": _NEW_PASSWORD})
+
+    assert resp.status_code == 400
+    assert resp.json()["detail"] == "Invalid or expired confirmation link"
+    assert [user.email for user in await _users()] == ["Alice@example.com"]

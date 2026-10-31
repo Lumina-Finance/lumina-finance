@@ -146,8 +146,9 @@ async def _issue_password_reset(db: AsyncSession, email: str, session_factory: a
     await delete_stale_password_reset_tokens(db)
 
     # Hold this user's allowance until the new token commits, including when no prior rows exist.
-    # An email with no account locks on itself, so unknown emails never queue behind one another
-    lock_subject = user_id.bytes if user_id is not None else email.encode()
+    # An email with no account locks on itself, so unknown emails never queue behind one another.
+    # Its capitals are folded, since the lookup above ignores them
+    lock_subject = user_id.bytes if user_id is not None else email.lower().encode()
     lock_digest = hashlib.blake2b(_ISSUANCE_LOCK_NAMESPACE + lock_subject, digest_size=8).digest()
     lock_key = int.from_bytes(lock_digest, byteorder="big", signed=True)
     await db.execute(select(sa_func.pg_advisory_xact_lock(lock_key)))
