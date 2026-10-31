@@ -176,14 +176,8 @@ export default function TransactionListToolbar({
     </AnimatePresence>
   )
 
-  const accountOptions = useMemo(
-    () => getAccountOptions(accounts),
-    [accounts],
-  )
-  const categoryOptions = useMemo(
-    () => getCategoryOptions(categories),
-    [categories],
-  )
+  const accountOptions = useMemo(() => getAccountOptions(accounts), [accounts])
+  const categoryOptions = useMemo(() => getCategoryOptions(categories), [categories])
   const activeFilterCount = getActiveFilterCount(filters, showAccountFilter)
 
   return (
@@ -200,7 +194,7 @@ export default function TransactionListToolbar({
           onValueChange={onSearchChange}
           onSubmit={onSearchSubmit}
           placeholder="Search transactions..."
-          wrapperClassName={getSearchFieldWrapperClassName(shell.isTopRowAtMenuButton,shell.desktopInlineLayout)}
+          wrapperClassName={getSearchFieldWrapperClassName(shell.isTopRowAtMenuButton, shell.desktopInlineLayout)}
         />
 
         {/* Query this row's available width, including on an account page. Each threshold reserves
