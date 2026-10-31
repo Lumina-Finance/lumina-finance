@@ -48,6 +48,16 @@ export interface AccountsOverview {
 }
 
 /**
+ * Characters an account's notes may hold, matching the backend column
+ */
+export const ACCOUNT_NOTES_MAX_LENGTH = 2000
+
+/**
+ * The refusal both account forms show on the Notes field past the limit
+ */
+export const ACCOUNT_NOTES_TOO_LONG_MESSAGE = `Notes must be ${ACCOUNT_NOTES_MAX_LENGTH} characters or less.`
+
+/**
  * Mirrors the backend account-kind mapping so forms do not expose a separate kind selector
  */
 export const ACCOUNT_KIND_BY_TYPE: Record<AccountType, AccountKind> = {
@@ -80,6 +90,7 @@ export interface AccountBalanceSnapshot {
  * Full account shape returned by account detail, create, and update endpoints
  */
 export interface Account extends AccountsOverview {
+  notes: string | null
   created_at: string
   /** Whether a transaction is dated after the viewer's today, which blocks archiving until it is moved or deleted */
   has_transactions_after_today: boolean
@@ -94,6 +105,7 @@ export interface CreateAccountPayload {
   currency: string
   credit_limit: number | null
   starting_balance: number | null
+  notes: string | null
   is_archived: boolean
 }
 
@@ -102,6 +114,7 @@ export interface UpdateAccountPayload {
   name?: string
   institution_id?: string | null
   credit_limit?: number | null
+  notes?: string | null
   is_archived?: boolean
 }
 

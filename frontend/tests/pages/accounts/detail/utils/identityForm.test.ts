@@ -28,6 +28,7 @@ function createAccount(overrides: Partial<Account> = {}): Account {
     base_currency_current_balance: overrides.base_currency_current_balance ?? null,
     current_balance_fx_status: overrides.current_balance_fx_status ?? { state: 'none', missing_pairs: [] },
     credit_limit: overrides.credit_limit ?? null,
+    notes: overrides.notes ?? null,
     can_write: overrides.can_write ?? true,
     is_archived: overrides.is_archived ?? false,
     created_at: '2026-01-01T00:00:00Z',
@@ -51,6 +52,7 @@ describe('identity form helpers', () => {
           },
           tax_advantaged_category_id: 'plan',
           credit_limit: 1_234,
+          notes: 'Customer 42',
           is_archived: true,
         }),
         currencies,
@@ -58,6 +60,7 @@ describe('identity form helpers', () => {
     ).toEqual({
       name: 'Account',
       institution_id: 'bank',
+      notes: 'Customer 42',
       tax_advantaged_category_id: 'plan',
       credit_limit: '12.34',
       is_archived: true,
@@ -80,6 +83,7 @@ describe('identity form helpers', () => {
     const form = {
       name: '  Travel Card  ',
       institution_id: '',
+      notes: '',
       tax_advantaged_category_id: 'plan',
       credit_limit: '1234.56',
       is_archived: true,
@@ -96,6 +100,7 @@ describe('identity form helpers', () => {
     ).toEqual({
       name: 'Travel Card',
       institution_id: null,
+      notes: null,
       is_archived: true,
       credit_limit: 123_456,
     })
@@ -110,8 +115,28 @@ describe('identity form helpers', () => {
     ).toEqual({
       name: 'Travel Card',
       institution_id: null,
+      notes: null,
       is_archived: true,
       tax_advantaged_category_id: 'plan',
+    })
+  })
+
+  it('sends trimmed notes, clears them when blank and refuses notes past the limit', () => {
+    const form = createIdentityFormValues(createAccount({ notes: 'Customer 42' }), currencies)
+    const payloadFor = (notes: string) =>
+      getIdentityUpdatePayload({
+        form: { ...form, notes },
+        isRevolving: false,
+        canLinkTaxAdvantagedCategory: false,
+        currencies,
+        accountCurrency: 'USD',
+      })
+
+    expect(payloadFor('  Account 123\nBranch 7  ').notes).toBe('Account 123\nBranch 7')
+    expect(payloadFor('   ').notes).toBeNull()
+    expect(getIdentityFieldErrors({ ...form, notes: 'x'.repeat(2000) }, false)).toEqual({})
+    expect(getIdentityFieldErrors({ ...form, notes: 'x'.repeat(2001) }, false)).toEqual({
+      notes: 'Notes must be 2000 characters or less.',
     })
   })
 
@@ -138,6 +163,7 @@ describe('identity form helpers', () => {
     ).toEqual({
       name: 'Renamed account',
       institution_id: null,
+      notes: null,
       is_archived: false,
     })
   })

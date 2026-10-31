@@ -1,4 +1,10 @@
-import { ACCOUNT_KIND_BY_TYPE, type AccountType, type CreateAccountPayload } from '@/api/accounts'
+import {
+  ACCOUNT_KIND_BY_TYPE,
+  ACCOUNT_NOTES_MAX_LENGTH,
+  ACCOUNT_NOTES_TOO_LONG_MESSAGE,
+  type AccountType,
+  type CreateAccountPayload,
+} from '@/api/accounts'
 import type { Currency } from '@/api/currency'
 import {
   CREATE_ACCOUNT_TYPE_OPTIONS,
@@ -63,6 +69,9 @@ export function validateCreateAccountForm(form: CreateAccountForm): CreateAccoun
 
   if (!isValidMoneyInput(form.credit_limit)) errors.credit_limit = 'Must be a positive number'
   if (!isValidMoneyInput(form.starting_balance)) errors.starting_balance = 'Must be zero or higher'
+  if (form.notes.trim().length > ACCOUNT_NOTES_MAX_LENGTH) {
+    errors.notes = ACCOUNT_NOTES_TOO_LONG_MESSAGE
+  }
 
   return errors
 }
@@ -113,6 +122,7 @@ export function buildCreateAccountPayload(form: CreateAccountForm, currencies: C
     credit_limit:
       accountKind === 'revolving' ? optionalAccountMoneyInputToMinorUnits(form.credit_limit, minorUnitExponent) : null,
     starting_balance: startingBalance === null ? null : isLiability ? -startingBalance : startingBalance,
+    notes: form.notes.trim() || null,
     is_archived: false,
   }
 }

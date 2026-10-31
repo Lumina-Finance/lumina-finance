@@ -83,6 +83,7 @@ async def create_account_with_initial_balance_history(
         institution_id=data.institution_id,
         currency=data.currency,
         credit_limit=data.credit_limit,
+        notes=data.notes,
         is_archived=data.is_archived,
     )
     db.add(account)

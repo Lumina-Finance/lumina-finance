@@ -359,3 +359,36 @@ async def test_create_account_duplicate_names_allowed(client):
     assert resp1.status_code == 201
     assert resp2.status_code == 201
     assert resp1.json()["id"] != resp2.json()["id"]
+
+
+async def test_create_account_with_notes_returns_them_on_detail(client):
+    """Notes given at creation are stored and come back from the detail route."""
+    signup_resp = await _create_user(client)
+    headers = _get_auth_header(signup_resp)
+
+    resp = await _create_account(client, headers, notes="Account 123-456")
+
+    assert resp.status_code == 201
+    assert resp.json()["notes"] == "Account 123-456"
+    detail_resp = await client.get(f"/accounts/{resp.json()['id']}", headers=headers)
+    assert detail_resp.json()["notes"] == "Account 123-456"
+
+
+async def test_create_account_without_notes_returns_null_notes(client):
+    """An account created without notes has none."""
+    signup_resp = await _create_user(client)
+    headers = _get_auth_header(signup_resp)
+
+    resp = await _create_account(client, headers)
+
+    assert resp.json()["notes"] is None
+
+
+async def test_create_account_notes_over_limit_returns_422(client):
+    """Notes longer than the column allows are refused instead of cut short."""
+    signup_resp = await _create_user(client)
+    headers = _get_auth_header(signup_resp)
+
+    resp = await _create_account(client, headers, notes="x" * 2001)
+
+    assert resp.status_code == 422

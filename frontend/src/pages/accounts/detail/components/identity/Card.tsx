@@ -6,6 +6,7 @@ import { InstitutionLogo } from '@/pages/accounts/components/InstitutionLogo'
 import { ACCOUNT_KIND_LABEL } from '@/pages/accounts/detail/constants/accountDetail'
 import { humanizeAccountType } from '@/utils/formatAccountType'
 import { IdentityFacts } from './Facts'
+import { IdentityNotes } from './Notes'
 import { StandardAccountBand } from './StandardBand'
 import { TaxAdvantagedCategoryBand } from './TaxAdvantagedBand'
 
@@ -55,6 +56,7 @@ export default function AccountIdentityCard({
       </p>
 
       <IdentityFacts facts={identityFacts} />
+      {account.notes && <IdentityNotes notes={account.notes} />}
 
       {linkedTaxAdvantagedCategoryId ? (
         <TaxAdvantagedCategoryBand plan={linkedTaxAdvantagedCategory} hasError={!!linkedTaxAdvantagedCategoryError} />

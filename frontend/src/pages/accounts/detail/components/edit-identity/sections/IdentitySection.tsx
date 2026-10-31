@@ -16,7 +16,7 @@ type AccountIdentitySectionProps = {
 }
 
 /**
- * Renders account name and institution controls for the identity section
+ * Renders account name, institution and notes controls for the identity section
  */
 export function AccountIdentitySection({
   form,
@@ -60,6 +60,25 @@ export function AccountIdentitySection({
           createNewLabel={(query) => (query ? `Create institution "${query}"` : 'Create institution')}
           onEditOption={onCorrectInstitution}
           editOptionLabel="Correct institution"
+        />
+      </div>
+
+      <div>
+        <AccountIdentityFieldLabelRow
+          htmlFor={EDIT_ACCOUNT_IDENTITY_FIELD_IDS.notes}
+          label="Notes"
+          error={fieldErrors.notes}
+          errorId={EDIT_ACCOUNT_IDENTITY_FIELD_IDS.notesError}
+        />
+        <textarea
+          id={EDIT_ACCOUNT_IDENTITY_FIELD_IDS.notes}
+          className={`app-input h-auto resize-none py-2 ${fieldErrors.notes ? 'app-input-error' : ''}`}
+          aria-invalid={fieldErrors.notes ? true : undefined}
+          aria-describedby={fieldErrors.notes ? EDIT_ACCOUNT_IDENTITY_FIELD_IDS.notesError : undefined}
+          placeholder="Optional"
+          rows={3}
+          value={form.notes}
+          onChange={(event) => setField('notes', event.target.value)}
         />
       </div>
     </EditModalSection>

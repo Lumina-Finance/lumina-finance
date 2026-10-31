@@ -361,6 +361,26 @@ export default function CreateAccountModal({ open, onClose }: CreateAccountModal
                   </motion.div>
                 )}
               </AnimatePresence>
+
+              <div>
+                <CreateModalFieldLabelRow
+                  htmlFor={CREATE_ACCOUNT_MODAL_FIELD_IDS.notes}
+                  label="Notes"
+                  error={errors.notes}
+                  errorId={CREATE_ACCOUNT_ERROR_IDS.notes}
+                />
+                <textarea
+                  id={CREATE_ACCOUNT_MODAL_FIELD_IDS.notes}
+                  className={`app-input h-auto resize-none py-2 ${errors.notes ? 'app-input-error' : ''}`}
+                  aria-invalid={errors.notes ? true : undefined}
+                  aria-describedby={errors.notes ? CREATE_ACCOUNT_ERROR_IDS.notes : undefined}
+                  placeholder="Optional"
+                  rows={3}
+                  value={form.notes}
+                  onChange={(event) => handleChange('notes', event.target.value)}
+                  onBlur={() => refusal.touch('notes')}
+                />
+              </div>
             </div>
           </CreateModalSectionFrame>
 

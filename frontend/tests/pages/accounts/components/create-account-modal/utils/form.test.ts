@@ -81,7 +81,22 @@ describe('create account form helpers', () => {
       currency: 'CAD',
       credit_limit: 1000050,
       starting_balance: -12345,
+      notes: null,
       is_archived: false,
+    })
+  })
+
+  it('sends trimmed notes and refuses notes past the limit', () => {
+    const form = {
+      ...buildInitialCreateAccountForm('CAD'),
+      account_type: 'checking' as const,
+      name: 'Chequing',
+    }
+
+    expect(buildCreateAccountPayload({ ...form, notes: '  Customer 42  ' }, currencies).notes).toBe('Customer 42')
+    expect(validateCreateAccountForm({ ...form, notes: 'x'.repeat(2000) })).toEqual({})
+    expect(validateCreateAccountForm({ ...form, notes: 'x'.repeat(2001) })).toEqual({
+      notes: 'Notes must be 2000 characters or less.',
     })
   })
 })

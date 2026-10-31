@@ -1,10 +1,16 @@
-import type { Account, UpdateAccountPayload } from '@/api/accounts'
+import {
+  ACCOUNT_NOTES_MAX_LENGTH,
+  ACCOUNT_NOTES_TOO_LONG_MESSAGE,
+  type Account,
+  type UpdateAccountPayload,
+} from '@/api/accounts'
 import type { Currency } from '@/api/currency'
 import { findCurrencyExponent, fromMinorUnits, isValidMoneyInput, toMinorUnits } from '@/utils/moneyInput'
 
 export interface IdentityFormValues {
   name: string
   institution_id: string
+  notes: string
   tax_advantaged_category_id: string
   credit_limit: string
   is_archived: boolean
@@ -24,6 +30,7 @@ export function createIdentityFormValues(account: Account, currencies: Currency[
   return {
     name: account.name,
     institution_id: account.institution?.id ?? '',
+    notes: account.notes ?? '',
     tax_advantaged_category_id: account.tax_advantaged_category_id ?? '',
     credit_limit: creditLimitExponent === null ? '' : fromMinorUnits(account.credit_limit, creditLimitExponent),
     is_archived: account.is_archived,
@@ -37,6 +44,9 @@ export function getIdentityFieldErrors(form: IdentityFormValues, isRevolving: bo
   const errors: IdentityFieldErrors = {}
   if (!form.name.trim()) errors.name = 'Name is required.'
   else if (form.name.trim().length > 256) errors.name = 'Name must be 256 characters or less.'
+  if (form.notes.trim().length > ACCOUNT_NOTES_MAX_LENGTH) {
+    errors.notes = ACCOUNT_NOTES_TOO_LONG_MESSAGE
+  }
   if (isRevolving && !isValidMoneyInput(form.credit_limit)) {
     errors.credit_limit = 'Credit limit must be zero or higher.'
   }
@@ -68,6 +78,7 @@ export function getIdentityUpdatePayload({
   return {
     name: form.name.trim(),
     institution_id: form.institution_id || null,
+    notes: form.notes.trim() || null,
     is_archived: form.is_archived,
     ...(isRevolving && creditLimitExponent !== null
       ? { credit_limit: toMinorUnits(form.credit_limit, creditLimitExponent) }

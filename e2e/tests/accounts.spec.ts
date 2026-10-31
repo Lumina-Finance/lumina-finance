@@ -36,6 +36,62 @@ test('starts a new user with no accounts and creates one through the modal', asy
   await expect(page.getByRole('link', { name: new RegExp(ACCOUNT_NAME) })).toBeVisible()
 })
 
+test('refuses over-long notes in Add account and scrolls long notes by keyboard', async ({ page, request }) => {
+  const user = await signUpUser(request)
+  await logInViaApi(page, user)
+  await openPage(page, '/accounts')
+
+  const createDialog = await openModal(page, ['Add account'], 'Add account')
+  await chooseFromDropdown(createDialog, 'Account type', 'Checking')
+  await createDialog.getByLabel('Account name').fill(ACCOUNT_NAME)
+  await createDialog.getByLabel('Notes').fill('x'.repeat(2001))
+  await createDialog.getByLabel('Account name').focus()
+  await expect(createDialog.getByRole('alert')).toHaveText('Notes must be 2000 characters or less.')
+  await createDialog.getByLabel('Notes').fill(Array.from({ length: 40 }, (_, line) => `Line ${line + 1}`).join('\n'))
+  await createDialog.getByRole('button', { name: 'Create account' }).click()
+  await expect(createDialog).toBeHidden()
+
+  await page.getByRole('link', { name: new RegExp(ACCOUNT_NAME) }).click()
+  const notes = page.getByRole('region', { name: 'Notes' })
+  await expect(notes).toContainText('Line 40')
+  await notes.focus()
+  await expect(notes).toBeFocused()
+  await page.keyboard.press('End')
+  await expect.poll(() => notes.evaluate((node) => node.scrollTop)).toBeGreaterThan(0)
+})
+
+test('keeps the notes written for an account, shows them on its page and clears them', async ({ page, request }) => {
+  const user = await signUpUser(request)
+  await logInViaApi(page, user)
+  await openPage(page, '/accounts')
+
+  const createDialog = await openModal(page, ['Add account'], 'Add account')
+  await chooseFromDropdown(createDialog, 'Account type', 'Checking')
+  await createDialog.getByLabel('Account name').fill(ACCOUNT_NAME)
+  await createDialog.getByLabel('Notes').fill('Account 123-456\nCustomer 42')
+  await createDialog.getByRole('button', { name: 'Create account' }).click()
+  await expect(createDialog).toBeHidden()
+
+  await page.getByRole('link', { name: new RegExp(ACCOUNT_NAME) }).click()
+  const notes = page.getByText('Customer 42')
+  await expect(notes).toHaveText('Account 123-456\nCustomer 42')
+
+  await page.getByRole('button', { name: 'Edit account', exact: true }).click()
+  const editDialog = page.getByRole('dialog', { name: 'Edit account', exact: true })
+  const field = editDialog.getByLabel('Notes')
+  await expect(field).toHaveValue('Account 123-456\nCustomer 42')
+  await field.fill('x'.repeat(2001))
+  await editDialog.getByTestId('account-submit').click()
+  await expect(editDialog.getByRole('alert')).toHaveText('Notes must be 2000 characters or less.')
+  await expect(field).toHaveAttribute('aria-invalid', 'true')
+
+  await field.fill('')
+  await editDialog.getByTestId('account-submit').click()
+  await expect(editDialog).toBeHidden()
+  await expect(notes).toHaveCount(0)
+  await expect(page.getByText('Notes', { exact: true })).toHaveCount(0)
+})
+
 test('records an expense through the modal and shows it as money out', async ({ page, request }) => {
   const user = await signUpUser(request)
   const account = await createAccount(request, user, { name: ACCOUNT_NAME })

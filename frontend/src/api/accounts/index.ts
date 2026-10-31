@@ -1,4 +1,4 @@
-export { ACCOUNT_KIND_BY_TYPE } from '@/api/accounts/types'
+export { ACCOUNT_KIND_BY_TYPE, ACCOUNT_NOTES_MAX_LENGTH, ACCOUNT_NOTES_TOO_LONG_MESSAGE } from '@/api/accounts/types'
 
 export type {
   Account,
