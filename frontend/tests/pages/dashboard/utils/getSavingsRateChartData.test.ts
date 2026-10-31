@@ -1,13 +1,10 @@
 /**
  * Tests the savings rate chart data, so the current period is still plotted while it is empty and an
- * expense month with no income reads as an unbounded loss rather than a number
+ * expense month with no income reads N/A rather than a number
  */
 import { describe, expect, it } from 'vitest'
 import type { SavingsRateSeriesPoint } from '@/components/charts/types'
-import {
-  getSavingsRateChartData,
-  getSavingsRateDisplay,
-} from '@/pages/dashboard/utils/getSavingsRateChartData'
+import { getSavingsRateChartData, getSavingsRateDisplay } from '@/pages/dashboard/utils/getSavingsRateChartData'
 
 describe('savings rate chart data', () => {
   it('builds savings rate chart data without hiding the current empty period', () => {
@@ -42,12 +39,14 @@ describe('savings rate chart data', () => {
       { ...points[1], chartRate: 100 },
       { ...points[2], chartRate: null },
     ])
-    expect(getSavingsRateDisplay({
-      ...points[0],
-      income: 0,
-      expenses: 500,
-      chartRate: -100,
-    })).toBe('−∞%')
+    expect(
+      getSavingsRateDisplay({
+        ...points[0],
+        income: 0,
+        expenses: 500,
+        chartRate: -100,
+      }),
+    ).toBe('N/A')
   })
 
   it('rounds the tooltip rate down, so an exact 14.5% reads 14% and -14.5% reads -15%', () => {

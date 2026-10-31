@@ -1,6 +1,6 @@
 import type { Institution } from '@/api/institutions'
 import { useUsableLogo } from '@/hooks/useUsableLogo'
-import { resolveInstitutionLogoUrl } from '@/utils/institutionLogo'
+import { LOGO_PLACEHOLDER_STYLE, resolveInstitutionLogoUrl } from '@/utils/institutionLogo'
 
 type InstitutionLogoProps = {
   institution: Institution | null
@@ -25,10 +25,7 @@ const variantClassName = {
 /**
  * Renders a consistent institution logo slot for account list and detail surfaces
  */
-export function InstitutionLogo({
-  institution,
-  variant = 'row',
-}: InstitutionLogoProps) {
+export function InstitutionLogo({ institution, variant = 'row' }: InstitutionLogoProps) {
   const logo = useUsableLogo(resolveInstitutionLogoUrl(institution))
   const faviconUrl = logo.src
   const classNames = variantClassName[variant]
@@ -36,14 +33,7 @@ export function InstitutionLogo({
   return (
     <div
       className={`flex shrink-0 items-center justify-center overflow-hidden ${classNames.shell}`}
-      style={
-        faviconUrl
-          ? undefined
-          : {
-              background: 'var(--app-accent-soft)',
-              border: '1px solid var(--app-border)',
-            }
-      }
+      style={faviconUrl ? undefined : LOGO_PLACEHOLDER_STYLE}
     >
       {faviconUrl ? (
         <img
@@ -56,7 +46,7 @@ export function InstitutionLogo({
       ) : (
         <span
           className={`select-none font-semibold ${classNames.fallback}`}
-          style={{ color: 'var(--app-accent)' }}
+          style={{ color: 'var(--app-accent-on-page-tint)' }}
         >
           $
         </span>

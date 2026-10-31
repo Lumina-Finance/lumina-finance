@@ -78,16 +78,13 @@ const SAVINGS_RATE_DISPLAY_LIMIT = 999
 
 /**
  * Formats a savings rate, which is unsigned when it is positive and written with the same negative
- * as an amount that moved when spending outran income. Minus infinity, the rate of spending with no
- * income behind it, is written the same way. A finite rate beyond 999% either way is written as
- * "above 999%" or "below −999%"
+ * as an amount that moved when spending outran income. A rate beyond 999% either way is written as
+ * "above 999%" or "below −999%". It takes a finite rate, since a month with no income has none
  */
 export function formatRatePercent(rate: number): string {
   if (rate > SAVINGS_RATE_DISPLAY_LIMIT) return `above ${SAVINGS_RATE_DISPLAY_LIMIT}%`
-  if (rate < -SAVINGS_RATE_DISPLAY_LIMIT && Number.isFinite(rate)) {
-    return `below ${signMovedAmount(-1, `${SAVINGS_RATE_DISPLAY_LIMIT}%`)}`
-  }
-  const magnitude = Number.isFinite(rate) ? Math.abs(rate).toString() : '∞'
+  if (rate < -SAVINGS_RATE_DISPLAY_LIMIT) return `below ${signMovedAmount(-1, `${SAVINGS_RATE_DISPLAY_LIMIT}%`)}`
+  const magnitude = Math.abs(rate).toString()
   return rate < 0 ? signMovedAmount(-1, `${magnitude}%`) : `${magnitude}%`
 }
 

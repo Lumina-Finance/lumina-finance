@@ -29,13 +29,12 @@ function shouldShowSavingsRatePoint(point: SavingsRateSeriesPoint) {
 }
 
 /**
- * Formats the tooltip savings rate while preserving the no-income negative infinity state
+ * Formats the tooltip savings rate, which reads "N/A" for a month with expenses and no income to measure against
  */
 export function getSavingsRateDisplay(point: SavingsRateChartPoint) {
   if (point.income === 0 && point.expenses === 0) return null
-  return formatRatePercent(
-    getSavingsRate(point.income, point.expenses) ?? -Infinity,
-  )
+  const rate = getSavingsRate(point.income, point.expenses)
+  return rate === null ? 'N/A' : formatRatePercent(rate)
 }
 
 /**
@@ -45,10 +44,8 @@ export function getSavingsRateChartData(
   savingsData: SavingsRateSeriesPoint[],
   capSavingsRateChart: boolean,
 ): SavingsRateChartPoint[] {
-  return savingsData
-    .filter(shouldShowSavingsRatePoint)
-    .map((point) => ({
-      ...point,
-      chartRate: capSavingsRateChart ? clampSavingsRate(point.rate) : point.rate,
-    }))
+  return savingsData.filter(shouldShowSavingsRatePoint).map((point) => ({
+    ...point,
+    chartRate: capSavingsRateChart ? clampSavingsRate(point.rate) : point.rate,
+  }))
 }
