@@ -21,6 +21,9 @@ function invalidateTagUsageQueries(queryClient: QueryClient) {
  */
 export function updateTagCreateCaches(queryClient: QueryClient, tag: Tag) {
   queryClient.setQueryData<Tag>(tagKeys.detail(tag.id), tag)
+
+  // A newly created tag can resolve an imported tag name that previously had no match
+  void queryClient.invalidateQueries({ queryKey: tagKeys.nameMatchesAll })
   queryClient
     .getQueryCache()
     .findAll({ queryKey: tagKeys.all, exact: false })

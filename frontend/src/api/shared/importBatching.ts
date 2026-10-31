@@ -148,6 +148,7 @@ const MAPPING_LABELS: Record<string, string> = {
   accounts: 'Account',
   categories: 'Category',
   merchants: 'Merchant',
+  tags: 'Tag',
 }
 
 /**

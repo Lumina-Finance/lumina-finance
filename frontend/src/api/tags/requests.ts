@@ -1,6 +1,13 @@
 import { authenticatedFetch } from '@/api/client'
 import { buildQueryString, type QueryStringValue } from '@/api/utils/queryString'
-import type { CreateTagPayload, MergeTagRequest, Tag, TagFilters, UpdateTagRequest } from '@/api/tags/types'
+import type {
+  CreateTagPayload,
+  MergeTagRequest,
+  Tag,
+  TagFilters,
+  TagNameMatch,
+  UpdateTagRequest,
+} from '@/api/tags/types'
 
 /**
  * Fetches one filtered tag page for settings and transaction tag selectors
@@ -17,6 +24,19 @@ export function fetchTagsPage(filters: TagFilters = {}, pageSize = 20, offset = 
       }),
     { signal },
   )
+}
+
+/**
+ * Asks which of a file's tag names already have a tag of the user's own
+ *
+ * @param signal - Aborts the request when the load that asked for it is abandoned
+ */
+export function fetchTagNameMatches(names: string[], signal?: AbortSignal) {
+  return authenticatedFetch<TagNameMatch[]>('/tags/name-matches', {
+    method: 'POST',
+    body: JSON.stringify({ names }),
+    signal,
+  })
 }
 
 /**

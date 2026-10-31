@@ -49,6 +49,7 @@ function buildPayload(categorySources: string[]): TransactionImportPayload {
       create: { name: source, kind: 'expense' },
     })),
     merchants: [],
+    tags: [],
     rows: categorySources.map((source) => buildRow(source)),
   }
 }
@@ -59,6 +60,7 @@ describe('the merchant answers a staged batch carries', () => {
       accounts: [{ source: 'C', account_id: 'acc_1' }],
       categories: [{ source: 'G', category_id: 'cat_1' }],
       merchants: [{ source: 'SQ *COFFEE 4471', create: { name: 'Coffee Bar' } }],
+      tags: [],
       rows: [
         { ...buildRow(), merchant_name: 'SQ *COFFEE 4471' },
         // Spelled differently, so it is found by what matches a merchant name rather than by the spelling
@@ -72,6 +74,37 @@ describe('the merchant answers a staged batch carries', () => {
 
     expect(batches).toHaveLength(1)
     expect(batches[0].merchants).toEqual([{ source: 'SQ *COFFEE 4471', create: { name: 'Coffee Bar' } }])
+  })
+})
+
+describe('the tag answers a staged batch carries', () => {
+  it('carries each answer a row names, found whatever its capitals, and none a row does not', async () => {
+    const payload: TransactionImportPayload = {
+      accounts: [{ source: 'C', account_id: 'acc_1' }],
+      categories: [{ source: 'G', category_id: 'cat_1' }],
+      merchants: [],
+      tags: [
+        { source: 'Trip', create: { name: 'Travel' } },
+        { source: 'Junk', skip: true },
+        { source: 'Unused', skip: true },
+      ],
+      rows: [
+        // One row carrying two answered tags, one spelled differently from its answer
+        { ...buildRow(), tag_names: ['TRIP', 'junk', 'Food'] },
+        // Names an answer again, which is carried once
+        { ...buildRow(), tag_names: ['Trip'] },
+        // Names no answered tag, so the batch looks up nothing for it
+        { ...buildRow(), tag_names: ['Food'] },
+      ],
+    }
+
+    const batches = await buildStagedImportBatches(payload)
+
+    expect(batches).toHaveLength(1)
+    expect(batches[0].tags).toEqual([
+      { source: 'Trip', create: { name: 'Travel' } },
+      { source: 'Junk', skip: true },
+    ])
   })
 })
 
@@ -119,6 +152,7 @@ describe('the limits a staged batch is built against', () => {
       accounts: [{ source: 'C', account_id: 'acc_1' }],
       categories: [{ source: 'G', category_id: 'cat_1' }],
       merchants: [],
+      tags: [],
       rows: Array.from({ length: MAX_IMPORT_BATCH_ROWS + 100 }, () => buildRow()),
     }
 

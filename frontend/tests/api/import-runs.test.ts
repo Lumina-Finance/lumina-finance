@@ -53,6 +53,7 @@ const PAYLOAD: TransactionImportPayload = {
   accounts: [{ source: 'Checking', create: { name: 'Checking', account_type: 'checking', currency: 'CAD' } }],
   categories: [{ source: 'Groceries', create: { name: 'Groceries', kind: 'expense' } }],
   merchants: [],
+  tags: [],
   rows: [
     {
       account_source: 'Checking',

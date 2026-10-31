@@ -2,7 +2,12 @@ import { useId, type ReactNode } from 'react'
 import { CircleHelp } from 'lucide-react'
 import IconTooltip from '@/components/tooltips/IconTooltip'
 import Dropdown, { type DropdownOption } from '@/components/dropdown/Dropdown'
-import { IMPORT_CATEGORY_KIND_OPTIONS, IMPORT_CATEGORY_NAME_MAX_LENGTH } from '@/pages/imports/constants'
+import {
+  IMPORT_CATEGORY_KIND_OPTIONS,
+  IMPORT_CATEGORY_NAME_MAX_LENGTH,
+  IMPORT_EXCLUDED_ROW_BACKGROUND,
+  IMPORT_EXCLUDED_ROW_FAINT_TEXT,
+} from '@/pages/imports/constants'
 import type { ImportCategoryKind } from '@/pages/imports/types'
 import { ImportSegmentedToggle } from './SegmentedToggle'
 
@@ -40,6 +45,12 @@ export function ImportValueMatchTable({
     /** Leaves out the New badge, for a row sharing its answer with another row that already shows it */
     hideCreateBadge?: boolean
     autoFilled?: boolean
+
+    /**
+     * Shows the row as one the import leaves out and keeps listed, the way an ignored column is
+     * shown: shaded, its source struck through and badged
+     */
+    excluded?: boolean
     detailAutoFilled?: boolean
     detail?: string
     detailKind?: ImportCategoryKind | ''
@@ -94,7 +105,9 @@ export function ImportValueMatchTable({
           <tr>
             <th className="px-4 py-2.5 font-medium">{sourceLabel}</th>
             {detailLabel && <th className="w-64 px-4 py-2.5 font-medium">{detailLabel}</th>}
-            <th id={targetHeadingId} className="py-2.5 pl-4 pr-0 font-medium">{targetLabel}</th>
+            <th id={targetHeadingId} className="py-2.5 pl-4 pr-0 font-medium">
+              {targetLabel}
+            </th>
           </tr>
         </thead>
         <tbody>
@@ -109,13 +122,19 @@ export function ImportValueMatchTable({
             return (
               // The glow asks the user to check an answer, which means nothing while every answer is held,
               // as on a finished import's record or while the targets load
-              <tr key={row.id} className={!disabled && (row.autoFilled || row.detailAutoFilled) ? 'import-auto-fill-row' : undefined}>
+              <tr
+                key={row.id}
+                className={!disabled && (row.autoFilled || row.detailAutoFilled) ? 'import-auto-fill-row' : undefined}
+                style={row.excluded ? { background: IMPORT_EXCLUDED_ROW_BACKGROUND } : undefined}
+              >
                 <td className="px-4 py-2 align-middle">
                   <div className="flex min-w-0 items-center gap-2">
                     {row.rename ? (
                       <>
                         {/* Names the row for its dropdown, which the field's text would rename as it is typed */}
-                        <span id={sourceLabelId} className="sr-only">{row.source}</span>
+                        <span id={sourceLabelId} className="sr-only">
+                          {row.source}
+                        </span>
                         <input
                           type="text"
                           className={`app-input h-[var(--app-dropdown-height-compact)] min-w-0 flex-1 ${row.rename.isProposed || !row.rename.value.trim() ? 'app-input-error' : ''}`}
@@ -127,24 +146,52 @@ export function ImportValueMatchTable({
                           disabled={disabled}
                         />
                         <span className="flex shrink-0">
-                          <IconTooltip label={`Why ${row.source} has a new name`} level="important" placement={tooltipPlacement} widthClassName="w-64">
+                          <IconTooltip
+                            label={`Why ${row.source} has a new name`}
+                            level="important"
+                            placement={tooltipPlacement}
+                            widthClassName="w-64"
+                          >
                             {row.rename.help}
                           </IconTooltip>
                         </span>
                       </>
                     ) : (
-                      <p id={sourceLabelId} className="truncate font-medium" title={row.source}>{row.source}</p>
+                      <p
+                        id={sourceLabelId}
+                        className={`truncate font-medium ${row.excluded ? 'line-through' : ''}`}
+                        style={{ color: row.excluded ? 'var(--app-text-muted)' : undefined }}
+                        title={row.source}
+                      >
+                        {row.source}
+                      </p>
                     )}
                     {row.sourceHelp && (
                       <span className="flex shrink-0">
-                        <IconTooltip label={row.sourceHelp.label} icon={CircleHelp} placement={tooltipPlacement} widthClassName="w-64">
+                        <IconTooltip
+                          label={row.sourceHelp.label}
+                          icon={CircleHelp}
+                          placement={tooltipPlacement}
+                          widthClassName="w-64"
+                        >
                           {row.sourceHelp.content}
                         </IconTooltip>
                       </span>
                     )}
                     {creating && (
-                      <span className="shrink-0 text-[0.6875rem] font-semibold uppercase" style={{ color: 'var(--app-accent)' }}>
+                      <span
+                        className="shrink-0 text-[0.6875rem] font-semibold uppercase"
+                        style={{ color: 'var(--app-accent)' }}
+                      >
                         New
+                      </span>
+                    )}
+                    {row.excluded && (
+                      <span
+                        className="shrink-0 text-[0.6875rem] font-semibold uppercase"
+                        style={{ color: IMPORT_EXCLUDED_ROW_FAINT_TEXT }}
+                      >
+                        Ignored
                       </span>
                     )}
                   </div>
@@ -153,20 +200,23 @@ export function ImportValueMatchTable({
                   <td className="px-4 py-2 align-middle">
                     {/* Carries its own corner, since the glow no longer sets one and the toggle
                         inside is not a pill */}
-                    <div className={!disabled && row.detailAutoFilled ? 'import-auto-fill-field rounded-lg' : undefined}>
-                      {row.detailNode ?? (row.onDetailKindChange ? (
-                        <ImportSegmentedToggle
-                          options={IMPORT_CATEGORY_KIND_OPTIONS}
-                          value={row.detailKind ?? ''}
-                          label="Category type"
-                          onChange={row.onDetailKindChange}
-                          disabled={disabled || row.detailDisabled}
-                        />
-                      ) : (
-                        <span className="text-sm font-medium" style={{ color: 'var(--app-text-muted)' }}>
-                          {row.detail ?? ''}
-                        </span>
-                      ))}
+                    <div
+                      className={!disabled && row.detailAutoFilled ? 'import-auto-fill-field rounded-lg' : undefined}
+                    >
+                      {row.detailNode ??
+                        (row.onDetailKindChange ? (
+                          <ImportSegmentedToggle
+                            options={IMPORT_CATEGORY_KIND_OPTIONS}
+                            value={row.detailKind ?? ''}
+                            label="Category type"
+                            onChange={row.onDetailKindChange}
+                            disabled={disabled || row.detailDisabled}
+                          />
+                        ) : (
+                          <span className="text-sm font-medium" style={{ color: 'var(--app-text-muted)' }}>
+                            {row.detail ?? ''}
+                          </span>
+                        ))}
                     </div>
                   </td>
                 )}

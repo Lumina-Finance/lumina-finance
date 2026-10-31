@@ -216,7 +216,7 @@ export function buildOfxImportPayload(file: OfxFile, answers: OfxImportAnswers):
   const categories = buildCategoryMappings(rows, answers.categories, addError)
   if (errors.length === 0 && rows.length === 0) addError(getImportNoRowsError('file'))
 
-  const payload = errors.length === 0 ? { accounts, categories, merchants: [], rows } : null
+  const payload = errors.length === 0 ? { accounts, categories, merchants: [], tags: [], rows } : null
   return { errors, currencyMismatches, payload, skippedRows, writtenSources }
 }
 

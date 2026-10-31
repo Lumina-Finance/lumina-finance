@@ -206,6 +206,11 @@ export const SELF_MERCHANT_NAME = 'Myself'
 export const CREATE_MERCHANT_VALUE = '__create_merchant__'
 export const SKIP_MERCHANT_VALUE = '__skip_merchant__'
 
+// The two answers the tag step offers beside the tags themselves. Creating is what a value gets when
+// nothing matches it, and skipping imports its rows without the tag
+export const CREATE_TAG_VALUE = '__create_tag__'
+export const SKIP_TAG_VALUE = '__skip_tag__'
+
 // What one row may carry, matching what the API accepts. Checked here so an offending row is named
 // against its row number in the preview rather than failing part-way through the upload
 export const MAX_IMPORT_NOTES_LENGTH = 10_000
@@ -663,6 +668,11 @@ export const CATEGORIES_LOAD_FAILURE_EXPLANATION =
 export const MERCHANT_MATCHES_LOAD_FAILURE_TITLE = 'Your merchants could not be checked'
 export const MERCHANT_MATCHES_LOAD_FAILURE_EXPLANATION =
   'Without that check every merchant in this import reads as a new one, and importing would create merchants you already have.'
+
+// Shown when the page could not ask which of the file's tag names already have a tag
+export const TAG_MATCHES_LOAD_FAILURE_TITLE = 'Your tags could not be checked'
+export const TAG_MATCHES_LOAD_FAILURE_EXPLANATION =
+  'Without that check every tag in this import reads as a new one, and importing could create tags you already have.'
 
 // Shown when a mapping was answered with an account that has since been deleted. The answer is
 // dropped rather than sent, and nothing fills the row back in, so the user is told why a source

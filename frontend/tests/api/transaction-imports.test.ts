@@ -67,6 +67,7 @@ function buildImportPayload(rows: TransactionImportRow[]): TransactionImportPayl
       },
     ],
     merchants: [],
+    tags: [],
     rows,
   }
 }

@@ -1,5 +1,5 @@
 import { buildImportBatches } from '@/api/shared/importBatching'
-import { getMerchantNameKey } from '@/api/shared/merchantNameKey'
+import { getNameKey } from '@/api/shared/nameKey'
 import type {
   TransactionImportPayload,
   TransactionImportRow,
@@ -14,9 +14,8 @@ export async function buildStagedImportBatches(
 ): Promise<TransactionImportStageBatch[]> {
   // Keyed by what matches a merchant name rather than by the spelling the answer names, so a row spelling
   // it differently still finds the answer given for it
-  const merchantMappingsByKey = new Map(
-    payload.merchants.map((mapping) => [getMerchantNameKey(mapping.source), mapping]),
-  )
+  const merchantMappingsByKey = new Map(payload.merchants.map((mapping) => [getNameKey(mapping.source), mapping]))
+  const tagMappingsByKey = new Map(payload.tags.map((mapping) => [getNameKey(mapping.source), mapping]))
 
   return buildImportBatches({
     rows: payload.rows,
@@ -24,11 +23,13 @@ export async function buildStagedImportBatches(
       accounts: new Map(payload.accounts.map((mapping) => [mapping.source, mapping])),
       categories: new Map(payload.categories.map((mapping) => [mapping.source, mapping])),
       merchants: merchantMappingsByKey,
+      tags: tagMappingsByKey,
     },
     getRowSources: (row) => ({
       accounts: getRowAccountSources(row),
       categories: [row.category_source],
       merchants: getRowMerchantKeys(row, merchantMappingsByKey),
+      tags: getRowTagKeys(row, tagMappingsByKey),
     }),
   })
 }
@@ -41,8 +42,19 @@ export async function buildStagedImportBatches(
  */
 function getRowMerchantKeys(row: TransactionImportRow, merchantMappingsByKey: Map<string, unknown>) {
   if (!row.merchant_name) return []
-  const key = getMerchantNameKey(row.merchant_name)
+  const key = getNameKey(row.merchant_name)
   return merchantMappingsByKey.has(key) ? [key] : []
+}
+
+/**
+ * The answered tag names a row carries, leaving out the tags that were left alone
+ *
+ * A row can name several tags, so it can reference several answers. Only the names the user answered
+ * carry a mapping, and a tag left alone adds nothing to the batch
+ */
+function getRowTagKeys(row: TransactionImportRow, tagMappingsByKey: Map<string, unknown>) {
+  const keys = row.tag_names.map((name) => getNameKey(name)).filter((key) => tagMappingsByKey.has(key))
+  return [...new Set(keys)]
 }
 
 /**

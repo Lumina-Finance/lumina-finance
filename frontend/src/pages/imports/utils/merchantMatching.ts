@@ -1,8 +1,8 @@
-import { getMerchantNameKey } from '@/api/shared/merchantNameKey'
 import type { Merchant } from '@/api/merchants'
 import type { TransactionImportMerchantMapping } from '@/api/transaction-imports'
 import type { DropdownOption } from '@/components/dropdown/Dropdown'
 import { CREATE_MERCHANT_VALUE, SKIP_MERCHANT_VALUE, UNKNOWN_MERCHANT_NAME } from '@/pages/imports/constants'
+import { buildImportNameMappings, getImportNameRowState } from './nameMatching'
 
 /**
  * Builds the answers the merchant step offers for one merchant name
@@ -45,18 +45,11 @@ export function buildImportMerchantOptions(
  * @param matched - The merchant the value already matches, if any
  */
 export function getImportMerchantRowState(answer: string, matched: Merchant | undefined) {
-  if (answer === SKIP_MERCHANT_VALUE) return 'skipped' as const
-  if (answer === CREATE_MERCHANT_VALUE) return 'creating' as const
-  if (answer) return 'chosen' as const
-  return matched ? ('matched' as const) : ('creating' as const)
+  return getImportNameRowState(answer, Boolean(matched), CREATE_MERCHANT_VALUE, SKIP_MERCHANT_VALUE)
 }
 
 /**
  * Builds the merchant answers the commit payload carries
- *
- * Only a value answered differently from what the commit would do unasked is sent, so a file
- * carrying thousands of distinct descriptors nobody touched declares none of them and is not
- * refused for declaring more than an import may carry
  *
  * @param importedMerchants - One merchant name per merchant the file resolves to
  * @param matchedMerchantByKey - The merchants the file's values already match
@@ -74,37 +67,14 @@ export function buildImportMerchantMappings({
   merchantMappings: Record<string, string>
   merchantCreateNames: Record<string, string>
 }) {
-  const mappings: TransactionImportMerchantMapping[] = []
-  const errors: string[] = []
-
-  for (const value of importedMerchants) {
-    const answer = merchantMappings[value] ?? ''
-    if (!answer) continue
-
-    const key = getMerchantNameKey(value)
-    const matched = matchedMerchantByKey.get(key)
-
-    if (answer === SKIP_MERCHANT_VALUE) {
-      mappings.push({ source: value, skip: true })
-      continue
-    }
-
-    if (answer === CREATE_MERCHANT_VALUE) {
-      const name = (merchantCreateNames[value] ?? value).trim()
-      if (!name) {
-        errors.push(`Choose a name for the new merchant "${value}".`)
-        continue
-      }
-
-      // Left out where it says nothing the commit would not do anyway, which is creating a merchant
-      // under the value's own spelling when nothing matches it
-      if (matched || getMerchantNameKey(name) !== key) mappings.push({ source: value, create: { name } })
-      continue
-    }
-
-    // Left out where the chosen merchant is the one the value already matches
-    if (!matched || matched.id !== answer) mappings.push({ source: value, merchant_id: answer })
-  }
-
-  return { mappings, errors }
+  return buildImportNameMappings<Merchant, TransactionImportMerchantMapping>({
+    values: importedMerchants,
+    matchedByKey: matchedMerchantByKey,
+    answers: merchantMappings,
+    createNames: merchantCreateNames,
+    createValue: CREATE_MERCHANT_VALUE,
+    skipValue: SKIP_MERCHANT_VALUE,
+    noun: 'merchant',
+    buildChosen: (source, id) => ({ source, merchant_id: id }),
+  })
 }

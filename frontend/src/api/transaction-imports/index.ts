@@ -11,6 +11,8 @@ export type {
   TransactionImportCreateCategory,
   TransactionImportCreateMerchant,
   TransactionImportMerchantMapping,
+  TransactionImportCreateTag,
+  TransactionImportTagMapping,
   TransactionImportPayload,
   TransactionImportResponse,
   TransactionImportRow,

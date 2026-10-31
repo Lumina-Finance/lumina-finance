@@ -23,6 +23,8 @@ const ANSWERS: CsvImportAnswers = {
   scopedCategoryCreateNames: {},
   scopedMerchantMappings: {},
   scopedMerchantCreateNames: {},
+  scopedTagMappings: {},
+  scopedTagCreateNames: {},
 }
 
 describe('telling whether the answers changed', () => {

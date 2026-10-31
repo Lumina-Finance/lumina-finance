@@ -31,6 +31,8 @@ export type CsvImportAnswers = {
   scopedCategoryCreateNames: ScopedImportAnswers<string>
   scopedMerchantMappings: ScopedImportAnswers<string>
   scopedMerchantCreateNames: ScopedImportAnswers<string>
+  scopedTagMappings: ScopedImportAnswers<string>
+  scopedTagCreateNames: ScopedImportAnswers<string>
 }
 
 /**

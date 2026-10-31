@@ -109,6 +109,7 @@ import { isImportableAccount } from '@/utils/importableAccount'
 import { waitForMilliseconds } from '@/utils/timing'
 import { useImportAccountCreateState } from './useImportAccountCreateState'
 import { useImportMerchantMatches } from './useImportMerchantMatches'
+import { useImportTagMatches } from './useImportTagMatches'
 import { useImportReferenceData } from './useImportReferenceData'
 import { useImportDateRange } from './useImportDateRange'
 import { useImportRun } from './useImportRun'
@@ -248,6 +249,7 @@ export function useTransactionImportWorkflow(fixedAccount: AccountsOverview | nu
   const counterpartyAnswerScope = buildImportAnswerScope(columnMap.counterparty_account_id, files)
   const categoryAnswerScope = buildImportAnswerScope(columnMap.category_id, files)
   const merchantAnswerScope = buildImportAnswerScope(columnMap.merchant_id, files)
+  const tagAnswerScope = buildImportAnswerScope(columnMap.tag_ids, files)
 
   const counterpartyOnlySourceIds = useMemo(
     () => new Set(accountMappingSources.filter((source) => source.isCounterpartyOnly).map((source) => source.id)),
@@ -264,6 +266,7 @@ export function useTransactionImportWorkflow(fixedAccount: AccountsOverview | nu
 
   const getCategorySourceScope = useMemo(() => () => categoryAnswerScope, [categoryAnswerScope])
   const getMerchantSourceScope = useMemo(() => () => merchantAnswerScope, [merchantAnswerScope])
+  const getTagSourceScope = useMemo(() => () => tagAnswerScope, [tagAnswerScope])
 
   const accountMappings = useMemo(
     () => readScopedImportAnswers(scopedAccountMappings, getAccountSourceScope),
@@ -299,7 +302,6 @@ export function useTransactionImportWorkflow(fixedAccount: AccountsOverview | nu
     updateAccountMapping: updateSourceAccount,
     resetAccountCreateState,
   } = useImportAccountCreateState(setAccountMappings, getAccountSourceScope)
-  const [tagHandlingOpen, setTagHandlingOpen] = useState(true)
   const [columnValidationErrors, setColumnValidationErrors] = useState<ColumnValidationErrors>({})
 
   const [amountFormatChoice, setAmountFormatChoice] = useState(() =>
@@ -326,6 +328,11 @@ export function useTransactionImportWorkflow(fixedAccount: AccountsOverview | nu
   const [scopedMerchantMappings, setScopedMerchantMappings] =
     useState<ScopedImportAnswers<string>>(emptyScopedImportAnswers)
   const [scopedMerchantCreateNames, setScopedMerchantCreateNames] =
+    useState<ScopedImportAnswers<string>>(emptyScopedImportAnswers)
+
+  // The same for each tag name, scoped to the tags column
+  const [scopedTagMappings, setScopedTagMappings] = useState<ScopedImportAnswers<string>>(emptyScopedImportAnswers)
+  const [scopedTagCreateNames, setScopedTagCreateNames] =
     useState<ScopedImportAnswers<string>>(emptyScopedImportAnswers)
 
   // Tells a finished file read whether the workflow it started in is still the one on screen, so a
@@ -360,6 +367,8 @@ export function useTransactionImportWorkflow(fixedAccount: AccountsOverview | nu
     scopedCategoryCreateNames,
     scopedMerchantMappings,
     scopedMerchantCreateNames,
+    scopedTagMappings,
+    scopedTagCreateNames,
   })
 
   const run = useImportRun<TransactionImportResponse, ImportRowProblem>({
@@ -446,6 +455,38 @@ export function useTransactionImportWorkflow(fixedAccount: AccountsOverview | nu
         current,
         typeof update === 'function' ? update(answers) : update,
         getMerchantSourceScope,
+      )
+    })
+  }
+
+  const tagMappings = useMemo(
+    () => readScopedImportAnswers(scopedTagMappings, getTagSourceScope),
+    [getTagSourceScope, scopedTagMappings],
+  )
+
+  const tagCreateNames = useMemo(
+    () => readScopedImportAnswers(scopedTagCreateNames, getTagSourceScope),
+    [getTagSourceScope, scopedTagCreateNames],
+  )
+
+  const setTagMappings: Dispatch<SetStateAction<Record<string, string>>> = (update) => {
+    setScopedTagMappings((current) => {
+      const answers = readScopedImportAnswers(current, getTagSourceScope)
+      return writeScopedImportAnswers(
+        current,
+        typeof update === 'function' ? update(answers) : update,
+        getTagSourceScope,
+      )
+    })
+  }
+
+  const setTagCreateNames: Dispatch<SetStateAction<Record<string, string>>> = (update) => {
+    setScopedTagCreateNames((current) => {
+      const answers = readScopedImportAnswers(current, getTagSourceScope)
+      return writeScopedImportAnswers(
+        current,
+        typeof update === 'function' ? update(answers) : update,
+        getTagSourceScope,
       )
     })
   }
@@ -785,6 +826,20 @@ export function useTransactionImportWorkflow(fixedAccount: AccountsOverview | nu
     [columnMap.tag_ids, files, isRowIncluded],
   )
 
+  const {
+    matchedTagByKey,
+    tagMatchesLoading,
+    tagMatchesFailed,
+    refetchTagMatches,
+    tagOptions,
+    rememberPickedTag,
+    tagSearch,
+    setTagSearch,
+    tagSearchLoading,
+    hasMoreTagResults,
+    loadMoreTagResults,
+  } = useImportTagMatches(importedTags)
+
   const canInferCategoryMappings = categoryAutoMatchKey === (columnMap.category_id || NO_CATEGORY_COLUMN_MATCH_KEY)
 
   const { mappings: liveCategoryMappings, clearedSources: clearedCategorySources } = useMemo(
@@ -899,6 +954,12 @@ export function useTransactionImportWorkflow(fixedAccount: AccountsOverview | nu
           merchantMappings,
           merchantCreateNames,
         },
+        tagAnswers: {
+          importedTags,
+          matchedTagByKey,
+          tagMappings,
+          tagCreateNames,
+        },
       }),
     [
       accountById,
@@ -918,9 +979,13 @@ export function useTransactionImportWorkflow(fixedAccount: AccountsOverview | nu
       files,
       importedCategories,
       importedMerchants,
+      importedTags,
       matchedMerchantByKey,
+      matchedTagByKey,
       merchantCreateNames,
       merchantMappings,
+      tagCreateNames,
+      tagMappings,
       resolvedAccountCreateCurrencies,
       resolvedAccountMappings,
       resolvedCategoryMappings,
@@ -1382,7 +1447,6 @@ export function useTransactionImportWorkflow(fixedAccount: AccountsOverview | nu
     setScopedAccountMappings(emptyScopedImportAnswers)
     setAccountAutoMatchKey('')
     resetAccountCreateState()
-    setTagHandlingOpen(true)
     setColumnValidationErrors({})
     setDateFormatChoice(createImportFormatChoiceState(''))
     resetDateRange()
@@ -1394,6 +1458,8 @@ export function useTransactionImportWorkflow(fixedAccount: AccountsOverview | nu
     setScopedCategoryCreateNames(emptyScopedImportAnswers)
     setScopedMerchantMappings(emptyScopedImportAnswers)
     setScopedMerchantCreateNames(emptyScopedImportAnswers)
+    setScopedTagMappings(emptyScopedImportAnswers)
+    setScopedTagCreateNames(emptyScopedImportAnswers)
     if (inputRef.current) inputRef.current.value = ''
   }
 
@@ -1416,7 +1482,6 @@ export function useTransactionImportWorkflow(fixedAccount: AccountsOverview | nu
     batchAccountType,
     batchAccountCurrency,
     batchAccountInstitution,
-    tagHandlingOpen,
     columnValidationErrors: resolvedColumnValidationErrors,
     dateFormat,
     dateFormatAutomatic,
@@ -1451,6 +1516,18 @@ export function useTransactionImportWorkflow(fixedAccount: AccountsOverview | nu
     matchesLoading,
     matchesFailed,
     refetchMatches,
+    tagMappings,
+    tagCreateNames,
+    matchedTagByKey,
+    tagOptions,
+    rememberPickedTag,
+    tagSearch,
+    tagSearchLoading,
+    hasMoreTagResults,
+    loadMoreTagResults,
+    tagMatchesLoading,
+    tagMatchesFailed,
+    refetchTagMatches,
     ...run.workflow,
     latestStartSuggestion,
     accountsLoading,
@@ -1502,7 +1579,9 @@ export function useTransactionImportWorkflow(fixedAccount: AccountsOverview | nu
     setMerchantMappings,
     setMerchantCreateNames,
     setMerchantSearch,
-    setTagHandlingOpen,
+    setTagMappings,
+    setTagCreateNames,
+    setTagSearch,
     handleFileChange,
     changeDelimiter,
     changeHeaderRow,

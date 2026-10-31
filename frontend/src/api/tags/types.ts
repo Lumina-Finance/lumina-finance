@@ -6,6 +6,12 @@ export interface Tag {
   created_at: string
 }
 
+export interface TagNameMatch {
+  /** The tag name exactly as it was asked about, so the answer reads back against what was sent */
+  source: string
+  tag: Tag
+}
+
 export interface TagFilters {
   group_id?: string
   q?: string

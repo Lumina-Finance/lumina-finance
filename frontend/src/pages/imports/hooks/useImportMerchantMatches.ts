@@ -2,7 +2,7 @@ import { useCallback, useMemo, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { fetchMerchantNameMatches, useInfiniteMerchants, type Merchant } from '@/api/merchants'
 import { merchantKeys } from '@/api/cache/queryKeys'
-import { getMerchantNameKey } from '@/api/shared/merchantNameKey'
+import { getNameKey } from '@/api/shared/nameKey'
 import { useAuth } from '@/hooks/useAuth'
 import { buildImportMerchantOptions } from '@/pages/imports/utils'
 
@@ -47,7 +47,7 @@ export function useImportMerchantMatches(importedMerchants: string[]) {
   )
 
   const matchedMerchantByKey = useMemo(
-    () => new Map(matches.map((match) => [getMerchantNameKey(match.source), match.merchant])),
+    () => new Map(matches.map((match) => [getNameKey(match.source), match.merchant])),
     [matches],
   )
 

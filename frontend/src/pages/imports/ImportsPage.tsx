@@ -7,7 +7,7 @@ import { useToast } from '@/hooks/useToast'
 import { LOADING_ANIMATION_MIN_MS } from '@/utils/timing'
 import { Upload, X } from 'lucide-react'
 import { TAB_OPENED_AT } from '@/api/cache/persistence'
-import { accountKeys, categoryKeys, institutionKeys, merchantKeys } from '@/api/cache/queryKeys'
+import { accountKeys, categoryKeys, institutionKeys, merchantKeys, tagKeys } from '@/api/cache/queryKeys'
 import { useImportSources } from '@/api/transaction-imports'
 import {
   IMPORT_NOT_PERMITTED_EXPLANATION,
@@ -60,13 +60,13 @@ import {
 } from './utils/lastImport'
 import {
   ImportAccountMappingStep,
-  ImportAutoCreateStep,
   ImportMerchantMatchingStep,
   ImportCategoryMatchingStep,
   ImportColumnMappingStep,
   ImportFilesStep,
   ImportPreviewStep,
   ImportSourceStep,
+  ImportTagMatchingStep,
 } from './sections'
 import type { ImportDataSource } from './types'
 
@@ -252,6 +252,7 @@ export default function ImportsPage() {
     // Asked again rather than read back, since a merchant created in another tab would otherwise
     // leave a merchant name reading as one with no merchant yet
     void queryClient.invalidateQueries({ queryKey: merchantKeys.nameMatchesAll })
+    void queryClient.invalidateQueries({ queryKey: tagKeys.nameMatchesAll })
   }, [queryClient])
 
   // The page owns browser file drops for its lifetime, so missing a card cannot navigate away
@@ -546,19 +547,7 @@ export default function ImportsPage() {
                         <ImportAccountMappingStep {...workflow} />
                         <ImportCategoryMatchingStep {...workflow} />
                         <ImportMerchantMatchingStep {...workflow} />
-                        <ImportAutoCreateStep
-                          index="06"
-                          title="Tag handling"
-                          description="Tags are created when transactions are imported. If an imported tag matches an existing tag name, the transaction will use the existing tag."
-                          expanded={workflow.tagHandlingOpen}
-                          collapseLabel="Collapse tag handling"
-                          expandLabel="Expand tag handling"
-                          emptyTitle="No imported tags detected"
-                          emptyDescription="Map a tags column first."
-                          sourceLabel="Tag from file"
-                          rows={workflow.importedTags}
-                          onToggle={() => workflow.setTagHandlingOpen((current) => !current)}
-                        />
+                        <ImportTagMatchingStep {...workflow} />
                         <ImportPreviewStep {...workflow} />
                       </>
                     )}

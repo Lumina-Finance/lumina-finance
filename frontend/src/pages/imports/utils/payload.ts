@@ -1,6 +1,7 @@
 import type { AccountsOverview } from '@/api/accounts'
 import type { Category } from '@/api/categories'
 import type { Merchant } from '@/api/merchants'
+import type { Tag } from '@/api/tags'
 import type { TransactionImportPayload, TransactionImportResponse } from '@/api/transaction-imports'
 import {
   getDirectionValuesAgreeError,
@@ -45,6 +46,7 @@ import {
 import { getCategoryMatchKind, getDebtPaymentImportNote } from './categoryMatching'
 import { buildImportAccountMapping, buildImportCategoryMapping } from './importMappings'
 import { buildImportMerchantMappings } from './merchantMatching'
+import { buildImportTagMappings } from './tagMatching'
 import { getImportDirectionValues } from './columnMapping'
 import { getImportRowId, includeEveryImportRow, joinImportSummaryParts } from './common'
 import { getImportDateRangeFilter, isImportDateRangeCrossed, isImportDateRangeIncomplete } from './dateRange'
@@ -97,6 +99,7 @@ export function buildTransactionImportPayload({
   files,
   importedCategories,
   merchantAnswers,
+  tagAnswers,
 }: {
   accountById: Map<string, AccountsOverview>
   accountCreateCurrencies: Record<string, string>
@@ -136,6 +139,17 @@ export function buildTransactionImportPayload({
     matchedMerchantByKey: Map<string, Merchant>
     merchantMappings: Record<string, string>
     merchantCreateNames: Record<string, string>
+  }
+
+  /**
+   * What the user answered about the file's tag names, absent where no tags column is mapped and
+   * there are none to answer
+   */
+  tagAnswers?: {
+    importedTags: string[]
+    matchedTagByKey: Map<string, Tag>
+    tagMappings: Record<string, string>
+    tagCreateNames: Record<string, string>
   }
 }): ImportBuildResult {
   // Two kinds of problem, kept apart because only one of them makes judging a row meaningless. An
@@ -296,6 +310,14 @@ export function buildTransactionImportPayload({
     for (const message of built.errors) addError(message)
   }
 
+  // Tags are carried the same way, only where the user answered differently from the commit's own match
+  const tags: TransactionImportPayload['tags'] = []
+  if (tagAnswers) {
+    const built = buildImportTagMappings(tagAnswers)
+    tags.push(...built.mappings)
+    for (const message of built.errors) addError(message)
+  }
+
   // Judging rows before every mapping they depend on is answered blames them for the answer being
   // missing: with no date format settled, every row reads as one whose date does not fit
   //
@@ -395,7 +417,7 @@ export function buildTransactionImportPayload({
     rowProblems,
     warnings,
     rowWarnings,
-    payload: { accounts, categories, merchants, rows },
+    payload: { accounts, categories, merchants, tags, rows },
   }
 }
 

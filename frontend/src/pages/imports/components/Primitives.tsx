@@ -1,5 +1,5 @@
 import { type ReactNode } from 'react'
-import { ChevronDown, CircleHelp, Info, TriangleAlert } from 'lucide-react'
+import { CircleHelp, Info, TriangleAlert } from 'lucide-react'
 import { IMPORT_INSET_STYLE } from '@/pages/imports/constants'
 
 /**
@@ -86,36 +86,6 @@ export function ImportStep({
         {children}
       </div>
     </section>
-  )
-}
-
-/**
- * Icon button that expands or collapses a section, rotating its chevron to match the current state
- */
-export function ImportCollapseToggle({
-  expanded,
-  label,
-  onClick,
-}: {
-  expanded: boolean
-  label: string
-  onClick: () => void
-}) {
-  return (
-    <button
-      type="button"
-      className="app-icon-button h-9 w-9 shrink-0"
-      onClick={onClick}
-      aria-label={label}
-      aria-expanded={expanded}
-    >
-      <ChevronDown
-        size={17}
-        className="transition-transform"
-        style={{ transform: expanded ? 'rotate(180deg)' : 'rotate(0deg)' }}
-        aria-hidden
-      />
-    </button>
   )
 }
 

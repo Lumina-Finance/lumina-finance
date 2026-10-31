@@ -23,7 +23,7 @@ import {
   KIND_RANKS,
   MISSING_AMOUNT_COLUMN_LABEL,
 } from '@/pages/imports/constants'
-import { getMerchantNameKey } from '@/api/shared/merchantNameKey'
+import { getNameKey } from '@/api/shared/nameKey'
 import type {
   ColumnMap,
   CsvRow,
@@ -355,7 +355,7 @@ export function getImportedMerchants(
   const seenKeys = new Set<string>()
   const values: string[] = []
   for (const value of getUniqueColumnValues(files, merchantHeader, isRowIncluded)) {
-    const key = getMerchantNameKey(value)
+    const key = getNameKey(value)
     if (seenKeys.has(key)) continue
     seenKeys.add(key)
     values.push(value)
@@ -373,11 +373,22 @@ export function getImportedTags(
   isRowIncluded: ImportRowFilter = includeEveryImportRow,
 ): string[] {
   if (!tagHeader) return []
-  return unique(
-    files.flatMap((file) =>
-      file.rows.filter(isRowIncluded).flatMap((row) => splitImportedValues(row[tagHeader] ?? '')),
-    ),
-  ).sort((a, b) => a.localeCompare(b))
+
+  // One entry per tag the file resolves to rather than per spelling, since "Travel" and "travel" are
+  // one tag and answering them separately would leave nothing to say which answer their rows take
+  const seenKeys = new Set<string>()
+  const values: string[] = []
+  const spellings = files.flatMap((file) =>
+    file.rows.filter(isRowIncluded).flatMap((row) => splitImportedValues(row[tagHeader] ?? '')),
+  )
+  for (const value of unique(spellings)) {
+    const key = getNameKey(value)
+    if (seenKeys.has(key)) continue
+    seenKeys.add(key)
+    values.push(value)
+  }
+
+  return values.sort((a, b) => a.localeCompare(b))
 }
 
 function getUniqueColumnValues(files: ImportFileDraft[], header: string, isRowIncluded: ImportRowFilter): string[] {
