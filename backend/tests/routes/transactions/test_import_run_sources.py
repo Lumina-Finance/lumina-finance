@@ -33,6 +33,10 @@ _BUDGETS = {
         ("ofx", "post", "journal/commit", None, "This import run is an OFX import"),
         ("ofx", "put", "budgets", _BUDGETS, "An OFX import has no budgets"),
         ("ofx", "put", "archive", {"account_sources": ["Main Chequing"]}, "An OFX import archives no accounts"),
+        ("qif", "post", "journal/rows", _firefly_batch(1), "This import run is a QIF import"),
+        ("qif", "post", "journal/commit", None, "This import run is a QIF import"),
+        ("qif", "put", "budgets", _BUDGETS, "A QIF import has no budgets"),
+        ("qif", "put", "archive", {"account_sources": ["Main Chequing"]}, "A QIF import archives no accounts"),
     ],
 )
 async def test_a_run_takes_requests_only_from_the_importer_that_opened_it(client, source, method, path, body, detail):
@@ -55,3 +59,15 @@ async def test_an_ofx_run_saves_through_the_csv_endpoints_and_is_named_by_the_la
     assert committed.json()["transactions_created"] == 2
     last = (await client.get("/transactions/import/last", headers=headers)).json()
     assert (last["source"], last["file_name"], last["transaction_count"]) == ("ofx", "statement.ofx", 2)
+
+
+async def test_a_qif_run_saves_through_the_csv_endpoints_and_is_named_by_the_last_import(client):
+    """A QIF file is read in the browser into the rows a CSV is, so it saves like one but is not called one"""
+    headers = _get_auth_header(await _create_user(client))
+
+    committed = await _import_run(client, headers, _csv_batch(["-4.50", "12.00"]), source="qif", file_name="checking.qif")
+
+    assert committed.status_code == 201, committed.text
+    assert committed.json()["transactions_created"] == 2
+    last = (await client.get("/transactions/import/last", headers=headers)).json()
+    assert (last["source"], last["file_name"], last["transaction_count"]) == ("qif", "checking.qif", 2)

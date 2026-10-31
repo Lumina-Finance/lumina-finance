@@ -195,7 +195,7 @@ class AccountImportSourceResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
     account_id: uuid.UUID
-    source: Literal["generic", "firefly", "actual_budget", "ofx"]
+    source: Literal["generic", "firefly", "actual_budget", "ofx", "qif"]
 
 
 class HeldBankTransactionItem(BaseModel):
@@ -231,7 +231,7 @@ class TransactionImportRunRequest(BaseModel):
 
     # Which importer's rows the run stages, so each importer's commit reads only its own. Firefly III
     # and Actual Budget runs both stage journal rows, and the source decides how a refusal names a row
-    source: Literal["generic", "firefly", "actual_budget", "ofx"] = "generic"
+    source: Literal["generic", "firefly", "actual_budget", "ofx", "qif"] = "generic"
 
     # The name of the file the user picked, shown with the last import. The page cuts a
     # longer one to fit
@@ -607,7 +607,7 @@ class LastImportResponse(BaseModel):
     """The last saved import, with when it can be undone until and everything undoing it deletes"""
 
     id: uuid.UUID
-    source: Literal["generic", "firefly", "actual_budget", "ofx"]
+    source: Literal["generic", "firefly", "actual_budget", "ofx", "qif"]
     file_name: str | None
     committed_at: datetime
     undo_until: datetime

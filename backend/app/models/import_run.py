@@ -15,14 +15,15 @@ from app.models.base import Base
 class ImportRunSource(enum.StrEnum):
     """The importer a run came from
 
-    Firefly III and Actual Budget runs both stage journal rows and share one commit. An OFX run
-    stages and commits the same rows as a CSV one, and differs only in what the last import names
+    Firefly III and Actual Budget runs both stage journal rows and share one commit. An OFX or QIF
+    run stages and commits the same rows as a CSV one, and differs only in what the last import names
     """
 
     GENERIC = "generic"
     FIREFLY = "firefly"
     ACTUAL_BUDGET = "actual_budget"
     OFX = "ofx"
+    QIF = "qif"
 
 
 SOURCE_CHECK_VALUES = ", ".join(f"'{source}'" for source in ImportRunSource)
