@@ -913,7 +913,7 @@ test('lists the outline colour in the transition of every control that draws the
   await page.emulateMedia({ reducedMotion: 'no-preference' })
   const user = await signUpUser(request)
   const account = await createAccount(request, user, { name: 'Everyday' })
-  const tag =await request.post(`${API_BASE_URL}/tags`, { headers: asUser(user), data: { name: 'Holiday' } })
+  const tag = await request.post(`${API_BASE_URL}/tags`, { headers: asUser(user), data: { name: 'Holiday' } })
   expect(tag.status()).toBe(201)
   const { id: tagId } = await tag.json() as { id: string }
   const periodStart = budgetPeriodStart()
