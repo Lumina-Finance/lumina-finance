@@ -1,5 +1,6 @@
-import { Info, LoaderCircle, X, type LucideIcon } from 'lucide-react'
+import { Info, X, type LucideIcon } from 'lucide-react'
 import { useId, type ReactNode } from 'react'
+import { PendingLabel } from '@/components/loading/PendingLabel'
 
 /**
  * Guidance that is not a warning or an error, something stopped until the user fixes it, or
@@ -75,16 +76,9 @@ export function InfoCallout({
                 aria-busy={dismissing}
                 onClick={dismissing ? undefined : onDismiss}
               >
-                {dismissing ? (
-                  <LoaderCircle
-                    size={14}
-                    strokeWidth={2.4}
-                    className="animate-spin motion-reduce:animate-none"
-                    aria-hidden
-                  />
-                ) : (
+                <PendingLabel pending={dismissing} name="Dismiss">
                   <X size={14} aria-hidden />
-                )}
+                </PendingLabel>
               </button>
             )}
           </div>

@@ -1,4 +1,5 @@
 import { useCallback, useRef } from 'react'
+import { PendingLabel } from '@/components/loading/PendingLabel'
 import { useConfirmingClick } from '@/hooks/useConfirmingClick'
 import { useFittedButtonWidth } from '@/hooks/useFittedButtonWidth'
 
@@ -85,30 +86,30 @@ export function ReviewDecisionButton({
         style={style}
       >
         {measure}
-        {loading ? (
-          <div className="app-spinner" />
-        ) : confirm ? (
-          <>
-            {/* Both labels sit over each other and swap by opacity while the width eases to the shown one's,
-                so neither pops in. The button's name already says which one is on */}
-            <span
-              aria-hidden
-              className="absolute inset-0 flex items-center justify-center transition-opacity motion-reduce:transition-none"
-              style={{ opacity: confirming ? 0 : 1 }}
-            >
-              {label}
-            </span>
-            <span
-              aria-hidden
-              className="absolute inset-0 flex items-center justify-center transition-opacity motion-reduce:transition-none"
-              style={{ opacity: confirming ? 1 : 0 }}
-            >
-              {confirm.label}
-            </span>
-          </>
-        ) : (
-          label
-        )}
+        <PendingLabel pending={loading} name={shownLabel}>
+          {confirm ? (
+            <>
+              {/* Both labels sit over each other and swap by opacity while the width eases to the shown one's,
+                  so neither pops in. The button's name already says which one is on */}
+              <span
+                aria-hidden
+                className="absolute inset-0 flex items-center justify-center transition-opacity motion-reduce:transition-none"
+                style={{ opacity: confirming ? 0 : 1 }}
+              >
+                {label}
+              </span>
+              <span
+                aria-hidden
+                className="absolute inset-0 flex items-center justify-center transition-opacity motion-reduce:transition-none"
+                style={{ opacity: confirming ? 1 : 0 }}
+              >
+                {confirm.label}
+              </span>
+            </>
+          ) : (
+            label
+          )}
+        </PendingLabel>
       </button>
       {confirm && (
         <span role="status" className="sr-only">

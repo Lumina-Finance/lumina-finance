@@ -20,6 +20,8 @@ const read = vi.hoisted(() => ({
   saving: false,
 }))
 
+// The crossfade needs a browser to mount, so a button's content is drawn without its animated layers
+vi.mock('@/components/loading/Crossfade', () => ({ Crossfade: ({ children }: { children: unknown }) => children }))
 vi.mock('@/components/modal/Shell', async (importOriginal) => ({
   ...(await importOriginal<typeof import('@/components/modal/Shell')>()),
   ModalShell: ({ children }: { children: ReactNode }) => <div>{children}</div>,

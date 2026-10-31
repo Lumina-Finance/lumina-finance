@@ -3,6 +3,7 @@ import { AnimatePresence, motion, useIsPresent } from 'motion/react'
 import { Check, X } from 'lucide-react'
 import { ApiError } from '@/api/auth'
 import { CONNECTION_NICKNAME_MAX_LENGTH, type BankConnection, type useRenameBankConnection } from '@/api/bank-sync'
+import { PendingLabel } from '@/components/loading/PendingLabel'
 import { useToast } from '@/hooks/useToast'
 import { EASE } from '@/pages/settings/components/bank-connections-section/constants'
 import { connectionName } from '@/utils/bankSync'
@@ -97,7 +98,9 @@ function NicknameField({
         disabled={rename.isPending}
         onClick={save}
       >
-        {isSaving ? <div className="app-spinner" /> : <Check size={16} aria-hidden />}
+        <PendingLabel pending={isSaving} name="Save nickname">
+          <Check size={16} aria-hidden />
+        </PendingLabel>
       </button>
       <button
         type="button"

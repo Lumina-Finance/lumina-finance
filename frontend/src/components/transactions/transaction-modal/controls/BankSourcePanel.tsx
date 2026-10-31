@@ -63,6 +63,10 @@ export default function TransactionBankSourcePanel({
       ? formatRawAmount(bankValues.raw_amount ?? '', currency).text
       : formatMovedCurrency(bankValues.amount, currency)
 
+  // The strip's corners wait for the fold, and its filter does not
+  const foldSeconds = leave.transition.duration
+  const closeDelay = `${foldSeconds}s, 0s`
+
   return (
     <div>
       <button
@@ -72,7 +76,7 @@ export default function TransactionBankSourcePanel({
         onClick={() => setOpen(!open)}
         className={`${FILING_TAB_CLASS} flex w-full items-center gap-2 pb-1 text-left transition-[border-radius,filter] hover:brightness-95 focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-[var(--app-focus-ring)] motion-reduce:transition-none ${open ? '' : 'rounded-b-md'}`}
         // Closing, the strip keeps its square bottom until the card has folded away beneath it, so no notch shows
-        style={{ ...FILING_TAB_STYLE, transitionDelay: open ? undefined : `${leave.transition.duration}s, 0s` }}
+        style={{ ...FILING_TAB_STYLE, transitionDelay: open ? undefined : closeDelay }}
       >
         <Landmark size={13} aria-hidden className="shrink-0" />
         <span className="min-w-0 flex-1">From {providerName}</span>

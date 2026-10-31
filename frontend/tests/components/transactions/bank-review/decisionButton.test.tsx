@@ -6,8 +6,11 @@
  */
 import { createElement } from 'react'
 import { renderToStaticMarkup } from 'react-dom/server'
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import { ReviewDecisionButton } from '@/components/transactions/bank-review/DecisionButton'
+
+// The crossfade needs a browser to mount, so the button's content is drawn without its animated layers
+vi.mock('@/components/loading/Crossfade', () => ({ Crossfade: ({ children }: { children: unknown }) => children }))
 
 function render(confirm?: { label: string; announcement: string }): string {
   return renderToStaticMarkup(

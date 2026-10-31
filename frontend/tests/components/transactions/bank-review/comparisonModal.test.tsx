@@ -29,6 +29,9 @@ vi.mock('@/hooks/useMoneyFormatters', () => ({
 }))
 vi.mock('@/hooks/useToast', () => ({ useToast: () => ({ showToast: () => {} }) }))
 
+// The crossfade needs a browser to mount, so a button's content is drawn without its animated layers
+vi.mock('@/components/loading/Crossfade', () => ({ Crossfade: ({ children }: { children: unknown }) => children }))
+
 // The real panel renders into a portal, which markup rendered to a string can't hold
 vi.mock('@/components/modal/TitledPanel', () => ({
   ModalTitledPanel: ({

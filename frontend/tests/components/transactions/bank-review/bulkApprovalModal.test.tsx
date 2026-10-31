@@ -27,6 +27,9 @@ vi.mock('@/api/bank-sync', async (importOriginal) => ({
   useBulkApprovalPreview: () => read.preview,
   useApplyBulkApproval: () => ({ isPending: false, isSuccess: false, mutate: () => {} }),
 }))
+// The crossfade needs a browser to mount, so a button's content is drawn without its animated layers
+vi.mock('@/components/loading/Crossfade', () => ({ Crossfade: ({ children }: { children: unknown }) => children }))
+
 vi.mock('@/hooks/useMoneyFormatters', () => ({
   useMoneyFormatters: () => ({
     currencies: TEST_CURRENCIES,

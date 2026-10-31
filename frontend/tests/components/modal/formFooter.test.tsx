@@ -3,8 +3,11 @@
  * says otherwise, since most forms rely on that default
  */
 import { renderToStaticMarkup } from 'react-dom/server'
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import { ModalFormFooter } from '@/components/modal/FormFooter'
+
+// The crossfade needs a browser to mount, so the button's content is drawn without its animated layers
+vi.mock('@/components/loading/Crossfade', () => ({ Crossfade: ({ children }: { children: unknown }) => children }))
 
 describe('modal form footer', () => {
   it('blocks cancelling while the submission is in flight', () => {

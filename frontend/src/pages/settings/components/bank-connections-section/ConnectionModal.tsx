@@ -13,6 +13,7 @@ import {
 import { BankLinkFlowModal, type BankLinkTarget } from '@/components/bank-link-flow/Modal'
 import { SyncStatusDot } from '@/components/display/SyncStatusDot'
 import { GlassSearchField } from '@/components/list-controls/GlassSearchField'
+import { PendingLabel } from '@/components/loading/PendingLabel'
 import { ModalWorkspacePanel } from '@/components/modal/WorkspacePanel'
 import IconTooltip from '@/components/tooltips/IconTooltip'
 import { LabelWithHint } from '@/components/tooltips/LabelWithHint'
@@ -297,9 +298,7 @@ export function ConnectionModal({
         onClick={handleDisconnect}
         onBlur={() => !disconnect.isPending && setConfirmingDisconnect(false)}
       >
-        {disconnect.isPending ? (
-          <div className="app-spinner" />
-        ) : (
+        <PendingLabel pending={disconnect.isPending} name="Disconnect">
           <AnimatePresence initial={false} mode="wait">
             <motion.span
               key={confirmingDisconnect ? 'confirm' : 'idle'}
@@ -313,7 +312,7 @@ export function ConnectionModal({
               {confirmingDisconnect ? 'Yes, disconnect' : 'Disconnect'}
             </motion.span>
           </AnimatePresence>
-        )}
+        </PendingLabel>
       </button>
     </>
   )

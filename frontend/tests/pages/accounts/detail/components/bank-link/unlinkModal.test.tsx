@@ -14,6 +14,8 @@ import type { BankConnection, ConnectionBankAccount } from '@/api/bank-sync'
 import { UnlinkModal } from '@/pages/accounts/detail/components/bank-link/UnlinkModal'
 import { createAccount, createConnection, createLink } from './fixtures'
 
+// The crossfade needs a browser to mount, so a button's content is drawn without its animated layers
+vi.mock('@/components/loading/Crossfade', () => ({ Crossfade: ({ children }: { children: unknown }) => children }))
 vi.mock('@/components/modal/Shell', async (importOriginal) => ({
   ...(await importOriginal<typeof import('@/components/modal/Shell')>()),
   ModalShell: ({ children }: { children: ReactNode }) => <div>{children}</div>,

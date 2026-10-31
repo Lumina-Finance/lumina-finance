@@ -9,9 +9,12 @@
  */
 import { createElement } from 'react'
 import { renderToStaticMarkup } from 'react-dom/server'
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import type { BankHold } from '@/api/bank-sync/types'
 import { BankHoldsStrip } from '@/components/transactions/bank-review/HoldsStrip'
+
+// The crossfade needs a browser to mount, so the button's content is drawn without its animated layers
+vi.mock('@/components/loading/Crossfade', () => ({ Crossfade: ({ children }: { children: unknown }) => children }))
 
 const ACCOUNTS: Record<string, { name: string; currency: string }> = {
   everyday: { name: 'Everyday', currency: 'USD' },

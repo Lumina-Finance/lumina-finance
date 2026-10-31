@@ -25,6 +25,8 @@ const CURRENCIES: Currency[] = [
   { id: 'JPY', name: 'Japanese Yen', symbol: '¥', minor_unit_exponent: 0 },
 ]
 
+// The crossfade needs a browser to mount, so a button's content is drawn without its animated layers
+vi.mock('@/components/loading/Crossfade', () => ({ Crossfade: ({ children }: { children: unknown }) => children }))
 vi.mock('@/hooks/useMoneyFormatters', async () => {
   const { formatCurrency } = await vi.importActual<typeof import('@/utils/formatCurrency')>('@/utils/formatCurrency')
   return {

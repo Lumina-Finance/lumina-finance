@@ -47,6 +47,8 @@ import {
 
 // The section renders from what the cache holds, so a request sent while rendering fails the test
 // rather than reaching the network
+// The crossfade needs a browser to mount, so a button's content is drawn without its animated layers
+vi.mock('@/components/loading/Crossfade', () => ({ Crossfade: ({ children }: { children: unknown }) => children }))
 vi.mock('@/api/client', async (importOriginal) => ({
   ...(await importOriginal<typeof import('@/api/client')>()),
   authenticatedFetch: vi.fn(() => Promise.reject(new Error('The section sent a request while rendering'))),
