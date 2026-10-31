@@ -133,6 +133,9 @@
     /* Fields strengthen their own hover edge without changing borders used by panels */
     --app-input-border-hover: #4b372359;
     --app-positive: #3a7850;
+    /* Positive text on the soft accent tint of a row under the pointer, where the plain green reads 4.40:1. Drawn a
+       tenth of the way toward the page text colour, which clears 4.5:1 there */
+    --app-positive-on-accent-tint: color-mix(in srgb, var(--app-positive) 90%, var(--app-text));
     --app-positive-soft: #3a78501a;
     --app-chart-positive: #5d8f6d;
     --app-chart-negative: #ab5e56;
@@ -251,6 +254,7 @@
     --app-input-border: #d2b47833;
     --app-input-border-hover: #d2b47859;
     --app-positive: #72a781;
+    --app-positive-on-accent-tint: var(--app-positive);
     --app-positive-soft: #72a78124;
     --app-chart-positive: #5d8f6d;
     --app-chart-negative: #ab5e56;

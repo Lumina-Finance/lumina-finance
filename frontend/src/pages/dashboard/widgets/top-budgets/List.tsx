@@ -1,3 +1,4 @@
+import type { CSSProperties } from 'react'
 import { Link } from 'react-router'
 import type { TopBudget } from '@/pages/dashboard/types/dashboard'
 import { formatDashboardShortDate } from '@/pages/dashboard/utils/formatDashboardShortDate'
@@ -12,6 +13,11 @@ type TopBudgetRowProps = {
   budget: TopBudget
   showDivider: boolean
 }
+
+// The status reads its attention colour, and a tinted variant while its row is under the pointer, since the plain green
+// falls under 4.5:1 on the tint in the light theme
+const STATUS_TEXT_CLASS =
+  'text-[var(--status-text)] transition-control group-hover/row:text-[var(--status-tinted-text)]'
 
 /**
  * Clamps budget progress bar width to valid CSS percentage bounds
@@ -30,56 +36,64 @@ function TopBudgetRow({ budget, showDivider }: TopBudgetRowProps) {
   const exactPct = budget.usageRatio * 100
   const attention = getTopBudgetAttentionState(exactPct)
   const barPct = getBudgetProgressWidth(exactPct)
+  const statusStyle = {
+    '--status-text': attention.textColor,
+    '--status-tinted-text': attention.tintedTextColor,
+  } as CSSProperties
 
+  // The divider is a line of its own rather than the row's bottom border, which a rounded row would curl up at both ends
   return (
-    <Link
-      to={`/budgets?budget=${encodeURIComponent(budget.base_budget_id)}`}
-      className="block px-1 py-2 transition-control app-focus-inset"
-      style={{
-        borderBottom: showDivider ? '1px solid var(--app-border)' : undefined,
-      }}
-      aria-label={`Open ${budget.name} budget`}
-    >
-      <div className="flex items-baseline justify-between gap-4">
-        <div className="min-w-0">
-          <p className="truncate text-base font-semibold max-[1000px]:text-[0.9rem]">{budget.name}</p>
-          <p className="mt-0.5 text-base max-[1000px]:text-[0.9rem]" style={{ color: 'var(--app-text-muted)' }}>
-            {formatCurrency(budget.total_spent, budget.currency)}
-            {' / '}
-            {formatCurrency(budget.overall_limit, budget.currency)}
-          </p>
+    <>
+      <Link
+        to={`/budgets?budget=${encodeURIComponent(budget.base_budget_id)}`}
+        className="group/row block rounded-xl px-1 py-2 transition-control app-focus-inset focus-visible:bg-transparent! hover:bg-[var(--app-accent-soft)]"
+        aria-label={`Open ${budget.name} budget`}
+      >
+        <div className="flex items-baseline justify-between gap-4">
+          <div className="min-w-0">
+            <p className="truncate text-base font-semibold max-[1000px]:text-[0.9rem]">{budget.name}</p>
+            <p className="mt-0.5 text-base max-[1000px]:text-[0.9rem]" style={{ color: 'var(--app-text-muted)' }}>
+              {formatCurrency(budget.total_spent, budget.currency)}
+              {' / '}
+              {formatCurrency(budget.overall_limit, budget.currency)}
+            </p>
+          </div>
+          <div className="shrink-0 text-right">
+            <p
+              className={`text-base font-semibold leading-none max-[1000px]:text-[0.9rem] ${STATUS_TEXT_CLASS}`}
+              style={statusStyle}
+            >
+              {budget.usagePct}%
+            </p>
+            <p
+              className={`mt-1 text-xs font-medium max-[1000px]:text-[0.675rem] ${STATUS_TEXT_CLASS}`}
+              style={statusStyle}
+            >
+              {attention.label}
+            </p>
+          </div>
         </div>
-        <div className="shrink-0 text-right">
-          <p
-            className="text-base font-semibold leading-none max-[1000px]:text-[0.9rem]"
-            style={{ color: attention.textColor }}
-          >
-            {budget.usagePct}%
-          </p>
-          <p className="mt-1 text-xs font-medium max-[1000px]:text-[0.675rem]" style={{ color: attention.textColor }}>
-            {attention.label}
-          </p>
-        </div>
-      </div>
-      <div className="mt-2 flex items-center gap-3">
-        <div
-          className="h-1.5 flex-1 overflow-hidden rounded-full"
-          style={{ background: 'var(--app-border)' }}
-          aria-hidden
-        >
+        <div className="mt-2 flex items-center gap-3">
           <div
-            className="h-full rounded-full"
-            style={{
-              width: `${barPct}%`,
-              background: attention.indicatorColor,
-            }}
-          />
+            className="h-1.5 flex-1 overflow-hidden rounded-full"
+            style={{ background: 'var(--app-border)' }}
+            aria-hidden
+          >
+            <div
+              className="h-full rounded-full"
+              style={{
+                width: `${barPct}%`,
+                background: attention.indicatorColor,
+              }}
+            />
+          </div>
+          <span className="shrink-0 text-sm text-[var(--app-text-subtle)] transition-control group-hover/row:text-[var(--app-text-subtle-on-accent)] max-[1000px]:text-xs">
+            Ends {formatDashboardShortDate(budget.period_end)}
+          </span>
         </div>
-        <span className="shrink-0 text-sm max-[1000px]:text-xs" style={{ color: 'var(--app-text-subtle)' }}>
-          Ends {formatDashboardShortDate(budget.period_end)}
-        </span>
-      </div>
-    </Link>
+      </Link>
+      {showDivider && <div className="h-px" style={{ background: 'var(--app-border)' }} aria-hidden />}
+    </>
   )
 }
 

@@ -267,6 +267,49 @@ for (const colorScheme of ['light', 'dark'] as const) {
   })
 }
 
+for (const colorScheme of ['light', 'dark'] as const) {
+  test(`tints a Top budgets row on the dashboard under the pointer and fades it out in the ${colorScheme} theme`, async ({ page, request }) => {
+    await page.emulateMedia({ colorScheme })
+    const user = await signUpUser(request)
+    await createMonthlyBudget(request, user, {
+      name: 'Groceries',
+      categoryNames: ['Groceries'],
+      overallLimit: 50_000,
+      periodStart: budgetPeriodStart(),
+    })
+    await logInViaApi(page, user)
+    await openPage(page, '/dashboard')
+    const row = page.getByRole('link', { name: 'Open Groceries budget', exact: true })
+
+    // The soft accent fill every other clickable row takes, which has to show on the widget's card
+    expect(await hoverStep(page, row)).toBeGreaterThanOrEqual(MINIMUM_HOVER_STEP)
+
+    // Every line of text in the row stays readable on that tint, the green status and the faint end date included
+    const tinted = await shownFill(row)
+    const lines = await row.evaluate((node) => {
+      const context = document.createElement('canvas').getContext('2d', { willReadFrequently: true })!
+      return [...node.querySelectorAll('p, span')].map((line) => {
+        context.clearRect(0, 0, 1, 1)
+        context.fillStyle = getComputedStyle(line).color
+        context.fillRect(0, 0, 1, 1)
+        return [...context.getImageData(0, 0, 1, 1).data].slice(0, 3) as Rgb
+      })
+    })
+    expect(lines.length).toBeGreaterThanOrEqual(5)
+    for (const line of lines) expect(contrastRatio(line, tinted)).toBeGreaterThanOrEqual(MINIMUM_TEXT_CONTRAST)
+
+    // It eases over the app's usual duration rather than changing at once
+    expect(await row.evaluate((node) => {
+      const style = getComputedStyle(node)
+      return style.transitionDuration.split(', ')[style.transitionProperty.split(', ').indexOf('background-color')]
+    })).toBe('0.3s')
+
+    // Off the row, the tint fades away and the row is as it was
+    await page.mouse.move(0, 0)
+    await expect.poll(() => row.evaluate((node) => getComputedStyle(node).backgroundColor)).toBe('rgba(0, 0, 0, 0)')
+  })
+}
+
 /** Opens Edit budget for a budget tracking Groceries, so Dining is a category it leaves out */
 async function openEditBudget(page: Page, request: Parameters<typeof signUpUser>[0], colorScheme: 'light' | 'dark', archived: boolean) {
   await page.emulateMedia({ colorScheme })
