@@ -1,5 +1,5 @@
-import { useState } from 'react'
 import { Globe } from 'lucide-react'
+import { useUsableLogo } from '@/hooks/useUsableLogo'
 
 // selfh.st hosts a large catalogue of self-hosted app icons keyed by a lowercase-hyphen slug, so a
 // generic provider named after its app (Authentik, Authelia, ...) can borrow its real logo
@@ -26,21 +26,21 @@ function toIconSlug(name: string | undefined): string {
  * blocked, unknown app) resolves to the globe, so the button is never broken
  */
 export function ProviderMark({ name, size = 16 }: { name?: string; size?: number }) {
-  const [failed, setFailed] = useState(false)
   const iconSlug = toIconSlug(name)
+  const logo = useUsableLogo(iconSlug ? `${SELFHST_ICON_BASE}/${iconSlug}.png` : null)
 
-  if (!iconSlug || failed) {
+  if (!logo.src) {
     return <Globe size={size} aria-hidden style={{ color: 'var(--app-text-muted)' }} />
   }
 
   return (
     <img
-      src={`${SELFHST_ICON_BASE}/${iconSlug}.png`}
+      src={logo.src}
       alt=""
       width={size}
       height={size}
       className="shrink-0 object-contain"
-      onError={() => setFailed(true)}
+      {...logo.imageProps}
       aria-hidden
       // The CDN is third party, so no-referrer keeps the self-hosted instance origin out of its logs
       referrerPolicy="no-referrer"
