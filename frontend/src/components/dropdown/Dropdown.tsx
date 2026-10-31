@@ -79,6 +79,9 @@ interface DropdownProps {
   /** Id of visible content that describes the control, such as the message saying why the form rejected it */
   describedBy?: string
 
+  /** A shortcut elsewhere on the page that jumps to this control, written as `aria-keyshortcuts` writes it */
+  keyShortcuts?: string
+
   placeholder?: string
   searchable?: boolean
   searchPlaceholder?: string
@@ -142,6 +145,7 @@ const Dropdown = ({
   hasError = false,
   labelledBy,
   describedBy,
+  keyShortcuts,
   placeholder = 'Select...',
   searchable = false,
   searchPlaceholder = 'Search...',
@@ -504,6 +508,7 @@ const Dropdown = ({
             [describedBy, onEditOption ? editShortcutDescriptionId : undefined].filter(Boolean).join(' ') || undefined
           }
           listId={listId}
+          keyShortcuts={keyShortcuts}
           open={open}
           placeholder={placeholder}
           selected={selected}

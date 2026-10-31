@@ -36,6 +36,9 @@ interface DropdownHeadProps {
   /** Id of the open list, so assistive software can follow the head to the options it controls */
   listId?: string
 
+  /** A shortcut elsewhere on the page that jumps to this head, written as `aria-keyshortcuts` writes it */
+  keyShortcuts?: string
+
   open: boolean
   placeholder: string
   selected: DropdownOption | undefined
@@ -73,6 +76,7 @@ export function DropdownHead({
   labelledBy,
   describedBy,
   listId,
+  keyShortcuts,
   open,
   placeholder,
   selected,
@@ -102,6 +106,7 @@ export function DropdownHead({
         aria-haspopup="listbox"
         aria-controls={open ? listId : undefined}
         aria-labelledby={labelledBy}
+        aria-keyshortcuts={keyShortcuts}
         aria-invalid={hasError || undefined}
         disabled={disabled && !reason.isUnavailable}
         className={joinClassNames('app-dropdown-head', SIZE_CLASS[size])}

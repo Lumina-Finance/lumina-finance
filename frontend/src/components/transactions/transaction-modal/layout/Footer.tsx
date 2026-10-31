@@ -4,6 +4,9 @@ import { PendingLabel } from '@/components/loading/PendingLabel'
 import { useTransactionModalIds } from '@/components/transactions/transaction-modal/ids'
 import { MODAL_INSET_CLASS_NAME } from '@/components/modal/inset'
 import { DisabledReasonButton } from '@/components/tooltips/DisabledReasonButton'
+import ShortcutHint from '@/components/transactions/transaction-modal/controls/ShortcutHint'
+import ShortcutHints from '@/components/transactions/transaction-modal/controls/ShortcutHints'
+import { ARIA_SUBMIT_SHORTCUT } from '@/components/transactions/transaction-modal/utils/shortcuts'
 import type { ModalLevel } from '@/components/modal/Shell'
 
 interface TransactionModalFooterProps {
@@ -189,7 +192,7 @@ export default function TransactionModalFooter({
           </label>
         </div>
       ) : null}
-      <div className="grid grid-cols-2 gap-3 sm:ml-auto sm:flex sm:items-center">
+      <div className="relative grid grid-cols-2 gap-3 sm:ml-auto sm:flex sm:items-center">
         <button
           type="button"
           className={
@@ -206,6 +209,7 @@ export default function TransactionModalFooter({
             data-testid="transaction-submit"
             aria-label={editing ? 'Save' : addLabel}
             aria-busy={submitLoading}
+            aria-keyshortcuts={ARIA_SUBMIT_SHORTCUT}
             disabled={isPending}
             disabledReason={isPending ? undefined : submitBlockedReason}
             className={`app-primary-button overflow-hidden whitespace-nowrap${submitLoading ? ' app-primary-button-loading justify-self-center sm:justify-self-auto' : editing ? ' w-full sm:w-24' : ' w-full sm:w-44'}`}
@@ -214,6 +218,11 @@ export default function TransactionModalFooter({
               {editing ? 'Save' : addLabel}
             </PendingLabel>
           </DisabledReasonButton>
+        )}
+        {!readOnly && (
+          <ShortcutHints placement="save">
+            <ShortcutHint submit />
+          </ShortcutHints>
         )}
       </div>
     </div>

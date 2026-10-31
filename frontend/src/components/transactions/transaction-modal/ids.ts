@@ -15,8 +15,17 @@ export const TransactionModalIdSuffix = createContext('')
  * The ids of the open transaction modal's fields and controls, unique among the modals on screen
  */
 export function useTransactionModalIds() {
-  const suffix = useContext(TransactionModalIdSuffix)
+  return getTransactionModalIds(useContext(TransactionModalIdSuffix))
+}
+
+/**
+ * The same ids for a given suffix, for the modal itself. It sits above the provider that hands its
+ * suffix to everything inside it
+ */
+export function getTransactionModalIds(suffix: string) {
   return {
+    kind: `txn-kind${suffix}`,
+    direction: `txn-direction${suffix}`,
     account: `${TRANSACTION_MODAL_FIELD_IDS.account}${suffix}`,
     counterpartyAccount: `${TRANSACTION_MODAL_FIELD_IDS.counterpartyAccount}${suffix}`,
     merchant: `${TRANSACTION_MODAL_FIELD_IDS.merchant}${suffix}`,

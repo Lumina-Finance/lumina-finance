@@ -4,14 +4,17 @@ import Dropdown from '@/components/dropdown/Dropdown'
 import SettingsField from '@/pages/settings/components/Field'
 import SettingsSectionHeader from '@/pages/settings/components/SectionHeader'
 import SettingsCard from '@/pages/settings/components/Card'
-import { buildDateFormatOptions } from '@/pages/settings/formatOptions'
+import { readIsMac } from '@/components/transactions/transaction-modal/utils/shortcuts'
+import { buildActionKeyOptions, buildDateFormatOptions } from '@/pages/settings/formatOptions'
 import type { ProfileFormState } from '@/pages/settings/profileForm'
+import type { ActionKeySetting } from '@/utils/actionKey'
 import type { DateFormatSetting } from '@/utils/dateFormat'
 import { formatCurrencyLabel } from '@/utils/formatCurrency'
 import { buildTimezoneOptions } from '@/utils/timezoneOptions'
 
 const PROFILE_TIMEZONE_FIELD_ID = 'profile-timezone'
 const PROFILE_DATE_FORMAT_FIELD_ID = 'profile-date-format'
+const PROFILE_ACTION_KEY_FIELD_ID = 'profile-action-key'
 
 const TIMEZONES = Intl.supportedValuesOf('timeZone')
 
@@ -43,26 +46,17 @@ export default function ProfileSection({
   userInformationActions,
 }: ProfileSectionProps) {
   const { data: currencies } = useCurrencies()
-  const initials = user
-    ? `${user.first_name[0] ?? ''}${user.last_name?.[0] ?? ''}`.toUpperCase()
-    : ''
-  const displayName = user
-    ? `${user.first_name}${user.last_name ? ` ${user.last_name}` : ''}`
-    : ''
+  const initials = user ? `${user.first_name[0] ?? ''}${user.last_name?.[0] ?? ''}`.toUpperCase() : ''
+  const displayName = user ? `${user.first_name}${user.last_name ? ` ${user.last_name}` : ''}` : ''
 
   // Fall back to the currency code until /currencies resolves, then render the
   // same code/name/symbol label format used by account creation
   const baseCurrency = currencies?.find((c) => c.id === user?.base_currency)
-  const baseCurrencyLabel = baseCurrency
-    ? formatCurrencyLabel(baseCurrency)
-    : user?.base_currency ?? ''
+  const baseCurrencyLabel = baseCurrency ? formatCurrencyLabel(baseCurrency) : (user?.base_currency ?? '')
 
   return (
     <section id="profile">
-      <SettingsSectionHeader
-        title="Profile"
-        description="Your name and localization defaults."
-      />
+      <SettingsSectionHeader title="Profile" description="Your name and localization defaults." />
 
       <div className="space-y-4">
         <SettingsCard>
@@ -126,7 +120,23 @@ export default function ProfileSection({
                   onChange={(v) => onFieldChange('date_format', v as DateFormatSetting)}
                 />
               </SettingsField>
-              <SettingsField label="Base currency" htmlFor="profile-base-currency" hint="Planned, currently not supported to change">
+              <SettingsField
+                label="Action key"
+                htmlFor={PROFILE_ACTION_KEY_FIELD_ID}
+                hint="Hold it in the transaction dialogue to see the shortcuts"
+              >
+                <Dropdown
+                  id={PROFILE_ACTION_KEY_FIELD_ID}
+                  options={buildActionKeyOptions(readIsMac())}
+                  value={form.action_key}
+                  onChange={(v) => onFieldChange('action_key', v as ActionKeySetting)}
+                />
+              </SettingsField>
+              <SettingsField
+                label="Base currency"
+                htmlFor="profile-base-currency"
+                hint="Planned, currently not supported to change"
+              >
                 <input
                   id="profile-base-currency"
                   className="app-input"

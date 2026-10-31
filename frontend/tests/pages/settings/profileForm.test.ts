@@ -3,7 +3,7 @@
  * each written in that format
  */
 import { describe, expect, it } from 'vitest'
-import { buildDateFormatOptions } from '@/pages/settings/formatOptions'
+import { buildActionKeyOptions, buildDateFormatOptions } from '@/pages/settings/formatOptions'
 import {
   getProfilePatch,
   isProfileFormDirty,
@@ -18,11 +18,13 @@ const SAVED_PROFILE: SavedProfile = {
   last_name: 'Lovelace',
   tz: 'America/Toronto',
   date_format: 'month-day-year',
+  action_key: 'alt',
 }
 
 describe('saving the profile', () => {
   it.each<{ name: string; change: Partial<ProfileFormState>; patch: object }>([
     { name: 'a new date format', change: { date_format: 'iso' }, patch: { date_format: 'iso' } },
+    { name: 'a new action key', change: { action_key: 'left-alt' }, patch: { action_key: 'left-alt' } },
     { name: 'a new timezone', change: { tz: 'Asia/Tokyo' }, patch: { tz: 'Asia/Tokyo' } },
     { name: 'nothing changed', change: {}, patch: {} },
   ])('sends only what changed, for $name', ({ change, patch }) => {
@@ -30,6 +32,17 @@ describe('saving the profile', () => {
 
     expect(getProfilePatch(form, SAVED_PROFILE)).toEqual(patch)
     expect(isProfileFormDirty(form, SAVED_PROFILE)).toBe(Object.keys(patch).length > 0)
+  })
+})
+
+describe('action key choices', () => {
+  it('offers either Alt key or the left one alone, and no Control, Command or Shift key', () => {
+    expect(buildActionKeyOptions(false).map((option) => option.value)).toEqual(['alt', 'left-alt'])
+  })
+
+  it('names the key Option on a Mac and Alt elsewhere', () => {
+    expect(buildActionKeyOptions(true).map((option) => option.label)).toEqual(['Option', 'Left Option'])
+    expect(buildActionKeyOptions(false).map((option) => option.label)).toEqual(['Alt', 'Left Alt'])
   })
 })
 

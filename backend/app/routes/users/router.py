@@ -103,7 +103,7 @@ async def update_me(
         return profile
 
     # Non-nullable fields cannot be explicitly set to null
-    non_nullable_fields = {"first_name", "tz", "base_currency", "date_format"}
+    non_nullable_fields = {"first_name", "tz", "base_currency", "date_format", "action_key"}
     null_fields = [field for field in non_nullable_fields if field in updates and updates[field] is None]
     if null_fields:
         raise HTTPException(

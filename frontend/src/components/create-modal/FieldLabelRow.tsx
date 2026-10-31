@@ -36,7 +36,7 @@ export default function CreateModalFieldLabelRow({
   htmlFor,
   label,
   optionGroupId,
-}:CreateModalFieldLabelRowProps) {
+}: CreateModalFieldLabelRowProps) {
   const stacksOnNarrowLayouts = Boolean(action) && !error
 
   return (
@@ -46,7 +46,7 @@ export default function CreateModalFieldLabelRow({
         stacksOnNarrowLayouts && 'flex-col gap-1.5 sm:flex-row sm:items-end sm:gap-3',
       )}
     >
-      <div className="flex min-w-0 items-center gap-1.5">
+      <div className="relative flex min-w-0 items-center gap-1.5">
         <label
           id={htmlFor && getFieldLabelId(htmlFor)}
           htmlFor={htmlFor}

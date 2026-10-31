@@ -6,7 +6,7 @@ from typing import Literal
 
 from pydantic import BaseModel, Field, field_validator, model_validator
 
-from app.preferences import DateFormat
+from app.preferences import ActionKey, DateFormat
 from app.schemas.auth import validate_iana_timezone
 from app.schemas.fx import FxStatus
 from app.schemas.profile_preferences import ProfilePreferences
@@ -59,6 +59,7 @@ class UpdateProfileRequest(BaseModel):
     tz: str | None = Field(None, max_length=40)
     base_currency: str | None = Field(None, min_length=3, max_length=3)
     date_format: DateFormat | None = None
+    action_key: ActionKey | None = None
 
     @field_validator("tz")
     @classmethod

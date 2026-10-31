@@ -2871,6 +2871,56 @@
     font-size: var(--app-label-compact-size);
   }
 
+  /* The key caps of the transaction dialogue, laid over the page while the action key is held. They sit
+     out of the layout, so showing them moves nothing, and they exist only where a keyboard can press
+     them: a screen wide enough to not be a phone and a precise pointer, since a touch screen has none.
+     They fade with the page's own ease, and the hidden state is applied after the fade so a cap that
+     has left cannot be reached */
+  .app-shortcut-hints {
+    @apply pointer-events-none absolute hidden items-center gap-1.5;
+    opacity: 0;
+    visibility: hidden;
+    transition:
+      opacity var(--app-ease-duration) var(--app-ease-curve),
+      visibility 0s linear var(--app-ease-duration);
+  }
+
+  .app-shortcut-hints[data-visible="true"] {
+    opacity: 1;
+    visibility: visible;
+    transition-delay: 0s;
+  }
+
+  @media (min-width: 40rem) and (any-pointer: fine) {
+    .app-shortcut-hints {
+      display: flex;
+    }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .app-shortcut-hints {
+      transition: none;
+    }
+  }
+
+  /* Hung after the label it belongs to */
+  .app-shortcut-hints-after {
+    @apply top-1/2 left-full ml-1.5 -translate-y-1/2;
+  }
+
+  /* Resting just above the save button, near its right end, covering nothing of it */
+  .app-shortcut-hints-save {
+    @apply right-3 bottom-full mb-0.5;
+  }
+
+  .app-shortcut-hint {
+    @apply inline-flex h-5 shrink-0 items-center whitespace-nowrap rounded-md border px-1.5 text-xs font-semibold;
+    font-family: inherit;
+    color: var(--app-text-muted);
+    background: var(--app-surface-soft);
+    border-color: var(--app-border);
+  }
+
   .app-card {
     @apply rounded-2xl border p-4;
     background: var(--app-surface-soft);

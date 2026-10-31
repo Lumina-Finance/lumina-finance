@@ -51,6 +51,10 @@ interface DateFieldProps {
   // Names the message explaining the error, which each segment points at while error is set so the
   // reason is announced wherever focus lands in the field
   describedById?: string
+
+  // A shortcut elsewhere on the page that jumps to the field, written as aria-keyshortcuts writes it
+  // and put on the year, where the jump lands
+  keyShortcuts?: string
 }
 
 const SEGMENT_PLACEHOLDER: Record<DateSegmentName, string> = { year: 'yyyy', month: 'mm', day: 'dd' }
@@ -85,6 +89,7 @@ export default function DateField({
   readOnly = false,
   error = false,
   describedById,
+  keyShortcuts,
 }: DateFieldProps) {
   const { user } = useAuth()
   const [segments, setSegments] = useState<DateSegments>(() => parseIsoDate(value))
@@ -266,6 +271,7 @@ export default function DateField({
               inputMode="numeric"
               autoComplete="off"
               aria-label={SEGMENT_LABEL[segment]}
+              aria-keyshortcuts={segment === 'year' ? keyShortcuts : undefined}
               aria-invalid={error}
               aria-describedby={error ? describedById : undefined}
               placeholder={SEGMENT_PLACEHOLDER[segment]}

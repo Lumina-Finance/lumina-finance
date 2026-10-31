@@ -9,9 +9,16 @@ import {
   type ProfileFormState,
 } from '@/pages/settings/profileForm'
 import { getProfileSaveBlockedReason } from '@/pages/settings/utils/profileForm'
+import { DEFAULT_ACTION_KEY } from '@/utils/actionKey'
 import { DEFAULT_DATE_FORMAT } from '@/utils/dateFormat'
 
-const emptyProfileForm: ProfileFormState = { first_name: '', last_name: '', tz: '', date_format: DEFAULT_DATE_FORMAT }
+const emptyProfileForm: ProfileFormState = {
+  first_name: '',
+  last_name: '',
+  tz: '',
+  date_format: DEFAULT_DATE_FORMAT,
+  action_key: DEFAULT_ACTION_KEY,
+}
 
 /**
  * Owns profile draft state, validation, mutation feedback, and save/discard actions
@@ -64,7 +71,9 @@ export function useProfileSettingsForm() {
         deferred.apply = () => {
           setUser(updated)
           setProfileOverrides((overrides) =>
-            Object.fromEntries(Object.entries(overrides).filter(([key, value]) => value !== sent[key as keyof ProfileFormState])),
+            Object.fromEntries(
+              Object.entries(overrides).filter(([key, value]) => value !== sent[key as keyof ProfileFormState]),
+            ),
           )
         }
       })

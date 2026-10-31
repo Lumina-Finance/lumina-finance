@@ -17,6 +17,7 @@ const refreshedAuthResponse: AuthResponse = {
     tz: 'America/Toronto',
     base_currency: 'CAD',
     date_format: 'month-day-year',
+    action_key: 'alt',
     created_at: '2026-06-12T00:00:00Z',
     second_factor_reenrollment_required: false,
   },
