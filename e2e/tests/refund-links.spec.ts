@@ -409,6 +409,12 @@ for (const size of [
         const search = dialog.querySelector('input[placeholder="Merchant or note…"]')
         return [explanation, search, filters].map((node) => node!.getBoundingClientRect().top - dialogTop)
       }, phone)
+    // Read once the dialog has finished opening, as its entrance animation leaves these a fraction of a pixel off
+    await picker.evaluate((dialog) => Promise.all(
+      dialog.getAnimations({ subtree: true })
+        .filter((animation) => animation.effect?.getComputedTiming().iterations !== Infinity)
+        .map((animation) => animation.finished),
+    ))
     const resting = await tops()
 
     // Opening Filters from a body scrolled down is the case that moved the header, since the pinned block un-sticks
