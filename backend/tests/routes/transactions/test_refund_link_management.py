@@ -428,8 +428,8 @@ async def test_a_bulk_edit_that_files_a_linked_row_under_the_wrong_category_chan
     assert (await _get(client, headers, refund["id"]))["refund_of_transaction_id"] == expense["id"]
 
 
-async def test_a_bulk_edit_moving_a_linked_row_keeps_its_currency_and_its_link(client):
-    """A bulk move leaves the row's own currency as it was, so the link still joins one currency and stays."""
+async def test_a_bulk_edit_cannot_move_a_linked_row_into_another_currency(client):
+    """A bulk move into another currency's account is refused, so the row keeps its account and its link."""
     headers, account_id, category_id = await _setup_user_with_deps(client)
     expense = (await _create_transaction(client, headers, account_id, category_id)).json()
     refund = await _refund(client, headers, account_id, category_id, expense["id"], amount=100, fx_rate=1.3)
@@ -442,9 +442,9 @@ async def test_a_bulk_edit_moving_a_linked_row_keeps_its_currency_and_its_link(c
         headers=headers,
     )
 
-    assert moved.status_code == 200
+    assert moved.status_code == 422
     after = await _get(client, headers, refund["id"])
-    assert after["account_id"] == usd_account_id
+    assert after["account_id"] == account_id
     assert after["currency"] == "CAD"
     assert after["refund_of_transaction_id"] == expense["id"]
 

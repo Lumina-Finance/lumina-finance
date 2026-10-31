@@ -634,7 +634,7 @@ async def _refuse_rows_breaking_single_edit_rules(
         HTTPException: At least one row breaks a rule
     """
     without_merchant = []
-    missing_fx_rate = []
+    moving_to_another_currency = []
     sits_outside = []
     unanswered_transfers = []
     own_account_counterparty = []
@@ -650,15 +650,11 @@ async def _refuse_rows_breaking_single_edit_rules(
         resulting_account = accounts_by_id[resolution.account_id]
 
         # Checked only where the row actually moves, whether that move came from account_id or from
-        # a tracked own end, matching the single-transaction path, which re-checks the rate only when
-        # account_id changes. A row keeping its own account is not asked to justify a currency
+        # a tracked own end, matching the single-transaction path, which re-checks the currency only
+        # when account_id changes. A row keeping its own account is not asked to justify a currency
         # mismatch this edit did not create, however it came to have one
-        if (
-            resolution.account_id != transaction.account_id
-            and transaction.currency != resulting_account.currency
-            and transaction.fx_rate is None
-        ):
-            missing_fx_rate.append(transaction.id)
+        if resolution.account_id != transaction.account_id and transaction.currency != resulting_account.currency:
+            moving_to_another_currency.append(transaction.id)
 
         if not does_category_record_counterparty_account(resolution.category):
             continue
@@ -684,8 +680,8 @@ async def _refuse_rows_breaking_single_edit_rules(
     reasons = []
     if without_merchant:
         reasons.append(f"{len(without_merchant)} missing merchant information")
-    if missing_fx_rate:
-        reasons.append(f"{len(missing_fx_rate)} in another currency with no exchange rate recorded")
+    if moving_to_another_currency:
+        reasons.append(f"{len(moving_to_another_currency)} moving to an account in another currency")
     if sits_outside:
         reasons.append(f"{len(sits_outside)} that would sit outside this app")
     if unanswered_transfers:
@@ -700,7 +696,7 @@ async def _refuse_rows_breaking_single_edit_rules(
     refused_count = len(
         {
             *without_merchant,
-            *missing_fx_rate,
+            *moving_to_another_currency,
             *sits_outside,
             *unanswered_transfers,
             *own_account_counterparty,

@@ -170,8 +170,8 @@ async def test_an_edit_raising_a_refund_waits_for_a_link_being_made(client, monk
     assert (await _get(client, headers, first["id"]))["amount"] == 2000
 
 
-async def test_a_refund_moved_to_another_currencys_account_still_counts(client):
-    """A move keeps the refund's own currency, so it can't step out of the total, and a sent currency is ignored."""
+async def test_a_refund_cannot_move_to_another_currencys_account_and_still_counts(client):
+    """A move into another currency's account is refused, so the refund can't step out of the total."""
     headers, account_id, category_id = await _setup_user_with_deps(client)
     expense = (await _create_transaction(client, headers, account_id, category_id)).json()
     refund = await _refund(client, headers, account_id, category_id, expense["id"], amount=3000)
@@ -185,9 +185,7 @@ async def test_a_refund_moved_to_another_currencys_account_still_counts(client):
     )
     raised = await client.patch(f"/transactions/{refund['id']}", json={"amount": 5001}, headers=headers)
 
-    assert moved.status_code == 200
-    assert moved.json()["currency"] == "CAD"
-    assert moved.json()["refund_of_transaction_id"] == expense["id"]
+    assert moved.status_code == 422
     assert raised.status_code == 422
 
 
