@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react'
 import { useDashboardSavingsRate } from '@/api/dashboard'
 import { useLoadingSnapshot } from '@/hooks/useLoadingSnapshot'
+import { isLoadingFirstAnswer } from '@/utils/queryLoading'
 import { DashboardWidgetLoadingBody } from '@/pages/dashboard/components/WidgetLoadingBody'
 import { SavingsRateChart } from './Chart'
 import { SavingsRateHeader } from './Header'
@@ -12,32 +13,21 @@ import { getSavingsRateSeries } from '@/pages/dashboard/utils/getSavingsRateSeri
  */
 export function SavingsRateWidget() {
   const [capSavingsRateChart, setCapSavingsRateChart] = useState(false)
-  const {
-    data: incomingDashboardSavingsRate,
-    error: savingsRateError,
-    isError: savingsRateFailed,
-    isFetching: dashboardSavingsRateLoading,
-  } = useDashboardSavingsRate()
+  const savingsRateQuery = useDashboardSavingsRate()
+  const { data: incomingDashboardSavingsRate, error: savingsRateError, isError: savingsRateFailed } = savingsRateQuery
+  const dashboardSavingsRateLoading = isLoadingFirstAnswer(savingsRateQuery)
   const loadingSnapshot = useMemo(
     () => ({ dashboardSavingsRate: incomingDashboardSavingsRate }),
     [incomingDashboardSavingsRate],
   )
-  const {
-    displaySnapshot,
-    contentConcealed,
-    loadingVisible,
-    shouldReduceMotion,
-  } = useLoadingSnapshot({
+  const { displaySnapshot, contentConcealed, loadingVisible, shouldReduceMotion } = useLoadingSnapshot({
     snapshot: loadingSnapshot,
     loading: dashboardSavingsRateLoading,
     transitionKey: 'savings-rate',
   })
   const dashboardSavingsRate = displaySnapshot.dashboardSavingsRate
   const fxStatus = dashboardSavingsRate?.fx_status
-  const savingsData = useMemo(
-    () => getSavingsRateSeries(dashboardSavingsRate),
-    [dashboardSavingsRate],
-  )
+  const savingsData = useMemo(() => getSavingsRateSeries(dashboardSavingsRate), [dashboardSavingsRate])
   const chartData = useMemo(
     () => getSavingsRateChartData(savingsData, capSavingsRateChart),
     [capSavingsRateChart, savingsData],
@@ -60,10 +50,7 @@ export function SavingsRateWidget() {
         label="Loading savings rate"
         className="flex-1"
       >
-        <SavingsRateChart
-          data={chartData}
-          capSavingsRateChart={capSavingsRateChart}
-        />
+        <SavingsRateChart data={chartData} capSavingsRateChart={capSavingsRateChart} />
       </DashboardWidgetLoadingBody>
     </div>
   )

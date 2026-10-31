@@ -1,15 +1,13 @@
 import { useMemo, useState } from 'react'
 import { useDashboardCreditUtilization } from '@/api/dashboard'
 import { useLoadingSnapshot } from '@/hooks/useLoadingSnapshot'
+import { isLoadingFirstAnswer } from '@/utils/queryLoading'
 import { CreditAccountsModal } from './AccountsModal'
 import { CreditHeader } from './Header'
 import { CreditUsageBody } from './UsageBody'
 import { DashboardWidgetLoadingBody } from '@/pages/dashboard/components/WidgetLoadingBody'
 import { areAllAccountsLeftOut, getCreditEmptyMessage } from '@/pages/dashboard/utils/creditAccountChoice'
-import {
-  getCreditUsageSummary,
-  type CreditMode,
-} from '@/pages/dashboard/utils/getCreditUsageSummary'
+import { getCreditUsageSummary, type CreditMode } from '@/pages/dashboard/utils/getCreditUsageSummary'
 
 type CreditWidgetProps = {
   displayCurrency: string
@@ -20,24 +18,13 @@ type CreditWidgetProps = {
  * account choice, progress ring, and amount
  */
 export function CreditWidget({ displayCurrency }: CreditWidgetProps) {
-  const {
-    data: incomingDashboardCredit,
-    error: creditError,
-    isError: creditFailed,
-    isFetching: dashboardCreditLoading,
-  } = useDashboardCreditUtilization()
+  const creditQuery = useDashboardCreditUtilization()
+  const { data: incomingDashboardCredit, error: creditError, isError: creditFailed } = creditQuery
+  const dashboardCreditLoading = isLoadingFirstAnswer(creditQuery)
   const [creditMode, setCreditMode] = useState<CreditMode>('used')
   const [accountsModalOpen, setAccountsModalOpen] = useState(false)
-  const loadingSnapshot = useMemo(
-    () => ({ dashboardCredit: incomingDashboardCredit }),
-    [incomingDashboardCredit],
-  )
-  const {
-    displaySnapshot,
-    contentConcealed,
-    loadingVisible,
-    shouldReduceMotion,
-  } = useLoadingSnapshot({
+  const loadingSnapshot = useMemo(() => ({ dashboardCredit: incomingDashboardCredit }), [incomingDashboardCredit])
+  const { displaySnapshot, contentConcealed, loadingVisible, shouldReduceMotion } = useLoadingSnapshot({
     snapshot: loadingSnapshot,
     loading: dashboardCreditLoading,
     transitionKey: 'credit',

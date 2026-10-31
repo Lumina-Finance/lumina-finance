@@ -53,30 +53,26 @@ export default function BudgetsPage() {
     periods: budgetsQuery.data,
     categoryById,
   })
-  const activeBudgetCards = useMemo(
-    () => budgetCards.filter((card) => !card.baseBudget.is_archived),
-    [budgetCards],
-  )
-  const archivedBudgetCards = useMemo(
-    () => budgetCards.filter((card) => card.baseBudget.is_archived),
-    [budgetCards],
-  )
+  const activeBudgetCards = useMemo(() => budgetCards.filter((card) => !card.baseBudget.is_archived), [budgetCards])
+  const archivedBudgetCards = useMemo(() => budgetCards.filter((card) => card.baseBudget.is_archived), [budgetCards])
   const latestUtilizationByBudgetId = useMemo(
-    () => new Map(
-      (latestUtilizationsQuery.data ?? [])
-        .map((utilization) => [utilization.budget_id, utilization]),
-    ),
+    () => new Map((latestUtilizationsQuery.data ?? []).map((utilization) => [utilization.budget_id, utilization])),
     [latestUtilizationsQuery.data],
   )
+  // Cards need all three answers to be right, so a card from the first two waits for the third. Once they
+  // are held a fetch updates the cards in place, and only a list with no cards to show waits for its answer
   const budgetsLoading = useMinimumVisibleFlag(
-    baseBudgetsQuery.isFetching || budgetsQuery.isFetching || latestUtilizationsQuery.isFetching,
+    baseBudgetsQuery.isPending ||
+      budgetsQuery.isPending ||
+      latestUtilizationsQuery.isPending ||
+      (budgetCards.length === 0 &&
+        (baseBudgetsQuery.isFetching || budgetsQuery.isFetching || latestUtilizationsQuery.isFetching)),
     LOADING_ANIMATION_MIN_MS,
   )
   const budgetsError = baseBudgetsQuery.isError || budgetsQuery.isError || latestUtilizationsQuery.isError
   const selectedBudget = budgetCards.find(({ baseBudget }) => baseBudget.id === selectedBudgetId)
-  const visibleBudgetDetails = selectedBudget ?? (
-    budgetDetailsSnapshot?.baseBudget.id === selectedBudgetId ? budgetDetailsSnapshot : null
-  )
+  const visibleBudgetDetails =
+    selectedBudget ?? (budgetDetailsSnapshot?.baseBudget.id === selectedBudgetId ? budgetDetailsSnapshot : null)
   // The snapshot is what stays mounted while the panel animates out, after the URL has already dropped the
   // selection, so the contents do not vanish mid-exit
   const detailsBudget = visibleBudgetDetails ?? budgetDetailsSnapshot
@@ -116,10 +112,7 @@ export default function BudgetsPage() {
   useRecurringBudgetBackfill({
     // Wait for both budget queries to settle so backfill never acts on the stale pre-archive periods that
     // linger between an unarchive and its refetch, which would otherwise recreate the suppressed gap periods
-    enabled:
-      Boolean(user)
-      && !baseBudgetsQuery.isFetching
-      && !budgetsQuery.isFetching,
+    enabled: Boolean(user) && !baseBudgetsQuery.isFetching && !budgetsQuery.isFetching,
     budgetCards,
     today,
     createBudgetInstance,
@@ -131,11 +124,13 @@ export default function BudgetsPage() {
       <div className="mb-6 flex flex-col gap-4 min-[750px]:flex-row min-[750px]:items-end min-[750px]:justify-between">
         <header className="app-page-header mb-0 min-w-0">
           <h1 className="app-page-title">Budgets</h1>
-          <p className="app-page-description">
-            Plan ahead and keep your spending in check.
-          </p>
+          <p className="app-page-description">Plan ahead and keep your spending in check.</p>
         </header>
-        <button type="button" className="app-primary-button w-full min-[750px]:w-auto" onClick={() => requireCurrencies(() => setCreateOpen(true))}>
+        <button
+          type="button"
+          className="app-primary-button w-full min-[750px]:w-auto"
+          onClick={() => requireCurrencies(() => setCreateOpen(true))}
+        >
           <Plus size={18} aria-hidden />
           New budget
         </button>
@@ -151,7 +146,7 @@ export default function BudgetsPage() {
       />
 
       <AnimatePresence initial={false}>
-        {archivedBudgetCards.length > 0 && (
+        {!budgetsLoading && archivedBudgetCards.length > 0 && (
           <BudgetArchivedSection
             budgetCards={archivedBudgetCards}
             latestUtilizationByBudgetId={latestUtilizationByBudgetId}
@@ -186,9 +181,7 @@ export default function BudgetsPage() {
           currencies={currencies ?? []}
           categoryById={categoryById}
           initialLatestUtilization={
-            detailsBudget.latestPeriod
-              ? latestUtilizationByBudgetId.get(detailsBudget.latestPeriod.id)
-              : undefined
+            detailsBudget.latestPeriod ? latestUtilizationByBudgetId.get(detailsBudget.latestPeriod.id) : undefined
           }
           today={today}
           onClose={closeBudget}

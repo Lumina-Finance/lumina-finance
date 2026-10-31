@@ -4,14 +4,11 @@ import { flushSync } from 'react-dom'
 import { LOADING_ANIMATION_MIN_MS, withMinDelay } from '@/utils/timing'
 import { useLocation, useNavigate } from 'react-router'
 import { buildImportOriginState } from '@/utils/importOrigin'
+import { isLoadingFirstAnswer } from '@/utils/queryLoading'
 import { useAuth } from '@/hooks/useAuth'
 import { useAccounts } from '@/api/accounts'
 import { getCreateBlockReason } from '@/components/transactions/utils/createBlockReason'
-import {
-  useLoadTransaction,
-  useTransactionsOverview,
-  type Transaction,
-} from '@/api/transactions'
+import { useLoadTransaction, useTransactionsOverview, type Transaction } from '@/api/transactions'
 import TransactionListSection from '@/components/transactions/ListSection'
 import CreateTransactionModal from '@/components/transactions/transaction-modal/Modal'
 import { useCurrencyGuard } from '@/hooks/useCurrencyGuard'
@@ -100,10 +97,7 @@ export default function TransactionsPage() {
     }
   }
 
-  const { monthStart, today } = useMemo(
-    () => getCurrentMonthOverviewRange(user!.tz),
-    [user],
-  )
+  const { monthStart, today } = useMemo(() => getCurrentMonthOverviewRange(user!.tz), [user])
 
   const overviewFromDate = filters.from_date ?? monthStart
   const overviewToDate = filters.to_date ?? today
@@ -114,16 +108,17 @@ export default function TransactionsPage() {
   // The overview supports a single account and the date range, so it scopes to the chosen account
   // only when exactly one is selected and otherwise spans every account
   const overviewAccountId = filters.account_id?.length === 1 ? filters.account_id[0] : undefined
+  const overviewQuery = useTransactionsOverview({
+    account_id: overviewAccountId,
+    from_date: overviewFromDate,
+    to_date: overviewToDate,
+  })
   const {
     data: overview,
     isFetching: isOverviewFetching,
     isError: isOverviewError,
     refetch: refetchOverview,
-  } = useTransactionsOverview({
-    account_id: overviewAccountId,
-    from_date: overviewFromDate,
-    to_date: overviewToDate,
-  })
+  } = overviewQuery
 
   // Chart remounts preserve the pre-refactor animation timing when filters change
   const chartAnimationKey = [
@@ -167,20 +162,23 @@ export default function TransactionsPage() {
     const result = await withMinDelay(() => refetchOverview({ cancelRefetch: false }), LOADING_ANIMATION_MIN_MS)
     if (activeRetryRef.current !== request || currentOverviewKeyRef.current !== chartAnimationKey) return
     if (!result.isError) {
-      await summaryAnimation.start({ opacity: 0, transition: { duration: prefersReducedMotion ? 0 : RETRY_FADE_SECONDS } })
+      await summaryAnimation.start({
+        opacity: 0,
+        transition: { duration: prefersReducedMotion ? 0 : RETRY_FADE_SECONDS },
+      })
       if (activeRetryRef.current !== request) return
       flushSync(() => setRetryKey(null))
-      await summaryAnimation.start({ opacity: 1, transition: { duration: prefersReducedMotion ? 0 : RETRY_FADE_SECONDS } })
+      await summaryAnimation.start({
+        opacity: 1,
+        transition: { duration: prefersReducedMotion ? 0 : RETRY_FADE_SECONDS },
+      })
     } else {
       setRetryKey(null)
     }
     if (activeRetryRef.current === request) activeRetryRef.current = null
   }
 
-  const transactionAccounts = useMemo(
-    () => (accounts ?? []).map(toTransactionListAccount),
-    [accounts],
-  )
+  const transactionAccounts = useMemo(() => (accounts ?? []).map(toTransactionListAccount), [accounts])
   const editingTransactionReadOnly = useMemo(() => {
     if (!editingTransaction) return false
 
@@ -203,7 +201,7 @@ export default function TransactionsPage() {
             <TransactionsTopBand
               overview={overview}
               displayCurrency={displayCurrency}
-              loading={filterListLoading || isOverviewFetching}
+              loading={filterListLoading || isLoadingFirstAnswer(overviewQuery)}
               failed={isOverviewError}
               retrying={retrying}
               skipEntrance={recoveredKey === chartAnimationKey}
@@ -214,8 +212,12 @@ export default function TransactionsPage() {
               prefersReducedMotion={prefersReducedMotion}
               openingOutlierId={openingOutlierId}
               outlierLoadError={outlierLoadError}
-              onRetry={() => { void handleRetryOverview() }}
-              onOpenOutlierTransaction={(transactionId) => { void openOutlierTransaction(transactionId) }}
+              onRetry={() => {
+                void handleRetryOverview()
+              }}
+              onOpenOutlierTransaction={(transactionId) => {
+                void openOutlierTransaction(transactionId)
+              }}
             />
           </motion.div>
 

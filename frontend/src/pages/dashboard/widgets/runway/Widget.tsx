@@ -2,12 +2,9 @@ import { useMemo, useRef } from 'react'
 import { useAccounts } from '@/api/accounts'
 import { useRunway, useRunwayAccounts } from '@/api/user'
 import { useLoadingSnapshot } from '@/hooks/useLoadingSnapshot'
+import { isLoadingFirstAnswer } from '@/utils/queryLoading'
 import { useMoneyFormatters } from '@/hooks/useMoneyFormatters'
-import {
-  RUNWAY_BAND_STYLE,
-  formatCompactRunway,
-  runwayBand,
-} from '@/utils/runway'
+import { RUNWAY_BAND_STYLE, formatCompactRunway, runwayBand } from '@/utils/runway'
 import { DashboardWidgetLoadingBody } from '@/pages/dashboard/components/WidgetLoadingBody'
 import { RunwayHeader } from './Header'
 import { RunwaySegmentsBar } from './SegmentsBar'
@@ -24,19 +21,19 @@ type RunwayWidgetProps = {
 export function RunwayWidget({ displayCurrency }: RunwayWidgetProps) {
   const runwayCardRef = useRef<HTMLDivElement>(null)
   const { currencies } = useMoneyFormatters()
-  const { data: incomingRunway, error: runwayError, isError: runwayFailed, isFetching: runwayLoading } = useRunway()
+  const runwayQuery = useRunway()
+  const { data: incomingRunway, error: runwayError, isError: runwayFailed } = runwayQuery
+  const runwayAccountsQuery = useRunwayAccounts()
   const {
     data: incomingRunwayAccountIds,
     error: runwayAccountsError,
     isError: runwayAccountsFailed,
-    isFetching: runwayAccountsLoading,
-  } = useRunwayAccounts()
-  const {
-    data: incomingAccounts,
-    error: accountsError,
-    isError: accountsFailed,
-    isFetching: accountsLoading,
-  } = useAccounts()
+  } = runwayAccountsQuery
+  const accountsQuery = useAccounts()
+  const { data: incomingAccounts, error: accountsError, isError: accountsFailed } = accountsQuery
+  const runwayLoading = isLoadingFirstAnswer(runwayQuery)
+  const runwayAccountsLoading = isLoadingFirstAnswer(runwayAccountsQuery)
+  const accountsLoading = isLoadingFirstAnswer(accountsQuery)
   const loadingSnapshot = useMemo(
     () => ({
       accounts: incomingAccounts,
@@ -45,12 +42,7 @@ export function RunwayWidget({ displayCurrency }: RunwayWidgetProps) {
     }),
     [incomingAccounts, incomingRunway, incomingRunwayAccountIds],
   )
-  const {
-    displaySnapshot,
-    contentConcealed,
-    loadingVisible,
-    shouldReduceMotion,
-  } = useLoadingSnapshot({
+  const { displaySnapshot, contentConcealed, loadingVisible, shouldReduceMotion } = useLoadingSnapshot({
     snapshot: loadingSnapshot,
     loading: runwayLoading || runwayAccountsLoading || accountsLoading,
     transitionKey: 'runway',
@@ -68,10 +60,7 @@ export function RunwayWidget({ displayCurrency }: RunwayWidgetProps) {
 
   return (
     <div ref={runwayCardRef} className="app-card relative h-[15.5rem] flex flex-col">
-      <RunwayHeader
-        fxStatus={fxStatus}
-        runwayStyle={runwayStyle}
-      />
+      <RunwayHeader fxStatus={fxStatus} runwayStyle={runwayStyle} />
       <DashboardWidgetLoadingBody
         contentConcealed={contentConcealed}
         error={runwayError ?? runwayAccountsError ?? accountsError}

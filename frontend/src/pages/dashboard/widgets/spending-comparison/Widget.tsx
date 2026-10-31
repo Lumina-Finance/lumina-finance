@@ -1,9 +1,7 @@
 import { useMemo, useState } from 'react'
-import {
-  type SpendingRange,
-  useSpendingComparison,
-} from '@/api/dashboard'
+import { type SpendingRange, useSpendingComparison } from '@/api/dashboard'
 import { useLoadingSnapshot } from '@/hooks/useLoadingSnapshot'
+import { isLoadingFirstAnswer } from '@/utils/queryLoading'
 import { DashboardWidgetLoadingBody } from '@/pages/dashboard/components/WidgetLoadingBody'
 import { SpendingComparisonChart } from './Chart'
 import { SpendingComparisonHeader } from './Header'
@@ -20,12 +18,13 @@ type SpendingComparisonWidgetProps = {
  */
 export function SpendingComparisonWidget({ displayCurrency }: SpendingComparisonWidgetProps) {
   const [spendingRange, setSpendingRange] = useState<SpendingRange>('MTD')
+  const spendingComparisonQuery = useSpendingComparison(spendingRange)
   const {
     data: incomingSpendingComparison,
     error: spendingComparisonError,
     isError: spendingComparisonFailed,
-    isFetching: spendingComparisonLoading,
-  } = useSpendingComparison(spendingRange)
+  } = spendingComparisonQuery
+  const spendingComparisonLoading = isLoadingFirstAnswer(spendingComparisonQuery)
   const loadingSnapshot = useMemo(
     () => ({
       spendingComparison: incomingSpendingComparison,
@@ -33,12 +32,7 @@ export function SpendingComparisonWidget({ displayCurrency }: SpendingComparison
     }),
     [incomingSpendingComparison, spendingRange],
   )
-  const {
-    displaySnapshot,
-    contentConcealed,
-    loadingVisible,
-    shouldReduceMotion,
-  } = useLoadingSnapshot({
+  const { displaySnapshot, contentConcealed, loadingVisible, shouldReduceMotion } = useLoadingSnapshot({
     snapshot: loadingSnapshot,
     loading: spendingComparisonLoading,
     transitionKey: spendingRange,
@@ -62,11 +56,7 @@ export function SpendingComparisonWidget({ displayCurrency }: SpendingComparison
   )
   return (
     <div className="app-card h-[470px] flex flex-col">
-      <SpendingComparisonHeader
-        spendingRange={spendingRange}
-        fxStatus={fxStatus}
-        onRangeChange={setSpendingRange}
-      />
+      <SpendingComparisonHeader spendingRange={spendingRange} fxStatus={fxStatus} onRangeChange={setSpendingRange} />
       <DashboardWidgetLoadingBody
         contentConcealed={contentConcealed}
         error={spendingComparisonError}

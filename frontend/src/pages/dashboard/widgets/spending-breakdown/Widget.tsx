@@ -1,17 +1,12 @@
 import { useMemo, useState } from 'react'
-import {
-  type SpendingRange,
-  useSpendingBreakdown,
-} from '@/api/dashboard'
+import { type SpendingRange, useSpendingBreakdown } from '@/api/dashboard'
 import { useLoadingSnapshot } from '@/hooks/useLoadingSnapshot'
+import { isLoadingFirstAnswer } from '@/utils/queryLoading'
 import { SpendingBreakdownChart } from './Chart'
 import { SpendingBreakdownHeader } from './Header'
 import { SpendingBreakdownLegend } from './Legend'
 import { DashboardWidgetLoadingBody } from '@/pages/dashboard/components/WidgetLoadingBody'
-import {
-  getSpendingBreakdownSummary,
-  type BreakdownMode,
-} from '@/pages/dashboard/utils/getSpendingBreakdownSummary'
+import { getSpendingBreakdownSummary, type BreakdownMode } from '@/pages/dashboard/utils/getSpendingBreakdownSummary'
 
 type SpendingBreakdownWidgetProps = {
   displayCurrency: string
@@ -23,22 +18,15 @@ type SpendingBreakdownWidgetProps = {
 export function SpendingBreakdownWidget({ displayCurrency }: SpendingBreakdownWidgetProps) {
   const [breakdownMode, setBreakdownMode] = useState<BreakdownMode>('spending')
   const [breakdownRange, setBreakdownRange] = useState<SpendingRange>('MTD')
+  const spendingBreakdownQuery = useSpendingBreakdown(breakdownRange)
   const {
     data: incomingSpendingBreakdown,
     error: spendingBreakdownError,
     isError: spendingBreakdownFailed,
-    isFetching: spendingBreakdownLoading,
-  } = useSpendingBreakdown(breakdownRange)
-  const loadingSnapshot = useMemo(
-    () => ({ spendingBreakdown: incomingSpendingBreakdown }),
-    [incomingSpendingBreakdown],
-  )
-  const {
-    displaySnapshot,
-    contentConcealed,
-    loadingVisible,
-    shouldReduceMotion,
-  } = useLoadingSnapshot({
+  } = spendingBreakdownQuery
+  const spendingBreakdownLoading = isLoadingFirstAnswer(spendingBreakdownQuery)
+  const loadingSnapshot = useMemo(() => ({ spendingBreakdown: incomingSpendingBreakdown }), [incomingSpendingBreakdown])
+  const { displaySnapshot, contentConcealed, loadingVisible, shouldReduceMotion } = useLoadingSnapshot({
     snapshot: loadingSnapshot,
     loading: spendingBreakdownLoading,
     transitionKey: breakdownRange,
@@ -49,11 +37,7 @@ export function SpendingBreakdownWidget({ displayCurrency }: SpendingBreakdownWi
     () => getSpendingBreakdownSummary(spendingBreakdown, breakdownMode, breakdownRange),
     [breakdownMode, breakdownRange, spendingBreakdown],
   )
-  const {
-    entries: breakdownEntries,
-    total: breakdownTotal,
-    chartKey: breakdownChartKey,
-  } = breakdownSummary
+  const { entries: breakdownEntries, total: breakdownTotal, chartKey: breakdownChartKey } = breakdownSummary
 
   return (
     <div className="app-card h-[470px] flex flex-col">

@@ -1,18 +1,9 @@
 import { useMemo, useState } from 'react'
 import { CircleHelp } from 'lucide-react'
-import {
-  useAccountSpendingBreakdown,
-  type Account,
-  type SpendingRange,
-} from '@/api/accounts'
-import {
-  getDeterministicChartColor,
-  getDeterministicChartColorMap,
-} from '@/utils/chartColor'
-import {
-  getBreakdownRows,
-  shouldExplainMerchantsTotal,
-} from '@/pages/accounts/detail/utils/spendingBreakdownViewModel'
+import { useAccountSpendingBreakdown, type Account, type SpendingRange } from '@/api/accounts'
+import { getDeterministicChartColor, getDeterministicChartColorMap } from '@/utils/chartColor'
+import { isLoadingFirstAnswer } from '@/utils/queryLoading'
+import { getBreakdownRows, shouldExplainMerchantsTotal } from '@/pages/accounts/detail/utils/spendingBreakdownViewModel'
 import IconTooltip from '@/components/tooltips/IconTooltip'
 import { SpendingBreakdownCard } from './Card'
 
@@ -31,8 +22,8 @@ function MerchantSpendingTotalTooltip() {
       widthClassName="w-64"
       size={13}
     >
-      A merchant refunded more than it charged is left out of this total. Its category can still
-      count as spending, so the Categories by spending card can show a different figure.
+      A merchant refunded more than it charged is left out of this total. Its category can still count as spending, so
+      the Categories by spending card can show a different figure.
     </IconTooltip>
   )
 }
@@ -42,15 +33,22 @@ function MerchantSpendingTotalTooltip() {
  */
 export function TopMerchantsBySpendingCard({ account }: { account: Account }) {
   const [range, setRange] = useState<SpendingRange>('MTD')
-  const { data, isFetching } = useAccountSpendingBreakdown(account.id, range)
-  const merchantColors = useMemo(() => getDeterministicChartColorMap((data?.top_merchants ?? []).map((merchant) => {
-    const key = merchant.merchant_id || merchant.name
+  const breakdownQuery = useAccountSpendingBreakdown(account.id, range)
+  const { data } = breakdownQuery
+  const merchantColors = useMemo(
+    () =>
+      getDeterministicChartColorMap(
+        (data?.top_merchants ?? []).map((merchant) => {
+          const key = merchant.merchant_id || merchant.name
 
-    return {
-      key,
-      seed: key,
-    }
-  })), [data?.top_merchants])
+          return {
+            key,
+            seed: key,
+          }
+        }),
+      ),
+    [data?.top_merchants],
+  )
 
   function handleRangeChange(nextRange: SpendingRange) {
     if (nextRange === range) return
@@ -59,17 +57,18 @@ export function TopMerchantsBySpendingCard({ account }: { account: Account }) {
 
   const rows = getBreakdownRows(
     data,
-    (breakdown) => breakdown.top_merchants.map((merchant) => {
-      const key = merchant.merchant_id || merchant.name
+    (breakdown) =>
+      breakdown.top_merchants.map((merchant) => {
+        const key = merchant.merchant_id || merchant.name
 
-      return {
-        key,
-        name: merchant.name,
-        total: merchant.total,
-        isOther: false,
-        color: merchantColors.get(key) ?? getDeterministicChartColor(key),
-      }
-    }),
+        return {
+          key,
+          name: merchant.name,
+          total: merchant.total,
+          isOther: false,
+          color: merchantColors.get(key) ?? getDeterministicChartColor(key),
+        }
+      }),
     (breakdown) => breakdown.other_merchants_count,
     (breakdown) => breakdown.merchants_total_spend,
   )
@@ -85,7 +84,7 @@ export function TopMerchantsBySpendingCard({ account }: { account: Account }) {
       totalTooltip={shouldExplainMerchantsTotal(data) ? <MerchantSpendingTotalTooltip /> : undefined}
       currency={account.currency}
       emptyLabel="No merchant activity in this range"
-      loading={isFetching}
+      loading={isLoadingFirstAnswer(breakdownQuery)}
       transitionKey={range}
     />
   )

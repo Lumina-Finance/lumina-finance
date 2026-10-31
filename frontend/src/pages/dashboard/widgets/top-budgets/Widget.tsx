@@ -1,6 +1,7 @@
 import { useMemo } from 'react'
 import { useLatestBudgetUtilizations } from '@/api/budgets'
 import { useLoadingSnapshot } from '@/hooks/useLoadingSnapshot'
+import { isLoadingFirstAnswer } from '@/utils/queryLoading'
 import { DashboardWidgetLoadingBody } from '@/pages/dashboard/components/WidgetLoadingBody'
 import { TopBudgetsHeader } from './Header'
 import { TopBudgetsList } from './List'
@@ -11,35 +12,21 @@ import { getTopBudgets } from '@/pages/dashboard/utils/getTopBudgets'
  * Loads recent budget utilization data and composes the dashboard top budgets list
  */
 export function TopBudgetsWidget() {
-  const {
-    data: incomingLatestBudgetUtilizations,
-    error: budgetsError,
-    isError: budgetsFailed,
-    isFetching: loading,
-  } = useLatestBudgetUtilizations()
+  const utilizationsQuery = useLatestBudgetUtilizations()
+  const { data: incomingLatestBudgetUtilizations, error: budgetsError, isError: budgetsFailed } = utilizationsQuery
+  const loading = isLoadingFirstAnswer(utilizationsQuery)
   const loadingSnapshot = useMemo(
     () => ({ latestBudgetUtilizations: incomingLatestBudgetUtilizations }),
     [incomingLatestBudgetUtilizations],
   )
-  const {
-    displaySnapshot,
-    contentConcealed,
-    loadingVisible,
-    shouldReduceMotion,
-  } = useLoadingSnapshot({
+  const { displaySnapshot, contentConcealed, loadingVisible, shouldReduceMotion } = useLoadingSnapshot({
     snapshot: loadingSnapshot,
     loading,
     transitionKey: 'top-budgets',
   })
   const latestBudgetUtilizations = displaySnapshot.latestBudgetUtilizations
-  const budgets = useMemo(
-    () => getTopBudgets(latestBudgetUtilizations),
-    [latestBudgetUtilizations],
-  )
-  const fxStatus = useMemo(
-    () => combineFxStatuses(budgets.map((budget) => budget.fx_status)),
-    [budgets],
-  )
+  const budgets = useMemo(() => getTopBudgets(latestBudgetUtilizations), [latestBudgetUtilizations])
+  const fxStatus = useMemo(() => combineFxStatuses(budgets.map((budget) => budget.fx_status)), [budgets])
 
   return (
     <div className="app-card h-[410px] flex flex-col">

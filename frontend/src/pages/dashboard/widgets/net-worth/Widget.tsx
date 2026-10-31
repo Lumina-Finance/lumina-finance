@@ -1,6 +1,7 @@
 import { useMemo } from 'react'
 import { useDashboardNetWorth } from '@/api/dashboard'
 import { useLoadingSnapshot } from '@/hooks/useLoadingSnapshot'
+import { isLoadingFirstAnswer } from '@/utils/queryLoading'
 import { DashboardWidgetLoadingBody } from '@/pages/dashboard/components/WidgetLoadingBody'
 import { NetWorthChart } from './Chart'
 import { NetWorthHeader } from './Header'
@@ -17,31 +18,17 @@ type NetWorthWidgetProps = {
  */
 export function NetWorthWidget({ displayCurrency }: NetWorthWidgetProps) {
   const { user } = useAuth()
-  const {
-    data: incomingDashboardNetWorth,
-    error: netWorthError,
-    isError: netWorthFailed,
-    isFetching: dashboardNetWorthLoading,
-  } = useDashboardNetWorth()
-  const loadingSnapshot = useMemo(
-    () => ({ dashboardNetWorth: incomingDashboardNetWorth }),
-    [incomingDashboardNetWorth],
-  )
-  const {
-    displaySnapshot,
-    contentConcealed,
-    loadingVisible,
-    shouldReduceMotion,
-  } = useLoadingSnapshot({
+  const netWorthQuery = useDashboardNetWorth()
+  const { data: incomingDashboardNetWorth, error: netWorthError, isError: netWorthFailed } = netWorthQuery
+  const dashboardNetWorthLoading = isLoadingFirstAnswer(netWorthQuery)
+  const loadingSnapshot = useMemo(() => ({ dashboardNetWorth: incomingDashboardNetWorth }), [incomingDashboardNetWorth])
+  const { displaySnapshot, contentConcealed, loadingVisible, shouldReduceMotion } = useLoadingSnapshot({
     snapshot: loadingSnapshot,
     loading: dashboardNetWorthLoading,
     transitionKey: 'net-worth',
   })
   const dashboardNetWorth = displaySnapshot.dashboardNetWorth
-  const netWorthData = useMemo(
-    () => getNetWorthSeries(dashboardNetWorth, user?.tz),
-    [dashboardNetWorth, user?.tz],
-  )
+  const netWorthData = useMemo(() => getNetWorthSeries(dashboardNetWorth, user?.tz), [dashboardNetWorth, user?.tz])
   const netWorth = dashboardNetWorth?.current_net_worth ?? 0
   const netWorthChange = netWorthData.length >= 2 ? netWorth - netWorthData[0].value : null
   const fxStatus = dashboardNetWorth?.fx_status
@@ -60,17 +47,8 @@ export function NetWorthWidget({ displayCurrency }: NetWorthWidgetProps) {
         className="flex-1"
         contentClassName="flex h-full min-h-0 flex-col"
       >
-        <NetWorthMetric
-          netWorth={netWorth}
-          netWorthChange={netWorthChange}
-          displayCurrency={displayCurrency}
-        />
-        {netWorthData.length >= 2 && (
-          <NetWorthChart
-            data={netWorthData}
-            displayCurrency={displayCurrency}
-          />
-        )}
+        <NetWorthMetric netWorth={netWorth} netWorthChange={netWorthChange} displayCurrency={displayCurrency} />
+        {netWorthData.length >= 2 && <NetWorthChart data={netWorthData} displayCurrency={displayCurrency} />}
       </DashboardWidgetLoadingBody>
     </div>
   )
