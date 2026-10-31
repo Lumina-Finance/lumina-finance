@@ -866,9 +866,13 @@ async def test_email_fold_migration_refuses_case_variant_accounts_and_upgrades_o
                     )
 
             if not reupgrade:
+                find_account_count = text("SELECT count(*) FROM pg_proc WHERE proname = 'find_login_account'")
+                async with engine.connect() as conn:
+                    assert await conn.scalar(find_account_count) == 1
                 _run_alembic_downgrade(database_name, _BEFORE_EMAIL_FOLD_REVISION)
                 async with engine.connect() as conn:
                     assert await _read_email_fold_state(conn) == (_BEFORE_EMAIL_FOLD_REVISION, True, False)
+                    assert await conn.scalar(find_account_count) == 0
     finally:
         await engine.dispose()
         await _drop_database(database_name)

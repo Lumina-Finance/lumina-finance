@@ -65,6 +65,11 @@ def upgrade() -> None:
 
 
 def downgrade() -> None:
-    """Restore the exact-match unique constraint, which every address the index allowed also satisfies"""
+    """Restore the exact-match unique constraint and drop find_login_account. No row changes
+
+    Every address the index allowed also satisfies the constraint. find_login_user stays as it is, still
+    folding A to Z, until the older release's row-level security step replaces it at start-up
+    """
     op.drop_index(_FOLDED_UNIQUE_INDEX, table_name="users")
     op.create_unique_constraint(_PLAIN_UNIQUE_CONSTRAINT, "users", ["email"])
+    op.execute(sa.text("DROP FUNCTION IF EXISTS public.find_login_account(text)"))
