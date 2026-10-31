@@ -14,3 +14,9 @@ export function resolveInstitutionLogoUrl(institution: Institution | null | unde
   if (!institution?.website) return null
   return `${FAVICON_SERVICE_BASE}&url=${encodeURIComponent(institution.website)}&size=${FAVICON_SIZE}`
 }
+
+// The tile every screen draws in place of a logo that is missing or failed to load
+export const LOGO_PLACEHOLDER_STYLE = {
+  background: 'var(--app-accent-soft)',
+  border: '1px solid var(--app-border)',
+} as const

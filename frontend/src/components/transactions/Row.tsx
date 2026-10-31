@@ -21,7 +21,7 @@ import { FADED_ROW_COLOURS, FadedRowsContext } from '@/contexts/FadedRowsContext
 import { getRefundLinkLabel } from '@/components/transactions/utils/refundLink'
 import { getAmountSign } from '@/utils/negativeAmount'
 import { useUsableLogo } from '@/hooks/useUsableLogo'
-import { resolveInstitutionLogoUrl } from '@/utils/institutionLogo'
+import { LOGO_PLACEHOLDER_STYLE, resolveInstitutionLogoUrl } from '@/utils/institutionLogo'
 
 const MAX_VISIBLE_TAGS = 1
 const DEFAULT_CATEGORY_ICON = '🏷️'
@@ -142,15 +142,13 @@ function AccountLogo({
 }) {
   const logo = useUsableLogo(resolveInstitutionLogoUrl(institution))
   const logoSrc = logo.src
-  const fallback = accountName?.trim().charAt(0).toUpperCase() || '$'
 
   return (
     <span
       className="flex h-5 w-5 shrink-0 items-center justify-center overflow-hidden rounded-md"
-      style={{
-        background: 'var(--app-input-bg)',
-        border: '1px solid var(--app-border)',
-      }}
+      style={
+        logoSrc ? { background: 'var(--app-input-bg)', border: '1px solid var(--app-border)' } : LOGO_PLACEHOLDER_STYLE
+      }
     >
       {logoSrc ? (
         <img
@@ -161,11 +159,8 @@ function AccountLogo({
           {...logo.imageProps}
         />
       ) : (
-        <span
-          className="select-none text-[0.625rem] font-semibold leading-none"
-          style={{ color: 'var(--app-text-muted)' }}
-        >
-          {fallback}
+        <span className="select-none text-[0.625rem] font-semibold leading-none" style={{ color: 'var(--app-accent)' }}>
+          $
         </span>
       )}
     </span>

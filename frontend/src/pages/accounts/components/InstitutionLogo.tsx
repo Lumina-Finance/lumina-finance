@@ -1,6 +1,6 @@
 import type { Institution } from '@/api/institutions'
 import { useUsableLogo } from '@/hooks/useUsableLogo'
-import { resolveInstitutionLogoUrl } from '@/utils/institutionLogo'
+import { LOGO_PLACEHOLDER_STYLE, resolveInstitutionLogoUrl } from '@/utils/institutionLogo'
 
 type InstitutionLogoProps = {
   institution: Institution | null
@@ -33,14 +33,7 @@ export function InstitutionLogo({ institution, variant = 'row' }: InstitutionLog
   return (
     <div
       className={`flex shrink-0 items-center justify-center overflow-hidden ${classNames.shell}`}
-      style={
-        faviconUrl
-          ? undefined
-          : {
-              background: 'var(--app-accent-soft)',
-              border: '1px solid var(--app-border)',
-            }
-      }
+      style={faviconUrl ? undefined : LOGO_PLACEHOLDER_STYLE}
     >
       {faviconUrl ? (
         <img
