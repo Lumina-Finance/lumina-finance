@@ -103,6 +103,81 @@ async def test_merchants_returns_distribution_and_ranking_payloads(client):
     }
 
 
+async def test_merchants_category_filter_keeps_only_the_chosen_categories_in_both_periods(client):
+    """Chosen categories narrow spend and the comparison period, and a non-expense id keeps nothing."""
+    signup_resp = await _create_user(client)
+    user_id = UUID(signup_resp.json()["user"]["id"])
+    headers = _get_auth_header(signup_resp)
+    account_id = UUID((await _create_account(client, headers, name="Main Cash")).json()["id"])
+    food_id, food = _category(user_id, "Food", CategoryKind.EXPENSE)
+    fun_id, fun = _category(user_id, "Fun", CategoryKind.EXPENSE)
+    rent_id, rent = _category(user_id, "Rent", CategoryKind.EXPENSE)
+    salary_id, salary = _category(user_id, "Salary", CategoryKind.INCOME)
+    alpha_id, alpha = _merchant(user_id, "Alpha Market")
+    beta_id, beta = _merchant(user_id, "Beta Cinema")
+    gamma_id, gamma = _merchant(user_id, "Gamma Landlord")
+
+    async with TestSession() as session:
+        session.add_all(
+            [
+                food,
+                fun,
+                rent,
+                salary,
+                alpha,
+                beta,
+                gamma,
+                _transaction(user_id, account_id, food_id, date(2026, 4, 10), -100_000, alpha_id),
+                _transaction(user_id, account_id, fun_id, date(2026, 4, 11), -30_000, alpha_id),
+                _transaction(user_id, account_id, fun_id, date(2026, 4, 12), -50_000, beta_id),
+                _transaction(user_id, account_id, rent_id, date(2026, 4, 12), -200_000, gamma_id),
+                _transaction(user_id, account_id, fun_id, date(2026, 3, 20), -20_000, alpha_id),
+                _transaction(user_id, account_id, food_id, date(2026, 3, 20), -90_000, alpha_id),
+            ]
+        )
+        await session.commit()
+    params = {"from_date": "2026-04-01", "to_date": "2026-04-30"}
+
+    one_category = await client.get(
+        "/insights/merchants",
+        params={**params, "category_id": [str(fun_id)]},
+        headers=headers,
+    )
+    two_categories = await client.get(
+        "/insights/merchants",
+        params={**params, "category_id": [str(fun_id), str(food_id)]},
+        headers=headers,
+    )
+    income_category = await client.get(
+        "/insights/merchants",
+        params={**params, "category_id": [str(salary_id)]},
+        headers=headers,
+    )
+    unfiltered = await client.get("/insights/merchants", params=params, headers=headers)
+
+    assert one_category.status_code == 200
+    assert one_category.json()["distribution"] == [
+        [str(beta_id), "Beta Cinema", 50_000, 50_000],
+        [str(alpha_id), "Alpha Market", 30_000, 10_000],
+    ]
+    assert one_category.json()["ranking"] == [
+        [str(beta_id), "Beta Cinema", 50_000, 1, 0],
+        [str(alpha_id), "Alpha Market", 30_000, 1, 20_000],
+    ]
+    assert two_categories.status_code == 200
+    assert [row[:3] for row in two_categories.json()["distribution"]] == [
+        [str(alpha_id), "Alpha Market", 130_000],
+        [str(beta_id), "Beta Cinema", 50_000],
+    ]
+    assert income_category.status_code == 200
+    assert income_category.json()["distribution"] == []
+    assert [row[:3] for row in unfiltered.json()["distribution"]] == [
+        [str(gamma_id), "Gamma Landlord", 200_000],
+        [str(alpha_id), "Alpha Market", 130_000],
+        [str(beta_id), "Beta Cinema", 50_000],
+    ]
+
+
 async def test_merchants_converts_foreign_entries_by_transaction_date(client, monkeypatch):
     """Merchant rows use converted daily spend for ranking, distribution, and changes."""
     from app.services.fx import FrankfurterProvider

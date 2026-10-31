@@ -41,6 +41,7 @@ async def get_merchant_spend_stats(
     base_currency: str,
     from_date: date,
     to_date: date,
+    category_ids: list[uuid.UUID] | None = None,
 ) -> tuple[MerchantSpendStatsById, FxStatus]:
     """Return converted net expense-kind spend and transaction counts by merchant
 
@@ -50,6 +51,7 @@ async def get_merchant_spend_stats(
         base_currency: User base currency used for converted values
         from_date: Inclusive period start date
         to_date: Inclusive period end date
+        category_ids: Categories to keep, or None to keep every expense category
 
     Returns:
         Positive merchant spend stats and FX conversion status
@@ -59,6 +61,9 @@ async def get_merchant_spend_stats(
         return {}, fx_status
 
     account_ids = [account.id for account in accounts]
+
+    # An empty list keeps nothing, so only None means no category filter
+    category_filter = [] if category_ids is None else [Transaction.category_id.in_(category_ids)]
 
     # Load merchant totals grouped by date and account currency so each amount can use the correct FX rate
     result = await db.execute(
@@ -79,6 +84,7 @@ async def get_merchant_spend_stats(
             Category.kind == CategoryKind.EXPENSE,
             Transaction.dt >= from_date,
             Transaction.dt <= to_date,
+            *category_filter,
         )
         .group_by(Merchant.id, Merchant.name, Transaction.dt, Account.currency),
     )
