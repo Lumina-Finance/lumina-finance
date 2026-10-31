@@ -5,6 +5,9 @@ type InsightSectionHeaderProps = {
   icon: LucideIcon
   label: ReactNode
   action?: ReactNode
+
+  // Placement of the action's slot, for a card whose action takes its own row on a phone
+  actionClassName?: string
 }
 
 /**
@@ -15,6 +18,7 @@ export function InsightSectionHeader({
   icon: Icon,
   label,
   action,
+  actionClassName = 'ml-auto',
 }: InsightSectionHeaderProps) {
   return (
     <div className="mb-4 flex flex-wrap items-center gap-2">
@@ -22,7 +26,7 @@ export function InsightSectionHeader({
         <Icon size={16} style={{ color: 'var(--app-accent)' }} aria-hidden />
       </div>
       <span className="app-label">{label}</span>
-      {action && <div className="ml-auto">{action}</div>}
+      {action && <div className={actionClassName}>{action}</div>}
     </div>
   )
 }

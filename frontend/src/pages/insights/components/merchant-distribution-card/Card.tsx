@@ -100,6 +100,9 @@ export function MerchantDistributionCard({
             )}
           </span>
         }
+        // Below the wide layout the filter takes its own full-width row under the title, as the dashboard's
+        // range selector does
+        actionClassName="w-full min-[750px]:ml-auto min-[750px]:w-auto"
         action={
           <MerchantCategoryFilter
             categoryOptions={categoryOptions}

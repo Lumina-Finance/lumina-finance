@@ -1,3 +1,4 @@
+import type { RefObject } from 'react'
 import { AnimatePresence, motion } from 'motion/react'
 import { X } from 'lucide-react'
 import { FILTER_GLASS_SPRING } from '@/components/list-controls/toolbarStyles'
@@ -13,12 +14,16 @@ type ActiveFilterChipsProps = {
 
   // Wording for a pane that holds one filter. Other panes keep the plural
   emptyLabel?: string
+
+  // The row's element, for a reason tooltip below it to keep clear of
+  rowRef?: RefObject<HTMLDivElement | null>
 }
 
 /** Lets selected filters wrap naturally so their pane grows with them */
-export function ActiveFilterChips({ chips, emptyLabel = 'No filters applied' }: ActiveFilterChipsProps) {
+export function ActiveFilterChips({ chips, emptyLabel = 'No filters applied', rowRef }: ActiveFilterChipsProps) {
   return (
     <div
+      ref={rowRef}
       role={chips.length ? 'group' : undefined}
       aria-label={chips.length ? 'Selected filters' : undefined}
       className="mt-3 flex min-h-[1.5rem] shrink-0 flex-wrap items-center gap-1.5 border-t px-0.5 pt-2.5"
