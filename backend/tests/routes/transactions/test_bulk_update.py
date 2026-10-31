@@ -1579,6 +1579,26 @@ async def test_bulk_transfer_to_alone_leaves_a_selected_balance_adjustment_untou
     assert adjustment_row.counterparty_account_scope is None
 
 
+async def test_bulk_update_refuses_a_mixed_batch_and_moves_neither_row(client):
+    """One row whose currency matches the destination does not carry along a row whose currency does not."""
+    await _seed_usd_currency()
+    headers, source_id, category_id = await _setup_user_with_deps(client)
+    target_id = (await _create_account(client, headers, name="US Savings", currency="USD")).json()["id"]
+    usd_row = (await _create_transaction(client, headers, source_id, category_id, currency="USD", fx_rate=1.35)).json()["id"]
+    cad_row = (await _create_transaction(client, headers, source_id, category_id)).json()["id"]
+
+    resp = await client.patch(
+        "/transactions/bulk",
+        json={"transaction_ids": [usd_row, cad_row], "account_id": target_id},
+        headers=headers,
+    )
+
+    assert resp.status_code == 422
+    assert resp.json()["detail"] == "1 of these transactions cannot be changed: 1 moving to an account in another currency"
+    assert str((await _read_transaction(usd_row)).account_id) == source_id
+    assert str((await _read_transaction(cad_row)).account_id) == source_id
+
+
 async def test_bulk_transfer_from_refuses_a_move_into_another_currency(client):
     """A tracked own end is a move, so it is refused across currencies exactly as a plain move is."""
     await _seed_usd_currency()

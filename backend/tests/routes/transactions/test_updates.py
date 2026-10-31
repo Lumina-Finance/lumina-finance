@@ -13,6 +13,7 @@ from tests.routes.transactions._helpers import (
     _create_merchant,
     _create_tag,
     _create_transaction,
+    _get,
     _seed_usd_currency,
     _setup_user_with_deps,
 )
@@ -248,6 +249,7 @@ async def test_patch_transaction_move_account_with_stored_fx_rate_is_refused(cli
 
     assert resp.status_code == 422
     assert resp.json()["detail"] == "This transaction can't move to a CAD account: only USD accounts can hold it"
+    assert (await _get(client, headers, txn_id))["account_id"] == account_id
 
 
 async def test_patch_transaction_naming_its_current_account_with_a_stored_fx_rate_succeeds(client):
@@ -436,6 +438,7 @@ async def test_patch_transaction_move_to_different_currency_account_is_refused(c
 
     assert resp.status_code == 422
     assert resp.json()["detail"] == "This transaction can't move to a USD account: only CAD accounts can hold it"
+    assert (await _get(client, headers, txn_id))["account_id"] == account_id
 
 
 async def test_patch_transaction_not_found_returns_404(client):

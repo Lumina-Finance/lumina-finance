@@ -186,6 +186,10 @@ async def test_a_refund_cannot_move_to_another_currencys_account_and_still_count
     raised = await client.patch(f"/transactions/{refund['id']}", json={"amount": 5001}, headers=headers)
 
     assert moved.status_code == 422
+    after = await _get(client, headers, refund["id"])
+    assert after["account_id"] == account_id
+    assert after["currency"] == "CAD"
+    assert after["refund_of_transaction_id"] == expense["id"]
     assert raised.status_code == 422
 
 
