@@ -435,6 +435,8 @@ export default function TransactionReferencesSection({
           loadingText={tagLoadingText}
           loadingMinMs={0}
           hideOptionsWhileLoading={tagHideOptionsWhileLoading}
+          autoHighlightFirstOption
+          selectHighlightedOnSearchEnter
           hasMore={tagHasMore}
           onLoadMore={onTagLoadMore}
           onCreateNew={readOnly ? undefined : onCreateTag}
