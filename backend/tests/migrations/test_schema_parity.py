@@ -794,7 +794,16 @@ async def test_email_fold_migration_refuses_case_variant_accounts_and_upgrades_o
     database_name = _ALEMBIC_EMAIL_FOLD_DB_NAME
     await _recreate_database(database_name)
     engine = _create_engine_for_database(database_name)
-    emails = ["Alice@example.com", "alice@example.com", "carol@example.com", "BOB@example.com", "bob@example.com", "Bob@example.com"]
+    emails = [
+        "Alice@example.com",
+        "alice@example.com",
+        "carol@example.com",
+        "BOB@example.com",
+        "bob@example.com",
+        "Bob@example.com",
+        "Émile@example.com",
+        "émile@example.com",
+    ]
     user_ids = {email: str(uuid4()) for email in emails}
     try:
         _run_alembic_upgrade(database_name, revision=_BEFORE_EMAIL_FOLD_REVISION)
@@ -820,6 +829,7 @@ async def test_email_fold_migration_refuses_case_variant_accounts_and_upgrades_o
         assert "  Alice@example.com, alice@example.com\n" in output
         assert "  BOB@example.com, Bob@example.com, bob@example.com\n" in output
         assert "carol@example.com" not in output
+        assert "mile@example.com" not in output
         assert "docker compose stop app" in output
         assert "Traceback" not in output
 

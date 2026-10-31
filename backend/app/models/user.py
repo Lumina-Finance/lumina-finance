@@ -20,9 +20,9 @@ class User(Base):
     __tablename__ = "users"
     __table_args__ = (
         CheckConstraint(f"date_format IN ({_DATE_FORMAT_CHECK_VALUES})", name="ck_users_date_format"),
-        # An address is one account whatever its capitals. The sign-in lookup compares lower(email)
-        # the same way, in the database function app.db.rls.functions.FIND_LOGIN_USER
-        Index("uq_users_email_lower", text("lower(email)"), unique=True),
+        # An address is one account whatever the capitals of its letters A to Z. The lookups in
+        # app.db.rls.functions and app.services.auth.user_lookup.fold_email fold the same way
+        Index("uq_users_email_lower", text('lower(email COLLATE "C")'), unique=True),
     )
 
     id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)

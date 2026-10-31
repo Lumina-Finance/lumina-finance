@@ -14,6 +14,7 @@ import hashlib
 import hmac
 
 from app.bank_transaction_key import resolve_key
+from app.services.auth.user_lookup import fold_email
 
 # Separates this use of the server key from the bank transaction hashes made with the same secret
 SIGNUP_EMAIL_KEY_LABEL = b"signup-email-send"
@@ -33,6 +34,6 @@ def seal_signup_email(email: str) -> str:
             Victim@x.com and victim@x.com reaches one inbox and the cap must count them together
 
     Returns:
-        HMAC-SHA256 of the lower-cased address's UTF-8 bytes, as 64 lower-case hex characters
+        HMAC-SHA256 of the folded address's UTF-8 bytes, as 64 lower-case hex characters
     """
-    return hmac.new(_signup_email_key(), email.lower().encode(), hashlib.sha256).hexdigest()
+    return hmac.new(_signup_email_key(), fold_email(email).encode(), hashlib.sha256).hexdigest()

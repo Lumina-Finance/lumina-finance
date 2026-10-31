@@ -709,6 +709,18 @@ async def test_link_refuses_an_email_that_only_casefolds_equal(client, provider_
     assert resp.status_code == 422
 
 
+async def test_link_refuses_an_address_differing_in_capitals_beyond_a_to_z(client, provider_protocol):
+    """Émile@ and émile@ can be two accounts, so a provider asserting one must not link to the other"""
+    auth, _ = await _create_password_user(client, email="Émile@example.com")
+    await _seed_provider()
+    provider_protocol["claims"] = _claims(email="émile@example.com")
+
+    state = await _start_link(client, auth)
+    resp = await client.post("/auth/oidc/link/callback", headers=auth, json={"code": "any", "state": state})
+
+    assert resp.status_code == 422
+
+
 async def test_link_mismatch_is_refused_before_the_subject_lookup(client, provider_protocol):
     """A mismatched email gets the email refusal even for a subject another account owns, revealing nothing about it"""
     auth, _ = await _create_password_user(client)

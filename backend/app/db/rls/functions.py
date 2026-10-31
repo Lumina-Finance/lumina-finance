@@ -135,14 +135,14 @@ _HELPERS: tuple[_Helper, ...] = (
     ),
     # Resolve a user id by email for the pre-identity login and signup flows, which run
     # before a request identity exists. Returns only the id so the definer never exposes
-    # the rest of the user row outside the self-only users policy. The comparison folds capitals
-    # on both sides, in step with the unique index on lower(email), so one address is one account
-    # however it is typed
+    # the rest of the user row outside the self-only users policy. The comparison folds A to Z on
+    # both sides through the C collation, in step with the unique index and fold_email in Python, so
+    # one address is one account however it is typed, on any database locale
     _Helper(
         f"""
     CREATE OR REPLACE FUNCTION {FIND_LOGIN_USER}(p_email text) RETURNS uuid
     LANGUAGE sql STABLE SECURITY DEFINER SET search_path = '' AS $$
-        SELECT id FROM public.users WHERE lower(email) = lower(p_email)
+        SELECT id FROM public.users WHERE lower(email COLLATE "C") = lower(p_email COLLATE "C")
     $$
     """,
         f"{FIND_LOGIN_USER}(text)",

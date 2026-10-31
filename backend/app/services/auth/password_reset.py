@@ -35,7 +35,7 @@ from app.services.auth.reset_send_limit import (
 from app.services.auth.sessions import delete_all_user_auth_sessions
 from app.services.auth.token_hashing import hash_token
 from app.services.auth.totp import is_totp_enabled
-from app.services.auth.user_lookup import find_user_id_by_email
+from app.services.auth.user_lookup import find_user_id_by_email, fold_email
 from app.services.auth.webauthn import is_passkey_registered
 from app.services.email import get_email_sender, render_reset_email
 
@@ -148,7 +148,7 @@ async def _issue_password_reset(db: AsyncSession, email: str, session_factory: a
     # Hold this user's allowance until the new token commits, including when no prior rows exist.
     # An email with no account locks on itself, so unknown emails never queue behind one another.
     # Its capitals are folded, since the lookup above ignores them
-    lock_subject = user_id.bytes if user_id is not None else email.lower().encode()
+    lock_subject = user_id.bytes if user_id is not None else fold_email(email).encode()
     lock_digest = hashlib.blake2b(_ISSUANCE_LOCK_NAMESPACE + lock_subject, digest_size=8).digest()
     lock_key = int.from_bytes(lock_digest, byteorder="big", signed=True)
     await db.execute(select(sa_func.pg_advisory_xact_lock(lock_key)))

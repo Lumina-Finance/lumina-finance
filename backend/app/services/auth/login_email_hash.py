@@ -14,6 +14,7 @@ import hashlib
 import hmac
 
 from app.bank_transaction_key import resolve_key
+from app.services.auth.user_lookup import fold_email
 
 # Separates this use of the server key from the bank transaction hashes made with the same secret.
 # The migration that moved the counters here inlines this label and the construction below as they
@@ -37,6 +38,6 @@ def seal_login_email(email: str) -> str:
             ignores capitals and a failure counted apart per spelling would sidestep the lockout
 
     Returns:
-        HMAC-SHA256 of the lower-cased address's UTF-8 bytes, as 64 lower-case hex characters
+        HMAC-SHA256 of the folded address's UTF-8 bytes, as 64 lower-case hex characters
     """
-    return hmac.new(_lockout_key(), email.lower().encode(), hashlib.sha256).hexdigest()
+    return hmac.new(_lockout_key(), fold_email(email).encode(), hashlib.sha256).hexdigest()
