@@ -10,7 +10,7 @@ from app.db.rls.functions import FIND_LOGIN_ACCOUNT, FIND_LOGIN_USER
 
 
 class LoginAccount(NamedTuple):
-    """An account's id and its address as stored, which is the only address its mail goes to"""
+    """An account's id and its address as stored. Its mail goes only to that address"""
 
     id: uuid.UUID
     email: str
@@ -20,8 +20,8 @@ def fold_email(email: str) -> str:
     """Return the address with A to Z lower-cased and every other character kept
 
     Matches lower(email COLLATE "C") in the unique index and the lookups. str.lower would not, since it
-    also folds letters such as İ and É, which would give a spelling a lockout count of its own or
-    match an address the database treats as another account
+    also folds letters such as İ and É. A spelling could then get a lockout count of its own or match
+    an address the database treats as another account
 
     Args:
         email: Address in any capitalisation

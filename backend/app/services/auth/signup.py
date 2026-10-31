@@ -191,7 +191,7 @@ async def confirm_signup(db: AsyncSession, confirmation_token: str, password: st
     )
     db.add(user)
 
-    # A parallel use of the same link can claim the email first, so the unique constraint turns that
+    # A parallel use of the same link can claim the email first, so the unique index turns that
     # race into the same refusal as a link used twice. The user is flushed first so its row exists
     # before the identity rows that reference it
     try:

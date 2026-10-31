@@ -49,7 +49,7 @@ def upgrade() -> None:
     bind = op.get_bind()
 
     # No sign-up can add a pair between the check and the index, so the check is what the index sees.
-    # Reads carry on until the drop below, whose ACCESS EXCLUSIVE lock blocks them too until commit. Every
+    # Reads carry on until the drop below. Its ACCESS EXCLUSIVE lock blocks them too until commit. Every
     # pending migration shares one transaction (alembic/env.py), so a refusal also rolls back the ones
     # before this one, and each refused restart runs them again
     bind.execute(sa.text("LOCK TABLE users IN EXCLUSIVE MODE"))
