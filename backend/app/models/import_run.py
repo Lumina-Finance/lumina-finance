@@ -38,9 +38,7 @@ class ImportRun(Base):
     """
 
     __tablename__ = "import_runs"
-    __table_args__ = (
-        CheckConstraint(f"source IN ({SOURCE_CHECK_VALUES})", name="ck_import_runs_source"),
-    )
+    __table_args__ = (CheckConstraint(f"source IN ({SOURCE_CHECK_VALUES})", name="ck_import_runs_source"),)
 
     id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
     owner_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
@@ -49,7 +47,10 @@ class ImportRun(Base):
     # writes them. Defaulted in the database as well, so a run staged before this column existed
     # reads as the generic CSV import it was
     source: Mapped[str] = mapped_column(
-        VARCHAR(32), nullable=False, default=ImportRunSource.GENERIC, server_default=ImportRunSource.GENERIC.value,
+        VARCHAR(32),
+        nullable=False,
+        default=ImportRunSource.GENERIC,
+        server_default=ImportRunSource.GENERIC.value,
     )
 
     # What the file will write, checked against the staged rows before a commit runs, so a run
@@ -66,17 +67,26 @@ class ImportRun(Base):
     # match or be created by name holds none. Defaulted in the database as well, so a run staged
     # before this column existed reads as one that answered nothing
     merchant_mappings: Mapped[dict[str, Any]] = mapped_column(
-        JSONB, nullable=False, default=dict, server_default="{}",
+        JSONB,
+        nullable=False,
+        default=dict,
+        server_default="{}",
     )
 
     # What a provider import writes after its transactions: budgets whose tracked categories are
     # named by category mapping source, since a category the import creates has no id until the
     # commit, and the account mapping sources to archive once everything else is written
     budget_drafts: Mapped[list[dict[str, Any]]] = mapped_column(
-        JSONB, nullable=False, default=list, server_default="[]",
+        JSONB,
+        nullable=False,
+        default=list,
+        server_default="[]",
     )
     archive_account_sources: Mapped[list[str]] = mapped_column(
-        JSONB, nullable=False, default=list, server_default="[]",
+        JSONB,
+        nullable=False,
+        default=list,
+        server_default="[]",
     )
 
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, server_default=func.now())
@@ -118,9 +128,7 @@ class ImportStagedRow(Base):
     )
 
     id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
-    import_run_id: Mapped[uuid.UUID] = mapped_column(
-        ForeignKey("import_runs.id", ondelete="CASCADE"), nullable=False
-    )
+    import_run_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("import_runs.id", ondelete="CASCADE"), nullable=False)
 
     # Repeated from the run so the row-level security policy compares a column on this table
     # rather than reading the run, which every staged row would otherwise have to do

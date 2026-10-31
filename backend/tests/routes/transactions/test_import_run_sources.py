@@ -6,13 +6,15 @@ from tests.routes.support import _create_user, _get_auth_header
 from tests.routes.transactions._import_helpers import _csv_batch, _firefly_batch, _import_run, _open_run
 
 _BUDGETS = {
-    "budgets": [{
-        "name": "Food",
-        "currency": "CAD",
-        "category_sources": ["Groceries"],
-        "limits": [{"start": "2026-04-01", "end": "2026-04-30", "amount": "300.00"}],
-        "recurrence": None,
-    }],
+    "budgets": [
+        {
+            "name": "Food",
+            "currency": "CAD",
+            "category_sources": ["Groceries"],
+            "limits": [{"start": "2026-04-01", "end": "2026-04-30", "amount": "300.00"}],
+            "recurrence": None,
+        }
+    ],
 }
 
 
