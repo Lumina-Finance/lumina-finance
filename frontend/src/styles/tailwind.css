@@ -205,6 +205,11 @@
     /* How far a whole control fades back when it cannot be used at all */
     --app-dropdown-disabled-opacity-control: 0.6;
 
+    /* Add transaction's height with its usual form, up to the page-level modal's 86vh cap. The refund link
+       picker stands at exactly this height, so the two windows match at every wide size. Below the full-screen
+       breakpoint both take the whole screen instead */
+    --app-transaction-window-height: min(86vh, 53rem);
+
     /* Fast at the start and flat at the end. Carried by the box's height and, as the same numbers in
        components/dropdown/motion.ts, by the contents rising inside it, so the two arrive as one
        movement. Neither may overshoot, for the reason given beside those numbers */

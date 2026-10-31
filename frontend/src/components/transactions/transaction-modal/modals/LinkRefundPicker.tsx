@@ -19,13 +19,8 @@ import { normalizeTransactionFilters } from '@/components/transactions/utils/nor
 // How long typing pauses before the search is sent, so a word is one request rather than one per letter
 const SEARCH_DEBOUNCE_MS = 250
 
-// From 750px the dialog fits its rows and stops at 60vh, which is 70% of the edit window's 86vh, scrolling beyond
-// that. The filter panel opens downward over the list, so while it is open the dialog may grow to the stacked
-// window's 84vh to make room for it, and eases back when it closes, on the app's default transition timing
-const PANEL_CLASS_NAME =
-  'min-[750px]:max-h-[60vh]! min-[750px]:has-[[aria-expanded=true]]:max-h-[84vh]! min-[750px]:transition-[max-height] motion-reduce:transition-none'
-const BODY_CLASS_NAME =
-  'min-[750px]:min-h-0 min-[750px]:has-[[aria-expanded=true]]:min-h-[34rem] min-[750px]:transition-[min-height] motion-reduce:transition-none'
+// The dialog stands at Add transaction's height whatever it lists and whether its filters are open, and its body scrolls
+const PANEL_CLASS_NAME = 'h-(--app-transaction-window-height) max-h-(--app-transaction-window-height)!'
 
 // A little space between rows, so the borders of two picked rows next to each other stay two lines
 const ROW_SPACING_CLASS_NAME = 'pb-1'
@@ -201,86 +196,82 @@ export default function TransactionModalLinkRefundPicker({
         />
       }
     >
-      {/* From 750px the filter panel opens downward over the list, so the body grows to hold it while it is open */}
-      <div className={BODY_CLASS_NAME} data-testid="link-picker-body">
-        {/* Stays at the top of the scrolling body, so only the rows scroll beneath it. The body's padding is not
+      {/* Stays at the top of the scrolling body, so only the rows scroll beneath it. The body's padding is not
             part of what sticks, so the negative margin and offset reach it and the padding inside covers it. While the filter
             panel is open the block scrolls with the rows, so the panel adds to the scroll height */}
-        <div
-          ref={watchFilterPanel}
-          className="sticky -top-4 z-10 -mt-4 space-y-4 pb-3 pt-4 has-[[aria-expanded=true]]:relative has-[[aria-expanded=true]]:top-0"
-          style={{ background: 'var(--app-bg)' }}
-        >
-          <p className="text-sm leading-6" style={{ color: 'var(--app-text-muted)' }}>
-            {picksRefund
-              ? 'Pick money that came in to link as a refund of this expense. Linking changes no amount or total.'
-              : 'Pick the expense this refund gives money back for. Linking changes no amount or total.'}
-          </p>
-          <div ref={watchSearchRowWidth} className="flex items-start gap-3">
-            <GlassSearchField
-              value={search}
-              onValueChange={setSearch}
-              placeholder="Merchant or note…"
-              inputId={`${titleId}-search`}
-              wrapperClassName="flex-1"
-            />
-            <TransactionModalLinkRefundFilters
-              filters={filters}
-              setFilter={setFilter}
-              accounts={transactionAccounts}
-              categories={categories}
-              panelWidth={searchRowWidth}
-              constrainTo={bodyRef}
-            />
-          </div>
+      <div
+        ref={watchFilterPanel}
+        className="sticky -top-4 z-10 -mt-4 space-y-4 pb-3 pt-4 has-[[aria-expanded=true]]:relative has-[[aria-expanded=true]]:top-0"
+        style={{ background: 'var(--app-bg)' }}
+      >
+        <p className="text-sm leading-6" style={{ color: 'var(--app-text-muted)' }}>
+          {picksRefund
+            ? 'Pick money that came in to link as a refund of this expense. Linking changes no amount or total.'
+            : 'Pick the expense this refund gives money back for. Linking changes no amount or total.'}
+        </p>
+        <div ref={watchSearchRowWidth} className="flex items-start gap-3">
+          <GlassSearchField
+            value={search}
+            onValueChange={setSearch}
+            placeholder="Merchant or note…"
+            inputId={`${titleId}-search`}
+            wrapperClassName="flex-1"
+          />
+          <TransactionModalLinkRefundFilters
+            filters={filters}
+            setFilter={setFilter}
+            accounts={transactionAccounts}
+            categories={categories}
+            panelWidth={searchRowWidth}
+            constrainTo={bodyRef}
+          />
         </div>
-
-        {/* When the rows arrive in place of "Loading…" the window grows to fit them and they fade in, rather than
-            the list snapping in */}
-        <AnimatePresence initial={false}>
-          <RevealRow key={resultKey}>
-            {candidates.isError ? (
-              <LoadFailure error={candidates.error} subject="Transactions to link" />
-            ) : candidates.isPending ? (
-              <p role="status" className="text-sm" style={{ color: 'var(--app-text-muted)' }}>
-                Loading…
-              </p>
-            ) : rows.length === 0 ? (
-              <p role="status" className="text-sm" style={{ color: 'var(--app-text-muted)' }}>
-                {hasNarrowing
-                  ? `Nothing matches ${sentSearch === '' ? 'those filters' : Object.keys(filters).length === 0 ? 'that search' : 'that search or those filters'}.`
-                  : picksRefund
-                    ? 'No money that came in is free to link as a refund.'
-                    : 'No expense is free to link this refund to.'}
-              </p>
-            ) : (
-              <div role="group" aria-label="Transactions that can be linked" data-testid="link-candidates">
-                <AnimatePresence initial={false}>
-                  {rows.map((candidate) => {
-                    const account = accountById.get(candidate.account_id)
-                    const refusal = refusalFor(candidate)
-                    return (
-                      <RevealRow key={candidate.id} spacingClassName={ROW_SPACING_CLASS_NAME}>
-                        <LinkCandidateRow
-                          transaction={candidate}
-                          category={categoryById.get(candidate.category_id)}
-                          accountName={account?.name}
-                          accountInstitution={account?.institution}
-                          isPicked={pickedIds.includes(candidate.id)}
-                          refusal={refusal}
-                          onPick={() => {
-                            if (!refusal) togglePick(candidate.id)
-                          }}
-                        />
-                      </RevealRow>
-                    )
-                  })}
-                </AnimatePresence>
-              </div>
-            )}
-          </RevealRow>
-        </AnimatePresence>
       </div>
+
+      {/* The rows fade in where "Loading…" was, rather than the list snapping in */}
+      <AnimatePresence initial={false}>
+        <RevealRow key={resultKey}>
+          {candidates.isError ? (
+            <LoadFailure error={candidates.error} subject="Transactions to link" />
+          ) : candidates.isPending ? (
+            <p role="status" className="text-sm" style={{ color: 'var(--app-text-muted)' }}>
+              Loading…
+            </p>
+          ) : rows.length === 0 ? (
+            <p role="status" className="text-sm" style={{ color: 'var(--app-text-muted)' }}>
+              {hasNarrowing
+                ? `Nothing matches ${sentSearch === '' ? 'those filters' : Object.keys(filters).length === 0 ? 'that search' : 'that search or those filters'}.`
+                : picksRefund
+                  ? 'No money that came in is free to link as a refund.'
+                  : 'No expense is free to link this refund to.'}
+            </p>
+          ) : (
+            <div role="group" aria-label="Transactions that can be linked" data-testid="link-candidates">
+              <AnimatePresence initial={false}>
+                {rows.map((candidate) => {
+                  const account = accountById.get(candidate.account_id)
+                  const refusal = refusalFor(candidate)
+                  return (
+                    <RevealRow key={candidate.id} spacingClassName={ROW_SPACING_CLASS_NAME}>
+                      <LinkCandidateRow
+                        transaction={candidate}
+                        category={categoryById.get(candidate.category_id)}
+                        accountName={account?.name}
+                        accountInstitution={account?.institution}
+                        isPicked={pickedIds.includes(candidate.id)}
+                        refusal={refusal}
+                        onPick={() => {
+                          if (!refusal) togglePick(candidate.id)
+                        }}
+                      />
+                    </RevealRow>
+                  )
+                })}
+              </AnimatePresence>
+            </div>
+          )}
+        </RevealRow>
+      </AnimatePresence>
     </ModalTitledPanel>
   )
 }

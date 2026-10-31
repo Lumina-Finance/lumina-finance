@@ -303,8 +303,7 @@ test('lists the closest amounts first and links the row that is picked', async (
   await expect(linkIcon(page, expenseId)).toBeVisible()
 })
 
-// The explanation, search field and Filters button stay put while only the candidate rows scroll under them, and
-// the picker stays within 70% of the edit window's height from 750px wide, and the stacked window's 84% below that
+// The explanation, search field and Filters button stay put while only the candidate rows scroll under them
 test('keeps the picker header in place while its rows scroll', async ({ page, request }) => {
   const user = await signUpUser(request)
   const account = await createAccount(request, user, { name: 'Everyday' })
@@ -323,7 +322,7 @@ test('keeps the picker header in place while its rows scroll', async ({ page, re
 
   const search = picker.getByPlaceholder('Merchant or note…')
 
-  // The rows ease in and the centred dialog grows with them, so measuring waits until two reads in a row agree
+  // The rows ease in, so measuring waits until two reads in a row agree
   let lastTop = -1
   await expect
     .poll(async () => {
@@ -333,12 +332,6 @@ test('keeps the picker header in place while its rows scroll', async ({ page, re
       return settled
     }, { intervals: [200] })
     .toBe(true)
-  const viewport = page.viewportSize()!
-  const panel = await picker.boundingBox()
-  // The edit window is 86vh tall, though it shrinks a little behind the picker, so its size is taken from the screen
-  const share = viewport.width >= 750 ? 0.7 * viewport.height * 0.86 : viewport.height * 0.84
-  expect(panel!.height).toBeLessThanOrEqual(share + 1)
-
   // The last row starts below the dialog's visible body, and scrolling it into view leaves the header where it was
   const searchBefore = await search.boundingBox()
   await rows.last().scrollIntoViewIfNeeded()

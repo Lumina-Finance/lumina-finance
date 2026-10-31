@@ -364,6 +364,7 @@ export default function CreateTransactionModal({
         }
         RailIcon={ReceiptText}
         railLabel="Transaction"
+        extraPanelClassName={editing || refunding ? undefined : 'min-h-(--app-transaction-window-height)'}
         onClose={closeModal}
         onExitComplete={() => {
           applyPendingDeletion()

@@ -3,7 +3,7 @@
 import { expect, test, type Locator, type Page } from '@playwright/test'
 
 import { asUser, createAccount, createTransaction, daysFromTodayInTestTimezone, signUpUser } from '../support/api'
-import { logInViaApi, openPage } from '../support/app'
+import { logInViaApi, openModal, openPage } from '../support/app'
 import { API_BASE_URL } from '../support/target'
 
 function saveButton(dialog: Locator) {
@@ -233,52 +233,77 @@ for (const size of [
   })
 }
 
-// From 750px the picker is only as tall as its rows, and opening Filters eases it taller, then back
-test('fits the picker to three rows and eases its height with the filter panel', async ({ page, request }) => {
-  await page.setViewportSize({ width: 1920, height: 1080 })
-  const user = await signUpUser(request)
-  const account = await createAccount(request, user, { name: 'Everyday' })
-  const row = { accountId: account.id, categoryName: 'Groceries' }
-  const expenseId = await createTransaction(request, user, { ...row, amount: -5000, date: daysFromTodayInTestTimezone(-6) })
-  for (let day = 1; day <= 3; day++) {
-    await createTransaction(request, user, { ...row, amount: 1000 + day * 100, date: daysFromTodayInTestTimezone(-day) })
-  }
+// The picker is exactly as tall as Add transaction at every size, on every frame, however many rows it lists and
+// whether its filters are open or closed, and only its body scrolls
+for (const size of [
+  { width: 1920, height: 1080 },
+  { width: 1280, height: 800 },
+  { width: 768, height: 1024 },
+  { width: 390, height: 844 },
+  { width: 390, height: 667 },
+]) {
+  test(`holds the picker at the Add transaction height at ${size.width}x${size.height}`, async ({ page, request }) => {
+    await page.setViewportSize(size)
+    const user = await signUpUser(request)
+    const account = await createAccount(request, user, { name: 'Everyday' })
+    const row = { accountId: account.id, categoryName: 'Groceries' }
+    const expenseId = await createTransaction(request, user, { ...row, amount: -50000, date: daysFromTodayInTestTimezone(-20) })
+    for (let day = 1; day <= 14; day++) {
+      await createTransaction(request, user, { ...row, amount: 1000 + day * 100, date: daysFromTodayInTestTimezone(-day) })
+    }
 
-  await logInViaApi(page, user)
-  await openPage(page, `/accounts/${account.id}`)
-  await openRow(page, expenseId)
-  // The edit window is 86vh tall, though it shrinks a little behind the picker, so its size is taken from the screen
-  const screenHeight = page.viewportSize()!.height
-  const editWindowHeight = screenHeight * 0.86
-  await page.getByTestId('link-existing').click()
-  const picker = page.getByRole('dialog', { name: 'Link a refund', exact: true })
-  await expect(picker.getByTestId('link-candidate')).toHaveCount(3)
-  const height = async () => (await picker.boundingBox())!.height
-  // The rows ease in, so the height is taken once two reads in a row agree
-  let previous = -1
-  await expect
-    .poll(async () => {
-      const now = await height()
-      const settled = now === previous
-      previous = now
-      return settled
-    }, { intervals: [200] })
-    .toBe(true)
-  const rowsOnly = previous
-  expect(rowsOnly).toBeLessThan(editWindowHeight * 0.7 - 40)
+    await logInViaApi(page, user)
+    await openPage(page, `/accounts/${account.id}`)
+    const addWindow = await openModal(page, ['Add transaction'], 'Add transaction')
+    await page.waitForTimeout(800)
+    const addHeight = await addWindow.evaluate((node) => (node as HTMLElement).offsetHeight)
+    await page.keyboard.press('Escape')
+    await expect(addWindow).toBeHidden()
 
-  // The body eases its height on the app's default transition timing
-  const body = picker.getByTestId('link-picker-body')
-  await expect(body).toHaveCSS('transition-property', 'min-height')
-  await expect(body).toHaveCSS('transition-duration', '0.3s')
-  await expect(body).toHaveCSS('transition-timing-function', 'cubic-bezier(0.22, 1, 0.36, 1)')
+    await openRow(page, expenseId)
+    await page.getByTestId('link-existing').click()
+    const picker = page.getByRole('dialog', { name: 'Link a refund', exact: true })
+    const pickerHeight = () => picker.evaluate((node) => (node as HTMLElement).offsetHeight)
 
-  await picker.getByRole('button', { name: 'Transaction filters' }).click()
-  await expect.poll(height).toBeGreaterThan(rowsOnly + 100)
-  expect(await height()).toBeLessThanOrEqual(screenHeight * 0.84 + 1)
-  await page.keyboard.press('Escape')
-  await expect.poll(height).toBeLessThan(rowsOnly + 2)
-})
+    // A long list holds the height and scrolls inside the body, with the footer still on screen
+    await expect(picker.getByTestId('link-candidate')).toHaveCount(14)
+    expect(await pickerHeight()).toBe(addHeight)
+    const body = picker.locator('[data-tooltip-bounds]')
+    await expect.poll(() => body.evaluate((node) => node.scrollHeight > node.clientHeight)).toBe(true)
+    await expect(picker.getByRole('button', { name: 'Link', exact: true })).toBeInViewport({ ratio: 1 })
+
+    // No rows at all, while the search stands, keep the same height
+    const search = picker.getByPlaceholder('Merchant or note…')
+    await search.fill('nothing matches this')
+    await expect(picker.getByText('Nothing matches that search.')).toBeVisible()
+    await page.waitForTimeout(500)
+    expect(await pickerHeight()).toBe(addHeight)
+    await search.fill('')
+    await expect(picker.getByTestId('link-candidate')).toHaveCount(14)
+
+    // From the wide layout the filters open inside the picker, and on every frame of opening and closing them it holds
+    if (size.width < 750) return
+    await picker.evaluate((node) => {
+      const heights: number[] = []
+      const start = performance.now()
+      const tick = () => {
+        heights.push((node as HTMLElement).offsetHeight)
+        if (performance.now() - start < 2000) requestAnimationFrame(tick)
+      }
+      ;(window as unknown as { __heights: number[] }).__heights = heights
+      requestAnimationFrame(tick)
+    })
+    const filters = picker.getByRole('button', { name: 'Transaction filters' })
+    await filters.click()
+    await expect(picker.getByRole('button', { name: 'Apply filters' })).toBeVisible()
+    await page.waitForTimeout(700)
+    await page.keyboard.press('Escape')
+    await expect(filters).toHaveAttribute('aria-expanded', 'false')
+    await page.waitForTimeout(1300)
+    const heights = await page.evaluate(() => (window as unknown as { __heights: number[] }).__heights)
+    expect([...new Set(heights)]).toEqual([addHeight])
+  })
+}
 
 // A refund whose link is removed in the window, but not saved yet, can be linked to an expense again, since Save
 // removes the link first
