@@ -1,16 +1,13 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react'
-import { createPortal } from 'react-dom'
 import { PendingLabel } from '@/components/loading/PendingLabel'
-import { AnimatePresence, motion } from 'motion/react'
 import { FormError } from '@/components/forms/FormError'
 import { ModalShell } from '@/components/modal/Shell'
 import { Check, Trash2, X } from 'lucide-react'
 import type { AccountsOverview } from '@/api/accounts'
 import type { Currency } from '@/api/currency'
 import type { TaxAdvantagedCategory } from '@/api/tax-advantaged-categories'
-import type { AutosaveNotice, CategoryModalTab } from '@/pages/settings/components/tax-advantaged/types'
+import type { CategoryModalTab } from '@/pages/settings/components/tax-advantaged/types'
 import TaxAdvantagedAccountLinksPanel from '@/pages/settings/components/tax-advantaged/tax-advantaged-categories-section/panels/AccountLinksPanel'
-import TaxAdvantagedAutosaveStatusIcon from '@/pages/settings/components/tax-advantaged/tax-advantaged-categories-section/controls/AutosaveStatusIcon'
 import TaxAdvantagedInfoItem from '@/pages/settings/components/tax-advantaged/tax-advantaged-categories-section/controls/InfoItem'
 import TaxAdvantagedCategoryDetailsModal from '@/pages/settings/components/tax-advantaged/tax-advantaged-categories-section/modals/CategoryDetailsModal'
 import TaxAdvantagedLimitDetailsModal from '@/pages/settings/components/tax-advantaged/tax-advantaged-categories-section/modals/LimitDetailsModal'
@@ -18,7 +15,6 @@ import TaxAdvantagedLimitsPanel from '@/pages/settings/components/tax-advantaged
 import { useTaxAdvantagedAccountLinks } from '@/pages/settings/components/tax-advantaged/tax-advantaged-categories-section/hooks/useAccountLinks'
 import { useTaxAdvantagedCategoryDetailsForm } from '@/pages/settings/components/tax-advantaged/tax-advantaged-categories-section/hooks/useCategoryDetailsForm'
 import { useTaxAdvantagedLimitWorkflow } from '@/pages/settings/components/tax-advantaged/tax-advantaged-categories-section/hooks/useLimitWorkflow'
-import { autosaveNoticeColor } from '@/pages/settings/components/tax-advantaged/tax-advantaged-categories-section/utils/autosave'
 import { formatTaxTreatment } from '@/pages/settings/components/tax-advantaged/tax-advantaged-categories-section/utils/categoryUtils'
 import { TaxAdvantagedCurrencyWarning } from '@/pages/settings/components/tax-advantaged/tax-advantaged-categories-section/controls/FormControls'
 
@@ -64,24 +60,6 @@ export default function TaxAdvantagedCategoryModal({
   const planDeleteConfirmLabelRef = useRef<HTMLSpanElement>(null)
   const limitDeleteButtonRef = useRef<HTMLButtonElement>(null)
   const [planDeleteLabelWidths, setPlanDeleteLabelWidths] = useState<{ idle: number; confirm: number } | null>(null)
-  const [autosaveNotice, setAutosaveNotice] = useState<AutosaveNotice | null>(null)
-  const autosaveTimerRef = useRef<number | null>(null)
-
-  /**
-   * Shows the floating autosave notice and clears completed notices after a short delay
-   */
-  const showAutosaveNotice = (notice: AutosaveNotice) => {
-    if (autosaveTimerRef.current !== null) {
-      window.clearTimeout(autosaveTimerRef.current)
-    }
-    setAutosaveNotice(notice)
-    if (notice.status !== 'saving') {
-      autosaveTimerRef.current = window.setTimeout(() => {
-        setAutosaveNotice(null)
-        autosaveTimerRef.current = null
-      }, 2400)
-    }
-  }
   const {
     closeLimitDetailsModal,
     createNewLimit: handleCreateLimit,
@@ -113,7 +91,6 @@ export default function TaxAdvantagedCategoryModal({
     currencies,
     limitDeleteButtonRef,
     plan,
-    showAutosaveNotice,
   })
   const {
     accountError,
@@ -123,16 +100,7 @@ export default function TaxAdvantagedCategoryModal({
     linkedAccountsSummary,
     pendingAccountId,
     toggleAccount,
-  } = useTaxAdvantagedAccountLinks({ accounts, plan, showAutosaveNotice })
-
-  useEffect(
-    () => () => {
-      if (autosaveTimerRef.current !== null) {
-        window.clearTimeout(autosaveTimerRef.current)
-      }
-    },
-    [],
-  )
+  } = useTaxAdvantagedAccountLinks({ accounts, plan })
 
   useLayoutEffect(() => {
     if (planDeleteIdleLabelRef.current && planDeleteConfirmLabelRef.current) {
@@ -167,30 +135,6 @@ export default function TaxAdvantagedCategoryModal({
 
   return (
     <>
-      {createPortal(
-        <AnimatePresence>
-          {autosaveNotice && (
-            <motion.div
-              role={autosaveNotice.status === 'error' ? 'alert' : 'status'}
-              aria-live={autosaveNotice.status === 'error' ? 'assertive' : 'polite'}
-              className="fixed bottom-5 right-5 z-notice flex items-center gap-3 rounded-xl px-4 py-3 text-sm font-medium shadow-lg"
-              style={{
-                background: 'var(--app-bg)',
-                border: '1px solid var(--app-border-strong)',
-                color: autosaveNoticeColor(autosaveNotice.status),
-              }}
-              initial={{ opacity: 0, y: -8 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -8 }}
-              transition={{ duration: 0.16 }}
-            >
-              <TaxAdvantagedAutosaveStatusIcon status={autosaveNotice.status} />
-              <span>{autosaveNotice.message}</span>
-            </motion.div>
-          )}
-        </AnimatePresence>,
-        document.body,
-      )}
       <ModalShell
         open={open}
         onExitComplete={onExitComplete}

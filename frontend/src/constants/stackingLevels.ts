@@ -35,9 +35,6 @@ export const STACKING_LEVELS = {
   /** A dialog opened from a page */
   modal: 65,
 
-  /** The transient save confirmation on the tax-advantaged category dialog */
-  notice: 70,
-
   /** A small action menu portalled out of the row that owns it, so it is never clipped */
   menu: 80,
 

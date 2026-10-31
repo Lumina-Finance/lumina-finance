@@ -29,23 +29,28 @@ function findUnsupportedStylesheetLevels(css: string): string[] {
 
 describe('stylesheet stacking levels', () => {
   it.each(['auto', '0', '1', '2', "theme('zIndex.popover')", 'theme("zIndex.stacked-modal")'])(
-    'accepts local ordering or a named level: %s', (value) => {
+    'accepts local ordering or a named level: %s',
+    (value) => {
       expect(findUnsupportedStylesheetLevels(`.example { z-index: ${value} !important; }`)).toEqual([])
     },
   )
 
   it.each(['110', '-1', '3', "theme('zIndex.missing')", 'var(--unknown-level)', 'calc(100 + 10)'])(
-    'rejects unsupported levels: %s', (value) => {
-      expect(findUnsupportedStylesheetLevels(`@media (min-width: 1px) { .example { z-index: ${value}; } }`))
-        .toEqual([value])
+    'rejects unsupported levels: %s',
+    (value) => {
+      expect(findUnsupportedStylesheetLevels(`@media (min-width: 1px) { .example { z-index: ${value}; } }`)).toEqual([
+        value,
+      ])
     },
   )
 
   it('ignores comments, custom properties and unrelated declaration values', () => {
-    expect(findUnsupportedStylesheetLevels(`
+    expect(
+      findUnsupportedStylesheetLevels(`
       /* z-index: 110; */
       .example { content: "z-index: 110"; --z-index: 110; width: 110px; }
-    `)).toEqual([])
+    `),
+    ).toEqual([])
   })
 
   it('keeps handwritten stylesheet levels within the local range or named scale', () => {
@@ -91,7 +96,6 @@ describe('toTailwindZIndexTheme', () => {
       'loading-screen': '55',
       'focused-page': '60',
       modal: '65',
-      notice: '70',
       menu: '80',
       sheet: '90',
       'stacked-modal': '100',

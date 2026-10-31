@@ -65,9 +65,11 @@ export function ModalContentPanel({
         onClick={onClose}
         disabled={closeDisabled}
         aria-label="Close"
-        className={phoneHeader
-          ? 'app-icon-button absolute right-4 top-5 z-10 min-[1050px]:hidden'
-          : 'app-glass-icon-button absolute right-4 top-4 z-10 h-8 w-8 min-[1050px]:hidden'}
+        className={
+          phoneHeader
+            ? 'app-icon-button absolute right-4 top-5 z-10 min-[1050px]:hidden'
+            : 'app-glass-icon-button absolute right-4 top-4 z-10 h-8 w-8 min-[1050px]:hidden'
+        }
       >
         <X size={phoneHeader ? 20 : 18} aria-hidden />
       </button>
@@ -81,9 +83,11 @@ export function ModalContentPanel({
       open={open}
       onClose={onClose}
       titleId={titleId}
-      panelClassName={hasRail
-        ? `relative ${RAILED_PANEL_CLASS_NAME} ${RAILED_WIDTH_CLASS_NAME[level]}`
-        : `relative ${PANEL_CLASS_NAME}`}
+      panelClassName={
+        hasRail
+          ? `relative ${RAILED_PANEL_CLASS_NAME} ${RAILED_WIDTH_CLASS_NAME[level]}`
+          : `relative ${PANEL_CLASS_NAME}`
+      }
       level={level}
       closeDisabled={closeDisabled}
       onExitComplete={onExitComplete}
@@ -93,7 +97,9 @@ export function ModalContentPanel({
           <ModalRail level={level} Icon={RailIcon} label={railLabel} />
           <div className="relative flex min-h-0 min-w-0 flex-1 flex-col">{content}</div>
         </>
-      ) : content}
+      ) : (
+        content
+      )}
     </ModalShell>
   )
 }
@@ -103,5 +109,9 @@ export function ModalContentPanel({
  * them scrolls. Place it last in the content
  */
 export function ModalContentFooter({ children }: { children: ReactNode }) {
-  return <div className="app-modal-footer">{children}</div>
+  return (
+    <div data-toast-keep-clear className="app-modal-footer">
+      {children}
+    </div>
+  )
 }
