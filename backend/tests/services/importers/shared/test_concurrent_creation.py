@@ -157,7 +157,7 @@ async def test_a_tag_written_after_the_lookup_is_reused_rather_than_failing_the_
         tags = ImportTags(existing_by_key={})
         stats = ImportStats()
 
-        await create_missing_import_tags(session, user_id, ["travel"], tags, stats)
+        await create_missing_import_tags(session, user_id, ["travel"], [], tags, stats)
 
         assert stats.tags_created == 0
         assert stats.created_tag_ids == []
@@ -180,7 +180,7 @@ async def test_a_tag_spelled_differently_written_after_the_lookup_is_reused_too(
         tags = ImportTags(existing_by_key={})
         stats = ImportStats()
 
-        await create_missing_import_tags(session, user_id, ["TRAVEL"], tags, stats)
+        await create_missing_import_tags(session, user_id, ["TRAVEL"], [], tags, stats)
 
         assert stats.tags_created == 0
         assert tags.existing_by_key["travel"].id == existing.id

@@ -74,6 +74,14 @@ class ImportRun(Base):
         server_default="{}",
     )
 
+    # Only the tag names the user answered by hand, held the way the merchant answers are
+    tag_mappings: Mapped[dict[str, Any]] = mapped_column(
+        JSONB,
+        nullable=False,
+        default=dict,
+        server_default="{}",
+    )
+
     # What a provider import writes after its transactions: budgets whose tracked categories are
     # named by category mapping source, since a category the import creates has no id until the
     # commit, and the account mapping sources to archive once everything else is written

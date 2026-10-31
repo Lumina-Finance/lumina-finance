@@ -94,6 +94,7 @@ async def write_journal_transactions(
         import_run_id=import_run_id,
         transactions=[_to_imported_transaction(leg) for leg in legs],
         merchant_mappings=[],
+        tag_mappings=[],
         import_lookups=import_lookups,
         stats=stats,
     )

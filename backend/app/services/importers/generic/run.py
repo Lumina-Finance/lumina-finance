@@ -16,6 +16,7 @@ from app.schemas.import_run import (
     TransactionImportRow,
     TransactionImportStageRequest,
     TransactionImportStageRow,
+    TransactionImportTagMapping,
 )
 from app.services.importers.generic.service import import_transactions
 from app.services.importers.shared.layouts import save_import_layout
@@ -65,6 +66,7 @@ async def stage_import_batch(
         start_row_index=data.start_row_index,
         allows_outside_accounts=True,
         merchants=data.merchants,
+        tags=data.tags,
     )
 
 
@@ -124,7 +126,7 @@ def _build_import_request(run: ImportRun, rows: list[ImportStagedRow]) -> Transa
     """Rebuild the whole file from its run and staged rows
 
     Args:
-        run: Run holding the merged account, category and merchant mappings
+        run: Run holding the merged account, category, merchant and tag mappings
         rows: Staged rows in file order
 
     Returns:
@@ -134,5 +136,6 @@ def _build_import_request(run: ImportRun, rows: list[ImportStagedRow]) -> Transa
         accounts=[TransactionImportAccountMapping.model_validate(mapping) for mapping in run.account_mappings.values()],
         categories=[TransactionImportCategoryMapping.model_validate(mapping) for mapping in run.category_mappings.values()],
         merchants=[TransactionImportMerchantMapping.model_validate(mapping) for mapping in run.merchant_mappings.values()],
+        tags=[TransactionImportTagMapping.model_validate(mapping) for mapping in run.tag_mappings.values()],
         rows=[TransactionImportRow.model_validate(row.payload) for row in rows],
     )

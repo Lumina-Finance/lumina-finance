@@ -238,7 +238,7 @@ def _csv_batch(amounts, start_row_index=0, account=_NEW_MAIN_CHEQUING, category=
     }
 
 
-async def _import_rows(client, headers, account_id, category_id, row_overrides, merchants=None):
+async def _import_rows(client, headers, account_id, category_id, row_overrides, merchants=None, tags=None):
     """Import one file of rows sharing an account and category, each row taking its own overrides"""
     return await _import_run(
         client,
@@ -247,6 +247,7 @@ async def _import_rows(client, headers, account_id, category_id, row_overrides, 
             "accounts": [{"source": "Main Chequing", "account_id": account_id}],
             "categories": [{"source": "Groceries", "category_id": category_id}],
             "merchants": merchants or [],
+            "tags": tags or [],
             "rows": [
                 {
                     "account_source": "Main Chequing",

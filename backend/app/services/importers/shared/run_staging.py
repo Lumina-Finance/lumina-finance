@@ -18,6 +18,7 @@ from app.models.base import PermissionLevel
 from app.models.category import Category
 from app.models.import_run import ImportRun, ImportRunSource, ImportStagedRow
 from app.models.merchant import Merchant
+from app.models.tag import Tag
 from app.models.user import User
 from app.permissions import check_account_access
 from app.permissions.accounts import AccountAccessLookup, load_account_access_lookup
@@ -27,6 +28,7 @@ from app.schemas.import_run import (
     TransactionImportAccountMapping,
     TransactionImportCategoryMapping,
     TransactionImportMerchantMapping,
+    TransactionImportTagMapping,
 )
 from app.services.importers.shared.account_creation_helpers import (
     load_import_account_references,
@@ -45,6 +47,7 @@ from app.services.importers.shared.merchants import (
 )
 from app.services.importers.shared.name_keys import load_import_name_keys
 from app.services.importers.shared.run_locking import load_locked_run
+from app.services.importers.shared.tags import load_usable_import_tags, require_usable_import_tag
 from app.services.importers.shared.validation_helpers import strip_import_text_or_raise
 
 # How a refusal names the importer a run belongs to
@@ -79,6 +82,8 @@ class StagingReferences:
     categories: dict[uuid.UUID, Category]
     merchants: dict[uuid.UUID, Merchant]
     merchant_keys: dict[str, str]
+    tags: dict[uuid.UUID, Tag]
+    tag_keys: dict[str, str]
 
 
 async def load_staging_references(
@@ -87,6 +92,7 @@ async def load_staging_references(
     accounts: Sequence[TransactionImportAccountMapping],
     categories: Sequence[TransactionImportCategoryMapping],
     merchants: Sequence[TransactionImportMerchantMapping] = (),
+    tags: Sequence[TransactionImportTagMapping] = (),
 ) -> StagingReferences:
     """Acquire reference facts without validating or reordering declaration errors
 
@@ -96,6 +102,7 @@ async def load_staging_references(
         accounts: Account mappings the request declares
         categories: Category mappings the request declares
         merchants: Merchant answers the request declares, which only the generic import has
+        tags: Tag answers the request declares, which only the generic import has
 
     Returns:
         Complete request-local facts, with unavailable references absent
@@ -119,7 +126,18 @@ async def load_staging_references(
         user.id,
     )
     merchant_keys = await load_import_name_keys(db, {mapping.source.strip() for mapping in merchants})
-    return StagingReferences(account_access, currencies, institutions, visible_categories, usable_merchants, merchant_keys)
+    usable_tags = await load_usable_import_tags(db, {mapping.tag_id for mapping in tags if mapping.tag_id is not None}, user.id)
+    tag_keys = await load_import_name_keys(db, {mapping.source.strip() for mapping in tags})
+    return StagingReferences(
+        account_access,
+        currencies,
+        institutions,
+        visible_categories,
+        usable_merchants,
+        merchant_keys,
+        usable_tags,
+        tag_keys,
+    )
 
 
 async def open_import_run(
@@ -155,6 +173,7 @@ async def open_import_run(
         account_mappings={},
         category_mappings={},
         merchant_mappings={},
+        tag_mappings={},
         budget_drafts=[],
         archive_account_sources=[],
     )
@@ -218,6 +237,7 @@ async def stage_run_batch(
     start_row_index: int,
     allows_outside_accounts: bool,
     merchants: Sequence[TransactionImportMerchantMapping] = (),
+    tags: Sequence[TransactionImportTagMapping] = (),
 ) -> None:
     """Park one batch of a file against its run, after checking the mappings it declares
 
@@ -233,6 +253,7 @@ async def stage_run_batch(
         allows_outside_accounts: Whether the importer can answer an account source as outside the
             tracked accounts
         merchants: Merchant answers the batch declares, which only the CSV import has
+        tags: Tag answers the batch declares, which only the CSV import has
 
     Returns:
         None
@@ -247,7 +268,7 @@ async def stage_run_batch(
     run = await load_uncommitted_run(db, run_id, sources)
     require_batch_within_run(run, start_row_index, len(rows))
 
-    references = await load_staging_references(db, user, accounts, categories, merchants)
+    references = await load_staging_references(db, user, accounts, categories, merchants, tags)
     for account_mapping in accounts:
         # Refused here rather than at the commit, which keeps the run open for the corrected answer
         if account_mapping.outside and not allows_outside_accounts:
@@ -260,6 +281,8 @@ async def stage_run_batch(
         await validate_category_mapping(db, user, category_mapping, references)
     for merchant_mapping in merchants:
         await _validate_merchant_mapping(db, user, merchant_mapping, references)
+    for tag_mapping in tags:
+        await _validate_tag_mapping(db, user, tag_mapping, references)
 
     # Reassigned rather than mutated, since SQLAlchemy tracks a JSONB column by identity and would
     # not see a change made inside the dictionary it already holds
@@ -275,6 +298,14 @@ async def stage_run_batch(
         merchants,
         "Merchant source",
         get_key=references.merchant_keys.__getitem__,
+    )
+
+    # Keyed by what matches a tag name, for the same reason as the merchants
+    run.tag_mappings = merge_import_mappings(
+        run.tag_mappings,
+        tags,
+        "Tag source",
+        get_key=references.tag_keys.__getitem__,
     )
 
     await insert_staged_rows(db, run, user.id, start_row_index, rows)
@@ -356,7 +387,10 @@ def require_batch_within_run(run: ImportRun, start_row_index: int, row_count: in
 def merge_import_mappings(
     stored: dict[str, Any],
     mappings: (
-        Sequence[TransactionImportAccountMapping] | Sequence[TransactionImportCategoryMapping] | Sequence[TransactionImportMerchantMapping]
+        Sequence[TransactionImportAccountMapping]
+        | Sequence[TransactionImportCategoryMapping]
+        | Sequence[TransactionImportMerchantMapping]
+        | Sequence[TransactionImportTagMapping]
     ),
     label: str,
     get_key: Callable[[str], str] = lambda source: source,
@@ -569,3 +603,37 @@ async def _validate_merchant_mapping(
 
     if mapping.merchant_id is not None:
         await require_usable_import_merchant(db, mapping.merchant_id, user.id, merchants_by_id=references.merchants)
+
+
+async def _validate_tag_mapping(
+    db: AsyncSession,
+    user: User,
+    mapping: TransactionImportTagMapping,
+    references: StagingReferences,
+) -> None:
+    """Check one tag mapping as far as staging can, without creating anything
+
+    Args:
+        db: Active database session
+        user: Authenticated user running the import
+        mapping: Tag name answered in the batch
+        references: Complete caller-local reference facts for this staging request
+
+    Returns:
+        None
+
+    Raises:
+        HTTPException: Raised with 422 when the mapping states no single tag action, and when it
+            points at a tag this import cannot use
+    """
+    source = strip_import_text_or_raise(mapping.source, "Tag source")
+
+    stated_actions = (mapping.tag_id is not None) + (mapping.create is not None) + mapping.skip
+    if stated_actions != 1:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+            detail=f"The tag source {source} must map to exactly one tag action",
+        )
+
+    if mapping.tag_id is not None:
+        await require_usable_import_tag(db, mapping.tag_id, user.id, tags_by_id=references.tags)

@@ -71,6 +71,7 @@ async def import_transactions(
             import_run_id=import_run_id,
             transactions=transactions,
             merchant_mappings=data.merchants,
+            tag_mappings=data.tags,
             import_lookups=import_lookups,
             stats=stats,
         )
