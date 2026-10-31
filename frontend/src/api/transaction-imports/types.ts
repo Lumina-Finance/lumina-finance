@@ -48,7 +48,7 @@ export interface TransactionImportMerchantMapping {
 }
 
 /** The kinds of file whose rows are saved through the transaction import endpoints */
-export type TransactionImportSource = 'generic' | 'ofx'
+export type TransactionImportSource = 'generic' | 'ofx' | 'qif'
 
 export interface TransactionImportRow {
   account_source: string
@@ -145,7 +145,7 @@ export type SavedCsvImportLayout = CsvImportLayout & {
 /** The importer of the last import that wrote rows into one of the user's own accounts */
 export type SavedAccountImportSource = {
   account_id: string
-  source: 'generic' | 'firefly' | 'actual_budget' | 'ofx'
+  source: 'generic' | 'firefly' | 'actual_budget' | 'ofx' | 'qif'
 }
 
 /** One OFX transaction asked about, with the account it would go into. Mirrors the API's held-bank-transactions item */

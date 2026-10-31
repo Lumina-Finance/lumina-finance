@@ -29,9 +29,6 @@ export const OFX_IMPORT_FILE_TYPE: ImportFileType = {
 /** What the progress overlay calls the upload stage */
 export const OFX_UPLOAD_LABEL = 'Uploading the statements'
 
-// The files are one import with one set of statements, so the account answers are kept under one fixed scope
-export const getOfxAccountSourceScope = () => 'ofx'
-
 /** The account type a new account is proposed with for the account type an OFX bank statement states */
 export const OFX_BANK_ACCOUNT_TYPES: Record<string, { type: AccountType; label: string }> = {
   CHECKING: { type: 'checking', label: 'Checking' },

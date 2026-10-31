@@ -83,7 +83,7 @@ function createAnswers(file: OfxFile, choice: string, overrides: Partial<OfxImpo
     accountCreateDetails: Object.fromEntries(
       file.statements.map((statement) => [
         statement.id,
-        { accountType: statement.proposedType, currency: statement.currency, institutionId: '' },
+        { accountType: statement.proposedType, currency: statement.currency ?? '', institutionId: '' },
       ]),
     ),
     accountById: new Map([[CHEQUING.id, CHEQUING]]),

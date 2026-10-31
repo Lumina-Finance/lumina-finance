@@ -45,8 +45,12 @@ export function buildOfxPreviewRows(file: OfxFile, options: OfxPreviewOptions, l
       options.accountById,
       options.institutionById,
     )
-    const exponent = findCurrencyExponent(options.currencies, statement.currency)
-    if (!account || account.currency.toUpperCase() !== statement.currency || exponent === null) continue
+    if (!account) continue
+
+    // A statement that states no currency takes its account's
+    const accountCurrency = account.currency.toUpperCase()
+    const exponent = findCurrencyExponent(options.currencies, statement.currency ?? accountCurrency)
+    if (accountCurrency !== (statement.currency ?? accountCurrency) || exponent === null) continue
 
     for (const transaction of statement.transactions) {
       if (previewRows.length >= limit) return previewRows

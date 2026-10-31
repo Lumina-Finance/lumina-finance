@@ -12,6 +12,7 @@ import type { Category } from '@/api/categories'
 import type { Currency } from '@/api/currency'
 import { OfxCurrencyMismatchNotice } from '@/pages/imports/ofx/components/OfxCurrencyMismatchNotice'
 import { getOfxCurrencyMismatchError, getOfxLeftOutNotice } from '@/pages/imports/ofx/constants'
+import { OFX_FORMAT } from '@/pages/imports/ofx/format'
 import { OfxFilesStep, OfxPreviewStep } from '@/pages/imports/ofx/sections'
 import { buildOfxImportPayload } from '@/pages/imports/ofx/utils/payload'
 import { readOfxFile } from '@/pages/imports/ofx/utils/readFile'
@@ -66,6 +67,8 @@ describe('the files step', () => {
     }))
     return renderToStaticMarkup(
       createElement(OfxFilesStep, {
+        format: OFX_FORMAT,
+        readingChoices: null,
         stagedFiles,
         leftOutNotice: getOfxLeftOutNotice(
           combineOfxFiles(stagedFiles.map((staged) => staged.file)).leftOut,
@@ -104,6 +107,8 @@ describe('the files step', () => {
     const file = await readStatements([CHECKING], [buildInvestmentMessageSet(1)])
     const markup = renderToStaticMarkup(
       createElement(OfxFilesStep, {
+        format: OFX_FORMAT,
+        readingChoices: null,
         stagedFiles: [{ id: '1', name: 'statement.ofx', size: 10, lastModified: 1, file }],
         leftOutNotice: getOfxLeftOutNotice(file.leftOut, 1),
         isProcessingFile: false,
@@ -133,6 +138,8 @@ describe('the files step', () => {
     const render = (isProcessingFile: boolean) =>
       renderToStaticMarkup(
         createElement(OfxFilesStep, {
+          format: OFX_FORMAT,
+          readingChoices: null,
           stagedFiles: [],
           leftOutNotice: null,
           isProcessingFile,

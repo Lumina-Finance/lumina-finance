@@ -44,6 +44,7 @@ import {
 } from './firefly/sections'
 import { useOfxImportWorkflow } from './ofx/hooks'
 import { OfxAccountMappingStep, OfxFilesStep, OfxPreviewStep } from './ofx/sections'
+import { QIF_FORMAT } from './qif/format'
 import {
   useImportAccountScope,
   useImportUndoneElsewhere,
@@ -75,6 +76,7 @@ const FLOW_DESCRIPTIONS: Record<ImportDataSource, string> = {
   firefly: 'Stage a Firefly III export before it is added to your ledger.',
   actual: 'Stage an Actual Budget export before it is added to your ledger.',
   ofx: 'Stage OFX or QFX statements before they are added to your ledger.',
+  qif: 'Stage QIF files before they are added to your ledger.',
 }
 
 // The label above the page title, by what the flow imports
@@ -83,11 +85,12 @@ const FLOW_EYEBROWS: Record<ImportDataSource, string> = {
   firefly: 'CSV import',
   actual: 'Budget import',
   ofx: 'Statement import',
+  qif: 'QIF import',
 }
 
 /**
- * Renders the import workflow page, switching between the generic CSV, OFX/QFX, Firefly III and
- * Actual Budget flows and showing the shared progress overlay while a commit runs
+ * Renders the import workflow page, switching between the generic CSV, OFX/QFX, Quicken 3.0 (QIF),
+ * Firefly III and Actual Budget flows and showing the shared progress overlay while a commit runs
  *
  * Only one flow can be staged at a time, so changing the data source resets whichever flow is being
  * left, so its staged state cannot leak into a later import run
@@ -127,6 +130,7 @@ export default function ImportsPage() {
   const fireflyWorkflow = useFireflyImportWorkflow()
   const actualWorkflow = useActualImportWorkflow()
   const ofxWorkflow = useOfxImportWorkflow(accountScope.account)
+  const qifWorkflow = useOfxImportWorkflow(accountScope.account, QIF_FORMAT)
 
   if (accountScope.accountId && accountScope.state === 'ready' && !isWaitingForSources && !isChoiceSettled) {
     setScopedChoice({
@@ -155,6 +159,7 @@ export default function ImportsPage() {
   const isActualBusy =
     actualWorkflow.importOverlayOpen || actualWorkflow.isProcessingFile || actualWorkflow.isImportInFlight
   const isOfxBusy = ofxWorkflow.importOverlayOpen || ofxWorkflow.isProcessingFile || ofxWorkflow.isImportInFlight
+  const isQifBusy = qifWorkflow.importOverlayOpen || qifWorkflow.isProcessingFile || qifWorkflow.isImportInFlight
   const isGenericBusy = workflow.importOverlayOpen || workflow.isProcessingFiles || workflow.isImportInFlight
   const activeFlow: ImportDataSource = isFireflyBusy
     ? 'firefly'
@@ -162,13 +167,21 @@ export default function ImportsPage() {
       ? 'actual'
       : isOfxBusy
         ? 'ofx'
-        : isGenericBusy
-          ? 'generic'
-          : chosenSource
+        : isQifBusy
+          ? 'qif'
+          : isGenericBusy
+            ? 'generic'
+            : chosenSource
 
   // Every flow saves through the same import run, so the overlay reads whichever one is on screen
   // the same way
-  const overlayWorkflows = { generic: workflow, firefly: fireflyWorkflow, actual: actualWorkflow, ofx: ofxWorkflow }
+  const overlayWorkflows = {
+    generic: workflow,
+    firefly: fireflyWorkflow,
+    actual: actualWorkflow,
+    ofx: ofxWorkflow,
+    qif: qifWorkflow,
+  }
   const overlayWorkflow = overlayWorkflows[activeFlow]
   const importOverlayOpen = overlayWorkflow.importOverlayOpen
 
@@ -193,6 +206,7 @@ export default function ImportsPage() {
         Object.values(fireflyWorkflow.fileIntakeErrors).every((message) => message === null),
       actual: actualWorkflow.stagedFile !== null && actualWorkflow.fileIntakeError === null,
       ofx: ofxWorkflow.stagedFiles.length > 0 && ofxWorkflow.fileIntakeError === null && !ofxWorkflow.leftOutNotice,
+      qif: qifWorkflow.stagedFiles.length > 0 && qifWorkflow.fileIntakeError === null && !qifWorkflow.leftOutNotice,
     }[activeFlow]
 
   // Where the page came from, which is also where its two exits go: the account while the scope
@@ -220,7 +234,7 @@ export default function ImportsPage() {
 
   // Switching source resets the flow being left, so a file still being read or an import still
   // being written would finish into a flow the user has already discarded
-  const isImportBusy = overlayOnScreen || isFireflyBusy || isActualBusy || isOfxBusy || isGenericBusy
+  const isImportBusy = overlayOnScreen || isFireflyBusy || isActualBusy || isOfxBusy || isQifBusy || isGenericBusy
 
   // Every mapping answer is made against these three lists, and one of them going stale sends the
   // import at a category or account that has since been renamed or deleted elsewhere. Categories in
@@ -262,8 +276,10 @@ export default function ImportsPage() {
       fireflyWorkflow.resetFireflyWorkflow()
     } else if (chosenSource === 'actual') {
       actualWorkflow.resetActualWorkflow()
-    } else {
+    } else if (chosenSource === 'ofx') {
       ofxWorkflow.resetOfxWorkflow()
+    } else {
+      qifWorkflow.resetOfxWorkflow()
     }
     if (isScopedToAccount && accountScope.accountId) {
       setScopedChoice({ accountId: accountScope.accountId, source: next })
@@ -281,6 +297,7 @@ export default function ImportsPage() {
       firefly: fireflyWorkflow.resetFireflyWorkflow,
       actual: actualWorkflow.resetActualWorkflow,
       ofx: ofxWorkflow.resetOfxWorkflow,
+      qif: qifWorkflow.resetOfxWorkflow,
     }
     let isReopened = false
     for (const flow of Object.keys(overlayWorkflows) as ImportDataSource[]) {
@@ -471,6 +488,7 @@ export default function ImportsPage() {
                   {activeFlow === 'firefly' && <FireflyFilesStep {...fireflyWorkflow} />}
                   {activeFlow === 'actual' && <ActualFilesStep {...actualWorkflow} />}
                   {activeFlow === 'ofx' && <OfxFilesStep {...ofxWorkflow} />}
+                  {activeFlow === 'qif' && <OfxFilesStep {...qifWorkflow} />}
                   {activeFlow === 'generic' && <ImportFilesStep {...workflow} />}
                 </div>
               </ImportSetupPanel>
@@ -505,6 +523,13 @@ export default function ImportsPage() {
                         {/* An account's page writes the statement to that account, so there is nothing to map */}
                         {!ofxWorkflow.fixedAccount && <OfxAccountMappingStep {...ofxWorkflow} />}
                         <OfxPreviewStep {...ofxWorkflow} />
+                      </>
+                    )}
+                    {activeFlow === 'qif' && (
+                      <>
+                        {/* An account's page writes the file to that account, so there is nothing to map */}
+                        {!qifWorkflow.fixedAccount && <OfxAccountMappingStep {...qifWorkflow} />}
+                        <OfxPreviewStep {...qifWorkflow} />
                       </>
                     )}
                     {activeFlow === 'firefly' && (

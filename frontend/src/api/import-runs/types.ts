@@ -35,7 +35,7 @@ export interface ImportRunRoutes {
 /** The last saved import, with when it can be undone until and what undoing it would delete and keep */
 export type LastImport = {
   id: string
-  source: 'generic' | 'firefly' | 'actual_budget' | 'ofx'
+  source: 'generic' | 'firefly' | 'actual_budget' | 'ofx' | 'qif'
   file_name: string | null
   committed_at: string
   undo_until: string

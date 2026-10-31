@@ -93,7 +93,8 @@ export function getOfxSkippedRowId(statement: OfxStatement, transaction: OfxTran
  * Builds the payload the shared import save takes from the statements and the account answers
  *
  * A statement is written to the account its answer names, in that account's currency, so one whose
- * currency differs is refused rather than converted. Transactions the file leaves unreadable, that
+ * currency differs is refused rather than converted. A statement that states no currency, as a QIF
+ * account states none, takes the account's. Transactions the file leaves unreadable, that
  * the importer could not store, whose bank ID an earlier transaction of the import already has, or
  * that the server says their account already holds, are left out and listed with the reason. The
  * rest import with their bank IDs, which the save hashes and again leaves out what the account holds
@@ -134,23 +135,25 @@ export function buildOfxImportPayload(file: OfxFile, answers: OfxImportAnswers):
     )
 
     // The account's currency decides how many decimal places an amount may carry, so nothing is
-    // judged against one that is unanswered or is not the statement's
+    // judged against one that is unanswered or is not the statement's. A statement that states no
+    // currency takes its account's, so it never differs from it
     const accountCurrency = (built?.account?.currency ?? built?.mapping.create?.currency ?? '').toUpperCase()
-    const isWritable = built !== null && accountCurrency === statement.currency
+    const currency = statement.currency ?? accountCurrency
+    const isWritable = built !== null && accountCurrency === currency
     if (built && !isWritable) {
       const mismatch = answers.fixedAccount
-        ? getOfxFixedAccountCurrencyError(statement.currency, answers.fixedAccount.name, accountCurrency)
-        : getOfxCurrencyMismatchError(statement.label, statement.currency, accountCurrency)
+        ? getOfxFixedAccountCurrencyError(currency, answers.fixedAccount.name, accountCurrency)
+        : getOfxCurrencyMismatchError(statement.label, currency, accountCurrency)
       currencyMismatches.push(mismatch)
       addError(mismatch)
     }
 
-    const exponent = isWritable ? findCurrencyExponent(answers.currencies, statement.currency) : null
-    return { statement, source, built, isWritable, exponent }
+    const exponent = isWritable ? findCurrencyExponent(answers.currencies, currency) : null
+    return { statement, source, built, isWritable, exponent, currency }
   })
   const firstCopies = findFirstOfxCopies(prepared)
 
-  for (const { statement, source, built, isWritable, exponent } of prepared) {
+  for (const { statement, source, built, isWritable, exponent, currency } of prepared) {
     let hasRows = false
     for (const transaction of statement.transactions) {
       const skip = (reason: string) =>
@@ -165,7 +168,7 @@ export function buildOfxImportPayload(file: OfxFile, answers: OfxImportAnswers):
           reason,
         })
 
-      const problem = getOfxTransactionProblem(transaction, exponent, statement.currency)
+      const problem = getOfxTransactionProblem(transaction, exponent, currency)
       if (problem) {
         skip(problem)
         continue
@@ -234,15 +237,15 @@ function getOfxRepeatKey(statement: OfxStatement, transaction: OfxTransaction) {
  * not hide a readable copy later in the import
  */
 function findFirstOfxCopies(
-  prepared: Array<{ statement: OfxStatement; isWritable: boolean; exponent: number | null }>,
+  prepared: Array<{ statement: OfxStatement; isWritable: boolean; exponent: number | null; currency: string }>,
 ) {
   const firstCopies = new Map<string, OfxTransaction>()
-  for (const { statement, isWritable, exponent } of prepared) {
+  for (const { statement, isWritable, exponent, currency } of prepared) {
     if (!isWritable) continue
 
     for (const transaction of statement.transactions) {
       const key = getOfxRepeatKey(statement, transaction)
-      if (key === null || getOfxTransactionProblem(transaction, exponent, statement.currency) !== null) continue
+      if (key === null || getOfxTransactionProblem(transaction, exponent, currency) !== null) continue
 
       const first = firstCopies.get(key)
       if (first === undefined || transaction.fileOrder < first.fileOrder) firstCopies.set(key, transaction)
@@ -264,6 +267,7 @@ export function getOfxCategorySource(transaction: Pick<OfxTransaction, 'amount'>
  */
 export function getOfxTransactionProblem(transaction: OfxTransaction, exponent: number | null, currency: string) {
   if (transaction.otherCurrency !== null) return getOfxOtherCurrencyReason(transaction.otherCurrency, currency)
+  if (transaction.readProblem) return transaction.readProblem
   if (transaction.date === null) return OFX_DATE_UNREADABLE_REASON
   if (transaction.amount === null) return OFX_AMOUNT_UNREADABLE_REASON
 

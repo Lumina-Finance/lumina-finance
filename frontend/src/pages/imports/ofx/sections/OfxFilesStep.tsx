@@ -7,14 +7,16 @@ import {
   ImportUploadCard,
 } from '@/pages/imports/components'
 import { useStagedFileFocus } from '@/pages/imports/hooks'
+import { OfxReadingChoicesRows } from '@/pages/imports/ofx/components/OfxReadingChoicesRows'
 import { OfxReveal } from '@/pages/imports/ofx/components/OfxReveal'
-import { OFX_IMPORT_FILE_TYPE } from '@/pages/imports/ofx/constants'
 import type { OfxImportWorkflow } from '@/pages/imports/ofx/hooks'
 import type { OfxStagedFile } from '@/pages/imports/ofx/types'
 import { countOfxTransactions } from '@/pages/imports/ofx/utils/stagedFiles'
 
 type OfxFilesStepProps = Pick<
   OfxImportWorkflow,
+  | 'format'
+  | 'readingChoices'
   | 'stagedFiles'
   | 'leftOutNotice'
   | 'fixedAccount'
@@ -26,22 +28,26 @@ type OfxFilesStepProps = Pick<
   | 'importResult'
 >
 
-function describeOfxFile({ file }: OfxStagedFile) {
+function describeOfxFile({ file }: OfxStagedFile, statementNoun: string) {
   const transactionCount = countOfxTransactions(file)
   const statementCount = file.statements.length
   const transactions = `${transactionCount} transaction${transactionCount === 1 ? '' : 's'}`
-  const statements = `${statementCount} statement${statementCount === 1 ? '' : 's'}`
+  const statements = `${statementCount} ${statementNoun}${statementCount === 1 ? '' : 's'}`
   return { detail: `${transactions} · ${statements}` }
 }
 
 /**
- * Files step of the OFX import flow, taking one statement file or several, with the counts of
- * what they hold and a notice for the statements they leave out
+ * Files step of the statement import flow, taking one file or several, with the counts of what they
+ * hold and a notice for the statements they leave out
  *
- * The upload control stays under the staged files for adding more. Once the import has run, the
- * staged files are its record and can't be removed, and the control starts the next import
+ * For a format whose dates and amounts have no fixed shape, the settings for reading them sit under
+ * the staged files, where the user changes them. The upload control stays under the staged files for
+ * adding more. Once the import has run, the staged files are its record and can't be removed, and the
+ * control starts the next import
  */
 export function OfxFilesStep({
+  format,
+  readingChoices,
   stagedFiles,
   leftOutNotice,
   fixedAccount,
@@ -65,7 +71,7 @@ export function OfxFilesStep({
         type="file"
         multiple
         className="hidden"
-        accept=".ofx,.qfx"
+        accept={format.files.accept}
         onChange={async (event) => {
           const input = event.currentTarget
           try {
@@ -77,17 +83,13 @@ export function OfxFilesStep({
         disabled={isUploadBlocked}
       />
       <ImportUploadCard
-        title={isAddingFiles ? 'Add more statements' : 'Upload statements'}
-        hint={
-          fixedAccount
-            ? `Each file is an .ofx or .qfx statement for ${fixedAccount.name}, holding one statement.`
-            : 'Each file is an .ofx or .qfx statement. One file can hold several statements.'
-        }
+        title={isAddingFiles ? format.files.addTitle : format.files.uploadTitle}
+        hint={fixedAccount ? format.files.getFixedAccountHint(fixedAccount.name) : format.files.hint}
         processing={isProcessingFile}
         disabled={isUploadBlocked}
         rejection={fileIntakeError}
         blockReason={uploadBlockReason}
-        fileType={OFX_IMPORT_FILE_TYPE}
+        fileType={format.fileType}
         buttonRef={uploadCardRef}
         onClick={() => inputRef.current?.click()}
         onDropFile={(selection) => void handleOfxFileChange(selection)}
@@ -98,7 +100,7 @@ export function OfxFilesStep({
   return (
     <ImportFilesStepLayout
       title="Files"
-      description="Upload statements your bank exported as OFX or QFX, one file or several."
+      description={format.files.description}
       areStatsFlush
       stats={[
         { label: stagedFiles.length === 1 ? 'File' : 'Files', value: stagedFiles.length },
@@ -106,7 +108,10 @@ export function OfxFilesStep({
           label: 'Transactions',
           value: stagedFiles.reduce((total, { file }) => total + countOfxTransactions(file), 0),
         },
-        { label: 'Statements', value: stagedFiles.reduce((total, { file }) => total + file.statements.length, 0) },
+        {
+          label: `${format.files.statementNoun[0].toUpperCase()}${format.files.statementNoun.slice(1)}s`,
+          value: stagedFiles.reduce((total, { file }) => total + file.statements.length, 0),
+        },
       ]}
     >
       {/* The notice leads the step, since the setup column scrolls at some sizes and a notice below
@@ -127,10 +132,17 @@ export function OfxFilesStep({
           <ImportStagedFileTable
             isFlush
             files={stagedFiles}
-            describe={describeOfxFile}
+            describe={(file) => describeOfxFile(file, format.files.statementNoun)}
             onRemove={isImportFinished ? undefined : (file) => removeFileKeepingFocus(file.id)}
           />
         </div>
+      )}
+
+      {/* Grows in below the files it reads, and stays on screen, locked, as part of a finished import's record */}
+      {readingChoices && (
+        <OfxReveal show={stagedFiles.length > 0}>
+          <OfxReadingChoicesRows choices={readingChoices} disabled={isImportFinished} />
+        </OfxReveal>
       )}
 
       {/* Files are added to the staged ones, so the card sits with the list it adds to. A finished

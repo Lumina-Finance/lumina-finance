@@ -9,6 +9,7 @@ import type { ImportDataSource } from '@/pages/imports/types'
 const DATA_SOURCE_OPTIONS: DropdownOption[] = [
   { value: 'generic', label: 'CSV' },
   { value: 'ofx', label: 'OFX/QFX' },
+  { value: 'qif', label: 'QIF' },
   { value: 'firefly', label: 'Firefly III', badge: 'Beta' },
   { value: 'actual', label: 'Actual Budget', badge: 'Beta' },
 ]

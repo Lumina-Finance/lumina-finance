@@ -122,7 +122,7 @@ export function ImportReadingChoices({
  * @param isLabelDecorative - Hides the name from screen readers where the control already carries it
  *   as its own label
  */
-function ImportSettingRow({
+export function ImportSettingRow({
   label,
   labelFor,
   isLabelDecorative = false,

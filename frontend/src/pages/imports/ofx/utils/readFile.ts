@@ -172,7 +172,7 @@ function readAccountKind(kind: OfxStatementKind, account: OfxNode) {
 function mergeStatements(statements: OfxStatement[]) {
   const merged = new Map<string, OfxStatement>()
   for (const statement of statements) {
-    const key = `${statement.id}|${statement.currency}`
+    const key = `${statement.id}|${statement.currency ?? ''}`
     const existing = merged.get(key)
     if (existing) {
       const after = existing.transactions.length

@@ -43,12 +43,20 @@ export function ImportDateFormatControl({
   automatic,
   scan,
   disabled,
+  hasError = false,
+  placeholder = 'Choose the date format',
   onChange,
 }: {
   format: ImportDateFormat | null
   automatic: boolean
   scan: ImportDateChoiceScan
   disabled: boolean
+
+  /** Whether the user must still choose, which tints the field */
+  hasError?: boolean
+
+  /** What the field says while none is chosen, shortened where the field is narrow */
+  placeholder?: string
   onChange: (format: ImportDateFormat) => void
 }) {
   const formatLabelId = useId()
@@ -74,8 +82,9 @@ export function ImportDateFormatControl({
         value={selectedValue}
         onChange={(value) => onChange(value as ImportDateFormat)}
         labelledBy={formatLabelId}
-        placeholder="Choose the date format"
+        placeholder={placeholder}
         size="compact"
+        hasError={hasError}
         disabled={disabled}
       />
     </div>
@@ -88,12 +97,20 @@ export function ImportAmountFormatControl({
   automatic,
   scan,
   disabled,
+  hasError = false,
+  placeholder = 'Choose the amount format',
   onChange,
 }: {
   format: ImportAmountFormat | null
   automatic: boolean
   scan: ImportAmountFormatScan
   disabled: boolean
+
+  /** Whether the user must still choose, which tints the field */
+  hasError?: boolean
+
+  /** What the field says while none is chosen, shortened where the field is narrow */
+  placeholder?: string
   onChange: (format: ImportAmountFormat) => void
 }) {
   const formatLabelId = useId()
@@ -122,8 +139,9 @@ export function ImportAmountFormatControl({
         value={selectedValue}
         onChange={handlePresetChange}
         labelledBy={formatLabelId}
-        placeholder="Choose the amount format"
+        placeholder={placeholder}
         size="compact"
+        hasError={hasError}
         disabled={disabled}
       />
     </div>
