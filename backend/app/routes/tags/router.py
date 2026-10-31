@@ -1,4 +1,5 @@
 """Tag routes"""
+
 import uuid
 from typing import Annotated
 

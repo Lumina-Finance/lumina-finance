@@ -1,4 +1,5 @@
 """Transaction import tag lookup and creation"""
+
 import uuid
 from collections.abc import Iterable
 

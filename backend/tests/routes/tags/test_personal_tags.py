@@ -361,20 +361,29 @@ async def test_delete_tag_referenced_by_transaction_returns_409(client):
     acct_resp = await _create_account(client, headers)
     account_id = acct_resp.json()["id"]
 
-    cat_resp = await client.post("/categories", json={
-        "name": "Misc", "kind": "expense",
-    }, headers=headers)
+    cat_resp = await client.post(
+        "/categories",
+        json={
+            "name": "Misc",
+            "kind": "expense",
+        },
+        headers=headers,
+    )
     category_id = cat_resp.json()["id"]
 
-    txn_resp = await client.post("/transactions", json={
-        "account_id": account_id,
-        "category_id": category_id,
-        "dt": "2026-03-15",
-        "amount": -5000,
-        "currency": "CAD",
-        "tag_ids": [tag_id],
-        "merchant_id": await _get_system_merchant_id(client, headers),
-    }, headers=headers)
+    txn_resp = await client.post(
+        "/transactions",
+        json={
+            "account_id": account_id,
+            "category_id": category_id,
+            "dt": "2026-03-15",
+            "amount": -5000,
+            "currency": "CAD",
+            "tag_ids": [tag_id],
+            "merchant_id": await _get_system_merchant_id(client, headers),
+        },
+        headers=headers,
+    )
     assert txn_resp.status_code == 201
 
     resp = await client.delete(f"/tags/{tag_id}", headers=headers)
@@ -397,18 +406,27 @@ async def test_merge_tag_moves_transaction_references_and_deletes_source(client)
     replacement_id = replacement_resp.json()["id"]
 
     account_resp = await _create_account(client, headers)
-    category_resp = await client.post("/categories", json={
-        "name": "Misc", "kind": "expense",
-    }, headers=headers)
-    transaction_resp = await client.post("/transactions", json={
-        "account_id": account_resp.json()["id"],
-        "category_id": category_resp.json()["id"],
-        "dt": "2026-03-15",
-        "amount": -5000,
-        "currency": "CAD",
-        "tag_ids": [source_id],
-        "merchant_id": await _get_system_merchant_id(client, headers),
-    }, headers=headers)
+    category_resp = await client.post(
+        "/categories",
+        json={
+            "name": "Misc",
+            "kind": "expense",
+        },
+        headers=headers,
+    )
+    transaction_resp = await client.post(
+        "/transactions",
+        json={
+            "account_id": account_resp.json()["id"],
+            "category_id": category_resp.json()["id"],
+            "dt": "2026-03-15",
+            "amount": -5000,
+            "currency": "CAD",
+            "tag_ids": [source_id],
+            "merchant_id": await _get_system_merchant_id(client, headers),
+        },
+        headers=headers,
+    )
     transaction_id = transaction_resp.json()["id"]
 
     resp = await client.post(
@@ -438,18 +456,27 @@ async def test_merge_tag_deduplicates_existing_replacement_reference(client):
     replacement_id = replacement_resp.json()["id"]
 
     account_resp = await _create_account(client, headers)
-    category_resp = await client.post("/categories", json={
-        "name": "Misc", "kind": "expense",
-    }, headers=headers)
-    transaction_resp = await client.post("/transactions", json={
-        "account_id": account_resp.json()["id"],
-        "category_id": category_resp.json()["id"],
-        "dt": "2026-03-15",
-        "amount": -5000,
-        "currency": "CAD",
-        "tag_ids": [source_id, replacement_id],
-        "merchant_id": await _get_system_merchant_id(client, headers),
-    }, headers=headers)
+    category_resp = await client.post(
+        "/categories",
+        json={
+            "name": "Misc",
+            "kind": "expense",
+        },
+        headers=headers,
+    )
+    transaction_resp = await client.post(
+        "/transactions",
+        json={
+            "account_id": account_resp.json()["id"],
+            "category_id": category_resp.json()["id"],
+            "dt": "2026-03-15",
+            "amount": -5000,
+            "currency": "CAD",
+            "tag_ids": [source_id, replacement_id],
+            "merchant_id": await _get_system_merchant_id(client, headers),
+        },
+        headers=headers,
+    )
     transaction_id = transaction_resp.json()["id"]
 
     resp = await client.post(

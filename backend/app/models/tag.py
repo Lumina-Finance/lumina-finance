@@ -16,8 +16,11 @@ class Tag(Base):
     __table_args__ = (
         # Personal tags: unique per user (only when not group-scoped)
         Index(
-            "uq_tag_owner_name", "owner_id", "name",
-            unique=True, postgresql_where=text("group_id IS NULL"),
+            "uq_tag_owner_name",
+            "owner_id",
+            "name",
+            unique=True,
+            postgresql_where=text("group_id IS NULL"),
         ),
         # Group tags: unique per group
         UniqueConstraint("group_id", "name", name="uq_tag_group_name"),

@@ -59,9 +59,15 @@ async def test_a_category_of_that_name_already_written_is_skipped_by_the_insert(
         assert len(first) == 1
         assert list(second) == []
 
-        stored = (await session.execute(
-            select(Category.id).where(Category.owner_id == user_id),
-        )).scalars().all()
+        stored = (
+            (
+                await session.execute(
+                    select(Category.id).where(Category.owner_id == user_id),
+                )
+            )
+            .scalars()
+            .all()
+        )
         assert len(stored) == 1
 
 
@@ -114,12 +120,14 @@ async def test_a_merchant_written_after_the_lookup_is_reused_rather_than_failing
     """A lookup taken before another request committed is what a race leaves this holding."""
     async with TestSession() as session:
         user_id = (await _seed_user(session)).id
-        existing = (await insert_import_records_if_absent(
-            session,
-            Merchant,
-            [{"owner_id": user_id, "group_id": None, "name": "Amazon", "default_category_id": None}],
-            **_MERCHANT_CONFLICT,
-        ))[0]
+        existing = (
+            await insert_import_records_if_absent(
+                session,
+                Merchant,
+                [{"owner_id": user_id, "group_id": None, "name": "Amazon", "default_category_id": None}],
+                **_MERCHANT_CONFLICT,
+            )
+        )[0]
 
         # Empty, as it would be for an import whose merchants were loaded before that row landed
         merchants = ImportMerchants(existing_by_name_key={})
@@ -137,12 +145,14 @@ async def test_a_tag_written_after_the_lookup_is_reused_rather_than_failing_the_
     """Tags carry the same insert, so two imports both introducing one name do not fail either."""
     async with TestSession() as session:
         user_id = (await _seed_user(session)).id
-        existing = (await insert_import_records_if_absent(
-            session,
-            Tag,
-            [{"owner_id": user_id, "group_id": None, "name": "travel"}],
-            **_TAG_CONFLICT,
-        ))[0]
+        existing = (
+            await insert_import_records_if_absent(
+                session,
+                Tag,
+                [{"owner_id": user_id, "group_id": None, "name": "travel"}],
+                **_TAG_CONFLICT,
+            )
+        )[0]
 
         tags_by_name: dict[str, Tag] = {}
         stats = ImportStats()
