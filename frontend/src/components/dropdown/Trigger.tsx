@@ -92,48 +92,48 @@ export function DropdownHead({
 
   return (
     <>
-    <button
-      ref={headRef}
-      id={id}
-      data-testid={testId}
-      type="button"
-      role="combobox"
-      aria-expanded={open}
-      aria-haspopup="listbox"
-      aria-controls={open ? listId : undefined}
-      aria-labelledby={labelledBy}
-      aria-invalid={hasError || undefined}
-      disabled={disabled && !reason.isUnavailable}
-      className={joinClassNames('app-dropdown-head', SIZE_CLASS[size])}
-      {...reasonProps}
-    >
-      <span
-        className="flex min-w-0 flex-1 items-center gap-2"
-        style={{ color: hasVisibleSelection ? 'var(--app-text)' : 'var(--app-text-subtle)' }}
+      <button
+        ref={headRef}
+        id={id}
+        data-testid={testId}
+        type="button"
+        role="combobox"
+        aria-expanded={open}
+        aria-haspopup="listbox"
+        aria-controls={open ? listId : undefined}
+        aria-labelledby={labelledBy}
+        aria-invalid={hasError || undefined}
+        disabled={disabled && !reason.isUnavailable}
+        className={joinClassNames('app-dropdown-head', SIZE_CLASS[size])}
+        {...reasonProps}
       >
-        {selected?.icon && !emptySelectionIsBlank && (
-          <span className="flex shrink-0 items-center text-base leading-none" aria-hidden>
-            {selected.icon}
-          </span>
-        )}
-        {/* Only a real choice carries the full text, since a tooltip repeating the placeholder
+        <span
+          className="flex min-w-0 flex-1 items-center gap-2"
+          style={{ color: hasVisibleSelection ? 'var(--app-text)' : 'var(--app-text-subtle)' }}
+        >
+          {selected?.icon && !emptySelectionIsBlank && (
+            <span className="flex shrink-0 items-center text-base leading-none" aria-hidden>
+              {selected.icon}
+            </span>
+          )}
+          {/* Only a real choice carries the full text, since a tooltip repeating the placeholder
             says nothing the control is not already showing */}
-        <span className="min-w-0 truncate" title={hasVisibleSelection ? selected?.label : undefined}>
-          {emptySelectionIsBlank ? '' : selected?.label ?? placeholder}
+          <span className="min-w-0 truncate" title={hasVisibleSelection ? selected?.label : undefined}>
+            {emptySelectionIsBlank ? '' : (selected?.label ?? placeholder)}
+          </span>
+          {hasVisibleSelection && selected?.badge && <DropdownBadge label={selected.badge} />}
+          {hasVisibleSelection && selected?.count !== undefined && <DropdownCount count={selected.count} />}
         </span>
-        {hasVisibleSelection && selected?.badge && <DropdownBadge label={selected.badge} />}
-        {hasVisibleSelection && selected?.count !== undefined && <DropdownCount count={selected.count} />}
-      </span>
-      <motion.span
-        className="app-dropdown-chevron"
-        style={{ display: 'inline-flex' }}
-        animate={{ rotate: open ? 180 : 0 }}
-        transition={shouldReduceMotion ? DROPDOWN_INSTANT_TRANSITION : DROPDOWN_SPRING}
-      >
-        <ChevronDown size={16} aria-hidden />
-      </motion.span>
-    </button>
-    {reason.tooltip}
+        <motion.span
+          className="app-dropdown-chevron"
+          style={{ display: 'inline-flex' }}
+          animate={{ rotate: open ? 180 : 0 }}
+          transition={shouldReduceMotion ? DROPDOWN_INSTANT_TRANSITION : DROPDOWN_SPRING}
+        >
+          <ChevronDown size={16} aria-hidden />
+        </motion.span>
+      </button>
+      {reason.tooltip}
     </>
   )
 }

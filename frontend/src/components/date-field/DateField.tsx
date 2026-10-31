@@ -105,23 +105,30 @@ export default function DateField({
     setSegments(parseIsoDate(value))
   }, [value])
 
-  const commit = useCallback((next: DateSegments) => {
-    setSegments(next)
-    const iso = formatIsoDate(next)
-    lastEmittedRef.current = iso
-    onChange(iso, isPartlyTyped(next))
-  }, [onChange])
+  const commit = useCallback(
+    (next: DateSegments) => {
+      setSegments(next)
+      const iso = formatIsoDate(next)
+      lastEmittedRef.current = iso
+      onChange(iso, isPartlyTyped(next))
+    },
+    [onChange],
+  )
 
   const focusSegment = (segment: DateSegmentName) => {
     segmentRefs.current[segment]?.focus()
   }
 
-  useImperativeHandle(ref, () => ({
-    clear: () => {
-      commit(parseIsoDate(''))
-      focusSegment('year')
-    },
-  }), [commit])
+  useImperativeHandle(
+    ref,
+    () => ({
+      clear: () => {
+        commit(parseIsoDate(''))
+        focusSegment('year')
+      },
+    }),
+    [commit],
+  )
 
   /**
    * Moves focus to the neighbouring segment, staying put at the ends of the field
@@ -251,7 +258,9 @@ export default function DateField({
               </span>
             )}
             <input
-              ref={(node) => { segmentRefs.current[segment] = node }}
+              ref={(node) => {
+                segmentRefs.current[segment] = node
+              }}
               id={segment === 'year' ? id : undefined}
               type="text"
               inputMode="numeric"

@@ -1,9 +1,6 @@
 import { useId } from 'react'
 import { motion, useReducedMotion } from 'motion/react'
-import {
-  SEGMENTED_OPTION_GAP_REM,
-  SELECTOR_SPRING,
-} from '@/components/transactions/transaction-modal/constants'
+import { SEGMENTED_OPTION_GAP_REM, SELECTOR_SPRING } from '@/components/transactions/transaction-modal/constants'
 import { joinClassNames } from '@/utils/classNames'
 
 interface TransactionModalPillSelectorProps<T extends string> {
@@ -38,7 +35,10 @@ export default function TransactionModalPillSelector<T extends string>({
   return (
     <div
       id={id}
-      className={joinClassNames('app-segmented-control app-create-transaction-pill-selector relative isolate w-full overflow-hidden', disabled && 'cursor-not-allowed')}
+      className={joinClassNames(
+        'app-segmented-control app-create-transaction-pill-selector relative isolate w-full overflow-hidden',
+        disabled && 'cursor-not-allowed',
+      )}
       role="tablist"
       aria-label={ariaLabel}
       style={{ gap: `${optionGap}rem` }}
