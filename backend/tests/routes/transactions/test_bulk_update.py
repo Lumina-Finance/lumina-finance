@@ -964,8 +964,8 @@ async def test_bulk_update_rebuilds_the_target_from_a_row_that_was_already_there
     assert target_balances[date(2026, 8, 25)] == -1500
 
 
-async def test_bulk_update_refuses_a_move_that_leaves_a_row_without_an_exchange_rate(client):
-    """A row keeps its stored rate across a move, and without one it cannot change currency."""
+async def test_bulk_update_refuses_a_move_into_another_currency(client):
+    """A row cannot move into an account holding another currency."""
     await _seed_usd_currency()
     headers, source_id, category_id = await _setup_user_with_deps(client)
     target_id = (await _create_account(client, headers, name="US Savings", currency="USD")).json()["id"]
@@ -978,25 +978,31 @@ async def test_bulk_update_refuses_a_move_that_leaves_a_row_without_an_exchange_
     )
 
     assert resp.status_code == 422
-    assert "exchange rate" in resp.json()["detail"]
+    assert resp.json()["detail"] == "1 of these transactions cannot be changed: 1 moving to an account in another currency"
     assert str((await _read_transaction(txn)).account_id) == source_id
 
 
-async def test_bulk_update_moves_a_row_that_carries_an_exchange_rate(client):
-    """The same move is accepted once the row records a rate."""
+async def test_bulk_update_refuses_a_move_into_another_currency_whatever_rate_the_row_carries(client):
+    """A recorded rate does not let a row carry its unconverted amount into another currency's balance."""
     await _seed_usd_currency()
     headers, source_id, category_id = await _setup_user_with_deps(client)
     target_id = (await _create_account(client, headers, name="US Savings", currency="USD")).json()["id"]
     txn = (await _create_transaction(client, headers, source_id, category_id, currency="CAD", fx_rate=1.35)).json()["id"]
+    no_rate_row = (await _create_transaction(client, headers, source_id, category_id)).json()["id"]
+    target_balances_before = await _read_snapshots(target_id)
 
     resp = await client.patch(
         "/transactions/bulk",
-        json={"transaction_ids": [txn], "account_id": target_id},
+        json={"transaction_ids": [txn, no_rate_row], "account_id": target_id},
         headers=headers,
     )
 
-    assert resp.status_code == 200
-    assert str((await _read_transaction(txn)).account_id) == target_id
+    # The whole set is refused, and the destination has no balance taken from the unconverted amount
+    assert resp.status_code == 422
+    assert resp.json()["detail"] == "2 of these transactions cannot be changed: 2 moving to an account in another currency"
+    assert str((await _read_transaction(txn)).account_id) == source_id
+    assert str((await _read_transaction(no_rate_row)).account_id) == source_id
+    assert await _read_snapshots(target_id) == target_balances_before
 
 
 async def test_bulk_update_refuses_a_move_to_an_archived_account(client):
@@ -1573,8 +1579,28 @@ async def test_bulk_transfer_to_alone_leaves_a_selected_balance_adjustment_untou
     assert adjustment_row.counterparty_account_scope is None
 
 
-async def test_bulk_transfer_from_refuses_a_move_with_no_exchange_rate(client):
-    """A tracked own end is a move, so it needs a rate across currencies exactly as a plain move does."""
+async def test_bulk_update_refuses_a_mixed_batch_and_moves_neither_row(client):
+    """One row whose currency matches the destination does not carry along a row whose currency does not."""
+    await _seed_usd_currency()
+    headers, source_id, category_id = await _setup_user_with_deps(client)
+    target_id = (await _create_account(client, headers, name="US Savings", currency="USD")).json()["id"]
+    usd_row = (await _create_transaction(client, headers, source_id, category_id, currency="USD", fx_rate=1.35)).json()["id"]
+    cad_row = (await _create_transaction(client, headers, source_id, category_id)).json()["id"]
+
+    resp = await client.patch(
+        "/transactions/bulk",
+        json={"transaction_ids": [usd_row, cad_row], "account_id": target_id},
+        headers=headers,
+    )
+
+    assert resp.status_code == 422
+    assert resp.json()["detail"] == "1 of these transactions cannot be changed: 1 moving to an account in another currency"
+    assert str((await _read_transaction(usd_row)).account_id) == source_id
+    assert str((await _read_transaction(cad_row)).account_id) == source_id
+
+
+async def test_bulk_transfer_from_refuses_a_move_into_another_currency(client):
+    """A tracked own end is a move, so it is refused across currencies exactly as a plain move is."""
     await _seed_usd_currency()
     headers, chequing_id, _category_id, savings_id, transfer_id = await _setup_transfer_user(client)
     us_savings_id = (await _create_account(client, headers, name="US Savings", currency="USD")).json()["id"]
@@ -1590,12 +1616,12 @@ async def test_bulk_transfer_from_refuses_a_move_with_no_exchange_rate(client):
     )
 
     assert resp.status_code == 422
-    assert "exchange rate" in resp.json()["detail"]
+    assert resp.json()["detail"] == "1 of these transactions cannot be changed: 1 moving to an account in another currency"
     assert str((await _read_transaction(transfer)).account_id) == chequing_id
 
 
-async def test_bulk_transfer_from_moves_a_row_that_carries_an_exchange_rate(client):
-    """The same move is accepted once the row records a rate, exactly as a plain move is."""
+async def test_bulk_transfer_from_refuses_a_move_into_another_currency_whatever_rate_the_row_carries(client):
+    """A recorded rate does not let a tracked own end move across currencies, exactly as for a plain move."""
     await _seed_usd_currency()
     headers, chequing_id, _category_id, savings_id, transfer_id = await _setup_transfer_user(client)
     us_savings_id = (await _create_account(client, headers, name="US Savings", currency="USD")).json()["id"]
@@ -1619,12 +1645,12 @@ async def test_bulk_transfer_from_moves_a_row_that_carries_an_exchange_rate(clie
         headers=headers,
     )
 
-    assert resp.status_code == 200
-    assert str((await _read_transaction(transfer)).account_id) == us_savings_id
+    assert resp.status_code == 422
+    assert str((await _read_transaction(transfer)).account_id) == chequing_id
 
 
 async def test_bulk_transfer_to_records_an_account_in_another_currency(client):
-    """A far end only records, so it needs no rate even where a move to it would."""
+    """A far end only records, so it is accepted even where a move to that account is refused."""
     await _seed_usd_currency()
     headers, chequing_id, _category_id, savings_id, transfer_id = await _setup_transfer_user(client)
     us_savings_id = (await _create_account(client, headers, name="US Savings", currency="USD")).json()["id"]

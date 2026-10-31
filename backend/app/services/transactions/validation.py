@@ -1,4 +1,5 @@
 """Transaction related-entity validation services"""
+
 import uuid
 
 from fastapi import HTTPException, status
@@ -42,32 +43,50 @@ def validate_transaction_fx_rate_for_account_currency(
     transaction_currency: str,
     account_currency: str,
     fx_rate: float | None,
-    *,
-    fx_rate_change_requested: bool = False,
 ) -> None:
     """Ensure cross-currency transactions include an FX rate
 
-    Transactions can use a currency different from their account currency only
-    when the request supplies an FX rate. Update requests may ask to change the
-    FX rate in the same patch, so callers can mark that field as requested
+    A new transaction can use a currency different from its account currency
+    only when the request supplies an FX rate
 
     Args:
         transaction_currency: Currency stored on the transaction
         account_currency: Currency configured on the account
-        fx_rate: Existing or submitted FX rate
-        fx_rate_change_requested: Whether the current request includes the FX rate field
+        fx_rate: Submitted FX rate
 
     Raises:
         HTTPException: Cross-currency transaction is missing an FX rate
     """
     if transaction_currency == account_currency:
         return
-    if fx_rate is not None or fx_rate_change_requested:
+    if fx_rate is not None:
         return
 
     raise HTTPException(
         status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
         detail=_FX_RATE_REQUIRED_DETAIL,
+    )
+
+
+def validate_transaction_move_keeps_currency(transaction_currency: str, account_currency: str) -> None:
+    """Refuse moving a transaction into an account that holds another currency
+
+    A move keeps the transaction's amount, so a different-currency account would
+    take that amount as if it were its own currency and show a wrong balance
+
+    Args:
+        transaction_currency: Currency stored on the transaction
+        account_currency: Currency configured on the account it would move to
+
+    Raises:
+        HTTPException: The account holds a different currency
+    """
+    if transaction_currency == account_currency:
+        return
+
+    raise HTTPException(
+        status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+        detail=f"This transaction can't move to a {account_currency} account: only {transaction_currency} accounts can hold it",
     )
 
 
@@ -100,14 +119,11 @@ async def validate_transaction_category_access(
     query = select(Category).where(Category.id == category_id)
     if group_id is not None:
         query = query.where(
-            Category.is_system.is_(True)
-            | ((Category.owner_id == user_id) & (Category.group_id.is_(None)))
-            | (Category.group_id == group_id),
+            Category.is_system.is_(True) | ((Category.owner_id == user_id) & (Category.group_id.is_(None))) | (Category.group_id == group_id),
         )
     else:
         query = query.where(
-            Category.is_system.is_(True)
-            | ((Category.owner_id == user_id) & (Category.group_id.is_(None))),
+            Category.is_system.is_(True) | ((Category.owner_id == user_id) & (Category.group_id.is_(None))),
         )
 
     # Confirm the category exists inside the transaction account scope
@@ -144,14 +160,11 @@ async def validate_transaction_merchant_access(
     query = select(Merchant).where(Merchant.id == merchant_id)
     if group_id is not None:
         query = query.where(
-            Merchant.is_system.is_(True)
-            | ((Merchant.owner_id == user_id) & (Merchant.group_id.is_(None)))
-            | (Merchant.group_id == group_id),
+            Merchant.is_system.is_(True) | ((Merchant.owner_id == user_id) & (Merchant.group_id.is_(None))) | (Merchant.group_id == group_id),
         )
     else:
         query = query.where(
-            Merchant.is_system.is_(True)
-            | ((Merchant.owner_id == user_id) & (Merchant.group_id.is_(None))),
+            Merchant.is_system.is_(True) | ((Merchant.owner_id == user_id) & (Merchant.group_id.is_(None))),
         )
 
     # Confirm the merchant exists inside the transaction account scope

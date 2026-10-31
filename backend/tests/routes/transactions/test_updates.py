@@ -1,5 +1,3 @@
-
-
 import uuid
 from datetime import date
 
@@ -15,6 +13,7 @@ from tests.routes.transactions._helpers import (
     _create_merchant,
     _create_tag,
     _create_transaction,
+    _get,
     _seed_usd_currency,
     _setup_user_with_deps,
 )
@@ -64,14 +63,18 @@ async def test_patch_transaction_preserves_and_clears_legacy_long_notes(client):
     assert existing.json()["notes"] == legacy_notes
 
     updated = await client.patch(
-        f"/transactions/{transaction_id}", json={"amount": -9999}, headers=headers,
+        f"/transactions/{transaction_id}",
+        json={"amount": -9999},
+        headers=headers,
     )
     assert updated.status_code == 200
     assert updated.json()["amount"] == -9999
     assert updated.json()["notes"] == legacy_notes
 
     cleared = await client.patch(
-        f"/transactions/{transaction_id}", json={"notes": None}, headers=headers,
+        f"/transactions/{transaction_id}",
+        json={"notes": None},
+        headers=headers,
     )
     assert cleared.status_code == 200
     assert cleared.json()["amount"] == -9999
@@ -207,8 +210,8 @@ async def test_patch_transaction_updates_fx_rate(client):
     assert resp.json()["fx_rate"] == 1.4
 
 
-async def test_patch_transaction_move_account_with_fx_rate_succeeds(client):
-    """Moving to a different-currency account succeeds when fx_rate is provided."""
+async def test_patch_transaction_move_account_with_fx_rate_is_refused(client):
+    """Moving to a different-currency account is refused even when fx_rate is provided."""
     headers, account_id, category_id = await _setup_user_with_deps(client)
     await _seed_usd_currency()
 
@@ -223,9 +226,48 @@ async def test_patch_transaction_move_account_with_fx_rate_succeeds(client):
         headers=headers,
     )
 
+    assert resp.status_code == 422
+    assert resp.json()["detail"] == "This transaction can't move to a USD account: only CAD accounts can hold it"
+    stored = await client.get(f"/transactions/{txn_id}", headers=headers)
+    assert stored.json()["account_id"] == account_id
+
+
+async def test_patch_transaction_move_account_with_stored_fx_rate_is_refused(client):
+    """A rate already stored on the transaction no longer lets it move into another currency."""
+    headers, account_id, category_id = await _setup_user_with_deps(client)
+    await _seed_usd_currency()
+
+    cad_account = await _create_account(client, headers, name="Second CAD Account")
+    create_resp = await _create_transaction(client, headers, account_id, category_id, currency="USD", fx_rate=1.35)
+    txn_id = create_resp.json()["id"]
+
+    resp = await client.patch(
+        f"/transactions/{txn_id}",
+        json={"account_id": cad_account.json()["id"]},
+        headers=headers,
+    )
+
+    assert resp.status_code == 422
+    assert resp.json()["detail"] == "This transaction can't move to a CAD account: only USD accounts can hold it"
+    assert (await _get(client, headers, txn_id))["account_id"] == account_id
+
+
+async def test_patch_transaction_naming_its_current_account_with_a_stored_fx_rate_succeeds(client):
+    """Sending the account a foreign-currency transaction is already in moves nothing, so it is not refused."""
+    headers, account_id, category_id = await _setup_user_with_deps(client)
+    await _seed_usd_currency()
+    create_resp = await _create_transaction(client, headers, account_id, category_id, currency="USD", fx_rate=1.35)
+    txn_id = create_resp.json()["id"]
+
+    resp = await client.patch(
+        f"/transactions/{txn_id}",
+        json={"account_id": account_id, "notes": "x"},
+        headers=headers,
+    )
+
     assert resp.status_code == 200
-    assert resp.json()["account_id"] == usd_account.json()["id"]
-    assert resp.json()["fx_rate"] == 1.35
+    assert resp.json()["account_id"] == account_id
+    assert resp.json()["notes"] == "x"
 
 
 async def test_patch_transaction_updated_at_changes(client):
@@ -382,8 +424,8 @@ async def test_patch_transaction_empty_body_returns_unchanged(client):
     assert resp.json() == before.json()
 
 
-async def test_patch_transaction_different_currency_account_requires_fx_rate(client):
-    """Moving a transaction to an account with a different currency requires fx_rate."""
+async def test_patch_transaction_move_to_different_currency_account_is_refused(client):
+    """Moving a transaction to an account with a different currency is refused."""
     headers, account_id, category_id = await _setup_user_with_deps(client)
     await _seed_usd_currency()
 
@@ -395,7 +437,8 @@ async def test_patch_transaction_different_currency_account_requires_fx_rate(cli
     resp = await client.patch(f"/transactions/{txn_id}", json={"account_id": usd_account.json()["id"]}, headers=headers)
 
     assert resp.status_code == 422
-    assert resp.json()["detail"] == "fx_rate is required when transaction currency differs from account currency"
+    assert resp.json()["detail"] == "This transaction can't move to a USD account: only CAD accounts can hold it"
+    assert (await _get(client, headers, txn_id))["account_id"] == account_id
 
 
 async def test_patch_transaction_not_found_returns_404(client):

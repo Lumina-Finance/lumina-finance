@@ -29,8 +29,8 @@ from app.services.transactions.validation import (
     get_valid_transaction_tag_ids,
     validate_transaction_category_access,
     validate_transaction_counterparty_account,
-    validate_transaction_fx_rate_for_account_currency,
     validate_transaction_merchant_access,
+    validate_transaction_move_keeps_currency,
 )
 
 
@@ -92,12 +92,9 @@ async def update_transaction_and_get_response(
         )
         validate_transaction_account_is_not_archived(new_account)
         account_group_id = new_account.group_id
-        validate_transaction_fx_rate_for_account_currency(
-            txn.currency,
-            new_account.currency,
-            txn.fx_rate,
-            fx_rate_change_requested="fx_rate" in changed_fields,
-        )
+        # Naming the account it is already in moves nothing, so a stored currency mismatch is not asked about
+        if new_account.id != txn.account_id:
+            validate_transaction_move_keeps_currency(txn.currency, new_account.currency)
         await _refuse_move_into_held_bank_transaction(db, txn, new_account)
 
     # Confirm changed category and merchant records belong to the selected account group
