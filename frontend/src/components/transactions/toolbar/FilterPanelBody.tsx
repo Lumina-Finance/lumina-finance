@@ -1,6 +1,7 @@
 import { useId, useState, type Dispatch, type SetStateAction } from 'react'
 import { AnimatePresence, motion, useReducedMotion } from 'motion/react'
 import DateField from '@/components/date-field/DateField'
+import { FieldError } from '@/components/forms/FieldError'
 import type { OptionItem } from '@/components/filters/OptionList'
 import { ActiveFilterChips } from '@/components/filters/ActiveFilterChips'
 import { MultiSelectChecklist } from '@/components/filters/MultiSelectChecklist'
@@ -318,16 +319,7 @@ function DateFacetInput({
       {/* Both label rows share the message's line height, so the fields stay level whichever one carries it */}
       <div className="flex items-baseline justify-between gap-3">
         <span className="shrink-0 leading-5">{label}</span>
-        {message && (
-          <p
-            id={messageId}
-            role="alert"
-            className="text-right text-xs font-medium leading-5 text-balance"
-            style={{ color: 'var(--app-negative)' }}
-          >
-            {message}
-          </p>
-        )}
+        <FieldError message={message} id={messageId} className="text-balance" />
       </div>
       <DateField
         ariaLabel={label}
