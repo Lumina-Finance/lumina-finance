@@ -2327,8 +2327,7 @@ async def _assert_tags_differing_only_in_capitals_are_refused(database_name: str
                 async with engine.begin() as conn:
                     await conn.execute(
                         text(
-                            "INSERT INTO tags (id, owner_id, group_id, name)"
-                            " VALUES (gen_random_uuid(), :owner_id, :group_id, :name)",
+                            "INSERT INTO tags (id, owner_id, group_id, name) VALUES (gen_random_uuid(), :owner_id, :group_id, :name)",
                         ),
                         {"owner_id": owner_id, "group_id": group_id, "name": name},
                     )
@@ -2435,8 +2434,7 @@ async def _seed_tags_differing_only_in_capitals(database_name: str) -> dict[str,
             ):
                 await conn.execute(
                     text(
-                        "INSERT INTO tags (id, owner_id, group_id, name, created_at)"
-                        " VALUES (:id, :owner_id, :group_id, :name, :created_at)",
+                        "INSERT INTO tags (id, owner_id, group_id, name, created_at) VALUES (:id, :owner_id, :group_id, :name, :created_at)",
                     ),
                     {
                         "id": ids[tag_key],
