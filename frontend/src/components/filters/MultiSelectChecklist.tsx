@@ -55,7 +55,7 @@ export function MultiSelectChecklist({
     <div className={joinClassNames('flex flex-col gap-1', fillHeight && 'min-h-0 flex-1')}>
       <SearchField value={search} placeholder={searchPlaceholder} onChange={setSearch} />
 
-      <ul className={getFilterOptionListClass(fillHeight, hasDetails)}>
+      <ul className={getFilterOptionListClass(fillHeight, hasDetails, grouped !== null)}>
         {filtered.length === 0 ? (
           <li className="px-2 py-2 text-xs" style={{ color: 'var(--app-text-subtle)' }}>
             No matches
@@ -65,7 +65,12 @@ export function MultiSelectChecklist({
             <li key={group.label}>
               <div
                 className="sticky top-0 z-10 px-2 py-1 text-[0.625rem] font-semibold uppercase tracking-wide"
-                style={{ color: 'var(--app-text-subtle)', background: 'var(--app-input-bg)' }}
+                // Opaque so rows scrolling under it stay hidden, in the glass panel's own colour where the
+                // list sits on one
+                style={{
+                  color: 'var(--app-text-subtle)',
+                  background: 'var(--app-checklist-heading-bg, var(--app-input-bg))',
+                }}
               >
                 {group.label}
               </div>
