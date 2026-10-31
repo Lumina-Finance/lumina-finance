@@ -1,4 +1,5 @@
 """Transaction deletion service"""
+
 import uuid
 from datetime import date
 
@@ -32,7 +33,9 @@ async def delete_transaction_for_user(
 
     The service loads the writable transaction, validates its parent account,
     removes attached tag assignments, deletes the transaction row, rebuilds
-    affected account snapshots, and marks the cache scope changed
+    affected account snapshots, and marks the cache scope changed. Its refund link, if any, goes
+    with it and the transaction on the other side stays. Deleting both is a bulk delete that
+    chooses the linked ones
 
     Args:
         db: Active database session
@@ -44,7 +47,11 @@ async def delete_transaction_for_user(
     """
     # Take the same row lock before tag deletion so an edit and delete cannot interleave
     txn = await check_transaction_access(
-        db, transaction_id, user.id, PermissionLevel.WRITE, lock_for_update=True,
+        db,
+        transaction_id,
+        user.id,
+        PermissionLevel.WRITE,
+        lock_for_update=True,
     )
 
     # Load the parent account for archive validation and cache scope updates

@@ -33,6 +33,8 @@ export const accountKeys = {
 export const transactionKeys = {
   all: ['transactions'] as const,
   detail: (transactionId: string | undefined) => ['transactions', transactionId] as const,
+  refundLinkCandidates: (transactionId: string | undefined, searchText: string, filters: Record<string, unknown>) =>
+    ['transactions', 'refund-link-candidates', transactionId, searchText, filters] as const,
   list: (filters: Record<string, unknown>) => ['transactions', 'list', filters] as const,
   infinite: (filters: Record<string, unknown>, pageSize: number) =>
     ['transactions', 'infinite', filters, pageSize] as const,

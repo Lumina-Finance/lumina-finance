@@ -1,9 +1,11 @@
 """Transaction listing query builders"""
+
 import uuid
+from collections.abc import Sequence
 from datetime import date
 
 import sqlalchemy as sa
-from sqlalchemy import select
+from sqlalchemy import ColumnElement, select
 from sqlalchemy.dialects.postgresql import aggregate_order_by
 from sqlalchemy.orm import MappedColumn
 
@@ -61,6 +63,8 @@ def build_transaction_listing_query(
     sort_order: str,
     limit: int,
     offset: int,
+    extra_conditions: Sequence[ColumnElement[bool]] = (),
+    nearest_amount: tuple[int, str] | None = None,
 ):
     """Build the SQL query for a filtered transaction page
 
@@ -82,12 +86,17 @@ def build_transaction_listing_query(
         sort_order: Sort direction, either ``asc`` or ``desc``
         limit: Maximum number of transactions to return
         offset: Number of transactions to skip before returning rows
+        extra_conditions: Further conditions every row must meet. They may name the category, which a
+            date-sorted query has joined
+        nearest_amount: Optional amount magnitude in minor units and its currency. Date sorting then puts the
+            transactions in that currency with exactly that magnitude first, then the nearest magnitudes,
+            and then the other currencies, each group newest first
 
     Returns:
         A SQLAlchemy selectable for the requested transaction page
     """
     accessible_account_ids_query = accessible_account_ids_subquery(user_id)
-    transaction_query = select(Transaction).where(Transaction.account_id.in_(accessible_account_ids_query))
+    transaction_query = select(Transaction).where(Transaction.account_id.in_(accessible_account_ids_query), *extra_conditions)
 
     # Each multi-value filter keeps a transaction when its field matches any of the selected values
     list_filters = {
@@ -123,8 +132,7 @@ def build_transaction_listing_query(
     if sort_by == "dt":
         tag_sort_subquery = _transaction_tag_sort_subquery()
         transaction_query = (
-            transaction_query
-            .join(Category, Category.id == Transaction.category_id)
+            transaction_query.join(Category, Category.id == Transaction.category_id)
             .outerjoin(Merchant, Transaction.merchant_id == Merchant.id)
             .outerjoin(tag_sort_subquery, tag_sort_subquery.c.transaction_id == Transaction.id)
         )
@@ -137,7 +145,10 @@ def build_transaction_listing_query(
         transaction_query = transaction_query.where(Transaction.notes.ilike(search_pattern) | Merchant.name.ilike(search_pattern))
 
     if sort_by == "dt":
-        transaction_query = transaction_query.order_by(*_date_sort_order(sort_order, tag_sort_subquery.c.tag_names))
+        transaction_query = transaction_query.order_by(
+            *_nearest_amount_order(nearest_amount),
+            *_date_sort_order(sort_order, tag_sort_subquery.c.tag_names),
+        )
     else:
         sort_column = _SORT_FIELDS[sort_by]
         primary_order = sort_column.desc() if sort_order == "desc" else sort_column.asc()
@@ -155,11 +166,7 @@ def _transaction_ids_with_tags(tag_ids: list[uuid.UUID], tag_match: str):
     Returns:
         A SQLAlchemy select of transaction ids that match the requested tags
     """
-    tag_id_query = (
-        select(TransactionTag.transaction_id)
-        .where(TransactionTag.tag_id.in_(tag_ids))
-        .group_by(TransactionTag.transaction_id)
-    )
+    tag_id_query = select(TransactionTag.transaction_id).where(TransactionTag.tag_id.in_(tag_ids)).group_by(TransactionTag.transaction_id)
 
     # Requiring every tag means the row must join to each distinct selected tag exactly once
     if tag_match == "all":
@@ -198,6 +205,27 @@ def _transaction_tag_sort_subquery():
         .join(Tag, Tag.id == TransactionTag.tag_id)
         .group_by(TransactionTag.transaction_id)
         .subquery()
+    )
+
+
+def _nearest_amount_order(nearest_amount: tuple[int, str] | None):
+    """Build the ordering that puts the amounts nearest a magnitude first
+
+    Amounts are not comparable across currencies, so a transaction in another currency sorts after every
+    one in the requested currency. An exact match has a distance of zero, so it comes first
+
+    Args:
+        nearest_amount: Optional amount magnitude in minor units and its currency
+
+    Returns:
+        SQLAlchemy ordering expressions, empty when no amount is given
+    """
+    if nearest_amount is None:
+        return ()
+    magnitude, currency = nearest_amount
+    return (
+        sa.case((Transaction.currency == currency, 0), else_=1),
+        sa.case((Transaction.currency == currency, sa.func.abs(sa.func.abs(Transaction.amount) - magnitude)), else_=0),
     )
 
 

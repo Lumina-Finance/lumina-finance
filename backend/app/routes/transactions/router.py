@@ -34,6 +34,7 @@ from app.schemas.transaction import (
     BulkUpdateTransactionsRequest,
     BulkUpdateTransactionsResponse,
     CreateTransactionRequest,
+    LinkRefundRequest,
     TransactionResponse,
     TransactionsOverview,
     UpdateTransactionRequest,
@@ -58,6 +59,8 @@ from app.services.transactions.bulk_update import bulk_update_transactions
 from app.services.transactions.creation import create_transaction_and_get_response
 from app.services.transactions.deletion import bulk_delete_transactions, delete_transaction_for_user
 from app.services.transactions.detail import get_transaction_response_for_user
+from app.services.transactions.link_candidates import CandidateFilters, list_refund_link_candidates
+from app.services.transactions.links import link_existing_refund, unlink_refund
 from app.services.transactions.listing import list_transaction_responses
 from app.services.transactions.overview import get_transactions_overview as get_transactions_overview_response
 from app.services.transactions.update import update_transaction_and_get_response
@@ -167,6 +170,65 @@ async def list_transactions(
         limit=limit,
         offset=offset,
     )
+
+
+@router.get("/{transaction_id}/refund-link-candidates", response_model=list[TransactionResponse])
+async def list_refund_link_candidates_route(
+    transaction_id: uuid.UUID,
+    user: Annotated[User, Depends(get_current_user)],
+    db: Annotated[AsyncSession, Depends(get_db)],
+    account_id: Annotated[list[uuid.UUID] | None, Query()] = None,
+    category_id: Annotated[list[uuid.UUID] | None, Query()] = None,
+    merchant_id: Annotated[list[uuid.UUID] | None, Query()] = None,
+    currency: Annotated[list[str] | None, Query()] = None,
+    tag_id: Annotated[list[uuid.UUID] | None, Query()] = None,
+    tag_match: Annotated[str, Query()] = "all",
+    min_amount: Annotated[int | None, Query(ge=0)] = None,
+    max_amount: Annotated[int | None, Query(ge=0)] = None,
+    amount_currency: Annotated[str | None, Query(min_length=3, max_length=3)] = None,
+    from_date: Annotated[date | None, Query()] = None,
+    to_date: Annotated[date | None, Query()] = None,
+    search_text: Annotated[str | None, Query(alias="q", max_length=200)] = None,
+    unlinked_id: Annotated[list[uuid.UUID] | None, Query()] = None,
+):
+    """Return the transactions this one can be linked to as a refund or as the expense it refunds
+
+    Args:
+        transaction_id: The transaction a link is wanted for, from the route path
+        user: Authenticated user
+        db: Active database session
+        account_id: Optional accounts to keep
+        category_id: Optional categories to keep
+        merchant_id: Optional merchants to keep
+        currency: Optional transaction currencies to keep
+        tag_id: Optional tags to filter by, combined per ``tag_match``
+        tag_match: ``all`` to require every selected tag, ``any`` to require at least one
+        min_amount: Optional inclusive lower bound on the amount magnitude in ``amount_currency`` minor units
+        max_amount: Optional inclusive upper bound on the amount magnitude in ``amount_currency`` minor units
+        amount_currency: Currency the amount bounds are expressed in, required when a bound is set
+        from_date: Optional inclusive start date for transaction dates
+        to_date: Optional inclusive end date for transaction dates
+        search_text: Optional text to find in merchant names and notes
+        unlinked_id: Optional refunds whose link the open edit window will remove on Save, offered as unlinked
+
+    Returns:
+        The candidates linking would accept, exact amount first and then the nearest, newest first among
+        equals, empty when it can't be linked
+    """
+    filters = CandidateFilters(
+        account_ids=account_id,
+        category_ids=category_id,
+        merchant_ids=merchant_id,
+        currencies=currency,
+        tag_ids=tag_id,
+        tag_match=tag_match,
+        min_amount=min_amount,
+        max_amount=max_amount,
+        amount_currency=amount_currency,
+        from_date=from_date,
+        to_date=to_date,
+    )
+    return await list_refund_link_candidates(db, user, transaction_id, search_text, filters, unlinked_id)
 
 
 @router.get("/{transaction_id}", response_model=TransactionResponse)
@@ -560,6 +622,50 @@ async def update_transaction(
         Updated transaction response with current related display data
     """
     return await update_transaction_and_get_response(db, user, transaction_id, data)
+
+
+@router.post("/{transaction_id}/refund-link", status_code=status.HTTP_204_NO_CONTENT)
+async def link_refund_route(
+    transaction_id: uuid.UUID,
+    data: LinkRefundRequest,
+    user: Annotated[User, Depends(get_current_user)],
+    db: Annotated[AsyncSession, Depends(get_db)],
+):
+    """Link an existing transaction as the refund of an expense
+
+    Both transactions stay as they are and no total changes. The refund is the transaction in the path
+
+    Args:
+        transaction_id: The refund, from the route path
+        data: The expense it refunds
+        user: Authenticated user linking them
+        db: Active database session
+
+    Returns:
+        None
+    """
+    await link_existing_refund(db, user, transaction_id, data.original_transaction_id)
+
+
+@router.delete("/{transaction_id}/refund-link", status_code=status.HTTP_204_NO_CONTENT)
+async def unlink_refund_route(
+    transaction_id: uuid.UUID,
+    user: Annotated[User, Depends(get_current_user)],
+    db: Annotated[AsyncSession, Depends(get_db)],
+):
+    """Remove the link between a refund and the expense it refunds
+
+    Both transactions stay as they are. The refund is the transaction in the path
+
+    Args:
+        transaction_id: The refund, from the route path
+        user: Authenticated user unlinking the refund
+        db: Active database session
+
+    Returns:
+        None
+    """
+    await unlink_refund(db, user, transaction_id)
 
 
 @router.delete("/{transaction_id}", status_code=status.HTTP_204_NO_CONTENT)

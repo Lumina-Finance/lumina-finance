@@ -32,6 +32,8 @@ function createTransaction(overrides: Partial<Transaction>): Transaction {
     notes: null,
     counterparty_account_id: null,
     counterparty_account_scope: null,
+    refund_of_transaction_id: null,
+    refund_transaction_ids: [],
     created_at: '2026-06-01T00:00:00Z',
     updated_at: '2026-06-01T00:00:00Z',
     tag_ids: [],
@@ -122,7 +124,9 @@ describe('transaction date-group helpers', () => {
 
 describe('getDayTotalFxStatusMessage', () => {
   it('says an upcoming total waits for a published rate, and a past one could not convert', () => {
-    expect(getDayTotalFxStatusMessage(true)).toBe("This total leaves out amounts whose exchange rate isn't published yet")
+    expect(getDayTotalFxStatusMessage(true)).toBe(
+      "This total leaves out amounts whose exchange rate isn't published yet",
+    )
     expect(getDayTotalFxStatusMessage(false)).toContain('could not be converted')
   })
 })

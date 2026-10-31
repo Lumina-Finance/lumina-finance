@@ -64,6 +64,8 @@ export function buildPreviewTransactionRow(input: PreviewTransactionInput): Prev
     notes: input.notes,
     counterparty_account_id: input.counterpartyAccount?.id ?? null,
     counterparty_account_scope: input.counterpartyScope,
+    refund_of_transaction_id: null,
+    refund_transaction_ids: [],
     created_at: input.timestamp,
     updated_at: input.timestamp,
     tag_ids: tagIds,
@@ -80,9 +82,10 @@ export function buildPreviewTransactionRow(input: PreviewTransactionInput): Prev
     counterpartyAccountName: input.counterpartyAccount?.name,
 
     // The two branches keep one amount type across the three amount fields, as the row's type requires
-    transaction: typeof amount === 'bigint'
-      ? { ...transaction, amount, account_amount: amount, base_currency_amount: amount }
-      : { ...transaction, amount, account_amount: amount, base_currency_amount: amount },
+    transaction:
+      typeof amount === 'bigint'
+        ? { ...transaction, amount, account_amount: amount, base_currency_amount: amount }
+        : { ...transaction, amount, account_amount: amount, base_currency_amount: amount },
   }
 }
 

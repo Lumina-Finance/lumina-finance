@@ -2,7 +2,8 @@ import { useCallback, useRef, type Dispatch, type SetStateAction } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
 import { ApiError } from '@/api/auth'
 import {
-  applyTransactionDeletion,
+  applyBulkTransactionDeletion,
+  useBulkDeleteTransactions,
   useDeleteTransaction,
   type Transaction,
 } from '@/api/transactions'
@@ -10,6 +11,9 @@ import { MIN_DELETE_TRANSACTION_LOADING_MS } from '@/components/transactions/tra
 
 interface UseTransactionDeletionOptions {
   transaction?: Transaction
+
+  /** The transactions linked to the open one, which deleting with its linked ones takes too */
+  linkedIds: string[]
   readOnly: boolean
   closeModal: () => void
   setSubmitError: Dispatch<SetStateAction<string>>
@@ -18,7 +22,9 @@ interface UseTransactionDeletionOptions {
 
 interface TransactionDeletionState {
   deleteLoading: boolean
-  deleteTransaction: () => Promise<boolean>
+
+  /** Deletes the open transaction, and the transactions linked to it when deleteLinked is set */
+  deleteTransaction: (deleteLinked?: boolean) => Promise<boolean>
   applyPendingDeletion: () => void
 }
 
@@ -29,29 +35,47 @@ interface TransactionDeletionState {
  */
 export function useTransactionDeletion({
   transaction,
+  linkedIds,
   readOnly,
   closeModal,
   setSubmitError,
   setSubmitErrorTitle,
 }: UseTransactionDeletionOptions): TransactionDeletionState {
   const queryClient = useQueryClient()
-  const deleteMutation = useDeleteTransaction({ minimumPendingMs: MIN_DELETE_TRANSACTION_LOADING_MS, deferRemoval: true })
+  const deleteMutation = useDeleteTransaction({
+    minimumPendingMs: MIN_DELETE_TRANSACTION_LOADING_MS,
+    deferRemoval: true,
+  })
+  const bulkDeleteMutation = useBulkDeleteTransactions({
+    minimumPendingMs: MIN_DELETE_TRANSACTION_LOADING_MS,
+    deferRemoval: true,
+  })
 
   // Holds a completed deletion until the modal has left so its row collapses in view rather than behind
   // the closing modal
-  const pendingDeletionRef = useRef<{ id: string; accountId: string } | null>(null)
+  const pendingDeletionRef = useRef<{ ids: string[]; accountIds: string[] } | null>(null)
 
-  const deleteLoading = deleteMutation.isPending
+  const deleteLoading = deleteMutation.isPending || bulkDeleteMutation.isPending
 
-  const deleteTransaction = async () => {
+  const deleteTransaction = async (deleteLinked = false) => {
     if (!transaction || readOnly) return false
 
     setSubmitError('')
     setSubmitErrorTitle('')
 
     try {
-      await deleteMutation.mutateAsync(transaction.id)
-      pendingDeletionRef.current = { id: transaction.id, accountId: transaction.account_id }
+      // Deleting the linked ones too is the bulk delete choosing them, which also says which accounts
+      // the linked ones were in
+      if (deleteLinked && linkedIds.length > 0) {
+        const result = await bulkDeleteMutation.mutateAsync({
+          transactionIds: [transaction.id],
+          linkedIds,
+        })
+        pendingDeletionRef.current = { ids: [transaction.id, ...linkedIds], accountIds: result.affected_account_ids }
+      } else {
+        await deleteMutation.mutateAsync(transaction.id)
+        pendingDeletionRef.current = { ids: [transaction.id], accountIds: [transaction.account_id] }
+      }
       closeModal()
       return true
     } catch (err) {
@@ -66,7 +90,7 @@ export function useTransactionDeletion({
     if (!pending) return
 
     pendingDeletionRef.current = null
-    applyTransactionDeletion(queryClient, pending.id, pending.accountId)
+    applyBulkTransactionDeletion(queryClient, pending.ids, pending.accountIds)
   }, [queryClient])
 
   return { deleteLoading, deleteTransaction, applyPendingDeletion }

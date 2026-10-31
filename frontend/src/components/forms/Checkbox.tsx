@@ -1,6 +1,11 @@
 import type React from 'react'
 import { Check } from 'lucide-react'
 
+// The tick and the dash are always drawn and ease in and out with the fill, stacked in the box so it keeps its size
+const markClassName = 'absolute transition-[opacity,scale] motion-reduce:transition-none'
+const shownClassName = 'scale-100 opacity-100'
+const hiddenClassName = 'scale-50 opacity-0'
+
 /**
  * Checkbox button, supporting a mixed state for a selection that is only partly checked
  *
@@ -34,7 +39,7 @@ export function Checkbox({
       role="checkbox"
       aria-checked={indeterminate ? 'mixed' : checked}
       aria-label={label}
-      className="flex h-5 w-5 items-center justify-center rounded-lg transition-[background-color,border-color,opacity] app-field-focus-visible"
+      className="relative flex h-5 w-5 items-center justify-center rounded-lg transition-[background-color,border-color,opacity] motion-reduce:transition-none app-field-focus-visible"
       style={{
         background: checked || indeterminate ? 'var(--app-accent)' : uncheckedBackground,
         border: `1px solid ${checked || indeterminate ? 'var(--app-accent)' : 'var(--app-border-strong)'}`,
@@ -45,10 +50,17 @@ export function Checkbox({
       onClick={onChange}
       disabled={disabled}
     >
-      {checked && <Check size={13} strokeWidth={3} aria-hidden />}
-      {!checked && indeterminate && (
-        <span className="h-0.5 w-2.5 rounded-full" style={{ background: 'currentColor' }} aria-hidden />
-      )}
+      <Check
+        className={`${markClassName} ${checked ? shownClassName : hiddenClassName}`}
+        size={13}
+        strokeWidth={3}
+        aria-hidden
+      />
+      <span
+        className={`${markClassName} h-0.5 w-2.5 rounded-full ${!checked && indeterminate ? shownClassName : hiddenClassName}`}
+        style={{ background: 'currentColor' }}
+        aria-hidden
+      />
     </button>
   )
 }

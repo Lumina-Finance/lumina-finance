@@ -1,4 +1,5 @@
 """Recent activity dashboard widget service"""
+
 import uuid
 from datetime import datetime, timedelta
 
@@ -8,6 +9,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.config.dashboard import DASHBOARD_RECENT_TRANSACTIONS_LIMIT
 from app.models.transaction import Transaction
 from app.schemas.transaction import TransactionResponse
+from app.services.transactions.links import get_transaction_links_batch
 from app.services.transactions.response_helpers import (
     build_transaction_response,
     get_merchant_names_batch,
@@ -54,12 +56,18 @@ async def get_recent_transactions(
     tag_ids_by_transaction_id = await get_tag_ids_batch(db, [transaction.id for transaction in transactions])
     tag_summaries_by_transaction_id = await get_tags_batch(db, [transaction.id for transaction in transactions])
     merchant_names_by_id = await get_merchant_names_batch(db, [transaction.merchant_id for transaction in transactions])
+    original_by_refund, refunds_by_original = await get_transaction_links_batch(
+        db,
+        [transaction.id for transaction in transactions],
+    )
     return [
         build_transaction_response(
             transaction,
             tag_ids_by_transaction_id[transaction.id],
             merchant_names_by_id.get(transaction.merchant_id) if transaction.merchant_id else None,
             tag_summaries_by_transaction_id[transaction.id],
+            refund_of_transaction_id=original_by_refund.get(transaction.id),
+            refund_transaction_ids=refunds_by_original.get(transaction.id),
         )
         for transaction in transactions
     ]

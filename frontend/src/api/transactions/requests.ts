@@ -1,16 +1,17 @@
-import { authenticatedFetch } from '@/api/client';
-import { buildQueryString, type QueryStringValue } from '@/api/utils/queryString';
+import { authenticatedFetch } from '@/api/client'
+import { buildQueryString, type QueryStringValue } from '@/api/utils/queryString'
 import type {
   BulkDeleteTransactionsResult,
   BulkUpdateTransactionsPayload,
   BulkUpdateTransactionsResult,
   CreateTransactionPayload,
+  LinkCandidateFilters,
   OverviewFilters,
   Transaction,
   TransactionFilters,
   TransactionsOverview,
   UpdateTransactionPayload,
-} from '@/api/transactions/types';
+} from '@/api/transactions/types'
 
 /**
  * Fetches one transaction by ID
@@ -18,7 +19,7 @@ import type {
  * @param signal - Aborts the request when the load that asked for it is abandoned
  */
 export function fetchTransaction(transactionId: string, signal?: AbortSignal) {
-  return authenticatedFetch<Transaction>(`/transactions/${transactionId}`, { signal });
+  return authenticatedFetch<Transaction>(`/transactions/${transactionId}`, { signal })
 }
 
 /**
@@ -30,7 +31,7 @@ export function fetchTransactions(filters: TransactionFilters = {}, signal?: Abo
   return authenticatedFetch<Transaction[]>(
     '/transactions' + buildQueryString(filters as Record<string, QueryStringValue>),
     { signal },
-  );
+  )
 }
 
 /**
@@ -51,7 +52,7 @@ export function fetchTransactionPage(
       offset,
     },
     signal,
-  );
+  )
 }
 
 /**
@@ -63,7 +64,7 @@ export function fetchTransactionsOverview(filters: OverviewFilters = {}, signal?
   return authenticatedFetch<TransactionsOverview>(
     '/transactions/overview' + buildQueryString(filters as Record<string, QueryStringValue>),
     { signal },
-  );
+  )
 }
 
 /**
@@ -73,7 +74,7 @@ export function createTransaction(payload: CreateTransactionPayload) {
   return authenticatedFetch<Transaction>('/transactions', {
     method: 'POST',
     body: JSON.stringify(payload),
-  });
+  })
 }
 
 /**
@@ -83,7 +84,7 @@ export function updateTransaction({ id, patch }: { id: string; patch: UpdateTran
   return authenticatedFetch<Transaction>(`/transactions/${id}`, {
     method: 'PATCH',
     body: JSON.stringify(patch),
-  });
+  })
 }
 
 /**
@@ -93,22 +94,63 @@ export function bulkUpdateTransactions(payload: BulkUpdateTransactionsPayload) {
   return authenticatedFetch<BulkUpdateTransactionsResult>('/transactions/bulk', {
     method: 'PATCH',
     body: JSON.stringify(payload),
-  });
+  })
 }
 
 /**
- * Deletes several transactions in one request, all of them or none
+ * Deletes several transactions in one request, all of them or none. A link to a transaction left
+ * out goes with the one deleted
  */
 export function bulkDeleteTransactions(transactionIds: string[]) {
   return authenticatedFetch<BulkDeleteTransactionsResult>('/transactions/bulk/delete', {
     method: 'POST',
     body: JSON.stringify({ transaction_ids: transactionIds }),
-  });
+  })
+}
+
+/**
+ * Links an existing transaction as the refund of an expense, leaving both as they are
+ */
+export function linkRefund(refundId: string, originalTransactionId: string) {
+  return authenticatedFetch<void>(`/transactions/${refundId}/refund-link`, {
+    method: 'POST',
+    body: JSON.stringify({ original_transaction_id: originalTransactionId }),
+  })
+}
+
+/**
+ * Fetches the transactions one can be linked to: the money that came in for an expense, the
+ * expenses for a refund. The server applies the rules, so every one returned would be accepted
+ *
+ * The list comes with the exact amount first, then the nearest amounts, and takes the transaction list's
+ * filters to narrow it
+ *
+ * @param filters - The transaction list's filters, narrowing the candidates the way they narrow the list
+ * @param signal - Aborts the request when the search that asked for it is replaced
+ */
+export function fetchRefundLinkCandidates(
+  transactionId: string,
+  searchText: string,
+  filters: LinkCandidateFilters = {},
+  signal?: AbortSignal,
+) {
+  return authenticatedFetch<Transaction[]>(
+    `/transactions/${transactionId}/refund-link-candidates` +
+      buildQueryString({ ...filters, q: searchText || undefined } as Record<string, QueryStringValue>),
+    { signal },
+  )
+}
+
+/**
+ * Removes the link between a refund and the expense it refunds, leaving both transactions as they are
+ */
+export function unlinkRefund(refundId: string) {
+  return authenticatedFetch<void>(`/transactions/${refundId}/refund-link`, { method: 'DELETE' })
 }
 
 /**
  * Deletes one transaction by ID
  */
 export function deleteTransaction(id: string) {
-  return authenticatedFetch<void>(`/transactions/${id}`, { method: 'DELETE' });
+  return authenticatedFetch<void>(`/transactions/${id}`, { method: 'DELETE' })
 }

@@ -20,6 +20,9 @@ type MobileFilterPanelProps = {
   showAccountFilter: boolean
   // The account's currency on its own transaction list, which pins the amount currency
   lockedCurrency?: string
+
+  // True when it opens from inside a dialog, so the sheet draws above that dialog
+  aboveDialog?: boolean
 }
 
 /**
@@ -36,8 +39,17 @@ export function MobileFilterPanel({
   setFilter,
   showAccountFilter,
   lockedCurrency,
+  aboveDialog,
 }: MobileFilterPanelProps) {
-  const draft = useTransactionFilterDraft({ filters, setFilter, accountOptions, categoryOptions, showAccountFilter, lockedCurrency, onClose })
+  const draft = useTransactionFilterDraft({
+    filters,
+    setFilter,
+    accountOptions,
+    categoryOptions,
+    showAccountFilter,
+    lockedCurrency,
+    onClose,
+  })
 
   useSeedDraftOnOpen(isOpen, draft.seedDraftFromFilters)
 
@@ -47,10 +59,13 @@ export function MobileFilterPanel({
       onClose={onClose}
       onExitComplete={onExitComplete}
       ariaLabel="Transaction filters"
+      aboveDialog={aboveDialog}
       activeFacetCount={draft.activeFacetCount}
       clearAll={draft.clearAll}
       applyFilters={draft.applyFilters}
-      applyDisabledReason={draft.applyBlockedReason ?? (draft.isDraftApplied ? APPLY_FILTERS_DISABLED_REASON : undefined)}
+      applyDisabledReason={
+        draft.applyBlockedReason ?? (draft.isDraftApplied ? APPLY_FILTERS_DISABLED_REASON : undefined)
+      }
     >
       {(headingId) => (
         <FilterPanelBody

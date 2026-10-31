@@ -1,11 +1,26 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { Check, Trash2 } from 'lucide-react'
 import { PendingLabel } from '@/components/loading/PendingLabel'
+import { useTransactionModalIds } from '@/components/transactions/transaction-modal/ids'
 import { MODAL_INSET_CLASS_NAME } from '@/components/modal/inset'
 import { DisabledReasonButton } from '@/components/tooltips/DisabledReasonButton'
+import type { ModalLevel } from '@/components/modal/Shell'
 
 interface TransactionModalFooterProps {
+  level: ModalLevel
   editing: boolean
+
+  /** A refund is saved alone, so there is no batch to keep the modal open for */
+  hideKeepOpen: boolean
+
+  /** What the primary action says when it adds, so a refund names itself */
+  addLabel: string
+
+  /**
+   * Set when the transaction is linked to others. Delete then asks what happens to them, in a dialog
+   * the owner opens, instead of arming for a second click
+   */
+  onRequestLinkedDelete: (() => void) | null
   isPending: boolean
   readOnly: boolean
   submitLoading: boolean
@@ -23,7 +38,11 @@ interface TransactionModalFooterProps {
  * Renders modal actions and owns delete confirmation UI state
  */
 export default function TransactionModalFooter({
+  level,
   editing,
+  hideKeepOpen,
+  addLabel,
+  onRequestLinkedDelete,
   isPending,
   readOnly,
   submitLoading,
@@ -34,6 +53,7 @@ export default function TransactionModalFooter({
   onCancel,
   onDelete,
 }: TransactionModalFooterProps) {
+  const ids = useTransactionModalIds()
   const [confirmingDelete, setConfirmingDelete] = useState(false)
   const deleteButtonRef = useRef<HTMLButtonElement>(null)
   const idleLabelRef = useRef<HTMLSpanElement>(null)
@@ -46,6 +66,10 @@ export default function TransactionModalFooter({
    */
   const handleDeleteClick = () => {
     if (isPending) return
+    if (onRequestLinkedDelete) {
+      onRequestLinkedDelete()
+      return
+    }
     if (!confirmingDelete) {
       setConfirmingDelete(true)
       return
@@ -84,7 +108,7 @@ export default function TransactionModalFooter({
 
   return (
     <div
-      className={`flex shrink-0 flex-col gap-3 py-4 sm:flex-row sm:items-center min-[1050px]:py-5 ${MODAL_INSET_CLASS_NAME.page}`}
+      className={`flex shrink-0 flex-col gap-3 py-4 sm:flex-row sm:items-center min-[1050px]:py-5 ${MODAL_INSET_CLASS_NAME[level]}`}
       style={{ borderTop: '1px solid var(--app-border)' }}
     >
       {editing && !readOnly ? (
@@ -142,11 +166,11 @@ export default function TransactionModalFooter({
             </span>
           </PendingLabel>
         </button>
-      ) : !editing ? (
+      ) : !editing && !hideKeepOpen ? (
         <div className="min-w-0 sm:max-w-xs">
-          <label htmlFor="txn-keep-open" className="-ml-1 flex cursor-pointer items-center gap-3 rounded-xl px-1 py-1">
+          <label htmlFor={ids.keepOpen} className="-ml-1 flex cursor-pointer items-center gap-3 rounded-xl px-1 py-1">
             <input
-              id="txn-keep-open"
+              id={ids.keepOpen}
               type="checkbox"
               checked={keepOpenAfterCreate}
               onChange={(event) => onKeepOpenAfterCreateChange(event.target.checked)}
@@ -180,14 +204,14 @@ export default function TransactionModalFooter({
           <DisabledReasonButton
             type="submit"
             data-testid="transaction-submit"
-            aria-label={editing ? 'Save' : 'Add transaction'}
+            aria-label={editing ? 'Save' : addLabel}
             aria-busy={submitLoading}
             disabled={isPending}
             disabledReason={isPending ? undefined : submitBlockedReason}
             className={`app-primary-button overflow-hidden whitespace-nowrap${submitLoading ? ' app-primary-button-loading justify-self-center sm:justify-self-auto' : editing ? ' w-full sm:w-24' : ' w-full sm:w-44'}`}
           >
-            <PendingLabel pending={submitLoading} name={editing ? 'Save' : 'Add transaction'}>
-              {editing ? 'Save' : 'Add transaction'}
+            <PendingLabel pending={submitLoading} name={editing ? 'Save' : addLabel}>
+              {editing ? 'Save' : addLabel}
             </PendingLabel>
           </DisabledReasonButton>
         )}

@@ -6,6 +6,7 @@ export type {
   BulkUpdateTransactionsResult,
   CreateTransactionPayload,
   DailyCashFlow,
+  LinkCandidateFilters,
   OutlierTransaction,
   OverviewFilters,
   TopCategorySpend,
@@ -16,29 +17,39 @@ export type {
   TransactionDirection,
   TransferCounterpartyScope,
   UpdateTransactionPayload,
-} from '@/api/transactions/types';
+} from '@/api/transactions/types'
 
 export {
+  bulkDeleteTransactions,
   bulkUpdateTransactions,
   createTransaction,
   deleteTransaction,
+  fetchRefundLinkCandidates,
   fetchTransaction,
   fetchTransactionPage,
   fetchTransactions,
   fetchTransactionsOverview,
+  linkRefund,
+  unlinkRefund,
   updateTransaction,
-} from '@/api/transactions/requests';
+} from '@/api/transactions/requests'
 
 export {
+  applyBulkTransactionDeletion,
   applyTransactionDeletion,
   useBulkDeleteTransactions,
   useBulkUpdateTransactions,
   useCreateTransaction,
   useDeleteTransaction,
   useInfiniteTransactions,
+  useLinkRefund,
   useLoadTransaction,
   useRefreshCreatedTransactions,
+  useRefundLinkCandidates,
+  useTransaction,
+  useTransactionsById,
   useTransactions,
   useTransactionsOverview,
+  useUnlinkRefund,
   useUpdateTransaction,
-} from '@/api/transactions/hooks';
+} from '@/api/transactions/hooks'

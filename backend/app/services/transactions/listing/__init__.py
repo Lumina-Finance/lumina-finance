@@ -1,12 +1,16 @@
 """Transaction listing service"""
+
 import uuid
+from collections.abc import Sequence
 from datetime import date
 
 from fastapi import HTTPException, status
+from sqlalchemy import ColumnElement
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.user import User
 from app.schemas.transaction import TransactionResponse
+from app.services.transactions.links import get_transaction_links_batch
 from app.services.transactions.listing.amounts import get_transaction_listing_converted_amounts
 from app.services.transactions.listing.queries import (
     build_transaction_listing_query,
@@ -40,6 +44,8 @@ async def list_transaction_responses(
     sort_order: str = "desc",
     limit: int = 15,
     offset: int = 0,
+    extra_conditions: Sequence[ColumnElement[bool]] = (),
+    nearest_amount: tuple[int, str] | None = None,
 ) -> list[TransactionResponse]:
     """Return paginated transaction responses with sorting and filtering
 
@@ -66,6 +72,9 @@ async def list_transaction_responses(
         sort_order: Sort direction, either ``asc`` or ``desc``
         limit: Maximum number of transactions to return
         offset: Number of transactions to skip before returning rows
+        extra_conditions: Further conditions every row must meet
+        nearest_amount: Optional amount magnitude in minor units and its currency, which date sorting puts
+            first: an exact match, then the nearest amounts, then other currencies
 
     Returns:
         Transaction responses enriched with tag summaries, merchant names, and
@@ -106,6 +115,8 @@ async def list_transaction_responses(
         sort_order=sort_order,
         limit=limit,
         offset=offset,
+        extra_conditions=extra_conditions,
+        nearest_amount=nearest_amount,
     )
 
     # Fetch one transaction page inside the user's readable account scope and requested filters
@@ -116,6 +127,10 @@ async def list_transaction_responses(
     tag_ids_by_transaction_id = await get_tag_ids_batch(db, [transaction.id for transaction in transactions])
     tag_summaries_by_transaction_id = await get_tags_batch(db, [transaction.id for transaction in transactions])
     merchant_names_by_id = await get_merchant_names_batch(db, [transaction.merchant_id for transaction in transactions])
+    original_by_refund, refunds_by_original = await get_transaction_links_batch(
+        db,
+        [transaction.id for transaction in transactions],
+    )
 
     account_amounts_by_transaction_id, base_amounts_by_transaction_id = await get_transaction_listing_converted_amounts(
         db,
@@ -131,6 +146,8 @@ async def list_transaction_responses(
             tag_summaries_by_transaction_id[transaction.id],
             account_amount=account_amounts_by_transaction_id[transaction.id],
             base_currency_amount=base_amounts_by_transaction_id[transaction.id],
+            refund_of_transaction_id=original_by_refund.get(transaction.id),
+            refund_transaction_ids=refunds_by_original.get(transaction.id),
         )
         for transaction in transactions
     ]

@@ -23,6 +23,10 @@ type MobileFilterSheetProps = {
   // Greys out Apply, with this as its reason, while the body holds an entry the draft will refuse, so
   // the button never looks live for a commit that cannot happen
   applyDisabledReason?: string
+
+  // Opens above a dialog that opened it, such as the picker for linking a transaction, since a dialog reached from
+  // another sits above the sheet's own level
+  aboveDialog?: boolean
   children: (headingId: string) => ReactNode
 }
 
@@ -42,6 +46,7 @@ export function MobileFilterSheet({
   clearAll,
   applyFilters,
   applyDisabledReason,
+  aboveDialog = false,
   children,
 }: MobileFilterSheetProps) {
   const panelRef = useMobileFilterSheetEffects({ isOpen, onClose, lockScroll: false })
@@ -77,7 +82,7 @@ export function MobileFilterSheet({
           aria-label={ariaLabel}
           tabIndex={-1}
           inert={covered}
-          className="fixed inset-x-0 top-0 z-sheet flex flex-col min-[750px]:hidden"
+          className={`fixed inset-x-0 top-0 ${aboveDialog ? 'z-stacked-modal' : 'z-sheet'} flex flex-col min-[750px]:hidden`}
           style={{
             // 100dvh tracks the dynamic viewport so the sheet covers the screen even as the mobile
             // browser chrome shows or hides, leaving no strip of the list peeking below it
@@ -93,14 +98,24 @@ export function MobileFilterSheet({
           exit={panelExit}
           transition={{ duration: shouldReduceMotion ? 0.01 : 0.28, ease: [0.22, 1, 0.36, 1] }}
         >
-          <div className="flex items-center justify-between border-b px-5 py-4" style={{ borderColor: 'var(--app-border)' }}>
+          <div
+            className="flex items-center justify-between border-b px-5 py-4"
+            style={{ borderColor: 'var(--app-border)' }}
+          >
             <div>
-              <h2 id={headingId} className="text-base font-semibold">Filters</h2>
+              <h2 id={headingId} className="text-base font-semibold">
+                Filters
+              </h2>
               <p className="text-sm" style={{ color: 'var(--app-text-muted)' }}>
                 {activeFacetCount === 0 ? 'No active filters' : `${activeFacetCount} active`}
               </p>
             </div>
-            <button type="button" className="app-secondary-button h-10 w-10 rounded-full px-0" onClick={onClose} aria-label="Close filters">
+            <button
+              type="button"
+              className="app-secondary-button h-10 w-10 rounded-full px-0"
+              onClick={onClose}
+              aria-label="Close filters"
+            >
               <X size={18} aria-hidden />
             </button>
           </div>
@@ -109,7 +124,10 @@ export function MobileFilterSheet({
             {children(headingId)}
           </div>
 
-          <div className="flex items-center justify-between gap-3 border-t px-5 py-4" style={{ borderColor: 'var(--app-border)' }}>
+          <div
+            className="flex items-center justify-between gap-3 border-t px-5 py-4"
+            style={{ borderColor: 'var(--app-border)' }}
+          >
             <DisabledReasonButton
               className="app-secondary-button"
               disabledReason={activeFacetCount === 0 ? CLEAR_FILTERS_DISABLED_REASON : undefined}
@@ -117,7 +135,11 @@ export function MobileFilterSheet({
             >
               Clear all
             </DisabledReasonButton>
-            <DisabledReasonButton className="app-glass-button-primary" disabledReason={applyDisabledReason} onClick={applyFilters}>
+            <DisabledReasonButton
+              className="app-glass-button-primary"
+              disabledReason={applyDisabledReason}
+              onClick={applyFilters}
+            >
               Apply filters
             </DisabledReasonButton>
           </div>

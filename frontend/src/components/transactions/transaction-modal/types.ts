@@ -1,4 +1,5 @@
 import type { Transaction, TransactionDirection } from '@/api/transactions'
+import type { PendingRefund } from '@/components/transactions/transaction-modal/hooks/usePendingLinks'
 
 export type TransactionModalKind = 'expense' | 'income' | 'transfer'
 
@@ -42,6 +43,21 @@ export interface CreateTransactionModalProps {
 
   /** When set, the modal opens in edit mode for this transaction */
   transaction?: Transaction
+
+  /**
+   * Opens a new transaction prefilled as the refund of this expense, pointing the other way. Saving
+   * it links the two. Ignored when `transaction` is set
+   */
+  refundOf?: Transaction
+
+  /**
+   * Holds a refund made here for the edit window it was opened from, which creates and links it when
+   * it is saved, in place of this window saving it. Used with `refundOf`
+   */
+  onStageRefund?: (refund: PendingRefund) => void
+
+  /** What is left to refund of `refundOf` in its currency, so a refund past it is refused here */
+  refundRoom?: number
 
   /** Pre-selects this account in create mode, such as from an account page */
   defaultAccountId?: string

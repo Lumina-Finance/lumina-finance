@@ -10,9 +10,7 @@ import type { Currency } from '@/api/currency'
 import type { Transaction } from '@/api/transactions'
 import { formatCurrency, formatMovedCurrency } from '@/utils/formatCurrency'
 
-const currencies: Currency[] = [
-  { id: 'USD', name: 'US Dollar', symbol: '$', minor_unit_exponent: 2 },
-]
+const currencies: Currency[] = [{ id: 'USD', name: 'US Dollar', symbol: '$', minor_unit_exponent: 2 }]
 
 vi.mock('@/hooks/useMoneyFormatters', () => ({
   useMoneyFormatters: () => ({
@@ -44,6 +42,8 @@ function transaction(id: string, amount: number): Transaction {
     notes: null,
     counterparty_account_id: null,
     counterparty_account_scope: null,
+    refund_of_transaction_id: null,
+    refund_transaction_ids: [],
     created_at: '2026-10-03T00:00:00Z',
     updated_at: '2026-10-03T00:00:00Z',
     tag_ids: [],
@@ -51,7 +51,13 @@ function transaction(id: string, amount: number): Transaction {
   }
 }
 
-const account: TransactionListAccount = { id: 'account', name: 'Chequing', currency: 'USD', can_write: true, group_id: null }
+const account: TransactionListAccount = {
+  id: 'account',
+  name: 'Chequing',
+  currency: 'USD',
+  can_write: true,
+  group_id: null,
+}
 
 function renderHeadings(amounts: number[], extra: object = {}) {
   const dateGroups = amounts.length

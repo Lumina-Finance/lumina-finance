@@ -21,6 +21,8 @@ const selected: Transaction = {
   notes: 'Weekly shop',
   counterparty_account_id: null,
   counterparty_account_scope: null,
+  refund_of_transaction_id: null,
+  refund_transaction_ids: [],
   created_at: '2026-08-01T12:00:00Z',
   updated_at: '2026-08-01T12:00:00Z',
   tag_ids: ['tag-b', 'tag-a'],
@@ -64,12 +66,9 @@ const storedValueChanges = [
 ] satisfies [string, Partial<Transaction>][]
 
 describe('the values bound to bulk-edit confirmation', () => {
-  it.each(storedValueChanges)(
-    'changes when the selected transaction changes its %s',
-    (_field, patch) => {
-      expect(signature({ ...selected, ...patch })).not.toBe(signature(selected))
-    },
-  )
+  it.each(storedValueChanges)('changes when the selected transaction changes its %s', (_field, patch) => {
+    expect(signature({ ...selected, ...patch })).not.toBe(signature(selected))
+  })
 
   it('changes when tag membership changes without an update timestamp change', () => {
     expect(signature({ ...selected, tag_ids: ['tag-a', 'tag-c'] })).not.toBe(signature(selected))
@@ -82,10 +81,7 @@ describe('the values bound to bulk-edit confirmation', () => {
   it('matches when selected rows and their tags arrive in another order', () => {
     const first = selectedTransactionsSignature([selected, unselected], ['txn-1', 'txn-2'])
     const second = selectedTransactionsSignature(
-      [
-        { ...unselected },
-        { ...selected, tag_ids: ['tag-a', 'tag-b'] },
-      ],
+      [{ ...unselected }, { ...selected, tag_ids: ['tag-a', 'tag-b'] }],
       ['txn-2', 'txn-1'],
     )
 

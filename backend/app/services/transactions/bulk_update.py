@@ -38,6 +38,7 @@ from app.services.transactions.access_helpers import accessible_account_ids_subq
 from app.services.transactions.accounts import validate_transaction_account_is_not_archived
 from app.services.transactions.bank_transaction_ids import BankTransactionKey, find_held_bank_transactions
 from app.services.transactions.bulk_access import load_locked_transactions, load_writable_accounts
+from app.services.transactions.links import refuse_broken_links
 from app.services.transactions.tags import add_transaction_tag_assignments, clear_transaction_tag_assignments
 from app.services.transactions.validation import (
     get_valid_transaction_tag_ids,
@@ -156,6 +157,9 @@ async def bulk_update_transactions(
             status_code=status.HTTP_409_CONFLICT,
             detail="Another change reached one of these transactions first",
         ) from error
+
+    # A linked transaction must stay a refund or an expense, so an edit that would undo that is refused
+    await refuse_broken_links(db, transaction_ids)
 
     if snapshot_starts:
         await recompute_account_snapshots(db, snapshot_starts)

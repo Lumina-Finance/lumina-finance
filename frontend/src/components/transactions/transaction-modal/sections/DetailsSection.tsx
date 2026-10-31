@@ -3,7 +3,7 @@ import CreateModalSectionFrame from '@/components/create-modal/SectionFrame'
 import DateField from '@/components/date-field/DateField'
 import Dropdown, { type DropdownOption } from '@/components/dropdown/Dropdown'
 import IconTooltip from '@/components/tooltips/IconTooltip'
-import { TRANSACTION_MODAL_ERROR_IDS, TRANSACTION_MODAL_FIELD_IDS } from '@/components/transactions/transaction-modal/constants'
+import { useTransactionModalIds } from '@/components/transactions/transaction-modal/ids'
 import { useMoneyInput } from '@/hooks/useMoneyInput'
 import { getSymbolInputStyle } from '@/utils/formatCurrency'
 import { getMoneyPlaceholder } from '@/utils/moneyInput'
@@ -66,6 +66,7 @@ export default function TransactionDetailsSection({
   onAmountBlur,
   onNotesChange,
 }: TransactionDetailsSectionProps) {
+  const ids = useTransactionModalIds()
   const amountInput = useMoneyInput({
     value: amount,
     exponent: currencyExponent,
@@ -77,18 +78,13 @@ export default function TransactionDetailsSection({
     <CreateModalSectionFrame step="03" title="Details">
       <div className="grid gap-3 sm:grid-cols-[11rem_8.5rem_minmax(0,1fr)]">
         <div>
-          <CreateModalFieldLabelRow
-            htmlFor={TRANSACTION_MODAL_FIELD_IDS.date}
-            label="Date"
-            error={dateError}
-            errorId={TRANSACTION_MODAL_ERROR_IDS.date}
-          />
+          <CreateModalFieldLabelRow htmlFor={ids.date} label="Date" error={dateError} errorId={ids.errors.date} />
           <DateField
-            id={TRANSACTION_MODAL_FIELD_IDS.date}
+            id={ids.date}
             ariaLabel="Date"
             value={date}
             error={!!dateError}
-            describedById={TRANSACTION_MODAL_ERROR_IDS.date}
+            describedById={ids.errors.date}
             disabled={readOnly}
             onChange={onDateChange}
             onBlur={onDateBlur}
@@ -96,7 +92,9 @@ export default function TransactionDetailsSection({
         </div>
         <div>
           <div className="mb-1.5 flex items-center gap-2">
-            <label htmlFor={TRANSACTION_MODAL_FIELD_IDS.currency} className="app-label block text-[0.9375rem] leading-5">Currency</label>
+            <label htmlFor={ids.currency} className="app-label block text-[0.9375rem] leading-5">
+              Currency
+            </label>
             {currencyState === 'loading' && (
               <IconTooltip label="Loading currencies" modalFieldTabStop>
                 {CURRENCY_LIST_LOADING}
@@ -109,7 +107,7 @@ export default function TransactionDetailsSection({
             )}
           </div>
           <Dropdown
-            id={TRANSACTION_MODAL_FIELD_IDS.currency}
+            id={ids.currency}
             options={currencyOptions}
             value={currencyValue}
             onChange={() => undefined}
@@ -122,23 +120,27 @@ export default function TransactionDetailsSection({
         </div>
         <div>
           <CreateModalFieldLabelRow
-            htmlFor={TRANSACTION_MODAL_FIELD_IDS.amount}
-            label={isAmountLocked ? (
-              <span className="inline-flex items-center gap-2">
-                Amount
-                {currencyState === 'loading' ? (
-                  <IconTooltip label="Loading currencies" modalFieldTabStop>
-                    {CURRENCY_LIST_LOADING}
-                  </IconTooltip>
-                ) : (
-                  <IconTooltip label="Amount unavailable" level="important" modalFieldTabStop>
-                    {currencyState === 'unavailable' ? CURRENCY_AMOUNT_NOTICE : CURRENCY_AMOUNT_UNKNOWN}
-                  </IconTooltip>
-                )}
-              </span>
-            ) : 'Amount'}
+            htmlFor={ids.amount}
+            label={
+              isAmountLocked ? (
+                <span className="inline-flex items-center gap-2">
+                  Amount
+                  {currencyState === 'loading' ? (
+                    <IconTooltip label="Loading currencies" modalFieldTabStop>
+                      {CURRENCY_LIST_LOADING}
+                    </IconTooltip>
+                  ) : (
+                    <IconTooltip label="Amount unavailable" level="important" modalFieldTabStop>
+                      {currencyState === 'unavailable' ? CURRENCY_AMOUNT_NOTICE : CURRENCY_AMOUNT_UNKNOWN}
+                    </IconTooltip>
+                  )}
+                </span>
+              ) : (
+                'Amount'
+              )
+            }
             error={amountError}
-            errorId={TRANSACTION_MODAL_ERROR_IDS.amount}
+            errorId={ids.errors.amount}
           />
           <div className="relative">
             {selectedCurrencySymbol && (
@@ -154,11 +156,11 @@ export default function TransactionDetailsSection({
               </span>
             )}
             <input
-              id={TRANSACTION_MODAL_FIELD_IDS.amount}
+              id={ids.amount}
               className={`app-input w-full disabled:cursor-not-allowed disabled:opacity-60 ${selectedCurrencySymbol ? 'pl-8' : ''} ${amountError ? 'app-input-error' : ''}`}
               style={getSymbolInputStyle(selectedCurrencySymbol)}
               aria-invalid={amountError ? true : undefined}
-              aria-describedby={amountError ? TRANSACTION_MODAL_ERROR_IDS.amount : undefined}
+              aria-describedby={amountError ? ids.errors.amount : undefined}
               placeholder={isAmountLocked ? undefined : getMoneyPlaceholder(currencyExponent)}
               disabled={readOnly || isAmountLocked}
               {...amountInput}
@@ -168,9 +170,11 @@ export default function TransactionDetailsSection({
       </div>
 
       <div>
-        <label htmlFor="txn-notes" className="app-label mb-1.5 block text-[0.9375rem] leading-5">Notes</label>
+        <label htmlFor={ids.notes} className="app-label mb-1.5 block text-[0.9375rem] leading-5">
+          Notes
+        </label>
         <input
-          id="txn-notes"
+          id={ids.notes}
           type="text"
           className="app-input disabled:cursor-not-allowed disabled:opacity-60"
           placeholder="Optional"

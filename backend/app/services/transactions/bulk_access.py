@@ -4,12 +4,13 @@ A bulk edit, a bulk delete and undoing an import all lock their rows inside the 
 scope and check write access on every account behind them before writing anything, so a set
 holding one row the caller may not change is refused whole
 """
+
 import uuid
 from collections.abc import Collection
 from datetime import date
 
 from fastapi import HTTPException, status
-from sqlalchemy import Result, Select, select, text
+from sqlalchemy import ColumnElement, Result, Select, select, text
 from sqlalchemy.exc import DBAPIError
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -21,8 +22,9 @@ from app.permissions import check_account_access
 from app.services.transactions.access_helpers import accessible_account_ids_subquery
 from app.services.transactions.accounts import validate_transaction_account_is_not_archived
 
-# Postgres raises this for a lock the caller waited out
-_LOCK_NOT_AVAILABLE_SQLSTATE = "55P03"
+# Postgres raises these for a lock the caller waited out, and for a lock order it broke as a deadlock,
+# as a refund's edit and a bulk change holding its expense can meet
+_LOCK_LOST_SQLSTATES = ("55P03", "40P01")
 
 # The most one lock attempt waits before the statement gives up, matching the wait load_locked_run
 # in run_locking.py gives an import run. Postgres acquires a multi-row SELECT ... FOR UPDATE's locks
@@ -107,6 +109,19 @@ async def load_locked_run_transactions(
     return [(account_id, dt) for account_id, dt in (await _execute_locking(db, query)).all()]
 
 
+async def lock_transactions(db: AsyncSession, condition: ColumnElement[bool]) -> None:
+    """Lock the transactions a condition selects, in id order, until the caller's transaction ends
+
+    Args:
+        db: Active database session
+        condition: Selects the transactions to lock
+
+    Raises:
+        HTTPException: Another change held one of the rows for longer than the wait
+    """
+    await _execute_locking(db, select(Transaction.id).where(condition).order_by(Transaction.id).with_for_update())
+
+
 async def _execute_locking(db: AsyncSession, query: Select) -> Result:
     """Run a locking read, giving up with a 409 when another change holds a row too long
 
@@ -127,7 +142,7 @@ async def _execute_locking(db: AsyncSession, query: Select) -> Result:
     try:
         result = await db.execute(query)
     except DBAPIError as exc:
-        if getattr(exc.orig, "sqlstate", None) != _LOCK_NOT_AVAILABLE_SQLSTATE:
+        if getattr(exc.orig, "sqlstate", None) not in _LOCK_LOST_SQLSTATES:
             raise
         await db.rollback()
         raise HTTPException(

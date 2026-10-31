@@ -3,6 +3,7 @@
 Transaction routes and dashboard activity share these helpers so response
 assembly uses the same tag, merchant, and converted amount shape
 """
+
 import uuid
 
 from sqlalchemy import select
@@ -12,6 +13,7 @@ from app.models.merchant import Merchant
 from app.models.tag import Tag, TransactionTag
 from app.models.transaction import Transaction
 from app.schemas.transaction import TransactionResponse, TransactionTagSummary
+from app.services.transactions.links import get_transaction_links_batch
 
 
 async def get_tag_ids(db: AsyncSession, transaction_id: uuid.UUID) -> list[uuid.UUID]:
@@ -32,7 +34,8 @@ async def get_tag_ids(db: AsyncSession, transaction_id: uuid.UUID) -> list[uuid.
 
 
 async def get_tag_ids_batch(
-    db: AsyncSession, transaction_ids: list[uuid.UUID],
+    db: AsyncSession,
+    transaction_ids: list[uuid.UUID],
 ) -> dict[uuid.UUID, list[uuid.UUID]]:
     """Return tag identifiers grouped by transaction
 
@@ -57,7 +60,8 @@ async def get_tag_ids_batch(
 
 
 async def get_tags_batch(
-    db: AsyncSession, transaction_ids: list[uuid.UUID],
+    db: AsyncSession,
+    transaction_ids: list[uuid.UUID],
 ) -> dict[uuid.UUID, list[TransactionTagSummary]]:
     """Return tag summaries grouped by transaction
 
@@ -92,7 +96,8 @@ async def get_tags_batch(
 
 
 async def get_merchant_names_batch(
-    db: AsyncSession, merchant_ids: list[uuid.UUID | None],
+    db: AsyncSession,
+    merchant_ids: list[uuid.UUID | None],
 ) -> dict[uuid.UUID, str]:
     """Return merchant names keyed by merchant identifier
 
@@ -121,6 +126,8 @@ def build_transaction_response(
     tags: list[TransactionTagSummary] | None = None,
     account_amount: int | None = None,
     base_currency_amount: int | None = None,
+    refund_of_transaction_id: uuid.UUID | None = None,
+    refund_transaction_ids: list[uuid.UUID] | None = None,
 ) -> TransactionResponse:
     """Build a transaction response from a transaction row and related data
 
@@ -131,6 +138,8 @@ def build_transaction_response(
         tags: Optional tag summaries attached to the transaction
         account_amount: Optional amount converted into the account currency
         base_currency_amount: Optional amount converted into the user's base currency
+        refund_of_transaction_id: Expense this transaction refunds, when linked
+        refund_transaction_ids: Refunds linked to this transaction
 
     Returns:
         Transaction response containing the transaction row plus related display data
@@ -138,6 +147,8 @@ def build_transaction_response(
     data = TransactionResponse.model_validate(txn)
     data.account_amount = account_amount
     data.base_currency_amount = base_currency_amount
+    data.refund_of_transaction_id = refund_of_transaction_id
+    data.refund_transaction_ids = refund_transaction_ids or []
     data.tag_ids = tag_ids
     data.merchant_name = merchant_name
     data.tags = tags or []
@@ -161,9 +172,12 @@ async def get_transaction_response(db: AsyncSession, txn: Transaction) -> Transa
     tag_ids = await get_tag_ids(db, txn.id)
     tag_summary_map = await get_tags_batch(db, [txn.id])
     merchant_names = await get_merchant_names_batch(db, [txn.merchant_id])
+    original_by_refund, refunds_by_original = await get_transaction_links_batch(db, [txn.id])
     return build_transaction_response(
         txn,
         tag_ids,
         merchant_names.get(txn.merchant_id) if txn.merchant_id else None,
         tag_summary_map[txn.id],
+        refund_of_transaction_id=original_by_refund.get(txn.id),
+        refund_transaction_ids=refunds_by_original.get(txn.id),
     )

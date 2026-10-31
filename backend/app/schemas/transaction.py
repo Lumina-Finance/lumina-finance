@@ -91,12 +91,27 @@ class TransactionResponse(BaseModel):
     # Where the counterparty of a transfer sits. Both null on anything recorded before the columns existed
     counterparty_account_id: uuid.UUID | None = None
     counterparty_account_scope: TransferCounterpartyScope | None = None
+
+    # The expense this transaction refunds, and the refunds recorded against it. A link changes no
+    # total, so these only say which transactions belong together
+    refund_of_transaction_id: uuid.UUID | None = None
+    refund_transaction_ids: list[uuid.UUID] = []
+
+    # How much of an expense its refunds already give back, in its own currency. Set on the expenses
+    # offered as link candidates only, so a picker can tell what one more refund would leave room for
+    refunded_amount: int | None = None
     created_at: datetime
     updated_at: datetime
     tag_ids: list[uuid.UUID] = []
     tags: list[TransactionTagSummary] = []
 
     model_config = {"from_attributes": True}
+
+
+class LinkRefundRequest(BaseModel):
+    """Link an existing transaction as the refund of an expense."""
+
+    original_transaction_id: uuid.UUID
 
 
 class CreateTransactionRequest(BaseModel):
@@ -116,6 +131,9 @@ class CreateTransactionRequest(BaseModel):
     tag_ids: list[uuid.UUID] = []
     counterparty_account_id: uuid.UUID | None = None
     counterparty_account_scope: TransferCounterpartyScope | None = None
+
+    # Saves the new transaction as the refund of this expense in the same request
+    refund_of_transaction_id: uuid.UUID | None = None
 
 
 class UpdateTransactionRequest(BaseModel):

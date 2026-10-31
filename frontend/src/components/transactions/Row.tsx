@@ -1,9 +1,11 @@
-import { useContext, useState } from 'react'
+import { useContext, useState, type MouseEvent } from 'react'
 import { AnimatePresence, motion } from 'motion/react'
-import { StickyNote, Tag as TagIcon } from 'lucide-react'
+import { Link2, StickyNote, Tag as TagIcon } from 'lucide-react'
 import type { Institution } from '@/api/institutions'
 import type { Category } from '@/api/categories'
 import type { Transaction } from '@/api/transactions'
+import type { useDisabledReason } from '@/hooks/useDisabledReason'
+import { getDisabledReasonProps } from '@/utils/disabledReasonControl'
 import { Checkbox } from '@/components/forms/Checkbox'
 import { MAX_BULK_EDIT_TRANSACTIONS } from '@/components/transactions/bulk-edit/constants'
 import type { RowSelectionMark } from '@/components/transactions/bulk-edit/selection'
@@ -16,6 +18,7 @@ import {
 } from '@/components/transactions/constants/transactionList'
 import { useMoneyFormatters } from '@/hooks/useMoneyFormatters'
 import { FADED_ROW_COLOURS, FadedRowsContext } from '@/contexts/FadedRowsContext'
+import { getRefundLinkLabel } from '@/components/transactions/utils/refundLink'
 import { getAmountSign } from '@/utils/negativeAmount'
 import { useUsableLogo } from '@/hooks/useUsableLogo'
 import { resolveInstitutionLogoUrl } from '@/utils/institutionLogo'
@@ -27,7 +30,8 @@ const ROW_EXIT_EASE = [0.25, 0.1, 0.25, 1] as const
 export type TransactionRowMetadata = Pick<
   Transaction,
   'id' | 'dt' | 'merchant_name' | 'notes' | 'tags' | 'counterparty_account_scope'
->
+> &
+  Partial<Pick<Transaction, 'refund_of_transaction_id' | 'refund_transaction_ids'>>
 export type TransactionFxNote = 'unavailable' | 'rateNotPublished'
 
 /**
@@ -77,6 +81,8 @@ export interface TransactionRowSelection {
   onPointerEnter: () => void
 }
 
+type DisabledReasonState = ReturnType<typeof useDisabledReason>
+
 interface TransactionRowProps {
   accountName?: string
 
@@ -94,6 +100,16 @@ interface TransactionRowProps {
   prefersReducedMotion?: boolean | null
   // Makes the row appear without the grow in, used for a lazy loaded batch that would otherwise all grow at once
   skipEnterAnimation?: boolean
+
+  // Lays the row out as it is on a phone at every width, for a list that is not on the transaction list's columns
+  phoneLayout?: boolean
+
+  // Marks the row as a toggle, for a list where pressing a row picks it instead of opening it
+  pressed?: boolean
+
+  // Holds the row off while it can't be used, with its reason in the shared tooltip on hover, keyboard focus and tap
+  // and described for a screen reader, as for a greyed out button. The row's own reason text is not drawn
+  disabledReason?: DisabledReasonState
   selection?: TransactionRowSelection
   onOpen: (transaction: Transaction) => void
 }
@@ -107,6 +123,9 @@ interface TransactionRowViewProps extends Omit<TransactionRowProps, 'transaction
 // How far a faded row dims its category icon. Icons carry no text, so the contrast every text
 // needs doesn't bound it, but a pale icon such as the white plate all but vanished on the light rows below this
 const FADED_CATEGORY_ICON_OPACITY = 0.75
+
+// A row that stops being faded brings its icon back with the rest of the change, so the icon eases rather than snaps
+const ICON_FADE_CLASS_NAME = 'transition-opacity motion-reduce:transition-none'
 
 function amountColor(category: Category | undefined, amount: number) {
   if (category?.kind === 'expense' && amount > 0) return 'var(--app-positive)'
@@ -197,14 +216,27 @@ function TagTooltip({ tags }: { tags: Transaction['tags'] }) {
 function NoteAndTagIcons({
   hasNotes,
   tagCount,
+  refundLink = null,
   className = '',
 }: {
   hasNotes: boolean
   tagCount: number
+  refundLink?: string | null
   className?: string
 }) {
   return (
     <span className={`inline-flex shrink-0 items-center gap-2 ${className}`}>
+      {refundLink && (
+        <span
+          className="inline-flex"
+          role="img"
+          aria-label={refundLink}
+          title={refundLink}
+          data-testid="transaction-refund-link"
+        >
+          <Link2 size={14} strokeWidth={2} aria-hidden />
+        </span>
+      )}
       {hasNotes && (
         <span className="inline-flex" aria-label="Has note">
           <StickyNote size={14} strokeWidth={2} aria-hidden />
@@ -274,9 +306,29 @@ export function TransactionRowView({
   amountPresentation,
   prefersReducedMotion,
   skipEnterAnimation = false,
+  phoneLayout = false,
+  pressed,
+  disabledReason,
   selection,
   onOpen,
 }: TransactionRowViewProps) {
+  const wide = !phoneLayout
+  const handleClick = (event: MouseEvent<HTMLButtonElement>) => {
+    if (!selection) {
+      onOpen()
+      return
+    }
+
+    // A shift-click lands on a row the app will not edit as readily as on any other, and the
+    // range it takes steps over that row, so it runs anyway rather than doing nothing under a
+    // pointer the highlight has already answered
+    if (selection.isSelectable || event.shiftKey) selection.onToggle(event.shiftKey)
+  }
+  const reasonProps = getDisabledReasonProps<HTMLButtonElement>(
+    disabledReason ?? { isUnavailable: false, controlProps: {}, handleBlockedClick: () => {} },
+    { onClick: handleClick },
+  )
+  const isHeldOff = disabledReason?.isUnavailable === true
   // The row clips its content only while the height animates, so the grow and collapse read cleanly
   // while the resting row still lets a tag tooltip overflow past its edges
   const [isAnimatingHeight, setIsAnimatingHeight] = useState(false)
@@ -297,7 +349,8 @@ export function TransactionRowView({
   const visibleTags = tags.slice(0, MAX_VISIBLE_TAGS)
   const extraTagCount = Math.max(tags.length - visibleTags.length, 0)
   const hasVisibleTags = visibleTags.length > 0
-  const hasSupplementalMeta = hasNotes || hasVisibleTags
+  const refundLink = getRefundLinkLabel(transaction)
+  const hasSupplementalMeta = hasNotes || hasVisibleTags || refundLink !== null
   const hasAccountMeta = !!accountName || !!accountInstitution
   const readOnly = Boolean(readOnlyReason)
   const isInFadedSection = useContext(FadedRowsContext)
@@ -308,7 +361,7 @@ export function TransactionRowView({
   // muted colour, and dims the category icon, which colour can't reach, so nothing in the row reads as
   // strongly as one that counts
   const transactionAmountColor = isFaded ? 'var(--app-text)' : amountColor(category, amountPresentation.sign)
-  const categoryIconStyle = isFaded ? { opacity: FADED_CATEGORY_ICON_OPACITY } : undefined
+  const categoryIconStyle = { opacity: isFaded ? FADED_CATEGORY_ICON_OPACITY : 1 }
 
   // Only the limit gets a title here, since a read-only row already explains itself through the
   // pill beside its account name
@@ -353,7 +406,7 @@ export function TransactionRowView({
       transition={{ duration: prefersReducedMotion ? 0 : 0.24, ease: ROW_EXIT_EASE }}
       onAnimationStart={() => setIsAnimatingHeight(true)}
       onAnimationComplete={() => setIsAnimatingHeight(false)}
-      className="app-transaction-row relative flex items-center hover:bg-[var(--app-hover-soft)] min-[750px]:col-span-full min-[750px]:grid min-[750px]:grid-cols-subgrid min-[750px]:items-center min-[750px]:gap-x-3 min-[1300px]:gap-x-4"
+      className={`app-transaction-row relative flex items-center ${isHeldOff ? '' : 'hover:bg-[var(--app-hover-soft)]'} ${wide ? 'min-[750px]:col-span-full min-[750px]:grid min-[750px]:grid-cols-subgrid min-[750px]:items-center min-[750px]:gap-x-3 min-[1300px]:gap-x-4' : ''}`}
       style={{
         borderBottom: '1px solid var(--app-border)',
         overflow: isAnimatingHeight ? 'hidden' : 'visible',
@@ -408,18 +461,9 @@ export function TransactionRowView({
         // In selection mode the checkbox is the row's single stop, so the same row does not offer
         // two controls doing the same thing
         tabIndex={selection ? -1 : undefined}
-        onClick={(event) => {
-          if (!selection) {
-            onOpen()
-            return
-          }
-
-          // A shift-click lands on a row the app will not edit as readily as on any other, and the
-          // range it takes steps over that row, so it runs anyway rather than doing nothing under a
-          // pointer the highlight has already answered
-          if (selection.isSelectable || event.shiftKey) selection.onToggle(event.shiftKey)
-        }}
-        className="block w-full min-w-0 flex-1 cursor-pointer px-3 text-left focus-visible:outline-none min-[750px]:col-span-5 min-[750px]:grid min-[750px]:grid-cols-subgrid min-[750px]:items-center min-[750px]:gap-x-3 min-[1300px]:gap-x-4"
+        {...reasonProps}
+        aria-pressed={pressed}
+        className={`block w-full min-w-0 flex-1 ${isHeldOff ? 'cursor-not-allowed' : 'cursor-pointer'} px-3 text-left focus-visible:outline-none ${wide ? 'min-[750px]:col-span-5 min-[750px]:grid min-[750px]:grid-cols-subgrid min-[750px]:items-center min-[750px]:gap-x-3 min-[1300px]:gap-x-4' : ''}`}
         style={{ scrollMarginTop: TRANSACTION_ROW_SCROLL_MARGIN }}
       >
         {/* Row from 750px wide: each cell is a direct child of this button's subgrid, which spans the
@@ -427,105 +471,120 @@ export function TransactionRowView({
           category and account tracks grow to their widest content across all rows, showing long
           names while there is room and truncating only when there is not, with the note and tags
           as the flexible filler that compresses first */}
-        <span className="hidden text-2xl leading-none min-[750px]:block" style={categoryIconStyle} aria-hidden>
-          {categoryIcon}
-        </span>
+        {wide && (
+          <>
+            <span
+              className={`hidden text-2xl leading-none min-[750px]:block ${ICON_FADE_CLASS_NAME}`}
+              style={categoryIconStyle}
+              aria-hidden
+            >
+              {categoryIcon}
+            </span>
 
-        <span className="hidden min-w-0 min-[750px]:block">
-          <span className="block truncate font-medium">{categoryName}</span>
-          <span className="mt-0.5 block truncate text-sm" style={{ color: 'var(--app-text-muted)' }}>
-            {title}
-          </span>
-        </span>
-
-        <span
-          className="hidden min-w-0 flex-col gap-1 text-sm font-medium leading-5 min-[750px]:flex"
-          style={{ color: 'var(--app-text-muted)' }}
-        >
-          {hasAccountMeta && (
-            <>
-              <span className="inline-flex min-w-0 max-w-full items-center gap-2">
-                <AccountLogo accountName={accountName} institution={accountInstitution} />
-                {accountName && <span className="min-w-0 truncate">{accountName}</span>}
+            <span className="hidden min-w-0 min-[750px]:block">
+              <span className="block truncate font-medium">{categoryName}</span>
+              <span className="mt-0.5 block truncate text-sm" style={{ color: 'var(--app-text-muted)' }}>
+                {title}
               </span>
-              {readOnlyReason && <ReadOnlyReasonPill reason={readOnlyReason} />}
-            </>
-          )}
-        </span>
+            </span>
 
-        {/* The note and the tags share the track the category, merchant and account leave over. It is
+            <span
+              className="hidden min-w-0 flex-col gap-1 text-sm font-medium leading-5 min-[750px]:flex"
+              style={{ color: 'var(--app-text-muted)' }}
+            >
+              {hasAccountMeta && (
+                <>
+                  <span className="inline-flex min-w-0 max-w-full items-center gap-2">
+                    <AccountLogo accountName={accountName} institution={accountInstitution} />
+                    {accountName && <span className="min-w-0 truncate">{accountName}</span>}
+                  </span>
+                  {readOnlyReason && <ReadOnlyReasonPill reason={readOnlyReason} />}
+                </>
+              )}
+            </span>
+
+            {/* The note and the tags share the track the category, merchant and account leave over. It is
           the same width in every row, so measuring it as a container switches every row together and
           each column stays one form down the list. With too little room the tags give way to an icon
           and count first, below 22rem, and then the note to its icon, below 12rem, which leaves under
           8rem of text where most notes would be cut to a few letters. Being a container makes the
           track its own stacking context, so a hovered one rises over the pinned day heading for the
           tag list that opens above it */}
-        <span className="@container/extras hidden min-w-0 hover:z-50 min-[750px]:block">
-          <span
-            className="flex min-w-0 items-center gap-3 text-sm leading-5 @min-[12rem]/extras:pl-5"
-            style={{ color: 'var(--app-text-muted)' }}
-          >
-            <span className="hidden min-w-0 truncate @min-[12rem]/extras:block">{transaction.notes}</span>
-            {hasNotes && <NoteAndTagIcons hasNotes tagCount={0} className="@min-[12rem]/extras:hidden" />}
-            <span className="ml-auto flex shrink-0 justify-end gap-1.5">
-              {hasVisibleTags && (
-                <span className="group relative inline-flex @min-[22rem]/extras:hidden">
-                  <NoteAndTagIcons hasNotes={false} tagCount={tags.length} />
-                  <TagTooltip tags={tags} />
+            <span className="@container/extras hidden min-w-0 hover:z-50 min-[750px]:block">
+              <span
+                className="flex min-w-0 items-center gap-3 text-sm leading-5 @min-[12rem]/extras:pl-5"
+                style={{ color: 'var(--app-text-muted)' }}
+              >
+                <span className="hidden min-w-0 truncate @min-[12rem]/extras:block">{transaction.notes}</span>
+                {hasNotes && <NoteAndTagIcons hasNotes tagCount={0} className="@min-[12rem]/extras:hidden" />}
+                <span className="ml-auto flex shrink-0 items-center justify-end gap-1.5">
+                  {refundLink && <NoteAndTagIcons hasNotes={false} tagCount={0} refundLink={refundLink} />}
+                  {hasVisibleTags && (
+                    <span className="group relative inline-flex @min-[22rem]/extras:hidden">
+                      <NoteAndTagIcons hasNotes={false} tagCount={tags.length} />
+                      <TagTooltip tags={tags} />
+                    </span>
+                  )}
+                  {visibleTags.map((tag) => (
+                    <span
+                      key={tag.id}
+                      className="group relative hidden max-w-[8rem] shrink-0 @min-[22rem]/extras:inline-flex"
+                    >
+                      <span
+                        className="inline-flex min-w-0 items-center gap-1 rounded-full px-2 py-0.5 text-sm font-medium"
+                        style={{
+                          background: 'var(--app-surface-soft)',
+                          color: 'var(--app-text-muted)',
+                          border: '1px solid var(--app-border)',
+                        }}
+                      >
+                        <TagIcon size={11} aria-hidden className="shrink-0" />
+                        <span className="truncate">{tag.name}</span>
+                      </span>
+                      <TagTooltip tags={tags} />
+                    </span>
+                  ))}
+                  {extraTagCount > 0 && (
+                    <span className="group relative hidden shrink-0 @min-[22rem]/extras:inline-flex">
+                      <span
+                        className="inline-flex rounded-full px-2 py-0.5 text-sm font-medium"
+                        style={{
+                          background: 'var(--app-surface-soft)',
+                          color: 'var(--app-text-muted)',
+                          border: '1px solid var(--app-border)',
+                        }}
+                      >
+                        +{extraTagCount}
+                      </span>
+                      <TagTooltip tags={tags} />
+                    </span>
+                  )}
                 </span>
-              )}
-              {visibleTags.map((tag) => (
-                <span
-                  key={tag.id}
-                  className="group relative hidden max-w-[8rem] shrink-0 @min-[22rem]/extras:inline-flex"
-                >
-                  <span
-                    className="inline-flex min-w-0 items-center gap-1 rounded-full px-2 py-0.5 text-sm font-medium"
-                    style={{
-                      background: 'var(--app-surface-soft)',
-                      color: 'var(--app-text-muted)',
-                      border: '1px solid var(--app-border)',
-                    }}
-                  >
-                    <TagIcon size={11} aria-hidden className="shrink-0" />
-                    <span className="truncate">{tag.name}</span>
-                  </span>
-                  <TagTooltip tags={tags} />
-                </span>
-              ))}
-              {extraTagCount > 0 && (
-                <span className="group relative hidden shrink-0 @min-[22rem]/extras:inline-flex">
-                  <span
-                    className="inline-flex rounded-full px-2 py-0.5 text-sm font-medium"
-                    style={{
-                      background: 'var(--app-surface-soft)',
-                      color: 'var(--app-text-muted)',
-                      border: '1px solid var(--app-border)',
-                    }}
-                  >
-                    +{extraTagCount}
-                  </span>
-                  <TagTooltip tags={tags} />
-                </span>
-              )}
+              </span>
             </span>
-          </span>
-        </span>
 
-        <span
-          className="hidden min-w-0 text-right font-financial text-base font-semibold tabular-nums min-[750px]:block"
-          data-testid="transaction-amount"
-          style={{ color: transactionAmountColor }}
-        >
-          {formattedAmount}
-          {fxNote && <FxNote note={fxNote} />}
-        </span>
+            <span
+              className="hidden min-w-0 text-right font-financial text-base font-semibold tabular-nums min-[750px]:block"
+              data-testid="transaction-amount"
+              style={{ color: transactionAmountColor }}
+            >
+              {formattedAmount}
+              {fxNote && <FxNote note={fxNote} />}
+            </span>
+          </>
+        )}
 
         {/* Three lines on a phone: merchant and amount, category, then account. Set close together, and
           reaching a little into the row's padding, which the wide layout keeps, so a row takes less
           height without crowding the account in beside the category */}
-        <span className="-my-1 grid grid-cols-[2.125rem_minmax(0,1fr)_max-content] items-start gap-x-2.5 gap-y-0.5 min-[750px]:hidden">
-          <span className="row-span-3 pt-0.5 text-[1.35rem] leading-none" style={categoryIconStyle} aria-hidden>
+        <span
+          className={`-my-1 grid grid-cols-[2.125rem_minmax(0,1fr)_max-content] items-start gap-x-2.5 gap-y-0.5 ${wide ? 'min-[750px]:hidden' : ''}`}
+        >
+          <span
+            className={`row-span-3 pt-0.5 text-[1.35rem] leading-none ${ICON_FADE_CLASS_NAME}`}
+            style={categoryIconStyle}
+            aria-hidden
+          >
             {categoryIcon}
           </span>
 
@@ -570,7 +629,12 @@ export function TransactionRowView({
                 {readOnlyReason && <ReadOnlyReasonPill reason={readOnlyReason} />}
               </span>
               {hasSupplementalMeta && (
-                <NoteAndTagIcons hasNotes={hasNotes} tagCount={tags.length} className="shrink-0 pt-0.5" />
+                <NoteAndTagIcons
+                  hasNotes={hasNotes}
+                  tagCount={tags.length}
+                  refundLink={refundLink}
+                  className="shrink-0 pt-0.5"
+                />
               )}
             </span>
           )}

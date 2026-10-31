@@ -10,12 +10,25 @@ import type { TransactionListAccount } from '@/components/transactions/types/tra
 import { getTransactionReadOnlyReason } from '@/components/transactions/utils/rowEditability'
 
 const openAccount: TransactionListAccount = { id: 'chequing', is_archived: false, can_write: true, group_id: null }
-const archivedAccount: TransactionListAccount = { id: 'old_account', is_archived: true, can_write: true, group_id: null }
-const accountMap = new Map([[openAccount.id, openAccount], [archivedAccount.id, archivedAccount]])
+const archivedAccount: TransactionListAccount = {
+  id: 'old_account',
+  is_archived: true,
+  can_write: true,
+  group_id: null,
+}
+const accountMap = new Map([
+  [openAccount.id, openAccount],
+  [archivedAccount.id, archivedAccount],
+])
 
 const groceriesCategory: Category = {
-  id: 'cat_g', name: 'Groceries', kind: 'expense', icon: null,
-  is_system: true, owner_id: null, group_id: null,
+  id: 'cat_g',
+  name: 'Groceries',
+  kind: 'expense',
+  icon: null,
+  is_system: true,
+  owner_id: null,
+  group_id: null,
 } as Category
 const categoryMap = new Map([[groceriesCategory.id, groceriesCategory]])
 
@@ -36,6 +49,8 @@ function transaction(overrides: Partial<Transaction> = {}): Transaction {
     notes: null,
     counterparty_account_id: null,
     counterparty_account_scope: null,
+    refund_of_transaction_id: null,
+    refund_transaction_ids: [],
     created_at: '2026-08-23T00:00:00Z',
     updated_at: '2026-08-23T00:00:00Z',
     tag_ids: [],
@@ -50,13 +65,15 @@ describe('getTransactionReadOnlyReason', () => {
   })
 
   it('marks a row read-only whose category id is not in the map', () => {
-    expect(getTransactionReadOnlyReason(transaction({ category_id: 'cat_gone' }), accountMap, categoryMap))
-      .toBe('Uses a category you cannot open')
+    expect(getTransactionReadOnlyReason(transaction({ category_id: 'cat_gone' }), accountMap, categoryMap)).toBe(
+      'Uses a category you cannot open',
+    )
   })
 
   it('still marks an archived account row read-only for its own reason', () => {
-    expect(getTransactionReadOnlyReason(transaction({ account_id: archivedAccount.id }), accountMap, categoryMap))
-      .toBe('Archived · Read-only')
+    expect(getTransactionReadOnlyReason(transaction({ account_id: archivedAccount.id }), accountMap, categoryMap)).toBe(
+      'Archived · Read-only',
+    )
   })
 
   it('marks a read-only account row and an account with unknown capability as read-only', () => {
@@ -64,10 +81,12 @@ describe('getTransactionReadOnlyReason', () => {
     const unknown = { id: 'unknown' } as TransactionListAccount
     const accounts = new Map([...accountMap, [readOnly.id, readOnly], [unknown.id, unknown]])
 
-    expect(getTransactionReadOnlyReason(transaction({ account_id: readOnly.id }), accounts, categoryMap))
-      .toBe('Read-only access')
-    expect(getTransactionReadOnlyReason(transaction({ account_id: unknown.id }), accounts, categoryMap))
-      .toBe('Read-only access')
+    expect(getTransactionReadOnlyReason(transaction({ account_id: readOnly.id }), accounts, categoryMap)).toBe(
+      'Read-only access',
+    )
+    expect(getTransactionReadOnlyReason(transaction({ account_id: unknown.id }), accounts, categoryMap)).toBe(
+      'Read-only access',
+    )
   })
 
   it('uses the fixed account capability over a duplicate general account entry', () => {
@@ -81,11 +100,8 @@ describe('getTransactionReadOnlyReason', () => {
   })
 
   it('gives the archived reason over the category reason when a row trips both', () => {
-    expect(getTransactionReadOnlyReason(
-      transaction({ category_id: 'cat_gone' }),
-      accountMap,
-      categoryMap,
-      archivedAccount,
-    )).toBe('Archived · Read-only')
+    expect(
+      getTransactionReadOnlyReason(transaction({ category_id: 'cat_gone' }), accountMap, categoryMap, archivedAccount),
+    ).toBe('Archived · Read-only')
   })
 })

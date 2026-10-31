@@ -1,4 +1,5 @@
 """Transaction permission checks"""
+
 import uuid
 
 from fastapi import HTTPException, status
@@ -10,7 +11,8 @@ from app.models.base import PermissionLevel
 from app.models.transaction import Transaction
 from app.permissions.accounts import check_account_access
 
-_LOCK_NOT_AVAILABLE_SQLSTATE = "55P03"
+# A lock waited out, and a lock order Postgres broke as a deadlock. Either way another change got there first
+_LOCK_LOST_SQLSTATES = ("55P03", "40P01")
 TRANSACTION_WRITE_LOCK_WAIT = "10s"
 
 
@@ -47,7 +49,7 @@ async def check_transaction_access(
     try:
         result = await db.execute(transaction_query)
     except DBAPIError as exc:
-        if not lock_for_update or getattr(exc.orig, "sqlstate", None) != _LOCK_NOT_AVAILABLE_SQLSTATE:
+        if not lock_for_update or getattr(exc.orig, "sqlstate", None) not in _LOCK_LOST_SQLSTATES:
             raise
         await db.rollback()
         raise HTTPException(

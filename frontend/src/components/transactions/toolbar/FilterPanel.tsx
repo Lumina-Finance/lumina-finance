@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, type RefObject } from 'react'
 import type { OptionItem } from '@/components/filters/OptionList'
 import { FilterGlassPanel } from '@/components/list-controls/FilterGlassPanel'
 import { FilterPanelBody } from '@/components/transactions/toolbar/FilterPanelBody'
@@ -20,6 +20,12 @@ type TransactionFilterPanelProps = {
   showAccountFilter: boolean
   // The account's currency on its own transaction list, which pins the amount currency
   lockedCurrency?: string
+  // The open width, for a place whose row the panel must cover edge to edge, instead of the usual width
+  openWidth?: number
+
+  // A container the open panel must stay inside, such as a dialog's scrolling body. The panel then fits
+  // the height left there, with its options scrolling and its buttons on screen
+  constrainTo?: RefObject<HTMLElement | null>
 }
 
 /**
@@ -33,6 +39,8 @@ export function TransactionFilterPanel({
   setFilter,
   showAccountFilter,
   lockedCurrency,
+  openWidth = OPEN_WIDTH,
+  constrainTo,
 }: TransactionFilterPanelProps) {
   const [open, setOpen] = useState(false)
 
@@ -49,14 +57,15 @@ export function TransactionFilterPanel({
   return (
     <FilterGlassPanel
       ariaLabel="Transaction filters"
-      openWidth={OPEN_WIDTH}
+      openWidth={openWidth}
+      constrainTo={constrainTo}
       open={open}
       onOpenChange={setOpen}
       activeFacetCount={open ? draft.activeFacetCount : getActiveFacetCount(filters, showAccountFilter, lockedCurrency)}
       seedDraftFromFilters={draft.seedDraftFromFilters}
       clearAll={draft.clearAll}
     >
-      <FilterPanelBody draft={draft} showAccountFilter={showAccountFilter} />
+      <FilterPanelBody draft={draft} showAccountFilter={showAccountFilter} fillHeight={!!constrainTo} />
     </FilterGlassPanel>
   )
 }

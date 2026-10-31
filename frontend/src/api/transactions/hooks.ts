@@ -1,20 +1,22 @@
-import { useCallback } from 'react';
+import { useCallback } from 'react'
 import {
+  keepPreviousData,
   useInfiniteQuery,
   useMutation,
+  useQueries,
   useQuery,
   useQueryClient,
   type QueryClient,
-} from '@tanstack/react-query';
+} from '@tanstack/react-query'
 import {
   invalidateInsightsMerchants,
   invalidateMerchantLookupPages,
   invalidateTransactions,
   invalidateTransactionOverview,
-} from '@/api/cache/invalidation';
-import { uniqueIds } from '@/api/cache/invalidation/types';
-import { runWithMinimumPendingTime } from '@/api/utils/mutationFeedback';
-import { transactionKeys, transactionOverviewKeys } from '@/api/cache/queryKeys';
+} from '@/api/cache/invalidation'
+import { uniqueIds } from '@/api/cache/invalidation/types'
+import { runWithMinimumPendingTime } from '@/api/utils/mutationFeedback'
+import { transactionKeys, transactionOverviewKeys } from '@/api/cache/queryKeys'
 import {
   findCachedTransaction,
   invalidateBulkUpdatedTransactionData,
@@ -22,85 +24,157 @@ import {
   invalidatePatchedTransactionData,
   invalidateTransactionAccountData,
   removeTransactionsFromLists,
-} from '@/api/cache/updates/transactions';
+} from '@/api/cache/updates/transactions'
 import {
   bulkDeleteTransactions,
   bulkUpdateTransactions,
   createTransaction,
   deleteTransaction,
+  fetchRefundLinkCandidates,
   fetchTransaction,
   fetchTransactionPage,
   fetchTransactions,
   fetchTransactionsOverview,
+  linkRefund,
+  unlinkRefund,
   updateTransaction,
-} from '@/api/transactions/requests';
+} from '@/api/transactions/requests'
 import type {
+  LinkCandidateFilters,
   OverviewFilters,
   TransactionFilters,
   UpdateTransactionPayload,
-} from '@/api/transactions/types';
-import { getFxAwareStaleTime } from '@/api/shared/fxCache';
-import { useAuth } from '@/hooks/useAuth';
+} from '@/api/transactions/types'
+import { getFxAwareStaleTime } from '@/api/shared/fxCache'
+import { useAuth } from '@/hooks/useAuth'
 
-const TRANSACTION_OVERVIEW_FX_STALE_TIME_MS = 10 * 60 * 1000;
+const TRANSACTION_OVERVIEW_FX_STALE_TIME_MS = 10 * 60 * 1000
 
 /**
  * Reads transactions for non-infinite consumers such as selectors
  */
 export function useTransactions(filters: TransactionFilters = {}) {
-  const { accessToken } = useAuth();
+  const { accessToken } = useAuth()
   return useQuery({
     queryKey: transactionKeys.list(filters as Record<string, unknown>),
     queryFn: ({ signal }) => fetchTransactions(filters, signal),
     enabled: !!accessToken,
     staleTime: 10 * 60 * 1000,
-  });
+  })
 }
 
 /**
  * Reads transaction list pages for the transactions screen
  */
-export function useInfiniteTransactions(
-  filters: Omit<TransactionFilters, 'limit' | 'offset'> = {},
-  pageSize = 15,
-) {
-  const { accessToken } = useAuth();
+export function useInfiniteTransactions(filters: Omit<TransactionFilters, 'limit' | 'offset'> = {}, pageSize = 15) {
+  const { accessToken } = useAuth()
   return useInfiniteQuery({
     queryKey: transactionKeys.infinite(filters as Record<string, unknown>, pageSize),
     queryFn: ({ pageParam, signal }) => fetchTransactionPage(filters, pageSize, pageParam, signal),
     initialPageParam: 0,
 
     // A short page means the backend has no next page
-    getNextPageParam: (lastPage, allPages) =>
-      lastPage.length < pageSize ? undefined : allPages.length * pageSize,
+    getNextPageParam: (lastPage, allPages) => (lastPage.length < pageSize ? undefined : allPages.length * pageSize),
     enabled: !!accessToken,
     staleTime: 10 * 60 * 1000,
-  });
+  })
 }
 
 /**
  * Reads transaction overview metrics for the top-band cards
  */
 export function useTransactionsOverview(filters: OverviewFilters = {}) {
-  const { accessToken } = useAuth();
+  const { accessToken } = useAuth()
   return useQuery({
     queryKey: transactionOverviewKeys.detail(filters as Record<string, unknown>),
     queryFn: ({ signal }) => fetchTransactionsOverview(filters, signal),
     enabled: !!accessToken,
     staleTime: getFxAwareStaleTime(TRANSACTION_OVERVIEW_FX_STALE_TIME_MS),
-  });
+  })
 }
 
 // A transaction opened on its own is served from cache for this long before a refetch, since the
 // only edits that matter are the ones made in this tab, which invalidate the detail themselves
-const TRANSACTION_DETAIL_STALE_TIME_MS = 10 * 60 * 1000;
+const TRANSACTION_DETAIL_STALE_TIME_MS = 10 * 60 * 1000
+
+/**
+ * Reads one transaction by id, for showing the other side of a refund link. Stays idle until an id is given
+ */
+export function useTransaction(transactionId: string | null | undefined) {
+  const { accessToken } = useAuth()
+  return useQuery({
+    queryKey: transactionKeys.detail(transactionId ?? undefined),
+    queryFn: ({ signal }) => fetchTransaction(transactionId as string, signal),
+    enabled: !!accessToken && !!transactionId,
+    staleTime: TRANSACTION_DETAIL_STALE_TIME_MS,
+  })
+}
+
+/**
+ * Reads several transactions by id through the same cache entries as `useTransaction`, in the order
+ * given, with undefined for one that has not loaded yet
+ */
+export function useTransactionsById(transactionIds: readonly string[]) {
+  const { accessToken } = useAuth()
+  return useQueries({
+    queries: transactionIds.map((transactionId) => ({
+      queryKey: transactionKeys.detail(transactionId),
+      queryFn: ({ signal }: { signal: AbortSignal }) => fetchTransaction(transactionId, signal),
+      enabled: !!accessToken,
+      staleTime: TRANSACTION_DETAIL_STALE_TIME_MS,
+    })),
+    combine: (results) => results.map((result) => result.data),
+  })
+}
+
+/**
+ * Reads the transactions one can be linked to as a refund or as the expense it refunds. Stays idle
+ * until a transaction is given, and keeps the previous result on screen while a search is typed
+ */
+export function useRefundLinkCandidates(
+  transactionId: string | null | undefined,
+  searchText: string,
+  filters: LinkCandidateFilters,
+) {
+  const { accessToken } = useAuth()
+  return useQuery({
+    queryKey: transactionKeys.refundLinkCandidates(transactionId ?? undefined, searchText, filters),
+    queryFn: ({ signal }) => fetchRefundLinkCandidates(transactionId as string, searchText, filters, signal),
+    enabled: !!accessToken && !!transactionId,
+    placeholderData: keepPreviousData,
+  })
+}
+
+/**
+ * Links an existing transaction as the refund of an expense, then refreshes every list and detail
+ * showing either
+ */
+export function useLinkRefund() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: ({ refundId, originalId }: { refundId: string; originalId: string }) =>
+      linkRefund(refundId, originalId),
+    onSuccess: () => invalidateTransactions(queryClient),
+  })
+}
+
+/**
+ * Removes the link between a refund and its expense, then refreshes every list and detail showing it
+ */
+export function useUnlinkRefund() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: unlinkRefund,
+    onSuccess: () => invalidateTransactions(queryClient),
+  })
+}
 
 /**
  * Loads a single transaction by id through the query cache, for opening one that is not already
  * sitting in a loaded list page
  */
 export function useLoadTransaction() {
-  const queryClient = useQueryClient();
+  const queryClient = useQueryClient()
   return useCallback(
     (transactionId: string) =>
       queryClient.fetchQuery({
@@ -109,14 +183,14 @@ export function useLoadTransaction() {
         staleTime: TRANSACTION_DETAIL_STALE_TIME_MS,
       }),
     [queryClient],
-  );
+  )
 }
 
 interface UseCreateTransactionOptions {
-  deferAccountInvalidation?: boolean;
+  deferAccountInvalidation?: boolean
   // Holds the transactions-page list and overview refreshes so the caller can flush them once, when a
   // create modal is dismissed, instead of refetching the page behind it on every save
-  deferTransactionInvalidation?: boolean;
+  deferTransactionInvalidation?: boolean
 }
 
 /**
@@ -126,20 +200,20 @@ export function useCreateTransaction({
   deferAccountInvalidation = false,
   deferTransactionInvalidation = false,
 }: UseCreateTransactionOptions = {}) {
-  const queryClient = useQueryClient();
+  const queryClient = useQueryClient()
   return useMutation({
     mutationFn: createTransaction,
     onSuccess: (transaction) => {
-      const accountIds = [transaction.account_id];
-      if (!deferTransactionInvalidation) invalidateTransactions(queryClient);
+      const accountIds = [transaction.account_id]
+      if (!deferTransactionInvalidation) invalidateTransactions(queryClient)
       invalidateFinancialTransactionData(queryClient, accountIds, {
         deferAccountInvalidation,
         deferTransactionOverview: deferTransactionInvalidation,
         deferMerchantLookupInvalidation: deferTransactionInvalidation,
-      });
-      invalidateInsightsMerchants(queryClient);
+      })
+      invalidateInsightsMerchants(queryClient)
     },
-  });
+  })
 }
 
 /**
@@ -147,23 +221,23 @@ export function useCreateTransaction({
  * for flushing a session of created transactions that deferred its own invalidation
  */
 export function useRefreshCreatedTransactions() {
-  const queryClient = useQueryClient();
+  const queryClient = useQueryClient()
   return useCallback(
     (accountIds: string[]) => {
-      invalidateTransactions(queryClient);
-      invalidateTransactionOverview(queryClient);
-      invalidateMerchantLookupPages(queryClient);
-      invalidateTransactionAccountData(queryClient, accountIds, { refetchAccountList: true });
+      invalidateTransactions(queryClient)
+      invalidateTransactionOverview(queryClient)
+      invalidateMerchantLookupPages(queryClient)
+      invalidateTransactionAccountData(queryClient, accountIds, { refetchAccountList: true })
     },
     [queryClient],
-  );
+  )
 }
 
 /**
  * Updates transactions and invalidates only the views affected by changed fields
  */
 export function useUpdateTransaction({ minimumPendingMs = 0 }: { minimumPendingMs?: number } = {}) {
-  const queryClient = useQueryClient();
+  const queryClient = useQueryClient()
   return useMutation({
     mutationFn: (payload: Parameters<typeof updateTransaction>[0]) =>
       runWithMinimumPendingTime(minimumPendingMs, () => updateTransaction(payload)),
@@ -171,27 +245,24 @@ export function useUpdateTransaction({ minimumPendingMs = 0 }: { minimumPendingM
       previousTransaction: findCachedTransaction(queryClient, id),
     }),
     onSuccess: (updated, { patch }, context) => {
-      const accountIds = uniqueIds([
-        context?.previousTransaction?.account_id,
-        updated.account_id,
-      ]);
-      invalidatePatchedTransactionData(queryClient, patch, accountIds);
+      const accountIds = uniqueIds([context?.previousTransaction?.account_id, updated.account_id])
+      invalidatePatchedTransactionData(queryClient, patch, accountIds)
     },
-  });
+  })
 }
 
 /**
  * Applies one set of details across several transactions and refreshes the views those fields feed
  */
 export function useBulkUpdateTransactions({ minimumPendingMs = 0 }: { minimumPendingMs?: number } = {}) {
-  const queryClient = useQueryClient();
+  const queryClient = useQueryClient()
   return useMutation({
     mutationFn: (payload: Parameters<typeof bulkUpdateTransactions>[0]) =>
       runWithMinimumPendingTime(minimumPendingMs, () => bulkUpdateTransactions(payload)),
     onSuccess: (result, payload) => {
-      invalidateBulkUpdatedTransactionData(queryClient, payload, result.affected_account_ids);
+      invalidateBulkUpdatedTransactionData(queryClient, payload, result.affected_account_ids)
     },
-  });
+  })
 }
 
 /**
@@ -203,7 +274,7 @@ export function applyTransactionDeletion(
   transactionId: string,
   accountId: string | undefined,
 ) {
-  applyTransactionsDeletion(queryClient, [transactionId], uniqueIds([accountId]));
+  applyTransactionsDeletion(queryClient, [transactionId], uniqueIds([accountId]))
 }
 
 /**
@@ -211,10 +282,10 @@ export function applyTransactionDeletion(
  * accounts they were in, once for the whole set
  */
 function applyTransactionsDeletion(queryClient: QueryClient, transactionIds: string[], accountIds: string[]) {
-  removeTransactionsFromLists(queryClient, transactionIds);
-  invalidateTransactions(queryClient);
-  invalidateFinancialTransactionData(queryClient, accountIds);
-  invalidateInsightsMerchants(queryClient);
+  removeTransactionsFromLists(queryClient, transactionIds)
+  invalidateTransactions(queryClient)
+  invalidateFinancialTransactionData(queryClient, accountIds)
+  invalidateInsightsMerchants(queryClient)
 }
 
 /**
@@ -225,31 +296,51 @@ export function useDeleteTransaction({
   minimumPendingMs = 0,
   deferRemoval = false,
 }: { minimumPendingMs?: number; deferRemoval?: boolean } = {}) {
-  const queryClient = useQueryClient();
+  const queryClient = useQueryClient()
   return useMutation({
-    mutationFn: (id: string) =>
-      runWithMinimumPendingTime(minimumPendingMs, () => deleteTransaction(id)),
+    mutationFn: (id: string) => runWithMinimumPendingTime(minimumPendingMs, () => deleteTransaction(id)),
     onMutate: (id) => ({
       deletedTransaction: findCachedTransaction(queryClient, id),
     }),
     onSuccess: (_data, id, context) => {
-      if (deferRemoval) return;
-      applyTransactionDeletion(queryClient, id, context?.deletedTransaction?.account_id);
+      if (deferRemoval) return
+      applyTransactionDeletion(queryClient, id, context?.deletedTransaction?.account_id)
     },
-  });
+  })
 }
 
 /**
  * Deletes several transactions in one request, then drops them from the cached lists and refreshes
  * the aggregate views of the accounts they were in, once for the whole set
  */
-export function useBulkDeleteTransactions({ minimumPendingMs = 0 }: { minimumPendingMs?: number } = {}) {
-  const queryClient = useQueryClient();
+export function useBulkDeleteTransactions({
+  minimumPendingMs = 0,
+  deferRemoval = false,
+}: { minimumPendingMs?: number; deferRemoval?: boolean } = {}) {
+  const queryClient = useQueryClient()
   return useMutation({
-    mutationFn: (transactionIds: string[]) =>
-      runWithMinimumPendingTime(minimumPendingMs, () => bulkDeleteTransactions(transactionIds)),
-    onSuccess: (result, transactionIds) => {
-      applyTransactionsDeletion(queryClient, transactionIds, result.affected_account_ids);
+    mutationFn: ({ transactionIds, linkedIds = [] }: BulkDeleteVariables) =>
+      runWithMinimumPendingTime(minimumPendingMs, () => bulkDeleteTransactions([...transactionIds, ...linkedIds])),
+    onSuccess: (result, { transactionIds, linkedIds = [] }) => {
+      if (deferRemoval) return
+      applyTransactionsDeletion(queryClient, [...transactionIds, ...linkedIds], result.affected_account_ids)
     },
-  });
+  })
+}
+
+/**
+ * What a bulk delete is asked to remove. The linked ids are the linked transactions the user chose
+ * to delete too, sent with the rest so only what the dialog showed is deleted
+ */
+export interface BulkDeleteVariables {
+  transactionIds: string[]
+  linkedIds?: string[]
+}
+
+/**
+ * Removes deleted transactions from the cached lists and refreshes the aggregate views of the
+ * accounts they were in, split out so a caller that deferred the removal can run it later
+ */
+export function applyBulkTransactionDeletion(queryClient: QueryClient, transactionIds: string[], accountIds: string[]) {
+  applyTransactionsDeletion(queryClient, transactionIds, accountIds)
 }

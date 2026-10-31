@@ -22,29 +22,33 @@ describe('transaction modal initial form', () => {
     const categories = [createCategory({ id: 'groceries', kind: 'expense' })]
     const accounts = [createAccount({ id: 'checking', currency: 'CAD' })]
 
-    expect(buildInitialTransactionForm({
-      categories,
-      currencies,
-      selectableAccounts: accounts,
-      defaultAccountId: 'checking',
-      timeZone: undefined,
-    })).toMatchObject({
+    expect(
+      buildInitialTransactionForm({
+        categories,
+        currencies,
+        selectableAccounts: accounts,
+        defaultAccountId: 'checking',
+        timeZone: undefined,
+      }),
+    ).toMatchObject({
       account_id: 'checking',
       currency: 'CAD',
       date: '2026-06-13',
     })
 
-    expect(buildInitialTransactionForm({
-      transaction: createTransaction({
-        category_id: 'groceries',
-        amount: -9876,
-        tags: [{ id: 'tax', group_id: null, name: 'Tax' }],
+    expect(
+      buildInitialTransactionForm({
+        transaction: createTransaction({
+          category_id: 'groceries',
+          amount: -9876,
+          tags: [{ id: 'tax', group_id: null, name: 'Tax' }],
+        }),
+        categories,
+        currencies,
+        selectableAccounts: accounts,
+        timeZone: undefined,
       }),
-      categories,
-      currencies,
-      selectableAccounts: accounts,
-      timeZone: undefined,
-    })).toMatchObject({
+    ).toMatchObject({
       kind: 'expense',
       direction: 'debit',
       amount: '98.76',
@@ -83,11 +87,40 @@ describe('transaction modal initial form', () => {
 
     // A blank amount converts to zero, so leaving it out is what stops the save wiping the stored value
     expect(buildUpdateTransactionPatch(form, transaction, null)).toBeNull()
-    expect(buildUpdateTransactionPatch({ ...form, notes: 'Checked' }, transaction, null))
-      .toEqual({ notes: 'Checked' })
+    expect(buildUpdateTransactionPatch({ ...form, notes: 'Checked' }, transaction, null)).toEqual({ notes: 'Checked' })
 
     // The rest of the form still has to pass, so the blank amount cannot block an edit to anything else
     expect(validateTransactionForm(form, { isAmountLocked: true })).toEqual({})
     expect(validateTransactionForm(form)).toEqual({ amount: 'Enter an amount' })
+  })
+})
+
+describe('a refund of an expense', () => {
+  const expense = createTransaction({ category_id: 'groceries', amount: -3713, currency: 'CAD' })
+  const options = {
+    refundOf: expense,
+    categories: [createCategory({ id: 'groceries', kind: 'expense' })],
+    currencies,
+    selectableAccounts: [createAccount({ id: 'checking', currency: 'CAD' })],
+    timeZone: undefined,
+  }
+
+  it('starts at what is left to refund, to the cent', () => {
+    expect(buildInitialTransactionForm({ ...options, refundRoom: 1713 }).amount).toBe('17.13')
+    expect(buildInitialTransactionForm({ ...options, refundRoom: 5 }).amount).toBe('0.05')
+  })
+
+  it('starts at the whole expense when no room is given, and at nothing once none is left', () => {
+    expect(buildInitialTransactionForm(options).amount).toBe('37.13')
+    expect(buildInitialTransactionForm({ ...options, refundRoom: 0 }).amount).toBe('0.00')
+    expect(buildInitialTransactionForm({ ...options, refundRoom: -200 }).amount).toBe('0.00')
+  })
+
+  it('stays on the account of the expense when it is listed, and otherwise starts on the first one listed', () => {
+    const own = createAccount({ id: expense.account_id, currency: 'CAD' })
+    const other = createAccount({ id: 'other', currency: 'CAD' })
+    expect(buildInitialTransactionForm({ ...options, selectableAccounts: [other, own] }).account_id).toBe(own.id)
+    expect(buildInitialTransactionForm({ ...options, selectableAccounts: [other] }).account_id).toBe('other')
+    expect(buildInitialTransactionForm({ ...options, selectableAccounts: [] }).account_id).toBe('')
   })
 })

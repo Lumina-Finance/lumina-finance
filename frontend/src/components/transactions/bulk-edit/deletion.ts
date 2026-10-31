@@ -1,4 +1,25 @@
+import type { Transaction } from '@/api/transactions'
 import type { TransactionListAccount } from '@/components/transactions/types/transactionList'
+
+/**
+ * Returns the transactions linked to the ones being deleted that are not being deleted themselves.
+ * The server removes the links of every deleted transaction, and these are the ones left on the
+ * other side, which the user is asked about
+ *
+ * @param rows - The transactions being deleted, with their refund links
+ */
+export function getLinkedIdsOutside(
+  rows: Pick<Transaction, 'id' | 'refund_of_transaction_id' | 'refund_transaction_ids'>[],
+): string[] {
+  const deleted = new Set(rows.map((row) => row.id))
+  const linked = new Set<string>()
+  for (const row of rows) {
+    for (const id of [row.refund_of_transaction_id, ...row.refund_transaction_ids]) {
+      if (id && !deleted.has(id)) linked.add(id)
+    }
+  }
+  return [...linked]
+}
 
 export const GROUP_ACCOUNT_BULK_DELETE_REASON = "Transactions in group accounts can't be deleted in bulk"
 

@@ -1,5 +1,6 @@
 import { useId, type ReactNode } from 'react'
 import type { LucideIcon } from 'lucide-react'
+import type { ModalLevel } from '@/components/modal/Shell'
 import { ModalFormFooter } from '@/components/modal/FormFooter'
 import { ModalTitledPanel } from '@/components/modal/TitledPanel'
 import { WarningCallout } from '@/components/WarningCallout'
@@ -20,6 +21,9 @@ type ModalDeleteConfirmProps = {
 
   /** What is deleted and what is kept, above the warning that it can't be undone */
   children?: ReactNode
+
+  /** Stacked where the confirmation opens over another modal */
+  level?: ModalLevel
 }
 
 /**
@@ -40,6 +44,7 @@ export function ModalDeleteConfirm({
   onConfirm,
   onCancel,
   children,
+  level = 'page',
 }: ModalDeleteConfirmProps) {
   const titleId = useId()
   const descriptionId = useId()
@@ -47,6 +52,7 @@ export function ModalDeleteConfirm({
   return (
     <ModalTitledPanel
       open={open}
+      level={level}
       onClose={onCancel}
       titleId={titleId}
       descriptionId={descriptionId}
@@ -55,9 +61,10 @@ export function ModalDeleteConfirm({
       RailIcon={RailIcon}
       railLabel={label}
       closeDisabled={isDeleting}
-      footer={(
+      footer={
         <ModalFormFooter
           submitLabel={confirmLabel}
+          level={level}
           submitDisabled={isDeleting}
           submitWidthClassName="w-full sm:w-auto"
           error={error}
@@ -66,7 +73,7 @@ export function ModalDeleteConfirm({
           primaryOnLeft
           tone="danger"
         />
-      )}
+      }
     >
       <div id={descriptionId} className="space-y-4">
         {children}
