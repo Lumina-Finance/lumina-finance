@@ -3,7 +3,7 @@
 import uuid
 from datetime import datetime
 
-from sqlalchemy import VARCHAR, Boolean, CheckConstraint, DateTime, Float, ForeignKey, Text, func
+from sqlalchemy import VARCHAR, Boolean, CheckConstraint, DateTime, Float, ForeignKey, Index, Text, func, text
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.models.base import Base
@@ -18,10 +18,15 @@ class User(Base):
     """Core user profile. Every user has exactly one row here."""
 
     __tablename__ = "users"
-    __table_args__ = (CheckConstraint(f"date_format IN ({_DATE_FORMAT_CHECK_VALUES})", name="ck_users_date_format"),)
+    __table_args__ = (
+        CheckConstraint(f"date_format IN ({_DATE_FORMAT_CHECK_VALUES})", name="ck_users_date_format"),
+        # An address is one account whatever its capitals. The sign-in lookup compares lower(email)
+        # the same way, in the database function app.db.rls.functions.FIND_LOGIN_USER
+        Index("uq_users_email_lower", text("lower(email)"), unique=True),
+    )
 
     id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
-    email: Mapped[str] = mapped_column(VARCHAR(254), unique=True, nullable=False)  # RFC 3696
+    email: Mapped[str] = mapped_column(VARCHAR(254), nullable=False)  # RFC 3696
     first_name: Mapped[str] = mapped_column(VARCHAR(256), nullable=False)
     last_name: Mapped[str | None] = mapped_column(VARCHAR(256))
     profile_pic: Mapped[str | None] = mapped_column(Text)  # Path/URL to profile picture

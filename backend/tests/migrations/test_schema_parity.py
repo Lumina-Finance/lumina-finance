@@ -6,7 +6,7 @@ import subprocess
 import sys
 from datetime import UTC, datetime
 from pathlib import Path
-from uuid import UUID
+from uuid import UUID, uuid4
 
 import pytest
 from sqlalchemy import Enum as SqlaEnum
@@ -77,6 +77,10 @@ _SAVINGS_ACCOUNT_ID = "eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee"
 _CHEQUING_KEY = "bank:123000456:000123456789"
 _ALEMBIC_RUN_SOURCES_DB_NAME = f"{WORKER_DB_NAME}_alembic_run_sources"
 _RUN_SOURCES_REVISION = "9e1b5c3a7d24"
+_ALEMBIC_EMAIL_FOLD_DB_NAME = f"{WORKER_DB_NAME}_alembic_email_fold"
+_BEFORE_EMAIL_FOLD_REVISION = "c4d8e2f6a1b3"
+_EMAIL_FOLD_REVISION = "b7d3f1a9c5e2"
+_EMAIL_FOLD_SECRET_HASH = "secret-password-hash-that-must-not-be-printed"
 
 # What the server keeps for the account key above and the bank ID "A1" under the test key: HMAC-SHA256
 # of the SHA-256 digest of the key, a zero byte and "A1". The digest, from
@@ -773,6 +777,93 @@ async def test_login_lockout_migration_carries_counts_and_locks_both_ways() -> N
         await _drop_database(database_name)
 
 
+async def _read_email_fold_state(conn: AsyncConnection) -> tuple[str, bool, bool]:
+    """Return the schema revision, whether the exact-match constraint exists and whether the folded index does"""
+    revision = await conn.scalar(text("SELECT version_num FROM alembic_version"))
+    constraint = await conn.scalar(text("SELECT count(*) FROM pg_constraint WHERE conname = 'users_email_key'"))
+    index = await conn.scalar(text("SELECT count(*) FROM pg_indexes WHERE indexname = 'uq_users_email_lower'"))
+    return revision, constraint == 1, index == 1
+
+
+async def test_email_fold_migration_refuses_case_variant_accounts_and_upgrades_once_they_are_resolved() -> None:
+    """Verify the upgrade stops on accounts differing only in capitals, names them, changes nothing, and runs once resolved
+
+    The refusal is the only protection for an instance holding such pairs: merging them could give one
+    person another's finances, and an index that failed to build would leave the host with a raw database error
+    """
+    database_name = _ALEMBIC_EMAIL_FOLD_DB_NAME
+    await _recreate_database(database_name)
+    engine = _create_engine_for_database(database_name)
+    emails = ["Alice@example.com", "alice@example.com", "carol@example.com", "BOB@example.com", "bob@example.com", "Bob@example.com"]
+    user_ids = {email: str(uuid4()) for email in emails}
+    try:
+        _run_alembic_upgrade(database_name, revision=_BEFORE_EMAIL_FOLD_REVISION)
+        async with engine.begin() as conn:
+            await conn.execute(text("INSERT INTO currencies (id, name, symbol, minor_unit_exponent) VALUES ('CAD', 'Canadian Dollar', '$', 2)"))
+            for email, user_id in user_ids.items():
+                await conn.execute(
+                    text(
+                        "INSERT INTO users (id, email, first_name, tz, base_currency)"
+                        " VALUES (:id, :email, 'Migration', 'America/Toronto', 'CAD')"
+                    ),
+                    {"id": user_id, "email": email},
+                )
+            await conn.execute(
+                text("INSERT INTO password_credentials (user_id, password_hash, password_algo) VALUES (:id, :hash, 'argon2id')"),
+                {"id": user_ids["Alice@example.com"], "hash": _EMAIL_FOLD_SECRET_HASH},
+            )
+
+        refused = _start_alembic_upgrade(database_name, "head")
+        output = refused.stdout + refused.stderr
+
+        assert refused.returncode != 0
+        assert "  Alice@example.com, alice@example.com\n" in output
+        assert "  BOB@example.com, Bob@example.com, bob@example.com\n" in output
+        assert "carol@example.com" not in output
+        assert "docker compose stop app" in output
+        assert "Traceback" not in output
+
+        # Only the addresses are named, never the stored secrets or the account ids
+        assert _EMAIL_FOLD_SECRET_HASH not in output
+        assert not any(user_id in output for user_id in user_ids.values())
+
+        # The refusal changes nothing, so a run after the host resolves the pairs starts from the same state
+        async with engine.connect() as conn:
+            assert await _read_email_fold_state(conn) == (_BEFORE_EMAIL_FOLD_REVISION, True, False)
+            assert await conn.scalar(text("SELECT count(*) FROM users")) == len(emails)
+
+        async with engine.begin() as conn:
+            for number, email in enumerate(("alice@example.com", "bob@example.com", "Bob@example.com")):
+                await conn.execute(
+                    text("UPDATE users SET email = :new WHERE id = :id"), {"new": f"renamed-{number}@example.com", "id": user_ids[email]}
+                )
+
+        for reupgrade in (False, True):
+            _run_alembic_upgrade(database_name, revision=_EMAIL_FOLD_REVISION)
+            async with engine.connect() as conn:
+                assert await _read_email_fold_state(conn) == (_EMAIL_FOLD_REVISION, False, True), f"reupgrade={reupgrade}"
+                assert await conn.scalar(text("SELECT count(*) FROM users")) == len(emails)
+
+            # The database itself refuses a second account in other capitals
+            with pytest.raises(IntegrityError):
+                async with engine.begin() as conn:
+                    await conn.execute(
+                        text(
+                            "INSERT INTO users (id, email, first_name, tz, base_currency)"
+                            " VALUES (:id, 'CAROL@example.com', 'Second', 'America/Toronto', 'CAD')"
+                        ),
+                        {"id": str(uuid4())},
+                    )
+
+            if not reupgrade:
+                _run_alembic_downgrade(database_name, _BEFORE_EMAIL_FOLD_REVISION)
+                async with engine.connect() as conn:
+                    assert await _read_email_fold_state(conn) == (_BEFORE_EMAIL_FOLD_REVISION, True, False)
+    finally:
+        await engine.dispose()
+        await _drop_database(database_name)
+
+
 async def _recreate_database(database_name: str) -> None:
     """Drop and recreate the database used for Alembic schema parity"""
     maintenance_engine = _create_engine_for_database("postgres", isolation_level="AUTOCOMMIT")
@@ -824,6 +915,12 @@ async def _terminate_database_connections(conn: AsyncConnection, database_name: 
 
 def _run_alembic_upgrade(database_name: str, *, revision: str = "head") -> None:
     """Run Alembic upgrade against a generated parity database"""
+    completed = _start_alembic_upgrade(database_name, revision)
+    assert completed.returncode == 0, completed.stdout + completed.stderr
+
+
+def _start_alembic_upgrade(database_name: str, revision: str) -> subprocess.CompletedProcess[str]:
+    """Run Alembic upgrade against a generated parity database and return the finished process, whatever its outcome"""
     environment = os.environ.copy()
     environment.update(
         {
@@ -844,7 +941,7 @@ def _run_alembic_upgrade(database_name: str, *, revision: str = "head") -> None:
         capture_output=True,
         text=True,
     )
-    assert completed.returncode == 0, completed.stdout + completed.stderr
+    return completed
 
 
 async def _seed_legacy_auth_state(database_name: str) -> None:
