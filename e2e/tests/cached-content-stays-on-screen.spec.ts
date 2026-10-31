@@ -87,12 +87,13 @@ test('keeps a budget on screen through a fresh load then a visit to Budgets, upd
 
   // Recorded over the API, so the next load learns of it from the server and marks the budget out of date
   await spend(-700)
+  // Held from before the load, since a page on the way to Budgets may ask for the newer copy first
+  const refetch = await holdRequest(page, '/budgets/latest-utilizations')
   const checked = page.waitForResponse(`${API_BASE_URL}/me/cache-status`)
   await page.goto('/')
   await checked
   await expect(page.getByRole('status', { name: /^Loading/ })).toHaveCount(0)
 
-  const refetch = await holdRequest(page, '/budgets/latest-utilizations')
   await clearLoadingFrames(page)
   await page.getByRole('link', { name: 'Budgets', exact: true }).first().click()
   await expect(card).toContainText('$10.00 used')
