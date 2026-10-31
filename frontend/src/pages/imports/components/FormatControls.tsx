@@ -58,9 +58,10 @@ export function ImportDateFormatControl({
     badge: scan.rejectedBy[candidate] ? UNREADABLE_FORMAT_BADGE : undefined,
   }))
   const selectedValue = format ?? ''
-  const selectedOption = automatic && format
-    ? { value: selectedValue, label: `Detected: ${IMPORT_DATE_FORMAT_LABELS[format].label}` }
-    : undefined
+  const selectedOption =
+    automatic && format
+      ? { value: selectedValue, label: `Detected: ${IMPORT_DATE_FORMAT_LABELS[format].label}` }
+      : undefined
 
   return (
     <div className={FORMAT_CONTROL_CLASS_NAME}>
@@ -102,9 +103,8 @@ export function ImportAmountFormatControl({
     badge: scan.rejectedBy[getImportAmountFormatKey(candidate)] ? UNREADABLE_FORMAT_BADGE : undefined,
   }))
   const selectedValue = format ? getImportAmountFormatKey(format) : ''
-  const selectedOption = automatic && format
-    ? { value: selectedValue, label: `Detected: ${getAmountFormatExample(format)}` }
-    : undefined
+  const selectedOption =
+    automatic && format ? { value: selectedValue, label: `Detected: ${getAmountFormatExample(format)}` } : undefined
 
   const handlePresetChange = (value: string) => {
     const next = AMOUNT_PRESETS.find(({ format: candidate }) => getImportAmountFormatKey(candidate) === value)
@@ -131,11 +131,12 @@ export function ImportAmountFormatControl({
 }
 
 function getAmountFormatExample(format: ImportAmountFormat) {
-  const grouped = format.groupingSeparator === 'none'
-    ? '1234'
-    : format.groupingSeparator === 'space'
-      ? '1 234'
-      : `1${format.groupingSeparator}234`
+  const grouped =
+    format.groupingSeparator === 'none'
+      ? '1234'
+      : format.groupingSeparator === 'space'
+        ? '1 234'
+        : `1${format.groupingSeparator}234`
   return `${grouped}${format.decimalSeparator}56`
 }
 
@@ -166,5 +167,15 @@ export function ImportDelimiterControl({
     symbol: candidate,
   }))
 
-  return <ImportSegmentedToggle options={options} value={delimiter} label="Separator" onChange={onChange} hasError={hasError} disabled={disabled} compact />
+  return (
+    <ImportSegmentedToggle
+      options={options}
+      value={delimiter}
+      label="Separator"
+      onChange={onChange}
+      hasError={hasError}
+      disabled={disabled}
+      compact
+    />
+  )
 }
