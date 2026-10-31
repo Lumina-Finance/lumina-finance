@@ -5,7 +5,7 @@
  * room below, so it never lands on the control or on a field above it
  */
 import { describe, expect, it } from 'vitest'
-import { getReasonAnchor } from '@/utils/disabledReasonAnchor'
+import { getReasonAnchor, isBoxInView } from '@/utils/disabledReasonAnchor'
 import { getCursorTooltipPosition } from '@/utils/tooltipPosition'
 
 // A 40px high button in a 1280 by 800 window, with a reason 36px high and 200px wide
@@ -51,6 +51,25 @@ function placeBeside(top: number) {
 describe('disabled control reason anchor', () => {
   it('ends at the control right edge, from its bottom', () => {
     expect(getReasonAnchor({ right: 300, bottom: 240 })).toEqual({ clientX: 300, clientY: 240 })
+  })
+})
+
+describe('disabled control in view', () => {
+  // A dialogue body 300px high that sits inside the window
+  const body = rect(100, 100, 600, 300)
+
+  it('is in view while any part of it is inside every box that clips it', () => {
+    expect(isBoxInView(rect(500, 360, 280, 40), [WINDOW, body])).toBe(true)
+    expect(isBoxInView(rect(500, 380, 280, 40), [WINDOW, body])).toBe(true)
+  })
+
+  it('is out of view once the body has scrolled it past the body edge, though the window still shows it', () => {
+    expect(isBoxInView(rect(500, 400, 280, 40), [WINDOW, body])).toBe(false)
+    expect(isBoxInView(rect(500, 40, 280, 40), [WINDOW, body])).toBe(false)
+  })
+
+  it('is out of view when the window does not show it', () => {
+    expect(isBoxInView(rect(500, 800, 280, 40), [WINDOW])).toBe(false)
   })
 })
 
