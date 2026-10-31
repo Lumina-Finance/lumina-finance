@@ -24,7 +24,7 @@ import { DEFAULT_MINOR_UNIT_EXPONENT, findCurrencyExponent, fromMinorUnits } fro
 
 const SKIP_LABEL = 'Skip'
 const RECORD_LABEL = 'Record adjustment'
-const BUTTON_CLASS = 'relative w-full whitespace-nowrap sm:w-(--fit-width)'
+const BUTTON_CLASS = 'relative w-full shrink-0 whitespace-nowrap sm:w-(--fit-width)'
 
 type OpeningAdjustmentOfferProps = {
   accountId: string

@@ -1,5 +1,9 @@
 import { useLayoutEffect, useRef, useState, type CSSProperties, type ReactNode } from 'react'
 
+// The crossfade clips a label at its own edges, so a label fitted exactly would lose the overhang of its first
+// and last letters. A few pixels of room keeps them whole
+const LABEL_SLACK_PX = 4
+
 // What a button adds around its label, read from its own computed style
 const BUTTON_CHROME_PROPERTIES = ['padding-left', 'padding-right', 'border-left-width', 'border-right-width']
 
@@ -38,7 +42,7 @@ export function useFittedButtonWidth(
         0,
       )
       const widest = Math.max(0, ...Array.from(measured.children, (label) => label.getBoundingClientRect().width))
-      setWidth(Math.ceil(widest + chrome))
+      setWidth(Math.ceil(widest + chrome) + LABEL_SLACK_PX)
     }
     measure()
 

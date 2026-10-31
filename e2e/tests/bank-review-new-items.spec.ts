@@ -598,3 +598,49 @@ test.describe('on a short phone screen', AT_EVERY_SIZE, () => {
     await expect(dialog.getByText('Could not dismiss this item. Please try again.', { exact: true })).toBeInViewport({ ratio: 1 })
   })
 })
+
+// Dismiss widens to Yes, dismiss and back over the app's ease rather than jumping. Its width is read on every
+// frame the page draws until it has held still a while after changing, so a width that jumps shows its new
+// width on the first frame it moves
+test('eases Dismiss to Yes, dismiss and back rather than jumping between their widths', async ({ page, request }) => {
+  await start(page, request, [COUNTDOWN])
+  await openPage(page, '/transactions')
+  const dialog = await openReview(page, COUNTDOWN.description)
+  const form = formOf(dialog)
+  await expect(form.dismiss).toBeVisible()
+  const recordWidths = () =>
+    form.dismiss.or(form.confirmDismiss).evaluate(
+      (button) =>
+        new Promise<number[]>((resolve) => {
+          const widths: number[] = []
+          let lastChange: number | null = null
+          const started = performance.now()
+          const frame = () => {
+            const width = button.getBoundingClientRect().width
+            if (widths.length > 0 && Math.abs(width - widths[widths.length - 1]) > 0.1) lastChange = performance.now()
+            widths.push(width)
+            const settled = lastChange !== null && performance.now() - lastChange > 500
+            if (settled || performance.now() - started > 5000) resolve(widths)
+            else requestAnimationFrame(frame)
+          }
+          requestAnimationFrame(frame)
+        }),
+    )
+  // The first width the button takes once it starts moving, which a jump makes its final width
+  const firstMove = (widths: number[]) => widths.find((width) => Math.abs(width - widths[0]) > 1)
+
+  const narrow = (await form.dismiss.boundingBox())!.width
+  const widening = recordWidths()
+  await form.dismiss.click()
+  const wideningWidths = await widening
+  await expect(form.confirmDismiss).toBeVisible()
+  const wide = (await form.confirmDismiss.boundingBox())!.width
+  expect(wide).toBeGreaterThan(narrow + 10)
+  expect(firstMove(wideningWidths), JSON.stringify(wideningWidths)).toBeLessThan(wide - 1)
+
+  const narrowing = recordWidths()
+  await dialog.getByRole('heading', { name: 'Review bank item' }).click()
+  const narrowingWidths = await narrowing
+  await expect(form.dismiss).toBeVisible()
+  expect(firstMove(narrowingWidths), JSON.stringify(narrowingWidths)).toBeGreaterThan(narrow + 1)
+})

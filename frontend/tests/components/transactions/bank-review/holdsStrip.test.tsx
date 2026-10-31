@@ -83,7 +83,8 @@ describe('the holds strip', () => {
 
     expect(markup.match(/data-testid="bank-hold-dismiss"/g)).toHaveLength(2)
     expect(markup).toContain('app-danger-button')
-    expect(markup).toMatch(/opacity:0[^>]*>Yes, dismiss<\/span>/)
+    // Each asks again through a screen reader announcement of its own
+    expect(markup.match(/role="status" class="sr-only"/g)).toHaveLength(2)
   })
 
   it('shows a spinner on the hold being dismissed and holds the others', () => {

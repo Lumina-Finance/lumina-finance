@@ -146,18 +146,22 @@ export function ModalFormFooter({
           says which action is in flight */}
       {submitLabels && fitted.measure}
       <PendingLabel pending={submitDisabled} name={submitLabel}>
-        {submitLabels
-          ? submitLabels.map((label) => (
+        {submitLabels ? (
+          <span className="grid">
+            {submitLabels.map((label) => (
               <span
                 key={label}
                 aria-hidden={label !== submitLabel}
-                className="absolute inset-0 flex items-center justify-center transition-opacity motion-reduce:transition-none"
+                className="col-start-1 row-start-1 flex items-center justify-center transition-opacity motion-reduce:transition-none"
                 style={{ opacity: label === submitLabel ? 1 : 0 }}
               >
                 {label}
               </span>
-            ))
-          : submitLabel}
+            ))}
+          </span>
+        ) : (
+          submitLabel
+        )}
       </PendingLabel>
     </DisabledReasonButton>
   )

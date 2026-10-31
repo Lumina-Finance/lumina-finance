@@ -1,7 +1,7 @@
-import { useCallback, useRef } from 'react'
-import { PendingLabel } from '@/components/loading/PendingLabel'
+import { useRef } from 'react'
+import { Crossfade } from '@/components/loading/Crossfade'
+import { NamedSpinner } from '@/components/loading/PendingLabel'
 import { useConfirmingClick } from '@/hooks/useConfirmingClick'
-import { useFittedButtonWidth } from '@/hooks/useFittedButtonWidth'
 
 const TONE_CLASS_NAMES = {
   primary: 'app-primary-button',
@@ -33,8 +33,9 @@ type ReviewDecisionButtonProps = {
 }
 
 /**
- * One decision on a bank item, sized to its label, which it shrinks from into its spinner while the
- * decision runs. Full width on phones, where the decisions share the footer's width
+ * One decision on a bank item, sized to its label. A new label, or the spinner while the decision runs,
+ * crossfades in as the button eases to its width. Full width on phones, where the decisions share the
+ * footer's width
  */
 export function ReviewDecisionButton({
   label,
@@ -49,15 +50,6 @@ export function ReviewDecisionButton({
   const pressRef = useRef<HTMLButtonElement | null>(null)
   const [confirming, setConfirming] = useConfirmingClick(pressRef, loading)
   const shownLabel = confirming && confirm ? confirm.label : label
-  // Fitted to the label on show, so the width eases from one label's to the other's as the label changes
-  const { buttonRef, style, measure } = useFittedButtonWidth(shownLabel)
-  const setButton = useCallback(
-    (node: HTMLButtonElement | null) => {
-      buttonRef.current = node
-      pressRef.current = node
-    },
-    [buttonRef],
-  )
 
   const handleClick = () => {
     if (confirm && !confirming) {
@@ -71,7 +63,7 @@ export function ReviewDecisionButton({
   return (
     <>
       <button
-        ref={setButton}
+        ref={pressRef}
         type={onClick ? 'button' : 'submit'}
         // The modal starts focus among its field tab stops, which a button joins only when marked
         data-modal-field-tab-stop={initialFocus ? 'true' : undefined}
@@ -82,34 +74,13 @@ export function ReviewDecisionButton({
         onClick={onClick ? handleClick : undefined}
         onBlur={() => setConfirming(false)}
         disabled={disabled}
-        className={`${TONE_CLASS_NAMES[tone]} relative overflow-hidden whitespace-nowrap ${loading ? 'app-primary-button-loading justify-self-center sm:justify-self-auto' : 'w-full sm:w-(--fit-width)'}`}
-        style={style}
+        className={`${TONE_CLASS_NAMES[tone]} relative shrink-0 overflow-hidden whitespace-nowrap ${loading ? 'app-primary-button-loading justify-self-center sm:justify-self-auto' : 'w-full sm:w-auto'}`}
       >
-        {measure}
-        <PendingLabel pending={loading} name={shownLabel}>
-          {confirm ? (
-            <>
-              {/* Both labels sit over each other and swap by opacity while the width eases to the shown one's,
-                  so neither pops in. The button's name already says which one is on */}
-              <span
-                aria-hidden
-                className="absolute inset-0 flex items-center justify-center transition-opacity motion-reduce:transition-none"
-                style={{ opacity: confirming ? 0 : 1 }}
-              >
-                {label}
-              </span>
-              <span
-                aria-hidden
-                className="absolute inset-0 flex items-center justify-center transition-opacity motion-reduce:transition-none"
-                style={{ opacity: confirming ? 1 : 0 }}
-              >
-                {confirm.label}
-              </span>
-            </>
-          ) : (
-            label
-          )}
-        </PendingLabel>
+        {/* One crossfade for the label and the spinner, so the width eases with whichever comes in. The
+            button's name already says which label is on */}
+        <Crossfade swapKey={loading ? 'pending' : shownLabel}>
+          {loading ? <NamedSpinner name={shownLabel} /> : <span aria-hidden>{shownLabel}</span>}
+        </Crossfade>
       </button>
       {confirm && (
         <span role="status" className="sr-only">

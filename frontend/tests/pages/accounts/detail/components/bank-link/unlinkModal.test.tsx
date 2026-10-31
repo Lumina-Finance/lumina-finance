@@ -69,7 +69,7 @@ describe('UnlinkModal', () => {
     expect(getRadio(markup, 'Unlink this account')).toContain('aria-checked="true"')
     expect(getRadio(markup, 'Disconnect SimpleFIN')).toContain('aria-checked="false"')
     expect(markup).toMatch(/<button[^>]*app-danger-button[^>]*>(?:(?!<\/button>).)*opacity:1[^>]*>Unlink<\/span>/s)
-    expect(markup).toMatch(/opacity:0[^>]*>Disconnect<\/span><\/button>/)
+    expect(markup).toMatch(/opacity:0[^>]*>Disconnect<\/span><\/span><\/button>/)
   })
 
   it('keeps the connection ready for another link when no other account uses it', () => {
@@ -100,7 +100,7 @@ describe('UnlinkModal', () => {
 
   it('puts Unlink before Cancel, as every confirmation that changes records does', () => {
     expect(renderDialog(createConnection())).toMatch(
-      />Unlink<\/span><span[^>]*>Disconnect<\/span><\/button>.*>Cancel<\/button>/s,
+      />Unlink<\/span><span[^>]*>Disconnect<\/span><\/span><\/button>.*>Cancel<\/button>/s,
     )
   })
 })

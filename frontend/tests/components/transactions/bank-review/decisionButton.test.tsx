@@ -1,8 +1,7 @@
 /**
  * Covers the review modal's decision button when a decision takes two presses
  *
- * These tests catch the two labels not both being drawn (so one pops in instead of fading), the
- * crossfade running with a literal timing, and a plain decision gaining the stacked labels
+ * These tests catch the second label showing before the first press, and the button named by both
  */
 import { createElement } from 'react'
 import { renderToStaticMarkup } from 'react-dom/server'
@@ -28,12 +27,11 @@ function render(confirm?: { label: string; announcement: string }): string {
 describe('a two-press decision button', () => {
   const confirm = { label: 'Yes, dismiss', announcement: 'Press again.' }
 
-  it('draws both labels stacked, fading by opacity, with the first shown to start', () => {
+  it('shows the first label alone to start, the second waiting for the first press', () => {
     const markup = render(confirm)
 
-    expect(markup).toMatch(/opacity:1[^>]*>Dismiss<\/span>/)
-    expect(markup).toMatch(/opacity:0[^>]*>Yes, dismiss<\/span>/)
-    expect(markup).toContain('transition-opacity')
+    expect(markup).toContain('>Dismiss</span>')
+    expect(markup).not.toContain('Yes, dismiss')
   })
 
   it('names the button by the label shown, not by both', () => {
@@ -41,9 +39,6 @@ describe('a two-press decision button', () => {
   })
 
   it('keeps a plain decision to its one label', () => {
-    const markup = render()
-
-    expect(markup).not.toContain('transition-opacity')
-    expect(markup).toContain('>Dismiss</button>')
+    expect(render()).toMatch(/aria-label="Dismiss"[^>]*>(<[^>]*>)*Dismiss</)
   })
 })

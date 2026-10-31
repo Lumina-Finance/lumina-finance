@@ -78,7 +78,7 @@ export function SyncNowButton({ link, connection, providers, focusProps }: SyncN
       status={status}
       loadingLabel="Starting sync"
       successLabel="Sync started"
-      className="app-secondary-button relative h-9 w-full justify-center whitespace-nowrap px-3.5 text-sm sm:w-(--fit-width)"
+      className="app-secondary-button relative h-9 w-full shrink-0 justify-center whitespace-nowrap px-3.5 text-sm sm:w-(--fit-width)"
       style={style}
       measure={measure}
       {...actionProps}
