@@ -49,24 +49,13 @@ export function useInsightsCardData({
     () => getPeriodGlanceCardData(queries.periodGlance.data, displayCurrency, currencies),
     [currencies, displayCurrency, queries.periodGlance.data],
   )
-  const fundFlowData = useMemo(
-    () => getFundFlowCardData(queries.fundFlow.data),
-    [queries.fundFlow.data],
-  )
+  const fundFlowData = useMemo(() => getFundFlowCardData(queries.fundFlow.data), [queries.fundFlow.data])
   const netWorthCardData = useMemo(
-    () => getNetWorthCardData(
-      queries.netWorth.data,
-      rangeInputDates.from,
-      rangeInputDates.to,
-    ),
+    () => getNetWorthCardData(queries.netWorth.data, rangeInputDates.from, rangeInputDates.to),
     [queries.netWorth.data, rangeInputDates.from, rangeInputDates.to],
   )
   const cashFlowBars = useMemo(
-    () => getCashFlowBarData(
-      queries.cashFlow.data,
-      rangeInputDates.from,
-      rangeInputDates.to,
-    ),
+    () => getCashFlowBarData(queries.cashFlow.data, rangeInputDates.from, rangeInputDates.to),
     [queries.cashFlow.data, rangeInputDates.from, rangeInputDates.to],
   )
   const savingsRateHistory = useMemo(
@@ -77,10 +66,7 @@ export function useInsightsCardData({
     () => getMerchantDistributionMerchants(queries.merchants.data),
     [queries.merchants.data],
   )
-  const rankedMerchants = useMemo(
-    () => getMerchantRankingRows(queries.merchants.data),
-    [queries.merchants.data],
-  )
+  const rankedMerchants = useMemo(() => getMerchantRankingRows(queries.merchants.data), [queries.merchants.data])
 
   return {
     selectedBreakdown,
