@@ -65,6 +65,28 @@ async def test_create_group_tag_duplicate_returns_409(client):
     assert "already exists" in resp.json()["detail"]
 
 
+async def test_create_group_tag_differing_only_in_capitals_from_a_members_returns_409(client):
+    """A group's tags are unique per group whoever owns them, ignoring capitals."""
+    admin_headers, member_headers, _, group_id = await _setup_group_with_member(client)
+
+    await _create_tag(client, admin_headers, name="Shared", group_id=group_id)
+    resp = await _create_tag(client, member_headers, name="SHARED", group_id=group_id)
+
+    assert resp.status_code == 409
+    assert resp.json()["detail"] == "Tag with this name already exists"
+
+
+async def test_create_group_tag_differing_only_in_capitals_from_a_personal_one_is_allowed(client):
+    """Personal and group tags are separate scopes, whatever their capitals."""
+    admin_headers, _, _, group_id = await _setup_group_with_member(client)
+
+    personal = await _create_tag(client, admin_headers, name="Vacation")
+    group = await _create_tag(client, admin_headers, name="vacation", group_id=group_id)
+
+    assert personal.status_code == 201
+    assert group.status_code == 201
+
+
 async def test_create_group_tag_same_name_as_personal_allowed(client):
     """Personal and group tags with the same name can coexist."""
     admin_headers, _, _, group_id = await _setup_group_with_member(client)
@@ -328,6 +350,20 @@ async def test_patch_group_tag_rename_to_duplicate_returns_409(client):
 
     assert resp.status_code == 409
     assert "already exists" in resp.json()["detail"]
+
+
+async def test_patch_group_tag_rename_to_a_names_other_capitals_returns_409(client):
+    """Renaming a group tag onto another group tag's name in other capitals is refused."""
+    admin_headers, _, _, group_id = await _setup_group_with_member(client)
+
+    await _create_tag(client, admin_headers, name="Alpha", group_id=group_id)
+    create_resp = await _create_tag(client, admin_headers, name="beta", group_id=group_id)
+    tag_id = create_resp.json()["id"]
+
+    resp = await client.patch(f"/tags/{tag_id}", json={"name": "ALPHA"}, headers=admin_headers)
+
+    assert resp.status_code == 409
+    assert resp.json()["detail"] == "Tag with this name already exists"
 
 
 # --- Group tags: DELETE /tags ---

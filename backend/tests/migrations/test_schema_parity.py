@@ -51,6 +51,8 @@ _ALEMBIC_ENCRYPTED_DB_NAME = f"{WORKER_DB_NAME}_alembic_encrypted_columns"
 _ALEMBIC_FOLDED_CATEGORY_DB_NAME = f"{WORKER_DB_NAME}_alembic_folded_categories"
 _ALEMBIC_FOLDED_MERCHANT_DB_NAME = f"{WORKER_DB_NAME}_alembic_folded_merchants"
 _BEFORE_FOLDED_NAMES_REVISION = "6a1f132b9da2"
+_ALEMBIC_FOLDED_TAG_DB_NAME = f"{WORKER_DB_NAME}_alembic_folded_tags"
+_BEFORE_FOLDED_TAGS_REVISION = "e3b7d9a1c5f2"
 _ALEMBIC_ACCOUNT_DATE_INDEX_DB_NAME = f"{WORKER_DB_NAME}_alembic_account_date_index"
 _BEFORE_ACCOUNT_DATE_INDEX_REVISION = "51c17506619a"
 _ACCOUNT_DATE_INDEX_REVISION = "0b8d6e2c9a41"
@@ -2202,3 +2204,270 @@ async def _reset_token_user_is_nullable(conn: AsyncConnection) -> bool:
         )
     ).scalar_one()
     return nullable == "YES"
+
+
+async def test_folded_tag_migration_merges_every_spelling_without_losing_a_transactions_tags() -> None:
+    """Verify tags fold onto the oldest of each scope, every transaction keeps its tags once, and other scopes stay apart"""
+    await _recreate_database(_ALEMBIC_FOLDED_TAG_DB_NAME)
+    try:
+        _run_alembic_upgrade(_ALEMBIC_FOLDED_TAG_DB_NAME, revision=_BEFORE_FOLDED_TAGS_REVISION)
+        seeded = await _seed_tags_differing_only_in_capitals(_ALEMBIC_FOLDED_TAG_DB_NAME)
+
+        _run_alembic_upgrade(_ALEMBIC_FOLDED_TAG_DB_NAME)
+
+        engine = _create_engine_for_database(_ALEMBIC_FOLDED_TAG_DB_NAME)
+        try:
+            async with engine.connect() as conn:
+                names = await _read_tag_names(conn)
+                tags_by_transaction = await _read_transaction_tags(conn)
+        finally:
+            await engine.dispose()
+
+        # The later spellings are gone, and the tags the fold has no business with are all still there
+        assert names == {
+            seeded["oldest_tag_id"]: "Travel",
+            seeded["groceries_tag_id"]: "Groceries",
+            seeded["other_users_tag_id"]: "travel",
+            seeded["older_group_tag_id"]: "Hardware",
+            seeded["personal_hardware_tag_id"]: "hardware",
+        }
+
+        # Every transaction that carried any spelling carries the oldest, once. A transaction that
+        # carried several spellings is the case a plain update of the links would fail on, and one
+        # carrying none of the spellings is the case a fold must leave alone
+        oldest = seeded["oldest_tag_id"]
+        assert tags_by_transaction == {
+            seeded["only_newer_spelling_transaction_id"]: {oldest},
+            seeded["oldest_and_newest_transaction_id"]: {oldest},
+            seeded["two_newer_spellings_transaction_id"]: {oldest},
+            seeded["spelling_and_other_tag_transaction_id"]: {oldest, seeded["groceries_tag_id"]},
+            seeded["other_tag_only_transaction_id"]: {seeded["groceries_tag_id"]},
+            seeded["group_transaction_id"]: {seeded["older_group_tag_id"]},
+            seeded["personal_hardware_transaction_id"]: {seeded["personal_hardware_tag_id"]},
+            seeded["other_users_transaction_id"]: {seeded["other_users_tag_id"]},
+        }
+
+        await _assert_tags_differing_only_in_capitals_are_refused(_ALEMBIC_FOLDED_TAG_DB_NAME, seeded)
+    finally:
+        await _drop_database(_ALEMBIC_FOLDED_TAG_DB_NAME)
+
+
+async def test_folded_tag_migration_goes_down_and_folds_again_on_the_way_back_up() -> None:
+    """Verify the downgrade allows the pair again, and upgrading a database holding one folds it"""
+    await _recreate_database(_ALEMBIC_FOLDED_TAG_DB_NAME)
+    try:
+        _run_alembic_upgrade(_ALEMBIC_FOLDED_TAG_DB_NAME, revision=_BEFORE_FOLDED_TAGS_REVISION)
+        seeded = await _seed_tags_differing_only_in_capitals(_ALEMBIC_FOLDED_TAG_DB_NAME)
+        _run_alembic_upgrade(_ALEMBIC_FOLDED_TAG_DB_NAME)
+        _run_alembic_downgrade(_ALEMBIC_FOLDED_TAG_DB_NAME, _BEFORE_FOLDED_TAGS_REVISION)
+
+        # Down, the indexes compare the name as stored again, so a second spelling is storable and
+        # a transaction can carry it beside the survivor
+        again_id = UUID("dddddddd-0000-4000-8000-000000000001")
+        engine = _create_engine_for_database(_ALEMBIC_FOLDED_TAG_DB_NAME)
+        try:
+            async with engine.begin() as conn:
+                await conn.execute(
+                    text("INSERT INTO tags (id, owner_id, name, created_at) VALUES (:id, :owner_id, 'tRAVEL', now())"),
+                    {"id": again_id, "owner_id": seeded["user_id"]},
+                )
+                for transaction_key in ("other_tag_only_transaction_id", "oldest_and_newest_transaction_id"):
+                    await conn.execute(
+                        text("INSERT INTO transaction_tags (transaction_id, tag_id) VALUES (:transaction_id, :tag_id)"),
+                        {"transaction_id": seeded[transaction_key], "tag_id": again_id},
+                    )
+
+            _run_alembic_upgrade(_ALEMBIC_FOLDED_TAG_DB_NAME)
+
+            async with engine.connect() as conn:
+                names = await _read_tag_names(conn)
+                tags_by_transaction = await _read_transaction_tags(conn)
+        finally:
+            await engine.dispose()
+
+        # The survivor from the first fold is still the oldest, so the new spelling folds onto it,
+        # including on the transaction that carried the survivor as well
+        oldest = seeded["oldest_tag_id"]
+        assert again_id not in names
+        assert names[oldest] == "Travel"
+        assert tags_by_transaction[seeded["other_tag_only_transaction_id"]] == {seeded["groceries_tag_id"], oldest}
+        assert tags_by_transaction[seeded["oldest_and_newest_transaction_id"]] == {oldest}
+        await _assert_tags_differing_only_in_capitals_are_refused(_ALEMBIC_FOLDED_TAG_DB_NAME, seeded)
+    finally:
+        await _drop_database(_ALEMBIC_FOLDED_TAG_DB_NAME)
+
+
+async def _read_tag_names(conn: AsyncConnection) -> dict[UUID, str]:
+    """Return every stored tag's name by identifier"""
+    return {row[0]: row[1] for row in await conn.execute(text("SELECT id, name FROM tags"))}
+
+
+async def _read_transaction_tags(conn: AsyncConnection) -> dict[UUID, set[UUID]]:
+    """Return the tags every tagged transaction carries"""
+    tags_by_transaction: dict[UUID, set[UUID]] = {}
+    for transaction_id, tag_id in await conn.execute(text("SELECT transaction_id, tag_id FROM transaction_tags")):
+        tags_by_transaction.setdefault(transaction_id, set()).add(tag_id)
+    return tags_by_transaction
+
+
+async def _assert_tags_differing_only_in_capitals_are_refused(database_name: str, seeded: dict[str, UUID]) -> None:
+    """Check the database itself refuses the pair, in a user's scope and in a group's
+
+    Written straight to the table, since this is about what the indexes allow rather than what a
+    route checks. Without them the migration could fold correctly and build no index at all, and
+    every other assertion here would still pass
+    """
+    engine = _create_engine_for_database(database_name)
+    try:
+        for owner_id, group_id, name in (
+            (seeded["user_id"], None, "tRAVEL"),
+            (seeded["other_user_id"], seeded["group_id"], "hardWARE"),
+        ):
+            with pytest.raises(IntegrityError):
+                async with engine.begin() as conn:
+                    await conn.execute(
+                        text(
+                            "INSERT INTO tags (id, owner_id, group_id, name)"
+                            " VALUES (gen_random_uuid(), :owner_id, :group_id, :name)",
+                        ),
+                        {"owner_id": owner_id, "group_id": group_id, "name": name},
+                    )
+    finally:
+        await engine.dispose()
+
+
+async def _seed_tags_differing_only_in_capitals(database_name: str) -> dict[str, UUID]:
+    """Insert every shape of tag collision the fold has to settle, each tag on transactions
+
+    Returns:
+        The identifiers the fold is judged against
+    """
+    ids = {
+        "user_id": UUID("dddddddd-1111-4111-8111-111111111111"),
+        "other_user_id": UUID("dddddddd-2222-4222-8222-222222222222"),
+        "group_id": UUID("dddddddd-3333-4333-8333-333333333333"),
+        "account_id": UUID("dddddddd-4444-4444-8444-444444444444"),
+        "category_id": UUID("dddddddd-5555-4555-8555-555555555555"),
+        "merchant_id": UUID("dddddddd-6666-4666-8666-666666666666"),
+        "oldest_tag_id": UUID("eeeeeeee-0000-4000-8000-000000000001"),
+        "middle_tag_id": UUID("eeeeeeee-0000-4000-8000-000000000002"),
+        "newest_tag_id": UUID("eeeeeeee-0000-4000-8000-000000000003"),
+        "groceries_tag_id": UUID("eeeeeeee-0000-4000-8000-000000000004"),
+        "other_users_tag_id": UUID("eeeeeeee-0000-4000-8000-000000000005"),
+        "older_group_tag_id": UUID("eeeeeeee-0000-4000-8000-000000000006"),
+        "newer_group_tag_id": UUID("eeeeeeee-0000-4000-8000-000000000007"),
+        "personal_hardware_tag_id": UUID("eeeeeeee-0000-4000-8000-000000000008"),
+        "only_newer_spelling_transaction_id": UUID("cccccccc-0000-4000-8000-000000000001"),
+        "oldest_and_newest_transaction_id": UUID("cccccccc-0000-4000-8000-000000000002"),
+        "two_newer_spellings_transaction_id": UUID("cccccccc-0000-4000-8000-000000000003"),
+        "spelling_and_other_tag_transaction_id": UUID("cccccccc-0000-4000-8000-000000000004"),
+        "other_tag_only_transaction_id": UUID("cccccccc-0000-4000-8000-000000000005"),
+        "group_transaction_id": UUID("cccccccc-0000-4000-8000-000000000006"),
+        "personal_hardware_transaction_id": UUID("cccccccc-0000-4000-8000-000000000007"),
+        "other_users_transaction_id": UUID("cccccccc-0000-4000-8000-000000000008"),
+    }
+
+    # Each transaction names the tags it carries. The second carries the oldest spelling and the
+    # newest, the third two spellings neither of which is the oldest, and the fourth a spelling
+    # beside a tag the fold never touches
+    tags_by_transaction = {
+        "only_newer_spelling_transaction_id": ("middle_tag_id",),
+        "oldest_and_newest_transaction_id": ("oldest_tag_id", "newest_tag_id"),
+        "two_newer_spellings_transaction_id": ("middle_tag_id", "newest_tag_id"),
+        "spelling_and_other_tag_transaction_id": ("middle_tag_id", "groceries_tag_id"),
+        "other_tag_only_transaction_id": ("groceries_tag_id",),
+        "group_transaction_id": ("newer_group_tag_id",),
+        "personal_hardware_transaction_id": ("personal_hardware_tag_id",),
+        "other_users_transaction_id": ("other_users_tag_id",),
+    }
+
+    engine = _create_engine_for_database(database_name)
+    try:
+        async with engine.begin() as conn:
+            await conn.execute(
+                text("INSERT INTO currencies (id, name, symbol, minor_unit_exponent) VALUES ('CAD', 'Canadian Dollar', '$', 2)"),
+            )
+            for user_key, email in (("user_id", "migration-folded-tag@example.com"), ("other_user_id", "migration-folded-tag-2@example.com")):
+                await conn.execute(
+                    text(
+                        "INSERT INTO users (id, email, first_name, tz, base_currency)"
+                        " VALUES (:user_id, :email, 'Migration', 'America/Toronto', 'CAD')",
+                    ),
+                    {"user_id": ids[user_key], "email": email},
+                )
+            await conn.execute(
+                text("INSERT INTO groups (id, owner_id, name) VALUES (:group_id, :user_id, 'Household')"),
+                {"group_id": ids["group_id"], "user_id": ids["user_id"]},
+            )
+            await conn.execute(
+                text(
+                    "INSERT INTO accounts"
+                    " (id, owner_id, account_kind, account_type, name, currency, is_archived)"
+                    " VALUES (:account_id, :user_id, 'ASSET', 'CHECKING', 'Chequing', 'CAD', false)",
+                ),
+                {"account_id": ids["account_id"], "user_id": ids["user_id"]},
+            )
+            await conn.execute(
+                text(
+                    "INSERT INTO categories (id, owner_id, name, kind, is_system)"
+                    " VALUES (:category_id, :user_id, 'Shopping', 'EXPENSE', false)",
+                ),
+                {"category_id": ids["category_id"], "user_id": ids["user_id"]},
+            )
+            await conn.execute(
+                text("INSERT INTO merchants (id, owner_id, name) VALUES (:merchant_id, :user_id, 'Shop')"),
+                {"merchant_id": ids["merchant_id"], "user_id": ids["user_id"]},
+            )
+
+            # A day apart, so the oldest spelling is the one the fold keeps rather than whichever row
+            # the database returns first. The group's two tags belong to two different members, since
+            # a group's tag is unique per group whoever owns it. Hardware beside the user's own
+            # hardware, and Travel beside another user's travel, are different scopes and stay apart
+            for tag_key, owner_key, group_key, name, day in (
+                ("oldest_tag_id", "user_id", None, "Travel", 1),
+                ("middle_tag_id", "user_id", None, "travel", 2),
+                ("newest_tag_id", "user_id", None, "TRAVEL", 3),
+                ("groceries_tag_id", "user_id", None, "Groceries", 1),
+                ("other_users_tag_id", "other_user_id", None, "travel", 1),
+                ("older_group_tag_id", "user_id", "group_id", "Hardware", 1),
+                ("newer_group_tag_id", "other_user_id", "group_id", "HARDWARE", 2),
+                ("personal_hardware_tag_id", "user_id", None, "hardware", 1),
+            ):
+                await conn.execute(
+                    text(
+                        "INSERT INTO tags (id, owner_id, group_id, name, created_at)"
+                        " VALUES (:id, :owner_id, :group_id, :name, :created_at)",
+                    ),
+                    {
+                        "id": ids[tag_key],
+                        "owner_id": ids[owner_key],
+                        "group_id": ids[group_key] if group_key else None,
+                        "name": name,
+                        "created_at": datetime(2026, 1, day, tzinfo=UTC),
+                    },
+                )
+
+            for transaction_key, tag_keys in tags_by_transaction.items():
+                await conn.execute(
+                    text(
+                        "INSERT INTO transactions"
+                        " (id, created_by_user_id, account_id, dt, merchant_id, category_id, amount, currency)"
+                        " VALUES (:id, :user_id, :account_id, '2026-03-15', :merchant_id, :category_id, -2500, 'CAD')",
+                    ),
+                    {
+                        "id": ids[transaction_key],
+                        "user_id": ids["user_id"],
+                        "account_id": ids["account_id"],
+                        "merchant_id": ids["merchant_id"],
+                        "category_id": ids["category_id"],
+                    },
+                )
+                for tag_key in tag_keys:
+                    await conn.execute(
+                        text("INSERT INTO transaction_tags (transaction_id, tag_id) VALUES (:transaction_id, :tag_id)"),
+                        {"transaction_id": ids[transaction_key], "tag_id": ids[tag_key]},
+                    )
+    finally:
+        await engine.dispose()
+
+    return ids

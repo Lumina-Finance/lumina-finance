@@ -3,7 +3,7 @@
 import uuid
 
 from fastapi import HTTPException, status
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.group import GroupMember
@@ -110,13 +110,16 @@ async def require_tag_name_available(
     Raises:
         HTTPException: Tag name already exists in the target scope
     """
-    duplicate_query = select(Tag).where(Tag.name == name)
+    # Compared without regard to capitalisation, so Travel cannot sit beside travel. The database
+    # lowercases both sides, as the unique indexes are built on its lower(name), since Python
+    # lowercases some letters differently
+    duplicate_query = select(Tag.id).where(func.lower(Tag.name) == func.lower(name))
     if group_id:
         duplicate_query = duplicate_query.where(Tag.group_id == group_id)
     else:
         duplicate_query = duplicate_query.where(Tag.owner_id == user_id, Tag.group_id.is_(None))
 
     # Check whether the target scope already has a tag with the requested name
-    has_duplicate = (await db.execute(duplicate_query)).scalar_one_or_none() is not None
+    has_duplicate = (await db.execute(duplicate_query.limit(1))).first() is not None
     if has_duplicate:
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Tag with this name already exists")

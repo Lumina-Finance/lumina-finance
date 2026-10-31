@@ -5,8 +5,7 @@ from collections.abc import Iterable
 from dataclasses import dataclass, field
 
 from fastapi import HTTPException, status
-from sqlalchemy import String, func, literal, literal_column, select, text
-from sqlalchemy.dialects.postgresql import ARRAY
+from sqlalchemy import func, literal_column, select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.base import CategoryKind
@@ -14,49 +13,10 @@ from app.models.category import Category
 from app.models.merchant import Merchant
 from app.schemas.import_run import MAX_IMPORT_MERCHANT_NAME_LENGTH, TransactionImportMerchantMapping
 from app.services.importers.shared.insertion_helpers import insert_import_records_if_absent
+from app.services.importers.shared.name_keys import load_import_name_keys
 from app.services.importers.shared.stats import ImportStats
 from app.services.importers.shared.validation_helpers import strip_import_text_or_raise
 from app.services.merchants.defaults import SELF_MERCHANT_NAME, UNKNOWN_MERCHANT_NAME
-
-
-def select_requested_merchant_names(names: Iterable[str]):
-    """Return the given names as a table the database can compare with merchant names
-
-    Sent as one array rather than a row of parameters each, so a file with a hundred thousand
-    merchant names is one parameter
-
-    Args:
-        names: Names to send, repeats allowed
-
-    Returns:
-        A table with one "name" column holding each distinct name
-    """
-    return func.unnest(literal(sorted(set(names)), ARRAY(String))).table_valued("name").render_derived()
-
-
-async def load_import_merchant_keys(db: AsyncSession, names: Iterable[str]) -> dict[str, str]:
-    """Return what each merchant name is matched under during an import
-
-    Trimmed and compared without regard to capitalisation, so an import reaches the verdict the
-    merchants create and rename routes reach. Those refuse a name a system merchant already holds,
-    whatever the scope, and refuse "myself" beside the seeded "Myself". The database lowercases
-    rather than Python, since the two disagree on some letters, such as "İ", and the unique indexes
-    an import must agree with are built on the database's lower(name)
-
-    Args:
-        db: Active database session
-        names: Trimmed names from import rows and answers, repeats allowed
-
-    Returns:
-        The key each distinct name is matched under
-    """
-    names = set(names)
-    if not names:
-        return {}
-
-    requested = select_requested_merchant_names(names)
-    rows = await db.execute(select(requested.c.name, func.lower(requested.c.name)))
-    return {name: key for name, key in rows.all()}
 
 
 def get_import_merchant_scope_filter(user_id: uuid.UUID):
@@ -266,7 +226,7 @@ async def create_missing_import_merchants(
         if mapping.create is not None:
             wanted.add(mapping.create.name)
     merchants.keys_by_name.update(
-        await load_import_merchant_keys(db, wanted - merchants.keys_by_name.keys()),
+        await load_import_name_keys(db, wanted - merchants.keys_by_name.keys()),
     )
 
     answers = _index_import_merchant_answers(mappings, merchants)

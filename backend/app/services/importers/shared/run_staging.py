@@ -40,10 +40,10 @@ from app.services.importers.shared.categories import (
     parse_import_category_kind,
 )
 from app.services.importers.shared.merchants import (
-    load_import_merchant_keys,
     load_usable_import_merchants,
     require_usable_import_merchant,
 )
+from app.services.importers.shared.name_keys import load_import_name_keys
 from app.services.importers.shared.run_locking import load_locked_run
 from app.services.importers.shared.validation_helpers import strip_import_text_or_raise
 
@@ -118,7 +118,7 @@ async def load_staging_references(
         {mapping.merchant_id for mapping in merchants if mapping.merchant_id is not None},
         user.id,
     )
-    merchant_keys = await load_import_merchant_keys(db, {mapping.source.strip() for mapping in merchants})
+    merchant_keys = await load_import_name_keys(db, {mapping.source.strip() for mapping in merchants})
     return StagingReferences(account_access, currencies, institutions, visible_categories, usable_merchants, merchant_keys)
 
 

@@ -6,10 +6,8 @@ from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.merchant import Merchant
-from app.services.importers.shared.merchants import (
-    get_import_merchant_scope_filter,
-    select_requested_merchant_names,
-)
+from app.services.importers.shared.merchants import get_import_merchant_scope_filter
+from app.services.importers.shared.name_keys import select_requested_names
 
 
 async def get_merchants_matching_names(
@@ -36,7 +34,7 @@ async def get_merchants_matching_names(
     # One query for the whole file, rather than the whole merchant list for the user, which is what
     # a person with thousands of them would otherwise have to send to the browser. Both sides are
     # lowercased by the database, as the import itself matches them
-    requested = select_requested_merchant_names(names)
+    requested = select_requested_names(names)
     result = await db.execute(
         select(requested.c.name, Merchant)
         .join(Merchant, func.lower(Merchant.name) == func.lower(requested.c.name))

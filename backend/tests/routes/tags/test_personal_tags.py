@@ -176,6 +176,35 @@ async def test_create_tag_duplicate_name_returns_409(client):
     assert "already exists" in resp.json()["detail"]
 
 
+async def test_create_tag_name_differing_only_in_capitals_returns_409(client):
+    """Travel and travel are one tag, so the second is refused whichever way round they come."""
+    signup_resp = await _create_user(client)
+    headers = _get_auth_header(signup_resp)
+
+    first = await _create_tag(client, headers, name="Travel")
+    assert first.status_code == 201
+    for name in ("travel", "TRAVEL"):
+        resp = await _create_tag(client, headers, name=name)
+
+        assert resp.status_code == 409
+        assert resp.json()["detail"] == "Tag with this name already exists"
+
+    listed = await client.get("/tags", headers=headers)
+    assert [tag["name"] for tag in listed.json()] == ["Travel"]
+
+
+async def test_create_tag_name_differing_only_in_capitals_from_another_users_is_allowed(client):
+    """Another user's travel does not stand in the way of this user's Travel."""
+    signup_resp = await _create_user(client)
+    headers = _get_auth_header(signup_resp)
+    other_headers = _get_auth_header(await _create_second_user(client))
+
+    await _create_tag(client, other_headers, name="travel")
+    resp = await _create_tag(client, headers, name="Travel")
+
+    assert resp.status_code == 201
+
+
 async def test_create_tag_same_name_different_user_allowed(client):
     """Two different users can have tags with the same name."""
     signup_resp = await _create_user(client)
@@ -294,6 +323,37 @@ async def test_patch_tag_rename_to_duplicate_returns_409(client):
 
     assert resp.status_code == 409
     assert "already exists" in resp.json()["detail"]
+
+
+async def test_patch_tag_rename_to_another_tags_name_in_other_capitals_returns_409(client):
+    """Renaming onto Alpha as ALPHA is the same clash as renaming onto Alpha."""
+    signup_resp = await _create_user(client)
+    headers = _get_auth_header(signup_resp)
+
+    await _create_tag(client, headers, name="Alpha")
+    create_resp = await _create_tag(client, headers, name="beta")
+    tag_id = create_resp.json()["id"]
+
+    resp = await client.patch(f"/tags/{tag_id}", json={"name": "ALPHA"}, headers=headers)
+
+    assert resp.status_code == 409
+    assert resp.json()["detail"] == "Tag with this name already exists"
+    unchanged = await client.get(f"/tags/{tag_id}", headers=headers)
+    assert unchanged.json()["name"] == "beta"
+
+
+async def test_patch_tag_changing_only_its_own_capitals_is_allowed(client):
+    """A tag does not clash with itself, so Travel can be renamed travel."""
+    signup_resp = await _create_user(client)
+    headers = _get_auth_header(signup_resp)
+
+    create_resp = await _create_tag(client, headers, name="Travel")
+    tag_id = create_resp.json()["id"]
+
+    resp = await client.patch(f"/tags/{tag_id}", json={"name": "travel"}, headers=headers)
+
+    assert resp.status_code == 200
+    assert resp.json()["name"] == "travel"
 
 
 async def test_patch_tag_without_auth_returns_401(client):

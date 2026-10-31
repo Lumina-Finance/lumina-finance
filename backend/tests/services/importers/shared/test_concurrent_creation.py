@@ -29,7 +29,7 @@ from app.services.importers.shared.merchants import (
     create_missing_import_merchants,
 )
 from app.services.importers.shared.stats import ImportStats
-from app.services.importers.shared.tags import create_missing_import_tags
+from app.services.importers.shared.tags import ImportTags, create_missing_import_tags
 from tests.conftest import TestSession
 from tests.services.importers._helpers import _seed_user
 
@@ -42,7 +42,7 @@ _MERCHANT_CONFLICT = {
     "index_where": text("group_id IS NULL"),
 }
 _TAG_CONFLICT = {
-    "index_elements": [Tag.owner_id, Tag.name],
+    "index_elements": [Tag.owner_id, literal_column("lower(name)")],
     "index_where": text("group_id IS NULL"),
 }
 
@@ -154,14 +154,36 @@ async def test_a_tag_written_after_the_lookup_is_reused_rather_than_failing_the_
             )
         )[0]
 
-        tags_by_name: dict[str, Tag] = {}
+        tags = ImportTags(existing_by_key={})
         stats = ImportStats()
 
-        await create_missing_import_tags(session, user_id, ["travel"], tags_by_name, stats)
+        await create_missing_import_tags(session, user_id, ["travel"], tags, stats)
 
         assert stats.tags_created == 0
         assert stats.created_tag_ids == []
-        assert tags_by_name["travel"].id == existing.id
+        assert tags.existing_by_key["travel"].id == existing.id
+
+
+async def test_a_tag_spelled_differently_written_after_the_lookup_is_reused_too():
+    """The insert skips on the name with capitals folded, so Travel written meanwhile is found for travel."""
+    async with TestSession() as session:
+        user_id = (await _seed_user(session)).id
+        existing = (
+            await insert_import_records_if_absent(
+                session,
+                Tag,
+                [{"owner_id": user_id, "group_id": None, "name": "Travel"}],
+                **_TAG_CONFLICT,
+            )
+        )[0]
+
+        tags = ImportTags(existing_by_key={})
+        stats = ImportStats()
+
+        await create_missing_import_tags(session, user_id, ["TRAVEL"], tags, stats)
+
+        assert stats.tags_created == 0
+        assert tags.existing_by_key["travel"].id == existing.id
 
 
 async def test_another_users_merchant_does_not_block_writing_your_own():

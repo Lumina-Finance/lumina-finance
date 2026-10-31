@@ -106,7 +106,7 @@ async def write_imported_transactions(
         db,
         user_id,
         (tag_name for transaction in transactions for tag_name in transaction.tag_names),
-        import_lookups.tags_by_name,
+        import_lookups.tags,
         stats,
     )
 
@@ -119,7 +119,7 @@ async def write_imported_transactions(
             merchant = get_import_merchant(imported.merchant_name, import_lookups.merchants, stats) or stamped_merchants.get_for_category(
                 imported.category
             )
-            tags = get_import_row_tags(imported.tag_names, import_lookups.tags_by_name, stats)
+            tags = get_import_row_tags(imported.tag_names, import_lookups.tags, stats)
             pending.append(
                 (
                     Transaction(
