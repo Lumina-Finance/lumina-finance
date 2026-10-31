@@ -217,7 +217,7 @@ const OidcCallbackPage = () => {
                 <button
                   type="button"
                   onClick={handleBackToLogin}
-                  className="font-medium underline underline-offset-2 transition-colors"
+                  className="font-medium underline underline-offset-2 transition-control"
                   style={{ color: 'var(--app-accent)' }}
                 >
                   {user ? 'Back to settings' : 'Back to login'}
@@ -424,7 +424,7 @@ function OidcOnboardingForm({ onboarding, onBackToLogin }: OidcOnboardingFormPro
         <button
           type="button"
           onClick={onBackToLogin}
-          className="app-inline-link font-medium underline underline-offset-2 transition-colors"
+          className="app-inline-link font-medium underline underline-offset-2 transition-control"
           style={{ color: 'var(--app-accent)' }}
         >
           Back to login

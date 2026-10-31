@@ -66,7 +66,7 @@ export default function AccountRow({
       className={`flex min-w-0 items-stretch overflow-hidden rounded-xl hover:bg-[var(--app-accent-soft)] ${
         isArchived
           ? 'my-1 border border-dashed opacity-75 transition-[color,background-color,opacity] hover:opacity-100'
-          : 'transition-colors'
+          : 'transition-control'
       }`}
       style={isArchived ? { borderColor: 'var(--app-border)' } : undefined}
     >

@@ -106,7 +106,7 @@ export function CollapsibleSection({
       <button
         ref={headerRef}
         type="button"
-        className="sticky left-0 z-10 col-span-full flex w-full max-w-[100cqw] items-start gap-3 py-2 text-left transition-colors hover:bg-[var(--app-accent-soft)] hover:text-[var(--app-text)]"
+        className="sticky left-0 z-10 col-span-full flex w-full max-w-[100cqw] items-start gap-3 py-2 text-left transition-control hover:bg-[var(--app-accent-soft)] hover:text-[var(--app-text)]"
         style={{
           borderTop: '1px solid var(--app-border)',
           color: 'var(--app-text-muted)',

@@ -213,7 +213,7 @@ const AuthPage = () => {
               <button
                 type="button"
                 onClick={switchMode}
-                className="font-medium underline underline-offset-2 transition-colors"
+                className="font-medium underline underline-offset-2 transition-control"
                 style={{ color: 'var(--app-accent)' }}
               >
                 Back to login
@@ -239,7 +239,7 @@ const AuthPage = () => {
               <button
                 type="button"
                 onClick={switchMode}
-                className="font-medium underline underline-offset-2 transition-colors"
+                className="font-medium underline underline-offset-2 transition-control"
                 style={{ color: 'var(--app-accent)' }}
               >
                 Back to login
@@ -308,7 +308,7 @@ const AuthPage = () => {
                       <button
                         type="button"
                         onClick={goToForgot}
-                        className="text-sm font-medium underline underline-offset-2 transition-colors"
+                        className="text-sm font-medium underline underline-offset-2 transition-control"
                         style={{ color: 'var(--app-accent)' }}
                       >
                         Forgot password?
@@ -378,7 +378,7 @@ const AuthPage = () => {
                   <button
                     type="button"
                     onClick={switchMode}
-                    className="app-inline-link font-medium underline underline-offset-2 transition-colors"
+                    className="app-inline-link font-medium underline underline-offset-2 transition-control"
                     style={{ color: 'var(--app-accent)' }}
                   >
                     {isLogin ? 'Sign up' : 'Log in'}

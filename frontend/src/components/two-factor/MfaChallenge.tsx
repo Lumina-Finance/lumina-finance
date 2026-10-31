@@ -10,7 +10,7 @@ import { onUserPress } from '@/utils/userPress'
 // Centred links take the width of their text, so a keyboard focus ring hugs the words instead of
 // spanning the whole row
 const LINK_BUTTON_CLASS_NAME =
-  'mx-auto block text-center text-sm font-medium underline underline-offset-2 transition-colors'
+  'mx-auto block text-center text-sm font-medium underline underline-offset-2 transition-control'
 
 /**
  * What this screen may offer for a second-factor challenge

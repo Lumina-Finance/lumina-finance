@@ -1,14 +1,19 @@
 import { expect, test, type Locator, type Page } from '@playwright/test'
 
 import {
+  asUser,
+  budgetPeriodStart,
   createAccount,
+  createMonthlyBudget,
   createTaxAdvantagedCategory,
   createTransaction,
   daysFromTodayInTestTimezone,
+  enrollTotp,
   signUpUser,
 } from '../support/api'
-import { logInViaApi, openModal, openPage } from '../support/app'
+import { logInViaApi, openModal, openPage, reachTwoFactorChallenge, signUpThroughTheForm } from '../support/app'
 import { AT_EVERY_SIZE } from '../support/sizes'
+import { API_BASE_URL, BASE_URL } from '../support/target'
 
 // Runs on desktop only, apart from four groups that run at every size. The focus ring on each kind
 // of control does so because the toolbar changes below 750px, the Settings section menu and
@@ -841,6 +846,37 @@ async function readRingFades(page: Page, target: Locator, frame: Locator) {
 // Every control that draws the ring eases its outline colour, so none pops in. A control that sets its own
 // transition has to list outline-color (or all) in it. Each is focused by keyboard and read where it draws
 // the ring, on the pages the Tab-through test visits
+async function sweepRingTransitions(page: Page, offenders: Set<string>): Promise<void> {
+  const found = await page.evaluate(() => {
+    const controls = document.querySelectorAll<HTMLElement>('a[href], button, input, select, textarea, summary, [tabindex], [role="button"], [role="tab"], [role="radio"], [role="menuitem"], .app-focus-ring, .app-focus-inset, .app-transaction-row, .app-switch, .app-breakdown-sector, svg.recharts-surface')
+    const problems: string[] = []
+    let drawing = 0
+    for (const control of controls) {
+      if (control.getClientRects().length === 0) continue
+      control.focus({ focusVisible: true } as FocusOptions)
+      if (document.activeElement !== control) continue
+      const target = control.closest<HTMLElement>('.app-transaction-row, .app-switch') ?? control
+      control.getAnimations().forEach((animation) => animation.finish())
+      const style = getComputedStyle(target)
+      const draws = style.outlineStyle !== 'none' && style.outlineStyle !== 'auto' && !/, 0\)$|\/ 0\)$/.test(style.outlineColor)
+      // The last entry naming the outline colour, or all, is the one that applies, and it eases it over
+      // a short time: a longer one, such as a button's 300ms width change, would drag the ring out too
+      const properties = style.transitionProperty.split(', ')
+      const durations = style.transitionDuration.split(', ')
+      const named = properties.map((property, index) => (property === 'outline-color' || property === 'all' ? index : -1)).filter((index) => index >= 0)
+      const seconds = named.length > 0 ? parseFloat(durations[named[named.length - 1] % durations.length]) : 0
+      const eases = seconds > 0 && seconds <= 0.25
+      if (draws) drawing++
+      if (draws && !eases) problems.push(`${control.tagName.toLowerCase()}.${String(control.getAttribute('class') ?? '').split(' ').slice(0, 3).join('.')} ${control.getAttribute('aria-label') ?? control.textContent?.trim().slice(0, 20)}`)
+      control.blur()
+    }
+    return { problems, drawing }
+  })
+  for (const problem of found.problems) offenders.add(problem)
+  // A page where no control drew a ring means the sweep read nothing, so it must not pass
+  expect(found.drawing).toBeGreaterThan(0)
+}
+
 test('lists the outline colour in the transition of every control that draws the ring', async ({ page, request }) => {
   await page.emulateMedia({ reducedMotion: 'no-preference' })
   const user = await signUpUser(request)
@@ -848,36 +884,7 @@ test('lists the outline colour in the transition of every control that draws the
   await createTransaction(request, user, { accountId: account.id, categoryName: 'Groceries', amount: -1000, date: daysFromTodayInTestTimezone(-1) })
   await logInViaApi(page, user)
   const offenders = new Set<string>()
-  const sweep = async () => {
-    const found = await page.evaluate(() => {
-      const controls = document.querySelectorAll<HTMLElement>('a[href], button, input, select, textarea, summary, [tabindex], [role="button"], [role="tab"], [role="radio"], [role="menuitem"], .app-focus-ring, .app-focus-inset, .app-transaction-row, .app-switch, .app-breakdown-sector, svg.recharts-surface')
-      const problems: string[] = []
-      let drawing = 0
-      for (const control of controls) {
-        if (control.getClientRects().length === 0) continue
-        control.focus({ focusVisible: true } as FocusOptions)
-        if (document.activeElement !== control) continue
-        const target = control.closest<HTMLElement>('.app-transaction-row, .app-switch') ?? control
-        control.getAnimations().forEach((animation) => animation.finish())
-        const style = getComputedStyle(target)
-        const draws = style.outlineStyle !== 'none' && style.outlineStyle !== 'auto' && !/, 0\)$|\/ 0\)$/.test(style.outlineColor)
-        // The last entry naming the outline colour, or all, is the one that applies, and it eases it over
-        // a short time: a longer one, such as a button's 300ms width change, would drag the ring out too
-        const properties = style.transitionProperty.split(', ')
-        const durations = style.transitionDuration.split(', ')
-        const named = properties.map((property, index) => (property === 'outline-color' || property === 'all' ? index : -1)).filter((index) => index >= 0)
-        const seconds = named.length > 0 ? parseFloat(durations[named[named.length - 1] % durations.length]) : 0
-        const eases = seconds > 0 && seconds <= 0.25
-        if (draws) drawing++
-        if (draws && !eases) problems.push(`${control.tagName.toLowerCase()}.${String(control.getAttribute('class') ?? '').split(' ').slice(0, 3).join('.')} ${control.getAttribute('aria-label') ?? control.textContent?.trim().slice(0, 20)}`)
-        control.blur()
-      }
-      return { problems, drawing }
-    })
-    for (const problem of found.problems) offenders.add(problem)
-    // A page where no control drew a ring means the sweep read nothing, so it must not pass
-    expect(found.drawing).toBeGreaterThan(0)
-  }
+  const sweep = () => sweepRingTransitions(page, offenders)
 
   await openPage(page, '/transactions')
   await sweep()
@@ -895,6 +902,126 @@ test('lists the outline colour in the transition of every control that draws the
   await openPage(page, '/imports')
   await sweep()
   await openPage(page, '/insights')
+  await sweep()
+  expect([...offenders]).toEqual([])
+})
+
+// The same sweep on the pages the first one doesn't reach, which hold borderless controls too: a dashboard
+// with a budget, the accounts list, a transaction with a tag, the tax-advantaged settings, the import page
+// at its account step and the passkey menu. Each is seeded with what its controls need
+test('lists the outline colour in the transition of every control that draws the ring on the pages with data', async ({ page, request }) => {
+  await page.emulateMedia({ reducedMotion: 'no-preference' })
+  const user = await signUpUser(request)
+  const account = await createAccount(request, user, { name: 'Everyday' })
+  const tag =await request.post(`${API_BASE_URL}/tags`, { headers: asUser(user), data: { name: 'Holiday' } })
+  expect(tag.status()).toBe(201)
+  const { id: tagId } = await tag.json() as { id: string }
+  const periodStart = budgetPeriodStart()
+  await createMonthlyBudget(request, user, { name: 'Food', categoryNames: ['Groceries'], overallLimit: 50_000, periodStart })
+  await createTransaction(request, user, { accountId: account.id, categoryName: 'Groceries', amount: -1000, date: periodStart, tagIds: [tagId] })
+  const categoryId = await createTaxAdvantagedCategory(request, user, 'Retirement Savings')
+  const limit = await request.post(`${API_BASE_URL}/tax-advantaged-categories/${categoryId}/limits`, {
+    headers: asUser(user),
+    data: { year: 2026, contribution_limit: 700000 },
+  })
+  expect(limit.status()).toBe(201)
+  // The passkey menu needs a passkey, which the list answers here since a real one needs a prompt
+  await page.route(`${API_BASE_URL}/auth/passkeys`, (route) => route.fulfill({
+    json: [{ id: 'laptop', name: 'Laptop', created_at: new Date().toISOString(), last_used_at: null }],
+  }))
+  await logInViaApi(page, user)
+  const offenders = new Set<string>()
+  const sweep = () => sweepRingTransitions(page, offenders)
+
+  await openPage(page, '/dashboard')
+  await expect(page.getByRole('link', { name: /Food/ }).first()).toBeVisible()
+  await sweep()
+  await openPage(page, '/accounts')
+  await sweep()
+  await openPage(page, '/transactions')
+  await page.getByRole('button', { name: /Groceries/ }).first().click()
+  await expect(page.getByRole('button', { name: /Holiday/ }).first()).toBeVisible()
+  await sweep()
+  await openPage(page, '/settings#tax-advantaged-categories')
+  await page.getByRole('row').filter({ hasText: 'Retirement Savings' }).click()
+  const category = page.getByRole('dialog', { name: 'Retirement Savings', exact: true })
+  await expect(category).toBeVisible()
+  await sweep()
+  await category.getByRole('tab').last().click()
+  await sweep()
+  await page.keyboard.press('Escape')
+  await expect(category).toBeHidden()
+  await openPage(page, '/settings#security')
+  await page.locator('#security').getByRole('button', { name: 'Manage', exact: true }).click()
+  await page.getByRole('dialog', { name: 'Multi-factor authentication' }).getByRole('button', { name: /More|Laptop/ }).first().click()
+  await sweep()
+  await openPage(page, `/settings/imports?account=${account.id}`)
+  await sweep()
+  expect([...offenders]).toEqual([])
+})
+
+// The pages before sign-in, the second step of sign-up and the screens that hold a user who has signed in but
+// not finished: the sign-in and sign-up forms, the provider's failure and sign-up screens, the passkey and
+// authenticator setup, the code prompt and the re-enrolment screen
+test('lists the outline colour in the transition of every control that draws the ring before the app opens', async ({ page, request }) => {
+  await page.emulateMedia({ reducedMotion: 'no-preference' })
+  const offenders = new Set<string>()
+  const sweep = () => sweepRingTransitions(page, offenders)
+
+  await page.goto('/login')
+  await expect(page.getByRole('button', { name: 'Forgot password?', exact: true })).toBeVisible()
+  await sweep()
+  await page.goto('/signup')
+  await expect(page.getByLabel('Email')).toBeVisible()
+  await sweep()
+  await page.goto('/auth/oidc/callback?error=access_denied')
+  await expect(page.getByRole('heading', { name: 'Sign-in failed' })).toBeVisible()
+  await sweep()
+  await page.route(`${API_BASE_URL}/auth/oidc/callback`, async (route) => {
+    if (route.request().method() !== 'POST') return route.continue()
+    await route.fulfill({
+      json: {
+        onboarding_required: true,
+        onboarding_token: `e2e-token-${crypto.randomUUID()}`,
+        email: `e2e-oidc-${crypto.randomUUID()}@example.com`,
+        first_name: 'Ring',
+        last_name: null,
+      },
+    })
+  })
+  await page.goto(`/auth/oidc/callback?${new URLSearchParams({ code: 'e2e-code', state: 'e2e-state' })}`)
+  await expect(page.getByText('Wrong account?')).toBeVisible()
+  await sweep()
+  await page.unroute(`${API_BASE_URL}/auth/oidc/callback`)
+
+  const user = await signUpUser(request)
+  await enrollTotp(request, user)
+  await reachTwoFactorChallenge(page, user)
+  await sweep()
+
+  await page.context().clearCookies()
+  await signUpThroughTheForm(page)
+  const authenticatorInstead = page.getByRole('button', { name: 'Use an authenticator app instead' })
+  const setupHeading = page.getByRole('heading', { name: 'Set up two-factor authentication' })
+  await expect(authenticatorInstead.or(setupHeading)).toBeVisible()
+  await sweep()
+  if (await authenticatorInstead.isVisible()) await authenticatorInstead.click()
+  await expect(page.getByRole('button', { name: 'Copy key' })).toBeVisible()
+  await sweep()
+
+  const reenroll = await signUpUser(request)
+  await page.context().clearCookies()
+  await page.route(`${API_BASE_URL}/auth/refresh`, async (route) => {
+    const response = await route.fetch()
+    const body = await response.json()
+    body.user.second_factor_reenrollment_required = true
+    await route.fulfill({ response, json: body })
+  })
+  await page.route(`${API_BASE_URL}/auth/passkeys/config`, (route) =>
+    route.fulfill({ json: { rp_id: new URL(BASE_URL).hostname } }))
+  await logInViaApi(page, reenroll)
+  await page.goto('/')
+  await expect(page.getByRole('button', { name: 'Set up a passkey' })).toBeVisible()
   await sweep()
   expect([...offenders]).toEqual([])
 })

@@ -351,7 +351,7 @@ export default function TaxAdvantagedCategoryModal({
                     type="button"
                     role="tab"
                     aria-selected={activeTab === tab}
-                    className={`border-b-2 px-0 pb-2 pt-4 text-sm font-medium transition-colors ${
+                    className={`border-b-2 px-0 pb-2 pt-4 text-sm font-medium transition-control ${
                       activeTab === tab
                         ? 'text-[var(--app-text)]'
                         : 'text-[var(--app-text-muted)] hover:text-[var(--app-text)]'

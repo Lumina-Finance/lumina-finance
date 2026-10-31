@@ -83,7 +83,7 @@ function TaxAdvantagedCategoryRow({
 
   return (
     <tr
-      className={`app-card-row-focus-visible block cursor-pointer rounded-xl border p-3 transition-colors hover:bg-[var(--app-accent-soft)] min-[750px]:table-row min-[750px]:rounded-none min-[750px]:border-x-0 min-[750px]:border-t-0 min-[750px]:p-0 ${isLast ? 'min-[750px]:border-b-0' : 'min-[750px]:border-b'}`}
+      className={`app-card-row-focus-visible block cursor-pointer rounded-xl border p-3 transition-control hover:bg-[var(--app-accent-soft)] min-[750px]:table-row min-[750px]:rounded-none min-[750px]:border-x-0 min-[750px]:border-t-0 min-[750px]:p-0 ${isLast ? 'min-[750px]:border-b-0' : 'min-[750px]:border-b'}`}
       style={{ borderColor: 'var(--app-border)' }}
       tabIndex={0}
       onClick={() => onSelect(plan.id)}
