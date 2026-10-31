@@ -1189,6 +1189,12 @@
     background: color-mix(in srgb, var(--app-accent) 10%, transparent);
   }
 
+  /* The bronze pill beside an option reads 4.41:1 on the highlighted row and 4.36:1 on the chosen one while
+     highlighted in the light theme. The page-tint bronze clears 4.5:1 there, and is the plain accent in the dark theme */
+  .app-dropdown-row-highlighted {
+    --app-dropdown-pill-text: var(--app-accent-on-page-tint);
+  }
+
   .app-dropdown-row-disabled {
     cursor: default;
     opacity: var(--app-dropdown-disabled-opacity);
