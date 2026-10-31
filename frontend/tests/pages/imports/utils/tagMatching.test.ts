@@ -74,6 +74,11 @@ describe('what the tag step sends', () => {
     ])
   })
 
+  // The name box is open on a row nothing matched, so typing in it is answering without the dropdown
+  it('sends a create for a corrected name typed on a value nobody answered', () => {
+    expect(buildFor('trvl', '', 'Travel').mappings).toEqual([{ source: 'trvl', create: { name: 'Travel' } }])
+  })
+
   it('sends a create for a value answered create although it matched a tag', () => {
     expect(buildFor('TRAVEL', CREATE_TAG_VALUE, 'TRAVEL', TRAVEL).mappings).toEqual([
       { source: 'TRAVEL', create: { name: 'TRAVEL' } },

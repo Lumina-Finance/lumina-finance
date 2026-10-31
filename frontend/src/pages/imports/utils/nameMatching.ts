@@ -56,11 +56,14 @@ export function buildImportNameMappings<TMatched extends { id: string }, TMappin
   const errors: string[] = []
 
   for (const value of values) {
-    const answer = answers[value] ?? ''
-    if (!answer) continue
-
     const key = getNameKey(value)
     const matched = matchedByKey.get(key)
+
+    // A name typed for a value nothing matches answers it as created, though the user never
+    // opened its dropdown, since the row already read as being created
+    let answer = answers[value] ?? ''
+    if (!answer && !matched && createNames[value] !== undefined) answer = createValue
+    if (!answer) continue
 
     if (answer === skipValue) {
       mappings.push({ source: value, skip: true })
