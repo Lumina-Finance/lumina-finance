@@ -338,7 +338,7 @@ export function TotpEnrollment({
                 type="button"
                 onClick={copyKey}
                 aria-label={keyCopied ? 'Key copied' : 'Copy key'}
-                className="mx-auto flex items-center gap-2 rounded-md px-2 py-1 font-mono text-xs transition-colors hover:bg-[color:var(--app-hover-soft)]"
+                className="mx-auto flex items-center gap-2 rounded-md px-2 py-1 font-mono text-xs transition-control hover:bg-[color:var(--app-hover-soft)]"
                 style={{ color: 'var(--app-text-muted)' }}
               >
                 <span>{setupData.secret}</span>
@@ -394,7 +394,7 @@ export function TotpEnrollment({
             <button
               type="button"
               onClick={onSwitchToPasskey}
-              className="block w-full text-center text-sm font-medium underline underline-offset-2 transition-colors"
+              className="block w-full text-center text-sm font-medium underline underline-offset-2 transition-control"
               style={{ color: 'var(--app-accent)' }}
             >
               Use a passkey instead
@@ -405,7 +405,7 @@ export function TotpEnrollment({
             <button
               type="button"
               onClick={onSkip}
-              className="block w-full text-center text-sm font-medium underline underline-offset-2 transition-colors"
+              className="block w-full text-center text-sm font-medium underline underline-offset-2 transition-control"
               style={{ color: 'var(--app-accent)' }}
             >
               Skip for now

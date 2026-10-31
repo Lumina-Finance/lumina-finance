@@ -3330,7 +3330,14 @@
   /* A shared button eases every change over the app's duration and curve, while its focus ring still fades
      in the shared 150ms: the later entry for outline-color wins the list */
   @media (prefers-reduced-motion: no-preference) {
-    :is(.app-primary-button, .app-danger-button, .app-secondary-button, .app-glass-button, .app-glass-button-primary) {
+    :is(
+      .app-primary-button,
+      .app-danger-button,
+      .app-secondary-button,
+      .app-expanding-button,
+      .app-glass-button,
+      .app-glass-button-primary
+    ) {
       transition:
         all var(--app-ease-duration) var(--app-ease-curve),
         var(--app-focus-fade);

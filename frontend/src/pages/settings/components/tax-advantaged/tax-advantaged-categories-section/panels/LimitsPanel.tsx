@@ -157,7 +157,7 @@ export default function TaxAdvantagedLimitsPanel({
                   return (
                     <tr
                       key={limit.year}
-                      className={`app-card-row-focus-visible group grid cursor-pointer grid-cols-[minmax(0,1fr)_auto] gap-x-3 rounded-xl border px-3.5 py-3 transition-colors hover:bg-[var(--app-accent-soft)] min-[750px]:table-row min-[750px]:rounded-none min-[750px]:border-x-0 min-[750px]:border-t-0 min-[750px]:p-0 ${index === sortedLimits.length - 1 ? 'min-[750px]:border-b-0' : 'min-[750px]:border-b'}`}
+                      className={`app-card-row-focus-visible group grid cursor-pointer grid-cols-[minmax(0,1fr)_auto] gap-x-3 rounded-xl border px-3.5 py-3 transition-control hover:bg-[var(--app-accent-soft)] min-[750px]:table-row min-[750px]:rounded-none min-[750px]:border-x-0 min-[750px]:border-t-0 min-[750px]:p-0 ${index === sortedLimits.length - 1 ? 'min-[750px]:border-b-0' : 'min-[750px]:border-b'}`}
                       style={{
                         borderColor: isSelected ? 'var(--app-accent-border)' : 'var(--app-border)',
                         background: isSelected ? 'var(--app-accent-soft)' : undefined,
@@ -220,7 +220,7 @@ export default function TaxAdvantagedLimitsPanel({
                           <button
                             ref={confirmingDelete ? limitDeleteButtonRef : undefined}
                             type="button"
-                            className={`inline-flex h-7 min-w-7 items-center justify-center rounded-md px-2 text-xs font-medium transition-colors hover:bg-[var(--app-negative-soft)] ${
+                            className={`inline-flex h-7 min-w-7 items-center justify-center rounded-md px-2 text-xs font-medium transition-control hover:bg-[var(--app-negative-soft)] ${
                               confirmingDelete || deletingLimit
                                 ? 'text-[var(--app-negative)]'
                                 : LIMIT_FAINT_CONTROL_CLASS

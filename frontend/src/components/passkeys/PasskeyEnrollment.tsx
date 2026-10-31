@@ -221,7 +221,7 @@ export function PasskeyEnrollment({ onComplete, onSkip, onSwitchToTotp, setupSte
             <button
               type="button"
               onClick={onSwitchToTotp}
-              className="block w-full text-center text-sm font-medium underline underline-offset-2 transition-colors"
+              className="block w-full text-center text-sm font-medium underline underline-offset-2 transition-control"
               style={{ color: 'var(--app-accent)' }}
             >
               Use an authenticator app instead
@@ -232,7 +232,7 @@ export function PasskeyEnrollment({ onComplete, onSkip, onSwitchToTotp, setupSte
             <button
               type="button"
               onClick={onSkip}
-              className="block w-full text-center text-sm font-medium underline underline-offset-2 transition-colors"
+              className="block w-full text-center text-sm font-medium underline underline-offset-2 transition-control"
               style={{ color: 'var(--app-accent)' }}
             >
               Skip for now

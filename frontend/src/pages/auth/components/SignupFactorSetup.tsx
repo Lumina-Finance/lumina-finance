@@ -83,7 +83,7 @@ export function SignupFactorSetup({ passkeysSupported, setupStepUp, onFinish }: 
           <button
             type="button"
             onClick={confirmSkip}
-            className="block w-full text-center text-sm font-medium underline underline-offset-2 transition-colors"
+            className="block w-full text-center text-sm font-medium underline underline-offset-2 transition-control"
             style={{ color: 'var(--app-text-muted)' }}
           >
             I still want to skip

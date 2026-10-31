@@ -27,7 +27,7 @@ export default function ScrollableListMoreButton({
       {show && (
         <motion.button
           type="button"
-          className="absolute bottom-2 left-[calc(50%-1rem)] z-10 flex h-8 w-8 items-center justify-center overflow-hidden rounded-full bg-[var(--app-button-primary-bg)] text-[var(--app-button-primary-text)] transition-colors hover:bg-[var(--app-button-primary-bg-hover)] active:bg-[var(--app-button-primary-bg)]"
+          className="absolute bottom-2 left-[calc(50%-1rem)] z-10 flex h-8 w-8 items-center justify-center overflow-hidden rounded-full bg-[var(--app-button-primary-bg)] text-[var(--app-button-primary-text)] transition-control hover:bg-[var(--app-button-primary-bg-hover)] active:bg-[var(--app-button-primary-bg)]"
           onClick={onClick}
           aria-label={ariaLabel}
           initial={shouldReduceMotion ? false : MORE_BUTTON_INITIAL}

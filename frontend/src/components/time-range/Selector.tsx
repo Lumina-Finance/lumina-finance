@@ -273,7 +273,7 @@ function MobileTimeRangeSelector<T extends string>({
                     type="button"
                     role="option"
                     aria-selected={active}
-                    className="flex w-full items-center justify-between gap-3 rounded-lg px-3 py-2.5 text-left transition-colors hover:bg-[var(--app-hover-on-surface-soft)] motion-reduce:transition-none"
+                    className="flex w-full items-center justify-between gap-3 rounded-lg px-3 py-2.5 text-left transition-control hover:bg-[var(--app-hover-on-surface-soft)] motion-reduce:transition-none"
                     style={{
                       background: active ? 'var(--app-accent-soft)' : undefined,
                       color: active ? 'var(--app-accent)' : 'var(--app-text)',
