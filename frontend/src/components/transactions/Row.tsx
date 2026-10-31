@@ -159,7 +159,10 @@ function AccountLogo({
           {...logo.imageProps}
         />
       ) : (
-        <span className="select-none text-[0.625rem] font-semibold leading-none" style={{ color: 'var(--app-accent)' }}>
+        <span
+          className="select-none text-[0.625rem] font-semibold leading-none"
+          style={{ color: 'var(--app-accent-on-page-tint)' }}
+        >
           $
         </span>
       )}

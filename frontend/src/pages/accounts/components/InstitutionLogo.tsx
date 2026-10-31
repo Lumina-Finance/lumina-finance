@@ -44,7 +44,10 @@ export function InstitutionLogo({ institution, variant = 'row' }: InstitutionLog
           {...logo.imageProps}
         />
       ) : (
-        <span className={`select-none font-semibold ${classNames.fallback}`} style={{ color: 'var(--app-accent)' }}>
+        <span
+          className={`select-none font-semibold ${classNames.fallback}`}
+          style={{ color: 'var(--app-accent-on-page-tint)' }}
+        >
           $
         </span>
       )}
