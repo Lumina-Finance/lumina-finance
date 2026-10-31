@@ -1,10 +1,11 @@
-import { authenticatedFetch } from '@/api/client'
+import { authenticatedFetch, authenticatedRequest } from '@/api/client'
 import { buildQueryString, type QueryStringValue } from '@/api/utils/queryString'
 import type {
   BulkDeleteTransactionsResult,
   BulkUpdateTransactionsPayload,
   BulkUpdateTransactionsResult,
   CreateTransactionPayload,
+  ExportTransactionsFilters,
   LinkCandidateFilters,
   OverviewFilters,
   Transaction,
@@ -53,6 +54,23 @@ export function fetchTransactionPage(
     },
     signal,
   )
+}
+
+// A large export is read to its end before the file is saved, so it gets longer than an ordinary
+// request before it counts as unanswered
+const EXPORT_TIMEOUT_MS = 180_000
+
+/**
+ * Downloads every transaction matching the list's filters as a CSV file
+ *
+ * @param signal - Aborts the request when the export that asked for it is abandoned
+ */
+export async function fetchTransactionsCsv(filters: ExportTransactionsFilters = {}, signal?: AbortSignal) {
+  const response = await authenticatedRequest(
+    '/transactions/export' + buildQueryString(filters as Record<string, QueryStringValue>),
+    { signal, timeoutMs: EXPORT_TIMEOUT_MS, headers: { Accept: 'text/csv' } },
+  )
+  return response.blob()
 }
 
 /**

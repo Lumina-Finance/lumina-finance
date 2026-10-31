@@ -10,6 +10,9 @@ import {
 } from '@/api/transactions'
 import { useToast } from '@/hooks/useToast'
 import { LOADING_ANIMATION_MIN_MS } from '@/utils/timing'
+import { getExportBlockReason } from '@/components/transactions/utils/exportFile'
+import { ExportDialog } from '@/components/transactions/export/ExportDialog'
+import { getActiveFilterCount } from '@/components/transactions/utils/filterOptions'
 import { BulkEditModal } from '@/components/transactions/bulk-edit/BulkEditModal'
 import { BulkDeleteConfirm } from '@/components/transactions/bulk-edit/BulkDeleteConfirm'
 import { BulkEditConfirm } from '@/components/transactions/bulk-edit/BulkEditConfirm'
@@ -67,6 +70,7 @@ export default function TransactionListSection({
   createBlockReason,
   onEditTransaction,
   onImport,
+  canExport,
 }: {
   fixedAccount?: TransactionListAccount
   accounts?: TransactionListAccount[]
@@ -83,6 +87,10 @@ export default function TransactionListSection({
 
   // Opens an import filed into the account this list is fixed to, offered only alongside one
   onImport?: () => void
+
+  // Offers the export on the list of every account. The dialogue starts from this list's filters as they
+  // are, so with no date filter it covers every date, as the list does
+  canExport?: boolean
 }) {
   const prefersReducedMotion = useReducedMotion()
   const { search, setSearch, activeSearch, submitSearch } = useTransactionSearch()
@@ -427,6 +435,22 @@ export default function TransactionListSection({
   const importDisabled = Boolean(fixedAccount) && !isImportableAccount(fixedAccount)
   const importDisabledReason = getImportBlockReason(fixedAccount)
 
+  const [isExportOpen, setIsExportOpen] = useState(false)
+
+  // Each opening starts a fresh dialogue from the page's current filters and search
+  const [exportOpeningCount, setExportOpeningCount] = useState(0)
+  const exportDisabledReason = getExportBlockReason({
+    isLoaded: displayedTransactionsLoaded,
+    hasError: Boolean(error),
+    rowCount: displayedTransactions.length,
+    isNarrowed: getActiveFilterCount(filters, true) > 0 || activeSearch !== '',
+  })
+
+  function openExport() {
+    setExportOpeningCount((count) => count + 1)
+    setIsExportOpen(true)
+  }
+
   const { sentinelRef, showPendingFetch } = useInfiniteScrollTrigger({
     hasNextPage,
     isFetchingNextPage,
@@ -469,6 +493,8 @@ export default function TransactionListSection({
         createDisabled={createDisabled}
         createDisabledReason={createDisabledReason}
         onImport={onImport}
+        onExport={canExport ? openExport : undefined}
+        exportDisabledReason={exportDisabledReason}
         importDisabled={importDisabled}
         importDisabledReason={importDisabledReason}
         onStickyOffsetChange={setDateHeaderStickyTop}
@@ -584,6 +610,17 @@ export default function TransactionListSection({
           selectedCurrencies={selectedCurrencies}
           accounts={accountsForBulkEdit}
           onApply={applyBulkEdit}
+        />
+      )}
+
+      {canExport && (
+        <ExportDialog
+          key={exportOpeningCount}
+          open={isExportOpen}
+          onClose={() => setIsExportOpen(false)}
+          initialFilters={filters}
+          initialSearch={activeSearch}
+          today={today}
         />
       )}
 

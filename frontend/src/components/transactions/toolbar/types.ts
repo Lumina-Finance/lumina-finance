@@ -23,6 +23,12 @@ export type TransactionListToolbarProps = {
   onImport?: () => void
   importDisabled?: boolean
   importDisabledReason?: string
+
+  // Opens the dialogue that chooses and confirms a CSV export. Absent on a list that offers no export
+  onExport?: () => void
+
+  // Why the button is off, such as the person having no transactions at all
+  exportDisabledReason?: string
   onStickyOffsetChange?: (offset: number) => void
 
   // Whether the list is showing a checkbox on every row, so a bulk edit can pick rows out

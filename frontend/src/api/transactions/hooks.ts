@@ -34,12 +34,14 @@ import {
   fetchTransaction,
   fetchTransactionPage,
   fetchTransactions,
+  fetchTransactionsCsv,
   fetchTransactionsOverview,
   linkRefund,
   unlinkRefund,
   updateTransaction,
 } from '@/api/transactions/requests'
 import type {
+  ExportTransactionsFilters,
   LinkCandidateFilters,
   OverviewFilters,
   TransactionFilters,
@@ -306,6 +308,17 @@ export function useDeleteTransaction({
       if (deferRemoval) return
       applyTransactionDeletion(queryClient, id, context?.deletedTransaction?.account_id)
     },
+  })
+}
+
+/**
+ * Downloads the transactions matching the list's filters as a CSV file, which changes nothing the
+ * app caches, so it updates and invalidates nothing
+ */
+export function useExportTransactions({ minimumPendingMs = 0 }: { minimumPendingMs?: number } = {}) {
+  return useMutation({
+    mutationFn: (filters: ExportTransactionsFilters) =>
+      runWithMinimumPendingTime(minimumPendingMs, () => fetchTransactionsCsv(filters)),
   })
 }
 

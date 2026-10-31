@@ -73,12 +73,14 @@ async function renewSession(onSessionLost: () => void): Promise<AuthResponse> {
 }
 
 /**
- * Fetches authenticated API endpoints, renewing an aged-out token first and retrying once after a
- * refused one is refreshed
+ * Sends an authenticated request, renewing an aged-out token first and retrying once after a refused
+ * one is refreshed, and returns the response once the server has accepted it
+ *
+ * @throws ApiError built from the server's answer when it refuses the request
  */
-export async function authenticatedFetch<T>(path: string, options: ServerRequestInit = {}): Promise<T> {
+export async function authenticatedRequest(path: string, options: ServerRequestInit = {}): Promise<Response> {
   if (!bindings) {
-    throw new Error('authenticatedFetch called before auth bindings were registered')
+    throw new Error('authenticatedRequest called before auth bindings were registered')
   }
 
   let token = bindings.getAccessToken()
@@ -128,6 +130,15 @@ export async function authenticatedFetch<T>(path: string, options: ServerRequest
       attemptsRemaining: Number.isNaN(attemptsRemaining) ? undefined : attemptsRemaining,
     })
   }
+
+  return res
+}
+
+/**
+ * Fetches authenticated API endpoints and reads their JSON answer
+ */
+export async function authenticatedFetch<T>(path: string, options: ServerRequestInit = {}): Promise<T> {
+  const res = await authenticatedRequest(path, options)
 
   // 204 No Content responses have an empty body, so res.json would fail
   if (res.status === 204) return undefined as T

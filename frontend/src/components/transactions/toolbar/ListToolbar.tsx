@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react'
 import { AnimatePresence, motion, useReducedMotion } from 'motion/react'
-import { Check, ListChecks, PencilLine, SlidersHorizontal, Trash2, Upload } from 'lucide-react'
+import { Check, Download, ListChecks, PencilLine, SlidersHorizontal, Trash2, Upload } from 'lucide-react'
 import { DesktopToolbarControls } from '@/components/list-controls/DesktopToolbarControls'
 import { GlassSearchField } from '@/components/list-controls/GlassSearchField'
 import { MobileToolbarActions } from '@/components/list-controls/MobileToolbarActions'
@@ -38,6 +38,8 @@ export default function TransactionListToolbar({
   onImport,
   importDisabled = false,
   importDisabledReason,
+  onExport,
+  exportDisabledReason,
   onStickyOffsetChange,
   isSelecting = false,
   selectedCount = 0,
@@ -78,6 +80,22 @@ export default function TransactionListToolbar({
       {/* The word is dropped on a phone, where the row is three controls wide and the filters button
           needs the space it would take. The accessible name carries it at both widths */}
       <span className="hidden min-[750px]:inline">Import</span>
+    </DisabledReasonButton>
+  ) : undefined
+
+  // Sits beside Import in the same 44px glass shape, square on a phone and widening for its word on a
+  // desktop. It opens the export dialogue, and a person with no transactions at all gets it held off
+  // with the reason as its description
+  const exportAction = onExport ? (
+    <DisabledReasonButton
+      className="app-glass-button h-11 w-11 shrink-0 px-0 min-[750px]:w-auto min-[750px]:px-4"
+      onClick={onExport}
+      disabledReason={exportDisabledReason}
+      aria-label="Export transactions as CSV"
+      aria-haspopup="dialog"
+    >
+      <Download size={18} aria-hidden />
+      <span className="hidden min-[750px]:inline">Export</span>
     </DisabledReasonButton>
   ) : undefined
 
@@ -125,7 +143,7 @@ export default function TransactionListToolbar({
         disabledReason={reason}
         aria-label="Edit the selected transactions"
       >
-        <PencilLine size={18} aria-hidden />
+        <PencilLine size={18} className="shrink-0" aria-hidden />
         <span className={labelClassName}>Edit</span>
       </DisabledReasonButton>
     )
@@ -239,6 +257,7 @@ export default function TransactionListToolbar({
               <>
                 {selectAction}
                 {importAction}
+                {exportAction}
               </>
             }
           />
@@ -262,6 +281,7 @@ export default function TransactionListToolbar({
               <div className="flex min-w-0 items-center gap-3">
                 {selectAction}
                 {importAction}
+                {exportAction}
                 <TransactionFilterPanel
                   accountOptions={accountOptions}
                   categoryOptions={categoryOptions}

@@ -32,6 +32,12 @@ interface ModalFormFooterProps {
   onPrimary?: () => void
 
   /**
+   * Adds a Back button beside Cancel, for a step that has an earlier one to return to. On a phone Back
+   * and Cancel each take half a row and the primary action has the row below to itself
+   */
+  onBack?: () => void
+
+  /**
    * Draws the primary button at the left and Cancel at the right, for a confirmation that changes or
    * deletes records. They sit in that order in the DOM too, so Tab moves through them the way they are
    * drawn, and the dialog opens on Cancel so a stray Enter cancels rather than writes
@@ -55,6 +61,7 @@ export function ModalFormFooter({
   level = 'page',
   onCancel,
   onPrimary,
+  onBack,
   primaryOnLeft = false,
   tone = 'primary',
 }: ModalFormFooterProps) {
@@ -90,6 +97,21 @@ export function ModalFormFooter({
       Cancel
     </button>
   )
+  const backAndCancel = onBack ? (
+    <div className="contents sm:flex sm:shrink-0 sm:gap-3">
+      <button
+        type="button"
+        className="app-secondary-button w-full sm:w-auto"
+        onClick={onBack}
+        disabled={submitDisabled}
+      >
+        Back
+      </button>
+      {cancelButton}
+    </div>
+  ) : (
+    cancelButton
+  )
   const primaryButton = (
     <DisabledReasonButton
       ref={primaryRef}
@@ -101,7 +123,7 @@ export function ModalFormFooter({
       disabled={submitDisabled}
       disabledReason={submitDisabled ? undefined : submitBlockedReason}
       aria-busy={submitDisabled}
-      className={`${tone === 'danger' ? 'app-danger-button' : 'app-primary-button'}${submitDisabled ? ' app-primary-button-loading justify-self-center sm:justify-self-auto' : ` ${submitWidthClassName}`}`}
+      className={`${tone === 'danger' ? 'app-danger-button' : 'app-primary-button'} shrink-0${onBack ? ' col-span-2 sm:col-span-1' : ''}${submitDisabled ? ' app-primary-button-loading justify-self-center sm:justify-self-auto' : ` ${submitWidthClassName}`}`}
     >
       {/* The spinner replaces the label, so it carries the label as its own name and a screen reader still
           says which action is in flight */}
@@ -121,12 +143,12 @@ export function ModalFormFooter({
         <>
           {primaryButton}
           {errorMessage}
-          {cancelButton}
+          {backAndCancel}
         </>
       ) : (
         <>
           {errorMessage}
-          {cancelButton}
+          {backAndCancel}
           {primaryButton}
         </>
       )}
