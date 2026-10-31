@@ -28,8 +28,14 @@ export function getFilterOptionGapClass(roomy: boolean): string {
  * Returns the scroll container classes shared by the filter option lists, switching between the
  * capped desktop height and the fill height the mobile sheet gives the list, with a wider gap between
  * rows for the list that shows details under each label
+ *
+ * A pinned group heading sticks below the list's top padding, so rows scrolling past would show above
+ * it. A grouped list takes that space as a margin outside the scrolling box instead, which keeps its
+ * outer height as it was
  */
-export function getFilterOptionListClass(fillHeight: boolean, roomy = false): string {
+export function getFilterOptionListClass(fillHeight: boolean, roomy = false, grouped = false): string {
   const gap = getFilterOptionGapClass(roomy)
+  if (grouped)
+    return fillHeight ? `mt-2 min-h-12 flex-1 ${gap} overflow-auto pb-2` : `mt-2 max-h-54 ${gap} overflow-auto pb-2`
   return fillHeight ? `min-h-12 flex-1 ${gap} overflow-auto py-2` : `max-h-56 ${gap} overflow-auto py-2`
 }

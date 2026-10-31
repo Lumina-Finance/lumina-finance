@@ -1305,6 +1305,13 @@
   .app-range-glass {
     --app-range-glass-bounce: cubic-bezier(0.34, 1.6, 0.5, 1);
     --app-range-glass-ease: cubic-bezier(0.22, 1, 0.36, 1);
+    --app-range-glass-fill: 62%;
+
+    /* What the glass looks like over the plain page, which a pinned checklist heading has to be drawn
+       in so it hides the rows scrolling under it without showing as a band of another colour. A
+       checklist on any other surface keeps the input background */
+    --app-checklist-heading-bg: color-mix(in srgb, var(--app-input-bg) var(--app-range-glass-fill), var(--app-bg));
+
     display: flex;
     flex-direction: column;
     margin-left: auto;
@@ -1313,7 +1320,7 @@
     overflow: hidden;
     border-radius: 20px;
     border: 1px solid var(--app-border-strong);
-    background: color-mix(in srgb, var(--app-input-bg) 62%, transparent);
+    background: color-mix(in srgb, var(--app-input-bg) var(--app-range-glass-fill), transparent);
     -webkit-backdrop-filter: blur(20px) saturate(160%);
     backdrop-filter: blur(20px) saturate(160%);
     transition:
