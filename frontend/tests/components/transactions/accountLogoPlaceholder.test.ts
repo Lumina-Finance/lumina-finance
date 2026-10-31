@@ -33,7 +33,7 @@ describe('transaction row account logo placeholder', () => {
     const markup = render('Visa Travel')
 
     expect(markup).toContain('background:var(--app-accent-soft)')
-    expect(markup).toContain('color:var(--app-accent)')
+    expect(markup).toContain('color:var(--app-accent-on-page-tint)')
     expect(markup).toMatch(/>\$<\/span>/)
   })
 
