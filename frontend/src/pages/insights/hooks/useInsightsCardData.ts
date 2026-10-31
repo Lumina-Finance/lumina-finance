@@ -63,8 +63,8 @@ export function useInsightsCardData({
     [queries.savingsRateTrend.data],
   )
   const merchantDistributionMerchants = useMemo(
-    () => getMerchantDistributionMerchants(queries.merchants.data),
-    [queries.merchants.data],
+    () => getMerchantDistributionMerchants(queries.merchantDistribution.data),
+    [queries.merchantDistribution.data],
   )
   const rankedMerchants = useMemo(() => getMerchantRankingRows(queries.merchants.data), [queries.merchants.data])
 

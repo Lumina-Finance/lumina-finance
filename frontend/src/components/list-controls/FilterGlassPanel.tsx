@@ -37,6 +37,9 @@ const CLEAR_BUTTON_Z_INDEX = 2
 // clips the label. Added to the content width to size the pill
 const COLLAPSED_HEAD_CHROME = 64
 
+// Class on the body while a panel is open. The page's floating controls read it to step aside
+const FILTER_PANEL_OPEN_CLASS = 'app-filter-panel-open'
+
 // Inner spacing of the open panel body. The top edge only takes it when the panel opens upward,
 // where the glass border sits directly above the content instead of the pill head
 const BODY_PADDING = 12
@@ -55,6 +58,10 @@ type FilterGlassPanelProps = {
   activeFacetCount: number
   seedDraftFromFilters: () => void
   clearAll: () => void
+
+  // Wording for a panel that holds one filter. Other panels keep the plural
+  label?: string
+  clearLabel?: string
   children: ReactNode
 }
 
@@ -73,6 +80,8 @@ export function FilterGlassPanel({
   activeFacetCount,
   seedDraftFromFilters,
   clearAll,
+  label = 'Filters',
+  clearLabel = 'Clear all filters',
   children,
 }: FilterGlassPanelProps) {
   const [collapsedSize, setCollapsedSize] = useState(COLLAPSED_FALLBACK)
@@ -204,6 +213,15 @@ export function FilterGlassPanel({
 
   useFocusHeadOnClose(open, bodyViewportRef, headRef)
 
+  // Marks the page while the panel is open, so a control floating over the page, such as the insights
+  // range selector, steps aside instead of showing through the translucent glass or covering it. A
+  // control portalled to the body always stacks over the page content the glass belongs to
+  useEffect(() => {
+    if (!open) return undefined
+    document.body.classList.add(FILTER_PANEL_OPEN_CLASS)
+    return () => document.body.classList.remove(FILTER_PANEL_OPEN_CLASS)
+  }, [open])
+
   // An outside press or Escape dismisses the panel and discards the draft
   useEffect(() => {
     if (!open) return
@@ -293,7 +311,7 @@ export function FilterGlassPanel({
         >
           <span ref={headContentRef} className="app-range-glass-cur">
             <SlidersHorizontal size={18} aria-hidden className="shrink-0" />
-            <span>Filters</span>
+            <span>{label}</span>
             {activeFacetCount > 0 && (
               <span
                 className="flex h-[18px] min-w-[18px] items-center justify-center rounded-full px-1.5 text-[11px] font-medium"
@@ -318,7 +336,7 @@ export function FilterGlassPanel({
         {showClearButton && (
           <button
             type="button"
-            aria-label="Clear all filters"
+            aria-label={clearLabel}
             className="app-range-glass-clear absolute inline-flex items-center justify-center"
             style={{ top: 5, right: 8, height: 28, width: 28, zIndex: CLEAR_BUTTON_Z_INDEX }}
             onClick={(event) => {

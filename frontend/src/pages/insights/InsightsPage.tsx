@@ -1,5 +1,6 @@
-import { useCallback, useState } from 'react'
+import { useCallback, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router'
+import { useCategories } from '@/api/categories'
 import { buildCategoryTransactionsUrl } from '@/components/transactions/utils/filterNavigation'
 import { isLoadingFirstAnswer } from '@/utils/queryLoading'
 import {
@@ -22,6 +23,7 @@ import { useInsightsCardData } from './hooks/useInsightsCardData'
 import { useInsightsCardQueries } from './hooks/useInsightsCardQueries'
 import { useInsightsCardVisibilityMap } from './hooks/useInsightsCardVisibilityMap'
 import { useInsightsRange } from './hooks/useInsightsRange'
+import { getMerchantCategoryOptions, keepExistingCategoryIds } from './utils/merchantCategoryFilter'
 import type { NetWorthViewMode } from './utils/netWorth'
 import type { InsightsRangeInputDates } from './types/range'
 
@@ -40,6 +42,16 @@ export default function InsightsPage() {
   const [breakdownMode, setBreakdownMode] = useState<InsightsBreakdownCategoryKind>('expense')
   const [netWorthMode, setNetWorthMode] = useState<NetWorthViewMode>('overview')
   const [capSavingsRateChart, setCapSavingsRateChart] = useState(false)
+  const [chosenCategoryIds, setChosenCategoryIds] = useState<string[]>([])
+  const categoriesQuery = useCategories()
+  const merchantCategoryOptions = useMemo(
+    () => getMerchantCategoryOptions(categoriesQuery.data),
+    [categoriesQuery.data],
+  )
+  const merchantCategoryIds = useMemo(
+    () => keepExistingCategoryIds(chosenCategoryIds, merchantCategoryOptions, categoriesQuery.data !== undefined),
+    [categoriesQuery.data, chosenCategoryIds, merchantCategoryOptions],
+  )
   const range = useInsightsRange()
   const savedRangesQuery = useSavedInsightsRanges()
   const saveRange = useSaveInsightsRange()
@@ -78,6 +90,7 @@ export default function InsightsPage() {
     comparisonPeriod: range.comparisonPeriod,
     cardQueriesEnabled: range.cardQueriesEnabled,
     visibility,
+    merchantCategoryIds,
   })
   const displayCurrency = user?.base_currency ?? 'CAD'
   const cardData = useInsightsCardData({
@@ -226,12 +239,15 @@ export default function InsightsPage() {
           <div ref={merchantDistributionRef} className="min-w-0">
             <MerchantDistributionCard
               merchants={cardData.merchantDistributionMerchants}
-              fxStatus={queries.merchants.data?.fx_status}
+              fxStatus={queries.merchantDistribution.data?.fx_status}
               currency={displayCurrency}
-              error={queries.merchants.error}
-              failed={queries.merchants.isError}
-              loading={isLoadingFirstAnswer(queries.merchants)}
-              transitionKey={range.cardTransitionKey}
+              error={queries.merchantDistribution.error}
+              failed={queries.merchantDistribution.isError}
+              loading={isLoadingFirstAnswer(queries.merchantDistribution)}
+              transitionKey={`${range.cardTransitionKey}:${merchantCategoryIds.join(',')}`}
+              categoryOptions={merchantCategoryOptions}
+              selectedCategoryIds={merchantCategoryIds}
+              onCategoryIdsChange={(categoryIds) => setChosenCategoryIds([...categoryIds].sort())}
             />
           </div>
 

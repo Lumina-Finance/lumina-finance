@@ -107,18 +107,20 @@ export function useInsightsFundFlow(fromDate: string, toDate: string, enabled = 
 }
 
 /**
- * Reads merchant distribution and ranking data for a comparison date range
+ * Reads merchant distribution and ranking data for a comparison date range, narrowed to the chosen
+ * categories when there are any
  */
 export function useInsightsMerchants(
   fromDate: string,
   toDate: string,
   comparisonPeriod: InsightsComparisonPeriod = 'same_length',
   enabled = true,
+  categoryIds: string[] = [],
 ) {
   const { accessToken } = useAuth()
   return useQuery({
-    queryKey: insightsKeys.merchants(fromDate, toDate, comparisonPeriod),
-    queryFn: ({ signal }) => fetchInsightsMerchants(fromDate, toDate, comparisonPeriod, signal),
+    queryKey: insightsKeys.merchants(fromDate, toDate, comparisonPeriod, categoryIds),
+    queryFn: ({ signal }) => fetchInsightsMerchants(fromDate, toDate, comparisonPeriod, categoryIds, signal),
     enabled: !!accessToken && enabled && fromDate !== '' && toDate !== '',
     staleTime: getFxAwareStaleTime(INSIGHTS_FX_STALE_TIME_MS),
   })

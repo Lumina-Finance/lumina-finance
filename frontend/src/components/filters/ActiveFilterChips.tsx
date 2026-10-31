@@ -8,8 +8,15 @@ type FilterChip = {
   onRemove: () => void
 }
 
+type ActiveFilterChipsProps = {
+  chips: FilterChip[]
+
+  // Wording for a pane that holds one filter. Other panes keep the plural
+  emptyLabel?: string
+}
+
 /** Lets selected filters wrap naturally so their pane grows with them */
-export function ActiveFilterChips({ chips }: { chips: FilterChip[] }) {
+export function ActiveFilterChips({ chips, emptyLabel = 'No filters applied' }: ActiveFilterChipsProps) {
   return (
     <div
       role={chips.length ? 'group' : undefined}
@@ -29,7 +36,7 @@ export function ActiveFilterChips({ chips }: { chips: FilterChip[] }) {
             exit={{ opacity: 0 }}
             transition={FILTER_GLASS_SPRING}
           >
-            No filters applied
+            {emptyLabel}
           </motion.span>
         ) : (
           chips.map((chip) => (

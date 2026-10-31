@@ -26,6 +26,9 @@ type UseInsightsCardQueriesParams = {
   comparisonPeriod: InsightsComparisonPeriod
   cardQueriesEnabled: boolean
   visibility: InsightsCardQueryVisibility
+
+  /** Categories the merchant distribution is narrowed to, empty for every category */
+  merchantCategoryIds: string[]
 }
 
 /**
@@ -36,6 +39,7 @@ export function useInsightsCardQueries({
   comparisonPeriod,
   cardQueriesEnabled,
   visibility,
+  merchantCategoryIds,
 }: UseInsightsCardQueriesParams) {
   const periodGlance = useInsightsPeriodGlance(
     rangeInputDates.from,
@@ -64,12 +68,23 @@ export function useInsightsCardQueries({
     rangeInputDates.to,
     cardQueriesEnabled && visibility.cashFlow,
   )
+  // The ranking card stays unfiltered, so a narrowed distribution reads its own request and the
+  // shared one then serves the ranking alone
+  const isDistributionFiltered = merchantCategoryIds.length > 0
   const merchants = useInsightsMerchants(
     rangeInputDates.from,
     rangeInputDates.to,
     comparisonPeriod,
-    cardQueriesEnabled && (visibility.merchantDistribution || visibility.merchantRanking),
+    cardQueriesEnabled && (visibility.merchantRanking || (visibility.merchantDistribution && !isDistributionFiltered)),
   )
+  const filteredMerchants = useInsightsMerchants(
+    rangeInputDates.from,
+    rangeInputDates.to,
+    comparisonPeriod,
+    cardQueriesEnabled && visibility.merchantDistribution && isDistributionFiltered,
+    merchantCategoryIds,
+  )
+  const merchantDistribution = isDistributionFiltered ? filteredMerchants : merchants
   const savingsRateTrend = useInsightsSavingsRateTrend(visibility.savingsRate)
 
   return {
@@ -80,6 +95,7 @@ export function useInsightsCardQueries({
     cashFlow,
     savingsRateTrend,
     merchants,
+    merchantDistribution,
   }
 }
 

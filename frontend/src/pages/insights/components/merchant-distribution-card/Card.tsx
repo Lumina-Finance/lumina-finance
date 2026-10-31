@@ -8,6 +8,8 @@ import type { MerchantMarketMerchant } from '@/pages/insights/types/merchantDist
 import { getMerchantSpendingFxStatusMessage } from '@/pages/insights/utils/fxTooltipMessages'
 import { FxStatusBadge } from '@/components/tooltips/FxStatusBadge'
 import { InsightCalculationTooltip } from '@/pages/insights/components/CalculationTooltip'
+import type { OptionItem } from '@/components/filters/OptionList'
+import { MerchantCategoryFilter } from './CategoryFilter'
 import { MerchantDistributionLegend } from './Legend'
 import { MerchantMarketMap } from './MarketMap'
 import { InsightSectionHeader } from '@/pages/insights/components/SectionHeader'
@@ -24,6 +26,9 @@ type MerchantDistributionCardProps = {
 
   loading?: boolean
   transitionKey: string
+  categoryOptions: OptionItem[]
+  selectedCategoryIds: string[]
+  onCategoryIdsChange: (categoryIds: string[]) => void
 }
 
 type MerchantDistributionSnapshot = {
@@ -46,7 +51,11 @@ export function MerchantDistributionCard({
   failed,
   loading = false,
   transitionKey,
+  categoryOptions,
+  selectedCategoryIds,
+  onCategoryIdsChange,
 }: MerchantDistributionCardProps) {
+  const isFiltered = selectedCategoryIds.length > 0
   // The failure travels in the snapshot rather than beside it, so the box arrives with the reveal
   // instead of replacing the map while the spinner is still turning
   const incomingSnapshot = useMemo<MerchantDistributionSnapshot>(
@@ -54,11 +63,15 @@ export function MerchantDistributionCard({
       merchants,
       fxStatus,
       currency,
-      emptyLabel: loading ? 'Loading merchant spending...' : 'No merchant spending in this range',
+      emptyLabel: loading
+        ? 'Loading merchant spending...'
+        : isFiltered
+          ? 'No merchant spending in these categories in this range'
+          : 'No merchant spending in this range',
       error,
       failed,
     }),
-    [currency, error, failed, fxStatus, loading, merchants],
+    [currency, error, failed, fxStatus, isFiltered, loading, merchants],
   )
   const { displaySnapshot, contentConcealed, loadingVisible, shouldReduceMotion } =
     useLoadingSnapshot<MerchantDistributionSnapshot>({
@@ -86,6 +99,13 @@ export function MerchantDistributionCard({
               />
             )}
           </span>
+        }
+        action={
+          <MerchantCategoryFilter
+            categoryOptions={categoryOptions}
+            selectedIds={selectedCategoryIds}
+            onChange={onCategoryIdsChange}
+          />
         }
       />
       <div className="relative flex min-h-0 flex-1 flex-col overflow-hidden">

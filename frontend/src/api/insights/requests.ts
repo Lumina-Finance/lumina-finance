@@ -106,18 +106,23 @@ export function fetchInsightsFundFlow(fromDate: string, toDate: string, signal?:
 /**
  * Fetches merchant distribution and ranking data for an insights date range
  *
+ * @param categoryIds - Categories to keep in both lists, or none to keep every expense category
  * @param signal - Aborts the request when the load that asked for it is abandoned
  */
 export function fetchInsightsMerchants(
   fromDate: string,
   toDate: string,
   comparisonPeriod: InsightsComparisonPeriod = 'same_length',
+  categoryIds: string[] = [],
   signal?: AbortSignal,
 ) {
-  return authenticatedFetch<InsightsMerchantsResponse>(
-    `/insights/merchants${buildInsightsRangeQueryString(fromDate, toDate, comparisonPeriod)}`,
-    { signal },
-  )
+  const query = buildQueryString({
+    from_date: fromDate,
+    to_date: toDate,
+    comparison_period: comparisonPeriod,
+    category_id: categoryIds,
+  })
+  return authenticatedFetch<InsightsMerchantsResponse>(`/insights/merchants${query}`, { signal })
 }
 
 /**

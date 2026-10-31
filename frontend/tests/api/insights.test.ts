@@ -77,6 +77,22 @@ describe('insights fetch functions', () => {
     )
   })
 
+  it('sends each chosen category on the merchants request and none when nothing is chosen', async () => {
+    await fetchInsightsMerchants('2026-03-01', '2026-03-31', 'same_length', ['cat-a', 'cat-b'])
+    await fetchInsightsMerchants('2026-03-01', '2026-03-31', 'same_length', [])
+
+    expect(authenticatedFetchMock).toHaveBeenNthCalledWith(
+      1,
+      '/insights/merchants?from_date=2026-03-01&to_date=2026-03-31&comparison_period=same_length&category_id=cat-a&category_id=cat-b',
+      expect.anything(),
+    )
+    expect(authenticatedFetchMock).toHaveBeenNthCalledWith(
+      2,
+      '/insights/merchants?from_date=2026-03-01&to_date=2026-03-31&comparison_period=same_length',
+      expect.anything(),
+    )
+  })
+
   it('requests the savings-rate trend endpoint without range parameters', async () => {
     await fetchInsightsSavingsRateTrend()
 
