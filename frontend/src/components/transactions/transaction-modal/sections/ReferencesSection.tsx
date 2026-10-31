@@ -467,7 +467,7 @@ export default function TransactionReferencesSection({
                         if (!readOnly) onRemoveTag(tag.id)
                       }}
                       disabled={readOnly}
-                      className="inline-flex max-w-full items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-medium transition-control enabled:hover:bg-[var(--app-accent-soft)] disabled:cursor-not-allowed"
+                      className="app-focus-inset inline-flex max-w-full items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-medium transition-control enabled:hover:bg-[var(--app-accent-soft)] disabled:cursor-not-allowed"
                       style={{
                         background: 'var(--app-surface-soft)',
                         color: 'var(--app-text-muted)',
