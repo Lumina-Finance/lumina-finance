@@ -131,6 +131,12 @@ describe('the options the tag step offers', () => {
       'travel',
     ])
   })
+
+  it('words the two actions short enough for a closed dropdown on a phone', () => {
+    const [create, skip] = buildImportTagOptions([])
+
+    expect([create.label, skip.label]).toEqual(['Create new tag', 'Skip'])
+  })
 })
 
 describe('the tag names a file offers to answer', () => {

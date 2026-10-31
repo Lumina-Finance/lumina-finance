@@ -20,7 +20,7 @@ export function buildImportTagOptions(tags: Tag[], pickedLabelsById: Record<stri
 
   return [
     { value: CREATE_TAG_VALUE, label: 'Create new tag', group: 'Import action' },
-    { value: SKIP_TAG_VALUE, label: 'Skip, importing rows without it', group: 'Import action' },
+    { value: SKIP_TAG_VALUE, label: 'Skip', group: 'Import action' },
     ...[...labelsById.entries()]
       .sort(([, first], [, second]) => first.localeCompare(second))
       .map(([id, label]) => ({

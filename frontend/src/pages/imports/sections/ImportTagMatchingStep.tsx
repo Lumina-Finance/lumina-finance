@@ -64,7 +64,7 @@ export function ImportTagMatchingStep({
     <ImportStep
       index="06"
       title="Tag matching"
-      description="Match each tag name in this import to the tag its rows will carry."
+      description="Match each tag name in this import to the tag its rows will carry. Skip leaves a tag off its rows."
     >
       {tagMatchesFailed ? (
         <ImportLoadFailure
