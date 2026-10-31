@@ -33,10 +33,11 @@ function mailApiUrl(): string {
  * Wait for the newest email sent to an address and return its plain-text body.
  *
  * @param email - The recipient address
- * @returns The text of the newest message sent to that address
+ * @param matching - Text the body must match, for an address that has been sent other mail already
+ * @returns The text of the newest message sent to that address, and matching when given
  * @throws When nothing arrives within the timeout
  */
-export async function waitForEmailText(email: string): Promise<string> {
+export async function waitForEmailText(email: string, matching?: RegExp): Promise<string> {
   const base = mailApiUrl()
   const deadline = Date.now() + MAIL_TIMEOUT_MS
 
@@ -47,11 +48,12 @@ export async function waitForEmailText(email: string): Promise<string> {
       throw new Error(`the mail catcher at ${base} answered ${search.status} to a search for ${email}`)
     }
     const { messages } = (await search.json()) as { messages: MailSummary[] }
-    if (messages.length > 0) {
-      const message = await fetch(`${base}/api/v1/message/${messages[0].ID}`)
-      if (message.ok) {
-        return ((await message.json()) as MailMessage).Text
-      }
+    // The catcher lists the newest first
+    for (const { ID } of messages) {
+      const message = await fetch(`${base}/api/v1/message/${ID}`)
+      if (!message.ok) break
+      const { Text } = (await message.json()) as MailMessage
+      if (matching === undefined || matching.test(Text)) return Text
     }
     await new Promise((resolve) => setTimeout(resolve, MAIL_POLL_MS))
   }
@@ -88,6 +90,21 @@ export async function waitForConfirmationLink(email: string): Promise<string> {
     throw new Error(`the email to ${email} holds no confirmation link`)
   }
   return link[0]
+}
+
+/**
+ * Wait for the password reset email to an address and return the link it holds.
+ *
+ * The address has already been sent its sign-up email, so only a message holding a reset link counts
+ *
+ * @param email - The address that asked for a reset
+ * @returns The reset link as the app emailed it
+ * @throws When no reset email arrives
+ */
+export async function waitForResetLink(email: string): Promise<string> {
+  const resetLink = /https?:\/\/\S+\/reset-password\?token=\S+/
+  const text = await waitForEmailText(email, resetLink)
+  return resetLink.exec(text)![0]
 }
 
 /**
