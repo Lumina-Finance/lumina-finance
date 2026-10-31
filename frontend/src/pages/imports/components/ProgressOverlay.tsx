@@ -64,8 +64,7 @@ const STEP_DOT_SEATS = [0, 1, 2]
  * Stage floors elsewhere key off this so a stage is never struck off before
  * its dots finish a full cycle
  */
-export const STEP_DOT_WAVE_MS =
-  ((STEP_DOT_SEATS.length - 1) * STEP_DOT_STAGGER_SECONDS + STEP_DOT_CYCLE_SECONDS) * 1000
+export const STEP_DOT_WAVE_MS = ((STEP_DOT_SEATS.length - 1) * STEP_DOT_STAGGER_SECONDS + STEP_DOT_CYCLE_SECONDS) * 1000
 
 const contentVariants: Variants = {
   hidden: { opacity: 0, y: 16, filter: 'blur(5px)' },
@@ -212,17 +211,18 @@ export function ImportProgressOverlay({
   const ended = failed || stopped
 
   // The stage list already says what is in flight, so the title doesn't repeat it
-  const title = ended && endedTitle
-    ? endedTitle
-    : stopped
-      ? 'Import stopped'
-      : failed
-        ? 'Import failed'
-        : complete
-          ? 'Import complete'
-          : 'Importing'
+  const title =
+    ended && endedTitle
+      ? endedTitle
+      : stopped
+        ? 'Import stopped'
+        : failed
+          ? 'Import failed'
+          : complete
+            ? 'Import complete'
+            : 'Importing'
   const message = ended
-    ? error ?? (stopped ? 'Import stopped.' : GENERIC_IMPORT_FAILURE)
+    ? (error ?? (stopped ? 'Import stopped.' : GENERIC_IMPORT_FAILURE))
     : complete
       ? summary || 'Your import is complete.'
       : 'Your import is being added to your ledger, and nothing is saved until it finishes.'
@@ -241,7 +241,7 @@ export function ImportProgressOverlay({
         <motion.div
           ref={panelRef}
           key="import-progress-overlay"
-          className="fixed inset-0 flex items-center justify-center px-5 py-8"
+          className="fixed inset-0 flex overflow-y-auto overscroll-contain px-5 py-8"
           style={{ background: OVERLAY_BACKGROUND, color: OVERLAY_TEXT, zIndex: OVERLAY_Z_INDEX }}
           initial={{ opacity: 0 }}
           animate={{ opacity: 1, pointerEvents: 'auto' }}
@@ -252,12 +252,18 @@ export function ImportProgressOverlay({
           aria-labelledby={titleId}
           tabIndex={-1}
         >
-          <h2 id={titleId} className="sr-only">Import progress</h2>
+          <h2 id={titleId} className="sr-only">
+            Import progress
+          </h2>
           <p role="status" aria-live="polite" aria-atomic="true" className="sr-only">
-            {title}. {complete || ended ? '' : steps?.find((step) => step.status === 'active')?.label ?? ''} {failed && errorReason && <span lang="en">{errorReason}</span>} {message}{ended && note ? ` ${note}` : ''}
+            {title}. {complete || ended ? '' : (steps?.find((step) => step.status === 'active')?.label ?? '')}{' '}
+            {failed && errorReason && <span lang="en">{errorReason}</span>} {message}
+            {ended && note ? ` ${note}` : ''}
           </p>
+          {/* Centred by auto margins rather than by the overlay, since a card taller than the screen,
+              as at the largest text size, would otherwise be cut off above where the overlay scrolls to */}
           <motion.div
-            className="relative flex w-full max-w-[30rem] flex-col items-center px-4 py-8 text-center"
+            className="relative m-auto flex w-full max-w-[30rem] flex-col items-center px-4 py-8 text-center"
             initial={{ scale: 0.985 }}
             animate={{ scale: 1 }}
             exit={{ scale: 0.985 }}
@@ -268,7 +274,11 @@ export function ImportProgressOverlay({
               animate={{
                 color: stopped
                   ? OVERLAY_MUTED_TEXT
-                  : failed ? OVERLAY_ERROR : complete ? OVERLAY_SUCCESS : OVERLAY_ACCENT,
+                  : failed
+                    ? OVERLAY_ERROR
+                    : complete
+                      ? OVERLAY_SUCCESS
+                      : OVERLAY_ACCENT,
               }}
               initial={false}
               transition={{ duration: 0.26, ease: 'easeOut' }}
@@ -314,7 +324,11 @@ export function ImportProgressOverlay({
                   style={messageStyle}
                   variants={itemVariants}
                 >
-                  {failed && errorReason && <span lang="en" className="block">{errorReason}</span>}
+                  {failed && errorReason && (
+                    <span lang="en" className="block">
+                      {errorReason}
+                    </span>
+                  )}
                   {renderEmphasis(message, failed ? errorEmphasis : undefined)}
                 </motion.p>
 
@@ -427,17 +441,17 @@ function ImportProgressSteps({ steps }: { steps: ImportProgressStep[] }) {
   const shouldReduceMotion = useReducedMotion()
   const stepMotion = shouldReduceMotion
     ? {
-      initial: { opacity: 0 },
-      animate: { opacity: 1 },
-      exit: { opacity: 0 },
-      transition: { duration: 0.12 },
-    }
+        initial: { opacity: 0 },
+        animate: { opacity: 1 },
+        exit: { opacity: 0 },
+        transition: { duration: 0.12 },
+      }
     : {
-      initial: { opacity: 0, y: 8, filter: 'blur(3px)' },
-      animate: { opacity: 1, y: 0, filter: 'blur(0px)' },
-      exit: { opacity: 0 },
-      transition: { duration: STEP_TRAVEL_DURATION, ease: OVERLAY_EASE },
-    }
+        initial: { opacity: 0, y: 8, filter: 'blur(3px)' },
+        animate: { opacity: 1, y: 0, filter: 'blur(0px)' },
+        exit: { opacity: 0 },
+        transition: { duration: STEP_TRAVEL_DURATION, ease: OVERLAY_EASE },
+      }
 
   return (
     <ul className="flex flex-col items-center gap-1.5 text-sm leading-6">
@@ -509,9 +523,9 @@ function ImportProgressStepEllipsis({ running }: ImportProgressStepEllipsisProps
             ...(shouldReduceMotion || !running
               ? {}
               : {
-                animation: `import-stage-dot-hop ${STEP_DOT_CYCLE_SECONDS}s ease-in-out infinite`,
-                animationDelay: `${seat * STEP_DOT_STAGGER_SECONDS}s`,
-              }),
+                  animation: `import-stage-dot-hop ${STEP_DOT_CYCLE_SECONDS}s ease-in-out infinite`,
+                  animationDelay: `${seat * STEP_DOT_STAGGER_SECONDS}s`,
+                }),
           }}
         />
       ))}
