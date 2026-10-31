@@ -17,6 +17,9 @@ jobs:
     steps:
       - name: Check out repository
         uses: actions/checkout@v7
+        with:
+          # The format check compares against the base branch
+          fetch-depth: 0
 
       - name: Set up Node.js
         uses: actions/setup-node@v7
@@ -30,3 +33,17 @@ jobs:
 
       - name: Run lint
         run: npm run lint
+
+      # Only the files the pull request changes, so a file the branch leaves alone never fails it.
+      # Prettier rewrites them and git shows what it changed
+      - name: Check formatting of changed files
+        env:
+          BASE_REF: ${{ github.base_ref }}
+        run: |
+          files=$(git diff --name-only --relative --diff-filter=d "origin/$BASE_REF...HEAD" -- . | grep -E '\.(ts|tsx|js|jsx|css)$' || true)
+          if [ -z "$files" ]; then
+            echo "This pull request changes no frontend files the formatter takes"
+            exit 0
+          fi
+          npx prettier --write --log-level warn $files
+          git diff --exit-code
