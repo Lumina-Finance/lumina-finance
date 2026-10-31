@@ -2,11 +2,7 @@ import { getMerchantNameKey } from '@/api/shared/merchantNameKey'
 import type { Merchant } from '@/api/merchants'
 import type { TransactionImportMerchantMapping } from '@/api/transaction-imports'
 import type { DropdownOption } from '@/components/dropdown/Dropdown'
-import {
-  CREATE_MERCHANT_VALUE,
-  SKIP_MERCHANT_VALUE,
-  UNKNOWN_MERCHANT_NAME,
-} from '@/pages/imports/constants'
+import { CREATE_MERCHANT_VALUE, SKIP_MERCHANT_VALUE, UNKNOWN_MERCHANT_NAME } from '@/pages/imports/constants'
 
 /**
  * Builds the answers the merchant step offers for one merchant name
@@ -52,7 +48,7 @@ export function getImportMerchantRowState(answer: string, matched: Merchant | un
   if (answer === SKIP_MERCHANT_VALUE) return 'skipped' as const
   if (answer === CREATE_MERCHANT_VALUE) return 'creating' as const
   if (answer) return 'chosen' as const
-  return matched ? 'matched' as const : 'creating' as const
+  return matched ? ('matched' as const) : ('creating' as const)
 }
 
 /**

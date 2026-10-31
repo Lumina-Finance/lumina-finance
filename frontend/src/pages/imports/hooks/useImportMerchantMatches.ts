@@ -60,13 +60,10 @@ export function useImportMerchantMatches(importedMerchants: string[]) {
     setPickedMerchantLabels((current) => (current[merchantId] ? current : { ...current, [merchantId]: label }))
   }, [])
 
-  const merchantOptions = useMemo(
-    () => {
-      const searched: Merchant[] = searchPages?.pages.flat() ?? []
-      return buildImportMerchantOptions([...matchedMerchantByKey.values(), ...searched], pickedMerchantLabels)
-    },
-    [matchedMerchantByKey, pickedMerchantLabels, searchPages],
-  )
+  const merchantOptions = useMemo(() => {
+    const searched: Merchant[] = searchPages?.pages.flat() ?? []
+    return buildImportMerchantOptions([...matchedMerchantByKey.values(), ...searched], pickedMerchantLabels)
+  }, [matchedMerchantByKey, pickedMerchantLabels, searchPages])
 
   return {
     matchedMerchantByKey,

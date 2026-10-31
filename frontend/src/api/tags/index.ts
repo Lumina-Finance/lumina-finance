@@ -6,16 +6,9 @@ export type {
   TagFilters,
   UpdateTagPayload,
   UpdateTagRequest,
-} from '@/api/tags/types';
+} from '@/api/tags/types'
 
-export {
-  createTag,
-  deleteTag,
-  fetchTag,
-  fetchTagsPage,
-  mergeTag,
-  updateTag,
-} from '@/api/tags/requests';
+export { createTag, deleteTag, fetchTag, fetchTagsPage, mergeTag, updateTag } from '@/api/tags/requests'
 
 export {
   useCreateTag,
@@ -26,4 +19,4 @@ export {
   useTag,
   useTagDetails,
   useUpdateTag,
-} from '@/api/tags/hooks';
+} from '@/api/tags/hooks'

@@ -1,10 +1,10 @@
-import { buildImportBatches } from '@/api/shared/importBatching';
-import { getMerchantNameKey } from '@/api/shared/merchantNameKey';
+import { buildImportBatches } from '@/api/shared/importBatching'
+import { getMerchantNameKey } from '@/api/shared/merchantNameKey'
 import type {
   TransactionImportPayload,
   TransactionImportRow,
   TransactionImportStageBatch,
-} from '@/api/transaction-imports/types';
+} from '@/api/transaction-imports/types'
 
 /**
  * Splits a prepared import into batches that each fit the request-size budget
@@ -16,7 +16,7 @@ export async function buildStagedImportBatches(
   // it differently still finds the answer given for it
   const merchantMappingsByKey = new Map(
     payload.merchants.map((mapping) => [getMerchantNameKey(mapping.source), mapping]),
-  );
+  )
 
   return buildImportBatches({
     rows: payload.rows,
@@ -30,7 +30,7 @@ export async function buildStagedImportBatches(
       categories: [row.category_source],
       merchants: getRowMerchantKeys(row, merchantMappingsByKey),
     }),
-  });
+  })
 }
 
 /**
@@ -40,9 +40,9 @@ export async function buildStagedImportBatches(
  * adds nothing to the batch and is not looked up as though it must be there
  */
 function getRowMerchantKeys(row: TransactionImportRow, merchantMappingsByKey: Map<string, unknown>) {
-  if (!row.merchant_name) return [];
-  const key = getMerchantNameKey(row.merchant_name);
-  return merchantMappingsByKey.has(key) ? [key] : [];
+  if (!row.merchant_name) return []
+  const key = getMerchantNameKey(row.merchant_name)
+  return merchantMappingsByKey.has(key) ? [key] : []
 }
 
 /**
@@ -52,7 +52,5 @@ function getRowMerchantKeys(row: TransactionImportRow, merchantMappingsByKey: Ma
  * written to it
  */
 function getRowAccountSources(row: TransactionImportRow) {
-  return row.counterparty_account_source
-    ? [row.account_source, row.counterparty_account_source]
-    : [row.account_source];
+  return row.counterparty_account_source ? [row.account_source, row.counterparty_account_source] : [row.account_source]
 }

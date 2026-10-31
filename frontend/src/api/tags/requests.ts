@@ -1,24 +1,13 @@
-import { authenticatedFetch } from '@/api/client';
-import { buildQueryString, type QueryStringValue } from '@/api/utils/queryString';
-import type {
-  CreateTagPayload,
-  MergeTagRequest,
-  Tag,
-  TagFilters,
-  UpdateTagRequest,
-} from '@/api/tags/types';
+import { authenticatedFetch } from '@/api/client'
+import { buildQueryString, type QueryStringValue } from '@/api/utils/queryString'
+import type { CreateTagPayload, MergeTagRequest, Tag, TagFilters, UpdateTagRequest } from '@/api/tags/types'
 
 /**
  * Fetches one filtered tag page for settings and transaction tag selectors
  *
  * @param signal - Aborts the request when the load that asked for it is abandoned
  */
-export function fetchTagsPage(
-  filters: TagFilters = {},
-  pageSize = 20,
-  offset = 0,
-  signal?: AbortSignal,
-) {
+export function fetchTagsPage(filters: TagFilters = {}, pageSize = 20, offset = 0, signal?: AbortSignal) {
   return authenticatedFetch<Tag[]>(
     '/tags' +
       buildQueryString({
@@ -27,7 +16,7 @@ export function fetchTagsPage(
         offset,
       }),
     { signal },
-  );
+  )
 }
 
 /**
@@ -36,7 +25,7 @@ export function fetchTagsPage(
  * @param signal - Aborts the request when the load that asked for it is abandoned
  */
 export function fetchTag(tagId: string | null | undefined, signal?: AbortSignal) {
-  return authenticatedFetch<Tag>(`/tags/${tagId}`, { signal });
+  return authenticatedFetch<Tag>(`/tags/${tagId}`, { signal })
 }
 
 /**
@@ -46,7 +35,7 @@ export function createTag(payload: CreateTagPayload) {
   return authenticatedFetch<Tag>('/tags', {
     method: 'POST',
     body: JSON.stringify(payload),
-  });
+  })
 }
 
 /**
@@ -56,7 +45,7 @@ export function updateTag({ tagId, payload }: UpdateTagRequest) {
   return authenticatedFetch<Tag>(`/tags/${tagId}`, {
     method: 'PATCH',
     body: JSON.stringify(payload),
-  });
+  })
 }
 
 /**
@@ -65,7 +54,7 @@ export function updateTag({ tagId, payload }: UpdateTagRequest) {
 export function deleteTag(tagId: string) {
   return authenticatedFetch<void>(`/tags/${tagId}`, {
     method: 'DELETE',
-  });
+  })
 }
 
 /**
@@ -75,5 +64,5 @@ export function mergeTag({ tagId, payload }: MergeTagRequest) {
   return authenticatedFetch<void>(`/tags/${tagId}/merge`, {
     method: 'POST',
     body: JSON.stringify(payload),
-  });
+  })
 }
