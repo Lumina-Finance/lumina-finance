@@ -5,7 +5,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { ApiError, type AuthResponse } from '@/api/auth'
 import { API_BASE } from '@/api/config'
 import { authenticatedFetch, registerAuthBindings } from '@/api/client'
-import { REQUEST_TIMEOUT_MS } from '@/api/server'
+import { REQUEST_TIMEOUT_MS, SERVER_UNREACHABLE_MESSAGE } from '@/api/server'
 import { answerNever } from './fixtures'
 
 const refreshedAuthResponse: AuthResponse = {
@@ -56,9 +56,9 @@ afterEach(() => {
 
 describe('authenticatedFetch', () => {
   it.each([
-    ['network rejection', new TypeError('Network unavailable')],
-    ['cancellation', new DOMException('Request cancelled', 'AbortError')],
-  ])('keeps refreshed auth after retry %s', async (_label, failure) => {
+    ['network rejection', new TypeError('Network unavailable'), SERVER_UNREACHABLE_MESSAGE],
+    ['cancellation', new DOMException('Request cancelled', 'AbortError'), 'Request cancelled'],
+  ])('keeps refreshed auth after retry %s', async (_label, failure, shownMessage) => {
     const controller = new AbortController()
     const options: RequestInit = { method: 'PATCH', body: '{"name":"Updated"}', signal: controller.signal }
     fetchMock
@@ -66,7 +66,10 @@ describe('authenticatedFetch', () => {
       .mockResolvedValueOnce(jsonResponse(200, refreshedAuthResponse))
       .mockRejectedValueOnce(failure)
 
-    await expect(authenticatedFetch('/accounts/account_1', options)).rejects.toBe(failure)
+    await expect(authenticatedFetch('/accounts/account_1', options)).rejects.toMatchObject({
+      name: failure.name,
+      message: shownMessage,
+    })
 
     expect(onSessionRefreshed).toHaveBeenCalledExactlyOnceWith(refreshedAuthResponse)
     expect(onSessionLost).not.toHaveBeenCalled()
@@ -80,14 +83,14 @@ describe('authenticatedFetch', () => {
   })
 
   it.each([
-    ['network rejection', new TypeError('Refresh network unavailable')],
-    ['cancellation', new DOMException('Refresh cancelled', 'AbortError')],
-  ])('preserves the session after refresh %s', async (_label, failure) => {
+    ['network rejection', new TypeError('Refresh network unavailable'), SERVER_UNREACHABLE_MESSAGE],
+    ['cancellation', new DOMException('Refresh cancelled', 'AbortError'), 'Refresh cancelled'],
+  ])('preserves the session after refresh %s', async (_label, failure, shownMessage) => {
     fetchMock
       .mockResolvedValueOnce(jsonResponse(401, { detail: 'Expired access token' }, true))
       .mockRejectedValueOnce(failure)
 
-    await expect(authenticatedFetch('/accounts')).rejects.toBe(failure)
+    await expect(authenticatedFetch('/accounts')).rejects.toMatchObject({ name: failure.name, message: shownMessage })
 
     expect(onSessionLost).not.toHaveBeenCalled()
     expect(onSessionRefreshed).not.toHaveBeenCalled()
@@ -161,7 +164,7 @@ describe('authenticatedFetch', () => {
     await bothInitialRequests
     releaseRefresh(jsonResponse(200, refreshedAuthResponse))
 
-    expect(await accounts).toBe(failure)
+    expect(await accounts).toMatchObject({ message: SERVER_UNREACHABLE_MESSAGE, cause: failure })
     await expect(budgets).resolves.toEqual({ budgets: [] })
     expect(fetchMock.mock.calls.filter(([url]) => url === `${API_BASE}/auth/refresh`)).toHaveLength(1)
     expect(fetchMock).toHaveBeenCalledTimes(5)

@@ -3,7 +3,7 @@
  * screen loading forever, while a caller's own abort, such as stopping an import, still works
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { fetchFromServer } from '@/api/server'
+import { fetchFromServer, SERVER_UNREACHABLE_MESSAGE } from '@/api/server'
 import { answerNever } from './fixtures'
 
 // Short enough to keep the suite fast, long enough that a caller's abort lands first
@@ -49,5 +49,27 @@ describe('fetchFromServer', () => {
     controller.abort(stopped)
 
     await expect(fetchFromServer('/transactions/import/runs', { signal: controller.signal })).rejects.toBe(stopped)
+  })
+
+  // Screens show an error's message as it stands, so a request that never got an answer must already
+  // carry the friendly sentence, wherever the screen shows it from
+  it('fails a dropped connection with the friendly sentence, still as a TypeError', async () => {
+    const dropped = new TypeError('Failed to fetch')
+    fetchMock.mockRejectedValueOnce(dropped)
+
+    const failure: unknown = await fetchFromServer('/accounts/account_1').catch((error: unknown) => error)
+
+    expect(failure).toBeInstanceOf(TypeError)
+    expect(failure).toMatchObject({ message: SERVER_UNREACHABLE_MESSAGE, cause: dropped })
+  })
+
+  it("leaves a caller's abort and an answered request alone", async () => {
+    const stopped = new DOMException('Stopped', 'AbortError')
+    fetchMock.mockRejectedValueOnce(stopped)
+    await expect(fetchFromServer('/accounts')).rejects.toBe(stopped)
+
+    const answer = new Response('{"detail":"That name is already used"}', { status: 409 })
+    fetchMock.mockResolvedValueOnce(answer)
+    await expect(fetchFromServer('/budgets')).resolves.toBe(answer)
   })
 })
