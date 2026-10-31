@@ -1,11 +1,6 @@
 import type { Account, UpdateAccountPayload } from '@/api/accounts'
 import type { Currency } from '@/api/currency'
-import {
-  findCurrencyExponent,
-  fromMinorUnits,
-  isValidMoneyInput,
-  toMinorUnits,
-} from '@/utils/moneyInput'
+import { findCurrencyExponent, fromMinorUnits, isValidMoneyInput, toMinorUnits } from '@/utils/moneyInput'
 
 export interface IdentityFormValues {
   name: string
@@ -23,19 +18,14 @@ export type IdentityFieldErrors = Partial<Record<keyof IdentityFormValues, strin
  * The credit limit is left blank when the account's currency is not in the table, since the stored
  * amount can only be turned into text through that currency's decimal places
  */
-export function createIdentityFormValues(
-  account: Account,
-  currencies: Currency[],
-): IdentityFormValues {
+export function createIdentityFormValues(account: Account, currencies: Currency[]): IdentityFormValues {
   const creditLimitExponent = findCurrencyExponent(currencies, account.currency)
 
   return {
     name: account.name,
     institution_id: account.institution?.id ?? '',
     tax_advantaged_category_id: account.tax_advantaged_category_id ?? '',
-    credit_limit: creditLimitExponent === null
-      ? ''
-      : fromMinorUnits(account.credit_limit, creditLimitExponent),
+    credit_limit: creditLimitExponent === null ? '' : fromMinorUnits(account.credit_limit, creditLimitExponent),
     is_archived: account.is_archived,
   }
 }
@@ -43,10 +33,7 @@ export function createIdentityFormValues(
 /**
  * Validates fields that can break backend account updates before the mutation is submitted
  */
-export function getIdentityFieldErrors(
-  form: IdentityFormValues,
-  isRevolving: boolean,
-): IdentityFieldErrors {
+export function getIdentityFieldErrors(form: IdentityFormValues, isRevolving: boolean): IdentityFieldErrors {
   const errors: IdentityFieldErrors = {}
   if (!form.name.trim()) errors.name = 'Name is required.'
   else if (form.name.trim().length > 256) errors.name = 'Name must be 256 characters or less.'
@@ -85,8 +72,6 @@ export function getIdentityUpdatePayload({
     ...(isRevolving && creditLimitExponent !== null
       ? { credit_limit: toMinorUnits(form.credit_limit, creditLimitExponent) }
       : {}),
-    ...(canLinkTaxAdvantagedCategory
-      ? { tax_advantaged_category_id: form.tax_advantaged_category_id || null }
-      : {}),
+    ...(canLinkTaxAdvantagedCategory ? { tax_advantaged_category_id: form.tax_advantaged_category_id || null } : {}),
   }
 }

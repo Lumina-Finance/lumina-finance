@@ -39,11 +39,13 @@ describe('create account form helpers', () => {
   })
 
   it('validates required fields and money inputs before payload construction', () => {
-    expect(validateCreateAccountForm({
-      ...buildInitialCreateAccountForm(null),
-      credit_limit: '-1',
-      starting_balance: 'abc',
-    })).toEqual({
+    expect(
+      validateCreateAccountForm({
+        ...buildInitialCreateAccountForm(null),
+        credit_limit: '-1',
+        starting_balance: 'abc',
+      }),
+    ).toEqual({
       account_type: 'Select an account type',
       name: 'Name is required',
       currency: 'Select a currency',
@@ -82,5 +84,4 @@ describe('create account form helpers', () => {
       is_archived: false,
     })
   })
-
 })

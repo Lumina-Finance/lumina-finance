@@ -57,10 +57,7 @@ export default function AccountIdentityCard({
       <IdentityFacts facts={identityFacts} />
 
       {linkedTaxAdvantagedCategoryId ? (
-        <TaxAdvantagedCategoryBand
-          plan={linkedTaxAdvantagedCategory}
-          hasError={!!linkedTaxAdvantagedCategoryError}
-        />
+        <TaxAdvantagedCategoryBand plan={linkedTaxAdvantagedCategory} hasError={!!linkedTaxAdvantagedCategoryError} />
       ) : (
         <StandardAccountBand />
       )}

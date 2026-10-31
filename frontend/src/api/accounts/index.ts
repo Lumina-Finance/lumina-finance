@@ -1,6 +1,4 @@
-export {
-  ACCOUNT_KIND_BY_TYPE,
-} from '@/api/accounts/types';
+export { ACCOUNT_KIND_BY_TYPE } from '@/api/accounts/types'
 
 export type {
   Account,
@@ -17,7 +15,7 @@ export type {
   SnapshotGranularity,
   SpendingRange,
   UpdateAccountPayload,
-} from '@/api/accounts/types';
+} from '@/api/accounts/types'
 
 export {
   fetchAccount,
@@ -25,7 +23,7 @@ export {
   fetchAccountSnapshots,
   fetchAccountSpendingBreakdown,
   fetchAccounts,
-} from '@/api/accounts/requests';
+} from '@/api/accounts/requests'
 
 export {
   useAccount,
@@ -37,4 +35,4 @@ export {
   useDeleteAccount,
   useForgetDeletedAccount,
   useUpdateAccount,
-} from '@/api/accounts/hooks';
+} from '@/api/accounts/hooks'

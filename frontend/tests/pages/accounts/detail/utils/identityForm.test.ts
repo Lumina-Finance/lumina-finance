@@ -11,9 +11,7 @@ import {
   getIdentityUpdatePayload,
 } from '@/pages/accounts/detail/utils/identityForm'
 
-const currencies: Currency[] = [
-  { id: 'USD', name: 'US Dollar', symbol: '$', minor_unit_exponent: 2 },
-]
+const currencies: Currency[] = [{ id: 'USD', name: 'US Dollar', symbol: '$', minor_unit_exponent: 2 }]
 
 function createAccount(overrides: Partial<Account> = {}): Account {
   return {
@@ -40,19 +38,24 @@ function createAccount(overrides: Partial<Account> = {}): Account {
 
 describe('identity form helpers', () => {
   it('creates editable form values from nullable backend account fields', () => {
-    expect(createIdentityFormValues(createAccount({
-      institution: {
-        id: 'bank',
-        status: 'active',
-        name: 'Bank',
-        country_code: 'US',
-        website: 'https://bank.example.com',
-        logo_url: null,
-      },
-      tax_advantaged_category_id: 'plan',
-      credit_limit: 1_234,
-      is_archived: true,
-    }), currencies)).toEqual({
+    expect(
+      createIdentityFormValues(
+        createAccount({
+          institution: {
+            id: 'bank',
+            status: 'active',
+            name: 'Bank',
+            country_code: 'US',
+            website: 'https://bank.example.com',
+            logo_url: null,
+          },
+          tax_advantaged_category_id: 'plan',
+          credit_limit: 1_234,
+          is_archived: true,
+        }),
+        currencies,
+      ),
+    ).toEqual({
       name: 'Account',
       institution_id: 'bank',
       tax_advantaged_category_id: 'plan',
@@ -82,25 +85,29 @@ describe('identity form helpers', () => {
       is_archived: true,
     }
 
-    expect(getIdentityUpdatePayload({
-      form,
-      isRevolving: true,
-      canLinkTaxAdvantagedCategory: false,
-      currencies,
-      accountCurrency: 'USD',
-    })).toEqual({
+    expect(
+      getIdentityUpdatePayload({
+        form,
+        isRevolving: true,
+        canLinkTaxAdvantagedCategory: false,
+        currencies,
+        accountCurrency: 'USD',
+      }),
+    ).toEqual({
       name: 'Travel Card',
       institution_id: null,
       is_archived: true,
       credit_limit: 123_456,
     })
-    expect(getIdentityUpdatePayload({
-      form,
-      isRevolving: false,
-      canLinkTaxAdvantagedCategory: true,
-      currencies,
-      accountCurrency: 'USD',
-    })).toEqual({
+    expect(
+      getIdentityUpdatePayload({
+        form,
+        isRevolving: false,
+        canLinkTaxAdvantagedCategory: true,
+        currencies,
+        accountCurrency: 'USD',
+      }),
+    ).toEqual({
       name: 'Travel Card',
       institution_id: null,
       is_archived: true,
@@ -120,13 +127,15 @@ describe('identity form helpers', () => {
     expect(form.credit_limit).toBe('')
 
     // A name-only save leaves the unreadable stored limit out rather than clearing or rescaling it
-    expect(getIdentityUpdatePayload({
-      form: { ...form, name: 'Renamed account' },
-      isRevolving: true,
-      canLinkTaxAdvantagedCategory: false,
-      currencies: [],
-      accountCurrency: 'JPY',
-    })).toEqual({
+    expect(
+      getIdentityUpdatePayload({
+        form: { ...form, name: 'Renamed account' },
+        isRevolving: true,
+        canLinkTaxAdvantagedCategory: false,
+        currencies: [],
+        accountCurrency: 'JPY',
+      }),
+    ).toEqual({
       name: 'Renamed account',
       institution_id: null,
       is_archived: false,

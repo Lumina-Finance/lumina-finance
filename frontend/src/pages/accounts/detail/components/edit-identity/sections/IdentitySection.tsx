@@ -1,10 +1,7 @@
 import type { DropdownOption } from '@/components/dropdown/Dropdown'
 import Dropdown from '@/components/dropdown/Dropdown'
 import { EDIT_ACCOUNT_IDENTITY_FIELD_IDS } from '@/pages/accounts/detail/constants/accountDetail'
-import type {
-  IdentityFieldErrors,
-  IdentityFormValues,
-} from '@/pages/accounts/detail/utils/identityForm'
+import type { IdentityFieldErrors, IdentityFormValues } from '@/pages/accounts/detail/utils/identityForm'
 import type { SetIdentityFormField } from '@/pages/accounts/detail/components/edit-identity/types'
 import { EditModalSection } from '@/pages/accounts/detail/components/edit-identity/layout/Section'
 import { AccountIdentityFieldLabelRow } from '@/pages/accounts/detail/components/edit-identity/controls/FieldLabelRow'
@@ -32,7 +29,9 @@ export function AccountIdentitySection({
   return (
     <EditModalSection number="01" title="Identity">
       <div>
-        <AccountIdentityFieldLabelRow htmlFor={EDIT_ACCOUNT_IDENTITY_FIELD_IDS.name} label="Account name"
+        <AccountIdentityFieldLabelRow
+          htmlFor={EDIT_ACCOUNT_IDENTITY_FIELD_IDS.name}
+          label="Account name"
           error={fieldErrors.name}
           errorId={EDIT_ACCOUNT_IDENTITY_FIELD_IDS.nameError}
         />
@@ -58,7 +57,7 @@ export function AccountIdentitySection({
           searchable
           searchPlaceholder="Search institutions..."
           onCreateNew={onCreateInstitution}
-          createNewLabel={(query) => query ? `Create institution "${query}"` : 'Create institution'}
+          createNewLabel={(query) => (query ? `Create institution "${query}"` : 'Create institution')}
           onEditOption={onCorrectInstitution}
           editOptionLabel="Correct institution"
         />

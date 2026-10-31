@@ -1,6 +1,9 @@
 import { ACCOUNT_KIND_BY_TYPE, type AccountType, type CreateAccountPayload } from '@/api/accounts'
 import type { Currency } from '@/api/currency'
-import { CREATE_ACCOUNT_TYPE_OPTIONS, INITIAL_CREATE_ACCOUNT_FORM } from '@/pages/accounts/components/create-account-modal/constants'
+import {
+  CREATE_ACCOUNT_TYPE_OPTIONS,
+  INITIAL_CREATE_ACCOUNT_FORM,
+} from '@/pages/accounts/components/create-account-modal/constants'
 import { optionalAccountMoneyInputToMinorUnits } from '@/pages/accounts/components/create-account-modal/utils/money'
 import { formatCurrencySymbol } from '@/utils/formatCurrency'
 import { isValidMoneyInput } from '@/utils/moneyInput'
@@ -79,7 +82,9 @@ export function buildCreateAccountViewModel(form: CreateAccountForm, currencies:
     isLiability,
     isRevolving,
     selectedAccountTypeLabel: CREATE_ACCOUNT_TYPE_OPTIONS.find((option) => option.value === form.account_type)?.label,
-    selectedCurrencySymbol: currencies.some((currency) => currency.id === form.currency) ? formatCurrencySymbol(form.currency) : '',
+    selectedCurrencySymbol: currencies.some((currency) => currency.id === form.currency)
+      ? formatCurrencySymbol(form.currency)
+      : '',
     startingBalanceLabel: isLiability ? 'Starting amount owed' : 'Starting balance',
   }
 }
@@ -105,9 +110,8 @@ export function buildCreateAccountPayload(form: CreateAccountForm, currencies: C
     name: form.name.trim(),
     institution_id: form.institution_id || null,
     currency: form.currency,
-    credit_limit: accountKind === 'revolving'
-      ? optionalAccountMoneyInputToMinorUnits(form.credit_limit, minorUnitExponent)
-      : null,
+    credit_limit:
+      accountKind === 'revolving' ? optionalAccountMoneyInputToMinorUnits(form.credit_limit, minorUnitExponent) : null,
     starting_balance: startingBalance === null ? null : isLiability ? -startingBalance : startingBalance,
     is_archived: false,
   }
