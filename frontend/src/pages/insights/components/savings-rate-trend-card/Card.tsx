@@ -50,7 +50,7 @@ const BODY_CLASS = 'flex flex-col min-[750px]:h-[430px]'
 const savingsRateCalculation =
   'Monthly savings rate is income minus expenses, divided by income. Income and expense categories are netted first. Transfers are excluded'
 const latestSavingsRateCalculation =
-  'Savings rate for the latest available month. The current month may be partial. Shows −∞% when expenses exist without income because the calculation divides by zero'
+  'Savings rate for the latest available month. The current month may be partial. Shows N/A when there was no income, since the calculation divides by income'
 const averageSavingsRateCalculation =
   'Average savings rate across completed months with income. The current month and months without income are left out'
 const bestSavingsRateCalculation = 'Highest savings rate across completed months. The current month is excluded'

@@ -10,7 +10,6 @@ describe('savings rate value', () => {
     [-20, '−20%'],
     [20, '20%'],
     [0, '0%'],
-    [-Infinity, '−∞%'],
     [null, 'N/A'],
   ])('writes a rate of %s as %s', (rate, expected) => {
     expect(formatSavingsRateValue(rate)).toBe(expected)

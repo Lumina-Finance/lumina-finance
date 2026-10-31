@@ -124,7 +124,6 @@ describe('a savings rate', () => {
     [-999.5, `below ${MINUS}999%`],
     [-1000, `below ${MINUS}999%`],
     [-62345579, `below ${MINUS}999%`],
-    [-Infinity, `${MINUS}∞%`],
     [-15, `${MINUS}15%`],
     [0, '0%'],
   ])('writes a rate of %s as %s', (rate, expected) => {

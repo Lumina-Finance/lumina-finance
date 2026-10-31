@@ -4,10 +4,7 @@
  */
 import { describe, expect, it } from 'vitest'
 import type { AccountsMetricsViewModel } from '@/pages/accounts/types/accounts'
-import {
-  getCreditUsageDisplay,
-  getSavingsRateDisplay,
-} from '@/pages/accounts/utils/metricDisplay'
+import { getCreditUsageDisplay, getSavingsRateDisplay } from '@/pages/accounts/utils/metricDisplay'
 import { testCurrencies } from './fixtures'
 
 describe('account metric display helpers', () => {
@@ -25,7 +22,7 @@ describe('account metric display helpers', () => {
     }
 
     expect(getSavingsRateDisplay(savingsRate, 'USD', testCurrencies)).toEqual({
-      value: '−∞%',
+      value: 'N/A',
       caption: 'No income this month',
     })
   })
@@ -33,7 +30,7 @@ describe('account metric display helpers', () => {
   it.each([
     [-5_000, '−$50.00'],
     [5_000, '+$50.00'],
-  ])('signs the savings caption\'s net of %s as %s, like the period glance headline', (net, expected) => {
+  ])("signs the savings caption's net of %s as %s, like the period glance headline", (net, expected) => {
     const savingsRate: AccountsMetricsViewModel['savingsRate'] = {
       value: 10,
       hasExpenses: true,

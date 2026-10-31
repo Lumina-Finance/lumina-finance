@@ -16,12 +16,7 @@ export function getSavingsRateDisplay(
   displayCurrency: string,
   currencies: Currency[],
 ): MetricDisplay {
-  const value =
-    !savingsRate.isLoading && savingsRate.value !== null
-      ? formatRatePercent(savingsRate.value)
-      : savingsRate.hasExpenses
-        ? formatRatePercent(-Infinity)
-        : 'N/A'
+  const value = !savingsRate.isLoading && savingsRate.value !== null ? formatRatePercent(savingsRate.value) : 'N/A'
   const caption = savingsRate.isLoading
     ? 'Loading savings rate'
     : savingsRate.value !== null
