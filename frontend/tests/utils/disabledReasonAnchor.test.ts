@@ -37,7 +37,14 @@ function placeUnderPointer(clientX: number, clientY: number) {
 function placeBeside(top: number) {
   const { box, origin } = buttonAt(top)
   const { clientX, clientY } = getReasonAnchor(box)
-  const position = getCursorTooltipPosition({ origin, tooltip: TOOLTIP, clientX, clientY, bounds: WINDOW, keepClear: box })
+  const position = getCursorTooltipPosition({
+    origin,
+    tooltip: TOOLTIP,
+    clientX,
+    clientY,
+    bounds: WINDOW,
+    keepClear: box,
+  })
   return { ...position, ...span(position), box }
 }
 
