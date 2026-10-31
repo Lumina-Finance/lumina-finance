@@ -1108,3 +1108,61 @@ test('keeps the whole ring on the forgot password link focused while it slides i
   await focusFromKeyboard(page, link)
   await expectWholeRing(link)
 })
+
+// A row, a chip or a menu item without a border of its own draws the ring outside its edge, which a box
+// around it that clips cuts off: an account row in its list, a budget row in the dashboard's widget, a
+// selected tag's chip under the tag field, and a passkey's option menu. Each keeps its whole ring in
+// both themes
+for (const colorScheme of ['light', 'dark'] as const) {
+  test(`keeps the whole ring on account rows, budget rows, tag chips and the passkey menu in the ${colorScheme} theme`, async ({ page, request }) => {
+    // Motion stays on, since an account list's wrapper clips only while it can animate open
+    await page.emulateMedia({ colorScheme, reducedMotion: 'no-preference' })
+    const user = await signUpUser(request)
+    const account = await createAccount(request, user, { name: 'Tagged account' })
+    const tagResponse = await request.post(`${API_BASE_URL}/tags`, { headers: asUser(user), data: { name: 'Family' } })
+    expect(tagResponse.status()).toBe(201)
+    // One tagged expense inside the budget's period serves both the budget row and the chip
+    await createMonthlyBudget(request, user, { name: 'Food', categoryNames: ['Groceries'], overallLimit: 50_000, periodStart: budgetPeriodStart() })
+    await createTransaction(request, user, {
+      accountId: account.id,
+      categoryName: 'Groceries',
+      amount: -2000,
+      date: budgetPeriodStart(),
+      tagIds: [(await tagResponse.json() as { id: string }).id],
+    })
+    await page.route(`${API_BASE_URL}/auth/passkeys`, (route) => route.fulfill({
+      json: [{ id: 'laptop', name: 'Laptop', created_at: new Date().toISOString(), last_used_at: null }],
+    }))
+    await logInViaApi(page, user)
+
+    await openPage(page, '/accounts')
+    await expect(page.locator('html')).toHaveClass(colorScheme === 'dark' ? /\bdark\b/ : /^(?!.*\bdark\b)/)
+    const accountRow = page.getByRole('link', { name: /Tagged account/ })
+    await focusFromKeyboard(page, accountRow)
+    await expectWholeRing(accountRow)
+    // The pointer over the focused row must not tint it, since the ring would then fall below 3:1 on the tint
+    await accountRow.hover()
+    await expectWholeRing(accountRow)
+
+    await openPage(page, '/dashboard')
+    const budgetRow = page.getByRole('link', { name: 'Open Food budget', exact: true })
+    await focusFromKeyboard(page, budgetRow)
+    await expectWholeRing(budgetRow)
+
+    await openPage(page, '/transactions')
+    await page.getByRole('button', { name: /Groceries/ }).first().click()
+    const chip = page.getByRole('dialog').getByRole('button', { name: 'Remove Family', exact: true })
+    await focusFromKeyboard(page, chip)
+    await expectWholeRing(chip)
+
+    await openPage(page, '/settings#security')
+    await page.locator('#security').getByRole('button', { name: 'Manage', exact: true }).click()
+    await page.getByRole('button', { name: 'Options for Laptop', exact: true }).click()
+    const items = page.getByRole('menuitem')
+    await expect(items.first()).toBeVisible()
+    for (let index = 0; index < await items.count(); index++) {
+      await focusFromKeyboard(page, items.nth(index))
+      await expectWholeRing(items.nth(index))
+    }
+  })
+}

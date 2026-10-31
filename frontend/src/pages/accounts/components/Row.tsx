@@ -63,14 +63,14 @@ export default function AccountRow({
   return (
     <Link
       to={`/accounts/${account.id}`}
-      className={`flex min-w-0 items-stretch overflow-hidden rounded-xl hover:bg-[var(--app-accent-soft)] ${
+      className={`app-focus-inset focus-visible:bg-transparent! flex min-w-0 items-stretch overflow-hidden rounded-xl hover:bg-[var(--app-accent-soft)] ${
         isArchived
           ? 'my-1 border border-dashed opacity-75 transition-[color,background-color,opacity] hover:opacity-100'
           : 'transition-control'
       }`}
       style={isArchived ? { borderColor: 'var(--app-border)' } : undefined}
     >
-      <div className="my-3 w-0.5 rounded-full" style={{ background: barColor, opacity: 0.3 }} />
+      <div className="my-3 ml-0.5 w-0.5 rounded-full" style={{ background: barColor, opacity: 0.3 }} />
       <div className="grid min-w-0 flex-1 grid-cols-[2.25rem_minmax(0,1fr)] items-center gap-x-3 gap-y-1 px-3 py-3.5 min-[730px]:flex min-[730px]:gap-4 min-[730px]:px-4">
         <InstitutionLogo institution={account.institution} />
         <div className="min-w-0 flex-1 overflow-hidden">
