@@ -1,4 +1,5 @@
 """Transaction related-entity validation services"""
+
 import uuid
 
 from fastapi import HTTPException, status
@@ -100,14 +101,11 @@ async def validate_transaction_category_access(
     query = select(Category).where(Category.id == category_id)
     if group_id is not None:
         query = query.where(
-            Category.is_system.is_(True)
-            | ((Category.owner_id == user_id) & (Category.group_id.is_(None)))
-            | (Category.group_id == group_id),
+            Category.is_system.is_(True) | ((Category.owner_id == user_id) & (Category.group_id.is_(None))) | (Category.group_id == group_id),
         )
     else:
         query = query.where(
-            Category.is_system.is_(True)
-            | ((Category.owner_id == user_id) & (Category.group_id.is_(None))),
+            Category.is_system.is_(True) | ((Category.owner_id == user_id) & (Category.group_id.is_(None))),
         )
 
     # Confirm the category exists inside the transaction account scope
@@ -144,14 +142,11 @@ async def validate_transaction_merchant_access(
     query = select(Merchant).where(Merchant.id == merchant_id)
     if group_id is not None:
         query = query.where(
-            Merchant.is_system.is_(True)
-            | ((Merchant.owner_id == user_id) & (Merchant.group_id.is_(None)))
-            | (Merchant.group_id == group_id),
+            Merchant.is_system.is_(True) | ((Merchant.owner_id == user_id) & (Merchant.group_id.is_(None))) | (Merchant.group_id == group_id),
         )
     else:
         query = query.where(
-            Merchant.is_system.is_(True)
-            | ((Merchant.owner_id == user_id) & (Merchant.group_id.is_(None))),
+            Merchant.is_system.is_(True) | ((Merchant.owner_id == user_id) & (Merchant.group_id.is_(None))),
         )
 
     # Confirm the merchant exists inside the transaction account scope

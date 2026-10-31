@@ -1,5 +1,3 @@
-
-
 import uuid
 from datetime import date
 
@@ -64,14 +62,18 @@ async def test_patch_transaction_preserves_and_clears_legacy_long_notes(client):
     assert existing.json()["notes"] == legacy_notes
 
     updated = await client.patch(
-        f"/transactions/{transaction_id}", json={"amount": -9999}, headers=headers,
+        f"/transactions/{transaction_id}",
+        json={"amount": -9999},
+        headers=headers,
     )
     assert updated.status_code == 200
     assert updated.json()["amount"] == -9999
     assert updated.json()["notes"] == legacy_notes
 
     cleared = await client.patch(
-        f"/transactions/{transaction_id}", json={"notes": None}, headers=headers,
+        f"/transactions/{transaction_id}",
+        json={"notes": None},
+        headers=headers,
     )
     assert cleared.status_code == 200
     assert cleared.json()["amount"] == -9999
