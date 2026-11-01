@@ -2,10 +2,7 @@ import { useMemo } from 'react'
 import { ArrowLeftRight, Minus, TrendingDown, TrendingUp, Wallet } from 'lucide-react'
 import type { FxStatus } from '@/api/shared/fx'
 import LoadFailure from '@/components/errors/LoadFailure'
-import {
-  LoadingContent,
-  LoadingOverlay,
-} from '@/components/loading/Transition'
+import { LoadingContent, LoadingOverlay } from '@/components/loading/Transition'
 import { useLoadingSnapshot } from '@/hooks/useLoadingSnapshot'
 import { useMoneyFormatters } from '@/hooks/useMoneyFormatters'
 import { getInsightsNetWorthFxStatusMessage } from '@/pages/insights/utils/fxTooltipMessages'
@@ -87,27 +84,26 @@ export function NetWorthCard({
   const { formatCurrency, formatMovedCurrency } = useMoneyFormatters()
   // The failure travels in the snapshot rather than beside it, so the box arrives with the reveal
   // instead of growing the card while the spinner is still turning
-  const incomingSnapshot = useMemo<NetWorthSnapshot>(() => ({
-    mode,
-    groups,
-    baseline,
-    series,
-    fxStatus,
-    displayCurrency,
-    emptyLabel: loading ? 'Loading net worth history...' : 'No net worth history in this range.',
-    error,
-    failed,
-  }), [baseline, displayCurrency, error, failed, fxStatus, groups, loading, mode, series])
-  const {
-    displaySnapshot,
-    contentConcealed,
-    loadingVisible,
-    shouldReduceMotion,
-  } = useLoadingSnapshot<NetWorthSnapshot>({
-    snapshot: incomingSnapshot,
-    loading,
-    transitionKey,
-  })
+  const incomingSnapshot = useMemo<NetWorthSnapshot>(
+    () => ({
+      mode,
+      groups,
+      baseline,
+      series,
+      fxStatus,
+      displayCurrency,
+      emptyLabel: loading ? 'Loading net worth history...' : 'No net worth history in this range.',
+      error,
+      failed,
+    }),
+    [baseline, displayCurrency, error, failed, fxStatus, groups, loading, mode, series],
+  )
+  const { displaySnapshot, contentConcealed, loadingVisible, shouldReduceMotion } =
+    useLoadingSnapshot<NetWorthSnapshot>({
+      snapshot: incomingSnapshot,
+      loading,
+      transitionKey,
+    })
   const latest = displaySnapshot.series.at(-1)
   const chartItems = useMemo(
     () => getNetWorthChartItems(displaySnapshot.groups, displaySnapshot.mode),
@@ -127,13 +123,10 @@ export function NetWorthCard({
     <section className="app-card">
       <InsightSectionHeader
         icon={Wallet}
-        label={(
+        label={
           <span className="inline-flex items-center gap-2">
             Net worth
-            <InsightCalculationTooltip
-              label="Net worth"
-              calculation={getNetWorthCalculation(displaySnapshot.mode)}
-            />
+            <InsightCalculationTooltip label="Net worth" calculation={getNetWorthCalculation(displaySnapshot.mode)} />
             {displaySnapshot.fxStatus && (
               <FxStatusBadge
                 label="Net worth FX status"
@@ -142,27 +135,21 @@ export function NetWorthCard({
               />
             )}
           </span>
-        )}
-        action={(
+        }
+        action={
           <InsightActionButton
-            title={mode === 'overview' ? 'Show account type composition' : 'Show net worth change'}
             ariaLabel={mode === 'overview' ? 'Show account type composition' : 'Show net worth change'}
             onPress={onModeToggle}
           >
             <ArrowLeftRight size={12} />
           </InsightActionButton>
-        )}
+        }
       />
       <div className="relative overflow-visible" data-tooltip-bounds>
         <LoadingContent concealed={contentConcealed} shouldReduceMotion={shouldReduceMotion}>
           {displaySnapshot.failed && (
             <div className={BODY_CLASS}>
-              <LoadFailure
-                compact
-                error={displaySnapshot.error}
-                standalone
-                subject="Net worth"
-              />
+              <LoadFailure compact error={displaySnapshot.error} standalone subject="Net worth" />
             </div>
           )}
 
@@ -181,9 +168,14 @@ export function NetWorthCard({
                     <p className="font-financial text-3xl leading-none tracking-tight">
                       {formatCurrency(latest?.total ?? 0, displaySnapshot.displayCurrency)}
                     </p>
-                    <div className="flex items-center gap-1.5 text-sm font-medium leading-none" style={{ color: netWorthTrendColor }}>
+                    <div
+                      className="flex items-center gap-1.5 text-sm font-medium leading-none"
+                      style={{ color: netWorthTrendColor }}
+                    >
                       <NetWorthTrendIcon size={14} aria-hidden />
-                      <span className="font-financial">{formatMovedCurrency(latestChange, displaySnapshot.displayCurrency)}</span>
+                      <span className="font-financial">
+                        {formatMovedCurrency(latestChange, displaySnapshot.displayCurrency)}
+                      </span>
                       <span style={{ color: 'var(--app-text-subtle)' }}>since start</span>
                     </div>
                   </div>

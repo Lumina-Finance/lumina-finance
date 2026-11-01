@@ -3,6 +3,7 @@ import type { SpendingRange } from '@/api/dashboard'
 import type { FxStatus } from '@/api/shared/fx'
 import { AppSlotMachineText } from '@/components/display/SlotMachineText'
 import { FxStatusBadge } from '@/components/tooltips/FxStatusBadge'
+import { HintButton } from '@/components/tooltips/HintButton'
 import { DashboardRangeSelector } from '@/pages/dashboard/components/RangeSelector'
 import { DashboardWidgetHeaderIcon } from '@/pages/dashboard/components/WidgetHeaderIcon'
 import { DASHBOARD_RANGE_SELECT_OPTIONS } from '@/pages/dashboard/constants/ranges'
@@ -41,15 +42,14 @@ export function SpendingBreakdownHeader({
         fxStatus={fxStatus}
         getMessage={(status) => getBreakdownFxStatusMessage(status, breakdownMode)}
       />
-      <button
-        type="button"
+      <HintButton
         onClick={onModeToggle}
-        title={`Show ${oppositeModeLabel} breakdown`}
+        hint={`Show ${oppositeModeLabel} breakdown`}
         aria-label={`Show ${oppositeModeLabel} breakdown`}
         className="app-icon-button ml-auto"
       >
         <Repeat size={12} />
-      </button>
+      </HintButton>
       <DashboardRangeSelector
         value={breakdownRange}
         options={DASHBOARD_RANGE_SELECT_OPTIONS}

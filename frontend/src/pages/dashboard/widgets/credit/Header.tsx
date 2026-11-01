@@ -2,6 +2,7 @@ import { CreditCard, ListChecks, Repeat } from 'lucide-react'
 import type { FxStatus } from '@/api/shared/fx'
 import { AppSlotMachineText } from '@/components/display/SlotMachineText'
 import { FxStatusBadge } from '@/components/tooltips/FxStatusBadge'
+import { HintButton } from '@/components/tooltips/HintButton'
 import { DashboardWidgetHeaderIcon } from '@/pages/dashboard/components/WidgetHeaderIcon'
 import type { CreditMode } from '@/pages/dashboard/utils/getCreditUsageSummary'
 import { getCreditFxStatusMessage } from '@/utils/fxTooltipMessages'
@@ -37,36 +38,30 @@ export function CreditHeader({
         <span className="app-label">
           Credit <AppSlotMachineText text={creditMode === 'used' ? 'used' : 'remaining'} />
         </span>
-        <FxStatusBadge
-          label="Credit FX status"
-          fxStatus={fxStatus}
-          getMessage={getCreditFxStatusMessage}
-        />
+        <FxStatusBadge label="Credit FX status" fxStatus={fxStatus} getMessage={getCreditFxStatusMessage} />
       </span>
       <div className="ml-auto flex items-center gap-1">
         {hasCredit && (
-          <button
-            type="button"
+          <HintButton
             onClick={onModeToggle}
-            title={creditMode === 'used' ? 'Show credit remaining' : 'Show credit used'}
+            hint={creditMode === 'used' ? 'Show credit remaining' : 'Show credit used'}
             aria-label={creditMode === 'used' ? 'Show credit remaining' : 'Show credit used'}
             className="app-icon-button"
           >
             <Repeat size={12} />
-          </button>
+          </HintButton>
         )}
 
         {/* Last, so it keeps its place at the right edge whether or not the mode toggle shows */}
         {canChooseAccounts && (
-          <button
-            type="button"
+          <HintButton
             onClick={onChooseAccounts}
-            title="Choose credit accounts"
+            hint="Choose credit accounts"
             aria-label="Choose credit accounts"
             className="app-icon-button"
           >
             <ListChecks size={12} aria-hidden />
-          </button>
+          </HintButton>
         )}
       </div>
     </div>

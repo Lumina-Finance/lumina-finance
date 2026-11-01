@@ -1,9 +1,10 @@
 import { useRef, type PointerEvent, type ReactNode } from 'react'
+import { HintButton } from '@/components/tooltips/HintButton'
 
 const TOUCH_CLICK_SUPPRESSION_MS = 1500
 
 type InsightActionButtonProps = {
-  title: string
+  // Names the button for a screen reader and says what it does in the hint
   ariaLabel: string
   onPress: () => void
   children: ReactNode
@@ -12,12 +13,7 @@ type InsightActionButtonProps = {
 /**
  * Renders an icon action button that avoids double activation on delayed touch clicks
  */
-export function InsightActionButton({
-  title,
-  ariaLabel,
-  onPress,
-  children,
-}: InsightActionButtonProps) {
+export function InsightActionButton({ ariaLabel, onPress, children }: InsightActionButtonProps) {
   const suppressNextClick = useRef(false)
   const suppressionTimer = useRef<number | undefined>(undefined)
 
@@ -56,15 +52,14 @@ export function InsightActionButton({
   }
 
   return (
-    <button
-      type="button"
+    <HintButton
       onPointerDown={handlePointerDown}
       onClick={handleClick}
-      title={title}
+      hint={ariaLabel}
       aria-label={ariaLabel}
       className="app-icon-button h-11 w-11 touch-manipulation min-[750px]:h-8 min-[750px]:w-8"
     >
       {children}
-    </button>
+    </HintButton>
   )
 }
