@@ -133,6 +133,9 @@ async def test_the_sign_up_email_cap_counts_capitals_beyond_a_to_z_apart(client)
         await client.post("/auth/signup", json={**SIGNUP_PAYLOAD, "email": "Émile@example.com"})
     mailbox.sent.clear()
 
+    await client.post("/auth/signup", json={**SIGNUP_PAYLOAD, "email": "Émile@example.com"})
+    assert mailbox.sent == []
+
     await client.post("/auth/signup", json={**SIGNUP_PAYLOAD, "email": "émile@example.com"})
 
     assert [email.recipient for email in mailbox.sent] == ["émile@example.com"]

@@ -808,6 +808,8 @@ async def test_email_fold_migration_refuses_case_variant_accounts_and_upgrades_o
     try:
         _run_alembic_upgrade(database_name, revision=_BEFORE_EMAIL_FOLD_REVISION)
         async with engine.begin() as conn:
+            # The Émile pair only proves the index folds by code point if this database's own lower() would fold É
+            assert await conn.scalar(text("SELECT lower('É')")) == "é"
             await conn.execute(text("INSERT INTO currencies (id, name, symbol, minor_unit_exponent) VALUES ('CAD', 'Canadian Dollar', '$', 2)"))
             for email, user_id in user_ids.items():
                 await conn.execute(
@@ -842,17 +844,23 @@ async def test_email_fold_migration_refuses_case_variant_accounts_and_upgrades_o
             assert await _read_email_fold_state(conn) == (_BEFORE_EMAIL_FOLD_REVISION, True, False)
             assert await conn.scalar(text("SELECT count(*) FROM users")) == len(emails)
 
+        renamed = {
+            "alice@example.com": "renamed-0@example.com",
+            "bob@example.com": "renamed-1@example.com",
+            "Bob@example.com": "renamed-2@example.com",
+        }
         async with engine.begin() as conn:
-            for number, email in enumerate(("alice@example.com", "bob@example.com", "Bob@example.com")):
-                await conn.execute(
-                    text("UPDATE users SET email = :new WHERE id = :id"), {"new": f"renamed-{number}@example.com", "id": user_ids[email]}
-                )
+            for email, new_email in renamed.items():
+                await conn.execute(text("UPDATE users SET email = :new WHERE id = :id"), {"new": new_email, "id": user_ids[email]})
+        expected_emails = sorted(renamed.get(email, email) for email in emails)
 
-        for reupgrade in (False, True):
+        for second_run in (False, True):
             _run_alembic_upgrade(database_name, revision=_EMAIL_FOLD_REVISION)
             async with engine.connect() as conn:
-                assert await _read_email_fold_state(conn) == (_EMAIL_FOLD_REVISION, False, True), f"reupgrade={reupgrade}"
-                assert await conn.scalar(text("SELECT count(*) FROM users")) == len(emails)
+                assert await _read_email_fold_state(conn) == (_EMAIL_FOLD_REVISION, False, True), f"second_run={second_run}"
+
+                # The upgrade leaves every address as stored, capitals included
+                assert sorted((await conn.scalars(text("SELECT email FROM users"))).all()) == expected_emails
 
             # The database itself refuses a second account in other capitals
             with pytest.raises(IntegrityError):
@@ -865,7 +873,7 @@ async def test_email_fold_migration_refuses_case_variant_accounts_and_upgrades_o
                         {"id": str(uuid4())},
                     )
 
-            if not reupgrade:
+            if not second_run:
                 find_account_count = text("SELECT count(*) FROM pg_proc WHERE proname = 'find_login_account'")
                 async with engine.connect() as conn:
                     assert await conn.scalar(find_account_count) == 1
