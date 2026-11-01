@@ -36,7 +36,7 @@ from app.services.auth.oidc_providers import get_enabled_oidc_provider_by_id
 from app.services.auth.registration import reject_closed_registration
 from app.services.auth.signup import reject_missing_base_currency, reject_registered_email
 from app.services.auth.token_hashing import hash_token
-from app.services.auth.user_lookup import find_user_id_by_email
+from app.services.auth.user_lookup import find_user_id_by_email, fold_email
 from app.services.auth.webauthn import is_passkey_registered
 
 # The one callback path every provider registers, appended to the public app origin
@@ -312,7 +312,7 @@ async def complete_oidc_signup(
     db.add(user)
 
     # A parallel completion of the same onboarding token can claim the email or provider subject
-    # first, so the unique constraints turn that race into a conflict rather than an unhandled error
+    # first, so the unique indexes turn that race into a conflict rather than an unhandled error
     # The user is flushed first so its row exists before the identity rows that reference it
     try:
         await db.flush()
@@ -498,7 +498,7 @@ async def complete_oidc_link(db: AsyncSession, user: User, code: str, state: str
     # ignored, since providers differ in how they cased the address the user registered with.
     # Checked before the subject lookup so a mismatch reveals nothing about which accounts a subject
     # is linked to
-    if email.lower() != user.email.lower():
+    if fold_email(email) != fold_email(user.email):
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
             detail="The identity provider's email address must match your account's email address",

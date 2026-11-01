@@ -25,6 +25,7 @@ CAN_ACCESS_ACCOUNT = "public.can_access_account"
 CAN_ACCESS_GROUP = "public.can_access_group"
 CAN_ACCESS_BASE_BUDGET = "public.can_access_base_budget"
 FIND_LOGIN_USER = "public.find_login_user"
+FIND_LOGIN_ACCOUNT = "public.find_login_account"
 USER_TZ = "public.user_tz"
 BUMP_GROUP_MEMBER_CACHE = "public.bump_group_member_cache"
 BUDGET_SPEND_ROWS = "public.budget_spend_rows"
@@ -135,15 +136,29 @@ _HELPERS: tuple[_Helper, ...] = (
     ),
     # Resolve a user id by email for the pre-identity login and signup flows, which run
     # before a request identity exists. Returns only the id so the definer never exposes
-    # the rest of the user row outside the self-only users policy
+    # the rest of the user row outside the self-only users policy. The comparison folds A to Z on
+    # both sides through the C collation, in step with the unique index and fold_email in Python, so
+    # one address is one account however it is typed, on any database locale
     _Helper(
         f"""
     CREATE OR REPLACE FUNCTION {FIND_LOGIN_USER}(p_email text) RETURNS uuid
     LANGUAGE sql STABLE SECURITY DEFINER SET search_path = '' AS $$
-        SELECT id FROM public.users WHERE email = p_email
+        SELECT id FROM public.users WHERE lower(email COLLATE "C") = lower(p_email COLLATE "C")
     $$
     """,
         f"{FIND_LOGIN_USER}(text)",
+    ),
+    # The same lookup for a flow that must reach the account's own mailbox, also returning the address
+    # as stored. The caller already holds the address, so this adds only its stored capitals. It
+    # takes an address rather than an id so it never turns an id into an email
+    _Helper(
+        f"""
+    CREATE OR REPLACE FUNCTION {FIND_LOGIN_ACCOUNT}(p_email text) RETURNS TABLE (id uuid, email text)
+    LANGUAGE sql STABLE SECURITY DEFINER SET search_path = '' AS $$
+        SELECT u.id, u.email FROM public.users u WHERE lower(u.email COLLATE "C") = lower(p_email COLLATE "C")
+    $$
+    """,
+        f"{FIND_LOGIN_ACCOUNT}(text)",
     ),
     # Return another user's timezone for the few group operations that need it,
     # exposing only the timezone rather than the whole user row

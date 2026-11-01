@@ -23,9 +23,10 @@ depends_on: str | Sequence[str] | None = None
 _TABLE = "login_lockouts"
 
 # What the server keeps to recognise an email: HMAC-SHA256 of its UTF-8 bytes under a key that is
-# itself HMAC-SHA256 of this label under the server's bank transaction hash key. It must match
-# app.services.auth.login_email_hash byte for byte, or a lock carried over would no longer match its
-# email and the account would unlock
+# itself HMAC-SHA256 of this label under the server's bank transaction hash key. The label and key
+# must match app.services.auth.login_email_hash, or a lock carried over would no longer match its email
+# and the account would unlock. That module now folds A to Z first, so only a lock in force on the day
+# of this upgrade, on an address with capitals, is forgotten
 _LOCKOUT_KEY_LABEL = b"login-lockout"
 
 

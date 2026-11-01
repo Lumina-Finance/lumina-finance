@@ -53,16 +53,16 @@ async def _overlap_reset_requests(client, monkeypatch, first_email, second_email
     release_first = asyncio.Event()
     request_pids = []
     gate_used = False
-    original_lookup = password_reset.find_user_id_by_email
+    original_lookup = password_reset.find_login_account
     original_commit = AsyncSession.commit
 
     async def observe_lookup(db, email):
         """Identify the real request transactions before they check the allowance"""
-        user_id = await original_lookup(db, email)
+        account = await original_lookup(db, email)
         request_pids.append(await db.scalar(select(func.pg_backend_pid())))
         if len(request_pids) == 2:
             second_started.set()
-        return user_id
+        return account
 
     async def pause_first_issuance(db):
         """Retain the first transaction that stored a token until the overlap is observed"""
@@ -73,7 +73,7 @@ async def _overlap_reset_requests(client, monkeypatch, first_email, second_email
             await release_first.wait()
         await original_commit(db)
 
-    monkeypatch.setattr(password_reset, "find_user_id_by_email", observe_lookup)
+    monkeypatch.setattr(password_reset, "find_login_account", observe_lookup)
     monkeypatch.setattr(AsyncSession, "commit", pause_first_issuance)
     monkeypatch.setattr(password_reset, "try_start_send", lambda user_id: reset_send_limit.SendTicket(user_id=user_id, lease_ends=0.0))
     tasks = []
@@ -316,6 +316,20 @@ async def test_overlapping_reset_requests_share_the_allowance(client, monkeypatc
     assert len(rows) == prior_sends + 1
     assert sum(row.used_at is None and row.expires_at > datetime.now(UTC) for row in rows) == 1
     assert sent_reset_emails == [SIGNUP_PAYLOAD["email"]]
+
+
+async def test_overlapping_reset_requests_for_one_unknown_address_in_other_capitals_queue(client, monkeypatch):
+    """Spellings the lookup treats as one address take one lock, so timing shows nothing a registered address wouldn't"""
+    responses = await _overlap_reset_requests(client, monkeypatch, "Ghost@example.com", "ghost@example.com")
+
+    assert [response.status_code for response in responses] == [204, 204]
+
+
+async def test_overlapping_reset_requests_for_unknown_addresses_differing_beyond_a_to_z_are_independent(client, monkeypatch):
+    """Émile@ and émile@ are two addresses, so a request for one never queues behind the other"""
+    responses = await _overlap_reset_requests(client, monkeypatch, "Émile@example.com", "émile@example.com", independent=True)
+
+    assert [response.status_code for response in responses] == [204, 204]
 
 
 async def test_overlapping_reset_requests_for_different_users_are_independent(client, monkeypatch, sent_reset_emails):

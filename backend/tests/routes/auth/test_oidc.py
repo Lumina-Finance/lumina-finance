@@ -343,6 +343,22 @@ async def test_callback_closed_registration_signs_in_linked_identity(client, pro
     assert resp.json()["user"]["id"] == str(user_id)
 
 
+async def test_callback_conflicts_when_the_provider_reports_the_email_in_other_capitals(client, provider_protocol):
+    """A provider spelling the address differently from the account's still gets the email conflict, not onboarding"""
+    await _seed_currency()
+    await sign_up_confirmed(client, {**SIGNUP_PAYLOAD, "email": "sso-user@example.com"})
+    await _seed_provider()
+    provider_protocol["claims"] = _claims(email="Sso-User@Example.com", email_verified=True)
+
+    state = await _start_sign_in(client)
+    resp = await client.post("/auth/oidc/callback", json={"code": "any", "state": state})
+
+    assert resp.status_code == 409
+    assert resp.json()["detail"]["code"] == "email_already_registered"
+    async with TestSession() as session:
+        assert (await session.execute(select(OidcIdentity))).scalars().all() == []
+
+
 async def test_callback_closed_registration_keeps_email_conflict(client, provider_protocol, monkeypatch):
     """An existing account's owner still gets the sign-in-and-link path, not the closed message"""
     await _seed_currency()
@@ -457,6 +473,29 @@ async def test_signup_creates_user_with_linked_identity(client, provider_protoco
         auth_identity = (await session.execute(select(AuthIdentity).where(AuthIdentity.auth_provider == AuthProvider.OIDC))).scalar_one()
     assert identity.subject == "subject-1"
     assert str(auth_identity.user_id) == body["user"]["id"]
+
+
+async def test_signup_conflicts_with_an_account_registered_in_other_capitals_meanwhile(client, provider_protocol):
+    """Completing onboarding refuses an address that gained an account since, however it was capitalised"""
+    await _seed_currency()
+    await _seed_provider()
+    onboarding = await _onboard(client, provider_protocol)
+    await sign_up_confirmed(client, {**SIGNUP_PAYLOAD, "email": "Sso-User@example.com"})
+
+    resp = await client.post(
+        "/auth/oidc/signup",
+        json={
+            "onboarding_token": onboarding["onboarding_token"],
+            "first_name": "Sso",
+            "tz": "America/Toronto",
+            "base_currency": "CAD",
+        },
+    )
+
+    assert resp.status_code == 409
+    assert resp.json()["detail"] == "Email already registered"
+    async with TestSession() as session:
+        assert len((await session.execute(select(User))).scalars().all()) == 1
 
 
 async def test_signup_races_to_conflict_not_crash(client, provider_protocol, monkeypatch):
@@ -663,6 +702,18 @@ async def test_link_refuses_an_email_that_only_casefolds_equal(client, provider_
     auth, _ = await _create_password_user(client, email="strasse@example.com")
     await _seed_provider()
     provider_protocol["claims"] = _claims(email="straße@example.com")
+
+    state = await _start_link(client, auth)
+    resp = await client.post("/auth/oidc/link/callback", headers=auth, json={"code": "any", "state": state})
+
+    assert resp.status_code == 422
+
+
+async def test_link_refuses_an_address_differing_in_capitals_beyond_a_to_z(client, provider_protocol):
+    """Émile@ and émile@ can be two accounts, so a provider asserting one must not link to the other"""
+    auth, _ = await _create_password_user(client, email="Émile@example.com")
+    await _seed_provider()
+    provider_protocol["claims"] = _claims(email="émile@example.com")
 
     state = await _start_link(client, auth)
     resp = await client.post("/auth/oidc/link/callback", headers=auth, json={"code": "any", "state": state})
