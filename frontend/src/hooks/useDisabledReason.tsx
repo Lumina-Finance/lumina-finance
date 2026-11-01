@@ -61,6 +61,38 @@ export function useDisabledReason(
   shownById?: string,
   keepClearOf?: RefObject<HTMLElement | null>,
 ) {
+  return useControlTooltip(reason, { shownById, keepClearOf })
+}
+
+/**
+ * Explains what a control does, in the tooltip a disabled control's reason uses, for a control that is
+ * available
+ *
+ * It shows under a mouse pointer and on keyboard focus, never on a touch, where a hover is only the
+ * echo of a tap. It never marks the control `aria-disabled` or blocks its click, and the tooltip lets
+ * every pointer through, so a press always reaches the control. Give the control `controlProps` and
+ * draw `tooltip` beside it. The control's name stays on its own `aria-label` or text
+ *
+ * Pass no hint while the control shows a disabled reason of its own, so the two never stack
+ */
+export function useControlHint(hint: string | null | undefined) {
+  const { controlProps, tooltip } = useControlTooltip(hint, { advisory: true })
+  return { controlProps, tooltip }
+}
+
+type ControlTooltipOptions = {
+  shownById?: string
+  keepClearOf?: RefObject<HTMLElement | null>
+
+  // The text only explains a control that works, so the control stays enabled, a click is never held
+  // back, and a pointer that can't hover shows nothing
+  advisory?: boolean
+}
+
+function useControlTooltip(
+  reason: string | null | undefined,
+  { shownById, keepClearOf, advisory = false }: ControlTooltipOptions,
+) {
   const activeReason = reason || null
   const ownDescriptionId = useId()
   // A reason already printed on the page is described by that line, not read a second time
@@ -104,6 +136,7 @@ export function useDisabledReason(
     getItemKey: getReasonKey,
     getBounds: getViewportBounds,
     getKeepClear,
+    preferAbove: advisory,
   })
 
   function dismiss() {
@@ -115,6 +148,10 @@ export function useDisabledReason(
     originRef.current = element
     placedBesideRef.current = beside
     showTooltip(activeReason, pointer)
+  }
+
+  function revealBeside(element: HTMLElement) {
+    reveal(element, getReasonAnchor(element.getBoundingClientRect()), true)
   }
 
   // Put away when the control stops being unavailable, so a reason from before never shows again
@@ -162,7 +199,8 @@ export function useDisabledReason(
     // not the dialog the control sits in, so it is caught before the dialog sees it
     const handleKeyDown = (event: globalThis.KeyboardEvent) => {
       if (event.key !== 'Escape') return
-      event.stopPropagation()
+      // A hint is only help, so Escape puts it away and still reaches the dialog
+      if (!advisory) event.stopPropagation()
       setIsPinned(false)
       hideTooltip()
     }
@@ -175,7 +213,7 @@ export function useDisabledReason(
       window.removeEventListener('keydown', handleKeyDown, { capture: true })
       window.removeEventListener('scroll', handleScroll, { capture: true })
     }
-  }, [hideTooltip, tooltipVisible, updateTooltipPosition])
+  }, [advisory, hideTooltip, tooltipVisible, updateTooltipPosition])
 
   /**
    * Stops the click of an unavailable control reaching its action, and shows the reason to someone who
@@ -194,19 +232,25 @@ export function useDisabledReason(
 
   const controlProps: DisabledReasonControlProps = activeReason
     ? {
-        'aria-disabled': true,
-        'aria-describedby': descriptionId,
-        onMouseEnter: (event) => reveal(event.currentTarget, event),
-        onMouseMove: (event) => {
-          if (prefersReducedMotion && tooltipVisible) return
-          reveal(event.currentTarget, event)
+        ...(advisory ? null : { 'aria-disabled': true, 'aria-describedby': descriptionId }),
+        onMouseEnter: (event) => {
+          if (!advisory) reveal(event.currentTarget, event)
+          // A touch only echoes its tap as a hover, and a hint must not appear under the finger
+          else if (window.matchMedia('(hover: hover)').matches) revealBeside(event.currentTarget)
         },
+        // A hint hangs from its control and stays put, so a moving pointer has nothing to follow
+        onMouseMove: advisory
+          ? undefined
+          : (event) => {
+              if (prefersReducedMotion && tooltipVisible) return
+              reveal(event.currentTarget, event)
+            },
         onMouseLeave: () => {
           if (!isPinned) hideTooltip()
         },
         onFocus: (event) => {
           if (!event.currentTarget.matches(':focus-visible')) return
-          reveal(event.currentTarget, getReasonAnchor(event.currentTarget.getBoundingClientRect()), true)
+          revealBeside(event.currentTarget)
         },
         onBlur: dismiss,
       }
@@ -216,14 +260,14 @@ export function useDisabledReason(
     <>
       {/* Hidden, not `sr-only`: a screen reader still reads a hidden element named by `aria-describedby`,
           and an absolutely positioned one would escape a scrolling table's clip and widen the page */}
-      {!shownById && (
+      {!shownById && !advisory && (
         <span id={descriptionId} hidden>
           {activeReason}
         </span>
       )}
       <CursorTooltipPortal
         ref={tooltipRef}
-        testId="disabled-reason-tooltip"
+        testId={advisory ? 'control-hint-tooltip' : 'disabled-reason-tooltip'}
         className="w-max"
         onTransitionEnd={handleTooltipTransitionEnd}
         style={{

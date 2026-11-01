@@ -113,7 +113,6 @@ export function SavingsRateTrendCard({
         }
         action={
           <InsightActionButton
-            title={capRates ? 'Show uncapped savings rate chart' : 'Cap savings rate chart at plus or minus 100%'}
             ariaLabel={capRates ? 'Show uncapped savings rate chart' : 'Cap savings rate chart at plus or minus 100%'}
             onPress={onCapRatesToggle}
           >

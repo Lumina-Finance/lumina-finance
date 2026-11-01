@@ -15,6 +15,7 @@ import {
   type RechartsTooltipState,
 } from '@/components/charts/rechartsTooltip'
 import { FxStatusBadge } from '@/components/tooltips/FxStatusBadge'
+import { HintButton } from '@/components/tooltips/HintButton'
 import IconTooltip from '@/components/tooltips/IconTooltip'
 import { useMoneyFormatters } from '@/hooks/useMoneyFormatters'
 import { useDeferredMount } from '@/hooks/useDeferredMount'
@@ -288,15 +289,14 @@ export default function DailyCashFlowChart({
             getMessage={getCashFlowFxStatusMessage}
           />
         </p>
-        <button
-          type="button"
-          title={toggleLabel}
+        <HintButton
+          hint={toggleLabel}
           aria-label={toggleLabel}
           onClick={onModeToggle}
           className="app-icon-button h-8 w-8 shrink-0"
         >
           <Repeat size={12} />
-        </button>
+        </HintButton>
       </div>
       <div ref={dailyFlowChartRef} className="relative h-[11.75rem]" onMouseLeave={hideDailyCashFlowTooltip}>
         {chartReady && (

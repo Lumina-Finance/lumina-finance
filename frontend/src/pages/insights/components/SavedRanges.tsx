@@ -1,6 +1,7 @@
 import { useState, type FormEvent } from 'react'
 import { AnimatePresence, motion, useReducedMotion } from 'motion/react'
 import { BookmarkPlus, X } from 'lucide-react'
+import { HintButton } from '@/components/tooltips/HintButton'
 import type { SavedInsightsRange } from '@/api/insights'
 import LoadFailure from '@/components/errors/LoadFailure'
 import { DisabledReasonButton } from '@/components/tooltips/DisabledReasonButton'
@@ -104,38 +105,36 @@ export function SavedRanges({
       <ul className={savedRanges.length > 0 ? 'mt-2' : ''}>
         <AnimatePresence initial={false}>
           {savedRanges.map((range) => (
-              <motion.li
-                key={range.id}
-                initial={shouldReduceMotion ? false : { opacity: 0, height: 0 }}
-                animate={{ opacity: 1, height: 'auto' }}
-                exit={shouldReduceMotion ? { opacity: 0 } : { opacity: 0, height: 0 }}
-                transition={rowTransition}
-                style={{ overflow: 'hidden' }}
-              >
-                <div className="flex items-center gap-1 pb-1">
-                  <button
-                    type="button"
-                    className="app-card flex min-w-0 flex-1 items-center justify-between gap-2 rounded-lg px-3 py-1.5 text-left text-sm transition-colors hover:bg-[var(--app-accent-soft)]"
-                    onClick={() => onApplySavedRange(range)}
-                    title={`Apply ${range.name}`}
-                  >
-                    <span className="min-w-0 truncate font-medium">{range.name}</span>
-                    <span className="shrink-0 text-xs" style={{ color: 'var(--app-text-muted)' }}>
-                      {getRelativeRangeLabel(range.amount, range.unit, range.qualifier)}
-                    </span>
-                  </button>
-                  <button
-                    type="button"
-                    className="app-icon-button h-8 w-8 shrink-0"
-                    onClick={() => onDeleteSavedRange(range.id)}
-                    title={`Delete ${range.name}`}
-                    aria-label={`Delete ${range.name}`}
-                  >
-                    <X size={15} aria-hidden />
-                  </button>
-                </div>
-              </motion.li>
-            ))}
+            <motion.li
+              key={range.id}
+              initial={shouldReduceMotion ? false : { opacity: 0, height: 0 }}
+              animate={{ opacity: 1, height: 'auto' }}
+              exit={shouldReduceMotion ? { opacity: 0 } : { opacity: 0, height: 0 }}
+              transition={rowTransition}
+              style={{ overflow: 'hidden' }}
+            >
+              <div className="flex items-center gap-1 pb-1">
+                <HintButton
+                  className="app-card flex min-w-0 flex-1 items-center justify-between gap-2 rounded-lg px-3 py-1.5 text-left text-sm transition-colors hover:bg-[var(--app-accent-soft)]"
+                  onClick={() => onApplySavedRange(range)}
+                  hint={`Apply ${range.name}`}
+                >
+                  <span className="min-w-0 truncate font-medium">{range.name}</span>
+                  <span className="shrink-0 text-xs" style={{ color: 'var(--app-text-muted)' }}>
+                    {getRelativeRangeLabel(range.amount, range.unit, range.qualifier)}
+                  </span>
+                </HintButton>
+                <HintButton
+                  className="app-icon-button h-8 w-8 shrink-0"
+                  onClick={() => onDeleteSavedRange(range.id)}
+                  hint={`Delete ${range.name}`}
+                  aria-label={`Delete ${range.name}`}
+                >
+                  <X size={15} aria-hidden />
+                </HintButton>
+              </div>
+            </motion.li>
+          ))}
         </AnimatePresence>
       </ul>
     </div>

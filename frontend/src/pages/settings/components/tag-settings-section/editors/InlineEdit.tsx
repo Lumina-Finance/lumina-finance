@@ -1,5 +1,6 @@
 import { useState, type FormEvent } from 'react'
 import { PendingLabel } from '@/components/loading/PendingLabel'
+import { HintButton } from '@/components/tooltips/HintButton'
 import { Check, Pencil, X } from 'lucide-react'
 import { useUpdateTag, type Tag } from '@/api/tags'
 import { scopeLabel } from '@/pages/settings/components/tag-settings-section/utils'
@@ -88,27 +89,26 @@ export default function InlineTagEdit({ isLast, tag, onCancel }: { isLast: boole
             )}
           </div>
           <div className="flex justify-end gap-1.5">
-            <button
+            <HintButton
               type="submit"
               className="app-icon-button"
               disabled={updateTag.isPending}
               aria-label={`Save ${tag.name}`}
-              title="Save"
+              hint="Save"
             >
               <PendingLabel pending={updateTag.isPending} name="Saving">
                 <Check size={16} aria-hidden />
               </PendingLabel>
-            </button>
-            <button
-              type="button"
+            </HintButton>
+            <HintButton
               className="app-icon-button"
               onClick={onCancel}
               disabled={updateTag.isPending}
               aria-label={`Cancel editing ${tag.name}`}
-              title="Cancel"
+              hint="Cancel"
             >
               <X size={16} aria-hidden />
-            </button>
+            </HintButton>
           </div>
         </form>
       </td>

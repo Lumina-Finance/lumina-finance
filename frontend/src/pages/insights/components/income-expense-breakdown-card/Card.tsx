@@ -3,10 +3,7 @@ import { PieChart as PieChartIcon, Repeat } from 'lucide-react'
 import type { InsightsBreakdownCategoryKind } from '@/api/insights'
 import type { FxStatus } from '@/api/shared/fx'
 import LoadFailure from '@/components/errors/LoadFailure'
-import {
-  LoadingContent,
-  LoadingOverlay,
-} from '@/components/loading/Transition'
+import { LoadingContent, LoadingOverlay } from '@/components/loading/Transition'
 import { useLoadingSnapshot } from '@/hooks/useLoadingSnapshot'
 import { AppSlotMachineText } from '@/components/display/SlotMachineText'
 import { getIncomeExpenseBreakdownFxStatusMessage } from '@/pages/insights/utils/fxTooltipMessages'
@@ -16,13 +13,8 @@ import { InsightActionButton } from '@/pages/insights/components/ActionButton'
 import { IncomeExpensePieChart } from './PieChart'
 import { IncomeExpenseTrendSections } from './TrendSections'
 import { InsightSectionHeader } from '@/pages/insights/components/SectionHeader'
-import {
-  getBreakdownCalculation,
-} from '@/pages/insights/utils/incomeExpenseBreakdownDisplay'
-import type {
-  BreakdownEntry,
-  CategoryTrendSection,
-} from '@/pages/insights/types/incomeExpenseBreakdown'
+import { getBreakdownCalculation } from '@/pages/insights/utils/incomeExpenseBreakdownDisplay'
+import type { BreakdownEntry, CategoryTrendSection } from '@/pages/insights/types/incomeExpenseBreakdown'
 import type { InsightsRangeInputDates } from '@/pages/insights/types/range'
 
 type IncomeExpenseBreakdownCardProps = {
@@ -81,37 +73,39 @@ export function IncomeExpenseBreakdownCard({
 }: IncomeExpenseBreakdownCardProps) {
   // The failure travels in the snapshot rather than beside it, so the box arrives with the reveal
   // instead of growing the card while the spinner is still turning
-  const incomingSnapshot = useMemo<IncomeExpenseBreakdownSnapshot>(() => ({
-    range,
-    mode,
-    entries,
-    total,
-    trendSections,
-    fxStatus,
-    displayCurrency,
-    animationKey,
-    error,
-    failed,
-  }), [animationKey, displayCurrency, entries, error, failed, fxStatus, mode, range, total, trendSections])
-  const {
-    displaySnapshot,
-    contentConcealed,
-    loadingVisible,
-    shouldReduceMotion,
-  } = useLoadingSnapshot<IncomeExpenseBreakdownSnapshot>({
-    snapshot: incomingSnapshot,
-    loading,
-    transitionKey,
-  })
-  const selectDisplayedCategory = useCallback((categoryId: string) => {
-    onCategorySelect(categoryId, displaySnapshot.range)
-  }, [displaySnapshot.range, onCategorySelect])
+  const incomingSnapshot = useMemo<IncomeExpenseBreakdownSnapshot>(
+    () => ({
+      range,
+      mode,
+      entries,
+      total,
+      trendSections,
+      fxStatus,
+      displayCurrency,
+      animationKey,
+      error,
+      failed,
+    }),
+    [animationKey, displayCurrency, entries, error, failed, fxStatus, mode, range, total, trendSections],
+  )
+  const { displaySnapshot, contentConcealed, loadingVisible, shouldReduceMotion } =
+    useLoadingSnapshot<IncomeExpenseBreakdownSnapshot>({
+      snapshot: incomingSnapshot,
+      loading,
+      transitionKey,
+    })
+  const selectDisplayedCategory = useCallback(
+    (categoryId: string) => {
+      onCategorySelect(categoryId, displaySnapshot.range)
+    },
+    [displaySnapshot.range, onCategorySelect],
+  )
 
   return (
     <section className="app-card">
       <InsightSectionHeader
         icon={PieChartIcon}
-        label={(
+        label={
           <span className="inline-flex items-center gap-2">
             <span className="inline-flex items-baseline whitespace-nowrap">
               <AppSlotMachineText text={displaySnapshot.mode === 'expense' ? 'Expense' : 'Income'} />
@@ -129,16 +123,15 @@ export function IncomeExpenseBreakdownCard({
               />
             )}
           </span>
-        )}
-        action={(
+        }
+        action={
           <InsightActionButton
-            title={mode === 'expense' ? 'Show income breakdown' : 'Show expense breakdown'}
             ariaLabel={mode === 'expense' ? 'Show income breakdown' : 'Show expense breakdown'}
             onPress={onModeToggle}
           >
             <Repeat size={12} />
           </InsightActionButton>
-        )}
+        }
       />
       <div className="relative overflow-visible" data-tooltip-bounds>
         <LoadingContent concealed={contentConcealed} shouldReduceMotion={shouldReduceMotion}>

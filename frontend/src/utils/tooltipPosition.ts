@@ -12,6 +12,9 @@ type CursorTooltipPositionOptions = {
   // A box the tooltip must not cover, such as the control it explains when no cursor is over it. It then
   // hangs clear below the box or, with no room there, rises clear above it
   keepClear?: DOMRect
+
+  // With a box to keep clear, rise above it while there is room, and hang below only otherwise
+  preferAbove?: boolean
   offset?: number
   margin?: number
   strategy?: CursorTooltipPositionStrategy
@@ -58,6 +61,7 @@ export function getCursorTooltipPosition({
   clientY,
   bounds,
   keepClear,
+  preferAbove = false,
   offset = DEFAULT_CURSOR_TOOLTIP_OFFSET,
   margin = DEFAULT_CURSOR_TOOLTIP_MARGIN,
   strategy = DEFAULT_CURSOR_TOOLTIP_STRATEGY,
@@ -73,14 +77,18 @@ export function getCursorTooltipPosition({
   // With a box to keep clear, the tooltip hangs from the box's bottom edge, or from its top edge when
   // there is no room below, in place of from the cursor
   const maxY = boundsRect.bottom - coordinateTop - margin
-  const roomBelowBox = keepClear !== undefined
-    && keepClear.bottom - coordinateTop + offset + tooltip.offsetHeight <= maxY
-  const pointerY = (keepClear ? (roomBelowBox ? keepClear.bottom : keepClear.top) : clientY) - coordinateTop
+  const roomBelowBox =
+    keepClear !== undefined && keepClear.bottom - coordinateTop + offset + tooltip.offsetHeight <= maxY
+  const roomAboveBox = keepClear !== undefined && keepClear.top - coordinateTop - offset - tooltip.offsetHeight >= minY
+  // A box that prefers its tooltip above gets it there while there is room, since what sits below a
+  // control, such as the selector under a card's header on a phone, is more likely to be covered
+  const hangsBelow = preferAbove && roomAboveBox ? false : roomBelowBox
+  const pointerY = (keepClear ? (hangsBelow ? keepClear.bottom : keepClear.top) : clientY) - coordinateTop
 
   // The tooltip sits above the cursor unless it would clip the top bound, where it flips below. The
   // vertical follow and the flip offset are returned apart so the flip can animate while the tooltip
   // keeps tracking the cursor instantly
-  const placeAbove = keepClear ? !roomBelowBox : pointerY - tooltip.offsetHeight - offset >= minY
+  const placeAbove = keepClear ? !hangsBelow : pointerY - tooltip.offsetHeight - offset >= minY
   const flipY = placeAbove ? -(tooltip.offsetHeight + offset) : offset
 
   return {

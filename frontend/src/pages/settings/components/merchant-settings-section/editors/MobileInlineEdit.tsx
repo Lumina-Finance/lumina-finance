@@ -1,5 +1,6 @@
 import { useId, useState, type FormEvent } from 'react'
 import { PendingLabel } from '@/components/loading/PendingLabel'
+import { HintButton } from '@/components/tooltips/HintButton'
 import { Check, Pencil, X } from 'lucide-react'
 import { useUpdateMerchant, type Merchant } from '@/api/merchants'
 import Dropdown, { type DropdownOption } from '@/components/dropdown/Dropdown'
@@ -129,27 +130,26 @@ export default function MobileInlineMerchantEdit({
         </p>
       )}
       <div className="flex justify-end gap-1.5">
-        <button
+        <HintButton
           type="submit"
           className="app-icon-button"
           disabled={updateMerchant.isPending}
           aria-label={`Save ${merchant.name}`}
-          title="Save"
+          hint="Save"
         >
           <PendingLabel pending={updateMerchant.isPending} name="Saving">
             <Check size={16} aria-hidden />
           </PendingLabel>
-        </button>
-        <button
-          type="button"
+        </HintButton>
+        <HintButton
           className="app-icon-button"
           onClick={onCancel}
           disabled={updateMerchant.isPending}
           aria-label={`Cancel editing ${merchant.name}`}
-          title="Cancel"
+          hint="Cancel"
         >
           <X size={16} aria-hidden />
-        </button>
+        </HintButton>
       </div>
     </form>
   )

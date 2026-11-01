@@ -1,4 +1,5 @@
 import { forwardRef, type ButtonHTMLAttributes, type RefObject } from 'react'
+import { HintButton } from '@/components/tooltips/HintButton'
 import { useDisabledReason } from '@/hooks/useDisabledReason'
 import { getDisabledReasonProps } from '@/utils/disabledReasonControl'
 
@@ -15,6 +16,9 @@ type DisabledReasonButtonProps = ButtonHTMLAttributes<HTMLButtonElement> & {
 
   /** Another element beside the button, such as a line printed above it, that the reason never covers */
   keepReasonClearOf?: RefObject<HTMLElement | null>
+
+  /** What the button does while it is available, put away while the reason shows so the two never stack */
+  hint?: string | null
 }
 
 /**
@@ -29,6 +33,7 @@ export const DisabledReasonButton = forwardRef<HTMLButtonElement, DisabledReason
       disabledReason,
       reasonShownById,
       keepReasonClearOf,
+      hint,
       disabled,
       onClick,
       onMouseEnter,
@@ -57,11 +62,12 @@ export const DisabledReasonButton = forwardRef<HTMLButtonElement, DisabledReason
 
     return (
       <>
-        <button
+        <HintButton
           {...rest}
           {...reasonProps}
           ref={ref}
           type={type}
+          hint={reason.isUnavailable ? null : hint}
           disabled={reason.isUnavailable ? undefined : disabled}
         />
         {reason.tooltip}

@@ -1,5 +1,6 @@
 import { useRef, type KeyboardEvent } from 'react'
 import { motion, useReducedMotion } from 'motion/react'
+import { HintButton } from '@/components/tooltips/HintButton'
 import { getSegmentedControlKeyAction } from '@/pages/imports/utils'
 
 /**
@@ -85,10 +86,11 @@ export function ImportSegmentedToggle<T extends string>({
         const active = value === option.value
 
         return (
-          <button
+          <HintButton
             key={option.value}
-            ref={(element) => { optionRefs.current[index] = element }}
-            type="button"
+            ref={(element) => {
+              optionRefs.current[index] = element
+            }}
             role="radio"
             aria-checked={active}
             tabIndex={index === tabStopIndex ? 0 : -1}
@@ -99,10 +101,10 @@ export function ImportSegmentedToggle<T extends string>({
             onClick={() => onChange(option.value)}
             disabled={disabled}
             aria-label={option.symbol !== undefined ? option.label : undefined}
-            title={option.symbol !== undefined ? option.label : undefined}
+            hint={option.symbol !== undefined ? option.label : undefined}
           >
             {option.symbol ?? option.label}
-          </button>
+          </HintButton>
         )
       })}
     </div>
