@@ -206,6 +206,11 @@ export const SELF_MERCHANT_NAME = 'Myself'
 export const CREATE_MERCHANT_VALUE = '__create_merchant__'
 export const SKIP_MERCHANT_VALUE = '__skip_merchant__'
 
+// The two answers the tag step offers beside the tags themselves. Creating is what a value gets when
+// nothing matches it, and skipping imports its rows without the tag
+export const CREATE_TAG_VALUE = '__create_tag__'
+export const SKIP_TAG_VALUE = '__skip_tag__'
+
 // What one row may carry, matching what the API accepts. Checked here so an offending row is named
 // against its row number in the preview rather than failing part-way through the upload
 export const MAX_IMPORT_NOTES_LENGTH = 10_000
@@ -429,6 +434,14 @@ export function getRowNotesTooLongReason(length: number) {
 }
 
 /**
+ * Says a row names a tag longer than a tag can be, quoting only the start of the name so a very long
+ * one cannot fill the page
+ */
+export function getRowTagTooLongReason(tagName: string) {
+  return `The tag "${[...tagName].slice(0, 28).join('')}…" is longer than ${IMPORT_TAG_NAME_MAX_LENGTH} characters.`
+}
+
+/**
  * Says a row names more tags than one transaction may carry
  */
 export function getRowTooManyTagsReason(count: number) {
@@ -479,6 +492,10 @@ export const IMPORT_LAYOUTS_LOADING_UPLOAD_BLOCK = 'Loading your saved import se
 // How many entries the skipped table lists before summarizing the remainder, shared by every table
 // built on it: refused rows in every import flow, and the Firefly III and Actual Budget budgets it cannot bring in
 export const SKIPPED_TABLE_VISIBLE_LIMIT = 20
+
+// Most characters of a file's own cell the skipped table writes out. A refused row can hold a cell of
+// any length, such as a tag name of 100,000 characters, which would otherwise be written whole
+export const SKIPPED_TABLE_CELL_DISPLAY_LIMIT = 200
 
 // How many compiled transactions the preview shows. Read by the builder that stops at it and by the
 // step description that states it, so the two cannot disagree about what is on screen
@@ -663,6 +680,11 @@ export const CATEGORIES_LOAD_FAILURE_EXPLANATION =
 export const MERCHANT_MATCHES_LOAD_FAILURE_TITLE = 'Your merchants could not be checked'
 export const MERCHANT_MATCHES_LOAD_FAILURE_EXPLANATION =
   'Without that check every merchant in this import reads as a new one, and importing would create merchants you already have.'
+
+// Shown when the page could not ask which of the file's tag names already have a tag
+export const TAG_MATCHES_LOAD_FAILURE_TITLE = 'Your tags could not be checked'
+export const TAG_MATCHES_LOAD_FAILURE_EXPLANATION =
+  'Without that check every tag in this import reads as a new one here. Importing still files a row under the tag you already have with the same name, and creates a tag only where you have none.'
 
 // Shown when a mapping was answered with an account that has since been deleted. The answer is
 // dropped rather than sent, and nothing fills the row back in, so the user is told why a source

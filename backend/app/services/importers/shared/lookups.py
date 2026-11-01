@@ -7,7 +7,6 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.models.account import Account
 from app.models.category import Category
 from app.models.currency import Currency
-from app.models.tag import Tag
 from app.models.user import User
 from app.schemas.import_run import TransactionImportAccountMapping, TransactionImportCategoryMapping
 from app.services.importers.shared.accounts import resolve_import_account_sources
@@ -15,7 +14,7 @@ from app.services.importers.shared.categories import get_or_create_import_catego
 from app.services.importers.shared.currencies import get_import_currencies_by_code
 from app.services.importers.shared.merchants import ImportMerchants, load_import_merchants
 from app.services.importers.shared.stats import ImportStats
-from app.services.importers.shared.tags import get_personal_import_tags_by_name
+from app.services.importers.shared.tags import ImportTags, load_import_tags
 
 
 @dataclass
@@ -28,7 +27,7 @@ class ImportLookups:
         categories_by_source: Category rows keyed by import source
         currencies_by_code: Currency rows keyed by currency code
         merchants: Merchant lookup for this import, holding what each merchant name resolves to
-        tags_by_name: Tag lookup for this import, keyed by tag name
+        tags: Tag lookup for this import, holding what each tag name resolves to
     """
 
     accounts_by_source: dict[str, Account]
@@ -36,7 +35,7 @@ class ImportLookups:
     categories_by_source: dict[str, Category]
     currencies_by_code: dict[str, Currency]
     merchants: ImportMerchants
-    tags_by_name: dict[str, Tag]
+    tags: ImportTags
 
 
 async def load_import_lookups(
@@ -69,7 +68,7 @@ async def load_import_lookups(
     account_currency_codes = {account.currency for account in accounts_by_source.values()}
     currencies_by_code = await get_import_currencies_by_code(db, account_currency_codes)
     merchants = await load_import_merchants(db, user.id)
-    tags_by_name = await get_personal_import_tags_by_name(db, user.id)
+    tags = await load_import_tags(db, user.id)
 
     return ImportLookups(
         accounts_by_source=accounts_by_source,
@@ -77,5 +76,5 @@ async def load_import_lookups(
         categories_by_source=categories_by_source,
         currencies_by_code=currencies_by_code,
         merchants=merchants,
-        tags_by_name=tags_by_name,
+        tags=tags,
     )

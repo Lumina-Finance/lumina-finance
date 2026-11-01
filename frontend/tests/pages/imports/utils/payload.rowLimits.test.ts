@@ -11,6 +11,7 @@ import {
   getRowNotesTooLongReason,
   getRowTooManyTagsReason,
   getTooManyMappingsError,
+  IMPORT_TAG_NAME_MAX_LENGTH,
   MAX_IMPORT_MAPPINGS,
   MAX_IMPORT_NOTES_LENGTH,
   MAX_IMPORT_TAGS_PER_ROW,
@@ -18,9 +19,7 @@ import {
 import type { CsvRow, ImportFileDraft } from '@/pages/imports/types'
 import { buildTransactionImportPayload, WHOLE_FILE_DATE_RANGE } from '@/pages/imports/utils'
 
-const CURRENCIES: Currency[] = [
-  { id: 'CAD', name: 'Canadian Dollar', symbol: '$', minor_unit_exponent: 2 },
-]
+const CURRENCIES: Currency[] = [{ id: 'CAD', name: 'Canadian Dollar', symbol: '$', minor_unit_exponent: 2 }]
 
 const CATEGORY: Category = {
   id: 'category-1',
@@ -37,16 +36,26 @@ const ACCOUNT = { id: 'account-1', name: 'Chequing', currency: 'CAD', can_write:
 const HEADERS = ['Date', 'Category', 'Amount', 'Notes', 'Tags']
 
 /**
- * Builds a commit payload for one row carrying the given notes and tag cell
+ * Builds a commit payload for one row carrying the given notes and tag cell, then one row for each
+ * further tag cell
  */
-function build(notes: string, tags: string) {
-  const rows: CsvRow[] = [{
-    Date: '2026-04-10',
-    Category: 'Groceries',
-    Amount: '-12.34',
-    Notes: notes,
-    Tags: tags,
-  }]
+function build(notes: string, tags: string, ...laterTags: string[]) {
+  const rows: CsvRow[] = [
+    {
+      Date: '2026-04-10',
+      Category: 'Groceries',
+      Amount: '-12.34',
+      Notes: notes,
+      Tags: tags,
+    },
+    ...laterTags.map((cell) => ({
+      Date: '2026-04-10',
+      Category: 'Groceries',
+      Amount: '-12.34',
+      Notes: '',
+      Tags: cell,
+    })),
+  ]
   const file: ImportFileDraft = {
     id: 'file-1',
     name: 'Chequing.csv',
@@ -130,6 +139,37 @@ describe('refusing a row carrying too many tags', () => {
 
     expect(result.rowProblems).toEqual([])
     expect(result.payload?.rows[0].tag_names).toEqual(['groceries', 'food', 'weekly'])
+  })
+})
+
+describe('listing a row whose tag is longer than a tag can be', () => {
+  // A tag has one limit however long the cell is, and no answer makes a longer one usable
+  it.each([IMPORT_TAG_NAME_MAX_LENGTH + 1, 257, 100_000])(
+    'lists a row naming a tag of %i characters, quoting only the start of it',
+    (length) => {
+      const tag = 't'.repeat(length)
+      const result = build('', `Food,${tag}`)
+
+      expect(result.payload).toBeNull()
+      expect(result.rowProblems).toHaveLength(1)
+      expect(result.rowProblems[0].rowNumber).toBe(1)
+      expect(result.rowProblems[0].reason).toBe(`The tag "${'t'.repeat(28)}…" is longer than 64 characters.`)
+    },
+  )
+
+  it('takes a row whose tag sits exactly on the limit', () => {
+    expect(build('', 't'.repeat(IMPORT_TAG_NAME_MAX_LENGTH)).rowProblems).toEqual([])
+  })
+
+  it('counts characters rather than UTF-16 units', () => {
+    expect(build('', '😀'.repeat(IMPORT_TAG_NAME_MAX_LENGTH)).rowProblems).toEqual([])
+  })
+
+  it('still imports the rows with shorter tags', () => {
+    const result = build('', 't'.repeat(100_000), 'Food', 'Travel')
+
+    expect(result.rowProblems.map((problem) => problem.rowNumber)).toEqual([1])
+    expect(result.payload?.rows.map((row) => row.tag_names)).toEqual([['Food'], ['Travel']])
   })
 })
 

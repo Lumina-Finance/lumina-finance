@@ -113,6 +113,7 @@ describe('compiling an OFX import', () => {
         { source: '(money in, no category)', category_id: OTHER_INCOME.id },
       ],
       merchants: [],
+      tags: [],
       rows: [
         {
           account_source: 'statement-1',

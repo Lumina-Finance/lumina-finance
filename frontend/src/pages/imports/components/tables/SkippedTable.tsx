@@ -3,6 +3,7 @@ import { useReducedMotion } from 'motion/react'
 import { ChevronDown, TriangleAlert } from 'lucide-react'
 import { SkippedRowsReviewContext } from '@/contexts/SkippedRowsReviewContext'
 import { IMPORT_INSET_STYLE, SKIPPED_TABLE_VISIBLE_LIMIT } from '@/pages/imports/constants'
+import { clipSkippedCellValue } from '@/pages/imports/utils/valueParsers'
 
 // Shown in place of blank values so empty cells still read as present
 const EMPTY_CELL_PLACEHOLDER = '–'
@@ -102,7 +103,7 @@ function groupRowsByReason(rows: ImportSkippedTableRow[]) {
  */
 function RawCellValue({ value }: { value: string }) {
   if (!value) return <span style={{ color: 'var(--app-text-subtle)' }}>{EMPTY_CELL_PLACEHOLDER}</span>
-  return <>{value}</>
+  return <>{clipSkippedCellValue(value)}</>
 }
 
 /**

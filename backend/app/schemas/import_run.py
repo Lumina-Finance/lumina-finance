@@ -315,6 +315,27 @@ class TransactionImportMerchantMapping(BaseModel):
     skip: bool = False
 
 
+class TransactionImportCreateTag(BaseModel):
+    """New personal tag to create during a transaction import."""
+
+    name: TrimmedName = Field(min_length=1, max_length=MAX_IMPORT_TAG_NAME_LENGTH)
+
+
+class TransactionImportTagMapping(BaseModel):
+    """Resolve one tag name found in the file to a tag, to a new one, or to none.
+
+    Only the names the user answered by hand are declared. A name left alone is matched to the
+    user's tag of that name, whatever its capitals, and creates one where nothing matches.
+    """
+
+    source: str = Field(min_length=1, max_length=MAX_IMPORT_TAG_NAME_LENGTH)
+    tag_id: uuid.UUID | None = None
+    create: TransactionImportCreateTag | None = None
+
+    # Answered skip, so the rows carrying this name are imported without it
+    skip: bool = False
+
+
 class _ImportRowFields(BaseModel):
     """The fields every frontend-compiled import row carries, before any bank transaction identity.
 
@@ -384,6 +405,9 @@ class TransactionImportRequest(BaseModel):
     # Only the merchant names the user answered by hand, so this is empty for a file whose merchants
     # were all left to match or be created by name
     merchants: list[TransactionImportMerchantMapping] = Field(default=[])
+
+    # Only the tag names the user answered by hand, like the merchants
+    tags: list[TransactionImportTagMapping] = Field(default=[])
     rows: list[TransactionImportRow] = Field(min_length=1)
 
 
@@ -396,6 +420,7 @@ class TransactionImportStageRequest(BaseModel):
     # Carries no minimum, unlike the other two, because a batch whose merchants were all left alone
     # declares none of them
     merchants: list[TransactionImportMerchantMapping] = Field(default=[], max_length=MAX_IMPORT_MAPPINGS)
+    tags: list[TransactionImportTagMapping] = Field(default=[], max_length=MAX_IMPORT_MAPPINGS)
     rows: list[TransactionImportStageRow] = Field(min_length=1, max_length=MAX_IMPORT_BATCH_ROWS)
 
     # Where this batch starts in the file, so a batch sent twice stages the same positions and the

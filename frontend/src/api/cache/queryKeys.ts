@@ -129,6 +129,12 @@ export const tagKeys = {
   all: ['tags'] as const,
   detail: (tagId: string | null | undefined) => ['tags', tagId] as const,
   infinite: (filters: Record<string, unknown>, pageSize: number) => ['tags', 'infinite', filters, pageSize] as const,
+
+  /** Every name-match answer, whatever set of values it was asked about */
+  nameMatchesAll: ['tags', 'name-matches'] as const,
+
+  /** Which of a file's tag names already have a tag, asked once per set of values */
+  nameMatches: (names: string[]) => ['tags', 'name-matches', names] as const,
 }
 
 export const institutionKeys = {

@@ -133,6 +133,28 @@ describe('a QIF file through the statement import', () => {
     ])
   })
 
+  // The file's tag list and a class on a category are not read, so no tag name reaches the import and
+  // there is nothing for its tag matching step to answer
+  it('sends no tag names, whatever tags and classes the file holds', async () => {
+    const read = await readQifFile(
+      toQifFile(['!Type:Tag', 'NWeekend', '^', '!Type:Bank', 'D1/2/2024', 'T-5.00', 'LFood/Weekend', '^'].join('\n')),
+      'file-1',
+    )
+    if (read.status !== 'read') throw new Error(read.reason)
+    const file = resolveQifFile(read.file, READINGS)
+    const result = buildOfxImportPayload(file, {
+      accountMappings: { [file.statements[0].id]: CHEQUING.id },
+      accountCreateDetails: {},
+      accountById: new Map([[CHEQUING.id, CHEQUING]]),
+      categories: [MISCELLANEOUS, OTHER_INCOME],
+      currencies: CURRENCIES,
+    })
+
+    expect(result.errors).toEqual([])
+    expect(result.payload?.tags).toEqual([])
+    expect(result.payload?.rows.map((row) => row.tag_names)).toEqual([[]])
+  })
+
   // Quicken writes an account's opening balance as a transaction, which this import brings in like
   // any other, so the card tells the person not to add the same amount as an opening balance too
   it("brings Quicken's Opening Balance record in as an ordinary income transaction", async () => {

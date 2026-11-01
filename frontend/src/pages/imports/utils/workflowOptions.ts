@@ -9,6 +9,7 @@ import {
   AMOUNT_ARRANGEMENT_CLASH_ERROR,
   AMOUNT_ARRANGEMENT_CLASH_TITLE,
   COLUMN_TARGET_GROUP_LABELS,
+  IMPORT_TAG_NAME_MAX_LENGTH,
   COLUMN_TARGET_GROUP_RANKS,
   COLUMN_TARGETS,
   CREATE_ACCOUNT_VALUE,
@@ -23,7 +24,7 @@ import {
   KIND_RANKS,
   MISSING_AMOUNT_COLUMN_LABEL,
 } from '@/pages/imports/constants'
-import { getMerchantNameKey } from '@/api/shared/merchantNameKey'
+import { getNameKey } from '@/api/shared/nameKey'
 import type {
   ColumnMap,
   CsvRow,
@@ -53,7 +54,10 @@ export function buildImportAccountOptions(accounts: AccountsOverview[]): Dropdow
     { value: CREATE_ACCOUNT_VALUE, label: 'Create new account', group: 'Import action' },
     ...accounts
       .slice()
-      .sort((a, b) => ACCOUNT_KIND_RANKS[a.account_kind] - ACCOUNT_KIND_RANKS[b.account_kind] || a.name.localeCompare(b.name))
+      .sort(
+        (a, b) =>
+          ACCOUNT_KIND_RANKS[a.account_kind] - ACCOUNT_KIND_RANKS[b.account_kind] || a.name.localeCompare(b.name),
+      )
       .map((account) => ({
         value: account.id,
         label: account.name,
@@ -90,10 +94,7 @@ export function getSupportedCurrencyCodes(currencies: Currency[]) {
  * @param currencies - The currency list as it stands
  * @param currenciesError - Whether fetching the currency list failed
  */
-export function getImportUploadBlockReason(
-  currencies: Currency[],
-  currenciesError: boolean,
-): ImportUploadBlock | null {
+export function getImportUploadBlockReason(currencies: Currency[], currenciesError: boolean): ImportUploadBlock | null {
   if (currencies.length > 0) return null
 
   return currenciesError
@@ -203,13 +204,11 @@ export function getImportHeaders(files: ImportFileDraft[]): string[] {
  * is not missing an Amount column
  */
 export function getMissingRequiredColumnLabels(columnMap: ColumnMap): string[] {
-  const missing = COLUMN_TARGETS
-    .filter((target) => target.group === 'required' && !columnMap[target.id])
-    .map((target) => target.label)
-
-  const hasAmountArrangement = COLUMN_TARGETS.some(
-    (target) => target.group === 'amount' && columnMap[target.id],
+  const missing = COLUMN_TARGETS.filter((target) => target.group === 'required' && !columnMap[target.id]).map(
+    (target) => target.label,
   )
+
+  const hasAmountArrangement = COLUMN_TARGETS.some((target) => target.group === 'amount' && columnMap[target.id])
   if (!hasAmountArrangement) missing.push(MISSING_AMOUNT_COLUMN_LABEL)
 
   return missing
@@ -254,17 +253,17 @@ export function buildImportAccountMappingSources(
 ): ImportAccountSource[] {
   const rowSources: ImportAccountSource[] = accountHeader
     ? getUniqueColumnValues(files, accountHeader, isRowIncluded).map((source) => ({
-      id: source,
-      label: source,
-      matchText: source,
-      isCounterpartyOnly: false,
-    }))
+        id: source,
+        label: source,
+        matchText: source,
+        isCounterpartyOnly: false,
+      }))
     : files.slice(0, 1).map((file) => ({
-      id: getFileAccountSourceId(files),
-      label: getImportAccountName(file.name),
-      matchText: file.name,
-      isCounterpartyOnly: false,
-    }))
+        id: getFileAccountSourceId(files),
+        label: getImportAccountName(file.name),
+        matchText: file.name,
+        isCounterpartyOnly: false,
+      }))
 
   if (!counterpartyAccountHeader) return rowSources
 
@@ -272,7 +271,11 @@ export function buildImportAccountMappingSources(
   // is the only kind that can be answered as money outside the tracked accounts, since no row is
   // written to it
   const rowSourceIds = new Set(rowSources.map((source) => source.id))
-  const counterpartySources: ImportAccountSource[] = getUniqueColumnValues(files, counterpartyAccountHeader, isRowIncluded)
+  const counterpartySources: ImportAccountSource[] = getUniqueColumnValues(
+    files,
+    counterpartyAccountHeader,
+    isRowIncluded,
+  )
     .filter((source) => !rowSourceIds.has(source))
     .map((source) => ({
       id: source,
@@ -299,10 +302,14 @@ export function getImportedCategories(
   amountFormat: ImportAmountFormat | null = DEFAULT_IMPORT_AMOUNT_FORMAT,
   isRowIncluded: ImportRowFilter = includeEveryImportRow,
 ): string[] {
-  return sortImportedCategorySources(files.flatMap((file) => file.rows.filter(isRowIncluded).map((row) => {
-    const { amountReading } = resolveImportAmount(row, columnMap, directionAnswers, amountFormat)
-    return getImportRowCategorySource(row, columnMap, amountReading)
-  })))
+  return sortImportedCategorySources(
+    files.flatMap((file) =>
+      file.rows.filter(isRowIncluded).map((row) => {
+        const { amountReading } = resolveImportAmount(row, columnMap, directionAnswers, amountFormat)
+        return getImportRowCategorySource(row, columnMap, amountReading)
+      }),
+    ),
+  )
 }
 
 /**
@@ -327,7 +334,8 @@ export function countRowsWithNoMerchant(
   isRowIncluded: ImportRowFilter = includeEveryImportRow,
 ): number {
   return files.reduce(
-    (total, file) => total + file.rows.filter((row) => isRowIncluded(row) && doesRowStateNoMerchant(row, merchantHeader)).length,
+    (total, file) =>
+      total + file.rows.filter((row) => isRowIncluded(row) && doesRowStateNoMerchant(row, merchantHeader)).length,
     0,
   )
 }
@@ -348,7 +356,7 @@ export function getImportedMerchants(
   const seenKeys = new Set<string>()
   const values: string[] = []
   for (const value of getUniqueColumnValues(files, merchantHeader, isRowIncluded)) {
-    const key = getMerchantNameKey(value)
+    const key = getNameKey(value)
     if (seenKeys.has(key)) continue
     seenKeys.add(key)
     values.push(value)
@@ -366,17 +374,39 @@ export function getImportedTags(
   isRowIncluded: ImportRowFilter = includeEveryImportRow,
 ): string[] {
   if (!tagHeader) return []
-  return unique(
-    files.flatMap((file) =>
-      file.rows.filter(isRowIncluded).flatMap((row) => splitImportedValues(row[tagHeader] ?? '')),
-    ),
-  ).sort((a, b) => a.localeCompare(b))
+
+  // One entry per tag the file resolves to rather than per spelling, since "Travel" and "travel" are
+  // one tag and answering them separately would leave nothing to say which answer their rows take
+  const seenKeys = new Set<string>()
+  const values: string[] = []
+  // The commit files a tag under the spelling of the rows it writes, so only rows that will import
+  // feed the step and the caller leaves out the ones refused. A row carrying a name longer than a
+  // tag can be is left out here as well, since it stays refused while the mappings the other
+  // refusals wait on are unanswered. Its other names are not asked about either
+  const spellings = files.flatMap((file) =>
+    file.rows
+      .filter(isRowIncluded)
+      .map((row) => splitImportedValues(row[tagHeader] ?? ''))
+      .filter((names) => names.every((name) => [...name].length <= IMPORT_TAG_NAME_MAX_LENGTH))
+      .flat(),
+  )
+  for (const value of unique(spellings)) {
+    const key = getNameKey(value)
+    if (seenKeys.has(key)) continue
+    seenKeys.add(key)
+    values.push(value)
+  }
+
+  return values.sort((a, b) => a.localeCompare(b))
 }
 
 function getUniqueColumnValues(files: ImportFileDraft[], header: string, isRowIncluded: ImportRowFilter): string[] {
   return unique(
     files.flatMap((file) =>
-      file.rows.filter(isRowIncluded).map((row) => row[header]?.trim()).filter(Boolean),
+      file.rows
+        .filter(isRowIncluded)
+        .map((row) => row[header]?.trim())
+        .filter(Boolean),
     ),
   )
 }

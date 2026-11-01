@@ -27,6 +27,7 @@ import { findReusedImportCategory, getCategoryMatchKind } from './categoryMatchi
 import { findCurrencyExponent } from '@/utils/moneyInput'
 import { getImportDateRangeFilter } from './dateRange'
 import { getCurrencyByAccountSource, type ImportRowContext, resolveImportRow } from './rowResolution'
+import { getPreviewTagNames } from './tagMatching'
 import { getAmountArrangementClashError, getSupportedCurrencyCodes } from './workflowOptions'
 import { DEFAULT_IMPORT_AMOUNT_FORMAT, type ImportAmountFormat } from './amountFormats'
 import {
@@ -67,6 +68,9 @@ interface BuildImportPreviewRowsOptions {
   resolvedAccountMappings: Record<string, string>
   resolvedCategoryMappings: Record<string, string>
   rowProblems: ImportRowProblem[]
+
+  /** What the tag step holds, so a row shows the tags the commit will give it rather than the file's names */
+  tagAnswers?: Parameters<typeof getPreviewTagNames>[1]
 }
 
 /**
@@ -113,6 +117,7 @@ export function buildImportPreviewRows({
   resolvedAccountMappings,
   resolvedCategoryMappings,
   rowProblems,
+  tagAnswers,
 }: BuildImportPreviewRowsOptions): PreviewTransactionRow[] {
   if (missingRequiredColumnLabels.length > 0) return []
 
@@ -131,7 +136,7 @@ export function buildImportPreviewRows({
   // would show an amount of zero or a blank date beside the entry saying why it was refused
   const problemRowIds = new Set(rowProblems.map((problem) => problem.id))
   const rows: PreviewTransactionRow[] = []
-  const fallbackCurrency = currencies.some((currency) => currency.id === 'CAD') ? 'CAD' : currencies[0]?.id ?? 'CAD'
+  const fallbackCurrency = currencies.some((currency) => currency.id === 'CAD') ? 'CAD' : (currencies[0]?.id ?? 'CAD')
   const supportedCurrencyCodes = getSupportedCurrencyCodes(currencies)
   const timestamp = new Date().toISOString()
 
@@ -198,35 +203,40 @@ export function buildImportPreviewRows({
       // A row states its counterparty only where the file has a column for it and the row's category
       // can hold one, and the answer is whatever that source was mapped to, which can be an account
       // or money leaving the app. A counterparty queued for creation shows under the source it came from
-      const counterpartySource = doesPreviewCategoryRecordCounterparty(category) ? resolved.counterpartySource ?? '' : ''
-      const counterpartyChoice = counterpartySource ? resolvedAccountMappings[counterpartySource] ?? '' : ''
-      const counterpartyAccount = counterpartyChoice === OUTSIDE_ACCOUNT_VALUE
-        ? null
-        : resolvePreviewAccount(counterpartyChoice, counterpartySource, undefined, accountById, institutionById)
+      const counterpartySource = doesPreviewCategoryRecordCounterparty(category)
+        ? (resolved.counterpartySource ?? '')
+        : ''
+      const counterpartyChoice = counterpartySource ? (resolvedAccountMappings[counterpartySource] ?? '') : ''
+      const counterpartyAccount =
+        counterpartyChoice === OUTSIDE_ACCOUNT_VALUE
+          ? null
+          : resolvePreviewAccount(counterpartyChoice, counterpartySource, undefined, accountById, institutionById)
 
       // A source with no answer says nothing yet about where the money went. A file stating no
       // counterparty at all is a different case, and is read as the money leaving
       const isCounterpartyAnswered = !counterpartySource || Boolean(counterpartyChoice)
 
-      rows.push(buildPreviewTransactionRow({
-        // Prefixed like the other imports' previews, which is how a previewed row is told apart from a
-        // ledger transaction by its id
-        id: `import-preview-${getImportRowId(file.id, rowIndex)}`,
+      rows.push(
+        buildPreviewTransactionRow({
+          // Prefixed like the other imports' previews, which is how a previewed row is told apart from a
+          // ledger transaction by its id
+          id: `import-preview-${getImportRowId(file.id, rowIndex)}`,
 
-        // The row shows in the currency settled above, which holds even before the account step is answered
-        account: { ...(account ?? { id: accountChoice, name: accountName, institution: null }), currency },
-        category,
-        dt: resolved.dt,
+          // The row shows in the currency settled above, which holds even before the account step is answered
+          account: { ...(account ?? { id: accountChoice, name: accountName, institution: null }), currency },
+          category,
+          dt: resolved.dt,
 
-        // Keep the exact minor units through presentation, just as the commit keeps the cell's digits
-        amount: minorUnits,
-        merchantName: resolved.merchantName ?? getStampedPreviewMerchantName(category),
-        notes: resolved.notes,
-        counterpartyAccount,
-        counterpartyScope: isCounterpartyAnswered ? getPreviewCounterpartyScope(category, counterpartyAccount) : null,
-        tagNames: resolved.tagNames,
-        timestamp,
-      }))
+          // Keep the exact minor units through presentation, just as the commit keeps the cell's digits
+          amount: minorUnits,
+          merchantName: resolved.merchantName ?? getStampedPreviewMerchantName(category),
+          notes: resolved.notes,
+          counterpartyAccount,
+          counterpartyScope: isCounterpartyAnswered ? getPreviewCounterpartyScope(category, counterpartyAccount) : null,
+          tagNames: tagAnswers ? getPreviewTagNames(resolved.tagNames, tagAnswers) : resolved.tagNames,
+          timestamp,
+        }),
+      )
 
       if (rows.length >= IMPORT_SAMPLE_PREVIEW_LIMIT) return rows
     }
@@ -380,21 +390,25 @@ export function getCsvImportStats({
   categoryTypesBySource: Record<string, string>
 }) {
   const rows = importBuild.payload?.rows
-  const writtenAccounts = new Set(rows
-    ? rows.flatMap((row) => [row.account_source, row.counterparty_account_source ?? ''])
-    : accountSources.map((source) => source.id))
+  const writtenAccounts = new Set(
+    rows
+      ? rows.flatMap((row) => [row.account_source, row.counterparty_account_source ?? ''])
+      : accountSources.map((source) => source.id),
+  )
   const writtenCategories = new Set(rows ? rows.map((row) => row.category_source) : importedCategories)
-  const sourcesWithoutExistingCategory = importedCategories.filter((source) => !isExistingCsvCategory(
-    source,
-    categoryMappings,
-    categoryById,
-    categoryCreateKinds,
-    categoryRenames,
-    categoryTypesBySource,
-  ))
-  const estimateBeforeBuild = outsideRangeRowCount === null
-    ? null
-    : Math.max(rowCount - importBuild.rowProblems.length - outsideRangeRowCount, 0)
+  const sourcesWithoutExistingCategory = importedCategories.filter(
+    (source) =>
+      !isExistingCsvCategory(
+        source,
+        categoryMappings,
+        categoryById,
+        categoryCreateKinds,
+        categoryRenames,
+        categoryTypesBySource,
+      ),
+  )
+  const estimateBeforeBuild =
+    outsideRangeRowCount === null ? null : Math.max(rowCount - importBuild.rowProblems.length - outsideRangeRowCount, 0)
 
   return {
     rowCount,
@@ -405,6 +419,11 @@ export function getCsvImportStats({
       CREATE_ACCOUNT_VALUE,
       writtenAccounts,
     ),
-    newCategoryCount: countCreatedImportSources(sourcesWithoutExistingCategory, categoryMappings, CREATE_CATEGORY_VALUE, writtenCategories),
+    newCategoryCount: countCreatedImportSources(
+      sourcesWithoutExistingCategory,
+      categoryMappings,
+      CREATE_CATEGORY_VALUE,
+      writtenCategories,
+    ),
   }
 }

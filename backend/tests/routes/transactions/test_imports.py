@@ -27,7 +27,7 @@ from tests.routes.transactions._helpers import (
     _seed_institution,
     _setup_user_with_deps,
 )
-from tests.routes.transactions._import_helpers import _csv_batch, _import_run, _open_run
+from tests.routes.transactions._import_helpers import _csv_batch, _import_rows, _import_run, _open_run
 
 # --- Staging a run and committing it ---
 
@@ -1437,30 +1437,6 @@ async def _insert_personal_merchant_beside_a_shared_one(sibling_merchant_id, nam
             {"owner_id": owner_id, "name": name},
         )
         await session.commit()
-
-
-async def _import_rows(client, headers, account_id, category_id, row_overrides, merchants=None):
-    """Import one file of rows sharing an account and category, each row taking its own overrides"""
-    return await _import_run(
-        client,
-        headers,
-        {
-            "accounts": [{"source": "Main Chequing", "account_id": account_id}],
-            "categories": [{"source": "Groceries", "category_id": category_id}],
-            "merchants": merchants or [],
-            "rows": [
-                {
-                    "account_source": "Main Chequing",
-                    "category_source": "Groceries",
-                    "dt": "2026-04-10",
-                    "amount": "-1.00",
-                    "tag_names": [],
-                }
-                | overrides
-                for overrides in row_overrides
-            ],
-        },
-    )
 
 
 async def test_committing_twice_answers_from_the_first_commit(client):

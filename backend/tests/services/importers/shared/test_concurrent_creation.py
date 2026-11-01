@@ -16,6 +16,8 @@ just before the insert would already have found the row.
 
 import uuid
 
+import pytest
+from fastapi import HTTPException
 from sqlalchemy import literal_column, select, text
 
 from app.models.base import CategoryKind
@@ -23,13 +25,14 @@ from app.models.category import Category
 from app.models.merchant import Merchant
 from app.models.tag import Tag
 from app.models.user import User
+from app.schemas.import_run import TransactionImportTagMapping
 from app.services.importers.shared.insertion_helpers import insert_import_records_if_absent
 from app.services.importers.shared.merchants import (
     ImportMerchants,
     create_missing_import_merchants,
 )
 from app.services.importers.shared.stats import ImportStats
-from app.services.importers.shared.tags import create_missing_import_tags
+from app.services.importers.shared.tags import ImportTags, create_missing_import_tags, get_import_row_tags
 from tests.conftest import TestSession
 from tests.services.importers._helpers import _seed_user
 
@@ -42,7 +45,7 @@ _MERCHANT_CONFLICT = {
     "index_where": text("group_id IS NULL"),
 }
 _TAG_CONFLICT = {
-    "index_elements": [Tag.owner_id, Tag.name],
+    "index_elements": [Tag.owner_id, literal_column("lower(name)")],
     "index_where": text("group_id IS NULL"),
 }
 
@@ -59,9 +62,15 @@ async def test_a_category_of_that_name_already_written_is_skipped_by_the_insert(
         assert len(first) == 1
         assert list(second) == []
 
-        stored = (await session.execute(
-            select(Category.id).where(Category.owner_id == user_id),
-        )).scalars().all()
+        stored = (
+            (
+                await session.execute(
+                    select(Category.id).where(Category.owner_id == user_id),
+                )
+            )
+            .scalars()
+            .all()
+        )
         assert len(stored) == 1
 
 
@@ -114,12 +123,14 @@ async def test_a_merchant_written_after_the_lookup_is_reused_rather_than_failing
     """A lookup taken before another request committed is what a race leaves this holding."""
     async with TestSession() as session:
         user_id = (await _seed_user(session)).id
-        existing = (await insert_import_records_if_absent(
-            session,
-            Merchant,
-            [{"owner_id": user_id, "group_id": None, "name": "Amazon", "default_category_id": None}],
-            **_MERCHANT_CONFLICT,
-        ))[0]
+        existing = (
+            await insert_import_records_if_absent(
+                session,
+                Merchant,
+                [{"owner_id": user_id, "group_id": None, "name": "Amazon", "default_category_id": None}],
+                **_MERCHANT_CONFLICT,
+            )
+        )[0]
 
         # Empty, as it would be for an import whose merchants were loaded before that row landed
         merchants = ImportMerchants(existing_by_name_key={})
@@ -137,21 +148,86 @@ async def test_a_tag_written_after_the_lookup_is_reused_rather_than_failing_the_
     """Tags carry the same insert, so two imports both introducing one name do not fail either."""
     async with TestSession() as session:
         user_id = (await _seed_user(session)).id
-        existing = (await insert_import_records_if_absent(
-            session,
-            Tag,
-            [{"owner_id": user_id, "group_id": None, "name": "travel"}],
-            **_TAG_CONFLICT,
-        ))[0]
+        existing = (
+            await insert_import_records_if_absent(
+                session,
+                Tag,
+                [{"owner_id": user_id, "group_id": None, "name": "travel"}],
+                **_TAG_CONFLICT,
+            )
+        )[0]
 
-        tags_by_name: dict[str, Tag] = {}
+        tags = ImportTags(existing_by_key={})
         stats = ImportStats()
 
-        await create_missing_import_tags(session, user_id, ["travel"], tags_by_name, stats)
+        await create_missing_import_tags(session, user_id, ["travel"], [], tags, stats)
 
         assert stats.tags_created == 0
         assert stats.created_tag_ids == []
-        assert tags_by_name["travel"].id == existing.id
+        assert tags.existing_by_key["travel"].id == existing.id
+
+
+async def test_a_tag_spelled_differently_written_after_the_lookup_is_reused_too():
+    """The insert skips on the name with capitals folded, so Travel written meanwhile is found for travel."""
+    async with TestSession() as session:
+        user_id = (await _seed_user(session)).id
+        existing = (
+            await insert_import_records_if_absent(
+                session,
+                Tag,
+                [{"owner_id": user_id, "group_id": None, "name": "Travel"}],
+                **_TAG_CONFLICT,
+            )
+        )[0]
+
+        tags = ImportTags(existing_by_key={})
+        stats = ImportStats()
+
+        await create_missing_import_tags(session, user_id, ["TRAVEL"], [], tags, stats)
+
+        assert stats.tags_created == 0
+        assert tags.existing_by_key["travel"].id == existing.id
+
+
+async def test_a_corrected_tag_name_taken_after_the_lookup_is_what_the_answered_rows_carry():
+    """A tag written under the corrected name after the lookup is reused, not written again."""
+    async with TestSession() as session:
+        user_id = (await _seed_user(session)).id
+        existing = (
+            await insert_import_records_if_absent(
+                session,
+                Tag,
+                [{"owner_id": user_id, "group_id": None, "name": "Travel"}],
+                **_TAG_CONFLICT,
+            )
+        )[0]
+
+        # Empty, as it would be for an import whose tags were loaded before that row landed
+        tags = ImportTags(existing_by_key={})
+        stats = ImportStats()
+        mapping = TransactionImportTagMapping(source="trvl", create={"name": "TRAVEL"})
+
+        await create_missing_import_tags(session, user_id, ["trvl"], [mapping], tags, stats)
+
+        assert stats.tags_created == 0
+        assert [tag.id for tag in get_import_row_tags(["trvl"], tags, stats)] == [existing.id]
+
+
+async def test_a_tag_the_insert_skipped_but_nobody_holds_fails_the_import_rather_than_losing_the_tag(monkeypatch):
+    """The other request that took the name rolled back, so no row carries it and none may be filed untagged."""
+
+    async def skip_every_insert(*args, **kwargs):
+        return []
+
+    monkeypatch.setattr("app.services.importers.shared.tags.insert_import_records_if_absent", skip_every_insert)
+    async with TestSession() as session:
+        user_id = (await _seed_user(session)).id
+
+        with pytest.raises(HTTPException) as exc_info:
+            await create_missing_import_tags(session, user_id, ["Ghost"], [], ImportTags(existing_by_key={}), ImportStats())
+
+        assert exc_info.value.status_code == 500
+        assert exc_info.value.detail == "Tag could not be created or found: ghost"
 
 
 async def test_another_users_merchant_does_not_block_writing_your_own():

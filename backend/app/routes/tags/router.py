@@ -1,4 +1,5 @@
 """Tag routes"""
+
 import uuid
 from typing import Annotated
 
@@ -13,8 +14,16 @@ from app.routes.tags.creation_helpers import create_tag_for_user
 from app.routes.tags.deletion_helpers import delete_tag_for_user
 from app.routes.tags.listing_helpers import get_tags_for_user
 from app.routes.tags.merge_helpers import merge_tag_into_replacement_for_user
+from app.routes.tags.name_match_helpers import get_tags_matching_names
 from app.routes.tags.update_helpers import update_tag_for_user
-from app.schemas.tag import CreateTagRequest, MergeTagRequest, TagResponse, UpdateTagRequest
+from app.schemas.tag import (
+    CreateTagRequest,
+    MergeTagRequest,
+    TagNameMatch,
+    TagNameMatchRequest,
+    TagResponse,
+    UpdateTagRequest,
+)
 
 router = APIRouter(prefix="/tags", tags=["tags"])
 
@@ -43,6 +52,29 @@ async def list_tags(
     """
     tags = await get_tags_for_user(db, user.id, group_id, q, limit, offset)
     return tags
+
+
+@router.post("/name-matches", response_model=list[TagNameMatch])
+async def match_tag_names(
+    data: TagNameMatchRequest,
+    user: Annotated[User, Depends(get_current_user)],
+    db: Annotated[AsyncSession, Depends(get_db)],
+):
+    """Return which of the tag names given already have a tag
+
+    A read rather than a write, sent as a POST because a file's worth of tag names does not fit in a
+    query string
+
+    Args:
+        data: Tag names from the file
+        user: Authenticated user asking
+        db: Active database session
+
+    Returns:
+        One entry per value that matched, leaving out the values that have no tag yet
+    """
+    matches = await get_tags_matching_names(db, user.id, data.names)
+    return [TagNameMatch(source=source, tag=tag) for source, tag in matches]
 
 
 @router.get("/{tag_id}", response_model=TagResponse)

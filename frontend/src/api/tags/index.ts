@@ -4,18 +4,20 @@ export type {
   MergeTagRequest,
   Tag,
   TagFilters,
+  TagNameMatch,
   UpdateTagPayload,
   UpdateTagRequest,
-} from '@/api/tags/types';
+} from '@/api/tags/types'
 
 export {
   createTag,
   deleteTag,
   fetchTag,
+  fetchTagNameMatches,
   fetchTagsPage,
   mergeTag,
   updateTag,
-} from '@/api/tags/requests';
+} from '@/api/tags/requests'
 
 export {
   useCreateTag,
@@ -26,4 +28,4 @@ export {
   useTag,
   useTagDetails,
   useUpdateTag,
-} from '@/api/tags/hooks';
+} from '@/api/tags/hooks'

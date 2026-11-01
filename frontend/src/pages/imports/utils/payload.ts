@@ -1,6 +1,7 @@
 import type { AccountsOverview } from '@/api/accounts'
 import type { Category } from '@/api/categories'
 import type { Merchant } from '@/api/merchants'
+import type { Tag } from '@/api/tags'
 import type { TransactionImportPayload, TransactionImportResponse } from '@/api/transaction-imports'
 import {
   getDirectionValuesAgreeError,
@@ -16,7 +17,11 @@ import {
   MAX_IMPORT_MAPPINGS,
   NO_OUTFLOWS_WARNING,
 } from '@/pages/imports/constants'
-import { BALANCE_ADJUSTMENT_CATEGORY_NAME, doesTransferRecordCounterpartyAccount, OUTSIDE_ACCOUNT_VALUE } from '@/utils/transfers'
+import {
+  BALANCE_ADJUSTMENT_CATEGORY_NAME,
+  doesTransferRecordCounterpartyAccount,
+  OUTSIDE_ACCOUNT_VALUE,
+} from '@/utils/transfers'
 import type {
   ColumnMap,
   ColumnValidationErrors,
@@ -41,6 +46,7 @@ import {
 import { getCategoryMatchKind, getDebtPaymentImportNote } from './categoryMatching'
 import { buildImportAccountMapping, buildImportCategoryMapping } from './importMappings'
 import { buildImportMerchantMappings } from './merchantMatching'
+import { buildImportTagMappings } from './tagMatching'
 import { getImportDirectionValues } from './columnMapping'
 import { getImportRowId, includeEveryImportRow, joinImportSummaryParts } from './common'
 import { getImportDateRangeFilter, isImportDateRangeCrossed, isImportDateRangeIncomplete } from './dateRange'
@@ -93,6 +99,7 @@ export function buildTransactionImportPayload({
   files,
   importedCategories,
   merchantAnswers,
+  tagAnswers,
 }: {
   accountById: Map<string, AccountsOverview>
   accountCreateCurrencies: Record<string, string>
@@ -133,6 +140,17 @@ export function buildTransactionImportPayload({
     merchantMappings: Record<string, string>
     merchantCreateNames: Record<string, string>
   }
+
+  /**
+   * What the user answered about the file's tag names, absent where no tags column is mapped and
+   * there are none to answer
+   */
+  tagAnswers?: {
+    importedTags: string[]
+    matchedTagByKey: Map<string, Tag>
+    tagMappings: Record<string, string>
+    tagCreateNames: Record<string, string>
+  }
 }): ImportBuildResult {
   // Two kinds of problem, kept apart because only one of them makes judging a row meaningless. An
   // unanswered mapping question leaves every row looking broken for want of the answer, while a
@@ -160,8 +178,9 @@ export function buildTransactionImportPayload({
   // A Direction column the mapping step has already refused, or one contradicting a side column,
   // gives no row a direction. Both are reported in their own right, and neither leaves the panel
   // where the words are answered on screen, so nothing here asks for an answer the user cannot give
-  const isDirectionColumnUnusable = Boolean(columnMap.amount_direction)
-    && (Boolean(columnValidationErrors[columnMap.amount_direction]) || arrangementClash !== null)
+  const isDirectionColumnUnusable =
+    Boolean(columnMap.amount_direction) &&
+    (Boolean(columnValidationErrors[columnMap.amount_direction]) || arrangementClash !== null)
 
   // Asked before any row is judged, for the reason the date format is: without an answer every row
   // reads as one with no amount, which is a file full of broken rows rather than one question
@@ -169,8 +188,8 @@ export function buildTransactionImportPayload({
   //
   // A range that cannot be applied yet comes with an error of its own below, before any row is
   // read, so reading every row in its place only decides which Direction words this build asks about
-  const isRowIncluded = getImportDateRangeFilter({ columnMap, dateFormat, dateSeparator, timeZone, dateRange })
-    ?? includeEveryImportRow
+  const isRowIncluded =
+    getImportDateRangeFilter({ columnMap, dateFormat, dateSeparator, timeZone, dateRange }) ?? includeEveryImportRow
   if (!isDirectionColumnUnusable) {
     for (const message of getDirectionAnswerErrors(files, columnMap, directionAnswers, isRowIncluded)) addError(message)
   }
@@ -213,21 +232,24 @@ export function buildTransactionImportPayload({
     // Only a counterparty source is offered an archived or read-only account, and pointing the
     // account column at that same column afterwards turns it into a source rows are written to while
     // its answer stands, which the dropdown no longer offers and the API refuses
-    const built = buildImportAccountMapping({
-      source: source.id,
-      label: source.label,
-      name: source.label,
-      choice,
-      createDetails: {
-        accountType: accountCreateTypes[source.id],
-        currency: accountCreateCurrencies[source.id],
-        institutionId: accountCreateInstitutions[source.id],
+    const built = buildImportAccountMapping(
+      {
+        source: source.id,
+        label: source.label,
+        name: source.label,
+        choice,
+        createDetails: {
+          accountType: accountCreateTypes[source.id],
+          currency: accountCreateCurrencies[source.id],
+          institutionId: accountCreateInstitutions[source.id],
+        },
+        accountById,
+        takesRows: !source.isCounterpartyOnly,
+        refusesGroupAccount: false,
+        getNameTooLongError: getImportAccountNameTooLongError,
       },
-      accountById,
-      takesRows: !source.isCounterpartyOnly,
-      refusesGroupAccount: false,
-      getNameTooLongError: getImportAccountNameTooLongError,
-    }, addError)
+      addError,
+    )
     if (built) accounts.push(built.mapping)
   }
 
@@ -250,25 +272,30 @@ export function buildTransactionImportPayload({
     // folded, so the row is judged against the category it will actually land on rather than against
     // the name the file spells. That is what puts a source called BALANCE ADJUSTMENT on the system
     // category recording no counterparty account, as Balance Adjustment already is
-    const built = buildImportCategoryMapping({
-      source,
-      label: source,
-      createName: source,
-      choice: categoryMappings[source] ?? '',
-      createKind: getCategoryMatchKind('', categoryCreateKinds[source], categoryTypesBySource[source], categoryById),
-      rename: categoryRenames[source],
-      categoryById,
-      createdByKey,
-      refusesGroupCategory: false,
-    }, addError)
+    const built = buildImportCategoryMapping(
+      {
+        source,
+        label: source,
+        createName: source,
+        choice: categoryMappings[source] ?? '',
+        createKind: getCategoryMatchKind('', categoryCreateKinds[source], categoryTypesBySource[source], categoryById),
+        rename: categoryRenames[source],
+        categoryById,
+        createdByKey,
+        refusesGroupCategory: false,
+      },
+      addError,
+    )
     if (!built) continue
 
     // The backend matches Balance Adjustment by name alone, so a personal category sharing that
     // name records no counterparty here either
-    recordsCounterpartyBySource[source] = built.kind !== null && doesTransferRecordCounterpartyAccount(
-      built.kind,
-      (built.category?.name ?? built.name) === BALANCE_ADJUSTMENT_CATEGORY_NAME,
-    )
+    recordsCounterpartyBySource[source] =
+      built.kind !== null &&
+      doesTransferRecordCounterpartyAccount(
+        built.kind,
+        (built.category?.name ?? built.name) === BALANCE_ADJUSTMENT_CATEGORY_NAME,
+      )
     if (built.kind) kindByCategorySource[source] = built.kind
     categoryBySource[source] = built.category
     categories.push(built.mapping)
@@ -280,6 +307,14 @@ export function buildTransactionImportPayload({
   if (merchantAnswers) {
     const built = buildImportMerchantMappings(merchantAnswers)
     merchants.push(...built.mappings)
+    for (const message of built.errors) addError(message)
+  }
+
+  // Tags are carried the same way, only where the user answered differently from the commit's own match
+  const tags: TransactionImportPayload['tags'] = []
+  if (tagAnswers) {
+    const built = buildImportTagMappings(tagAnswers)
+    tags.push(...built.mappings)
     for (const message of built.errors) addError(message)
   }
 
@@ -382,7 +417,7 @@ export function buildTransactionImportPayload({
     rowProblems,
     warnings,
     rowWarnings,
-    payload: { accounts, categories, merchants, rows },
+    payload: { accounts, categories, merchants, tags, rows },
   }
 }
 
@@ -412,10 +447,7 @@ function toPayloadRow(resolved: ReturnType<typeof resolveImportRow>): Transactio
  * A transfer has no direction rule anywhere in the app, and an amount of zero has no direction at
  * all, so neither is judged
  */
-function doesSignDisagreeWithCategoryKind(
-  amount: ImportAmountReading | null,
-  kind: ImportCategoryKind | undefined,
-) {
+function doesSignDisagreeWithCategoryKind(amount: ImportAmountReading | null, kind: ImportCategoryKind | undefined) {
   if (!amount || amount.isZero) return false
 
   if (kind === 'expense') return amount.sign !== 'negative'
@@ -489,7 +521,11 @@ function getImportWarnings(rows: TransactionImportPayload['rows'], columnMap: Co
  * @param outsideRangeCount - Rows the import was started without, because they are dated outside
  *   the chosen dates
  */
-export function formatImportSummary(result: TransactionImportResponse, skippedCount: number, outsideRangeCount: number) {
+export function formatImportSummary(
+  result: TransactionImportResponse,
+  skippedCount: number,
+  outsideRangeCount: number,
+) {
   const parts = [
     `${result.transactions_created} transaction${result.transactions_created === 1 ? '' : 's'} imported`,
     `${result.accounts_created} account${result.accounts_created === 1 ? '' : 's'} created`,
@@ -498,7 +534,9 @@ export function formatImportSummary(result: TransactionImportResponse, skippedCo
   if (result.transactions_already_imported > 0) {
     // One file can hold statements for several accounts, where "the account" would name only one
     const accountCount = new Set(Object.values(result.account_source_ids)).size
-    parts.push(`${result.transactions_already_imported} ${accountCount > 1 ? 'already imported' : 'already in the account'}`)
+    parts.push(
+      `${result.transactions_already_imported} ${accountCount > 1 ? 'already imported' : 'already in the account'}`,
+    )
   }
   if (skippedCount > 0) parts.push(`${skippedCount} skipped`)
   if (outsideRangeCount > 0) parts.push(getRowsOutsideDateRangeSummaryPart(outsideRangeCount))

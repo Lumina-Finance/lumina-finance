@@ -176,6 +176,35 @@ async def test_create_tag_duplicate_name_returns_409(client):
     assert "already exists" in resp.json()["detail"]
 
 
+async def test_create_tag_name_differing_only_in_capitals_returns_409(client):
+    """Travel and travel are one tag, so the second is refused whichever way round they come."""
+    signup_resp = await _create_user(client)
+    headers = _get_auth_header(signup_resp)
+
+    first = await _create_tag(client, headers, name="Travel")
+    assert first.status_code == 201
+    for name in ("travel", "TRAVEL"):
+        resp = await _create_tag(client, headers, name=name)
+
+        assert resp.status_code == 409
+        assert resp.json()["detail"] == "Tag with this name already exists"
+
+    listed = await client.get("/tags", headers=headers)
+    assert [tag["name"] for tag in listed.json()] == ["Travel"]
+
+
+async def test_create_tag_name_differing_only_in_capitals_from_another_users_is_allowed(client):
+    """Another user's travel does not stand in the way of this user's Travel."""
+    signup_resp = await _create_user(client)
+    headers = _get_auth_header(signup_resp)
+    other_headers = _get_auth_header(await _create_second_user(client))
+
+    await _create_tag(client, other_headers, name="travel")
+    resp = await _create_tag(client, headers, name="Travel")
+
+    assert resp.status_code == 201
+
+
 async def test_create_tag_same_name_different_user_allowed(client):
     """Two different users can have tags with the same name."""
     signup_resp = await _create_user(client)
@@ -296,6 +325,37 @@ async def test_patch_tag_rename_to_duplicate_returns_409(client):
     assert "already exists" in resp.json()["detail"]
 
 
+async def test_patch_tag_rename_to_another_tags_name_in_other_capitals_returns_409(client):
+    """Renaming onto Alpha as ALPHA is the same clash as renaming onto Alpha."""
+    signup_resp = await _create_user(client)
+    headers = _get_auth_header(signup_resp)
+
+    await _create_tag(client, headers, name="Alpha")
+    create_resp = await _create_tag(client, headers, name="beta")
+    tag_id = create_resp.json()["id"]
+
+    resp = await client.patch(f"/tags/{tag_id}", json={"name": "ALPHA"}, headers=headers)
+
+    assert resp.status_code == 409
+    assert resp.json()["detail"] == "Tag with this name already exists"
+    unchanged = await client.get(f"/tags/{tag_id}", headers=headers)
+    assert unchanged.json()["name"] == "beta"
+
+
+async def test_patch_tag_changing_only_its_own_capitals_is_allowed(client):
+    """A tag does not clash with itself, so Travel can be renamed travel."""
+    signup_resp = await _create_user(client)
+    headers = _get_auth_header(signup_resp)
+
+    create_resp = await _create_tag(client, headers, name="Travel")
+    tag_id = create_resp.json()["id"]
+
+    resp = await client.patch(f"/tags/{tag_id}", json={"name": "travel"}, headers=headers)
+
+    assert resp.status_code == 200
+    assert resp.json()["name"] == "travel"
+
+
 async def test_patch_tag_without_auth_returns_401(client):
     """PATCH /tags/{id} without an Authorization header returns 401."""
     resp = await client.patch(f"/tags/{NONEXISTENT_ID}", json={"name": "X"})
@@ -361,20 +421,29 @@ async def test_delete_tag_referenced_by_transaction_returns_409(client):
     acct_resp = await _create_account(client, headers)
     account_id = acct_resp.json()["id"]
 
-    cat_resp = await client.post("/categories", json={
-        "name": "Misc", "kind": "expense",
-    }, headers=headers)
+    cat_resp = await client.post(
+        "/categories",
+        json={
+            "name": "Misc",
+            "kind": "expense",
+        },
+        headers=headers,
+    )
     category_id = cat_resp.json()["id"]
 
-    txn_resp = await client.post("/transactions", json={
-        "account_id": account_id,
-        "category_id": category_id,
-        "dt": "2026-03-15",
-        "amount": -5000,
-        "currency": "CAD",
-        "tag_ids": [tag_id],
-        "merchant_id": await _get_system_merchant_id(client, headers),
-    }, headers=headers)
+    txn_resp = await client.post(
+        "/transactions",
+        json={
+            "account_id": account_id,
+            "category_id": category_id,
+            "dt": "2026-03-15",
+            "amount": -5000,
+            "currency": "CAD",
+            "tag_ids": [tag_id],
+            "merchant_id": await _get_system_merchant_id(client, headers),
+        },
+        headers=headers,
+    )
     assert txn_resp.status_code == 201
 
     resp = await client.delete(f"/tags/{tag_id}", headers=headers)
@@ -397,18 +466,27 @@ async def test_merge_tag_moves_transaction_references_and_deletes_source(client)
     replacement_id = replacement_resp.json()["id"]
 
     account_resp = await _create_account(client, headers)
-    category_resp = await client.post("/categories", json={
-        "name": "Misc", "kind": "expense",
-    }, headers=headers)
-    transaction_resp = await client.post("/transactions", json={
-        "account_id": account_resp.json()["id"],
-        "category_id": category_resp.json()["id"],
-        "dt": "2026-03-15",
-        "amount": -5000,
-        "currency": "CAD",
-        "tag_ids": [source_id],
-        "merchant_id": await _get_system_merchant_id(client, headers),
-    }, headers=headers)
+    category_resp = await client.post(
+        "/categories",
+        json={
+            "name": "Misc",
+            "kind": "expense",
+        },
+        headers=headers,
+    )
+    transaction_resp = await client.post(
+        "/transactions",
+        json={
+            "account_id": account_resp.json()["id"],
+            "category_id": category_resp.json()["id"],
+            "dt": "2026-03-15",
+            "amount": -5000,
+            "currency": "CAD",
+            "tag_ids": [source_id],
+            "merchant_id": await _get_system_merchant_id(client, headers),
+        },
+        headers=headers,
+    )
     transaction_id = transaction_resp.json()["id"]
 
     resp = await client.post(
@@ -438,18 +516,27 @@ async def test_merge_tag_deduplicates_existing_replacement_reference(client):
     replacement_id = replacement_resp.json()["id"]
 
     account_resp = await _create_account(client, headers)
-    category_resp = await client.post("/categories", json={
-        "name": "Misc", "kind": "expense",
-    }, headers=headers)
-    transaction_resp = await client.post("/transactions", json={
-        "account_id": account_resp.json()["id"],
-        "category_id": category_resp.json()["id"],
-        "dt": "2026-03-15",
-        "amount": -5000,
-        "currency": "CAD",
-        "tag_ids": [source_id, replacement_id],
-        "merchant_id": await _get_system_merchant_id(client, headers),
-    }, headers=headers)
+    category_resp = await client.post(
+        "/categories",
+        json={
+            "name": "Misc",
+            "kind": "expense",
+        },
+        headers=headers,
+    )
+    transaction_resp = await client.post(
+        "/transactions",
+        json={
+            "account_id": account_resp.json()["id"],
+            "category_id": category_resp.json()["id"],
+            "dt": "2026-03-15",
+            "amount": -5000,
+            "currency": "CAD",
+            "tag_ids": [source_id, replacement_id],
+            "merchant_id": await _get_system_merchant_id(client, headers),
+        },
+        headers=headers,
+    )
     transaction_id = transaction_resp.json()["id"]
 
     resp = await client.post(

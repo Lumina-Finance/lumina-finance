@@ -47,6 +47,25 @@ export interface TransactionImportMerchantMapping {
   skip?: boolean
 }
 
+export interface TransactionImportCreateTag {
+  name: string
+}
+
+/**
+ * One tag name the user answered by hand, carrying exactly one of the three answers
+ *
+ * A value left alone is not sent at all, and keeps what the importer does unasked: matching the
+ * user's tag of that name, whatever its capitals, and creating one where nothing matches
+ */
+export interface TransactionImportTagMapping {
+  source: string
+  tag_id?: string | null
+  create?: TransactionImportCreateTag | null
+
+  /** True to import this value's rows without the tag */
+  skip?: boolean
+}
+
 /** The kinds of file whose rows are saved through the transaction import endpoints */
 export type TransactionImportSource = 'generic' | 'ofx' | 'qif'
 
@@ -75,6 +94,7 @@ export interface TransactionImportPayload {
   accounts: TransactionImportAccountMapping[]
   categories: TransactionImportCategoryMapping[]
   merchants: TransactionImportMerchantMapping[]
+  tags: TransactionImportTagMapping[]
   rows: TransactionImportRow[]
 }
 
@@ -83,6 +103,7 @@ export interface TransactionImportStageBatch {
   accounts: TransactionImportAccountMapping[]
   categories: TransactionImportCategoryMapping[]
   merchants: TransactionImportMerchantMapping[]
+  tags: TransactionImportTagMapping[]
   rows: TransactionImportRow[]
 
   /** Where this batch starts in the file, which is what makes staging it twice harmless */

@@ -14,7 +14,10 @@ import {
   buildFireflyAccountPrefills,
   getFireflyAccountSources,
   getFireflyImportedCategories,
+  getFireflyOverlongTag,
+  getFireflySplitGroupSizes,
   inferFireflyCategoryMappings,
+  isFireflyRowUploadable,
   readFireflyAccountDetails,
 } from '@/pages/imports/firefly/utils'
 import { createNameKeyedAccountSources } from './fixtures'
@@ -66,7 +69,10 @@ describe('the currency a Firefly account is prefilled with', () => {
   it('takes the code every row of the account states', () => {
     const rows = [createWithdrawal('Chequing', 'CAD'), createWithdrawal('Chequing', 'CAD')]
 
-    expect(buildFireflyAccountPrefills(rows, createNameKeyedAccountSources(['Chequing']), SUPPORTED_CURRENCIES).Chequing.currency).toBe('CAD')
+    expect(
+      buildFireflyAccountPrefills(rows, createNameKeyedAccountSources(['Chequing']), SUPPORTED_CURRENCIES).Chequing
+        .currency,
+    ).toBe('CAD')
   })
 
   // Three characters is all the export is asked for, so a code the app cannot store an account in
@@ -75,7 +81,11 @@ describe('the currency a Firefly account is prefilled with', () => {
   it('leaves the box empty for a code the app does not support', () => {
     const rows = [createWithdrawal('Crypto Wallet', 'BTC'), createWithdrawal('Crypto Wallet', 'BTC')]
 
-    expect(buildFireflyAccountPrefills(rows, createNameKeyedAccountSources(['Crypto Wallet']), SUPPORTED_CURRENCIES)['Crypto Wallet'].currency).toBe('')
+    expect(
+      buildFireflyAccountPrefills(rows, createNameKeyedAccountSources(['Crypto Wallet']), SUPPORTED_CURRENCIES)[
+        'Crypto Wallet'
+      ].currency,
+    ).toBe('')
   })
 
   // The overall vote stands in for an account whose own rows say nothing, so an unsupported code
@@ -87,7 +97,11 @@ describe('the currency a Firefly account is prefilled with', () => {
       createWithdrawal('Chequing', 'CAD'),
     ]
 
-    const prefills = buildFireflyAccountPrefills(rows, createNameKeyedAccountSources(['Crypto Wallet', 'Savings']), SUPPORTED_CURRENCIES)
+    const prefills = buildFireflyAccountPrefills(
+      rows,
+      createNameKeyedAccountSources(['Crypto Wallet', 'Savings']),
+      SUPPORTED_CURRENCIES,
+    )
     expect(prefills.Savings.currency).toBe('CAD')
   })
 
@@ -101,7 +115,39 @@ describe('the currency a Firefly account is prefilled with', () => {
       }),
     ]
 
-    expect(buildFireflyAccountPrefills(rows, createNameKeyedAccountSources(['Savings']), SUPPORTED_CURRENCIES).Savings.currency).toBe('CAD')
+    expect(
+      buildFireflyAccountPrefills(rows, createNameKeyedAccountSources(['Savings']), SUPPORTED_CURRENCIES).Savings
+        .currency,
+    ).toBe('CAD')
+  })
+})
+
+describe('the Firefly tags too long for a Lumina tag', () => {
+  const limit = 64
+
+  it('takes a tag of exactly 64 characters and names one of 65', () => {
+    const at = 'a'.repeat(limit)
+    const past = 'b'.repeat(limit + 1)
+
+    expect(getFireflyOverlongTag(createWithdrawal('Chequing', 'CAD', { tags: `food,${at}` }))).toBeNull()
+    expect(getFireflyOverlongTag(createWithdrawal('Chequing', 'CAD', { tags: `food,${past}` }))).toBe(past)
+  })
+
+  it('counts characters the way the endpoint does, so an emoji is one', () => {
+    const at = '😀'.repeat(limit)
+
+    expect(getFireflyOverlongTag(createWithdrawal('Chequing', 'CAD', { tags: at }))).toBeNull()
+    expect(getFireflyOverlongTag(createWithdrawal('Chequing', 'CAD', { tags: `${at}😀` }))).toBe(`${at}😀`)
+  })
+
+  it('leaves a row with a tag past the limit out of the upload and keeps one at it', () => {
+    const rows = [
+      createWithdrawal('Chequing', 'CAD', { journal_id: '1', tags: 'a'.repeat(limit) }),
+      createWithdrawal('Chequing', 'CAD', { journal_id: '2', tags: 'a'.repeat(limit + 1) }),
+    ]
+    const groupSizes = getFireflySplitGroupSizes(rows)
+
+    expect(rows.map((row) => isFireflyRowUploadable(row, groupSizes))).toEqual([true, false])
   })
 })
 
@@ -140,7 +186,10 @@ describe('getFireflyImportedCategories', () => {
       }),
     ]
 
-    expect(getFireflyImportedCategories(rows)).toEqual([JOURNAL_NO_CATEGORY_SOURCE, JOURNAL_NO_CATEGORY_MONEY_IN_SOURCE])
+    expect(getFireflyImportedCategories(rows)).toEqual([
+      JOURNAL_NO_CATEGORY_SOURCE,
+      JOURNAL_NO_CATEGORY_MONEY_IN_SOURCE,
+    ])
   })
 })
 
@@ -156,7 +205,10 @@ describe('inferFireflyCategoryMappings', () => {
       {},
     )
 
-    expect(mappings).toEqual({ [JOURNAL_NO_CATEGORY_SOURCE]: 'miscellaneous', [JOURNAL_NO_CATEGORY_MONEY_IN_SOURCE]: 'other-income' })
+    expect(mappings).toEqual({
+      [JOURNAL_NO_CATEGORY_SOURCE]: 'miscellaneous',
+      [JOURNAL_NO_CATEGORY_MONEY_IN_SOURCE]: 'other-income',
+    })
   })
 
   it('keeps an explicit choice for the placeholder over the automatic match', () => {
@@ -177,7 +229,9 @@ describe('inferFireflyCategoryMappings', () => {
     const familyGroceries = createCategory({ id: 'family-groceries', group_id: 'family' })
     const groceries = createCategory({ id: 'groceries' })
 
-    const mappings = inferFireflyCategoryMappings(['Groceries'], {}, [familyGroceries, groceries], { Groceries: 'expense' })
+    const mappings = inferFireflyCategoryMappings(['Groceries'], {}, [familyGroceries, groceries], {
+      Groceries: 'expense',
+    })
 
     expect(mappings.Groceries).toBe('groceries')
   })
@@ -223,7 +277,10 @@ describe('the accounts the Firefly III accounts export adds to', () => {
       ...withoutFile.list.map(({ id, label }) => [id, label]),
       ['listed-account-1', 'Rainy Day'],
     ])
-    expect(withFile.find('@Home Fund', 'Asset account')?.details).toMatchObject({ isActive: false, role: 'savingAsset' })
+    expect(withFile.find('@Home Fund', 'Asset account')?.details).toMatchObject({
+      isActive: false,
+      role: 'savingAsset',
+    })
     expect(withFile.find('Boat', 'Loan')?.details).toMatchObject({ isActive: true })
   })
 

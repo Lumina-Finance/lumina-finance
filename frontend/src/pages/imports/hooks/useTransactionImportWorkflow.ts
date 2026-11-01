@@ -13,7 +13,17 @@ import { useAuth } from '@/hooks/useAuth'
 import { useTodayYmd } from '@/hooks/useTodayYmd'
 import { OUTSIDE_ACCOUNT_LABEL, OUTSIDE_ACCOUNT_VALUE } from '@/utils/transfers'
 import { LOADING_ANIMATION_MIN_MS } from '@/utils/timing'
-import type { ColumnMap, ColumnTarget, ColumnValidationErrors, CsvReadingChoices, ImportAmountDirection, ImportCategoryKind, ImportFileDraft, ImportRowProblem, PreviewTransactionRow } from '@/pages/imports/types'
+import type {
+  ColumnMap,
+  ColumnTarget,
+  ColumnValidationErrors,
+  CsvReadingChoices,
+  ImportAmountDirection,
+  ImportCategoryKind,
+  ImportFileDraft,
+  ImportRowProblem,
+  PreviewTransactionRow,
+} from '@/pages/imports/types'
 import {
   buildColumnTargetOptions,
   buildImportAnswerScope,
@@ -42,6 +52,7 @@ import {
   getImportDateRangeFilter,
   getLatestStartSuggestion,
   getLatestTransactionFilters,
+  excludeRefusedRows,
   includeEveryImportRow,
   isImportDateRangeCrossed,
   getMissingRequiredColumnLabels,
@@ -83,6 +94,7 @@ import {
   validateColumnValues,
   writeScopedImportAnswers,
   emptyScopedImportAnswers,
+  alignNameAnswersWithValues,
   SEVERAL_CSV_IMPORT_FILE_TYPE,
   labelStagedFiles,
   removeStagedFile,
@@ -99,6 +111,7 @@ import { isImportableAccount } from '@/utils/importableAccount'
 import { waitForMilliseconds } from '@/utils/timing'
 import { useImportAccountCreateState } from './useImportAccountCreateState'
 import { useImportMerchantMatches } from './useImportMerchantMatches'
+import { useImportTagMatches } from './useImportTagMatches'
 import { useImportReferenceData } from './useImportReferenceData'
 import { useImportDateRange } from './useImportDateRange'
 import { useImportRun } from './useImportRun'
@@ -174,33 +187,31 @@ export function useTransactionImportWorkflow(fixedAccount: AccountsOverview | nu
     [isAccountFixed, storedColumnMap],
   )
 
-  const [scopedAccountMappings, setScopedAccountMappings] = useState<ScopedImportAnswers<string>>(emptyScopedImportAnswers)
+  const [scopedAccountMappings, setScopedAccountMappings] =
+    useState<ScopedImportAnswers<string>>(emptyScopedImportAnswers)
   const [accountAutoMatchKey, setAccountAutoMatchKey] = useState('')
 
-  const [dateFormatChoice, setDateFormatChoice] = useState(
-    () => createImportFormatChoiceState<ImportDateFormat>(''),
-  )
+  const [dateFormatChoice, setDateFormatChoice] = useState(() => createImportFormatChoiceState<ImportDateFormat>(''))
 
   // Detected and checked over every row in the file, whatever dates are chosen, since the chosen
   // dates can only be read once the format is settled
-  const dateValues = useMemo(
-    () => (columnMap.dt ? getColumnValues(files, columnMap.dt) : []),
-    [columnMap.dt, files],
-  )
+  const dateValues = useMemo(() => (columnMap.dt ? getColumnValues(files, columnMap.dt) : []), [columnMap.dt, files])
   const dateFormatScan = useMemo(
     () => scanImportDateFormatChoices(dateValues, 'automatic', timeZone),
     [dateValues, timeZone],
   )
   const dateFormatScope = buildImportDateFormatScope(columnMap, files)
   const dateFormat = resolveImportFormatChoice(dateFormatChoice, dateFormatScope, dateFormatScan.automatic)
-  const dateFormatAutomatic = dateFormatScan.automatic !== null
-    && (dateFormatChoice.scope !== dateFormatScope || dateFormatChoice.chosen === null)
+  const dateFormatAutomatic =
+    dateFormatScan.automatic !== null &&
+    (dateFormatChoice.scope !== dateFormatScope || dateFormatChoice.chosen === null)
 
   // The dates the import is limited to. Kept apart from the column mapping, since the mapping
   // describes the file while the range is a choice about this one import
   //
   // The page reads the range once the user has finished editing it, while the fields show it at once
-  const { dateRange, shownDateRange, applyDateRange, setDateRangeEnd, resetDateRange, setIsPointerInDatePanel } = useImportDateRange()
+  const { dateRange, shownDateRange, applyDateRange, setDateRangeEnd, resetDateRange, setIsPointerInDatePanel } =
+    useImportDateRange()
   const isCommitAfterDatesRef = useRef(false)
 
   const dateRangeFilter = useMemo(
@@ -228,7 +239,8 @@ export function useTransactionImportWorkflow(fixedAccount: AccountsOverview | nu
   const latestStartSuggestion = getLatestStartSuggestion(latestTransactions?.[0]?.dt)
 
   const accountMappingSources = useMemo(
-    () => buildImportAccountMappingSources(files, columnMap.account_id, columnMap.counterparty_account_id, isRowIncluded),
+    () =>
+      buildImportAccountMappingSources(files, columnMap.account_id, columnMap.counterparty_account_id, isRowIncluded),
     [columnMap.account_id, columnMap.counterparty_account_id, files, isRowIncluded],
   )
 
@@ -239,6 +251,7 @@ export function useTransactionImportWorkflow(fixedAccount: AccountsOverview | nu
   const counterpartyAnswerScope = buildImportAnswerScope(columnMap.counterparty_account_id, files)
   const categoryAnswerScope = buildImportAnswerScope(columnMap.category_id, files)
   const merchantAnswerScope = buildImportAnswerScope(columnMap.merchant_id, files)
+  const tagAnswerScope = buildImportAnswerScope(columnMap.tag_ids, files)
 
   const counterpartyOnlySourceIds = useMemo(
     () => new Set(accountMappingSources.filter((source) => source.isCounterpartyOnly).map((source) => source.id)),
@@ -248,14 +261,14 @@ export function useTransactionImportWorkflow(fixedAccount: AccountsOverview | nu
   // Both resolvers are held steady, since the answers read through them reach the commit payload
   // and the preview, and a new function each render would rebuild those on every keystroke
   const getAccountSourceScope = useMemo(
-    () => (sourceId: string) => (
-      counterpartyOnlySourceIds.has(sourceId) ? counterpartyAnswerScope : rowAccountAnswerScope
-    ),
+    () => (sourceId: string) =>
+      counterpartyOnlySourceIds.has(sourceId) ? counterpartyAnswerScope : rowAccountAnswerScope,
     [counterpartyAnswerScope, counterpartyOnlySourceIds, rowAccountAnswerScope],
   )
 
   const getCategorySourceScope = useMemo(() => () => categoryAnswerScope, [categoryAnswerScope])
   const getMerchantSourceScope = useMemo(() => () => merchantAnswerScope, [merchantAnswerScope])
+  const getTagSourceScope = useMemo(() => () => tagAnswerScope, [tagAnswerScope])
 
   const accountMappings = useMemo(
     () => readScopedImportAnswers(scopedAccountMappings, getAccountSourceScope),
@@ -265,7 +278,11 @@ export function useTransactionImportWorkflow(fixedAccount: AccountsOverview | nu
   const setAccountMappings: Dispatch<SetStateAction<Record<string, string>>> = (update) => {
     setScopedAccountMappings((current) => {
       const answers = readScopedImportAnswers(current, getAccountSourceScope)
-      return writeScopedImportAnswers(current, typeof update === 'function' ? update(answers) : update, getAccountSourceScope)
+      return writeScopedImportAnswers(
+        current,
+        typeof update === 'function' ? update(answers) : update,
+        getAccountSourceScope,
+      )
     })
   }
 
@@ -287,28 +304,38 @@ export function useTransactionImportWorkflow(fixedAccount: AccountsOverview | nu
     updateAccountMapping: updateSourceAccount,
     resetAccountCreateState,
   } = useImportAccountCreateState(setAccountMappings, getAccountSourceScope)
-  const [tagHandlingOpen, setTagHandlingOpen] = useState(true)
   const [columnValidationErrors, setColumnValidationErrors] = useState<ColumnValidationErrors>({})
 
-  const [amountFormatChoice, setAmountFormatChoice] = useState(
-    () => createImportFormatChoiceState<ImportAmountFormat>(''),
+  const [amountFormatChoice, setAmountFormatChoice] = useState(() =>
+    createImportFormatChoiceState<ImportAmountFormat>(''),
   )
 
   // What the user said each word in the Direction column means. Scoped like every other per-value
   // answer, so setting that column to Do not import and mapping it back is not the same as answering
   // the question again, and a different column's words start unanswered
-  const [scopedDirectionAnswers, setScopedDirectionAnswers] = useState<ScopedImportAnswers<ImportAmountDirection>>(emptyScopedImportAnswers)
-  const [scopedCategoryMappings, setScopedCategoryMappings] = useState<ScopedImportAnswers<string>>(emptyScopedImportAnswers)
+  const [scopedDirectionAnswers, setScopedDirectionAnswers] =
+    useState<ScopedImportAnswers<ImportAmountDirection>>(emptyScopedImportAnswers)
+  const [scopedCategoryMappings, setScopedCategoryMappings] =
+    useState<ScopedImportAnswers<string>>(emptyScopedImportAnswers)
   const [categoryAutoMatchKey, setCategoryAutoMatchKey] = useState('')
-  const [scopedCategoryCreateKinds, setScopedCategoryCreateKinds] = useState<ScopedImportAnswers<ImportCategoryKind>>(emptyScopedImportAnswers)
+  const [scopedCategoryCreateKinds, setScopedCategoryCreateKinds] =
+    useState<ScopedImportAnswers<ImportCategoryKind>>(emptyScopedImportAnswers)
 
   // The name the user typed for a new category whose own name an existing category holds for another type
-  const [scopedCategoryCreateNames, setScopedCategoryCreateNames] = useState<ScopedImportAnswers<string>>(emptyScopedImportAnswers)
+  const [scopedCategoryCreateNames, setScopedCategoryCreateNames] =
+    useState<ScopedImportAnswers<string>>(emptyScopedImportAnswers)
 
   // What the user answered for each merchant name, and the name they wrote for one being created.
   // Scoped like every other answer, so a second file's merchants start unanswered
-  const [scopedMerchantMappings, setScopedMerchantMappings] = useState<ScopedImportAnswers<string>>(emptyScopedImportAnswers)
-  const [scopedMerchantCreateNames, setScopedMerchantCreateNames] = useState<ScopedImportAnswers<string>>(emptyScopedImportAnswers)
+  const [scopedMerchantMappings, setScopedMerchantMappings] =
+    useState<ScopedImportAnswers<string>>(emptyScopedImportAnswers)
+  const [scopedMerchantCreateNames, setScopedMerchantCreateNames] =
+    useState<ScopedImportAnswers<string>>(emptyScopedImportAnswers)
+
+  // The same for each tag name, scoped to the tags column
+  const [scopedTagMappings, setScopedTagMappings] = useState<ScopedImportAnswers<string>>(emptyScopedImportAnswers)
+  const [scopedTagCreateNames, setScopedTagCreateNames] =
+    useState<ScopedImportAnswers<string>>(emptyScopedImportAnswers)
 
   // Tells a finished file read whether the workflow it started in is still the one on screen, so a
   // reset in between drops its result instead of writing into what replaced it
@@ -342,15 +369,16 @@ export function useTransactionImportWorkflow(fixedAccount: AccountsOverview | nu
     scopedCategoryCreateNames,
     scopedMerchantMappings,
     scopedMerchantCreateNames,
+    scopedTagMappings,
+    scopedTagCreateNames,
   })
 
   const run = useImportRun<TransactionImportResponse, ImportRowProblem>({
     answers: importAnswers,
     uploadLabel: CSV_UPLOAD_LABEL,
     mutations: [importTransactions, commitStagedImport],
-    formatSummary: ({ result, skippedRowsAtCommit, outsideRangeCountAtCommit }) => (
-      formatImportSummary(result, skippedRowsAtCommit.length, outsideRangeCountAtCommit)
-    ),
+    formatSummary: ({ result, skippedRowsAtCommit, outsideRangeCountAtCommit }) =>
+      formatImportSummary(result, skippedRowsAtCommit.length, outsideRangeCountAtCommit),
   })
 
   const categoryMappings = useMemo(
@@ -366,14 +394,22 @@ export function useTransactionImportWorkflow(fixedAccount: AccountsOverview | nu
   const setCategoryMappings: Dispatch<SetStateAction<Record<string, string>>> = (update) => {
     setScopedCategoryMappings((current) => {
       const answers = readScopedImportAnswers(current, getCategorySourceScope)
-      return writeScopedImportAnswers(current, typeof update === 'function' ? update(answers) : update, getCategorySourceScope)
+      return writeScopedImportAnswers(
+        current,
+        typeof update === 'function' ? update(answers) : update,
+        getCategorySourceScope,
+      )
     })
   }
 
   const setCategoryCreateKinds: Dispatch<SetStateAction<Record<string, ImportCategoryKind>>> = (update) => {
     setScopedCategoryCreateKinds((current) => {
       const answers = readScopedImportAnswers(current, getCategorySourceScope)
-      return writeScopedImportAnswers(current, typeof update === 'function' ? update(answers) : update, getCategorySourceScope)
+      return writeScopedImportAnswers(
+        current,
+        typeof update === 'function' ? update(answers) : update,
+        getCategorySourceScope,
+      )
     })
   }
 
@@ -385,7 +421,11 @@ export function useTransactionImportWorkflow(fixedAccount: AccountsOverview | nu
   const setCategoryCreateNames: Dispatch<SetStateAction<Record<string, string>>> = (update) => {
     setScopedCategoryCreateNames((current) => {
       const answers = readScopedImportAnswers(current, getCategorySourceScope)
-      return writeScopedImportAnswers(current, typeof update === 'function' ? update(answers) : update, getCategorySourceScope)
+      return writeScopedImportAnswers(
+        current,
+        typeof update === 'function' ? update(answers) : update,
+        getCategorySourceScope,
+      )
     })
   }
 
@@ -402,16 +442,25 @@ export function useTransactionImportWorkflow(fixedAccount: AccountsOverview | nu
   const setMerchantMappings: Dispatch<SetStateAction<Record<string, string>>> = (update) => {
     setScopedMerchantMappings((current) => {
       const answers = readScopedImportAnswers(current, getMerchantSourceScope)
-      return writeScopedImportAnswers(current, typeof update === 'function' ? update(answers) : update, getMerchantSourceScope)
+      return writeScopedImportAnswers(
+        current,
+        typeof update === 'function' ? update(answers) : update,
+        getMerchantSourceScope,
+      )
     })
   }
 
   const setMerchantCreateNames: Dispatch<SetStateAction<Record<string, string>>> = (update) => {
     setScopedMerchantCreateNames((current) => {
       const answers = readScopedImportAnswers(current, getMerchantSourceScope)
-      return writeScopedImportAnswers(current, typeof update === 'function' ? update(answers) : update, getMerchantSourceScope)
+      return writeScopedImportAnswers(
+        current,
+        typeof update === 'function' ? update(answers) : update,
+        getMerchantSourceScope,
+      )
     })
   }
+
   const {
     currencies,
     categories,
@@ -438,27 +487,25 @@ export function useTransactionImportWorkflow(fixedAccount: AccountsOverview | nu
     institutionById,
   } = useImportReferenceData()
 
-  const supportedCurrencyCodes = useMemo(
-    () => getSupportedCurrencyCodes(currencies),
-    [currencies],
-  )
+  const supportedCurrencyCodes = useMemo(() => getSupportedCurrencyCodes(currencies), [currencies])
 
   // What each account source's own rows say its currency is, which is what a row creating an
   // account starts out holding
   const statedAccountCurrencies = useMemo(
-    () => getStatedCurrencyByAccountSource(files, columnMap.account_id, columnMap.currency, supportedCurrencyCodes, isRowIncluded),
+    () =>
+      getStatedCurrencyByAccountSource(
+        files,
+        columnMap.account_id,
+        columnMap.currency,
+        supportedCurrencyCodes,
+        isRowIncluded,
+      ),
     [columnMap.account_id, columnMap.currency, files, isRowIncluded, supportedCurrencyCodes],
   )
 
-  const headers = useMemo(
-    () => getImportHeaders(files),
-    [files],
-  )
+  const headers = useMemo(() => getImportHeaders(files), [files])
 
-  const missingRequiredColumnLabels = useMemo(
-    () => getMissingRequiredColumnLabels(columnMap),
-    [columnMap],
-  )
+  const missingRequiredColumnLabels = useMemo(() => getMissingRequiredColumnLabels(columnMap), [columnMap])
 
   const columnTargetOptions = useMemo(
     () => buildColumnTargetOptions({ omitAccountColumn: isAccountFixed }),
@@ -478,20 +525,18 @@ export function useTransactionImportWorkflow(fixedAccount: AccountsOverview | nu
     () => scanImportAmountFormatChoices(getImportAmountFormatValues(columnMap, files)),
     [columnMap, files],
   )
-  const amountFormat = resolveImportFormatChoice(
-    amountFormatChoice,
-    amountFormatScope,
-    amountFormatScan.automatic,
-  )
-  const amountFormatAutomatic = amountFormatScan.automatic !== null
-    && (amountFormatChoice.scope !== amountFormatScope || amountFormatChoice.chosen === null)
+  const amountFormat = resolveImportFormatChoice(amountFormatChoice, amountFormatScope, amountFormatScan.automatic)
+  const amountFormatAutomatic =
+    amountFormatScan.automatic !== null &&
+    (amountFormatChoice.scope !== amountFormatScope || amountFormatChoice.chosen === null)
 
   // The date column answers to a choice made outside the mapping table, so its error is worked out
   // on every render rather than kept in the stored map, which only refreshes when a mapping changes
   const dateColumnValidation = useMemo(
-    () => (columnMap.dt
-      ? validateColumnValues(files, columnMap.dt, 'dt', supportedCurrencyCodes, dateFormat, { timeZone })
-      : null),
+    () =>
+      columnMap.dt
+        ? validateColumnValues(files, columnMap.dt, 'dt', supportedCurrencyCodes, dateFormat, { timeZone })
+        : null,
     [columnMap.dt, dateFormat, files, supportedCurrencyCodes, timeZone],
   )
 
@@ -525,7 +570,8 @@ export function useTransactionImportWorkflow(fixedAccount: AccountsOverview | nu
   // the panel asks about and what the commit checks has been answered. Empty where no such column is
   // mapped. Whether the column holds too many words to be a direction is still judged on every row
   const directionValues = useMemo(
-    () => (columnMap.amount_direction ? getImportDirectionValues(files, columnMap.amount_direction, isRowIncluded) : []),
+    () =>
+      columnMap.amount_direction ? getImportDirectionValues(files, columnMap.amount_direction, isRowIncluded) : [],
     [columnMap.amount_direction, files, isRowIncluded],
   )
 
@@ -558,16 +604,18 @@ export function useTransactionImportWorkflow(fixedAccount: AccountsOverview | nu
   )
 
   const setDirectionAnswer = (value: string, direction: ImportAmountDirection) => {
-    setScopedDirectionAnswers((current) => writeScopedImportAnswers(
-      current,
-      answerImportDirectionValue(
-        readScopedImportAnswers(current, getDirectionValueScope),
-        directionValues,
-        value,
-        direction,
+    setScopedDirectionAnswers((current) =>
+      writeScopedImportAnswers(
+        current,
+        answerImportDirectionValue(
+          readScopedImportAnswers(current, getDirectionValueScope),
+          directionValues,
+          value,
+          direction,
+        ),
+        getDirectionValueScope,
       ),
-      getDirectionValueScope,
-    ))
+    )
   }
 
   // Only a source no row is written to can answer that the money left the tracked accounts, so the
@@ -586,13 +634,14 @@ export function useTransactionImportWorkflow(fixedAccount: AccountsOverview | nu
   // which is what writes the key, so comparing against the emptied map would call the key stale on
   // a scope change alone. The match would then never run and every counterparty the file names
   // would quietly record its transfer as money leaving the app
-  const canInferAccountMappings = Boolean(accountAutoMatchKey)
-    && accountAutoMatchKey === (storedColumnMap.account_id || FILE_ACCOUNT_MATCH_KEY)
+  const canInferAccountMappings =
+    Boolean(accountAutoMatchKey) && accountAutoMatchKey === (storedColumnMap.account_id || FILE_ACCOUNT_MATCH_KEY)
 
   const { mappings: liveAccountMappings, clearedSources: clearedAccountSources } = useMemo(
-    () => (accountsResolved
-      ? dropVanishedAccountMappings(accountMappings, accountById)
-      : { mappings: accountMappings, clearedSources: NO_CLEARED_SOURCES }),
+    () =>
+      accountsResolved
+        ? dropVanishedAccountMappings(accountMappings, accountById)
+        : { mappings: accountMappings, clearedSources: NO_CLEARED_SOURCES },
     [accountById, accountMappings, accountsResolved],
   )
 
@@ -605,27 +654,35 @@ export function useTransactionImportWorkflow(fixedAccount: AccountsOverview | nu
   // account the import created from it. A finished import's record matches without those, so the
   // account shows as created, the way it was imported
   const createdAccountIds = run.workflow.importResult?.created_account_ids
-  const { matchedMappings: matchedAccountMappings, resolvedMappings: resolvedAccountMappings } = useMemo(
-    () => {
-      const created = new Set(createdAccountIds)
-      const isKnownBeforeImport = (account: { id: string }) => !created.has(account.id)
+  const { matchedMappings: matchedAccountMappings, resolvedMappings: resolvedAccountMappings } = useMemo(() => {
+    const created = new Set(createdAccountIds)
+    const isKnownBeforeImport = (account: { id: string }) => !created.has(account.id)
 
-      return resolveImportAccountMappings({
-        sources: accountMappingSources,
-        liveMappings: liveAccountMappings,
-        clearedSourceIds: clearedAccountSources,
-        fixedAccountId: fixedAccount?.id ?? null,
-        canInfer: canInferAccountMappings,
-        accountsCurrent,
-        rowAccounts: selectableAccounts.filter(isKnownBeforeImport),
-        counterpartyAccounts: allAccounts.filter(isKnownBeforeImport),
-      })
-    },
-    [accountMappingSources, accountsCurrent, allAccounts, canInferAccountMappings, clearedAccountSources, createdAccountIds, fixedAccount, liveAccountMappings, selectableAccounts],
-  )
+    return resolveImportAccountMappings({
+      sources: accountMappingSources,
+      liveMappings: liveAccountMappings,
+      clearedSourceIds: clearedAccountSources,
+      fixedAccountId: fixedAccount?.id ?? null,
+      canInfer: canInferAccountMappings,
+      accountsCurrent,
+      rowAccounts: selectableAccounts.filter(isKnownBeforeImport),
+      counterpartyAccounts: allAccounts.filter(isKnownBeforeImport),
+    })
+  }, [
+    accountMappingSources,
+    accountsCurrent,
+    allAccounts,
+    canInferAccountMappings,
+    clearedAccountSources,
+    createdAccountIds,
+    fixedAccount,
+    liveAccountMappings,
+    selectableAccounts,
+  ])
 
   const resolvedAccountCreateCurrencies = useMemo(
-    () => resolveImportAccountCreateCurrencies(accountCreateCurrencies, resolvedAccountMappings, statedAccountCurrencies),
+    () =>
+      resolveImportAccountCreateCurrencies(accountCreateCurrencies, resolvedAccountMappings, statedAccountCurrencies),
     [accountCreateCurrencies, resolvedAccountMappings, statedAccountCurrencies],
   )
 
@@ -633,21 +690,24 @@ export function useTransactionImportWorkflow(fixedAccount: AccountsOverview | nu
   // still waiting on an answer: the create-new fallback can leave a cleared row finished, and a
   // notice telling the user to answer a row they have already answered is worse than no notice
   const clearedAccountSourceLabels = useMemo(
-    () => accountMappingSources
-      .filter((source) => {
-        if (!clearedAccountSources.has(source.id)) return false
+    () =>
+      accountMappingSources
+        .filter((source) => {
+          if (!clearedAccountSources.has(source.id)) return false
 
-        const value = resolvedAccountMappings[source.id] ?? ''
-        const account = accountById.get(value)
-        return getImportAccountRowState({
-          value,
-          isCounterpartyOnly: source.isCounterpartyOnly,
-          createType: accountCreateTypes[source.id] ?? '',
-          createCurrency: resolvedAccountCreateCurrencies[source.id] ?? '',
-          isReadOnlyAccount: account ? !isImportableAccount(account) : false,
-        }) === 'review'
-      })
-      .map((source) => source.label),
+          const value = resolvedAccountMappings[source.id] ?? ''
+          const account = accountById.get(value)
+          return (
+            getImportAccountRowState({
+              value,
+              isCounterpartyOnly: source.isCounterpartyOnly,
+              createType: accountCreateTypes[source.id] ?? '',
+              createCurrency: resolvedAccountCreateCurrencies[source.id] ?? '',
+              isReadOnlyAccount: account ? !isImportableAccount(account) : false,
+            }) === 'review'
+          )
+        })
+        .map((source) => source.label),
     [
       accountById,
       accountCreateTypes,
@@ -664,20 +724,17 @@ export function useTransactionImportWorkflow(fixedAccount: AccountsOverview | nu
   // A source rows are written to is left out while the account is fixed. Its answer is that account
   // whatever the user picked earlier, so reporting it as theirs would offer a later reader an answer
   // the step is ignoring
-  const handAnsweredAccountSources = useMemo(
-    () => {
-      const counterpartyOnly = new Set(
-        accountMappingSources.filter((source) => source.isCounterpartyOnly).map((source) => source.id),
-      )
+  const handAnsweredAccountSources = useMemo(() => {
+    const counterpartyOnly = new Set(
+      accountMappingSources.filter((source) => source.isCounterpartyOnly).map((source) => source.id),
+    )
 
-      return new Set(
-        Object.entries(liveAccountMappings)
-          .filter(([source, choice]) => choice && !(isAccountFixed && !counterpartyOnly.has(source)))
-          .map(([source]) => source),
-      )
-    },
-    [accountMappingSources, isAccountFixed, liveAccountMappings],
-  )
+    return new Set(
+      Object.entries(liveAccountMappings)
+        .filter(([source, choice]) => choice && !(isAccountFixed && !counterpartyOnly.has(source)))
+        .map(([source]) => source),
+    )
+  }, [accountMappingSources, isAccountFixed, liveAccountMappings])
 
   // Read before the create-new fallback, which answers every row source and would therefore leave
   // this with nothing to report, dropping the notice without a word
@@ -687,21 +744,22 @@ export function useTransactionImportWorkflow(fixedAccount: AccountsOverview | nu
   )
 
   const autoFilledAccountSources = useMemo(
-    () => new Set(
-      accountMappingSources
-        .filter((source) => {
-          // The highlight means an account was recognised from what the file says, and the account
-          // an import was started from is neither recognised nor shown in a row of its own
-          if (isAccountFixed && !source.isCounterpartyOnly) return false
+    () =>
+      new Set(
+        accountMappingSources
+          .filter((source) => {
+            // The highlight means an account was recognised from what the file says, and the account
+            // an import was started from is neither recognised nor shown in a row of its own
+            if (isAccountFixed && !source.isCounterpartyOnly) return false
 
-          return isAutoFilledAccountSource(
-            liveAccountMappings[source.id] ?? '',
-            resolvedAccountMappings[source.id] ?? '',
-            source.isCounterpartyOnly,
-          )
-        })
-        .map((source) => source.id),
-    ),
+            return isAutoFilledAccountSource(
+              liveAccountMappings[source.id] ?? '',
+              resolvedAccountMappings[source.id] ?? '',
+              source.isCounterpartyOnly,
+            )
+          })
+          .map((source) => source.id),
+      ),
     [accountMappingSources, isAccountFixed, liveAccountMappings, resolvedAccountMappings],
   )
 
@@ -734,17 +792,13 @@ export function useTransactionImportWorkflow(fixedAccount: AccountsOverview | nu
     [amountFormat, columnMap, directionAnswers, importedCategories, files, isRowIncluded],
   )
 
-  const importedTags = useMemo(
-    () => getImportedTags(files, columnMap.tag_ids, isRowIncluded),
-    [columnMap.tag_ids, files, isRowIncluded],
-  )
-
   const canInferCategoryMappings = categoryAutoMatchKey === (columnMap.category_id || NO_CATEGORY_COLUMN_MATCH_KEY)
 
   const { mappings: liveCategoryMappings, clearedSources: clearedCategorySources } = useMemo(
-    () => (categoriesResolved
-      ? dropVanishedCategoryMappings(categoryMappings, categoryById)
-      : { mappings: categoryMappings, clearedSources: NO_CLEARED_SOURCES }),
+    () =>
+      categoriesResolved
+        ? dropVanishedCategoryMappings(categoryMappings, categoryById)
+        : { mappings: categoryMappings, clearedSources: NO_CLEARED_SOURCES },
     [categoriesResolved, categoryById, categoryMappings],
   )
 
@@ -758,33 +812,40 @@ export function useTransactionImportWorkflow(fixedAccount: AccountsOverview | nu
     () => new Map([...categoryById].filter(([id]) => !createdCategoryIds?.includes(id))),
     [categoryById, createdCategoryIds],
   )
-  const resolvedCategoryMappings = useMemo(
-    () => {
-      // A name whose category has gone is kept away from the guess, so it reads as unanswered
-      // until the user answers it
-      const answerableCategories = importedCategories.filter((category) => !clearedCategorySources.has(category))
-      const created = new Set(createdCategoryIds)
-      const knownBeforeImport = (categories ?? []).filter((category) => !created.has(category.id))
-      const matched = canInferCategoryMappings
-        ? inferCategoryMappings(answerableCategories, liveCategoryMappings, knownBeforeImport)
-        : keepCurrentMatchMap(liveCategoryMappings, answerableCategories)
+  const resolvedCategoryMappings = useMemo(() => {
+    // A name whose category has gone is kept away from the guess, so it reads as unanswered
+    // until the user answers it
+    const answerableCategories = importedCategories.filter((category) => !clearedCategorySources.has(category))
+    const created = new Set(createdCategoryIds)
+    const knownBeforeImport = (categories ?? []).filter((category) => !created.has(category.id))
+    const matched = canInferCategoryMappings
+      ? inferCategoryMappings(answerableCategories, liveCategoryMappings, knownBeforeImport)
+      : keepCurrentMatchMap(liveCategoryMappings, answerableCategories)
 
-      // A cleared name still needs its row, just an unanswered one
-      if (clearedCategorySources.size === 0) return matched
+    // A cleared name still needs its row, just an unanswered one
+    if (clearedCategorySources.size === 0) return matched
 
-      const resolved = { ...matched }
-      for (const category of importedCategories) {
-        if (clearedCategorySources.has(category)) resolved[category] = ''
-      }
-      return resolved
-    },
-    [canInferCategoryMappings, categories, clearedCategorySources, createdCategoryIds, importedCategories, liveCategoryMappings],
-  )
+    const resolved = { ...matched }
+    for (const category of importedCategories) {
+      if (clearedCategorySources.has(category)) resolved[category] = ''
+    }
+    return resolved
+  }, [
+    canInferCategoryMappings,
+    categories,
+    clearedCategorySources,
+    createdCategoryIds,
+    importedCategories,
+    liveCategoryMappings,
+  ])
 
   const autoFilledCategories = useMemo(
-    () => new Set(
-      importedCategories.filter((category) => !liveCategoryMappings[category] && Boolean(resolvedCategoryMappings[category])),
-    ),
+    () =>
+      new Set(
+        importedCategories.filter(
+          (category) => !liveCategoryMappings[category] && Boolean(resolvedCategoryMappings[category]),
+        ),
+      ),
     [importedCategories, liveCategoryMappings, resolvedCategoryMappings],
   )
 
@@ -796,47 +857,172 @@ export function useTransactionImportWorkflow(fixedAccount: AccountsOverview | nu
   )
 
   const categoryRenames = useMemo(
-    () => getCsvCategoryRenames({
-      importedCategories,
-      mappings: resolvedCategoryMappings,
-      createKinds: categoryCreateKinds,
-      typesBySource: categoryTypesBySource,
-      typedNames: categoryCreateNames,
-      categoryById,
-    }),
-    [categoryById, categoryCreateKinds, categoryCreateNames, categoryTypesBySource, importedCategories, resolvedCategoryMappings],
-  )
-
-  const importBuild = useMemo(
-    () => buildTransactionImportPayload({
-      accountById,
-      accountCreateCurrencies: resolvedAccountCreateCurrencies,
-      accountCreateInstitutions,
-      accountCreateTypes,
-      accountMappings: resolvedAccountMappings,
-      accountSources: accountMappingSources,
+    () =>
+      getCsvCategoryRenames({
+        importedCategories,
+        mappings: resolvedCategoryMappings,
+        createKinds: categoryCreateKinds,
+        typesBySource: categoryTypesBySource,
+        typedNames: categoryCreateNames,
+        categoryById,
+      }),
+    [
       categoryById,
       categoryCreateKinds,
-      categoryMappings: resolvedCategoryMappings,
+      categoryCreateNames,
+      categoryTypesBySource,
+      importedCategories,
+      resolvedCategoryMappings,
+    ],
+  )
+
+  // Which rows the import refuses, judged without the tag answers because those are about the names
+  // the rows that import carry. A row refused for any reason is not written, so the tag step asks
+  // about the spellings of the rows that are
+  const refusedRowCells = useMemo(
+    () =>
+      buildTransactionImportPayload({
+        accountById,
+        accountCreateCurrencies: resolvedAccountCreateCurrencies,
+        accountCreateInstitutions,
+        accountCreateTypes,
+        accountMappings: resolvedAccountMappings,
+        accountSources: accountMappingSources,
+        categoryById,
+        categoryCreateKinds,
+        categoryMappings: resolvedCategoryMappings,
+        categoryRenames,
+        categoryTypesBySource,
+        columnMap,
+        columnValidationErrors: resolvedColumnValidationErrors,
+        currencies,
+        dateFormat,
+        timeZone,
+        dateRange,
+        amountFormat,
+        directionAnswers,
+        files,
+        importedCategories,
+      }).rowProblems.map((problem) => problem.cells),
+    [
+      accountById,
+      accountCreateInstitutions,
+      accountCreateTypes,
+      accountMappingSources,
+      amountFormat,
+      categoryById,
+      categoryCreateKinds,
       categoryRenames,
       categoryTypesBySource,
       columnMap,
-      columnValidationErrors: resolvedColumnValidationErrors,
       currencies,
       dateFormat,
-      timeZone,
       dateRange,
-      amountFormat,
       directionAnswers,
       files,
       importedCategories,
-      merchantAnswers: {
-        importedMerchants,
-        matchedMerchantByKey,
-        merchantMappings,
-        merchantCreateNames,
-      },
-    }),
+      resolvedAccountCreateCurrencies,
+      resolvedAccountMappings,
+      resolvedCategoryMappings,
+      resolvedColumnValidationErrors,
+      timeZone,
+    ],
+  )
+
+  const importedTags = useMemo(
+    () => getImportedTags(files, columnMap.tag_ids, excludeRefusedRows(isRowIncluded, refusedRowCells)),
+    [columnMap.tag_ids, files, isRowIncluded, refusedRowCells],
+  )
+
+  // Held under the spelling shown when each was given, which a date range can leave out of the rows
+  // while another spelling of the same tag stays, so they are read and written under the spelling
+  // the step asks about now
+  const tagMappings = useMemo(
+    () => alignNameAnswersWithValues(readScopedImportAnswers(scopedTagMappings, getTagSourceScope), importedTags),
+    [getTagSourceScope, importedTags, scopedTagMappings],
+  )
+
+  const tagCreateNames = useMemo(
+    () => alignNameAnswersWithValues(readScopedImportAnswers(scopedTagCreateNames, getTagSourceScope), importedTags),
+    [getTagSourceScope, importedTags, scopedTagCreateNames],
+  )
+
+  const setTagMappings: Dispatch<SetStateAction<Record<string, string>>> = (update) => {
+    setScopedTagMappings((current) => {
+      const answers = alignNameAnswersWithValues(readScopedImportAnswers(current, getTagSourceScope), importedTags)
+      return writeScopedImportAnswers(
+        current,
+        typeof update === 'function' ? update(answers) : update,
+        getTagSourceScope,
+      )
+    })
+  }
+
+  const setTagCreateNames: Dispatch<SetStateAction<Record<string, string>>> = (update) => {
+    setScopedTagCreateNames((current) => {
+      const answers = alignNameAnswersWithValues(readScopedImportAnswers(current, getTagSourceScope), importedTags)
+      return writeScopedImportAnswers(
+        current,
+        typeof update === 'function' ? update(answers) : update,
+        getTagSourceScope,
+      )
+    })
+  }
+
+  const {
+    matchedTagByKey,
+    tagMatchesLoading,
+    tagMatchesFailed,
+    refetchTagMatches,
+    tagOptions,
+    rememberPickedTag,
+    tagSearch,
+    setTagSearch,
+    tagSearchLoading,
+    hasMoreTagResults,
+    loadMoreTagResults,
+  } = useImportTagMatches(importedTags)
+
+  // What each tag a row can be pointed at is called, for the preview to show the tag it will carry
+  const tagLabelById = useMemo(() => new Map(tagOptions.map((option) => [option.value, option.label])), [tagOptions])
+
+  const importBuild = useMemo(
+    () =>
+      buildTransactionImportPayload({
+        accountById,
+        accountCreateCurrencies: resolvedAccountCreateCurrencies,
+        accountCreateInstitutions,
+        accountCreateTypes,
+        accountMappings: resolvedAccountMappings,
+        accountSources: accountMappingSources,
+        categoryById,
+        categoryCreateKinds,
+        categoryMappings: resolvedCategoryMappings,
+        categoryRenames,
+        categoryTypesBySource,
+        columnMap,
+        columnValidationErrors: resolvedColumnValidationErrors,
+        currencies,
+        dateFormat,
+        timeZone,
+        dateRange,
+        amountFormat,
+        directionAnswers,
+        files,
+        importedCategories,
+        merchantAnswers: {
+          importedMerchants,
+          matchedMerchantByKey,
+          merchantMappings,
+          merchantCreateNames,
+        },
+        tagAnswers: {
+          importedTags,
+          matchedTagByKey,
+          tagMappings,
+          tagCreateNames,
+        },
+      }),
     [
       accountById,
       accountCreateInstitutions,
@@ -855,9 +1041,13 @@ export function useTransactionImportWorkflow(fixedAccount: AccountsOverview | nu
       files,
       importedCategories,
       importedMerchants,
+      importedTags,
       matchedMerchantByKey,
+      matchedTagByKey,
       merchantCreateNames,
       merchantMappings,
+      tagCreateNames,
+      tagMappings,
       resolvedAccountCreateCurrencies,
       resolvedAccountMappings,
       resolvedCategoryMappings,
@@ -869,35 +1059,60 @@ export function useTransactionImportWorkflow(fixedAccount: AccountsOverview | nu
   // Built after the payload so both read one decision about which rows can be converted, rather
   // than the preview coercing an unreadable amount to zero beside the entry refusing that row
   const previewRows = useMemo<PreviewTransactionRow[]>(
-    () => buildImportPreviewRows({
-      files,
-      columnMap,
-      dateFormat,
-      timeZone,
-      dateRange,
-      amountFormat,
-      directionAnswers,
-      missingRequiredColumnLabels,
-      currencies,
+    () =>
+      buildImportPreviewRows({
+        files,
+        columnMap,
+        dateFormat,
+        timeZone,
+        dateRange,
+        amountFormat,
+        directionAnswers,
+        missingRequiredColumnLabels,
+        currencies,
+        accountById,
+        accountCreateCurrencies: resolvedAccountCreateCurrencies,
+        accountCreateInstitutions,
+        categoryById,
+        categoryCreateKinds,
+        categoryRenames,
+        categoryTypesBySource,
+        institutionById,
+        resolvedAccountMappings,
+        resolvedCategoryMappings,
+        rowProblems: importBuild.rowProblems,
+        tagAnswers: { importedTags, matchedTagByKey, tagMappings, tagCreateNames, tagLabelById },
+      }),
+    [
+      importedTags,
+      matchedTagByKey,
+      tagCreateNames,
+      tagLabelById,
+      tagMappings,
       accountById,
-      accountCreateCurrencies: resolvedAccountCreateCurrencies,
       accountCreateInstitutions,
+      amountFormat,
       categoryById,
       categoryCreateKinds,
       categoryRenames,
       categoryTypesBySource,
+      columnMap,
+      currencies,
+      dateFormat,
+      dateRange,
+      directionAnswers,
+      files,
+      importBuild.rowProblems,
       institutionById,
+      missingRequiredColumnLabels,
+      resolvedAccountCreateCurrencies,
       resolvedAccountMappings,
       resolvedCategoryMappings,
-      rowProblems: importBuild.rowProblems,
-    }),
-    [accountById, accountCreateInstitutions, amountFormat, categoryById, categoryCreateKinds, categoryRenames, categoryTypesBySource, columnMap, currencies, dateFormat, dateRange, directionAnswers, files, importBuild.rowProblems, institutionById, missingRequiredColumnLabels, resolvedAccountCreateCurrencies, resolvedAccountMappings, resolvedCategoryMappings, timeZone],
+      timeZone,
+    ],
   )
 
-  const previewGroups = useMemo(
-    () => groupPreviewRowsByDate(previewRows),
-    [previewRows],
-  )
+  const previewGroups = useMemo(() => groupPreviewRowsByDate(previewRows), [previewRows])
 
   const totalRows = files.reduce((sum, file) => sum + file.rows.length, 0)
   const importStats = getCsvImportStats({
@@ -920,9 +1135,12 @@ export function useTransactionImportWorkflow(fixedAccount: AccountsOverview | nu
   // ones exist. The list read when the page opens counts, and so does one an import or undo has since
   // asked to read again, once that reload is in, since the file just imported is the one most likely
   // to come next. If reading them fails, the file is read by detection alone, as if none were saved
-  const uploadBlockReason = getImportUploadBlockReason(currencies, currenciesError)
-    ?? (isAccountFixed
-      ? getImportLayoutsUploadBlockReason(importLayouts.isError || (importLayouts.isFetchedAfterMount && !importLayouts.isStale))
+  const uploadBlockReason =
+    getImportUploadBlockReason(currencies, currenciesError) ??
+    (isAccountFixed
+      ? getImportLayoutsUploadBlockReason(
+          importLayouts.isError || (importLayouts.isFetchedAfterMount && !importLayouts.isStale),
+        )
       : null)
 
   const canCommitImport = run.canCommit({
@@ -948,14 +1166,12 @@ export function useTransactionImportWorkflow(fixedAccount: AccountsOverview | nu
 
   /** Moves both format answers to the file and relevant columns being applied */
   const moveFormatChoicesTo = (nextColumnMap: ColumnMap, nextFiles: ImportFileDraft[]) => {
-    setDateFormatChoice((current) => moveImportFormatChoiceToScope(
-      current,
-      buildImportDateFormatScope(nextColumnMap, nextFiles),
-    ))
-    setAmountFormatChoice((current) => moveImportFormatChoiceToScope(
-      current,
-      buildImportAmountFormatScope(nextColumnMap, nextFiles),
-    ))
+    setDateFormatChoice((current) =>
+      moveImportFormatChoiceToScope(current, buildImportDateFormatScope(nextColumnMap, nextFiles)),
+    )
+    setAmountFormatChoice((current) =>
+      moveImportFormatChoiceToScope(current, buildImportAmountFormatScope(nextColumnMap, nextFiles)),
+    )
   }
 
   /**
@@ -989,9 +1205,15 @@ export function useTransactionImportWorkflow(fixedAccount: AccountsOverview | nu
     // the same values
     const isStartingOver = startFresh || settings !== null
     const baseColumnMap = settings?.columnMap ?? (startFresh ? EMPTY_COLUMN_MAP : columnMap)
-    const result = inferColumnMap(baseColumnMap, nextFiles, supportedCurrencyCodes, decidedHeaders ?? (startFresh ? new Set() : decidedColumnHeaders), {
-      omitAccountColumn: isAccountFixed,
-    })
+    const result = inferColumnMap(
+      baseColumnMap,
+      nextFiles,
+      supportedCurrencyCodes,
+      decidedHeaders ?? (startFresh ? new Set() : decidedColumnHeaders),
+      {
+        omitAccountColumn: isAccountFixed,
+      },
+    )
 
     setFiles(nextFiles)
     setStoredColumnMap(result.map)
@@ -1003,16 +1225,20 @@ export function useTransactionImportWorkflow(fixedAccount: AccountsOverview | nu
     moveFormatChoicesTo(result.map, nextFiles)
     if (settings) {
       setDateFormatChoice(chooseImportFormat(buildImportDateFormatScope(result.map, nextFiles), settings.dateFormat))
-      setAmountFormatChoice(chooseImportFormat(buildImportAmountFormatScope(result.map, nextFiles), settings.amountFormat))
+      setAmountFormatChoice(
+        chooseImportFormat(buildImportAmountFormatScope(result.map, nextFiles), settings.amountFormat),
+      )
     }
     setColumnValidationErrors(result.errors)
 
     // Every column a saved layout mapped is shown as filled in by the app, until the user answers it
-    setAutoFilledColumnHeaders((current) => getNextAutoFilledColumnHeaders(
-      isStartingOver ? new Set() : current,
-      settings ? EMPTY_COLUMN_MAP : baseColumnMap,
-      result.map,
-    ))
+    setAutoFilledColumnHeaders((current) =>
+      getNextAutoFilledColumnHeaders(
+        isStartingOver ? new Set() : current,
+        settings ? EMPTY_COLUMN_MAP : baseColumnMap,
+        result.map,
+      ),
+    )
     syncAutoMatchKeys(result.map, result.errors, nextFiles)
   }
 
@@ -1123,22 +1349,31 @@ export function useTransactionImportWorkflow(fixedAccount: AccountsOverview | nu
     const workflowRun = startWorkflowRun()
     setIsProcessingFiles(true)
     try {
-      const readDrafts = await Promise.all(sourceFiles.map((sourceFile) => readCsvFile(sourceFile, supportedCurrencyCodes, {
-        requireDataRows: true,
-        offersReadingChoices: true,
-        ...choices,
-      })))
+      const readDrafts = await Promise.all(
+        sourceFiles.map((sourceFile) =>
+          readCsvFile(sourceFile, supportedCurrencyCodes, {
+            requireDataRows: true,
+            offersReadingChoices: true,
+            ...choices,
+          }),
+        ),
+      )
       if (!isCurrentWorkflowRun(workflowRun)) return
       // The files are checked against each other again, since the new choices can give one other
       // headings or push the total past a limit, and a file that no longer fits stays staged with
       // that as its error. Each keeps its id, which the staged list draws it by, rather than leaving
       // and returning as another file
-      const restaged = restageImportFiles(readDrafts.map((draft, index) => ({
-        draft: { ...draft, id: files[index].id, identityId: files[index].identityId },
-        source: sourceFiles[index],
-      })))
+      const restaged = restageImportFiles(
+        readDrafts.map((draft, index) => ({
+          draft: { ...draft, id: files[index].id, identityId: files[index].identityId },
+          source: sourceFiles[index],
+        })),
+      )
       sourceFilesRef.current = new Map(restaged.map(({ draft, source }) => [draft.id, source]))
-      applyStagedFiles(restaged.map(({ draft }) => draft), { startFresh })
+      applyStagedFiles(
+        restaged.map(({ draft }) => draft),
+        { startFresh },
+      )
     } finally {
       if (isCurrentWorkflowRun(workflowRun)) setIsProcessingFiles(false)
     }
@@ -1155,7 +1390,10 @@ export function useTransactionImportWorkflow(fixedAccount: AccountsOverview | nu
   const changeHeaderRow = (headerRow: number) => {
     const staged = files[0]
     if (!staged?.reading || headerRow === staged.reading.headerRow) return
-    void rereadFiles({ delimiter: staged.delimiter, headerRow, skipLastRows: getChosenSkipLastRows(staged.reading) }, true)
+    void rereadFiles(
+      { delimiter: staged.delimiter, headerRow, skipLastRows: getChosenSkipLastRows(staged.reading) },
+      true,
+    )
   }
 
   // Leaving out lines at the end keeps the headings, so the column answers carry over. A file read
@@ -1163,7 +1401,10 @@ export function useTransactionImportWorkflow(fixedAccount: AccountsOverview | nu
   const changeSkipLastRows = (skipLastRows: number) => {
     const staged = files[0]
     if (!staged?.reading || skipLastRows === staged.reading.skipLastRows) return
-    void rereadFiles({ delimiter: staged.delimiter, headerRow: staged.reading.headerRow ?? undefined, skipLastRows }, false)
+    void rereadFiles(
+      { delimiter: staged.delimiter, headerRow: staged.reading.headerRow ?? undefined, skipLastRows },
+      false,
+    )
   }
 
   const updateColumnTarget = (header: string, targetValue: string) => {
@@ -1232,18 +1473,20 @@ export function useTransactionImportWorkflow(fixedAccount: AccountsOverview | nu
 
     // Saved by the commit for the account the import was started from, so the next file with these
     // headers opens with the settings this one was imported with. An ordinary import saves none
-    const csvLayout = isAccountFixed && files.length === 1 && dateFormat && amountFormat
-      ? buildCsvImportLayout(files[0], columnMap, dateFormat, amountFormat)
-      : null
+    const csvLayout =
+      isAccountFixed && files.length === 1 && dateFormat && amountFormat
+        ? buildCsvImportLayout(files[0], columnMap, dateFormat, amountFormat)
+        : null
 
     await run.startImport(importBuild.rowProblems, outsideRangeRowCount, {
-      upload: (signal, onStaged) => importTransactions.mutateAsync({
-        payload,
-        signal,
-        onStaged,
-        fileName: getImportFileName(labelStagedFiles(files)),
-        csvLayout: csvLayout ?? undefined,
-      }),
+      upload: (signal, onStaged) =>
+        importTransactions.mutateAsync({
+          payload,
+          signal,
+          onStaged,
+          fileName: getImportFileName(labelStagedFiles(files)),
+          csvLayout: csvLayout ?? undefined,
+        }),
       commit: (runId, signal) => commitStagedImport.mutateAsync({ runId, signal }),
     })
   }
@@ -1272,7 +1515,6 @@ export function useTransactionImportWorkflow(fixedAccount: AccountsOverview | nu
     setScopedAccountMappings(emptyScopedImportAnswers)
     setAccountAutoMatchKey('')
     resetAccountCreateState()
-    setTagHandlingOpen(true)
     setColumnValidationErrors({})
     setDateFormatChoice(createImportFormatChoiceState(''))
     resetDateRange()
@@ -1284,6 +1526,8 @@ export function useTransactionImportWorkflow(fixedAccount: AccountsOverview | nu
     setScopedCategoryCreateNames(emptyScopedImportAnswers)
     setScopedMerchantMappings(emptyScopedImportAnswers)
     setScopedMerchantCreateNames(emptyScopedImportAnswers)
+    setScopedTagMappings(emptyScopedImportAnswers)
+    setScopedTagCreateNames(emptyScopedImportAnswers)
     if (inputRef.current) inputRef.current.value = ''
   }
 
@@ -1306,7 +1550,6 @@ export function useTransactionImportWorkflow(fixedAccount: AccountsOverview | nu
     batchAccountType,
     batchAccountCurrency,
     batchAccountInstitution,
-    tagHandlingOpen,
     columnValidationErrors: resolvedColumnValidationErrors,
     dateFormat,
     dateFormatAutomatic,
@@ -1341,6 +1584,18 @@ export function useTransactionImportWorkflow(fixedAccount: AccountsOverview | nu
     matchesLoading,
     matchesFailed,
     refetchMatches,
+    tagMappings,
+    tagCreateNames,
+    matchedTagByKey,
+    tagOptions,
+    rememberPickedTag,
+    tagSearch,
+    tagSearchLoading,
+    hasMoreTagResults,
+    loadMoreTagResults,
+    tagMatchesLoading,
+    tagMatchesFailed,
+    refetchTagMatches,
     ...run.workflow,
     latestStartSuggestion,
     accountsLoading,
@@ -1392,7 +1647,9 @@ export function useTransactionImportWorkflow(fixedAccount: AccountsOverview | nu
     setMerchantMappings,
     setMerchantCreateNames,
     setMerchantSearch,
-    setTagHandlingOpen,
+    setTagMappings,
+    setTagCreateNames,
+    setTagSearch,
     handleFileChange,
     changeDelimiter,
     changeHeaderRow,

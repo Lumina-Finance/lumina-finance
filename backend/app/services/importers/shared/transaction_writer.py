@@ -11,7 +11,7 @@ from app.models.base import TransferCounterpartyScope
 from app.models.category import Category
 from app.models.tag import Tag, TransactionTag
 from app.models.transaction import Transaction
-from app.schemas.import_run import TransactionImportMerchantMapping
+from app.schemas.import_run import TransactionImportMerchantMapping, TransactionImportTagMapping
 from app.services.importers.shared.lookups import ImportLookups
 from app.services.importers.shared.merchants import (
     create_missing_import_merchants,
@@ -65,6 +65,7 @@ async def write_imported_transactions(
     import_run_id: uuid.UUID,
     transactions: list[ImportedTransaction],
     merchant_mappings: list[TransactionImportMerchantMapping],
+    tag_mappings: list[TransactionImportTagMapping],
     import_lookups: ImportLookups,
     stats: ImportStats,
 ) -> dict[uuid.UUID, date]:
@@ -77,6 +78,7 @@ async def write_imported_transactions(
             undoing the import can find them
         transactions: Resolved rows in file order
         merchant_mappings: The merchant names the user answered by hand, which may be none of them
+        tag_mappings: The tag names the user answered by hand, which may be none of them
         import_lookups: Lookup maps the rows were resolved from, extended with created merchants and tags
         stats: Import summary counters updated during the import
 
@@ -85,8 +87,8 @@ async def write_imported_transactions(
         reach each account
 
     Raises:
-        HTTPException: Raised with 422 when a merchant answer or name cannot be used or a tag name is
-            too long, and 500 when the shared merchants are not seeded
+        HTTPException: Raised with 422 when a merchant or tag answer or name cannot be used or a tag
+            name is too long, and 500 when the shared merchants are not seeded
     """
     first_import_date_by_account_id: dict[uuid.UUID, date] = {}
     stamped_merchants = get_stamped_merchants(import_lookups.merchants)
@@ -106,7 +108,8 @@ async def write_imported_transactions(
         db,
         user_id,
         (tag_name for transaction in transactions for tag_name in transaction.tag_names),
-        import_lookups.tags_by_name,
+        tag_mappings,
+        import_lookups.tags,
         stats,
     )
 
@@ -119,7 +122,7 @@ async def write_imported_transactions(
             merchant = get_import_merchant(imported.merchant_name, import_lookups.merchants, stats) or stamped_merchants.get_for_category(
                 imported.category
             )
-            tags = get_import_row_tags(imported.tag_names, import_lookups.tags_by_name, stats)
+            tags = get_import_row_tags(imported.tag_names, import_lookups.tags, stats)
             pending.append(
                 (
                     Transaction(

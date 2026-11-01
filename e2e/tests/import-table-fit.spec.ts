@@ -7,7 +7,7 @@ import { measureFit, measureOwnScroll, measureRows } from '../support/layout'
 // Runs on desktop only: it sets the window sizes it checks itself
 
 /**
- * Guards the CSV import's Column mapping, Category matching and Merchant matching tables, which share
+ * Guards the CSV import's Column mapping, Category matching, Merchant matching and Tag matching tables, which share
  * their layout with the Firefly III and Actual Budget importers. Each held a fixed minimum width, so on
  * a 1280px window the matching tables scrolled sideways inside a clipping box, and the column mapping
  * table pushed the whole pane sideways. The same clipping box cut off a row's help where it reached past
@@ -23,14 +23,21 @@ const NARROW_WIDTHS = [1024, 768, 390]
 const soft = expect.configure({ soft: true })
 
 // Two categories with names, one of which the user already holds as income while its amount reads as an
-// expense, so creating it as a new category proposes a new name with a note on why
+// expense, so creating it as a new category proposes a new name with a note on why. The two tags sit past
+// the first five rows, which are the ones the preview shows, because a previewed row with a tag lets the
+// tag panel's blur reach 2px past the steps column at 1920px, which is not about these tables
 const CSV = [
-  'Date,Amount,Category,Merchant',
-  '2024-03-15,-42.50,Groceries,Corner Market',
-  '2024-03-17,-30.00,Salary,Studio',
+  'Date,Amount,Category,Merchant,Tags',
+  '2024-03-15,-42.50,Groceries,Corner Market,',
+  '2024-03-17,-30.00,Salary,Studio,',
+  '2024-03-18,-12.00,Groceries,Corner Market,',
+  '2024-03-19,-8.00,Groceries,Corner Market,',
+  '2024-03-20,-9.00,Groceries,Corner Market,',
+  '2024-03-21,-7.00,Groceries,Corner Market,Weekend',
+  '2024-03-22,-6.00,Groceries,Corner Market,Trip',
 ].join('\n')
 
-const STEPS = ['Column mapping', 'Category matching', 'Merchant matching']
+const STEPS = ['Column mapping', 'Category matching', 'Merchant matching', 'Tag matching']
 
 async function openMatchingSteps(page: Page, request: Parameters<typeof signUpUser>[0]) {
   const user = await signUpUser(request)
@@ -124,9 +131,9 @@ test('ends every step\'s controls at the table\'s edge, making room for an icon 
 
   // One account the user has and one the import creates, whose row offers an institution to choose
   const csv = [
-    'Date,Amount,Category,Merchant,Account,Reference',
-    '2024-03-15,-42.50,Pottery,Corner Market,Everyday chequing,R-1',
-    '2024-03-16,-17.25,Pottery,Bakery,Visa,R-2',
+    'Date,Amount,Category,Merchant,Account,Reference,Tags',
+    '2024-03-15,-42.50,Pottery,Corner Market,Everyday chequing,R-1,Weekend',
+    '2024-03-16,-17.25,Pottery,Bakery,Visa,R-2,Trip',
   ].join('\n')
   await upload.setInputFiles({ name: 'edges.csv', mimeType: 'text/csv', buffer: Buffer.from(csv) })
   await expect(page.getByRole('combobox', { name: 'Existing account Visa', exact: true })).toHaveText('Create new account')
@@ -138,6 +145,7 @@ test('ends every step\'s controls at the table\'s edge, making room for an icon 
   const answers = [
     category.getByTitle('Create new category', { exact: true }),
     page.getByRole('combobox', { name: 'Merchant Corner Market', exact: true }).getByTitle('Create new merchant', { exact: true }),
+    page.getByRole('combobox', { name: 'Tag Weekend', exact: true }).getByTitle('Create new tag', { exact: true }),
   ]
 
   for (const width of CONTROL_EDGE_WIDTHS) {

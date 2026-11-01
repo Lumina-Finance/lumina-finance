@@ -7,7 +7,7 @@ import {
 import { EmptyState, ImportLoadFailure, ImportStep, ImportValueMatchTable } from '@/pages/imports/components'
 import type { TransactionImportWorkflow } from '@/pages/imports/hooks'
 import { getImportMerchantRowState } from '@/pages/imports/utils'
-import { getMerchantNameKey } from '@/api/shared/merchantNameKey'
+import { getNameKey } from '@/api/shared/nameKey'
 
 type ImportMerchantMatchingStepProps = Pick<
   TransactionImportWorkflow,
@@ -82,7 +82,7 @@ export function ImportMerchantMatchingStep({
           createValue={CREATE_MERCHANT_VALUE}
           rows={importedMerchants.map((value) => {
             const answer = merchantMappings[value] ?? ''
-            const found = matchedMerchantByKey.get(getMerchantNameKey(value))
+            const found = matchedMerchantByKey.get(getNameKey(value))
             const matched = found && !createdByImport.has(found.id) ? found : undefined
             const rowState = getImportMerchantRowState(answer, matched)
 

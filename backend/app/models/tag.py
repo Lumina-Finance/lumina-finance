@@ -3,7 +3,7 @@
 import uuid
 from datetime import datetime
 
-from sqlalchemy import VARCHAR, DateTime, ForeignKey, Index, UniqueConstraint, func, text
+from sqlalchemy import VARCHAR, DateTime, ForeignKey, Index, func, text
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.models.base import Base
@@ -14,13 +14,25 @@ class Tag(Base):
 
     __tablename__ = "tags"
     __table_args__ = (
+        # Both are built on the name with capitals folded, so the database refuses the pair the
+        # routes refuse: Travel beside travel in one scope
         # Personal tags: unique per user (only when not group-scoped)
         Index(
-            "uq_tag_owner_name", "owner_id", "name",
-            unique=True, postgresql_where=text("group_id IS NULL"),
+            "uq_tag_owner_name",
+            "owner_id",
+            text("lower(name)"),
+            unique=True,
+            postgresql_where=text("group_id IS NULL"),
         ),
-        # Group tags: unique per group
-        UniqueConstraint("group_id", "name", name="uq_tag_group_name"),
+        # Group tags: unique per group, as an index rather than a unique constraint, which cannot
+        # be written against an expression
+        Index(
+            "uq_tag_group_name",
+            "group_id",
+            text("lower(name)"),
+            unique=True,
+            postgresql_where=text("group_id IS NOT NULL"),
+        ),
     )
 
     id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)

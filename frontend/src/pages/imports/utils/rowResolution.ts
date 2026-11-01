@@ -6,7 +6,9 @@ import {
   getRowCurrencyMismatchReason,
   getRowCurrencyUnsupportedReason,
   getRowNotesTooLongReason,
+  getRowTagTooLongReason,
   getRowTooManyTagsReason,
+  IMPORT_TAG_NAME_MAX_LENGTH,
   MAX_IMPORT_NOTES_LENGTH,
   MAX_IMPORT_TAGS_PER_ROW,
   ROW_ACCOUNT_BLANK_REASON,
@@ -30,17 +32,8 @@ import { findCurrencyExponent } from '@/utils/moneyInput'
 import { splitImportedValues } from './categoryMatching'
 import { getImportRowCategorySource, getMappedValue, resolveImportAmount } from './columnMapping'
 import { unique } from './common'
-import {
-  DEFAULT_IMPORT_AMOUNT_FORMAT,
-  type ImportAmountFormat,
-  type ImportAmountReading,
-} from './amountFormats'
-import {
-  type ImportDateFormat,
-  type ImportDateSeparator,
-  readImportDate,
-  toImportMinorUnits,
-} from './valueParsers'
+import { DEFAULT_IMPORT_AMOUNT_FORMAT, type ImportAmountFormat, type ImportAmountReading } from './amountFormats'
+import { type ImportDateFormat, type ImportDateSeparator, readImportDate, toImportMinorUnits } from './valueParsers'
 
 // What each way of breaking an amount arrangement's rules is reported as, kept beside the reading
 // rather than inside it so resolving a row states facts and judging it puts the words to them
@@ -183,7 +176,12 @@ export function resolveImportRow(row: CsvRow, fileId: string, context: ImportRow
  */
 export function readImportRowDate(
   row: CsvRow,
-  { columnMap, dateFormat, dateSeparator, timeZone }: Pick<ImportRowContext, 'columnMap' | 'dateFormat' | 'dateSeparator' | 'timeZone'>,
+  {
+    columnMap,
+    dateFormat,
+    dateSeparator,
+    timeZone,
+  }: Pick<ImportRowContext, 'columnMap' | 'dateFormat' | 'dateSeparator' | 'timeZone'>,
 ) {
   return dateFormat ? readImportDate(getMappedValue(row, columnMap.dt), dateFormat, dateSeparator, timeZone) : ''
 }
@@ -224,6 +222,8 @@ export function getImportRowProblem(row: ResolvedImportRow, judgement: ImportRow
   // begins, rather than failing part-way through it with a position nobody can find in the file
   if (row.notes && row.notes.length > MAX_IMPORT_NOTES_LENGTH) return getRowNotesTooLongReason(row.notes.length)
   if (row.tagNames.length > MAX_IMPORT_TAGS_PER_ROW) return getRowTooManyTagsReason(row.tagNames.length)
+  const longTag = row.tagNames.find((name) => [...name].length > IMPORT_TAG_NAME_MAX_LENGTH)
+  if (longTag !== undefined) return getRowTagTooLongReason(longTag)
 
   if (!row.counterpartySource) return null
 
@@ -252,9 +252,10 @@ export function getCurrencyByAccountSource(
   const currencyBySource: Record<string, string> = {}
 
   for (const [source, choice] of Object.entries(accountMappings)) {
-    const code = choice === CREATE_ACCOUNT_VALUE
-      ? accountCreateCurrencies[source] ?? ''
-      : accountById.get(choice)?.currency ?? ''
+    const code =
+      choice === CREATE_ACCOUNT_VALUE
+        ? (accountCreateCurrencies[source] ?? '')
+        : (accountById.get(choice)?.currency ?? '')
     if (code) currencyBySource[source] = code.trim().toUpperCase()
   }
 

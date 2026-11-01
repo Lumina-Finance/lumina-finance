@@ -1,4 +1,10 @@
-import type { ColumnMap, ImportAmountDirection, ImportCategoryKind, ImportDateRange, ImportFileDraft } from '@/pages/imports/types'
+import type {
+  ColumnMap,
+  ImportAmountDirection,
+  ImportCategoryKind,
+  ImportDateRange,
+  ImportFileDraft,
+} from '@/pages/imports/types'
 import type { ImportAmountFormat } from './amountFormats'
 import type { ImportFormatChoiceState } from './formatChoices'
 import type { ScopedImportAnswers } from './scopedAnswers'
@@ -25,6 +31,8 @@ export type CsvImportAnswers = {
   scopedCategoryCreateNames: ScopedImportAnswers<string>
   scopedMerchantMappings: ScopedImportAnswers<string>
   scopedMerchantCreateNames: ScopedImportAnswers<string>
+  scopedTagMappings: ScopedImportAnswers<string>
+  scopedTagCreateNames: ScopedImportAnswers<string>
 }
 
 /**
@@ -36,7 +44,7 @@ export type CsvImportAnswers = {
  */
 export function keepUnchangedImportAnswers<T extends object>(previous: T, next: T): T {
   const keys = Object.keys(next) as (keyof T)[]
-  const isUnchanged = keys.length === Object.keys(previous).length
-    && keys.every((key) => Object.is(previous[key], next[key]))
+  const isUnchanged =
+    keys.length === Object.keys(previous).length && keys.every((key) => Object.is(previous[key], next[key]))
   return isUnchanged ? previous : next
 }
