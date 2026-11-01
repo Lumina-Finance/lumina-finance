@@ -56,8 +56,10 @@ def _fold_tags() -> None:
 
     Every transaction that carried a tag of a set carries the survivor afterwards, once. A
     transaction that carried two spellings ends up with one link rather than a pair the table's
-    primary key forbids, so no transaction loses a tag. Transactions are the only thing pointing at
-    a tag, so they are the only thing to move
+    primary key forbids, so no transaction loses a tag. Transactions are the only table with a
+    foreign key to a tag, so they are the only rows to move. Ids also sit in
+    import_runs.summary.created_tag_ids, as plain JSON that no foreign key guards, and this
+    migration leaves them as they are
     """
     # The oldest of each set is the one kept, so a run against a copy of the database reaches the
     # same result as the run against the database itself
