@@ -409,7 +409,7 @@ def merge_import_mappings(
         mappings: Mappings this batch declares
         label: What a source is called in a refusal
         get_key: What a source is held under, which is the trimmed source itself except for a merchant
-            name, where two spellings are one merchant and so one answer
+            or tag name, where two spellings are one record and so one answer
 
     Returns:
         The merged mappings

@@ -332,3 +332,41 @@ async def test_staging_a_tag_answer_keeps_it_on_the_run_and_a_replay_is_accepted
         run = (await session.execute(select(ImportRun).where(ImportRun.id == uuid.UUID(run_id)))).scalar_one()
 
     assert run.tag_mappings == {"trip": {"source": "Trip", "tag_id": None, "create": None, "skip": True}}
+
+
+@pytest.mark.parametrize("name", ["", "   ", "t" * 65], ids=["blank", "spaces", "too long"])
+async def test_a_corrected_tag_name_that_is_blank_or_too_long_is_refused_and_writes_nothing(client, name):
+    """The name a tag is created under is held to what a tag can be named, before anything is staged."""
+    headers, account_id, category_id = await _setup_user_with_deps(client)
+
+    resp = await _import_rows(
+        client,
+        headers,
+        account_id,
+        category_id,
+        [{"tag_names": ["Trip"]}],
+        tags=[{"source": "Trip", "create": {"name": name}}],
+    )
+
+    assert resp.status_code == 422
+    assert resp.json()["detail"][0]["loc"][-2:] == ["create", "name"]
+    assert await _list_tag_names(client, headers) == []
+    assert (await client.get("/transactions", headers=headers)).json() == []
+
+
+async def test_a_corrected_tag_name_of_the_longest_length_a_tag_can_have_is_accepted(client):
+    """The limit is on characters over 64, so a name of exactly 64 is created."""
+    headers, account_id, category_id = await _setup_user_with_deps(client)
+    name = "t" * 64
+
+    resp = await _import_rows(
+        client,
+        headers,
+        account_id,
+        category_id,
+        [{"tag_names": ["Trip"]}],
+        tags=[{"source": "Trip", "create": {"name": name}}],
+    )
+
+    assert resp.status_code == 201
+    assert await _list_tag_names(client, headers) == [name]

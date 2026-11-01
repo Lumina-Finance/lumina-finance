@@ -23,13 +23,14 @@ from app.models.category import Category
 from app.models.merchant import Merchant
 from app.models.tag import Tag
 from app.models.user import User
+from app.schemas.import_run import TransactionImportTagMapping
 from app.services.importers.shared.insertion_helpers import insert_import_records_if_absent
 from app.services.importers.shared.merchants import (
     ImportMerchants,
     create_missing_import_merchants,
 )
 from app.services.importers.shared.stats import ImportStats
-from app.services.importers.shared.tags import ImportTags, create_missing_import_tags
+from app.services.importers.shared.tags import ImportTags, create_missing_import_tags, get_import_row_tags
 from tests.conftest import TestSession
 from tests.services.importers._helpers import _seed_user
 
@@ -184,6 +185,30 @@ async def test_a_tag_spelled_differently_written_after_the_lookup_is_reused_too(
 
         assert stats.tags_created == 0
         assert tags.existing_by_key["travel"].id == existing.id
+
+
+async def test_a_corrected_tag_name_taken_after_the_lookup_is_what_the_answered_rows_carry():
+    """A tag written under the corrected name after the lookup is reused, not written again."""
+    async with TestSession() as session:
+        user_id = (await _seed_user(session)).id
+        existing = (
+            await insert_import_records_if_absent(
+                session,
+                Tag,
+                [{"owner_id": user_id, "group_id": None, "name": "Travel"}],
+                **_TAG_CONFLICT,
+            )
+        )[0]
+
+        # Empty, as it would be for an import whose tags were loaded before that row landed
+        tags = ImportTags(existing_by_key={})
+        stats = ImportStats()
+        mapping = TransactionImportTagMapping(source="trvl", create={"name": "TRAVEL"})
+
+        await create_missing_import_tags(session, user_id, ["trvl"], [mapping], tags, stats)
+
+        assert stats.tags_created == 0
+        assert [tag.id for tag in get_import_row_tags(["trvl"], tags, stats)] == [existing.id]
 
 
 async def test_another_users_merchant_does_not_block_writing_your_own():
