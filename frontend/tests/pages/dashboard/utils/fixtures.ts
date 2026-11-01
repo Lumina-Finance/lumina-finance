@@ -125,7 +125,9 @@ export const comparison: SpendingComparisonResponse = {
   slot_labels: ['1', '2', '3', '4', '5'],
   current: [100, 300, 600],
   previous: [200, 400, 900, 1200],
+  average_periods: 3,
   average_sums: [500, 1000, 1801, 2400],
   average_counts: [3, 3, 3, 2],
   fx_status: fxStatus,
+  average_fx_status: fxStatus,
 }

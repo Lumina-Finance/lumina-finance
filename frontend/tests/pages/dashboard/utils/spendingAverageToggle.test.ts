@@ -3,7 +3,12 @@
  * keeping it cannot drift from what the issue describes
  */
 import { describe, expect, it } from 'vitest'
-import { getStateAfterClick, getStateAfterLongPress } from '@/pages/dashboard/utils/spendingAverageToggle'
+import {
+  AVERAGE_FAILED_MESSAGE,
+  getAverageToggleTexts,
+  getStateAfterClick,
+  getStateAfterLongPress,
+} from '@/pages/dashboard/utils/spendingAverageToggle'
 
 describe('spending average toggle', () => {
   it('turns on and off with a click for this visit only, leaving a kept choice alone', () => {
@@ -24,5 +29,30 @@ describe('spending average toggle', () => {
 
   it('turns on without keeping where the browser refused to save the choice', () => {
     expect(getStateAfterLongPress({ on: false, kept: false }, false)).toEqual({ on: true, kept: false })
+  })
+
+  it.each([
+    ['WTD', 'week', 12],
+    ['MTD', 'month', 12],
+    ['QTD', 'quarter', 4],
+    ['YTD', 'year', 3],
+  ] as const)('says what a click and a hold do and how the %s average is worked out', (range, unit, limit) => {
+    const worked = `The average is calculated from the last ${limit} ${unit}s, leaving out any without spending.`
+    expect(getAverageToggleTexts(false, range).tooltip).toBe(
+      `Click to compare with your average ${unit}, and hold to use it as the default. ${worked}`,
+    )
+    expect(getAverageToggleTexts(true, range).tooltip).toBe(
+      `Click to compare with your average ${unit}, and hold to stop using it as the default. ${worked}`,
+    )
+  })
+
+  it('says the average could not load and that a click tries again, in the tooltip and the toast', () => {
+    expect(getAverageToggleTexts(false, 'MTD', true).tooltip).toBe("Your average couldn't load. Click to try again.")
+    expect(AVERAGE_FAILED_MESSAGE).toBe("Your average couldn't load. Click AVG to try again.")
+  })
+
+  it('names the toggle by what it does, and says when it is kept', () => {
+    expect(getAverageToggleTexts(false, 'MTD').name).toBe('Compare with your average')
+    expect(getAverageToggleTexts(true, 'MTD').name).toBe('Compare with your average, kept on')
   })
 })
