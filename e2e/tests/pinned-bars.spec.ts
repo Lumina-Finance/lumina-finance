@@ -141,8 +141,8 @@ for (const { path, placeholder, buttons, oneRow, lastSeeded } of [
   {
     path: '/transactions',
     placeholder: 'Search transactions...',
-    buttons: ['Select transactions', 'Import transactions', 'Transaction filters', 'Add transaction'],
-    oneRow: { 1024: true, 960: false } as Record<number, boolean>,
+    buttons: ['Select transactions', 'Import transactions', 'Export all', 'Transaction filters', 'Add transaction'],
+    oneRow: { 1024: false, 960: false } as Record<number, boolean>,
     // The last row of the list's first page
     lastSeeded: (page: Page) => page.getByTestId(/^transaction-row-/).nth(14),
   },
