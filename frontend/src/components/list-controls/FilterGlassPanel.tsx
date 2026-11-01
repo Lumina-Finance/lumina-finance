@@ -62,6 +62,10 @@ type FilterGlassPanelProps = {
   // Wording for a panel that holds one filter. Other panels keep the plural
   label?: string
   clearLabel?: string
+
+  // A panel with only a short list in it ends where its content does, instead of holding the usual
+  // opening height of the panels that seat several facet tabs
+  fitContent?: boolean
   children: ReactNode
 }
 
@@ -82,6 +86,7 @@ export function FilterGlassPanel({
   clearAll,
   label = 'Filters',
   clearLabel = 'Clear all filters',
+  fitContent = false,
   children,
 }: FilterGlassPanelProps) {
   const [collapsedSize, setCollapsedSize] = useState(COLLAPSED_FALLBACK)
@@ -166,6 +171,7 @@ export function FilterGlassPanel({
         currentDirection: openDirection,
         viewportHeight: window.innerHeight,
         contentHeight: constrainTo ? undefined : bodyContentRef.current?.offsetHeight,
+        minHeight: fitContent ? 0 : undefined,
         bounds: constrainTo?.current ? constrainTo.current.getBoundingClientRect() : undefined,
       })
       // The first measurement of an open cycle lands before the panel has painted, so opening on
@@ -209,7 +215,7 @@ export function FilterGlassPanel({
       window.removeEventListener('resize', measurePlacement)
       window.removeEventListener('scroll', measurePlacement)
     }
-  }, [open, openWidth, constrainTo])
+  }, [open, openWidth, constrainTo, fitContent])
 
   useFocusHeadOnClose(open, bodyViewportRef, headRef)
 
@@ -373,7 +379,9 @@ export function FilterGlassPanel({
               ref={bodyContentRef}
               className="flex flex-col"
               style={{
-                ...(constrainTo ? { height: placement.height } : { minHeight: FILTER_PANEL_MIN_HEIGHT }),
+                ...(constrainTo
+                  ? { height: placement.height }
+                  : { minHeight: fitContent ? undefined : FILTER_PANEL_MIN_HEIGHT }),
                 padding: `${openUpward ? BODY_PADDING : 0}px ${BODY_PADDING}px ${BODY_PADDING}px`,
               }}
             >

@@ -380,3 +380,37 @@ test('Insights is whole again after leaving and coming back inside the page fade
   await expect(distribution.getByText(names.dining)).toBeVisible()
   await expect(pill).not.toContainText(/\d/)
 })
+
+// The open panel ends where its content does, with no blank band under the buttons. Run at both widths that
+// draw the panel rather than the phone sheet, once its height has stopped moving
+for (const size of [{ name: 'desktop', width: 1280, height: 800 }, { name: 'tablet', width: 768, height: 1024 }]) {
+  test(`the open filter panel leaves no blank band under its buttons, ${size.name}`, async ({ page, request }) => {
+    const { user, names } = await seedFilterMerchants(request)
+    await page.setViewportSize({ width: size.width, height: size.height })
+    await logInViaApi(page, user)
+    await openPage(page, '/insights')
+    const distribution = card(page, 3)
+    await distribution.scrollIntoViewIfNeeded()
+    await expect(distribution.getByText(names.groceries)).toBeVisible()
+    await distribution.evaluate((element) => element.scrollIntoView({ block: 'start' }))
+    await page.evaluate(() => window.scrollBy(0, -120))
+
+    await distribution.getByRole('button', { name: 'Merchant category filter' }).filter({ visible: true }).click()
+    const apply = page.getByRole('button', { name: 'Apply filter' })
+    await expect(apply).toBeVisible()
+    const glass = page.locator('.app-range-glass').filter({ has: page.getByRole('button', { name: 'Merchant category filter' }) }).filter({ visible: true })
+    const boxes = async () => ({ apply: await apply.boundingBox(), glass: await glass.boundingBox() })
+    let last = ''
+    await expect.poll(async () => {
+      const now = JSON.stringify(await boxes())
+      const same = now === last
+      last = now
+      return same
+    }, { intervals: [200], timeout: 10_000 }).toBe(true)
+
+    const { apply: applyBox, glass: glassBox } = await boxes()
+    // The body's 12px padding and the glass border are all that is left under the buttons
+    const gap = glassBox!.y + glassBox!.height - (applyBox!.y + applyBox!.height)
+    expect(gap, 'space between the buttons and the panel bottom').toBeLessThanOrEqual(24)
+  })
+}

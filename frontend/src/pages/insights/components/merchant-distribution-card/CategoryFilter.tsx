@@ -98,6 +98,7 @@ export function MerchantCategoryFilter({ categoryOptions, selectedIds, onChange 
           ariaLabel={FILTER_ARIA_LABEL}
           label={FILTER_LABEL}
           clearLabel={CLEAR_LABEL}
+          fitContent
           openWidth={OPEN_WIDTH}
           open={open}
           onOpenChange={setOpen}
