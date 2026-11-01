@@ -149,6 +149,7 @@ async def get_spending_comparison_for_user(
     user: User,
     range_: RangeKind,
     now: datetime,
+    include_average: bool = False,
 ) -> SpendingComparisonResponse:
     """Return spending comparison dashboard data for a user
 
@@ -157,12 +158,13 @@ async def get_spending_comparison_for_user(
         user: Authenticated user requesting spending comparison data
         range_: Calendar range used for current and previous comparison slots
         now: Viewer-local datetime used to anchor the current period
+        include_average: Whether to load the earlier periods the average needs
 
     Returns:
         Spending comparison widget response
     """
     accounts = await get_accessible_accounts(db, user)
-    response = await get_spending_comparison(db, accounts, user.base_currency, range_, now)
+    response = await get_spending_comparison(db, accounts, user.base_currency, range_, now, include_average)
     return response
 
 

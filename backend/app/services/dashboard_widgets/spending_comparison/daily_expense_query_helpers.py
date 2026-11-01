@@ -1,4 +1,5 @@
 """Spending comparison daily expense query helpers"""
+
 import uuid
 from dataclasses import dataclass
 from datetime import date
@@ -73,3 +74,34 @@ async def query_spending_comparison_daily_expense_totals(
         for row in result
     ]
     return daily_expense_totals
+
+
+async def query_first_transaction_date(
+    db: AsyncSession,
+    account_ids: list[uuid.UUID],
+    today: date,
+) -> date | None:
+    """Return the date of the first expense or income transaction, or None without one
+
+    Transfers, which include balance adjustments such as a starting balance, are not transactions the
+    user made, and a future-dated transaction does not count yet
+
+    Args:
+        db: Active database session
+        account_ids: Account identifiers readable by the dashboard viewer
+        today: Viewer-local current date
+
+    Returns:
+        Earliest counted transaction date
+    """
+    first_date_query = (
+        select(func.min(Transaction.dt))
+        .join(Category, Transaction.category_id == Category.id)
+        .where(
+            Transaction.account_id.in_(account_ids),
+            Category.kind.in_([CategoryKind.EXPENSE, CategoryKind.INCOME]),
+            Transaction.dt <= today,
+        )
+    )
+    first_transaction_date = await db.scalar(first_date_query)
+    return first_transaction_date

@@ -62,6 +62,23 @@ class SpendingComparisonResponse(BaseModel):
     (so it can be shorter than ``current`` for MTD when the prior month had
     fewer days, or up to ``len(slot_labels)`` otherwise). The frontend zips
     by index and treats missing trailing entries as no data
+    ``average_periods`` is how many completed earlier periods the average
+    may draw on: the latest 12 weeks, 12 months, 4 quarters or 3 years, fewer
+    when the history is shorter. A period counts only when it starts on or
+    after the user's first expense or income transaction. It is always sent,
+    since it needs no history or rates, and it includes periods that turn out
+    to have no spending
+    ``average_sums`` / ``average_counts`` give, per slot, the sum of the
+    cumulative totals of those periods that have that slot and how many of
+    them there are, so a screen divides them and rounds the average in the
+    direction its figure needs. A period with no spending at all is left out
+    of both, as runway leaves out months with no expense outflow, while one
+    that spends only later in its span counts with zero for its early slots.
+    They are filled only when the request asks for the average, and are
+    otherwise empty, as they are when no period has spending, and never
+    longer than ``slot_labels``
+    ``average_fx_status`` reports the conversions of those periods alone, so
+    a missing old rate flags the average without touching ``fx_status``
     ``fx_status`` reports whether conversions were complete, incomplete,
     unavailable, or unnecessary
     """
@@ -70,7 +87,11 @@ class SpendingComparisonResponse(BaseModel):
     slot_labels: list[str]
     current: list[int]
     previous: list[int]
+    average_periods: int = 0
+    average_sums: list[int] = []
+    average_counts: list[int] = []
     fx_status: FxStatus
+    average_fx_status: FxStatus = FxStatus()
 
 
 class MonthlyIncomeExpense(BaseModel):
