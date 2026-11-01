@@ -48,8 +48,10 @@ const pageFolders = readdirSync(new URL('./src/pages', import.meta.url), { withF
   .filter((entry) => entry.isDirectory())
   .map((entry) => entry.name)
 
-const PAGE_IMPORT_MESSAGE = 'A page never imports another page. Move what both use into shared code, such as @/utils or @/components'
-const SHARED_PAGE_IMPORT_MESSAGE = 'Shared code never imports a page. Move what the page owns into shared code, or pass it in'
+const PAGE_IMPORT_MESSAGE =
+  'A page never imports another page. Move what both use into shared code, such as @/utils or @/components'
+const SHARED_PAGE_IMPORT_MESSAGE =
+  'Shared code never imports a page. Move what the page owns into shared code, or pass it in'
 
 // Flat config replaces a rule outright rather than merging it, so a block that sets
 // no-restricted-imports has to restate every pattern that should still apply to its files
@@ -129,7 +131,8 @@ const restrictedObserverEntries = [
     message: LATEST_ENTRY_MESSAGE,
   },
   {
-    selector: "NewExpression[callee.name='IntersectionObserver'] :function MemberExpression[computed=true][property.value=0]",
+    selector:
+      "NewExpression[callee.name='IntersectionObserver'] :function MemberExpression[computed=true][property.value=0]",
     message: LATEST_ENTRY_MESSAGE,
   },
 ]
@@ -139,18 +142,38 @@ const restrictedObserverEntries = [
 const restrictedQueryFns = [
   {
     selector: "Property[key.name='queryFn']:not(:has(CallExpression Identifier[name='signal']))",
-    message: 'Take the signal from the query context and pass it to the request, so an abandoned load stops its request',
+    message:
+      'Take the signal from the query context and pass it to the request, so an abandoned load stops its request',
   },
 ]
 
 // crypto.randomUUID is missing on a page opened over plain HTTP, such as a self-hosted app at a LAN address
-const RANDOM_UUID_MESSAGE = 'crypto.randomUUID is missing on pages opened over plain HTTP. Use createRandomId from @/utils/randomId'
+const RANDOM_UUID_MESSAGE =
+  'crypto.randomUUID is missing on pages opened over plain HTTP. Use createRandomId from @/utils/randomId'
 // The ban follows the name, not the object, so an alias (const c = crypto), a longer path (window.self.crypto)
 // and a prototype call (Crypto.prototype.randomUUID.call) all fail too
 const restrictedRandomUuid = [
   { selector: "Identifier[name='randomUUID']", message: RANDOM_UUID_MESSAGE },
   { selector: "Literal[value='randomUUID']", message: RANDOM_UUID_MESSAGE },
   { selector: "TemplateElement[value.cooked='randomUUID']", message: RANDOM_UUID_MESSAGE },
+]
+
+// A native title is the browser's tooltip, which waits, looks different on every system and never shows on
+// a touch or a keyboard focus. A button says what it does through HintButton or useControlHint. The ban
+// covers a plain button, a motion button and any component named for a button, since a title handed to
+// one ends on the button
+const BUTTON_TITLE_MESSAGE =
+  'A button explains itself with the app tooltip, not a native title. Use HintButton or useControlHint from @/components/tooltips, and keep aria-label for the name'
+const restrictedButtonTitles = [
+  {
+    selector: "JSXOpeningElement[name.name=/^(button|\\w*Button)$/] > JSXAttribute[name.name='title']",
+    message: BUTTON_TITLE_MESSAGE,
+  },
+  {
+    selector:
+      "JSXOpeningElement[name.type='JSXMemberExpression'][name.property.name='button'] > JSXAttribute[name.name='title']",
+    message: BUTTON_TITLE_MESSAGE,
+  },
 ]
 
 export default defineConfig([
@@ -181,6 +204,7 @@ export default defineConfig([
         ...restrictedObserverEntries,
         ...restrictedQueryFns,
         ...restrictedRandomUuid,
+        ...restrictedButtonTitles,
       ],
     },
   },
