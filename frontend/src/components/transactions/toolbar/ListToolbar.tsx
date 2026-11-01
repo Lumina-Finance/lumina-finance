@@ -5,6 +5,7 @@ import { DesktopToolbarControls } from '@/components/list-controls/DesktopToolba
 import { GlassSearchField } from '@/components/list-controls/GlassSearchField'
 import { MobileToolbarActions } from '@/components/list-controls/MobileToolbarActions'
 import { ToolbarStickyShell } from '@/components/list-controls/ToolbarStickyShell'
+import { Crossfade } from '@/components/loading/Crossfade'
 import { DisabledReasonButton } from '@/components/tooltips/DisabledReasonButton'
 import { getSearchFieldWrapperClassName } from '@/components/list-controls/toolbarStyles'
 import { useToolbarShellState } from '@/components/list-controls/useToolbarShellState'
@@ -60,8 +61,9 @@ export default function TransactionListToolbar({
   const [isEditActionAnimating, setIsEditActionAnimating] = useState(false)
 
   // Selection mode swaps the row's own controls, and the wrap layout measures boxes rather than
-  // contents, so it is told rather than left to notice
-  const shell = useToolbarShellState(isSelecting ? 'selecting' : 'browsing', isEditActionAnimating)
+  // contents, so it is told rather than left to notice. The export button's word changes its width as
+  // the list narrows or rows are ticked, so the scope is part of what it is told
+  const shell = useToolbarShellState(`${isSelecting ? 'selecting' : 'browsing'}-${exportScope}`, isEditActionAnimating)
   useToolbarStickyOffset(shell.toolbarRef, onStickyOffsetChange)
 
   // One node for both widths, at the 44px control height the row is built on, which the search field
@@ -89,11 +91,11 @@ export default function TransactionListToolbar({
 
   // Sits beside Import in the same 44px glass shape, square on a phone and widening for its word on a
   // desktop. The word says what the file will hold, and the accessible name is that same text so the
-  // icon-only phone button says it too. Every word sits in one grid cell with the unused ones invisible,
-  // so the button takes the longest word's width at all times, the way the Select button's word reserves
-  // its longer state. Filters and Add transaction therefore never move when the word changes, and the
-  // layout hook never has a width to re-measure. While the file is being prepared it keeps its place and size, with the icon turning, and is held off
-  // with `disabled` alone. An empty list holds it off with the reason as its description. Only the
+  // icon-only phone button says it too. The button is only as wide as its current word needs. When the
+  // word changes the old one fades out as the new one fades in and the width eases between the two, so
+  // Filters and Add transaction slide to their new places rather than jump, and the layout hook is told
+  // of the change through the key above. While the file is being prepared it keeps its place and size,
+  // with the icon turning, and is held off with `disabled` alone. An empty list holds it off with the reason as its description. Only the
   // export of every transaction opens a confirmation first
   const exportLabel = EXPORT_LABELS[exportScope]
   const exportAction = onExport ? (
@@ -106,21 +108,14 @@ export default function TransactionListToolbar({
       aria-label={exportLabel}
       aria-haspopup={exportScope === 'all' ? 'dialog' : undefined}
     >
-      {exportPending ? (
-        <LoaderCircle size={18} className="animate-spin motion-reduce:animate-none" aria-hidden />
-      ) : (
-        <Download size={18} aria-hidden />
-      )}
-      <span className="hidden whitespace-nowrap min-[750px]:inline-grid" aria-hidden>
-        {Object.entries(EXPORT_LABELS).map(([scope, label]) => (
-          <span
-            key={scope}
-            className={joinClassNames('col-start-1 row-start-1 text-center', scope !== exportScope && 'invisible')}
-          >
-            {label}
-          </span>
-        ))}
-      </span>
+      <Crossfade swapKey={exportScope} className="gap-2">
+        {exportPending ? (
+          <LoaderCircle size={18} className="shrink-0 animate-spin motion-reduce:animate-none" aria-hidden />
+        ) : (
+          <Download size={18} className="shrink-0" aria-hidden />
+        )}
+        <span className="hidden min-[750px]:inline">{exportLabel}</span>
+      </Crossfade>
     </DisabledReasonButton>
   ) : undefined
 

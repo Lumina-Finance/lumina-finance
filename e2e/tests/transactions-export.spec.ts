@@ -310,11 +310,12 @@ test('holds Export filtered off with its reason while the search keeps nothing',
   await expect(page.getByRole('button', EXPORT_FILTERED)).not.toHaveAccessibleDescription('No transactions match the search or filters')
 })
 
-// The export word changes with the list, and the toolbar around it must neither move nor spill. Both tests
-// set every width they check themselves, so they run on the desktop project alone
+// The export word changes with the list, and the button is only as wide as its current word needs, with
+// nothing in the toolbar overlapping or reaching past the viewport. Both tests set every width they check
+// themselves, so they run on the desktop project alone
 const TOOLBAR_WIDTHS = [768, 800, 900, 1000, 1049, 1050, 1100, 1150, 1200, 1250, 1280]
 
-/** Edges of the controls whose place must not depend on the export word, read once the row stops moving */
+/** The toolbar's controls and the export button's fit to its word, read once the row stops moving */
 async function readToolbar(page: Page) {
   const read = () =>
     page.evaluate(() => {
@@ -322,13 +323,13 @@ async function readToolbar(page: Page) {
         [...document.querySelectorAll('button')].find(
           (node) => pattern.test(node.getAttribute('aria-label') ?? node.textContent?.trim() ?? '') && node.getBoundingClientRect().width > 0,
         )
-      // Heights are taken from the search field's top, so the content above the toolbar changing with the
-      // list never counts as the toolbar moving
-      const top = document.querySelector('input[placeholder="Search transactions..."]')!.getBoundingClientRect().y
+      const search = document.querySelector('input[placeholder="Search transactions..."]')!
+      const top = search.getBoundingClientRect().y
       const box = (node: Element | undefined) => {
         const { x, y, width } = node!.getBoundingClientRect()
         return { x: Math.round(x * 10) / 10, y: Math.round(y - top), width: Math.round(width * 10) / 10 }
       }
+
       // The toolbar's own controls and the filter pill that wraps its button. The pill is measured whole,
       // since its chevron sits at the far end. A closed panel's footer buttons are clipped inside it
       const toolbarControls = [...document.querySelectorAll('button, input, .app-range-glass')].filter(
@@ -338,10 +339,55 @@ async function readToolbar(page: Page) {
         .map((node) => ({ name: node.getAttribute('aria-label') ?? (node.matches('.app-range-glass') ? 'Filters pill' : node.textContent?.trim() ?? ''), ...node.getBoundingClientRect().toJSON() }))
         .filter((item) => item.width > 0 && (item.right > window.innerWidth + 0.5 || item.x < -0.5))
         .map((item) => `${item.name} ${Math.round(item.x)}-${Math.round(item.right)}`)
+
+      // Every control of the toolbar against every other: two that share more than a pixel of area overlap
+      const row = [
+        search,
+        named(/^(Select|Stop selecting) transactions$/),
+        named(/^Edit the selected transactions$/),
+        named(/^Delete the selected transactions$/),
+        named(/^Import transactions/),
+        named(/^Export /),
+        document.querySelector('.app-range-glass'),
+        named(/^Add transaction$/),
+      ].filter((node): node is Element => !!node && node.getBoundingClientRect().width > 0)
+      const label = (node: Element) => {
+        const { x, y, right, bottom } = node.getBoundingClientRect()
+        const name = node.getAttribute('aria-label') ?? (node.matches('.app-range-glass') ? 'Filters pill' : node.getAttribute('placeholder') ?? node.textContent?.trim() ?? '')
+        return `${name} (${Math.round(x)},${Math.round(y)} to ${Math.round(right)},${Math.round(bottom)})`
+      }
+      const overlapping: string[] = []
+      for (const [index, first] of row.entries()) {
+        for (const second of row.slice(index + 1)) {
+          const a = first.getBoundingClientRect()
+          const b = second.getBoundingClientRect()
+          const shared = Math.min(a.right, b.right) - Math.max(a.left, b.left)
+          const sharedHeight = Math.min(a.bottom, b.bottom) - Math.max(a.top, b.top)
+          if (shared > 1 && sharedHeight > 1) overlapping.push(`${label(first)} with ${label(second)}`)
+        }
+      }
+
+      // The button's width against what its word needs: the word's own text width, the icon, the gap
+      // between them, the padding and the border. Taken from the layer on show, not one fading out
+      const exportNode = named(/^Export /)!
+      const layer = exportNode.querySelector(':scope > div:not([aria-hidden="true"])')!
+      const word = layer.querySelector('span')!
+      const range = document.createRange()
+      range.selectNodeContents(word)
+      const style = getComputedStyle(exportNode)
+      const needed =
+        range.getBoundingClientRect().width +
+        layer.querySelector('svg')!.getBoundingClientRect().width +
+        (parseFloat(getComputedStyle(layer).columnGap) || 0) +
+        parseFloat(style.paddingLeft) + parseFloat(style.paddingRight) +
+        parseFloat(style.borderLeftWidth) + parseFloat(style.borderRightWidth)
       return {
+        search: box(search),
         filters: box(named(/^(Transaction filters|Filters)/)),
         add: box(named(/^Add transaction$/)),
-        exportButton: box(named(/^Export /)),
+        exportButton: box(exportNode),
+        exportNeeds: Math.round(needed * 10) / 10,
+        overlapping,
         spilling,
         scrollWidth: document.documentElement.scrollWidth,
       }
@@ -383,9 +429,9 @@ async function readEveryWord(page: Page, selecting: boolean) {
   return readings
 }
 
-// Filters, Add transaction and the export button's width stay put whichever word the button shows, browsing
-// and selecting, at every width the layout changes across
-test('keeps Filters and Add transaction in place across the three export words', async ({ page, request }) => {
+// The button is as wide as its word needs and no wider, so Export all is narrower than the other two, and
+// no control of the toolbar overlaps another, browsing and selecting, at every width the layout changes across
+test('fits the export button to its word with nothing overlapping from 768 to 1280', async ({ page, request }) => {
   const user = await seedTwoTransactions(request)
   await logInViaApi(page, user)
 
@@ -394,13 +440,13 @@ test('keeps Filters and Add transaction in place across the three export words',
       await page.setViewportSize({ width, height: 800 })
       await openPage(page, '/transactions')
       await expect(page.getByTestId(/^transaction-row-/)).toHaveCount(2)
-      const { all, ...others } = await readEveryWord(page, selecting)
-      for (const [word, reading] of Object.entries(others)) {
+      const readings = await readEveryWord(page, selecting)
+      for (const [word, reading] of Object.entries(readings)) {
         const where = `at ${width}px ${selecting ? 'selecting' : 'browsing'} with ${word}`
-        expect(reading.filters, `Filters ${where}`).toEqual(all.filters)
-        expect(reading.add, `Add transaction ${where}`).toEqual(all.add)
-        expect(reading.exportButton.width, `Export width ${where}`).toBe(all.exportButton.width)
+        expect(Math.abs(reading.exportButton.width - reading.exportNeeds), `Export width ${where}`).toBeLessThanOrEqual(1)
+        expect(reading.overlapping, `Overlapping controls ${where}`).toEqual([])
       }
+      expect(readings.all.exportButton.width, `Export all against Export filtered at ${width}px`).toBeLessThan(readings.filtered.exportButton.width)
     }
   }
 })

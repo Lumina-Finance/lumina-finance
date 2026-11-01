@@ -61,16 +61,22 @@ export function useDesktopToolbarLayout(actionsKey = '', pauseMeasuring = false)
 
       const filterItems = Array.from(filterGroupElement.children)
       const filterGap = parseFloat(getComputedStyle(filterGroupElement).columnGap) || 0
-      const filterWidth = filterItems.reduce((total, item, index) => (
-        total + (item as HTMLElement).getBoundingClientRect().width + (index === 0 ? 0 : filterGap)
-      ), 0)
+      const filterWidth = filterItems.reduce(
+        (total, item, index) =>
+          total + (item as HTMLElement).getBoundingClientRect().width + (index === 0 ? 0 : filterGap),
+        0,
+      )
       const controlsGap = parseFloat(getComputedStyle(controlsElement).columnGap) || 0
       const createWidth = createMeasureElement.getBoundingClientRect().width
 
       // Wherever the mobile navigation toggle shows, one row has to fit beside the room it leaves the
       // toggle once docked, counted at rest as well so docking never switches the layout
-      const toggleClearance = window.matchMedia(MOBILE_NAVIGATION_QUERY).matches ? MOBILE_NAVIGATION_TOGGLE_CLEARANCE_PX : 0
-      const inlineFits = DESKTOP_SEARCH_MIN_WIDTH + controlsGap + filterWidth + controlsGap + createWidth + toggleClearance <= toolbarWidth
+      const toggleClearance = window.matchMedia(MOBILE_NAVIGATION_QUERY).matches
+        ? MOBILE_NAVIGATION_TOGGLE_CLEARANCE_PX
+        : 0
+      const inlineFits =
+        DESKTOP_SEARCH_MIN_WIDTH + controlsGap + filterWidth + controlsGap + createWidth + toggleClearance <=
+        toolbarWidth
       const shouldStack = !inlineFits && filterWidth + controlsGap + createWidth > toolbarWidth
 
       setDesktopInlineLayout((current) => (current === inlineFits ? current : inlineFits))
@@ -83,6 +89,9 @@ export function useDesktopToolbarLayout(actionsKey = '', pauseMeasuring = false)
     resizeObserver.observe(toolbarElement)
     resizeObserver.observe(controlsElement)
     resizeObserver.observe(filterGroupElement)
+    // The group's own items too, since a button easing to a new width inside an item that is not
+    // stretched to the row changes nothing the group's box shows
+    for (const item of Array.from(filterGroupElement.children)) resizeObserver.observe(item)
     resizeObserver.observe(createMeasureElement)
     window.addEventListener('resize', updateCreateLayout)
 
