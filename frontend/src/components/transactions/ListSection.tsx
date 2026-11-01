@@ -5,11 +5,21 @@ import { ApiError } from '@/api/auth'
 import {
   useBulkDeleteTransactions,
   useBulkUpdateTransactions,
+  useExportTransactions,
   useInfiniteTransactions,
   type Transaction,
 } from '@/api/transactions'
 import { useToast } from '@/hooks/useToast'
 import { LOADING_ANIMATION_MIN_MS } from '@/utils/timing'
+import { saveBlobAsFile } from '@/utils/downloadFile'
+import {
+  getExportBlockReason,
+  getExportFailureMessage,
+  getExportFilename,
+  getExportScope,
+} from '@/components/transactions/utils/exportFile'
+import { ExportAllConfirm } from '@/components/transactions/export/ExportAllConfirm'
+import { getActiveFilterCount } from '@/components/transactions/utils/filterOptions'
 import { BulkEditModal } from '@/components/transactions/bulk-edit/BulkEditModal'
 import { BulkDeleteConfirm } from '@/components/transactions/bulk-edit/BulkDeleteConfirm'
 import { BulkEditConfirm } from '@/components/transactions/bulk-edit/BulkEditConfirm'
@@ -67,6 +77,7 @@ export default function TransactionListSection({
   createBlockReason,
   onEditTransaction,
   onImport,
+  canExport,
 }: {
   fixedAccount?: TransactionListAccount
   accounts?: TransactionListAccount[]
@@ -83,6 +94,10 @@ export default function TransactionListSection({
 
   // Opens an import filed into the account this list is fixed to, offered only alongside one
   onImport?: () => void
+
+  // Offers the export on the list of every account. It saves what the list shows, so with no date
+  // filter it covers every date, as the list does
+  canExport?: boolean
 }) {
   const prefersReducedMotion = useReducedMotion()
   const { search, setSearch, activeSearch, submitSearch } = useTransactionSearch()
@@ -427,6 +442,39 @@ export default function TransactionListSection({
   const importDisabled = Boolean(fixedAccount) && !isImportableAccount(fixedAccount)
   const importDisabledReason = getImportBlockReason(fixedAccount)
 
+  const exportTransactions = useExportTransactions({ minimumPendingMs: LOADING_ANIMATION_MIN_MS })
+  const [isExportAllConfirmOpen, setIsExportAllConfirmOpen] = useState(false)
+  const isNarrowed = getActiveFilterCount(filters, true) > 0 || activeSearch !== ''
+  const exportScope = getExportScope({ selectedCount: selection.selectedIds.length, isNarrowed })
+  const exportDisabledReason = getExportBlockReason({
+    isLoaded: displayedTransactionsLoaded,
+    hasError: Boolean(error),
+    rowCount: displayedTransactions.length,
+    isNarrowed,
+  })
+
+  /**
+   * Saves the ticked rows, or every transaction the search and filters keep, as one CSV file
+   */
+  function downloadCsv() {
+    exportTransactions.mutate(
+      exportScope === 'selected'
+        ? { transactionIds: [...selection.selectedIds] }
+        : { filters: { ...filters, q: activeSearch || undefined } },
+      {
+        onSuccess: (file) => saveBlobAsFile(file, getExportFilename(today)),
+        onError: (exportError) => showToast({ status: 'error', text: getExportFailureMessage(exportError) }),
+      },
+    )
+  }
+
+  // The whole history is the one export that asks first, since nothing on the list says how much it
+  // saves. The other two are named by their button and run straight away
+  function exportCsv() {
+    if (exportScope === 'all') setIsExportAllConfirmOpen(true)
+    else downloadCsv()
+  }
+
   const { sentinelRef, showPendingFetch } = useInfiniteScrollTrigger({
     hasNextPage,
     isFetchingNextPage,
@@ -469,6 +517,10 @@ export default function TransactionListSection({
         createDisabled={createDisabled}
         createDisabledReason={createDisabledReason}
         onImport={onImport}
+        onExport={canExport ? exportCsv : undefined}
+        exportScope={exportScope}
+        exportPending={exportTransactions.isPending}
+        exportDisabledReason={exportDisabledReason}
         importDisabled={importDisabled}
         importDisabledReason={importDisabledReason}
         onStickyOffsetChange={setDateHeaderStickyTop}
@@ -584,6 +636,17 @@ export default function TransactionListSection({
           selectedCurrencies={selectedCurrencies}
           accounts={accountsForBulkEdit}
           onApply={applyBulkEdit}
+        />
+      )}
+
+      {canExport && (
+        <ExportAllConfirm
+          open={isExportAllConfirmOpen}
+          onCancel={() => setIsExportAllConfirmOpen(false)}
+          onConfirm={() => {
+            setIsExportAllConfirmOpen(false)
+            downloadCsv()
+          }}
         />
       )}
 

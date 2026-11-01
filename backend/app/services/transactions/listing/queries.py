@@ -61,8 +61,8 @@ def build_transaction_listing_query(
     search_text: str | None,
     sort_by: str,
     sort_order: str,
-    limit: int,
-    offset: int,
+    limit: int | None,
+    offset: int | None,
     extra_conditions: Sequence[ColumnElement[bool]] = (),
     nearest_amount: tuple[int, str] | None = None,
 ):
@@ -84,8 +84,8 @@ def build_transaction_listing_query(
         search_text: Optional text search across merchant name and notes
         sort_by: Transaction field used for ordering
         sort_order: Sort direction, either ``asc`` or ``desc``
-        limit: Maximum number of transactions to return
-        offset: Number of transactions to skip before returning rows
+        limit: Maximum number of transactions to return, or None for every match
+        offset: Number of transactions to skip before returning rows, or None for none
         extra_conditions: Further conditions every row must meet. They may name the category, which a
             date-sorted query has joined
         nearest_amount: Optional amount magnitude in minor units and its currency. Date sorting then puts the
@@ -93,7 +93,7 @@ def build_transaction_listing_query(
             and then the other currencies, each group newest first
 
     Returns:
-        A SQLAlchemy selectable for the requested transaction page
+        A SQLAlchemy selectable for the requested transactions
     """
     accessible_account_ids_query = accessible_account_ids_subquery(user_id)
     transaction_query = select(Transaction).where(Transaction.account_id.in_(accessible_account_ids_query), *extra_conditions)
@@ -153,7 +153,12 @@ def build_transaction_listing_query(
         sort_column = _SORT_FIELDS[sort_by]
         primary_order = sort_column.desc() if sort_order == "desc" else sort_column.asc()
         transaction_query = transaction_query.order_by(primary_order, Transaction.id)
-    return transaction_query.limit(limit).offset(offset)
+    # The export reads every match, so it passes neither bound
+    if limit is not None:
+        transaction_query = transaction_query.limit(limit)
+    if offset is not None:
+        transaction_query = transaction_query.offset(offset)
+    return transaction_query
 
 
 def _transaction_ids_with_tags(tag_ids: list[uuid.UUID], tag_match: str):

@@ -5,6 +5,7 @@ from datetime import date
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, Query, status
+from fastapi.responses import StreamingResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db
@@ -34,6 +35,7 @@ from app.schemas.transaction import (
     BulkUpdateTransactionsRequest,
     BulkUpdateTransactionsResponse,
     CreateTransactionRequest,
+    ExportSelectedTransactionsRequest,
     LinkRefundRequest,
     TransactionResponse,
     TransactionsOverview,
@@ -59,6 +61,7 @@ from app.services.transactions.bulk_update import bulk_update_transactions
 from app.services.transactions.creation import create_transaction_and_get_response
 from app.services.transactions.deletion import bulk_delete_transactions, delete_transaction_for_user
 from app.services.transactions.detail import get_transaction_response_for_user
+from app.services.transactions.export import TransactionCsvExport, export_selected_transactions_csv, export_transactions_csv
 from app.services.transactions.link_candidates import CandidateFilters, list_refund_link_candidates
 from app.services.transactions.links import link_existing_refund, unlink_refund
 from app.services.transactions.listing import list_transaction_responses
@@ -229,6 +232,106 @@ async def list_refund_link_candidates_route(
         to_date=to_date,
     )
     return await list_refund_link_candidates(db, user, transaction_id, search_text, filters, unlinked_id)
+
+
+@router.get("/export", response_class=StreamingResponse)
+async def export_transactions(
+    user: Annotated[User, Depends(get_current_user)],
+    db: Annotated[AsyncSession, Depends(get_db)],
+    account_id: Annotated[list[uuid.UUID] | None, Query()] = None,
+    category_id: Annotated[list[uuid.UUID] | None, Query()] = None,
+    merchant_id: Annotated[list[uuid.UUID] | None, Query()] = None,
+    currency: Annotated[list[str] | None, Query()] = None,
+    tag_id: Annotated[list[uuid.UUID] | None, Query()] = None,
+    tag_match: Annotated[str, Query()] = "all",
+    min_amount: Annotated[int | None, Query(ge=0)] = None,
+    max_amount: Annotated[int | None, Query(ge=0)] = None,
+    amount_currency: Annotated[str | None, Query(min_length=3, max_length=3)] = None,
+    from_date: Annotated[date | None, Query()] = None,
+    to_date: Annotated[date | None, Query()] = None,
+    search_text: Annotated[str | None, Query(alias="q", max_length=200)] = None,
+):
+    """Stream every transaction matching the list's filters as a CSV file, newest first
+
+    Takes the list's filters and readable-account scope without its page limit
+
+    Args:
+        user: Authenticated user exporting transactions
+        db: Active database session
+        account_id: Optional accounts to keep within the user's accessible accounts
+        category_id: Optional categories to keep
+        merchant_id: Optional merchants to keep
+        currency: Optional transaction currencies to keep
+        tag_id: Optional tags to filter by, combined per ``tag_match``
+        tag_match: ``all`` to require every selected tag, ``any`` to require at least one
+        min_amount: Optional inclusive lower bound on the amount magnitude in ``amount_currency`` minor units
+        max_amount: Optional inclusive upper bound on the amount magnitude in ``amount_currency`` minor units
+        amount_currency: Currency the amount bounds are expressed in, required when a bound is set
+        from_date: Optional inclusive start date for transaction dates
+        to_date: Optional inclusive end date for transaction dates
+        search_text: Optional text search across merchant name and notes
+
+    Returns:
+        A CSV download with a header row and one row per matching transaction
+
+    Raises:
+        HTTPException: Raised with 422 for an invalid date range, tag match mode, or an
+            amount range missing its currency
+    """
+    export = await export_transactions_csv(
+        db,
+        user,
+        account_ids=account_id,
+        category_ids=category_id,
+        merchant_ids=merchant_id,
+        currencies=currency,
+        tag_ids=tag_id,
+        tag_match=tag_match,
+        min_amount=min_amount,
+        max_amount=max_amount,
+        amount_currency=amount_currency,
+        from_date=from_date,
+        to_date=to_date,
+        search_text=search_text,
+    )
+    return _csv_download(export)
+
+
+@router.post("/export", response_class=StreamingResponse)
+async def export_selected_transactions(
+    data: ExportSelectedTransactionsRequest,
+    user: Annotated[User, Depends(get_current_user)],
+    db: Annotated[AsyncSession, Depends(get_db)],
+):
+    """Stream exactly the chosen transactions as a CSV file, newest first
+
+    A POST because a selection is a list of identifiers too long for a query string. It reads
+    like the filtered export and changes nothing
+
+    Args:
+        data: Transactions to export
+        user: Authenticated user exporting transactions
+        db: Active database session
+
+    Returns:
+        A CSV download with a header row and one row per chosen transaction
+
+    Raises:
+        HTTPException: Raised with 404 when any chosen transaction is not found in the user's accounts
+    """
+    return _csv_download(await export_selected_transactions_csv(db, user, data.transaction_ids))
+
+
+def _csv_download(export: TransactionCsvExport) -> StreamingResponse:
+    """Wrap a started export as an attachment that is never cached"""
+    return StreamingResponse(
+        export.chunks,
+        media_type="text/csv; charset=utf-8",
+        headers={
+            "Content-Disposition": f'attachment; filename="{export.filename}"',
+            "Cache-Control": "no-store",
+        },
+    )
 
 
 @router.get("/{transaction_id}", response_model=TransactionResponse)

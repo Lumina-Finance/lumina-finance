@@ -327,3 +327,9 @@ class BulkDeleteTransactionsResponse(BaseModel):
 
     transactions_deleted: int
     affected_account_ids: list[uuid.UUID]
+
+
+class ExportSelectedTransactionsRequest(BaseModel):
+    """Export exactly the chosen transactions as a CSV file."""
+
+    transaction_ids: list[uuid.UUID] = Field(min_length=1, max_length=MAX_BULK_UPDATE_TRANSACTIONS)

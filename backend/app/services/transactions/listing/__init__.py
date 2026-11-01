@@ -4,7 +4,6 @@ import uuid
 from collections.abc import Sequence
 from datetime import date
 
-from fastapi import HTTPException, status
 from sqlalchemy import ColumnElement
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -12,10 +11,8 @@ from app.models.user import User
 from app.schemas.transaction import TransactionResponse
 from app.services.transactions.links import get_transaction_links_batch
 from app.services.transactions.listing.amounts import get_transaction_listing_converted_amounts
-from app.services.transactions.listing.queries import (
-    build_transaction_listing_query,
-    is_valid_transaction_listing_sort_field,
-)
+from app.services.transactions.listing.queries import build_transaction_listing_query
+from app.services.transactions.listing.validation import validate_transaction_listing_filters
 from app.services.transactions.response_helpers import (
     build_transaction_response,
     get_merchant_names_batch,
@@ -84,18 +81,17 @@ async def list_transaction_responses(
         HTTPException: Raised with 422 for invalid sort fields, sort order, date
             range, tag match mode, or an amount range missing its currency
     """
-    if not is_valid_transaction_listing_sort_field(sort_by):
-        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail="Invalid sort field")
-    if sort_order not in ("asc", "desc"):
-        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail="Sort order must be 'asc' or 'desc'")
-    if from_date is not None and to_date is not None and from_date > to_date:
-        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail="Start date must be before end date")
-    if tag_ids and tag_match not in ("all", "any"):
-        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail="Tag match must be 'all' or 'any'")
-    if (min_amount is not None or max_amount is not None) and not amount_currency:
-        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail="Amount currency is required when filtering by amount")
-    if min_amount is not None and max_amount is not None and min_amount > max_amount:
-        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail="Minimum amount must not exceed maximum amount")
+    validate_transaction_listing_filters(
+        tag_ids=tag_ids,
+        tag_match=tag_match,
+        min_amount=min_amount,
+        max_amount=max_amount,
+        amount_currency=amount_currency,
+        from_date=from_date,
+        to_date=to_date,
+        sort_by=sort_by,
+        sort_order=sort_order,
+    )
 
     transaction_query = build_transaction_listing_query(
         user_id=user.id,

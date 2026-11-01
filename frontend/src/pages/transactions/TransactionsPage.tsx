@@ -241,6 +241,7 @@ export default function TransactionsPage() {
           createBlockReason={getCreateBlockReason(accounts)}
           onEditTransaction={openEditModal}
           onImport={openImport}
+          canExport
         />
       </div>
 

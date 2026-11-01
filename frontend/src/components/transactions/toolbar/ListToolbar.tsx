@@ -1,10 +1,11 @@
-import { useMemo, useState } from 'react'
+import { useMemo, useRef, useState } from 'react'
 import { AnimatePresence, motion, useReducedMotion } from 'motion/react'
-import { Check, ListChecks, PencilLine, SlidersHorizontal, Trash2, Upload } from 'lucide-react'
+import { Check, Download, ListChecks, LoaderCircle, PencilLine, SlidersHorizontal, Trash2, Upload } from 'lucide-react'
 import { DesktopToolbarControls } from '@/components/list-controls/DesktopToolbarControls'
 import { GlassSearchField } from '@/components/list-controls/GlassSearchField'
 import { MobileToolbarActions } from '@/components/list-controls/MobileToolbarActions'
 import { ToolbarStickyShell } from '@/components/list-controls/ToolbarStickyShell'
+import { Crossfade } from '@/components/loading/Crossfade'
 import { DisabledReasonButton } from '@/components/tooltips/DisabledReasonButton'
 import { getSearchFieldWrapperClassName } from '@/components/list-controls/toolbarStyles'
 import { useToolbarShellState } from '@/components/list-controls/useToolbarShellState'
@@ -13,6 +14,9 @@ import type { TransactionListToolbarProps } from '@/components/transactions/tool
 import { TransactionFilterPanel } from '@/components/transactions/toolbar/FilterPanel'
 import { MobileFilterPanel } from '@/components/transactions/toolbar/MobileFilterPanel'
 import { useToolbarStickyOffset } from '@/components/transactions/toolbar/hooks/useStickyOffset'
+import { EXPORT_LABELS } from '@/components/transactions/utils/exportFile'
+import { useMediaQuery } from '@/hooks/useMediaQuery'
+import { joinClassNames } from '@/utils/classNames'
 import {
   getAccountOptions,
   getActiveFilterCount,
@@ -38,6 +42,10 @@ export default function TransactionListToolbar({
   onImport,
   importDisabled = false,
   importDisabledReason,
+  onExport,
+  exportScope = 'all',
+  exportPending = false,
+  exportDisabledReason,
   onStickyOffsetChange,
   isSelecting = false,
   selectedCount = 0,
@@ -53,9 +61,17 @@ export default function TransactionListToolbar({
   // layout hook holds its measurement still for exactly the span its width is changing
   const [isEditActionAnimating, setIsEditActionAnimating] = useState(false)
 
+  // The export button's slot in the desktop row, and its invisible twin as wide as its longest word. The
+  // wrap layout counts the slot at the twin's width, so which row Add transaction and the bulk actions
+  // sit on is decided from the longest word and never changes with the word on show
+  const exportSlotRef = useRef<HTMLSpanElement>(null)
+  const exportLongestRef = useRef<HTMLSpanElement>(null)
+  const exportReserve = useMemo(() => ({ slotRef: exportSlotRef, longestRef: exportLongestRef }), [])
+
   // Selection mode swaps the row's own controls, and the wrap layout measures boxes rather than
-  // contents, so it is told rather than left to notice
-  const shell = useToolbarShellState(isSelecting ? 'selecting' : 'browsing', isEditActionAnimating)
+  // contents, so it is told rather than left to notice. The export word is not part of what it is told,
+  // since the layout is worked out at the longest word
+  const shell = useToolbarShellState(isSelecting ? 'selecting' : 'browsing', isEditActionAnimating, exportReserve)
   useToolbarStickyOffset(shell.toolbarRef, onStickyOffsetChange)
 
   // One node for both widths, at the 44px control height the row is built on, which the search field
@@ -79,6 +95,62 @@ export default function TransactionListToolbar({
           needs the space it would take. The accessible name carries it at both widths */}
       <span className="hidden min-[750px]:inline">Import</span>
     </DisabledReasonButton>
+  ) : undefined
+
+  // Sits beside Import in the same 44px glass shape, square on a phone and widening for its word on a
+  // desktop. The word says what the file will hold, and the accessible name is that same text so the
+  // icon-only phone button says it too. The button is only as wide as its current word needs. When the
+  // word changes the old one fades out and then the new one fades in, with the icon staying whole, while the width eases between the two, so
+  // Filters and Add transaction slide to their new places rather than jump, and the layout hook is told
+  // of the change through the key above. While the file is being prepared it keeps its place and size,
+  // with the icon turning, and is held off with `disabled` alone. An empty list holds it off with the reason as its description. Only the
+  // export of every transaction opens a confirmation first
+  const exportLabel = EXPORT_LABELS[exportScope]
+  // Below this width the word is hidden, so a new scope changes nothing anyone sees and must not replay
+  // the icon's crossfade. The key then stays put until the word comes back
+  const showsExportWord = useMediaQuery('(min-width: 750px)')
+  const exportAction = onExport ? (
+    <DisabledReasonButton
+      className="app-glass-button h-11 w-11 shrink-0 px-0 min-[750px]:w-auto min-[750px]:justify-start min-[750px]:px-4"
+      onClick={onExport}
+      disabled={exportPending}
+      disabledReason={exportPending ? undefined : exportDisabledReason}
+      aria-busy={exportPending}
+      aria-label={exportLabel}
+      aria-haspopup={exportScope === 'all' ? 'dialog' : undefined}
+    >
+      <Crossfade swapKey={showsExportWord ? exportScope : 'icon'} className="gap-2" fitToWidth>
+        {exportPending ? (
+          <LoaderCircle size={18} className="shrink-0 animate-spin motion-reduce:animate-none" aria-hidden />
+        ) : (
+          <Download size={18} className="shrink-0" aria-hidden />
+        )}
+        <span data-crossfade-word className="hidden min-[750px]:inline">
+          {exportLabel}
+        </span>
+      </Crossfade>
+    </DisabledReasonButton>
+  ) : undefined
+
+  // The desktop row's copy sits in a slot the layout measures, beside a twin of the button at each word
+  // stacked in one cell, so the twin is as wide as the longest. The twin is not drawn, takes no room in the
+  // row and is hidden from everyone. It carries the button's own classes so the two are measured alike
+  const desktopExportAction = exportAction ? (
+    <span ref={exportSlotRef} className="relative inline-flex shrink-0">
+      {exportAction}
+      <span
+        ref={exportLongestRef}
+        aria-hidden
+        className="pointer-events-none invisible absolute left-0 top-0 grid w-max whitespace-nowrap [&>*]:[grid-area:1/1]"
+      >
+        {Object.values(EXPORT_LABELS).map((word) => (
+          <span key={word} className="app-glass-button h-11 px-4">
+            <Download size={18} className="shrink-0" />
+            <span>{word}</span>
+          </span>
+        ))}
+      </span>
+    </span>
   ) : undefined
 
   // Follows the import button's shape while browsing. In the mobile selection row, Done gains its
@@ -125,7 +197,7 @@ export default function TransactionListToolbar({
         disabledReason={reason}
         aria-label="Edit the selected transactions"
       >
-        <PencilLine size={18} aria-hidden />
+        <PencilLine size={18} className="shrink-0" aria-hidden />
         <span className={labelClassName}>Edit</span>
       </DisabledReasonButton>
     )
@@ -159,7 +231,8 @@ export default function TransactionListToolbar({
       {isSelecting && onEditSelection && (
         <motion.div
           key="edit-action"
-          className="overflow-hidden"
+          data-wrap-above=""
+          className="shrink-0 overflow-hidden"
           initial={{ width: 0, opacity: 0 }}
           animate={{ width: 'auto', opacity: 1 }}
           exit={{ width: 0, opacity: 0 }}
@@ -167,7 +240,7 @@ export default function TransactionListToolbar({
           onAnimationStart={() => setIsEditActionAnimating(true)}
           onAnimationComplete={() => setIsEditActionAnimating(false)}
         >
-          <div className="flex items-center">
+          <div className="flex w-max items-center">
             {renderEditAction('app-glass-button h-11 w-11 shrink-0 px-0 mr-3 min-[750px]:w-auto min-[750px]:px-4')}
             {renderDeleteAction('app-glass-button h-11 w-11 shrink-0 px-0 mr-3 min-[1050px]:w-auto min-[1050px]:px-4')}
           </div>
@@ -176,14 +249,8 @@ export default function TransactionListToolbar({
     </AnimatePresence>
   )
 
-  const accountOptions = useMemo(
-    () => getAccountOptions(accounts),
-    [accounts],
-  )
-  const categoryOptions = useMemo(
-    () => getCategoryOptions(categories),
-    [categories],
-  )
+  const accountOptions = useMemo(() => getAccountOptions(accounts), [accounts])
+  const categoryOptions = useMemo(() => getCategoryOptions(categories), [categories])
   const activeFilterCount = getActiveFilterCount(filters, showAccountFilter)
 
   return (
@@ -200,7 +267,7 @@ export default function TransactionListToolbar({
           onValueChange={onSearchChange}
           onSubmit={onSearchSubmit}
           placeholder="Search transactions..."
-          wrapperClassName={getSearchFieldWrapperClassName(shell.isTopRowAtMenuButton,shell.desktopInlineLayout)}
+          wrapperClassName={getSearchFieldWrapperClassName(shell.isTopRowAtMenuButton, shell.desktopInlineLayout)}
         />
 
         {/* Query this row's available width, including on an account page. Each threshold reserves
@@ -231,6 +298,7 @@ export default function TransactionListToolbar({
               'hidden @min-[16rem]/bulk-actions:inline',
             )}
             {renderDeleteAction('app-glass-button h-11 w-11 shrink-0 px-0')}
+            {exportAction}
             {selectAction}
           </div>
         ) : (
@@ -245,6 +313,7 @@ export default function TransactionListToolbar({
               <>
                 {selectAction}
                 {importAction}
+                {exportAction}
               </>
             }
           />
@@ -262,12 +331,28 @@ export default function TransactionListToolbar({
             // hook measures this group's own children as they render. A button placed after the
             // group instead would need its own measured twin, or the row would report itself
             // narrower than it draws and stay on one line where it no longer fits. Wrapped as one
-            // child, since the group spreads its children apart once the create button stacks
-            <div className="flex min-w-0 items-center">
+            // child, since the group spreads its children apart once the create button stacks. It keeps
+            // its full width until then, which the hook measures. Once stacked and wider than the toolbar
+            // at the longest export word, as in select mode, it puts its two parts one above the other,
+            // Edit and Delete above the rest, rather than running past the edge. That is the hook's
+            // decision and not the browser's wrapping, so every word of the button gets the same rows
+            <div
+              data-natural-row=""
+              className={joinClassNames(
+                'flex items-center',
+                shell.desktopCreateStacked
+                  ? joinClassNames(
+                      'max-w-full',
+                      shell.desktopActionsWrapped ? 'flex-col items-start gap-y-3' : 'flex-nowrap',
+                    )
+                  : 'shrink-0',
+              )}
+            >
               {desktopEditAction}
-              <div className="flex min-w-0 items-center gap-3">
+              <div className="flex items-center gap-3">
                 {selectAction}
                 {importAction}
+                {desktopExportAction}
                 <TransactionFilterPanel
                   accountOptions={accountOptions}
                   categoryOptions={categoryOptions}

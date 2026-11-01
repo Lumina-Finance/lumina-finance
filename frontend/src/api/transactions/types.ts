@@ -120,6 +120,12 @@ export interface TransactionFilters {
   offset?: number
 }
 
+// The list's filters and search, which the export reads without paging or sorting
+export type ExportTransactionsFilters = Omit<TransactionFilters, 'sort_by' | 'sort_order' | 'limit' | 'offset'>
+
+/** What one export covers: exactly the chosen transactions, or everything the list's filters keep */
+export type ExportTransactionsRequest = { transactionIds: string[] } | { filters: ExportTransactionsFilters }
+
 /** The filters that narrow the transactions offered for a refund link, the list's own without paging or sorting */
 export type LinkCandidateFilters = Omit<TransactionFilters, 'q' | 'sort_by' | 'sort_order' | 'limit' | 'offset'> & {
   /** Refunds whose link the open edit window will remove on Save, offered as if already unlinked */
