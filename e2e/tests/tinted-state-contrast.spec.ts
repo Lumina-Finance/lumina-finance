@@ -187,5 +187,54 @@ for (const colorScheme of ['light', 'dark'] as const) {
       await card.hover()
       expect(await colourContrast(card.locator('svg.lucide-chevron-right')), 'a hovered card\'s chevron').toBeGreaterThanOrEqual(4.5)
     })
+
+    test('draws every active account row at full contrast and an archived one faded, at rest and under the pointer', async ({ page, request }) => {
+      const user = await signUpUser(request)
+      const planId = await createTaxAdvantagedCategory(request, user, 'Retirement Savings')
+      const savings = await createAccount(request, user, { name: 'Rainy Day Savings', accountType: 'savings', startingBalance: 1_250_000 })
+      const linked = await request.patch(`${API_BASE_URL}/accounts/${savings.id}`, { headers: asUser(user), data: { tax_advantaged_category_id: planId } })
+      expect(linked.status()).toBe(200)
+      const old = await createAccount(request, user, { name: 'Old Savings', accountType: 'savings', startingBalance: 90_000 })
+      const archived = await request.patch(`${API_BASE_URL}/accounts/${old.id}`, { headers: asUser(user), data: { is_archived: true } })
+      expect(archived.status()).toBe(200)
+      const accounts = {
+        'positive balance': await createAccount(request, user, { name: 'Everyday Checking', startingBalance: 440_000 }),
+        'negative balance': await createAccount(request, user, { name: 'Overdrawn Chequing', startingBalance: -25_000 }),
+        'zero balance': await createAccount(request, user, { name: 'Empty Wallet', startingBalance: 0 }),
+        'linked plan': savings,
+        'archived account': old,
+      }
+      await logInViaApi(page, user)
+      await openPage(page, '/accounts')
+      await expectTheme(page)
+      // Archived accounts wait in a section of their own until it is opened
+      if (!(await page.locator(`a[href="/accounts/${old.id}"]`).isVisible())) {
+        await page.getByRole('button', { name: /Archived/ }).first().click()
+      }
+
+      // The row tints with the soft accent under the pointer, which took the green of a positive balance
+      // from 4.52:1 to 4.03:1 and a linked plan's label to 3.84:1 in the light theme. An archived row stays
+      // faded as a whole so it reads as unavailable, which is exempt from the 4.5:1 minimum
+      for (const [what, account] of Object.entries(accounts)) {
+        if (account === old) continue
+        const row = page.locator(`a[href="/accounts/${account.id}"]`)
+        await expect(row).toBeVisible()
+        await page.mouse.move(0, 0)
+        await expectReadable(row, `on a row with a ${what}`)
+        await row.hover()
+        await expectReadable(row, `on a row with a ${what} under the pointer`)
+      }
+
+      // An archived row keeps the fade it has on main, three quarters at rest and full under the pointer,
+      // while an active row is never faded
+      const archivedRow = page.locator(`a[href="/accounts/${old.id}"]`)
+      const activeRow = page.locator(`a[href="/accounts/${accounts['positive balance'].id}"]`)
+      const opacityOf = (row: Locator) => row.evaluate((node) => getComputedStyle(node).opacity)
+      await page.mouse.move(0, 0)
+      await expect.poll(() => opacityOf(archivedRow), { message: 'an archived row at rest' }).toBe('0.75')
+      expect(await opacityOf(activeRow), 'an active row at rest').toBe('1')
+      await archivedRow.hover()
+      await expect.poll(() => opacityOf(archivedRow), { message: 'an archived row under the pointer' }).toBe('1')
+    })
   })
 }
