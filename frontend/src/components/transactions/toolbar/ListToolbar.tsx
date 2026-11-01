@@ -15,6 +15,7 @@ import { TransactionFilterPanel } from '@/components/transactions/toolbar/Filter
 import { MobileFilterPanel } from '@/components/transactions/toolbar/MobileFilterPanel'
 import { useToolbarStickyOffset } from '@/components/transactions/toolbar/hooks/useStickyOffset'
 import { EXPORT_LABELS } from '@/components/transactions/utils/exportFile'
+import { useMediaQuery } from '@/hooks/useMediaQuery'
 import { joinClassNames } from '@/utils/classNames'
 import {
   getAccountOptions,
@@ -98,6 +99,9 @@ export default function TransactionListToolbar({
   // with the icon turning, and is held off with `disabled` alone. An empty list holds it off with the reason as its description. Only the
   // export of every transaction opens a confirmation first
   const exportLabel = EXPORT_LABELS[exportScope]
+  // Below this width the word is hidden, so a new scope changes nothing anyone sees and must not replay
+  // the icon's crossfade. The key then stays put until the word comes back
+  const showsExportWord = useMediaQuery('(min-width: 750px)')
   const exportAction = onExport ? (
     <DisabledReasonButton
       className="app-glass-button h-11 w-11 shrink-0 px-0 min-[750px]:w-auto min-[750px]:px-4"
@@ -108,7 +112,7 @@ export default function TransactionListToolbar({
       aria-label={exportLabel}
       aria-haspopup={exportScope === 'all' ? 'dialog' : undefined}
     >
-      <Crossfade swapKey={exportScope} className="gap-2">
+      <Crossfade swapKey={showsExportWord ? exportScope : 'icon'} className="gap-2">
         {exportPending ? (
           <LoaderCircle size={18} className="shrink-0 animate-spin motion-reduce:animate-none" aria-hidden />
         ) : (

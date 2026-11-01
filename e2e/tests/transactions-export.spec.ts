@@ -470,3 +470,29 @@ test('keeps every toolbar control inside the viewport from 768 to 1280', async (
     }
   }
 })
+
+// On a phone the word is hidden, so the button looks the same whichever scope it has. Ticking a row must not
+// replay the icon's crossfade, which would dim it for nothing: the icon stays the same node, with no second layer
+test('keeps the phone export icon still when a row is ticked', async ({ page, request }) => {
+  const user = await seedTwoTransactions(request)
+  await logInViaApi(page, user)
+  await page.setViewportSize({ width: 390, height: 844 })
+  await openPage(page, '/transactions')
+  await expect(page.getByTestId(/^transaction-row-/)).toHaveCount(2)
+  await page.getByRole('button', SELECT_MODE).click()
+
+  const exportButton = page.getByRole('button', { name: /^Export / }).filter({ visible: true }).first()
+  await expect(exportButton).toHaveAccessibleName('Export all')
+  await exportButton.evaluate((button) => {
+    ;(button.querySelector('svg') as unknown as { marked: boolean }).marked = true
+  })
+  await tickRow(page, daysFromTodayInTestTimezone(0))
+  await expect(exportButton).toHaveAccessibleName('Export selected')
+  // Longer than the crossfade, so a replay would have finished replacing the node by now
+  await page.waitForTimeout(700)
+  const state = await exportButton.evaluate((button) => ({
+    kept: (button.querySelector('svg') as unknown as { marked?: boolean }).marked === true,
+    layers: button.querySelectorAll(':scope > div').length,
+  }))
+  expect(state).toEqual({ kept: true, layers: 1 })
+})
