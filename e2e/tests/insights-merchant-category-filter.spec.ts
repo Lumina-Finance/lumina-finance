@@ -6,7 +6,7 @@ import { expect, test, type APIRequestContext, type Locator } from '@playwright/
 
 import { asUser, createAccount, createCategory, createTransaction, findReferenceId, signUpUser } from '../support/api'
 import { expectSignedIn, logInViaApi, openPage } from '../support/app'
-import { card, matchesApi } from '../support/insights'
+import { card, matchesApi, navigate } from '../support/insights'
 import { API_BASE_URL } from '../support/target'
 
 // Runs on desktop only: the filter's request and the two cards' rows are the same at every size
@@ -258,4 +258,67 @@ test('on a phone the sheet narrows the map and covers the floating range selecto
   await expect(sheet).toHaveCount(0)
   await expect(distribution.getByText(names.dining)).toBeVisible()
   await expect(distribution.getByText(names.groceries)).toHaveCount(0)
+})
+
+test('the category choice is gone after leaving Insights and coming back', async ({ page, request }) => {
+  const { user, names } = await seedFilterMerchants(request)
+  await logInViaApi(page, user)
+  await openPage(page, '/insights')
+  const distribution = card(page, 3)
+  await distribution.scrollIntoViewIfNeeded()
+  await distribution.getByRole('button', { name: 'Merchant category filter' }).click()
+  await page.getByRole('checkbox', { name: 'Dining' }).click()
+  await page.getByRole('button', { name: 'Apply filter' }).click()
+  await expect(distribution.getByText(names.groceries)).toHaveCount(0)
+  await expect(distribution.getByText(names.dining)).toBeVisible()
+
+  await navigate(page, 'Transactions')
+  await navigate(page, 'Insights')
+  await expect(page.getByRole('heading', { name: 'Insights', exact: true })).toBeVisible()
+  await distribution.scrollIntoViewIfNeeded()
+
+  await expect(distribution.getByText(names.groceries)).toBeVisible()
+  await expect(distribution.getByText(names.dining)).toBeVisible()
+  await distribution.getByRole('button', { name: 'Merchant category filter' }).click()
+  await expect(page.getByRole('checkbox', { name: 'Dining' })).not.toBeChecked()
+  await expect(page.getByText('No filter applied').filter({ visible: true })).toBeVisible()
+})
+
+test('Insights is whole again after leaving and coming back inside the page fade', async ({ page, request }) => {
+  const { user, names } = await seedFilterMerchants(request)
+  await logInViaApi(page, user)
+  await openPage(page, '/insights')
+  const distribution = card(page, 3)
+  await distribution.scrollIntoViewIfNeeded()
+  const pill = distribution.getByRole('button', { name: 'Merchant category filter' })
+  await pill.click()
+  await page.getByRole('checkbox', { name: 'Dining' }).click()
+  await page.getByRole('button', { name: 'Apply filter' }).click()
+  await expect(distribution.getByText(names.groceries)).toHaveCount(0)
+  await expect(pill).toContainText('1')
+
+  // Both clicks run inside the page, the second 100ms after the first, so it lands in the 350ms exit
+  // fade of the first however slowly the test driver answers
+  await page.evaluate(() => new Promise<void>((resolve) => {
+    const link = (name: string) => [...document.querySelectorAll<HTMLAnchorElement>('nav[aria-label="Primary"] a')]
+      .find((anchor) => anchor.textContent?.trim() === name)
+    link('Transactions')!.click()
+    setTimeout(() => {
+      link('Insights')!.click()
+      resolve()
+    }, 100)
+  }))
+  await expect(page).toHaveURL(/\/insights$/)
+
+  const heading = page.getByRole('heading', { name: 'Insights', exact: true })
+  await expect(heading).toBeVisible()
+  await expect.poll(() => heading.evaluate((element) => {
+    let opacity = 1
+    for (let node: Element | null = element; node; node = node.parentElement) opacity *= Number(getComputedStyle(node).opacity)
+    return opacity
+  }), { message: 'the page is back at full opacity' }).toBe(1)
+  await distribution.scrollIntoViewIfNeeded()
+  await expect(distribution.getByText(names.groceries)).toBeVisible()
+  await expect(distribution.getByText(names.dining)).toBeVisible()
+  await expect(pill).not.toContainText(/\d/)
 })

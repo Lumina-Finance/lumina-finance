@@ -1,4 +1,4 @@
-import { useState, useEffect, useLayoutEffect, useCallback, startTransition, Suspense } from 'react'
+import { useState, useEffect, useLayoutEffect, useCallback, useRef, startTransition, Suspense } from 'react'
 import { BrowserRouter, Routes, Route, Navigate, Outlet, useLocation, type Location } from 'react-router'
 import { AnimatePresence, motion } from 'motion/react'
 import { useCurrencies } from '@/api/currency'
@@ -40,11 +40,11 @@ const ConfirmEmailPage = lazyPage(() => import('@/pages/auth/ConfirmEmailPage'))
 const OidcCallbackPage = lazyPage(() => import('@/pages/auth/OidcCallbackPage'))
 const NativePasskeyPage = lazyPage(() => import('@/pages/auth/NativePasskeyPage'))
 
-const PAGE_TRANSITION_MS = 350;
-const PAGE_TRANSITION_OFFSET_PX = 12;
-const ROUTE_LOADER_DELAY_MS = 300;
+const PAGE_TRANSITION_MS = 350
+const PAGE_TRANSITION_OFFSET_PX = 12
+const ROUTE_LOADER_DELAY_MS = 300
 
-type PageTransitionPhase = 'idle' | 'exiting' | 'loading' | 'entering';
+type PageTransitionPhase = 'idle' | 'exiting' | 'loading' | 'entering'
 
 /**
  * Reports the displayed route once its lazy chunk has resolved and mounted so the
@@ -53,10 +53,10 @@ type PageTransitionPhase = 'idle' | 'exiting' | 'loading' | 'entering';
  */
 function RouteReadyNotifier({ path, onReady }: { path: string; onReady: () => void }) {
   useEffect(() => {
-    onReady();
-  }, [path, onReady]);
+    onReady()
+  }, [path, onReady])
 
-  return null;
+  return null
 }
 
 function isProtectedPath(pathname: string) {
@@ -67,38 +67,50 @@ function isProtectedPath(pathname: string) {
     pathname === '/budgets' ||
     pathname === '/insights' ||
     pathname.startsWith('/settings')
-  );
+  )
 }
 
 function isBudgetDetailRoute(pathname: string, search: string) {
-  return pathname === '/budgets' && new URLSearchParams(search).has('budget');
+  return pathname === '/budgets' && new URLSearchParams(search).has('budget')
 }
 
 function scrollDocumentToTop() {
-  window.scrollTo({ top: 0, left: 0, behavior: 'auto' });
+  window.scrollTo({ top: 0, left: 0, behavior: 'auto' })
 }
 
 // Module-level flag so the loading screen only shows once per app session
-let hasShownLoadingScreen = false;
+let hasShownLoadingScreen = false
 
 /** Redirect to /login if unauthenticated, or offer a reload if the server could not restore the session. Show loading screen on first visit. */
-function ProtectedRoute({ displayLocation, onContentReady, pageTransitionPhase, isInitialLoad }: { displayLocation: Location; onContentReady: () => void; pageTransitionPhase: PageTransitionPhase; isInitialLoad: boolean }) {
-  const { user, loading, sessionRestoreError, setUser } = useAuth();
-  const { navExpanded } = useNavCollapse();
-  const pageTransitioning = pageTransitionPhase !== 'idle';
-  const pageContentVisible = pageTransitionPhase === 'idle' || pageTransitionPhase === 'entering';
+function ProtectedRoute({
+  displayLocation,
+  onContentReady,
+  pageTransitionPhase,
+  isInitialLoad,
+}: {
+  displayLocation: Location
+  onContentReady: () => void
+  pageTransitionPhase: PageTransitionPhase
+  isInitialLoad: boolean
+}) {
+  const { user, loading, sessionRestoreError, setUser } = useAuth()
+  const { navExpanded } = useNavCollapse()
+  const pageTransitioning = pageTransitionPhase !== 'idle'
+  const pageContentVisible = pageTransitionPhase === 'idle' || pageTransitionPhase === 'entering'
   // Derive layout from the displayed location, not the URL, so the focused-page
   // container and offsets switch in step with the content swap rather than jumping
   // ahead at navigation time and snapping the page between layouts
-  const isFocusedPage = displayLocation.pathname === '/settings/imports';
-  const desktopBottomPadding = displayLocation.pathname === '/transactions' ? 'min-[1050px]:pb-12' : 'min-[1050px]:pb-5';
+  const isFocusedPage = displayLocation.pathname === '/settings/imports'
+  const desktopBottomPadding = displayLocation.pathname === '/transactions' ? 'min-[1050px]:pb-12' : 'min-[1050px]:pb-5'
   // The content clears the full sidebar when expanded and the icon rail when collapsed, matching the
   // sidebar's own left offset so it stays flush in either state
-  const navOffsetClass = navExpanded ? 'min-[1050px]:ml-[260px]' : 'min-[1050px]:ml-[94px]';
-  const pageTransitionOffset = isBudgetDetailRoute(displayLocation.pathname, displayLocation.search) ? 0 : PAGE_TRANSITION_OFFSET_PX;
+  const navOffsetClass = navExpanded ? 'min-[1050px]:ml-[260px]' : 'min-[1050px]:ml-[94px]'
+  const pageTransitionOffset = isBudgetDetailRoute(displayLocation.pathname, displayLocation.search)
+    ? 0
+    : PAGE_TRANSITION_OFFSET_PX
   // Only show loading screen if there's a session being restored or user just authenticated
-  const shouldShowLoading = loading || (!hasShownLoadingScreen && user);
-  const [minTimePassed, setMinTimePassed] = useState(hasShownLoadingScreen);
+  const shouldShowLoading = loading || (!hasShownLoadingScreen && user)
+  const [minTimePassed, setMinTimePassed] = useState(hasShownLoadingScreen)
   // No amount can be rendered before the currency list arrives, since each currency's decimal places
   // live in it and the browser's own figures disagree with it for 16 codes. Waiting here means every
   // screen below paints its amounts once and correctly, rather than at a guessed scale that then jumps
@@ -107,8 +119,12 @@ function ProtectedRoute({ displayLocation, onContentReady, pageTransitionPhase, 
   // remounting on every navigation and needs nothing reset. useCurrencies makes three attempts that
   // each abort at five seconds, so this is pending for at most fifteen and then either has the list
   // or has failed
-  const { isPending: currenciesPending, isLoadingError: currencyListUnavailable, error: currencyError } = useCurrencies();
-  const ready = !loading && minTimePassed && !currenciesPending;
+  const {
+    isPending: currenciesPending,
+    isLoadingError: currencyListUnavailable,
+    error: currencyError,
+  } = useCurrencies()
+  const ready = !loading && minTimePassed && !currenciesPending
 
   // An initial failure means the recovery screen because amounts need currency metadata. A failed
   // refetch retains the cached list and the open form so an inline retry does not discard edits
@@ -126,69 +142,69 @@ function ProtectedRoute({ displayLocation, onContentReady, pageTransitionPhase, 
   // them
 
   // The loading phase runs after the switch while the new route's chunk mounts
-  const routeLoading = pageTransitionPhase === 'loading';
-  const [routeLoaderDelayElapsed, setRouteLoaderDelayElapsed] = useState(false);
+  const routeLoading = pageTransitionPhase === 'loading'
+  const [routeLoaderDelayElapsed, setRouteLoaderDelayElapsed] = useState(false)
   const routeLoaderVisible = useMinimumVisibleFlag(
     routeLoading && routeLoaderDelayElapsed && !isInitialLoad,
     LOADING_ANIMATION_MIN_MS,
-  );
+  )
 
   // Hold the heavy page body back until the navigation shell has painted, then
   // mount it as a non-urgent transition. The route subtree remounts per path, so
   // this resets on every navigation. Without it the lazy page and its charts render
   // in one blocking commit that freezes taps on the menu and toolbar for the length
   // of that render, which is roughly a second on a phone
-  const [contentMounted, setContentMounted] = useState(false);
+  const [contentMounted, setContentMounted] = useState(false)
 
   useEffect(() => {
-    if (!ready) return;
+    if (!ready) return
     const frame = requestAnimationFrame(() => {
-      startTransition(() => setContentMounted(true));
-    });
-    return () => cancelAnimationFrame(frame);
-  }, [ready]);
+      startTransition(() => setContentMounted(true))
+    })
+    return () => cancelAnimationFrame(frame)
+  }, [ready])
 
-  useCacheValidation(user?.id, Boolean(user && ready && !currencyListUnavailable), setUser);
+  useCacheValidation(user?.id, Boolean(user && ready && !currencyListUnavailable), setUser)
 
   // Hold the route loader back until the chunk has stayed pending past the delay so
   // cached or fast navigations never flash the spinner, and clear the flag on
   // teardown so the next navigation starts its own delay from scratch
   useEffect(() => {
-    if (!ready || !routeLoading) return;
-    const timer = setTimeout(() => setRouteLoaderDelayElapsed(true), ROUTE_LOADER_DELAY_MS);
+    if (!ready || !routeLoading) return
+    const timer = setTimeout(() => setRouteLoaderDelayElapsed(true), ROUTE_LOADER_DELAY_MS)
     return () => {
-      clearTimeout(timer);
-      setRouteLoaderDelayElapsed(false);
-    };
-  }, [ready, routeLoading]);
+      clearTimeout(timer)
+      setRouteLoaderDelayElapsed(false)
+    }
+  }, [ready, routeLoading])
 
   // Enforce the first-session loading-screen minimum before revealing the app
   useEffect(() => {
-    if (hasShownLoadingScreen || !shouldShowLoading) return;
+    if (hasShownLoadingScreen || !shouldShowLoading) return
     const timer = setTimeout(() => {
-      hasShownLoadingScreen = true;
-      setMinTimePassed(true);
-    }, LOADING_ANIMATION_MIN_MS);
-    return () => clearTimeout(timer);
-  }, [shouldShowLoading]);
+      hasShownLoadingScreen = true
+      setMinTimePassed(true)
+    }, LOADING_ANIMATION_MIN_MS)
+    return () => clearTimeout(timer)
+  }, [shouldShowLoading])
 
   // The server could not answer the restore, which says nothing about the session, so the screen offers
   // a reload that restores it once the server is back rather than the login page
   if (!loading && !user && sessionRestoreError) {
-    return <Fallback componentStack={null} error={sessionRestoreError} preserveStoredData variant="screen" />;
+    return <Fallback componentStack={null} error={sessionRestoreError} preserveStoredData variant="screen" />
   }
 
   // No session and not loading — go straight to login
-  if (!loading && !user) return <Navigate to="/login" replace />;
+  if (!loading && !user) return <Navigate to="/login" replace />
 
   // A recovery-code login holds the account to re-enrolment before any route renders
-  if (user?.second_factor_reenrollment_required) return <ForcedReenrollScreen />;
+  if (user?.second_factor_reenrollment_required) return <ForcedReenrollScreen />
 
   // Nothing retries this on its own, not a refocus, a reconnect, or the remount every navigation
   // performs, so it stands until the user reloads, which is what the screen asks them to do. It says
   // so in its own words when the reason is that the server cannot be reached
   if (currencyListUnavailable) {
-    return <Fallback componentStack={null} error={currencyError} preserveStoredData variant="screen" />;
+    return <Fallback componentStack={null} error={currencyError} preserveStoredData variant="screen" />
   }
 
   // The Routes subtree remounts on each path change, so this wrapper is recreated
@@ -196,28 +212,21 @@ function ProtectedRoute({ displayLocation, onContentReady, pageTransitionPhase, 
   // an already-mounted route shows at full opacity and snaps in instead of fading
   // The first mount also starts in the loading phase, so the fade waits for the lazy
   // chunk to mount rather than animating the empty Suspense wrapper before it resolves
-  const pageContentEntering = pageTransitionPhase === 'entering' || pageTransitionPhase === 'loading';
+  const pageContentEntering = pageTransitionPhase === 'entering' || pageTransitionPhase === 'loading'
 
   // On the very first visit the initial loading screen stays up until the first route's chunk has
   // mounted, not just until the session resolves, so it covers the persistent navigation the whole
   // time instead of exiting into a gap where the menu flashes before the route loader takes over
-  const showInitialLoadingScreen = !ready || (isInitialLoad && routeLoading);
+  const showInitialLoadingScreen = !ready || (isInitialLoad && routeLoading)
 
   return (
     <>
-      <AnimatePresence>
-        {showInitialLoadingScreen && <LoadingScreen />}
-      </AnimatePresence>
+      <AnimatePresence>{showInitialLoadingScreen && <LoadingScreen />}</AnimatePresence>
       {ready && (
-        <div
-          className="flex min-h-screen"
-          style={{ backgroundColor: 'var(--app-bg)', color: 'var(--app-text)' }}
-        >
+        <div className="flex min-h-screen" style={{ backgroundColor: 'var(--app-bg)', color: 'var(--app-text)' }}>
           {/* The main variant keeps the navigation visible while AnimatePresence
               lets the loader fade back out once the route chunk has mounted */}
-          <AnimatePresence>
-            {routeLoaderVisible && <LoadingScreen key="route-loader" variant="main" />}
-          </AnimatePresence>
+          <AnimatePresence>{routeLoaderVisible && <LoadingScreen key="route-loader" variant="main" />}</AnimatePresence>
           {/* isolate makes this a stacking context for good, so a level set on an element that stays
               in the page orders only against the rest of the page and never against the navigation, a
               dialog or a toast. An overlay portalled out to the body is a sibling of those instead, so
@@ -238,11 +247,12 @@ function ProtectedRoute({ displayLocation, onContentReady, pageTransitionPhase, 
               }}
               animate={{
                 opacity: pageContentVisible ? 1 : 0,
-                y: pageTransitionPhase === 'exiting'
-                  ? -pageTransitionOffset
-                  : pageTransitionPhase === 'loading'
-                    ? pageTransitionOffset
-                    : 0,
+                y:
+                  pageTransitionPhase === 'exiting'
+                    ? -pageTransitionOffset
+                    : pageTransitionPhase === 'loading'
+                      ? pageTransitionOffset
+                      : 0,
               }}
               transition={{
                 duration: PAGE_TRANSITION_MS / 1000,
@@ -274,15 +284,15 @@ function ProtectedRoute({ displayLocation, onContentReady, pageTransitionPhase, 
         </div>
       )}
     </>
-  );
+  )
 }
 
 /** Redirect to / if already authenticated */
 function PublicRoute() {
-  const { user, loading } = useAuth();
+  const { user, loading } = useAuth()
 
-  if (loading) return null;
-  if (user) return <Navigate to="/" replace />;
+  if (loading) return null
+  if (user) return <Navigate to="/" replace />
 
   return (
     <ErrorBoundary variant="screen">
@@ -290,84 +300,98 @@ function PublicRoute() {
         <Outlet />
       </Suspense>
     </ErrorBoundary>
-  );
+  )
 }
 
 function AnimatedRoutes() {
-  const location = useLocation();
-  const { user } = useAuth();
-  const [displayLocation, setDisplayLocation] = useState(location);
+  const location = useLocation()
+  const { user } = useAuth()
+  const [displayLocation, setDisplayLocation] = useState(location)
 
   // Start in the loading phase so the very first route fades in through the same
   // chunk-ready gate as later navigations, instead of fading the empty wrapper
   // before its lazy chunk resolves and letting the real content snap in
-  const [pageTransitionPhase, setPageTransitionPhase] = useState<PageTransitionPhase>('loading');
+  const [pageTransitionPhase, setPageTransitionPhase] = useState<PageTransitionPhase>('loading')
 
   // Tracks whether the app has shown real content at least once, so the initial loading screen can
   // hold until the first route mounts while later navigations use the lighter route loader
-  const [hasRevealedApp, setHasRevealedApp] = useState(false);
+  const [hasRevealedApp, setHasRevealedApp] = useState(false)
+
+  // A page the user left and came back to inside its exit fade never switches away, so it would
+  // stay hidden in the exit phase with its old state. The count remounts it instead, and the flag
+  // marks an exit fade that is still waiting to switch
+  const [returnCount, setReturnCount] = useState(0)
+  const exitPending = useRef(false)
 
   // Reveal the freshly switched route only once its chunk has mounted, so the enter
   // fade animates real content rather than an empty wrapper. The functional updater
   // reads the current phase so a late notifier from an abandoned navigation is ignored
   const handleContentReady = useCallback(() => {
-    setPageTransitionPhase((current) => (current === 'loading' ? 'entering' : current));
-    setHasRevealedApp(true);
-  }, []);
+    setPageTransitionPhase((current) => (current === 'loading' ? 'entering' : current))
+    setHasRevealedApp(true)
+  }, [])
 
   useLayoutEffect(() => {
-    scrollDocumentToTop();
-  }, [displayLocation.pathname]);
+    scrollDocumentToTop()
+  }, [displayLocation.pathname])
 
   // Keep rendering the previous protected route until its exit fade completes
   useEffect(() => {
     if (location.pathname === displayLocation.pathname) {
       if (location.search !== displayLocation.search || location.hash !== displayLocation.hash) {
         const syncTimer = window.setTimeout(() => {
-          setDisplayLocation(location);
-        }, 0);
+          setDisplayLocation(location)
+        }, 0)
 
-        return () => window.clearTimeout(syncTimer);
+        return () => window.clearTimeout(syncTimer)
       }
-      return;
+      if (exitPending.current) {
+        exitPending.current = false
+        setReturnCount((count) => count + 1)
+        setPageTransitionPhase('loading')
+      }
+      return
     }
 
-    let exitTimer: number | undefined;
+    let exitTimer: number | undefined
 
     const transitionTimer = window.setTimeout(() => {
-      const nextPathIsProtected = isProtectedPath(location.pathname);
-      const displayedPathIsProtected = isProtectedPath(displayLocation.pathname);
+      const nextPathIsProtected = isProtectedPath(location.pathname)
+      const displayedPathIsProtected = isProtectedPath(displayLocation.pathname)
 
       if (!nextPathIsProtected || !displayedPathIsProtected) {
-        setDisplayLocation(location);
-        setPageTransitionPhase(nextPathIsProtected ? 'loading' : 'idle');
-        return;
+        exitPending.current = false
+        setDisplayLocation(location)
+        setPageTransitionPhase(nextPathIsProtected ? 'loading' : 'idle')
+        return
       }
 
-      setPageTransitionPhase('exiting');
+      setPageTransitionPhase('exiting')
+      exitPending.current = true
 
       exitTimer = window.setTimeout(() => {
-        setDisplayLocation(location);
-        setPageTransitionPhase('loading');
-      }, PAGE_TRANSITION_MS);
-    }, 0);
+        exitPending.current = false
+        setDisplayLocation(location)
+        setPageTransitionPhase('loading')
+      }, PAGE_TRANSITION_MS)
+    }, 0)
 
     return () => {
-      window.clearTimeout(transitionTimer);
-      if (exitTimer !== undefined) window.clearTimeout(exitTimer);
-    };
-  }, [displayLocation.hash, displayLocation.pathname, displayLocation.search, location]);
+      window.clearTimeout(transitionTimer)
+      if (exitTimer !== undefined) window.clearTimeout(exitTimer)
+    }
+  }, [displayLocation.hash, displayLocation.pathname, displayLocation.search, location])
 
   // Finish the enter phase after the content fade-in completes
   useEffect(() => {
-    if (pageTransitionPhase !== 'entering') return;
+    if (pageTransitionPhase !== 'entering') return
 
     const timer = window.setTimeout(() => {
-      setPageTransitionPhase('idle');
-    }, PAGE_TRANSITION_MS);
+      setPageTransitionPhase('idle')
+    }, PAGE_TRANSITION_MS)
 
-    return () => window.clearTimeout(timer);
-  }, [pageTransitionPhase]);
+    return () => window.clearTimeout(timer)
+  }, [pageTransitionPhase])
 
   return (
     <>
@@ -376,13 +400,16 @@ function AnimatedRoutes() {
           its CSS transition instead of snapping when the route subtree remounts. It is held
           back until the app first reveals content so it never flashes through the fading-in
           loading screen, which sits above the nav's stacking level */}
-      {user && !user.second_factor_reenrollment_required && isProtectedPath(displayLocation.pathname) && hasRevealedApp && <Navigation />}
+      {user &&
+        !user.second_factor_reenrollment_required &&
+        isProtectedPath(displayLocation.pathname) &&
+        hasRevealedApp && <Navigation />}
       <Routes
         location={displayLocation}
         key={
           displayLocation.pathname === '/signup' || displayLocation.pathname === '/forgot-password'
             ? '/login'
-            : displayLocation.pathname
+            : `${displayLocation.pathname}:${returnCount}`
         }
       >
         {/* Public routes — login, signup, password reset */}
@@ -420,7 +447,16 @@ function AnimatedRoutes() {
         />
 
         {/* Protected app routes */}
-        <Route element={<ProtectedRoute displayLocation={displayLocation} onContentReady={handleContentReady} pageTransitionPhase={pageTransitionPhase} isInitialLoad={!hasRevealedApp} />}>
+        <Route
+          element={
+            <ProtectedRoute
+              displayLocation={displayLocation}
+              onContentReady={handleContentReady}
+              pageTransitionPhase={pageTransitionPhase}
+              isInitialLoad={!hasRevealedApp}
+            />
+          }
+        >
           <Route path="/" element={<DashboardPage />} />
           <Route path="/accounts" element={<AccountsPage />} />
           <Route path="/accounts/:accountId" element={<AccountDetailPage />} />
@@ -434,17 +470,17 @@ function AnimatedRoutes() {
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
     </>
-  );
+  )
 }
 
 function AppShell() {
-  useTheme();
-  useLabelFocus();
+  useTheme()
+  useLabelFocus()
   return (
     <NavCollapseProvider>
       <AnimatedRoutes />
     </NavCollapseProvider>
-  );
+  )
 }
 
 function App() {
