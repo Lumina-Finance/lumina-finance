@@ -18,7 +18,8 @@ import { createRandomId } from '@/utils/randomId'
 
 const NUL = '\u0000'
 const LINE_BREAK_PATTERN = /\r\n|\r|\n/
-const RECORD_END = '^'
+// The line that ends a record. Quicken 3.0 wrote two carets, so a line of nothing else counts
+const RECORD_END_PATTERN = /^\^+$/
 const HEADER_START = '!'
 const TYPE_HEADER_PREFIX = '!type:'
 const ACCOUNT_HEADER = '!account'
@@ -149,7 +150,7 @@ function readQifText(text: string, origin: { fileId: string; fileName: string })
     }
 
     // A line holding only its code is a field with no value, which still belongs to the record
-    if (line !== RECORD_END) {
+    if (!RECORD_END_PATTERN.test(line)) {
       fields.push([line[0], line.slice(1).trim()])
       continue
     }

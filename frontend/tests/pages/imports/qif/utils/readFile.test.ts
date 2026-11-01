@@ -92,6 +92,17 @@ describe('readQifFile sections', () => {
     expect(file.statements[0].transactions).toHaveLength(1)
   })
 
+  it('ends each record at a doubled caret, which Quicken 3.0 wrote, and keeps the transactions apart', async () => {
+    const file = await readFile(
+      ['!Type:Bank', 'D6/17/97', 'T2,345.00', 'PPillow', '^^', 'D8/ 1/97', 'T543.00', '^^'].join('\n'),
+    )
+
+    expect(file.statements[0].transactions.map(({ postedText, amountText }) => [postedText, amountText])).toEqual([
+      ['6/17/97', '2,345.00'],
+      ['8/ 1/97', '543.00'],
+    ])
+  })
+
   it('numbers the transactions of a statement from 1', async () => {
     const file = await readFile([BANK, '!Type:Bank', 'D1/3/2024', 'T1.00', '^'].join('\n'))
     expect(file.statements[0].transactions.map(({ index }) => index)).toEqual([1, 2])
