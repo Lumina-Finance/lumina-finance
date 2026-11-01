@@ -97,6 +97,7 @@ export default function CategoryIconSelector({
   const [pickerPosition, setPickerPosition] = useState<EmojiPickerPosition | null>(null)
   const [loadFailure, setLoadFailure] = useState<string | null>(null)
   const selectorRef = useRef<HTMLDivElement | null>(null)
+  const buttonRef = useRef<HTMLButtonElement | null>(null)
 
   // A failed emoji download closes the picker and leaves its reason in the page's flow instead
   const showLoadFailure = useCallback((message: string) => {
@@ -109,6 +110,14 @@ export default function CategoryIconSelector({
     setOpen(false)
     setPickerPosition(null)
   }, [])
+
+  // Escape and a pick end with the focused search field or emoji going away, so focus returns to the
+  // button to keep the user on this field, as the Dropdown does for its trigger. A press elsewhere
+  // closes through closePicker alone, since focus has gone where the user pointed it
+  const dismissPicker = useCallback(() => {
+    closePicker()
+    buttonRef.current?.focus({ preventScroll: true })
+  }, [closePicker])
 
   useEffect(() => {
     if (!loadFailure) return
@@ -181,6 +190,7 @@ export default function CategoryIconSelector({
   return (
     <div ref={selectorRef} className="relative shrink-0">
       <button
+        ref={buttonRef}
         id={id}
         data-modal-field-tab-stop={modalFieldTabStop ? 'true' : undefined}
         type="button"
@@ -212,7 +222,7 @@ export default function CategoryIconSelector({
             key="picker"
             categoryName={categoryName}
             onChange={onChange}
-            onClose={closePicker}
+            onClose={dismissPicker}
             onLoadFailure={showLoadFailure}
             position={pickerPosition}
           />

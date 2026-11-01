@@ -61,3 +61,31 @@ test('shrinks the emoji panel when a search has few results and grows it back wh
   await search.fill('')
   await expect.poll(height).toBeGreaterThan(full - 2)
 })
+
+test('returns focus to the icon button after Escape, so a second Escape leaves the dialogue open', async ({
+  page,
+  request,
+}) => {
+  const { dialog, button, panel } = await openPicker(page, request)
+  await panel.getByRole('searchbox').click()
+  await expect(panel.getByRole('searchbox')).toBeFocused()
+
+  await page.keyboard.press('Escape')
+
+  await expect(panel).toHaveCount(0)
+  await expect(button).toBeFocused()
+  await page.keyboard.press('Escape')
+  await expect(dialog).toBeVisible()
+})
+
+test('returns focus to the icon button after a pick', async ({ page, request }) => {
+  const { button, panel } = await openPicker(page, request)
+  await panel.getByRole('searchbox').fill('red heart')
+  const choice = panel.getByRole('button', { name: '❤️', exact: true })
+  await expect(choice).toBeVisible()
+
+  await choice.click()
+
+  await expect(panel).toHaveCount(0)
+  await expect(button).toBeFocused()
+})
