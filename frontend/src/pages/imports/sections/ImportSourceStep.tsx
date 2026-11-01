@@ -9,6 +9,7 @@ import type { ImportDataSource } from '@/pages/imports/types'
 const DATA_SOURCE_OPTIONS: DropdownOption[] = [
   { value: 'generic', label: 'CSV' },
   { value: 'ofx', label: 'OFX/QFX' },
+  { value: 'qif', label: 'Quicken 3.0 (QIF)', badge: 'Beta' },
   { value: 'firefly', label: 'Firefly III', badge: 'Beta' },
   { value: 'actual', label: 'Actual Budget', badge: 'Beta' },
 ]
@@ -32,17 +33,14 @@ export function ImportSourceStep({
   const titleId = useId()
 
   return (
-    <ImportStep
-      index="00"
-      title="Data source"
-      titleId={titleId}
-      description="Choose the app the export came from."
-    >
+    <ImportStep index="00" title="Data source" titleId={titleId} description="Choose the app the export came from.">
       <Dropdown
         labelledBy={titleId}
-        options={sources
-          ? DATA_SOURCE_OPTIONS.filter((option) => sources.includes(option.value as ImportDataSource))
-          : DATA_SOURCE_OPTIONS}
+        options={
+          sources
+            ? DATA_SOURCE_OPTIONS.filter((option) => sources.includes(option.value as ImportDataSource))
+            : DATA_SOURCE_OPTIONS
+        }
         value={value}
         onChange={(next) => onChange(next as ImportDataSource)}
       />

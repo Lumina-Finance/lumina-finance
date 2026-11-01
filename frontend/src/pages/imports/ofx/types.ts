@@ -1,13 +1,22 @@
 import type { AccountType } from '@/api/accounts'
+import type { TransactionImportSource } from '@/api/transaction-imports'
+import type {
+  ImportAmountFormat,
+  ImportAmountFormatScan,
+  ImportDateChoiceScan,
+  ImportDateFormat,
+} from '@/pages/imports/utils'
+import type { ImportFileType } from '@/pages/imports/utils/fileIntake'
 
-/** Which kind of statement an OFX file holds: a bank account's, a credit card's or a loan's */
+/** Which kind of statement a file holds: a bank account's, a credit card's or a loan's */
 export type OfxStatementKind = 'bank' | 'creditCard' | 'loan'
 
 /**
  * One transaction of a statement, read the way the file states it
  *
  * `date` and `amount` are null where the file's value cannot be read, so the import can list the
- * transaction as skipped with its reason instead of refusing the whole file
+ * transaction as skipped with its reason instead of refusing the whole file. A format that states
+ * dates and amounts in no fixed shape leaves them null until the user's reading choices resolve them
  */
 export interface OfxTransaction {
   /** Position among the statement's transactions, counted from 1 across every file the statement is in */
@@ -57,9 +66,21 @@ export interface OfxTransaction {
    * than imported in the wrong one
    */
   otherCurrency: string | null
+
+  /** QIF only: the second amount line a transaction states beside its first, which must agree with it */
+  alternateAmountText?: string | null
+
+  /** QIF only: the amount of each split line, which must add up to the transaction's amount */
+  splitAmountTexts?: string[]
+
+  /**
+   * Why the file's own values cannot be used for this transaction even though each reads, such as two
+   * amounts that disagree. The import lists the transaction as skipped with this reason
+   */
+  readProblem?: string | null
 }
 
-/** One bank, credit card or loan statement of an OFX file */
+/** One bank, credit card or loan statement of an OFX file, or one account of a QIF file */
 export interface OfxStatement {
   /** Identifies the statement within the file, which the account answers are filed under */
   id: string
@@ -74,12 +95,15 @@ export interface OfxStatement {
   /** The type a new account is proposed with */
   proposedType: AccountType
 
-  /** The currency every transaction in the statement is in, as an upper-case code */
-  currency: string
+  /**
+   * The currency every transaction in the statement is in, as an upper-case code, or null where the
+   * format states none, which makes the statement take the currency of the account it goes to
+   */
+  currency: string | null
   transactions: OfxTransaction[]
 }
 
-/** Everything the import reads from an OFX file, before any account is answered */
+/** Everything the import reads from an OFX or QIF file, before any account is answered */
 export interface OfxFile {
   statements: OfxStatement[]
 
@@ -98,9 +122,56 @@ export interface OfxStagedFile {
   file: OfxFile
 }
 
-export type OfxFileRead =
-  | { status: 'read'; file: OfxFile }
-  | { status: 'refused'; reason: string }
+export type OfxFileRead = { status: 'read'; file: OfxFile } | { status: 'refused'; reason: string }
+
+/** The date and amount readings every staged file allows, which the user chooses between where several fit */
+export interface OfxReadingScan {
+  date: ImportDateChoiceScan
+  amount: ImportAmountFormatScan
+}
+
+/** The readings in force, each null while the files fit none or the user has yet to choose */
+export interface OfxReadings {
+  dateFormat: ImportDateFormat | null
+  amountFormat: ImportAmountFormat | null
+}
+
+/**
+ * What differs between the formats the statement import reads, so one flow serves them all
+ *
+ * @property reading - For a format whose dates and amounts have no fixed shape: how to scan the
+ *   staged files for the readings they allow, and how to apply the chosen ones. Null for a format
+ *   that states them exactly, whose files come out of `read` complete
+ */
+export interface OfxFormat {
+  source: Extract<TransactionImportSource, 'ofx' | 'qif'>
+  fileType: ImportFileType
+  uploadLabel: string
+  read: (file: File, fileId: string) => Promise<OfxFileRead>
+  getLeftOutNotice: (leftOut: OfxFile['leftOut'], fileCount: number) => string | null
+  getMultipleStatementsReason: (statementCount: number) => string
+  files: {
+    accept: string
+    description: string
+    uploadTitle: string
+    addTitle: string
+    hint: string
+    getFixedAccountHint: (accountName: string) => string
+
+    /** What one statement of the file is called, in the singular and lower case */
+    statementNoun: string
+  }
+  reading: {
+    scan: (files: OfxFile[], timeZone?: string) => OfxReadingScan
+    resolve: (file: OfxFile, readings: OfxReadings, timeZone?: string) => OfxFile
+
+    /** Said while the dates fit several readings and the user has chosen none */
+    dateRequiredError: string
+
+    /** Said while the amounts fit several readings and the user has chosen none */
+    amountRequiredError: string
+  } | null
+}
 
 /** One transaction the import leaves out, with enough of it for the user to find it in the file */
 export interface OfxSkippedRow {

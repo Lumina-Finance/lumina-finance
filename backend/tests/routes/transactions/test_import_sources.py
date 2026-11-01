@@ -57,6 +57,15 @@ async def test_an_ofx_import_is_remembered_for_the_account_it_went_to(client):
     assert await _list_sources(client, headers) == [{"account_id": account_id, "source": "ofx"}]
 
 
+async def test_a_qif_import_is_remembered_for_the_account_it_went_to(client):
+    """The page opened on CSV for an account the user always imports QIF files into."""
+    headers, account_id, category_id = await _setup_user_with_deps(client)
+
+    await _import(client, headers, account_id, category_id, "qif")
+
+    assert await _list_sources(client, headers) == [{"account_id": account_id, "source": "qif"}]
+
+
 async def test_a_later_import_from_another_importer_replaces_the_remembered_source(client):
     """Importing a CSV after an OFX file left the account remembered as an OFX one."""
     headers, account_id, category_id = await _setup_user_with_deps(client)

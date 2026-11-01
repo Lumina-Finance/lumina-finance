@@ -53,6 +53,7 @@ _RUN_SOURCE_LABELS = {
     ImportRunSource.FIREFLY: "a Firefly III import",
     ImportRunSource.ACTUAL_BUDGET: "an Actual Budget import",
     ImportRunSource.OFX: "an OFX import",
+    ImportRunSource.QIF: "a QIF import",
 }
 
 

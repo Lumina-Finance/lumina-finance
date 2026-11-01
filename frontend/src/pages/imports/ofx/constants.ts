@@ -11,7 +11,8 @@ export const OFX_FILE_GUIDANCE = 'Choose an OFX or QFX statement from your bank.
 
 export const OFX_NOT_READABLE_REASON = `This isn't an OFX or QFX statement. ${OFX_FILE_GUIDANCE}`
 export const OFX_TOO_LARGE_REASON = `This file is larger than ${MAX_OFX_FILE_BYTES / MIB} MB, which is more than a statement holds. ${OFX_FILE_GUIDANCE}`
-export const OFX_STATEMENT_INCOMPLETE_REASON = "A statement in this file has no account number or currency, so it can't be imported."
+export const OFX_STATEMENT_INCOMPLETE_REASON =
+  "A statement in this file has no account number or currency, so it can't be imported."
 export const OFX_ONLY_LEFT_OUT_REASON = "This file only holds investment statements, which aren't imported."
 export const OFX_NO_STATEMENTS_REASON = `This file has no bank, credit card or loan statements. ${OFX_FILE_GUIDANCE}`
 
@@ -27,9 +28,6 @@ export const OFX_IMPORT_FILE_TYPE: ImportFileType = {
 
 /** What the progress overlay calls the upload stage */
 export const OFX_UPLOAD_LABEL = 'Uploading the statements'
-
-// The files are one import with one set of statements, so the account answers are kept under one fixed scope
-export const getOfxAccountSourceScope = () => 'ofx'
 
 /** The account type a new account is proposed with for the account type an OFX bank statement states */
 export const OFX_BANK_ACCOUNT_TYPES: Record<string, { type: AccountType; label: string }> = {
@@ -56,7 +54,8 @@ export const OFX_DATE_UNREADABLE_REASON = 'The posted date is missing or is not 
 export const OFX_AMOUNT_UNREADABLE_REASON = 'The amount is missing or is not a number.'
 
 // A statement carries no categories, so each transaction files under a seeded one by its direction
-export const OFX_CATEGORIES_UNAVAILABLE_ERROR = 'The Miscellaneous and Other Income categories this import files transactions under could not be found.'
+export const OFX_CATEGORIES_UNAVAILABLE_ERROR =
+  'The Miscellaneous and Other Income categories this import files transactions under could not be found.'
 
 export function getOfxAmountTooPreciseReason(currency: string) {
   return `The amount has more decimal places than ${currency} has.`
@@ -83,18 +82,27 @@ export function getOfxAlreadyInAccountReason(accountName: string) {
 export const OFX_HELD_CHECK_RUNNING_MESSAGE = 'Checking which transactions are already in the account…'
 
 /** Said beside Commit import when that question could not be answered, since nothing is committed unchecked */
-export const OFX_HELD_CHECK_FAILED_MESSAGE = "Couldn't check which transactions are already in the account. Please try again."
+export const OFX_HELD_CHECK_FAILED_MESSAGE =
+  "Couldn't check which transactions are already in the account. Please try again."
 
 /** Said of a transaction left out because an earlier one in the same file has its bank ID */
 export const OFX_REPEATED_IN_FILE_REASON = 'Repeats an earlier transaction in this file.'
 
 /** Says a statement can't go into an account kept in another currency */
-export function getOfxCurrencyMismatchError(statementLabel: string, statementCurrency: string, accountCurrency: string) {
+export function getOfxCurrencyMismatchError(
+  statementLabel: string,
+  statementCurrency: string,
+  accountCurrency: string,
+) {
   return `The statement for ${statementLabel} is in ${statementCurrency}, but the account you chose is in ${accountCurrency}. Choose an account in ${statementCurrency}.`
 }
 
 /** Says a statement can't go into the account the import was started from, which is kept in another currency */
-export function getOfxFixedAccountCurrencyError(statementCurrency: string, accountName: string, accountCurrency: string) {
+export function getOfxFixedAccountCurrencyError(
+  statementCurrency: string,
+  accountName: string,
+  accountCurrency: string,
+) {
   return `This statement is in ${statementCurrency}, but ${accountName} is in ${accountCurrency}. Import it into an account in ${statementCurrency} from the Imports page in Settings.`
 }
 

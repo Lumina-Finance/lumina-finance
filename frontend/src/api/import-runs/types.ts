@@ -1,26 +1,26 @@
-import type { CsvImportLayout } from '@/api/transaction-imports/types';
+import type { CsvImportLayout } from '@/api/transaction-imports/types'
 
 /** The run an import is uploaded and saved under */
 export interface ImportRun {
-  id: string;
+  id: string
 }
 
 /** Called with the run's ID once everything is staged, before the commit starts */
-export type OnImportStaged = (runId: string) => Promise<void>;
+export type OnImportStaged = (runId: string) => Promise<void>
 
 /**
  * What opening a run states: how many rows it will write, and, for an import from another app,
  * which app, since a run takes requests only from the importer that opened it
  */
 export interface OpenImportRunRequest {
-  expected_transaction_count: number;
-  source?: string;
+  expected_transaction_count: number
+  source?: string
 
   /** The name of the file the user picked, shown with the last import */
-  file_name?: string;
+  file_name?: string
 
   /** How a CSV file was read, absent for a file the commit saves no layout for */
-  csv_layout?: CsvImportLayout;
+  csv_layout?: CsvImportLayout
 }
 
 /**
@@ -28,28 +28,28 @@ export interface OpenImportRunRequest {
  * life that differs between the CSV import and the imports from other apps
  */
 export interface ImportRunRoutes {
-  rows: string;
-  commit: string;
+  rows: string
+  commit: string
 }
 
 /** The last saved import, with when it can be undone until and what undoing it would delete and keep */
 export type LastImport = {
-  id: string;
-  source: 'generic' | 'firefly' | 'actual_budget' | 'ofx';
-  file_name: string | null;
-  committed_at: string;
-  undo_until: string;
+  id: string
+  source: 'generic' | 'firefly' | 'actual_budget' | 'ofx' | 'qif'
+  file_name: string | null
+  committed_at: string
+  undo_until: string
 
   /** The transactions the import wrote and the records it created, all of which undoing it deletes */
-  transaction_count: number;
-  account_count: number;
-  category_count: number;
-  merchant_count: number;
-  tag_count: number;
-  budget_count: number;
-};
+  transaction_count: number
+  account_count: number
+  category_count: number
+  merchant_count: number
+  tag_count: number
+  budget_count: number
+}
 
 export type ImportUndoResult = {
-  transactions_deleted: number;
-  affected_account_ids: string[];
-};
+  transactions_deleted: number
+  affected_account_ids: string[]
+}

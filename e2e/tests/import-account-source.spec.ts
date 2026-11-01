@@ -29,7 +29,7 @@ test('imports an OFX statement into the account from its page, which then opens 
 
   // Firefly III and Actual Budget exports cover many accounts, so they are not offered here
   await source.click()
-  await expect(page.getByRole('option')).toHaveText(['CSV', 'OFX/QFX'])
+  await expect(page.getByRole('option')).toHaveText(['CSV', 'OFX/QFX', 'Quicken 3.0 (QIF)Beta'])
   await page.keyboard.press('Escape')
 
   await uploadStatement(page, buildFile([buildBankMessageSet('CAD', [CAFE, PAYROLL])]))

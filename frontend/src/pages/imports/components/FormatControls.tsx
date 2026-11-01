@@ -43,12 +43,20 @@ export function ImportDateFormatControl({
   automatic,
   scan,
   disabled,
+  hasError = false,
+  placeholder = 'Choose the date format',
   onChange,
 }: {
   format: ImportDateFormat | null
   automatic: boolean
   scan: ImportDateChoiceScan
   disabled: boolean
+
+  /** Whether the user must still choose, which tints the field */
+  hasError?: boolean
+
+  /** What the field says while none is chosen, shortened where the field is narrow */
+  placeholder?: string
   onChange: (format: ImportDateFormat) => void
 }) {
   const formatLabelId = useId()
@@ -58,9 +66,10 @@ export function ImportDateFormatControl({
     badge: scan.rejectedBy[candidate] ? UNREADABLE_FORMAT_BADGE : undefined,
   }))
   const selectedValue = format ?? ''
-  const selectedOption = automatic && format
-    ? { value: selectedValue, label: `Detected: ${IMPORT_DATE_FORMAT_LABELS[format].label}` }
-    : undefined
+  const selectedOption =
+    automatic && format
+      ? { value: selectedValue, label: `Detected: ${IMPORT_DATE_FORMAT_LABELS[format].label}` }
+      : undefined
 
   return (
     <div className={FORMAT_CONTROL_CLASS_NAME}>
@@ -73,8 +82,9 @@ export function ImportDateFormatControl({
         value={selectedValue}
         onChange={(value) => onChange(value as ImportDateFormat)}
         labelledBy={formatLabelId}
-        placeholder="Choose the date format"
+        placeholder={placeholder}
         size="compact"
+        hasError={hasError}
         disabled={disabled}
       />
     </div>
@@ -87,12 +97,20 @@ export function ImportAmountFormatControl({
   automatic,
   scan,
   disabled,
+  hasError = false,
+  placeholder = 'Choose the amount format',
   onChange,
 }: {
   format: ImportAmountFormat | null
   automatic: boolean
   scan: ImportAmountFormatScan
   disabled: boolean
+
+  /** Whether the user must still choose, which tints the field */
+  hasError?: boolean
+
+  /** What the field says while none is chosen, shortened where the field is narrow */
+  placeholder?: string
   onChange: (format: ImportAmountFormat) => void
 }) {
   const formatLabelId = useId()
@@ -102,9 +120,8 @@ export function ImportAmountFormatControl({
     badge: scan.rejectedBy[getImportAmountFormatKey(candidate)] ? UNREADABLE_FORMAT_BADGE : undefined,
   }))
   const selectedValue = format ? getImportAmountFormatKey(format) : ''
-  const selectedOption = automatic && format
-    ? { value: selectedValue, label: `Detected: ${getAmountFormatExample(format)}` }
-    : undefined
+  const selectedOption =
+    automatic && format ? { value: selectedValue, label: `Detected: ${getAmountFormatExample(format)}` } : undefined
 
   const handlePresetChange = (value: string) => {
     const next = AMOUNT_PRESETS.find(({ format: candidate }) => getImportAmountFormatKey(candidate) === value)
@@ -122,8 +139,9 @@ export function ImportAmountFormatControl({
         value={selectedValue}
         onChange={handlePresetChange}
         labelledBy={formatLabelId}
-        placeholder="Choose the amount format"
+        placeholder={placeholder}
         size="compact"
+        hasError={hasError}
         disabled={disabled}
       />
     </div>
@@ -131,11 +149,12 @@ export function ImportAmountFormatControl({
 }
 
 function getAmountFormatExample(format: ImportAmountFormat) {
-  const grouped = format.groupingSeparator === 'none'
-    ? '1234'
-    : format.groupingSeparator === 'space'
-      ? '1 234'
-      : `1${format.groupingSeparator}234`
+  const grouped =
+    format.groupingSeparator === 'none'
+      ? '1234'
+      : format.groupingSeparator === 'space'
+        ? '1 234'
+        : `1${format.groupingSeparator}234`
   return `${grouped}${format.decimalSeparator}56`
 }
 
@@ -166,5 +185,15 @@ export function ImportDelimiterControl({
     symbol: candidate,
   }))
 
-  return <ImportSegmentedToggle options={options} value={delimiter} label="Separator" onChange={onChange} hasError={hasError} disabled={disabled} compact />
+  return (
+    <ImportSegmentedToggle
+      options={options}
+      value={delimiter}
+      label="Separator"
+      onChange={onChange}
+      hasError={hasError}
+      disabled={disabled}
+      compact
+    />
+  )
 }

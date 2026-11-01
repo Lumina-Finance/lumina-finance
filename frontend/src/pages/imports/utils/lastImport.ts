@@ -7,13 +7,15 @@ export const IMPORT_SOURCE_LABELS: Record<LastImport['source'], string> = {
   firefly: 'Firefly III',
   actual_budget: 'Actual Budget',
   ofx: 'OFX/QFX',
+  qif: 'Quicken 3.0 (QIF)',
 }
 
 /** Shown for an import saved without a file name */
 export const UNNAMED_IMPORT_FILE = 'Unnamed file'
 
 /** Said when the importer that ran the undone import is open again with its files and answers */
-export const IMPORT_UNDONE_REOPENED_MESSAGE = 'Import undone. Your files and answers are back, so you can change anything and import again.'
+export const IMPORT_UNDONE_REOPENED_MESSAGE =
+  'Import undone. Your files and answers are back, so you can change anything and import again.'
 
 /** Said when the undone import's files and answers are not on this screen to return to */
 export const IMPORT_UNDONE_EMPTY_MESSAGE = 'Import undone. Upload the files again to import them.'
@@ -32,7 +34,11 @@ export type ImportUndoOutcome = 'reopen' | 'reset' | 'keep'
  * @param isFinished - Whether the importer holds a finished import
  * @param undoneRunId - The run that was undone
  */
-export function chooseImportUndoOutcome({ committedRunId, isFinished, undoneRunId }: {
+export function chooseImportUndoOutcome({
+  committedRunId,
+  isFinished,
+  undoneRunId,
+}: {
   committedRunId: string | null
   isFinished: boolean
   undoneRunId: string

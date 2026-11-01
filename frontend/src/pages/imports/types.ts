@@ -79,7 +79,7 @@ export type ImportDateRange = {
   to: string | null
 }
 export type ImportCategoryKind = Category['kind']
-export type ImportDataSource = 'generic' | 'firefly' | 'actual' | 'ofx'
+export type ImportDataSource = 'generic' | 'firefly' | 'actual' | 'ofx' | 'qif'
 export type ImportOverlayPhase = 'idle' | 'importing' | 'success' | 'error' | 'cancelled'
 export type ImportProgressStepStatus = 'active' | 'queued' | 'done'
 

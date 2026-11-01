@@ -189,6 +189,35 @@ test('refuses a statement whose currency is not its account\'s and commits nothi
   expect(await countLedgerTransactions(request, user)).toBe(0)
 })
 
+const COMMIT_URL = /\/transactions\/import\/runs\/[^/]+\/commit$/
+const REFUSAL = 'Withdrawal source is not an imported account'
+
+// The failure belongs to the answers it was about, so the reason has to outlast the renders that
+// follow it while those answers stand, and the upload they were sent with stays staged. The workflow
+// is shared by every statement format, so a new answers value on every render would drop it for all
+test('keeps the reason the server gives for a refused import beside Commit import, with the upload kept', async ({ page, request }) => {
+  const user = await signUpUser(request)
+  await page.route(COMMIT_URL, (route) => route.fulfill({ status: 422, json: { detail: REFUSAL } }))
+  await uploadStatement(page, user, buildFile([buildBankMessageSet('CAD', [CAFE, PAYROLL])]))
+  await expect(page.getByText('Corner Cafe', { exact: true }).first()).toBeVisible()
+
+  await page.getByRole('button', { name: 'Commit import', exact: true }).click()
+  const overlay = page.getByRole('dialog')
+  await expect(overlay.getByText(`${REFUSAL}.`, { exact: true })).toBeVisible()
+  await overlay.getByRole('button', { name: 'Back to import', exact: true }).click()
+
+  // Renders the page again, as coming back to the tab does, and the reason must still be there
+  await page.evaluate(() => window.dispatchEvent(new Event('focus')))
+  const reason = page.getByRole('alert').filter({ hasText: REFUSAL })
+  await expect(reason).toBeVisible()
+  await expect(page.getByRole('button', { name: 'Commit import', exact: true })).toBeVisible()
+  await showImportSetup(page)
+  await expect(page.getByRole('button', { name: 'Remove statement.ofx', exact: true })).toBeVisible()
+  await expect(page.getByText('Corner Cafe', { exact: true }).first()).toBeVisible()
+  await expect(reason).toBeVisible()
+  expect(await countLedgerTransactions(request, user)).toBe(0)
+})
+
 test.describe('a file that is not an OFX statement', () => {
   test('refuses a CSV file given an .ofx name and stages nothing', async ({ page, request }) => {
     const user = await signUpUser(request)

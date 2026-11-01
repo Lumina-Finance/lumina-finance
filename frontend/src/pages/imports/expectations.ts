@@ -1,6 +1,7 @@
 import { ACTUAL_EXPECTATIONS } from '@/pages/imports/actual/expectations'
 import { FIREFLY_EXPECTATIONS } from '@/pages/imports/firefly/expectations'
 import { getOfxFixedAccountExpectations, OFX_EXPECTATIONS } from '@/pages/imports/ofx/expectations'
+import { getQifFixedAccountExpectations, QIF_EXPECTATIONS } from '@/pages/imports/qif/expectations'
 import type { ImportDataSource, ImportExpectations } from '@/pages/imports/types'
 
 /**
@@ -19,8 +20,9 @@ export function getCsvExpectations(fixedAccountName: string | null): ImportExpec
 
   return {
     intro: `Each row of your import becomes one transaction in ${destination}.`,
-    deviation: "A transfer row only changes its own account. Import the other account's side too, or that account's "
-      + "balance won't match your bank's.",
+    deviation:
+      "A transfer row only changes its own account. Import the other account's side too, or that account's " +
+      "balance won't match your bank's.",
     changes: [
       {
         source: 'A currency column',
@@ -34,10 +36,7 @@ export function getCsvExpectations(fixedAccountName: string | null): ImportExpec
     leftBehind: [
       {
         group: 'Not imported',
-        items: [
-          'Budgets',
-          "Columns you don't map, like a running balance",
-        ],
+        items: ['Budgets', "Columns you don't map, like a running balance"],
       },
     ],
   }
@@ -46,11 +45,12 @@ export function getCsvExpectations(fixedAccountName: string | null): ImportExpec
 /**
  * Picks the card that says what an import does with its data, for the import being shown
  *
- * @param fixedAccountName - The account a CSV or OFX import started from an account's page writes to
+ * @param fixedAccountName - The account a CSV, OFX or QIF import started from an account's page writes to
  */
 export function getImportExpectations(source: ImportDataSource, fixedAccountName: string | null): ImportExpectations {
   if (source === 'firefly') return FIREFLY_EXPECTATIONS
   if (source === 'actual') return ACTUAL_EXPECTATIONS
   if (source === 'ofx') return fixedAccountName ? getOfxFixedAccountExpectations(fixedAccountName) : OFX_EXPECTATIONS
+  if (source === 'qif') return fixedAccountName ? getQifFixedAccountExpectations(fixedAccountName) : QIF_EXPECTATIONS
   return getCsvExpectations(fixedAccountName)
 }

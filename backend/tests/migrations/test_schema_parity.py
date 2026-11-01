@@ -12,7 +12,7 @@ import pytest
 from sqlalchemy import Enum as SqlaEnum
 from sqlalchemy import text
 from sqlalchemy.exc import IntegrityError
-from sqlalchemy.ext.asyncio import AsyncConnection, create_async_engine
+from sqlalchemy.ext.asyncio import AsyncConnection, AsyncEngine, create_async_engine
 from sqlalchemy.pool import NullPool
 
 from app.bank_transaction_key import key_fingerprint, resolve_key
@@ -65,6 +65,14 @@ _OFX_SOURCE_REVISION = "b8d4f1a6c203"
 _OFX_OWNER_ID = "77777777-7777-4777-8777-777777777777"
 _CSV_RUN_ID = "88888888-8888-4888-8888-888888888888"
 _OFX_RUN_ID = "99999999-9999-4999-8999-999999999999"
+_ALEMBIC_QIF_SOURCE_DB_NAME = f"{WORKER_DB_NAME}_alembic_qif_source"
+_BEFORE_QIF_SOURCE_REVISION = "b5e1d7a3c902"
+_QIF_SOURCE_REVISION = "e3b7d9a1c5f2"
+_ALEMBIC_QIF_REMEMBERED_SOURCE_DB_NAME = f"{WORKER_DB_NAME}_alembic_qif_remembered"
+_QIF_RUN_ID = "55555555-5555-4555-8555-555555555555"
+_QIF_ACCOUNT_ID = "66666666-6666-4666-8666-666666666666"
+_QIF_CATEGORY_ID = "33333333-3333-4333-8333-333333333333"
+_QIF_TRANSACTION_ID = "44444444-4444-4444-8444-444444444444"
 _ALEMBIC_BANK_TRANSACTION_DB_NAME = f"{WORKER_DB_NAME}_alembic_bank_transaction"
 _ALEMBIC_BANK_HASH_DB_NAME = f"{WORKER_DB_NAME}_alembic_bank_hash"
 _BEFORE_BANK_HASH_REVISION = "f3a9c1d7b265"
@@ -233,6 +241,109 @@ async def test_ofx_import_source_migration_keeps_other_runs_and_drops_ofx_runs_o
                 async with engine.begin() as conn:
                     with pytest.raises(IntegrityError):
                         await _insert_import_run(conn, _OFX_RUN_ID, "ofx")
+    finally:
+        await engine.dispose()
+        await _drop_database(database_name)
+
+
+async def test_qif_import_source_migration_drops_qif_traces_on_downgrade_and_keeps_the_rest() -> None:
+    """Verify the QIF source check accepts QIF runs and remembered sources, and narrowing removes every trace of them"""
+    database_name = _ALEMBIC_QIF_SOURCE_DB_NAME
+    await _recreate_database(database_name)
+    engine = _create_engine_for_database(database_name)
+    try:
+        _run_alembic_upgrade(database_name, revision=_BEFORE_QIF_SOURCE_REVISION)
+        async with engine.begin() as conn:
+            await _insert_qif_migration_owner(conn)
+        async with engine.begin() as conn:
+            with pytest.raises(IntegrityError):
+                await _insert_import_run(conn, _QIF_RUN_ID, "qif")
+
+        _run_alembic_upgrade(database_name, revision=_QIF_SOURCE_REVISION)
+        async with engine.begin() as conn:
+            await _insert_import_run(conn, _CSV_RUN_ID, "generic")
+            await _insert_import_run(conn, _QIF_RUN_ID, "qif")
+            await conn.execute(
+                text(
+                    "INSERT INTO account_import_sources (id, account_id, source, import_run_id)"
+                    " VALUES (gen_random_uuid(), :account_id, 'qif', :run_id)",
+                ),
+                {"account_id": UUID(_QIF_ACCOUNT_ID), "run_id": UUID(_QIF_RUN_ID)},
+            )
+
+            # An import that replaced the QIF source, which undoing it would put back
+            await conn.execute(
+                text("UPDATE import_runs SET replaced_account_sources = CAST(:replaced AS jsonb) WHERE id = :id"),
+                {"replaced": f'{{"{_QIF_ACCOUNT_ID}": "qif", "other": "ofx"}}', "id": UUID(_CSV_RUN_ID)},
+            )
+
+            # A transaction the QIF run wrote, which lives on in the ledger when the run is deleted
+            await conn.execute(
+                text(
+                    "INSERT INTO transactions (id, created_by_user_id, account_id, dt, category_id, amount, currency, notes,"
+                    " import_run_id)"
+                    " VALUES (:id, :owner_id, :account_id, '2026-03-15', :category_id, -1250, 'CAD', 'From QIF', :run_id)",
+                ),
+                {
+                    "id": UUID(_QIF_TRANSACTION_ID),
+                    "owner_id": UUID(_OFX_OWNER_ID),
+                    "account_id": UUID(_QIF_ACCOUNT_ID),
+                    "category_id": UUID(_QIF_CATEGORY_ID),
+                    "run_id": UUID(_QIF_RUN_ID),
+                },
+            )
+
+        _run_alembic_downgrade(database_name, _BEFORE_QIF_SOURCE_REVISION)
+        async with engine.connect() as conn:
+            assert await _read_import_run_sources(conn) == {_CSV_RUN_ID: "generic"}
+            remembered = (await conn.execute(text("SELECT count(*) FROM account_import_sources"))).scalar_one()
+            replaced = (await conn.execute(text("SELECT replaced_account_sources FROM import_runs"))).scalar_one()
+            kept = (
+                await conn.execute(
+                    text("SELECT amount, import_run_id FROM transactions WHERE id = :id"),
+                    {"id": UUID(_QIF_TRANSACTION_ID)},
+                )
+            ).one()
+        assert remembered == 0
+        assert replaced == {_QIF_ACCOUNT_ID: None, "other": "ofx"}
+        assert tuple(kept) == (-1250, None)
+        async with engine.begin() as conn:
+            with pytest.raises(IntegrityError):
+                await _insert_import_run(conn, _QIF_RUN_ID, "qif")
+    finally:
+        await engine.dispose()
+        await _drop_database(database_name)
+
+
+async def test_qif_import_source_migration_makes_the_remembered_source_check_refuse_qif_when_narrowed() -> None:
+    """Verify an account's remembered source check refuses QIF before the revision and after a downgrade, and takes it once re-upgraded"""
+    database_name = _ALEMBIC_QIF_REMEMBERED_SOURCE_DB_NAME
+    await _recreate_database(database_name)
+    engine = _create_engine_for_database(database_name)
+    try:
+        _run_alembic_upgrade(database_name, revision=_BEFORE_QIF_SOURCE_REVISION)
+        async with engine.begin() as conn:
+            await _insert_qif_migration_owner(conn)
+            await _insert_import_run(conn, _CSV_RUN_ID, "generic")
+        await _assert_remembered_source_refused(engine, "qif")
+
+        for _ in range(2):
+            _run_alembic_upgrade(database_name, revision=_QIF_SOURCE_REVISION)
+            async with engine.begin() as conn:
+                await _insert_remembered_source(conn, "qif")
+            async with engine.connect() as conn:
+                assert await _read_remembered_sources(conn) == ["qif"]
+
+            _run_alembic_downgrade(database_name, _BEFORE_QIF_SOURCE_REVISION)
+            async with engine.connect() as conn:
+                assert await _read_remembered_sources(conn) == []
+            await _assert_remembered_source_refused(engine, "qif")
+
+        # The sources the check still names are taken before and after, so only QIF is what it refuses
+        async with engine.begin() as conn:
+            await _insert_remembered_source(conn, "ofx")
+        async with engine.connect() as conn:
+            assert await _read_remembered_sources(conn) == ["ofx"]
     finally:
         await engine.dispose()
         await _drop_database(database_name)
@@ -518,6 +629,56 @@ async def _insert_import_run(conn: AsyncConnection, run_id: str, source: str) ->
         ),
         {"id": UUID(run_id), "owner_id": UUID(_OFX_OWNER_ID), "source": source},
     )
+
+
+async def _insert_qif_migration_owner(conn: AsyncConnection) -> None:
+    """Insert the user and account the QIF source migration test writes runs and remembered sources for"""
+    await conn.execute(
+        text(
+            "INSERT INTO currencies (id, name, symbol, minor_unit_exponent)"
+            " VALUES ('CAD', 'Canadian Dollar', '$', 2) ON CONFLICT (id) DO NOTHING",
+        )
+    )
+    await conn.execute(
+        text(
+            "INSERT INTO users (id, email, first_name, tz, base_currency) VALUES (:id, 'qif-migration@example.com', 'Qif', 'UTC', 'CAD')",
+        ),
+        {"id": UUID(_OFX_OWNER_ID)},
+    )
+    await conn.execute(
+        text(
+            "INSERT INTO accounts (id, owner_id, name, currency, account_kind, account_type, is_archived)"
+            " VALUES (:account_id, :owner_id, 'Checking', 'CAD', 'ASSET', 'CHECKING', false)",
+        ),
+        {"account_id": UUID(_QIF_ACCOUNT_ID), "owner_id": UUID(_OFX_OWNER_ID)},
+    )
+    await conn.execute(
+        text("INSERT INTO categories (id, name, kind, is_system) VALUES (:id, 'QIF category', 'EXPENSE', true)"),
+        {"id": UUID(_QIF_CATEGORY_ID)},
+    )
+
+
+async def _insert_remembered_source(conn: AsyncConnection, source: str) -> None:
+    """Remember the given importer as the source of the fixture account's last import"""
+    await conn.execute(
+        text(
+            "INSERT INTO account_import_sources (id, account_id, source, import_run_id)"
+            " VALUES (gen_random_uuid(), :account_id, :source, :run_id)",
+        ),
+        {"account_id": UUID(_QIF_ACCOUNT_ID), "source": source, "run_id": UUID(_CSV_RUN_ID)},
+    )
+
+
+async def _assert_remembered_source_refused(engine: AsyncEngine, source: str) -> None:
+    """Assert the check on an account's remembered source refuses the given importer"""
+    async with engine.begin() as conn:
+        with pytest.raises(IntegrityError, match="ck_account_import_sources_source"):
+            await _insert_remembered_source(conn, source)
+
+
+async def _read_remembered_sources(conn: AsyncConnection) -> list[str]:
+    """Read the source every account remembers"""
+    return list((await conn.execute(text("SELECT source FROM account_import_sources ORDER BY source"))).scalars())
 
 
 async def _read_import_run_sources(conn: AsyncConnection) -> dict[str, str]:

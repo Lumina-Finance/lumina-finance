@@ -72,7 +72,7 @@ export function combineOfxFiles(files: OfxFile[]): OfxFile {
           fileName: nameFile(position, transaction.fileName),
         })),
       }
-      const key = `${statement.id}|${statement.currency}`
+      const key = `${statement.id}|${statement.currency ?? ''}`
       const existing = merged.get(key)
       if (existing) {
         existing.transactions.push(...renumber(statement.transactions, existing.transactions.length))
@@ -92,7 +92,9 @@ export function combineOfxFiles(files: OfxFile[]): OfxFile {
 function getFileNamer(files: OfxFile[]) {
   const fileCounts = new Map<string, number>()
   for (const file of files) {
-    const names = new Set(file.statements.flatMap((statement) => statement.transactions.map((transaction) => transaction.fileName)))
+    const names = new Set(
+      file.statements.flatMap((statement) => statement.transactions.map((transaction) => transaction.fileName)),
+    )
     for (const name of names) fileCounts.set(name, (fileCounts.get(name) ?? 0) + 1)
   }
   return (position: number, name: string) => ((fileCounts.get(name) ?? 0) > 1 ? `${name} (file ${position + 1})` : name)
@@ -106,6 +108,10 @@ function renumber(transactions: OfxStatement['transactions'], after: number) {
 function separateByCurrency(statement: OfxStatement, merged: Map<string, OfxStatement>) {
   const isIdTaken = [...merged.values()].some((held) => held.id === statement.id)
   return isIdTaken
-    ? { ...statement, id: `${statement.id}:${statement.currency}`, name: `${statement.name} (${statement.currency})` }
+    ? {
+        ...statement,
+        id: `${statement.id}:${statement.currency ?? ''}`,
+        name: `${statement.name} (${statement.currency ?? ''})`,
+      }
     : statement
 }

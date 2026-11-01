@@ -36,7 +36,10 @@ const INVESTMENT_MESSAGE_SET = 'INVSTMTMSGSRSV1'
 
 // The elements each kind of statement is read from. A loan statement states its transactions and
 // account number under names of its own, and otherwise reads like a bank statement
-const STATEMENT_ELEMENTS: Record<OfxStatementKind, { response: string; account: string; accountNumber: string; transaction: string }> = {
+const STATEMENT_ELEMENTS: Record<
+  OfxStatementKind,
+  { response: string; account: string; accountNumber: string; transaction: string }
+> = {
   bank: { response: 'STMTRS', account: 'BANKACCTFROM', accountNumber: 'ACCTID', transaction: 'STMTTRN' },
   creditCard: { response: 'CCSTMTRS', account: 'CCACCTFROM', accountNumber: 'ACCTID', transaction: 'STMTTRN' },
   loan: { response: 'LOANSTMTRS', account: 'LOANACCTFROM', accountNumber: 'LOANACCTID', transaction: 'LOANSTMTTRN' },
@@ -74,9 +77,9 @@ function readOfxStatements(text: string, origin: OfxFileOrigin): OfxFileRead {
   if (!root) return { status: 'refused', reason: OFX_NOT_READABLE_REASON }
 
   const leftOut = { investment: countStatementResponses(root, INVESTMENT_MESSAGE_SET) }
-  const sections = (Object.keys(STATEMENT_ELEMENTS) as OfxStatementKind[]).flatMap((kind) => (
-    findAllDescendants(root, STATEMENT_ELEMENTS[kind].response).map((node) => ({ kind, node }))
-  ))
+  const sections = (Object.keys(STATEMENT_ELEMENTS) as OfxStatementKind[]).flatMap((kind) =>
+    findAllDescendants(root, STATEMENT_ELEMENTS[kind].response).map((node) => ({ kind, node })),
+  )
 
   const statements: OfxStatement[] = []
   for (const { kind, node } of sections) {
@@ -142,14 +145,17 @@ function readStatement(kind: OfxStatementKind, node: OfxNode, origin: OfxFileOri
     label: `${name} (${currency})`,
     proposedType: accountKind.type,
     currency,
-    transactions: transactions.map((transaction, index) => readTransaction(transaction, index + 1, currency, accountKey, origin)),
+    transactions: transactions.map((transaction, index) =>
+      readTransaction(transaction, index + 1, currency, accountKey, origin),
+    ),
   }
 }
 
 /** The kind of account a statement proposes, from the account type it states where this app has a type for it */
 function readAccountKind(kind: OfxStatementKind, account: OfxNode) {
   if (kind === 'creditCard') return OFX_CREDIT_CARD_ACCOUNT
-  if (kind === 'loan') return readLeaf(account, 'LOANACCTTYPE')?.toUpperCase() === 'MORTGAGE' ? OFX_MORTGAGE_ACCOUNT : OFX_LOAN_ACCOUNT
+  if (kind === 'loan')
+    return readLeaf(account, 'LOANACCTTYPE')?.toUpperCase() === 'MORTGAGE' ? OFX_MORTGAGE_ACCOUNT : OFX_LOAN_ACCOUNT
 
   return OFX_BANK_ACCOUNT_TYPES[readLeaf(account, 'ACCTTYPE')?.toUpperCase() ?? ''] ?? OFX_DEFAULT_BANK_ACCOUNT
 }
@@ -166,11 +172,13 @@ function readAccountKind(kind: OfxStatementKind, account: OfxNode) {
 function mergeStatements(statements: OfxStatement[]) {
   const merged = new Map<string, OfxStatement>()
   for (const statement of statements) {
-    const key = `${statement.id}|${statement.currency}`
+    const key = `${statement.id}|${statement.currency ?? ''}`
     const existing = merged.get(key)
     if (existing) {
       const after = existing.transactions.length
-      existing.transactions.push(...statement.transactions.map((transaction, position) => ({ ...transaction, index: after + position + 1 })))
+      existing.transactions.push(
+        ...statement.transactions.map((transaction, position) => ({ ...transaction, index: after + position + 1 })),
+      )
       continue
     }
 
@@ -233,7 +241,10 @@ function readPostedDate(text: string) {
 
   const [, year, month, day] = match
   const date = new Date(Date.UTC(Number(year), Number(month) - 1, Number(day)))
-  const isReal = date.getUTCFullYear() === Number(year) && date.getUTCMonth() === Number(month) - 1 && date.getUTCDate() === Number(day)
+  const isReal =
+    date.getUTCFullYear() === Number(year) &&
+    date.getUTCMonth() === Number(month) - 1 &&
+    date.getUTCDate() === Number(day)
   return isReal ? `${year}-${month}-${day}` : null
 }
 

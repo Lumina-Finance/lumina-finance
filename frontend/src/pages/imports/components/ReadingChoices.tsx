@@ -60,7 +60,12 @@ export function ImportReadingChoices({
           <ImportSettingRow label="Separator" isLabelDecorative>
             {/* The control is drawn at the compact height here, since a row is shorter than a field */}
             <div className="w-22">
-              <ImportDelimiterControl delimiter={delimiter} hasError={Boolean(file.error) && !isSkipSuggested} disabled={disabled} onChange={onDelimiterChange} />
+              <ImportDelimiterControl
+                delimiter={delimiter}
+                hasError={Boolean(file.error) && !isSkipSuggested}
+                disabled={disabled}
+                onChange={onDelimiterChange}
+              />
             </div>
           </ImportSettingRow>
         )}
@@ -117,7 +122,7 @@ export function ImportReadingChoices({
  * @param isLabelDecorative - Hides the name from screen readers where the control already carries it
  *   as its own label
  */
-function ImportSettingRow({
+export function ImportSettingRow({
   label,
   labelFor,
   isLabelDecorative = false,
@@ -131,7 +136,9 @@ function ImportSettingRow({
   children: ReactNode
 }) {
   return (
-    <div className={`flex h-14 items-center justify-between gap-3${hasDivider ? ' border-t border-[var(--app-border)]' : ''}`}>
+    <div
+      className={`flex h-14 items-center justify-between gap-3${hasDivider ? ' border-t border-[var(--app-border)]' : ''}`}
+    >
       {labelFor ? (
         <label htmlFor={labelFor} className="text-sm">
           {label}
@@ -238,16 +245,25 @@ function ImportReadingPreview({ reading, delimiter }: { reading: CsvReading; del
         return (
           <li key={line.rowNumber} className="flex flex-col gap-1">
             {isGap && (
-              <span aria-hidden className="grid gap-3" style={{ gridTemplateColumns: columns, color: 'var(--app-text-muted)' }}>
+              <span
+                aria-hidden
+                className="grid gap-3"
+                style={{ gridTemplateColumns: columns, color: 'var(--app-text-muted)' }}
+              >
                 <span className="text-right">…</span>
               </span>
             )}
             <span
               className="grid items-center gap-3"
-              style={{ gridTemplateColumns: columns, color: line.isSkipped ? 'var(--app-text-muted)' : 'var(--app-text)' }}
+              style={{
+                gridTemplateColumns: columns,
+                color: line.isSkipped ? 'var(--app-text-muted)' : 'var(--app-text)',
+              }}
             >
               <span className="text-right tabular-nums">{line.rowNumber}</span>
-              <span className={`truncate font-mono${line.isSkipped ? ' line-through' : ''}`}>{joinPreviewCells(line.cells, delimiter)}</span>
+              <span className={`truncate font-mono${line.isSkipped ? ' line-through' : ''}`}>
+                {joinPreviewCells(line.cells, delimiter)}
+              </span>
               <span className="text-xs font-semibold uppercase">{line.isSkipped ? 'Skipped' : ''}</span>
             </span>
           </li>

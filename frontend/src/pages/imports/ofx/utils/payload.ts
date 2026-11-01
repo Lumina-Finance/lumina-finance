@@ -25,7 +25,12 @@ import {
 } from '@/pages/imports/ofx/constants'
 import type { OfxFile, OfxSkippedRow, OfxStatement, OfxTransaction } from '@/pages/imports/ofx/types'
 import type { ImportAccountCreateDetails } from '@/pages/imports/types'
-import { buildImportAccountMapping, findUnnamedSourceCategory, getPreviewDateLabel, toImportMinorUnits } from '@/pages/imports/utils'
+import {
+  buildImportAccountMapping,
+  findUnnamedSourceCategory,
+  getPreviewDateLabel,
+  toImportMinorUnits,
+} from '@/pages/imports/utils'
 import { findCurrencyExponent } from '@/utils/moneyInput'
 
 /** Every answer the user gives that decides where the statements go */
@@ -88,7 +93,8 @@ export function getOfxSkippedRowId(statement: OfxStatement, transaction: OfxTran
  * Builds the payload the shared import save takes from the statements and the account answers
  *
  * A statement is written to the account its answer names, in that account's currency, so one whose
- * currency differs is refused rather than converted. Transactions the file leaves unreadable, that
+ * currency differs is refused rather than converted. A statement that states no currency, as a QIF
+ * account states none, takes the account's. Transactions the file leaves unreadable, that
  * the importer could not store, whose bank ID an earlier transaction of the import already has, or
  * that the server says their account already holds, are left out and listed with the reason. The
  * rest import with their bank IDs, which the save hashes and again leaves out what the account holds
@@ -114,49 +120,55 @@ export function buildOfxImportPayload(file: OfxFile, answers: OfxImportAnswers):
     // goes to the server inside a transaction, to be hashed. The same files give the same positions,
     // so a resent upload matches
     const source = `statement-${position + 1}`
-    const built = buildImportAccountMapping({
-      source,
-      label: statement.label,
-      name: statement.name,
-      choice: answers.accountMappings[statement.id] ?? '',
-      createDetails: answers.accountCreateDetails[statement.id],
-      accountById: answers.accountById,
-      takesRows: true,
-      refusesGroupAccount: true,
-    }, addError)
+    const built = buildImportAccountMapping(
+      {
+        source,
+        label: statement.label,
+        name: statement.name,
+        choice: answers.accountMappings[statement.id] ?? '',
+        createDetails: answers.accountCreateDetails[statement.id],
+        accountById: answers.accountById,
+        takesRows: true,
+        refusesGroupAccount: true,
+      },
+      addError,
+    )
 
     // The account's currency decides how many decimal places an amount may carry, so nothing is
-    // judged against one that is unanswered or is not the statement's
+    // judged against one that is unanswered or is not the statement's. A statement that states no
+    // currency takes its account's, so it never differs from it
     const accountCurrency = (built?.account?.currency ?? built?.mapping.create?.currency ?? '').toUpperCase()
-    const isWritable = built !== null && accountCurrency === statement.currency
+    const currency = statement.currency ?? accountCurrency
+    const isWritable = built !== null && accountCurrency === currency
     if (built && !isWritable) {
       const mismatch = answers.fixedAccount
-        ? getOfxFixedAccountCurrencyError(statement.currency, answers.fixedAccount.name, accountCurrency)
-        : getOfxCurrencyMismatchError(statement.label, statement.currency, accountCurrency)
+        ? getOfxFixedAccountCurrencyError(currency, answers.fixedAccount.name, accountCurrency)
+        : getOfxCurrencyMismatchError(statement.label, currency, accountCurrency)
       currencyMismatches.push(mismatch)
       addError(mismatch)
     }
 
-    const exponent = isWritable ? findCurrencyExponent(answers.currencies, statement.currency) : null
-    return { statement, source, built, isWritable, exponent }
+    const exponent = isWritable ? findCurrencyExponent(answers.currencies, currency) : null
+    return { statement, source, built, isWritable, exponent, currency }
   })
   const firstCopies = findFirstOfxCopies(prepared)
 
-  for (const { statement, source, built, isWritable, exponent } of prepared) {
+  for (const { statement, source, built, isWritable, exponent, currency } of prepared) {
     let hasRows = false
     for (const transaction of statement.transactions) {
-      const skip = (reason: string) => skippedRows.push({
-        id: getOfxSkippedRowId(statement, transaction),
-        fileName: transaction.fileName,
-        statementLabel: statement.label,
-        postedLabel: transaction.date ? getPreviewDateLabel(transaction.date) : transaction.postedText,
-        amountText: transaction.amountText,
-        payee: transaction.payee,
-        memo: transaction.memo,
-        reason,
-      })
+      const skip = (reason: string) =>
+        skippedRows.push({
+          id: getOfxSkippedRowId(statement, transaction),
+          fileName: transaction.fileName,
+          statementLabel: statement.label,
+          postedLabel: transaction.date ? getPreviewDateLabel(transaction.date) : transaction.postedText,
+          amountText: transaction.amountText,
+          payee: transaction.payee,
+          memo: transaction.memo,
+          reason,
+        })
 
-      const problem = getOfxTransactionProblem(transaction, exponent, statement.currency)
+      const problem = getOfxTransactionProblem(transaction, exponent, currency)
       if (problem) {
         skip(problem)
         continue
@@ -167,7 +179,11 @@ export function buildOfxImportPayload(file: OfxFile, answers: OfxImportAnswers):
       const repeatKey = getOfxRepeatKey(statement, transaction)
       const firstCopy = repeatKey === null ? undefined : firstCopies.get(repeatKey)
       if (firstCopy !== undefined && firstCopy !== transaction) {
-        skip(firstCopy.fileId === transaction.fileId ? OFX_REPEATED_IN_FILE_REASON : getOfxRepeatedTransactionReason(firstCopy.fileName))
+        skip(
+          firstCopy.fileId === transaction.fileId
+            ? OFX_REPEATED_IN_FILE_REASON
+            : getOfxRepeatedTransactionReason(firstCopy.fileName),
+        )
         continue
       }
 
@@ -210,7 +226,9 @@ export function buildOfxImportPayload(file: OfxFile, answers: OfxImportAnswers):
  * no ID. Held in the browser only to find repeats, and never sent
  */
 function getOfxRepeatKey(statement: OfxStatement, transaction: OfxTransaction) {
-  return transaction.bankTransactionId === null ? null : JSON.stringify([transaction.bankAccountKey, transaction.bankTransactionId, statement.currency])
+  return transaction.bankTransactionId === null
+    ? null
+    : JSON.stringify([transaction.bankAccountKey, transaction.bankTransactionId, statement.currency])
 }
 
 /**
@@ -218,14 +236,16 @@ function getOfxRepeatKey(statement: OfxStatement, transaction: OfxTransaction) {
  * earliest file. Only a copy that is written counts, so one left out for a problem of its own does
  * not hide a readable copy later in the import
  */
-function findFirstOfxCopies(prepared: Array<{ statement: OfxStatement; isWritable: boolean; exponent: number | null }>) {
+function findFirstOfxCopies(
+  prepared: Array<{ statement: OfxStatement; isWritable: boolean; exponent: number | null; currency: string }>,
+) {
   const firstCopies = new Map<string, OfxTransaction>()
-  for (const { statement, isWritable, exponent } of prepared) {
+  for (const { statement, isWritable, exponent, currency } of prepared) {
     if (!isWritable) continue
 
     for (const transaction of statement.transactions) {
       const key = getOfxRepeatKey(statement, transaction)
-      if (key === null || getOfxTransactionProblem(transaction, exponent, statement.currency) !== null) continue
+      if (key === null || getOfxTransactionProblem(transaction, exponent, currency) !== null) continue
 
       const first = firstCopies.get(key)
       if (first === undefined || transaction.fileOrder < first.fileOrder) firstCopies.set(key, transaction)
@@ -247,6 +267,7 @@ export function getOfxCategorySource(transaction: Pick<OfxTransaction, 'amount'>
  */
 export function getOfxTransactionProblem(transaction: OfxTransaction, exponent: number | null, currency: string) {
   if (transaction.otherCurrency !== null) return getOfxOtherCurrencyReason(transaction.otherCurrency, currency)
+  if (transaction.readProblem) return transaction.readProblem
   if (transaction.date === null) return OFX_DATE_UNREADABLE_REASON
   if (transaction.amount === null) return OFX_AMOUNT_UNREADABLE_REASON
 
@@ -271,8 +292,9 @@ function buildCategoryMappings(
   categories: Category[] | undefined,
   addError: (message: string) => void,
 ): TransactionImportPayload['categories'] {
-  const sources = [JOURNAL_NO_CATEGORY_SOURCE, JOURNAL_NO_CATEGORY_MONEY_IN_SOURCE]
-    .filter((source) => rows.some((row) => row.category_source === source))
+  const sources = [JOURNAL_NO_CATEGORY_SOURCE, JOURNAL_NO_CATEGORY_MONEY_IN_SOURCE].filter((source) =>
+    rows.some((row) => row.category_source === source),
+  )
 
   const mappings: TransactionImportPayload['categories'] = []
   for (const source of sources) {
