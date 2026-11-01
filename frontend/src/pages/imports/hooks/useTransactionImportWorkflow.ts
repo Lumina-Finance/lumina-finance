@@ -93,6 +93,7 @@ import {
   validateColumnValues,
   writeScopedImportAnswers,
   emptyScopedImportAnswers,
+  alignNameAnswersWithValues,
   SEVERAL_CSV_IMPORT_FILE_TYPE,
   labelStagedFiles,
   removeStagedFile,
@@ -459,37 +460,6 @@ export function useTransactionImportWorkflow(fixedAccount: AccountsOverview | nu
     })
   }
 
-  const tagMappings = useMemo(
-    () => readScopedImportAnswers(scopedTagMappings, getTagSourceScope),
-    [getTagSourceScope, scopedTagMappings],
-  )
-
-  const tagCreateNames = useMemo(
-    () => readScopedImportAnswers(scopedTagCreateNames, getTagSourceScope),
-    [getTagSourceScope, scopedTagCreateNames],
-  )
-
-  const setTagMappings: Dispatch<SetStateAction<Record<string, string>>> = (update) => {
-    setScopedTagMappings((current) => {
-      const answers = readScopedImportAnswers(current, getTagSourceScope)
-      return writeScopedImportAnswers(
-        current,
-        typeof update === 'function' ? update(answers) : update,
-        getTagSourceScope,
-      )
-    })
-  }
-
-  const setTagCreateNames: Dispatch<SetStateAction<Record<string, string>>> = (update) => {
-    setScopedTagCreateNames((current) => {
-      const answers = readScopedImportAnswers(current, getTagSourceScope)
-      return writeScopedImportAnswers(
-        current,
-        typeof update === 'function' ? update(answers) : update,
-        getTagSourceScope,
-      )
-    })
-  }
   const {
     currencies,
     categories,
@@ -825,6 +795,41 @@ export function useTransactionImportWorkflow(fixedAccount: AccountsOverview | nu
     () => getImportedTags(files, columnMap.tag_ids, isRowIncluded),
     [columnMap.tag_ids, files, isRowIncluded],
   )
+
+  // Held under the spelling shown when each was given, which a date range can leave out of the rows
+  // while another spelling of the same tag stays, so they are read and written under the spelling
+  // the step asks about now
+  const tagMappings = useMemo(
+    () => alignNameAnswersWithValues(readScopedImportAnswers(scopedTagMappings, getTagSourceScope), importedTags),
+    [getTagSourceScope, importedTags, scopedTagMappings],
+  )
+
+  const tagCreateNames = useMemo(
+    () => alignNameAnswersWithValues(readScopedImportAnswers(scopedTagCreateNames, getTagSourceScope), importedTags),
+    [getTagSourceScope, importedTags, scopedTagCreateNames],
+  )
+
+  const setTagMappings: Dispatch<SetStateAction<Record<string, string>>> = (update) => {
+    setScopedTagMappings((current) => {
+      const answers = alignNameAnswersWithValues(readScopedImportAnswers(current, getTagSourceScope), importedTags)
+      return writeScopedImportAnswers(
+        current,
+        typeof update === 'function' ? update(answers) : update,
+        getTagSourceScope,
+      )
+    })
+  }
+
+  const setTagCreateNames: Dispatch<SetStateAction<Record<string, string>>> = (update) => {
+    setScopedTagCreateNames((current) => {
+      const answers = alignNameAnswersWithValues(readScopedImportAnswers(current, getTagSourceScope), importedTags)
+      return writeScopedImportAnswers(
+        current,
+        typeof update === 'function' ? update(answers) : update,
+        getTagSourceScope,
+      )
+    })
+  }
 
   const {
     matchedTagByKey,
