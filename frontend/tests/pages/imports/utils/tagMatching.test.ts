@@ -3,9 +3,11 @@
  * from what the commit would do without being asked, and one entry for tags differing in capitals
  */
 import { describe, expect, it } from 'vitest'
+import { getNameKey } from '@/api/shared/nameKey'
 import type { Tag } from '@/api/tags'
 import { CREATE_TAG_VALUE, IMPORT_TAG_NAME_MAX_LENGTH, SKIP_TAG_VALUE } from '@/pages/imports/constants'
 import {
+  alignNameAnswersWithValues,
   buildImportTagMappings,
   buildImportTagOptions,
   getImportedTags,
@@ -31,7 +33,7 @@ const FOOD: Tag = { ...TRAVEL, id: 'food', name: 'Food' }
 function buildFor(value: string, answer: string, createName?: string, matched?: Tag) {
   return buildImportTagMappings({
     importedTags: [value],
-    matchedTagByKey: matched ? new Map([[value.trim().toLowerCase(), matched]]) : new Map(),
+    matchedTagByKey: matched ? new Map([[getNameKey(value), matched]]) : new Map(),
     tagMappings: answer ? { [value]: answer } : {},
     tagCreateNames: createName === undefined ? {} : { [value]: createName },
   })
@@ -238,5 +240,120 @@ describe('the tag names a file offers to answer', () => {
 
   it('asks about nothing without a tags column', () => {
     expect(getImportedTags([buildFile(['Travel'])], '')).toEqual([])
+  })
+
+  // The browser lowers İ to i with a combining dot and the database to a plain i, so the key follows
+  // the database, and a name matches the tag the commit would match
+  it('asks once about a name with a dotted capital I and its plain spelling', () => {
+    expect(getImportedTags([buildFile(['İstanbul', 'istanbul'])], 'Tags')).toEqual(['İstanbul'])
+  })
+
+  // The database lowers a capital sigma to the plain one wherever it stands, so a name ending in one
+  // is not the name ending in the final form, which the browser would fold it to across the whole name
+  it('asks separately about a name ending in a capital sigma and one ending in the final sigma', () => {
+    expect(getImportedTags([buildFile(['ΟΔΟΣ', 'οδος'])], 'Tags')).toHaveLength(2)
+    expect(getNameKey('ΟΔΟΣ')).toBe('οδοσ')
+  })
+
+  it('matches a name with a dotted capital I to the tag of the plain spelling', () => {
+    const istanbul: Tag = { ...TRAVEL, id: 'istanbul', name: 'istanbul' }
+
+    expect(buildFor('İSTANBUL', istanbul.id, undefined, istanbul).mappings).toEqual([])
+    expect(getImportTagRowState('', istanbul)).toBe('matched')
+  })
+})
+
+describe('a tag name longer than a tag can have', () => {
+  const longName = 'x'.repeat(IMPORT_TAG_NAME_MAX_LENGTH + 1)
+
+  it('can be skipped', () => {
+    expect(buildFor(longName, SKIP_TAG_VALUE)).toEqual({ mappings: [{ source: longName, skip: true }], errors: [] })
+  })
+
+  it('can be corrected, whether answered create or typed on a row nobody answered', () => {
+    const answered = buildFor(longName, CREATE_TAG_VALUE, 'Trip')
+    const typed = buildFor(longName, '', 'Trip')
+
+    expect(answered).toEqual({ mappings: [{ source: longName, create: { name: 'Trip' } }], errors: [] })
+    expect(typed).toEqual(answered)
+  })
+
+  it('can be pointed at an existing tag', () => {
+    expect(buildFor(longName, FOOD.id).mappings).toEqual([{ source: longName, tag_id: FOOD.id }])
+  })
+
+  it('blocks the import with a reason while nobody has answered it', () => {
+    const { mappings, errors } = buildFor(longName, '')
+
+    expect(mappings).toEqual([])
+    expect(errors).toEqual([`The tag "${longName.slice(0, 28)}…" is longer than 64 characters. Correct it or skip it.`])
+  })
+
+  it('does not block a name of the longest length a tag can have', () => {
+    expect(buildFor('x'.repeat(IMPORT_TAG_NAME_MAX_LENGTH), '').errors).toEqual([])
+  })
+
+  it('keeps blocking while the name is created under its own over-long spelling', () => {
+    expect(buildFor(longName, CREATE_TAG_VALUE).errors).toEqual([
+      `The name for the new tag "${longName}" is longer than 64 characters.`,
+    ])
+  })
+})
+
+describe('answers to a tag spelled in other capitals once a date range leaves only one spelling', () => {
+  const january = { Tags: 'Travel', Date: '2026-01-10' }
+  const february = { Tags: 'travel', Date: '2026-02-10' }
+  const file: ImportFileDraft = {
+    ...buildFile([]),
+    headers: ['Tags', 'Date'],
+    rows: [january, february],
+  }
+  const onlyFebruary = (row: { Date?: string }) => row.Date === '2026-02-10'
+
+  /** Builds what the step sends for the tags the rows left in range ask about, given answers held as the workflow holds them */
+  function sendFor(answers: Record<string, string>, createNames: Record<string, string> = {}) {
+    const importedTags = getImportedTags([file], 'Tags', onlyFebruary)
+    return buildImportTagMappings({
+      importedTags,
+      matchedTagByKey: new Map(),
+      tagMappings: alignNameAnswersWithValues(answers, importedTags),
+      tagCreateNames: alignNameAnswersWithValues(createNames, importedTags),
+    })
+  }
+
+  it('asks about the spelling the range leaves', () => {
+    expect(getImportedTags([file], 'Tags')).toEqual(['Travel'])
+    expect(getImportedTags([file], 'Tags', onlyFebruary)).toEqual(['travel'])
+  })
+
+  it('keeps a skip given to the spelling the whole file showed', () => {
+    expect(sendFor({ Travel: SKIP_TAG_VALUE }).mappings).toEqual([{ source: 'travel', skip: true }])
+  })
+
+  it('keeps a corrected name given to the spelling the whole file showed', () => {
+    const { mappings } = sendFor({ Travel: CREATE_TAG_VALUE }, { Travel: 'Holiday' })
+
+    expect(mappings).toEqual([{ source: 'travel', create: { name: 'Holiday' } }])
+  })
+
+  it('prefers an answer given to the exact spelling asked about', () => {
+    expect(sendFor({ Travel: SKIP_TAG_VALUE, travel: FOOD.id }).mappings).toEqual([
+      { source: 'travel', tag_id: FOOD.id },
+    ])
+  })
+})
+
+describe('moving answers onto the spelling a step asks about', () => {
+  it('returns the same answers where nothing needs moving', () => {
+    const answers = { Travel: SKIP_TAG_VALUE, Zoo: FOOD.id }
+
+    expect(alignNameAnswersWithValues(answers, ['Travel', 'Zoo'])).toBe(answers)
+  })
+
+  it('moves an answer rather than copying it, and leaves answers for names no longer asked about', () => {
+    expect(alignNameAnswersWithValues({ Travel: SKIP_TAG_VALUE, Zoo: FOOD.id }, ['travel'])).toEqual({
+      travel: SKIP_TAG_VALUE,
+      Zoo: FOOD.id,
+    })
   })
 })

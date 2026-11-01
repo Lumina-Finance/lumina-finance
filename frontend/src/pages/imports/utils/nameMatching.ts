@@ -87,7 +87,16 @@ export function buildImportNameMappings<TMatched extends { id: string }, TMappin
     const matched = matchedByKey.get(key)
 
     const answer = getImportNameAnswer(answers[value] ?? '', Boolean(matched), createNames[value], createValue)
-    if (!answer) continue
+    if (!answer) {
+      // A name nobody answered is created under the value's own spelling, so one too long to be a
+      // name has to be corrected or skipped before the commit would refuse it
+      if (!matched && maxNameLength !== undefined && [...value.trim()].length > maxNameLength) {
+        errors.push(
+          `The ${noun} "${[...value].slice(0, 28).join('')}…" is longer than ${maxNameLength} characters. Correct it or skip it.`,
+        )
+      }
+      continue
+    }
 
     if (answer === skipValue) {
       mappings.push({ source: value, skip: true })
@@ -120,4 +129,33 @@ export function buildImportNameMappings<TMatched extends { id: string }, TMappin
   }
 
   return { mappings, errors }
+}
+
+/**
+ * Moves each answer held under another spelling of a name onto the spelling the step now asks about
+ *
+ * Answers are held under the spelling the step showed when they were given. Names differing only in
+ * capitals are one name, and a date range can leave a different spelling of it in the rows, so an
+ * answer given for "Travel" would otherwise be lost once only "travel" is left to ask about. An
+ * answer under the exact spelling asked about wins, and answers for names the step no longer asks
+ * about are left where they are
+ *
+ * @param answers - What the user chose, held under the spelling shown when they chose it
+ * @param values - One name per record the step asks about now
+ * @returns The same object where nothing needed moving
+ */
+export function alignNameAnswersWithValues<T>(answers: Record<string, T>, values: string[]): Record<string, T> {
+  const valueByKey = new Map(values.map((value) => [getNameKey(value), value]))
+  let aligned = answers
+
+  for (const [spelling, answer] of Object.entries(answers)) {
+    const value = valueByKey.get(getNameKey(spelling))
+    if (value === undefined || value === spelling || value in aligned) continue
+
+    if (aligned === answers) aligned = { ...answers }
+    delete aligned[spelling]
+    aligned[value] = answer
+  }
+
+  return aligned
 }
