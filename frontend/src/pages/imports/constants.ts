@@ -493,6 +493,10 @@ export const IMPORT_LAYOUTS_LOADING_UPLOAD_BLOCK = 'Loading your saved import se
 // built on it: refused rows in every import flow, and the Firefly III and Actual Budget budgets it cannot bring in
 export const SKIPPED_TABLE_VISIBLE_LIMIT = 20
 
+// Most characters of a file's own cell the skipped table writes out. A refused row can hold a cell of
+// any length, such as a tag name of 100,000 characters, which would otherwise be written whole
+export const SKIPPED_TABLE_CELL_DISPLAY_LIMIT = 200
+
 // How many compiled transactions the preview shows. Read by the builder that stops at it and by the
 // step description that states it, so the two cannot disagree about what is on screen
 export const IMPORT_SAMPLE_PREVIEW_LIMIT = 5

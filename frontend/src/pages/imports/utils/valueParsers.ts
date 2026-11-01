@@ -1,3 +1,4 @@
+import { SKIPPED_TABLE_CELL_DISPLAY_LIMIT } from '@/pages/imports/constants'
 import type { ImportAmountDirection } from '@/pages/imports/types'
 import { DATE_FORMATS, formatDate, parseYmd } from '@/utils/date'
 
@@ -58,8 +59,18 @@ const WRITTEN_MONTH_FIRST_PATTERN = /^([a-z]+)\.?\s+(\d{1,2}),?\s+(\d{4})$/i
 const WRITTEN_DAY_FIRST_PATTERN = /^(\d{1,2})\s+([a-z]+)\.?,?\s+(\d{4})$/i
 
 const MONTH_NAMES = [
-  'january', 'february', 'march', 'april', 'may', 'june',
-  'july', 'august', 'september', 'october', 'november', 'december',
+  'january',
+  'february',
+  'march',
+  'april',
+  'may',
+  'june',
+  'july',
+  'august',
+  'september',
+  'october',
+  'november',
+  'december',
 ]
 
 // How many letters an accepted abbreviation has, so "sep" reads as September while "sept" does not
@@ -97,11 +108,7 @@ export function readImportDate(
  * This deliberately stops before converting an offset timestamp. Recognition uses it before the
  * profile zone is known, while actual import readings continue from this day to conversion
  */
-function getValidatedCalendarDay(
-  value: string,
-  format: ImportDateFormat,
-  separator: ImportDateSeparator,
-) {
+function getValidatedCalendarDay(value: string, format: ImportDateFormat, separator: ImportDateSeparator) {
   const parts = readCalendarDateParts(value, format, separator)
   if (!parts) return ''
 
@@ -158,10 +165,15 @@ function readCalendarDateParts(
   if (format === 'written') return readWrittenDateParts(value)
   if (format === 'iso') {
     const match = ISO_DATE_PATTERN.exec(value)
-    if (!match || (match[4] !== undefined && (
-      Number(match[4]) > 23 || Number(match[5]) > 59 || Number(match[6]) > 59
-      || (match[8] !== undefined && (Number(match[8]) > 23 || Number(match[9]) > 59))
-    ))) return null
+    if (
+      !match ||
+      (match[4] !== undefined &&
+        (Number(match[4]) > 23 ||
+          Number(match[5]) > 59 ||
+          Number(match[6]) > 59 ||
+          (match[8] !== undefined && (Number(match[8]) > 23 || Number(match[9]) > 59))))
+    )
+      return null
     return { year: Number(match[1]), month: Number(match[2]), day: Number(match[3]) }
   }
 
@@ -185,9 +197,7 @@ function readCalendarDateParts(
   const second = Number(match[3])
   const year = Number(match[4])
 
-  return format === 'dayFirst'
-    ? { year, month: second, day: first }
-    : { year, month: first, day: second }
+  return format === 'dayFirst' ? { year, month: second, day: first } : { year, month: first, day: second }
 }
 
 /**
@@ -347,9 +357,7 @@ export function isSupportedCurrency(currency: string, supportedCodes: Set<string
  */
 export function isValidDateValue(value: string) {
   const normalized = value.trim()
-  return IMPORT_DATE_FORMATS.some(
-    (format) => Boolean(getValidatedCalendarDay(normalized, format, 'automatic')),
-  )
+  return IMPORT_DATE_FORMATS.some((format) => Boolean(getValidatedCalendarDay(normalized, format, 'automatic')))
 }
 
 /**
@@ -439,17 +447,46 @@ export function doesImportAmountSignDisagreeWithDirection(value: string, directi
 // it costs a click rather than refusing the column, which is what makes an open-ended vocabulary
 // survivable
 const IMPORT_DIRECTION_WORDS: Record<string, ImportAmountDirection> = {
-  d: 'out', db: 'out', dr: 'out', debit: 'out', debits: 'out',
-  w: 'out', wd: 'out', withdraw: 'out', withdrawal: 'out', withdrawals: 'out', withdrawn: 'out',
-  out: 'out', outflow: 'out', outgoing: 'out', moneyout: 'out', paidout: 'out',
-  payment: 'out', spend: 'out', expense: 'out', purchase: 'out',
-  c: 'in', cr: 'in', credit: 'in', credits: 'in',
-  dep: 'in', deposit: 'in', deposits: 'in', deposited: 'in',
-  in: 'in', inflow: 'in', incoming: 'in', moneyin: 'in', paidin: 'in',
-  receipt: 'in', income: 'in', refund: 'in',
+  d: 'out',
+  db: 'out',
+  dr: 'out',
+  debit: 'out',
+  debits: 'out',
+  w: 'out',
+  wd: 'out',
+  withdraw: 'out',
+  withdrawal: 'out',
+  withdrawals: 'out',
+  withdrawn: 'out',
+  out: 'out',
+  outflow: 'out',
+  outgoing: 'out',
+  moneyout: 'out',
+  paidout: 'out',
+  payment: 'out',
+  spend: 'out',
+  expense: 'out',
+  purchase: 'out',
+  c: 'in',
+  cr: 'in',
+  credit: 'in',
+  credits: 'in',
+  dep: 'in',
+  deposit: 'in',
+  deposits: 'in',
+  deposited: 'in',
+  in: 'in',
+  inflow: 'in',
+  incoming: 'in',
+  moneyin: 'in',
+  paidin: 'in',
+  receipt: 'in',
+  income: 'in',
+  refund: 'in',
 
   // The Dutch Af Bij column, as ING Netherlands writes it
-  af: 'out', bij: 'in',
+  af: 'out',
+  bij: 'in',
 }
 
 // A file that writes its direction as a bare sign rather than a word. Read before punctuation is
@@ -520,4 +557,16 @@ export function guessImportDirectionAnswers(values: string[]): Record<string, Im
  */
 export function truncateValue(value: string) {
   return value.length > 28 ? `${value.slice(0, 25)}...` : value
+}
+
+/**
+ * Cuts a file's own cell to what the skipped table writes out, counting characters rather than
+ * UTF-16 units so a symbol is never split, and ending a cut cell with an ellipsis
+ */
+export function clipSkippedCellValue(value: string) {
+  if (value.length <= SKIPPED_TABLE_CELL_DISPLAY_LIMIT) return value
+  const characters = [...value.slice(0, (SKIPPED_TABLE_CELL_DISPLAY_LIMIT + 1) * 2)]
+  return characters.length > SKIPPED_TABLE_CELL_DISPLAY_LIMIT
+    ? `${characters.slice(0, SKIPPED_TABLE_CELL_DISPLAY_LIMIT).join('')}…`
+    : value
 }
