@@ -204,7 +204,7 @@ async function seedOneTransaction(page: Page, request: Parameters<typeof signUpU
     accountId: account.id,
     categoryName: 'Groceries',
     amount: -1000,
-    date: daysFromTodayInTestTimezone(-1),
+    date: daysFromTodayInTestTimezone(0),
   })
   await logInViaApi(page, user)
   await openPage(page, '/transactions')
@@ -495,8 +495,8 @@ for (const colorScheme of ['light', 'dark'] as const) {
     const account = await createAccount(request, user, { name: 'Chequing' })
     await createAccount(request, user, { name: 'Savings' })
     const rows = [
-      await createTransaction(request, user, { accountId: account.id, categoryName: 'Groceries', amount: -4250, date: daysFromTodayInTestTimezone(-1) }),
-      await createTransaction(request, user, { accountId: account.id, categoryName: 'Groceries', amount: -1875, date: daysFromTodayInTestTimezone(-1) }),
+      await createTransaction(request, user, { accountId: account.id, categoryName: 'Groceries', amount: -4250, date: daysFromTodayInTestTimezone(0) }),
+      await createTransaction(request, user, { accountId: account.id, categoryName: 'Groceries', amount: -1875, date: daysFromTodayInTestTimezone(0) }),
     ]
     await logInViaApi(page, user)
     const charts = page.locator('svg.recharts-surface[tabindex="0"]').filter({ visible: true })
