@@ -23,7 +23,7 @@ export const QIF_FORMAT: OfxFormat = {
   getMultipleStatementsReason: getQifMultipleStatementsReason,
   files: {
     accept: '.qif',
-    description: 'Upload QIF files exported from your finance app, one file or several.',
+    description: 'Upload QIF files exported from Quicken 3.0, one file or several.',
     uploadTitle: 'Upload QIF files',
     addTitle: 'Add more QIF files',
     hint: 'Each file is a .qif export. One file can hold several accounts.',

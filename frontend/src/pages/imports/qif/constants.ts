@@ -6,7 +6,7 @@ const MIB = 1024 * 1024
 export const MAX_QIF_FILE_BYTES = 25 * MIB
 
 /** Said when a file is refused for what it is, so the next step is to choose a QIF file */
-export const QIF_FILE_GUIDANCE = 'Choose a QIF file exported from your finance app.'
+export const QIF_FILE_GUIDANCE = 'Choose a QIF file exported from Quicken 3.0.'
 
 export const QIF_NOT_READABLE_REASON = `This isn't a QIF file. ${QIF_FILE_GUIDANCE}`
 export const QIF_TOO_LARGE_REASON = `This file is larger than ${MAX_QIF_FILE_BYTES / MIB} MB, which is more than an export holds. ${QIF_FILE_GUIDANCE}`

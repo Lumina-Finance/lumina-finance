@@ -29,7 +29,7 @@ const QIF = [
 async function uploadQif(page: Page, user: TestUser, contents: string, name = 'household.qif') {
   await logInViaApi(page, user)
   await openPage(page, '/settings/imports')
-  await chooseFromDropdown(page.locator('body'), 'Data source', 'QIF')
+  await chooseFromDropdown(page.locator('body'), 'Data source', 'Quicken 3.0 (QIF)')
   await expect(page.getByText('What to expect', { exact: true })).toBeVisible()
 
   const upload = page.locator('input[type="file"][accept=".qif"]')

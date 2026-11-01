@@ -7,7 +7,7 @@ export const IMPORT_SOURCE_LABELS: Record<LastImport['source'], string> = {
   firefly: 'Firefly III',
   actual_budget: 'Actual Budget',
   ofx: 'OFX/QFX',
-  qif: 'QIF',
+  qif: 'Quicken 3.0 (QIF)',
 }
 
 /** Shown for an import saved without a file name */

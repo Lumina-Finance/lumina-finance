@@ -76,7 +76,7 @@ const FLOW_DESCRIPTIONS: Record<ImportDataSource, string> = {
   firefly: 'Stage a Firefly III export before it is added to your ledger.',
   actual: 'Stage an Actual Budget export before it is added to your ledger.',
   ofx: 'Stage OFX or QFX statements before they are added to your ledger.',
-  qif: 'Stage QIF files before they are added to your ledger.',
+  qif: 'Stage Quicken 3.0 (QIF) files before they are added to your ledger.',
 }
 
 // The label above the page title, by what the flow imports
@@ -85,7 +85,7 @@ const FLOW_EYEBROWS: Record<ImportDataSource, string> = {
   firefly: 'CSV import',
   actual: 'Budget import',
   ofx: 'Statement import',
-  qif: 'QIF import',
+  qif: 'Quicken 3.0 import',
 }
 
 /**
