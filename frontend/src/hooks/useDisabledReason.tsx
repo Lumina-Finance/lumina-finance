@@ -11,7 +11,7 @@ import {
 import { useReducedMotion } from 'motion/react'
 import CursorTooltipPortal from '@/components/charts/CursorTooltipPortal'
 import { useCursorTooltip } from '@/hooks/useCursorTooltip'
-import { getReasonAnchor, getViewportBounds } from '@/utils/disabledReasonAnchor'
+import { getClippingBoxes, getReasonAnchor, getViewportBounds, isBoxInView } from '@/utils/disabledReasonAnchor'
 
 type ReasonEvent = MouseEvent<HTMLElement>
 
@@ -51,8 +51,8 @@ function getReasonKey(reason: string) {
  *
  * Give the control `controlProps` and no `disabled` attribute, route its click through
  * `handleBlockedClick` while `isUnavailable`, and draw `tooltip` beside it. The reason shows under the
- * cursor, on keyboard focus and on a tap, where it stays until the next tap elsewhere. Escape and a
- * scroll put it away. A control with no reason is left as it is, so a control held off only while its
+ * cursor, on keyboard focus and on a tap, where it stays until the next tap elsewhere. Escape puts it
+ * away. A scroll puts it away too, except that a focused control in view keeps it, moved along with the control. A control with no reason is left as it is, so a control held off only while its
  * own request runs keeps the native `disabled` and shows nothing
  */
 export function useDisabledReason(reason: string | null | undefined, shownById?: string) {
@@ -126,7 +126,13 @@ export function useDisabledReason(reason: string | null | undefined, shownById?:
     }
     const handleScroll = () => {
       const origin = originRef.current
-      if (origin && document.activeElement === origin) {
+      // A focused control keeps its reason beside it while it is in view. Scrolled out of view, the reason
+      // would float over whatever the surface shows in its place
+      if (
+        origin &&
+        document.activeElement === origin &&
+        isBoxInView(origin.getBoundingClientRect(), getClippingBoxes(origin))
+      ) {
         updateTooltipPosition(...anchorPoint(origin))
         return
       }
@@ -192,7 +198,11 @@ export function useDisabledReason(reason: string | null | undefined, shownById?:
     <>
       {/* Hidden, not `sr-only`: a screen reader still reads a hidden element named by `aria-describedby`,
           and an absolutely positioned one would escape a scrolling table's clip and widen the page */}
-      {!shownById && <span id={descriptionId} hidden>{activeReason}</span>}
+      {!shownById && (
+        <span id={descriptionId} hidden>
+          {activeReason}
+        </span>
+      )}
       <CursorTooltipPortal
         ref={tooltipRef}
         testId="disabled-reason-tooltip"
