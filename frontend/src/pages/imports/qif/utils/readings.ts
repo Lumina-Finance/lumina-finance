@@ -15,8 +15,8 @@ import {
 
 // Month, day, then a year of two or four digits. Quicken pads a day or month to two characters with
 // a space, as in "6/ 1/1994", and writes the year after an apostrophe where the date is in 2000 or
-// later, as in "1/ 2'24"
-const NUMERIC_DATE_PATTERN = /^(\d{1,2})\s*\/\s*(\d{1,2})\s*([/'])\s*(\d{2}|\d{4})$/
+// later, as in "1/ 2'24". It pads that year to two characters too, as in "12/21' 7" for 2007
+const NUMERIC_DATE_PATTERN = /^(\d{1,2})\s*\/\s*(\d{1,2})\s*([/'])\s*(\d{1,2}|\d{4})$/
 
 // A numeric date whose year has two digits after a slash, which names no century
 const TWO_DIGIT_YEAR_PATTERN = /^\d{1,2}\s*\/\s*\d{1,2}\s*\/\s*\d{2}$/
@@ -39,7 +39,10 @@ export function normalizeQifDate(text: string) {
 
   const [, first, second, separator, year] = match
   if (year.length === 4) return `${first}/${second}/${year}`
-  return separator === "'" ? `${first}/${second}/${MILLENNIUM}${year}` : `${first}/${second}/${year}`
+  if (separator === "'") return `${first}/${second}/${MILLENNIUM}${year.padStart(2, '0')}`
+
+  // A single digit after a slash is no year the format writes, so it is left for the reader to refuse
+  return year.length === 2 ? `${first}/${second}/${year}` : trimmed
 }
 
 /**
