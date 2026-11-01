@@ -17,7 +17,7 @@ const CSV = [
 
 type StagedBatch = { tags: Record<string, unknown>[] }
 
-async function openTagStep(page: Page, request: Parameters<typeof signUpUser>[0]) {
+async function openTagStep(page: Page, request: Parameters<typeof signUpUser>[0], csv = CSV) {
   const user = await signUpUser(request)
   const account = await createAccount(request, user, { name: 'Everyday chequing' })
   const created = await request.post(`${API_BASE_URL}/tags`, { headers: asUser(user), data: { name: 'Holiday' } })
@@ -27,7 +27,7 @@ async function openTagStep(page: Page, request: Parameters<typeof signUpUser>[0]
   await openPage(page, `/settings/imports?account=${account.id}`)
   const upload = page.locator('input[type="file"][accept=".csv,text/csv"]')
   await expect(upload).toBeEnabled()
-  await upload.setInputFiles({ name: 'tags.csv', mimeType: 'text/csv', buffer: Buffer.from(CSV) })
+  await upload.setInputFiles({ name: 'tags.csv', mimeType: 'text/csv', buffer: Buffer.from(csv) })
   const step = page.locator('section').filter({ has: page.getByText('Tag matching', { exact: true }) }).last()
   const rowFor = (source: string) => step.getByRole('row').filter({ has: page.getByText(source, { exact: true }) })
 
@@ -132,4 +132,24 @@ test('marks a new tag\'s name invalid while it is blank or over 64 characters, a
   await name.fill('t'.repeat(64))
   await expect(name).not.toHaveAttribute('aria-invalid', 'true')
   await expect(page.getByRole('button', { name: 'Commit import', exact: true })).toBeEnabled()
+})
+
+test('lists a row whose tag is over 64 characters as one that will not import, and imports the others', async ({ page, request }) => {
+  const longTag = 'x'.repeat(100_000)
+  const csv = `${CSV}\n2024-03-18,-5.00,Groceries,${longTag},play`
+  const { user, step, rowFor } = await openTagStep(page, request, csv)
+
+  // The long name is not asked about, so the matches settled for the others and it has no row
+  await expect(rowFor('TRAVEL')).toBeVisible()
+  await expect(step.getByText('x'.repeat(29))).toHaveCount(0)
+
+  const preview = page.locator('section').filter({ has: page.getByText('Preview and commit', { exact: true }) }).last()
+  await expect(preview.getByText('1 row will not be imported', { exact: true })).toBeVisible()
+  await expect(preview).toContainText(`The tag "${'x'.repeat(28)}…" is longer than 64 characters.`)
+  await expect(preview).not.toContainText('x'.repeat(29))
+
+  const response = await commitImport(page)
+  expect(response.status()).toBe(201)
+  const transactions = await request.get(`${API_BASE_URL}/transactions`, { headers: asUser(user) })
+  expect(await transactions.json()).toHaveLength(3)
 })
