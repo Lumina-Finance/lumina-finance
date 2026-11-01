@@ -41,6 +41,13 @@ async function search(page: Page, text: string) {
   await field.press('Enter')
 }
 
+/** Submits a search and waits for the list's answer to it, which a press made before it must have come ahead of */
+async function searchAndWaitForAnswer(page: Page, text: string) {
+  const answered = page.waitForResponse((response) => response.url().includes('/transactions?') && response.url().includes(`q=${text}`))
+  await search(page, text)
+  await answered
+}
+
 /** Seeds an account with one old and one recent expense, each on a day of its own */
 async function seedTwoTransactions(request: Parameters<typeof signUpUser>[0]) {
   const user = await signUpUser(request)
@@ -114,6 +121,61 @@ test('exports what a submitted search keeps without asking', AT_EVERY_SIZE, asyn
   expect(rows).toEqual([expect.stringMatching(/,Groceries,Everyday,,-42\.50,CAD,Coffee today$/)])
   expect(downloads.count).toBe(1)
   await expect(page.getByRole('dialog')).toHaveCount(0)
+})
+
+// The file holds every matching row, not the page the list has loaded and not the fifty a list request can
+// return, for the export of everything and for the export of what a search keeps
+test('saves every row when there are more than one list page of them', async ({ page, request }) => {
+  const user = await signUpUser(request)
+  const account = await createAccount(request, user, { name: 'Everyday' })
+  for (let index = 0; index < 55; index += 1) {
+    await createTransaction(request, user, { accountId: account.id, categoryName: 'Groceries', amount: -(index + 1) * 100, date: daysFromTodayInTestTimezone(-index), notes: `Bulk ${index}` })
+  }
+  await logInViaApi(page, user)
+  await openPage(page, '/transactions')
+  expect(await page.getByTestId(/^transaction-row-/).count()).toBeLessThan(55)
+
+  await page.getByRole('button', EXPORT_ALL).click()
+  const everythingStarted = page.waitForEvent('download')
+  await page.getByRole('dialog').getByRole('button', { name: 'Download all', exact: true }).click()
+  expect(await readExportRows((await (await everythingStarted).path())!)).toHaveLength(55)
+
+  await search(page, 'Bulk')
+  const filteredStarted = page.waitForEvent('download')
+  await page.getByRole('button', EXPORT_FILTERED).click()
+  expect(await readExportRows((await (await filteredStarted).path())!)).toHaveLength(55)
+})
+
+// The button is held off while the file is being prepared, so pressing again saves one file, not two
+test('saves one file when the export button is pressed again while it is working', async ({ page, request }) => {
+  const user = await seedTwoTransactions(request)
+  await logInViaApi(page, user)
+  await openPage(page, '/transactions')
+  await expect(page.getByTestId(/^transaction-row-/)).toHaveCount(2)
+  await search(page, 'Coffee')
+  await expect(page.getByTestId(/^transaction-row-/)).toHaveCount(1)
+
+  let exportRequests = 0
+  let release!: () => void
+  const held = new Promise<void>((resolve) => (release = resolve))
+  await page.route('**/transactions/export*', async (route) => {
+    exportRequests += 1
+    await held
+    await route.continue()
+  })
+  const downloads = countDownloads(page)
+  const button = page.getByRole('button', EXPORT_FILTERED)
+  await button.click()
+  await expect(button).toHaveAttribute('aria-busy', 'true')
+  await button.click({ force: true })
+  await button.press('Enter')
+
+  const downloadStarted = page.waitForEvent('download')
+  release()
+  await readExportRows((await (await downloadStarted).path())!)
+  await expect(button).toHaveAttribute('aria-busy', 'false')
+  expect(exportRequests).toBe(1)
+  expect(downloads.count).toBe(1)
 })
 
 // A date filter alone is a filter, so the word says Export filtered and the file keeps to the range
@@ -278,12 +340,15 @@ test('holds Export all off with its reason while there are no transactions', asy
   await expect(exportAction).toHaveAccessibleDescription('There are no transactions to export')
 
   // Playwright treats a button held off with aria-disabled as one it cannot click, and a real user can
+  const downloads = countDownloads(page)
   await exportAction.click({ force: true })
   await exportAction.press('Enter')
 
-  // A dialogue opens within moments of a press that runs, so one still absent after the later press is a
-  // press that did nothing
+  // A dialogue or download follows a press that runs, so one still absent once a later search has been
+  // answered is a press that did nothing
+  await searchAndWaitForAnswer(page, 'fence')
   await expect(page.getByRole('dialog')).toHaveCount(0)
+  expect(downloads.count).toBe(0)
 })
 
 // A search that keeps nothing leaves nothing to save, so the button is held off with its own reason
@@ -302,11 +367,11 @@ test('holds Export filtered off with its reason while the search keeps nothing',
   await expect(exportAction).toHaveAccessibleDescription('No transactions match the search or filters')
   await exportAction.click({ force: true })
   await exportAction.press('Enter')
+
+  // Widening the search is the later request that fences the presses, and it brings the button back
+  await searchAndWaitForAnswer(page, 'Coffee')
   await expect(page.getByRole('dialog')).toHaveCount(0)
   expect(downloads.count).toBe(0)
-
-  // Widening the search brings the button back
-  await search(page, 'Coffee')
   await expect(page.getByRole('button', EXPORT_FILTERED)).not.toHaveAccessibleDescription('No transactions match the search or filters')
 })
 
@@ -496,8 +561,8 @@ test('keeps the phone export icon still when a row is ticked', async ({ page, re
   })
   await tickRow(page, daysFromTodayInTestTimezone(0))
   await expect(exportButton).toHaveAccessibleName('Export selected')
-  // Longer than the crossfade, so a replay would have finished replacing the node by now
-  await page.waitForTimeout(700)
+  // Once every animation in the button has ended, a replay would have finished replacing the node
+  await expect.poll(() => exportButton.evaluate((button) => button.getAnimations({ subtree: true }).length)).toBe(0)
   const state = await exportButton.evaluate((button) => ({
     kept: (button.querySelector('svg') as unknown as { marked?: boolean }).marked === true,
     layers: button.querySelectorAll(':scope > div').length,
@@ -663,6 +728,32 @@ test('fades the export words one after the other with the icon whole throughout'
   }
 })
 
+// A row ticked and unticked before the word has finished changing leaves the button as it began, with its
+// word showing and its icon drawn, rather than blank until the next change
+test('restores the export word and icon when a tick is removed within the fade', async ({ page, request }) => {
+  const user = await seedTwoTransactions(request)
+  await logInViaApi(page, user)
+  await page.setViewportSize({ width: 1280, height: 800 })
+  await openPage(page, '/transactions')
+  await expect(page.getByTestId(/^transaction-row-/)).toHaveCount(2)
+  await page.getByRole('button', SELECT_MODE).click()
+  const button = page.getByRole('button', EXPORT_ALL)
+  await expect(button.getByText('Export all', { exact: true })).toHaveCSS('opacity', '1')
+
+  // Both clicks run inside the page, 100ms apart, which is well inside the 300ms the words take to change
+  await page.getByRole('checkbox', { name: new RegExp(`^Select .+ on ${daysFromTodayInTestTimezone(0)}$`) }).evaluate(async (box: HTMLElement) => {
+    box.click()
+    await new Promise((resolve) => setTimeout(resolve, 100))
+    box.click()
+  })
+
+  await expect(button).toBeVisible()
+  await expect(button.getByText('Export all', { exact: true })).toHaveCSS('opacity', '1')
+  // The word that left is gone once its fade ends, which leaves the one icon to be drawn
+  await expect(button.locator('svg')).toHaveCount(1)
+  await expect(button.locator('svg')).toBeVisible()
+})
+
 // Pressed is the hover look with the button pushed in by a pixel, which is what the Import button beside it
 // does. The export button's own transition list must not drop it
 test('presses the export button in exactly as the Import button beside it is', async ({ page, request }) => {
@@ -672,6 +763,16 @@ test('presses the export button in exactly as the Import button beside it is', a
   await openPage(page, '/transactions')
   await expect(page.getByTestId(/^transaction-row-/)).toHaveCount(2)
 
+  // A hovered glass button takes the text colour, read from the token rather than copied from its value
+  const hoverColor = await page.evaluate(() => {
+    const probe = document.createElement('span')
+    probe.style.color = 'var(--app-text)'
+    document.body.append(probe)
+    const color = getComputedStyle(probe).color
+    probe.remove()
+    return color
+  })
+
   const looks = []
   for (const name of [/^Import transactions/, /^Export all$/]) {
     const button = page.getByRole('button', { name }).filter({ visible: true }).first()
@@ -680,13 +781,14 @@ test('presses the export button in exactly as the Import button beside it is', a
         const style = getComputedStyle(node)
         return { background: style.backgroundColor, color: style.color, border: style.borderTopColor, transform: style.transform }
       })
+    const settled = () => expect.poll(() => button.evaluate((node) => node.getAnimations().length)).toBe(0)
     await button.hover()
-    await expect.poll(async () => (await read()).color).toBe('rgb(28, 21, 16)')
-    await page.waitForTimeout(400)
+    await expect.poll(async () => (await read()).color).toBe(hoverColor)
+    await settled()
     const hover = await read()
     await page.mouse.down()
     await expect.poll(async () => (await read()).transform).toBe('matrix(1, 0, 0, 1, 0, 1)')
-    await page.waitForTimeout(400)
+    await settled()
     const pressed = await read()
     // Released off the button, so the press is not a click that leaves the page or opens a dialogue
     await page.mouse.move(2, 2)
