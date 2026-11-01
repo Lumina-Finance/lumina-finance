@@ -5,10 +5,7 @@ import { AppSlotMachineText } from '@/components/display/SlotMachineText'
 import { FxStatusBadge } from '@/components/tooltips/FxStatusBadge'
 import { DashboardRangeSelector } from '@/pages/dashboard/components/RangeSelector'
 import { DashboardWidgetHeaderIcon } from '@/pages/dashboard/components/WidgetHeaderIcon'
-import {
-  DASHBOARD_RANGE_SELECT_OPTIONS,
-  PREVIOUS_PERIOD_LABEL_BY_RANGE,
-} from '@/pages/dashboard/constants/ranges'
+import { DASHBOARD_RANGE_SELECT_OPTIONS, PREVIOUS_PERIOD_LABEL_BY_RANGE } from '@/pages/dashboard/constants/ranges'
 import { getSpendingComparisonFxStatusMessage } from '@/utils/fxTooltipMessages'
 
 type SpendingComparisonHeaderProps = {
@@ -20,11 +17,7 @@ type SpendingComparisonHeaderProps = {
 /**
  * Renders the spending comparison title, FX status, and responsive range controls
  */
-export function SpendingComparisonHeader({
-  spendingRange,
-  fxStatus,
-  onRangeChange,
-}: SpendingComparisonHeaderProps) {
+export function SpendingComparisonHeader({ spendingRange, fxStatus, onRangeChange }: SpendingComparisonHeaderProps) {
   return (
     <div className="flex flex-wrap items-center gap-2 mb-3">
       <DashboardWidgetHeaderIcon icon={BarChart3} />

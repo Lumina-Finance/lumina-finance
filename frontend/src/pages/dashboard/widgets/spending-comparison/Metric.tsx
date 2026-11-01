@@ -1,7 +1,4 @@
-import {
-  ArrowDownRight,
-  ArrowUpRight,
-} from 'lucide-react'
+import { ArrowDownRight, ArrowUpRight } from 'lucide-react'
 import { AppScrambledNumber } from '@/components/display/ScrambledNumber'
 import { useMoneyFormatters } from '@/hooks/useMoneyFormatters'
 import { getSpendingDeltaDisplay } from '@/pages/dashboard/utils/getSpendingDeltaDisplay'

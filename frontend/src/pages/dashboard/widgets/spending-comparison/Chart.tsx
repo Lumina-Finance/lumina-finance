@@ -1,20 +1,11 @@
 import { useMemo, useRef, type MouseEvent as ReactMouseEvent } from 'react'
-import {
-  Area,
-  AreaChart,
-  ResponsiveContainer,
-  XAxis,
-  YAxis,
-} from 'recharts'
+import { Area, AreaChart, ResponsiveContainer, XAxis, YAxis } from 'recharts'
 import type { SpendingRange } from '@/api/dashboard'
 import {
   DeferredChartTooltipOverlay,
   type DeferredChartTooltipOverlayHandle,
 } from '@/components/charts/DeferredTooltipOverlay'
-import {
-  getChartDataSignature,
-  useChartEntranceAnimation,
-} from '@/components/charts/useChartEntranceAnimation'
+import { getChartDataSignature, useChartEntranceAnimation } from '@/components/charts/useChartEntranceAnimation'
 import { CHART_X_AXIS_TICK_FONT_SIZE } from '@/components/charts/constants'
 import type { SpendingComparisonSeriesPoint } from '@/pages/dashboard/types/dashboard'
 import {
@@ -123,11 +114,7 @@ export function SpendingComparisonChart({
   const hideTooltip = () => tooltipRef.current?.hide()
 
   return (
-    <div
-      ref={chartRef}
-      className="relative min-h-0 flex-1"
-      onMouseLeave={hideTooltip}
-    >
+    <div ref={chartRef} className="relative min-h-0 flex-1" onMouseLeave={hideTooltip}>
       <ResponsiveContainer width="100%" height="100%">
         <AreaChart
           data={data}
@@ -145,11 +132,7 @@ export function SpendingComparisonChart({
               <stop offset="100%" stopColor="var(--app-text-muted)" stopOpacity={0} />
             </linearGradient>
           </defs>
-          <XAxis
-            xAxisId="plot"
-            dataKey="label"
-            hide
-          />
+          <XAxis xAxisId="plot" dataKey="label" hide />
           <XAxis
             xAxisId="labels"
             dataKey="label"
@@ -158,11 +141,7 @@ export function SpendingComparisonChart({
             interval={0}
             ticks={xAxisTicks}
             tick={(props) => (
-              <SpendingComparisonXAxisTick
-                {...props}
-                firstLabel={firstXAxisTick}
-                lastLabel={lastXAxisTick}
-              />
+              <SpendingComparisonXAxisTick {...props} firstLabel={firstXAxisTick} lastLabel={lastXAxisTick} />
             )}
             tickMargin={4}
           />

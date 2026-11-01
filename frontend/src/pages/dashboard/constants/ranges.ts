@@ -2,7 +2,11 @@ import type { SpendingRange } from '@/api/dashboard'
 
 export const DASHBOARD_RANGE_OPTIONS: SpendingRange[] = ['WTD', 'MTD', 'QTD', 'YTD']
 
-export const DASHBOARD_RANGE_SELECT_OPTIONS: Array<{ value: SpendingRange; label: SpendingRange; description: string }> = [
+export const DASHBOARD_RANGE_SELECT_OPTIONS: Array<{
+  value: SpendingRange
+  label: SpendingRange
+  description: string
+}> = [
   { value: 'WTD', label: 'WTD', description: 'Week to date' },
   { value: 'MTD', label: 'MTD', description: 'Month to date' },
   { value: 'QTD', label: 'QTD', description: 'Quarter to date' },

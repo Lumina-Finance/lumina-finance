@@ -1,8 +1,5 @@
 import type { SpendingRange } from '@/api/dashboard'
-import {
-  CURRENT_LABEL_BY_RANGE,
-  PREVIOUS_LABEL_BY_RANGE,
-} from '@/pages/dashboard/constants/ranges'
+import { CURRENT_LABEL_BY_RANGE, PREVIOUS_LABEL_BY_RANGE } from '@/pages/dashboard/constants/ranges'
 
 type SpendingComparisonLegendProps = {
   spendingRange: SpendingRange

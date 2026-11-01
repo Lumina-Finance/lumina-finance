@@ -1,12 +1,6 @@
 import type { SpendingRange } from '@/api/dashboard'
-import {
-  ChartTooltipRow,
-  ChartTooltipTitle,
-} from '@/components/charts/TooltipContent'
-import {
-  CURRENT_LABEL_BY_RANGE,
-  PREVIOUS_LABEL_BY_RANGE,
-} from '@/pages/dashboard/constants/ranges'
+import { ChartTooltipRow, ChartTooltipTitle } from '@/components/charts/TooltipContent'
+import { CURRENT_LABEL_BY_RANGE, PREVIOUS_LABEL_BY_RANGE } from '@/pages/dashboard/constants/ranges'
 import type { SpendingComparisonSeriesPoint } from '@/pages/dashboard/types/dashboard'
 import { useMoneyFormatters } from '@/hooks/useMoneyFormatters'
 
