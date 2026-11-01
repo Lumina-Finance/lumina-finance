@@ -287,10 +287,12 @@ function EmojiMartIconPicker({
     else animate(panelHeight, target, EMOJI_PICKER_EASE_TRANSITION)
   }, [panelHeight, shouldReduceMotion])
 
+  // Also runs when a panel folding away is pressed open again: its exit left the height at nothing and
+  // the same element is shown once more with no height of its own to animate back to
   useEffect(() => {
     maxHeightRef.current = position.maxHeight
-    followContent()
-  }, [followContent, position.maxHeight])
+    if (isPresent) followContent()
+  }, [followContent, isPresent, position.maxHeight])
 
   useEffect(() => {
     let cancelled = false

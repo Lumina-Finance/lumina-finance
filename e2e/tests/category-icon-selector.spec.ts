@@ -89,3 +89,24 @@ test('returns focus to the icon button after a pick', async ({ page, request }) 
   await expect(panel).toHaveCount(0)
   await expect(button).toBeFocused()
 })
+
+test('returns the panel to its content height when the button is pressed while it folds away', async ({
+  page,
+  request,
+}) => {
+  const { button, panel } = await openPicker(page, request)
+  const height = async () => (await panel.boundingBox())?.height ?? 0
+  const full = await height()
+  expect(full).toBeGreaterThan(200)
+
+  // Presses Escape and then the button inside the 200ms the panel takes to fold, which a driven click can't be sure of
+  await button.evaluate(async (element) => {
+    window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true, cancelable: true }))
+    await new Promise((resolve) => setTimeout(resolve, 60))
+    ;(element as HTMLButtonElement).click()
+  })
+
+  await expect(button).toHaveAttribute('aria-expanded', 'true')
+  await expect(panel.getByRole('searchbox')).toBeVisible()
+  await expect.poll(height).toBeGreaterThan(full - 2)
+})
