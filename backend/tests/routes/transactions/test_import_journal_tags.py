@@ -57,3 +57,33 @@ async def test_tag_names_differing_only_in_capitals_make_one_tag_that_both_rows_
     assert [tag["name"] for tag in tags] == ["Travel"]
     transactions = (await client.get("/transactions", headers=headers)).json()
     assert [[tag["id"] for tag in transaction["tags"]] for transaction in transactions] == [[tags[0]["id"]]] * 2
+
+
+@pytest.mark.parametrize(
+    ("source", "build"),
+    [("firefly", _firefly_payload), ("actual_budget", _actual_payload)],
+)
+async def test_tag_name_of_exactly_64_characters_is_accepted(client, source, build):
+    """The longest tag a person can have imports, so the limit is not off by one."""
+    headers = _get_auth_header(await _create_user(client))
+    name = "t" * 64
+
+    resp = await _import_run(client, headers, build([[name]]), source=source)
+
+    assert resp.status_code == 201, resp.text
+    assert [tag["name"] for tag in (await client.get("/tags", headers=headers)).json()] == [name]
+
+
+@pytest.mark.parametrize(
+    ("source", "build"),
+    [("firefly", _firefly_payload), ("actual_budget", _actual_payload)],
+)
+async def test_tag_name_of_65_characters_is_refused_and_nothing_is_written(client, source, build):
+    """One character past the limit refuses the whole import with 422 before anything is written."""
+    headers = _get_auth_header(await _create_user(client))
+
+    resp = await _import_run(client, headers, build([["t" * 65]]), source=source)
+
+    assert resp.status_code == 422, resp.text
+    assert (await client.get("/tags", headers=headers)).json() == []
+    assert (await client.get("/transactions", headers=headers)).json() == []
