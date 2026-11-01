@@ -2230,6 +2230,7 @@ async def test_folded_tag_migration_merges_every_spelling_without_losing_a_trans
             seeded["other_users_tag_id"]: "travel",
             seeded["older_group_tag_id"]: "Hardware",
             seeded["personal_hardware_tag_id"]: "hardware",
+            seeded["tie_lower_id_tag_id"]: "TIE",
         }
 
         # Every transaction that carried any spelling carries the oldest, once. A transaction that
@@ -2356,6 +2357,8 @@ async def _seed_tags_differing_only_in_capitals(database_name: str) -> dict[str,
         "older_group_tag_id": UUID("eeeeeeee-0000-4000-8000-000000000006"),
         "newer_group_tag_id": UUID("eeeeeeee-0000-4000-8000-000000000007"),
         "personal_hardware_tag_id": UUID("eeeeeeee-0000-4000-8000-000000000008"),
+        "tie_lower_id_tag_id": UUID("eeeeeeee-0000-4000-8000-000000000009"),
+        "tie_higher_id_tag_id": UUID("eeeeeeee-0000-4000-8000-00000000000a"),
         "only_newer_spelling_transaction_id": UUID("cccccccc-0000-4000-8000-000000000001"),
         "oldest_and_newest_transaction_id": UUID("cccccccc-0000-4000-8000-000000000002"),
         "two_newer_spellings_transaction_id": UUID("cccccccc-0000-4000-8000-000000000003"),
@@ -2431,6 +2434,10 @@ async def _seed_tags_differing_only_in_capitals(database_name: str) -> dict[str,
                 ("older_group_tag_id", "user_id", "group_id", "Hardware", 1),
                 ("newer_group_tag_id", "other_user_id", "group_id", "HARDWARE", 2),
                 ("personal_hardware_tag_id", "user_id", None, "hardware", 1),
+                # Created at the same moment, with the higher id written first, so only the id
+                # tiebreak decides that the lower id survives rather than insertion order
+                ("tie_higher_id_tag_id", "user_id", None, "Tie", 4),
+                ("tie_lower_id_tag_id", "user_id", None, "TIE", 4),
             ):
                 await conn.execute(
                     text(

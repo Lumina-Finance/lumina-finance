@@ -16,6 +16,8 @@ just before the insert would already have found the row.
 
 import uuid
 
+import pytest
+from fastapi import HTTPException
 from sqlalchemy import literal_column, select, text
 
 from app.models.base import CategoryKind
@@ -209,6 +211,23 @@ async def test_a_corrected_tag_name_taken_after_the_lookup_is_what_the_answered_
 
         assert stats.tags_created == 0
         assert [tag.id for tag in get_import_row_tags(["trvl"], tags, stats)] == [existing.id]
+
+
+async def test_a_tag_the_insert_skipped_but_nobody_holds_fails_the_import_rather_than_losing_the_tag(monkeypatch):
+    """The other request that took the name rolled back, so no row carries it and none may be filed untagged."""
+
+    async def skip_every_insert(*args, **kwargs):
+        return []
+
+    monkeypatch.setattr("app.services.importers.shared.tags.insert_import_records_if_absent", skip_every_insert)
+    async with TestSession() as session:
+        user_id = (await _seed_user(session)).id
+
+        with pytest.raises(HTTPException) as exc_info:
+            await create_missing_import_tags(session, user_id, ["Ghost"], [], ImportTags(existing_by_key={}), ImportStats())
+
+        assert exc_info.value.status_code == 500
+        assert exc_info.value.detail == "Tag could not be created or found: ghost"
 
 
 async def test_another_users_merchant_does_not_block_writing_your_own():

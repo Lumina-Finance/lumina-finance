@@ -1,5 +1,7 @@
 """POST /tags/name-matches, which tells the import page which of a file's tag names already have a tag"""
 
+import pytest
+
 from tests.routes.support import _create_user, _get_auth_header
 from tests.routes.tags._helpers import _create_group, _create_second_user, _create_tag
 
@@ -60,6 +62,30 @@ async def test_name_matches_with_a_name_too_long_for_a_tag_matches_nothing(clien
 
     assert resp.status_code == 200
     assert resp.json() == []
+
+
+@pytest.mark.parametrize(
+    "names",
+    [[], ["x" * 257], [""], ["   "], [f"tag {index}" for index in range(1001)]],
+    ids=["none", "over 256 characters", "blank", "spaces", "over 1,000 names"],
+)
+async def test_name_matches_refuses_names_outside_its_limits(client, names):
+    """One to 1,000 names of one to 256 characters each are asked about, and nothing else is."""
+    headers = _get_auth_header(await _create_user(client))
+
+    resp = await client.post("/tags/name-matches", json={"names": names}, headers=headers)
+
+    assert resp.status_code == 422
+
+
+async def test_name_matches_takes_the_most_names_and_the_longest_name_allowed(client):
+    """The limits are inclusive at both ends."""
+    headers = _get_auth_header(await _create_user(client))
+    names = ["x" * 256] + [f"tag {index}" for index in range(999)]
+
+    resp = await client.post("/tags/name-matches", json={"names": names}, headers=headers)
+
+    assert resp.status_code == 200
 
 
 async def test_name_matches_without_auth_returns_401(client):
