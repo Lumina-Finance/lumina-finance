@@ -1,5 +1,8 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState, type RefObject } from 'react'
 import { createPortal } from 'react-dom'
+import { motion, useReducedMotion } from 'motion/react'
+import { applyEmojiPickerStyles } from '@/components/category-icon-selector/emojiPickerStyles'
+import { DROPDOWN_RISE_DISTANCE, DROPDOWN_RISE_TRANSITION } from '@/components/dropdown/motion'
 import {
   getCachedEmojiMartData,
   loadEmojiMartData,
@@ -38,26 +41,15 @@ interface EmojiMartSelection {
 const EMOJI_PICKER_GAP = 8
 const EMOJI_PICKER_HEIGHT = 350
 const EMOJI_PICKER_PADDING = 12
-const EMOJI_PICKER_WIDTH = 280
+// Seven 32px cells, the scrollbar's gutter either side, the panel's inner padding and its border
+const EMOJI_PICKER_WIDTH = 262
 const LOAD_FAILURE_MESSAGE = 'Failed to load emoji picker.'
 
+// The only two values the picker takes as bare RGB triplets, which a token can't give. Every surface,
+// border and fill is restyled from tokens in emojiPickerStyles.ts instead
 const EMOJI_MART_THEME = {
-  light: {
-    color: '28, 21, 16',
-    accent: '155, 108, 44',
-    background: '242, 237, 228',
-    input: '255, 255, 255',
-    border: 'rgba(75, 55, 35, 0.14)',
-    borderOver: 'rgba(75, 55, 35, 0.24)',
-  },
-  dark: {
-    color: '236, 230, 218',
-    accent: '201, 169, 106',
-    background: '15, 14, 12',
-    input: '36, 31, 25',
-    border: 'rgba(210, 180, 120, 0.12)',
-    borderOver: 'rgba(210, 180, 120, 0.24)',
-  },
+  light: { color: '28, 21, 16', accent: '155, 108, 44' },
+  dark: { color: '236, 230, 218', accent: '201, 169, 106' },
 } as const
 
 let cachedEmojiMartPickerModule: typeof import('emoji-mart') | null = null
@@ -245,6 +237,7 @@ function EmojiMartIconPicker({
   const [data, setData] = useState<EmojiMartData | null>(getCachedEmojiMartData)
   const [pickerModule, setPickerModule] = useState<typeof import('emoji-mart') | null>(cachedEmojiMartPickerModule)
   const isDark = useAppDarkMode()
+  const shouldReduceMotion = useReducedMotion()
   const loadingVisible = useMinimumVisibleFlag(data === null || pickerModule === null, LOADING_ANIMATION_MIN_MS)
 
   useEffect(() => {
@@ -324,11 +317,8 @@ function EmojiMartIconPicker({
     pickerElement.style.setProperty('--sidebar-width', '8px')
     pickerElement.style.setProperty('--rgb-color', theme.color)
     pickerElement.style.setProperty('--rgb-accent', theme.accent)
-    pickerElement.style.setProperty('--rgb-background', theme.background)
-    pickerElement.style.setProperty('--rgb-input', theme.input)
-    pickerElement.style.setProperty('--color-border', theme.border)
-    pickerElement.style.setProperty('--color-border-over', theme.borderOver)
     pickerElement.style.height = `${Math.max(position.maxHeight - 14, 220)}px`
+    applyEmojiPickerStyles(pickerElement)
     container.appendChild(pickerElement)
 
     return () => {
@@ -338,21 +328,26 @@ function EmojiMartIconPicker({
   }, [data, isDark, loadingVisible, onChange, onClose, pickerModule, position.maxHeight])
 
   return createPortal(
-    <div
-      className="fixed z-popover inline-block pb-2 pl-1 pr-1 pt-1"
+    <motion.div
+      className="fixed z-popover inline-block"
       data-category-emoji-picker="true"
       role="dialog"
       aria-label={`Select ${categoryName} icon`}
+      // Rises and fades in on the dropdown's own contents motion, once, and not at all under reduced motion
+      initial={shouldReduceMotion ? false : { opacity: 0, y: DROPDOWN_RISE_DISTANCE }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={DROPDOWN_RISE_TRANSITION}
       style={{
-        // Takes the dropdown panel's corner and edge so it reads as the same family, but keeps a
-        // solid background of its own, in the two colours the emoji grid is themed to. The grid is
-        // dense enough that anything showing through it would cost legibility
-        background: isDark ? 'rgb(15, 14, 12)' : 'rgb(242, 237, 228)',
+        // The surface of .app-dropdown-glass-floating: solid input background, strong hairline, the
+        // dropdown corner, the soft shadow and the inner padding its list sits in. Solid, since the
+        // grid is dense enough that anything showing through it would cost legibility
+        background: 'var(--app-input-bg)',
         border: '1px solid var(--app-border-strong)',
         borderRadius: 'var(--app-dropdown-radius)',
         boxShadow: 'var(--app-shadow-soft)',
         left: position.left,
         maxHeight: position.maxHeight,
+        padding: 'var(--app-dropdown-inner-padding)',
         top: position.top,
         width: position.width,
       }}
@@ -364,7 +359,7 @@ function EmojiMartIconPicker({
       ) : (
         <div ref={containerRef} />
       )}
-    </div>,
+    </motion.div>,
     document.body,
   )
 }
