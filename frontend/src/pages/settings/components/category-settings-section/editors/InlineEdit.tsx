@@ -1,5 +1,6 @@
 import { useRef, useState, type FormEvent } from 'react'
 import { PendingLabel } from '@/components/loading/PendingLabel'
+import { HintButton } from '@/components/tooltips/HintButton'
 import { Check, Pencil, X } from 'lucide-react'
 import { useUpdateCategory, type Category } from '@/api/categories'
 import CategoryIconSelector from '@/components/category-icon-selector/Selector'
@@ -113,27 +114,26 @@ export default function InlineCategoryEdit({
         </div>
       </div>
       <div className="flex h-9 items-center justify-end gap-1.5">
-        <button
+        <HintButton
           type="submit"
           className="app-icon-button h-9 w-9"
           disabled={updateCategory.isPending}
           aria-label={`Save ${category.name}`}
-          title="Save"
+          hint="Save"
         >
           <PendingLabel pending={updateCategory.isPending} name="Saving">
             <Check size={16} aria-hidden />
           </PendingLabel>
-        </button>
-        <button
-          type="button"
+        </HintButton>
+        <HintButton
           className="app-icon-button h-9 w-9"
           onClick={onCancel}
           disabled={updateCategory.isPending}
           aria-label={`Cancel editing ${category.name}`}
-          title="Cancel"
+          hint="Cancel"
         >
           <X size={16} aria-hidden />
-        </button>
+        </HintButton>
       </div>
     </form>
   )

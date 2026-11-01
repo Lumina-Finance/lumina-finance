@@ -3,6 +3,7 @@ import { PendingLabel } from '@/components/loading/PendingLabel'
 import { motion } from 'motion/react'
 import type { Tag } from '@/api/tags'
 import MarqueeText from '@/components/display/MarqueeText'
+import { HintButton } from '@/components/tooltips/HintButton'
 import InlineTagEdit from '@/pages/settings/components/tag-settings-section/editors/InlineEdit'
 import {
   TAG_ROW_ANIMATE,
@@ -70,49 +71,45 @@ export default function TagRow({
         <div className="flex justify-end gap-1.5">
           {confirmingDelete ? (
             <>
-              <button
-                type="button"
+              <HintButton
                 className="app-icon-button"
                 disabled={deleting}
                 onClick={onDeleteCancel}
                 aria-label={`Cancel deleting ${tag.name}`}
-                title="Cancel"
+                hint="Cancel"
               >
                 <X size={16} aria-hidden />
-              </button>
-              <button
-                type="button"
+              </HintButton>
+              <HintButton
                 className="app-icon-button"
                 disabled={deleting}
                 onClick={() => onDeleteConfirm(tag)}
                 aria-label={`Confirm delete ${tag.name}`}
-                title="Confirm delete"
+                hint="Confirm delete"
               >
                 <PendingLabel pending={deleting} name="Deleting">
                   <Check size={16} aria-hidden />
                 </PendingLabel>
-              </button>
+              </HintButton>
             </>
           ) : (
             <>
-              <button
-                type="button"
+              <HintButton
                 className="app-icon-button"
                 onClick={() => onEdit(tag)}
                 aria-label={`Edit ${tag.name}`}
-                title="Edit tag"
+                hint="Edit tag"
               >
                 <Pencil size={16} aria-hidden />
-              </button>
-              <button
-                type="button"
+              </HintButton>
+              <HintButton
                 className="app-icon-button"
                 onClick={() => onDeleteRequest(tag)}
                 aria-label={`Delete ${tag.name}`}
-                title="Delete tag"
+                hint="Delete tag"
               >
                 <Trash2 size={16} aria-hidden />
-              </button>
+              </HintButton>
             </>
           )}
         </div>

@@ -1,5 +1,6 @@
 import { Check, Lock, Pencil, Trash2, X } from 'lucide-react'
 import { PendingLabel } from '@/components/loading/PendingLabel'
+import { HintButton } from '@/components/tooltips/HintButton'
 import type { Category } from '@/api/categories'
 import InlineCategoryEdit from '@/pages/settings/components/category-settings-section/editors/InlineEdit'
 import { displayEmoji } from '@/pages/settings/components/category-settings-section/utils'
@@ -79,49 +80,45 @@ export default function CategorySettingsRow({
           <>
             {confirmingDelete ? (
               <>
-                <button
-                  type="button"
+                <HintButton
                   className="app-icon-button"
                   disabled={deleting}
                   onClick={onDeleteCancel}
                   aria-label={`Cancel deleting ${category.name}`}
-                  title="Cancel"
+                  hint="Cancel"
                 >
                   <X size={16} aria-hidden />
-                </button>
-                <button
-                  type="button"
+                </HintButton>
+                <HintButton
                   className="app-icon-button"
                   disabled={deleting}
                   onClick={() => onDeleteConfirm(category)}
                   aria-label={`Confirm delete ${category.name}`}
-                  title="Confirm delete"
+                  hint="Confirm delete"
                 >
                   <PendingLabel pending={deleting} name="Deleting">
                     <Check size={16} aria-hidden />
                   </PendingLabel>
-                </button>
+                </HintButton>
               </>
             ) : (
               <>
-                <button
-                  type="button"
+                <HintButton
                   className="app-icon-button"
                   onClick={() => onEdit(category)}
                   aria-label={`Edit ${category.name}`}
-                  title="Edit category"
+                  hint="Edit category"
                 >
                   <Pencil size={16} aria-hidden />
-                </button>
-                <button
-                  type="button"
+                </HintButton>
+                <HintButton
                   className="app-icon-button"
                   onClick={() => onDeleteRequest(category)}
                   aria-label={`Delete ${category.name}`}
-                  title="Delete category"
+                  hint="Delete category"
                 >
                   <Trash2 size={16} aria-hidden />
-                </button>
+                </HintButton>
               </>
             )}
           </>

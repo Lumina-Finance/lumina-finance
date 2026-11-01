@@ -1,5 +1,6 @@
 import { Check, Pencil, Trash2, X } from 'lucide-react'
 import { PendingLabel } from '@/components/loading/PendingLabel'
+import { HintButton } from '@/components/tooltips/HintButton'
 import { motion } from 'motion/react'
 import type { Category } from '@/api/categories'
 import type { Merchant } from '@/api/merchants'
@@ -79,49 +80,45 @@ export default function MobileMerchantRow({
         <div className="flex justify-end gap-1.5">
           {confirmingDelete ? (
             <>
-              <button
-                type="button"
+              <HintButton
                 className="app-icon-button"
                 disabled={deleting}
                 onClick={onDeleteCancel}
                 aria-label={`Cancel deleting ${merchant.name}`}
-                title="Cancel"
+                hint="Cancel"
               >
                 <X size={16} aria-hidden />
-              </button>
-              <button
-                type="button"
+              </HintButton>
+              <HintButton
                 className="app-icon-button"
                 disabled={deleting}
                 onClick={() => onDeleteConfirm(merchant)}
                 aria-label={`Confirm delete ${merchant.name}`}
-                title="Confirm delete"
+                hint="Confirm delete"
               >
                 <PendingLabel pending={deleting} name="Deleting">
                   <Check size={16} aria-hidden />
                 </PendingLabel>
-              </button>
+              </HintButton>
             </>
           ) : (
             <>
-              <button
-                type="button"
+              <HintButton
                 className="app-icon-button"
                 onClick={() => onEdit(merchant)}
                 aria-label={`Edit ${merchant.name}`}
-                title="Edit merchant"
+                hint="Edit merchant"
               >
                 <Pencil size={16} aria-hidden />
-              </button>
-              <button
-                type="button"
+              </HintButton>
+              <HintButton
                 className="app-icon-button"
                 onClick={() => onDeleteRequest(merchant)}
                 aria-label={`Delete ${merchant.name}`}
-                title="Delete merchant"
+                hint="Delete merchant"
               >
                 <Trash2 size={16} aria-hidden />
-              </button>
+              </HintButton>
             </>
           )}
         </div>
