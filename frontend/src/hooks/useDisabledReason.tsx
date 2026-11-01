@@ -136,6 +136,7 @@ function useControlTooltip(
     getItemKey: getReasonKey,
     getBounds: getViewportBounds,
     getKeepClear,
+    preferAbove: advisory,
   })
 
   function dismiss() {

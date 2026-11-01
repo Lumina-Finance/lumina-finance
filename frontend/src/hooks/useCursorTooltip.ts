@@ -25,6 +25,9 @@ type CursorTooltipOptions<TItem, TOrigin extends HTMLElement> = {
 
   // A box the tooltip stays off, as a disabled button's own box, so the tooltip never hides its label
   getKeepClear?: () => DOMRect | undefined
+
+  // Rises above the box to keep clear while there is room, as a hint does
+  preferAbove?: boolean
 }
 
 /**
@@ -37,6 +40,7 @@ export function useCursorTooltip<TItem, TOrigin extends HTMLElement = HTMLElemen
   getItemKey,
   getBounds,
   getKeepClear,
+  preferAbove,
 }: CursorTooltipOptions<TItem, TOrigin>) {
   const tooltipRef = useRef<HTMLDivElement>(null)
   const [tooltipItem, setTooltipItem] = useState<TItem | null>(null)
@@ -46,23 +50,27 @@ export function useCursorTooltip<TItem, TOrigin extends HTMLElement = HTMLElemen
   /**
    * Keeps the portal tooltip aligned to the latest cursor position
    */
-  const updateTooltipPosition = useCallback((clientX: number, clientY: number) => {
-    lastPointerRef.current = { clientX, clientY }
-    const origin = originRef.current
-    const tooltip = tooltipRef.current
-    if (!origin || !tooltip) return
+  const updateTooltipPosition = useCallback(
+    (clientX: number, clientY: number) => {
+      lastPointerRef.current = { clientX, clientY }
+      const origin = originRef.current
+      const tooltip = tooltipRef.current
+      if (!origin || !tooltip) return
 
-    applyCursorTooltipPosition({
-      origin,
-      tooltip,
-      clientX,
-      clientY,
-      xProperty,
-      yProperty,
-      bounds: getBounds?.(),
-      keepClear: getKeepClear?.(),
-    })
-  }, [getBounds, getKeepClear, originRef, xProperty, yProperty])
+      applyCursorTooltipPosition({
+        origin,
+        tooltip,
+        clientX,
+        clientY,
+        xProperty,
+        yProperty,
+        bounds: getBounds?.(),
+        keepClear: getKeepClear?.(),
+        preferAbove,
+      })
+    },
+    [getBounds, getKeepClear, preferAbove, originRef, xProperty, yProperty],
+  )
 
   // The first placement is measured before the item has rendered, when the tooltip is empty and a few
   // pixels high, which put a tooltip kept clear of its control back over it. Placed again once the
@@ -79,19 +87,20 @@ export function useCursorTooltip<TItem, TOrigin extends HTMLElement = HTMLElemen
   /**
    * Shows the selected tooltip item and repositions after React updates the portal content
    */
-  const showTooltip = useCallback((nextItem: TItem | null | undefined, pointer: CursorTooltipPointer) => {
-    if (!nextItem) {
-      hideTooltip()
-      return
-    }
+  const showTooltip = useCallback(
+    (nextItem: TItem | null | undefined, pointer: CursorTooltipPointer) => {
+      if (!nextItem) {
+        hideTooltip()
+        return
+      }
 
-    updateTooltipPosition(pointer.clientX, pointer.clientY)
-    setTooltipItem((current) => (
-      current && getItemKey(current) === getItemKey(nextItem) ? current : nextItem
-    ))
-    setTooltipVisible(true)
-    requestAnimationFrame(() => updateTooltipPosition(pointer.clientX, pointer.clientY))
-  }, [getItemKey, hideTooltip, updateTooltipPosition])
+      updateTooltipPosition(pointer.clientX, pointer.clientY)
+      setTooltipItem((current) => (current && getItemKey(current) === getItemKey(nextItem) ? current : nextItem))
+      setTooltipVisible(true)
+      requestAnimationFrame(() => updateTooltipPosition(pointer.clientX, pointer.clientY))
+    },
+    [getItemKey, hideTooltip, updateTooltipPosition],
+  )
 
   /**
    * Swaps the content of a tooltip that is showing for another item, placed again from the last pointer
@@ -103,10 +112,13 @@ export function useCursorTooltip<TItem, TOrigin extends HTMLElement = HTMLElemen
   /**
    * Keeps faded tooltip content mounted until the opacity transition finishes
    */
-  const handleTooltipTransitionEnd = useCallback((event: ReactTransitionEvent<HTMLDivElement>) => {
-    if (event.target !== event.currentTarget || event.propertyName !== 'opacity' || tooltipVisible) return
-    setTooltipItem(null)
-  }, [tooltipVisible])
+  const handleTooltipTransitionEnd = useCallback(
+    (event: ReactTransitionEvent<HTMLDivElement>) => {
+      if (event.target !== event.currentTarget || event.propertyName !== 'opacity' || tooltipVisible) return
+      setTooltipItem(null)
+    },
+    [tooltipVisible],
+  )
 
   return {
     tooltipRef,

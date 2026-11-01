@@ -98,3 +98,30 @@ describe('disabled control reason beside the control', () => {
     expect(x + TOOLTIP.offsetWidth).toBe(box.right)
   })
 })
+
+describe('hint beside the control', () => {
+  function placeHint(top: number) {
+    const { box, origin } = buttonAt(top)
+    const { clientX, clientY } = getReasonAnchor(box)
+    const position = getCursorTooltipPosition({
+      origin,
+      tooltip: TOOLTIP,
+      clientX,
+      clientY,
+      bounds: WINDOW,
+      keepClear: box,
+      preferAbove: true,
+    })
+    return { ...span(position), box }
+  }
+
+  it('rises clear above the control while there is room above it', () => {
+    const { bottom, box } = placeHint(300)
+    expect(bottom).toBeLessThanOrEqual(box.top)
+  })
+
+  it('hangs clear below the control when there is no room above it', () => {
+    const { top, box } = placeHint(20)
+    expect(top).toBeGreaterThanOrEqual(box.bottom)
+  })
+})
