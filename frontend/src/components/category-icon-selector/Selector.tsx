@@ -1,8 +1,24 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState, type RefObject } from 'react'
 import { createPortal } from 'react-dom'
-import { motion, useReducedMotion } from 'motion/react'
+import { AnimatePresence, animate, motion, useIsPresent, useMotionValue, useReducedMotion } from 'motion/react'
 import { applyEmojiPickerStyles } from '@/components/category-icon-selector/emojiPickerStyles'
-import { DROPDOWN_RISE_DISTANCE, DROPDOWN_RISE_TRANSITION } from '@/components/dropdown/motion'
+import {
+  EMOJI_PICKER_EASE_TRANSITION,
+  getEmojiPickerPanelHeight,
+  getEmojiPickerPlacement,
+  getEmojiPickerWidth,
+  measureScrollbarGutter,
+  observePickerContent,
+  type EmojiPickerPlacement,
+} from '@/components/category-icon-selector/layout'
+import {
+  DROPDOWN_INSTANT_TRANSITION,
+  DROPDOWN_NARROW_TRANSITION,
+  DROPDOWN_RISE_DISTANCE,
+  DROPDOWN_RISE_TRANSITION,
+  DROPDOWN_SINK_TRANSITION,
+} from '@/components/dropdown/motion'
+import { FLOATING_LAYER_PROPS } from '@/utils/floatingLayer'
 import {
   getCachedEmojiMartData,
   loadEmojiMartData,
@@ -12,12 +28,7 @@ import { LoadFailureNote } from '@/components/category-icon-selector/LoadFailure
 import { useMinimumVisibleFlag } from '@/hooks/useMinimumVisibleFlag'
 import { LOADING_ANIMATION_MIN_MS } from '@/utils/timing'
 
-type EmojiPickerPosition = {
-  left: number
-  maxHeight: number
-  top: number
-  width: number
-}
+type EmojiPickerPosition = EmojiPickerPlacement
 
 interface CategoryIconSelectorProps {
   buttonClassName?: string
@@ -38,11 +49,6 @@ interface EmojiMartSelection {
   native?: string
 }
 
-const EMOJI_PICKER_GAP = 8
-const EMOJI_PICKER_HEIGHT = 350
-const EMOJI_PICKER_PADDING = 12
-// Seven 32px cells, the scrollbar's gutter either side, the panel's inner padding and its border
-const EMOJI_PICKER_WIDTH = 262
 const LOAD_FAILURE_MESSAGE = 'Failed to load emoji picker.'
 
 // The only two values the picker takes as bare RGB triplets, which a token can't give. Every surface,
@@ -99,6 +105,11 @@ export default function CategoryIconSelector({
     setPickerPosition(null)
   }, [])
 
+  const closePicker = useCallback(() => {
+    setOpen(false)
+    setPickerPosition(null)
+  }, [])
+
   useEffect(() => {
     if (!loadFailure) return
     const dismiss = (event: PointerEvent) => {
@@ -135,28 +146,22 @@ export default function CategoryIconSelector({
       const rect = selector.getBoundingClientRect()
       const anchorRect = anchor.getBoundingClientRect()
       const visualViewport = window.visualViewport
-      const viewportTop = visualViewport?.offsetTop ?? 0
-      const viewportLeft = visualViewport?.offsetLeft ?? 0
-      const viewportWidth = visualViewport?.width ?? window.innerWidth
-      const viewportHeight = visualViewport?.height ?? window.innerHeight
-      const viewportBottom = viewportTop + viewportHeight
-      const viewportRight = viewportLeft + viewportWidth
-      const width = Math.min(EMOJI_PICKER_WIDTH, viewportWidth - EMOJI_PICKER_PADDING * 2)
-      const spaceBelow = viewportBottom - anchorRect.bottom - EMOJI_PICKER_GAP - EMOJI_PICKER_PADDING
-      const spaceAbove = anchorRect.top - viewportTop - EMOJI_PICKER_GAP - EMOJI_PICKER_PADDING
-      const openAbove = spaceBelow < 220 && spaceAbove > spaceBelow
-      const availableHeight = Math.max(180, openAbove ? spaceAbove : spaceBelow)
-      const maxHeight = Math.min(EMOJI_PICKER_HEIGHT, availableHeight, viewportHeight - EMOJI_PICKER_PADDING * 2)
-      const top = openAbove
-        ? Math.max(viewportTop + EMOJI_PICKER_PADDING, anchorRect.top - maxHeight - EMOJI_PICKER_GAP)
-        : Math.min(anchorRect.bottom + EMOJI_PICKER_GAP, viewportBottom - maxHeight - EMOJI_PICKER_PADDING)
-      const preferredLeft = pickerAnchor === 'row' ? anchorRect.left : rect.left
-      const left = Math.min(
-        Math.max(preferredLeft, viewportLeft + EMOJI_PICKER_PADDING),
-        viewportRight - width - EMOJI_PICKER_PADDING,
-      )
+      const viewport = {
+        height: visualViewport?.height ?? window.innerHeight,
+        layoutHeight: window.innerHeight,
+        offsetLeft: visualViewport?.offsetLeft ?? 0,
+        offsetTop: visualViewport?.offsetTop ?? 0,
+        width: visualViewport?.width ?? window.innerWidth,
+      }
 
-      setPickerPosition({ left, maxHeight, top, width })
+      setPickerPosition(
+        getEmojiPickerPlacement({
+          anchorRect,
+          preferredLeft: pickerAnchor === 'row' ? anchorRect.left : rect.left,
+          viewport,
+          width: getEmojiPickerWidth(measureScrollbarGutter(), viewport.width),
+        }),
+      )
     }
 
     const frame = window.requestAnimationFrame(updatePosition)
@@ -200,18 +205,19 @@ export default function CategoryIconSelector({
         </span>
       </button>
 
-      {open && pickerPosition && (
-        <EmojiMartIconPicker
-          categoryName={categoryName}
-          onChange={onChange}
-          onClose={() => {
-            setOpen(false)
-            setPickerPosition(null)
-          }}
-          onLoadFailure={showLoadFailure}
-          position={pickerPosition}
-        />
-      )}
+      {/* Held in the page while it sinks away, which is why it is not simply left out when closed */}
+      <AnimatePresence>
+        {open && pickerPosition && (
+          <EmojiMartIconPicker
+            key="picker"
+            categoryName={categoryName}
+            onChange={onChange}
+            onClose={closePicker}
+            onLoadFailure={showLoadFailure}
+            position={pickerPosition}
+          />
+        )}
+      </AnimatePresence>
       {loadFailure && <LoadFailureNote message={loadFailure} />}
     </div>
   )
@@ -219,6 +225,10 @@ export default function CategoryIconSelector({
 
 /**
  * Hosts the third-party emoji picker in a portal so row overflow and modal clipping do not hide the picker
+ *
+ * The panel's height is its own to follow the picker's contents, up to the Dropdown's greatest, and
+ * eases when they change. While the picker downloads, the panel already stands at the size the
+ * picker will arrive in, so loading in changes nothing but what is drawn inside it.
  */
 function EmojiMartIconPicker({
   categoryName,
@@ -237,8 +247,40 @@ function EmojiMartIconPicker({
   const [data, setData] = useState<EmojiMartData | null>(getCachedEmojiMartData)
   const [pickerModule, setPickerModule] = useState<typeof import('emoji-mart') | null>(cachedEmojiMartPickerModule)
   const isDark = useAppDarkMode()
+  const isPresent = useIsPresent()
   const shouldReduceMotion = useReducedMotion()
   const loadingVisible = useMinimumVisibleFlag(data === null || pickerModule === null, LOADING_ANIMATION_MIN_MS)
+  const ready = data !== null && pickerModule !== null && !loadingVisible
+  // A picker opened with everything already downloaded has nothing to ease in
+  const [startedReady] = useState(ready)
+
+  // The picker is built once per dataset and theme, so what it calls is read at the time of the call.
+  // Otherwise every render of the form behind it would build it again, on top of a search in progress
+  const onChangeRef = useRef(onChange)
+  const onCloseRef = useRef(onClose)
+  useEffect(() => {
+    onChangeRef.current = onChange
+    onCloseRef.current = onClose
+  })
+
+  const fade = shouldReduceMotion ? DROPDOWN_INSTANT_TRANSITION : EMOJI_PICKER_EASE_TRANSITION
+  const panelHeight = useMotionValue(position.maxHeight)
+  const maxHeightRef = useRef(position.maxHeight)
+  const contentHeightRef = useRef<number | null>(null)
+
+  // Until the picker reports what it holds the panel stands at its greatest height, which is also
+  // what the full list asks for, so the picker arrives into a panel that is already its size
+  const followContent = useCallback(() => {
+    const content = contentHeightRef.current
+    const target = content === null ? maxHeightRef.current : getEmojiPickerPanelHeight(content, maxHeightRef.current)
+    if (shouldReduceMotion || content === null) panelHeight.set(target)
+    else animate(panelHeight, target, EMOJI_PICKER_EASE_TRANSITION)
+  }, [panelHeight, shouldReduceMotion])
+
+  useEffect(() => {
+    maxHeightRef.current = position.maxHeight
+    followContent()
+  }, [followContent, position.maxHeight])
 
   useEffect(() => {
     let cancelled = false
@@ -271,12 +313,19 @@ function EmojiMartIconPicker({
   }, [onLoadFailure])
 
   useEffect(() => {
+    // A panel already sinking away has been dismissed, so a second press has nothing left to close
+    if (!isPresent) return
+    // Heard on the way down, before the picker's own search field can take the key to clear itself,
+    // so Escape dismisses the panel from wherever focus sits, as it does the dropdown
     const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') onClose()
+      if (event.key !== 'Escape') return
+      event.preventDefault()
+      event.stopPropagation()
+      onCloseRef.current()
     }
-    window.addEventListener('keydown', onKeyDown)
-    return () => window.removeEventListener('keydown', onKeyDown)
-  }, [onClose])
+    window.addEventListener('keydown', onKeyDown, true)
+    return () => window.removeEventListener('keydown', onKeyDown, true)
+  }, [isPresent])
 
   useLayoutEffect(() => {
     const container = containerRef.current
@@ -297,8 +346,8 @@ function EmojiMartIconPicker({
       noCountryFlags: true,
       onEmojiSelect: (selection: EmojiMartSelection) => {
         if (!selection.native) return
-        onChange(selection.native)
-        onClose()
+        onChangeRef.current(selection.native)
+        onCloseRef.current()
       },
       perLine: 7,
       previewPosition: 'none',
@@ -310,6 +359,9 @@ function EmojiMartIconPicker({
     const pickerElement = picker as unknown as HTMLElement
     const theme = EMOJI_MART_THEME[isDark ? 'dark' : 'light']
     pickerElement.style.width = '100%'
+    // Fills the panel, whatever height the panel is easing through, with the results scrolling inside
+    pickerElement.style.height = '100%'
+    pickerElement.style.minHeight = '0'
     pickerElement.style.setProperty('--font-family', '"DM Sans Variable", system-ui, sans-serif')
     pickerElement.style.setProperty('--font-size', '14px')
     pickerElement.style.setProperty('--border-radius', '0.75rem')
@@ -317,48 +369,89 @@ function EmojiMartIconPicker({
     pickerElement.style.setProperty('--sidebar-width', '8px')
     pickerElement.style.setProperty('--rgb-color', theme.color)
     pickerElement.style.setProperty('--rgb-accent', theme.accent)
-    pickerElement.style.height = `${Math.max(position.maxHeight - 14, 220)}px`
+    pickerElement.style.setProperty('--emoji-gutter', `${measureScrollbarGutter()}px`)
     applyEmojiPickerStyles(pickerElement)
     container.appendChild(pickerElement)
+    const stopFollowing = observePickerContent(pickerElement, (contentHeight) => {
+      contentHeightRef.current = contentHeight
+      followContent()
+    })
 
     return () => {
+      stopFollowing()
+      contentHeightRef.current = null
       pickerElement.remove()
       container.innerHTML = ''
     }
-  }, [data, isDark, loadingVisible, onChange, onClose, pickerModule, position.maxHeight])
+  }, [data, followContent, isDark, loadingVisible, pickerModule])
 
   return createPortal(
     <motion.div
-      className="fixed z-popover inline-block"
+      {...FLOATING_LAYER_PROPS}
+      className="fixed z-popover"
       data-category-emoji-picker="true"
       role="dialog"
       aria-label={`Select ${categoryName} icon`}
       // Rises and fades in on the dropdown's own contents motion, once, and not at all under reduced motion
       initial={shouldReduceMotion ? false : { opacity: 0, y: DROPDOWN_RISE_DISTANCE }}
       animate={{ opacity: 1, y: 0 }}
+      // Leaves the way the dropdown does: the contents sink and fade on its closing timing while the
+      // box folds away on its own height's closing timing and curve
+      exit={
+        shouldReduceMotion
+          ? undefined
+          : {
+              opacity: 0,
+              y: DROPDOWN_RISE_DISTANCE,
+              height: 0,
+              transition: { ...DROPDOWN_SINK_TRANSITION, height: DROPDOWN_NARROW_TRANSITION },
+            }
+      }
       transition={DROPDOWN_RISE_TRANSITION}
       style={{
         // The surface of .app-dropdown-glass-floating: solid input background, strong hairline, the
-        // dropdown corner, the soft shadow and the inner padding its list sits in. Solid, since the
-        // grid is dense enough that anything showing through it would cost legibility
+        // dropdown corner and the soft shadow. Solid, since the grid is dense enough that anything
+        // showing through it would cost legibility. The padding is inside, since a box folding to
+        // nothing leaves its own padding behind
         background: 'var(--app-input-bg)',
         border: '1px solid var(--app-border-strong)',
         borderRadius: 'var(--app-dropdown-radius)',
         boxShadow: 'var(--app-shadow-soft)',
+        bottom: position.bottom,
+        height: panelHeight,
         left: position.left,
         maxHeight: position.maxHeight,
-        padding: 'var(--app-dropdown-inner-padding)',
+        overflow: 'hidden',
+        // Nothing behind a panel on its way out should be reachable through it
+        pointerEvents: isPresent ? undefined : 'none',
         top: position.top,
         width: position.width,
       }}
     >
-      {loadingVisible ? (
-        <div className="flex h-20 items-center justify-center">
-          <div className="app-spinner" aria-label="Loading emoji picker" />
-        </div>
-      ) : (
-        <div ref={containerRef} />
-      )}
+      <div className="relative h-full" style={{ padding: 'var(--app-dropdown-inner-padding)' }}>
+        <AnimatePresence>
+          {!ready && (
+            <motion.div
+              key="loading"
+              className="absolute inset-0 flex items-center justify-center"
+              style={{ pointerEvents: 'none' }}
+              initial={false}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              transition={fade}
+            >
+              <div className="app-spinner" aria-label="Loading emoji picker" />
+            </motion.div>
+          )}
+        </AnimatePresence>
+        <motion.div
+          ref={containerRef}
+          className="h-full"
+          initial={startedReady || shouldReduceMotion ? false : { opacity: 0 }}
+          animate={{ opacity: ready ? 1 : 0 }}
+          transition={fade}
+        />
+      </div>
     </motion.div>,
     document.body,
   )

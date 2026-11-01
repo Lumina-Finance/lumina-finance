@@ -21,10 +21,17 @@ export const EMOJI_PICKER_STYLES = `
     --easing: var(--app-ease-curve);
   }
 
-  /* The rows are 224px wide and fixed, so they are centred rather than left against the edge */
+  /* The rows are 224px wide and fixed. The scrolling area reserves the scrollbar's room on both sides
+     of them, so they sit in the middle whether or not a scrollbar is drawn, and the panel is sized
+     to exactly that (--emoji-gutter, measured by the selector). The search row takes the same inset,
+     so its rule and the headings' rules start and end together */
   .padding-lr {
     padding-left: 0;
     padding-right: 0;
+  }
+
+  #root > .padding-lr:not(.scroll) {
+    margin: 0 var(--emoji-gutter, 0px);
   }
 
   .scroll {
@@ -33,6 +40,23 @@ export const EMOJI_PICKER_STYLES = `
 
   .scroll > div {
     margin: 0 auto;
+  }
+
+  /* Left at the whole height of the scrolling area, the results would never say how tall they are.
+     Letting them take their own is what the panel measures to follow them. The full list states its
+     height in pixels, so it is untouched */
+  .scroll > div[style*="height: 100%"] {
+    height: auto !important;
+  }
+
+  /* An empty result says so, in the Dropdown's own words and look, rather than leaving the heading
+     over a blank */
+  .category > div > .padding-small:empty::after {
+    content: "No results";
+    display: block;
+    padding: var(--app-dropdown-row-padding-y) var(--app-dropdown-row-padding-x);
+    color: var(--app-text-subtle);
+    font-size: 0.875rem;
   }
 
   /* The app draws no custom scrollbar, so the picker's own is dropped for the native one, which
