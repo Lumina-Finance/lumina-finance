@@ -3,11 +3,11 @@
  * cent, with no bank ID since QIF states none, so a re-import is not recognised, and every transaction
  * the file cannot state exactly is listed as skipped with its reason instead of being written
  */
-import { describe, expect, it } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { AccountsOverview } from '@/api/accounts'
 import type { Category } from '@/api/categories'
 import type { Currency } from '@/api/currency'
-import { QIF_AMOUNTS_DIFFER_REASON, QIF_TWO_DIGIT_YEAR_REASON } from '@/pages/imports/qif/constants'
+import { QIF_AMOUNTS_DIFFER_REASON } from '@/pages/imports/qif/constants'
 import { OFX_DATE_UNREADABLE_REASON } from '@/pages/imports/ofx/constants'
 import type { OfxReadings } from '@/pages/imports/ofx/types'
 import { buildOfxImportPayload } from '@/pages/imports/ofx/utils/payload'
@@ -108,6 +108,12 @@ async function build(account: AccountsOverview = CHEQUING) {
 }
 
 describe('a QIF file through the statement import', () => {
+  // A two-digit year is read against the current year, so the dates here are read in the middle of
+  // a fixed one rather than on whatever day the suite runs. Only the date is faked, as reading a
+  // file waits on the platform's own timers
+  beforeEach(() => vi.useFakeTimers({ toFake: ['Date'], now: new Date('2026-06-15T12:00:00Z') }))
+  afterEach(() => vi.useRealTimers())
+
   it("writes the file's own amounts and dates, summing a split to its total, with no bank ID", async () => {
     const { build: result } = await build()
 
@@ -115,12 +121,14 @@ describe('a QIF file through the statement import', () => {
     expect(result.payload?.rows.map(({ dt, amount }) => [dt, amount])).toEqual([
       ['2024-01-02', '-1234.50'],
       ['2024-01-03', '2000.00'],
+      ['2024-01-04', '-5.00'],
       ['2024-01-06', '-100.00'],
     ])
     expect(result.payload?.rows.every((row) => row.bank_account === null && row.bank_transaction === null)).toBe(true)
     expect(result.payload?.rows.map((row) => row.category_source)).toEqual([
       '(no category)',
       '(money in, no category)',
+      '(no category)',
       '(no category)',
     ])
   })
@@ -154,7 +162,6 @@ describe('a QIF file through the statement import', () => {
     const { build: result } = await build()
 
     expect(result.skippedRows.map(({ amountText, reason }) => [amountText, reason])).toEqual([
-      ['-5.00', QIF_TWO_DIGIT_YEAR_REASON],
       ['-5.00', QIF_AMOUNTS_DIFFER_REASON],
       ['-100.00', expect.stringContaining('-100.00')],
       ['', expect.any(String)],
@@ -165,7 +172,7 @@ describe('a QIF file through the statement import', () => {
     const { build: result } = await build(YEN)
 
     expect(result.currencyMismatches).toEqual([])
-    expect(result.payload?.rows.map(({ amount }) => amount)).toEqual(['2000.00', '-100.00'])
+    expect(result.payload?.rows.map(({ amount }) => amount)).toEqual(['2000.00', '-5.00', '-100.00'])
     expect(result.skippedRows.some(({ amountText }) => amountText === '-1,234.50')).toBe(true)
   })
 
@@ -192,7 +199,7 @@ describe('a QIF file through the statement import', () => {
         10,
       ).map((row) => row.transaction.amount)
 
-    expect(preview(CHEQUING)).toEqual([-123450n, 200000n, -10000n])
+    expect(preview(CHEQUING)).toEqual([-123450n, 200000n, -500n, -10000n])
   })
 
   it('skips every transaction with the date reason while no date format is chosen', async () => {

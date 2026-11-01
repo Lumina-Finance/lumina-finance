@@ -32,12 +32,19 @@ export interface OfxReadingChoices {
  *   what the files step shows, and the way to forget the user's choices. For a format that states
  *   its values exactly, the files as they are and no choices
  */
-export function useOfxReadingChoices(format: OfxFormat, stagedFiles: OfxStagedFile[]) {
+export function useOfxReadingChoices(format: OfxFormat, stagedFiles: OfxStagedFile[], timeZone?: string) {
   const { reading } = format
   const [chosenDateFormat, setChosenDateFormat] = useState<ImportDateFormat | null>(null)
   const [chosenAmountFormat, setChosenAmountFormat] = useState<ImportAmountFormat | null>(null)
 
-  const scan = useMemo(() => reading?.scan(stagedFiles.map(({ file }) => file)) ?? null, [reading, stagedFiles])
+  const scan = useMemo(
+    () =>
+      reading?.scan(
+        stagedFiles.map(({ file }) => file),
+        timeZone,
+      ) ?? null,
+    [reading, stagedFiles, timeZone],
+  )
   const settled = scan
     ? settleOfxReadings(scan, { dateFormat: chosenDateFormat, amountFormat: chosenAmountFormat })
     : null
@@ -47,8 +54,9 @@ export function useOfxReadingChoices(format: OfxFormat, stagedFiles: OfxStagedFi
   const isAmountRequired = settled?.isAmountRequired ?? false
 
   const files = useMemo(
-    () => stagedFiles.map(({ file }) => (reading ? reading.resolve(file, { dateFormat, amountFormat }) : file)),
-    [amountFormat, dateFormat, reading, stagedFiles],
+    () =>
+      stagedFiles.map(({ file }) => (reading ? reading.resolve(file, { dateFormat, amountFormat }, timeZone) : file)),
+    [amountFormat, dateFormat, reading, stagedFiles, timeZone],
   )
 
   const error = !reading

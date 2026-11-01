@@ -80,6 +80,18 @@ test('says what it leaves out of a file that also holds investments', async ({ p
   await expect(page.getByRole('button', { name: 'Remove household.qif', exact: true })).toBeVisible()
 })
 
+test('reads a two-digit year after a slash as the nearest past year and shows it in the preview', async ({
+  page,
+  request,
+}) => {
+  const user = await signUpUser(request)
+  const account = await createAccount(request, user, { name: 'Everyday', currency: 'CAD' })
+  await uploadQif(page, user, QIF.replace('D1/2/2024', 'D6/17/97'))
+  await chooseFromDropdown(page.locator('body'), 'Existing account Household', account.name)
+
+  await expect(page.getByText('June 17, 1997', { exact: true }).filter({ visible: true }).first()).toBeVisible()
+})
+
 const COMMIT_URL = /\/transactions\/import\/runs\/[^/]+\/commit$/
 const REFUSAL = 'Withdrawal source is not an imported account'
 

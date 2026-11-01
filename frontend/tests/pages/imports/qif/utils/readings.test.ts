@@ -3,11 +3,18 @@
  * is left for the person to choose and never guessed, and no amount is changed to make a transaction
  * fit, so a transaction whose own values disagree is skipped with the reason
  */
-import { describe, expect, it } from 'vitest'
-import { QIF_AMOUNTS_DIFFER_REASON, QIF_TWO_DIGIT_YEAR_REASON } from '@/pages/imports/qif/constants'
-import { normalizeQifDate, resolveQifFile, scanQifReadings } from '@/pages/imports/qif/utils/readings'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { QIF_AMOUNTS_DIFFER_REASON } from '@/pages/imports/qif/constants'
+import { normalizeQifDate, readTwoDigitYear, resolveQifFile, scanQifReadings } from '@/pages/imports/qif/utils/readings'
 import type { OfxReadings } from '@/pages/imports/ofx/types'
 import { buildQifFile } from './fixtures'
+
+const CURRENT_YEAR = 2026
+
+// A two-digit year is read against the current year, so every test here runs in the middle of
+// CURRENT_YEAR rather than on whatever day the suite happens to run
+beforeEach(() => vi.useFakeTimers({ toFake: ['Date'], now: new Date(`${CURRENT_YEAR}-06-15T12:00:00Z`) }))
+afterEach(() => vi.useRealTimers())
 
 const US_READINGS: OfxReadings = {
   dateFormat: 'monthFirst',
@@ -28,10 +35,28 @@ describe('normalizeQifDate', () => {
     ["1/ 5' 0", '1/5/2000'],
     ['12/21/7', '12/21/7'],
     ['6/ 1/1994', '6/1/1994'],
-    ['01/02/24', '01/02/24'],
+    ['01/02/24', '01/02/2024'],
+    ['6/17/97', '6/17/1997'],
+    ['8/ 1/05', '8/1/2005'],
     ['2024-01-02', '2024-01-02'],
   ])('rewrites %s as %s', (text, expected) => {
-    expect(normalizeQifDate(text)).toBe(expected)
+    expect(normalizeQifDate(text, CURRENT_YEAR)).toBe(expected)
+  })
+})
+
+describe('readTwoDigitYear', () => {
+  it.each([
+    ['97', 2026, 1997],
+    ['05', 2026, 2005],
+    ['00', 2026, 2000],
+    ['26', 2026, 2026],
+    ['27', 2026, 1927],
+    ['99', 2026, 1999],
+    ['27', 2027, 2027],
+    ['28', 2027, 1928],
+    ['01', 2000, 1901],
+  ])('reads the year %s in %i as %i', (year, currentYear, expected) => {
+    expect(readTwoDigitYear(year, currentYear)).toBe(expected)
   })
 })
 
@@ -47,11 +72,31 @@ describe('resolveQifFile dates', () => {
     expect(transaction.date).toBe(expected)
   })
 
-  it('skips a two-digit year after a slash with the reason instead of guessing the century', () => {
-    const [transaction] = resolve([{ postedText: '01/02/24' }])
+  it.each([
+    ['6/17/97', '1997-06-17'],
+    ['01/02/24', '2024-01-02'],
+  ])('reads %s, a two-digit year after a slash, as %s', (postedText, expected) => {
+    const [transaction] = resolve([{ postedText }])
 
-    expect(transaction.date).toBeNull()
-    expect(transaction.readProblem).toBe(QIF_TWO_DIGIT_YEAR_REASON)
+    expect(transaction.date).toBe(expected)
+    expect(transaction.readProblem).toBeNull()
+  })
+
+  describe('around midnight on New Year', () => {
+    // 3 a.m. UTC on 1 January 2027 is still 31 December 2026 in Toronto and already 2027 in Auckland
+    const instant = new Date('2027-01-01T03:00:00Z')
+
+    beforeEach(() => vi.useFakeTimers({ now: instant }))
+    afterEach(() => vi.useRealTimers())
+
+    it.each([
+      ['America/Toronto', '1927-03-04'],
+      ['Pacific/Auckland', '2027-03-04'],
+    ])('takes the year 27 in the zone %s as %s', (timeZone, expected) => {
+      const file = resolveQifFile(buildQifFile([{ postedText: '3/4/27' }]), US_READINGS, timeZone)
+
+      expect(file.statements[0].transactions[0].date).toBe(expected)
+    })
   })
 
   it('leaves the date null while no reading is chosen', () => {
@@ -88,6 +133,17 @@ describe('scanQifReadings dates', () => {
     ])
 
     expect(scan.date.automatic).toBe('dayFirst')
+  })
+
+  it('settles each two-digit year date alone, but finds no order fitting both 6/17/97 and 13/2/97', () => {
+    const monthFirst = scanQifReadings([buildQifFile([{ postedText: '6/17/97' }])])
+    const dayFirst = scanQifReadings([buildQifFile([{ postedText: '13/2/97' }])])
+    const both = scanQifReadings([buildQifFile([{ postedText: '6/17/97' }, { postedText: '13/2/97' }])])
+
+    expect(monthFirst.date.automatic).toBe('monthFirst')
+    expect(dayFirst.date.automatic).toBe('dayFirst')
+    expect(both.date).toMatchObject({ readable: [], automatic: null, ambiguous: false })
+    expect(Object.keys(both.date.rejectedBy)).toEqual(expect.arrayContaining(['dayFirst', 'monthFirst']))
   })
 
   it('reads apostrophe years in the scan', () => {

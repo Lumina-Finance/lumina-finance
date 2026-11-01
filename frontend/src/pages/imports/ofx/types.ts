@@ -162,8 +162,8 @@ export interface OfxFormat {
     statementNoun: string
   }
   reading: {
-    scan: (files: OfxFile[]) => OfxReadingScan
-    resolve: (file: OfxFile, readings: OfxReadings) => OfxFile
+    scan: (files: OfxFile[], timeZone?: string) => OfxReadingScan
+    resolve: (file: OfxFile, readings: OfxReadings, timeZone?: string) => OfxFile
 
     /** Said while the dates fit several readings and the user has chosen none */
     dateRequiredError: string

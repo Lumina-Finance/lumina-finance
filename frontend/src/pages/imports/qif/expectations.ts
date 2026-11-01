@@ -7,8 +7,9 @@ import type { ImportExpectations } from '@/pages/imports/types'
  * in the currency of that account, since the file states none, categories, classes, tags and
  * transfers are not read so money out files under Miscellaneous and money in under Other Income, a
  * split transaction comes in as one transaction for its total once its parts add up, investment
- * sections are counted and left out, and a transaction whose year has two digits after a slash, whose
- * two amount lines disagree, or whose splits do not add up is listed and skipped before the commit.
+ * sections are counted and left out, a year of two digits after a slash is read by the current year,
+ * and a transaction whose two amount lines disagree or whose splits do not add up is listed and
+ * skipped before the commit.
  * A QIF file carries no transaction ID, so an import cannot tell a transaction it already brought in
  */
 export const QIF_EXPECTATIONS: ImportExpectations = {
@@ -39,6 +40,11 @@ export const QIF_EXPECTATIONS: ImportExpectations = {
       lumina: 'Read the way you choose under the staged files, and never guessed. The import waits until you choose',
     },
     {
+      source: 'A date with a two-digit year after a slash',
+      lumina:
+        'Read as 20 followed by the year, or as 19 followed by it when that year is still to come, so 97 is 1997 and 05 is 2005. The preview shows the dates',
+    },
+    {
       source: 'An account',
       lumina:
         "Created in the currency you choose, since a QIF file doesn't state one. It starts at zero, and an Opening Balance transaction in the file comes in like any other, so don't add an opening balance for the same amount",
@@ -53,7 +59,6 @@ export const QIF_EXPECTATIONS: ImportExpectations = {
       group: 'Transactions',
       items: [
         'With no readable date or amount',
-        'With a two-digit year after a slash, since the century would be a guess',
         'With two amount lines that disagree',
         'With splits that do not add up to the total',
         'With more decimal places than their currency allows',

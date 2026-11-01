@@ -42,8 +42,6 @@ export const QIF_LIABILITY_ACCOUNT = { type: 'loan', label: 'Liability account' 
 export const QIF_DATE_FORMAT_REQUIRED_ERROR = 'Choose how the dates in the files are written.'
 export const QIF_AMOUNT_FORMAT_REQUIRED_ERROR = 'Choose how the amounts in the files are written.'
 
-export const QIF_TWO_DIGIT_YEAR_REASON =
-  "The date has a two-digit year, so its century can't be told. Export the file again with four-digit years."
 export const QIF_AMOUNTS_DIFFER_REASON =
   "The file gives two different amounts for this transaction, so the importer can't tell which is right."
 export const QIF_SPLIT_UNREADABLE_REASON = 'A split amount is missing or is not a number.'

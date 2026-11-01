@@ -3,7 +3,6 @@ import {
   getQifSplitMismatchReason,
   QIF_AMOUNTS_DIFFER_REASON,
   QIF_SPLIT_UNREADABLE_REASON,
-  QIF_TWO_DIGIT_YEAR_REASON,
 } from '@/pages/imports/qif/constants'
 import {
   readImportAmount,
@@ -12,27 +11,43 @@ import {
   scanImportDateFormatChoices,
   type ImportAmountFormat,
 } from '@/pages/imports/utils'
+import { getTodayYear } from '@/utils/date'
 
 // Month, day, then a year of two or four digits. Quicken pads a day or month to two characters with
 // a space, as in "6/ 1/1994", and writes the year after an apostrophe where the date is in 2000 or
 // later, as in "1/ 2'24". It pads that year to two characters too, as in "12/21' 7" for 2007
 const NUMERIC_DATE_PATTERN = /^(\d{1,2})\s*\/\s*(\d{1,2})\s*([/'])\s*(\d{1,2}|\d{4})$/
 
-// A numeric date whose year has two digits after a slash, which names no century
-const TWO_DIGIT_YEAR_PATTERN = /^\d{1,2}\s*\/\s*\d{1,2}\s*\/\s*\d{2}$/
-
 const MILLENNIUM = '20'
+const CENTURY_START_YEAR = 2000
+const PREVIOUS_CENTURY_START_YEAR = 1900
+
+/**
+ * Reads the two-digit year of a date written with slashes, which names no century
+ *
+ * A year that would land after the current one reads as 19xx and any other as 20xx, so with 2026
+ * as the current year 97 is 1997, 26 is 2026 and 27 is 1927. This is the one place the guess is made
+ *
+ * @param year - The two digits as written
+ * @param currentYear - The year it is now in the user's zone
+ */
+export function readTwoDigitYear(year: string, currentYear: number) {
+  const twoDigits = Number(year)
+  const thisCentury = CENTURY_START_YEAR + twoDigits
+  return thisCentury > currentYear ? PREVIOUS_CENTURY_START_YEAR + twoDigits : thisCentury
+}
 
 /**
  * Rewrites a QIF date as the numeric shape the CSV import reads: the two parts, a slash and a
  * four-digit year, with the padding removed
  *
  * An apostrophe before a two-digit year means 2000 or later, which is how the format writes the
- * century. A two-digit year after a slash is left as written, since it names no century and the
- * reader refuses it rather than guess. Any other date, such as one in ISO form, is left as written
- * for the reader to take or refuse
+ * century. A two-digit year after a slash is read by `readTwoDigitYear`. Any other date, such as one
+ * in ISO form, is left as written for the reader to take or refuse
+ *
+ * @param currentYear - The year it is now in the user's zone, which decides the century of a slash year
  */
-export function normalizeQifDate(text: string) {
+export function normalizeQifDate(text: string, currentYear: number) {
   const trimmed = text.trim()
   const match = NUMERIC_DATE_PATTERN.exec(trimmed)
   if (!match) return trimmed
@@ -42,7 +57,7 @@ export function normalizeQifDate(text: string) {
   if (separator === "'") return `${first}/${second}/${MILLENNIUM}${year.padStart(2, '0')}`
 
   // A single digit after a slash is no year the format writes, so it is left for the reader to refuse
-  return year.length === 2 ? `${first}/${second}/${year}` : trimmed
+  return year.length === 2 ? `${first}/${second}/${readTwoDigitYear(year, currentYear)}` : trimmed
 }
 
 /**
@@ -52,12 +67,13 @@ export function normalizeQifDate(text: string) {
  * record with very many split lines is added one line at a time, since spreading them into a call
  * overflows the stack
  */
-export function scanQifReadings(files: OfxFile[]): OfxReadingScan {
+export function scanQifReadings(files: OfxFile[], timeZone?: string): OfxReadingScan {
+  const currentYear = getTodayYear(timeZone)
   const dates = new Set<string>()
   const amounts = new Set<string>()
   for (const { transactions } of files.flatMap((file) => file.statements)) {
     for (const transaction of transactions) {
-      dates.add(normalizeQifDate(transaction.postedText))
+      dates.add(normalizeQifDate(transaction.postedText, currentYear))
       amounts.add(transaction.amountText)
       amounts.add(transaction.alternateAmountText ?? '')
       for (const splitText of transaction.splitAmountTexts ?? []) amounts.add(splitText)
@@ -74,33 +90,39 @@ export function scanQifReadings(files: OfxFile[]): OfxReadingScan {
  * transaction is listed as skipped. Two amounts that disagree, and split amounts that do not add up
  * to the total, skip the transaction with that reason, since no amount is changed to make them fit
  */
-export function resolveQifFile(file: OfxFile, readings: OfxReadings): OfxFile {
+export function resolveQifFile(file: OfxFile, readings: OfxReadings, timeZone?: string): OfxFile {
+  const currentYear = getTodayYear(timeZone)
   return {
     ...file,
     statements: file.statements.map((statement) => ({
       ...statement,
-      transactions: statement.transactions.map((transaction) => resolveTransaction(transaction, readings)),
+      transactions: statement.transactions.map((transaction) => resolveTransaction(transaction, readings, currentYear)),
     })),
   }
 }
 
-function resolveTransaction(transaction: OfxTransaction, { dateFormat, amountFormat }: OfxReadings): OfxTransaction {
-  const date = dateFormat ? readImportDate(normalizeQifDate(transaction.postedText), dateFormat) || null : null
+function resolveTransaction(
+  transaction: OfxTransaction,
+  { dateFormat, amountFormat }: OfxReadings,
+  currentYear: number,
+): OfxTransaction {
+  const date = dateFormat
+    ? readImportDate(normalizeQifDate(transaction.postedText, currentYear), dateFormat) || null
+    : null
   const total = readAmount(transaction.amountText, amountFormat)
   return {
     ...transaction,
     date,
     amount: total,
-    readProblem: findReadProblem(transaction, { date, total, amountFormat }),
+    readProblem: findReadProblem(transaction, { total, amountFormat }),
   }
 }
 
 /** Why the readings of a transaction's own values cannot be trusted, or null when they hold together */
 function findReadProblem(
   transaction: OfxTransaction,
-  { date, total, amountFormat }: { date: string | null; total: string | null; amountFormat: ImportAmountFormat | null },
+  { total, amountFormat }: { total: string | null; amountFormat: ImportAmountFormat | null },
 ) {
-  if (date === null && TWO_DIGIT_YEAR_PATTERN.test(transaction.postedText.trim())) return QIF_TWO_DIGIT_YEAR_REASON
   if (total === null) return null
 
   if (transaction.alternateAmountText) {

@@ -1,6 +1,7 @@
 import { useMemo, useRef, useState } from 'react'
 import type { AccountsOverview } from '@/api/accounts'
 import { getImportFileName } from '@/api/import-runs'
+import { useAuth } from '@/hooks/useAuth'
 import {
   useCommitStagedImport,
   useHeldBankTransactions,
@@ -88,7 +89,8 @@ const EMPTY_BUILD: OfxImportBuild = {
  */
 export function useOfxImportWorkflow(fixedAccount: AccountsOverview | null = null, format: OfxFormat = OFX_FORMAT) {
   const [stagedFiles, setStagedFiles] = useState<OfxStagedFile[]>([])
-  const readingChoices = useOfxReadingChoices(format, stagedFiles)
+  const { user } = useAuth()
+  const readingChoices = useOfxReadingChoices(format, stagedFiles, user?.tz)
   const ofxFile = useMemo(
     () => (stagedFiles.length > 0 ? combineOfxFiles(readingChoices.files) : null),
     [readingChoices.files, stagedFiles.length],
