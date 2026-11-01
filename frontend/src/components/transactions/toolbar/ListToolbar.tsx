@@ -59,8 +59,9 @@ export default function TransactionListToolbar({
   const [isEditActionAnimating, setIsEditActionAnimating] = useState(false)
 
   // Selection mode swaps the row's own controls, and the wrap layout measures boxes rather than
-  // contents, so it is told rather than left to notice
-  const shell = useToolbarShellState(isSelecting ? 'selecting' : 'browsing', isEditActionAnimating)
+  // contents, so it is told rather than left to notice. The export button's word changes its width as
+  // the list narrows or rows are ticked, so the scope is part of what it is told
+  const shell = useToolbarShellState(`${isSelecting ? 'selecting' : 'browsing'}-${exportScope}`, isEditActionAnimating)
   useToolbarStickyOffset(shell.toolbarRef, onStickyOffsetChange)
 
   // One node for both widths, at the 44px control height the row is built on, which the search field
@@ -290,9 +291,9 @@ export default function TransactionListToolbar({
             // group instead would need its own measured twin, or the row would report itself
             // narrower than it draws and stay on one line where it no longer fits. Wrapped as one
             // child, since the group spreads its children apart once the create button stacks
-            <div className="flex min-w-0 items-center">
+            <div className="flex shrink-0 items-center">
               {desktopEditAction}
-              <div className="flex min-w-0 items-center gap-3">
+              <div className="flex items-center gap-3">
                 {selectAction}
                 {importAction}
                 {exportAction}
