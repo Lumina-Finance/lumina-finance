@@ -1,8 +1,9 @@
 import type { Tag } from '@/api/tags'
 import type { TransactionImportTagMapping } from '@/api/transaction-imports'
 import type { DropdownOption } from '@/components/dropdown/Dropdown'
-import { CREATE_TAG_VALUE, SKIP_TAG_VALUE } from '@/pages/imports/constants'
-import { buildImportNameMappings, getImportNameRowState } from './nameMatching'
+import { getNameKey } from '@/api/shared/nameKey'
+import { CREATE_TAG_VALUE, IMPORT_TAG_NAME_MAX_LENGTH, SKIP_TAG_VALUE } from '@/pages/imports/constants'
+import { buildImportNameMappings, getImportNameAnswer, getImportNameRowState } from './nameMatching'
 
 /**
  * Builds the answers the tag step offers for one tag name
@@ -69,5 +70,82 @@ export function buildImportTagMappings({
     skipValue: SKIP_TAG_VALUE,
     noun: 'tag',
     buildChosen: (source, id) => ({ source, tag_id: id }),
+
+    // A tag is written under the capitals it is given, so Travel typed for TRAVEL is a correction
+    keepsCapitalCorrections: true,
+    maxNameLength: IMPORT_TAG_NAME_MAX_LENGTH,
   })
+}
+
+/**
+ * Says what is wrong with the name a new tag would be created under, if anything
+ *
+ * @param name - The name as typed
+ * @returns A short reason, or an empty string where the name can be used
+ */
+export function getImportTagCreateNameError(name: string) {
+  const trimmed = name.trim()
+  if (!trimmed) return 'Enter a name for the new tag.'
+  if ([...trimmed].length > IMPORT_TAG_NAME_MAX_LENGTH) {
+    return `A tag name can have at most ${IMPORT_TAG_NAME_MAX_LENGTH} characters.`
+  }
+  return ''
+}
+
+/**
+ * Works out the tags one previewed row will carry, once the user's tag answers are read
+ *
+ * A skipped name is left off, a name pointed at a tag or corrected shows that tag's name, and a name
+ * the file matches shows the tag it matches. Names that end up as one tag show once
+ *
+ * @param rowTagNames - The tag names the row states
+ * @param answers - What the tag step holds
+ * @param answers.importedTags - One name per tag the file resolves to, which answers are held under
+ * @param answers.matchedTagByKey - The tags the file's values already match
+ * @param answers.tagMappings - What the user chose for each value, blank where they left it alone
+ * @param answers.tagCreateNames - The name the user wrote for a value being created
+ * @param answers.tagLabelById - What each tag on offer is called
+ */
+export function getPreviewTagNames(
+  rowTagNames: string[],
+  {
+    importedTags,
+    matchedTagByKey,
+    tagMappings,
+    tagCreateNames,
+    tagLabelById,
+  }: {
+    importedTags: string[]
+    matchedTagByKey: Map<string, Tag>
+    tagMappings: Record<string, string>
+    tagCreateNames: Record<string, string>
+    tagLabelById: Map<string, string>
+  },
+) {
+  const valueByKey = new Map(importedTags.map((value) => [getNameKey(value), value]))
+  const shown = new Map<string, string>()
+
+  for (const name of rowTagNames) {
+    const key = getNameKey(name)
+
+    // Answers are held under one spelling for names differing only in capitals
+    const value = valueByKey.get(key) ?? name
+    const matched = matchedTagByKey.get(key)
+    const answer = getImportNameAnswer(
+      tagMappings[value] ?? '',
+      Boolean(matched),
+      tagCreateNames[value],
+      CREATE_TAG_VALUE,
+    )
+    if (answer === SKIP_TAG_VALUE) continue
+
+    let shownName = matched ? matched.name : value
+    if (answer === CREATE_TAG_VALUE) shownName = (tagCreateNames[value] ?? value).trim() || value
+    else if (answer) shownName = tagLabelById.get(answer) ?? name
+
+    const shownKey = getNameKey(shownName)
+    if (!shown.has(shownKey)) shown.set(shownKey, shownName)
+  }
+
+  return [...shown.values()]
 }

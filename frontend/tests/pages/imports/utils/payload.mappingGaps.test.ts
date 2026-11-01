@@ -12,18 +12,19 @@ import {
   CREATE_ACCOUNT_VALUE,
   CREATE_CATEGORY_VALUE,
   CREATE_MERCHANT_VALUE,
+  CREATE_TAG_VALUE,
   EMPTY_COLUMN_MAP,
   getImportAccountNameTooLongError,
   getTooManyMappingsError,
   IMPORT_ACCOUNT_NAME_MAX_LENGTH,
+  IMPORT_TAG_NAME_MAX_LENGTH,
   MAX_IMPORT_MAPPINGS,
+  SKIP_TAG_VALUE,
 } from '@/pages/imports/constants'
 import type { ColumnMap, CsvRow, ImportAccountSource, ImportFileDraft } from '@/pages/imports/types'
 import { buildTransactionImportPayload, WHOLE_FILE_DATE_RANGE } from '@/pages/imports/utils'
 
-const CURRENCIES: Currency[] = [
-  { id: 'CAD', name: 'Canadian Dollar', symbol: '$', minor_unit_exponent: 2 },
-]
+const CURRENCIES: Currency[] = [{ id: 'CAD', name: 'Canadian Dollar', symbol: '$', minor_unit_exponent: 2 }]
 
 const CATEGORY: Category = {
   id: 'category-1',
@@ -62,7 +63,16 @@ const VALID_ROW: CsvRow = { Date: '2026-04-10', Category: 'Groceries', Amount: '
  * Creates a one-file draft carrying the given rows under the file's usual headers
  */
 function createFile(rows: CsvRow[], overrides: Partial<ImportFileDraft> = {}): ImportFileDraft {
-  return { id: 'file-1', name: 'Chequing.csv', size: 512, headers: HEADERS, hasHeaderRow: true, rows, error: null, ...overrides }
+  return {
+    id: 'file-1',
+    name: 'Chequing.csv',
+    size: 512,
+    headers: HEADERS,
+    hasHeaderRow: true,
+    rows,
+    error: null,
+    ...overrides,
+  }
 }
 
 /**
@@ -142,7 +152,7 @@ describe('refusing an import for what the mapping step never asked', () => {
 })
 
 describe('refusing a category or merchant answer the builder cannot use', () => {
-  it('asks for a create-category source\'s kind before anything else about it', () => {
+  it("asks for a create-category source's kind before anything else about it", () => {
     const result = build({
       categoryMappings: { Groceries: CREATE_CATEGORY_VALUE },
       categoryCreateKinds: {},
@@ -163,6 +173,36 @@ describe('refusing a category or merchant answer the builder cannot use', () => 
     })
 
     expect(result.errors).toContain('Choose a name for the new merchant "Acme".')
+  })
+
+  it('forwards a tag answer the builder refuses, and builds no payload', () => {
+    const result = build({
+      tagAnswers: {
+        importedTags: ['Trip'],
+        matchedTagByKey: new Map(),
+        tagMappings: { Trip: CREATE_TAG_VALUE },
+        tagCreateNames: { Trip: '   ' },
+      },
+    })
+
+    expect(result.errors).toContain('Choose a name for the new tag "Trip".')
+    expect(result.payload).toBeNull()
+  })
+
+  it('refuses a tag created under a name longer than a tag can have, before upload', () => {
+    const result = build({
+      tagAnswers: {
+        importedTags: ['Trip'],
+        matchedTagByKey: new Map(),
+        tagMappings: { Trip: CREATE_TAG_VALUE },
+        tagCreateNames: { Trip: 't'.repeat(IMPORT_TAG_NAME_MAX_LENGTH + 1) },
+      },
+    })
+
+    expect(result.errors).toContain(
+      `The name for the new tag "Trip" is longer than ${IMPORT_TAG_NAME_MAX_LENGTH} characters.`,
+    )
+    expect(result.payload).toBeNull()
   })
 })
 
@@ -241,6 +281,45 @@ describe('carrying a resolved mapping through to the payload', () => {
 
     expect(result.errors).toEqual([])
     expect(result.payload?.merchants).toEqual([{ source: 'Acme', create: { name: 'Acme Store' } }])
+  })
+
+  it('carries the tag answers that differ from what the commit would do unasked into the payload', () => {
+    const travel = {
+      id: 'tag-travel',
+      owner_id: 'user-1',
+      group_id: null,
+      name: 'Travel',
+      created_at: '2026-01-01T00:00:00Z',
+    }
+    const result = build({
+      tagAnswers: {
+        importedTags: ['TRAVEL', 'Junk', 'Trip', 'Food'],
+        matchedTagByKey: new Map([['travel', travel]]),
+        tagMappings: { TRAVEL: SKIP_TAG_VALUE, Junk: SKIP_TAG_VALUE, Trip: CREATE_TAG_VALUE, Food: 'tag-travel' },
+        tagCreateNames: { Trip: 'TRIP' },
+      },
+    })
+
+    expect(result.errors).toEqual([])
+    expect(result.payload?.tags).toEqual([
+      { source: 'TRAVEL', skip: true },
+      { source: 'Junk', skip: true },
+      { source: 'Trip', create: { name: 'TRIP' } },
+      { source: 'Food', tag_id: 'tag-travel' },
+    ])
+  })
+
+  it('carries a tag named in other capitals than the file writes it as a created tag', () => {
+    const result = build({
+      tagAnswers: {
+        importedTags: ['TRAVEL'],
+        matchedTagByKey: new Map(),
+        tagMappings: {},
+        tagCreateNames: { TRAVEL: 'Travel' },
+      },
+    })
+
+    expect(result.payload?.tags).toEqual([{ source: 'TRAVEL', create: { name: 'Travel' } }])
   })
 
   it('carries two deliberate source mappings to the same account', () => {

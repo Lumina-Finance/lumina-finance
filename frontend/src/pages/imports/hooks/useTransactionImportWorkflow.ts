@@ -840,6 +840,9 @@ export function useTransactionImportWorkflow(fixedAccount: AccountsOverview | nu
     loadMoreTagResults,
   } = useImportTagMatches(importedTags)
 
+  // What each tag a row can be pointed at is called, for the preview to show the tag it will carry
+  const tagLabelById = useMemo(() => new Map(tagOptions.map((option) => [option.value, option.label])), [tagOptions])
+
   const canInferCategoryMappings = categoryAutoMatchKey === (columnMap.category_id || NO_CATEGORY_COLUMN_MATCH_KEY)
 
   const { mappings: liveCategoryMappings, clearedSources: clearedCategorySources } = useMemo(
@@ -1019,8 +1022,14 @@ export function useTransactionImportWorkflow(fixedAccount: AccountsOverview | nu
         resolvedAccountMappings,
         resolvedCategoryMappings,
         rowProblems: importBuild.rowProblems,
+        tagAnswers: { importedTags, matchedTagByKey, tagMappings, tagCreateNames, tagLabelById },
       }),
     [
+      importedTags,
+      matchedTagByKey,
+      tagCreateNames,
+      tagLabelById,
+      tagMappings,
       accountById,
       accountCreateInstitutions,
       amountFormat,

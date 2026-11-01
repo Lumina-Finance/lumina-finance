@@ -18,6 +18,26 @@ export function getImportNameRowState(answer: string, matched: boolean, createVa
 }
 
 /**
+ * What the user has answered for one imported name, counting a name typed on a row nothing matches
+ *
+ * A name typed for a value nothing matches answers it as created, though the user never opened its
+ * dropdown, since the row already read as being created
+ *
+ * @param answer - What the user chose for it, blank where they left it alone
+ * @param matched - Whether the value already matches a record
+ * @param typedName - The name typed for it, undefined where nothing was typed
+ * @param createValue - The answer meaning create a new record
+ */
+export function getImportNameAnswer(
+  answer: string,
+  matched: boolean,
+  typedName: string | undefined,
+  createValue: string,
+) {
+  return !answer && !matched && typedName !== undefined ? createValue : answer
+}
+
+/**
  * Builds the answers a commit payload carries for one kind of imported name
  *
  * Only a value answered differently from what the commit would do unasked is sent, so a file
@@ -32,6 +52,9 @@ export function getImportNameRowState(answer: string, matched: boolean, createVa
  * @param skipValue - The answer meaning use none
  * @param noun - What the record is called in a message, such as merchant
  * @param buildChosen - Builds the mapping that points a value at the record with the given id
+ * @param keepsCapitalCorrections - Whether a name differing from the value only in capitals is a
+ *   correction worth sending, which holds where the commit writes the value's own capitals
+ * @param maxNameLength - Most characters a name being created may have, unbounded when left out
  */
 export function buildImportNameMappings<TMatched extends { id: string }, TMapping extends { source: string }>({
   values,
@@ -42,6 +65,8 @@ export function buildImportNameMappings<TMatched extends { id: string }, TMappin
   skipValue,
   noun,
   buildChosen,
+  keepsCapitalCorrections = false,
+  maxNameLength,
 }: {
   values: string[]
   matchedByKey: Map<string, TMatched>
@@ -51,6 +76,8 @@ export function buildImportNameMappings<TMatched extends { id: string }, TMappin
   skipValue: string
   noun: string
   buildChosen: (source: string, id: string) => TMapping
+  keepsCapitalCorrections?: boolean
+  maxNameLength?: number
 }) {
   const mappings: (TMapping | { source: string; skip: true } | { source: string; create: { name: string } })[] = []
   const errors: string[] = []
@@ -59,10 +86,7 @@ export function buildImportNameMappings<TMatched extends { id: string }, TMappin
     const key = getNameKey(value)
     const matched = matchedByKey.get(key)
 
-    // A name typed for a value nothing matches answers it as created, though the user never
-    // opened its dropdown, since the row already read as being created
-    let answer = answers[value] ?? ''
-    if (!answer && !matched && createNames[value] !== undefined) answer = createValue
+    const answer = getImportNameAnswer(answers[value] ?? '', Boolean(matched), createNames[value], createValue)
     if (!answer) continue
 
     if (answer === skipValue) {
@@ -77,9 +101,17 @@ export function buildImportNameMappings<TMatched extends { id: string }, TMappin
         continue
       }
 
+      if (maxNameLength !== undefined && [...name].length > maxNameLength) {
+        errors.push(`The name for the new ${noun} "${value}" is longer than ${maxNameLength} characters.`)
+        continue
+      }
+
       // Left out where it says nothing the commit would not do anyway, which is creating a record
-      // under the value's own spelling when nothing matches it
-      if (matched || getNameKey(name) !== key) mappings.push({ source: value, create: { name } })
+      // under the value's own spelling when nothing matches it. Where the name is kept as written,
+      // as a tag's is, a name in other capitals is a correction and is sent, since the commit writes
+      // the file's own capitals
+      const isOwnSpelling = keepsCapitalCorrections ? name === value.trim() : getNameKey(name) === key
+      if (matched || !isOwnSpelling) mappings.push({ source: value, create: { name } })
       continue
     }
 

@@ -6,7 +6,12 @@ import type { AccountsOverview } from '@/api/accounts'
 import type { Category } from '@/api/categories'
 import type { Currency } from '@/api/currency'
 import type { Institution } from '@/api/institutions'
-import { CREATE_ACCOUNT_VALUE, CREATE_CATEGORY_VALUE, EMPTY_COLUMN_MAP } from '@/pages/imports/constants'
+import {
+  CREATE_ACCOUNT_VALUE,
+  CREATE_CATEGORY_VALUE,
+  EMPTY_COLUMN_MAP,
+  SKIP_TAG_VALUE,
+} from '@/pages/imports/constants'
 import type { ImportFileDraft } from '@/pages/imports/types'
 import { buildImportPreviewRows, WHOLE_FILE_DATE_RANGE } from '@/pages/imports/utils'
 
@@ -112,8 +117,15 @@ describe('import preview rows', () => {
       }
       const values = ['2024-03-15T00:30:00Z', '2024-03-16T00:30:00+09:00', '2024-03-17T23:30:00-04:00']
       const dates = ['2024-03-15', '2024-03-16', '2024-03-18']
-      const makeRows = (dates: string[]) => createFile(dates.map((Date) => ({ Date, Amount: '-12.34', Category: 'Groceries' })))
-      const rows = buildImportPreviewRows({ ...options, files: [makeRows(values)], dateFormat: 'iso', dateSeparator: '.', timeZone: 'Asia/Tokyo' })
+      const makeRows = (dates: string[]) =>
+        createFile(dates.map((Date) => ({ Date, Amount: '-12.34', Category: 'Groceries' })))
+      const rows = buildImportPreviewRows({
+        ...options,
+        files: [makeRows(values)],
+        dateFormat: 'iso',
+        dateSeparator: '.',
+        timeZone: 'Asia/Tokyo',
+      })
       const plainRows = buildImportPreviewRows({ ...options, files: [makeRows(dates)], dateFormat: 'yearFirst' })
       expect(rows).toEqual(plainRows)
       expect(rows.map((row) => row.transaction.dt)).toEqual(dates)
@@ -123,38 +135,44 @@ describe('import preview rows', () => {
     }
   })
   it('returns no preview rows until required columns are mapped', () => {
-    expect(buildImportPreviewRows({
-      files: [createFile([])],
-      columnMap: EMPTY_COLUMN_MAP,
-      dateFormat: null,
-      dateRange: WHOLE_FILE_DATE_RANGE,
-      directionAnswers: {},
-      missingRequiredColumnLabels: ['Date'],
-      currencies,
-      accountById: new Map(),
-      accountCreateCurrencies: {},
-      accountCreateInstitutions: {},
-      categoryById: new Map(),
-      categoryCreateKinds: {},
-      categoryTypesBySource: {},
-      institutionById: new Map(),
-      resolvedAccountMappings: {},
-      resolvedCategoryMappings: {},
-      rowProblems: [],
-    })).toEqual([])
+    expect(
+      buildImportPreviewRows({
+        files: [createFile([])],
+        columnMap: EMPTY_COLUMN_MAP,
+        dateFormat: null,
+        dateRange: WHOLE_FILE_DATE_RANGE,
+        directionAnswers: {},
+        missingRequiredColumnLabels: ['Date'],
+        currencies,
+        accountById: new Map(),
+        accountCreateCurrencies: {},
+        accountCreateInstitutions: {},
+        categoryById: new Map(),
+        categoryCreateKinds: {},
+        categoryTypesBySource: {},
+        institutionById: new Map(),
+        resolvedAccountMappings: {},
+        resolvedCategoryMappings: {},
+        rowProblems: [],
+      }),
+    ).toEqual([])
   })
 
   it('builds create-account preview rows with created categories, tags, and minor-unit amounts', () => {
     const rows = buildImportPreviewRows({
-      files: [createFile([{
-        Date: '06/11/2026',
-        Amount: '-12.34',
-        Category: 'Groceries',
-        Merchant: 'Market',
-        Notes: 'Weekly shop',
-        Tags: 'food, essentials',
-        Currency: '',
-      }])],
+      files: [
+        createFile([
+          {
+            Date: '06/11/2026',
+            Amount: '-12.34',
+            Category: 'Groceries',
+            Merchant: 'Market',
+            Notes: 'Weekly shop',
+            Tags: 'food, essentials',
+            Currency: '',
+          },
+        ]),
+      ],
       columnMap: {
         ...EMPTY_COLUMN_MAP,
         dt: 'Date',
@@ -203,10 +221,7 @@ describe('import preview rows', () => {
         merchant_name: 'Market',
         notes: 'Weekly shop',
         tag_ids: ['import-preview-file-1-0-tag-0-food', 'import-preview-file-1-0-tag-1-essentials'],
-        tags: [
-          { name: 'food' },
-          { name: 'essentials' },
-        ],
+        tags: [{ name: 'food' }, { name: 'essentials' }],
       },
     })
   })
@@ -217,16 +232,23 @@ describe('import preview rows', () => {
     const category = createCategory()
     const account = createAccount()
     const rows = buildImportPreviewRows({
-      files: [createFile([{
-        Date: '2026-06-11',
-        Amount: '84.20',
-        Category: 'Groceries',
-        Merchant: '',
-        Notes: '',
-        Tags: '',
-        Currency: '',
-        Type: 'DEBIT',
-      }], ['Date', 'Amount', 'Category', 'Merchant', 'Notes', 'Tags', 'Currency', 'Type'])],
+      files: [
+        createFile(
+          [
+            {
+              Date: '2026-06-11',
+              Amount: '84.20',
+              Category: 'Groceries',
+              Merchant: '',
+              Notes: '',
+              Tags: '',
+              Currency: '',
+              Type: 'DEBIT',
+            },
+          ],
+          ['Date', 'Amount', 'Category', 'Merchant', 'Notes', 'Tags', 'Currency', 'Type'],
+        ),
+      ],
       columnMap: {
         ...EMPTY_COLUMN_MAP,
         dt: 'Date',
@@ -259,15 +281,19 @@ describe('import preview rows', () => {
     const category = createCategory()
     const account = createAccount()
     const rows = buildImportPreviewRows({
-      files: [createFile([{
-        Date: '31.08.2026',
-        Amount: '-CHF100,99',
-        Category: 'Groceries',
-        Merchant: '',
-        Notes: '',
-        Tags: '',
-        Currency: '',
-      }])],
+      files: [
+        createFile([
+          {
+            Date: '31.08.2026',
+            Amount: '-CHF100,99',
+            Category: 'Groceries',
+            Merchant: '',
+            Notes: '',
+            Tags: '',
+            Currency: '',
+          },
+        ]),
+      ],
       columnMap: { ...EMPTY_COLUMN_MAP, dt: 'Date', amount: 'Amount', category_id: 'Category' },
       dateFormat: 'dayFirst',
       dateSeparator: '.',
@@ -295,15 +321,17 @@ describe('import preview rows', () => {
 
   it('caps preview rows to the first five mapped transactions', () => {
     const category = createCategory()
-    const file = createFile(Array.from({ length: 6 }, (_, index) => ({
-      Date: `2026-06-${String(index + 1).padStart(2, '0')}`,
-      Amount: '1.00',
-      Category: 'Groceries',
-      Merchant: '',
-      Notes: '',
-      Tags: '',
-      Currency: '',
-    })))
+    const file = createFile(
+      Array.from({ length: 6 }, (_, index) => ({
+        Date: `2026-06-${String(index + 1).padStart(2, '0')}`,
+        Amount: '1.00',
+        Category: 'Groceries',
+        Merchant: '',
+        Notes: '',
+        Tags: '',
+        Currency: '',
+      })),
+    )
 
     const rows = buildImportPreviewRows({
       files: [file],
@@ -340,15 +368,19 @@ describe('import preview rows', () => {
   // previewed as income while the commit refused the whole import until a direction was chosen
   it('previews no category where the source has no settled direction yet', () => {
     const rows = buildImportPreviewRows({
-      files: [createFile([{
-        Date: '2026-06-01',
-        Amount: '45.00',
-        Category: 'Groceries',
-        Merchant: '',
-        Notes: '',
-        Tags: '',
-        Currency: '',
-      }])],
+      files: [
+        createFile([
+          {
+            Date: '2026-06-01',
+            Amount: '45.00',
+            Category: 'Groceries',
+            Merchant: '',
+            Notes: '',
+            Tags: '',
+            Currency: '',
+          },
+        ]),
+      ],
       columnMap: {
         ...EMPTY_COLUMN_MAP,
         dt: 'Date',
@@ -378,15 +410,19 @@ describe('import preview rows', () => {
 
   it('takes the kind from the direction read off the source, not the row', () => {
     const rows = buildImportPreviewRows({
-      files: [createFile([{
-        Date: '2026-06-01',
-        Amount: '45.00',
-        Category: 'Groceries',
-        Merchant: '',
-        Notes: '',
-        Tags: '',
-        Currency: '',
-      }])],
+      files: [
+        createFile([
+          {
+            Date: '2026-06-01',
+            Amount: '45.00',
+            Category: 'Groceries',
+            Merchant: '',
+            Notes: '',
+            Tags: '',
+            Currency: '',
+          },
+        ]),
+      ],
       columnMap: {
         ...EMPTY_COLUMN_MAP,
         dt: 'Date',
@@ -415,15 +451,17 @@ describe('import preview rows', () => {
 
   it('leaves out a row that is listed as one to fix, and takes the next one instead', () => {
     const category = createCategory()
-    const file = createFile(Array.from({ length: 6 }, (_, index) => ({
-      Date: `2026-06-${String(index + 1).padStart(2, '0')}`,
-      Amount: '1.00',
-      Category: 'Groceries',
-      Merchant: '',
-      Notes: '',
-      Tags: '',
-      Currency: '',
-    })))
+    const file = createFile(
+      Array.from({ length: 6 }, (_, index) => ({
+        Date: `2026-06-${String(index + 1).padStart(2, '0')}`,
+        Amount: '1.00',
+        Category: 'Groceries',
+        Merchant: '',
+        Notes: '',
+        Tags: '',
+        Currency: '',
+      })),
+    )
 
     const rows = buildImportPreviewRows({
       files: [file],
@@ -447,12 +485,14 @@ describe('import preview rows', () => {
       institutionById: new Map(),
       resolvedAccountMappings: { 'file-1': 'checking' },
       resolvedCategoryMappings: { Groceries: category.id },
-      rowProblems: [{
-        id: 'file-1-0',
-        rowNumber: 1,
-        cells: file.rows[0],
-        reason: 'The amount is not a number.',
-      }],
+      rowProblems: [
+        {
+          id: 'file-1-0',
+          rowNumber: 1,
+          cells: file.rows[0],
+          reason: 'The amount is not a number.',
+        },
+      ],
     })
 
     // Still five, because the sample fills from what is left rather than leaving a gap where the
@@ -468,7 +508,11 @@ describe('previewing a new category renamed because another type holds its name'
     const transferCar = createCategory({ id: 'transfer-car', name: 'Car', kind: 'transfer' })
     const account = createAccount()
     const rows = buildImportPreviewRows({
-      files: [createFile([{ Date: '2026-06-11', Amount: '-40.00', Category: 'Car', Merchant: '', Notes: '', Tags: '', Currency: '' }])],
+      files: [
+        createFile([
+          { Date: '2026-06-11', Amount: '-40.00', Category: 'Car', Merchant: '', Notes: '', Tags: '', Currency: '' },
+        ]),
+      ],
       columnMap: { ...EMPTY_COLUMN_MAP, dt: 'Date', amount: 'Amount', category_id: 'Category' },
       dateFormat: 'yearFirst',
       dateRange: WHOLE_FILE_DATE_RANGE,
@@ -480,7 +524,9 @@ describe('previewing a new category renamed because another type holds its name'
       accountCreateInstitutions: {},
       categoryById: new Map([[transferCar.id, transferCar]]),
       categoryCreateKinds: { Car: 'expense' },
-      categoryRenames: { Car: { name: 'Car costs', sourceName: 'Car', kind: 'expense', heldBy: transferCar, isProposed: false } },
+      categoryRenames: {
+        Car: { name: 'Car costs', sourceName: 'Car', kind: 'expense', heldBy: transferCar, isProposed: false },
+      },
       categoryTypesBySource: {},
       institutionById: new Map(),
       resolvedAccountMappings: { 'file-1': account.id },
@@ -501,7 +547,11 @@ describe('previewing a new category whose name the user already has', () => {
   function previewCreated(source: string, existing: Category, rename?: string) {
     const account = createAccount()
     return buildImportPreviewRows({
-      files: [createFile([{ Date: '2026-06-11', Amount: '-40.00', Category: source, Merchant: '', Notes: '', Tags: '', Currency: '' }])],
+      files: [
+        createFile([
+          { Date: '2026-06-11', Amount: '-40.00', Category: source, Merchant: '', Notes: '', Tags: '', Currency: '' },
+        ]),
+      ],
       columnMap: { ...EMPTY_COLUMN_MAP, dt: 'Date', amount: 'Amount', category_id: 'Category' },
       dateFormat: 'yearFirst',
       dateRange: WHOLE_FILE_DATE_RANGE,
@@ -513,9 +563,10 @@ describe('previewing a new category whose name the user already has', () => {
       accountCreateInstitutions: {},
       categoryById: new Map([[existing.id, existing]]),
       categoryCreateKinds: { [source]: 'expense' },
-      categoryRenames: rename === undefined
-        ? {}
-        : { [source]: { name: rename, sourceName: source, kind: 'expense', heldBy: existing, isProposed: false } },
+      categoryRenames:
+        rename === undefined
+          ? {}
+          : { [source]: { name: rename, sourceName: source, kind: 'expense', heldBy: existing, isProposed: false } },
       categoryTypesBySource: {},
       institutionById: new Map(),
       resolvedAccountMappings: { 'file-1': account.id },
@@ -541,12 +592,76 @@ describe('previewing a new category whose name the user already has', () => {
   })
 })
 
+describe('previewing the tags the tag step answers', () => {
+  const account = createAccount()
+
+  /**
+   * Previews one row carrying the tags in its cell, with the tag step answered as given
+   */
+  function previewTags(cell: string, tagAnswers: Parameters<typeof buildImportPreviewRows>[0]['tagAnswers']) {
+    const [row] = buildImportPreviewRows({
+      files: [
+        createFile([
+          { Date: '2026-06-11', Amount: '-40.00', Category: '', Merchant: '', Notes: '', Tags: cell, Currency: '' },
+        ]),
+      ],
+      columnMap: { ...EMPTY_COLUMN_MAP, dt: 'Date', amount: 'Amount', tag_ids: 'Tags' },
+      dateFormat: 'yearFirst',
+      dateRange: WHOLE_FILE_DATE_RANGE,
+      directionAnswers: {},
+      missingRequiredColumnLabels: [],
+      currencies,
+      accountById: new Map([[account.id, account]]),
+      accountCreateCurrencies: {},
+      accountCreateInstitutions: {},
+      categoryById: new Map(),
+      categoryCreateKinds: {},
+      categoryTypesBySource: { '': 'expense' },
+      institutionById: new Map(),
+      resolvedAccountMappings: { 'file-1': account.id },
+      resolvedCategoryMappings: {},
+      rowProblems: [],
+      tagAnswers,
+    })
+
+    return row.transaction.tags.map((tag) => tag.name)
+  }
+
+  const answers = {
+    importedTags: ['Junk', 'trvl'],
+    matchedTagByKey: new Map(),
+    tagMappings: {},
+    tagCreateNames: {},
+    tagLabelById: new Map(),
+  }
+
+  it('leaves a skipped name off the previewed row', () => {
+    expect(previewTags('Junk, trvl', { ...answers, tagMappings: { Junk: SKIP_TAG_VALUE } })).toEqual(['trvl'])
+  })
+
+  it('shows a corrected name as the tag the row will carry', () => {
+    expect(previewTags('Junk, trvl', { ...answers, tagCreateNames: { trvl: 'Travel' } })).toEqual(['Junk', 'Travel'])
+  })
+
+  it('shows the tag a name was pointed at', () => {
+    const pointed = { ...answers, tagMappings: { trvl: 'food' }, tagLabelById: new Map([['food', 'Food']]) }
+
+    expect(previewTags('Junk, trvl', pointed)).toEqual(['Junk', 'Food'])
+  })
+})
+
 describe('previewing a chosen range of dates', () => {
   function previewDates(dateRange: { from: string; to: string }) {
     const account = createAccount()
-    const rows = ['2026-01-15', '2026-03-15', '2026-05-15'].map((Date) => (
-      { Date, Amount: '-40.00', Category: '', Merchant: '', Notes: '', Tags: '', Currency: '' }
-    ))
+    const rows = ['2026-01-15', '2026-03-15', '2026-05-15'].map((Date) => ({
+      Date,
+      Amount: '-40.00',
+      Category: '',
+      Merchant: '',
+      Notes: '',
+      Tags: '',
+      Currency: '',
+    }))
     return buildImportPreviewRows({
       files: [createFile(rows)],
       columnMap: { ...EMPTY_COLUMN_MAP, dt: 'Date', amount: 'Amount' },
