@@ -146,7 +146,10 @@ test('lists a row whose tag is over 64 characters as one that will not import, a
   const preview = page.locator('section').filter({ has: page.getByText('Preview and commit', { exact: true }) }).last()
   await expect(preview.getByText('1 row will not be imported', { exact: true })).toBeVisible()
   await expect(preview).toContainText(`The tag "${'x'.repeat(28)}…" is longer than 64 characters.`)
-  await expect(preview).not.toContainText('x'.repeat(29))
+
+  // The row's own cell is cut too, so the page never holds the whole name
+  await expect(preview).toContainText('x'.repeat(200) + '…')
+  await expect(preview).not.toContainText('x'.repeat(201))
 
   const response = await commitImport(page)
   expect(response.status()).toBe(201)
