@@ -20,7 +20,11 @@ export type SpendingComparisonSeriesPoint = {
   label: string
   current: number | null
   previous: number | null
+  average: number | null
 }
+
+/** Which earlier readings the second line of the spending comparison draws */
+export type SpendingComparisonBasis = 'previous' | 'average'
 
 export type RunwaySegment = {
   id: string

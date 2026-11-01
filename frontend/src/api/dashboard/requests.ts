@@ -1,5 +1,5 @@
-import { authenticatedFetch } from '@/api/client';
-import { buildQueryString } from '@/api/utils/queryString';
+import { authenticatedFetch } from '@/api/client'
+import { buildQueryString } from '@/api/utils/queryString'
 import type {
   CreditUtilizationResponse,
   CreditWidgetResponse,
@@ -9,7 +9,7 @@ import type {
   SpendingBreakdownResponse,
   SpendingComparisonResponse,
   SpendingRange,
-} from '@/api/dashboard/types';
+} from '@/api/dashboard/types'
 
 /**
  * Fetches dashboard credit utilization data
@@ -17,7 +17,7 @@ import type {
  * @param signal - Aborts the request when the load that asked for it is abandoned
  */
 export function fetchDashboardCredit(signal?: AbortSignal) {
-  return authenticatedFetch<CreditWidgetResponse>('/dashboard/credit', { signal });
+  return authenticatedFetch<CreditWidgetResponse>('/dashboard/credit', { signal })
 }
 
 /**
@@ -26,7 +26,7 @@ export function fetchDashboardCredit(signal?: AbortSignal) {
  * @param signal - Aborts the request when the load that asked for it is abandoned
  */
 export function fetchDashboardCreditUtilization(signal?: AbortSignal) {
-  return authenticatedFetch<CreditUtilizationResponse>('/dashboard/credit-utilization', { signal });
+  return authenticatedFetch<CreditUtilizationResponse>('/dashboard/credit-utilization', { signal })
 }
 
 /**
@@ -36,7 +36,7 @@ export function replaceCreditExcludedAccounts(accountIds: string[]) {
   return authenticatedFetch<CreditUtilizationResponse>('/dashboard/credit-utilization/excluded-accounts', {
     method: 'PUT',
     body: JSON.stringify({ account_ids: accountIds }),
-  });
+  })
 }
 
 /**
@@ -48,7 +48,7 @@ export function fetchDashboardNetWorth(windowDays = 90, signal?: AbortSignal) {
   return authenticatedFetch<NetWorthWidgetResponse>(
     `/dashboard/net-worth${buildQueryString({ window_days: windowDays })}`,
     { signal },
-  );
+  )
 }
 
 /**
@@ -57,7 +57,7 @@ export function fetchDashboardNetWorth(windowDays = 90, signal?: AbortSignal) {
  * @param signal - Aborts the request when the load that asked for it is abandoned
  */
 export function fetchDashboardSavingsRate(signal?: AbortSignal) {
-  return authenticatedFetch<SavingsRateWidgetResponse>('/dashboard/savings-rate', { signal });
+  return authenticatedFetch<SavingsRateWidgetResponse>('/dashboard/savings-rate', { signal })
 }
 
 /**
@@ -69,19 +69,20 @@ export function fetchDashboardRecentActivity(windowDays = 90, signal?: AbortSign
   return authenticatedFetch<RecentActivityWidgetResponse>(
     `/dashboard/recent-activity${buildQueryString({ window_days: windowDays })}`,
     { signal },
-  );
+  )
 }
 
 /**
  * Fetches cumulative spending comparison data for a calendar range
  *
+ * @param average - Also loads the earlier periods the average covers, which only the average being on needs
  * @param signal - Aborts the request when the load that asked for it is abandoned
  */
-export function fetchSpendingComparison(range: SpendingRange, signal?: AbortSignal) {
+export function fetchSpendingComparison(range: SpendingRange, average = false, signal?: AbortSignal) {
   return authenticatedFetch<SpendingComparisonResponse>(
-    `/dashboard/spending-comparison${buildQueryString({ range })}`,
+    `/dashboard/spending-comparison${buildQueryString({ range, average: average ? 'true' : undefined })}`,
     { signal },
-  );
+  )
 }
 
 /**
@@ -90,8 +91,7 @@ export function fetchSpendingComparison(range: SpendingRange, signal?: AbortSign
  * @param signal - Aborts the request when the load that asked for it is abandoned
  */
 export function fetchSpendingBreakdown(range: SpendingRange, signal?: AbortSignal) {
-  return authenticatedFetch<SpendingBreakdownResponse>(
-    `/dashboard/spending-breakdown${buildQueryString({ range })}`,
-    { signal },
-  );
+  return authenticatedFetch<SpendingBreakdownResponse>(`/dashboard/spending-breakdown${buildQueryString({ range })}`, {
+    signal,
+  })
 }

@@ -7,7 +7,7 @@ import {
 } from '@/components/charts/DeferredTooltipOverlay'
 import { getChartDataSignature, useChartEntranceAnimation } from '@/components/charts/useChartEntranceAnimation'
 import { CHART_X_AXIS_TICK_FONT_SIZE } from '@/components/charts/constants'
-import type { SpendingComparisonSeriesPoint } from '@/pages/dashboard/types/dashboard'
+import type { SpendingComparisonBasis, SpendingComparisonSeriesPoint } from '@/pages/dashboard/types/dashboard'
 import {
   getRechartsTooltipPoint,
   getRechartsTooltipPointer,
@@ -24,6 +24,7 @@ type SpendingComparisonChartProps = {
   lastXAxisTick: string | undefined
   displayCurrency: string
   spendingRange: SpendingRange
+  basis: SpendingComparisonBasis
 }
 
 type SpendingComparisonXAxisTickProps = {
@@ -76,6 +77,7 @@ export function SpendingComparisonChart({
   lastXAxisTick,
   displayCurrency,
   spendingRange,
+  basis,
 }: SpendingComparisonChartProps) {
   const chartRef = useRef<HTMLDivElement>(null)
   const tooltipRef = useRef<DeferredChartTooltipOverlayHandle<SpendingComparisonSeriesPoint>>(null)
@@ -84,8 +86,8 @@ export function SpendingComparisonChart({
   // change in either moves both. One signature and one entrance keeps them animating together
   // rather than leaving the untouched series to jump to its rescaled position
   const dataSignature = useMemo(
-    () => getChartDataSignature(data, (point) => `${point.previous}|${point.current}`),
-    [data],
+    () => getChartDataSignature(data, (point) => `${point[basis]}|${point.current}`),
+    [data, basis],
   )
   const areasEntrance = useChartEntranceAnimation({ dataSignature })
 
@@ -103,7 +105,7 @@ export function SpendingComparisonChart({
     })
     const pointer = getRechartsTooltipPointer(state, event)
 
-    if (!point || (point.current == null && point.previous == null)) {
+    if (!point || (point.current == null && point[basis] == null)) {
       tooltipRef.current?.show(null, pointer)
       return
     }
@@ -149,7 +151,7 @@ export function SpendingComparisonChart({
           <Area
             xAxisId="plot"
             type="monotone"
-            dataKey="previous"
+            dataKey={basis}
             stroke="var(--app-text-muted)"
             strokeWidth={1.5}
             strokeDasharray="4 3"
@@ -179,6 +181,7 @@ export function SpendingComparisonChart({
             point={point}
             displayCurrency={displayCurrency}
             spendingRange={spendingRange}
+            basis={basis}
           />
         )}
       />

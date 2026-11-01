@@ -11,7 +11,7 @@ type SpendingComparisonMetricProps = {
 }
 
 /**
- * Renders the current spending total and its previous-period percentage delta
+ * Renders the current spending total and its percentage delta against the comparison baseline, the previous period or the average
  */
 export function SpendingComparisonMetric({
   spentToDate,

@@ -11,7 +11,7 @@ export type {
   SpendingBreakdownResponse,
   SpendingComparisonResponse,
   SpendingRange,
-} from '@/api/dashboard/types';
+} from '@/api/dashboard/types'
 
 export {
   fetchDashboardCredit,
@@ -22,7 +22,7 @@ export {
   fetchSpendingBreakdown,
   fetchSpendingComparison,
   replaceCreditExcludedAccounts,
-} from '@/api/dashboard/requests';
+} from '@/api/dashboard/requests'
 
 export {
   useDashboardCredit,
@@ -33,4 +33,5 @@ export {
   useReplaceCreditExcludedAccounts,
   useSpendingBreakdown,
   useSpendingComparison,
-} from '@/api/dashboard/hooks';
+  useSpendingComparisonAverage,
+} from '@/api/dashboard/hooks'

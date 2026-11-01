@@ -1,22 +1,28 @@
 import type { SpendingRange } from '@/api/dashboard'
 import { ChartTooltipRow, ChartTooltipTitle } from '@/components/charts/TooltipContent'
-import { CURRENT_LABEL_BY_RANGE, PREVIOUS_LABEL_BY_RANGE } from '@/pages/dashboard/constants/ranges'
-import type { SpendingComparisonSeriesPoint } from '@/pages/dashboard/types/dashboard'
+import {
+  AVERAGE_LABEL_BY_RANGE,
+  CURRENT_LABEL_BY_RANGE,
+  PREVIOUS_LABEL_BY_RANGE,
+} from '@/pages/dashboard/constants/ranges'
+import type { SpendingComparisonBasis, SpendingComparisonSeriesPoint } from '@/pages/dashboard/types/dashboard'
 import { useMoneyFormatters } from '@/hooks/useMoneyFormatters'
 
 type SpendingComparisonTooltipContentProps = {
   point: SpendingComparisonSeriesPoint
   displayCurrency: string
   spendingRange: SpendingRange
+  basis: SpendingComparisonBasis
 }
 
 /**
- * Renders only populated current and previous rows for a spending comparison chart point
+ * Renders only populated current and comparison rows for a spending comparison chart point
  */
 export function SpendingComparisonTooltipContent({
   point,
   displayCurrency,
   spendingRange,
+  basis,
 }: SpendingComparisonTooltipContentProps) {
   const { formatCurrency } = useMoneyFormatters()
   const rows = [
@@ -26,9 +32,9 @@ export function SpendingComparisonTooltipContent({
       value: point.current,
     },
     {
-      key: 'previous',
-      label: PREVIOUS_LABEL_BY_RANGE[spendingRange],
-      value: point.previous,
+      key: basis,
+      label: (basis === 'average' ? AVERAGE_LABEL_BY_RANGE : PREVIOUS_LABEL_BY_RANGE)[spendingRange],
+      value: point[basis],
     },
   ].filter((row) => row.value != null)
 

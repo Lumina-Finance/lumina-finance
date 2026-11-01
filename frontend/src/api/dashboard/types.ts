@@ -78,5 +78,15 @@ export interface SpendingComparisonResponse {
   // Cumulative positive minor-unit totals aligned by index with slot labels
   current: number[]
   previous: number[]
+  // How many completed earlier periods the average may draw on: the latest 12 weeks, 12 months, 4 quarters
+  // or 3 years, fewer when the history is shorter. Always sent, and includes periods without spending
+  average_periods: number
+  // Per slot, the sum of the cumulative totals of those periods that have the slot and some spending, and
+  // how many periods that is, in minor units. A period without spending is in neither. Sent only when asked
+  // for, and empty when no period has spending
+  average_sums: number[]
+  average_counts: number[]
   fx_status: FxStatus
+  // The conversions of the average's periods alone, so a missing old rate flags only the average
+  average_fx_status: FxStatus
 }
