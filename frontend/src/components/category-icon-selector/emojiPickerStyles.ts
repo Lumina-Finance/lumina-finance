@@ -154,7 +154,7 @@ export const EMOJI_PICKER_STYLES = `
   @media (prefers-reduced-motion: reduce) {
     .category button .background,
     .search .delete {
-      transition-duration: 0s;
+      transition: none;
     }
   }
 `
