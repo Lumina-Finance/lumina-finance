@@ -12,7 +12,7 @@ import pytest
 from sqlalchemy import Enum as SqlaEnum
 from sqlalchemy import text
 from sqlalchemy.exc import IntegrityError
-from sqlalchemy.ext.asyncio import AsyncConnection, create_async_engine
+from sqlalchemy.ext.asyncio import AsyncConnection, AsyncEngine, create_async_engine
 from sqlalchemy.pool import NullPool
 
 from app.bank_transaction_key import key_fingerprint, resolve_key
@@ -68,6 +68,7 @@ _OFX_RUN_ID = "99999999-9999-4999-8999-999999999999"
 _ALEMBIC_QIF_SOURCE_DB_NAME = f"{WORKER_DB_NAME}_alembic_qif_source"
 _BEFORE_QIF_SOURCE_REVISION = "b5e1d7a3c902"
 _QIF_SOURCE_REVISION = "e3b7d9a1c5f2"
+_ALEMBIC_QIF_REMEMBERED_SOURCE_DB_NAME = f"{WORKER_DB_NAME}_alembic_qif_remembered"
 _QIF_RUN_ID = "55555555-5555-4555-8555-555555555555"
 _QIF_ACCOUNT_ID = "66666666-6666-4666-8666-666666666666"
 _QIF_CATEGORY_ID = "33333333-3333-4333-8333-333333333333"
@@ -309,6 +310,40 @@ async def test_qif_import_source_migration_drops_qif_traces_on_downgrade_and_kee
         async with engine.begin() as conn:
             with pytest.raises(IntegrityError):
                 await _insert_import_run(conn, _QIF_RUN_ID, "qif")
+    finally:
+        await engine.dispose()
+        await _drop_database(database_name)
+
+
+async def test_qif_import_source_migration_makes_the_remembered_source_check_refuse_qif_when_narrowed() -> None:
+    """Verify an account's remembered source check refuses QIF before the revision and after a downgrade, and takes it once re-upgraded"""
+    database_name = _ALEMBIC_QIF_REMEMBERED_SOURCE_DB_NAME
+    await _recreate_database(database_name)
+    engine = _create_engine_for_database(database_name)
+    try:
+        _run_alembic_upgrade(database_name, revision=_BEFORE_QIF_SOURCE_REVISION)
+        async with engine.begin() as conn:
+            await _insert_qif_migration_owner(conn)
+            await _insert_import_run(conn, _CSV_RUN_ID, "generic")
+        await _assert_remembered_source_refused(engine, "qif")
+
+        for _ in range(2):
+            _run_alembic_upgrade(database_name, revision=_QIF_SOURCE_REVISION)
+            async with engine.begin() as conn:
+                await _insert_remembered_source(conn, "qif")
+            async with engine.connect() as conn:
+                assert await _read_remembered_sources(conn) == ["qif"]
+
+            _run_alembic_downgrade(database_name, _BEFORE_QIF_SOURCE_REVISION)
+            async with engine.connect() as conn:
+                assert await _read_remembered_sources(conn) == []
+            await _assert_remembered_source_refused(engine, "qif")
+
+        # The sources the check still names are taken before and after, so only QIF is what it refuses
+        async with engine.begin() as conn:
+            await _insert_remembered_source(conn, "ofx")
+        async with engine.connect() as conn:
+            assert await _read_remembered_sources(conn) == ["ofx"]
     finally:
         await engine.dispose()
         await _drop_database(database_name)
@@ -621,6 +656,29 @@ async def _insert_qif_migration_owner(conn: AsyncConnection) -> None:
         text("INSERT INTO categories (id, name, kind, is_system) VALUES (:id, 'QIF category', 'EXPENSE', true)"),
         {"id": UUID(_QIF_CATEGORY_ID)},
     )
+
+
+async def _insert_remembered_source(conn: AsyncConnection, source: str) -> None:
+    """Remember the given importer as the source of the fixture account's last import"""
+    await conn.execute(
+        text(
+            "INSERT INTO account_import_sources (id, account_id, source, import_run_id)"
+            " VALUES (gen_random_uuid(), :account_id, :source, :run_id)",
+        ),
+        {"account_id": UUID(_QIF_ACCOUNT_ID), "source": source, "run_id": UUID(_CSV_RUN_ID)},
+    )
+
+
+async def _assert_remembered_source_refused(engine: AsyncEngine, source: str) -> None:
+    """Assert the check on an account's remembered source refuses the given importer"""
+    async with engine.begin() as conn:
+        with pytest.raises(IntegrityError, match="ck_account_import_sources_source"):
+            await _insert_remembered_source(conn, source)
+
+
+async def _read_remembered_sources(conn: AsyncConnection) -> list[str]:
+    """Read the source every account remembers"""
+    return list((await conn.execute(text("SELECT source FROM account_import_sources ORDER BY source"))).scalars())
 
 
 async def _read_import_run_sources(conn: AsyncConnection) -> dict[str, str]:
