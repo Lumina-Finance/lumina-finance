@@ -7,6 +7,7 @@ import {
   type FocusEvent,
   type MouseEvent,
   type ReactNode,
+  type RefObject,
 } from 'react'
 import { useReducedMotion } from 'motion/react'
 import CursorTooltipPortal from '@/components/charts/CursorTooltipPortal'
@@ -55,7 +56,11 @@ function getReasonKey(reason: string) {
  * away. A scroll puts it away too, except that a focused control in view keeps it, moved along with the control. A control with no reason is left as it is, so a control held off only while its
  * own request runs keeps the native `disabled` and shows nothing
  */
-export function useDisabledReason(reason: string | null | undefined, shownById?: string) {
+export function useDisabledReason(
+  reason: string | null | undefined,
+  shownById?: string,
+  keepClearOf?: RefObject<HTMLElement | null>,
+) {
   const activeReason = reason || null
   const ownDescriptionId = useId()
   // A reason already printed on the page is described by that line, not read a second time
@@ -66,10 +71,23 @@ export function useDisabledReason(reason: string | null | undefined, shownById?:
   // Whether the reason was last placed from the control's edge, as for keyboard focus or a tap, in place of
   // from a pointer over it. Only then is it drawn clear of the control's own box, beside it
   const placedBesideRef = useRef(false)
-  const getKeepClear = useCallback(
-    () => (placedBesideRef.current ? originRef.current?.getBoundingClientRect() : undefined),
-    [],
-  )
+  // Another box the reason must not cover, such as a line printed above the control. The reason then
+  // hangs clear of the control and that box together, whether it was placed from the pointer or from
+  // the control's edge. The box widens the control's only upward or downward, so the reason stays
+  // level with the control
+  const keepClearOfRef = useRef(keepClearOf)
+  useEffect(() => {
+    keepClearOfRef.current = keepClearOf
+  }, [keepClearOf])
+  const getKeepClear = useCallback(() => {
+    const control = originRef.current?.getBoundingClientRect()
+    const other = keepClearOfRef.current?.current?.getBoundingClientRect()
+    if (control && other) {
+      const top = Math.min(control.top, other.top)
+      return new DOMRect(control.left, top, control.width, Math.max(control.bottom, other.bottom) - top)
+    }
+    return placedBesideRef.current ? control : undefined
+  }, [])
   const {
     tooltipRef,
     tooltipItem,

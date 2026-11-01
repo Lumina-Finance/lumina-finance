@@ -83,8 +83,8 @@ export const insightsKeys = {
   savingsRateTrendAll: ['insights-savings-rate-trend'] as const,
   savingsRateTrend: () => ['insights-savings-rate-trend'] as const,
   merchantsAll: ['insights-merchants'] as const,
-  merchants: (fromDate: string, toDate: string, comparisonPeriod = 'same_length') =>
-    ['insights-merchants', fromDate, toDate, comparisonPeriod] as const,
+  merchants: (fromDate: string, toDate: string, comparisonPeriod = 'same_length', categoryIds: string[] = []) =>
+    ['insights-merchants', fromDate, toDate, comparisonPeriod, categoryIds] as const,
   savedRanges: () => ['insights-saved-ranges'] as const,
 }
 

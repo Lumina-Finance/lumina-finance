@@ -293,6 +293,7 @@ async def get_merchants_route(
     from_date: Annotated[date, Query()],
     to_date: Annotated[date, Query()],
     comparison_period: Annotated[InsightsComparisonPeriod, Query()] = "same_length",
+    category_id: Annotated[list[uuid.UUID] | None, Query()] = None,
 ):
     """Return shared merchant insight rows for the requested date range
 
@@ -302,6 +303,7 @@ async def get_merchants_route(
         from_date: Inclusive insight start date
         to_date: Inclusive insight end date
         comparison_period: Prior-period comparison mode
+        category_id: Optional categories to keep in the distribution and ranking rows
 
     Returns:
         Shared merchant insight response for the requested date range
@@ -310,7 +312,7 @@ async def get_merchants_route(
         HTTPException: Raised with 422 when ``from_date`` is after ``to_date``
     """
     _validate_date_range(from_date, to_date)
-    return await get_merchants(db, user, from_date, to_date, comparison_period)
+    return await get_merchants(db, user, from_date, to_date, comparison_period, category_id)
 
 
 @router.get("/saved-ranges", response_model=list[SavedInsightsRangeResponse])
@@ -329,9 +331,7 @@ async def list_saved_ranges_route(
     """
     # Read the caller's saved ranges, newest first so the latest save surfaces at the top
     result = await db.execute(
-        select(SavedInsightsRange)
-        .where(SavedInsightsRange.user_id == user.id)
-        .order_by(SavedInsightsRange.created_at.desc())
+        select(SavedInsightsRange).where(SavedInsightsRange.user_id == user.id).order_by(SavedInsightsRange.created_at.desc())
     )
     return result.scalars().all()
 

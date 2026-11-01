@@ -1,4 +1,4 @@
-import { forwardRef, type ButtonHTMLAttributes } from 'react'
+import { forwardRef, type ButtonHTMLAttributes, type RefObject } from 'react'
 import { useDisabledReason } from '@/hooks/useDisabledReason'
 import { getDisabledReasonProps } from '@/utils/disabledReasonControl'
 
@@ -12,6 +12,9 @@ type DisabledReasonButtonProps = ButtonHTMLAttributes<HTMLButtonElement> & {
 
   /** The id of an element on the page that already prints the reason, which then describes the button */
   reasonShownById?: string
+
+  /** Another element beside the button, such as a line printed above it, that the reason never covers */
+  keepReasonClearOf?: RefObject<HTMLElement | null>
 }
 
 /**
@@ -21,22 +24,26 @@ type DisabledReasonButtonProps = ButtonHTMLAttributes<HTMLButtonElement> & {
  * the mouse, the keyboard, a touch and a screen reader. Its action never runs while the reason holds
  */
 export const DisabledReasonButton = forwardRef<HTMLButtonElement, DisabledReasonButtonProps>(
-  function DisabledReasonButton({
-    disabledReason,
-    reasonShownById,
-    disabled,
-    onClick,
-    onMouseEnter,
-    onMouseMove,
-    onMouseLeave,
-    onFocus,
-    onBlur,
-    onKeyDown,
-    'aria-describedby': describedBy,
-    type = 'button',
-    ...rest
-  }, ref) {
-    const reason = useDisabledReason(disabledReason, reasonShownById)
+  function DisabledReasonButton(
+    {
+      disabledReason,
+      reasonShownById,
+      keepReasonClearOf,
+      disabled,
+      onClick,
+      onMouseEnter,
+      onMouseMove,
+      onMouseLeave,
+      onFocus,
+      onBlur,
+      onKeyDown,
+      'aria-describedby': describedBy,
+      type = 'button',
+      ...rest
+    },
+    ref,
+  ) {
+    const reason = useDisabledReason(disabledReason, reasonShownById, keepReasonClearOf)
     const reasonProps = getDisabledReasonProps<HTMLButtonElement>(reason, {
       'aria-describedby': describedBy,
       onClick,

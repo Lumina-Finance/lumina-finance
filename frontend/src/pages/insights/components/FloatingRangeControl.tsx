@@ -394,7 +394,7 @@ export function InsightsFloatingRangeControl(props: InsightsFloatingRangeControl
           bottom-floating mobile control is portaled to the body to stay pinned to the viewport */}
       {createPortal(
         <div
-          className="pointer-events-none fixed inset-x-4 bottom-1.5 z-page-overlay min-[1050px]:hidden"
+          className="app-floating-range pointer-events-none fixed inset-x-4 bottom-1.5 z-page-overlay min-[1050px]:hidden"
           style={keyboardLift > 0 ? { transform: `translateY(-${keyboardLift}px)` } : undefined}
           onFocusCapture={(event) => setIsEditingField(event.target instanceof HTMLInputElement)}
           onBlurCapture={(event) => {
@@ -414,7 +414,7 @@ export function InsightsFloatingRangeControl(props: InsightsFloatingRangeControl
           The sticky control never moves on screen, so the browser would pick it as the element that
           holds the reading position, and a card above the reader changing height would then push
           everything below it up or down. Opting out leaves a card to hold it */}
-      <div className="pointer-events-none absolute inset-x-0 bottom-0 top-0 z-40 hidden pt-[3.8rem] [overflow-anchor:none] min-[1050px]:block">
+      <div className="app-floating-range pointer-events-none absolute inset-x-0 bottom-0 top-0 z-40 hidden pt-[3.8rem] [overflow-anchor:none] min-[1050px]:block">
         <div className="sticky top-6 flex justify-end">
           <div className="pointer-events-auto w-[24rem]">
             <GlassRangeSelector {...props} fullWidth={false} growUp={false} />

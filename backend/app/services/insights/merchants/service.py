@@ -1,5 +1,6 @@
 """Shared merchant spending service for the insights page"""
 
+import uuid
 from datetime import date
 
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -24,6 +25,7 @@ async def get_merchants(
     from_date: date,
     to_date: date,
     comparison_period: InsightsComparisonPeriod = "same_length",
+    category_ids: list[uuid.UUID] | None = None,
 ) -> InsightsMerchantsResponse:
     """Return shared merchant spend data for the insights merchant cards
 
@@ -33,6 +35,7 @@ async def get_merchants(
         from_date: Inclusive selected period start date
         to_date: Inclusive selected period end date
         comparison_period: Comparison period used for movement values
+        category_ids: Categories to keep in both periods, or None to keep every expense category
 
     Returns:
         Shared merchant response payload
@@ -54,6 +57,7 @@ async def get_merchants(
         user.base_currency,
         from_date,
         min(to_date, today),
+        category_ids,
     )
 
     # Query comparison-period merchant spend for movement values
@@ -63,6 +67,7 @@ async def get_merchants(
         user.base_currency,
         previous_from_date,
         min(previous_to_date, today),
+        category_ids,
     )
 
     response = build_merchants_response(

@@ -1,4 +1,4 @@
-import { useEffect, useId, useSyncExternalStore, type ReactNode } from 'react'
+import { useEffect, useId, useSyncExternalStore, type ReactNode, type RefObject } from 'react'
 import { createPortal } from 'react-dom'
 import { AnimatePresence, motion, useReducedMotion } from 'motion/react'
 import { X } from 'lucide-react'
@@ -20,9 +20,23 @@ type MobileFilterSheetProps = {
   clearAll: () => void
   applyFilters: () => void
 
+  // Wording for a sheet that holds one filter. Other sheets keep the plural
+  title?: string
+  applyLabel?: string
+
   // Greys out Apply, with this as its reason, while the body holds an entry the draft will refuse, so
   // the button never looks live for a commit that cannot happen
   applyDisabledReason?: string
+
+  // Why Clear all is greyed out, for a sheet that holds one filter. Other sheets keep the plural
+  clearDisabledReason?: string
+
+  // A line in the body above the footer that the Clear all reason hangs clear of
+  clearReasonKeepClearOf?: RefObject<HTMLElement | null>
+
+  // Gives the two footer buttons half of the footer's width each, as a phone modal's footer does, for a sheet
+  // that holds one filter. Other sheets keep buttons that fit their labels
+  equalFooterButtons?: boolean
 
   // Opens above a dialog that opened it, such as the picker for linking a transaction, since a dialog reached from
   // another sits above the sheet's own level
@@ -45,7 +59,12 @@ export function MobileFilterSheet({
   activeFacetCount,
   clearAll,
   applyFilters,
+  title = 'Filters',
+  applyLabel = 'Apply filters',
   applyDisabledReason,
+  clearDisabledReason = CLEAR_FILTERS_DISABLED_REASON,
+  clearReasonKeepClearOf,
+  equalFooterButtons = false,
   aboveDialog = false,
   children,
 }: MobileFilterSheetProps) {
@@ -104,17 +123,17 @@ export function MobileFilterSheet({
           >
             <div>
               <h2 id={headingId} className="text-base font-semibold">
-                Filters
+                {title}
               </h2>
               <p className="text-sm" style={{ color: 'var(--app-text-muted)' }}>
-                {activeFacetCount === 0 ? 'No active filters' : `${activeFacetCount} active`}
+                {activeFacetCount === 0 ? `No active ${title.toLowerCase()}` : `${activeFacetCount} active`}
               </p>
             </div>
             <button
               type="button"
               className="app-secondary-button h-10 w-10 rounded-full px-0"
               onClick={onClose}
-              aria-label="Close filters"
+              aria-label={`Close ${title.toLowerCase()}`}
             >
               <X size={18} aria-hidden />
             </button>
@@ -125,22 +144,23 @@ export function MobileFilterSheet({
           </div>
 
           <div
-            className="flex items-center justify-between gap-3 border-t px-5 py-4"
+            className={`${equalFooterButtons ? 'grid grid-cols-2' : 'flex items-center justify-between'} gap-3 border-t px-5 py-4`}
             style={{ borderColor: 'var(--app-border)' }}
           >
             <DisabledReasonButton
-              className="app-secondary-button"
-              disabledReason={activeFacetCount === 0 ? CLEAR_FILTERS_DISABLED_REASON : undefined}
+              className={`app-secondary-button${equalFooterButtons ? ' w-full' : ''}`}
+              disabledReason={activeFacetCount === 0 ? clearDisabledReason : undefined}
+              keepReasonClearOf={clearReasonKeepClearOf}
               onClick={clearAll}
             >
               Clear all
             </DisabledReasonButton>
             <DisabledReasonButton
-              className="app-glass-button-primary"
+              className={`app-glass-button-primary${equalFooterButtons ? ' w-full' : ''}`}
               disabledReason={applyDisabledReason}
               onClick={applyFilters}
             >
-              Apply filters
+              {applyLabel}
             </DisabledReasonButton>
           </div>
         </motion.div>

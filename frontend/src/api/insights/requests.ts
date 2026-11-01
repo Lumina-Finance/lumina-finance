@@ -1,5 +1,5 @@
-import { authenticatedFetch } from '@/api/client';
-import { buildQueryString } from '@/api/utils/queryString';
+import { authenticatedFetch } from '@/api/client'
+import { buildQueryString } from '@/api/utils/queryString'
 import type {
   InsightsCashFlowResponse,
   InsightsComparisonPeriod,
@@ -11,21 +11,17 @@ import type {
   InsightsSavingsRateTrendResponse,
   SaveInsightsRangePayload,
   SavedInsightsRange,
-} from '@/api/insights/types';
+} from '@/api/insights/types'
 
 /**
  * Builds the backend range query shared by dated insights widgets
  */
-function buildInsightsRangeQueryString(
-  fromDate: string,
-  toDate: string,
-  comparisonPeriod?: InsightsComparisonPeriod,
-) {
+function buildInsightsRangeQueryString(fromDate: string, toDate: string, comparisonPeriod?: InsightsComparisonPeriod) {
   return buildQueryString({
     from_date: fromDate,
     to_date: toDate,
     comparison_period: comparisonPeriod,
-  });
+  })
 }
 
 /**
@@ -42,7 +38,7 @@ export function fetchInsightsPeriodGlance(
   return authenticatedFetch<InsightsPeriodGlanceResponse>(
     `/insights/period-glance${buildInsightsRangeQueryString(fromDate, toDate, comparisonPeriod)}`,
     { signal },
-  );
+  )
 }
 
 /**
@@ -54,7 +50,7 @@ export function fetchInsightsNetWorth(fromDate: string, toDate: string, signal?:
   return authenticatedFetch<InsightsNetWorthResponse>(
     `/insights/net-worth${buildInsightsRangeQueryString(fromDate, toDate)}`,
     { signal },
-  );
+  )
 }
 
 /**
@@ -63,7 +59,7 @@ export function fetchInsightsNetWorth(fromDate: string, toDate: string, signal?:
  * @param signal - Aborts the request when the load that asked for it is abandoned
  */
 export function fetchInsightsSavingsRateTrend(signal?: AbortSignal) {
-  return authenticatedFetch<InsightsSavingsRateTrendResponse>('/insights/savings-rate-trend', { signal });
+  return authenticatedFetch<InsightsSavingsRateTrendResponse>('/insights/savings-rate-trend', { signal })
 }
 
 /**
@@ -78,13 +74,9 @@ export function fetchInsightsIncomeExpenseBreakdown(
   signal?: AbortSignal,
 ) {
   return authenticatedFetch<InsightsIncomeExpenseBreakdownResponse>(
-    `/insights/income-expense-breakdown${buildInsightsRangeQueryString(
-      fromDate,
-      toDate,
-      comparisonPeriod,
-    )}`,
+    `/insights/income-expense-breakdown${buildInsightsRangeQueryString(fromDate, toDate, comparisonPeriod)}`,
     { signal },
-  );
+  )
 }
 
 /**
@@ -96,7 +88,7 @@ export function fetchInsightsCashFlow(fromDate: string, toDate: string, signal?:
   return authenticatedFetch<InsightsCashFlowResponse>(
     `/insights/cash-flow${buildInsightsRangeQueryString(fromDate, toDate)}`,
     { signal },
-  );
+  )
 }
 
 /**
@@ -108,24 +100,29 @@ export function fetchInsightsFundFlow(fromDate: string, toDate: string, signal?:
   return authenticatedFetch<InsightsFundFlowResponse>(
     `/insights/fund-flow${buildInsightsRangeQueryString(fromDate, toDate)}`,
     { signal },
-  );
+  )
 }
 
 /**
  * Fetches merchant distribution and ranking data for an insights date range
  *
+ * @param categoryIds - Categories to keep in both lists, or none to keep every expense category
  * @param signal - Aborts the request when the load that asked for it is abandoned
  */
 export function fetchInsightsMerchants(
   fromDate: string,
   toDate: string,
   comparisonPeriod: InsightsComparisonPeriod = 'same_length',
+  categoryIds: string[] = [],
   signal?: AbortSignal,
 ) {
-  return authenticatedFetch<InsightsMerchantsResponse>(
-    `/insights/merchants${buildInsightsRangeQueryString(fromDate, toDate, comparisonPeriod)}`,
-    { signal },
-  );
+  const query = buildQueryString({
+    from_date: fromDate,
+    to_date: toDate,
+    comparison_period: comparisonPeriod,
+    category_id: categoryIds,
+  })
+  return authenticatedFetch<InsightsMerchantsResponse>(`/insights/merchants${query}`, { signal })
 }
 
 /**
@@ -134,7 +131,7 @@ export function fetchInsightsMerchants(
  * @param signal - Aborts the request when the load that asked for it is abandoned
  */
 export function fetchSavedInsightsRanges(signal?: AbortSignal) {
-  return authenticatedFetch<SavedInsightsRange[]>('/insights/saved-ranges', { signal });
+  return authenticatedFetch<SavedInsightsRange[]>('/insights/saved-ranges', { signal })
 }
 
 /**
@@ -144,7 +141,7 @@ export function createSavedInsightsRange(payload: SaveInsightsRangePayload) {
   return authenticatedFetch<SavedInsightsRange>('/insights/saved-ranges', {
     method: 'POST',
     body: JSON.stringify(payload),
-  });
+  })
 }
 
 /**
@@ -153,5 +150,5 @@ export function createSavedInsightsRange(payload: SaveInsightsRangePayload) {
 export function deleteSavedInsightsRange(rangeId: string) {
   return authenticatedFetch<void>(`/insights/saved-ranges/${rangeId}`, {
     method: 'DELETE',
-  });
+  })
 }
