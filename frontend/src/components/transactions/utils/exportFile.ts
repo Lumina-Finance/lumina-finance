@@ -70,10 +70,16 @@ export const EXPORT_FAILED_MESSAGE = 'Oops, something went wrong and nothing was
 /**
  * Says in words why the export failed, always making clear that nothing was saved
  *
- * A refusal the server explained, such as an expired session, keeps its own wording. A server fault or
- * a lost connection carries no explanation worth showing
+ * A refusal the server explained, such as an expired session or a ticked row deleted elsewhere, gives its
+ * reason after saying nothing was downloaded. A server fault or a lost connection carries no explanation
+ * worth showing
  */
 export function getExportFailureMessage(error: unknown): string {
-  if (error instanceof ApiError && error.status < 500 && error.message) return error.message
+  if (error instanceof ApiError && error.status < 500 && error.message) {
+    const reason = /^[A-Z][a-z]/.test(error.message)
+      ? error.message.charAt(0).toLowerCase() + error.message.slice(1)
+      : error.message
+    return `Nothing was downloaded: ${reason}`
+  }
   return EXPORT_FAILED_MESSAGE
 }

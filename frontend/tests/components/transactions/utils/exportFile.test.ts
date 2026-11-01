@@ -73,8 +73,16 @@ describe('getExportFailureMessage', () => {
     expect(getExportFailureMessage(new TypeError('Failed to fetch'))).toBe(EXPORT_FAILED_MESSAGE)
   })
 
-  it('keeps the wording of a refusal the server explained', () => {
-    expect(getExportFailureMessage(new ApiError('Session expired', 401))).toBe('Session expired')
+  it('gives the reason of a refusal the server explained after saying nothing was downloaded', () => {
+    expect(getExportFailureMessage(new ApiError('Session expired', 401))).toBe(
+      'Nothing was downloaded: session expired',
+    )
+  })
+
+  it('says nothing was downloaded when a ticked row was deleted elsewhere', () => {
+    expect(getExportFailureMessage(new ApiError('1 of 3 transactions were not found', 404))).toBe(
+      'Nothing was downloaded: 1 of 3 transactions were not found',
+    )
   })
 })
 
