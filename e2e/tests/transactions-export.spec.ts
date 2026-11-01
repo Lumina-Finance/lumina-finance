@@ -5,11 +5,14 @@ import { createAccount, createTransaction, daysFromTodayInTestTimezone, signUpUs
 import { logInViaApi, openPage } from '../support/app'
 import { AT_EVERY_SIZE } from '../support/sizes'
 
-// Runs on desktop and at every size where the dialogue's buttons and confirmation are reached by tap.
-// The tests that pick filters in the panel run on desktop only, since a phone reaches the same panel
-// through its full-screen sheet
+// Runs at every size where the button's name, its confirmation or the selection row it joins lay out
+// differently on a phone. The tests that only watch which rows are saved run on desktop alone
 
-const EXPORT_BUTTON = { name: 'Export transactions as CSV', exact: true } as const
+const EXPORT_ALL = { name: 'Export all', exact: true } as const
+const EXPORT_FILTERED = { name: 'Export filtered', exact: true } as const
+const EXPORT_SELECTED = { name: 'Export selected', exact: true } as const
+const SELECT_MODE = { name: 'Select transactions', exact: true } as const
+const FAILURE_TOAST = 'Oops, something went wrong and nothing was downloaded. Please try again.'
 
 /** Counts every download the page starts, which a press that must not download is held against */
 function countDownloads(page: Page) {
@@ -25,200 +28,251 @@ async function readExportRows(path: string) {
   return lines.slice(1)
 }
 
-// With no date filter on the page the list shows every date, and the dialogue starts on every date too,
-// with no date counted as a filter. Export asks first, and Cancel, Back and the first press download nothing
-test('asks before downloading and saves every date when the page has no date filter', AT_EVERY_SIZE, async ({ page, request }) => {
+/** Ticks the row dated on the given day, which each seeded row has to itself */
+async function tickRow(page: Page, date: string) {
+  await page.getByRole('checkbox', { name: new RegExp(`^Select .+ on ${date}$`) }).check()
+}
+
+/** Submits a search the way a person does */
+async function search(page: Page, text: string) {
+  const field = page.getByPlaceholder('Search transactions...', { exact: true })
+  await field.fill(text)
+  await field.press('Enter')
+}
+
+/** Seeds an account with one old and one recent expense, each on a day of its own */
+async function seedTwoTransactions(request: Parameters<typeof signUpUser>[0]) {
   const user = await signUpUser(request)
   const account = await createAccount(request, user, { name: 'Everyday' })
   await createTransaction(request, user, { accountId: account.id, categoryName: 'Groceries', amount: -4250, date: daysFromTodayInTestTimezone(0), notes: 'Coffee today' })
   await createTransaction(request, user, { accountId: account.id, categoryName: 'Groceries', amount: -90000, date: daysFromTodayInTestTimezone(-400), notes: 'Old rent' })
+  return user
+}
 
+// Nothing narrows the list, so the button says Export all and asks first. Cancel, Escape and a press
+// outside download nothing, Download all saves every date, and the list behind never changes
+test('asks before downloading every transaction and saves them all when confirmed', AT_EVERY_SIZE, async ({ page, request }) => {
+  const user = await seedTwoTransactions(request)
   await logInViaApi(page, user)
   await openPage(page, '/transactions')
 
   // A phone's rows leave their notes out, so the rows are counted
   await expect(page.getByTestId(/^transaction-row-/)).toHaveCount(2)
   const downloads = countDownloads(page)
+  const button = page.getByRole('button', EXPORT_ALL)
 
-  await page.getByRole('button', EXPORT_BUTTON).click()
-  const dialog = page.getByRole('dialog')
-  await expect(dialog.getByRole('heading', { name: 'Export transactions', exact: true })).toBeVisible()
-  await expect(dialog.getByText("You'll get transactions from every date.", { exact: true })).toBeVisible()
-  // No page filter means no count on the phone's Filters button, which a prefilled range used to raise to 1
-  await expect(dialog.getByRole('button', { name: /^Filters, \d+ active$/ })).toHaveCount(0)
-  await dialog.getByRole('button', { name: 'Download', exact: true }).click()
+  // The word shows from the tablet width up, and the icon-only phone button carries the same name
+  if (page.viewportSize()!.width >= 750) await expect(button).toContainText('Export all')
 
-  // The confirmation says in words what the file holds, and the press that reached it saved nothing
-  await expect(dialog.getByRole('heading', { name: 'Download this file?', exact: true })).toBeVisible()
-  await expect(
-    dialog.getByText('The file will hold all your transactions, whatever their date. No search or filters are applied.', { exact: true }),
-  ).toBeVisible()
+  await button.click()
+  const dialog = page.getByRole('dialog', { name: 'Download all your transactions?', exact: true })
+  await expect(dialog.getByText('To export only some, cancel and search or filter the list first.', { exact: true })).toBeVisible()
   expect(downloads.count).toBe(0)
 
   await dialog.getByRole('button', { name: 'Cancel', exact: true }).click()
   await expect(dialog).toBeHidden()
-  expect(downloads.count).toBe(0)
 
-  // Escape leaves things as they were too
-  await page.getByRole('button', EXPORT_BUTTON).click()
-  await dialog.getByRole('button', { name: 'Download', exact: true }).click()
+  await button.click()
   await page.keyboard.press('Escape')
   await expect(dialog).toBeHidden()
   expect(downloads.count).toBe(0)
 
-  await page.getByRole('button', EXPORT_BUTTON).click()
-  await dialog.getByRole('button', { name: 'Download', exact: true }).click()
+  await button.click()
   const downloadStarted = page.waitForEvent('download')
-  await dialog.getByRole('button', { name: 'Download CSV', exact: true }).click()
+  await dialog.getByRole('button', { name: 'Download all', exact: true }).click()
   const download = await downloadStarted
 
   expect(download.suggestedFilename()).toBe(`lumina-finance-transactions-${todayInTestTimezone()}.csv`)
-  const rows = await readExportRows((await download.path())!)
-  expect(rows).toEqual([
+  expect(await readExportRows((await download.path())!)).toEqual([
     expect.stringMatching(/^\d{4}-\d{2}-\d{2},.+,Groceries,Everyday,,-42\.50,CAD,Coffee today$/),
     expect.stringMatching(/^\d{4}-\d{2}-\d{2},.+,Groceries,Everyday,,-900\.00,CAD,Old rent$/),
   ])
   await expect(dialog).toBeHidden()
-
-  // The list behind the dialogue never changed
   await expect(page.getByTestId(/^transaction-row-/)).toHaveCount(2)
 })
 
-// A date filter set on the page carries into the dialogue and the file, and the dialogue's own dates can
-// be chosen from there without touching the list
-test('carries a page date filter over and lets the dialogue choose its own dates', async ({ page, request }) => {
-  const user = await signUpUser(request)
-  const account = await createAccount(request, user, { name: 'Everyday' })
-  await createTransaction(request, user, { accountId: account.id, categoryName: 'Groceries', amount: -4250, date: daysFromTodayInTestTimezone(0), notes: 'Coffee today' })
-  await createTransaction(request, user, { accountId: account.id, categoryName: 'Groceries', amount: -90000, date: daysFromTodayInTestTimezone(-400), notes: 'Old rent' })
+// A submitted search turns the word to Export filtered, and the press saves what it matches straight
+// away with no confirmation. A search that is only typed has not narrowed the list yet
+test('exports what a submitted search keeps without asking', AT_EVERY_SIZE, async ({ page, request }) => {
+  const user = await seedTwoTransactions(request)
+  await logInViaApi(page, user)
+  await openPage(page, '/transactions')
+  await expect(page.getByTestId(/^transaction-row-/)).toHaveCount(2)
+  const downloads = countDownloads(page)
 
+  const field = page.getByPlaceholder('Search transactions...', { exact: true })
+  await field.fill('Coffee')
+  await expect(page.getByRole('button', EXPORT_ALL)).toBeVisible()
+  await field.press('Enter')
+  await expect(page.getByTestId(/^transaction-row-/)).toHaveCount(1)
+
+  const downloadStarted = page.waitForEvent('download')
+  await page.getByRole('button', EXPORT_FILTERED).click()
+  const rows = await readExportRows((await (await downloadStarted).path())!)
+
+  expect(rows).toEqual([expect.stringMatching(/,Groceries,Everyday,,-42\.50,CAD,Coffee today$/)])
+  expect(downloads.count).toBe(1)
+  await expect(page.getByRole('dialog')).toHaveCount(0)
+})
+
+// A date filter alone is a filter, so the word says Export filtered and the file keeps to the range
+test('counts a date filter as narrowing the export', async ({ page, request }) => {
+  const user = await seedTwoTransactions(request)
   await logInViaApi(page, user)
   await openPage(page, `/transactions?from_date=${daysFromTodayInTestTimezone(-30)}&to_date=${daysFromTodayInTestTimezone(0)}`)
   await expect(page.getByText('Coffee today', { exact: true })).toBeVisible()
   await expect(page.getByText('Old rent', { exact: true })).toHaveCount(0)
-  const downloads = countDownloads(page)
 
-  await page.getByRole('button', EXPORT_BUTTON).click()
-  const dialog = page.getByRole('dialog')
-  await expect(dialog.getByText(/^You'll get transactions dated /)).toBeVisible()
-  await dialog.getByRole('button', { name: 'Download', exact: true }).click()
-  await expect(dialog.getByText(/^The file will hold all your transactions dated /)).toBeVisible()
-  await dialog.getByRole('button', { name: 'Back', exact: true }).click()
+  const downloadStarted = page.waitForEvent('download')
+  await page.getByRole('button', EXPORT_FILTERED).click()
 
-  // Clearing the dates in the dialogue widens the file to every date, and the list stays as it was
-  await dialog.getByRole('button', { name: 'Transaction filters', exact: true }).click()
-  await dialog.getByRole('tab', { name: /^Date/ }).click()
-  for (const label of ['From', 'To']) {
-    const date = dialog.getByRole('group', { name: label, exact: true })
-    for (const part of ['Year', 'Month', 'Day']) await date.getByRole('textbox', { name: part, exact: true }).fill('')
+  expect(await readExportRows((await (await downloadStarted).path())!)).toEqual([expect.stringMatching(/,Coffee today$/)])
+})
+
+// Select mode keeps the button reachable beside Edit and Delete. Ticked rows turn the word to Export
+// selected and save only those rows, newest first, with no confirmation
+test('exports only the ticked rows from select mode', AT_EVERY_SIZE, async ({ page, request }) => {
+  const user = await signUpUser(request)
+  const account = await createAccount(request, user, { name: 'Everyday' })
+  const dates = [0, -1, -2].map(daysFromTodayInTestTimezone)
+  for (const [index, date] of dates.entries()) {
+    await createTransaction(request, user, { accountId: account.id, categoryName: 'Groceries', amount: -(index + 1) * 1000, date, notes: `Row ${index}` })
   }
-  await dialog.getByRole('button', { name: 'Apply filters', exact: true }).click()
-  await expect(dialog.getByText("You'll get transactions from every date.", { exact: true })).toBeVisible()
-  await dialog.getByRole('button', { name: 'Download', exact: true }).click()
-
-  const downloadStarted = page.waitForEvent('download')
-  await dialog.getByRole('button', { name: 'Download CSV', exact: true }).click()
-  expect(await readExportRows((await (await downloadStarted).path())!)).toHaveLength(2)
-  expect(downloads.count).toBe(1)
-  await expect(page.getByText('Old rent', { exact: true })).toHaveCount(0)
-})
-
-// The dialogue starts from the page's search, takes its own search and filters without touching the
-// list, names every choice in words, and Back returns to the choices as they were
-test('describes a search and a filter in words, keeps them on Back and saves only what they match', async ({ page, request }) => {
-  const user = await signUpUser(request)
-  const account = await createAccount(request, user, { name: 'Everyday' })
-  await createTransaction(request, user, { accountId: account.id, categoryName: 'Groceries', amount: -4250, date: daysFromTodayInTestTimezone(0), notes: 'Coffee today' })
-  await createTransaction(request, user, { accountId: account.id, categoryName: 'Dining', amount: -1800, date: daysFromTodayInTestTimezone(0), notes: 'Coffee beans' })
-  await createTransaction(request, user, { accountId: account.id, categoryName: 'Groceries', amount: -700, date: daysFromTodayInTestTimezone(0), notes: 'Bread' })
 
   await logInViaApi(page, user)
   await openPage(page, '/transactions')
-  await expect(page.getByText('Bread', { exact: true })).toBeVisible()
+  await expect(page.getByTestId(/^transaction-row-/)).toHaveCount(3)
   const downloads = countDownloads(page)
 
-  // Clicking the page outside the dialogue leaves things as they were
-  await page.getByRole('button', EXPORT_BUTTON).click()
-  const dialog = page.getByRole('dialog')
-  await dialog.getByRole('button', { name: 'Download', exact: true }).click()
-  await page.mouse.click(4, 4)
-  await expect(dialog).toBeHidden()
-  expect(downloads.count).toBe(0)
+  await page.getByRole('button', SELECT_MODE).click()
+  await expect(page.getByRole('button', { name: 'Edit the selected transactions', exact: true })).toBeVisible()
+  await expect(page.getByRole('button', { name: 'Delete the selected transactions', exact: true })).toBeVisible()
+  await expect(page.getByRole('button', EXPORT_ALL)).toBeVisible()
 
-  await page.getByRole('button', EXPORT_BUTTON).click()
-  await dialog.getByPlaceholder('Search transactions...', { exact: true }).fill('Coffee')
-  await dialog.getByRole('button', { name: 'Transaction filters', exact: true }).click()
-  await dialog.getByRole('tab', { name: 'Category', exact: true }).click()
-  await dialog.getByRole('checkbox', { name: 'Groceries', exact: true }).click()
-  await dialog.getByRole('button', { name: 'Apply filters', exact: true }).click()
-  await dialog.getByRole('button', { name: 'Download', exact: true }).click()
-
-  await expect(dialog.getByText(/^The file will hold your transactions that match everything below, whatever their date\.$/)).toBeVisible()
-  await expect(dialog.getByText('Merchant or notes containing', { exact: true })).toBeVisible()
-  await expect(dialog.getByText('Coffee', { exact: true })).toBeVisible()
-  await expect(dialog.getByText('Category', { exact: true })).toBeVisible()
-  await expect(dialog.getByText('Groceries', { exact: true })).toBeVisible()
-
-  await dialog.getByRole('button', { name: 'Back', exact: true }).click()
-  await expect(dialog.getByPlaceholder('Search transactions...', { exact: true })).toHaveValue('Coffee')
-  await dialog.getByRole('button', { name: 'Download', exact: true }).click()
-  expect(downloads.count).toBe(0)
-
+  await tickRow(page, dates[2])
+  await tickRow(page, dates[0])
   const downloadStarted = page.waitForEvent('download')
-  await dialog.getByRole('button', { name: 'Download CSV', exact: true }).click()
+  await page.getByRole('button', EXPORT_SELECTED).click()
   const rows = await readExportRows((await (await downloadStarted).path())!)
-  expect(rows).toEqual([expect.stringMatching(/,Groceries,Everyday,,-42\.50,CAD,Coffee today$/)])
 
-  // Nothing chosen in the dialogue reached the list behind it
-  await expect(page.getByPlaceholder('Search transactions...', { exact: true })).toHaveValue('')
-  await expect(page.getByText('Bread', { exact: true })).toBeVisible()
-  await expect(page.getByText('Coffee beans', { exact: true })).toBeVisible()
+  expect(rows).toEqual([expect.stringMatching(/,-10\.00,CAD,Row 0$/), expect.stringMatching(/,-30\.00,CAD,Row 2$/)])
+  expect(downloads.count).toBe(1)
+  await expect(page.getByRole('dialog')).toHaveCount(0)
+
+  // The ticks stay, so the same rows can be saved again or edited next
+  await expect(page.getByRole('button', EXPORT_SELECTED)).toBeVisible()
 })
 
-// Conditions that match nothing are refused at the confirmation, in words, with no file saved. The
-// page's own search emptying the list leaves Export on, since the dialogue can widen the search
-test('says nothing matches instead of saving an empty file, and starts from the page search', async ({ page, request }) => {
-  const user = await signUpUser(request)
-  const account = await createAccount(request, user, { name: 'Everyday' })
-  await createTransaction(request, user, { accountId: account.id, categoryName: 'Groceries', amount: -4250, date: daysFromTodayInTestTimezone(0), notes: 'Coffee today' })
-
+// The Export icon button joins the selection row and tightens it, which must not squeeze the Edit pencil
+// narrower than the 18px it is drawn at, to a sliver at 390 and to nothing at 320
+test('keeps the Edit pencil its full size beside the Export button on a phone', async ({ page, request }) => {
+  const user = await seedTwoTransactions(request)
   await logInViaApi(page, user)
   await openPage(page, '/transactions')
-  const search = page.getByPlaceholder('Search transactions...', { exact: true })
-  await search.fill('nothing-matches-this')
-  await search.press('Enter')
-  await expect(page.getByText('Coffee today', { exact: true })).toHaveCount(0)
+  await expect(page.getByTestId(/^transaction-row-/)).toHaveCount(2)
+
+  for (const width of [390, 320]) {
+    await page.setViewportSize({ width, height: 844 })
+    await page.getByRole('button', SELECT_MODE).click()
+    await expect(page.getByRole('button', EXPORT_ALL)).toBeVisible()
+    const pencil = page.getByRole('button', { name: 'Edit the selected transactions', exact: true }).locator('svg')
+    await expect.poll(async () => (await pencil.boundingBox())?.width, { message: `Pencil width at ${width}px` }).toBe(18)
+    await page.getByRole('button', { name: 'Stop selecting transactions', exact: true }).click()
+  }
+})
+
+// Ticked rows win over a filter that is also on: the word stays Export selected and the file holds the
+// ticked rows and not everything the filter keeps
+test('exports only the ticked rows when a filter is also on', async ({ page, request }) => {
+  const user = await signUpUser(request)
+  const account = await createAccount(request, user, { name: 'Everyday' })
+  const dates = [0, -1, -2].map(daysFromTodayInTestTimezone)
+  for (const [index, date] of dates.entries()) {
+    await createTransaction(request, user, { accountId: account.id, categoryName: 'Groceries', amount: -(index + 1) * 1000, date, notes: `Row ${index}` })
+  }
+  await createTransaction(request, user, { accountId: account.id, categoryName: 'Groceries', amount: -77700, date: daysFromTodayInTestTimezone(-400), notes: 'Outside the filter' })
+
+  await logInViaApi(page, user)
+  await openPage(page, `/transactions?from_date=${dates[2]}&to_date=${dates[0]}`)
+  await expect(page.getByTestId(/^transaction-row-/)).toHaveCount(3)
+  await expect(page.getByRole('button', EXPORT_FILTERED)).toBeVisible()
+
+  await page.getByRole('button', SELECT_MODE).click()
+  await tickRow(page, dates[1])
+  await expect(page.getByRole('button', EXPORT_FILTERED)).toHaveCount(0)
+
+  const downloadStarted = page.waitForEvent('download')
+  await page.getByRole('button', EXPORT_SELECTED).click()
+
+  expect(await readExportRows((await (await downloadStarted).path())!)).toEqual([expect.stringMatching(/,-20\.00,CAD,Row 1$/)])
+})
+
+// Unticking the last row turns the word back to what the list is showing
+test('goes back to the list wording when the last tick is removed', async ({ page, request }) => {
+  const user = await seedTwoTransactions(request)
+  await logInViaApi(page, user)
+  await openPage(page, '/transactions')
+  await expect(page.getByTestId(/^transaction-row-/)).toHaveCount(2)
+
+  await page.getByRole('button', SELECT_MODE).click()
+  await tickRow(page, daysFromTodayInTestTimezone(0))
+  await expect(page.getByRole('button', EXPORT_SELECTED)).toBeVisible()
+  await page.getByRole('checkbox', { name: new RegExp(`^Select .+ on ${daysFromTodayInTestTimezone(0)}$`) }).uncheck()
+
+  await expect(page.getByRole('button', EXPORT_ALL)).toBeVisible()
+})
+
+// A failed export says so in a toast and saves nothing, and the button is usable again for a retry
+test('shows a toast when the export fails and lets the person try again', async ({ page, request }) => {
+  const user = await seedTwoTransactions(request)
+  await logInViaApi(page, user)
+  await openPage(page, '/transactions')
+  await expect(page.getByTestId(/^transaction-row-/)).toHaveCount(2)
+  await search(page, 'Coffee')
+  await expect(page.getByTestId(/^transaction-row-/)).toHaveCount(1)
   const downloads = countDownloads(page)
 
-  await expect(page.getByRole('button', EXPORT_BUTTON)).not.toHaveAccessibleDescription('There are no transactions to export')
-  await page.getByRole('button', EXPORT_BUTTON).click()
-  const dialog = page.getByRole('dialog')
-  await expect(dialog.getByPlaceholder('Search transactions...', { exact: true })).toHaveValue('nothing-matches-this')
-  await dialog.getByRole('button', { name: 'Download', exact: true }).click()
-  await dialog.getByRole('button', { name: 'Download CSV', exact: true }).click()
+  await page.route('**/transactions/export*', (route) => route.fulfill({ status: 500, body: 'boom' }))
+  const button = page.getByRole('button', EXPORT_FILTERED)
+  await button.click()
 
-  await expect(dialog.getByText('Nothing was downloaded: no transactions match these choices. Go back to change them.')).toBeVisible()
+  await expect(page.getByText(FAILURE_TOAST, { exact: true })).toBeVisible()
   expect(downloads.count).toBe(0)
+  await expect(button).toBeEnabled()
 
-  // Widening the search from the same dialogue saves the row
-  await dialog.getByRole('button', { name: 'Back', exact: true }).click()
-  await dialog.getByPlaceholder('Search transactions...', { exact: true }).fill('Coffee')
-  await dialog.getByRole('button', { name: 'Download', exact: true }).click()
+  await page.unroute('**/transactions/export*')
   const downloadStarted = page.waitForEvent('download')
-  await dialog.getByRole('button', { name: 'Download CSV', exact: true }).click()
+  await button.click()
   expect(await readExportRows((await (await downloadStarted).path())!)).toHaveLength(1)
+})
+
+// The same toast covers a selected export, which is sent another way
+test('shows a toast when a selected export fails', async ({ page, request }) => {
+  const user = await seedTwoTransactions(request)
+  await logInViaApi(page, user)
+  await openPage(page, '/transactions')
+  await expect(page.getByTestId(/^transaction-row-/)).toHaveCount(2)
+  const downloads = countDownloads(page)
+
+  await page.route('**/transactions/export', (route) => route.fulfill({ status: 500, body: 'boom' }))
+  await page.getByRole('button', SELECT_MODE).click()
+  await tickRow(page, daysFromTodayInTestTimezone(0))
+  await page.getByRole('button', EXPORT_SELECTED).click()
+
+  await expect(page.getByText(FAILURE_TOAST, { exact: true })).toBeVisible()
+  expect(downloads.count).toBe(0)
 })
 
 // A person with no transactions at all has nothing to export, so the button stays on the toolbar, held
 // off with why
-test('holds Export off with its reason while there are no transactions', async ({ page, request }) => {
+test('holds Export all off with its reason while there are no transactions', async ({ page, request }) => {
   const user = await signUpUser(request)
   await createAccount(request, user, { name: 'Everyday' })
 
   await logInViaApi(page, user)
   await openPage(page, '/transactions')
 
-  const exportAction = page.getByRole('button', EXPORT_BUTTON)
+  const exportAction = page.getByRole('button', EXPORT_ALL)
   await expect(page.getByText('No transactions yet.', { exact: true })).toBeVisible()
   await expect(exportAction).toHaveAccessibleDescription('There are no transactions to export')
 
@@ -229,4 +283,28 @@ test('holds Export off with its reason while there are no transactions', async (
   // A dialogue opens within moments of a press that runs, so one still absent after the later press is a
   // press that did nothing
   await expect(page.getByRole('dialog')).toHaveCount(0)
+})
+
+// A search that keeps nothing leaves nothing to save, so the button is held off with its own reason
+// rather than saving a file of one header row
+test('holds Export filtered off with its reason while the search keeps nothing', async ({ page, request }) => {
+  const user = await seedTwoTransactions(request)
+  await logInViaApi(page, user)
+  await openPage(page, '/transactions')
+  await expect(page.getByTestId(/^transaction-row-/)).toHaveCount(2)
+  const downloads = countDownloads(page)
+
+  await search(page, 'nothing-matches-this')
+  await expect(page.getByTestId(/^transaction-row-/)).toHaveCount(0)
+
+  const exportAction = page.getByRole('button', EXPORT_FILTERED)
+  await expect(exportAction).toHaveAccessibleDescription('No transactions match the search or filters')
+  await exportAction.click({ force: true })
+  await exportAction.press('Enter')
+  await expect(page.getByRole('dialog')).toHaveCount(0)
+  expect(downloads.count).toBe(0)
+
+  // Widening the search brings the button back
+  await search(page, 'Coffee')
+  await expect(page.getByRole('button', EXPORT_FILTERED)).not.toHaveAccessibleDescription('No transactions match the search or filters')
 })
