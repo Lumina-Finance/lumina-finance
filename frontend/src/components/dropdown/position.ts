@@ -146,7 +146,7 @@ export const DEFAULT_DROPDOWN_BOX_POSITION: DropdownBoxPosition = {
 
 // The geometry of the box lives here rather than beside the look in tailwind.css, because placement
 // is computed in JavaScript and a second copy in CSS would drift from this one
-const DROPDOWN_MAX_HEIGHT = 400
+export const DROPDOWN_MAX_HEIGHT = 400
 
 // How much room below the slot the box wants before it opens downward. More than its own greatest
 // height, so a box that would only just fit underneath opens upward instead, where it has room to
@@ -164,7 +164,7 @@ const DROPDOWN_SEARCH_HEIGHT = 42
 
 // The box's own border and the padding around its contents. Mirrors the 1px border of
 // .app-dropdown-glass and the 6px padding of .app-dropdown-glass-inner in tailwind.css
-const DROPDOWN_BOX_CHROME = 14
+export const DROPDOWN_BOX_CHROME = 14
 
 const DROPDOWN_VIEWPORT_PADDING = 12
 

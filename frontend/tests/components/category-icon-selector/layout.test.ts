@@ -6,22 +6,22 @@
 import { describe, expect, it } from 'vitest'
 import {
   EMOJI_PICKER_GRID_WIDTH,
-  EMOJI_PICKER_PANEL_CHROME,
   getEmojiPickerPanelHeight,
   getEmojiPickerPlacement,
   getEmojiPickerWidth,
   type EmojiPickerViewport,
 } from '@/components/category-icon-selector/layout'
+import { DROPDOWN_BOX_CHROME } from '@/components/dropdown/position'
 
 const VIEWPORT: EmojiPickerViewport = { height: 800, layoutHeight: 800, offsetLeft: 0, offsetTop: 0, width: 1280 }
 
 describe('getEmojiPickerWidth', () => {
   it('is the grid, a scrollbar gutter either side, and the panel padding and border', () => {
-    expect(getEmojiPickerWidth(10, 1280)).toBe(EMOJI_PICKER_GRID_WIDTH + 20 + EMOJI_PICKER_PANEL_CHROME)
+    expect(getEmojiPickerWidth(10, 1280)).toBe(EMOJI_PICKER_GRID_WIDTH + 20 + DROPDOWN_BOX_CHROME)
   })
 
   it('is no wider than the grid where scrollbars float over the content', () => {
-    expect(getEmojiPickerWidth(0, 1280)).toBe(EMOJI_PICKER_GRID_WIDTH + EMOJI_PICKER_PANEL_CHROME)
+    expect(getEmojiPickerWidth(0, 1280)).toBe(EMOJI_PICKER_GRID_WIDTH + DROPDOWN_BOX_CHROME)
   })
 
   it('leaves the screen its margin on a narrow viewport', () => {
@@ -31,11 +31,11 @@ describe('getEmojiPickerWidth', () => {
 
 describe('getEmojiPickerPanelHeight', () => {
   it('shrinks to a few results plus the panel chrome', () => {
-    expect(getEmojiPickerPanelHeight(150, 400)).toBe(150 + EMOJI_PICKER_PANEL_CHROME)
+    expect(getEmojiPickerPanelHeight(150, 400)).toBe(150 + DROPDOWN_BOX_CHROME)
   })
 
   it('rounds a fractional content height up so the last row is never clipped', () => {
-    expect(getEmojiPickerPanelHeight(150.2, 400)).toBe(151 + EMOJI_PICKER_PANEL_CHROME)
+    expect(getEmojiPickerPanelHeight(150.2, 400)).toBe(151 + DROPDOWN_BOX_CHROME)
   })
 
   it('stops at the greatest height, which the contents scroll inside', () => {

@@ -1,16 +1,10 @@
+import { DROPDOWN_BOX_CHROME, DROPDOWN_MAX_HEIGHT } from '@/components/dropdown/position'
+
 export const EMOJI_PICKER_GAP = 8
 export const EMOJI_PICKER_PADDING = 12
 
 // Seven 32px cells. The search row, the headings and the grid all span exactly this
 export const EMOJI_PICKER_GRID_WIDTH = 224
-
-// The Dropdown's own greatest height, so the two panels top out together. Mirrors DROPDOWN_MAX_HEIGHT
-// in components/dropdown/position.ts
-export const EMOJI_PICKER_MAX_HEIGHT = 400
-
-// The panel's 1px border either side and the 6px padding inside it, which is the Dropdown's. Mirrors
-// DROPDOWN_BOX_CHROME in components/dropdown/position.ts
-export const EMOJI_PICKER_PANEL_CHROME = 14
 
 // How much room below the button the panel wants before it opens downward instead
 const EMOJI_PICKER_DOWNWARD_ROOM = 220
@@ -48,7 +42,7 @@ export interface EmojiPickerPlacement {
  * two gutters plus its own padding and border. Never wider than the screen leaves room for
  */
 export function getEmojiPickerWidth(gutter: number, viewportWidth: number): number {
-  const natural = EMOJI_PICKER_GRID_WIDTH + gutter * 2 + EMOJI_PICKER_PANEL_CHROME
+  const natural = EMOJI_PICKER_GRID_WIDTH + gutter * 2 + DROPDOWN_BOX_CHROME
   return Math.min(natural, viewportWidth - EMOJI_PICKER_PADDING * 2)
 }
 
@@ -59,7 +53,7 @@ export function getEmojiPickerWidth(gutter: number, viewportWidth: number): numb
  * @param maxHeight - The most the screen leaves it
  */
 export function getEmojiPickerPanelHeight(contentHeight: number, maxHeight: number): number {
-  return Math.max(0, Math.min(Math.ceil(contentHeight) + EMOJI_PICKER_PANEL_CHROME, maxHeight))
+  return Math.max(0, Math.min(Math.ceil(contentHeight) + DROPDOWN_BOX_CHROME, maxHeight))
 }
 
 /**
@@ -82,7 +76,7 @@ export function getEmojiPickerPlacement({
   const spaceAbove = anchorRect.top - viewport.offsetTop - EMOJI_PICKER_GAP - EMOJI_PICKER_PADDING
   const openAbove = spaceBelow < EMOJI_PICKER_DOWNWARD_ROOM && spaceAbove > spaceBelow
   const available = Math.max(EMOJI_PICKER_MIN_AVAILABLE_HEIGHT, openAbove ? spaceAbove : spaceBelow)
-  const maxHeight = Math.min(EMOJI_PICKER_MAX_HEIGHT, available, viewport.height - EMOJI_PICKER_PADDING * 2)
+  const maxHeight = Math.min(DROPDOWN_MAX_HEIGHT, available, viewport.height - EMOJI_PICKER_PADDING * 2)
   const left = Math.min(
     Math.max(preferredLeft, viewport.offsetLeft + EMOJI_PICKER_PADDING),
     viewportRight - width - EMOJI_PICKER_PADDING,
