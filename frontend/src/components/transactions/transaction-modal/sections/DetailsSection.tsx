@@ -1,10 +1,11 @@
-import { useRef, type FocusEvent, type KeyboardEvent } from 'react'
+import { useContext, useRef, type FocusEvent, type KeyboardEvent } from 'react'
 import CreateModalFieldLabelRow from '@/components/create-modal/FieldLabelRow'
 import CreateModalSectionFrame from '@/components/create-modal/SectionFrame'
 import DateField from '@/components/date-field/DateField'
 import Dropdown, { type DropdownOption } from '@/components/dropdown/Dropdown'
 import IconTooltip from '@/components/tooltips/IconTooltip'
 import { useTransactionModalIds } from '@/components/transactions/transaction-modal/ids'
+import { DateStepHighlightContext } from '@/components/transactions/transaction-modal/controls/dateStepHighlight'
 import ShortcutHint from '@/components/transactions/transaction-modal/controls/ShortcutHint'
 import ShortcutHints from '@/components/transactions/transaction-modal/controls/ShortcutHints'
 import { toShortcutKeyEvent } from '@/components/transactions/transaction-modal/hooks/useShortcuts'
@@ -78,6 +79,7 @@ export default function TransactionDetailsSection({
   onNotesChange,
 }: TransactionDetailsSectionProps) {
   const ids = useTransactionModalIds()
+  const stepHighlight = useContext(DateStepHighlightContext)
   const { user } = useAuth()
   const amountInput = useMoneyInput({
     value: amount,
@@ -139,6 +141,7 @@ export default function TransactionDetailsSection({
               error={!!dateError}
               describedById={ids.errors.date}
               disabled={readOnly}
+              stepHighlight={stepHighlight}
               onChange={onDateChange}
               onBlur={onDateBlur}
             />

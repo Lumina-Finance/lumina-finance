@@ -47,6 +47,7 @@ import { useDeferredTransactionRefresh } from '@/components/transactions/transac
 import { useTransactionDeletion } from '@/components/transactions/transaction-modal/hooks/useDeletion'
 import { useTransactionSubmit } from '@/components/transactions/transaction-modal/hooks/useSubmit'
 import { useTransactionShortcuts } from '@/components/transactions/transaction-modal/hooks/useShortcuts'
+import { DateStepHighlightContext } from '@/components/transactions/transaction-modal/controls/dateStepHighlight'
 import { ShortcutHintsVisibleContext } from '@/components/transactions/transaction-modal/controls/shortcutHintsVisible'
 import RefundButton from '@/components/transactions/transaction-modal/controls/RefundButton'
 import TransactionModalLinkedRefundsSection from '@/components/transactions/transaction-modal/sections/LinkedRefundsSection'
@@ -287,7 +288,7 @@ export default function CreateTransactionModal({
     })
 
   const level = refunding ? 'stacked' : 'page'
-  const { hintsVisible } = useTransactionShortcuts(idSuffix, open, {
+  const { hintsVisible, dateStepHighlight } = useTransactionShortcuts(idSuffix, open, {
     date: form.date,
     steppable: !readOnly,
     onDateChange: (value) => handleField('date', value),
@@ -341,175 +342,177 @@ export default function CreateTransactionModal({
   return (
     <TransactionModalIdSuffix.Provider value={idSuffix}>
       <ShortcutHintsVisibleContext.Provider value={hintsVisible}>
-        <ModalTitledPanel
-          open={open}
-          titleId={refunding ? 'create-txn-title-refund' : 'create-txn-title'}
-          level={level}
-          title={editing ? 'Edit transaction' : refunding ? 'Add refund' : 'Add transaction'}
-          eyebrow={
-            editing
-              ? 'Existing transaction'
-              : refunding
-                ? buildRefundNote(refundOf?.merchant_name ?? null)
-                : `${KIND_LABELS[form.kind]} transaction`
-          }
-          headerStatus={readOnly ? 'Archived account' : undefined}
-          headerAction={
-            canOfferRefund ? (
-              <RefundButton
-                onClick={() => setRefundModal((state) => ({ open: true, key: state.key + 1 }))}
-                disabledReason={
-                  refundRoom === undefined || accounts.length === 0
-                    ? 'Checking what is left to refund'
-                    : refundRoom <= 0
-                      ? 'This expense is already fully refunded'
-                      : getRefundAccounts(selectableAccounts, transaction.currency).length === 0
-                        ? `You have no account in ${transaction.currency} to hold this refund`
-                        : null
+        <DateStepHighlightContext.Provider value={dateStepHighlight}>
+          <ModalTitledPanel
+            open={open}
+            titleId={refunding ? 'create-txn-title-refund' : 'create-txn-title'}
+            level={level}
+            title={editing ? 'Edit transaction' : refunding ? 'Add refund' : 'Add transaction'}
+            eyebrow={
+              editing
+                ? 'Existing transaction'
+                : refunding
+                  ? buildRefundNote(refundOf?.merchant_name ?? null)
+                  : `${KIND_LABELS[form.kind]} transaction`
+            }
+            headerStatus={readOnly ? 'Archived account' : undefined}
+            headerAction={
+              canOfferRefund ? (
+                <RefundButton
+                  onClick={() => setRefundModal((state) => ({ open: true, key: state.key + 1 }))}
+                  disabledReason={
+                    refundRoom === undefined || accounts.length === 0
+                      ? 'Checking what is left to refund'
+                      : refundRoom <= 0
+                        ? 'This expense is already fully refunded'
+                        : getRefundAccounts(selectableAccounts, transaction.currency).length === 0
+                          ? `You have no account in ${transaction.currency} to hold this refund`
+                          : null
+                  }
+                />
+              ) : undefined
+            }
+            RailIcon={ReceiptText}
+            railLabel="Transaction"
+            extraPanelClassName={editing || refunding ? undefined : 'min-h-(--app-transaction-window-height)'}
+            onClose={closeModal}
+            onExitComplete={() => {
+              applyPendingDeletion()
+              pending.reset()
+            }}
+            onSubmit={handleSubmit}
+            footer={
+              <TransactionModalFooter
+                level={level}
+                hideKeepOpen={refunding}
+                addLabel={refunding ? 'Add refund' : 'Add transaction'}
+                onRequestLinkedDelete={
+                  linkedIds.length > 0 ? () => setLinkedDelete({ open: true, deleteLinked: false }) : null
                 }
-              />
-            ) : undefined
-          }
-          RailIcon={ReceiptText}
-          railLabel="Transaction"
-          extraPanelClassName={editing || refunding ? undefined : 'min-h-(--app-transaction-window-height)'}
-          onClose={closeModal}
-          onExitComplete={() => {
-            applyPendingDeletion()
-            pending.reset()
-          }}
-          onSubmit={handleSubmit}
-          footer={
-            <TransactionModalFooter
-              level={level}
-              hideKeepOpen={refunding}
-              addLabel={refunding ? 'Add refund' : 'Add transaction'}
-              onRequestLinkedDelete={
-                linkedIds.length > 0 ? () => setLinkedDelete({ open: true, deleteLinked: false }) : null
-              }
-              editing={editing}
-              isPending={isPending}
-              readOnly={readOnly}
-              submitLoading={submitLoading}
-              submitBlockedReason={refusal.blockedReason}
-              deleteLoading={deleteLoading}
-              keepOpenAfterCreate={keepOpenAfterCreate}
-              onKeepOpenAfterCreateChange={setKeepOpenAfterCreate}
-              onCancel={closeModal}
-              onDelete={deleteTransaction}
-            />
-          }
-        >
-          <div className="space-y-5">
-            <TransactionTypeDirectionSection
-              kind={form.kind}
-              direction={form.direction}
-              editing={editing}
-              refunding={refunding}
-              readOnly={readOnly}
-              directionHighlightKey={directionHighlightKey}
-              onKindChange={applyKindChange}
-              onDirectionChange={(value) => handleField('direction', value)}
-            />
-
-            <TransactionReferencesSection
-              accountOptions={topAccountField.options}
-              selectedArchivedAccountOption={topAccountField.selectedOption}
-              accountValue={topAccountField.value}
-              accountError={topAccountField.error}
-              accountPlaceholder={accounts.length === 0 ? 'No accounts yet' : 'Select account...'}
-              runningBalance={topAccountField.runningBalance}
-              kind={form.kind}
-
-              direction={form.direction}
-              isSymmetricTransfer={form.symmetric_transfer}
-              isTransferPairOffered={!editing}
-              counterpartyAccountOptions={secondAccountField.options}
-              selectedArchivedCounterpartyAccountOption={secondAccountField.selectedOption}
-              counterpartyAccountValue={secondAccountField.value}
-              counterpartyAccountError={secondAccountField.error}
-              counterpartyAccountRunningBalance={secondAccountField.runningBalance}
-              merchantOptions={merchantField.merchantOptions}
-              selectedMerchantOption={merchantField.selectedMerchantOption}
-              merchantValue={form.merchant_id}
-              merchantError={showError('merchant_id')}
-              merchantSearch={merchantField.search}
-              merchantLoading={merchantField.showLoading}
-              merchantLoadingText={merchantField.loadingText}
-              merchantHideOptionsWhileLoading={merchantField.showInitialLoading}
-              merchantHasMore={merchantField.hasMore}
-              categoryOptions={categoryField.categoryOptions}
-              categoryValue={form.category_id}
-              categoryError={showError('category_id')}
-              isBalanceAdjustmentCategory={categoryField.isBalanceAdjustmentCategory}
-              creditRepaymentSteer={categoryField.creditRepaymentSteer}
-              showMerchantDefaultCategoryAction={merchantField.showMerchantDefaultCategoryAction}
-              merchantDefaultCategoryActionLabel={merchantField.merchantDefaultCategoryActionLabel}
-              merchantDefaultCategoryPending={merchantField.merchantDefaultCategoryPending}
-              tagOptions={tagField.tagOptions}
-              tagsDisabled={!form.account_id}
-              tagSearch={tagField.search}
-              tagLoading={tagField.showLoading}
-              tagLoadingText={tagField.loadingText}
-              tagHideOptionsWhileLoading={tagField.showInitialLoading}
-              tagHasMore={tagField.hasMore}
-              selectedTags={tagField.selectedTags}
-              readOnly={readOnly}
-              onAccountChange={topAccountField.onChange}
-              onSymmetricTransferChange={accountField.handleSymmetricTransferChange}
-              onCounterpartyAccountChange={secondAccountField.onChange}
-              onMerchantChange={merchantField.handleMerchantChange}
-              onMerchantSearchChange={merchantField.setSearch}
-              onMerchantSearchCommit={merchantField.setActiveSearch}
-              onMerchantLoadMore={merchantField.loadMore}
-              onCreateMerchant={merchantModal.openModal}
-              onMakeMerchantDefaultCategory={merchantField.handleMakeMerchantDefaultCategory}
-              onCategoryChange={categoryField.handleCategoryChange}
-              onCreateCategory={categoryModal.openModal}
-              onTagChange={tagField.handleTagChange}
-              onTagSearchChange={tagField.setSearch}
-              onTagSearchCommit={tagField.setActiveSearch}
-              onTagLoadMore={tagField.loadMore}
-              onCreateTag={tagModal.openModal}
-              onRemoveTag={tagField.handleRemoveTag}
-            />
-
-            <TransactionDetailsSection
-              date={form.date}
-              dateError={showError('date')}
-              currencyOptions={currencyOptions}
-              currencyValue={form.currency}
-              currencyPlaceholder={currencyState === 'loading' ? CURRENCY_LIST_LOADING : 'Select...'}
-              selectedCurrencySymbol={selectedCurrencySymbol}
-              currencyExponent={selectedCurrencyExponent}
-              isAmountLocked={isAmountLocked}
-              currencyState={currencyState}
-              amount={form.amount}
-              amountError={showError('amount')}
-              notes={form.notes}
-              readOnly={readOnly}
-              onDateChange={(value) => handleField('date', value)}
-              onDateBlur={() => refusal.touch('date')}
-              onAmountChange={handleAmountChange}
-              onAmountBlur={() => refusal.touch('amount')}
-              onNotesChange={(value) => handleField('notes', value)}
-            />
-
-            {liveTransaction && (
-              <TransactionModalLinkedRefundsSection
-                transaction={liveTransaction}
+                editing={editing}
+                isPending={isPending}
                 readOnly={readOnly}
-                disabled={isPending}
-                canLinkRefund={canOfferRefund}
-                canLinkExpense={canLinkExpense}
-                pending={pending}
-                refundRoom={refundRoom}
+                submitLoading={submitLoading}
+                submitBlockedReason={refusal.blockedReason}
+                deleteLoading={deleteLoading}
+                keepOpenAfterCreate={keepOpenAfterCreate}
+                onKeepOpenAfterCreateChange={setKeepOpenAfterCreate}
+                onCancel={closeModal}
+                onDelete={deleteTransaction}
               />
-            )}
+            }
+          >
+            <div className="space-y-5">
+              <TransactionTypeDirectionSection
+                kind={form.kind}
+                direction={form.direction}
+                editing={editing}
+                refunding={refunding}
+                readOnly={readOnly}
+                directionHighlightKey={directionHighlightKey}
+                onKindChange={applyKindChange}
+                onDirectionChange={(value) => handleField('direction', value)}
+              />
 
-            <FormError message={submitError} title={submitErrorTitle} />
-          </div>
-        </ModalTitledPanel>
+              <TransactionReferencesSection
+                accountOptions={topAccountField.options}
+                selectedArchivedAccountOption={topAccountField.selectedOption}
+                accountValue={topAccountField.value}
+                accountError={topAccountField.error}
+                accountPlaceholder={accounts.length === 0 ? 'No accounts yet' : 'Select account...'}
+                runningBalance={topAccountField.runningBalance}
+                kind={form.kind}
+
+                direction={form.direction}
+                isSymmetricTransfer={form.symmetric_transfer}
+                isTransferPairOffered={!editing}
+                counterpartyAccountOptions={secondAccountField.options}
+                selectedArchivedCounterpartyAccountOption={secondAccountField.selectedOption}
+                counterpartyAccountValue={secondAccountField.value}
+                counterpartyAccountError={secondAccountField.error}
+                counterpartyAccountRunningBalance={secondAccountField.runningBalance}
+                merchantOptions={merchantField.merchantOptions}
+                selectedMerchantOption={merchantField.selectedMerchantOption}
+                merchantValue={form.merchant_id}
+                merchantError={showError('merchant_id')}
+                merchantSearch={merchantField.search}
+                merchantLoading={merchantField.showLoading}
+                merchantLoadingText={merchantField.loadingText}
+                merchantHideOptionsWhileLoading={merchantField.showInitialLoading}
+                merchantHasMore={merchantField.hasMore}
+                categoryOptions={categoryField.categoryOptions}
+                categoryValue={form.category_id}
+                categoryError={showError('category_id')}
+                isBalanceAdjustmentCategory={categoryField.isBalanceAdjustmentCategory}
+                creditRepaymentSteer={categoryField.creditRepaymentSteer}
+                showMerchantDefaultCategoryAction={merchantField.showMerchantDefaultCategoryAction}
+                merchantDefaultCategoryActionLabel={merchantField.merchantDefaultCategoryActionLabel}
+                merchantDefaultCategoryPending={merchantField.merchantDefaultCategoryPending}
+                tagOptions={tagField.tagOptions}
+                tagsDisabled={!form.account_id}
+                tagSearch={tagField.search}
+                tagLoading={tagField.showLoading}
+                tagLoadingText={tagField.loadingText}
+                tagHideOptionsWhileLoading={tagField.showInitialLoading}
+                tagHasMore={tagField.hasMore}
+                selectedTags={tagField.selectedTags}
+                readOnly={readOnly}
+                onAccountChange={topAccountField.onChange}
+                onSymmetricTransferChange={accountField.handleSymmetricTransferChange}
+                onCounterpartyAccountChange={secondAccountField.onChange}
+                onMerchantChange={merchantField.handleMerchantChange}
+                onMerchantSearchChange={merchantField.setSearch}
+                onMerchantSearchCommit={merchantField.setActiveSearch}
+                onMerchantLoadMore={merchantField.loadMore}
+                onCreateMerchant={merchantModal.openModal}
+                onMakeMerchantDefaultCategory={merchantField.handleMakeMerchantDefaultCategory}
+                onCategoryChange={categoryField.handleCategoryChange}
+                onCreateCategory={categoryModal.openModal}
+                onTagChange={tagField.handleTagChange}
+                onTagSearchChange={tagField.setSearch}
+                onTagSearchCommit={tagField.setActiveSearch}
+                onTagLoadMore={tagField.loadMore}
+                onCreateTag={tagModal.openModal}
+                onRemoveTag={tagField.handleRemoveTag}
+              />
+
+              <TransactionDetailsSection
+                date={form.date}
+                dateError={showError('date')}
+                currencyOptions={currencyOptions}
+                currencyValue={form.currency}
+                currencyPlaceholder={currencyState === 'loading' ? CURRENCY_LIST_LOADING : 'Select...'}
+                selectedCurrencySymbol={selectedCurrencySymbol}
+                currencyExponent={selectedCurrencyExponent}
+                isAmountLocked={isAmountLocked}
+                currencyState={currencyState}
+                amount={form.amount}
+                amountError={showError('amount')}
+                notes={form.notes}
+                readOnly={readOnly}
+                onDateChange={(value) => handleField('date', value)}
+                onDateBlur={() => refusal.touch('date')}
+                onAmountChange={handleAmountChange}
+                onAmountBlur={() => refusal.touch('amount')}
+                onNotesChange={(value) => handleField('notes', value)}
+              />
+
+              {liveTransaction && (
+                <TransactionModalLinkedRefundsSection
+                  transaction={liveTransaction}
+                  readOnly={readOnly}
+                  disabled={isPending}
+                  canLinkRefund={canOfferRefund}
+                  canLinkExpense={canLinkExpense}
+                  pending={pending}
+                  refundRoom={refundRoom}
+                />
+              )}
+
+              <FormError message={submitError} title={submitErrorTitle} />
+            </div>
+          </ModalTitledPanel>
+        </DateStepHighlightContext.Provider>
       </ShortcutHintsVisibleContext.Provider>
       <TransactionModalLinkedDeleteConfirm
         open={open && linkedDelete.open}

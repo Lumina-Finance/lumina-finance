@@ -878,9 +878,25 @@
   /* The calendar opens outside the field and takes focus, so the button that opened it keeps the
      field looking focused until it closes */
   .app-date-field:focus-within,
-  .app-date-field:has([aria-expanded="true"]) {
+  .app-date-field:has([aria-expanded="true"]),
+  .app-date-field[data-step-highlight="lit"] {
     border-color: var(--app-focus-ring);
     box-shadow: var(--app-focus-border);
+  }
+
+  /* A change made from another field lights the date with this same look while focus stays where it is. The
+     light eases in and out over the focus fade on the app's curve, border and inner line together, and is
+     gone from the field the moment its state clears, so a field at rest keeps its own transition */
+  .app-date-field[data-step-highlight] {
+    transition-property: border-color, box-shadow;
+    transition-duration: var(--app-focus-fade-duration);
+    transition-timing-function: var(--app-ease-curve);
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .app-date-field[data-step-highlight] {
+      transition: none;
+    }
   }
 
   .app-date-field.app-input-error {
@@ -889,7 +905,8 @@
   }
 
   .app-date-field.app-input-error:focus-within,
-  .app-date-field.app-input-error:has([aria-expanded="true"]) {
+  .app-date-field.app-input-error:has([aria-expanded="true"]),
+  .app-date-field.app-input-error[data-step-highlight="lit"] {
     border-color: var(--app-negative);
     box-shadow: var(--app-focus-border-error);
   }

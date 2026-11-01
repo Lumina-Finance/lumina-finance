@@ -55,6 +55,10 @@ interface DateFieldProps {
   // A shortcut elsewhere on the page that jumps to the field, written as aria-keyshortcuts writes it
   // and put on the year, where the jump lands
   keyShortcuts?: string
+
+  // Lights the field with its focus look without moving focus into it: 'lit' while a change made elsewhere is
+  // pointed out, 'fading' while the light eases out again. Left out, or null, the field is as focus makes it
+  stepHighlight?: 'lit' | 'fading' | null
 }
 
 const SEGMENT_PLACEHOLDER: Record<DateSegmentName, string> = { year: 'yyyy', month: 'mm', day: 'dd' }
@@ -90,6 +94,7 @@ export default function DateField({
   error = false,
   describedById,
   keyShortcuts,
+  stepHighlight = null,
 }: DateFieldProps) {
   const { user } = useAuth()
   const [segments, setSegments] = useState<DateSegments>(() => parseIsoDate(value))
@@ -253,6 +258,7 @@ export default function DateField({
         aria-label={ariaLabel}
         onBlur={handleContainerBlur}
         onMouseDown={handleContainerMouseDown}
+        data-step-highlight={stepHighlight ?? undefined}
         className={`app-date-field ${error ? 'app-input-error' : ''} ${disabled ? 'cursor-not-allowed opacity-60' : ''}`}
       >
         {SEGMENT_ORDER.map((segment, index) => (

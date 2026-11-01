@@ -359,6 +359,115 @@ test('steps the date by a day with [ and ], and jumps to today with t', async ({
   expect(await readDate(dialog)).toBe('2027-12-31')
 })
 
+/** Records every value the date field's highlight attribute takes, with the time it took it, from now on */
+async function watchDateHighlight(dateField: Locator) {
+  await dateField.evaluate((el) => {
+    const history: { value: string | null; at: number }[] = []
+    ;(window as unknown as { dateHighlightHistory: typeof history }).dateHighlightHistory = history
+    new MutationObserver(() =>
+      history.push({ value: el.getAttribute('data-step-highlight'), at: performance.now() }),
+    ).observe(el, { attributes: true, attributeFilter: ['data-step-highlight'] })
+  })
+  return () =>
+    dateField.page().evaluate(
+      () =>
+        (window as unknown as { dateHighlightHistory: { value: string | null; at: number }[] }).dateHighlightHistory,
+    )
+}
+
+/** Reads a settled border colour of the date field, which is the focus colour while it is lit */
+async function readDateBorder(dateField: Locator) {
+  return dateField.evaluate((el) => getComputedStyle(el).borderTopColor)
+}
+
+/** Reads the border colour once its fade has finished, which is when two reads a moment apart agree */
+async function readSettledDateBorder(dateField: Locator) {
+  let colour = await readDateBorder(dateField)
+  for (;;) {
+    await dateField.page().waitForTimeout(150)
+    const next = await readDateBorder(dateField)
+    if (next === colour) return colour
+    colour = next
+  }
+}
+
+/** Looks at every frame for the border to reach a colour within the time, since a fade passes through shades of it */
+async function borderReaches(dateField: Locator, colour: string, withinMs: number) {
+  return dateField.evaluate(
+    async (el, args) => {
+      const end = performance.now() + args.withinMs
+      while (performance.now() < end) {
+        if (getComputedStyle(el).borderTopColor === args.colour) return true
+        await new Promise((resolve) => requestAnimationFrame(resolve))
+      }
+      return false
+    },
+    { colour, withinMs },
+  )
+}
+
+test('lights the date field with its focus look when [ or ] steps it from another field, keeping focus where it was', async ({
+  page,
+  request,
+}) => {
+  const { dialog } = await openAddDialogue(page, request)
+  const dateField = dialog.getByRole('group', { name: 'Date', exact: true })
+  const notes = dialog.getByRole('textbox', { name: 'Notes', exact: true })
+
+  // The colour focus gives the date's border, read from the same token, and the colour it has at rest
+  const focused = await page.evaluate(() => {
+    const probe = document.createElement('span')
+    probe.style.color = 'var(--app-focus-ring)'
+    document.body.append(probe)
+    const colour = getComputedStyle(probe).color
+    probe.remove()
+    return colour
+  })
+  await page.keyboard.press('Alt+KeyW')
+  await expect.poll(() => readDateBorder(dateField)).toBe(focused)
+  await page.keyboard.press('Alt+KeyL')
+  await expect(notes).toBeFocused()
+  await expect.poll(() => readDateBorder(dateField)).not.toBe(focused)
+  await expect(dateField).not.toHaveAttribute('data-step-highlight', /.+/)
+  const rest = await readSettledDateBorder(dateField)
+
+  const readHistory = await watchDateHighlight(dateField)
+
+  // Watched from before the presses, since the light is gone sooner than a check after them could land
+  const reachedFocusLook = borderReaches(dateField, focused, 2_000)
+
+  // Spaced so each press keeps the light on past its ease in, which a lone press only just reaches
+  await page.keyboard.press('BracketRight', { delay: 100 })
+  await page.keyboard.press('BracketRight', { delay: 100 })
+  await page.keyboard.press('BracketLeft')
+
+  // Lit with the focus look, while the cursor never left Notes and typed nothing
+  expect(await reachedFocusLook).toBe(true)
+  await expect(notes).toBeFocused()
+  await expect(notes).toHaveValue('')
+  expect(await readDate(dialog)).toBe(daysFromTodayInTestTimezone(1))
+
+  // Then it eases out to how it rests, and the presses in a row lit it once rather than blinking it
+  await expect.poll(() => readDateBorder(dateField), { timeout: 5_000 }).toBe(rest)
+  await expect(dateField).not.toHaveAttribute('data-step-highlight', /.+/)
+  const history = await readHistory()
+  expect(history.map((entry) => entry.value)).toEqual(['lit', 'fading', null])
+  expect(history[1].at - history[0].at).toBeGreaterThanOrEqual(150)
+  expect(history[2].at - history[1].at).toBeGreaterThanOrEqual(100)
+  await expect(notes).toBeFocused()
+})
+
+test('lights the date field at once and clears it at once under reduced motion', async ({ page, request }) => {
+  const { dialog } = await openAddDialogue(page, request)
+  await page.emulateMedia({ reducedMotion: 'reduce' })
+  const dateField = dialog.getByRole('group', { name: 'Date', exact: true })
+
+  await page.keyboard.press('Alt+KeyL')
+  const readHistory = await watchDateHighlight(dateField)
+  await page.keyboard.press('BracketRight')
+  await expect.poll(async () => (await readHistory()).map((entry) => entry.value)).toEqual(['lit', null])
+})
+
 test('keeps - as the separator when a date is typed', async ({ page, request }) => {
   const { dialog } = await openAddDialogue(page, request)
 
@@ -416,12 +525,12 @@ test('cycles Type and Direction with each press of their shortcut, wrapping roun
   const chosen = (list: Locator, name: string) =>
     expect(list.getByRole('tab', { name })).toHaveAttribute('aria-selected', 'true')
 
-  await chosen(type, 'Expense')
   // Focus stays in the field being typed in, so no focus ring shows on either group
   const notes = dialog.getByRole('textbox', { name: 'Notes', exact: true })
   await page.keyboard.press('Alt+KeyL')
   await expect(notes).toBeFocused()
 
+  await chosen(type, 'Expense')
   await page.keyboard.press('Alt+KeyY')
   await chosen(type, 'Income')
   await expect(notes).toBeFocused()

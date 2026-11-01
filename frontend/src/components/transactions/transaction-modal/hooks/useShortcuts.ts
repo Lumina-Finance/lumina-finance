@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
+import type { DateStepHighlight } from '@/components/transactions/transaction-modal/controls/dateStepHighlight'
 import { getTransactionModalIds } from '@/components/transactions/transaction-modal/ids'
 import {
   getDateKeyAction,
@@ -27,6 +28,12 @@ const DIALOG_SELECTOR = '[role="dialog"]'
  * letter within about a fifth of a second, never flashes them, and short enough to not feel like a wait
  */
 export const HINT_LONG_PRESS_MS = 300
+
+/** How long the date field stays lit after the last bracket stepped it, just past the focus fade so the light peaks */
+export const STEP_HIGHLIGHT_HOLD_MS = 180
+
+/** How long the light takes to ease out, the same as the focus fade (`--app-focus-fade-duration`) */
+export const STEP_HIGHLIGHT_FADE_MS = 150
 
 /** The parts of a React or a browser key event the shortcuts read */
 type KeyEventLike = Pick<
@@ -141,6 +148,36 @@ export function useTransactionShortcuts(
   const leftAltDownRef = useRef(false)
   const [holding, setHolding] = useState(false)
   const [hintsVisible, setHintsVisible] = useState(false)
+  const [dateStepHighlight, setDateStepHighlight] = useState<DateStepHighlight>(null)
+  const highlightTimersRef = useRef<number[]>([])
+  const lightDateRef = useRef<() => void>(() => {})
+
+  useEffect(() => {
+    // Every press restarts the hold, so steps in a row keep the light on rather than blinking it
+    lightDateRef.current = () => {
+      highlightTimersRef.current.forEach((timer) => window.clearTimeout(timer))
+      setDateStepHighlight('lit')
+      const hold = window.setTimeout(() => {
+        // Under reduced motion there is no fade to wait for, so the light goes at once
+        // Read when the hold ends, so a change of the setting while the dialogue is open is followed
+        const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches
+        setDateStepHighlight(reduceMotion ? null : 'fading')
+        if (reduceMotion) return
+        highlightTimersRef.current = [window.setTimeout(() => setDateStepHighlight(null), STEP_HIGHLIGHT_FADE_MS)]
+      }, STEP_HIGHLIGHT_HOLD_MS)
+      highlightTimersRef.current = [hold]
+    }
+  })
+
+  // A dialogue that closes, or goes, while the date is lit drops the light and its timers
+  useEffect(
+    () => () => {
+      highlightTimersRef.current.forEach((timer) => window.clearTimeout(timer))
+      highlightTimersRef.current = []
+      setDateStepHighlight(null)
+    },
+    [open],
+  )
 
   useEffect(() => {
     if (!open || !holding) return
@@ -243,6 +280,9 @@ export function useTransactionShortcuts(
         event.preventDefault()
         event.stopPropagation()
         onDateChange(stepDateValue(date, step.days, getTodayYmd(tz)))
+
+        // Focus stays in the field being typed in, so the date lights up to show the step landed there
+        lightDateRef.current()
         return
       }
 
@@ -287,5 +327,5 @@ export function useTransactionShortcuts(
     return () => window.removeEventListener('keydown', onKeyDown, true)
   }, [open, idSuffix, actionKey, isMac, tz])
 
-  return { hintsVisible }
+  return { hintsVisible, dateStepHighlight }
 }
