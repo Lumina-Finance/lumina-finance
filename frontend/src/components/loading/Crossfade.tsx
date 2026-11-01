@@ -90,6 +90,9 @@ function FitLayer({
   const layer = useRef<HTMLDivElement>(null)
   // Whether it began hidden to fade in
   const [beganHidden] = useState(animatesIn)
+  // The fade that is taking this layer out, while it is leaving. A layer whose key comes back mid-fade is
+  // kept by the presence, so its leaving fade must neither hold it at 0 nor remove it when it ends
+  const leavingFade = useRef<Animation | null>(null)
 
   useLayoutEffect(() => {
     const element = layer.current
@@ -97,6 +100,18 @@ function FitLayer({
     if (!element) return
     const word = element.querySelector<HTMLElement>(FIT_WORD_SELECTOR) ?? element
     const current = Number(getComputedStyle(word).opacity)
+    if (isPresent && leavingFade.current) {
+      leavingFade.current = null
+      for (const animation of word.getAnimations()) animation.cancel()
+      element.style.visibility = ''
+      word.style.visibility = ''
+      word.style.opacity = ''
+      word.animate([{ opacity: current }, { opacity: 1 }], {
+        duration: CONTENT_EASE_MS,
+        easing: FIT_FADE_TIMING.easing,
+      })
+      return
+    }
     if (isPresent && (!beganHidden || !ease)) return
     for (const animation of word.getAnimations()) animation.cancel()
     // How far the layer's content reaches from the container's left edge, border included
@@ -137,7 +152,10 @@ function FitLayer({
       ],
       FIT_FADE_TIMING,
     )
-    const finish = () => safeToRemove?.()
+    leavingFade.current = fade
+    const finish = () => {
+      if (leavingFade.current === fade) safeToRemove?.()
+    }
     fade.finished.then(finish, finish)
     // Runs once for each of the two changes of presence, with the widths of the render that caused it
     // eslint-disable-next-line react-hooks/exhaustive-deps
