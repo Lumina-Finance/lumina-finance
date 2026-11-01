@@ -68,17 +68,17 @@ test('explains the breakdown toggle under the mouse, and says the new thing once
 
 test('explains the breakdown toggle on keyboard focus only, and puts it away on Escape', async ({ page, request }) => {
   await openDashboard(page, request)
-  const toggle = breakdownToggle(page, 'income')
 
-  // A mouse press focuses the button without a ring, which shows nothing
-  await toggle.click()
+  // A mouse press focuses the button without a ring, which shows nothing. The press also turns the
+  // button into the one that shows spending
+  await breakdownToggle(page, 'income').click()
   await page.mouse.move(2, 2)
   await expectNoHintShown(page)
 
   await page.keyboard.press('Shift+Tab')
   await page.keyboard.press('Tab')
-  await expect(toggle).toBeFocused()
-  await expect(hintWith(page, 'Show income breakdown')).toHaveCSS('opacity', '1')
+  await expect(breakdownToggle(page, 'spending')).toBeFocused()
+  await expect(hintWith(page, 'Show spending breakdown')).toHaveCSS('opacity', '1')
 
   await page.keyboard.press('Escape')
   await expectNoHintShown(page)
