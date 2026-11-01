@@ -1,3 +1,4 @@
+import type { CSSProperties } from 'react'
 import { Link } from 'react-router'
 import { EyeOff } from 'lucide-react'
 import type { AccountsOverview } from '@/api/accounts'
@@ -8,7 +9,7 @@ import { InstitutionLogo } from '@/pages/accounts/components/InstitutionLogo'
 import { humanizeAccountType } from '@/utils/formatAccountType'
 import type { AccountAccent } from '@/pages/accounts/types/accounts'
 import { getAccountBalanceFxStatusMessage } from '@/pages/accounts/utils/fxTooltipMessages'
-import { getSignedAmountColor } from '@/utils/negativeAmount'
+import { getColorOnAccentTint, getSignedAmountColor } from '@/utils/negativeAmount'
 
 /**
  * One account in a list, linking to its detail page and showing the institution logo, name, any
@@ -48,6 +49,11 @@ export default function AccountRow({
       : account.current_balance < 0
         ? 'var(--app-negative)'
         : 'var(--app-text)'
+  // The balance reads its colour, and a tinted variant while the row is under the pointer
+  const balanceStyle = {
+    '--balance-text': balanceColor,
+    '--balance-tinted-text': getColorOnAccentTint(balanceColor),
+  } as CSSProperties
   const linkedPlan =
     account.group_id === null && account.tax_advantaged_category_id
       ? taxAdvantagedCategoryById.get(account.tax_advantaged_category_id)
@@ -63,7 +69,7 @@ export default function AccountRow({
   return (
     <Link
       to={`/accounts/${account.id}`}
-      className={`app-focus-inset focus-visible:bg-transparent! flex min-w-0 items-stretch overflow-hidden rounded-xl hover:bg-[var(--app-accent-soft)] ${
+      className={`group/row app-focus-inset focus-visible:bg-transparent! flex min-w-0 items-stretch overflow-hidden rounded-xl hover:bg-[var(--app-accent-soft)] ${
         isArchived
           ? 'my-1 border border-dashed opacity-75 transition-[color,background-color,opacity] hover:opacity-100'
           : 'transition-control'
@@ -81,7 +87,7 @@ export default function AccountRow({
                 className="shrink-0 rounded-md px-2 py-0.5 text-xs font-medium"
                 style={{
                   background: 'var(--app-accent-soft)',
-                  color: 'var(--app-accent)',
+                  color: 'var(--app-accent-on-page-tint)',
                   border: '1px solid var(--app-accent-border)',
                 }}
               >
@@ -99,7 +105,10 @@ export default function AccountRow({
           </div>
         </div>
         <div className="col-start-2 min-w-0 text-left min-[730px]:shrink-0 min-[730px]:text-right">
-          <p className="font-financial font-medium" style={{ color: balanceColor }}>
+          <p
+            className="font-financial font-medium text-[var(--balance-text)] transition-control group-hover/row:text-[var(--balance-tinted-text)]"
+            style={balanceStyle}
+          >
             {formatCurrency(account.current_balance, account.currency)}
           </p>
           {showConvertedBalance && (

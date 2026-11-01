@@ -60,6 +60,15 @@ export function getSignedAmountColor(amount: number, zeroColor?: string): string
 }
 
 /**
+ * Returns the colour an amount's text takes while its row is under the pointer, where the soft accent tint lies
+ * under it. The positive green falls under 4.5:1 on that tint in the light theme, so it is drawn a little darker, and
+ * every other colour already clears it
+ */
+export function getColorOnAccentTint(color: string): string {
+  return color === AMOUNT_SIGN_COLORS[1] ? 'var(--app-positive-on-accent-tint)' : color
+}
+
+/**
  * Puts an amount's direction in front of its already formatted magnitude
  *
  * Money in always carries a plus. Money out is written in the style set for amounts that moved. A
