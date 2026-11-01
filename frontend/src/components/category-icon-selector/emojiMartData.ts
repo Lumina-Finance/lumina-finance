@@ -18,6 +18,7 @@ export function getCachedEmojiMartData(): EmojiMartData | null {
 
 /**
  * Loads the large emoji dataset once because multiple icon selectors can open during settings edits
+ * A failed load is forgotten, so a later call fetches again
  */
 export function loadEmojiMartData(): Promise<EmojiMartData> {
   if (!emojiMartDataPromise) {
@@ -30,6 +31,11 @@ export function loadEmojiMartData(): Promise<EmojiMartData> {
         const data = (await response.json()) as EmojiMartData
         cachedEmojiMartData = data
         return data
+      })
+      .catch((error: unknown) => {
+        // A failed download is not kept, so the next click on the icon button fetches again
+        emojiMartDataPromise = null
+        throw error
       })
   }
 
