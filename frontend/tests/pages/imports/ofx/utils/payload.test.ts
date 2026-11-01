@@ -48,9 +48,28 @@ const CURRENCIES = [
   { id: 'JPY', name: 'Japanese yen', symbol: '¥', minor_unit_exponent: 0 },
 ] as Currency[]
 
-const CHEQUING = { id: 'chequing', name: 'Chequing', currency: 'CAD', can_write: true, is_archived: false, group_id: null } as AccountsOverview
-const MISCELLANEOUS = { id: 'misc', name: 'Miscellaneous', kind: 'expense', is_system: true, group_id: null } as Category
-const OTHER_INCOME = { id: 'other-income', name: 'Other Income', kind: 'income', is_system: true, group_id: null } as Category
+const CHEQUING = {
+  id: 'chequing',
+  name: 'Chequing',
+  currency: 'CAD',
+  can_write: true,
+  is_archived: false,
+  group_id: null,
+} as AccountsOverview
+const MISCELLANEOUS = {
+  id: 'misc',
+  name: 'Miscellaneous',
+  kind: 'expense',
+  is_system: true,
+  group_id: null,
+} as Category
+const OTHER_INCOME = {
+  id: 'other-income',
+  name: 'Other Income',
+  kind: 'income',
+  is_system: true,
+  group_id: null,
+} as Category
 
 async function readStatements(statements: FixtureStatement[]): Promise<OfxFile> {
   const read = await readOfxFile(toOfxFile(buildSgmlOfx(statements)))
@@ -62,7 +81,10 @@ function createAnswers(file: OfxFile, choice: string, overrides: Partial<OfxImpo
   return {
     accountMappings: Object.fromEntries(file.statements.map((statement) => [statement.id, choice])),
     accountCreateDetails: Object.fromEntries(
-      file.statements.map((statement) => [statement.id, { accountType: statement.proposedType, currency: statement.currency, institutionId: '' }]),
+      file.statements.map((statement) => [
+        statement.id,
+        { accountType: statement.proposedType, currency: statement.currency, institutionId: '' },
+      ]),
     ),
     accountById: new Map([[CHEQUING.id, CHEQUING]]),
     categories: [MISCELLANEOUS, OTHER_INCOME],
@@ -103,7 +125,13 @@ describe('compiling an OFX import', () => {
           bank_account: file.statements[0].id,
           bank_transaction: 'A1',
         },
-        expect.objectContaining({ category_source: '(money in, no category)', dt: '2024-01-16', amount: '2500.00', merchant_name: 'Payroll', notes: null }),
+        expect.objectContaining({
+          category_source: '(money in, no category)',
+          dt: '2024-01-16',
+          amount: '2500.00',
+          merchant_name: 'Payroll',
+          notes: null,
+        }),
       ],
     })
   })
@@ -111,18 +139,30 @@ describe('compiling an OFX import', () => {
   // The statement ids hold the bank, account and card numbers, which only go to the server inside the
   // rows, to be hashed there, and never name an account answer
   it('imports a bank and a credit card statement in one run, each into the account chosen for it, naming no answer by an account number', async () => {
-    const file = await readStatements([CHECKING, { kind: 'creditCard', transactions: [{ amount: '-30.00', name: 'Hardware' }] }])
+    const file = await readStatements([
+      CHECKING,
+      { kind: 'creditCard', transactions: [{ amount: '-30.00', name: 'Hardware' }] },
+    ])
     const [bank, card] = file.statements
     const build = buildOfxImportPayload(file, createAnswers(file, CREATE_ACCOUNT_VALUE))
 
     expect(build.payload?.accounts).toEqual([
-      { source: 'statement-1', create: { name: 'Checking ending 6789', account_type: 'checking', currency: 'CAD', institution_id: null } },
-      { source: 'statement-2', create: { name: 'Credit card ending 1111', account_type: 'credit_card', currency: 'CAD', institution_id: null } },
+      {
+        source: 'statement-1',
+        create: { name: 'Checking ending 6789', account_type: 'checking', currency: 'CAD', institution_id: null },
+      },
+      {
+        source: 'statement-2',
+        create: { name: 'Credit card ending 1111', account_type: 'credit_card', currency: 'CAD', institution_id: null },
+      },
     ])
     expect(build.payload?.rows.map((row) => row.account_source)).toEqual(['statement-1', 'statement-1', 'statement-2'])
     expect([...build.writtenSources]).toEqual([bank.id, card.id])
     expect([bank.id, card.id].join()).toMatch(/123000456.*000123456789.*4111111111111111/)
-    const withoutBankFields = { ...build.payload, rows: build.payload?.rows.map((row) => ({ ...row, bank_account: null, bank_transaction: null })) }
+    const withoutBankFields = {
+      ...build.payload,
+      rows: build.payload?.rows.map((row) => ({ ...row, bank_account: null, bank_transaction: null })),
+    }
     expect(JSON.stringify(withoutBankFields)).not.toMatch(/123000456|000123456789|4111111111111111/)
     expect(build.payload?.rows.map((row) => [row.bank_account, row.bank_transaction])).toEqual([
       [bank.id, 'A1'],
@@ -131,7 +171,7 @@ describe('compiling an OFX import', () => {
     ])
   })
 
-  it('refuses a statement whose currency is not its account\'s, and writes nothing from it', async () => {
+  it("refuses a statement whose currency is not its account's, and writes nothing from it", async () => {
     const file = await readStatements([{ ...CHECKING, currency: 'USD' }])
     const build = buildOfxImportPayload(file, createAnswers(file, CHEQUING.id))
     const expected = getOfxCurrencyMismatchError(file.statements[0].label, 'USD', 'CAD')
@@ -153,7 +193,10 @@ describe('compiling an OFX import', () => {
   it('writes the one statement of a file to the account an import started from', async () => {
     const file = await readStatements([CHECKING])
     const mappings = getOfxFixedAccountMappings(getOfxStatementsToImport(file), CHEQUING)
-    const build = buildOfxImportPayload(file, createAnswers(file, '', { accountMappings: mappings, fixedAccount: CHEQUING }))
+    const build = buildOfxImportPayload(
+      file,
+      createAnswers(file, '', { accountMappings: mappings, fixedAccount: CHEQUING }),
+    )
 
     expect(mappings).toEqual({ [file.statements[0].id]: CHEQUING.id })
     expect(build.errors).toEqual([])
@@ -189,25 +232,39 @@ describe('compiling an OFX import', () => {
 
 describe('transactions the import leaves out', () => {
   it('lists a transaction with no readable amount or date with its reason and imports the rest', async () => {
-    const file = await readStatements([{
-      transactions: [
-        { posted: '20240110', amount: 'twelve', name: 'No amount', fitId: '1' },
-        { posted: '20240230', amount: '-5.00', name: 'No date', fitId: '2' },
-        { posted: '20240111', amount: '-5.00', name: 'Fine', fitId: '3' },
-      ],
-    }])
+    const file = await readStatements([
+      {
+        transactions: [
+          { posted: '20240110', amount: 'twelve', name: 'No amount', fitId: '1' },
+          { posted: '20240230', amount: '-5.00', name: 'No date', fitId: '2' },
+          { posted: '20240111', amount: '-5.00', name: 'Fine', fitId: '3' },
+        ],
+      },
+    ])
     const build = buildOfxImportPayload(file, createAnswers(file, CHEQUING.id))
 
     // A readable date shows the way the preview groups dates, and an unreadable one stays as the
     // file wrote it so the user can find the line
-    expect(build.skippedRows.map(({ payee, reason, amountText, postedLabel }) => ({ payee, reason, amountText, postedLabel }))).toEqual([
-      { payee: 'No amount', reason: OFX_AMOUNT_UNREADABLE_REASON, amountText: 'twelve', postedLabel: 'January 10, 2024' },
+    expect(
+      build.skippedRows.map(({ payee, reason, amountText, postedLabel }) => ({
+        payee,
+        reason,
+        amountText,
+        postedLabel,
+      })),
+    ).toEqual([
+      {
+        payee: 'No amount',
+        reason: OFX_AMOUNT_UNREADABLE_REASON,
+        amountText: 'twelve',
+        postedLabel: 'January 10, 2024',
+      },
       { payee: 'No date', reason: OFX_DATE_UNREADABLE_REASON, amountText: '-5.00', postedLabel: '20240230' },
     ])
     expect(build.payload?.rows.map((row) => row.merchant_name)).toEqual(['Fine'])
   })
 
-  it('leaves out an amount with more decimal places than its account\'s currency or too large to store', async () => {
+  it("leaves out an amount with more decimal places than its account's currency or too large to store", async () => {
     const yen: FixtureStatement = {
       currency: 'JPY',
       transactions: [
@@ -218,7 +275,10 @@ describe('transactions the import leaves out', () => {
     }
     const file = await readStatements([yen])
     const jpyAccount = { ...CHEQUING, currency: 'JPY' } as AccountsOverview
-    const build = buildOfxImportPayload(file, createAnswers(file, CHEQUING.id, { accountById: new Map([[jpyAccount.id, jpyAccount]]) }))
+    const build = buildOfxImportPayload(
+      file,
+      createAnswers(file, CHEQUING.id, { accountById: new Map([[jpyAccount.id, jpyAccount]]) }),
+    )
 
     expect(build.skippedRows.map((row) => [row.payee, row.reason])).toEqual([
       ['Cents', getOfxAmountTooPreciseReason('JPY')],
@@ -228,12 +288,14 @@ describe('transactions the import leaves out', () => {
   })
 
   it('leaves out a memo over the notes limit but keeps one at the limit', async () => {
-    const file = await readStatements([{
-      transactions: [
-        { name: 'At limit', memo: 'm'.repeat(MAX_IMPORT_NOTES_LENGTH) },
-        { name: 'Over limit', memo: 'm'.repeat(MAX_IMPORT_NOTES_LENGTH + 1) },
-      ],
-    }])
+    const file = await readStatements([
+      {
+        transactions: [
+          { name: 'At limit', memo: 'm'.repeat(MAX_IMPORT_NOTES_LENGTH) },
+          { name: 'Over limit', memo: 'm'.repeat(MAX_IMPORT_NOTES_LENGTH + 1) },
+        ],
+      },
+    ])
     const build = buildOfxImportPayload(file, createAnswers(file, CHEQUING.id))
 
     expect(build.skippedRows.map((row) => row.payee)).toEqual(['Over limit'])
@@ -242,9 +304,14 @@ describe('transactions the import leaves out', () => {
 
   it('leaves out a payee name over the merchant limit with the wording the other imports use, but keeps one at the limit', async () => {
     const limit = JOURNAL_ROW_FIELD_MAX_LENGTHS.merchantName
-    const file = await readStatements([{
-      transactions: [{ name: 'p'.repeat(limit), amount: '-1.00' }, { name: 'p'.repeat(limit + 1), amount: '-2.00' }],
-    }])
+    const file = await readStatements([
+      {
+        transactions: [
+          { name: 'p'.repeat(limit), amount: '-1.00' },
+          { name: 'p'.repeat(limit + 1), amount: '-2.00' },
+        ],
+      },
+    ])
     const build = buildOfxImportPayload(file, createAnswers(file, CHEQUING.id))
 
     expect(build.skippedRows.map((row) => row.reason)).toEqual([getImportMerchantTooLongReason(limit + 1)])
@@ -254,13 +321,15 @@ describe('transactions the import leaves out', () => {
   // ORIGCURRENCY only records the foreign amount, so a foreign card purchase imports in the statement's currency
   it('leaves out a transaction whose CURRENCY block names another currency, and imports one with an ORIGCURRENCY block', async () => {
     const block = (tag: string, code: string) => `<${tag}>\n<CURRATE>0.75\n<CURSYM>${code}\n</${tag}>\n`
-    const file = await readStatements([{
-      transactions: [
-        { extra: block('CURRENCY', 'USD'), amount: '-1.00', name: 'Priced in dollars' },
-        { extra: block('ORIGCURRENCY', 'EUR'), amount: '-2.00', name: 'Bought in euros' },
-        { extra: block('CURRENCY', 'CAD'), amount: '-3.00', name: 'Same currency' },
-      ],
-    }])
+    const file = await readStatements([
+      {
+        transactions: [
+          { extra: block('CURRENCY', 'USD'), amount: '-1.00', name: 'Priced in dollars' },
+          { extra: block('ORIGCURRENCY', 'EUR'), amount: '-2.00', name: 'Bought in euros' },
+          { extra: block('CURRENCY', 'CAD'), amount: '-3.00', name: 'Same currency' },
+        ],
+      },
+    ])
     const build = buildOfxImportPayload(file, createAnswers(file, CHEQUING.id))
 
     expect(build.skippedRows.map((row) => [row.payee, row.reason])).toEqual([
@@ -273,7 +342,10 @@ describe('transactions the import leaves out', () => {
   })
 
   it('creates no account for a statement all of whose transactions are left out', async () => {
-    const file = await readStatements([CHECKING, { kind: 'creditCard', transactions: [{ amount: 'n/a', name: 'Broken' }] }])
+    const file = await readStatements([
+      CHECKING,
+      { kind: 'creditCard', transactions: [{ amount: 'n/a', name: 'Broken' }] },
+    ])
     const build = buildOfxImportPayload(file, createAnswers(file, CREATE_ACCOUNT_VALUE))
 
     expect(build.payload?.accounts.map((account) => account.source)).toEqual(['statement-1'])
@@ -310,17 +382,26 @@ describe('categories for a statement', () => {
 describe('previewing an OFX import', () => {
   it('shows the transactions the commit writes, leaving out those it skips and statements in the wrong currency', async () => {
     const file = await readStatements([
-      { transactions: [{ amount: 'bad', name: 'Skipped' }, { amount: '-1.00', name: 'Shown' }] },
+      {
+        transactions: [
+          { amount: 'bad', name: 'Skipped' },
+          { amount: '-1.00', name: 'Shown' },
+        ],
+      },
       { kind: 'creditCard', currency: 'USD', transactions: [{ amount: '-2.00', name: 'Wrong currency' }] },
     ])
     const answers = createAnswers(file, CHEQUING.id)
     const build = buildOfxImportPayload(file, answers)
 
-    const rows = buildOfxPreviewRows(file, {
-      ...answers,
-      institutionById: new Map(),
-      skippedRowIds: new Set(build.skippedRows.map((row) => row.id)),
-    }, 5)
+    const rows = buildOfxPreviewRows(
+      file,
+      {
+        ...answers,
+        institutionById: new Map(),
+        skippedRowIds: new Set(build.skippedRows.map((row) => row.id)),
+      },
+      5,
+    )
 
     expect(rows.map((row) => row.transaction.merchant_name)).toEqual(['Shown'])
     expect(rows[0].category?.name).toBe('Miscellaneous')
@@ -331,22 +412,38 @@ describe('previewing an OFX import', () => {
 // import keeps the first copy it meets in the order of the files
 describe('a transaction that an earlier file of the import already holds', () => {
   async function readFiles(files: Array<{ name: string; statements: FixtureStatement[] }>) {
-    const read = await Promise.all(files.map(async ({ name, statements }) => {
-      const result = await readOfxFile(toOfxFile(buildSgmlOfx(statements), name))
-      if (result.status !== 'read') throw new Error(result.reason)
-      return result.file
-    }))
+    const read = await Promise.all(
+      files.map(async ({ name, statements }) => {
+        const result = await readOfxFile(toOfxFile(buildSgmlOfx(statements), name))
+        if (result.status !== 'read') throw new Error(result.reason)
+        return result.file
+      }),
+    )
     return combineOfxFiles(read)
   }
 
-  const january = { name: '2024-01.qfx', statements: [{ transactions: [
-    { posted: '20240130', amount: '-10.00', fitId: 'A1', name: 'Cafe' },
-    { posted: '20240131', amount: '-20.00', fitId: 'A2', name: 'Market' },
-  ] }] }
-  const february = { name: '2024-02.qfx', statements: [{ transactions: [
-    { posted: '20240131', amount: '-20.00', fitId: 'A2', name: 'Market' },
-    { posted: '20240201', amount: '-30.00', fitId: 'B1', name: 'Gas' },
-  ] }] }
+  const january = {
+    name: '2024-01.qfx',
+    statements: [
+      {
+        transactions: [
+          { posted: '20240130', amount: '-10.00', fitId: 'A1', name: 'Cafe' },
+          { posted: '20240131', amount: '-20.00', fitId: 'A2', name: 'Market' },
+        ],
+      },
+    ],
+  }
+  const february = {
+    name: '2024-02.qfx',
+    statements: [
+      {
+        transactions: [
+          { posted: '20240131', amount: '-20.00', fitId: 'A2', name: 'Market' },
+          { posted: '20240201', amount: '-30.00', fitId: 'B1', name: 'Gas' },
+        ],
+      },
+    ],
+  }
 
   it('is skipped with the name of the file that has it, and the first copy is kept', async () => {
     const file = await readFiles([january, february])
@@ -373,7 +470,10 @@ describe('a transaction that an earlier file of the import already holds', () =>
 
   // Many banks name every download the same, so the files are told apart by the files and not by their names
   it('is skipped when the files share a name, which the reason and the skipped row tell apart by position', async () => {
-    const file = await readFiles([{ ...january, name: 'statement.qfx' }, { ...february, name: 'statement.qfx' }])
+    const file = await readFiles([
+      { ...january, name: 'statement.qfx' },
+      { ...february, name: 'statement.qfx' },
+    ])
     const build = buildOfxImportPayload(file, createAnswers(file, CHEQUING.id))
 
     expect(build.payload?.rows.map((row) => row.merchant_name)).toEqual(['Cafe', 'Market', 'Gas'])
@@ -385,7 +485,9 @@ describe('a transaction that an earlier file of the import already holds', () =>
   // A file that holds one account as two statements, such as split over two date ranges, reads as
   // one statement, so a later file's repeat of either is found
   it('is skipped when an earlier file holds it under the same account in another of its statements', async () => {
-    const month = (name: string, fitId: string) => ({ transactions: [{ posted: '20240110', amount: '-5.00', fitId, name }] })
+    const month = (name: string, fitId: string) => ({
+      transactions: [{ posted: '20240110', amount: '-5.00', fitId, name }],
+    })
     const file = await readFiles([
       { name: 'a.qfx', statements: [month('Jan', 'J1'), month('Feb', 'F1')] },
       { name: 'b.qfx', statements: [month('Feb', 'F1'), month('Mar', 'M1')] },
@@ -409,12 +511,20 @@ describe('a transaction that an earlier file of the import already holds', () =>
 
   it('is imported when the same account ID and ID are in a file in another currency', async () => {
     const usdAccount = { ...CHEQUING, id: 'usd-chequing', currency: 'USD' } as AccountsOverview
-    const inUsd = { name: '2024-02.qfx', statements: [{ currency: 'USD', transactions: february.statements[0].transactions }] }
+    const inUsd = {
+      name: '2024-02.qfx',
+      statements: [{ currency: 'USD', transactions: february.statements[0].transactions }],
+    }
     const file = await readFiles([january, inUsd])
     const answers = createAnswers(file, CHEQUING.id, {
-      accountById: new Map([[CHEQUING.id, CHEQUING], [usdAccount.id, usdAccount]]),
+      accountById: new Map([
+        [CHEQUING.id, CHEQUING],
+        [usdAccount.id, usdAccount],
+      ]),
     })
-    answers.accountMappings = Object.fromEntries(file.statements.map((statement) => [statement.id, statement.currency === 'USD' ? usdAccount.id : CHEQUING.id]))
+    answers.accountMappings = Object.fromEntries(
+      file.statements.map((statement) => [statement.id, statement.currency === 'USD' ? usdAccount.id : CHEQUING.id]),
+    )
     const build = buildOfxImportPayload(file, answers)
 
     expect(build.errors).toEqual([])
@@ -427,11 +537,15 @@ describe('a transaction that an earlier file of the import already holds', () =>
     const answers = createAnswers(file, CHEQUING.id)
     const build = buildOfxImportPayload(file, answers)
 
-    const rows = buildOfxPreviewRows(file, {
-      ...answers,
-      institutionById: new Map(),
-      skippedRowIds: new Set(build.skippedRows.map((row) => row.id)),
-    }, 10)
+    const rows = buildOfxPreviewRows(
+      file,
+      {
+        ...answers,
+        institutionById: new Map(),
+        skippedRowIds: new Set(build.skippedRows.map((row) => row.id)),
+      },
+      10,
+    )
 
     expect(rows.map((row) => row.transaction.merchant_name)).toEqual(['Cafe', 'Market', 'Gas'])
   })
@@ -439,10 +553,19 @@ describe('a transaction that an earlier file of the import already holds', () =>
   // The save keeps one transaction per bank ID in an account, so a second copy in one file is listed
   // here rather than refused by the save
   it('is skipped as a repeat within the file when the same ID repeats in one file', async () => {
-    const file = await readFiles([{ name: '2024-01.qfx', statements: [{ transactions: [
-      { posted: '20240110', amount: '-5.00', fitId: '0', name: 'First' },
-      { posted: '20240111', amount: '-6.00', fitId: '0', name: 'Second' },
-    ] }] }])
+    const file = await readFiles([
+      {
+        name: '2024-01.qfx',
+        statements: [
+          {
+            transactions: [
+              { posted: '20240110', amount: '-5.00', fitId: '0', name: 'First' },
+              { posted: '20240111', amount: '-6.00', fitId: '0', name: 'Second' },
+            ],
+          },
+        ],
+      },
+    ])
     const build = buildOfxImportPayload(file, createAnswers(file, CHEQUING.id))
 
     expect(build.skippedRows.map(({ fileName, payee, reason }) => [fileName, payee, reason])).toEqual([
@@ -452,20 +575,34 @@ describe('a transaction that an earlier file of the import already holds', () =>
   })
 
   it('is imported when one file holds the same ID for two bank accounts', async () => {
-    const file = await readFiles([{ name: '2024-01.qfx', statements: [
-      { transactions: [{ posted: '20240110', amount: '-5.00', fitId: '0', name: 'Chequing' }] },
-      { accountId: '000999888777', transactions: [{ posted: '20240111', amount: '-6.00', fitId: '0', name: 'Savings' }] },
-    ] }])
+    const file = await readFiles([
+      {
+        name: '2024-01.qfx',
+        statements: [
+          { transactions: [{ posted: '20240110', amount: '-5.00', fitId: '0', name: 'Chequing' }] },
+          {
+            accountId: '000999888777',
+            transactions: [{ posted: '20240111', amount: '-6.00', fitId: '0', name: 'Savings' }],
+          },
+        ],
+      },
+    ])
     const build = buildOfxImportPayload(file, createAnswers(file, CHEQUING.id))
 
     expect(build.skippedRows).toEqual([])
     const [chequing, savings] = build.payload?.rows.map((row) => [row.bank_account, row.bank_transaction]) ?? []
-    expect([chequing, savings]).toEqual([[file.statements[0].id, '0'], [file.statements[1].id, '0']])
+    expect([chequing, savings]).toEqual([
+      [file.statements[0].id, '0'],
+      [file.statements[1].id, '0'],
+    ])
     expect(savings).not.toEqual(chequing)
   })
 
   it('is imported when the same ID belongs to another bank account', async () => {
-    const other = { name: '2024-02.qfx', statements: [{ accountId: '000999888777', transactions: february.statements[0].transactions }] }
+    const other = {
+      name: '2024-02.qfx',
+      statements: [{ accountId: '000999888777', transactions: february.statements[0].transactions }],
+    }
     const file = await readFiles([january, other])
     const build = buildOfxImportPayload(file, createAnswers(file, CHEQUING.id))
 
@@ -474,28 +611,44 @@ describe('a transaction that an earlier file of the import already holds', () =>
   })
 
   it('is imported with no bank ID when the bank gave it none', async () => {
-    const withoutId = (name: string) => ({ name, statements: [{ transactions: [{ posted: '20240110', amount: '-5.00', fitId: null, name: 'Cafe' }] }] })
+    const withoutId = (name: string) => ({
+      name,
+      statements: [{ transactions: [{ posted: '20240110', amount: '-5.00', fitId: null, name: 'Cafe' }] }],
+    })
     const file = await readFiles([withoutId('2024-01.qfx'), withoutId('2024-02.qfx')])
     const build = buildOfxImportPayload(file, createAnswers(file, CHEQUING.id))
 
     expect(build.skippedRows).toEqual([])
-    expect(build.payload?.rows.map((row) => [row.bank_account, row.bank_transaction])).toEqual([[null, null], [null, null]])
+    expect(build.payload?.rows.map((row) => [row.bank_account, row.bank_transaction])).toEqual([
+      [null, null],
+      [null, null],
+    ])
   })
 
   // The server keeps a fixed-length hash, so a bank ID longer than the 255 characters OFX allows is
   // no reason to leave the transaction out
   it('is imported however long its bank ID is', async () => {
-    const file = await readFiles([{ name: '2024-01.qfx', statements: [{ transactions: [
-      { posted: '20240110', amount: '-5.00', fitId: 'y'.repeat(300), name: 'Long ID' },
-    ] }] }])
+    const file = await readFiles([
+      {
+        name: '2024-01.qfx',
+        statements: [
+          { transactions: [{ posted: '20240110', amount: '-5.00', fitId: 'y'.repeat(300), name: 'Long ID' }] },
+        ],
+      },
+    ])
     const build = buildOfxImportPayload(file, createAnswers(file, CHEQUING.id))
 
     expect(build.skippedRows).toEqual([])
-    expect(build.payload?.rows.map((row) => [row.merchant_name, row.bank_transaction])).toEqual([['Long ID', 'y'.repeat(300)]])
+    expect(build.payload?.rows.map((row) => [row.merchant_name, row.bank_transaction])).toEqual([
+      ['Long ID', 'y'.repeat(300)],
+    ])
   })
 
   it('does not count a first copy that was itself left out, so a readable copy in a later file is imported', async () => {
-    const unreadable = { name: '2024-01.qfx', statements: [{ transactions: [{ posted: '20240131', amount: 'n/a', fitId: 'A2', name: 'Market' }] }] }
+    const unreadable = {
+      name: '2024-01.qfx',
+      statements: [{ transactions: [{ posted: '20240131', amount: 'n/a', fitId: 'A2', name: 'Market' }] }],
+    }
     const file = await readFiles([unreadable, february])
     const build = buildOfxImportPayload(file, createAnswers(file, CHEQUING.id))
 
@@ -529,11 +682,15 @@ describe('a transaction that its account already holds from an earlier import', 
     const answers = createAnswers(file, CHEQUING.id, { heldRowIds: heldIds(file, 1) })
     const build = buildOfxImportPayload(file, answers)
 
-    const rows = buildOfxPreviewRows(file, {
-      ...answers,
-      institutionById: new Map(),
-      skippedRowIds: new Set(build.skippedRows.map((row) => row.id)),
-    }, 5)
+    const rows = buildOfxPreviewRows(
+      file,
+      {
+        ...answers,
+        institutionById: new Map(),
+        skippedRowIds: new Set(build.skippedRows.map((row) => row.id)),
+      },
+      5,
+    )
 
     expect(rows.map((row) => row.transaction.merchant_name)).toEqual(['Corner Cafe'])
   })
@@ -557,8 +714,12 @@ describe('a transaction that its account already holds from an earlier import', 
   })
 
   it('is named a repeat rather than held when a later file repeats the kept copy', async () => {
-    const first = await readOfxFile(toOfxFile(buildSgmlOfx([{ transactions: [{ fitId: 'A2', name: 'Payroll' }] }]), '2024-01.qfx'))
-    const second = await readOfxFile(toOfxFile(buildSgmlOfx([{ transactions: [{ fitId: 'A2', name: 'Payroll' }] }]), '2024-02.qfx'))
+    const first = await readOfxFile(
+      toOfxFile(buildSgmlOfx([{ transactions: [{ fitId: 'A2', name: 'Payroll' }] }]), '2024-01.qfx'),
+    )
+    const second = await readOfxFile(
+      toOfxFile(buildSgmlOfx([{ transactions: [{ fitId: 'A2', name: 'Payroll' }] }]), '2024-02.qfx'),
+    )
     if (first.status !== 'read' || second.status !== 'read') throw new Error('Fixture files are not readable')
     const file = combineOfxFiles([first.file, second.file])
     const keptCopy = file.statements[0].transactions[0]
