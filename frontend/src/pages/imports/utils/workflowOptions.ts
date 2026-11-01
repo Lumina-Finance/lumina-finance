@@ -379,9 +379,10 @@ export function getImportedTags(
   // one tag and answering them separately would leave nothing to say which answer their rows take
   const seenKeys = new Set<string>()
   const values: string[] = []
-  // A row carrying a name longer than a tag can be is listed as a row that won't import, and the
-  // commit sees only the rows written. Its other names are not asked about, and its spellings are
-  // not the ones a tag is filed under, since the API takes no answer or match request for them
+  // The commit files a tag under the spelling of the rows it writes, so only rows that will import
+  // feed the step and the caller leaves out the ones refused. A row carrying a name longer than a
+  // tag can be is left out here as well, since it stays refused while the mappings the other
+  // refusals wait on are unanswered. Its other names are not asked about either
   const spellings = files.flatMap((file) =>
     file.rows
       .filter(isRowIncluded)

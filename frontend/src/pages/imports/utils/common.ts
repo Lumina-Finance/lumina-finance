@@ -1,7 +1,18 @@
-import type { ImportRowFilter } from '@/pages/imports/types'
+import type { CsvRow, ImportRowFilter } from '@/pages/imports/types'
 
 /** Takes every row, for an import with no date range and for reading a whole file */
 export const includeEveryImportRow: ImportRowFilter = () => true
+
+/**
+ * Narrows a row filter to the rows that will also be written, leaving out the rows the import refuses
+ *
+ * @param isRowIncluded - Which rows take part, such as the ones inside the chosen dates
+ * @param refusedRowCells - The cells of every row the import refuses, as the payload builder lists them
+ */
+export function excludeRefusedRows(isRowIncluded: ImportRowFilter, refusedRowCells: CsvRow[]): ImportRowFilter {
+  const refused = new Set(refusedRowCells)
+  return (row) => isRowIncluded(row) && !refused.has(row)
+}
 
 /**
  * Returns a copy of a record without the given key, or the original record when the key was never
@@ -58,7 +69,6 @@ export function formatBytes(bytes: number) {
 function roundUpToTenth(value: number) {
   return (Math.ceil(value * 10) / 10).toFixed(1)
 }
-
 
 /**
  * Joins the counts of a finished import into one summary line that wraps only between counts, so a

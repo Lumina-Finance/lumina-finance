@@ -267,7 +267,8 @@ describe('the tag names a file offers to answer', () => {
   })
 
   // The commit sees only the rows written, and a row carrying a tag over the limit is not written,
-  // so a spelling only that row states is not the one the commit files the tag under
+  // so a spelling only that row states is not the one the commit files the tag under. The workflow
+  // leaves out rows refused for any other reason through the row filter, tested beside this file
   it('takes the spelling of a tag from the rows that will be written, not from a refused row', () => {
     const tooLong = 'x'.repeat(IMPORT_TAG_NAME_MAX_LENGTH + 1)
 

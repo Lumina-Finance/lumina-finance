@@ -52,6 +52,7 @@ import {
   getImportDateRangeFilter,
   getLatestStartSuggestion,
   getLatestTransactionFilters,
+  excludeRefusedRows,
   includeEveryImportRow,
   isImportDateRangeCrossed,
   getMissingRequiredColumnLabels,
@@ -791,63 +792,6 @@ export function useTransactionImportWorkflow(fixedAccount: AccountsOverview | nu
     [amountFormat, columnMap, directionAnswers, importedCategories, files, isRowIncluded],
   )
 
-  const importedTags = useMemo(
-    () => getImportedTags(files, columnMap.tag_ids, isRowIncluded),
-    [columnMap.tag_ids, files, isRowIncluded],
-  )
-
-  // Held under the spelling shown when each was given, which a date range can leave out of the rows
-  // while another spelling of the same tag stays, so they are read and written under the spelling
-  // the step asks about now
-  const tagMappings = useMemo(
-    () => alignNameAnswersWithValues(readScopedImportAnswers(scopedTagMappings, getTagSourceScope), importedTags),
-    [getTagSourceScope, importedTags, scopedTagMappings],
-  )
-
-  const tagCreateNames = useMemo(
-    () => alignNameAnswersWithValues(readScopedImportAnswers(scopedTagCreateNames, getTagSourceScope), importedTags),
-    [getTagSourceScope, importedTags, scopedTagCreateNames],
-  )
-
-  const setTagMappings: Dispatch<SetStateAction<Record<string, string>>> = (update) => {
-    setScopedTagMappings((current) => {
-      const answers = alignNameAnswersWithValues(readScopedImportAnswers(current, getTagSourceScope), importedTags)
-      return writeScopedImportAnswers(
-        current,
-        typeof update === 'function' ? update(answers) : update,
-        getTagSourceScope,
-      )
-    })
-  }
-
-  const setTagCreateNames: Dispatch<SetStateAction<Record<string, string>>> = (update) => {
-    setScopedTagCreateNames((current) => {
-      const answers = alignNameAnswersWithValues(readScopedImportAnswers(current, getTagSourceScope), importedTags)
-      return writeScopedImportAnswers(
-        current,
-        typeof update === 'function' ? update(answers) : update,
-        getTagSourceScope,
-      )
-    })
-  }
-
-  const {
-    matchedTagByKey,
-    tagMatchesLoading,
-    tagMatchesFailed,
-    refetchTagMatches,
-    tagOptions,
-    rememberPickedTag,
-    tagSearch,
-    setTagSearch,
-    tagSearchLoading,
-    hasMoreTagResults,
-    loadMoreTagResults,
-  } = useImportTagMatches(importedTags)
-
-  // What each tag a row can be pointed at is called, for the preview to show the tag it will carry
-  const tagLabelById = useMemo(() => new Map(tagOptions.map((option) => [option.value, option.label])), [tagOptions])
-
   const canInferCategoryMappings = categoryAutoMatchKey === (columnMap.category_id || NO_CATEGORY_COLUMN_MATCH_KEY)
 
   const { mappings: liveCategoryMappings, clearedSources: clearedCategorySources } = useMemo(
@@ -931,6 +875,116 @@ export function useTransactionImportWorkflow(fixedAccount: AccountsOverview | nu
       resolvedCategoryMappings,
     ],
   )
+
+  // Which rows the import refuses, judged without the tag answers because those are about the names
+  // the rows that import carry. A row refused for any reason is not written, so the tag step asks
+  // about the spellings of the rows that are
+  const refusedRowCells = useMemo(
+    () =>
+      buildTransactionImportPayload({
+        accountById,
+        accountCreateCurrencies: resolvedAccountCreateCurrencies,
+        accountCreateInstitutions,
+        accountCreateTypes,
+        accountMappings: resolvedAccountMappings,
+        accountSources: accountMappingSources,
+        categoryById,
+        categoryCreateKinds,
+        categoryMappings: resolvedCategoryMappings,
+        categoryRenames,
+        categoryTypesBySource,
+        columnMap,
+        columnValidationErrors: resolvedColumnValidationErrors,
+        currencies,
+        dateFormat,
+        timeZone,
+        dateRange,
+        amountFormat,
+        directionAnswers,
+        files,
+        importedCategories,
+      }).rowProblems.map((problem) => problem.cells),
+    [
+      accountById,
+      accountCreateInstitutions,
+      accountCreateTypes,
+      accountMappingSources,
+      amountFormat,
+      categoryById,
+      categoryCreateKinds,
+      categoryRenames,
+      categoryTypesBySource,
+      columnMap,
+      currencies,
+      dateFormat,
+      dateRange,
+      directionAnswers,
+      files,
+      importedCategories,
+      resolvedAccountCreateCurrencies,
+      resolvedAccountMappings,
+      resolvedCategoryMappings,
+      resolvedColumnValidationErrors,
+      timeZone,
+    ],
+  )
+
+  const importedTags = useMemo(
+    () => getImportedTags(files, columnMap.tag_ids, excludeRefusedRows(isRowIncluded, refusedRowCells)),
+    [columnMap.tag_ids, files, isRowIncluded, refusedRowCells],
+  )
+
+  // Held under the spelling shown when each was given, which a date range can leave out of the rows
+  // while another spelling of the same tag stays, so they are read and written under the spelling
+  // the step asks about now
+  const tagMappings = useMemo(
+    () => alignNameAnswersWithValues(readScopedImportAnswers(scopedTagMappings, getTagSourceScope), importedTags),
+    [getTagSourceScope, importedTags, scopedTagMappings],
+  )
+
+  const tagCreateNames = useMemo(
+    () => alignNameAnswersWithValues(readScopedImportAnswers(scopedTagCreateNames, getTagSourceScope), importedTags),
+    [getTagSourceScope, importedTags, scopedTagCreateNames],
+  )
+
+  const setTagMappings: Dispatch<SetStateAction<Record<string, string>>> = (update) => {
+    setScopedTagMappings((current) => {
+      const answers = alignNameAnswersWithValues(readScopedImportAnswers(current, getTagSourceScope), importedTags)
+      return writeScopedImportAnswers(
+        current,
+        typeof update === 'function' ? update(answers) : update,
+        getTagSourceScope,
+      )
+    })
+  }
+
+  const setTagCreateNames: Dispatch<SetStateAction<Record<string, string>>> = (update) => {
+    setScopedTagCreateNames((current) => {
+      const answers = alignNameAnswersWithValues(readScopedImportAnswers(current, getTagSourceScope), importedTags)
+      return writeScopedImportAnswers(
+        current,
+        typeof update === 'function' ? update(answers) : update,
+        getTagSourceScope,
+      )
+    })
+  }
+
+  const {
+    matchedTagByKey,
+    tagMatchesLoading,
+    tagMatchesFailed,
+    refetchTagMatches,
+    tagOptions,
+    rememberPickedTag,
+    tagSearch,
+    setTagSearch,
+    tagSearchLoading,
+    hasMoreTagResults,
+    loadMoreTagResults,
+  } = useImportTagMatches(importedTags)
+
+  // What each tag a row can be pointed at is called, for the preview to show the tag it will carry
+  const tagLabelById = useMemo(() => new Map(tagOptions.map((option) => [option.value, option.label])), [tagOptions])
 
   const importBuild = useMemo(
     () =>
