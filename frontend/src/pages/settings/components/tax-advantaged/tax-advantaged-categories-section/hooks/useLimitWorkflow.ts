@@ -9,7 +9,6 @@ import {
   type TaxAdvantagedCategoryLimit,
 } from '@/api/tax-advantaged-categories'
 import type {
-  AutosaveNotice,
   TaxPlanLimitDraftField,
   TaxPlanLimitDraftState,
   TaxPlanLimitFormState,
@@ -38,13 +37,13 @@ import {
 import { getTodayYear } from '@/utils/date'
 import { LOADING_ANIMATION_MIN_MS, waitForMilliseconds } from '@/utils/timing'
 import { useAuth } from '@/hooks/useAuth'
+import { useToast } from '@/hooks/useToast'
 import { useRefusedSubmit } from '@/hooks/useRefusedSubmit'
 
 interface UseTaxAdvantagedLimitWorkflowParams {
   currencies: Currency[]
   limitDeleteButtonRef: RefObject<HTMLButtonElement | null>
   plan: TaxAdvantagedCategory
-  showAutosaveNotice: (notice: AutosaveNotice) => void
 }
 
 /**
@@ -54,8 +53,8 @@ export function useTaxAdvantagedLimitWorkflow({
   currencies,
   limitDeleteButtonRef,
   plan,
-  showAutosaveNotice,
 }: UseTaxAdvantagedLimitWorkflowParams) {
+  const { showToast } = useToast()
   const { data: limits = [], isLoading: limitsLoading } = useTaxAdvantagedCategoryLimits(plan.id)
   const createLimit = useCreateTaxAdvantagedCategoryLimit()
   const updateLimit = useUpdateTaxAdvantagedCategoryLimit({ minimumPendingMs: LOADING_ANIMATION_MIN_MS })
@@ -92,34 +91,31 @@ export function useTaxAdvantagedLimitWorkflow({
     ? null
     : selectedLimitYear === null
       ? null
-      : sortedLimits.find((limit) => limit.year === selectedLimitYear) ?? null
-  const selectedDraft = selectedLimit ? getLimitDraft(
-    selectedLimit.year,
-    limits,
-    pendingDeletedLimit,
-    limitDrafts,
-    currencies,
-    plan,
-  ) : null
-  const selectedSavingLimit = selectedLimit !== null
-    && updateLimit.isPending
-    && updateLimit.variables?.year === selectedLimit.year
+      : (sortedLimits.find((limit) => limit.year === selectedLimitYear) ?? null)
+  const selectedDraft = selectedLimit
+    ? getLimitDraft(selectedLimit.year, limits, pendingDeletedLimit, limitDrafts, currencies, plan)
+    : null
+  const selectedSavingLimit =
+    selectedLimit !== null && updateLimit.isPending && updateLimit.variables?.year === selectedLimit.year
   const selectedLimitDeleteConfirming = selectedLimit !== null && deleteConfirmYear === selectedLimit.year
   const selectedLimitDeleting = selectedLimit !== null && pendingDeleteLimitYear === selectedLimit.year
   // One form is open at a time, the add form or the selected year's, and each draws its own fields
   const refusal = useRefusedSubmit(
     showAddTaxYear
       ? getNewLimitProblems(newLimitForm, limits)
-      : selectedDraft ? getLimitAmountProblems(selectedDraft) : {},
+      : selectedDraft
+        ? getLimitAmountProblems(selectedDraft)
+        : {},
     LIMIT_VALIDATED_FIELDS,
     showAddTaxYear ? NEW_LIMIT_CONTROL_IDS : EXISTING_LIMIT_CONTROL_IDS,
   )
 
   // Not an input problem, so an open year with nothing changed is faded from the start with this as its reason
-  const noChangesReason = selectedLimit !== null
-    && !isLimitDirty(selectedLimit.year, limits, pendingDeletedLimit, limitDrafts, currencies, plan)
-    ? 'There are no changes to save'
-    : undefined
+  const noChangesReason =
+    selectedLimit !== null &&
+    !isLimitDirty(selectedLimit.year, limits, pendingDeletedLimit, limitDrafts, currencies, plan)
+      ? 'There are no changes to save'
+      : undefined
 
   useEffect(() => {
     if (deleteConfirmYear === null || pendingDeleteLimitYear !== null) return
@@ -220,7 +216,6 @@ export function useTaxAdvantagedLimitWorkflow({
     if (!isLimitDirty(year, limits, pendingDeletedLimit, limitDrafts, currencies, plan)) return
     const draft = getLimitDraft(year, limits, pendingDeletedLimit, limitDrafts, currencies, plan)
 
-    showAutosaveNotice({ status: 'saving', message: 'Saving limits...' })
     updateLimit.mutate(
       {
         categoryId: plan.id,
@@ -241,12 +236,10 @@ export function useTaxAdvantagedLimitWorkflow({
           setLimitError(null)
           setDeleteConfirmYear(null)
           setSelectedLimitYear(null)
-          showAutosaveNotice({ status: 'saved', message: 'Limits saved.' })
+          showToast({ status: 'success', text: 'Limits saved.' })
         },
         onError: (error) => {
-          const message = error instanceof Error ? error.message : `Failed to save ${year} limits.`
-          setLimitError(message)
-          showAutosaveNotice({ status: 'error', message })
+          setLimitError(error instanceof Error ? error.message : `Failed to save ${year} limits.`)
         },
       },
     )
@@ -261,7 +254,6 @@ export function useTaxAdvantagedLimitWorkflow({
     const year = Number.parseInt(newLimitForm.year, 10)
 
     setPendingCreateLimitYear(year)
-    showAutosaveNotice({ status: 'saving', message: 'Saving limits...' })
     const minimumFeedback = waitForMilliseconds(LIMIT_SAVE_FEEDBACK_MS)
 
     let createError: unknown = null
@@ -283,16 +275,14 @@ export function useTaxAdvantagedLimitWorkflow({
     setPendingCreateLimitYear(null)
 
     if (createError) {
-      const message = createError instanceof Error ? createError.message : 'Failed to add tax-year limits.'
-      setLimitError(message)
-      showAutosaveNotice({ status: 'error', message })
+      setLimitError(createError instanceof Error ? createError.message : 'Failed to add tax-year limits.')
       return
     }
 
     setNewLimitForm(createEmptyLimitForm(nextAvailableLimitYear(limits, currentYear)))
     setShowAddTaxYear(false)
     setLimitError(null)
-    showAutosaveNotice({ status: 'saved', message: 'Limits saved.' })
+    showToast({ status: 'success', text: 'Limits saved.' })
   }
 
   /**

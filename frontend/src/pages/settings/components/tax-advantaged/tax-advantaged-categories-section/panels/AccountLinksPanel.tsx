@@ -89,7 +89,7 @@ export default function TaxAdvantagedAccountLinksPanel({
         </div>
       )}
 
-      <p className="shrink-0 text-sm" style={{ color: 'var(--app-text-muted)' }}>
+      <p data-toast-keep-clear className="w-fit shrink-0 text-sm" style={{ color: 'var(--app-text-muted)' }}>
         {linkedAccountsCount} of {bindableAccounts.length} linked
       </p>
     </div>

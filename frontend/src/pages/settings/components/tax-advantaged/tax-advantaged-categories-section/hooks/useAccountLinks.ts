@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react'
 import { useUpdateAccount, type AccountsOverview } from '@/api/accounts'
 import type { TaxAdvantagedCategory } from '@/api/tax-advantaged-categories'
-import type { AutosaveNotice } from '@/pages/settings/components/tax-advantaged/types'
+import { useToast } from '@/hooks/useToast'
 import {
   ACCOUNT_LINK_SAVE_MIN_LOADING_MS,
   ACCOUNT_LINK_SAVE_NOTICE_DELAY_MS,
@@ -11,33 +11,25 @@ import { waitForMilliseconds } from '@/utils/timing'
 interface UseTaxAdvantagedAccountLinksParams {
   accounts: AccountsOverview[]
   plan: TaxAdvantagedCategory
-  showAutosaveNotice: (notice: AutosaveNotice) => void
 }
 
 /**
  * Owns TAC account eligibility, link mutations, and account-link feedback
  */
-export function useTaxAdvantagedAccountLinks({
-  accounts,
-  plan,
-  showAutosaveNotice,
-}: UseTaxAdvantagedAccountLinksParams) {
+export function useTaxAdvantagedAccountLinks({ accounts, plan }: UseTaxAdvantagedAccountLinksParams) {
+  const { showToast, dismissToast } = useToast()
   const updateAccount = useUpdateAccount()
   const [accountError, setAccountError] = useState<string | null>(null)
   const bindableAccounts = useMemo(
-    () => accounts.filter(
-      (account) =>
-        account.account_kind === 'asset'
-        && account.currency === plan.currency,
-    ),
+    () => accounts.filter((account) => account.account_kind === 'asset' && account.currency === plan.currency),
     [accounts, plan.currency],
   )
-  const linkedAccountsCount = bindableAccounts.filter((account) => account.tax_advantaged_category_id === plan.id).length
+  const linkedAccountsCount = bindableAccounts.filter(
+    (account) => account.tax_advantaged_category_id === plan.id,
+  ).length
   const linkedAccountsSummary = `${linkedAccountsCount} linked`
   const linkedAccountsMobileSummary = `${linkedAccountsCount} ${linkedAccountsCount === 1 ? 'acct' : 'accts'} linked`
-  const pendingAccountId = updateAccount.isPending
-    ? updateAccount.variables?.accountId ?? null
-    : null
+  const pendingAccountId = updateAccount.isPending ? (updateAccount.variables?.accountId ?? null) : null
 
   /**
    * Toggles a same-currency asset account link while preserving minimum autosave feedback timing
@@ -49,7 +41,7 @@ export function useTaxAdvantagedAccountLinks({
     let savingNoticeShown = false
     const savingNoticeTimer = window.setTimeout(() => {
       savingNoticeShown = true
-      showAutosaveNotice({ status: 'saving', message: 'Saving account link...' })
+      showToast({ status: 'saving', text: 'Saving account link...' })
     }, ACCOUNT_LINK_SAVE_NOTICE_DELAY_MS)
 
     try {
@@ -62,12 +54,12 @@ export function useTaxAdvantagedAccountLinks({
       if (savingNoticeShown) await waitForMilliseconds(ACCOUNT_LINK_SAVE_MIN_LOADING_MS)
 
       setAccountError(null)
-      showAutosaveNotice({ status: 'saved', message: 'Account link saved.' })
+      showToast({ status: 'success', text: 'Account link saved.' })
     } catch (error) {
       window.clearTimeout(savingNoticeTimer)
-      const message = error instanceof Error ? error.message : 'Failed to update account binding.'
-      setAccountError(message)
-      showAutosaveNotice({ status: 'error', message })
+      // The failure shows once, in the dialogue, so a progress message still up gives way to it
+      if (savingNoticeShown) dismissToast()
+      setAccountError(error instanceof Error ? error.message : 'Failed to update account binding.')
     }
   }
 

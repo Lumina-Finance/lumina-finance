@@ -24,9 +24,4 @@ export type TaxPlanLimitDraftField = keyof Pick<
 
 export type TaxPlanLimitDraftState = Pick<TaxPlanLimitFormState, TaxPlanLimitDraftField>
 
-export interface AutosaveNotice {
-  status: 'saving' | 'saved' | 'error'
-  message: string
-}
-
 export type CategoryModalTab = 'limits' | 'accounts'

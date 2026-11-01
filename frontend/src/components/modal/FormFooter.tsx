@@ -113,6 +113,7 @@ export function ModalFormFooter({
 
   return (
     <div
+      data-toast-keep-clear
       className={`${FOOTER_BASE_CLASS_NAME} ${MODAL_INSET_CLASS_NAME[level]} ${primaryOnLeft ? 'sm:justify-between' : 'sm:justify-end'} ${error ? 'items-center' : ''}`}
       style={{ borderTop: '1px solid var(--app-border)' }}
     >

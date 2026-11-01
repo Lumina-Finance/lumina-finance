@@ -1,10 +1,11 @@
 import { useEffect, useRef, useState, type RefObject } from 'react'
 import { AnimatePresence, motion } from 'motion/react'
 import { createPortal } from 'react-dom'
-import { CircleCheck, TriangleAlert, X } from 'lucide-react'
+import { CircleCheck, LoaderCircle, TriangleAlert, X } from 'lucide-react'
 import { getToastLift, TOAST_KEEP_CLEAR_SELECTOR } from '@/components/feedback/toastLift'
 
-export type ToastStatus = 'error' | 'success'
+/** `saving` is progress for an action whose own control shows none, and gives way to the result */
+export type ToastStatus = 'error' | 'success' | 'saving'
 
 export interface ToastMessage {
   status: ToastStatus
@@ -19,6 +20,7 @@ interface ToastProps {
 const statusColor: Record<ToastStatus, string> = {
   error: 'var(--app-negative)',
   success: 'var(--app-positive)',
+  saving: 'var(--app-accent)',
 }
 
 /**
@@ -103,6 +105,8 @@ function ToastCard({ toast, onDismiss }: { toast: ToastMessage; onDismiss: () =>
       >
         {toast.status === 'error' ? (
           <TriangleAlert size={14} strokeWidth={3} aria-hidden />
+        ) : toast.status === 'saving' ? (
+          <LoaderCircle size={14} strokeWidth={3} className="animate-spin" aria-hidden />
         ) : (
           <CircleCheck size={14} strokeWidth={3} aria-hidden />
         )}
