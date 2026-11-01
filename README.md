@@ -60,14 +60,13 @@ Lumina Finance gives you one place to track accounts, transactions, budgets, and
 
 ### Importers
 
-The Actual Budget and Firefly III importers are tested every week against the app's latest release. The Quicken 3.0 importer is in beta and is not tested that way.
+Each app-specific importer is tested every week against the app's latest release.
 
 <!-- markdownlint-disable MD033 -->
 | Importer | Used for | Status |
 |-|-|-|
 | CSV | Everyday imports from your bank | |
 | OFX and QFX | Everyday imports from your bank's statements | |
-| Quicken 3.0 (QIF) | Moving over from Quicken 3.0 | Beta |
 | Actual Budget | Moving over from Actual Budget | <a href="https://github.com/Lumina-Finance/lumina-finance/actions/workflows/actual-check.yml"><img alt="Actual Budget import check" src="https://img.shields.io/github/actions/workflow/status/Lumina-Finance/lumina-finance/actual-check.yml?label=Weekly%20test&style=flat&logo=githubactions&logoColor=white"></a> |
 | Firefly III | Moving over from Firefly III | <a href="https://github.com/Lumina-Finance/lumina-finance/actions/workflows/firefly-check.yml"><img alt="Firefly III import check" src="https://img.shields.io/github/actions/workflow/status/Lumina-Finance/lumina-finance/firefly-check.yml?label=Weekly%20test&style=flat&logo=githubactions&logoColor=white"></a> |
 <!-- markdownlint-enable MD033 -->
