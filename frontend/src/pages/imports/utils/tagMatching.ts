@@ -125,6 +125,13 @@ export function getPreviewTagNames(
   const valueByKey = new Map(importedTags.map((value) => [getNameKey(value), value]))
   const shown = new Map<string, string>()
 
+  // The tags the page holds, by the name they are held under. Tags it does not hold are unknown here
+  const heldNameByKey = new Map<string, string>()
+  for (const [id, label] of tagLabelById) {
+    if (id !== CREATE_TAG_VALUE && id !== SKIP_TAG_VALUE) heldNameByKey.set(getNameKey(label), label)
+  }
+  for (const [key, tag] of matchedTagByKey) heldNameByKey.set(key, tag.name)
+
   for (const name of rowTagNames) {
     const key = getNameKey(name)
 
@@ -140,8 +147,12 @@ export function getPreviewTagNames(
     if (answer === SKIP_TAG_VALUE) continue
 
     let shownName = matched ? matched.name : value
-    if (answer === CREATE_TAG_VALUE) shownName = (tagCreateNames[value] ?? value).trim() || value
-    else if (answer) shownName = tagLabelById.get(answer) ?? name
+    if (answer === CREATE_TAG_VALUE) {
+      // The commit reuses a tag already held under the name, whatever its capitals, rather than
+      // writing another, so the row carries that tag's spelling
+      const written = (tagCreateNames[value] ?? value).trim() || value
+      shownName = heldNameByKey.get(getNameKey(written)) ?? written
+    } else if (answer) shownName = tagLabelById.get(answer) ?? name
 
     const shownKey = getNameKey(shownName)
     if (!shown.has(shownKey)) shown.set(shownKey, shownName)

@@ -180,6 +180,34 @@ describe('the tags a previewed row carries once the tag step is answered', () =>
     expect(preview(['TRAVEL'], { tagCreateNames: { TRAVEL: 'Travel' } })).toEqual(['Travel'])
   })
 
+  // The commit reuses the tag a created name matches whatever its capitals, so Travel typed over a
+  // row matching TRAVEL files under TRAVEL
+  it('shows the existing tag a created name matches rather than the capitals typed', () => {
+    const upper: Tag = { ...TRAVEL, id: 'upper', name: 'TRAVEL' }
+    const matchedTagByKey = new Map([['travel', upper]])
+
+    expect(
+      preview(['TRAVEL'], {
+        matchedTagByKey,
+        tagMappings: { TRAVEL: CREATE_TAG_VALUE },
+        tagCreateNames: { TRAVEL: 'Travel' },
+      }),
+    ).toEqual(['TRAVEL'])
+  })
+
+  it('shows the existing tag a created name matches even when the row matched another tag', () => {
+    const upper: Tag = { ...TRAVEL, id: 'upper', name: 'TRAVEL' }
+    const tagLabels = new Map([[upper.id, 'TRAVEL']])
+
+    expect(
+      preview(['trvl'], {
+        tagLabelById: tagLabels,
+        tagMappings: { trvl: CREATE_TAG_VALUE },
+        tagCreateNames: { trvl: 'Travel' },
+      }),
+    ).toEqual(['TRAVEL'])
+  })
+
   it('finds the answer of a name spelled in other capitals than the one the step asks about', () => {
     expect(preview(['TRIP'], { importedTags: ['trip'], tagMappings: { trip: SKIP_TAG_VALUE } })).toEqual([])
   })
@@ -236,6 +264,26 @@ describe('the tag names a file offers to answer', () => {
     // Two entries would let one spelling be answered create and the other skip, with nothing to say
     // which answer the rows carrying either spelling take
     expect(getImportedTags([file], 'Tags')).toEqual(['food', 'Travel', 'Zoo'])
+  })
+
+  // The commit sees only the rows written, and a row carrying a tag over the limit is not written,
+  // so a spelling only that row states is not the one the commit files the tag under
+  it('takes the spelling of a tag from the rows that will be written, not from a refused row', () => {
+    const tooLong = 'x'.repeat(IMPORT_TAG_NAME_MAX_LENGTH + 1)
+
+    expect(getImportedTags([buildFile([`TRAVEL;${tooLong}`, 'travel'])], 'Tags')).toEqual(['travel'])
+  })
+
+  it('does not ask about a short tag whose only row is refused for a long one', () => {
+    const tooLong = 'x'.repeat(IMPORT_TAG_NAME_MAX_LENGTH + 1)
+
+    expect(getImportedTags([buildFile([`Travel;${tooLong}`, 'Food'])], 'Tags')).toEqual(['Food'])
+  })
+
+  it('still asks about a tag of exactly the longest length', () => {
+    const longest = 'x'.repeat(IMPORT_TAG_NAME_MAX_LENGTH)
+
+    expect(getImportedTags([buildFile([`Travel;${longest}`])], 'Tags')).toEqual(['Travel', longest])
   })
 
   it('asks about nothing without a tags column', () => {
@@ -308,13 +356,13 @@ describe('answers to a tag spelled in other capitals once a date range leaves on
 
 describe('a tag name longer than a tag can be', () => {
   // Asked about, it would have the match request refused whole, and no answer to it could be sent.
-  // It is listed as a row that won't import instead
+  // It is listed as a row that won't import instead, and the short names on that row go with it
   it.each([IMPORT_TAG_NAME_MAX_LENGTH + 1, 257, 100_000])(
-    'is not asked about at %i characters, so it fails neither the matches nor the other names',
+    'is not asked about at %i characters, so it fails neither the matches nor the other rows',
     (length) => {
       const file = buildFile([`Travel,${'x'.repeat(length)}`, 'y'.repeat(IMPORT_TAG_NAME_MAX_LENGTH)])
 
-      expect(getImportedTags([file], 'Tags')).toEqual(['Travel', 'y'.repeat(IMPORT_TAG_NAME_MAX_LENGTH)])
+      expect(getImportedTags([file], 'Tags')).toEqual(['y'.repeat(IMPORT_TAG_NAME_MAX_LENGTH)])
     },
   )
 

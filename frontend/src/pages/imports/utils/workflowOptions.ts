@@ -379,14 +379,17 @@ export function getImportedTags(
   // one tag and answering them separately would leave nothing to say which answer their rows take
   const seenKeys = new Set<string>()
   const values: string[] = []
+  // A row carrying a name longer than a tag can be is listed as a row that won't import, and the
+  // commit sees only the rows written. Its other names are not asked about, and its spellings are
+  // not the ones a tag is filed under, since the API takes no answer or match request for them
   const spellings = files.flatMap((file) =>
-    file.rows.filter(isRowIncluded).flatMap((row) => splitImportedValues(row[tagHeader] ?? '')),
+    file.rows
+      .filter(isRowIncluded)
+      .map((row) => splitImportedValues(row[tagHeader] ?? ''))
+      .filter((names) => names.every((name) => [...name].length <= IMPORT_TAG_NAME_MAX_LENGTH))
+      .flat(),
   )
   for (const value of unique(spellings)) {
-    // A name longer than a tag can be is listed as a row that won't import and cannot be answered,
-    // since the API takes no answer or match request for it, so it is not asked about
-    if ([...value].length > IMPORT_TAG_NAME_MAX_LENGTH) continue
-
     const key = getNameKey(value)
     if (seenKeys.has(key)) continue
     seenKeys.add(key)
