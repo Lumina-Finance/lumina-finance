@@ -169,6 +169,44 @@ test('does not save with Alt+Enter while a dropdown list is open', async ({ page
   expect(posted).toEqual([])
 })
 
+test('collapses the other account dropdown of a transfer with Alt+O, and swaps lists with Alt+A', async ({
+  page,
+  request,
+}) => {
+  const { dialog } = await openAddDialogue(page, request)
+  await page.keyboard.press('Alt+KeyY')
+  await page.keyboard.press('Alt+KeyY')
+  await expect(dialog.getByRole('tab', { name: 'Transfer' })).toHaveAttribute('aria-selected', 'true')
+  const other = dialog.locator('#txn-counterparty-account')
+  const account = dialog.locator('#txn-account')
+
+  await page.keyboard.press('Alt+KeyO')
+  await expect(other).toHaveAttribute('aria-expanded', 'true')
+  const search = dialog.locator('input[data-dropdown-search]:focus')
+  await expect(search).toHaveCount(1)
+  await page.keyboard.type('zz')
+  await expect(search).toHaveValue('zz')
+
+  // The same chord again collapses the list, keeps the dialogue open and leaves focus on the field
+  await page.keyboard.press('Alt+KeyO')
+  await expectNoOpenList(dialog)
+  await expect(other).toBeFocused()
+  await expect(dialog).toBeVisible()
+
+  // A third press opens it again with the search cleared, and the Account chord moves on to its list
+  await page.keyboard.press('Alt+KeyO')
+  await expect(other).toHaveAttribute('aria-expanded', 'true')
+  await expect(dialog.locator('input[data-dropdown-search]:focus')).toHaveValue('')
+  await page.keyboard.press('Alt+KeyA')
+  await expect(account).toHaveAttribute('aria-expanded', 'true')
+  await expect(other).toHaveAttribute('aria-expanded', 'false')
+
+  // And the other account's chord closes the Account list in turn
+  await page.keyboard.press('Alt+KeyO')
+  await expect(other).toHaveAttribute('aria-expanded', 'true')
+  await expect(account).toHaveAttribute('aria-expanded', 'false')
+})
+
 test('closes an open dropdown on Escape before it closes the dialogue', async ({ page, request }) => {
   const { dialog } = await openAddDialogue(page, request)
 
@@ -187,6 +225,57 @@ test('closes an open dropdown on Escape before it closes the dialogue', async ({
   await page.keyboard.press('Escape')
   await expect(dialog).toBeHidden()
 })
+
+for (const [setting, chord] of [
+  [undefined, 'Alt'],
+  ['left-alt', 'AltLeft'],
+] as const) {
+  test(`collapses a dropdown when its shortcut is pressed again, with ${chord} as the action key`, async ({
+    page,
+    request,
+  }) => {
+    const { dialog } = await openAddDialogue(page, request, setting)
+
+    // Tags wait for an account, so one is chosen first
+    await chooseByKeys(page, dialog, `${chord}+KeyA`, 'Everyday', 'Everyday Chequing')
+
+    for (const [name, key] of [
+      ['Account', 'KeyA'],
+      ['Merchant', 'KeyM'],
+      ['Category', 'KeyC'],
+      ['Tags', 'KeyG'],
+    ] as const) {
+      const field = dialog.getByRole('combobox', { name })
+
+      await page.keyboard.press(`${chord}+${key}`)
+      await expect(field).toHaveAttribute('aria-expanded', 'true')
+      const search = dialog.locator('input[data-dropdown-search]:focus')
+      await expect(search).toHaveCount(1)
+      await page.keyboard.type('zz')
+      await expect(search).toHaveValue('zz')
+
+      // The same chord again collapses the list, keeps the dialogue open and leaves focus on the field
+      await page.keyboard.press(`${chord}+${key}`)
+      await expectNoOpenList(dialog)
+      await expect(field).toBeFocused()
+      await expect(dialog).toBeVisible()
+
+      // A third press opens it again, with the search text cleared as on any other close
+      await page.keyboard.press(`${chord}+${key}`)
+      await expect(field).toHaveAttribute('aria-expanded', 'true')
+      await expect(dialog.locator('input[data-dropdown-search]:focus')).toHaveValue('')
+      await page.keyboard.press('Escape')
+      await expectNoOpenList(dialog)
+    }
+
+    // Another dropdown's chord still moves on to that one
+    await page.keyboard.press(`${chord}+KeyC`)
+    await expect(dialog.getByRole('combobox', { name: 'Category' })).toHaveAttribute('aria-expanded', 'true')
+    await page.keyboard.press(`${chord}+KeyM`)
+    await expect(dialog.getByRole('combobox', { name: 'Merchant' })).toHaveAttribute('aria-expanded', 'true')
+    await expect(dialog.getByRole('combobox', { name: 'Category' })).toHaveAttribute('aria-expanded', 'false')
+  })
+}
 
 test('picks a tag with the keyboard from a list opened by a click', async ({ page, request }) => {
   const { dialog } = await openAddDialogue(page, request)

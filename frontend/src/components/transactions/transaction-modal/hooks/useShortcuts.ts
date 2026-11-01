@@ -262,9 +262,16 @@ export function useTransactionShortcuts(
       const target = findShortcutTarget(field, ids)
       if (!target || target.matches(':disabled')) return
 
-      // A list that is already open stays as it is, and another one is closed before the jump so only
-      // the field being typed into has a list open
-      if (target.matches(OPEN_LIST_SELECTOR)) return
+      // The chord pressed again over its own open list collapses it, as a click on the field does, so the
+      // dropdown's own close runs, its search text clears and its collapse plays. Focus goes back to the
+      // field, since the search box it was in is gone, so a third press opens the list again
+      if (target.matches(OPEN_LIST_SELECTOR)) {
+        target.click()
+        target.focus()
+        return
+      }
+
+      // Another list is closed before the jump so only the field being typed into has a list open
       for (const openList of form.querySelectorAll<HTMLElement>(OPEN_LIST_SELECTOR)) openList.click()
 
       target.focus()
