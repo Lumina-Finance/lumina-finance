@@ -5,6 +5,7 @@
  */
 import { describe, expect, it } from 'vitest'
 import { ApiError } from '@/api/auth'
+import type { TransactionListFilters } from '@/components/transactions/types/transactionList'
 import {
   EXPORT_FAILED_MESSAGE,
   EXPORT_LABELS,
@@ -29,7 +30,7 @@ describe('getExportScope', () => {
     expect(getExportScope({ selectedCount: 12, isNarrowed: true })).toBe('selected')
   })
 
-  it.each([
+  it.each<[string, TransactionListFilters]>([
     ['tag', { tag_id: ['work'] }],
     ['account', { account_id: ['everyday'] }],
     ['category', { category_id: ['groceries'] }],
@@ -38,9 +39,9 @@ describe('getExportScope', () => {
     ['smallest amount', { min_amount: 0 }],
     ['largest amount', { max_amount: 5000 }],
     ['date', { from_date: '2026-06-01' }],
-  ] as const)('says Export filtered when only the %s filter is on', (_name, filters) => {
+  ])('says Export filtered when only the %s filter is on', (_name, filters) => {
     // The list passes this count to the scope, so a filter the count misses would export everything
-    const isNarrowed = getActiveFilterCount({ ...filters }, true) > 0
+    const isNarrowed = getActiveFilterCount(filters, true) > 0
 
     expect(EXPORT_LABELS[getExportScope({ selectedCount: 0, isNarrowed })]).toBe('Export filtered')
   })
