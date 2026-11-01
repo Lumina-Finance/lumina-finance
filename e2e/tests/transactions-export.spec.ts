@@ -6,7 +6,8 @@ import { logInViaApi, openPage } from '../support/app'
 import { AT_EVERY_SIZE } from '../support/sizes'
 
 // Runs at every size where the button's name, its confirmation or the selection row it joins lay out
-// differently on a phone. The tests that only watch which rows are saved run on desktop alone
+// differently on a phone. The tests that only watch which rows are saved run on desktop alone, and the two
+// toolbar layout tests run on desktop alone too, since they set each width they check themselves
 
 const EXPORT_ALL = { name: 'Export all', exact: true } as const
 const EXPORT_FILTERED = { name: 'Export filtered', exact: true } as const
@@ -307,4 +308,119 @@ test('holds Export filtered off with its reason while the search keeps nothing',
   // Widening the search brings the button back
   await search(page, 'Coffee')
   await expect(page.getByRole('button', EXPORT_FILTERED)).not.toHaveAccessibleDescription('No transactions match the search or filters')
+})
+
+// The export word changes with the list, and the toolbar around it must neither move nor spill. Both tests
+// set every width they check themselves, so they run on the desktop project alone
+const TOOLBAR_WIDTHS = [768, 800, 900, 1000, 1049, 1050, 1100, 1150, 1200, 1250, 1280]
+
+/** Edges of the controls whose place must not depend on the export word, read once the row stops moving */
+async function readToolbar(page: Page) {
+  const read = () =>
+    page.evaluate(() => {
+      const named = (pattern: RegExp) =>
+        [...document.querySelectorAll('button')].find(
+          (node) => pattern.test(node.getAttribute('aria-label') ?? node.textContent?.trim() ?? '') && node.getBoundingClientRect().width > 0,
+        )
+      // Heights are taken from the search field's top, so the content above the toolbar changing with the
+      // list never counts as the toolbar moving
+      const top = document.querySelector('input[placeholder="Search transactions..."]')!.getBoundingClientRect().y
+      const box = (node: Element | undefined) => {
+        const { x, y, width } = node!.getBoundingClientRect()
+        return { x: Math.round(x * 10) / 10, y: Math.round(y - top), width: Math.round(width * 10) / 10 }
+      }
+      // The toolbar's own controls and the filter pill that wraps its button. The pill is measured whole,
+      // since its chevron sits at the far end. A closed panel's footer buttons are clipped inside it
+      const toolbarControls = [...document.querySelectorAll('button, input, .app-range-glass')].filter(
+        (node) => !node.closest('.app-range-glass') || node.matches('.app-range-glass'),
+      )
+      const spilling = toolbarControls
+        .map((node) => ({ name: node.getAttribute('aria-label') ?? (node.matches('.app-range-glass') ? 'Filters pill' : node.textContent?.trim() ?? ''), ...node.getBoundingClientRect().toJSON() }))
+        .filter((item) => item.width > 0 && (item.right > window.innerWidth + 0.5 || item.x < -0.5))
+        .map((item) => `${item.name} ${Math.round(item.x)}-${Math.round(item.right)}`)
+      return {
+        filters: box(named(/^(Transaction filters|Filters)/)),
+        add: box(named(/^Add transaction$/)),
+        exportButton: box(named(/^Export /)),
+        spilling,
+        scrollWidth: document.documentElement.scrollWidth,
+      }
+    })
+  let previous = ''
+  let settled = await read()
+  await expect
+    .poll(async () => {
+      settled = await read()
+      const serial = JSON.stringify(settled)
+      const same = serial === previous
+      previous = serial
+      return same
+    })
+    .toBe(true)
+  return settled
+}
+
+/**
+ * Shows each word the button can have in turn and reads the toolbar for each: Export all, then
+ * Export filtered once a search narrows the list, then Export selected once a row is ticked, which needs
+ * select mode and so adds Edit and Delete to the row
+ */
+async function readEveryWord(page: Page, selecting: boolean) {
+  const readings: Record<string, Awaited<ReturnType<typeof readToolbar>>> = {}
+  if (selecting) await page.getByRole('button', SELECT_MODE).click()
+  await expect(page.getByRole('button', EXPORT_ALL)).toBeVisible()
+  readings.all = await readToolbar(page)
+
+  await search(page, 'Coffee')
+  await expect(page.getByRole('button', EXPORT_FILTERED)).toBeVisible()
+  readings.filtered = await readToolbar(page)
+
+  if (selecting) {
+    await tickRow(page, daysFromTodayInTestTimezone(0))
+    await expect(page.getByRole('button', EXPORT_SELECTED)).toBeVisible()
+    readings.selected = await readToolbar(page)
+  }
+  return readings
+}
+
+// Filters, Add transaction and the export button's width stay put whichever word the button shows, browsing
+// and selecting, at every width the layout changes across
+test('keeps Filters and Add transaction in place across the three export words', async ({ page, request }) => {
+  const user = await seedTwoTransactions(request)
+  await logInViaApi(page, user)
+
+  for (const width of TOOLBAR_WIDTHS) {
+    for (const selecting of [false, true]) {
+      await page.setViewportSize({ width, height: 800 })
+      await openPage(page, '/transactions')
+      await expect(page.getByTestId(/^transaction-row-/)).toHaveCount(2)
+      const { all, ...others } = await readEveryWord(page, selecting)
+      for (const [word, reading] of Object.entries(others)) {
+        const where = `at ${width}px ${selecting ? 'selecting' : 'browsing'} with ${word}`
+        expect(reading.filters, `Filters ${where}`).toEqual(all.filters)
+        expect(reading.add, `Add transaction ${where}`).toEqual(all.add)
+        expect(reading.exportButton.width, `Export width ${where}`).toBe(all.exportButton.width)
+      }
+    }
+  }
+})
+
+// No control reaches past the viewport and the page never scrolls sideways, browsing or selecting, with
+// each word, at every width from the tablet to the widest desktop
+test('keeps every toolbar control inside the viewport from 768 to 1280', async ({ page, request }) => {
+  const user = await seedTwoTransactions(request)
+  await logInViaApi(page, user)
+
+  for (const width of TOOLBAR_WIDTHS) {
+    for (const selecting of [false, true]) {
+      await page.setViewportSize({ width, height: 800 })
+      await openPage(page, '/transactions')
+      await expect(page.getByTestId(/^transaction-row-/)).toHaveCount(2)
+      for (const [word, reading] of Object.entries(await readEveryWord(page, selecting))) {
+        const where = `at ${width}px ${selecting ? 'selecting' : 'browsing'} with ${word}`
+        expect(reading.spilling, `Controls past the viewport ${where}`).toEqual([])
+        expect(reading.scrollWidth, `Page width ${where}`).toBeLessThanOrEqual(width)
+      }
+    }
+  }
 })

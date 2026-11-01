@@ -14,6 +14,7 @@ import { TransactionFilterPanel } from '@/components/transactions/toolbar/Filter
 import { MobileFilterPanel } from '@/components/transactions/toolbar/MobileFilterPanel'
 import { useToolbarStickyOffset } from '@/components/transactions/toolbar/hooks/useStickyOffset'
 import { EXPORT_LABELS } from '@/components/transactions/utils/exportFile'
+import { joinClassNames } from '@/utils/classNames'
 import {
   getAccountOptions,
   getActiveFilterCount,
@@ -59,9 +60,8 @@ export default function TransactionListToolbar({
   const [isEditActionAnimating, setIsEditActionAnimating] = useState(false)
 
   // Selection mode swaps the row's own controls, and the wrap layout measures boxes rather than
-  // contents, so it is told rather than left to notice. The export button's word changes its width as
-  // the list narrows or rows are ticked, so the scope is part of what it is told
-  const shell = useToolbarShellState(`${isSelecting ? 'selecting' : 'browsing'}-${exportScope}`, isEditActionAnimating)
+  // contents, so it is told rather than left to notice
+  const shell = useToolbarShellState(isSelecting ? 'selecting' : 'browsing', isEditActionAnimating)
   useToolbarStickyOffset(shell.toolbarRef, onStickyOffsetChange)
 
   // One node for both widths, at the 44px control height the row is built on, which the search field
@@ -89,8 +89,10 @@ export default function TransactionListToolbar({
 
   // Sits beside Import in the same 44px glass shape, square on a phone and widening for its word on a
   // desktop. The word says what the file will hold, and the accessible name is that same text so the
-  // icon-only phone button says it too. The width follows the word, which the layout hook re-measures.
-  // While the file is being prepared it keeps its place and size, with the icon turning, and is held off
+  // icon-only phone button says it too. Every word sits in one grid cell with the unused ones invisible,
+  // so the button takes the longest word's width at all times, the way the Select button's word reserves
+  // its longer state. Filters and Add transaction therefore never move when the word changes, and the
+  // layout hook never has a width to re-measure. While the file is being prepared it keeps its place and size, with the icon turning, and is held off
   // with `disabled` alone. An empty list holds it off with the reason as its description. Only the
   // export of every transaction opens a confirmation first
   const exportLabel = EXPORT_LABELS[exportScope]
@@ -109,7 +111,16 @@ export default function TransactionListToolbar({
       ) : (
         <Download size={18} aria-hidden />
       )}
-      <span className="hidden whitespace-nowrap min-[750px]:inline">{exportLabel}</span>
+      <span className="hidden whitespace-nowrap min-[750px]:inline-grid" aria-hidden>
+        {Object.entries(EXPORT_LABELS).map(([scope, label]) => (
+          <span
+            key={scope}
+            className={joinClassNames('col-start-1 row-start-1 text-center', scope !== exportScope && 'invisible')}
+          >
+            {label}
+          </span>
+        ))}
+      </span>
     </DisabledReasonButton>
   ) : undefined
 
@@ -191,7 +202,7 @@ export default function TransactionListToolbar({
       {isSelecting && onEditSelection && (
         <motion.div
           key="edit-action"
-          className="overflow-hidden"
+          className="shrink-0 overflow-hidden"
           initial={{ width: 0, opacity: 0 }}
           animate={{ width: 'auto', opacity: 1 }}
           exit={{ width: 0, opacity: 0 }}
@@ -290,8 +301,16 @@ export default function TransactionListToolbar({
             // hook measures this group's own children as they render. A button placed after the
             // group instead would need its own measured twin, or the row would report itself
             // narrower than it draws and stay on one line where it no longer fits. Wrapped as one
-            // child, since the group spreads its children apart once the create button stacks
-            <div className="flex shrink-0 items-center">
+            // child, since the group spreads its children apart once the create button stacks. It keeps
+            // its full width until then, which the hook measures. Once stacked and still wider than the
+            // toolbar, as in select mode, it wraps by its own two parts, Edit and Delete above the rest,
+            // rather than running past the edge
+            <div
+              className={joinClassNames(
+                'flex items-center',
+                shell.desktopCreateStacked ? 'max-w-full flex-wrap gap-y-3' : 'shrink-0',
+              )}
+            >
               {desktopEditAction}
               <div className="flex items-center gap-3">
                 {selectAction}
