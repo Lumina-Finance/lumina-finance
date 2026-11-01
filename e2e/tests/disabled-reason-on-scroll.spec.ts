@@ -142,6 +142,14 @@ async function expectReasonFollowsOrCloses(page: Page, archive: Locator, body: B
   expect(await judgeReason(page, archive, body)).toBe('ok')
 }
 
+/** Expects the reason to be shown, within the follow distance of its button and clear of it, and to stay so a couple of frames later */
+async function expectReasonKeepsFollowing(page: Page, archive: Locator, body: Body) {
+  const judge = async () => ((await readReason(page))?.opacity === 1 ? judgeReason(page, archive, body) : 'the reason is not shown')
+  await expect.poll(judge).toBe('ok')
+  await page.evaluate(() => new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve))))
+  expect(await judge()).toBe('ok')
+}
+
 /** Scrolls the body by a distance and returns how far the button moved down the screen */
 async function scrollBodyBy(archive: Locator, body: Body, distance: number) {
   const before = await readBox(archive)
@@ -152,14 +160,33 @@ async function scrollBodyBy(archive: Locator, body: Body, distance: number) {
 
 for (const colorScheme of ['dark', 'light'] as const) {
   test.describe(`in the ${colorScheme} theme`, () => {
-    test('moves the reason with its button or closes it when the body scrolls 45px on a phone', async ({ page, request }) => {
+    test('moves the reason with its button when the body scrolls 45px on a phone', async ({ page, request }) => {
       const { archive, body } = await openHeldOffArchive(page, request, { colorScheme, size: PHONE })
       await leaveRoomBelow(body, 45)
       await showReasonByKeyboard(page, archive, body)
       expect(await judgeReason(page, archive, body)).toBe('ok')
 
       expect(await scrollBodyBy(archive, body, 45)).toBe(-45)
-      await expectReasonFollowsOrCloses(page, archive, body)
+      // The button is still whole in the body, so its reason stays
+      const view = await readBox(body)
+      const button = await readBox(archive)
+      expect(button.top >= view.top && button.bottom <= view.bottom, 'the button is still whole in the body').toBe(true)
+      await expectReasonKeepsFollowing(page, archive, body)
+    })
+
+    test('keeps the reason while its button is only partly in view', async ({ page, request }) => {
+      const { archive, body } = await openHeldOffArchive(page, request, { colorScheme, size: DESKTOP })
+      await showReasonByKeyboard(page, archive, body)
+      expect((await readRoom(body)).above).toBeGreaterThanOrEqual(100)
+
+      // Scroll back until half of the button is past the foot of the body
+      const view = await readBox(body)
+      const button = await readBox(archive)
+      const distance = Math.ceil(view.bottom - button.bottom + (button.bottom - button.top) / 2)
+      expect(await scrollBodyBy(archive, body, -distance)).toBe(distance)
+      const partly = await readBox(archive)
+      expect(partly.top < view.bottom && partly.bottom > view.bottom, 'the button is cut by the foot of the body').toBe(true)
+      await expectReasonKeepsFollowing(page, archive, body)
     })
 
     // The button has 33px below it in this dialogue, so scrolling back 100px moves it past the foot of the body
@@ -182,7 +209,9 @@ for (const colorScheme of ['dark', 'light'] as const) {
 
       await page.keyboard.press('PageDown')
       await expect.poll(async () => (await readRoom(body)).above).toBeGreaterThan(scrolledBefore)
-      await expectReasonFollowsOrCloses(page, archive, body)
+      // The button is still in view after the key, so its reason stays and moves with it
+      expect(overlaps(await readBox(archive), await readBox(body))).toBe(true)
+      await expectReasonKeepsFollowing(page, archive, body)
       const after = await readReason(page)
       const isAtOldPlace = !!after && after.opacity > 0 && after.top === before.top && after.left === before.left
       expect(isAtOldPlace).toBe(false)
