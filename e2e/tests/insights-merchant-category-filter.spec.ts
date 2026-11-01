@@ -2,9 +2,9 @@
  * The merchant distribution card narrows to the categories chosen in its filter while the merchant
  * ranking card beside it stays unfiltered, and clearing the filter brings every merchant back
  */
-import { expect, test, type Locator } from '@playwright/test'
+import { expect, test, type APIRequestContext, type Locator } from '@playwright/test'
 
-import { asUser, createAccount, createTransaction, findReferenceId, signUpUser } from '../support/api'
+import { asUser, createAccount, createCategory, createTransaction, findReferenceId, signUpUser } from '../support/api'
 import { expectSignedIn, logInViaApi, openPage } from '../support/app'
 import { card, matchesApi } from '../support/insights'
 import { API_BASE_URL } from '../support/target'
@@ -178,3 +178,84 @@ for (const size of OVERLAP_SIZES) {
     }, { message: 'the floating selector after the filter closes' }).toEqual({ opacity: '1', visibility: 'visible' })
   })
 }
+
+/** Seeds one grocery and one dining merchant, plus an expense category with no spend at all */
+async function seedFilterMerchants(request: APIRequestContext) {
+  const user = await signUpUser(request)
+  const account = await createAccount(request, user, { name: 'Merchant filter account' })
+  const names = { groceries: 'Filter Grocer', dining: 'Filter Diner' }
+  for (const name of Object.values(names)) {
+    const response = await request.post(`${API_BASE_URL}/merchants`, { headers: asUser(user), data: { name } })
+    expect(response.status()).toBe(201)
+  }
+  await createTransaction(request, user, { accountId: account.id, categoryName: 'Groceries', merchantName: names.groceries, amount: -30000 })
+  await createTransaction(request, user, { accountId: account.id, categoryName: 'Dining', merchantName: names.dining, amount: -20000 })
+  await createCategory(request, user, { name: 'Unused filter category' })
+  return { user, names }
+}
+
+test('a category with no spend says so, with no hint, and the merchants return once the filter is cleared', async ({ page, request }) => {
+  const { user, names } = await seedFilterMerchants(request)
+  await logInViaApi(page, user)
+  await openPage(page, '/insights')
+  const distribution = card(page, 3)
+  await distribution.scrollIntoViewIfNeeded()
+  await expect(distribution.getByText(names.groceries)).toBeVisible()
+
+  await distribution.getByRole('button', { name: 'Merchant category filter' }).click()
+  await page.getByRole('checkbox', { name: 'Unused filter category' }).click()
+  await page.getByRole('button', { name: 'Apply filter' }).click()
+
+  const message = distribution.getByText('No merchant spending in these categories in this range')
+  await expect(message).toBeVisible()
+  await expect(distribution.getByText(names.groceries)).toHaveCount(0)
+  // The message stands alone in the empty box, with nothing under it telling the user what to do
+  await expect(distribution.getByText('Choose other categories or clear the filter')).toHaveCount(0)
+  await expect(message).toHaveText('No merchant spending in these categories in this range')
+
+  await distribution.getByRole('button', { name: 'Clear filter' }).click()
+  await expect(distribution.getByText(names.groceries)).toBeVisible()
+})
+
+test('on a phone the sheet narrows the map and covers the floating range selector', async ({ page, request }) => {
+  const { user, names } = await seedFilterMerchants(request)
+  await page.setViewportSize({ width: 390, height: 844 })
+  await logInViaApi(page, user)
+  await openPage(page, '/insights')
+  const distribution = card(page, 3)
+  await distribution.scrollIntoViewIfNeeded()
+  await expect(distribution.getByText(names.groceries)).toBeVisible()
+  await distribution.evaluate((element) => element.scrollIntoView({ block: 'start' }))
+  await page.evaluate(() => window.scrollBy(0, -120))
+
+  // Where the floating selector sits on screen before the sheet opens
+  const selectorPoint = await page.evaluate(() => {
+    const el = [...document.querySelectorAll('.app-floating-range')].find((node) => getComputedStyle(node).display !== 'none')
+    const b = el?.querySelector('.app-range-glass')?.getBoundingClientRect()
+    return b ? { x: b.left + b.width / 2, y: b.top + b.height / 2 } : null
+  })
+  expect(selectorPoint, 'a floating selector is on screen').not.toBeNull()
+
+  await distribution.getByRole('button', { name: 'Merchant category filter' }).filter({ visible: true }).click()
+  const sheet = page.getByRole('dialog', { name: 'Merchant category filter' })
+  await expect(sheet).toBeVisible()
+  await expect.poll(() => page.evaluate(({ x, y }) => {
+    const top = document.elementFromPoint(x, y)
+    return top !== null && top.closest('.app-floating-range') === null
+  }, selectorPoint!), { message: "the sheet answers at the selector's position" }).toBe(true)
+
+  // The footer's two buttons take half of its width each, as a phone modal's footer does
+  const clearBox = await sheet.getByRole('button', { name: 'Clear all', exact: true }).boundingBox()
+  const applyBox = await sheet.getByRole('button', { name: 'Apply filter' }).boundingBox()
+  expect(Math.abs(clearBox!.width - applyBox!.width)).toBeLessThan(1)
+  expect(Math.abs(clearBox!.width * 2 + (applyBox!.x - (clearBox!.x + clearBox!.width)) - (390 - 40))).toBeLessThan(1)
+
+  await sheet.getByRole('checkbox', { name: 'Dining' }).click()
+  const filtered = page.waitForRequest((candidate) => matchesApi(candidate.url(), '/insights/merchants')
+    && new URL(candidate.url()).searchParams.getAll('category_id').length === 1)
+  await sheet.getByRole('button', { name: 'Apply filter' }).click()
+  await filtered
+  await expect(sheet).toHaveCount(0)
+  await expect(distribution.getByText(names.dining)).toBeVisible()
+  await expect(distribution.getByText(names.groceries)).toHaveCount(0)
+})
