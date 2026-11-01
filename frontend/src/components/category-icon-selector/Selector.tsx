@@ -1,5 +1,11 @@
-import { useEffect, useLayoutEffect, useRef, useState, type RefObject } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useRef, useState, type RefObject } from 'react'
 import { createPortal } from 'react-dom'
+import {
+  getCachedEmojiMartData,
+  loadEmojiMartData,
+  type EmojiMartData,
+} from '@/components/category-icon-selector/emojiMartData'
+import { LoadFailureNote } from '@/components/category-icon-selector/LoadFailureNote'
 import { useMinimumVisibleFlag } from '@/hooks/useMinimumVisibleFlag'
 import { LOADING_ANIMATION_MIN_MS } from '@/utils/timing'
 
@@ -25,19 +31,15 @@ interface CategoryIconSelectorProps {
   value: string
 }
 
-interface EmojiMartData {
-  emojis?: Record<string, unknown>
-}
-
 interface EmojiMartSelection {
   native?: string
 }
 
-const EMOJI_MART_DATA_URL = 'https://cdn.jsdelivr.net/npm/@emoji-mart/data'
 const EMOJI_PICKER_GAP = 8
 const EMOJI_PICKER_HEIGHT = 350
 const EMOJI_PICKER_PADDING = 12
 const EMOJI_PICKER_WIDTH = 280
+const LOAD_FAILURE_MESSAGE = 'Failed to load emoji picker.'
 
 const EMOJI_MART_THEME = {
   light: {
@@ -58,25 +60,7 @@ const EMOJI_MART_THEME = {
   },
 } as const
 
-let emojiMartDataPromise: Promise<EmojiMartData> | null = null
-let cachedEmojiMartData: EmojiMartData | null = null
 let cachedEmojiMartPickerModule: typeof import('emoji-mart') | null = null
-
-/**
- * Loads the large emoji dataset once because multiple icon selectors can open during settings edits
- */
-function loadEmojiMartData(): Promise<EmojiMartData> {
-  if (!emojiMartDataPromise) {
-    emojiMartDataPromise = fetch(EMOJI_MART_DATA_URL).then(async (response) => {
-      if (!response.ok) throw new Error('Failed to load emoji data.')
-      const data = (await response.json()) as EmojiMartData
-      cachedEmojiMartData = data
-      return data
-    })
-  }
-
-  return emojiMartDataPromise
-}
 
 /**
  * Tracks theme class changes so the external emoji picker follows Lumina's active theme
@@ -113,7 +97,24 @@ export default function CategoryIconSelector({
 }: CategoryIconSelectorProps) {
   const [open, setOpen] = useState(false)
   const [pickerPosition, setPickerPosition] = useState<EmojiPickerPosition | null>(null)
+  const [loadFailure, setLoadFailure] = useState<string | null>(null)
   const selectorRef = useRef<HTMLDivElement | null>(null)
+
+  // A failed emoji download closes the picker and leaves its reason in the page's flow instead
+  const showLoadFailure = useCallback((message: string) => {
+    setLoadFailure(message)
+    setOpen(false)
+    setPickerPosition(null)
+  }, [])
+
+  useEffect(() => {
+    if (!loadFailure) return
+    const dismiss = (event: PointerEvent) => {
+      if (!selectorRef.current?.contains(event.target as Node)) setLoadFailure(null)
+    }
+    window.addEventListener('pointerdown', dismiss)
+    return () => window.removeEventListener('pointerdown', dismiss)
+  }, [loadFailure])
 
   useEffect(() => {
     if (!open) return
@@ -192,6 +193,7 @@ export default function CategoryIconSelector({
           borderColor: hasError ? 'var(--app-negative-border)' : 'var(--app-input-border)',
         }}
         onClick={() => {
+          setLoadFailure(null)
           setPickerPosition(null)
           setOpen((current) => !current)
         }}
@@ -214,9 +216,11 @@ export default function CategoryIconSelector({
             setOpen(false)
             setPickerPosition(null)
           }}
+          onLoadFailure={showLoadFailure}
           position={pickerPosition}
         />
       )}
+      {loadFailure && <LoadFailureNote message={loadFailure} />}
     </div>
   )
 }
@@ -228,22 +232,20 @@ function EmojiMartIconPicker({
   categoryName,
   onChange,
   onClose,
+  onLoadFailure,
   position,
 }: {
   categoryName: string
   onChange: (icon: string) => void
   onClose: () => void
+  onLoadFailure: (message: string) => void
   position: EmojiPickerPosition
 }) {
   const containerRef = useRef<HTMLDivElement | null>(null)
-  const [data, setData] = useState<EmojiMartData | null>(cachedEmojiMartData)
+  const [data, setData] = useState<EmojiMartData | null>(getCachedEmojiMartData)
   const [pickerModule, setPickerModule] = useState<typeof import('emoji-mart') | null>(cachedEmojiMartPickerModule)
-  const [loadError, setLoadError] = useState<string | null>(null)
   const isDark = useAppDarkMode()
-  const loadingVisible = useMinimumVisibleFlag(
-    (data === null || pickerModule === null) && loadError === null,
-    LOADING_ANIMATION_MIN_MS,
-  )
+  const loadingVisible = useMinimumVisibleFlag(data === null || pickerModule === null, LOADING_ANIMATION_MIN_MS)
 
   useEffect(() => {
     let cancelled = false
@@ -252,12 +254,12 @@ function EmojiMartIconPicker({
         if (!cancelled) setData(loadedData)
       })
       .catch((error) => {
-        if (!cancelled) setLoadError(error instanceof Error ? error.message : 'Failed to load emoji picker.')
+        if (!cancelled) onLoadFailure(error instanceof Error ? error.message : LOAD_FAILURE_MESSAGE)
       })
     return () => {
       cancelled = true
     }
-  }, [])
+  }, [onLoadFailure])
 
   useEffect(() => {
     let cancelled = false
@@ -268,12 +270,12 @@ function EmojiMartIconPicker({
         if (!cancelled) setPickerModule(module)
       })
       .catch(() => {
-        if (!cancelled) setLoadError('Failed to load emoji picker.')
+        if (!cancelled) onLoadFailure(LOAD_FAILURE_MESSAGE)
       })
     return () => {
       cancelled = true
     }
-  }, [])
+  }, [onLoadFailure])
 
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
@@ -359,10 +361,6 @@ function EmojiMartIconPicker({
         <div className="flex h-20 items-center justify-center">
           <div className="app-spinner" aria-label="Loading emoji picker" />
         </div>
-      ) : loadError ? (
-        <p className="p-2 text-sm" style={{ color: 'var(--app-negative)' }}>
-          {loadError}
-        </p>
       ) : (
         <div ref={containerRef} />
       )}
