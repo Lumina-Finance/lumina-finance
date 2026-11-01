@@ -79,20 +79,19 @@ export interface DropdownBoxPosition {
  * of those frames find nothing changed, and this is what lets the dropdown keep the placement
  * object it already has rather than re-rendering the whole control sixty times a second.
  */
-export function isSameDropdownBoxPosition(
-  a: DropdownBoxPosition,
-  b: DropdownBoxPosition,
-): boolean {
-  return a.bottom === b.bottom
-    && a.boxMaxHeight === b.boxMaxHeight
-    && a.left === b.left
-    && a.listMaxHeight === b.listMaxHeight
-    && a.openAbove === b.openAbove
-    && a.openLeftward === b.openLeftward
-    && a.openWidth === b.openWidth
-    && a.right === b.right
-    && a.top === b.top
-    && a.width === b.width
+export function isSameDropdownBoxPosition(a: DropdownBoxPosition, b: DropdownBoxPosition): boolean {
+  return (
+    a.bottom === b.bottom &&
+    a.boxMaxHeight === b.boxMaxHeight &&
+    a.left === b.left &&
+    a.listMaxHeight === b.listMaxHeight &&
+    a.openAbove === b.openAbove &&
+    a.openLeftward === b.openLeftward &&
+    a.openWidth === b.openWidth &&
+    a.right === b.right &&
+    a.top === b.top &&
+    a.width === b.width
+  )
 }
 
 /**
@@ -147,7 +146,7 @@ export const DEFAULT_DROPDOWN_BOX_POSITION: DropdownBoxPosition = {
 
 // The geometry of the box lives here rather than beside the look in tailwind.css, because placement
 // is computed in JavaScript and a second copy in CSS would drift from this one
-const DROPDOWN_MAX_HEIGHT = 400
+export const DROPDOWN_MAX_HEIGHT = 400
 
 // How much room below the slot the box wants before it opens downward. More than its own greatest
 // height, so a box that would only just fit underneath opens upward instead, where it has room to
@@ -165,7 +164,7 @@ const DROPDOWN_SEARCH_HEIGHT = 42
 
 // The box's own border and the padding around its contents. Mirrors the 1px border of
 // .app-dropdown-glass and the 6px padding of .app-dropdown-glass-inner in tailwind.css
-const DROPDOWN_BOX_CHROME = 14
+export const DROPDOWN_BOX_CHROME = 14
 
 const DROPDOWN_VIEWPORT_PADDING = 12
 
@@ -223,8 +222,10 @@ export function getDropdownBoxPosition({
   const listChrome = headHeight + DROPDOWN_BOX_CHROME + (searchable ? DROPDOWN_SEARCH_HEIGHT : 0)
   const boundedBelow = bounds && Math.min(screenBelow, bounds.bottom - anchorRect.top - DROPDOWN_VIEWPORT_PADDING)
   const boundedAbove = bounds && Math.min(screenAbove, anchorRect.bottom - bounds.top - DROPDOWN_VIEWPORT_PADDING)
-  const staysInBounds = boundedBelow !== null && boundedAbove !== null
-    && Math.max(boundedBelow, boundedAbove) - listChrome >= DROPDOWN_MIN_BOUNDED_LIST_HEIGHT
+  const staysInBounds =
+    boundedBelow !== null &&
+    boundedAbove !== null &&
+    Math.max(boundedBelow, boundedAbove) - listChrome >= DROPDOWN_MIN_BOUNDED_LIST_HEIGHT
   const spaceBelow = staysInBounds ? boundedBelow : screenBelow
   const spaceAbove = staysInBounds ? boundedAbove : screenAbove
   const spaceRight = viewportRight - left - DROPDOWN_VIEWPORT_PADDING
@@ -234,10 +235,8 @@ export function getDropdownBoxPosition({
   // every time is easier to follow than one picking the roomier side by a few pixels. Otherwise the
   // roomier side wins, which is what gives a field low on a phone a list worth reading instead of
   // the sliver underneath it, and one near the right edge its full width
-  const openAbove = held?.openAbove
-    ?? (spaceBelow < DROPDOWN_DOWNWARD_ROOM && spaceAbove > spaceBelow)
-  const openLeftward = held?.openLeftward
-    ?? (spaceRight < DROPDOWN_MAX_WIDTH && spaceLeft > spaceRight)
+  const openAbove = held?.openAbove ?? (spaceBelow < DROPDOWN_DOWNWARD_ROOM && spaceAbove > spaceBelow)
+  const openLeftward = held?.openLeftward ?? (spaceRight < DROPDOWN_MAX_WIDTH && spaceLeft > spaceRight)
 
   // The box is never given more than the room it actually has, or it would grow past the edge of
   // the screen and clip its own list
@@ -260,10 +259,7 @@ export function getDropdownBoxPosition({
     // control in a narrow slot opens to something a list can be read in. Floored at the closed
     // width, which covers both a slot already wider than the maximum and one hanging off the edge
     // of the screen with no room at all: either way the box opens exactly as wide as it sits
-    openWidth: Math.max(
-      width,
-      Math.min(DROPDOWN_MAX_WIDTH, openLeftward ? spaceLeft : spaceRight),
-    ),
+    openWidth: Math.max(width, Math.min(DROPDOWN_MAX_WIDTH, openLeftward ? spaceLeft : spaceRight)),
 
     // Pinned by the slot's right edge, so that edge stays put and the box grows away to the left of
     // it. Measured against the whole page, as `bottom` is, since that is what a fixed box's own
