@@ -5,7 +5,12 @@
 import { describe, expect, it } from 'vitest'
 import { getNameKey } from '@/api/shared/nameKey'
 import type { Tag } from '@/api/tags'
-import { CREATE_TAG_VALUE, IMPORT_TAG_NAME_MAX_LENGTH, SKIP_TAG_VALUE } from '@/pages/imports/constants'
+import {
+  CREATE_TAG_VALUE,
+  IMPORT_TAG_NAME_MAX_LENGTH,
+  IMPORT_TAG_SOURCE_MAX_LENGTH,
+  SKIP_TAG_VALUE,
+} from '@/pages/imports/constants'
 import {
   alignNameAnswersWithValues,
   buildImportTagMappings,
@@ -340,6 +345,21 @@ describe('answers to a tag spelled in other capitals once a date range leaves on
     expect(sendFor({ Travel: SKIP_TAG_VALUE, travel: FOOD.id }).mappings).toEqual([
       { source: 'travel', tag_id: FOOD.id },
     ])
+  })
+})
+
+describe('a tag name past what a row may state', () => {
+  const tooLong = 'x'.repeat(IMPORT_TAG_SOURCE_MAX_LENGTH + 1)
+
+  // Asked about, it would have the match request refused whole, and no answer to it could be sent
+  it('is not asked about, so it fails neither the matches nor the other names', () => {
+    const file = buildFile([`Travel,${tooLong}`, 'y'.repeat(IMPORT_TAG_SOURCE_MAX_LENGTH)])
+
+    expect(getImportedTags([file], 'Tags')).toEqual(['Travel', 'y'.repeat(IMPORT_TAG_SOURCE_MAX_LENGTH)])
+  })
+
+  it('counts characters rather than UTF-16 units', () => {
+    expect(getImportedTags([buildFile(['😀'.repeat(IMPORT_TAG_SOURCE_MAX_LENGTH)])], 'Tags')).toHaveLength(1)
   })
 })
 
