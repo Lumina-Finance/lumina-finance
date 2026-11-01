@@ -84,20 +84,26 @@ export function MerchantDistributionCard({
     <div className="app-card flex h-[560px] flex-col min-[1300px]:h-full">
       <InsightSectionHeader
         icon={Store}
+        keepLabelBesideIcon
         label={
-          <span className="inline-flex items-center gap-2">
+          // The title breaks into balanced lines, with the two icons kept together after its last word. Below the
+          // wide layout the spacing is tight and the letters a little closer, so the title and both icons fit one
+          // row beside the icon at 390px wide. The parts alone total 326px against 324px of room, so gaps alone fall short
+          <span className="text-balance tracking-tight min-[750px]:tracking-normal">
             Spending distribution by merchant
-            <InsightCalculationTooltip
-              label="Merchant distribution"
-              calculation="Shows merchant spending after refunds. Income losses are not included"
-            />
-            {displaySnapshot.fxStatus && (
-              <FxStatusBadge
-                label="Merchant distribution FX status"
-                fxStatus={displaySnapshot.fxStatus}
-                getMessage={getMerchantSpendingFxStatusMessage}
+            <span className="ml-1 inline-flex items-center gap-1 whitespace-nowrap align-middle min-[750px]:ml-2 min-[750px]:gap-2">
+              <InsightCalculationTooltip
+                label="Merchant distribution"
+                calculation="Shows merchant spending after refunds. Income losses are not included"
               />
-            )}
+              {displaySnapshot.fxStatus && (
+                <FxStatusBadge
+                  label="Merchant distribution FX status"
+                  fxStatus={displaySnapshot.fxStatus}
+                  getMessage={getMerchantSpendingFxStatusMessage}
+                />
+              )}
+            </span>
           </span>
         }
         // Below the wide layout the filter takes its own full-width row under the title, as the dashboard's

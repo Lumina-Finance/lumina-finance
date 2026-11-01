@@ -217,6 +217,64 @@ test('a category with no spend says so, with no hint, and the merchants return o
   await expect(distribution.getByText(names.groceries)).toBeVisible()
 })
 
+// The icon and the title share one row at every width, the title wrapping beside the icon when it is too
+// long for what is left, and the title, info icon and FX badge are never cut off by the card
+for (const width of [1280, 768, 390, 320]) {
+  test(`the merchant map's icon and title share a row and nothing is clipped, ${width}px wide`, async ({ page, request }) => {
+    const { user, names } = await seedFilterMerchants(request)
+    await page.setViewportSize({ width, height: 844 })
+    await logInViaApi(page, user)
+    await openPage(page, '/insights')
+    const distribution = card(page, 3)
+    await distribution.scrollIntoViewIfNeeded()
+    await expect(distribution.getByText(names.groceries)).toBeVisible()
+    const fx = distribution.getByRole('button', { name: 'Merchant distribution FX status' })
+    await expect(fx).toBeVisible()
+
+    const parts = await distribution.evaluate((cardElement) => {
+      const rect = (element: Element | null | undefined) => {
+        const r = element!.getBoundingClientRect()
+        return { left: r.left, top: r.top, right: r.right, bottom: r.bottom }
+      }
+      const title = cardElement.querySelector('span.app-label')!
+      const header = title.parentElement!.parentElement!
+      const named = (name: string) => cardElement.querySelector(`button[aria-label="${name}"]`)
+      return {
+        card: rect(cardElement),
+        chip: rect(header.querySelector('svg')!.parentElement),
+        title: rect(title),
+        info: rect(named('Merchant distribution calculation')),
+        fx: rect(named('Merchant distribution FX status')),
+        filter: rect([...cardElement.querySelectorAll('button[aria-label="Merchant category filter"]')].find((el) => (el as HTMLElement).offsetParent !== null)),
+        pageOverflows: document.documentElement.scrollWidth > window.innerWidth,
+        titleCutOff: title.scrollWidth > title.clientWidth + 1,
+      }
+    })
+    const centre = (box: { top: number; bottom: number }) => (box.top + box.bottom) / 2
+
+    // The chip is left of the title and level with some line of it, never on a row of its own above it
+    expect(parts.chip.right).toBeLessThanOrEqual(parts.title.left + 0.5)
+    expect(centre(parts.chip)).toBeGreaterThan(parts.title.top)
+    expect(centre(parts.chip)).toBeLessThan(parts.title.bottom)
+    // From 390px wide the title fits one line, so the info icon and the FX badge sit on the icon's row
+    // rather than dropping under the title. Narrower, the title may wrap and they follow its last word
+    if (width >= 390) {
+      expect(Math.abs(centre(parts.info) - centre(parts.chip))).toBeLessThan(3)
+      expect(Math.abs(centre(parts.fx) - centre(parts.chip))).toBeLessThan(3)
+    }
+    // Each part sits wholly inside the card
+    for (const part of [parts.chip, parts.title, parts.info, parts.fx, parts.filter]) {
+      expect(part.left).toBeGreaterThanOrEqual(parts.card.left)
+      expect(part.right).toBeLessThanOrEqual(parts.card.right)
+    }
+    expect(parts.titleCutOff).toBe(false)
+    expect(parts.pageOverflows).toBe(false)
+    // The info icon and the FX badge stay inside the title's own box
+    expect(parts.info.right).toBeLessThanOrEqual(parts.title.right + 0.5)
+    expect(parts.fx.right).toBeLessThanOrEqual(parts.title.right + 0.5)
+  })
+}
+
 test('on a phone the sheet narrows the map and covers the floating range selector', async ({ page, request }) => {
   const { user, names } = await seedFilterMerchants(request)
   await page.setViewportSize({ width: 390, height: 844 })
