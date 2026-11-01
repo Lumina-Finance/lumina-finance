@@ -195,7 +195,7 @@ describe('the tags a previewed row carries once the tag step is answered', () =>
     ).toEqual(['TRAVEL'])
   })
 
-  it('shows the existing tag a created name matches even when the row matched another tag', () => {
+  it('shows a tag the page holds under other capitals than a created name, though the row matched nothing', () => {
     const upper: Tag = { ...TRAVEL, id: 'upper', name: 'TRAVEL' }
     const tagLabels = new Map([[upper.id, 'TRAVEL']])
 
