@@ -1,21 +1,23 @@
 import { useCallback, useState } from 'react'
 import { useDesktopToolbarLayout } from '@/components/filters/hooks/useDesktopToolbarLayout'
-import type { DesktopToolbarLayoutState } from '@/components/filters/hooks/useDesktopToolbarLayout'
+import type { DesktopToolbarLayoutState, LayoutWidthReserve } from '@/components/filters/hooks/useDesktopToolbarLayout'
 import { useTopRowAtMenuButton } from '@/components/filters/hooks/useTopRowAtMenuButton'
 import type { TopRowAtMenuButtonState } from '@/components/filters/hooks/useTopRowAtMenuButton'
 import { useToolbarStuck } from '@/components/filters/hooks/useToolbarStuck'
 import type { ToolbarStuckState } from '@/components/filters/hooks/useToolbarStuck'
 
-export type ToolbarShellState = DesktopToolbarLayoutState & TopRowAtMenuButtonState & ToolbarStuckState & {
-  isMobileSheetOpen: boolean
-  // Kept mounted through the close animation so the sheet's scroll lock is only ever active while
-  // the sheet exists, never on the page underneath
-  isMobileSheetMounted: boolean
-  openMobileSheet: () => void
-  closeMobileSheet: () => void
-  // Passed to the mobile sheet's onExitComplete so it unmounts once its close animation finishes
-  finishMobileSheetExit: () => void
-}
+export type ToolbarShellState = DesktopToolbarLayoutState &
+  TopRowAtMenuButtonState &
+  ToolbarStuckState & {
+    isMobileSheetOpen: boolean
+    // Kept mounted through the close animation so the sheet's scroll lock is only ever active while
+    // the sheet exists, never on the page underneath
+    isMobileSheetMounted: boolean
+    openMobileSheet: () => void
+    closeMobileSheet: () => void
+    // Passed to the mobile sheet's onExitComplete so it unmounts once its close animation finishes
+    finishMobileSheetExit: () => void
+  }
 
 /**
  * Combines the desktop wrap layout, the mobile sticky search state, the toolbar dock state, and the
@@ -25,9 +27,14 @@ export type ToolbarShellState = DesktopToolbarLayoutState & TopRowAtMenuButtonSt
  * @param actionsKey Changes whenever the toolbar swaps its own controls, so the wrap layout re-measures
  * @param pauseMeasuring Forwarded to the desktop wrap layout hook so a caller can hold its measuring
  *     still while something it does not control, such as a button's own width animation, is in motion
+ * @param reserve A control whose width follows its word, which the wrap layout counts at its longest word
  */
-export function useToolbarShellState(actionsKey?: string, pauseMeasuring?: boolean): ToolbarShellState {
-  const desktopLayout = useDesktopToolbarLayout(actionsKey, pauseMeasuring)
+export function useToolbarShellState(
+  actionsKey?: string,
+  pauseMeasuring?: boolean,
+  reserve?: LayoutWidthReserve,
+): ToolbarShellState {
+  const desktopLayout = useDesktopToolbarLayout(actionsKey, pauseMeasuring, reserve)
   const topRowAtMenuButton = useTopRowAtMenuButton()
   const toolbarStuck = useToolbarStuck()
   const [isMobileSheetOpen, setIsMobileSheetOpen] = useState(false)

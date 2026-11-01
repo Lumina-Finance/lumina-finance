@@ -387,6 +387,14 @@ async function readToolbar(page: Page) {
         add: box(named(/^Add transaction$/)),
         exportButton: box(exportNode),
         exportNeeds: Math.round(needed * 10) / 10,
+        // Which row each control sits on, and how wide Add transaction is, which is what a row change moves
+        rows: Object.fromEntries(
+          row.map((node) => [
+            (node.getAttribute('aria-label') ?? (node.matches('.app-range-glass') ? 'Filters' : node.getAttribute('placeholder') ?? node.textContent?.trim() ?? '')).replace(/^Export .*/, 'Export'),
+            Math.round(node.getBoundingClientRect().y - top),
+          ]),
+        ),
+        addWidth: Math.round(named(/^Add transaction$/)!.getBoundingClientRect().width),
         overlapping,
         spilling,
         scrollWidth: document.documentElement.scrollWidth,
@@ -495,4 +503,198 @@ test('keeps the phone export icon still when a row is ticked', async ({ page, re
     layers: button.querySelectorAll(':scope > div').length,
   }))
   expect(state).toEqual({ kept: true, layers: 1 })
+})
+
+// Which row each control sits on, and the width of Add transaction, is the same for every word the button
+// can have. Deciding the rows from the word on show moved Add transaction between beside the controls and a
+// row of its own, and Edit and Delete between one row with the rest and a row above it, when the word changed
+test('keeps every toolbar control on the same row whichever export word shows', async ({ page, request }) => {
+  const user = await seedTwoTransactions(request)
+  await logInViaApi(page, user)
+
+  for (const width of [900, 1050, 1150, 1250]) {
+    for (const selecting of [false, true]) {
+      await page.setViewportSize({ width, height: 800 })
+      await openPage(page, '/transactions')
+      await expect(page.getByTestId(/^transaction-row-/)).toHaveCount(2)
+      const readings = Object.entries(await readEveryWord(page, selecting))
+      const [, first] = readings[0]
+      for (const [word, reading] of readings) {
+        const where = `at ${width}px ${selecting ? 'selecting' : 'browsing'} with ${word}`
+        expect(reading.rows, `Rows ${where}`).toEqual(first.rows)
+        expect(reading.addWidth, `Add transaction width ${where}`).toBe(first.addWidth)
+      }
+    }
+  }
+})
+
+/**
+ * Pauses every animation on the first frame of the width ease that `trigger` starts, then reads the page at
+ * each of the given times into it. The export button's layers are read at each: their opacity, and how far
+ * their icon and word reach past the button's own ends and past the layer's own box
+ */
+async function scrubExportEase(page: Page, trigger: () => Promise<void>, times: number[]) {
+  await page.evaluate(() => {
+    const frozen = new Promise<void>((resolve) => {
+      const tick = () => {
+        if (document.getAnimations().some((animation) => animation.id === 'eased-width')) {
+          for (const animation of document.getAnimations()) animation.pause()
+          resolve()
+        } else requestAnimationFrame(tick)
+      }
+      requestAnimationFrame(tick)
+    })
+    ;(window as unknown as { frozen: Promise<void> }).frozen = frozen
+  })
+  await trigger()
+  await page.evaluate(() => (window as unknown as { frozen: Promise<void> }).frozen)
+  const frames = []
+  for (const time of times) {
+    frames.push({
+      time,
+      ...(await page.evaluate((t) => {
+        for (const animation of document.getAnimations()) {
+          if (Number.isFinite(animation.effect?.getComputedTiming().endTime)) animation.currentTime = t
+        }
+        const button = [...document.querySelectorAll('button')].find(
+          (node) => /^Export /.test(node.getAttribute('aria-label') ?? '') && node.getBoundingClientRect().width > 0,
+        )!
+        const edges = button.getBoundingClientRect()
+        const layers = [...button.querySelectorAll(':scope > div')].map((layer) => {
+          const box = layer.getBoundingClientRect()
+          const parts = [layer.querySelector('svg')!, layer.querySelector('span')!].map((part) => {
+            const range = document.createRange()
+            range.selectNodeContents(part)
+            return part.tagName === 'svg' ? part.getBoundingClientRect() : range.getBoundingClientRect()
+          })
+          const left = Math.min(...parts.map((part) => part.left))
+          const right = Math.max(...parts.map((part) => part.right))
+          const icon = layer.querySelector('svg')!
+          // What the eye gets of the icon: its own and its layer's opacity multiplied, and nothing when hidden
+          const iconStyle = getComputedStyle(icon)
+          return {
+            outgoing: layer.getAttribute('aria-hidden') === 'true',
+            // What the eye gets of the word: its own opacity and its layer's multiplied
+            opacity: Number(getComputedStyle(layer.querySelector('span')!).opacity) * Number(getComputedStyle(layer).opacity),
+            iconOpacity: iconStyle.visibility === 'hidden' ? 0 : Number(iconStyle.opacity) * Number(getComputedStyle(layer).opacity),
+            iconLeft: icon.getBoundingClientRect().left,
+            pastButton: Math.max(edges.left - left, right - edges.right),
+            pastLayer: Math.max(box.left - left, right - box.right),
+          }
+        })
+        return { width: edges.width, layers }
+      }, time)),
+    })
+  }
+  await page.evaluate(() => {
+    for (const animation of document.getAnimations()) {
+      try {
+        animation.finish()
+      } catch {
+        animation.play()
+      }
+    }
+  })
+  return frames
+}
+
+// While the word changes, neither the old word nor the new one, nor the icon in front of it, is cut by the
+// button's ends or by the layer holding it, at any frame in which it can be seen. Both fade partway rather
+// than at once, in both directions
+test('never cuts the export word or its icon while the word changes', async ({ page, request }) => {
+  const user = await seedTwoTransactions(request)
+  await logInViaApi(page, user)
+  await page.setViewportSize({ width: 1280, height: 800 })
+  await openPage(page, '/transactions')
+  await expect(page.getByTestId(/^transaction-row-/)).toHaveCount(2)
+  const times = [0, 5, 10, 15, 20, 30, 40, 50, 60, 80, 100, 150, 200, 250, 300]
+
+  for (const [text, expected] of [
+    ['Coffee', 'Export filtered'],
+    ['', 'Export all'],
+  ] as const) {
+    const frames = await scrubExportEase(page, () => search(page, text), times)
+    await expect(page.getByRole('button', { name: expected, exact: true })).toBeVisible()
+    for (const { time, layers } of frames) {
+      for (const layer of layers.filter((item) => item.opacity > 0.01)) {
+        const where = `${layer.outgoing ? 'outgoing' : 'incoming'} layer at ${time}ms going to ${expected}`
+        expect(layer.pastLayer, `Content cut by its layer, ${where}`).toBeLessThanOrEqual(0.5)
+        expect(layer.pastButton, `Content past the button's ends, ${where}`).toBeLessThanOrEqual(-3)
+      }
+    }
+    const opacities = frames.flatMap(({ layers }) => layers.map((layer) => layer.opacity))
+    expect(opacities.some((opacity) => opacity > 0.1 && opacity < 0.9), 'A fade caught partway').toBe(true)
+  }
+})
+
+// The two words never overlap, which read as garbled text when both sat at half strength, and the icon stays
+// whole and in one place throughout. The old word is gone before the new one shows, in both directions
+test('fades the export words one after the other with the icon whole throughout', async ({ page, request }) => {
+  const user = await seedTwoTransactions(request)
+  await logInViaApi(page, user)
+  await page.setViewportSize({ width: 1280, height: 800 })
+  await openPage(page, '/transactions')
+  await expect(page.getByTestId(/^transaction-row-/)).toHaveCount(2)
+  const times = [0, 5, 10, 15, 20, 25, 30, 35, 40, 45, 50, 55, 60, 70, 80, 100, 150, 200, 300]
+  const SMALL_OPACITY = 0.02
+
+  for (const [text, expected] of [
+    ['Coffee', 'Export filtered'],
+    ['', 'Export all'],
+  ] as const) {
+    const frames = await scrubExportEase(page, () => search(page, text), times)
+    await expect(page.getByRole('button', { name: expected, exact: true })).toBeVisible()
+    const restingIconLeft = frames[0].layers.find((layer) => !layer.outgoing)!.iconLeft
+    let sawOutgoing = false
+    let sawIncoming = false
+    for (const { time, layers } of frames) {
+      const where = `at ${time}ms going to ${expected}`
+      const shown = layers.filter((layer) => layer.opacity > SMALL_OPACITY)
+      expect(shown.length, `Two words showing ${where}: ${shown.map((layer) => layer.opacity.toFixed(2)).join(' and ')}`).toBeLessThanOrEqual(1)
+      sawOutgoing ||= shown.some((layer) => layer.outgoing)
+      sawIncoming ||= shown.some((layer) => !layer.outgoing && layer.opacity > 0.5)
+      expect(layers.find((layer) => !layer.outgoing)!.iconOpacity, `Icon not whole ${where}`).toBe(1)
+      for (const layer of layers.filter((item) => item.iconOpacity > 0)) {
+        expect(Math.abs(layer.iconLeft - restingIconLeft), `Icon moved ${where}`).toBeLessThanOrEqual(0.5)
+      }
+    }
+    expect(sawOutgoing, 'The old word is seen fading').toBe(true)
+    expect(sawIncoming, 'The new word is seen').toBe(true)
+  }
+})
+
+// Pressed is the hover look with the button pushed in by a pixel, which is what the Import button beside it
+// does. The export button's own transition list must not drop it
+test('presses the export button in exactly as the Import button beside it is', async ({ page, request }) => {
+  const user = await seedTwoTransactions(request)
+  await logInViaApi(page, user)
+  await page.setViewportSize({ width: 1280, height: 800 })
+  await openPage(page, '/transactions')
+  await expect(page.getByTestId(/^transaction-row-/)).toHaveCount(2)
+
+  const looks = []
+  for (const name of [/^Import transactions/, /^Export all$/]) {
+    const button = page.getByRole('button', { name }).filter({ visible: true }).first()
+    const read = () =>
+      button.evaluate((node) => {
+        const style = getComputedStyle(node)
+        return { background: style.backgroundColor, color: style.color, border: style.borderTopColor, transform: style.transform }
+      })
+    await button.hover()
+    await expect.poll(async () => (await read()).color).toBe('rgb(28, 21, 16)')
+    await page.waitForTimeout(400)
+    const hover = await read()
+    await page.mouse.down()
+    await expect.poll(async () => (await read()).transform).toBe('matrix(1, 0, 0, 1, 0, 1)')
+    await page.waitForTimeout(400)
+    const pressed = await read()
+    // Released off the button, so the press is not a click that leaves the page or opens a dialogue
+    await page.mouse.move(2, 2)
+    await page.mouse.up()
+    looks.push({ hover, pressed })
+  }
+  const [importLook, exportLook] = looks
+  expect(exportLook.pressed).toEqual(importLook.pressed)
+  expect(exportLook.hover).toEqual(importLook.hover)
+  expect(exportLook.pressed.transform).not.toBe(exportLook.hover.transform)
 })
