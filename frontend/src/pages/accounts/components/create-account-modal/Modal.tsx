@@ -1,27 +1,27 @@
-import { useState, useMemo, type FormEvent } from 'react';
-import { motion, AnimatePresence } from 'motion/react';
-import { FormError } from '@/components/forms/FormError';
-import Dropdown from '@/components/dropdown/Dropdown';
-import LoadFailure from '@/components/errors/LoadFailure';
-import IconTooltip from '@/components/tooltips/IconTooltip';
-import CreateModalFieldLabelRow from '@/components/create-modal/FieldLabelRow';
-import CreateModalSectionFrame from '@/components/create-modal/SectionFrame';
-import { Landmark } from 'lucide-react';
-import { ModalTitledPanel } from '@/components/modal/TitledPanel';
-import { ModalFormFooter } from '@/components/modal/FormFooter';
-import { useCurrencies } from '@/api/currency';
-import { useInstitutions, type Institution } from '@/api/institutions';
-import { useTaxAdvantagedCategories } from '@/api/tax-advantaged-categories';
-import InstitutionModal from '@/components/reference-modals/InstitutionModal';
-import { useCreateAccount } from '@/api/accounts';
-import { useAuth } from '@/hooks/useAuth';
-import { useInstitutionModal } from '@/hooks/useInstitutionModal';
-import { useMoneyInput } from '@/hooks/useMoneyInput';
-import { useRefusedSubmit } from '@/hooks/useRefusedSubmit';
-import { getCreateFailureMessage } from '@/utils/createFailure';
-import { getSymbolInputStyle } from '@/utils/formatCurrency';
-import { getCurrencyExponent } from '@/utils/moneyInput';
-import { getFieldLabelId } from '@/utils/fieldLabel';
+import { useState, useMemo, type FormEvent } from 'react'
+import { motion, AnimatePresence } from 'motion/react'
+import { FormError } from '@/components/forms/FormError'
+import Dropdown from '@/components/dropdown/Dropdown'
+import LoadFailure from '@/components/errors/LoadFailure'
+import IconTooltip from '@/components/tooltips/IconTooltip'
+import CreateModalFieldLabelRow from '@/components/create-modal/FieldLabelRow'
+import CreateModalSectionFrame from '@/components/create-modal/SectionFrame'
+import { Landmark } from 'lucide-react'
+import { ModalTitledPanel } from '@/components/modal/TitledPanel'
+import { ModalFormFooter } from '@/components/modal/FormFooter'
+import { useCurrencies } from '@/api/currency'
+import { useInstitutions, type Institution } from '@/api/institutions'
+import { useTaxAdvantagedCategories } from '@/api/tax-advantaged-categories'
+import InstitutionModal from '@/components/reference-modals/InstitutionModal'
+import { useCreateAccount } from '@/api/accounts'
+import { useAuth } from '@/hooks/useAuth'
+import { useInstitutionModal } from '@/hooks/useInstitutionModal'
+import { useMoneyInput } from '@/hooks/useMoneyInput'
+import { useRefusedSubmit } from '@/hooks/useRefusedSubmit'
+import { getCreateFailureMessage } from '@/utils/createFailure'
+import { getSymbolInputStyle } from '@/utils/formatCurrency'
+import { getCurrencyExponent } from '@/utils/moneyInput'
+import { getFieldLabelId } from '@/utils/fieldLabel'
 import {
   CREATE_ACCOUNT_CONTROL_IDS,
   CREATE_ACCOUNT_EASE,
@@ -29,115 +29,105 @@ import {
   CREATE_ACCOUNT_MODAL_FIELD_IDS,
   CREATE_ACCOUNT_TYPE_OPTIONS,
   CREATE_ACCOUNT_VALIDATED_FIELDS,
-} from '@/pages/accounts/components/create-account-modal/constants';
+} from '@/pages/accounts/components/create-account-modal/constants'
 import {
   buildCreateAccountPayload,
   buildCreateAccountViewModel,
   buildInitialCreateAccountForm,
   getNextCreateAccountForm,
   validateCreateAccountForm,
-} from '@/pages/accounts/components/create-account-modal/utils/form';
+} from '@/pages/accounts/components/create-account-modal/utils/form'
 import {
   buildCreateAccountCurrencyOptions,
   buildCreateAccountInstitutionOptions,
   buildCreateAccountTaxPlanOptions,
-} from '@/pages/accounts/components/create-account-modal/utils/options';
-import type { CreateAccountFormField } from '@/pages/accounts/components/create-account-modal/types';
+} from '@/pages/accounts/components/create-account-modal/utils/options'
+import type { CreateAccountFormField } from '@/pages/accounts/components/create-account-modal/types'
 
 const conditionalField = {
   initial: { height: 0, opacity: 0 },
   animate: { height: 'auto', opacity: 1 },
   exit: { height: 0, opacity: 0 },
   transition: { duration: 0.25, ease: CREATE_ACCOUNT_EASE },
-};
+}
 
 interface CreateAccountModalProps {
-  open: boolean;
-  onClose: () => void;
+  open: boolean
+  onClose: () => void
 }
 
 /**
  * Orchestrates account creation form state and nested institution creation
  */
 export default function CreateAccountModal({ open, onClose }: CreateAccountModalProps) {
-  const { user } = useAuth();
-  const mutation = useCreateAccount();
-  const { data: currencies = [] } = useCurrencies();
-  const { data: institutions = [] } = useInstitutions();
+  const { user } = useAuth()
+  const mutation = useCreateAccount()
+  const { data: currencies = [] } = useCurrencies()
+  const { data: institutions = [] } = useInstitutions()
   const {
     data: taxAdvantagedCategories = [],
     error: taxAdvantagedCategoriesError,
     isError: taxAdvantagedCategoriesFailed,
-  } = useTaxAdvantagedCategories();
+  } = useTaxAdvantagedCategories()
 
-  const [form, setForm] = useState(() => buildInitialCreateAccountForm(user?.base_currency));
-  const [submitError, setSubmitError] = useState('');
+  const [form, setForm] = useState(() => buildInitialCreateAccountForm(user?.base_currency))
+  const [submitError, setSubmitError] = useState('')
   const refusal = useRefusedSubmit(
     validateCreateAccountForm(form),
     CREATE_ACCOUNT_VALIDATED_FIELDS,
     CREATE_ACCOUNT_CONTROL_IDS,
-  );
-  const errors = refusal.errors;
+  )
+  const errors = refusal.errors
 
-  const {
-    conditionalAccountField,
-    selectedAccountTypeLabel,
-    selectedCurrencySymbol,
-    startingBalanceLabel,
-  } = buildCreateAccountViewModel(form, currencies);
-  const currencyOptions = useMemo(
-    () => buildCreateAccountCurrencyOptions(currencies),
-    [currencies],
-  );
-  const institutionOptions = useMemo(
-    () => buildCreateAccountInstitutionOptions(institutions),
-    [institutions],
-  );
+  const { conditionalAccountField, selectedAccountTypeLabel, selectedCurrencySymbol, startingBalanceLabel } =
+    buildCreateAccountViewModel(form, currencies)
+  const currencyOptions = useMemo(() => buildCreateAccountCurrencyOptions(currencies), [currencies])
+  const institutionOptions = useMemo(() => buildCreateAccountInstitutionOptions(institutions), [institutions])
   const taxPlanOptions = useMemo(
     () => buildCreateAccountTaxPlanOptions(taxAdvantagedCategories, form.currency),
     [form.currency, taxAdvantagedCategories],
-  );
+  )
 
   const handleChange = (field: CreateAccountFormField, value: string) => {
-    setForm((current) => getNextCreateAccountForm(current, field, value));
-    setSubmitError('');
-  };
+    setForm((current) => getNextCreateAccountForm(current, field, value))
+    setSubmitError('')
+  }
 
-  const institutionModal = useInstitutionModal(institutions);
+  const institutionModal = useInstitutionModal(institutions)
 
   const handleInstitutionSaved = (institution: Institution) => {
     // A correction leaves the selection where it is, so only a new institution is selected here
-    if (!institutionModal.institution) handleChange('institution_id', institution.id);
-    institutionModal.close();
-  };
+    if (!institutionModal.institution) handleChange('institution_id', institution.id)
+    institutionModal.close()
+  }
 
-  const currencyExponent = getCurrencyExponent(currencies, form.currency);
+  const currencyExponent = getCurrencyExponent(currencies, form.currency)
   const startingBalanceInput = useMoneyInput({
     value: form.starting_balance,
     exponent: currencyExponent,
     onChange: (value) => handleChange('starting_balance', value),
     onBlur: () => refusal.touch('starting_balance'),
-  });
+  })
   const creditLimitInput = useMoneyInput({
     value: form.credit_limit,
     exponent: currencyExponent,
     onChange: (value) => handleChange('credit_limit', value),
     onBlur: () => refusal.touch('credit_limit'),
-  });
+  })
 
   const handleSubmit = (e: FormEvent<HTMLFormElement>) => {
-    e.preventDefault();
-    if (!refusal.guard()) return;
+    e.preventDefault()
+    if (!refusal.guard()) return
 
-    const payload = buildCreateAccountPayload(form, currencies);
+    const payload = buildCreateAccountPayload(form, currencies)
 
     mutation.mutate(payload, {
       onSuccess: () => onClose(),
       onError: (err) => {
-        setSubmitError(getCreateFailureMessage(err, 'account'));
+        setSubmitError(getCreateFailureMessage(err, 'account'))
       },
-    });
-  };
+    })
+  }
 
   return (
     <>
@@ -163,7 +153,12 @@ export default function CreateAccountModal({ open, onClose }: CreateAccountModal
         <div className="space-y-5">
           <CreateModalSectionFrame step="01">
             <div className="min-w-0 space-y-3">
-              <p className="flex h-4 items-center text-base font-bold leading-none" style={{ color: 'var(--app-accent)' }}>Identity</p>
+              <p
+                className="flex h-4 items-center text-base font-bold leading-none"
+                style={{ color: 'var(--app-accent)' }}
+              >
+                Identity
+              </p>
 
               <div>
                 <CreateModalFieldLabelRow
@@ -238,7 +233,12 @@ export default function CreateAccountModal({ open, onClose }: CreateAccountModal
 
           <CreateModalSectionFrame step="02">
             <div className="min-w-0 space-y-3">
-              <p className="flex h-4 items-center text-base font-bold leading-none" style={{ color: 'var(--app-accent)' }}>Details</p>
+              <p
+                className="flex h-4 items-center text-base font-bold leading-none"
+                style={{ color: 'var(--app-accent)' }}
+              >
+                Details
+              </p>
 
               <div>
                 <label
@@ -258,7 +258,7 @@ export default function CreateAccountModal({ open, onClose }: CreateAccountModal
                   searchable
                   searchPlaceholder="Search institutions..."
                   onCreateNew={institutionModal.openForCreate}
-                  createNewLabel={(query) => query ? `Create institution "${query}"` : 'Create institution'}
+                  createNewLabel={(query) => (query ? `Create institution "${query}"` : 'Create institution')}
                   onEditOption={institutionModal.openForCorrection}
                   editOptionLabel="Correct institution"
                 />
@@ -270,16 +270,11 @@ export default function CreateAccountModal({ open, onClose }: CreateAccountModal
                   label={startingBalanceLabel}
                   error={errors.starting_balance}
                   errorId={CREATE_ACCOUNT_ERROR_IDS.starting_balance}
-                  accessory={(
-                    <IconTooltip
-                      label={`${startingBalanceLabel} info`}
-                      placement="top"
-                      widthClassName="w-56"
-                      size={14}
-                    >
+                  accessory={
+                    <IconTooltip label={`${startingBalanceLabel} info`} placement="top" widthClassName="w-56" size={14}>
                       If provided, this account will be created with a balance adjustment transaction for this amount.
                     </IconTooltip>
-                  )}
+                  }
                 />
                 <div className="relative">
                   {selectedCurrencySymbol && (
@@ -304,11 +299,7 @@ export default function CreateAccountModal({ open, onClose }: CreateAccountModal
 
               <AnimatePresence initial={false} mode="wait">
                 {conditionalAccountField && (
-                  <motion.div
-                    key={conditionalAccountField}
-                    className="overflow-hidden"
-                    {...conditionalField}
-                  >
+                  <motion.div key={conditionalAccountField} className="overflow-hidden" {...conditionalField}>
                     {conditionalAccountField === 'tax-plan' ? (
                       <div>
                         <label
@@ -370,6 +361,26 @@ export default function CreateAccountModal({ open, onClose }: CreateAccountModal
                   </motion.div>
                 )}
               </AnimatePresence>
+
+              <div>
+                <CreateModalFieldLabelRow
+                  htmlFor={CREATE_ACCOUNT_MODAL_FIELD_IDS.notes}
+                  label="Notes"
+                  error={errors.notes}
+                  errorId={CREATE_ACCOUNT_ERROR_IDS.notes}
+                />
+                <textarea
+                  id={CREATE_ACCOUNT_MODAL_FIELD_IDS.notes}
+                  className={`app-input h-auto resize-none py-2 ${errors.notes ? 'app-input-error' : ''}`}
+                  aria-invalid={errors.notes ? true : undefined}
+                  aria-describedby={errors.notes ? CREATE_ACCOUNT_ERROR_IDS.notes : undefined}
+                  placeholder="Optional"
+                  rows={3}
+                  value={form.notes}
+                  onChange={(event) => handleChange('notes', event.target.value)}
+                  onBlur={() => refusal.touch('notes')}
+                />
+              </div>
             </div>
           </CreateModalSectionFrame>
 
@@ -386,5 +397,5 @@ export default function CreateAccountModal({ open, onClose }: CreateAccountModal
         onSaved={handleInstitutionSaved}
       />
     </>
-  );
+  )
 }

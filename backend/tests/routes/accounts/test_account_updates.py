@@ -111,7 +111,12 @@ async def test_patch_account_archiving_is_blocked_by_transactions_dated_after_to
 
     category_id = (await _create_category(client, headers)).json()["id"]
     future = await _create_transaction(
-        client, headers, account_id, category_id, dt=(archive_dt + timedelta(days=1)).isoformat(), amount=5_000,
+        client,
+        headers,
+        account_id,
+        category_id,
+        dt=(archive_dt + timedelta(days=1)).isoformat(),
+        amount=5_000,
     )
     assert future.status_code == 201
     blocked = await client.get(f"/accounts/{account_id}", headers=headers)
@@ -279,3 +284,33 @@ async def test_patch_account_immutable_fields_ignored(client):
     assert data["account_kind"] == ACCOUNT_PAYLOAD["account_kind"]
     assert data["account_type"] == ACCOUNT_PAYLOAD["account_type"]
     assert data["currency"] == ACCOUNT_PAYLOAD["currency"]
+
+
+async def test_patch_account_sets_and_clears_notes(client):
+    """PATCH stores notes, leaves them alone when omitted, and clears them with null."""
+    signup_resp = await _create_user(client)
+    headers = _get_auth_header(signup_resp)
+    create_resp = await _create_account(client, headers)
+    account_id = create_resp.json()["id"]
+
+    set_resp = await client.patch(f"/accounts/{account_id}", json={"notes": "Customer 42"}, headers=headers)
+    rename_resp = await client.patch(f"/accounts/{account_id}", json={"name": "Renamed"}, headers=headers)
+    clear_resp = await client.patch(f"/accounts/{account_id}", json={"notes": None}, headers=headers)
+
+    assert set_resp.json()["notes"] == "Customer 42"
+    assert rename_resp.json()["notes"] == "Customer 42"
+    assert clear_resp.json()["notes"] is None
+
+
+async def test_patch_account_notes_over_limit_returns_422(client):
+    """Notes longer than the column allows are refused and the stored notes stay."""
+    signup_resp = await _create_user(client)
+    headers = _get_auth_header(signup_resp)
+    create_resp = await _create_account(client, headers, notes="Keep me")
+    account_id = create_resp.json()["id"]
+
+    resp = await client.patch(f"/accounts/{account_id}", json={"notes": "x" * 2001}, headers=headers)
+
+    assert resp.status_code == 422
+    detail_resp = await client.get(f"/accounts/{account_id}", headers=headers)
+    assert detail_resp.json()["notes"] == "Keep me"

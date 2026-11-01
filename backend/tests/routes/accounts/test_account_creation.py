@@ -1,5 +1,3 @@
-
-
 from tests.routes.accounts._account_helpers import (
     NONEXISTENT_ID,
     _seed_institution,
@@ -94,7 +92,11 @@ async def test_create_liability_account_succeeds(client):
     headers = _get_auth_header(signup_resp)
 
     resp = await _create_account(
-        client, headers, account_kind="revolving", account_type="credit_card", name="Visa Infinite",
+        client,
+        headers,
+        account_kind="revolving",
+        account_type="credit_card",
+        name="Visa Infinite",
     )
 
     assert resp.status_code == 201
@@ -109,8 +111,12 @@ async def test_create_liability_with_credit_limit_succeeds(client):
     headers = _get_auth_header(signup_resp)
 
     resp = await _create_account(
-        client, headers,
-        account_kind="revolving", account_type="credit_card", name="Visa", credit_limit=500_000,
+        client,
+        headers,
+        account_kind="revolving",
+        account_type="credit_card",
+        name="Visa",
+        credit_limit=500_000,
     )
 
     assert resp.status_code == 201
@@ -123,7 +129,11 @@ async def test_create_liability_without_credit_limit_defaults_null(client):
     headers = _get_auth_header(signup_resp)
 
     resp = await _create_account(
-        client, headers, account_kind="revolving", account_type="credit_card", name="Visa",
+        client,
+        headers,
+        account_kind="revolving",
+        account_type="credit_card",
+        name="Visa",
     )
 
     assert resp.status_code == 201
@@ -146,12 +156,18 @@ async def test_update_liability_credit_limit_succeeds(client):
     signup_resp = await _create_user(client)
     headers = _get_auth_header(signup_resp)
     create_resp = await _create_account(
-        client, headers, account_kind="revolving", account_type="credit_card", name="Visa",
+        client,
+        headers,
+        account_kind="revolving",
+        account_type="credit_card",
+        name="Visa",
     )
     account_id = create_resp.json()["id"]
 
     resp = await client.patch(
-        f"/accounts/{account_id}", json={"credit_limit": 750_000}, headers=headers,
+        f"/accounts/{account_id}",
+        json={"credit_limit": 750_000},
+        headers=headers,
     )
 
     assert resp.status_code == 200
@@ -166,7 +182,9 @@ async def test_update_asset_credit_limit_returns_422(client):
     account_id = create_resp.json()["id"]
 
     resp = await client.patch(
-        f"/accounts/{account_id}", json={"credit_limit": 500_000}, headers=headers,
+        f"/accounts/{account_id}",
+        json={"credit_limit": 500_000},
+        headers=headers,
     )
 
     assert resp.status_code == 422
@@ -179,8 +197,12 @@ async def test_create_liability_with_zero_credit_limit_succeeds(client):
     headers = _get_auth_header(signup_resp)
 
     resp = await _create_account(
-        client, headers,
-        account_kind="revolving", account_type="credit_card", name="Visa", credit_limit=0,
+        client,
+        headers,
+        account_kind="revolving",
+        account_type="credit_card",
+        name="Visa",
+        credit_limit=0,
     )
 
     assert resp.status_code == 201
@@ -193,8 +215,12 @@ async def test_create_account_with_negative_credit_limit_returns_422(client):
     headers = _get_auth_header(signup_resp)
 
     resp = await _create_account(
-        client, headers,
-        account_kind="revolving", account_type="credit_card", name="Visa", credit_limit=-1,
+        client,
+        headers,
+        account_kind="revolving",
+        account_type="credit_card",
+        name="Visa",
+        credit_limit=-1,
     )
 
     assert resp.status_code == 422
@@ -208,13 +234,19 @@ async def test_update_account_with_negative_credit_limit_returns_422(client):
     signup_resp = await _create_user(client)
     headers = _get_auth_header(signup_resp)
     create_resp = await _create_account(
-        client, headers,
-        account_kind="revolving", account_type="credit_card", name="Visa", credit_limit=500_000,
+        client,
+        headers,
+        account_kind="revolving",
+        account_type="credit_card",
+        name="Visa",
+        credit_limit=500_000,
     )
     account_id = create_resp.json()["id"]
 
     resp = await client.patch(
-        f"/accounts/{account_id}", json={"credit_limit": -1}, headers=headers,
+        f"/accounts/{account_id}",
+        json={"credit_limit": -1},
+        headers=headers,
     )
 
     assert resp.status_code == 422
@@ -291,7 +323,8 @@ async def test_create_account_with_all_optional_fields(client):
     headers = _get_auth_header(signup_resp)
 
     resp = await _create_account(
-        client, headers,
+        client,
+        headers,
         institution_id=str(inst.id),
         is_archived=True,
     )
@@ -326,3 +359,36 @@ async def test_create_account_duplicate_names_allowed(client):
     assert resp1.status_code == 201
     assert resp2.status_code == 201
     assert resp1.json()["id"] != resp2.json()["id"]
+
+
+async def test_create_account_with_notes_returns_them_on_detail(client):
+    """Notes given at creation are stored and come back from the detail route."""
+    signup_resp = await _create_user(client)
+    headers = _get_auth_header(signup_resp)
+
+    resp = await _create_account(client, headers, notes="Account 123-456")
+
+    assert resp.status_code == 201
+    assert resp.json()["notes"] == "Account 123-456"
+    detail_resp = await client.get(f"/accounts/{resp.json()['id']}", headers=headers)
+    assert detail_resp.json()["notes"] == "Account 123-456"
+
+
+async def test_create_account_without_notes_returns_null_notes(client):
+    """An account created without notes has none."""
+    signup_resp = await _create_user(client)
+    headers = _get_auth_header(signup_resp)
+
+    resp = await _create_account(client, headers)
+
+    assert resp.json()["notes"] is None
+
+
+async def test_create_account_notes_over_limit_returns_422(client):
+    """Notes longer than the column allows are refused instead of cut short."""
+    signup_resp = await _create_user(client)
+    headers = _get_auth_header(signup_resp)
+
+    resp = await _create_account(client, headers, notes="x" * 2001)
+
+    assert resp.status_code == 422

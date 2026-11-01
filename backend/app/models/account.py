@@ -47,6 +47,9 @@ class Account(Base):
     currency: Mapped[str] = mapped_column(VARCHAR(3), ForeignKey("currencies.id"), nullable=False)
     credit_limit: Mapped[int | None] = mapped_column(BigInteger)  # Liability accounts only; null on assets and unset liabilities
     is_archived: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+
+    # Free text the owner keeps about the account
+    notes: Mapped[str | None] = mapped_column(VARCHAR(2000))
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, server_default=func.now())
 
 

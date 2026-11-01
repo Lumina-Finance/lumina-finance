@@ -26,6 +26,8 @@ export const EDIT_ACCOUNT_IDENTITY_FIELD_IDS = {
   name: 'edit-account-name',
   nameError: 'edit-account-name-error',
   institution: 'edit-account-institution',
+  notes: 'edit-account-notes',
+  notesError: 'edit-account-notes-error',
   taxAdvantagedCategory: 'edit-account-tax-advantaged-category',
   creditLimit: 'edit-credit-limit',
   creditLimitError: 'edit-credit-limit-error',
@@ -37,9 +39,10 @@ export const EDIT_ACCOUNT_IDENTITY_FIELD_IDS = {
 
 // The edit form's fields that can be wrong, in the order the modal draws them, and the control
 // that takes focus for each
-export const EDIT_ACCOUNT_IDENTITY_FIELDS = ['name', 'credit_limit'] as const
+export const EDIT_ACCOUNT_IDENTITY_FIELDS = ['name', 'notes', 'credit_limit'] as const
 export const EDIT_ACCOUNT_IDENTITY_CONTROL_IDS = {
   name: EDIT_ACCOUNT_IDENTITY_FIELD_IDS.name,
+  notes: EDIT_ACCOUNT_IDENTITY_FIELD_IDS.notes,
   credit_limit: EDIT_ACCOUNT_IDENTITY_FIELD_IDS.creditLimit,
 } as const
 
@@ -60,10 +63,7 @@ export type BalanceRange = '7D' | '30D' | '90D' | '1Y'
 export type BalanceChartMode = 'balance' | 'change'
 export const BALANCE_RANGES: BalanceRange[] = ['7D', '30D', '90D', '1Y']
 export const TIME_SELECTOR_SPRING = { type: 'spring', stiffness: 420, damping: 34, mass: 0.7 } as const
-export const RANGE_CONFIG: Record<
-  BalanceRange,
-  { days: number; granularity: SnapshotGranularity }
-> = {
+export const RANGE_CONFIG: Record<BalanceRange, { days: number; granularity: SnapshotGranularity }> = {
   '7D': { days: 7, granularity: 'day' },
   '30D': { days: 30, granularity: 'day' },
   '90D': { days: 90, granularity: 'week' },

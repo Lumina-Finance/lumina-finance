@@ -1,5 +1,8 @@
 import type { DropdownOption } from '@/components/dropdown/Dropdown'
-import type { CreateAccountForm, CreateAccountValidatedField } from '@/pages/accounts/components/create-account-modal/types'
+import type {
+  CreateAccountForm,
+  CreateAccountValidatedField,
+} from '@/pages/accounts/components/create-account-modal/types'
 
 export const CREATE_ACCOUNT_EASE = [0.25, 0.1, 0.25, 1] as const
 
@@ -11,6 +14,7 @@ export const CREATE_ACCOUNT_MODAL_FIELD_IDS = {
   creditLimit: 'credit-limit',
   institution: 'account-institution',
   taxAdvantagedCategory: 'account-tax-advantaged-category',
+  notes: 'account-notes',
 } as const
 
 export const CREATE_ACCOUNT_TYPE_OPTIONS: DropdownOption[] = [
@@ -34,6 +38,7 @@ export const INITIAL_CREATE_ACCOUNT_FORM: CreateAccountForm = {
   tax_advantaged_category_id: '',
   credit_limit: '',
   starting_balance: '',
+  notes: '',
 }
 
 // The validated fields in the order the modal draws them
@@ -43,6 +48,7 @@ export const CREATE_ACCOUNT_VALIDATED_FIELDS: readonly CreateAccountValidatedFie
   'currency',
   'starting_balance',
   'credit_limit',
+  'notes',
 ]
 
 // The control that takes focus for each validated field
@@ -52,6 +58,7 @@ export const CREATE_ACCOUNT_CONTROL_IDS: Record<CreateAccountValidatedField, str
   currency: CREATE_ACCOUNT_MODAL_FIELD_IDS.currency,
   starting_balance: CREATE_ACCOUNT_MODAL_FIELD_IDS.startingBalance,
   credit_limit: CREATE_ACCOUNT_MODAL_FIELD_IDS.creditLimit,
+  notes: CREATE_ACCOUNT_MODAL_FIELD_IDS.notes,
 }
 
 // The id of each validated field's message, which the field points to as its description
@@ -61,4 +68,5 @@ export const CREATE_ACCOUNT_ERROR_IDS: Record<CreateAccountValidatedField, strin
   currency: 'account-currency-error',
   starting_balance: 'starting-balance-error',
   credit_limit: 'credit-limit-error',
+  notes: 'account-notes-error',
 }

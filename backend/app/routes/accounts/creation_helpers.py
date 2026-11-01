@@ -1,4 +1,5 @@
 """Account creation helpers"""
+
 from datetime import datetime
 
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -82,6 +83,7 @@ async def create_account_with_initial_balance_history(
         institution_id=data.institution_id,
         currency=data.currency,
         credit_limit=data.credit_limit,
+        notes=data.notes,
         is_archived=data.is_archived,
     )
     db.add(account)
@@ -92,11 +94,13 @@ async def create_account_with_initial_balance_history(
     anchor_stored_on = OWN_PROFILE if creation_scope.group_id is None else ACCOUNT_OWNER_PROFILE
     anchor_tz = resolve_timezone(creation_scope.anchor_tz, stored_on=anchor_stored_on)
     anchor_dt = account.created_at.astimezone(anchor_tz).date()
-    db.add(AccountBalanceSnapshot(
-        account_id=account.id,
-        dt=anchor_dt,
-        balance=0,
-    ))
+    db.add(
+        AccountBalanceSnapshot(
+            account_id=account.id,
+            dt=anchor_dt,
+            balance=0,
+        )
+    )
 
     if data.starting_balance:
         await add_account_starting_balance_adjustment(

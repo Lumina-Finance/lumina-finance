@@ -9,6 +9,9 @@ from app.schemas.dashboard import RangeKind
 from app.schemas.fx import FxStatus
 from app.schemas.institution import InstitutionResponse
 
+# Characters an account's notes may hold, equal to the column
+MAX_ACCOUNT_NOTES_LENGTH = 2000
+
 
 class AccountsOverview(BaseModel):
     """One row in `GET /accounts` — the trimmed shape used by the /accounts page and dashboard
@@ -57,6 +60,7 @@ class AccountResponse(BaseModel):
     # Effective transaction write permission for the caller, independent of lifecycle state
     can_write: bool
     is_archived: bool
+    notes: str | None
     created_at: datetime
 
     # Whether a transaction is dated after the viewer's today, which blocks archiving until it is
@@ -77,6 +81,7 @@ class CreateAccountRequest(BaseModel):
     currency: str = Field(min_length=3, max_length=3)
     credit_limit: int | None = Field(None, ge=0)  # Only valid on liability accounts
     starting_balance: int | None = None  # Signed initial balance adjustment in minor units
+    notes: str | None = Field(None, max_length=MAX_ACCOUNT_NOTES_LENGTH)
     is_archived: bool = False
     group_id: uuid.UUID | None = None
 
@@ -88,6 +93,7 @@ class UpdateAccountRequest(BaseModel):
     name: str | None = Field(None, min_length=1, max_length=256)
     institution_id: uuid.UUID | None = None
     credit_limit: int | None = Field(None, ge=0)  # Only valid on liability accounts
+    notes: str | None = Field(None, max_length=MAX_ACCOUNT_NOTES_LENGTH)  # Null clears the notes
     is_archived: bool | None = None
 
 
