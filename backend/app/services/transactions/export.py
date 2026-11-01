@@ -8,7 +8,8 @@ from dataclasses import dataclass
 from datetime import date, datetime
 from decimal import Decimal
 
-from sqlalchemy import select
+from fastapi import HTTPException, status
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.account import Account
@@ -16,6 +17,7 @@ from app.models.category import Category
 from app.models.transaction import Transaction
 from app.models.user import User
 from app.services.fx.currency_exponent_helpers import get_currency_exponents
+from app.services.transactions.access_helpers import accessible_account_ids_subquery
 from app.services.transactions.listing.queries import build_transaction_listing_query
 from app.services.transactions.listing.validation import validate_transaction_listing_filters
 from app.services.transactions.response_helpers import get_merchant_names_batch, get_tags_batch
@@ -144,6 +146,67 @@ async def export_transactions_csv(
         limit=None,
         offset=None,
     )
+    return _start_export(db, user, transaction_query)
+
+
+async def export_selected_transactions_csv(
+    db: AsyncSession,
+    user: User,
+    transaction_ids: list[uuid.UUID],
+) -> TransactionCsvExport:
+    """Start a CSV of exactly the chosen transactions, newest first
+
+    Follows the bulk edit and delete: the ids must all be inside the caller's readable accounts, and
+    one that is unknown or belongs to someone else refuses the whole request, so a file never looks
+    complete while missing a row. The check runs before the response begins, as the rows then stream
+
+    Args:
+        db: Active database session, which must stay open and uncommitted while the chunks are read
+        user: Authenticated user exporting transactions
+        transaction_ids: Transactions to export, repeats allowed
+
+    Returns:
+        The download's filename and the CSV text in chunks
+
+    Raises:
+        HTTPException: Raised with 404 when any transaction is not found in the caller's accounts
+    """
+    requested_ids = list(dict.fromkeys(transaction_ids))
+    readable_count = await db.scalar(
+        select(func.count())
+        .select_from(Transaction)
+        .where(Transaction.id.in_(requested_ids), Transaction.account_id.in_(accessible_account_ids_subquery(user.id)))
+    )
+    if readable_count != len(requested_ids):
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"{len(requested_ids) - (readable_count or 0)} of {len(requested_ids)} transactions were not found",
+        )
+    transaction_query = build_transaction_listing_query(
+        user_id=user.id,
+        account_ids=None,
+        category_ids=None,
+        merchant_ids=None,
+        currencies=None,
+        tag_ids=None,
+        tag_match="all",
+        min_amount=None,
+        max_amount=None,
+        amount_currency=None,
+        from_date=None,
+        to_date=None,
+        search_text=None,
+        sort_by="dt",
+        sort_order="desc",
+        limit=None,
+        offset=None,
+        extra_conditions=[Transaction.id.in_(requested_ids)],
+    )
+    return _start_export(db, user, transaction_query)
+
+
+def _start_export(db: AsyncSession, user: User, transaction_query) -> TransactionCsvExport:
+    """Name the download after the user's today and stream the rows of one query"""
     today = datetime.now(resolve_timezone(user.tz)).date()
     return TransactionCsvExport(
         filename=f"lumina-finance-transactions-{today.isoformat()}.csv",
