@@ -41,7 +41,7 @@ export function EditModalFooter({
         disabled={isBusy}
         disabledReason={deleteInProgressReason}
         aria-label="Delete account"
-        title={deleteInProgressReason ? undefined : 'Delete account'}
+        hint="Delete account"
       >
         <Trash2 size={16} aria-hidden />
       </DisabledReasonButton>

@@ -1,5 +1,6 @@
 import type { ChangeEvent, KeyboardEvent, RefObject } from 'react'
 import { Plus, Search } from 'lucide-react'
+import { HintButton } from '@/components/tooltips/HintButton'
 
 interface DropdownSearchControlsProps {
   createNewLabel: string
@@ -48,16 +49,15 @@ export function DropdownSearchControls({
         onKeyDown={onKeyDown}
       />
       {showCreateAction && (
-        <button
-          type="button"
+        <HintButton
           className="app-icon-button shrink-0"
           aria-label={createNewLabel}
-          title={createNewLabel}
+          hint={createNewLabel}
           onMouseDown={(event) => event.preventDefault()}
           onClick={onCreateNew}
         >
           <Plus size={18} aria-hidden />
-        </button>
+        </HintButton>
       )}
     </div>
   )

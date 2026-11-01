@@ -4,6 +4,7 @@ import CreateModalFieldLabelRow from '@/components/create-modal/FieldLabelRow'
 import CreateModalSectionFrame from '@/components/create-modal/SectionFrame'
 import Dropdown, { type DropdownOption } from '@/components/dropdown/Dropdown'
 import { AppSlotMachineText } from '@/components/display/SlotMachineText'
+import { HintButton } from '@/components/tooltips/HintButton'
 import { EASE } from '@/components/transactions/transaction-modal/constants'
 import { useTransactionModalIds } from '@/components/transactions/transaction-modal/ids'
 import CreditRepaymentNotice from '@/components/transactions/transaction-modal/controls/CreditRepaymentNotice'
@@ -384,16 +385,15 @@ export default function TransactionReferencesSection({
           errorId={TRANSACTION_MODAL_ERROR_IDS.category_id}
           action={
             showMerchantDefaultCategoryAction && (
-              <button
-                type="button"
+              <HintButton
                 className="block h-5 min-w-0 max-w-full truncate text-left text-xs font-medium leading-5 disabled:cursor-not-allowed disabled:opacity-60 sm:text-right"
                 style={{ color: 'var(--app-accent)' }}
-                title={merchantDefaultCategoryActionLabel}
+                hint={merchantDefaultCategoryActionLabel}
                 disabled={merchantDefaultCategoryPending || readOnly}
                 onClick={onMakeMerchantDefaultCategory}
               >
                 {merchantDefaultCategoryActionLabel}
-              </button>
+              </HintButton>
             )
           }
         />
