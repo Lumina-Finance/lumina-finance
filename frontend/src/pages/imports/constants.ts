@@ -221,10 +221,6 @@ export const MAX_IMPORT_TAGS_PER_ROW = 32
 export const IMPORT_ACCOUNT_NAME_MAX_LENGTH = 256
 export const IMPORT_CATEGORY_NAME_MAX_LENGTH = 256
 export const IMPORT_TAG_NAME_MAX_LENGTH = 64
-
-// The longest tag name a CSV row may state, which is also the longest the answer to it may name. A
-// name over IMPORT_TAG_NAME_MAX_LENGTH but within this can still be corrected or skipped
-export const IMPORT_TAG_SOURCE_MAX_LENGTH = 256
 export const IMPORT_BUDGET_NAME_MAX_LENGTH = 256
 
 // Most budgets one import takes, mirroring the backend schema
@@ -438,10 +434,11 @@ export function getRowNotesTooLongReason(length: number) {
 }
 
 /**
- * Says a row names a tag longer than even a correction or a skip can be answered for
+ * Says a row names a tag longer than a tag can be, quoting only the start of the name so a very long
+ * one cannot fill the page
  */
-export function getRowTagTooLongReason(length: number) {
-  return `A tag name is ${length.toLocaleString()} characters, and the importer takes up to ${IMPORT_TAG_SOURCE_MAX_LENGTH}.`
+export function getRowTagTooLongReason(tagName: string) {
+  return `The tag "${[...tagName].slice(0, 28).join('')}…" is longer than ${IMPORT_TAG_NAME_MAX_LENGTH} characters.`
 }
 
 /**

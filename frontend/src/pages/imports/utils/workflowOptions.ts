@@ -9,7 +9,7 @@ import {
   AMOUNT_ARRANGEMENT_CLASH_ERROR,
   AMOUNT_ARRANGEMENT_CLASH_TITLE,
   COLUMN_TARGET_GROUP_LABELS,
-  IMPORT_TAG_SOURCE_MAX_LENGTH,
+  IMPORT_TAG_NAME_MAX_LENGTH,
   COLUMN_TARGET_GROUP_RANKS,
   COLUMN_TARGETS,
   CREATE_ACCOUNT_VALUE,
@@ -383,9 +383,9 @@ export function getImportedTags(
     file.rows.filter(isRowIncluded).flatMap((row) => splitImportedValues(row[tagHeader] ?? '')),
   )
   for (const value of unique(spellings)) {
-    // A name past what a row may state is listed as an unusable row and cannot be answered, since
-    // the API takes no answer or match request for it, so it is not asked about
-    if ([...value].length > IMPORT_TAG_SOURCE_MAX_LENGTH) continue
+    // A name longer than a tag can be is listed as a row that won't import and cannot be answered,
+    // since the API takes no answer or match request for it, so it is not asked about
+    if ([...value].length > IMPORT_TAG_NAME_MAX_LENGTH) continue
 
     const key = getNameKey(value)
     if (seenKeys.has(key)) continue

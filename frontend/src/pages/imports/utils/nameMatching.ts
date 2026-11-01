@@ -87,16 +87,7 @@ export function buildImportNameMappings<TMatched extends { id: string }, TMappin
     const matched = matchedByKey.get(key)
 
     const answer = getImportNameAnswer(answers[value] ?? '', Boolean(matched), createNames[value], createValue)
-    if (!answer) {
-      // A name nobody answered is created under the value's own spelling, so one too long to be a
-      // name has to be corrected or skipped before the commit would refuse it
-      if (!matched && maxNameLength !== undefined && [...value.trim()].length > maxNameLength) {
-        errors.push(
-          `The ${noun} "${[...value].slice(0, 28).join('')}…" is longer than ${maxNameLength} characters. Correct it or skip it.`,
-        )
-      }
-      continue
-    }
+    if (!answer) continue
 
     if (answer === skipValue) {
       mappings.push({ source: value, skip: true })

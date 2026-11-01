@@ -7,18 +7,14 @@ import type { AccountsOverview } from '@/api/accounts'
 import type { Category } from '@/api/categories'
 import type { Currency } from '@/api/currency'
 import {
-  CREATE_TAG_VALUE,
   EMPTY_COLUMN_MAP,
   getRowNotesTooLongReason,
-  getRowTagTooLongReason,
   getRowTooManyTagsReason,
   getTooManyMappingsError,
   IMPORT_TAG_NAME_MAX_LENGTH,
-  IMPORT_TAG_SOURCE_MAX_LENGTH,
   MAX_IMPORT_MAPPINGS,
   MAX_IMPORT_NOTES_LENGTH,
   MAX_IMPORT_TAGS_PER_ROW,
-  SKIP_TAG_VALUE,
 } from '@/pages/imports/constants'
 import type { CsvRow, ImportFileDraft } from '@/pages/imports/types'
 import { buildTransactionImportPayload, WHOLE_FILE_DATE_RANGE } from '@/pages/imports/utils'
@@ -40,13 +36,10 @@ const ACCOUNT = { id: 'account-1', name: 'Chequing', currency: 'CAD', can_write:
 const HEADERS = ['Date', 'Category', 'Amount', 'Notes', 'Tags']
 
 /**
- * Builds a commit payload for one row carrying the given notes and tag cell
+ * Builds a commit payload for one row carrying the given notes and tag cell, then one row for each
+ * further tag cell
  */
-function build(
-  notes: string,
-  tags: string,
-  tagAnswers?: { mappings: Record<string, string>; createNames?: Record<string, string> },
-) {
+function build(notes: string, tags: string, ...laterTags: string[]) {
   const rows: CsvRow[] = [
     {
       Date: '2026-04-10',
@@ -55,6 +48,13 @@ function build(
       Notes: notes,
       Tags: tags,
     },
+    ...laterTags.map((cell) => ({
+      Date: '2026-04-10',
+      Category: 'Groceries',
+      Amount: '-12.34',
+      Notes: '',
+      Tags: cell,
+    })),
   ]
   const file: ImportFileDraft = {
     id: 'file-1',
@@ -92,13 +92,6 @@ function build(
     directionAnswers: {},
     files: [file],
     importedCategories: ['Groceries'],
-    tagAnswers: tagAnswers && {
-      importedTags: [tags],
-      matchedTagByKey: new Map(),
-      tagMappings: tagAnswers.mappings,
-      tagCreateNames: tagAnswers.createNames ?? {},
-      tagLabelById: new Map(),
-    },
   })
 }
 
@@ -149,38 +142,34 @@ describe('refusing a row carrying too many tags', () => {
   })
 })
 
-describe('a row naming a tag longer than a tag can have', () => {
-  const longTag = 't'.repeat(IMPORT_TAG_NAME_MAX_LENGTH + 1)
+describe('listing a row whose tag is longer than a tag can be', () => {
+  // A tag has one limit however long the cell is, and no answer makes a longer one usable
+  it.each([IMPORT_TAG_NAME_MAX_LENGTH + 1, 257, 100_000])(
+    'lists a row naming a tag of %i characters, quoting only the start of it',
+    (length) => {
+      const tag = 't'.repeat(length)
+      const result = build('', `Food,${tag}`)
 
-  it('blocks the import with a reason while the name is unanswered', () => {
-    const result = build('', longTag, { mappings: {} })
+      expect(result.payload).toBeNull()
+      expect(result.rowProblems).toHaveLength(1)
+      expect(result.rowProblems[0].rowNumber).toBe(1)
+      expect(result.rowProblems[0].reason).toBe(`The tag "${'t'.repeat(28)}…" is longer than 64 characters.`)
+    },
+  )
 
-    expect(result.payload).toBeNull()
-    expect(result.errors).toEqual([expect.stringContaining('is longer than 64 characters. Correct it or skip it.')])
+  it('takes a row whose tag sits exactly on the limit', () => {
+    expect(build('', 't'.repeat(IMPORT_TAG_NAME_MAX_LENGTH)).rowProblems).toEqual([])
   })
 
-  it('sends the row with the name, and the skip that answers it', () => {
-    const result = build('', longTag, { mappings: { [longTag]: SKIP_TAG_VALUE } })
-
-    expect(result.errors).toEqual([])
-    expect(result.payload?.tags).toEqual([{ source: longTag, skip: true }])
-    expect(result.payload?.rows[0].tag_names).toEqual([longTag])
+  it('counts characters rather than UTF-16 units', () => {
+    expect(build('', '😀'.repeat(IMPORT_TAG_NAME_MAX_LENGTH)).rowProblems).toEqual([])
   })
 
-  it('sends the row with the name, and the corrected name that answers it', () => {
-    const result = build('', longTag, { mappings: { [longTag]: CREATE_TAG_VALUE }, createNames: { [longTag]: 'Trip' } })
+  it('still imports the rows with shorter tags', () => {
+    const result = build('', 't'.repeat(100_000), 'Food', 'Travel')
 
-    expect(result.errors).toEqual([])
-    expect(result.payload?.tags).toEqual([{ source: longTag, create: { name: 'Trip' } }])
-  })
-
-  // Past what the API takes for the answer and the row alike, so no answer can make the row usable
-  it('lists a row whose name is past what even an answer can carry, and takes one on that limit', () => {
-    const result = build('', 't'.repeat(IMPORT_TAG_SOURCE_MAX_LENGTH + 1))
-
-    expect(result.payload).toBeNull()
-    expect(result.rowProblems[0].reason).toBe(getRowTagTooLongReason(IMPORT_TAG_SOURCE_MAX_LENGTH + 1))
-    expect(build('', 't'.repeat(IMPORT_TAG_SOURCE_MAX_LENGTH)).rowProblems).toEqual([])
+    expect(result.rowProblems.map((problem) => problem.rowNumber)).toEqual([1])
+    expect(result.payload?.rows.map((row) => row.tag_names)).toEqual([['Food'], ['Travel']])
   })
 })
 

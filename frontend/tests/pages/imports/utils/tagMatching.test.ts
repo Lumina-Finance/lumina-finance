@@ -5,12 +5,7 @@
 import { describe, expect, it } from 'vitest'
 import { getNameKey } from '@/api/shared/nameKey'
 import type { Tag } from '@/api/tags'
-import {
-  CREATE_TAG_VALUE,
-  IMPORT_TAG_NAME_MAX_LENGTH,
-  IMPORT_TAG_SOURCE_MAX_LENGTH,
-  SKIP_TAG_VALUE,
-} from '@/pages/imports/constants'
+import { CREATE_TAG_VALUE, IMPORT_TAG_NAME_MAX_LENGTH, SKIP_TAG_VALUE } from '@/pages/imports/constants'
 import {
   alignNameAnswersWithValues,
   buildImportTagMappings,
@@ -268,43 +263,6 @@ describe('the tag names a file offers to answer', () => {
   })
 })
 
-describe('a tag name longer than a tag can have', () => {
-  const longName = 'x'.repeat(IMPORT_TAG_NAME_MAX_LENGTH + 1)
-
-  it('can be skipped', () => {
-    expect(buildFor(longName, SKIP_TAG_VALUE)).toEqual({ mappings: [{ source: longName, skip: true }], errors: [] })
-  })
-
-  it('can be corrected, whether answered create or typed on a row nobody answered', () => {
-    const answered = buildFor(longName, CREATE_TAG_VALUE, 'Trip')
-    const typed = buildFor(longName, '', 'Trip')
-
-    expect(answered).toEqual({ mappings: [{ source: longName, create: { name: 'Trip' } }], errors: [] })
-    expect(typed).toEqual(answered)
-  })
-
-  it('can be pointed at an existing tag', () => {
-    expect(buildFor(longName, FOOD.id).mappings).toEqual([{ source: longName, tag_id: FOOD.id }])
-  })
-
-  it('blocks the import with a reason while nobody has answered it', () => {
-    const { mappings, errors } = buildFor(longName, '')
-
-    expect(mappings).toEqual([])
-    expect(errors).toEqual([`The tag "${longName.slice(0, 28)}…" is longer than 64 characters. Correct it or skip it.`])
-  })
-
-  it('does not block a name of the longest length a tag can have', () => {
-    expect(buildFor('x'.repeat(IMPORT_TAG_NAME_MAX_LENGTH), '').errors).toEqual([])
-  })
-
-  it('keeps blocking while the name is created under its own over-long spelling', () => {
-    expect(buildFor(longName, CREATE_TAG_VALUE).errors).toEqual([
-      `The name for the new tag "${longName}" is longer than 64 characters.`,
-    ])
-  })
-})
-
 describe('answers to a tag spelled in other capitals once a date range leaves only one spelling', () => {
   const january = { Tags: 'Travel', Date: '2026-01-10' }
   const february = { Tags: 'travel', Date: '2026-02-10' }
@@ -348,18 +306,20 @@ describe('answers to a tag spelled in other capitals once a date range leaves on
   })
 })
 
-describe('a tag name past what a row may state', () => {
-  const tooLong = 'x'.repeat(IMPORT_TAG_SOURCE_MAX_LENGTH + 1)
+describe('a tag name longer than a tag can be', () => {
+  // Asked about, it would have the match request refused whole, and no answer to it could be sent.
+  // It is listed as a row that won't import instead
+  it.each([IMPORT_TAG_NAME_MAX_LENGTH + 1, 257, 100_000])(
+    'is not asked about at %i characters, so it fails neither the matches nor the other names',
+    (length) => {
+      const file = buildFile([`Travel,${'x'.repeat(length)}`, 'y'.repeat(IMPORT_TAG_NAME_MAX_LENGTH)])
 
-  // Asked about, it would have the match request refused whole, and no answer to it could be sent
-  it('is not asked about, so it fails neither the matches nor the other names', () => {
-    const file = buildFile([`Travel,${tooLong}`, 'y'.repeat(IMPORT_TAG_SOURCE_MAX_LENGTH)])
-
-    expect(getImportedTags([file], 'Tags')).toEqual(['Travel', 'y'.repeat(IMPORT_TAG_SOURCE_MAX_LENGTH)])
-  })
+      expect(getImportedTags([file], 'Tags')).toEqual(['Travel', 'y'.repeat(IMPORT_TAG_NAME_MAX_LENGTH)])
+    },
+  )
 
   it('counts characters rather than UTF-16 units', () => {
-    expect(getImportedTags([buildFile(['😀'.repeat(IMPORT_TAG_SOURCE_MAX_LENGTH)])], 'Tags')).toHaveLength(1)
+    expect(getImportedTags([buildFile(['😀'.repeat(IMPORT_TAG_NAME_MAX_LENGTH)])], 'Tags')).toHaveLength(1)
   })
 })
 

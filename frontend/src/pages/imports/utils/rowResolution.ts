@@ -8,7 +8,7 @@ import {
   getRowNotesTooLongReason,
   getRowTagTooLongReason,
   getRowTooManyTagsReason,
-  IMPORT_TAG_SOURCE_MAX_LENGTH,
+  IMPORT_TAG_NAME_MAX_LENGTH,
   MAX_IMPORT_NOTES_LENGTH,
   MAX_IMPORT_TAGS_PER_ROW,
   ROW_ACCOUNT_BLANK_REASON,
@@ -222,8 +222,8 @@ export function getImportRowProblem(row: ResolvedImportRow, judgement: ImportRow
   // begins, rather than failing part-way through it with a position nobody can find in the file
   if (row.notes && row.notes.length > MAX_IMPORT_NOTES_LENGTH) return getRowNotesTooLongReason(row.notes.length)
   if (row.tagNames.length > MAX_IMPORT_TAGS_PER_ROW) return getRowTooManyTagsReason(row.tagNames.length)
-  const longestTag = Math.max(0, ...row.tagNames.map((name) => [...name].length))
-  if (longestTag > IMPORT_TAG_SOURCE_MAX_LENGTH) return getRowTagTooLongReason(longestTag)
+  const longTag = row.tagNames.find((name) => [...name].length > IMPORT_TAG_NAME_MAX_LENGTH)
+  if (longTag !== undefined) return getRowTagTooLongReason(longTag)
 
   if (!row.counterpartySource) return null
 
