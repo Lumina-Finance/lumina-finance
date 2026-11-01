@@ -13,6 +13,7 @@ import {
   getExportFilename,
   getExportScope,
 } from '@/components/transactions/utils/exportFile'
+import { getActiveFilterCount } from '@/components/transactions/utils/filterOptions'
 
 describe('getExportScope', () => {
   it('exports everything when nothing narrows the list and nothing is ticked', () => {
@@ -26,6 +27,28 @@ describe('getExportScope', () => {
   it('exports only the ticked rows, with or without a filter on', () => {
     expect(getExportScope({ selectedCount: 1, isNarrowed: false })).toBe('selected')
     expect(getExportScope({ selectedCount: 12, isNarrowed: true })).toBe('selected')
+  })
+
+  it.each([
+    ['tag', { tag_id: ['work'] }],
+    ['account', { account_id: ['everyday'] }],
+    ['category', { category_id: ['groceries'] }],
+    ['merchant', { merchant_id: ['costco'] }],
+    ['currency', { currency: 'USD' }],
+    ['smallest amount', { min_amount: 0 }],
+    ['largest amount', { max_amount: 5000 }],
+    ['date', { from_date: '2026-06-01' }],
+  ] as const)('says Export filtered when only the %s filter is on', (_name, filters) => {
+    // The list passes this count to the scope, so a filter the count misses would export everything
+    const isNarrowed = getActiveFilterCount({ ...filters }, true) > 0
+
+    expect(EXPORT_LABELS[getExportScope({ selectedCount: 0, isNarrowed })]).toBe('Export filtered')
+  })
+
+  it('says Export all when no filter is on', () => {
+    expect(EXPORT_LABELS[getExportScope({ selectedCount: 0, isNarrowed: getActiveFilterCount({}, true) > 0 })]).toBe(
+      'Export all',
+    )
   })
 
   it('words the button after each scope', () => {
