@@ -13,7 +13,7 @@ vi.mock('@/api/client', () => ({
   authenticatedRequest: authenticatedRequestMock,
 }))
 
-import { fetchTransactionsCsv } from '@/api/transactions'
+import { fetchSelectedTransactionsCsv, fetchTransactionsCsv } from '@/api/transactions'
 
 beforeEach(() => {
   authenticatedRequestMock.mockReset()
@@ -59,6 +59,19 @@ describe('fetchTransactionsCsv', () => {
     const file = await fetchTransactionsCsv({})
 
     expect(authenticatedRequestMock.mock.calls[0][1].timeoutMs).toBeGreaterThan(30_000)
+    expect(await file.text()).toBe('Date,Merchant\r\n')
+  })
+})
+
+describe('fetchSelectedTransactionsCsv', () => {
+  it('posts the chosen ids in the body, not the query string, and returns the file body', async () => {
+    const file = await fetchSelectedTransactionsCsv(['txn_1', 'txn_2'])
+
+    const [path, options] = authenticatedRequestMock.mock.calls[0]
+    expect(path).toBe('/transactions/export')
+    expect(options.method).toBe('POST')
+    expect(JSON.parse(options.body)).toEqual({ transaction_ids: ['txn_1', 'txn_2'] })
+    expect(options.timeoutMs).toBeGreaterThan(30_000)
     expect(await file.text()).toBe('Date,Merchant\r\n')
   })
 })

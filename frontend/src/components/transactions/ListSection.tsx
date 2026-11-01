@@ -5,13 +5,20 @@ import { ApiError } from '@/api/auth'
 import {
   useBulkDeleteTransactions,
   useBulkUpdateTransactions,
+  useExportTransactions,
   useInfiniteTransactions,
   type Transaction,
 } from '@/api/transactions'
 import { useToast } from '@/hooks/useToast'
 import { LOADING_ANIMATION_MIN_MS } from '@/utils/timing'
-import { getExportBlockReason } from '@/components/transactions/utils/exportFile'
-import { ExportDialog } from '@/components/transactions/export/ExportDialog'
+import { saveBlobAsFile } from '@/utils/downloadFile'
+import {
+  getExportBlockReason,
+  getExportFailureMessage,
+  getExportFilename,
+  getExportScope,
+} from '@/components/transactions/utils/exportFile'
+import { ExportAllConfirm } from '@/components/transactions/export/ExportAllConfirm'
 import { getActiveFilterCount } from '@/components/transactions/utils/filterOptions'
 import { BulkEditModal } from '@/components/transactions/bulk-edit/BulkEditModal'
 import { BulkDeleteConfirm } from '@/components/transactions/bulk-edit/BulkDeleteConfirm'
@@ -88,8 +95,8 @@ export default function TransactionListSection({
   // Opens an import filed into the account this list is fixed to, offered only alongside one
   onImport?: () => void
 
-  // Offers the export on the list of every account. The dialogue starts from this list's filters as they
-  // are, so with no date filter it covers every date, as the list does
+  // Offers the export on the list of every account. It saves what the list shows, so with no date
+  // filter it covers every date, as the list does
   canExport?: boolean
 }) {
   const prefersReducedMotion = useReducedMotion()
@@ -435,20 +442,37 @@ export default function TransactionListSection({
   const importDisabled = Boolean(fixedAccount) && !isImportableAccount(fixedAccount)
   const importDisabledReason = getImportBlockReason(fixedAccount)
 
-  const [isExportOpen, setIsExportOpen] = useState(false)
-
-  // Each opening starts a fresh dialogue from the page's current filters and search
-  const [exportOpeningCount, setExportOpeningCount] = useState(0)
+  const exportTransactions = useExportTransactions({ minimumPendingMs: LOADING_ANIMATION_MIN_MS })
+  const [isExportAllConfirmOpen, setIsExportAllConfirmOpen] = useState(false)
+  const isNarrowed = getActiveFilterCount(filters, true) > 0 || activeSearch !== ''
+  const exportScope = getExportScope({ selectedCount: selection.selectedIds.length, isNarrowed })
   const exportDisabledReason = getExportBlockReason({
     isLoaded: displayedTransactionsLoaded,
     hasError: Boolean(error),
     rowCount: displayedTransactions.length,
-    isNarrowed: getActiveFilterCount(filters, true) > 0 || activeSearch !== '',
+    isNarrowed,
   })
 
-  function openExport() {
-    setExportOpeningCount((count) => count + 1)
-    setIsExportOpen(true)
+  /**
+   * Saves the ticked rows, or every transaction the search and filters keep, as one CSV file
+   */
+  function downloadCsv() {
+    exportTransactions.mutate(
+      exportScope === 'selected'
+        ? { transactionIds: [...selection.selectedIds] }
+        : { filters: { ...filters, q: activeSearch || undefined } },
+      {
+        onSuccess: (file) => saveBlobAsFile(file, getExportFilename(today)),
+        onError: (exportError) => showToast({ status: 'error', text: getExportFailureMessage(exportError) }),
+      },
+    )
+  }
+
+  // The whole history is the one export that asks first, since nothing on the list says how much it
+  // saves. The other two are named by their button and run straight away
+  function exportCsv() {
+    if (exportScope === 'all') setIsExportAllConfirmOpen(true)
+    else downloadCsv()
   }
 
   const { sentinelRef, showPendingFetch } = useInfiniteScrollTrigger({
@@ -493,7 +517,9 @@ export default function TransactionListSection({
         createDisabled={createDisabled}
         createDisabledReason={createDisabledReason}
         onImport={onImport}
-        onExport={canExport ? openExport : undefined}
+        onExport={canExport ? exportCsv : undefined}
+        exportScope={exportScope}
+        exportPending={exportTransactions.isPending}
         exportDisabledReason={exportDisabledReason}
         importDisabled={importDisabled}
         importDisabledReason={importDisabledReason}
@@ -614,13 +640,13 @@ export default function TransactionListSection({
       )}
 
       {canExport && (
-        <ExportDialog
-          key={exportOpeningCount}
-          open={isExportOpen}
-          onClose={() => setIsExportOpen(false)}
-          initialFilters={filters}
-          initialSearch={activeSearch}
-          today={today}
+        <ExportAllConfirm
+          open={isExportAllConfirmOpen}
+          onCancel={() => setIsExportAllConfirmOpen(false)}
+          onConfirm={() => {
+            setIsExportAllConfirmOpen(false)
+            downloadCsv()
+          }}
         />
       )}
 

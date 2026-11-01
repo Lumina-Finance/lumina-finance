@@ -74,6 +74,22 @@ export async function fetchTransactionsCsv(filters: ExportTransactionsFilters = 
 }
 
 /**
+ * Downloads exactly the chosen transactions as a CSV file, in the list's order
+ *
+ * A POST, since the chosen ids are too many for a query string
+ */
+export async function fetchSelectedTransactionsCsv(transactionIds: string[], signal?: AbortSignal) {
+  const response = await authenticatedRequest('/transactions/export', {
+    method: 'POST',
+    body: JSON.stringify({ transaction_ids: transactionIds }),
+    signal,
+    timeoutMs: EXPORT_TIMEOUT_MS,
+    headers: { Accept: 'text/csv' },
+  })
+  return response.blob()
+}
+
+/**
  * Fetches transaction summary data for dashboard and transaction overview cards
  *
  * @param signal - Aborts the request when the load that asked for it is abandoned

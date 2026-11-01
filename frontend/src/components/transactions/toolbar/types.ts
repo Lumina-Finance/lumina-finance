@@ -1,6 +1,8 @@
 import type { Category } from '@/api/categories'
 import type { TransactionListAccount, TransactionListFilters } from '@/components/transactions/types/transactionList'
 
+import type { ExportScope } from '@/components/transactions/utils/exportFile'
+
 export type TransactionFilterSetter = (patch: Partial<TransactionListFilters>) => void
 
 export type TransactionListToolbarProps = {
@@ -24,10 +26,17 @@ export type TransactionListToolbarProps = {
   importDisabled?: boolean
   importDisabledReason?: string
 
-  // Opens the dialogue that chooses and confirms a CSV export. Absent on a list that offers no export
+  // Downloads what the list shows as a CSV file, or asks first when that is every transaction. Absent
+  // on a list that offers no export
   onExport?: () => void
 
-  // Why the button is off, such as the person having no transactions at all
+  // What the export saves, which the button's word and name follow
+  exportScope?: ExportScope
+
+  // Whether the file is being prepared, which holds the button off until it is saved
+  exportPending?: boolean
+
+  // Why the button is off beyond waiting on its own download, such as the list being empty
   exportDisabledReason?: string
   onStickyOffsetChange?: (offset: number) => void
 

@@ -1,19 +1,37 @@
 /**
- * Covers when the export button is held off, what the saved file is called and how an empty file is
- * told from one with rows, since offering the export to a person with nothing to export, or saving a
- * file of one header row, leaves them with nothing
+ * Covers what the export button saves and says, when it is held off, what the saved file is called and
+ * how a failure is worded, since a label that names the wrong scope, or an export offered to a person
+ * with nothing to export, leaves them with a file they did not ask for or none
  */
 import { describe, expect, it } from 'vitest'
 import { ApiError } from '@/api/auth'
 import {
   EXPORT_FAILED_MESSAGE,
+  EXPORT_LABELS,
   getExportBlockReason,
   getExportFailureMessage,
   getExportFilename,
-  hasExportRows,
+  getExportScope,
 } from '@/components/transactions/utils/exportFile'
 
-const HEADER = 'Date,Merchant,Category,Account,Tags,Amount,Currency,Notes\r\n'
+describe('getExportScope', () => {
+  it('exports everything when nothing narrows the list and nothing is ticked', () => {
+    expect(getExportScope({ selectedCount: 0, isNarrowed: false })).toBe('all')
+  })
+
+  it('exports what the search and filters keep when they narrow the list', () => {
+    expect(getExportScope({ selectedCount: 0, isNarrowed: true })).toBe('filtered')
+  })
+
+  it('exports only the ticked rows, with or without a filter on', () => {
+    expect(getExportScope({ selectedCount: 1, isNarrowed: false })).toBe('selected')
+    expect(getExportScope({ selectedCount: 12, isNarrowed: true })).toBe('selected')
+  })
+
+  it('words the button after each scope', () => {
+    expect(EXPORT_LABELS).toEqual({ all: 'Export all', filtered: 'Export filtered', selected: 'Export selected' })
+  })
+})
 
 describe('getExportBlockReason', () => {
   it('holds the export off with a reason when nothing narrows the settled list and it is empty', () => {
@@ -22,8 +40,10 @@ describe('getExportBlockReason', () => {
     )
   })
 
-  it('leaves the export on when filters or a search emptied the list, since the dialogue can widen them', () => {
-    expect(getExportBlockReason({ isLoaded: true, hasError: false, rowCount: 0, isNarrowed: true })).toBeUndefined()
+  it('holds the export off with its own reason when the search or filters keep nothing', () => {
+    expect(getExportBlockReason({ isLoaded: true, hasError: false, rowCount: 0, isNarrowed: true })).toBe(
+      'No transactions match the search or filters',
+    )
   })
 
   it('holds the export off while the list has not loaded', () => {
@@ -33,7 +53,7 @@ describe('getExportBlockReason', () => {
   })
 
   it('allows the export when the list has rows', () => {
-    expect(getExportBlockReason({ isLoaded: true, hasError: false, rowCount: 3, isNarrowed: false })).toBeUndefined()
+    expect(getExportBlockReason({ isLoaded: true, hasError: false, rowCount: 3, isNarrowed: true })).toBeUndefined()
   })
 
   it('leaves the export on when the list failed to load, so the empty list is not claimed', () => {
@@ -61,18 +81,5 @@ describe('getExportFailureMessage', () => {
 describe('getExportFilename', () => {
   it('names the file after the day it was made', () => {
     expect(getExportFilename('2026-10-30')).toBe('lumina-finance-transactions-2026-10-30.csv')
-  })
-})
-
-describe('hasExportRows', () => {
-  it('is false for a file holding only the header row, with or without the byte order mark', async () => {
-    expect(await hasExportRows(new Blob([HEADER]))).toBe(false)
-    expect(await hasExportRows(new Blob(['﻿' + HEADER]))).toBe(false)
-  })
-
-  it('is true once a transaction row follows the header', async () => {
-    const row = '2026-10-02,Costco,Groceries,Everyday,,-42.50,CAD,\r\n'
-
-    expect(await hasExportRows(new Blob(['﻿' + HEADER + row]))).toBe(true)
   })
 })

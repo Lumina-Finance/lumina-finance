@@ -9,12 +9,42 @@ export function getExportFilename(today: string): string {
   return `lumina-finance-transactions-${today}.csv`
 }
 
+/** What the export button would save: everything, what the search and filters keep, or the ticked rows */
+export type ExportScope = 'all' | 'filtered' | 'selected'
+
+/** The toolbar button's word for each scope, which follows what the list is showing */
+export const EXPORT_LABELS: Record<ExportScope, string> = {
+  all: 'Export all',
+  filtered: 'Export filtered',
+  selected: 'Export selected',
+}
+
+/**
+ * Picks what the export saves from how the list is narrowed
+ *
+ * Ticked rows win over the search and filters, since the person picked those rows out of the filtered
+ * list on purpose
+ *
+ * @param selectedCount - How many rows are ticked
+ * @param isNarrowed - Whether a submitted search or any filter, a date filter included, is on
+ */
+export function getExportScope({
+  selectedCount,
+  isNarrowed,
+}: {
+  selectedCount: number
+  isNarrowed: boolean
+}): ExportScope {
+  if (selectedCount > 0) return 'selected'
+  return isNarrowed ? 'filtered' : 'all'
+}
+
 /**
  * Says why the export is off, or returns undefined when it can run
  *
- * The export dialogue lets the person widen the list's filters, so an empty list only proves there is
- * nothing to export when no filter or search narrows it. A list still loading has not said yet
- * whether it is empty. A failed load leaves the button on, since the export asks the server on its own
+ * An empty list has nothing to export, whether nothing exists or the search and filters keep nothing.
+ * A list still loading has not said yet whether it is empty. A failed load leaves the button on, since
+ * the export asks the server on its own
  */
 export function getExportBlockReason({
   isLoaded,
@@ -29,7 +59,8 @@ export function getExportBlockReason({
 }): string | undefined {
   if (hasError) return undefined
   if (!isLoaded) return 'Transactions are still loading'
-  if (rowCount === 0 && !isNarrowed) return 'There are no transactions to export'
+  if (rowCount === 0)
+    return isNarrowed ? 'No transactions match the search or filters' : 'There are no transactions to export'
   return undefined
 }
 
@@ -45,21 +76,4 @@ export const EXPORT_FAILED_MESSAGE = 'Oops, something went wrong and nothing was
 export function getExportFailureMessage(error: unknown): string {
   if (error instanceof ApiError && error.status < 500 && error.message) return error.message
   return EXPORT_FAILED_MESSAGE
-}
-
-// Enough to hold the header row and the first line after it, however long the header is
-const EXPORT_PEEK_BYTES = 2048
-
-/**
- * Reports whether a downloaded file holds any transaction beyond its header row, from its first bytes
- *
- * Conditions that match nothing make a valid file of the header alone, which the dialogue refuses to
- * save
- */
-export async function hasExportRows(file: Blob): Promise<boolean> {
-  const start = await file.slice(0, EXPORT_PEEK_BYTES).text()
-
-  // Reading a blob as text drops the byte order mark, so the first line is the header itself
-  const lines = start.split('\r\n')
-  return lines.length > 1 && lines[1] !== ''
 }

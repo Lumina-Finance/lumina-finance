@@ -34,6 +34,7 @@ import {
   fetchTransaction,
   fetchTransactionPage,
   fetchTransactions,
+  fetchSelectedTransactionsCsv,
   fetchTransactionsCsv,
   fetchTransactionsOverview,
   linkRefund,
@@ -41,7 +42,7 @@ import {
   updateTransaction,
 } from '@/api/transactions/requests'
 import type {
-  ExportTransactionsFilters,
+  ExportTransactionsRequest,
   LinkCandidateFilters,
   OverviewFilters,
   TransactionFilters,
@@ -312,13 +313,17 @@ export function useDeleteTransaction({
 }
 
 /**
- * Downloads the transactions matching the list's filters as a CSV file, which changes nothing the
+ * Downloads the chosen transactions, or those matching the list's filters, as a CSV file, which changes nothing the
  * app caches, so it updates and invalidates nothing
  */
 export function useExportTransactions({ minimumPendingMs = 0 }: { minimumPendingMs?: number } = {}) {
   return useMutation({
-    mutationFn: (filters: ExportTransactionsFilters) =>
-      runWithMinimumPendingTime(minimumPendingMs, () => fetchTransactionsCsv(filters)),
+    mutationFn: (request: ExportTransactionsRequest) =>
+      runWithMinimumPendingTime(minimumPendingMs, () =>
+        'transactionIds' in request
+          ? fetchSelectedTransactionsCsv(request.transactionIds)
+          : fetchTransactionsCsv(request.filters),
+      ),
   })
 }
 

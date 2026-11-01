@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react'
 import { AnimatePresence, motion, useReducedMotion } from 'motion/react'
-import { Check, Download, ListChecks, PencilLine, SlidersHorizontal, Trash2, Upload } from 'lucide-react'
+import { Check, Download, ListChecks, LoaderCircle, PencilLine, SlidersHorizontal, Trash2, Upload } from 'lucide-react'
 import { DesktopToolbarControls } from '@/components/list-controls/DesktopToolbarControls'
 import { GlassSearchField } from '@/components/list-controls/GlassSearchField'
 import { MobileToolbarActions } from '@/components/list-controls/MobileToolbarActions'
@@ -13,6 +13,7 @@ import type { TransactionListToolbarProps } from '@/components/transactions/tool
 import { TransactionFilterPanel } from '@/components/transactions/toolbar/FilterPanel'
 import { MobileFilterPanel } from '@/components/transactions/toolbar/MobileFilterPanel'
 import { useToolbarStickyOffset } from '@/components/transactions/toolbar/hooks/useStickyOffset'
+import { EXPORT_LABELS } from '@/components/transactions/utils/exportFile'
 import {
   getAccountOptions,
   getActiveFilterCount,
@@ -39,6 +40,8 @@ export default function TransactionListToolbar({
   importDisabled = false,
   importDisabledReason,
   onExport,
+  exportScope = 'all',
+  exportPending = false,
   exportDisabledReason,
   onStickyOffsetChange,
   isSelecting = false,
@@ -84,18 +87,28 @@ export default function TransactionListToolbar({
   ) : undefined
 
   // Sits beside Import in the same 44px glass shape, square on a phone and widening for its word on a
-  // desktop. It opens the export dialogue, and a person with no transactions at all gets it held off
-  // with the reason as its description
+  // desktop. The word says what the file will hold, and the accessible name is that same text so the
+  // icon-only phone button says it too. The width follows the word, which the layout hook re-measures.
+  // While the file is being prepared it keeps its place and size, with the icon turning, and is held off
+  // with `disabled` alone. An empty list holds it off with the reason as its description. Only the
+  // export of every transaction opens a confirmation first
+  const exportLabel = EXPORT_LABELS[exportScope]
   const exportAction = onExport ? (
     <DisabledReasonButton
       className="app-glass-button h-11 w-11 shrink-0 px-0 min-[750px]:w-auto min-[750px]:px-4"
       onClick={onExport}
-      disabledReason={exportDisabledReason}
-      aria-label="Export transactions as CSV"
-      aria-haspopup="dialog"
+      disabled={exportPending}
+      disabledReason={exportPending ? undefined : exportDisabledReason}
+      aria-busy={exportPending}
+      aria-label={exportLabel}
+      aria-haspopup={exportScope === 'all' ? 'dialog' : undefined}
     >
-      <Download size={18} aria-hidden />
-      <span className="hidden min-[750px]:inline">Export</span>
+      {exportPending ? (
+        <LoaderCircle size={18} className="animate-spin motion-reduce:animate-none" aria-hidden />
+      ) : (
+        <Download size={18} aria-hidden />
+      )}
+      <span className="hidden whitespace-nowrap min-[750px]:inline">{exportLabel}</span>
     </DisabledReasonButton>
   ) : undefined
 
@@ -243,6 +256,7 @@ export default function TransactionListToolbar({
               'hidden @min-[16rem]/bulk-actions:inline',
             )}
             {renderDeleteAction('app-glass-button h-11 w-11 shrink-0 px-0')}
+            {exportAction}
             {selectAction}
           </div>
         ) : (
