@@ -19,6 +19,14 @@ async def _seed_usd_currency():
         await session.commit()
 
 
+async def _seed_jpy_currency():
+    """Seed a JPY currency row directly, a currency whose minor unit exponent is 0"""
+    async with TestSession() as session:
+        # Insert JPY as seeded currency data, whose amounts have no decimal places
+        session.add(Currency(id="JPY", name="Japanese Yen", symbol="¥", minor_unit_exponent=0))
+        await session.commit()
+
+
 async def _seed_institution():
     """Seed an institution directly for import-created account linking"""
     async with TestSession() as session:

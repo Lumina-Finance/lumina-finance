@@ -6,18 +6,19 @@ from decimal import Decimal
 
 import pytest
 
+from app.services.transactions import export as export_service
 from app.services.transactions.export import format_minor_units, neutralize_spreadsheet_formula
+from tests.routes.support.clock_helpers import PROFILE_LATE_EVENING, PROFILE_TODAY
 from tests.routes.transactions._helpers import (
     _create_account,
     _create_category,
     _create_merchant,
     _create_tag,
     _create_transaction,
+    _seed_jpy_currency,
     _seed_usd_currency,
     _setup_user_with_deps,
 )
-
-# --- GET /transactions/export ---
 
 EXPECTED_HEADER = ["Date", "Merchant", "Category", "Account", "Tags", "Amount", "Currency", "Notes"]
 
@@ -189,9 +190,6 @@ async def test_export_transactions_without_a_token_returns_401(client):
     assert resp.status_code == 401
 
 
-# --- POST /transactions/export ---
-
-
 async def _export_selected(client, headers, transaction_ids):
     return await client.post("/transactions/export", headers=headers, json={"transaction_ids": transaction_ids})
 
@@ -284,6 +282,95 @@ async def test_export_selected_transactions_requires_a_sign_in_and_one_to_a_thou
     assert unauthenticated.status_code == 401
     assert empty.status_code == 422
     assert too_many.status_code == 422
+
+
+async def test_export_selected_transactions_accepts_exactly_a_thousand_ids(client):
+    """A thousand ids pass the size check, so the request goes on to look them up and refuses only the unknown ones."""
+    headers, _, _ = await _setup_user_with_deps(client)
+
+    resp = await _export_selected(client, headers, [str(uuid.uuid4()) for _ in range(1000)])
+
+    assert resp.status_code == 404
+    assert resp.json()["detail"] == "1000 of 1000 transactions were not found"
+
+
+async def test_export_writes_every_row_beyond_one_list_page(client):
+    """Fifty-five rows, more than the list's page of fifty, are all written by both exports."""
+    headers, account_id, category_id = await _setup_user_with_deps(client)
+    created = [
+        (await _create_transaction(client, headers, account_id, category_id, amount=-(index + 1) * 100, notes=f"row {index}")).json()["id"]
+        for index in range(55)
+    ]
+
+    everything = await client.get("/transactions/export", headers=headers)
+    chosen = await _export_selected(client, headers, created)
+
+    for resp in (everything, chosen):
+        assert resp.status_code == 200
+        assert sorted(row[7] for row in _parse_csv(resp)[1:]) == sorted(f"row {index}" for index in range(55))
+
+
+async def test_export_includes_rows_of_an_account_the_caller_reaches_without_owning(client):
+    """A read-only share is exported by both routes, while the owner's unshared account stays out."""
+    headers, _, _ = await _setup_user_with_deps(client)
+    owner_headers, owner_account, owner_category = await _setup_user_with_deps(client, email="other@example.com", name_prefix="Other")
+    group = (await client.post("/groups", headers=owner_headers, json={"name": "Household"})).json()["id"]
+    shared_account = (await _create_account(client, owner_headers, name="Shared", group_id=group)).json()["id"]
+    shared_category = (await _create_category(client, owner_headers, name="Shared food", group_id=group)).json()["id"]
+    user_id = (await client.get("/me", headers=headers)).json()["id"]
+    assert (await client.post(f"/groups/{group}/members", headers=owner_headers, json={"user_id": user_id})).status_code == 201
+    permission = await client.post(f"/accounts/{shared_account}/permissions", headers=owner_headers, json={"user_id": user_id, "level": "read"})
+    assert permission.status_code == 201
+    shared = await _create_transaction(client, owner_headers, shared_account, shared_category, amount=-700, notes="shared row")
+    private = await _create_transaction(client, owner_headers, owner_account, owner_category, amount=-800, notes="private row")
+
+    listed = await client.get("/transactions/export", headers=headers)
+    chosen = await _export_selected(client, headers, [shared.json()["id"]])
+    refused = await _export_selected(client, headers, [shared.json()["id"], private.json()["id"]])
+
+    assert [row[7] for row in _parse_csv(listed)[1:]] == ["shared row"]
+    assert [row[7] for row in _parse_csv(chosen)[1:]] == ["shared row"]
+    assert refused.status_code == 404
+    assert refused.json()["detail"] == "1 of 2 transactions were not found"
+
+
+async def test_export_writes_amounts_to_the_exponent_of_a_zero_decimal_currency(client):
+    """A yen amount is written whole, with no decimal places, by both exports."""
+    await _seed_jpy_currency()
+    headers, _, category_id = await _setup_user_with_deps(client)
+    yen_account = (await _create_account(client, headers, name="Yen", currency="JPY")).json()["id"]
+    created = await _create_transaction(client, headers, yen_account, category_id, amount=-1500, currency="JPY")
+
+    everything = await client.get("/transactions/export", headers=headers)
+    chosen = await _export_selected(client, headers, [created.json()["id"]])
+
+    for resp in (everything, chosen):
+        assert [row[5:7] for row in _parse_csv(resp)[1:]] == [["-1500", "JPY"]]
+
+
+async def test_export_is_never_cached(client):
+    """Both exports tell the browser and any proxy not to keep the file."""
+    headers, account_id, category_id = await _setup_user_with_deps(client)
+    created = await _create_transaction(client, headers, account_id, category_id)
+
+    everything = await client.get("/transactions/export", headers=headers)
+    chosen = await _export_selected(client, headers, [created.json()["id"]])
+
+    assert everything.headers["cache-control"] == "no-store"
+    assert chosen.headers["cache-control"] == "no-store"
+
+
+async def test_export_names_the_file_after_the_day_in_the_users_timezone(client, freeze_now):
+    """At 23:30 in Toronto it is already the next day in UTC, and the filename keeps the user's own day."""
+    freeze_now(export_service, PROFILE_LATE_EVENING)
+    headers, account_id, category_id = await _setup_user_with_deps(client)
+    created = await _create_transaction(client, headers, account_id, category_id)
+
+    everything = await client.get("/transactions/export", headers=headers)
+    chosen = await _export_selected(client, headers, [created.json()["id"]])
+
+    for resp in (everything, chosen):
+        assert resp.headers["content-disposition"] == f'attachment; filename="lumina-finance-transactions-{PROFILE_TODAY.isoformat()}.csv"'
 
 
 @pytest.mark.parametrize(
