@@ -1,3 +1,4 @@
+import { useId } from 'react'
 import {
   CREATE_TAG_VALUE,
   SKIP_TAG_VALUE,
@@ -6,7 +7,7 @@ import {
 } from '@/pages/imports/constants'
 import { EmptyState, ImportLoadFailure, ImportStep, ImportValueMatchTable } from '@/pages/imports/components'
 import type { TransactionImportWorkflow } from '@/pages/imports/hooks'
-import { getImportTagRowState } from '@/pages/imports/utils'
+import { getImportNameAnswer, getImportTagCreateNameError, getImportTagRowState } from '@/pages/imports/utils'
 import { getNameKey } from '@/api/shared/nameKey'
 
 type ImportTagMatchingStepProps = Pick<
@@ -55,6 +56,7 @@ export function ImportTagMatchingStep({
   importResult,
 }: ImportTagMatchingStepProps) {
   const isAnswerLocked = tagMatchesLoading || Boolean(importResult)
+  const errorIdPrefix = useId()
 
   // Tags are asked about again once an import has run, and a file's tag then matches the tag the
   // import created from it. The record shows the tag as created, the way it was imported
@@ -80,11 +82,16 @@ export function ImportTagMatchingStep({
           detailLabel="Name to create"
           targetLabel="Tag"
           createValue={CREATE_TAG_VALUE}
-          rows={importedTags.map((value) => {
+          rows={importedTags.map((value, index) => {
             const answer = tagMappings[value] ?? ''
             const found = matchedTagByKey.get(getNameKey(value))
             const matched = found && !createdByImport.has(found.id) ? found : undefined
             const rowState = getImportTagRowState(answer, matched)
+            const createName = tagCreateNames[value] ?? value
+
+            // Only a name about to be used can be wrong, and a finished import's record is not edited
+            const nameError = rowState === 'creating' && !importResult ? getImportTagCreateNameError(createName) : ''
+            const errorId = `${errorIdPrefix}-${index}`
 
             return {
               id: value,
@@ -96,30 +103,37 @@ export function ImportTagMatchingStep({
 
               // The glow tells the user a row was filled in for them to check, which means nothing
               // on a finished import's record or while the matches are still loading
-              autoFilled: !answer && !isAnswerLocked,
+              // A name typed on a row nothing matches answers it, as it does in the payload
+              autoFilled:
+                !getImportNameAnswer(answer, Boolean(matched), tagCreateNames[value], CREATE_TAG_VALUE) &&
+                !isAnswerLocked,
 
               // A row filed under a tag that already exists creates nothing, so the name it would
               // create is greyed out rather than taken away, and the column keeps its shape
               excluded: rowState === 'skipped',
               detailNode: (
-                <input
-                  type="text"
-                  className={`app-field-focus-visible w-full rounded-lg px-3 py-1.5 text-sm transition-[border-color,box-shadow,opacity] ${rowState === 'creating' ? '' : 'opacity-60'}`}
-                  style={{
-                    background: 'var(--app-input-bg)',
-                    color: 'var(--app-text)',
-                    border: '1px solid var(--app-border)',
-                  }}
-                  value={tagCreateNames[value] ?? value}
-                  aria-label={`Name for the tag created from ${value}`}
-                  onChange={(event) =>
-                    setTagCreateNames((current) => ({
-                      ...current,
-                      [value]: event.target.value,
-                    }))
-                  }
-                  disabled={isAnswerLocked || rowState !== 'creating'}
-                />
+                <>
+                  <input
+                    type="text"
+                    className={`app-input h-[var(--app-dropdown-height-compact)] text-sm transition-[border-color,box-shadow,opacity] ${nameError ? 'app-input-error' : ''} ${rowState === 'creating' ? '' : 'opacity-60'}`}
+                    value={createName}
+                    aria-label={`Name for the tag created from ${value}`}
+                    aria-invalid={nameError ? true : undefined}
+                    aria-describedby={nameError ? errorId : undefined}
+                    onChange={(event) =>
+                      setTagCreateNames((current) => ({
+                        ...current,
+                        [value]: event.target.value,
+                      }))
+                    }
+                    disabled={isAnswerLocked || rowState !== 'creating'}
+                  />
+                  {nameError && (
+                    <span id={errorId} className="sr-only">
+                      {nameError}
+                    </span>
+                  )}
+                </>
               ),
               onChange: (nextValue) => {
                 // A tag is held on to as it is chosen, since the option it came from goes when the

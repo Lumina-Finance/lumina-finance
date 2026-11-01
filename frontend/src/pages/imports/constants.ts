@@ -672,7 +672,7 @@ export const MERCHANT_MATCHES_LOAD_FAILURE_EXPLANATION =
 // Shown when the page could not ask which of the file's tag names already have a tag
 export const TAG_MATCHES_LOAD_FAILURE_TITLE = 'Your tags could not be checked'
 export const TAG_MATCHES_LOAD_FAILURE_EXPLANATION =
-  'Without that check every tag in this import reads as a new one, and importing could create tags you already have.'
+  'Without that check every tag in this import reads as a new one here. Importing still files a row under the tag you already have with the same name, and creates a tag only where you have none.'
 
 // Shown when a mapping was answered with an account that has since been deleted. The answer is
 // dropped rather than sent, and nothing fills the row back in, so the user is told why a source
