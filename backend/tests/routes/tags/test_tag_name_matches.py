@@ -54,23 +54,13 @@ async def test_name_matches_leaves_out_a_group_tag(client):
     assert resp.json() == []
 
 
-async def test_name_matches_with_a_name_too_long_for_a_tag_matches_nothing(client):
-    """A name longer than a tag may be is asked about without a refusal, and has no match."""
-    headers = _get_auth_header(await _create_user(client))
-
-    resp = await client.post("/tags/name-matches", json={"names": ["x" * 200]}, headers=headers)
-
-    assert resp.status_code == 200
-    assert resp.json() == []
-
-
 @pytest.mark.parametrize(
     "names",
-    [[], ["x" * 257], [""], ["   "], [f"tag {index}" for index in range(1001)]],
-    ids=["none", "over 256 characters", "blank", "spaces", "over 1,000 names"],
+    [[], ["x" * 65], ["x" * 257], ["x" * 100_000], [""], ["   "], [f"tag {index}" for index in range(1001)]],
+    ids=["none", "65 characters", "257 characters", "100,000 characters", "blank", "spaces", "over 1,000 names"],
 )
 async def test_name_matches_refuses_names_outside_its_limits(client, names):
-    """One to 1,000 names of one to 256 characters each are asked about, and nothing else is."""
+    """One to 1,000 names of one to 64 characters each are asked about, and nothing else is."""
     headers = _get_auth_header(await _create_user(client))
 
     resp = await client.post("/tags/name-matches", json={"names": names}, headers=headers)
@@ -81,7 +71,7 @@ async def test_name_matches_refuses_names_outside_its_limits(client, names):
 async def test_name_matches_takes_the_most_names_and_the_longest_name_allowed(client):
     """The limits are inclusive at both ends."""
     headers = _get_auth_header(await _create_user(client))
-    names = ["x" * 256] + [f"tag {index}" for index in range(999)]
+    names = ["x" * 64] + [f"tag {index}" for index in range(999)]
 
     resp = await client.post("/tags/name-matches", json={"names": names}, headers=headers)
 

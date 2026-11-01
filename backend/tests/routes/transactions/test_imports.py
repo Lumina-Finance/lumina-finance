@@ -6,7 +6,7 @@ from sqlalchemy import text
 
 from app.schemas.import_run import (
     MAX_IMPORT_NOTES_LENGTH,
-    MAX_IMPORT_TAG_SOURCE_LENGTH,
+    MAX_IMPORT_TAG_NAME_LENGTH,
     MAX_IMPORT_TAGS_PER_ROW,
 )
 from app.services.importers.shared import run_locking
@@ -1383,12 +1383,12 @@ async def test_staging_a_row_carrying_too_many_tags_is_refused(client):
     assert resp.status_code == 422
 
 
-async def test_staging_a_row_whose_tag_name_is_past_the_source_limit_is_refused(client):
-    """A tag cell past what an answer to it may carry is refused at staging, not at the commit."""
+async def test_staging_a_row_whose_tag_name_is_too_long_is_refused(client):
+    """A tag name past the column it is stored in is refused at staging, not at the commit."""
     headers, account_id, category_id = await _setup_user_with_deps(client)
     run_id = await _open_run(client, headers, 1)
     batch = _batch(account_id, category_id, ["-1.00"])
-    batch["rows"][0]["tag_names"] = ["t" * (MAX_IMPORT_TAG_SOURCE_LENGTH + 1)]
+    batch["rows"][0]["tag_names"] = ["t" * (MAX_IMPORT_TAG_NAME_LENGTH + 1)]
 
     resp = await client.post(f"/transactions/import/runs/{run_id}/rows", json=batch, headers=headers)
 
@@ -1401,7 +1401,7 @@ async def test_staging_accepts_a_row_at_every_row_cap(client):
     run_id = await _open_run(client, headers, 1)
     batch = _batch(account_id, category_id, ["-1.00"])
     batch["rows"][0]["notes"] = "n" * MAX_IMPORT_NOTES_LENGTH
-    batch["rows"][0]["tag_names"] = [f"{index}".ljust(MAX_IMPORT_TAG_SOURCE_LENGTH, "t") for index in range(MAX_IMPORT_TAGS_PER_ROW)]
+    batch["rows"][0]["tag_names"] = [f"{index}".ljust(MAX_IMPORT_TAG_NAME_LENGTH, "t") for index in range(MAX_IMPORT_TAGS_PER_ROW)]
 
     resp = await client.post(f"/transactions/import/runs/{run_id}/rows", json=batch, headers=headers)
 

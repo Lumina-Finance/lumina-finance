@@ -40,15 +40,10 @@ MAX_IMPORT_BANK_ACCOUNT_KEY_LENGTH = 1_000
 MAX_IMPORT_BANK_TRANSACTION_ID_LENGTH = 100_000
 
 # Tags one row may carry, and characters one tag name may carry. The length matches the column tags
-# are stored in, so a journal export's name too long is refused as the batch carrying it is staged
-# rather than at the commit, once the rows are already parked
+# are stored in, so a name too long is refused as the batch carrying it is staged rather than at the
+# commit, once the rows are already parked
 MAX_IMPORT_TAGS_PER_ROW = 32
 MAX_IMPORT_TAG_NAME_LENGTH = 64
-
-# Characters a CSV file's tag name may carry in a row and in the answer to it, as for a merchant. A
-# cell longer than a tag can be named is still staged so that the user can correct or skip it, and
-# one left unanswered is refused at the commit
-MAX_IMPORT_TAG_SOURCE_LENGTH = 256
 
 # Characters a merchant name may carry, matching the column merchants are stored in
 MAX_IMPORT_MERCHANT_NAME_LENGTH = 256
@@ -128,7 +123,6 @@ def _require_unique(values: list[str]) -> list[str]:
 # One imported tag name, bounded so that the count and the length are stated in one place for both
 # importers
 ImportTagName = Annotated[str, Field(max_length=MAX_IMPORT_TAG_NAME_LENGTH)]
-ImportTagSource = Annotated[str, Field(max_length=MAX_IMPORT_TAG_SOURCE_LENGTH)]
 
 # Text the import screen has already trimmed, and sends as null rather than blank
 TrimmedImportText = Annotated[str, AfterValidator(_require_trimmed)]
@@ -334,7 +328,7 @@ class TransactionImportTagMapping(BaseModel):
     user's tag of that name, whatever its capitals, and creates one where nothing matches.
     """
 
-    source: str = Field(min_length=1, max_length=MAX_IMPORT_TAG_SOURCE_LENGTH)
+    source: str = Field(min_length=1, max_length=MAX_IMPORT_TAG_NAME_LENGTH)
     tag_id: uuid.UUID | None = None
     create: TransactionImportCreateTag | None = None
 
@@ -359,7 +353,7 @@ class _ImportRowFields(BaseModel):
     amount: str = Field(min_length=1, max_length=64)
     merchant_name: str | None = Field(None, max_length=MAX_IMPORT_MERCHANT_NAME_LENGTH)
     notes: str | None = Field(None, max_length=MAX_IMPORT_NOTES_LENGTH)
-    tag_names: list[ImportTagSource] = Field(default=[], max_length=MAX_IMPORT_TAGS_PER_ROW)
+    tag_names: list[ImportTagName] = Field(default=[], max_length=MAX_IMPORT_TAGS_PER_ROW)
 
     # Counterparty account source, meaning the account the money moved to or from. A transfer row
     # that leaves it unset records that the money left the tracked accounts

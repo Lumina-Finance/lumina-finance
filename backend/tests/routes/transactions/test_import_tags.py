@@ -372,65 +372,32 @@ async def test_a_corrected_tag_name_of_the_longest_length_a_tag_can_have_is_acce
     assert await _list_tag_names(client, headers) == [name]
 
 
-async def test_a_tag_name_over_the_tag_limit_can_be_skipped(client):
-    """A cell too long to be a tag can still be answered, so its rows import without it."""
+@pytest.mark.parametrize("length", [65, 257, 100_000])
+async def test_a_tag_name_over_the_tag_limit_is_refused_at_staging_and_writes_nothing(client, length):
+    """A row's tag name has one limit, however long it is, and a name over it is refused whole."""
     headers, account_id, category_id = await _setup_user_with_deps(client)
-    name = "x" * 65
-
-    resp = await _import_rows(
-        client,
-        headers,
-        account_id,
-        category_id,
-        [{"tag_names": [name, "Food"]}],
-        tags=[{"source": name, "skip": True}],
-    )
-
-    assert resp.status_code == 201
-    assert await _list_tag_names(client, headers) == ["Food"]
-    assert await _tag_names_on_transactions(client, headers) == [["Food"]]
-
-
-async def test_a_tag_name_over_the_tag_limit_can_be_corrected(client):
-    """A cell too long to be a tag is created under the shorter name it was corrected to."""
-    headers, account_id, category_id = await _setup_user_with_deps(client)
-    name = "x" * 65
-
-    resp = await _import_rows(
-        client,
-        headers,
-        account_id,
-        category_id,
-        [{"tag_names": [name]}],
-        tags=[{"source": name, "create": {"name": "Trip"}}],
-    )
-
-    assert resp.status_code == 201
-    assert await _list_tag_names(client, headers) == ["Trip"]
-    assert await _tag_names_on_transactions(client, headers) == [["Trip"]]
-
-
-async def test_a_tag_name_over_the_tag_limit_left_unanswered_is_refused_and_writes_nothing(client):
-    """Without an answer the name would become a tag, which cannot be that long."""
-    headers, account_id, category_id = await _setup_user_with_deps(client)
-    name = "x" * 65
+    name = "x" * length
 
     resp = await _import_rows(client, headers, account_id, category_id, [{"tag_names": [name]}])
 
     assert resp.status_code == 422
-    assert resp.json()["detail"] == f"Tag name is too long: {name[:28]}"
+    assert "tag_names" in resp.json()["detail"][0]["loc"]
     assert await _list_tag_names(client, headers) == []
     assert (await client.get("/transactions", headers=headers)).json() == []
 
 
-async def test_a_tag_name_over_the_source_limit_is_refused_even_when_answered(client):
-    """The answer and the row both stop at 256 characters, so a longer cell is refused as it is staged."""
+@pytest.mark.parametrize("length", [65, 257, 100_000])
+@pytest.mark.parametrize("answer", [{"skip": True}, {"create": {"name": "Trip"}}])
+async def test_an_answer_naming_a_tag_over_the_tag_limit_is_refused(client, length, answer):
+    """Neither a skip nor a correction can be given to a name no row can carry."""
     headers, account_id, category_id = await _setup_user_with_deps(client)
-    name = "x" * 257
+    name = "x" * length
 
-    resp = await _import_rows(client, headers, account_id, category_id, [{"tag_names": [name]}], tags=[{"source": name, "skip": True}])
+    resp = await _import_rows(client, headers, account_id, category_id, [{"tag_names": ["Food"]}], tags=[{"source": name} | answer])
 
     assert resp.status_code == 422
+    assert resp.json()["detail"][0]["loc"][-1] == "source"
+    assert (await client.get("/transactions", headers=headers)).json() == []
 
 
 async def test_staging_more_tag_answers_than_an_import_may_carry_is_refused(client):

@@ -7,12 +7,13 @@ from typing import Annotated
 from pydantic import BaseModel, Field, field_validator
 from pydantic.json_schema import SkipJsonSchema
 
-from app.schemas.import_run import MAX_IMPORT_MAPPINGS
+from app.schemas.import_run import MAX_IMPORT_MAPPINGS, MAX_IMPORT_TAG_NAME_LENGTH
 from app.schemas.names import TrimmedName
 
-# One tag name asked about. Wider than the column tags are stored in, so a file's overlong name is
-# answered "no match" here and refused later by the import's own length check
-TagNameMatchName = Annotated[TrimmedName, Field(min_length=1, max_length=256)]
+# One tag name asked about, as long as a tag can be named. The import page lists a file's longer
+# names as rows that won't import and never asks about them, so one reaching here is refused loudly
+# rather than matched
+TagNameMatchName = Annotated[TrimmedName, Field(min_length=1, max_length=MAX_IMPORT_TAG_NAME_LENGTH)]
 
 
 class TagResponse(BaseModel):
@@ -69,8 +70,7 @@ class TagNameMatchRequest(BaseModel):
     """Tag names from a file, asked about together.
 
     The import page asks this rather than holding every tag, since the list endpoint answers a page
-    at a time. A name longer than a tag may be matches nothing, so it is accepted here and refused
-    where the import checks the rows.
+    at a time. A name longer than a tag may be is refused, as the import page never asks about one.
     """
 
     names: list[TagNameMatchName] = Field(min_length=1, max_length=MAX_IMPORT_MAPPINGS)
