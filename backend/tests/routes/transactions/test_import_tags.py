@@ -8,7 +8,7 @@ from sqlalchemy import select
 from app.models.import_run import ImportRun
 from tests.conftest import TestSession
 from tests.routes.transactions._helpers import _create_tag, _setup_user_with_deps
-from tests.routes.transactions._import_helpers import _import_rows, _open_run, _stage_batch
+from tests.routes.transactions._import_helpers import _commit_run, _import_rows, _open_run, _open_staged_run, _stage_batch
 
 
 async def _list_tag_names(client, headers):
@@ -370,3 +370,105 @@ async def test_a_corrected_tag_name_of_the_longest_length_a_tag_can_have_is_acce
 
     assert resp.status_code == 201
     assert await _list_tag_names(client, headers) == [name]
+
+
+async def test_a_tag_name_over_the_tag_limit_can_be_skipped(client):
+    """A cell too long to be a tag can still be answered, so its rows import without it."""
+    headers, account_id, category_id = await _setup_user_with_deps(client)
+    name = "x" * 65
+
+    resp = await _import_rows(
+        client,
+        headers,
+        account_id,
+        category_id,
+        [{"tag_names": [name, "Food"]}],
+        tags=[{"source": name, "skip": True}],
+    )
+
+    assert resp.status_code == 201
+    assert await _list_tag_names(client, headers) == ["Food"]
+    assert await _tag_names_on_transactions(client, headers) == [["Food"]]
+
+
+async def test_a_tag_name_over_the_tag_limit_can_be_corrected(client):
+    """A cell too long to be a tag is created under the shorter name it was corrected to."""
+    headers, account_id, category_id = await _setup_user_with_deps(client)
+    name = "x" * 65
+
+    resp = await _import_rows(
+        client,
+        headers,
+        account_id,
+        category_id,
+        [{"tag_names": [name]}],
+        tags=[{"source": name, "create": {"name": "Trip"}}],
+    )
+
+    assert resp.status_code == 201
+    assert await _list_tag_names(client, headers) == ["Trip"]
+    assert await _tag_names_on_transactions(client, headers) == [["Trip"]]
+
+
+async def test_a_tag_name_over_the_tag_limit_left_unanswered_is_refused_and_writes_nothing(client):
+    """Without an answer the name would become a tag, which cannot be that long."""
+    headers, account_id, category_id = await _setup_user_with_deps(client)
+    name = "x" * 65
+
+    resp = await _import_rows(client, headers, account_id, category_id, [{"tag_names": [name]}])
+
+    assert resp.status_code == 422
+    assert resp.json()["detail"] == f"Tag name is too long: {name[:28]}"
+    assert await _list_tag_names(client, headers) == []
+    assert (await client.get("/transactions", headers=headers)).json() == []
+
+
+async def test_a_tag_name_over_the_source_limit_is_refused_even_when_answered(client):
+    """The answer and the row both stop at 256 characters, so a longer cell is refused as it is staged."""
+    headers, account_id, category_id = await _setup_user_with_deps(client)
+    name = "x" * 257
+
+    resp = await _import_rows(client, headers, account_id, category_id, [{"tag_names": [name]}], tags=[{"source": name, "skip": True}])
+
+    assert resp.status_code == 422
+
+
+async def test_staging_more_tag_answers_than_an_import_may_carry_is_refused(client):
+    """A batch declares at most 1,000 tag answers, as it does for accounts and categories."""
+    headers, account_id, category_id = await _setup_user_with_deps(client)
+    answers = [{"source": f"tag {index}", "skip": True} for index in range(1001)]
+
+    resp = await _import_rows(client, headers, account_id, category_id, [{"tag_names": ["tag 0"]}], tags=answers)
+
+    assert resp.status_code == 422
+    assert resp.json()["detail"][0]["loc"][-1] == "tags"
+
+
+async def test_an_answer_pointing_at_a_tag_deleted_before_the_commit_is_refused(client):
+    """The tag existed at staging, so the commit refuses rather than file rows untagged or fail with a 500."""
+    headers, account_id, category_id = await _setup_user_with_deps(client)
+    chosen = (await _create_tag(client, headers, name="Holiday")).json()
+    row = {
+        "account_source": "Main Chequing",
+        "category_source": "Groceries",
+        "dt": "2026-04-10",
+        "amount": "-1.00",
+        "tag_names": ["Trip"],
+    }
+    run_id = await _open_staged_run(
+        client,
+        headers,
+        {
+            "accounts": [{"source": "Main Chequing", "account_id": account_id}],
+            "categories": [{"source": "Groceries", "category_id": category_id}],
+            "tags": [{"source": "Trip", "tag_id": chosen["id"]}],
+            "rows": [row],
+        },
+    )
+    assert (await client.delete(f"/tags/{chosen['id']}", headers=headers)).status_code == 204
+
+    resp = await _commit_run(client, headers, run_id)
+
+    assert resp.status_code == 422
+    assert resp.json()["detail"] == "Tag not found"
+    assert (await client.get("/transactions", headers=headers)).json() == []

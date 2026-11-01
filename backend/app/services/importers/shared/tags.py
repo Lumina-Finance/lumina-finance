@@ -165,14 +165,12 @@ async def create_missing_import_tags(
         None
 
     Raises:
-        HTTPException: Raised with 422 when a tag name is too long, when an answer states no single
+        HTTPException: Raised with 422 when a tag name left unanswered is too long, when an answer states no single
             action, when one tag name is answered twice, and when an answer points at a tag the
             import cannot use. Raised with 500 when a name the insert skipped cannot then be found,
             which takes another request creating it and then rolling back
     """
     names = [name for name in (raw_name.strip() for raw_name in raw_names) if name]
-    for name in set(names):
-        _require_import_tag_name_fits(name)
 
     # Every key comes from one query, so none is worked out in Python
     wanted = {*names}
@@ -198,6 +196,9 @@ async def create_missing_import_tags(
 
         answer = answers.get(key)
         if answer is None:
+            # Only a name stored as it is written has to fit. One the user corrected or skipped may
+            # be longer, as a cell can be
+            _require_import_tag_name_fits(name)
             stored_name = name
         elif answer.create is None:
             # Answered skip or pointed at a tag, both already settled above
