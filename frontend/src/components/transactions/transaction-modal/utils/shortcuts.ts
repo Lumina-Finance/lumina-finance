@@ -191,6 +191,30 @@ export function stepDateValue(value: string, days: number, today: string): strin
   return current ? formatYmd(addDays(current, days)) : today
 }
 
+/** What a bracket does to the date field: nothing at all, nothing but be kept from typing, or move to a date */
+export type DateStepOutcome = { kind: 'ignore' } | { kind: 'hold' } | { kind: 'step'; value: string }
+
+/**
+ * Decides what a bracket press does to the date
+ *
+ * A form that cannot be changed lets the press through. A date begun but not finished, such as a year and
+ * a month with no day, is held as it is, since a step would throw away what was typed. Anything else steps
+ *
+ * @param state.date - The form's ISO date, empty while it is blank or only partly typed
+ * @param state.hasTypedDigits - Whether any segment of the date field holds digits
+ * @param state.steppable - Whether the form can be changed
+ */
+export function resolveDateStep(
+  state: { date: string; hasTypedDigits: boolean; steppable: boolean },
+  days: number,
+  today: string,
+): DateStepOutcome {
+  if (!state.steppable) return { kind: 'ignore' }
+  if (!state.date && state.hasTypedDigits) return { kind: 'hold' }
+
+  return { kind: 'step', value: stepDateValue(state.date, days, today) }
+}
+
 /**
  * Reports whether the keyboard is a Mac's, whose keys are written Option as ⌥ and Command as ⌘
  *

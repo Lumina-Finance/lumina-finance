@@ -20,6 +20,7 @@ import {
   isMacPlatform,
   isSubmitShortcut,
   ownsShortcutKey,
+  resolveDateStep,
   stepDateValue,
   type ShortcutKeyEvent,
 } from '@/components/transactions/transaction-modal/utils/shortcuts'
@@ -211,6 +212,27 @@ describe('stepping a date', () => {
   it('starts from today when the field holds no complete date', () => {
     expect(stepDateValue('', 1, today)).toBe(today)
     expect(stepDateValue('2026-02-31', -1, today)).toBe(today)
+  })
+})
+
+describe('what a bracket does to the date', () => {
+  const today = '2026-10-31'
+  const open = { steppable: true, hasTypedDigits: false }
+
+  it('steps a whole date, and starts from today when the field is blank', () => {
+    expect(resolveDateStep({ ...open, date: '2026-10-31' }, 1, today)).toEqual({ kind: 'step', value: '2026-11-01' })
+    expect(resolveDateStep({ ...open, date: '' }, -1, today)).toEqual({ kind: 'step', value: today })
+  })
+
+  it('holds a date begun but not finished as it is, instead of replacing it with today', () => {
+    expect(resolveDateStep({ date: '', steppable: true, hasTypedDigits: true }, 1, today)).toEqual({ kind: 'hold' })
+  })
+
+  it('lets the press through when the form cannot be changed', () => {
+    expect(resolveDateStep({ date: '2026-10-31', steppable: false, hasTypedDigits: false }, 1, today)).toEqual({
+      kind: 'ignore',
+    })
+    expect(resolveDateStep({ date: '', steppable: false, hasTypedDigits: true }, 1, today)).toEqual({ kind: 'ignore' })
   })
 })
 

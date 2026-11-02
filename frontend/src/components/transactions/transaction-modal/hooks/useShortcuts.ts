@@ -11,7 +11,7 @@ import {
   isSubmitShortcut,
   ownsShortcutKey,
   readIsMac,
-  stepDateValue,
+  resolveDateStep,
   type ShortcutField,
   type ShortcutKeyEvent,
 } from '@/components/transactions/transaction-modal/utils/shortcuts'
@@ -66,6 +66,13 @@ export function toShortcutKeyEvent(event: KeyEventLike, actionKeyHeld: boolean, 
 /** Finds the control a field's shortcut lands on, or null when this form does not show it */
 function findShortcutTarget(field: ShortcutField, ids: ReturnType<typeof getTransactionModalIds>) {
   return document.getElementById(ids[field])
+}
+
+/** Reports whether any segment of the dialogue's date field holds digits, which a date left unfinished does */
+function dateFieldHoldsDigits(ids: ReturnType<typeof getTransactionModalIds>): boolean {
+  const group = document.getElementById(ids.date)?.closest('[role="group"]')
+
+  return Array.from(group?.querySelectorAll('input') ?? []).some((segment) => segment.value !== '')
 }
 
 /**
@@ -274,15 +281,23 @@ export function useTransactionShortcuts(
         return
       }
 
-      // `[` and `]` step the date from any text field of the dialogue, so none of them types those two characters
+      // `[` and `]` step the date from any text field of the dialogue, so none of them types those two characters.
+      // They repeat when held, which steps the date on, since that is how a far date is reached
       const step = getDateKeyAction(keyEvent, true)
       if (step?.kind === 'step' && isTextEntry(event.target)) {
         const { date, steppable, onDateChange } = dateStepRef.current
-        if (!steppable) return
+        const outcome = resolveDateStep(
+          { date, steppable, hasTypedDigits: dateFieldHoldsDigits(ids) },
+          step.days,
+          getTodayYmd(tz),
+        )
+        if (outcome.kind === 'ignore') return
 
         event.preventDefault()
         event.stopPropagation()
-        onDateChange(stepDateValue(date, step.days, getTodayYmd(tz)))
+        if (outcome.kind === 'hold') return
+
+        onDateChange(outcome.value)
 
         // Focus stays in the field being typed in, so the date lights up to show the step landed there
         lightDateRef.current()
