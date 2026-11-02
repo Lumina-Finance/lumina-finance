@@ -9,6 +9,9 @@ import { EASE } from '@/components/transactions/transaction-modal/constants'
 import { useTransactionModalIds } from '@/components/transactions/transaction-modal/ids'
 import CreditRepaymentNotice from '@/components/transactions/transaction-modal/controls/CreditRepaymentNotice'
 import TransferCashFlowNotice from '@/components/transactions/transaction-modal/controls/TransferCashFlowNotice'
+import ShortcutHint from '@/components/transactions/transaction-modal/controls/ShortcutHint'
+import ShortcutHints from '@/components/transactions/transaction-modal/controls/ShortcutHints'
+import { getAriaFieldShortcut } from '@/components/transactions/transaction-modal/utils/shortcuts'
 import type { CreditRepaymentSteer } from '@/components/transactions/transaction-modal/utils/creditRepayment'
 import { doesTransferRecordCounterpartyAccount } from '@/utils/transfers'
 import type { TransactionDirection, TransactionModalKind } from '@/components/transactions/transaction-modal/types'
@@ -55,6 +58,7 @@ interface TransactionReferencesSectionProps {
   merchantValue: string
   merchantError?: string | false
   merchantSearch: string
+  merchantSearchSettled: boolean
   merchantLoading: boolean
   merchantLoadingText: string
   merchantHideOptionsWhileLoading: boolean
@@ -75,6 +79,7 @@ interface TransactionReferencesSectionProps {
   tagOptions: DropdownOption[]
   tagsDisabled: boolean
   tagSearch: string
+  tagSearchSettled: boolean
   tagLoading: boolean
   tagLoadingText: string
   tagHideOptionsWhileLoading: boolean
@@ -157,6 +162,7 @@ export default function TransactionReferencesSection({
   merchantValue,
   merchantError,
   merchantSearch,
+  merchantSearchSettled,
   merchantLoading,
   merchantLoadingText,
   merchantHideOptionsWhileLoading,
@@ -172,6 +178,7 @@ export default function TransactionReferencesSection({
   tagOptions,
   tagsDisabled,
   tagSearch,
+  tagSearchSettled,
   tagLoading,
   tagLoadingText,
   tagHideOptionsWhileLoading,
@@ -203,6 +210,10 @@ export default function TransactionReferencesSection({
   // money touched
   const recordsCounterpartyAccount = doesTransferRecordCounterpartyAccount(kind, isBalanceAdjustmentCategory)
 
+  // An account archived since this transfer was recorded is off the list, so the field is held at what
+  // it already says rather than letting one change strand the answer somewhere it can never be put back
+  const counterpartyAccountLocked = readOnly || Boolean(selectedArchivedCounterpartyAccountOption)
+
   // Goes through the same handler the dropdown does, so the switch behaves exactly as picking the
   // category by hand. Left undefined where no switch is offered, which is what hides the button
   const switchTargetId = creditRepaymentSteer.switchTargetId
@@ -220,6 +231,13 @@ export default function TransactionReferencesSection({
         <CreateModalFieldLabelRow
           htmlFor={TRANSACTION_MODAL_FIELD_IDS.account}
           label={accountLabel}
+          accessory={
+            !readOnly && (
+              <ShortcutHints>
+                <ShortcutHint field="account" />
+              </ShortcutHints>
+            )
+          }
           error={accountError}
           errorId={TRANSACTION_MODAL_ERROR_IDS.account_id}
         />
@@ -233,6 +251,7 @@ export default function TransactionReferencesSection({
           hasError={!!accountError}
           describedBy={accountError ? TRANSACTION_MODAL_ERROR_IDS.account_id : undefined}
           labelledBy={getFieldLabelId(TRANSACTION_MODAL_FIELD_IDS.account)}
+          keyShortcuts={getAriaFieldShortcut('account')}
           placeholder={accountPlaceholder}
           searchable
           searchPlaceholder="Search accounts..."
@@ -264,6 +283,13 @@ export default function TransactionReferencesSection({
                       />
                     </>
                   }
+                  accessory={
+                    !counterpartyAccountLocked && (
+                      <ShortcutHints>
+                        <ShortcutHint field="counterpartyAccount" />
+                      </ShortcutHints>
+                    )
+                  }
                   error={counterpartyAccountError}
                   errorId={TRANSACTION_MODAL_ERROR_IDS.counterparty_account_id}
                 />
@@ -279,13 +305,11 @@ export default function TransactionReferencesSection({
                     counterpartyAccountError ? TRANSACTION_MODAL_ERROR_IDS.counterparty_account_id : undefined
                   }
                   labelledBy={getFieldLabelId(TRANSACTION_MODAL_FIELD_IDS.counterpartyAccount)}
+                  keyShortcuts={getAriaFieldShortcut('counterpartyAccount')}
                   placeholder="Select account..."
                   searchable
                   searchPlaceholder="Search accounts..."
-                  // An account archived since this transfer was recorded is off the list, so the
-                  // field is held at what it already says rather than letting one change strand the
-                  // answer somewhere it can never be put back
-                  disabled={readOnly || Boolean(selectedArchivedCounterpartyAccountOption)}
+                  disabled={counterpartyAccountLocked}
                 />
                 <RunningBalanceRow runningBalance={counterpartyAccountRunningBalance} />
                 <AnimatePresence initial={false}>
@@ -344,6 +368,13 @@ export default function TransactionReferencesSection({
         <CreateModalFieldLabelRow
           htmlFor={TRANSACTION_MODAL_FIELD_IDS.merchant}
           label="Merchant"
+          accessory={
+            !readOnly && (
+              <ShortcutHints>
+                <ShortcutHint field="merchant" />
+              </ShortcutHints>
+            )
+          }
           error={merchantError}
           errorId={TRANSACTION_MODAL_ERROR_IDS.merchant_id}
         />
@@ -356,6 +387,7 @@ export default function TransactionReferencesSection({
           hasError={!!merchantError}
           describedBy={merchantError ? TRANSACTION_MODAL_ERROR_IDS.merchant_id : undefined}
           labelledBy={getFieldLabelId(TRANSACTION_MODAL_FIELD_IDS.merchant)}
+          keyShortcuts={getAriaFieldShortcut('merchant')}
           placeholder="Select or type to create..."
           searchable
           searchPlaceholder="Search merchants..."
@@ -368,7 +400,7 @@ export default function TransactionReferencesSection({
           loadingMinMs={0}
           hideOptionsWhileLoading={merchantHideOptionsWhileLoading}
           autoHighlightFirstOption
-          selectHighlightedOnSearchEnter
+          selectHighlightedOnSearchEnter={merchantSearchSettled}
           hasMore={merchantHasMore}
           onLoadMore={onMerchantLoadMore}
           onCreateNew={readOnly ? undefined : onCreateMerchant}
@@ -381,6 +413,13 @@ export default function TransactionReferencesSection({
         <CreateModalFieldLabelRow
           htmlFor={TRANSACTION_MODAL_FIELD_IDS.category}
           label="Category"
+          accessory={
+            !readOnly && (
+              <ShortcutHints>
+                <ShortcutHint field="category" />
+              </ShortcutHints>
+            )
+          }
           error={categoryError}
           errorId={TRANSACTION_MODAL_ERROR_IDS.category_id}
           action={
@@ -405,6 +444,7 @@ export default function TransactionReferencesSection({
           hasError={!!categoryError}
           describedBy={categoryError ? TRANSACTION_MODAL_ERROR_IDS.category_id : undefined}
           labelledBy={getFieldLabelId(TRANSACTION_MODAL_FIELD_IDS.category)}
+          keyShortcuts={getAriaFieldShortcut('category')}
           placeholder="Select category..."
           searchable
           searchPlaceholder="Search categories..."
@@ -417,13 +457,24 @@ export default function TransactionReferencesSection({
       </div>
 
       <div>
-        <CreateModalFieldLabelRow htmlFor={TRANSACTION_MODAL_FIELD_IDS.tags} label="Tags" />
+        <CreateModalFieldLabelRow
+          htmlFor={TRANSACTION_MODAL_FIELD_IDS.tags}
+          label="Tags"
+          accessory={
+            !readOnly && (
+              <ShortcutHints>
+                <ShortcutHint field="tags" />
+              </ShortcutHints>
+            )
+          }
+        />
         <Dropdown
           id={TRANSACTION_MODAL_FIELD_IDS.tags}
           options={tagOptions}
           value=""
           onChange={onTagChange}
           labelledBy={getFieldLabelId(TRANSACTION_MODAL_FIELD_IDS.tags)}
+          keyShortcuts={getAriaFieldShortcut('tags')}
           placeholder={tagsDisabled ? 'Select an account first' : 'Add tags...'}
           searchable
           searchPlaceholder="Search tags..."
@@ -435,6 +486,8 @@ export default function TransactionReferencesSection({
           loadingText={tagLoadingText}
           loadingMinMs={0}
           hideOptionsWhileLoading={tagHideOptionsWhileLoading}
+          autoHighlightFirstOption
+          selectHighlightedOnSearchEnter={tagSearchSettled}
           hasMore={tagHasMore}
           onLoadMore={onTagLoadMore}
           onCreateNew={readOnly ? undefined : onCreateTag}

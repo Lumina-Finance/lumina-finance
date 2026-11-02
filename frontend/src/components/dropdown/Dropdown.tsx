@@ -8,22 +8,22 @@ import {
   useCallback,
   type KeyboardEvent,
   type UIEvent,
-} from 'react';
-import { joinClassNames } from '@/utils/classNames';
-import { motion, useReducedMotion } from 'motion/react';
-import { useMinimumVisibleFlag } from '@/hooks/useMinimumVisibleFlag';
-import { LOADING_TEXT_MIN_MS } from '@/utils/timing';
-import { DropdownBox } from './Box';
+} from 'react'
+import { joinClassNames } from '@/utils/classNames'
+import { motion, useReducedMotion } from 'motion/react'
+import { useMinimumVisibleFlag } from '@/hooks/useMinimumVisibleFlag'
+import { LOADING_TEXT_MIN_MS } from '@/utils/timing'
+import { DropdownBox } from './Box'
 import {
   DROPDOWN_INSTANT_TRANSITION,
   DROPDOWN_RISE_DISTANCE,
   DROPDOWN_RISE_TRANSITION,
   DROPDOWN_SINK_TRANSITION,
-} from './motion';
-import { DropdownOptionList } from './OptionList';
-import { DropdownSearchControls } from './SearchControls';
-import { DropdownHead } from './Trigger';
-import { canCommitOption, getDropdownKeyAction, getOpeningHighlight } from './keyboard';
+} from './motion'
+import { DropdownOptionList } from './OptionList'
+import { DropdownSearchControls } from './SearchControls'
+import { DropdownHead } from './Trigger'
+import { canCommitOption, getDropdownKeyAction, getOpeningHighlight } from './keyboard'
 import {
   getCreateNewLabel,
   getEffectiveHighlightedIndex,
@@ -31,32 +31,32 @@ import {
   getGroupedDropdownOptions,
   getSelectedDropdownOption,
   getVisibleDropdownOptions,
-} from './options';
-import type { DropdownCreateLabel, DropdownOption, DropdownSize } from './types';
-import { useDropdownPosition } from './hooks/usePosition';
+} from './options'
+import type { DropdownCreateLabel, DropdownOption, DropdownSize } from './types'
+import { useDropdownPosition } from './hooks/usePosition'
 
-export type { DropdownOption } from './types';
+export type { DropdownOption } from './types'
 
 interface DropdownProps {
-  id?: string;
+  id?: string
 
   /** Stable identity for an individual control whose visible label changes */
-  testId?: string;
-  options: DropdownOption[];
-  selectedOption?: DropdownOption;
-  value: string;
+  testId?: string
+  options: DropdownOption[]
+  selectedOption?: DropdownOption
+  value: string
 
   /** Ticks every listed option whose value is in this list, instead of the single selected value */
-  selectedValues?: string[];
+  selectedValues?: string[]
 
-  onChange: (value: string) => void;
+  onChange: (value: string) => void
 
   /**
    * Closes the list once a pick is made, the default. False leaves it open, keeps focus where it
    * is, clears the highlighted option so a second Enter cannot repeat the pick, and keeps the
    * search text, for a field that takes several picks from one search in a row
    */
-  closeOnSelect?: boolean;
+  closeOnSelect?: boolean
 
   /**
    * Classes for how the control sits among the things around it, and for anything drawn over it,
@@ -65,43 +65,46 @@ interface DropdownProps {
    * Its own height, border, background, radius and padding come from `size`, so a class setting any
    * of those fights it rather than configuring it
    */
-  className?: string;
+  className?: string
 
   /** How tall the control sits, which depends on what surrounds it rather than on what it holds */
-  size?: DropdownSize;
+  size?: DropdownSize
 
   /** Draws the control in the error state, for a field the form has rejected */
-  hasError?: boolean;
+  hasError?: boolean
 
   /** Ids of visible content that collectively names the control */
-  labelledBy?: string;
+  labelledBy?: string
 
   /** Id of visible content that describes the control, such as the message saying why the form rejected it */
-  describedBy?: string;
+  describedBy?: string
 
-  placeholder?: string;
-  searchable?: boolean;
-  searchPlaceholder?: string;
-  searchValue?: string;
-  onSearchChange?: (value: string) => void;
-  filterOptions?: boolean;
-  isLoading?: boolean;
-  loadingText?: string;
-  loadingMinMs?: number;
-  hideOptionsWhileLoading?: boolean;
-  autoHighlightFirstOption?: boolean;
-  selectHighlightedOnSearchEnter?: boolean;
-  hasMore?: boolean;
-  onLoadMore?: () => void;
-  onSearchCommit?: (value: string) => void;
-  disabled?: boolean;
+  /** A shortcut elsewhere on the page that jumps to this control, written as `aria-keyshortcuts` writes it */
+  keyShortcuts?: string
+
+  placeholder?: string
+  searchable?: boolean
+  searchPlaceholder?: string
+  searchValue?: string
+  onSearchChange?: (value: string) => void
+  filterOptions?: boolean
+  isLoading?: boolean
+  loadingText?: string
+  loadingMinMs?: number
+  hideOptionsWhileLoading?: boolean
+  autoHighlightFirstOption?: boolean
+  selectHighlightedOnSearchEnter?: boolean
+  hasMore?: boolean
+  onLoadMore?: () => void
+  onSearchCommit?: (value: string) => void
+  disabled?: boolean
 
   /**
    * Why the dropdown is disabled. Shown in a tooltip beside the cursor, on keyboard focus and on a tap,
    * and read as the trigger's description, which keeps a disabled dropdown reachable for all of them
    */
-  disabledReason?: string;
-  blankWhenEmpty?: boolean;
+  disabledReason?: string
+  blankWhenEmpty?: boolean
 
   /**
    * Draws the trigger in the placeholder colour while the value is blank and resolves to a listed
@@ -109,20 +112,20 @@ interface DropdownProps {
    * sitting there already. A label built by the caller's own selectedOption still draws as a value,
    * since that is a summary of a real choice rather than a placeholder-shaped entry
    */
-  blankOptionIsPlaceholder?: boolean;
+  blankOptionIsPlaceholder?: boolean
 
   /** Called when the user clicks the dropdown create action with the current search text */
-  onCreateNew?: (query: string) => void;
-  createNewLabel?: DropdownCreateLabel;
+  onCreateNew?: (query: string) => void
+  createNewLabel?: DropdownCreateLabel
 
   /**
    * Called with an option's value when the user uses its inline edit action or presses Alt+Enter
    * while it is highlighted. The blank "None" entry and a disabled option never reach this
    */
-  onEditOption?: (value: string) => void;
+  onEditOption?: (value: string) => void
 
   /** Action name used by the inline icon's shortcut tooltip */
-  editOptionLabel?: string;
+  editOptionLabel?: string
 }
 
 /**
@@ -142,6 +145,7 @@ const Dropdown = ({
   hasError = false,
   labelledBy,
   describedBy,
+  keyShortcuts,
   placeholder = 'Select...',
   searchable = false,
   searchPlaceholder = 'Search...',
@@ -166,93 +170,92 @@ const Dropdown = ({
   onEditOption,
   editOptionLabel,
 }: DropdownProps) => {
-  const [open, setOpen] = useState(false);
-  const [highlightedIndex, setHighlightedIndex] = useState(-1);
-  const [search, setSearch] = useState('');
-  const [collapsedHeight, setCollapsedHeight] = useState<number>();
-  const [collapsing, setCollapsing] = useState(false);
-  const shouldReduceMotion = useReducedMotion();
-  const listId = useId();
-  const editShortcutDescriptionId = useId();
-  const containerRef = useRef<HTMLDivElement>(null);
-  const boxRef = useRef<HTMLDivElement>(null);
-  const triggerRef = useRef<HTMLButtonElement>(null);
-  const listRef = useRef<HTMLUListElement>(null);
-  const searchRef = useRef<HTMLInputElement>(null);
-  const placed = open || collapsing;
+  const [open, setOpen] = useState(false)
+  const [highlightedIndex, setHighlightedIndex] = useState(-1)
+  const [search, setSearch] = useState('')
+  const [collapsedHeight, setCollapsedHeight] = useState<number>()
+  const [collapsing, setCollapsing] = useState(false)
+  const shouldReduceMotion = useReducedMotion()
+  const listId = useId()
+  const editShortcutDescriptionId = useId()
+  const containerRef = useRef<HTMLDivElement>(null)
+  const boxRef = useRef<HTMLDivElement>(null)
+  const triggerRef = useRef<HTMLButtonElement>(null)
+  const listRef = useRef<HTMLUListElement>(null)
+  const searchRef = useRef<HTMLInputElement>(null)
+  const placed = open || collapsing
 
   // Closing runs quicker than opening, so the list is gone before whatever holds it can be
   const collapseTransition = shouldReduceMotion
     ? DROPDOWN_INSTANT_TRANSITION
-    : open ? DROPDOWN_RISE_TRANSITION : DROPDOWN_SINK_TRANSITION;
+    : open
+      ? DROPDOWN_RISE_TRANSITION
+      : DROPDOWN_SINK_TRANSITION
   const { boxPosition, updateBoxPosition } = useDropdownPosition({
     placed,
     searchable,
     wrapperRef: containerRef,
-  });
+  })
 
   const selected = useMemo(
     () => getSelectedDropdownOption(options, selectedOption, value),
     [options, selectedOption, value],
-  );
-  const emptySelectionIsBlank = blankWhenEmpty && value === '';
+  )
+  const emptySelectionIsBlank = blankWhenEmpty && value === ''
 
   // getSelectedDropdownOption prefers a listed option over selectedOption, so a match here means
   // the resolved label came from the list rather than from a caller-built summary
-  const blankOptionSelected = blankOptionIsPlaceholder
-    && value === ''
-    && options.some((option) => option.value === value);
-  const searchText = searchValue ?? search;
-  const heldLoading = useMinimumVisibleFlag(isLoading, loadingMinMs);
-  const showLoading = loadingMinMs <= 0 ? isLoading : heldLoading;
+  const blankOptionSelected =
+    blankOptionIsPlaceholder && value === '' && options.some((option) => option.value === value)
+  const searchText = searchValue ?? search
+  const heldLoading = useMinimumVisibleFlag(isLoading, loadingMinMs)
+  const showLoading = loadingMinMs <= 0 ? isLoading : heldLoading
   const visibleFiltered = useMemo(
-    () => getVisibleDropdownOptions({
-      filterOptions,
-      hideOptionsWhileLoading,
-      options,
-      searchable,
-      searchText,
-      showLoading,
-    }),
+    () =>
+      getVisibleDropdownOptions({
+        filterOptions,
+        hideOptionsWhileLoading,
+        options,
+        searchable,
+        searchText,
+        showLoading,
+      }),
     [filterOptions, hideOptionsWhileLoading, options, searchable, searchText, showLoading],
-  );
+  )
   const effectiveHighlightedIndex = getEffectiveHighlightedIndex(
     autoHighlightFirstOption,
     highlightedIndex,
     visibleFiltered.length,
-  );
-  const groupedFiltered = useMemo(
-    () => getGroupedDropdownOptions(visibleFiltered),
-    [visibleFiltered],
-  );
-  const optionDisabled = useMemo(
-    () => visibleFiltered.map((option) => Boolean(option.disabled)),
-    [visibleFiltered],
-  );
+  )
+  const groupedFiltered = useMemo(() => getGroupedDropdownOptions(visibleFiltered), [visibleFiltered])
+  const optionDisabled = useMemo(() => visibleFiltered.map((option) => Boolean(option.disabled)), [visibleFiltered])
 
   /**
    * Updates controlled or local search text and resets keyboard focus to the first option
    */
-  const setSearchText = useCallback((nextSearch: string) => {
-    if (searchValue === undefined) setSearch(nextSearch);
-    onSearchChange?.(nextSearch);
-    setHighlightedIndex(0);
-  }, [onSearchChange, searchValue]);
+  const setSearchText = useCallback(
+    (nextSearch: string) => {
+      if (searchValue === undefined) setSearch(nextSearch)
+      onSearchChange?.(nextSearch)
+      setHighlightedIndex(0)
+    },
+    [onSearchChange, searchValue],
+  )
 
   /**
    * Resets transient menu state whenever the list closes
    */
   const close = useCallback(() => {
-    setOpen(false);
-    setSearchText('');
-    setHighlightedIndex(-1);
+    setOpen(false)
+    setSearchText('')
+    setHighlightedIndex(-1)
 
     // The box holds its open placement until the collapse finishes. Dropping back to its slot on the
     // closing frame would move a box that grew upward to the other side of the head, and snap its
     // width back, while the list is still visibly collapsing. Nothing to wait for when the collapse
     // is instant, and no transition to end either, so the wait is skipped entirely
-    if (!shouldReduceMotion) setCollapsing(true);
-  }, [setSearchText, shouldReduceMotion]);
+    if (!shouldReduceMotion) setCollapsing(true)
+  }, [setSearchText, shouldReduceMotion])
 
   // The slot holds the collapsed height so the box can grow over what is below it rather than pushing
   // it down. Measured from the box rather than the head inside it, since the box's own border is part
@@ -260,128 +263,128 @@ const Dropdown = ({
   // a hidden branch, which the settings list does for whichever of its two layouts is not showing,
   // measures nothing until that branch is shown
   useLayoutEffect(() => {
-    const box = boxRef.current;
+    const box = boxRef.current
 
     // Only while the box is back in its slot. Through the collapse it is still floating and still
     // most of the way open, so measuring it then would pin the slot to the open height and push
     // everything below it down, which a modal that animates its own height follows by growing
-    if (placed || !box) return;
+    if (placed || !box) return
 
     const measure = () => {
-      const height = box.offsetHeight;
-      if (height > 0) setCollapsedHeight(height);
-    };
+      const height = box.offsetHeight
+      if (height > 0) setCollapsedHeight(height)
+    }
 
-    measure();
-    const observer = new ResizeObserver(measure);
-    observer.observe(box);
-    return () => observer.disconnect();
-  }, [placed, size]);
+    measure()
+    const observer = new ResizeObserver(measure)
+    observer.observe(box)
+    return () => observer.disconnect()
+  }, [placed, size])
 
   // The dropdown closes on outside mouse interactions so stale menus do not remain open. The box is
   // a descendant of this container even while positioned against the viewport, so a press inside it
   // is not an outside press. The field's own label counts as outside, since a click there only moves
   // focus to the head rather than pressing it
   useEffect(() => {
-    if (!open) return;
+    if (!open) return
 
     const handleClick = (e: MouseEvent) => {
-      const container = containerRef.current;
-      const target = e.target;
-      if (!container || !(target instanceof Element) || container.contains(target)) return;
+      const container = containerRef.current
+      const target = e.target
+      if (!container || !(target instanceof Element) || container.contains(target)) return
 
-      close();
-    };
+      close()
+    }
 
-    document.addEventListener('mousedown', handleClick);
-    return () => document.removeEventListener('mousedown', handleClick);
-  }, [close, open]);
+    document.addEventListener('mousedown', handleClick)
+    return () => document.removeEventListener('mousedown', handleClick)
+  }, [close, open])
 
   // The highlighted option scrolls into view after keyboard movement so focus stays visible. The list
   // is scrolled by hand rather than through scrollIntoView, which walks up and scrolls every ancestor
   // it can, including the box's own clipped body. That would carry the search field up out of sight
   // and leave it to be found by scrolling back
   useEffect(() => {
-    const list = listRef.current;
-    if (!open || effectiveHighlightedIndex < 0 || !list) return;
+    const list = listRef.current
+    if (!open || effectiveHighlightedIndex < 0 || !list) return
 
-    const item = list.querySelector(`[data-option-index="${effectiveHighlightedIndex}"]`);
-    if (!item) return;
+    const item = list.querySelector(`[data-option-index="${effectiveHighlightedIndex}"]`)
+    if (!item) return
 
-    const listBounds = list.getBoundingClientRect();
-    const itemBounds = item.getBoundingClientRect();
+    const listBounds = list.getBoundingClientRect()
+    const itemBounds = item.getBoundingClientRect()
 
     if (itemBounds.top < listBounds.top) {
-      list.scrollTop += itemBounds.top - listBounds.top;
+      list.scrollTop += itemBounds.top - listBounds.top
     } else if (itemBounds.bottom > listBounds.bottom) {
-      list.scrollTop += itemBounds.bottom - listBounds.bottom;
+      list.scrollTop += itemBounds.bottom - listBounds.bottom
     }
-  }, [effectiveHighlightedIndex, open]);
+  }, [effectiveHighlightedIndex, open])
 
   // The search input receives focus only once the box has opened around it
   useEffect(() => {
     if (open && searchable) {
-      requestAnimationFrame(() => searchRef.current?.focus());
+      requestAnimationFrame(() => searchRef.current?.focus())
     }
-  }, [open, searchable]);
+  }, [open, searchable])
 
   const handleSelect = (optionValue: string) => {
-    onChange(optionValue);
+    onChange(optionValue)
 
     if (!closeOnSelect) {
       // Leaves the list open and the search text as it was, for a caller that lets several matches
       // of one search be picked in turn. The highlight still clears, so a second Enter lands on
       // nothing rather than repeating the pick it just made
-      setHighlightedIndex(-1);
-      return;
+      setHighlightedIndex(-1)
+      return
     }
 
-    close();
+    close()
 
     // Closing unmounts the focused option or search input, so return focus to the trigger
     // to keep the user on this field rather than dropping focus back to the modal top
-    triggerRef.current?.focus({ preventScroll: true });
-  };
+    triggerRef.current?.focus({ preventScroll: true })
+  }
 
-  const createQuery = searchText.trim();
-  const resolvedCreateNewLabel = getCreateNewLabel(createNewLabel, createQuery);
+  const createQuery = searchText.trim()
+  const resolvedCreateNewLabel = getCreateNewLabel(createNewLabel, createQuery)
 
   const handleCreateNew = () => {
-    if (!onCreateNew) return;
-    onCreateNew(createQuery);
-    close();
-  };
+    if (!onCreateNew) return
+    onCreateNew(createQuery)
+    close()
+  }
 
   // Closing is what lets the correction be seen: the open box sits above the stacked modal it
   // opens, and left open it would cover that modal until the first press anywhere inside it
   const handleEditOption = (optionValue: string) => {
-    if (!onEditOption) return;
-    close();
-    onEditOption(optionValue);
-  };
+    if (!onEditOption) return
+    close()
+    onEditOption(optionValue)
+  }
 
   /** Consumes Alt+Enter and edits only an eligible highlighted option */
   const handleEditShortcut = (e: KeyboardEvent<HTMLElement>): boolean => {
-    if (!onEditOption || e.key !== 'Enter' || !e.altKey) return false;
+    if (!onEditOption || e.key !== 'Enter' || !e.altKey) return false
 
-    e.preventDefault();
-    e.stopPropagation();
-    if (!open || e.ctrlKey || e.metaKey || e.shiftKey) return true;
+    e.preventDefault()
+    e.stopPropagation()
+    if (!open || e.ctrlKey || e.metaKey || e.shiftKey) return true
 
     const editableOption = getEditableHighlightedOption(
       visibleFiltered,
       effectiveHighlightedIndex,
       Boolean(onEditOption),
-    );
-    if (editableOption) handleEditOption(editableOption.value);
-    return true;
-  };
+    )
+    if (editableOption) handleEditOption(editableOption.value)
+    return true
+  }
 
   /**
    * Applies the shared keyboard policy to an event from the trigger or the search field
    */
   const handleKeyDown = (e: KeyboardEvent<HTMLElement>) => {
-    if (handleEditShortcut(e)) return;
+    if (handleEditShortcut(e)) return
 
     const action = getDropdownKeyAction({
       fromTrigger: e.currentTarget === triggerRef.current,
@@ -390,91 +393,93 @@ const Dropdown = ({
       open,
       optionDisabled,
       selectedIndex: visibleFiltered.findIndex((option) => option.value === value),
-    });
+    })
 
     switch (action.kind) {
       case 'none':
         // A key the dropdown ignores still has to be held when letting it through would scroll the
         // page or activate the head under the open list
-        if (action.swallow) e.preventDefault();
-        break;
+        if (action.swallow) e.preventDefault()
+        break
       case 'open':
-        e.preventDefault();
-        updateBoxPosition();
-        setOpen(true);
-        setHighlightedIndex(action.highlightedIndex);
-        break;
+        e.preventDefault()
+        updateBoxPosition()
+        setOpen(true)
+        setHighlightedIndex(action.highlightedIndex)
+        break
       case 'move':
-        e.preventDefault();
-        setHighlightedIndex(action.highlightedIndex);
-        break;
+        e.preventDefault()
+        setHighlightedIndex(action.highlightedIndex)
+        break
       case 'select':
-        e.preventDefault();
-        handleSelect(visibleFiltered[action.index].value);
-        break;
+        e.preventDefault()
+        handleSelect(visibleFiltered[action.index].value)
+        break
       case 'close':
         // Held here rather than allowed to bubble, so closing a menu inside a modal does not also
         // close the modal behind it, which listens for the same key on the window
-        e.stopPropagation();
-        close();
-        triggerRef.current?.focus({ preventScroll: true });
-        break;
+        e.stopPropagation()
+        close()
+        triggerRef.current?.focus({ preventScroll: true })
+        break
     }
-  };
+  }
 
   /**
    * Gives search-specific Enter behaviour priority before falling back to menu navigation
    */
   const handleSearchKeyDown = (e: KeyboardEvent<HTMLInputElement>) => {
-    if (handleEditShortcut(e)) return;
+    if (handleEditShortcut(e)) return
 
-    const canSelectHighlighted = canCommitOption(optionDisabled, effectiveHighlightedIndex);
+    const canSelectHighlighted = canCommitOption(optionDisabled, effectiveHighlightedIndex)
     if (e.key === 'Enter' && selectHighlightedOnSearchEnter && canSelectHighlighted) {
-      e.preventDefault();
-      handleSelect(visibleFiltered[effectiveHighlightedIndex].value);
-      return;
+      e.preventDefault()
+      handleSelect(visibleFiltered[effectiveHighlightedIndex].value)
+      return
     }
     if (e.key === 'Enter' && onSearchCommit) {
-      e.preventDefault();
-      onSearchCommit(searchText);
-      setHighlightedIndex(0);
-      return;
+      e.preventDefault()
+      onSearchCommit(searchText)
+      setHighlightedIndex(0)
+      return
     }
-    handleKeyDown(e);
-  };
+    handleKeyDown(e)
+  }
 
   /**
    * Opens the menu from the trigger and seeds keyboard focus from the current selected value
    */
   const handleTriggerClick = () => {
-    if (disabled) return;
+    if (disabled) return
     if (!open) {
-      updateBoxPosition();
+      updateBoxPosition()
       // Opened by mouse, the highlight is seeded exactly as the keyboard seeds it, so a menu opened
       // either way starts on the same option
-      setHighlightedIndex(getOpeningHighlight(
-        optionDisabled,
-        visibleFiltered.findIndex((option) => option.value === value),
-      ));
-      setOpen(true);
+      setHighlightedIndex(
+        getOpeningHighlight(
+          optionDisabled,
+          visibleFiltered.findIndex((option) => option.value === value),
+        ),
+      )
+      setOpen(true)
 
       // Some browsers do not focus a button when it is clicked, which would leave Escape landing on
       // the page instead of on this field, where the modal behind would answer it and close
-      triggerRef.current?.focus({ preventScroll: true });
-      return;
+      triggerRef.current?.focus({ preventScroll: true })
+      return
     }
-    close();
-  };
+    close()
+  }
 
   /**
    * Requests the next page when the user scrolls close to the end of an incremental dropdown list
    */
   const handleListScroll = (e: UIEvent<HTMLUListElement>) => {
-    if (!hasMore || isLoading || !onLoadMore) return;
-    const target = e.currentTarget;
-    const nearBottom = target.scrollTop + target.clientHeight >= target.scrollHeight - 24;
-    if (nearBottom) onLoadMore();
-  };
+    if (!hasMore || isLoading || !onLoadMore) return
+    const target = e.currentTarget
+    const nearBottom = target.scrollTop + target.clientHeight >= target.scrollHeight - 24
+    if (nearBottom) onLoadMore()
+  }
 
   return (
     <div
@@ -499,8 +504,11 @@ const Dropdown = ({
           hasError={hasError}
           emptySelectionIsBlank={emptySelectionIsBlank}
           labelledBy={labelledBy}
-          describedBy={[describedBy, onEditOption ? editShortcutDescriptionId : undefined].filter(Boolean).join(' ') || undefined}
+          describedBy={
+            [describedBy, onEditOption ? editShortcutDescriptionId : undefined].filter(Boolean).join(' ') || undefined
+          }
           listId={listId}
+          keyShortcuts={keyShortcuts}
           open={open}
           placeholder={placeholder}
           selected={selected}
@@ -524,7 +532,7 @@ const Dropdown = ({
           inert={open ? undefined : true}
           onTransitionEnd={(event) => {
             // Only the height, since the contents inside it finish their own rise separately
-            if (event.propertyName === 'grid-template-rows') setCollapsing(false);
+            if (event.propertyName === 'grid-template-rows') setCollapsing(false)
           }}
         >
           <div className="app-dropdown-body">
@@ -574,7 +582,7 @@ const Dropdown = ({
         </div>
       </DropdownBox>
     </div>
-  );
-};
+  )
+}
 
-export default Dropdown;
+export default Dropdown

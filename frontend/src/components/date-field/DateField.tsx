@@ -51,6 +51,14 @@ interface DateFieldProps {
   // Names the message explaining the error, which each segment points at while error is set so the
   // reason is announced wherever focus lands in the field
   describedById?: string
+
+  // A shortcut elsewhere on the page that jumps to the field, written as aria-keyshortcuts writes it
+  // and put on the year, where the jump lands
+  keyShortcuts?: string
+
+  // Lights the field with its focus look without moving focus into it: 'lit' while a change made elsewhere is
+  // pointed out, 'fading' while the light eases out again. Left out, or null, the field is as focus makes it
+  stepHighlight?: 'lit' | 'fading' | null
 }
 
 const SEGMENT_PLACEHOLDER: Record<DateSegmentName, string> = { year: 'yyyy', month: 'mm', day: 'dd' }
@@ -85,6 +93,8 @@ export default function DateField({
   readOnly = false,
   error = false,
   describedById,
+  keyShortcuts,
+  stepHighlight = null,
 }: DateFieldProps) {
   const { user } = useAuth()
   const [segments, setSegments] = useState<DateSegments>(() => parseIsoDate(value))
@@ -105,23 +115,30 @@ export default function DateField({
     setSegments(parseIsoDate(value))
   }, [value])
 
-  const commit = useCallback((next: DateSegments) => {
-    setSegments(next)
-    const iso = formatIsoDate(next)
-    lastEmittedRef.current = iso
-    onChange(iso, isPartlyTyped(next))
-  }, [onChange])
+  const commit = useCallback(
+    (next: DateSegments) => {
+      setSegments(next)
+      const iso = formatIsoDate(next)
+      lastEmittedRef.current = iso
+      onChange(iso, isPartlyTyped(next))
+    },
+    [onChange],
+  )
 
   const focusSegment = (segment: DateSegmentName) => {
     segmentRefs.current[segment]?.focus()
   }
 
-  useImperativeHandle(ref, () => ({
-    clear: () => {
-      commit(parseIsoDate(''))
-      focusSegment('year')
-    },
-  }), [commit])
+  useImperativeHandle(
+    ref,
+    () => ({
+      clear: () => {
+        commit(parseIsoDate(''))
+        focusSegment('year')
+      },
+    }),
+    [commit],
+  )
 
   /**
    * Moves focus to the neighbouring segment, staying put at the ends of the field
@@ -241,6 +258,7 @@ export default function DateField({
         aria-label={ariaLabel}
         onBlur={handleContainerBlur}
         onMouseDown={handleContainerMouseDown}
+        data-step-highlight={stepHighlight ?? undefined}
         className={`app-date-field ${error ? 'app-input-error' : ''} ${disabled ? 'cursor-not-allowed opacity-60' : ''}`}
       >
         {SEGMENT_ORDER.map((segment, index) => (
@@ -251,12 +269,15 @@ export default function DateField({
               </span>
             )}
             <input
-              ref={(node) => { segmentRefs.current[segment] = node }}
+              ref={(node) => {
+                segmentRefs.current[segment] = node
+              }}
               id={segment === 'year' ? id : undefined}
               type="text"
               inputMode="numeric"
               autoComplete="off"
               aria-label={SEGMENT_LABEL[segment]}
+              aria-keyshortcuts={segment === 'year' ? keyShortcuts : undefined}
               aria-invalid={error}
               aria-describedby={error ? describedById : undefined}
               placeholder={SEGMENT_PLACEHOLDER[segment]}

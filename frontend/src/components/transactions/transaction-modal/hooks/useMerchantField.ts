@@ -10,10 +10,7 @@ import {
 } from '@/components/transactions/transaction-modal/constants'
 import { buildCategoryOptions } from '@/components/transactions/transaction-modal/utils/categories'
 import { getCategorySelectionTransition } from '@/components/transactions/transaction-modal/utils/categoryTransitions'
-import type {
-  TransactionFormValues,
-  TransactionModalKind,
-} from '@/components/transactions/transaction-modal/types'
+import type { TransactionFormValues, TransactionModalKind } from '@/components/transactions/transaction-modal/types'
 import { FETCHING_MORE_TEXT_MIN_MS, LOADING_TEXT_MIN_MS } from '@/utils/timing'
 import { useDebouncedReferenceSearch } from './useDebouncedReferenceSearch'
 import { usePagedReferenceDropdown } from './usePagedReferenceDropdown'
@@ -44,6 +41,7 @@ interface MerchantFieldState {
   search: string
   setSearch: (value: string) => void
   setActiveSearch: (value: string) => void
+  searchSettled: boolean
   showLoading: boolean
   loadingText: string
   showInitialLoading: boolean
@@ -112,10 +110,7 @@ export function useMerchantField({
     : undefined
 
   const merchantDefaultCategoryOptions = useMemo(
-    () => [
-      { value: NO_DEFAULT_CATEGORY_VALUE, label: 'No default category', group: 'Default' },
-      ...categoryOptions,
-    ],
+    () => [{ value: NO_DEFAULT_CATEGORY_VALUE, label: 'No default category', group: 'Default' }, ...categoryOptions],
     [categoryOptions],
   )
 
@@ -197,6 +192,7 @@ export function useMerchantField({
     search: merchantReferenceSearch.search,
     setSearch: merchantReferenceSearch.setSearch,
     setActiveSearch: merchantReferenceSearch.setActiveSearch,
+    searchSettled: merchantReferenceSearch.isSettled,
     showLoading: merchantReference.showLoading,
     loadingText: merchantReference.loadingText,
     showInitialLoading: merchantReference.showInitialLoading,

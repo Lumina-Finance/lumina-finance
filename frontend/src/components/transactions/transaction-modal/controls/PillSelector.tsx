@@ -1,9 +1,6 @@
-import { useId } from 'react'
+import { useId, type KeyboardEvent } from 'react'
 import { motion, useReducedMotion } from 'motion/react'
-import {
-  SEGMENTED_OPTION_GAP_REM,
-  SELECTOR_SPRING,
-} from '@/components/transactions/transaction-modal/constants'
+import { SEGMENTED_OPTION_GAP_REM, SELECTOR_SPRING } from '@/components/transactions/transaction-modal/constants'
 import { joinClassNames } from '@/utils/classNames'
 
 interface TransactionModalPillSelectorProps<T extends string> {
@@ -17,6 +14,31 @@ interface TransactionModalPillSelectorProps<T extends string> {
   disabled?: boolean
   /** Uses compact mobile spacing while keeping every option label on one line */
   compactOnMobile?: boolean
+
+  /** The shortcut that jumps here, as `aria-keyshortcuts` writes it */
+  keyShortcuts?: string
+}
+
+/**
+ * Moves the choice one option along on an arrow key, as a group of tabs does, and puts focus on the
+ * option it lands on. It stops at the ends
+ */
+function moveChoiceOnArrowKey<T extends string>(
+  event: KeyboardEvent<HTMLDivElement>,
+  options: readonly { value: T; label: string }[],
+  onChange: (value: T) => void,
+) {
+  const step = event.key === 'ArrowRight' ? 1 : event.key === 'ArrowLeft' ? -1 : 0
+  if (step === 0 || event.altKey || event.ctrlKey || event.metaKey || event.shiftKey) return
+
+  const buttons = Array.from(event.currentTarget.querySelectorAll<HTMLButtonElement>('button:not(:disabled)'))
+  const current = buttons.findIndex((button) => button === document.activeElement)
+  const next = buttons[current + step]
+  if (current < 0 || !next) return
+
+  event.preventDefault()
+  onChange(options[buttons.indexOf(next)].value)
+  next.focus()
 }
 
 /**
@@ -30,6 +52,7 @@ export default function TransactionModalPillSelector<T extends string>({
   onChange,
   disabled = false,
   compactOnMobile = false,
+  keyShortcuts,
 }: TransactionModalPillSelectorProps<T>) {
   const shouldReduceMotion = useReducedMotion()
   const indicatorId = useId()
@@ -38,9 +61,14 @@ export default function TransactionModalPillSelector<T extends string>({
   return (
     <div
       id={id}
-      className={joinClassNames('app-segmented-control app-create-transaction-pill-selector relative isolate w-full overflow-hidden', disabled && 'cursor-not-allowed')}
+      className={joinClassNames(
+        'app-segmented-control app-create-transaction-pill-selector relative isolate w-full overflow-hidden',
+        disabled && 'cursor-not-allowed',
+      )}
       role="tablist"
       aria-label={ariaLabel}
+      aria-keyshortcuts={keyShortcuts}
+      onKeyDown={(event) => moveChoiceOnArrowKey(event, options, onChange)}
       style={{ gap: `${optionGap}rem` }}
     >
       {options.map((option) => {

@@ -1,10 +1,22 @@
+import { useContext, useRef, type FocusEvent, type KeyboardEvent } from 'react'
 import CreateModalFieldLabelRow from '@/components/create-modal/FieldLabelRow'
 import CreateModalSectionFrame from '@/components/create-modal/SectionFrame'
 import DateField from '@/components/date-field/DateField'
 import Dropdown, { type DropdownOption } from '@/components/dropdown/Dropdown'
 import IconTooltip from '@/components/tooltips/IconTooltip'
 import { useTransactionModalIds } from '@/components/transactions/transaction-modal/ids'
+import { DateStepHighlightContext } from '@/components/transactions/transaction-modal/controls/dateStepHighlight'
+import ShortcutHint from '@/components/transactions/transaction-modal/controls/ShortcutHint'
+import ShortcutHints from '@/components/transactions/transaction-modal/controls/ShortcutHints'
+import { toShortcutKeyEvent } from '@/components/transactions/transaction-modal/hooks/useShortcuts'
+import {
+  getAriaFieldShortcut,
+  getDateKeyAction,
+  readIsMac,
+} from '@/components/transactions/transaction-modal/utils/shortcuts'
+import { useAuth } from '@/hooks/useAuth'
 import { useMoneyInput } from '@/hooks/useMoneyInput'
+import { getTodayYmd } from '@/utils/date'
 import { getSymbolInputStyle } from '@/utils/formatCurrency'
 import { getMoneyPlaceholder } from '@/utils/moneyInput'
 import {
@@ -67,6 +79,8 @@ export default function TransactionDetailsSection({
   onNotesChange,
 }: TransactionDetailsSectionProps) {
   const ids = useTransactionModalIds()
+  const stepHighlight = useContext(DateStepHighlightContext)
+  const { user } = useAuth()
   const amountInput = useMoneyInput({
     value: amount,
     exponent: currencyExponent,
@@ -74,21 +88,64 @@ export default function TransactionDetailsSection({
     onBlur: onAmountBlur,
   })
 
+  // Set once a digit or an erase has edited the date since focus came into the field. From then on a `t`
+  // is no longer a jump to today
+  const editedDateRef = useRef(false)
+
+  const handleDateKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
+    // Only the segments, since the calendar popover opens over the field and its keys are its own
+    if (readOnly || !(event.target instanceof HTMLInputElement)) return
+
+    if (/^\d$/.test(event.key) || event.key === 'Backspace') {
+      editedDateRef.current = true
+      return
+    }
+
+    const action = getDateKeyAction(toShortcutKeyEvent(event, readIsMac()), editedDateRef.current)
+    // The brackets step from any field and are taken by the dialogue's shortcuts, so only `t` is the date field's own
+    if (action?.kind !== 'today') return
+
+    // Taken here so the segment under the key never sees it
+    event.preventDefault()
+    event.stopPropagation()
+    onDateChange(getTodayYmd(user?.tz))
+  }
+
+  const handleDateFocus = (event: FocusEvent<HTMLDivElement>) => {
+    if (!event.currentTarget.contains(event.relatedTarget)) editedDateRef.current = false
+  }
+
   return (
     <CreateModalSectionFrame step="03" title="Details">
       <div className="grid gap-3 sm:grid-cols-[11rem_8.5rem_minmax(0,1fr)]">
         <div>
-          <CreateModalFieldLabelRow htmlFor={ids.date} label="Date" error={dateError} errorId={ids.errors.date} />
-          <DateField
-            id={ids.date}
-            ariaLabel="Date"
-            value={date}
-            error={!!dateError}
-            describedById={ids.errors.date}
-            disabled={readOnly}
-            onChange={onDateChange}
-            onBlur={onDateBlur}
+          <CreateModalFieldLabelRow
+            htmlFor={ids.date}
+            label="Date"
+            accessory={
+              !readOnly && (
+                <ShortcutHints>
+                  <ShortcutHint field="date" />
+                </ShortcutHints>
+              )
+            }
+            error={dateError}
+            errorId={ids.errors.date}
           />
+          <div onKeyDownCapture={handleDateKeyDown} onFocusCapture={handleDateFocus}>
+            <DateField
+              id={ids.date}
+              ariaLabel="Date"
+              keyShortcuts={getAriaFieldShortcut('date')}
+              value={date}
+              error={!!dateError}
+              describedById={ids.errors.date}
+              disabled={readOnly}
+              stepHighlight={stepHighlight}
+              onChange={onDateChange}
+              onBlur={onDateBlur}
+            />
+          </div>
         </div>
         <div>
           <div className="mb-1.5 flex items-center gap-2">
@@ -139,6 +196,14 @@ export default function TransactionDetailsSection({
                 'Amount'
               )
             }
+            accessory={
+              !readOnly &&
+              !isAmountLocked && (
+                <ShortcutHints>
+                  <ShortcutHint field="amount" />
+                </ShortcutHints>
+              )
+            }
             error={amountError}
             errorId={ids.errors.amount}
           />
@@ -159,6 +224,7 @@ export default function TransactionDetailsSection({
               id={ids.amount}
               className={`app-input w-full disabled:cursor-not-allowed disabled:opacity-60 ${selectedCurrencySymbol ? 'pl-8' : ''} ${amountError ? 'app-input-error' : ''}`}
               style={getSymbolInputStyle(selectedCurrencySymbol)}
+              aria-keyshortcuts={getAriaFieldShortcut('amount')}
               aria-invalid={amountError ? true : undefined}
               aria-describedby={amountError ? ids.errors.amount : undefined}
               placeholder={isAmountLocked ? undefined : getMoneyPlaceholder(currencyExponent)}
@@ -170,12 +236,20 @@ export default function TransactionDetailsSection({
       </div>
 
       <div>
-        <label htmlFor={ids.notes} className="app-label mb-1.5 block text-[0.9375rem] leading-5">
-          Notes
-        </label>
+        <div className="relative mb-1.5 flex w-fit min-w-0 items-center gap-1.5">
+          <label htmlFor={ids.notes} className="app-label block shrink-0 text-[0.9375rem] leading-5">
+            Notes
+          </label>
+          {!readOnly && (
+            <ShortcutHints>
+              <ShortcutHint field="notes" />
+            </ShortcutHints>
+          )}
+        </div>
         <input
           id={ids.notes}
           type="text"
+          aria-keyshortcuts={getAriaFieldShortcut('notes')}
           className="app-input disabled:cursor-not-allowed disabled:opacity-60"
           placeholder="Optional"
           value={notes}
