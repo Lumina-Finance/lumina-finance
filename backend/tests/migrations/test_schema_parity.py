@@ -61,10 +61,6 @@ _ALEMBIC_DATE_FORMAT_DB_NAME = f"{WORKER_DB_NAME}_alembic_date_format"
 _BEFORE_DATE_FORMAT_REVISION = "b3e7a15c9d42"
 _DATE_FORMAT_REVISION = "c5d2a8f1b7e3"
 _DATE_FORMAT_OWNER_ID = "99999999-9999-4999-8999-999999999999"
-_ALEMBIC_ACTION_KEY_DB_NAME = f"{WORKER_DB_NAME}_alembic_action_key"
-_BEFORE_ACTION_KEY_REVISION = "8d3f6a1c4e72"
-_ACTION_KEY_REVISION = "d6a3f8b1c749"
-_ACTION_KEY_OWNER_ID = "88888888-8888-4888-8888-888888888888"
 _ALEMBIC_OFX_SOURCE_DB_NAME = f"{WORKER_DB_NAME}_alembic_ofx_source"
 _BEFORE_OFX_SOURCE_REVISION = "c4e8a2f6b913"
 _OFX_SOURCE_REVISION = "b8d4f1a6c203"
@@ -350,50 +346,6 @@ async def test_qif_import_source_migration_makes_the_remembered_source_check_ref
             await _insert_remembered_source(conn, "ofx")
         async with engine.connect() as conn:
             assert await _read_remembered_sources(conn) == ["ofx"]
-    finally:
-        await engine.dispose()
-        await _drop_database(database_name)
-
-
-async def test_action_key_migration_keeps_existing_users_on_alt_and_refuses_other_values() -> None:
-    """Verify upgrade, downgrade and reupgrade of the action key start a user from before it on Alt"""
-    database_name = _ALEMBIC_ACTION_KEY_DB_NAME
-    await _recreate_database(database_name)
-    engine = _create_engine_for_database(database_name)
-    try:
-        _run_alembic_upgrade(database_name, revision=_BEFORE_ACTION_KEY_REVISION)
-        async with engine.begin() as conn:
-            await conn.execute(
-                text(
-                    "INSERT INTO currencies (id, name, symbol, minor_unit_exponent)"
-                    " VALUES ('CAD', 'Canadian Dollar', '$', 2) ON CONFLICT (id) DO NOTHING",
-                )
-            )
-            await conn.execute(
-                text(
-                    "INSERT INTO users (id, email, first_name, tz, base_currency)"
-                    " VALUES (:id, 'action-key-migration@example.com', 'Action', 'UTC', 'CAD')",
-                ),
-                {"id": UUID(_ACTION_KEY_OWNER_ID)},
-            )
-
-        for reupgrade in (False, True):
-            _run_alembic_upgrade(database_name, revision=_ACTION_KEY_REVISION)
-            async with engine.connect() as conn:
-                saved = await conn.scalar(text("SELECT action_key FROM users"))
-            assert saved == "alt"
-
-            async with engine.begin() as conn:
-                with pytest.raises(IntegrityError):
-                    await conn.execute(text("UPDATE users SET action_key = 'ctrl'"))
-            if not reupgrade:
-                async with engine.begin() as conn:
-                    await conn.execute(text("UPDATE users SET action_key = 'left-alt'"))
-                _run_alembic_downgrade(database_name, _BEFORE_ACTION_KEY_REVISION)
-
-                async with engine.connect() as conn:
-                    columns = await conn.scalars(text("SELECT column_name FROM information_schema.columns WHERE table_name = 'users'"))
-                    assert "action_key" not in columns.all()
     finally:
         await engine.dispose()
         await _drop_database(database_name)

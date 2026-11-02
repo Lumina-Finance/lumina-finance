@@ -2,7 +2,7 @@
 
 from pydantic import BaseModel, ConfigDict
 
-from app.preferences import ActionKey, DateFormat
+from app.preferences import DateFormat
 
 
 class ProfilePreferences(BaseModel):
@@ -14,4 +14,3 @@ class ProfilePreferences(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
     date_format: DateFormat
-    action_key: ActionKey

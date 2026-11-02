@@ -7,13 +7,11 @@ from sqlalchemy import VARCHAR, Boolean, CheckConstraint, DateTime, Float, Forei
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.models.base import Base
-from app.preferences import ACTION_KEYS, DATE_FORMATS, DEFAULT_ACTION_KEY, DEFAULT_DATE_FORMAT
+from app.preferences import DATE_FORMATS, DEFAULT_DATE_FORMAT
 
 DATE_FORMAT_MAX_LENGTH = 32
-ACTION_KEY_MAX_LENGTH = 32
 
 _DATE_FORMAT_CHECK_VALUES = ", ".join(f"'{value}'" for value in DATE_FORMATS)
-_ACTION_KEY_CHECK_VALUES = ", ".join(f"'{value}'" for value in ACTION_KEYS)
 
 
 class User(Base):
@@ -22,7 +20,6 @@ class User(Base):
     __tablename__ = "users"
     __table_args__ = (
         CheckConstraint(f"date_format IN ({_DATE_FORMAT_CHECK_VALUES})", name="ck_users_date_format"),
-        CheckConstraint(f"action_key IN ({_ACTION_KEY_CHECK_VALUES})", name="ck_users_action_key"),
         # An address is one account whatever the capitals of its letters A to Z. The lookups in
         # app.db.rls.functions and app.services.auth.user_lookup.fold_email fold the same way
         Index("uq_users_email_lower", text('lower(email COLLATE "C")'), unique=True),
@@ -42,10 +39,6 @@ class User(Base):
     # Fits the longest date format name with room for later formats
     date_format: Mapped[str] = mapped_column(
         VARCHAR(DATE_FORMAT_MAX_LENGTH), nullable=False, default=DEFAULT_DATE_FORMAT, server_default=DEFAULT_DATE_FORMAT
-    )
-
-    action_key: Mapped[str] = mapped_column(
-        VARCHAR(ACTION_KEY_MAX_LENGTH), nullable=False, default=DEFAULT_ACTION_KEY, server_default=DEFAULT_ACTION_KEY
     )
 
     # Set when a recovery-code login wipes every factor, forcing re-enrolment before the account unlocks
