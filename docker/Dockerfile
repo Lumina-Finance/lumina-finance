@@ -2,7 +2,7 @@
 ARG PYTHON_VERSION=3.14
 
 # Frontend build
-FROM dhi.io/node:26.12.1-debian13-sfw-dev AS frontend-builder
+FROM dhi.io/node:26.13.0-debian13-sfw-dev AS frontend-builder
 
 ARG APP_VERSION
 
