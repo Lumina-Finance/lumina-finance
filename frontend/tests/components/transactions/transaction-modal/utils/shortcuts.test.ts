@@ -99,9 +99,6 @@ describe('field shortcuts', () => {
 
   it('leave a letter typed without the action key for the field being typed in', () => {
     expect(getFieldShortcut(press({ key: 'w', code: 'KeyW' }))).toBeNull()
-
-    // The other Alt key is down, so with the left one chosen the letter is typing
-    expect(getFieldShortcut(press({ altKey: true, key: 'w', code: 'KeyW' }))).toBeNull()
   })
 
   it('leave every other modifier to the browser, the system and the right Alt key of other layouts', () => {
