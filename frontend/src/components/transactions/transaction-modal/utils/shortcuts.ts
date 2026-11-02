@@ -191,6 +191,17 @@ export function stepDateValue(value: string, days: number, today: string): strin
   return current ? formatYmd(addDays(current, days)) : today
 }
 
+/**
+ * Returns which option a press of Type or Direction chooses, the one after the chosen option and wrapping from
+ * the last to the first, or null when the group has no option to choose or this form does not show it
+ *
+ * @param chosen - The index of the chosen option, or -1 when none reads as chosen
+ * @param count - How many options the group offers
+ */
+export function nextChoiceIndex(chosen: number, count: number): number | null {
+  return count > 0 ? (chosen + 1) % count : null
+}
+
 /** What a bracket does to the date field: nothing at all, nothing but be kept from typing, or move to a date */
 export type DateStepOutcome = { kind: 'ignore' } | { kind: 'hold' } | { kind: 'step'; value: string }
 

@@ -9,6 +9,7 @@ import {
   isAltDown,
   isAltKeyName,
   isSubmitShortcut,
+  nextChoiceIndex,
   ownsShortcutKey,
   readIsMac,
   resolveDateStep,
@@ -78,10 +79,11 @@ function cycleChoice(groupId: string) {
   const tabs = Array.from(
     document.getElementById(groupId)?.querySelectorAll<HTMLButtonElement>('button[role="tab"]:not(:disabled)') ?? [],
   )
-  if (tabs.length === 0) return
-
-  const chosen = tabs.findIndex((tab) => tab.getAttribute('aria-selected') === 'true')
-  tabs[(chosen + 1) % tabs.length].click()
+  const next = nextChoiceIndex(
+    tabs.findIndex((tab) => tab.getAttribute('aria-selected') === 'true'),
+    tabs.length,
+  )
+  if (next !== null) tabs[next].click()
 }
 
 /** Reports whether a key is aimed at a field that takes typed text, or a checkbox that sits among them */

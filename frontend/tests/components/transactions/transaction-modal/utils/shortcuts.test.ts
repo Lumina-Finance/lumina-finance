@@ -19,6 +19,7 @@ import {
   isAltKeyName,
   isMacPlatform,
   isSubmitShortcut,
+  nextChoiceIndex,
   ownsShortcutKey,
   resolveDateStep,
   stepDateValue,
@@ -233,6 +234,21 @@ describe('what a bracket does to the date', () => {
       kind: 'ignore',
     })
     expect(resolveDateStep({ date: '', steppable: false, hasTypedDigits: true }, 1, today)).toEqual({ kind: 'ignore' })
+  })
+})
+
+describe('choosing the next option of Type or Direction', () => {
+  it('moves on and wraps from the last option to the first', () => {
+    expect(nextChoiceIndex(0, 3)).toBe(1)
+    expect(nextChoiceIndex(2, 3)).toBe(0)
+  })
+
+  it('starts from the first when none reads as chosen', () => {
+    expect(nextChoiceIndex(-1, 2)).toBe(0)
+  })
+
+  it('chooses nothing when the form shows no group or every option is held off', () => {
+    expect(nextChoiceIndex(-1, 0)).toBeNull()
   })
 })
 
