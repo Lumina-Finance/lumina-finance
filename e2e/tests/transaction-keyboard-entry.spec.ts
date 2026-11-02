@@ -26,8 +26,14 @@ type SavedTransaction = {
  * Signs up a user with two accounts and a tag, signs in and opens the Add transaction dialogue
  *
  * @param actionKey - The key the user chose in Settings, left out for the default
+ * @param extra - Further tags and merchants to create beside the Holiday tag
  */
-async function openAddDialogue(page: Page, request: APIRequestContext, actionKey?: 'left-alt') {
+async function openAddDialogue(
+  page: Page,
+  request: APIRequestContext,
+  actionKey?: 'left-alt',
+  extra: { tags?: string[]; merchants?: string[] } = {},
+) {
   const user = await signUpUser(request)
   if (actionKey) {
     const saved = await request.patch(`${API_BASE_URL}/me`, { headers: asUser(user), data: { action_key: actionKey } })
@@ -37,6 +43,15 @@ async function openAddDialogue(page: Page, request: APIRequestContext, actionKey
   await createAccount(request, user, { name: 'Holiday Savings' })
   const tag = await request.post(`${API_BASE_URL}/tags`, { headers: asUser(user), data: { name: 'Holiday' } })
   expect(tag.status()).toBe(201)
+  for (const [path, names] of [
+    ['tags', extra.tags ?? []],
+    ['merchants', extra.merchants ?? []],
+  ] as const) {
+    for (const name of names) {
+      const created = await request.post(`${API_BASE_URL}/${path}`, { headers: asUser(user), data: { name } })
+      expect(created.status()).toBe(201)
+    }
+  }
 
   await logInViaApi(page, user)
   await openPage(page, '/transactions')
@@ -865,4 +880,106 @@ test('steps the date with [ and ] from Notes, the amount and a dropdown search, 
   await page.keyboard.type('Cafe[')
   await expect(search).toHaveValue('Cafe')
   expect(await readDate(dialog)).toBe(daysFromTodayInTestTimezone(-2))
+})
+
+test('adds no tag from an Enter pressed before the Tags search has narrowed, then adds the one typed', async ({
+  page,
+  request,
+}) => {
+  const { dialog } = await openAddDialogue(page, request, undefined, { tags: ['Annual'] })
+  await dialog.getByRole('combobox', { name: 'Account' }).click()
+  await dialog.getByRole('option', { name: 'Everyday Chequing', exact: true }).click()
+
+  // Unfiltered, Annual leads the list and is the highlighted option
+  await page.keyboard.press('Alt+KeyG')
+  await expect(dialog.getByPlaceholder('Search tags...')).toBeFocused()
+  await expect(dialog.getByRole('option', { name: 'Annual', exact: true })).toBeVisible()
+
+  // Enter lands within the search's debounce, while the list still holds every tag
+  await page.keyboard.type('Holi')
+  await page.keyboard.press('Enter')
+  await expect(dialog.getByRole('option', { name: 'Holiday', exact: true })).toBeVisible()
+  await expect(dialog.getByRole('option')).toHaveCount(1)
+  await expect(dialog.getByRole('button', { name: /^Remove / })).toHaveCount(0)
+
+  // Once the results match what was typed, Enter adds that tag
+  await page.keyboard.press('Enter')
+  await expect(dialog.getByRole('button', { name: 'Remove Holiday' })).toBeVisible()
+  await expect(dialog.getByRole('button', { name: /^Remove / })).toHaveCount(1)
+})
+
+test('chooses no merchant from an Enter pressed before the Merchant search has narrowed', async ({ page, request }) => {
+  const { dialog } = await openAddDialogue(page, request, undefined, { merchants: ['Alpha Shop', 'Bakery'] })
+  const merchant = dialog.getByRole('combobox', { name: 'Merchant' })
+  const unchosen = await merchant.innerText()
+
+  await page.keyboard.press('Alt+KeyM')
+  await expect(dialog.getByPlaceholder('Search merchants...')).toBeFocused()
+  await expect(dialog.getByRole('option', { name: 'Alpha Shop', exact: true })).toBeVisible()
+  await page.keyboard.type('Bak')
+  await page.keyboard.press('Enter')
+  await expect(dialog.getByRole('option')).toHaveCount(1)
+  await expect(merchant).toHaveText(unchosen)
+
+  await page.keyboard.press('Enter')
+  await expect(merchant).toContainText('Bakery')
+})
+
+test('takes one action from a chord that is held down, and one save from a held Alt+Enter', async ({
+  page,
+  request,
+}) => {
+  const { dialog } = await openAddDialogue(page, request)
+  const type = dialog.getByRole('tablist', { name: 'Transaction type' })
+  const direction = dialog.getByRole('tablist', { name: 'Transaction direction' })
+  const submit = dialog.getByTestId('transaction-submit')
+  await submit.evaluate((button) => {
+    const clicks = { count: 0 }
+    Object.assign(window, { submitClicks: clicks })
+    button.addEventListener('click', () => (clicks.count += 1))
+  })
+
+  // A key held down repeats its keydown, which Playwright sends when the key is pressed again unreleased
+  const hold = async (key: string) => {
+    await page.keyboard.down(key)
+    await page.keyboard.down(key)
+    await page.keyboard.down(key)
+    await page.keyboard.up(key)
+  }
+
+  await page.keyboard.down('Alt')
+  await hold('KeyY')
+  await hold('KeyR')
+  await expect(type.getByRole('tab', { name: 'Income' })).toHaveAttribute('aria-selected', 'true')
+  await expect(direction.getByRole('tab', { name: 'Credit' })).toHaveAttribute('aria-selected', 'true')
+
+  // The list opened by the first press stays open instead of collapsing and opening again
+  await hold('KeyA')
+  await expect(dialog.getByRole('combobox', { name: 'Account' })).toHaveAttribute('aria-expanded', 'true')
+
+  await hold('Enter')
+  expect(await page.evaluate(() => (window as unknown as { submitClicks: { count: number } }).submitClicks.count)).toBe(1)
+  await page.keyboard.up('Alt')
+})
+
+test('leaves a partly typed date alone when [ or ] is pressed', async ({ page, request }) => {
+  const { dialog } = await openAddDialogue(page, request)
+
+  // Erasing the day leaves a date begun but not whole
+  await dialog.getByRole('group', { name: 'Date', exact: true }).getByRole('textbox', { name: 'Day', exact: true }).focus()
+  await page.keyboard.press('Backspace')
+  const partial = await readDateOnce(dialog)
+  expect(partial).toMatch(/^\d{4}-\d{2}-$/)
+
+  await page.keyboard.press('BracketLeft')
+  await page.keyboard.press('BracketRight')
+  expect(await readDate(dialog)).toBe(partial)
+
+  // A whole date steps again
+  await page.keyboard.type('15')
+  expect(await readDate(dialog)).toBe(`${partial}15`)
+  await page.keyboard.press('BracketRight')
+  expect(await readDate(dialog)).toBe(
+    `${partial}16`,
+  )
 })
