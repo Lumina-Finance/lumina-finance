@@ -18,12 +18,12 @@
     "@fontsource-variable/space-grotesk": "^5.3.0",
     "@fontsource/dm-mono": "^5.3.0",
     "@simplewebauthn/browser": "^14.0.0",
-    "@tanstack/query-async-storage-persister": "^5.104.2",
-    "@tanstack/react-query": "^5.104.2",
-    "@tanstack/react-query-persist-client": "^5.104.2",
+    "@tanstack/query-async-storage-persister": "^5.104.4",
+    "@tanstack/react-query": "^5.104.4",
+    "@tanstack/react-query-persist-client": "^5.104.4",
     "emoji-mart": "^5.6.0",
     "fflate": "^0.8.3",
-    "lucide-react": "^1.57.0",
+    "lucide-react": "^1.59.0",
     "motion": "^13.4.6",
     "papaparse": "^5.7.0",
     "qrcode.react": "^4.2.0",
@@ -31,7 +31,7 @@
     "react-dom": "^19.3.1",
     "react-router": "^8.4.0",
     "recharts": "^3.10.1",
-    "sql.js": "^1.15.0"
+    "sql.js": "^1.15.1"
   },
   "overrides": {
     "@babel/core": "^7.29.7",
@@ -47,7 +47,7 @@
     "@types/sql.js": "^1.4.11",
     "@vitejs/plugin-react": "^6.1.2",
     "autoprefixer": "^10.6.1",
-    "eslint": "^10.12.0",
+    "eslint": "^10.13.0",
     "eslint-plugin-react-hooks": "^7.1.1",
     "eslint-plugin-react-refresh": "^0.5.7",
     "globals": "^17.13.0",
@@ -57,6 +57,6 @@
     "typescript": "^6.0.3",
     "typescript-eslint": "^8.71.2",
     "vite": "^8.3.1",
-    "vitest": "^5.0.4"
+    "vitest": "^5.0.5"
   }
 }
