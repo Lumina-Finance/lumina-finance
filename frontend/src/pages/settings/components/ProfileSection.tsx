@@ -56,7 +56,7 @@ export default function ProfileSection({
 
   return (
     <section id="profile">
-      <SettingsSectionHeader title="Profile" description="Your name and localization defaults." />
+      <SettingsSectionHeader title="Profile" description="Your name, localization defaults and action key." />
 
       <div className="space-y-4">
         <SettingsCard>
@@ -64,7 +64,7 @@ export default function ProfileSection({
             <div className="space-y-1">
               <h3 className="text-base font-semibold">User information</h3>
               <p className="text-sm" style={{ color: 'var(--app-text-muted)' }}>
-                Your identity and localization defaults.
+                Your identity, localization defaults and action key.
               </p>
             </div>
 

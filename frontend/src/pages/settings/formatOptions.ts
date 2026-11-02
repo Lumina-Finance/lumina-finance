@@ -30,8 +30,8 @@ export function buildDateFormatOptions(): DropdownOption[] {
 export function buildActionKeyOptions(isMac: boolean): DropdownOption[] {
   const name = isMac ? 'Option' : 'Alt'
   const labels: Record<ActionKeySetting, { label: string; description: string }> = {
-    alt: { label: name, description: 'Either side' },
-    'left-alt': { label: `Left ${name}`, description: 'Leaves the right side free to type symbols' },
+    alt: { label: name, description: 'Either side works.' },
+    'left-alt': { label: `Left ${name}`, description: 'The right side stays free to type symbols.' },
   }
 
   return ACTION_KEY_CHOICES.map((value) => ({ value, ...labels[value] }))
