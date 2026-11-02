@@ -12,7 +12,6 @@ import {
   ownsShortcutKey,
   readIsMac,
   resolveDateStep,
-  type ShortcutField,
   type ShortcutKeyEvent,
 } from '@/components/transactions/transaction-modal/utils/shortcuts'
 import { useAuth } from '@/hooks/useAuth'
@@ -61,11 +60,6 @@ export function toShortcutKeyEvent(event: KeyEventLike, actionKeyHeld: boolean, 
     altGraph: altGraph && !isMac,
     actionKey: actionKeyHeld,
   }
-}
-
-/** Finds the control a field's shortcut lands on, or null when this form does not show it */
-function findShortcutTarget(field: ShortcutField, ids: ReturnType<typeof getTransactionModalIds>) {
-  return document.getElementById(ids[field])
 }
 
 /** Reports whether any segment of the dialogue's date field holds digits, which a date left unfinished does */
@@ -321,7 +315,7 @@ export function useTransactionShortcuts(
         return
       }
 
-      const target = findShortcutTarget(field, ids)
+      const target = document.getElementById(ids[field])
       if (!target || target.matches(':disabled')) return
 
       // The chord pressed again over its own open list collapses it, as a click on the field does, so the
