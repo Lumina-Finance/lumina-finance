@@ -262,6 +262,9 @@ export function useTransactionShortcuts(
         event.preventDefault()
         event.stopPropagation()
 
+        // Holding the keys down repeats the press, and a save is one press
+        if (event.repeat) return
+
         // Enter chooses from an open list, so a half-made choice is never saved. Close the list first
         if (form.querySelector(OPEN_LIST_SELECTOR)) return
 
@@ -292,6 +295,10 @@ export function useTransactionShortcuts(
       // Held even when the field is not on show, so on a Mac the press never types the symbol Option makes
       event.preventDefault()
       event.stopPropagation()
+
+      // Holding the keys down repeats the press, and a chord is one press: a held one would cycle a choice
+      // round and round, or open and collapse its list over and over
+      if (event.repeat) return
 
       // Type and Direction are choices, so each press chooses the next one as a click on it would
       if (field === 'kind' || field === 'direction') {
