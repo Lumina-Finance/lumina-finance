@@ -4,8 +4,6 @@ import { getTransactionModalIds } from '@/components/transactions/transaction-mo
 import {
   getDateKeyAction,
   getFieldShortcut,
-  isActionKeyHeld,
-  isActionKeyPress,
   isAltDown,
   isAltKeyName,
   isSubmitShortcut,
@@ -16,7 +14,6 @@ import {
   type ShortcutKeyEvent,
 } from '@/components/transactions/transaction-modal/utils/shortcuts'
 import { useAuth } from '@/hooks/useAuth'
-import { DEFAULT_ACTION_KEY } from '@/utils/actionKey'
 import { getTodayYmd } from '@/utils/date'
 import { isFloatingLayerOpen, isInsideFloatingLayer } from '@/utils/floatingLayer'
 
@@ -44,10 +41,9 @@ type KeyEventLike = Pick<
 /**
  * Reads the parts of a key event the shortcuts need
  *
- * @param actionKeyHeld - Whether the user's action key is down. A press alone cannot say that for the left Alt key
  * @param isMac - Whether the keyboard is a Mac's, where AltGraph is only how a browser may report Option
  */
-export function toShortcutKeyEvent(event: KeyEventLike, actionKeyHeld: boolean, isMac: boolean): ShortcutKeyEvent {
+export function toShortcutKeyEvent(event: KeyEventLike, isMac: boolean): ShortcutKeyEvent {
   const altGraph = event.getModifierState('AltGraph')
 
   return {
@@ -59,7 +55,6 @@ export function toShortcutKeyEvent(event: KeyEventLike, actionKeyHeld: boolean, 
     shiftKey: event.shiftKey,
     isComposing: event.nativeEvent?.isComposing ?? event.isComposing ?? false,
     altGraph: altGraph && !isMac,
-    actionKey: actionKeyHeld,
   }
 }
 
@@ -122,7 +117,7 @@ function takesKey(dialog: HTMLElement | null, target: EventTarget | null): boole
  * click on blank space. It stands down when no dialogue is open, when another dialogue is stacked over
  * this one, and when a popover over it holds the key
  *
- * The action key (Alt, Option on a Mac, unless the user chose the left one alone) plus a letter jumps to
+ * The action key (either Alt key, Option on a Mac) plus a letter jumps to
  * a field, opening it when it is a dropdown so typing filters at once. Plus Enter it submits. Both work
  * the same from a text field, since neither is a character someone is typing
  *
@@ -146,9 +141,7 @@ export function useTransactionShortcuts(
   useEffect(() => {
     dateStepRef.current = dateStep
   })
-  const actionKey = user?.action_key ?? DEFAULT_ACTION_KEY
   const isMac = readIsMac()
-  const leftAltDownRef = useRef(false)
   const [holding, setHolding] = useState(false)
   const [hintsVisible, setHintsVisible] = useState(false)
   const [dateStepHighlight, setDateStepHighlight] = useState<DateStepHighlight>(null)
@@ -193,7 +186,6 @@ export function useTransactionShortcuts(
     }, HINT_LONG_PRESS_MS)
 
     const release = () => {
-      leftAltDownRef.current = false
       setHolding(false)
       setHintsVisible(false)
     }
@@ -211,7 +203,7 @@ export function useTransactionShortcuts(
 
       // Windows and Linux browsers open their menu when Alt comes up on its own
       if (shown || usedWithAnotherKey) event.preventDefault()
-      if (isActionKeyPress(event, actionKey, isMac)) release()
+      release()
     }
     const onWindowBlur = () => release()
 
@@ -225,12 +217,11 @@ export function useTransactionShortcuts(
       window.removeEventListener('keyup', onKeyUp, true)
       window.removeEventListener('blur', onWindowBlur)
     }
-  }, [open, holding, actionKey, isMac])
+  }, [open, holding, isMac])
 
   // A dialogue that closes while the key is held drops the hold, since nothing is left to show the caps on
   useEffect(
     () => () => {
-      leftAltDownRef.current = false
       setHolding(false)
       setHintsVisible(false)
     },
@@ -247,16 +238,12 @@ export function useTransactionShortcuts(
       if (!takesKey(dialog, event.target)) return
 
       // A first press of the key itself starts the hold, and one with another modifier is not the key alone
-      if (isActionKeyPress(event, actionKey, isMac)) {
-        if (!event.ctrlKey && !event.metaKey && !event.shiftKey) {
-          if (event.code === 'AltLeft') leftAltDownRef.current = true
-          if (!event.repeat) setHolding(true)
-        }
+      if (isAltKeyName(event.key, isMac)) {
+        if (!event.ctrlKey && !event.metaKey && !event.shiftKey && !event.repeat) setHolding(true)
         return
       }
 
-      const altDown = isAltDown({ altKey: event.altKey, altGraph: event.getModifierState('AltGraph') }, isMac)
-      const keyEvent = toShortcutKeyEvent(event, isActionKeyHeld(altDown, actionKey, leftAltDownRef.current), isMac)
+      const keyEvent = toShortcutKeyEvent(event, isMac)
       const form = dialog?.querySelector('form')
       if (!form) return
 
@@ -343,7 +330,7 @@ export function useTransactionShortcuts(
 
     window.addEventListener('keydown', onKeyDown, true)
     return () => window.removeEventListener('keydown', onKeyDown, true)
-  }, [open, idSuffix, actionKey, isMac, tz])
+  }, [open, idSuffix, isMac, tz])
 
   return { hintsVisible, dateStepHighlight }
 }

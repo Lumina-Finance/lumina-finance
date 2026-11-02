@@ -13,8 +13,6 @@ import {
   getAriaFieldShortcut,
   getDateKeyAction,
   getFieldShortcut,
-  isActionKeyHeld,
-  isActionKeyPress,
   isAltDown,
   isAltKeyName,
   isMacPlatform,
@@ -35,42 +33,33 @@ const press = (overrides: Partial<ShortcutKeyEvent>): ShortcutKeyEvent => ({
   shiftKey: false,
   isComposing: false,
   altGraph: false,
-  actionKey: false,
   ...overrides,
 })
 
 /** A press with the action key down, as the dialogue reads it */
-const withAction = (overrides: Partial<ShortcutKeyEvent>): ShortcutKeyEvent =>
-  press({ altKey: true, actionKey: true, ...overrides })
+const withAction = (overrides: Partial<ShortcutKeyEvent>): ShortcutKeyEvent => press({ altKey: true, ...overrides })
 
 describe('the action key', () => {
-  it('is either Alt key by default, and the left one alone when chosen', () => {
-    expect(isActionKeyPress({ key: 'Alt', code: 'AltRight' }, 'alt', false)).toBe(true)
-    expect(isActionKeyPress({ key: 'Alt', code: 'AltLeft' }, 'alt', false)).toBe(true)
-    expect(isActionKeyPress({ key: 'Alt', code: 'AltLeft' }, 'left-alt', false)).toBe(true)
-    expect(isActionKeyPress({ key: 'Alt', code: 'AltRight' }, 'left-alt', false)).toBe(false)
+  it('is the Alt key, whichever side of the keyboard it is on', () => {
+    expect(isAltKeyName('Alt', false)).toBe(true)
+    expect(isAltKeyName('Alt', true)).toBe(true)
   })
 
   it('is never the right Alt key of a layout that types with it, or any other key, off a Mac', () => {
-    expect(isActionKeyPress({ key: 'AltGraph', code: 'AltRight' }, 'alt', false)).toBe(false)
-    expect(isActionKeyPress({ key: 'Control', code: 'ControlLeft' }, 'alt', false)).toBe(false)
-    expect(isActionKeyPress({ key: 'Meta', code: 'MetaLeft' }, 'alt', false)).toBe(false)
+    expect(isAltKeyName('AltGraph', false)).toBe(false)
+    expect(isAltKeyName('Control', false)).toBe(false)
+    expect(isAltKeyName('Meta', false)).toBe(false)
   })
 
   it('is Option on a Mac even when the browser names it AltGraph, which a Mac has no other use for', () => {
-    expect(isActionKeyPress({ key: 'AltGraph', code: 'AltRight' }, 'alt', true)).toBe(true)
-    expect(isActionKeyPress({ key: 'AltGraph', code: 'AltLeft' }, 'alt', true)).toBe(true)
-    expect(isActionKeyPress({ key: 'AltGraph', code: 'AltLeft' }, 'left-alt', true)).toBe(true)
-    expect(isActionKeyPress({ key: 'AltGraph', code: 'AltRight' }, 'left-alt', true)).toBe(false)
-    expect(isActionKeyPress({ key: 'Control', code: 'ControlLeft' }, 'alt', true)).toBe(false)
+    expect(isAltKeyName('AltGraph', true)).toBe(true)
+    expect(isAltKeyName('Control', true)).toBe(false)
   })
 
   it('counts AltGraph as Alt being down on a Mac only', () => {
     expect(isAltDown({ altKey: false, altGraph: true }, true)).toBe(true)
     expect(isAltDown({ altKey: false, altGraph: true }, false)).toBe(false)
     expect(isAltDown({ altKey: true, altGraph: false }, false)).toBe(true)
-    expect(isAltKeyName('AltGraph', true)).toBe(true)
-    expect(isAltKeyName('AltGraph', false)).toBe(false)
   })
 
   it('reads a Mac press reported as AltGraph with the action key held, and a Windows one without', () => {
@@ -83,28 +72,12 @@ describe('the action key', () => {
       nativeEvent: { isComposing: false },
     }
     const macPress = { ...base, altKey: false, getModifierState: (name: string) => name === 'AltGraph' }
-    const mac = toShortcutKeyEvent(macPress as unknown as KeyboardEvent, isActionKeyHeld(true, 'alt', false), true)
-    expect(getFieldShortcut(mac)).toBe('date')
-
-    const windows = toShortcutKeyEvent(
-      macPress as unknown as KeyboardEvent,
-      isActionKeyHeld(false, 'alt', false),
-      false,
-    )
-    expect(getFieldShortcut(windows)).toBeNull()
+    expect(getFieldShortcut(toShortcutKeyEvent(macPress as unknown as KeyboardEvent, true))).toBe('date')
+    expect(getFieldShortcut(toShortcutKeyEvent(macPress as unknown as KeyboardEvent, false))).toBeNull()
 
     const altGr = { ...macPress, altKey: true }
-    expect(getFieldShortcut(toShortcutKeyEvent(altGr as unknown as KeyboardEvent, true, false))).toBeNull()
-    expect(getFieldShortcut(toShortcutKeyEvent(altGr as unknown as KeyboardEvent, true, true))).toBe('date')
-  })
-
-  it('is held for a letter only when the chosen Alt key is the one down', () => {
-    expect(isActionKeyHeld(true, 'alt', false)).toBe(true)
-    expect(isActionKeyHeld(true, 'left-alt', true)).toBe(true)
-
-    // Some Alt is down, but it is the right one
-    expect(isActionKeyHeld(true, 'left-alt', false)).toBe(false)
-    expect(isActionKeyHeld(false, 'alt', false)).toBe(false)
+    expect(getFieldShortcut(toShortcutKeyEvent(altGr as unknown as KeyboardEvent, false))).toBeNull()
+    expect(getFieldShortcut(toShortcutKeyEvent(altGr as unknown as KeyboardEvent, true))).toBe('date')
   })
 })
 

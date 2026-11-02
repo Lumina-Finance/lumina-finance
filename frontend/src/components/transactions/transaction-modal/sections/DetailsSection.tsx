@@ -101,7 +101,7 @@ export default function TransactionDetailsSection({
       return
     }
 
-    const action = getDateKeyAction(toShortcutKeyEvent(event, false, readIsMac()), editedDateRef.current)
+    const action = getDateKeyAction(toShortcutKeyEvent(event, readIsMac()), editedDateRef.current)
     // The brackets step from any field and are taken by the dialogue's shortcuts, so only `t` is the date field's own
     if (action?.kind !== 'today') return
 

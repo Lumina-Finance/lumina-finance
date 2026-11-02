@@ -28,20 +28,14 @@ type SavedTransaction = {
 /**
  * Signs up a user with two accounts and a tag, signs in and opens the Add transaction dialogue
  *
- * @param actionKey - The key the user chose in Settings, left out for the default
  * @param extra - Further tags and merchants to create beside the Holiday tag
  */
 async function openAddDialogue(
   page: Page,
   request: APIRequestContext,
-  actionKey?: 'left-alt',
   extra: { tags?: string[]; merchants?: string[] } = {},
 ) {
   const user = await signUpUser(request)
-  if (actionKey) {
-    const saved = await request.patch(`${API_BASE_URL}/me`, { headers: asUser(user), data: { action_key: actionKey } })
-    expect(saved.status()).toBe(200)
-  }
   const everyday = await createAccount(request, user, { name: 'Everyday Chequing' })
   await createAccount(request, user, { name: 'Holiday Savings' })
   const tag = await request.post(`${API_BASE_URL}/tags`, { headers: asUser(user), data: { name: 'Holiday' } })
@@ -289,15 +283,12 @@ test('closes an open dropdown on Escape before it closes the dialogue', async ({
   await expect(dialog).toBeHidden()
 })
 
-for (const [setting, chord] of [
-  [undefined, 'Alt'],
-  ['left-alt', 'AltLeft'],
-] as const) {
+for (const chord of ['AltLeft', 'AltRight'] as const) {
   test(`collapses a dropdown when its shortcut is pressed again, with ${chord} as the action key`, async ({
     page,
     request,
   }) => {
-    const { dialog } = await openAddDialogue(page, request, setting)
+    const { dialog } = await openAddDialogue(page, request)
 
     // Tags wait for an account, so one is chosen first
     await chooseByKeys(page, dialog, `${chord}+KeyA`, 'Everyday', 'Everyday Chequing')
@@ -771,41 +762,37 @@ test('hides the key caps when the window loses focus while the action key is hel
   await page.keyboard.up('Alt')
 })
 
-test('follows the action key chosen in Settings, so the other Alt key does nothing', async ({ page, request }) => {
-  const { dialog } = await openAddDialogue(page, request, 'left-alt')
-  await focusFormAndExpectNoCaps(page, dialog)
-  const amount = dialog.getByRole('textbox', { name: 'Amount', exact: true })
+for (const key of ['AltLeft', 'AltRight'] as const) {
+  test(`jumps, shows the key caps and saves with the ${key} key`, async ({ page, request }) => {
+    const { user, dialog, everyday } = await openAddDialogue(page, request)
+    await focusFormAndExpectNoCaps(page, dialog)
+    const amount = dialog.getByRole('textbox', { name: 'Amount', exact: true })
 
-  // The right Alt key is typing: it jumps nowhere and shows no key caps however long it is held
-  await page.keyboard.down('AltRight')
-  await page.keyboard.press('KeyP')
-  await expect(amount).not.toBeFocused()
-  await waitPastHintDelay(page)
-  await expect(visibleCaps(dialog)).toHaveCount(0)
-  await page.keyboard.up('AltRight')
+    await page.keyboard.press(`${key}+KeyP`)
+    await expect(amount).toBeFocused()
 
-  await page.keyboard.press('AltLeft+KeyP')
-  await expect(amount).toBeFocused()
+    await page.keyboard.down(key)
+    await expect(visibleCaps(dialog).filter({ hasText: 'Alt+Enter' })).toHaveCount(1)
+    await page.keyboard.up(key)
+    await expect(visibleCaps(dialog)).toHaveCount(0)
 
-  await page.keyboard.down('AltLeft')
-  await expect(visibleCaps(dialog).filter({ hasText: 'Alt+Enter' })).toHaveCount(1)
-  await page.keyboard.up('AltLeft')
-  await expect(visibleCaps(dialog)).toHaveCount(0)
-})
+    await chooseByKeys(page, dialog, `${key}+KeyA`, 'Everyday', 'Everyday Chequing')
+    await chooseByKeys(page, dialog, `${key}+KeyM`, 'Unknown', 'Unknown')
+    await chooseByKeys(page, dialog, `${key}+KeyC`, 'Groc', 'Groceries')
+    await page.keyboard.press(`${key}+KeyP`)
+    await page.keyboard.type('12.50')
 
-test('saves the action key chosen in Settings', async ({ page, request }) => {
-  const user = await signUpUser(request)
-  await logInViaApi(page, user)
-  await openPage(page, '/settings#profile')
+    const saved = page.waitForResponse(
+      (response) => response.url() === `${API_BASE_URL}/transactions` && response.request().method() === 'POST',
+    )
+    await page.keyboard.press(`${key}+Enter`)
+    expect((await saved).status()).toBe(201)
+    await expect(dialog).toBeHidden()
 
-  await page.getByRole('combobox', { name: 'Action key' }).click()
-  await page.getByText('Left Alt', { exact: true }).click()
-  await page.locator('#profile').getByRole('button', { name: 'Save', exact: true }).click()
-  await expect(page.locator('#profile').getByLabel('Saved')).toBeVisible()
-
-  const me = await request.get(`${API_BASE_URL}/me`, { headers: asUser(user) })
-  expect(((await me.json()) as { action_key: string }).action_key).toBe('left-alt')
-})
+    const [row] = await listSaved(request, user, everyday.id)
+    expect(row.amount).toBe(-1250)
+  })
+}
 
 test('shows key caps only where a keyboard can be attached, and none on a phone', AT_EVERY_SIZE, async ({ page, request }) => {
   const { dialog } = await openAddDialogue(page, request)
@@ -930,7 +917,7 @@ test('adds no tag from an Enter pressed before the Tags search has narrowed, the
   page,
   request,
 }) => {
-  const { dialog } = await openAddDialogue(page, request, undefined, { tags: ['Annual'] })
+  const { dialog } = await openAddDialogue(page, request, { tags: ['Annual'] })
   await dialog.getByRole('combobox', { name: 'Account' }).click()
   await dialog.getByRole('option', { name: 'Everyday Chequing', exact: true }).click()
 
@@ -953,7 +940,7 @@ test('adds no tag from an Enter pressed before the Tags search has narrowed, the
 })
 
 test('chooses no merchant from an Enter pressed before the Merchant search has narrowed', async ({ page, request }) => {
-  const { dialog } = await openAddDialogue(page, request, undefined, { merchants: ['Alpha Shop', 'Bakery'] })
+  const { dialog } = await openAddDialogue(page, request, { merchants: ['Alpha Shop', 'Bakery'] })
   const merchant = dialog.getByRole('combobox', { name: 'Merchant' })
   const unchosen = await merchant.innerText()
 

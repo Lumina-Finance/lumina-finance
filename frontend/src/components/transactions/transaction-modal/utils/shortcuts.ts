@@ -1,4 +1,3 @@
-import type { ActionKeySetting } from '@/utils/actionKey'
 import { addDays, formatYmd, parseYmd } from '@/utils/date'
 
 /** The fields a shortcut jumps to */
@@ -26,9 +25,6 @@ export type ShortcutKeyEvent = {
 
   /** True for the right Alt key of layouts that type extra characters with it */
   altGraph: boolean
-
-  /** True while the user's chosen action key is down. That is Alt unless they chose the left one alone */
-  actionKey: boolean
 }
 
 /** What decides whether a transaction dialogue takes a key press, read from the page */
@@ -64,7 +60,7 @@ export function ownsShortcutKey(ownership: ShortcutKeyOwnership): boolean {
 }
 
 /**
- * Reports whether a key name is an Alt key. On a Mac there is no separate AltGr, so a browser that names
+ * Reports whether a key name is an Alt key, the action key, on either side of the keyboard. On a Mac there is no separate AltGr, so a browser that names
  * Option `AltGraph` still means Option. On Windows and Linux `AltGraph` is the right Alt key of a layout
  * that types characters with it, which is never the action key
  */
@@ -77,32 +73,6 @@ export function isAltKeyName(key: string, isMac: boolean): boolean {
  */
 export function isAltDown(event: Pick<ShortcutKeyEvent, 'altKey' | 'altGraph'>, isMac: boolean): boolean {
   return event.altKey || (isMac && event.altGraph)
-}
-
-/**
- * Reports whether a press is the action key itself, as opposed to a letter pressed with it
- *
- * The right Alt key of a layout that types characters with it reports as `AltGraph`, so off a Mac it never matches
- */
-export function isActionKeyPress(
-  event: Pick<ShortcutKeyEvent, 'key' | 'code'>,
-  actionKey: ActionKeySetting,
-  isMac: boolean,
-): boolean {
-  return isAltKeyName(event.key, isMac) && (actionKey === 'alt' || event.code === 'AltLeft')
-}
-
-/**
- * Reports whether the action key is down during another key's press
- *
- * A press says only that some Alt is down, so the left one alone needs to know whether the left key is
- * the one held
- *
- * @param altDown - Whether an Alt key is down in the press, from `isAltDown`
- * @param leftAltDown - Whether the left Alt key went down and has not come up
- */
-export function isActionKeyHeld(altDown: boolean, actionKey: ActionKeySetting, leftAltDown: boolean): boolean {
-  return altDown && (actionKey === 'alt' || leftAltDown)
 }
 
 // Matched on the physical key, because Option on a Mac turns a letter into another character and
@@ -130,7 +100,7 @@ export const FIELD_SHORTCUTS: Record<ShortcutField, { code: string; letter: stri
  * count
  */
 function isActionKeyChord(event: ShortcutKeyEvent): boolean {
-  return event.actionKey && !event.ctrlKey && !event.metaKey && !event.shiftKey && !event.altGraph && !event.isComposing
+  return event.altKey && !event.ctrlKey && !event.metaKey && !event.shiftKey && !event.altGraph && !event.isComposing
 }
 
 /** Returns the field the action key plus a letter jumps to, or null for any other press */
