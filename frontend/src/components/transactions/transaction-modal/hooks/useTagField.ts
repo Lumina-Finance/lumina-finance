@@ -1,10 +1,7 @@
 import { useMemo, useState, type Dispatch, type SetStateAction } from 'react'
 import { useInfiniteTags, type Tag } from '@/api/tags'
 import type { TransactionTag } from '@/api/transactions'
-import {
-  TAG_DROPDOWN_PAGE_SIZE,
-  TAG_SEARCH_DEBOUNCE_MS,
-} from '@/components/transactions/transaction-modal/constants'
+import { TAG_DROPDOWN_PAGE_SIZE, TAG_SEARCH_DEBOUNCE_MS } from '@/components/transactions/transaction-modal/constants'
 import type { TransactionFormValues } from '@/components/transactions/transaction-modal/types'
 import { FETCHING_MORE_TEXT_MIN_MS, LOADING_TEXT_MIN_MS } from '@/utils/timing'
 import { useDebouncedReferenceSearch } from './useDebouncedReferenceSearch'
@@ -26,6 +23,7 @@ interface TagFieldState {
   search: string
   setSearch: (value: string) => void
   setActiveSearch: (value: string) => void
+  searchSettled: boolean
   showLoading: boolean
   loadingText: string
   showInitialLoading: boolean
@@ -85,18 +83,20 @@ export function useTagField({
   }, [createdTags, tagReference.visibleItems])
 
   const tagOptions = useMemo(
-    () => tagCandidates
-      .filter((tag) => !selectedTagIds.includes(tag.id))
-      .slice()
-      .sort((a, b) => a.name.localeCompare(b.name))
-      .map((tag) => ({ value: tag.id, label: tag.name })),
+    () =>
+      tagCandidates
+        .filter((tag) => !selectedTagIds.includes(tag.id))
+        .slice()
+        .sort((a, b) => a.name.localeCompare(b.name))
+        .map((tag) => ({ value: tag.id, label: tag.name })),
     [selectedTagIds, tagCandidates],
   )
 
   const selectedTags = useMemo(
-    () => selectedTagIds
-      .map((tagId) => tagById.get(tagId))
-      .filter((tag): tag is Pick<Tag, 'id' | 'group_id' | 'name'> => !!tag),
+    () =>
+      selectedTagIds
+        .map((tagId) => tagById.get(tagId))
+        .filter((tag): tag is Pick<Tag, 'id' | 'group_id' | 'name'> => !!tag),
     [selectedTagIds, tagById],
   )
 
@@ -113,9 +113,7 @@ export function useTagField({
 
   const handleTagCreated = (tag: Tag) => {
     setCreatedTags((tags) => [...tags.filter((item) => item.id !== tag.id), tag])
-    setForm((f) => (
-      f.tag_ids.includes(tag.id) ? f : { ...f, tag_ids: [...f.tag_ids, tag.id] }
-    ))
+    setForm((f) => (f.tag_ids.includes(tag.id) ? f : { ...f, tag_ids: [...f.tag_ids, tag.id] }))
     tagReferenceSearch.clearSearch()
     closeModal()
   }
@@ -127,6 +125,7 @@ export function useTagField({
     search: tagReferenceSearch.search,
     setSearch: tagReferenceSearch.setSearch,
     setActiveSearch: tagReferenceSearch.setActiveSearch,
+    searchSettled: tagReferenceSearch.isSettled,
     showLoading: tagReference.showLoading,
     loadingText: tagReference.loadingText,
     showInitialLoading: tagReference.showInitialLoading,

@@ -4,6 +4,9 @@ interface DebouncedReferenceSearchState {
   search: string
   activeSearch: string
   activeSearchText: string
+
+  /** True once the lookup follows the typed text, so the list on show answers it and not an earlier text */
+  isSettled: boolean
   setSearch: (value: string) => void
   setActiveSearch: (value: string) => void
   clearSearch: () => void
@@ -19,9 +22,12 @@ export function useDebouncedReferenceSearch(searchDebounceMs: number): Debounced
 
   useEffect(() => {
     const nextSearch = search.trim() ? search : ''
-    const timeoutId = window.setTimeout(() => {
-      setActiveSearch(nextSearch)
-    }, nextSearch ? searchDebounceMs : 0)
+    const timeoutId = window.setTimeout(
+      () => {
+        setActiveSearch(nextSearch)
+      },
+      nextSearch ? searchDebounceMs : 0,
+    )
 
     return () => window.clearTimeout(timeoutId)
   }, [search, searchDebounceMs])
@@ -35,6 +41,7 @@ export function useDebouncedReferenceSearch(searchDebounceMs: number): Debounced
     search,
     activeSearch,
     activeSearchText,
+    isSettled: activeSearch === (search.trim() ? search : ''),
     setSearch,
     setActiveSearch,
     clearSearch,

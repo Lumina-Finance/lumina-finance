@@ -58,6 +58,7 @@ interface TransactionReferencesSectionProps {
   merchantValue: string
   merchantError?: string | false
   merchantSearch: string
+  merchantSearchSettled: boolean
   merchantLoading: boolean
   merchantLoadingText: string
   merchantHideOptionsWhileLoading: boolean
@@ -78,6 +79,7 @@ interface TransactionReferencesSectionProps {
   tagOptions: DropdownOption[]
   tagsDisabled: boolean
   tagSearch: string
+  tagSearchSettled: boolean
   tagLoading: boolean
   tagLoadingText: string
   tagHideOptionsWhileLoading: boolean
@@ -160,6 +162,7 @@ export default function TransactionReferencesSection({
   merchantValue,
   merchantError,
   merchantSearch,
+  merchantSearchSettled,
   merchantLoading,
   merchantLoadingText,
   merchantHideOptionsWhileLoading,
@@ -175,6 +178,7 @@ export default function TransactionReferencesSection({
   tagOptions,
   tagsDisabled,
   tagSearch,
+  tagSearchSettled,
   tagLoading,
   tagLoadingText,
   tagHideOptionsWhileLoading,
@@ -396,7 +400,7 @@ export default function TransactionReferencesSection({
           loadingMinMs={0}
           hideOptionsWhileLoading={merchantHideOptionsWhileLoading}
           autoHighlightFirstOption
-          selectHighlightedOnSearchEnter
+          selectHighlightedOnSearchEnter={merchantSearchSettled}
           hasMore={merchantHasMore}
           onLoadMore={onMerchantLoadMore}
           onCreateNew={readOnly ? undefined : onCreateMerchant}
@@ -483,7 +487,7 @@ export default function TransactionReferencesSection({
           loadingMinMs={0}
           hideOptionsWhileLoading={tagHideOptionsWhileLoading}
           autoHighlightFirstOption
-          selectHighlightedOnSearchEnter
+          selectHighlightedOnSearchEnter={tagSearchSettled}
           hasMore={tagHasMore}
           onLoadMore={onTagLoadMore}
           onCreateNew={readOnly ? undefined : onCreateTag}

@@ -436,6 +436,7 @@ export default function CreateTransactionModal({
                 merchantValue={form.merchant_id}
                 merchantError={showError('merchant_id')}
                 merchantSearch={merchantField.search}
+                merchantSearchSettled={merchantField.searchSettled}
                 merchantLoading={merchantField.showLoading}
                 merchantLoadingText={merchantField.loadingText}
                 merchantHideOptionsWhileLoading={merchantField.showInitialLoading}
@@ -451,6 +452,7 @@ export default function CreateTransactionModal({
                 tagOptions={tagField.tagOptions}
                 tagsDisabled={!form.account_id}
                 tagSearch={tagField.search}
+                tagSearchSettled={tagField.searchSettled}
                 tagLoading={tagField.showLoading}
                 tagLoadingText={tagField.loadingText}
                 tagHideOptionsWhileLoading={tagField.showInitialLoading}
