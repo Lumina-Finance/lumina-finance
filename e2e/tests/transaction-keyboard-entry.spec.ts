@@ -14,6 +14,9 @@ import { API_BASE_URL } from '../support/target'
 
 type User = Awaited<ReturnType<typeof signUpUser>>
 
+// How long the action key is held before the key caps show, as the app sets it
+const HINT_LONG_PRESS_MS = 300
+
 type SavedTransaction = {
   id: string
   dt: string
@@ -56,6 +59,7 @@ async function openAddDialogue(
   await logInViaApi(page, user)
   await openPage(page, '/transactions')
   const dialog = await openModal(page, ['Add transaction'], 'Add transaction')
+  await noteAltDown(page)
   return { user, dialog, everyday }
 }
 
@@ -68,15 +72,54 @@ async function readDateOnce(dialog: Locator): Promise<string> {
   return `${year}-${month}-${day}`
 }
 
-/** Reads the date once a key press has finished rendering, which is when two reads a moment apart agree */
-async function readDate(dialog: Locator): Promise<string> {
-  let value = await readDateOnce(dialog)
-  for (;;) {
-    await dialog.page().waitForTimeout(150)
-    const next = await readDateOnce(dialog)
-    if (next === value) return value
+// A value counts as settled once it reads the same on this many frames in a row, and a read that never settles
+// within the frame limit fails rather than loops
+const SETTLED_FRAMES = 6
+const MAX_SETTLE_FRAMES = 300
+
+/** Waits for the page to paint the next frame, which is when a press has been rendered */
+async function nextFrame(page: Page) {
+  await page.evaluate(() => new Promise((resolve) => requestAnimationFrame(resolve)))
+}
+
+/** Reads a value again frame by frame until it stops changing, failing when it keeps changing */
+async function readSettled(page: Page, what: string, readOnce: () => Promise<string>): Promise<string> {
+  let value = await readOnce()
+  let unchanged = 0
+  for (let frame = 0; frame < MAX_SETTLE_FRAMES; frame += 1) {
+    await nextFrame(page)
+    const next = await readOnce()
+    unchanged = next === value ? unchanged + 1 : 0
     value = next
+    if (unchanged >= SETTLED_FRAMES) return value
   }
+  throw new Error(`${what} was still changing after ${MAX_SETTLE_FRAMES} frames`)
+}
+
+/** Reads the date once a key press has finished rendering */
+async function readDate(dialog: Locator): Promise<string> {
+  return readSettled(dialog.page(), 'the date', () => readDateOnce(dialog))
+}
+
+/** Notes when Alt last went down, on the page's own clock, for waitPastHintDelay */
+async function noteAltDown(page: Page) {
+  await page.evaluate(() => {
+    window.addEventListener(
+      'keydown',
+      (event) => {
+        if (event.key === 'Alt' && !event.repeat) Object.assign(window, { altDownAt: event.timeStamp })
+      },
+      true,
+    )
+  })
+}
+
+/** Waits until the delay before the key caps show has passed, with a margin, since Alt last went down */
+async function waitPastHintDelay(page: Page) {
+  await page.evaluate(async (delay) => {
+    const downAt = (window as unknown as { altDownAt: number }).altDownAt
+    while (performance.now() < downAt + delay) await new Promise((resolve) => requestAnimationFrame(resolve))
+  }, HINT_LONG_PRESS_MS + 150)
 }
 
 /** Lists the transactions of an account as the server holds them */
@@ -91,13 +134,18 @@ async function listSaved(request: APIRequestContext, user: User, accountId: stri
 /** Opens a dropdown with its shortcut, types to filter it and chooses the highlighted option with Enter */
 async function chooseByKeys(page: Page, dialog: Locator, shortcut: string, search: string, option: string) {
   await page.keyboard.press(shortcut)
-  // A list that has just closed can linger on the page, so the open one is the one holding the cursor
-  const open = dialog.locator('.app-dropdown-slot:has(input[data-dropdown-search]:focus)')
-  await expect(open).toHaveCount(1)
+  await expect(dialog.getByRole('combobox', { expanded: true })).toHaveCount(1)
+  // A list that has just closed can linger on the page, so the search box that is open is the one with the cursor
+  await expect(dialog.getByRole('textbox', { name: /^Search / }).and(page.locator(':focus'))).toHaveCount(1)
   await page.keyboard.type(search)
-  await expect(open.getByRole('option', { name: option, exact: true })).toBeVisible()
-  await page.keyboard.press('Enter')
-  await expectNoOpenList(dialog)
+  await expect(dialog.getByRole('option', { name: option, exact: true })).toBeVisible()
+
+  // A list of remote results answers Enter only once its search has caught up with the text, and an Enter
+  // before that only brings the search up to date, so it is pressed again until the list closes
+  await expect(async () => {
+    if ((await dialog.getByRole('combobox', { expanded: true }).count()) > 0) await page.keyboard.press('Enter')
+    await expect(dialog.getByRole('combobox', { expanded: true })).toHaveCount(0, { timeout: 1_000 })
+  }).toPass({ timeout: 15_000 })
 }
 
 /** Closed is what the trigger reports, since a list leaves the page only after its exit animation */
@@ -192,8 +240,8 @@ test('collapses the other account dropdown of a transfer with Alt+O, and swaps l
   await page.keyboard.press('Alt+KeyY')
   await page.keyboard.press('Alt+KeyY')
   await expect(dialog.getByRole('tab', { name: 'Transfer' })).toHaveAttribute('aria-selected', 'true')
-  const other = dialog.locator('#txn-counterparty-account')
-  const account = dialog.locator('#txn-account')
+  const other = dialog.getByRole('combobox', { name: /^Money (went to|came from)/ })
+  const account = dialog.getByRole('combobox', { name: 'Recorded in' })
 
   await page.keyboard.press('Alt+KeyO')
   await expect(other).toHaveAttribute('aria-expanded', 'true')
@@ -301,9 +349,8 @@ test('picks a tag with the keyboard from a list opened by a click', async ({ pag
   await expect(dialog.getByPlaceholder('Search tags...')).toBeFocused()
   await page.keyboard.type('Holi')
   // Enter chooses what the search has narrowed to, so it waits for the narrowing to finish
-  const open = dialog.locator('.app-dropdown-slot:has(input[data-dropdown-search]:focus)')
-  await expect(open.getByRole('option')).toHaveCount(1)
-  await expect(open.getByRole('option', { name: 'Holiday', exact: true })).toBeVisible()
+  await expect(dialog.getByRole('option')).toHaveCount(1)
+  await expect(dialog.getByRole('option', { name: 'Holiday', exact: true })).toBeVisible()
   await page.keyboard.press('Enter')
   await expect(dialog.getByRole('button', { name: 'Remove Holiday' })).toBeVisible()
 })
@@ -395,15 +442,9 @@ async function readDateBorder(dateField: Locator) {
   return dateField.evaluate((el) => getComputedStyle(el).borderTopColor)
 }
 
-/** Reads the border colour once its fade has finished, which is when two reads a moment apart agree */
+/** Reads the border colour once its fade has finished, which is when it stops changing from frame to frame */
 async function readSettledDateBorder(dateField: Locator) {
-  let colour = await readDateBorder(dateField)
-  for (;;) {
-    await dateField.page().waitForTimeout(150)
-    const next = await readDateBorder(dateField)
-    if (next === colour) return colour
-    colour = next
-  }
+  return readSettled(dateField.page(), 'the date border', () => readDateBorder(dateField))
 }
 
 /** Looks at every frame for the border to reach a colour within the time, since a fade passes through shades of it */
@@ -553,7 +594,7 @@ test('cycles Type and Direction with each press of their shortcut, wrapping roun
   await chosen(type, 'Transfer')
 
   // The form answers as it does to a click: a transfer asks for the other account
-  await expect(dialog.locator('#txn-counterparty-account')).toBeVisible()
+  await expect(dialog.getByRole('combobox', { name: /^Money (went to|came from)/ })).toBeVisible()
   await page.keyboard.press('Alt+KeyY')
   await chosen(type, 'Expense')
 
@@ -600,13 +641,7 @@ function visibleCaps(dialog: Locator) {
 
 /** Reads where every label, field and button of the dialogue sits, once its opening animation has settled */
 async function measureLayout(dialog: Locator): Promise<string> {
-  let layout = await readLayoutOnce(dialog)
-  for (;;) {
-    await dialog.page().waitForTimeout(150)
-    const next = await readLayoutOnce(dialog)
-    if (next === layout) return layout
-    layout = next
-  }
+  return readSettled(dialog.page(), 'the dialogue layout', () => readLayoutOnce(dialog))
 }
 
 /** Reads the position and size of every label, field and button of the dialogue at this moment */
@@ -630,8 +665,6 @@ async function focusFormAndExpectNoCaps(page: Page, dialog: Locator) {
   await expect(visibleCaps(dialog)).toHaveCount(0)
 }
 
-const HINT_LONG_PRESS_MS = 300
-
 test('shows no key cap at rest, and keeps the footer and the save button as they were without them', async ({
   page,
   request,
@@ -642,11 +675,16 @@ test('shows no key cap at rest, and keeps the footer and the save button as they
   await expect(dialog.locator('kbd').first()).toBeAttached()
   await expect(visibleCaps(dialog)).toHaveCount(0)
 
-  // Nothing sits inside the button, which is as wide as it was before any key cap
+  // Nothing sits inside the button, which is as wide with the key caps showing as without them
   await measureLayout(dialog)
   await expect(submit.locator('kbd')).toHaveCount(0)
-  expect((await submit.boundingBox())?.width).toBe(176)
   await expect(submit).toHaveText('Add transaction')
+  const widthAtRest = (await submit.boundingBox())?.width
+  await page.keyboard.press('Alt+KeyL')
+  await page.keyboard.down('Alt')
+  await expect(visibleCaps(dialog).first()).toBeVisible()
+  expect((await submit.boundingBox())?.width).toBe(widthAtRest)
+  await page.keyboard.up('Alt')
 })
 
 test('shows the key caps after a long press of the action key without moving anything, and hides them on release', async ({
@@ -658,8 +696,6 @@ test('shows the key caps after a long press of the action key without moving any
   const atRest = await measureLayout(dialog)
 
   await page.keyboard.down('Alt')
-  await page.waitForTimeout(HINT_LONG_PRESS_MS - 200)
-  await expect(visibleCaps(dialog)).toHaveCount(0)
 
   const texts = [/Type\s*Alt\+Y/, /Direction\s*Alt\+R/, 'Alt+A', 'Alt+M', 'Alt+C', 'Alt+G', 'Alt+W', 'Alt+P', 'Alt+L', 'Alt+Enter']
   for (const text of texts) {
@@ -701,10 +737,12 @@ test('never shows the key caps for a chord, and holds the release of a long pres
   })
   const releases = () => page.evaluate(() => (window as unknown as { altReleases: boolean[] }).altReleases)
 
-  // A user who knows the key presses a letter at once and lets go, and never sees the caps flash
-  await page.keyboard.press('Alt+KeyP')
-  await page.waitForTimeout(HINT_LONG_PRESS_MS + 300)
+  // A user who knows the key presses a letter at once, and never sees the caps flash even if Alt stays down
+  await page.keyboard.down('Alt')
+  await page.keyboard.press('KeyP')
+  await waitPastHintDelay(page)
   await expect(visibleCaps(dialog)).toHaveCount(0)
+  await page.keyboard.up('Alt')
   expect(await releases()).toEqual([true])
 
   // Held long, the release is taken, so a browser that opens its menu when Alt comes up alone does not
@@ -712,6 +750,12 @@ test('never shows the key caps for a chord, and holds the release of a long pres
   await expect(visibleCaps(dialog).first()).toBeVisible()
   await page.keyboard.up('Alt')
   expect(await releases()).toEqual([true, true])
+
+  // A quick tap of Alt alone is not held, so the browser keeps its own release and the caps never show
+  await page.keyboard.press('Alt')
+  await waitPastHintDelay(page)
+  await expect(visibleCaps(dialog)).toHaveCount(0)
+  expect(await releases()).toEqual([true, true, false])
 })
 
 test('hides the key caps when the window loses focus while the action key is held', async ({ page, request }) => {
@@ -736,7 +780,7 @@ test('follows the action key chosen in Settings, so the other Alt key does nothi
   await page.keyboard.down('AltRight')
   await page.keyboard.press('KeyP')
   await expect(amount).not.toBeFocused()
-  await page.waitForTimeout(HINT_LONG_PRESS_MS + 300)
+  await waitPastHintDelay(page)
   await expect(visibleCaps(dialog)).toHaveCount(0)
   await page.keyboard.up('AltRight')
 
@@ -773,10 +817,10 @@ test('shows key caps only where a keyboard can be attached, and none on a phone'
 
   await page.keyboard.press('Alt+KeyL')
   await page.keyboard.down('Alt')
-  await page.waitForTimeout(HINT_LONG_PRESS_MS + 300)
   if (showsHints) {
     await expect(visibleCaps(dialog).first()).toBeVisible()
   } else {
+    await waitPastHintDelay(page)
     await expect(visibleCaps(dialog)).toHaveCount(0)
   }
   await page.keyboard.up('Alt')
@@ -849,7 +893,7 @@ test('shows no key cap and takes no chord once the dialogue is closed', async ({
   })
 
   await page.keyboard.down('Alt')
-  await page.waitForTimeout(HINT_LONG_PRESS_MS + 300)
+  await waitPastHintDelay(page)
   await page.keyboard.press('KeyW')
   await page.keyboard.up('Alt')
   expect(await page.evaluate(() => (window as unknown as { chordsTaken: boolean[] }).chordsTaken)).toEqual([false])
@@ -948,17 +992,18 @@ test('takes one action from a chord that is held down, and one save from a held 
   }
 
   await page.keyboard.down('Alt')
-  await hold('KeyY')
   await hold('KeyR')
-  await expect(type.getByRole('tab', { name: 'Income' })).toHaveAttribute('aria-selected', 'true')
   await expect(direction.getByRole('tab', { name: 'Credit' })).toHaveAttribute('aria-selected', 'true')
+  await hold('KeyY')
+  await expect(type.getByRole('tab', { name: 'Income' })).toHaveAttribute('aria-selected', 'true')
+
+  // The form is empty, so the one save the held keys ask for is refused, once
+  await hold('Enter')
+  expect(await page.evaluate(() => (window as unknown as { submitClicks: { count: number } }).submitClicks.count)).toBe(1)
 
   // The list opened by the first press stays open instead of collapsing and opening again
   await hold('KeyA')
   await expect(dialog.getByRole('combobox', { name: 'Account' })).toHaveAttribute('aria-expanded', 'true')
-
-  await hold('Enter')
-  expect(await page.evaluate(() => (window as unknown as { submitClicks: { count: number } }).submitClicks.count)).toBe(1)
   await page.keyboard.up('Alt')
 })
 
@@ -982,4 +1027,164 @@ test('leaves a partly typed date alone when [ or ] is pressed', async ({ page, r
   expect(await readDate(dialog)).toBe(
     `${partial}16`,
   )
+})
+
+test('holds the Tags shortcut shut until an account is chosen, showing why on focus', async ({ page, request }) => {
+  const { dialog } = await openAddDialogue(page, request)
+  const tags = dialog.getByRole('combobox', { name: 'Tags' })
+
+  await page.keyboard.press('Alt+KeyG')
+  await expect(tags).toBeFocused()
+  await expect(tags).toHaveAttribute('aria-expanded', 'false')
+  await expect(dialog.getByRole('option')).toHaveCount(0)
+  await expect(tags).toHaveAttribute('aria-disabled', 'true')
+})
+
+test('shows the key caps no sooner than the hold delay, and soon after it', async ({ page, request }) => {
+  const { dialog } = await openAddDialogue(page, request)
+  await focusFormAndExpectNoCaps(page, dialog)
+
+  // Timed on the page's own clock from the key's event to the first frame with a cap showing
+  await page.evaluate(() => {
+    const timing = { downAt: -1, showingAtQuarterSecond: -1, firstShownAt: -1 }
+    Object.assign(window, { hintTiming: timing })
+    const showing = () =>
+      Array.from(document.querySelectorAll('kbd')).filter(
+        (cap) => getComputedStyle(cap).visibility === 'visible' && cap.getBoundingClientRect().width > 0,
+      ).length
+    const watch = () => {
+      if (showing() > 0) timing.firstShownAt = performance.now()
+      else requestAnimationFrame(watch)
+    }
+    window.addEventListener(
+      'keydown',
+      (event) => {
+        if (event.key !== 'Alt' || event.repeat) return
+        timing.downAt = event.timeStamp
+        setTimeout(() => (timing.showingAtQuarterSecond = showing()), 250)
+        watch()
+      },
+      true,
+    )
+  })
+  const readTiming = () =>
+    page.evaluate(
+      () =>
+        (window as unknown as { hintTiming: { downAt: number; showingAtQuarterSecond: number; firstShownAt: number } })
+          .hintTiming,
+    )
+
+  await page.keyboard.down('Alt')
+  await expect.poll(async () => (await readTiming()).firstShownAt, { timeout: 5_000 }).toBeGreaterThan(0)
+  const { downAt, showingAtQuarterSecond, firstShownAt } = await readTiming()
+  await page.keyboard.up('Alt')
+
+  // Nothing at about 250 ms, the first cap no earlier than the delay (less a little for timer rounding), and
+  // within a second on a slow host
+  expect(showingAtQuarterSecond).toBe(0)
+  expect(firstShownAt - downAt).toBeGreaterThanOrEqual(HINT_LONG_PRESS_MS - 10)
+  expect(firstShownAt - downAt).toBeLessThanOrEqual(1_000)
+})
+
+test('leaves the date, the focus and the saving alone for [, ], Alt+L and Alt+Enter while the calendar is open', async ({
+  page,
+  request,
+}) => {
+  const { dialog } = await openAddDialogue(page, request)
+  const posted: string[] = []
+  page.on('request', (sent) => sent.method() === 'POST' && posted.push(sent.url()))
+  const notes = dialog.getByRole('textbox', { name: 'Notes', exact: true })
+
+  await page.keyboard.press('Alt+KeyW')
+  const before = await readDate(dialog)
+  await dialog.getByRole('button', { name: 'Open calendar' }).click()
+  const calendar = page.getByRole('dialog', { name: 'Choose date', exact: true })
+  await expect(calendar).toBeVisible()
+  await expect(calendar.locator(':focus')).toHaveCount(1)
+
+  for (const key of ['BracketLeft', 'BracketRight', 'Alt+KeyL', 'Alt+Enter']) {
+    await page.keyboard.press(key)
+  }
+
+  expect(await readDate(dialog)).toBe(before)
+  await expect(calendar).toBeVisible()
+  await expect(calendar.locator(':focus')).toHaveCount(1)
+  await expect(notes).not.toBeFocused()
+  await expect(dialog).toBeVisible()
+  await expect(dialog.getByRole('combobox', { name: 'Account' })).not.toHaveAttribute('aria-invalid', 'true')
+  expect(posted).toEqual([])
+})
+
+test('answers keys in the refund dialogue stacked over a transaction, and shows no key cap on the one below', async ({
+  page,
+  request,
+}) => {
+  const user = await signUpUser(request)
+  const account = await createAccount(request, user, { name: 'Everyday', startingBalance: 50000 })
+  const id = await createTransaction(request, user, {
+    accountId: account.id,
+    categoryName: 'Groceries',
+    amount: -3713,
+    date: daysFromTodayInTestTimezone(-6),
+  })
+  await logInViaApi(page, user)
+  await openPage(page, '/transactions')
+  await noteAltDown(page)
+  await page.getByTestId(`transaction-row-${id}`).click()
+  const lower = page.getByRole('dialog', { name: 'Edit transaction', exact: true })
+  await expect(lower).toBeVisible()
+  const lowerDate = await readDate(lower)
+  expect(lowerDate).toBe(daysFromTodayInTestTimezone(-6))
+  const lowerWhileCovered = page.getByRole('dialog', { name: 'Edit transaction', exact: true, includeHidden: true })
+
+  await lower.getByTestId('transaction-refund').click()
+  const refund = page.getByRole('dialog', { name: 'Add refund', exact: true })
+  await expect(refund).toBeVisible()
+  const refundDate = await readDate(refund)
+
+  // Keys land on the refund dialogue only: it jumps and steps, and the dialogue below keeps its focus and date
+  await page.keyboard.press('Alt+KeyP')
+  await expect(refund.getByRole('textbox', { name: 'Amount', exact: true })).toBeFocused()
+  await page.keyboard.press('BracketRight')
+  expect(await readDate(refund)).not.toBe(refundDate)
+  await page.keyboard.press('Alt+KeyW')
+  await expect(refund.getByRole('textbox', { name: 'Year', exact: true })).toBeFocused()
+
+  // The key caps show on the refund dialogue and none show on the one below it
+  await page.keyboard.down('Alt')
+  await expect(visibleCaps(refund).first()).toBeVisible()
+  await expect(visibleCaps(lowerWhileCovered)).toHaveCount(0)
+  await page.keyboard.up('Alt')
+
+  await refund.getByRole('button', { name: 'Cancel' }).click()
+  await expect(refund).toBeHidden()
+  expect(await readDate(lower)).toBe(lowerDate)
+})
+
+test('answers no key in the dialogue below a Create category dialogue, and shows no key cap on it', async ({
+  page,
+  request,
+}) => {
+  const { dialog } = await openAddDialogue(page, request)
+  const dateBefore = await readDate(dialog)
+
+  await page.keyboard.press('Alt+KeyC')
+  await page.getByRole('button', { name: 'Create category', exact: true }).click()
+  const create = page.getByRole('dialog', { name: 'Add category', exact: true })
+  await expect(create).toBeVisible()
+  const lower = page.getByRole('dialog', { name: 'Add transaction', exact: true, includeHidden: true })
+
+  // Neither the date nor the focus of the dialogue below moves, and no key cap shows on it
+  await page.keyboard.press('Alt+KeyW')
+  await page.keyboard.press('BracketRight')
+  await page.keyboard.press('Alt+KeyL')
+  await expect(lower.getByRole('textbox', { name: 'Notes', exact: true })).not.toBeFocused()
+  await page.keyboard.down('Alt')
+  await waitPastHintDelay(page)
+  await expect(visibleCaps(lower)).toHaveCount(0)
+  await page.keyboard.up('Alt')
+
+  await page.keyboard.press('Escape')
+  await expect(create).toBeHidden()
+  expect(await readDate(dialog)).toBe(dateBefore)
 })
