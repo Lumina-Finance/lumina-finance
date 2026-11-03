@@ -19,6 +19,8 @@ import {
   useProviderFileIntake,
   useProviderImportReferenceData,
   useProviderImportRun,
+  useProviderTagAnswers,
+  useProviderTagAnswerState,
   useReferenceBeforeImport,
 } from '@/pages/imports/hooks'
 import type { ImportAccountCreateDetails, ImportCategoryKind } from '@/pages/imports/types'
@@ -54,6 +56,7 @@ import {
 import { getActualTransferSourceId, normaliseActualBudget } from '@/pages/imports/actual/utils/normalise'
 import {
   buildActualImportPayload,
+  getActualImportedTags,
   isArchivedWhenCreated,
   type ActualImportBuild,
 } from '@/pages/imports/actual/utils/payload'
@@ -126,6 +129,8 @@ export function useActualImportWorkflow() {
   } = useImportAccountCreateState(setAccountMappings, getActualAccountSourceScope)
   const categoryAnswers = useProviderCategoryAnswerState()
   const { categoryMappings, categoryCreateKinds, categoryCreateNames } = categoryAnswers
+  const tagAnswerState = useProviderTagAnswerState()
+  const { heldTagMappings, heldTagCreateNames } = tagAnswerState
   const [paymentModes, setPaymentModes] = useState<Record<string, ActualPaymentMode>>({})
   const [selectedBudgetIds, setSelectedBudgetIds] = useState<Set<string> | null>(null)
 
@@ -139,6 +144,8 @@ export function useActualImportWorkflow() {
       categoryMappings,
       categoryCreateKinds,
       categoryCreateNames,
+      heldTagMappings,
+      heldTagCreateNames,
       paymentModes,
       selectedBudgetIds,
     }),
@@ -150,6 +157,8 @@ export function useActualImportWorkflow() {
       categoryCreateKinds,
       categoryCreateNames,
       categoryMappings,
+      heldTagCreateNames,
+      heldTagMappings,
       paymentModes,
       selectedBudgetIds,
     ],
@@ -274,6 +283,9 @@ export function useActualImportWorkflow() {
     [creditJournal, resolvedPaymentModes],
   )
 
+  const importedTags = useMemo(() => getActualImportedTags(effectiveJournal), [effectiveJournal])
+  const tagStep = useProviderTagAnswers(importedTags, tagAnswerState)
+
   const inferCategoryMappings = useCallback(
     (liveMappings: Record<string, string>) =>
       inferActualCategoryMappings(categorySources, liveMappings, referenceBeforeImport.categories ?? []),
@@ -360,6 +372,7 @@ export function useActualImportWorkflow() {
             currencies,
             fileCurrency: budget.currencyCode,
             budgetCategorySources,
+            tagAnswers: tagStep.tagAnswers,
           })
         : EMPTY_BUILD,
     [
@@ -374,6 +387,7 @@ export function useActualImportWorkflow() {
       resolvedAccountMappings,
       resolvedCategoryKinds,
       resolvedCategoryMappings,
+      tagStep.tagAnswers,
     ],
   )
 
@@ -480,6 +494,7 @@ export function useActualImportWorkflow() {
           balanceAdjustmentCategory,
           currencies,
           skippedTransactionIds,
+          tagAnswers: tagStep.previewTagAnswers,
         },
         IMPORT_SAMPLE_PREVIEW_LIMIT,
       ),
@@ -496,6 +511,7 @@ export function useActualImportWorkflow() {
       resolvedCategoryKinds,
       resolvedCategoryMappings,
       skippedTransactionIds,
+      tagStep.previewTagAnswers,
       transferCategory,
     ],
   )
@@ -546,6 +562,7 @@ export function useActualImportWorkflow() {
     setAccountMappings({})
     resetAccountCreateState()
     categoryAnswers.resetCategoryAnswers()
+    tagAnswerState.resetTagAnswers()
     setPaymentModes({})
     setSelectedBudgetIds(null)
     run.resetImportRun()
@@ -640,6 +657,7 @@ export function useActualImportWorkflow() {
     autoFilledCategories,
     resolvedCategoryKinds,
     categoryRenames,
+    ...tagStep,
     budgetDrafts,
     budgetRefusals,
     budgetsMissingPayments,

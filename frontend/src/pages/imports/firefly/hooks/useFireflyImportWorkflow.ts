@@ -15,6 +15,8 @@ import {
   useProviderFileIntake,
   useProviderImportReferenceData,
   useProviderImportRun,
+  useProviderTagAnswers,
+  useProviderTagAnswerState,
   useReferenceBeforeImport,
 } from '@/pages/imports/hooks'
 import type { ImportAccountCreateDetails, ImportCategoryKind, ImportFileDraft } from '@/pages/imports/types'
@@ -41,6 +43,7 @@ import {
   getFireflyFileHeaders,
   getFireflyFileRows,
   getFireflyImportedCategories,
+  getFireflyImportedTags,
   getFireflyAccountSources,
   inferFireflyCategoryMappings,
   readFireflyAccountDetails,
@@ -95,6 +98,8 @@ export function useFireflyImportWorkflow() {
   } = useImportAccountCreateState(setAccountMappings, getFireflyAccountSourceScope)
   const categoryAnswers = useProviderCategoryAnswerState()
   const { categoryMappings, categoryCreateKinds, categoryCreateNames } = categoryAnswers
+  const tagAnswerState = useProviderTagAnswerState()
+  const { heldTagMappings, heldTagCreateNames } = tagAnswerState
   const [selectedBudgetNames, setSelectedBudgetNames] = useState<Set<string> | null>(null)
 
   // Every answer the user gives about the import, as one value that changes only when one of them does
@@ -109,6 +114,8 @@ export function useFireflyImportWorkflow() {
       categoryMappings,
       categoryCreateKinds,
       categoryCreateNames,
+      heldTagMappings,
+      heldTagCreateNames,
       selectedBudgetNames,
     }),
     [
@@ -121,6 +128,8 @@ export function useFireflyImportWorkflow() {
       categoryCreateKinds,
       categoryCreateNames,
       categoryMappings,
+      heldTagCreateNames,
+      heldTagMappings,
       selectedBudgetNames,
     ],
   )
@@ -267,43 +276,6 @@ export function useFireflyImportWorkflow() {
       reference: { categoriesResolved, categoryById: referenceBeforeImport.categoryById },
     })
 
-  const previewRows = useMemo(
-    () =>
-      buildFireflyPreviewRows({
-        rows: fireflyRows,
-        limit: IMPORT_SAMPLE_PREVIEW_LIMIT,
-        accountSources,
-        accountById,
-        accountMappings: resolvedAccountMappings,
-        accountCreateDetails: resolvedAccountCreateDetails,
-        institutionById,
-        categoryById,
-        categoryMappings: resolvedCategoryMappings,
-        categoryCreateKinds: resolvedCategoryKinds,
-        categoryRenames,
-        transferCategory,
-        balanceAdjustmentCategory,
-        currencies,
-      }),
-    [
-      accountById,
-      accountSources,
-      balanceAdjustmentCategory,
-      categoryById,
-      currencies,
-      fireflyRows,
-      institutionById,
-      resolvedAccountCreateDetails,
-      resolvedAccountMappings,
-      categoryRenames,
-      resolvedCategoryKinds,
-      resolvedCategoryMappings,
-      transferCategory,
-    ],
-  )
-
-  const previewGroups = useMemo(() => groupPreviewRowsByDate(previewRows), [previewRows])
-
   const rowResolutionOptions = useMemo<FireflyRowResolutionOptions>(
     () => ({
       accountSources,
@@ -352,6 +324,52 @@ export function useFireflyImportWorkflow() {
     [predictedSkippedRows],
   )
 
+  // Only the rows the upload carries ask about their tags, so a row it leaves out asks about none
+  const importedTags = useMemo(
+    () => getFireflyImportedTags(fireflyRows, forecastSkippedRows, accountSources),
+    [accountSources, fireflyRows, forecastSkippedRows],
+  )
+  const tagStep = useProviderTagAnswers(importedTags, tagAnswerState)
+
+  const previewRows = useMemo(
+    () =>
+      buildFireflyPreviewRows({
+        tagAnswers: tagStep.previewTagAnswers,
+        rows: fireflyRows,
+        limit: IMPORT_SAMPLE_PREVIEW_LIMIT,
+        accountSources,
+        accountById,
+        accountMappings: resolvedAccountMappings,
+        accountCreateDetails: resolvedAccountCreateDetails,
+        institutionById,
+        categoryById,
+        categoryMappings: resolvedCategoryMappings,
+        categoryCreateKinds: resolvedCategoryKinds,
+        categoryRenames,
+        transferCategory,
+        balanceAdjustmentCategory,
+        currencies,
+      }),
+    [
+      accountById,
+      accountSources,
+      balanceAdjustmentCategory,
+      categoryById,
+      currencies,
+      fireflyRows,
+      institutionById,
+      resolvedAccountCreateDetails,
+      resolvedAccountMappings,
+      categoryRenames,
+      resolvedCategoryKinds,
+      resolvedCategoryMappings,
+      tagStep.previewTagAnswers,
+      transferCategory,
+    ],
+  )
+
+  const previewGroups = useMemo(() => groupPreviewRowsByDate(previewRows), [previewRows])
+
   const importBuild = useMemo(
     () =>
       buildFireflyImportPayload({
@@ -367,6 +385,7 @@ export function useFireflyImportWorkflow() {
         categoryCreateKinds: resolvedCategoryKinds,
         categoryRenames,
         categoryById,
+        tagAnswers: tagStep.tagAnswers,
       }),
     [
       accountById,
@@ -375,6 +394,7 @@ export function useFireflyImportWorkflow() {
       fireflyRows,
       forecastSkippedRows,
       importedCategories,
+      tagStep.tagAnswers,
       resolvedAccountCreateDetails,
       resolvedAccountMappings,
       categoryRenames,
@@ -480,6 +500,7 @@ export function useFireflyImportWorkflow() {
     setAccountMappings({})
     resetAccountCreateState()
     categoryAnswers.resetCategoryAnswers()
+    tagAnswerState.resetTagAnswers()
   }
 
   const resetCommitState = () => {
@@ -600,6 +621,7 @@ export function useFireflyImportWorkflow() {
     autoFilledCategories,
     resolvedCategoryKinds,
     categoryRenames,
+    ...tagStep,
     importEstimate,
     previewRows,
     previewGroups,

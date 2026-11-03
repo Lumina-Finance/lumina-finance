@@ -1,4 +1,5 @@
 import type { Currency } from '@/api/currency'
+import type { PreviewTagAnswers } from '@/pages/imports/utils'
 import { isFireflyTrackedAccountType } from '@/pages/imports/firefly/utils'
 import { CREATE_ACCOUNT_VALUE, CREATE_CATEGORY_VALUE } from '@/pages/imports/constants'
 import type { FireflyAccountSource, FireflyAccountSources } from '@/pages/imports/firefly/types'
@@ -86,4 +87,16 @@ export function stageFireflyImportAsNew(
   })
   if (!payload) throw new Error(`The staged import builds no payload: ${errors.join('; ')}`)
   return { options, importedCategories, payload, archiveAccountSources }
+}
+
+/**
+ * Tag answers for a test about anything other than tags: the file carries none, so every tag name a
+ * row states is shown as the file spells it
+ */
+export const NO_TAG_ANSWERS: PreviewTagAnswers = {
+  importedTags: [],
+  matchedTagByKey: new Map(),
+  tagMappings: {},
+  tagCreateNames: {},
+  tagLabelById: new Map(),
 }

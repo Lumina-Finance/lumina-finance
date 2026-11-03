@@ -22,6 +22,7 @@ import type { ActualBudgetFile, ActualJournal, ActualTransaction } from '@/pages
 import { applyActualPaymentModes } from '@/pages/imports/actual/utils/categories'
 import { normaliseActualBudget } from '@/pages/imports/actual/utils/normalise'
 import { readActualBudgetFile } from '@/pages/imports/actual/utils/readFile'
+import type { PreviewTagAnswers } from '@/pages/imports/utils'
 
 export type ActualFixtureBudget = 'envelope' | 'yen' | 'edges'
 
@@ -143,4 +144,16 @@ export function fileActualPaymentsInCategory(journal: ActualJournal) {
     ),
   )
   return applyActualPaymentModes(journal, modes)
+}
+
+/**
+ * Tag answers for a test about anything other than tags: the file carries none, so every tag name a
+ * row states is shown as the file spells it
+ */
+export const NO_TAG_ANSWERS: PreviewTagAnswers = {
+  importedTags: [],
+  matchedTagByKey: new Map(),
+  tagMappings: {},
+  tagCreateNames: {},
+  tagLabelById: new Map(),
 }

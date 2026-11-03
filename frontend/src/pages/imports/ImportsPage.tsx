@@ -515,6 +515,18 @@ export default function ImportsPage() {
                       <>
                         <ActualAccountMappingStep {...actualWorkflow} />
                         <ActualCategoryMatchingStep {...actualWorkflow} />
+                        <ImportTagMatchingStep
+                          {...actualWorkflow}
+                          index="04"
+                          empty={
+                            actualWorkflow.budget
+                              ? {
+                                  title: 'No tags to match',
+                                  description: 'No imported row carries a tag, so you can carry on to the next step.',
+                                }
+                              : { title: 'No imported tags detected', description: 'Upload the budget export first.' }
+                          }
+                        />
                         <ActualBudgetImportStep {...actualWorkflow} />
                         <ActualPreviewStep {...actualWorkflow} />
                       </>
@@ -537,6 +549,21 @@ export default function ImportsPage() {
                       <>
                         <FireflyAccountMappingStep {...fireflyWorkflow} />
                         <FireflyCategoryMatchingStep {...fireflyWorkflow} />
+                        <ImportTagMatchingStep
+                          {...fireflyWorkflow}
+                          index="04"
+                          empty={
+                            fireflyWorkflow.transactionsFile
+                              ? {
+                                  title: 'No tags to match',
+                                  description: 'No imported row carries a tag, so you can carry on to the next step.',
+                                }
+                              : {
+                                  title: 'No imported tags detected',
+                                  description: 'Upload the transactions CSV first.',
+                                }
+                          }
+                        />
                         <FireflyBudgetImportStep {...fireflyWorkflow} />
                         <FireflyPreviewStep {...fireflyWorkflow} />
                       </>
@@ -547,7 +574,11 @@ export default function ImportsPage() {
                         <ImportAccountMappingStep {...workflow} />
                         <ImportCategoryMatchingStep {...workflow} />
                         <ImportMerchantMatchingStep {...workflow} />
-                        <ImportTagMatchingStep {...workflow} />
+                        <ImportTagMatchingStep
+                          {...workflow}
+                          index="06"
+                          empty={{ title: 'No tags yet', description: 'Map the column holding the tags first.' }}
+                        />
                         <ImportPreviewStep {...workflow} />
                       </>
                     )}

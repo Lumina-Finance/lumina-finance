@@ -13,7 +13,9 @@ import {
   buildPreviewCategory,
   buildPreviewTransactionRow,
   getPreviewCounterpartyScope,
+  getPreviewTagNames,
   type PreviewAccount,
+  type PreviewTagAnswers,
   resolvePreviewAccount,
 } from '@/pages/imports/utils'
 import { findCurrencyExponent } from '@/utils/moneyInput'
@@ -37,6 +39,9 @@ export interface ActualPreviewOptions {
 
   /** Rows the upload leaves out, which the preview leaves out too */
   skippedTransactionIds: ReadonlySet<string>
+
+  /** What the tag step holds, which decides the tags each row is shown with */
+  tagAnswers: PreviewTagAnswers
 }
 
 interface ActualPreviewAccount extends PreviewAccount {
@@ -76,7 +81,7 @@ export function buildActualPreviewRows(
     if (!legs) continue
     for (const [legIndex, leg] of legs.entries()) {
       if (previewRows.length >= limit) break
-      previewRows.push(buildPreviewRow(entry, leg, legIndex, timestamp))
+      previewRows.push(buildPreviewRow(entry, leg, legIndex, timestamp, options.tagAnswers))
     }
   }
   return previewRows
@@ -203,6 +208,7 @@ function buildPreviewRow(
   leg: ActualPreviewLeg,
   legIndex: number,
   timestamp: string,
+  tagAnswers: PreviewTagAnswers,
 ): PreviewTransactionRow {
   return buildPreviewTransactionRow({
     id: `actual-preview-${entry.transactionId}-${legIndex}`,
@@ -214,7 +220,7 @@ function buildPreviewRow(
     notes: entry.notes,
     counterpartyAccount: leg.counterpartyAccount,
     counterpartyScope: getPreviewCounterpartyScope(leg.category, leg.counterpartyAccount),
-    tagNames: entry.tags,
+    tagNames: getPreviewTagNames(entry.tags, tagAnswers),
     timestamp,
   })
 }

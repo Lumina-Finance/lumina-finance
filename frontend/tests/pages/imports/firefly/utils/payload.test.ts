@@ -10,8 +10,10 @@ import type { Category } from '@/api/categories'
 import {
   CREATE_ACCOUNT_VALUE,
   CREATE_CATEGORY_VALUE,
+  CREATE_TAG_VALUE,
   DEFAULT_CATEGORY_ICON,
   MAX_IMPORT_NOTES_LENGTH,
+  SKIP_TAG_VALUE,
 } from '@/pages/imports/constants'
 import type { CsvRow, ImportFileDraft } from '@/pages/imports/types'
 import {
@@ -22,13 +24,14 @@ import {
   forecastFireflyImport,
   getFireflyAccountSources,
   getFireflyImportedCategories,
+  getFireflyImportedTags,
   inferFireflyCategoryMappings,
   isFireflyRowUploadable,
   readFireflyAccountDetails,
   readFireflyCsvFile,
   resolveFireflyRowLegs,
 } from '@/pages/imports/firefly/utils'
-import { createNameKeyedAccountSources, stageFireflyImportAsNew } from './fixtures'
+import { createNameKeyedAccountSources, NO_TAG_ANSWERS, stageFireflyImportAsNew } from './fixtures'
 
 const CHEQUING = { id: 'chequing', name: 'Chequing', can_write: true, is_archived: false } as AccountsOverview
 const ARCHIVED = { id: 'old-savings', name: 'Old Savings', can_write: true, is_archived: true } as AccountsOverview
@@ -777,7 +780,7 @@ describe('a real Firefly III export with splits, transfers and balance rows', ()
       ['1', null],
     ])
 
-    const preview = buildFireflyPreviewRows({ ...options, rows: draft.rows, limit: 10 })
+    const preview = buildFireflyPreviewRows({ ...options, rows: draft.rows, limit: 10, tagAnswers: NO_TAG_ANSWERS })
     expect(preview.find((row) => row.id === 'firefly-preview-9-0')?.transaction.notes).toBe(
       'Shop split: home\nSplit transaction: Big Store run',
     )
@@ -984,11 +987,77 @@ describe('Firefly rows with no category', () => {
     const otherIncome = { id: 'other-income', name: 'Other Income', kind: 'income', is_system: true } as Category
     const preview = buildFireflyPreviewRows({
       ...options,
+      tagAnswers: NO_TAG_ANSWERS,
       categoryById: new Map([[otherIncome.id, otherIncome]]),
       categoryMappings: { ...options.categoryMappings, '(money in, no category)': otherIncome.id },
       rows,
       limit: 10,
     })
     expect(preview.find((row) => row.id === 'firefly-preview-2-0')?.transaction.category_id).toBe(otherIncome.id)
+  })
+})
+
+describe('the tag answers a Firefly III import sends', () => {
+  const rows: CsvRow[] = [
+    { ...ROW, tags: 'Trip, work' },
+    { ...ROW, journal_id: '2', tags: 'TRIP' },
+    { ...ROW, journal_id: '3', tags: '' },
+  ]
+  const accountSources = createNameKeyedAccountSources(['Chequing'])
+
+  const build = (tagAnswers?: Parameters<typeof buildFireflyImportPayload>[0]['tagAnswers']) =>
+    buildFireflyImportPayload({
+      transactionsFile: TRANSACTIONS_FILE,
+      skippedRows: new Set(),
+      rows,
+      accountSources,
+      accountMappings: { Chequing: CHEQUING.id },
+      accountById: new Map([[CHEQUING.id, CHEQUING]]),
+      accountCreateDetails: {},
+      importedCategories: ['Groceries'],
+      categoryMappings: { Groceries: 'groceries' },
+      categoryCreateKinds: {},
+      categoryRenames: {},
+      categoryById: new Map(),
+      tagAnswers,
+    })
+
+  it('lists each tag the uploaded rows carry once, whatever the capitals', () => {
+    expect(getFireflyImportedTags(rows, new Set(), accountSources)).toEqual(['Trip', 'work'])
+  })
+
+  it('leaves out a tag only a skipped row carries', () => {
+    expect(getFireflyImportedTags(rows, new Set([rows[0]]), accountSources)).toEqual(['TRIP'])
+  })
+
+  it('carries the answers the user gave', () => {
+    const result = build({
+      importedTags: ['Trip', 'work'],
+      matchedTagByKey: new Map(),
+      tagMappings: { work: SKIP_TAG_VALUE },
+      tagCreateNames: { Trip: 'Trips' },
+    })
+
+    expect(result.errors).toEqual([])
+    expect(result.payload?.tags).toEqual([
+      { source: 'Trip', create: { name: 'Trips' } },
+      { source: 'work', skip: true },
+    ])
+  })
+
+  it('sends no answers where none were asked for', () => {
+    expect(build().payload?.tags).toEqual([])
+  })
+
+  it('refuses a tag created under a blank name', () => {
+    const result = build({
+      importedTags: ['Trip'],
+      matchedTagByKey: new Map(),
+      tagMappings: { Trip: CREATE_TAG_VALUE },
+      tagCreateNames: { Trip: ' ' },
+    })
+
+    expect(result.payload).toBeNull()
+    expect(result.errors).toContain('Choose a name for the new tag "Trip".')
   })
 })

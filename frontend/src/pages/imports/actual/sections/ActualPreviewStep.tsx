@@ -44,7 +44,7 @@ export function ActualPreviewStep({
   return (
     <ImportPreviewLayout
       // The budget step only exists once an export is staged
-      index={budget ? '05' : '04'}
+      index={budget ? '06' : '05'}
       stats={{ ...importEstimate, newAccountCount, newCategoryCount }}
       previewGroups={previewGroups}
       emptyDescription="Transactions compiled from the export will appear here."

@@ -12,6 +12,7 @@ import {
   buildImportTagOptions,
   getImportedTags,
   getImportTagCreateNameError,
+  getJournalImportedTags,
   getImportTagRowState,
   getPreviewTagNames,
 } from '@/pages/imports/utils'
@@ -384,5 +385,15 @@ describe('moving answers onto the spelling a step asks about', () => {
       travel: SKIP_TAG_VALUE,
       Zoo: FOOD.id,
     })
+  })
+})
+
+describe('listing the tags a journal export carries', () => {
+  it('lists each tag once, spelled as its first row spells it, whatever the capitals', () => {
+    expect(getJournalImportedTags([['Trip', 'Food'], ['TRIP'], [], ['food', 'Zoo']])).toEqual(['Trip', 'Food', 'Zoo'])
+  })
+
+  it('lists nothing where no row carries a tag', () => {
+    expect(getJournalImportedTags([[], []])).toEqual([])
   })
 })

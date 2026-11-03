@@ -8,6 +8,7 @@ import {
   getNextArrayItemByteSize,
   yieldToBrowser,
 } from '@/api/shared/importBatchSize'
+import { getNameKey } from '@/api/shared/nameKey'
 
 /**
  * The mappings a prepared import carries, keyed by the batch field each list is sent in, and each
@@ -171,4 +172,18 @@ function getNextMappingByteSize<T>(
 ) {
   if (sources.has(source)) return 0
   return getNextArrayItemByteSize(sources.size, getMapping(source, mappingsBySource, kind))
+}
+
+/**
+ * The answered tag names a row carries, leaving out the tags that were left alone
+ *
+ * A row can name several tags, so it can reference several answers. Only the names the user answered
+ * carry a mapping, and a tag left alone adds nothing to the batch
+ *
+ * @param tagNames - The tag names the row states
+ * @param tagMappingsByKey - The answered tag names, by the key a name is matched under
+ */
+export function getAnsweredTagKeys(tagNames: string[], tagMappingsByKey: Map<string, unknown>) {
+  const keys = tagNames.map((name) => getNameKey(name)).filter((key) => tagMappingsByKey.has(key))
+  return [...new Set(keys)]
 }

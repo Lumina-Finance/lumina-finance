@@ -3,6 +3,7 @@ import type {
   TransactionImportAccountMapping,
   TransactionImportCategoryMapping,
   TransactionImportResponse,
+  TransactionImportTagMapping,
 } from '@/api/transaction-imports/types'
 
 /** The apps whose exports are staged as journal rows */
@@ -55,6 +56,9 @@ export interface JournalImportRow {
 export interface JournalImportPayload {
   accounts: TransactionImportAccountMapping[]
   categories: TransactionImportCategoryMapping[]
+
+  /** Only the tag names the user answered differently from what the commit does unasked */
+  tags: TransactionImportTagMapping[]
   rows: JournalImportRow[]
 }
 

@@ -249,3 +249,106 @@ function buildWithManyCategories(count: number, { mapped }: { mapped: boolean })
     importedCategories: sources,
   })
 }
+
+/**
+ * Builds a payload for a file of one row, with the given tag and merchant answers held by the page
+ */
+function buildWithAnswers(
+  answers: Pick<Parameters<typeof buildTransactionImportPayload>[0], 'tagAnswers' | 'merchantAnswers'>,
+) {
+  const file: ImportFileDraft = {
+    id: 'file-1',
+    name: 'Chequing.csv',
+    size: 512,
+    headers: HEADERS,
+    hasHeaderRow: true,
+    rows: [{ Date: '2026-04-10', Category: 'Groceries', Amount: '-12.34', Notes: '', Tags: '' }],
+    error: null,
+  }
+
+  return buildTransactionImportPayload({
+    accountById: new Map([[ACCOUNT.id, ACCOUNT]]),
+    accountCreateCurrencies: {},
+    accountCreateInstitutions: {},
+    accountCreateTypes: {},
+    accountMappings: { 'file-1': ACCOUNT.id },
+    accountSources: [{ id: 'file-1', label: 'Chequing.csv', matchText: 'Chequing.csv', isCounterpartyOnly: false }],
+    categoryById: new Map([[CATEGORY.id, CATEGORY]]),
+    categoryCreateKinds: {},
+    categoryMappings: { Groceries: CATEGORY.id },
+    categoryTypesBySource: {},
+    columnMap: { ...EMPTY_COLUMN_MAP, dt: 'Date', category_id: 'Category', amount: 'Amount' },
+    columnValidationErrors: {},
+    currencies: CURRENCIES,
+    dateFormat: 'yearFirst',
+    dateRange: WHOLE_FILE_DATE_RANGE,
+    directionAnswers: {},
+    files: [file],
+    importedCategories: ['Groceries'],
+    ...answers,
+  })
+}
+
+/** Names the given number of values, such as Tag 0 and Tag 1 */
+function nameValues(prefix: string, count: number) {
+  return Array.from({ length: count }, (_, index) => `${prefix} ${index}`)
+}
+
+describe('refusing an import declaring more tags or merchants than it may carry', () => {
+  it.each([MAX_IMPORT_MAPPINGS + 1, MAX_IMPORT_MAPPINGS + 500])(
+    'says so for %i different tags, with no payload',
+    (count) => {
+      const result = buildWithAnswers({
+        tagAnswers: {
+          importedTags: nameValues('Tag', count),
+          matchedTagByKey: new Map(),
+          tagMappings: {},
+          tagCreateNames: {},
+        },
+      })
+
+      expect(result.payload).toBeNull()
+      expect(result.errors).toContain(getTooManyMappingsError('tag', count))
+    },
+  )
+
+  it('accepts a file with exactly the most tags an import may carry', () => {
+    const result = buildWithAnswers({
+      tagAnswers: {
+        importedTags: nameValues('Tag', MAX_IMPORT_MAPPINGS),
+        matchedTagByKey: new Map(),
+        tagMappings: {},
+        tagCreateNames: {},
+      },
+    })
+
+    expect(result.errors).toEqual([])
+  })
+
+  it('says so for more different merchants than an import may carry, with no payload', () => {
+    const result = buildWithAnswers({
+      merchantAnswers: {
+        importedMerchants: nameValues('Shop', MAX_IMPORT_MAPPINGS + 1),
+        matchedMerchantByKey: new Map(),
+        merchantMappings: {},
+        merchantCreateNames: {},
+      },
+    })
+
+    expect(result.payload).toBeNull()
+    expect(result.errors).toContain(getTooManyMappingsError('merchant', MAX_IMPORT_MAPPINGS + 1))
+  })
+
+  it('accepts a file with exactly the most merchants an import may carry', () => {
+    const result = buildWithAnswers({
+      merchantAnswers: {
+        importedMerchants: nameValues('Shop', MAX_IMPORT_MAPPINGS),
+        matchedMerchantByKey: new Map(),
+        merchantMappings: {},
+        merchantCreateNames: {},
+      },
+    })
+
+    expect(result.errors).toEqual([])
+  })
+})

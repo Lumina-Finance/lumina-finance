@@ -49,6 +49,7 @@ const PAYLOAD: JournalImportPayload = {
     { source: 'Everyday Chequing', create: { name: 'Everyday Chequing', account_type: 'checking', currency: 'CAD' } },
   ],
   categories: [{ source: 'Groceries', create: { name: 'Groceries', kind: 'expense' } }],
+  tags: [],
   rows: [buildRow('1'), buildRow('2')],
 }
 
@@ -160,6 +161,7 @@ describe('runJournalImport', () => {
         { source: 'Car Loan', create: { name: 'Car Loan', account_type: 'loan', currency: 'CAD' } },
       ],
       categories: [{ source: 'transfer:car', create: { name: 'Car Payment', kind: 'transfer' } }],
+      tags: [],
       rows: [loanPayment],
     }
     authenticatedFetchMock

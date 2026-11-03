@@ -2,7 +2,13 @@ import type { Tag } from '@/api/tags'
 import type { TransactionImportTagMapping } from '@/api/transaction-imports'
 import type { DropdownOption } from '@/components/dropdown/Dropdown'
 import { getNameKey } from '@/api/shared/nameKey'
-import { CREATE_TAG_VALUE, IMPORT_TAG_NAME_MAX_LENGTH, SKIP_TAG_VALUE } from '@/pages/imports/constants'
+import {
+  CREATE_TAG_VALUE,
+  getTooManyMappingsError,
+  IMPORT_TAG_NAME_MAX_LENGTH,
+  MAX_IMPORT_MAPPINGS,
+  SKIP_TAG_VALUE,
+} from '@/pages/imports/constants'
 import { buildImportNameMappings, getImportNameAnswer, getImportNameRowState } from './nameMatching'
 
 /**
@@ -42,6 +48,62 @@ export function getImportTagRowState(answer: string, matched: Tag | undefined) {
   return getImportNameRowState(answer, Boolean(matched), CREATE_TAG_VALUE, SKIP_TAG_VALUE)
 }
 
+/** What the tag step holds, which the commit payload and the preview are both worked out from */
+export type ImportTagAnswers = {
+  /** One tag name per tag the file resolves to */
+  importedTags: string[]
+
+  /** The tags the file's values already match */
+  matchedTagByKey: Map<string, Tag>
+
+  /** What the user chose for each value, blank where they left it alone */
+  tagMappings: Record<string, string>
+
+  /** The name the user wrote for a value being created */
+  tagCreateNames: Record<string, string>
+}
+
+/** The tag step's answers with what each tag on offer is called, which the preview shows the tag by */
+export type PreviewTagAnswers = ImportTagAnswers & { tagLabelById: Map<string, string> }
+
+/**
+ * Lists the tags a journal export's rows carry, one entry for each tag they resolve to
+ *
+ * Names differing only in capitals are one tag, so the first spelling stands for them all, as it
+ * does for the tags of a CSV file
+ *
+ * @param rowTagNames - The tag names each row states
+ */
+export function getJournalImportedTags(rowTagNames: Iterable<string[]>) {
+  const tags = new Map<string, string>()
+  for (const names of rowTagNames) {
+    for (const name of names) {
+      const key = getNameKey(name)
+      if (!tags.has(key)) tags.set(key, name)
+    }
+  }
+  return [...tags.values()]
+}
+
+/**
+ * Builds the tag answers the commit payload carries, refusing a file with more different tags than
+ * one import may carry before the page asks anything about them
+ *
+ * @param answers - What the tag step holds, absent where the file has no tags to answer
+ * @param addError - Records a reason the import cannot be sent
+ */
+export function buildImportTagPayload(answers: ImportTagAnswers | undefined, addError: (message: string) => void) {
+  if (!answers) return []
+
+  if (answers.importedTags.length > MAX_IMPORT_MAPPINGS) {
+    addError(getTooManyMappingsError('tag', answers.importedTags.length))
+  }
+
+  const built = buildImportTagMappings(answers)
+  for (const message of built.errors) addError(message)
+  return built.mappings
+}
+
 /**
  * Builds the tag answers the commit payload carries
  *
@@ -55,12 +117,7 @@ export function buildImportTagMappings({
   matchedTagByKey,
   tagMappings,
   tagCreateNames,
-}: {
-  importedTags: string[]
-  matchedTagByKey: Map<string, Tag>
-  tagMappings: Record<string, string>
-  tagCreateNames: Record<string, string>
-}) {
+}: ImportTagAnswers) {
   return buildImportNameMappings<Tag, TransactionImportTagMapping>({
     values: importedTags,
     matchedByKey: matchedTagByKey,
@@ -108,19 +165,7 @@ export function getImportTagCreateNameError(name: string) {
  */
 export function getPreviewTagNames(
   rowTagNames: string[],
-  {
-    importedTags,
-    matchedTagByKey,
-    tagMappings,
-    tagCreateNames,
-    tagLabelById,
-  }: {
-    importedTags: string[]
-    matchedTagByKey: Map<string, Tag>
-    tagMappings: Record<string, string>
-    tagCreateNames: Record<string, string>
-    tagLabelById: Map<string, string>
-  },
+  { importedTags, matchedTagByKey, tagMappings, tagCreateNames, tagLabelById }: PreviewTagAnswers,
 ) {
   const valueByKey = new Map(importedTags.map((value) => [getNameKey(value), value]))
   const shown = new Map<string, string>()

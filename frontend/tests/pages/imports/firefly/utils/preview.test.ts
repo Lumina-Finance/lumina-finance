@@ -9,7 +9,7 @@ import type { Institution } from '@/api/institutions'
 import { CREATE_ACCOUNT_VALUE, CREATE_CATEGORY_VALUE, MAX_IMPORT_TAGS_PER_ROW } from '@/pages/imports/constants'
 import type { CsvRow } from '@/pages/imports/types'
 import { buildFireflyPreviewRows } from '@/pages/imports/firefly/utils'
-import { createNameKeyedAccountSources } from './fixtures'
+import { createNameKeyedAccountSources, NO_TAG_ANSWERS } from './fixtures'
 
 const institution: Institution = {
   id: 'bank',
@@ -120,6 +120,7 @@ function createOptions(overrides: Partial<Parameters<typeof buildFireflyPreviewR
     transferCategory,
     balanceAdjustmentCategory,
     currencies: CURRENCIES,
+    tagAnswers: NO_TAG_ANSWERS,
     ...overrides,
   }
 }

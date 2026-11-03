@@ -8,7 +8,7 @@ import { CREATE_ACCOUNT_VALUE, CREATE_CATEGORY_VALUE } from '@/pages/imports/con
 import type { ActualJournal } from '@/pages/imports/actual/types'
 import { applyActualCreditPayments } from '@/pages/imports/actual/utils/categories'
 import { buildActualPreviewRows, type ActualPreviewOptions } from '@/pages/imports/actual/utils/preview'
-import { fileActualPaymentsInCategory, normaliseActualFixture } from './fixtures'
+import { fileActualPaymentsInCategory, NO_TAG_ANSWERS, normaliseActualFixture } from './fixtures'
 
 const CURRENCIES = [
   { id: 'CAD', name: 'Canadian dollar', symbol: '$', minor_unit_exponent: 2 },
@@ -36,6 +36,7 @@ function createOptions(journal: ActualJournal, currency: string): ActualPreviewO
     balanceAdjustmentCategory: BALANCE_ADJUSTMENT,
     currencies: CURRENCIES,
     skippedTransactionIds: new Set(),
+    tagAnswers: NO_TAG_ANSWERS,
   }
 }
 

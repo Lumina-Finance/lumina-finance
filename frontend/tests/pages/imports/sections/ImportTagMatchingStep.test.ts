@@ -7,7 +7,7 @@ import { createElement } from 'react'
 import { renderToStaticMarkup } from 'react-dom/server'
 import { describe, expect, it } from 'vitest'
 import type { Tag } from '@/api/tags'
-import { IMPORT_TAG_NAME_MAX_LENGTH } from '@/pages/imports/constants'
+import { getTooManyMappingsError, IMPORT_TAG_NAME_MAX_LENGTH, MAX_IMPORT_MAPPINGS } from '@/pages/imports/constants'
 import { ImportTagMatchingStep } from '@/pages/imports/sections/ImportTagMatchingStep'
 import { buildImportTagOptions } from '@/pages/imports/utils'
 
@@ -27,6 +27,8 @@ const TAG_OPTIONS = buildImportTagOptions([TRAVEL])
 function render(overrides: Partial<Record<keyof Props, unknown>> = {}) {
   return renderToStaticMarkup(
     createElement(ImportTagMatchingStep, {
+      index: '06',
+      empty: { title: 'No tags yet', description: 'Map the column holding the tags first.' },
       importedTags: ['Trip'],
       tagMappings: {},
       tagCreateNames: {},
@@ -73,6 +75,37 @@ describe('the tag matching step', () => {
 
   it('says to map the tags column first when the file holds no tag names', () => {
     expect(render({ importedTags: [] })).toContain('Map the column holding the tags first.')
+  })
+
+  it('says what the flow gives when the import holds no tag, and numbers the step as the flow does', () => {
+    const markup = render({
+      importedTags: [],
+      index: '04',
+      empty: {
+        title: 'No tags to match',
+        description: 'No imported row carries a tag, so you can carry on to the next step.',
+      },
+    })
+
+    expect(markup).toContain('No tags to match')
+    expect(markup).toContain('No imported row carries a tag, so you can carry on to the next step.')
+    expect(markup).toContain('04')
+  })
+
+  it('explains an import with too many different tags up front, with no retry and no table', () => {
+    const tags = Array.from({ length: MAX_IMPORT_MAPPINGS + 1 }, (_, index) => `Tag ${index}`)
+    const markup = render({ importedTags: tags, tagMatchesFailed: true })
+
+    expect(markup).toContain(getTooManyMappingsError('tag', MAX_IMPORT_MAPPINGS + 1))
+    expect(markup).not.toContain('could not be checked')
+    expect(markup).not.toContain('Retry')
+    expect(markup).not.toContain('Tag from file')
+  })
+
+  it('lists an import sitting exactly on the limit', () => {
+    const tags = Array.from({ length: MAX_IMPORT_MAPPINGS }, (_, index) => `Tag ${index}`)
+
+    expect(render({ importedTags: tags })).toContain('Tag from file')
   })
 
   it('says the tags could not be checked when asking failed, without claiming tags would be duplicated', () => {

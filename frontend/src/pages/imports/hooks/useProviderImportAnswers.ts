@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useMemo, useState, type Dispatch, type SetStateAction } from 'react'
 import type { AccountsOverview } from '@/api/accounts'
 import type { Category } from '@/api/categories'
 import type { JournalImportRunResponse } from '@/api/provider-imports'
@@ -6,11 +6,14 @@ import { BALANCE_ADJUSTMENT_CATEGORY_NAME } from '@/utils/transfers'
 import { CREATE_CATEGORY_VALUE } from '@/pages/imports/constants'
 import type { ImportAccountSource, ImportCategoryKind } from '@/pages/imports/types'
 import {
+  alignNameAnswersWithValues,
   buildImportAccountOptions,
   dropVanishedAccountMappings,
   dropVanishedCategoryMappings,
   getImportCategoryRenames,
   isAutoFilledAccountSource,
+  type ImportTagAnswers,
+  type PreviewTagAnswers,
 } from '@/pages/imports/utils'
 import {
   getPersonalAccounts,
@@ -18,6 +21,7 @@ import {
   resolveProviderAccountMappings,
 } from '@/pages/imports/utils/resourceScope'
 import { useImportReferenceData } from './useImportReferenceData'
+import { useImportTagMatches } from './useImportTagMatches'
 
 /**
  * The user's accounts, categories and currencies as a provider import reads them
@@ -249,4 +253,92 @@ export function useProviderCategoryAnswers({
   )
 
   return { resolvedCategoryMappings, autoFilledCategories, resolvedCategoryKinds, categoryRenames }
+}
+
+/**
+ * What the user has chosen for each tag name of a provider import: the tag it is pointed at, and the
+ * name of one created for it, each held under the spelling shown when it was given
+ */
+export function useProviderTagAnswerState() {
+  const [heldTagMappings, setHeldTagMappings] = useState<Record<string, string>>({})
+  const [heldTagCreateNames, setHeldTagCreateNames] = useState<Record<string, string>>({})
+
+  const resetTagAnswers = () => {
+    setHeldTagMappings({})
+    setHeldTagCreateNames({})
+  }
+
+  return { heldTagMappings, heldTagCreateNames, setHeldTagMappings, setHeldTagCreateNames, resetTagAnswers }
+}
+
+/**
+ * Settles the tag answers of a provider import against the tags the export carries, with the checks
+ * of which names already have a tag
+ *
+ * Names differing only in capitals are one tag, so each answer is read and written under the
+ * spelling the step asks about now
+ *
+ * @param importedTags - One tag name per tag the export's rows carry
+ * @param answers - What the user has chosen so far
+ */
+export function useProviderTagAnswers(
+  importedTags: string[],
+  {
+    heldTagMappings,
+    heldTagCreateNames,
+    setHeldTagMappings,
+    setHeldTagCreateNames,
+  }: ReturnType<typeof useProviderTagAnswerState>,
+) {
+  const matches = useImportTagMatches(importedTags)
+
+  const tagMappings = useMemo(
+    () => alignNameAnswersWithValues(heldTagMappings, importedTags),
+    [heldTagMappings, importedTags],
+  )
+  const tagCreateNames = useMemo(
+    () => alignNameAnswersWithValues(heldTagCreateNames, importedTags),
+    [heldTagCreateNames, importedTags],
+  )
+
+  const setTagMappings: Dispatch<SetStateAction<Record<string, string>>> = (update) => {
+    setHeldTagMappings((current) => {
+      const answers = alignNameAnswersWithValues(current, importedTags)
+      return typeof update === 'function' ? update(answers) : update
+    })
+  }
+
+  const setTagCreateNames: Dispatch<SetStateAction<Record<string, string>>> = (update) => {
+    setHeldTagCreateNames((current) => {
+      const answers = alignNameAnswersWithValues(current, importedTags)
+      return typeof update === 'function' ? update(answers) : update
+    })
+  }
+
+  // What each tag a row can be pointed at is called, for the preview to show the tag it will carry
+  const tagLabelById = useMemo(
+    () => new Map(matches.tagOptions.map((option) => [option.value, option.label])),
+    [matches.tagOptions],
+  )
+
+  const tagAnswers = useMemo<ImportTagAnswers>(
+    () => ({ importedTags, matchedTagByKey: matches.matchedTagByKey, tagMappings, tagCreateNames }),
+    [importedTags, matches.matchedTagByKey, tagCreateNames, tagMappings],
+  )
+
+  const previewTagAnswers = useMemo<PreviewTagAnswers>(
+    () => ({ ...tagAnswers, tagLabelById }),
+    [tagAnswers, tagLabelById],
+  )
+
+  return {
+    ...matches,
+    importedTags,
+    tagMappings,
+    tagCreateNames,
+    setTagMappings,
+    setTagCreateNames,
+    tagAnswers,
+    previewTagAnswers,
+  }
 }

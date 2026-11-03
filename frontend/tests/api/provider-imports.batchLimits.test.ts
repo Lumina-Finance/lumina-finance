@@ -47,6 +47,7 @@ function buildPayload(rows: JournalImportRow[]): JournalImportPayload {
   return {
     accounts: [{ source: 'C', account_id: 'acc_1' }],
     categories: categorySources.map((source) => ({ source, create: { name: source, kind: 'expense' } })),
+    tags: [],
     rows,
   }
 }
@@ -92,5 +93,45 @@ describe('the limits a staged provider batch is built against', () => {
     for (const batch of batches.slice(1)) {
       expect(batch.accounts).not.toContainEqual(emptyAccount)
     }
+  })
+})
+
+describe('the tag answers a staged provider batch carries', () => {
+  const TRIP = { source: 'Trip', create: { name: 'Trip' } }
+  const FOOD = { source: 'Food', skip: true }
+
+  it('sends each answer with the batch holding the first row that names the tag, matched in any capitals', async () => {
+    const rows = [
+      { ...buildRow(0), tag_names: ['trip'] },
+      { ...buildRow(1), tag_names: ['TRIP', 'food'] },
+    ]
+    const payload = { ...buildPayload(rows), tags: [TRIP, FOOD] }
+
+    const batches = await buildJournalStageBatches(payload)
+
+    expect(batches).toHaveLength(1)
+    expect(batches[0].tags).toEqual([TRIP, FOOD])
+  })
+
+  it('sends an answer no row names with no batch', async () => {
+    const payload = { ...buildPayload([buildRow(0)]), tags: [TRIP] }
+
+    const batches = await buildJournalStageBatches(payload)
+
+    expect(batches.flatMap((batch) => batch.tags)).toEqual([])
+  })
+
+  it('closes a batch on the tag count, and sends each tag once', async () => {
+    const rows = Array.from({ length: MAX_IMPORT_BATCH_MAPPINGS + 50 }, (_, index) => ({
+      ...buildRow(index),
+      tag_names: [`Tag ${index}`],
+    }))
+    const tags = rows.map((row) => ({ source: row.tag_names[0], create: { name: row.tag_names[0] } }))
+
+    const batches = await buildJournalStageBatches({ ...buildPayload(rows), tags })
+
+    expect(batches.length).toBeGreaterThan(1)
+    for (const batch of batches) expect(batch.tags.length).toBeLessThanOrEqual(MAX_IMPORT_BATCH_MAPPINGS)
+    expect(batches.flatMap((batch) => batch.tags)).toEqual(tags)
   })
 })

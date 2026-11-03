@@ -31,6 +31,7 @@ import {
 } from '@/pages/imports/constants'
 import type { ImportAccountCreateDetails, ImportCategoryKind, ImportCategoryRename } from '@/pages/imports/types'
 import { buildImportAccountMapping, buildImportCategoryMapping } from '@/pages/imports/utils/importMappings'
+import { buildImportTagPayload, getJournalImportedTags, type ImportTagAnswers } from '@/pages/imports/utils/tagMatching'
 import { findCurrencyExponent } from '@/utils/moneyInput'
 import { formatScaledAmount } from './amounts'
 import { canCarryActualTransfer } from './categories'
@@ -53,6 +54,9 @@ export interface ActualImportAnswers {
 
   /** Category sources the selected budgets track, which the budgets request declares */
   budgetCategorySources: ReadonlySet<string>
+
+  /** What the user answered about the export's tag names, absent where the rows carry none */
+  tagAnswers?: ImportTagAnswers
 }
 
 export interface ActualImportBuild {
@@ -125,14 +129,28 @@ export function buildActualImportPayload(journal: ActualJournal, answers: Actual
   const categories = mappings.filter((mapping) => writtenCategorySources.has(mapping.source))
   const budgetCategoryMappings = mappings.filter((mapping) => answers.budgetCategorySources.has(mapping.source))
 
+  // Only the tag names answered differently from what the commit would do unasked are sent
+  const tags = buildImportTagPayload(answers.tagAnswers, addError)
+
   if (rows.length === 0) addError(getImportNoRowsError('export'))
 
   const writtenSources = {
     accounts: new Set(accounts.map((mapping) => mapping.source)),
     categories: writtenCategorySources,
   }
-  const payload = errors.length === 0 ? { accounts, categories, rows } : null
+  const payload = errors.length === 0 ? { accounts, categories, tags, rows } : null
   return { errors, payload, currency, skippedRows, writtenSources, archiveAccountSources, budgetCategoryMappings }
+}
+
+/**
+ * Lists the tags the export's entries carry, which is what the tag step asks about
+ *
+ * Read from every entry, since which entries the upload leaves out depends on the account answers
+ * and the answers about tags cannot wait on those. An answer about a tag only a left-out entry
+ * carries is never sent, because only the tags of the rows uploaded travel
+ */
+export function getActualImportedTags(journal: ActualJournal) {
+  return getJournalImportedTags(journal.entries.map((entry) => entry.tags))
 }
 
 /**
