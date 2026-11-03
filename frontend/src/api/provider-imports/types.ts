@@ -1,12 +1,12 @@
-import type { RecurrenceFreq } from '@/api/budgets/types';
+import type { RecurrenceFreq } from '@/api/budgets/types'
 import type {
   TransactionImportAccountMapping,
   TransactionImportCategoryMapping,
   TransactionImportResponse,
-} from '@/api/transaction-imports/types';
+} from '@/api/transaction-imports/types'
 
 /** The apps whose exports are staged as journal rows */
-export type JournalImportSource = 'firefly' | 'actual_budget';
+export type JournalImportSource = 'firefly' | 'actual_budget'
 
 /**
  * Which leg of a transfer between two imported accounts carries the row's category, the other
@@ -14,7 +14,7 @@ export type JournalImportSource = 'firefly' | 'actual_budget';
  * from a budgeted account, since both legs carrying one category would cancel in its budget. Both
  * files both legs under a transfer category, as a credit card payment is
  */
-export type JournalCategoryLeg = 'source' | 'destination' | 'both';
+export type JournalCategoryLeg = 'source' | 'destination' | 'both'
 
 /**
  * One export journal row compiled by the frontend
@@ -28,34 +28,34 @@ export type JournalCategoryLeg = 'source' | 'destination' | 'both';
  * writes it
  */
 export interface JournalImportRow {
-  journal_id: string;
-  type: string;
+  journal_id: string
+  type: string
 
   /**
    * ISO date in YYYY-MM-DD form
    */
-  dt: string;
-  amount: string;
-  currency_code: string;
-  foreign_amount: string | null;
-  foreign_currency_code: string | null;
-  description: string | null;
-  source_account: string | null;
-  source_name: string | null;
-  destination_account: string | null;
-  destination_name: string | null;
-  category: string | null;
+  dt: string
+  amount: string
+  currency_code: string
+  foreign_amount: string | null
+  foreign_currency_code: string | null
+  description: string | null
+  source_account: string | null
+  source_name: string | null
+  destination_account: string | null
+  destination_name: string | null
+  category: string | null
 
   /** Only on a transfer, and only with a category. Absent keeps both legs on Transfer */
-  category_leg?: JournalCategoryLeg | null;
-  tag_names: string[];
-  notes: string | null;
+  category_leg?: JournalCategoryLeg | null
+  tag_names: string[]
+  notes: string | null
 }
 
 export interface JournalImportPayload {
-  accounts: TransactionImportAccountMapping[];
-  categories: TransactionImportCategoryMapping[];
-  rows: JournalImportRow[];
+  accounts: TransactionImportAccountMapping[]
+  categories: TransactionImportCategoryMapping[]
+  rows: JournalImportRow[]
 }
 
 /**
@@ -63,7 +63,7 @@ export interface JournalImportPayload {
  * batch starts in the export. The first batch also carries any account the import creates empty
  */
 export interface JournalImportStageBatch extends JournalImportPayload {
-  start_row_index: number;
+  start_row_index: number
 }
 
 /**
@@ -77,9 +77,9 @@ export interface ImportBudgetLimit {
   /**
    * ISO dates in YYYY-MM-DD form
    */
-  start: string;
-  end: string;
-  amount: string;
+  start: string
+  end: string
+  amount: string
 }
 
 /**
@@ -89,11 +89,11 @@ export interface ImportBudgetLimit {
  * monthly, and a day of month with a month for yearly, the others null
  */
 export interface ImportBudgetRecurrence {
-  freq: RecurrenceFreq;
-  instance_length: number;
-  weekday: number | null;
-  dom: number | null;
-  month: number | null;
+  freq: RecurrenceFreq
+  instance_length: number
+  weekday: number | null
+  dom: number | null
+  month: number | null
 }
 
 /**
@@ -103,20 +103,20 @@ export interface ImportBudgetRecurrence {
  * creates has no id until the commit
  */
 export interface ImportBudgetDraft {
-  name: string;
-  currency: string;
-  category_sources: string[];
-  limits: ImportBudgetLimit[];
+  name: string
+  currency: string
+  category_sources: string[]
+  limits: ImportBudgetLimit[]
 
   /**
    * Null when the latest limit period fits no cadence, which imports the budget not recurring
    */
-  recurrence: ImportBudgetRecurrence | null;
+  recurrence: ImportBudgetRecurrence | null
 
   /**
    * An archived budget arrives with its history frozen and stays out of the active budget list
    */
-  is_archived: boolean;
+  is_archived: boolean
 }
 
 /**
@@ -124,14 +124,14 @@ export interface ImportBudgetDraft {
  * category no staged row uses
  */
 export interface ImportRunBudgets {
-  categories: TransactionImportCategoryMapping[];
-  budgets: ImportBudgetDraft[];
+  categories: TransactionImportCategoryMapping[]
+  budgets: ImportBudgetDraft[]
 }
 
 export interface ImportBudgetResult {
-  name: string;
-  base_budget_id: string;
-  instance_count: number;
+  name: string
+  base_budget_id: string
+  instance_count: number
 }
 
 /**
@@ -142,9 +142,9 @@ export interface ImportBudgetResult {
  * transactions_created can exceed rows_imported
  */
 export interface JournalImportRunResponse extends TransactionImportResponse {
-  rows_imported: number;
-  budgets_created: number;
-  budgets: ImportBudgetResult[];
-  accounts_archived: number;
-  archive_adjustments_created: number;
+  rows_imported: number
+  budgets_created: number
+  budgets: ImportBudgetResult[]
+  accounts_archived: number
+  archive_adjustments_created: number
 }

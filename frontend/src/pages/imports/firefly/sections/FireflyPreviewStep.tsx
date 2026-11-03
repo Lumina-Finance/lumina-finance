@@ -74,7 +74,11 @@ export function FireflyPreviewStep({
         />
       )}
 
-      <ImportRowWarningsTable rowWarnings={predictedRowWarnings} headers={fireflyHeaders} amountHeaders={FIREFLY_AMOUNT_HEADERS} />
+      <ImportRowWarningsTable
+        rowWarnings={predictedRowWarnings}
+        headers={fireflyHeaders}
+        amountHeaders={FIREFLY_AMOUNT_HEADERS}
+      />
     </ImportPreviewLayout>
   )
 }

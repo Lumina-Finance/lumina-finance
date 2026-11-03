@@ -7,7 +7,12 @@ import type { AccountsOverview } from '@/api/accounts'
 import type { Currency } from '@/api/currency'
 import { buildJournalStageBatches } from '@/api/provider-imports'
 import type { Category } from '@/api/categories'
-import { CREATE_ACCOUNT_VALUE, CREATE_CATEGORY_VALUE, DEFAULT_CATEGORY_ICON, MAX_IMPORT_NOTES_LENGTH } from '@/pages/imports/constants'
+import {
+  CREATE_ACCOUNT_VALUE,
+  CREATE_CATEGORY_VALUE,
+  DEFAULT_CATEGORY_ICON,
+  MAX_IMPORT_NOTES_LENGTH,
+} from '@/pages/imports/constants'
 import type { CsvRow, ImportFileDraft } from '@/pages/imports/types'
 import {
   buildFireflyAccountPrefills,
@@ -27,7 +32,12 @@ import { createNameKeyedAccountSources, stageFireflyImportAsNew } from './fixtur
 
 const CHEQUING = { id: 'chequing', name: 'Chequing', can_write: true, is_archived: false } as AccountsOverview
 const ARCHIVED = { id: 'old-savings', name: 'Old Savings', can_write: true, is_archived: true } as AccountsOverview
-const SHARED = { id: 'family-savings', name: 'Family Savings', can_write: false, is_archived: false } as AccountsOverview
+const SHARED = {
+  id: 'family-savings',
+  name: 'Family Savings',
+  can_write: false,
+  is_archived: false,
+} as AccountsOverview
 
 const ROW: CsvRow = {
   journal_id: '1',
@@ -110,11 +120,18 @@ describe('a Firefly answer naming a group account or category', () => {
     const result = buildWithMapping(familyChequing.id, [familyChequing])
 
     expect(result.payload).toBeNull()
-    expect(result.errors).toContain("Link Chequing to one of your own accounts or a new one. Imports don't write to group accounts.")
+    expect(result.errors).toContain(
+      "Link Chequing to one of your own accounts or a new one. Imports don't write to group accounts.",
+    )
   })
 
   it('refuses a group category and says which source', () => {
-    const familyGroceries = { id: 'family-groceries', name: 'Groceries', kind: 'expense', group_id: 'family' } as Category
+    const familyGroceries = {
+      id: 'family-groceries',
+      name: 'Groceries',
+      kind: 'expense',
+      group_id: 'family',
+    } as Category
     const result = buildFireflyImportPayload({
       transactionsFile: TRANSACTIONS_FILE,
       skippedRows: new Set(),
@@ -131,10 +148,11 @@ describe('a Firefly answer naming a group account or category', () => {
     })
 
     expect(result.payload).toBeNull()
-    expect(result.errors).toContain("Match Groceries to one of your own categories or a built-in one. Imports don't use group categories.")
+    expect(result.errors).toContain(
+      "Match Groceries to one of your own categories or a built-in one. Imports don't use group categories.",
+    )
   })
 })
-
 
 describe('Firefly amount payloads', () => {
   // The endpoint takes the one canonical form of each value and reads direction from the type
@@ -363,10 +381,9 @@ describe('a Firefly asset account and loan sharing a name', () => {
   const accountSources = getFireflyAccountSources(rows, null)
   const [asset, loan, savings] = accountSources.list
   const prefills = buildFireflyAccountPrefills(rows, accountSources, new Set(['CAD']))
-  const accountCreateDetails = Object.fromEntries(accountSources.list.map((source) => [
-    source.id,
-    { ...prefills[source.id], institutionId: '' },
-  ]))
+  const accountCreateDetails = Object.fromEntries(
+    accountSources.list.map((source) => [source.id, { ...prefills[source.id], institutionId: '' }]),
+  )
   const accountMappings = {
     [asset.id]: CREATE_ACCOUNT_VALUE,
     [loan.id]: CREATE_ACCOUNT_VALUE,
@@ -451,7 +468,10 @@ describe('a Firefly asset account and loan sharing a name', () => {
     expect(batches[0].accounts).toEqual([
       { source: asset.id, create: { name: 'Car', account_type: 'checking', currency: 'CAD', institution_id: null } },
       { source: loan.id, create: { name: 'Car', account_type: 'loan', currency: 'CAD', institution_id: null } },
-      { source: savings.id, create: { name: 'Savings', account_type: 'checking', currency: 'CAD', institution_id: null } },
+      {
+        source: savings.id,
+        create: { name: 'Savings', account_type: 'checking', currency: 'CAD', institution_id: null },
+      },
     ])
     expect(lastBatch.accounts).toEqual([
       { source: asset.id, create: { name: 'Car', account_type: 'checking', currency: 'CAD', institution_id: null } },
@@ -473,7 +493,7 @@ describe('a Firefly asset account and loan sharing a name', () => {
 })
 
 describe('the Firefly row values the payload sends', () => {
-  const build = (row: CsvRow, categoryOverrides: Partial<Parameters<typeof buildFireflyImportPayload>[0]> = {}) => (
+  const build = (row: CsvRow, categoryOverrides: Partial<Parameters<typeof buildFireflyImportPayload>[0]> = {}) =>
     buildFireflyImportPayload({
       transactionsFile: TRANSACTIONS_FILE,
       skippedRows: new Set(),
@@ -489,7 +509,6 @@ describe('the Firefly row values the payload sends', () => {
       categoryById: new Map(),
       ...categoryOverrides,
     })
-  )
 
   // The name of an endpoint the import never writes is left out, so its length cannot fail the batch
   it('sends only the endpoint name that becomes the merchant', () => {
@@ -541,7 +560,13 @@ describe('the Firefly row values the payload sends', () => {
   })
 
   it('refuses a new category whose name an existing one holds for the other direction', () => {
-    const incomeGroceries = { id: 'groceries', name: 'groceries', kind: 'income', group_id: null, is_system: false } as Category
+    const incomeGroceries = {
+      id: 'groceries',
+      name: 'groceries',
+      kind: 'income',
+      group_id: null,
+      is_system: false,
+    } as Category
 
     const result = build(ROW, {
       categoryMappings: { Groceries: CREATE_CATEGORY_VALUE },
@@ -557,28 +582,45 @@ describe('the Firefly row values the payload sends', () => {
   })
 
   describe('a new category renamed because another kind holds its name', () => {
-    const incomeGroceries = { id: 'groceries', name: 'Groceries', kind: 'income', group_id: null, is_system: false } as Category
-    const buildRenamed = (name: string, overrides: Partial<Parameters<typeof buildFireflyImportPayload>[0]> = {}) => build(ROW, {
-      categoryMappings: { Groceries: CREATE_CATEGORY_VALUE },
-      categoryCreateKinds: { Groceries: 'expense' },
-      categoryRenames: { Groceries: { name, sourceName: 'Groceries', kind: 'expense', heldBy: incomeGroceries, isProposed: false } },
-      categoryById: new Map([[incomeGroceries.id, incomeGroceries]]),
-      ...overrides,
-    })
+    const incomeGroceries = {
+      id: 'groceries',
+      name: 'Groceries',
+      kind: 'income',
+      group_id: null,
+      is_system: false,
+    } as Category
+    const buildRenamed = (name: string, overrides: Partial<Parameters<typeof buildFireflyImportPayload>[0]> = {}) =>
+      build(ROW, {
+        categoryMappings: { Groceries: CREATE_CATEGORY_VALUE },
+        categoryCreateKinds: { Groceries: 'expense' },
+        categoryRenames: {
+          Groceries: { name, sourceName: 'Groceries', kind: 'expense', heldBy: incomeGroceries, isProposed: false },
+        },
+        categoryById: new Map([[incomeGroceries.id, incomeGroceries]]),
+        ...overrides,
+      })
 
     it('is created under its new name', () => {
       const result = buildRenamed(' Groceries (Firefly III) ')
 
       expect(result.errors).toEqual([])
       expect(result.payload?.categories).toEqual([
-        { source: 'Groceries', create: { name: 'Groceries (Firefly III)', kind: 'expense', icon: DEFAULT_CATEGORY_ICON } },
+        {
+          source: 'Groceries',
+          create: { name: 'Groceries (Firefly III)', kind: 'expense', icon: DEFAULT_CATEGORY_ICON },
+        },
       ])
     })
 
     it('refuses a new name an existing category holds for the other direction', () => {
       const salary = { id: 'salary', name: 'Salary', kind: 'income', group_id: null, is_system: false } as Category
 
-      const result = buildRenamed(' salary ', { categoryById: new Map([[incomeGroceries.id, incomeGroceries], [salary.id, salary]]) })
+      const result = buildRenamed(' salary ', {
+        categoryById: new Map([
+          [incomeGroceries.id, incomeGroceries],
+          [salary.id, salary],
+        ]),
+      })
 
       expect(result.errors).toEqual([
         'Salary is already an income category, so salary cannot be created with another type. Match it to Salary, or set its type to Income.',
@@ -606,7 +648,9 @@ describe('the Firefly row values the payload sends', () => {
         categoryCreateKinds: { Food: 'income', Groceries: 'expense' },
       })
 
-      expect(result.errors).toEqual(['Food and Groceries would be created as one category, so they need the same type.'])
+      expect(result.errors).toEqual([
+        'Food and Groceries would be created as one category, so they need the same type.',
+      ])
     })
   })
 
@@ -639,7 +683,9 @@ describe('the Firefly row values the payload sends', () => {
     })
 
     expect(result.payload).toBeNull()
-    expect(result.errors).toEqual(['Road Trips and ROAD TRIPS would be created as one category, so they need the same type.'])
+    expect(result.errors).toEqual([
+      'Road Trips and ROAD TRIPS would be created as one category, so they need the same type.',
+    ])
   })
 })
 
@@ -647,13 +693,18 @@ describe('the Firefly row values the payload sends', () => {
 // payment with no category, and an opening balance
 describe('a real Firefly III export with splits, transfers and balance rows', () => {
   const CURRENCIES: Currency[] = [{ id: 'EUR', name: 'Euro', symbol: '€', minor_unit_exponent: 2 }]
-  const readExport = () => readFireflyCsvFile(
-    new File([readFileSync(new URL('../fixtures/split-and-transfers.csv', import.meta.url), 'utf8')], 'transactions.csv'),
-    'transactions',
-    new Set(['EUR']),
-  )
+  const readExport = () =>
+    readFireflyCsvFile(
+      new File(
+        [readFileSync(new URL('../fixtures/split-and-transfers.csv', import.meta.url), 'utf8')],
+        'transactions.csv',
+      ),
+      'transactions',
+      new Set(['EUR']),
+    )
 
-  const stage = (transactionsFile: ImportFileDraft, rows: CsvRow[]) => stageFireflyImportAsNew(transactionsFile, rows, CURRENCIES)
+  const stage = (transactionsFile: ImportFileDraft, rows: CsvRow[]) =>
+    stageFireflyImportAsNew(transactionsFile, rows, CURRENCIES)
 
   it('creates only the categories and accounts the import writes to', async () => {
     const draft = await readExport()
@@ -703,10 +754,12 @@ describe('a real Firefly III export with splits, transfers and balance rows', ()
     const forecast = forecastFireflyImport(rows, { fileId: draft.id, ...options })
 
     expect(isFireflyRowUploadable(tooPrecise, new Map())).toBe(true)
-    expect(forecast.skippedRows.map((row) => [row.journalId, row.reason])).toEqual([[
-      '42',
-      'The amount has more decimal places than EUR has. A period is read as a decimal point, never as a separator between thousands.',
-    ]])
+    expect(forecast.skippedRows.map((row) => [row.journalId, row.reason])).toEqual([
+      [
+        '42',
+        'The amount has more decimal places than EUR has. A period is read as a decimal point, never as a separator between thousands.',
+      ],
+    ])
     expect(payload.rows.map((row) => row.journal_id)).toEqual(draft.rows.map((row) => row.journal_id))
   })
 
@@ -725,8 +778,9 @@ describe('a real Firefly III export with splits, transfers and balance rows', ()
     ])
 
     const preview = buildFireflyPreviewRows({ ...options, rows: draft.rows, limit: 10 })
-    expect(preview.find((row) => row.id === 'firefly-preview-9-0')?.transaction.notes)
-      .toBe('Shop split: home\nSplit transaction: Big Store run')
+    expect(preview.find((row) => row.id === 'firefly-preview-9-0')?.transaction.notes).toBe(
+      'Shop split: home\nSplit transaction: Big Store run',
+    )
   })
 
   // Firefly III keeps the title on a group edited down to one split, and a hand-made file may leave
@@ -739,8 +793,8 @@ describe('a real Firefly III export with splits, transfers and balance rows', ()
       return row
     })
 
-    const sentNotes = stage(draft, rows).payload.rows
-      .filter((row) => ['5', '14', '16'].includes(row.journal_id))
+    const sentNotes = stage(draft, rows)
+      .payload.rows.filter((row) => ['5', '14', '16'].includes(row.journal_id))
       .map((row) => row.notes)
     expect(sentNotes).toEqual([null, null, null])
   })
@@ -768,8 +822,16 @@ describe('a real Firefly III export with splits, transfers and balance rows', ()
     const transfer = draft.rows.find((row) => row.journal_id === '7')!
     const rows = [
       ...draft.rows,
-      ...Array.from({ length: 5000 }, (_, index) => ({ ...spending, group_id: String(index + 100), journal_id: String(index + 100) })),
-      ...Array.from({ length: 3000 }, (_, index) => ({ ...transfer, group_id: String(index + 6000), journal_id: String(index + 6000) })),
+      ...Array.from({ length: 5000 }, (_, index) => ({
+        ...spending,
+        group_id: String(index + 100),
+        journal_id: String(index + 100),
+      })),
+      ...Array.from({ length: 3000 }, (_, index) => ({
+        ...transfer,
+        group_id: String(index + 6000),
+        journal_id: String(index + 6000),
+      })),
     ]
     const { options, payload } = stage(draft, rows)
     const [, checking, savings] = options.accountSources.list
@@ -814,10 +876,9 @@ describe('importing with the Firefly III accounts export', () => {
       accountSources,
       accountMappings: accountMappings(ids),
       accountById: new Map(accounts.map((existing) => [existing.id, existing])),
-      accountCreateDetails: Object.fromEntries(accountSources.list.map((source) => [
-        source.id,
-        { ...prefills[source.id], institutionId: '' },
-      ])),
+      accountCreateDetails: Object.fromEntries(
+        accountSources.list.map((source) => [source.id, { ...prefills[source.id], institutionId: '' }]),
+      ),
       importedCategories: ['Groceries'],
       categoryMappings: { Groceries: 'groceries' },
       categoryCreateKinds: {},
@@ -840,8 +901,9 @@ describe('importing with the Firefly III accounts export', () => {
     expect(result.errors).toEqual([])
     const sent = [ids.Chequing, ids.Wallet, ids['Rainy Day']]
     expect(result.payload?.accounts.map((mapping) => mapping.source).sort()).toEqual([...sent].sort())
-    expect(result.payload?.accounts.find((mapping) => mapping.source === ids['Rainy Day']))
-      .toMatchObject({ create: { name: 'Rainy Day', account_type: 'savings', currency: 'CAD' } })
+    expect(result.payload?.accounts.find((mapping) => mapping.source === ids['Rainy Day'])).toMatchObject({
+      create: { name: 'Rainy Day', account_type: 'savings', currency: 'CAD' },
+    })
     expect([...result.writtenSources.accounts].sort()).toEqual([...sent].sort())
     expect(result.archiveAccountSources.sort()).toEqual([ids.Chequing, ids['Rainy Day']].sort())
 
@@ -864,16 +926,27 @@ describe('importing with the Firefly III accounts export', () => {
   // No group account is offered, so one still chosen is a stale answer, refused even where the
   // account would take no rows
   it('refuses a group account chosen for an account no uploaded row names', () => {
-    const familyLoan = { id: 'family-loan', name: 'Family Loan', can_write: true, is_archived: false, group_id: 'family' } as AccountsOverview
-    const { result } = build((ids) => ({
-      [ids.Chequing]: CREATE_ACCOUNT_VALUE,
-      [ids.Wallet]: CREATE_ACCOUNT_VALUE,
-      [ids['Rainy Day']]: CREATE_ACCOUNT_VALUE,
-      [ids['Old Loan']]: familyLoan.id,
-    }), [familyLoan])
+    const familyLoan = {
+      id: 'family-loan',
+      name: 'Family Loan',
+      can_write: true,
+      is_archived: false,
+      group_id: 'family',
+    } as AccountsOverview
+    const { result } = build(
+      (ids) => ({
+        [ids.Chequing]: CREATE_ACCOUNT_VALUE,
+        [ids.Wallet]: CREATE_ACCOUNT_VALUE,
+        [ids['Rainy Day']]: CREATE_ACCOUNT_VALUE,
+        [ids['Old Loan']]: familyLoan.id,
+      }),
+      [familyLoan],
+    )
 
     expect(result.payload).toBeNull()
-    expect(result.errors).toContain("Link Old Loan to one of your own accounts or a new one. Imports don't write to group accounts.")
+    expect(result.errors).toContain(
+      "Link Old Loan to one of your own accounts or a new one. Imports don't write to group accounts.",
+    )
   })
 })
 

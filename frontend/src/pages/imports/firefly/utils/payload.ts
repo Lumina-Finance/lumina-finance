@@ -8,7 +8,13 @@ import {
   getTooManyMappingsError,
   MAX_IMPORT_MAPPINGS,
 } from '@/pages/imports/constants'
-import type { CsvRow, ImportAccountCreateDetails, ImportCategoryKind, ImportCategoryRename, ImportFileDraft } from '@/pages/imports/types'
+import type {
+  CsvRow,
+  ImportAccountCreateDetails,
+  ImportCategoryKind,
+  ImportCategoryRename,
+  ImportFileDraft,
+} from '@/pages/imports/types'
 import { FIREFLY_TYPE_DEPOSIT } from '@/pages/imports/firefly/constants'
 import type { FireflyAccountSources, FireflyImportBuildResult } from '@/pages/imports/firefly/types'
 import { buildImportAccountMapping, buildImportCategoryMapping } from '@/pages/imports/utils/importMappings'
@@ -82,11 +88,11 @@ export function buildFireflyImportPayload({
     addError(getTooManyMappingsError('category', importedCategories.length))
   }
 
-  const { rows: payloadRows, rowAccountSources, writtenCategorySources } = buildFireflyImportRows(
-    rows,
-    skippedRows,
-    accountSources,
-  )
+  const {
+    rows: payloadRows,
+    rowAccountSources,
+    writtenCategorySources,
+  } = buildFireflyImportRows(rows, skippedRows, accountSources)
 
   // A source only skipped rows use is still answered, but the commit creates nothing for it
   const accounts: JournalImportPayload['accounts'] = []
@@ -101,18 +107,21 @@ export function buildFireflyImportPayload({
     // accounts export. An existing account only that export lists takes nothing, so its answer is
     // kept but not sent, and only an account the import creates is archived
     const isSent = hasRows || (isCreate && details !== null)
-    const built = buildImportAccountMapping({
-      source,
-      label,
-      name,
-      choice,
-      createDetails: accountCreateDetails[source],
-      accountById,
-      // An existing account only the accounts export lists takes no rows, so its state is not checked
-      takesRows: hasRows || details === null,
-      refusesGroupAccount: true,
-      getNameTooLongError: getImportAccountNameTooLongError,
-    }, addError)
+    const built = buildImportAccountMapping(
+      {
+        source,
+        label,
+        name,
+        choice,
+        createDetails: accountCreateDetails[source],
+        accountById,
+        // An existing account only the accounts export lists takes no rows, so its state is not checked
+        takesRows: hasRows || details === null,
+        refusesGroupAccount: true,
+        getNameTooLongError: getImportAccountNameTooLongError,
+      },
+      addError,
+    )
     if (!choice || !isSent) continue
 
     // Counted while its answer is still incomplete too, so the preview counts what the import creates
@@ -124,17 +133,20 @@ export function buildFireflyImportPayload({
   const categories: JournalImportPayload['categories'] = []
   const createdByKey = new Map<string, { label: string; kind: ImportCategoryKind }>()
   for (const source of importedCategories) {
-    const built = buildImportCategoryMapping({
-      source,
-      label: source,
-      createName: source,
-      choice: categoryMappings[source] ?? '',
-      createKind: categoryCreateKinds[source],
-      rename: categoryRenames[source],
-      categoryById,
-      createdByKey,
-      refusesGroupCategory: true,
-    }, addError)
+    const built = buildImportCategoryMapping(
+      {
+        source,
+        label: source,
+        createName: source,
+        choice: categoryMappings[source] ?? '',
+        createKind: categoryCreateKinds[source],
+        rename: categoryRenames[source],
+        categoryById,
+        createdByKey,
+        refusesGroupCategory: true,
+      },
+      addError,
+    )
     if (built) categories.push(built.mapping)
   }
 

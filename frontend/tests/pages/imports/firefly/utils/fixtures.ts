@@ -24,7 +24,13 @@ import type { CsvRow, ImportFileDraft } from '@/pages/imports/types'
  * reads as an asset account, so it cannot stand in for a liability's prefill either
  */
 export function createNameKeyedAccountSources(names: string[] = []): FireflyAccountSources {
-  const toSource = (name: string): FireflyAccountSource => ({ id: name, name, type: 'Asset account', label: name, details: null })
+  const toSource = (name: string): FireflyAccountSource => ({
+    id: name,
+    name,
+    type: 'Asset account',
+    label: name,
+    details: null,
+  })
 
   return {
     list: names.map(toSource),
@@ -55,10 +61,9 @@ export function stageFireflyImportAsNew(
     accountSources,
     accountById: new Map(),
     accountMappings: Object.fromEntries(accountSources.list.map((source) => [source.id, CREATE_ACCOUNT_VALUE])),
-    accountCreateDetails: Object.fromEntries(accountSources.list.map((source) => [
-      source.id,
-      { ...prefills[source.id], institutionId: '' },
-    ])),
+    accountCreateDetails: Object.fromEntries(
+      accountSources.list.map((source) => [source.id, { ...prefills[source.id], institutionId: '' }]),
+    ),
     institutionById: new Map(),
     categoryById: new Map(),
     categoryMappings: Object.fromEntries(importedCategories.map((source) => [source, CREATE_CATEGORY_VALUE])),
@@ -69,7 +74,9 @@ export function stageFireflyImportAsNew(
     currencies,
   }
   // The screen leaves out every row the forecast predicts the server would refuse
-  const skippedRows = new Set(forecastFireflyImport(rows, { fileId: transactionsFile.id, ...options }).skippedRows.map((row) => row.cells))
+  const skippedRows = new Set(
+    forecastFireflyImport(rows, { fileId: transactionsFile.id, ...options }).skippedRows.map((row) => row.cells),
+  )
   const { payload, errors, archiveAccountSources } = buildFireflyImportPayload({
     transactionsFile,
     rows,

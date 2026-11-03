@@ -56,7 +56,11 @@ export function ActualPreviewStep({
       onCommit={handleCommitImport}
     >
       {skipped.totalCount > 0 && (
-        <ActualSkippedRowsTable title={skipped.title} rows={skipped.rows} decimals={budget?.budgetDecimals ?? ACTUAL_TRANSACTION_DECIMALS} />
+        <ActualSkippedRowsTable
+          title={skipped.title}
+          rows={skipped.rows}
+          decimals={budget?.budgetDecimals ?? ACTUAL_TRANSACTION_DECIMALS}
+        />
       )}
     </ImportPreviewLayout>
   )

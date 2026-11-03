@@ -14,7 +14,13 @@ import {
   getActualSharedAccountError,
   getActualTransferCategoryError,
 } from '@/pages/imports/actual/constants'
-import type { ActualAccountSource, ActualCategorySource, ActualJournal, ActualJournalEntry, ActualSkippedRow } from '@/pages/imports/actual/types'
+import type {
+  ActualAccountSource,
+  ActualCategorySource,
+  ActualJournal,
+  ActualJournalEntry,
+  ActualSkippedRow,
+} from '@/pages/imports/actual/types'
 import {
   CREATE_ACCOUNT_VALUE,
   MAX_IMPORT_MAPPINGS,
@@ -84,8 +90,10 @@ export function buildActualImportPayload(journal: ActualJournal, answers: Actual
     if (!errors.includes(message)) errors.push(message)
   }
 
-  if (journal.accounts.length > MAX_IMPORT_MAPPINGS) addError(getTooManyMappingsError('account', journal.accounts.length))
-  if (journal.categories.length > MAX_IMPORT_MAPPINGS) addError(getTooManyMappingsError('category', journal.categories.length))
+  if (journal.accounts.length > MAX_IMPORT_MAPPINGS)
+    addError(getTooManyMappingsError('account', journal.accounts.length))
+  if (journal.categories.length > MAX_IMPORT_MAPPINGS)
+    addError(getTooManyMappingsError('category', journal.categories.length))
 
   const { accounts, accountCurrencies, archiveAccountSources } = buildAccountMappings(journal, answers, addError)
   const currencySet = [...new Set(accountCurrencies.values())].sort()
@@ -99,14 +107,20 @@ export function buildActualImportPayload(journal: ActualJournal, answers: Actual
       const accountCurrency = accountCurrencies.get(source.id)
       return accountCurrency && accountCurrency !== answers.fileCurrency
     })
-    if (mismatched.length > 0) addError(getActualFileCurrencyError(answers.fileCurrency, mismatched.map((source) => source.label)))
+    if (mismatched.length > 0)
+      addError(
+        getActualFileCurrencyError(
+          answers.fileCurrency,
+          mismatched.map((source) => source.label),
+        ),
+      )
   }
 
   const { rows, skippedRows, writtenCategorySources } = buildRows(journal, accountCurrencies, answers.currencies)
   // A budget can track a category no row uses, which still needs an answer the commit can take
-  const mappedCategories = journal.categories.filter((source) => (
-    writtenCategorySources.has(source.id) || answers.budgetCategorySources.has(source.id)
-  ))
+  const mappedCategories = journal.categories.filter(
+    (source) => writtenCategorySources.has(source.id) || answers.budgetCategorySources.has(source.id),
+  )
   const mappings = buildCategoryMappings(mappedCategories, getCategoryLegSources(journal), answers, addError)
   const categories = mappings.filter((mapping) => writtenCategorySources.has(mapping.source))
   const budgetCategoryMappings = mappings.filter((mapping) => answers.budgetCategorySources.has(mapping.source))
@@ -147,17 +161,20 @@ function buildAccountMappings(
     // judged nor sent
     if (choice && !isCreate && source.rowCount === 0) continue
 
-    const built = buildImportAccountMapping({
-      source: source.id,
-      label: source.label,
-      name: source.name,
-      choice,
-      createDetails: accountCreateDetails[source.id],
-      accountById,
-      takesRows: source.rowCount > 0,
-      refusesGroupAccount: true,
-      getNameTooLongError: getActualAccountNameTooLongError,
-    }, addError)
+    const built = buildImportAccountMapping(
+      {
+        source: source.id,
+        label: source.label,
+        name: source.name,
+        choice,
+        createDetails: accountCreateDetails[source.id],
+        accountById,
+        takesRows: source.rowCount > 0,
+        refusesGroupAccount: true,
+        getNameTooLongError: getActualAccountNameTooLongError,
+      },
+      addError,
+    )
 
     if (!built) continue
 
@@ -171,7 +188,8 @@ function buildAccountMappings(
   // Two Actual accounts on one Lumina account would turn each transfer between them into two
   // cancelling rows in that account, which the commit refuses
   for (const [accountId, labels] of labelsByLinkedAccount) {
-    if (labels.length > 1) addError(getActualSharedAccountError(labels, accountById.get(accountId)?.name ?? 'one account'))
+    if (labels.length > 1)
+      addError(getActualSharedAccountError(labels, accountById.get(accountId)?.name ?? 'one account'))
   }
 
   return { accounts, accountCurrencies, archiveAccountSources }
@@ -180,7 +198,9 @@ function buildAccountMappings(
 // Category sources a transfer between two imported accounts files its budget-side leg under, which
 // the commit refuses when mapped to a transfer category that can't record the other account
 function getCategoryLegSources(journal: ActualJournal) {
-  return new Set(journal.entries.flatMap((entry) => (entry.categoryLeg && entry.categorySourceId ? [entry.categorySourceId] : [])))
+  return new Set(
+    journal.entries.flatMap((entry) => (entry.categoryLeg && entry.categorySourceId ? [entry.categorySourceId] : [])),
+  )
 }
 
 function buildCategoryMappings(
@@ -193,28 +213,34 @@ function buildCategoryMappings(
   const createdByKey = new Map<string, { label: string; kind: ImportCategoryKind }>()
 
   for (const source of sources) {
-    const built = buildImportCategoryMapping({
-      source: source.id,
-      label: source.label,
-      createName: source.createName,
-      choice: categoryMappings[source.id] ?? '',
-      createKind: categoryCreateKinds[source.id],
-      rename: categoryRenames[source.id],
-      categoryById,
-      createdByKey,
-      refusesGroupCategory: true,
-      checkCategory: (category, isNew) => {
-        // A transfer stays a transfer only under a category that records the other account, and a
-        // payment's budget-side leg under a transfer category has to record it too
-        if (source.role === 'transfer' && !canCarryActualTransfer(category)) return getActualTransferCategoryError(source.label)
-        if (categoryLegSources.has(source.id) && category.kind === 'transfer' && !canCarryActualTransfer(category)) {
-          return getActualPaymentCategoryError(source.label, category.name)
-        }
+    const built = buildImportCategoryMapping(
+      {
+        source: source.id,
+        label: source.label,
+        createName: source.createName,
+        choice: categoryMappings[source.id] ?? '',
+        createKind: categoryCreateKinds[source.id],
+        rename: categoryRenames[source.id],
+        categoryById,
+        createdByKey,
+        refusesGroupCategory: true,
+        checkCategory: (category, isNew) => {
+          // A transfer stays a transfer only under a category that records the other account, and a
+          // payment's budget-side leg under a transfer category has to record it too
+          if (source.role === 'transfer' && !canCarryActualTransfer(category))
+            return getActualTransferCategoryError(source.label)
+          if (categoryLegSources.has(source.id) && category.kind === 'transfer' && !canCarryActualTransfer(category)) {
+            return getActualPaymentCategoryError(source.label, category.name)
+          }
 
-        // An Actual category name can be longer than a Lumina one
-        return isNew && category.name.length > IMPORT_CATEGORY_NAME_MAX_LENGTH ? getActualCategoryNameTooLongError(source.label) : null
+          // An Actual category name can be longer than a Lumina one
+          return isNew && category.name.length > IMPORT_CATEGORY_NAME_MAX_LENGTH
+            ? getActualCategoryNameTooLongError(source.label)
+            : null
+        },
       },
-    }, addError)
+      addError,
+    )
     if (built) categories.push(built.mapping)
   }
 
@@ -239,7 +265,9 @@ function buildRows(journal: ActualJournal, accountCurrencies: Map<string, string
 
     const amount = formatScaledAmount(entry.amount, ACTUAL_TRANSACTION_DECIMALS, exponent)
     if (amount === null) {
-      skippedRows.push(describeEntry(entry, accountName, getActualAmountPrecisionReason(formatHundredths(entry.amount), currency)))
+      skippedRows.push(
+        describeEntry(entry, accountName, getActualAmountPrecisionReason(formatHundredths(entry.amount), currency)),
+      )
       continue
     }
 

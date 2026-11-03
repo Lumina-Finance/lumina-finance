@@ -153,23 +153,27 @@ describe('firefly preview rows', () => {
   })
 
   it('maps a deposit to one positive row on a create-new destination account', () => {
-    const rows = buildFireflyPreviewRows(createOptions({
-      rows: [createFireflyRow({
-        type: 'Deposit',
-        amount: '250.00',
-        currency_code: 'USD',
-        source_name: 'Employer',
-        source_type: 'Revenue account',
-        destination_name: 'US Savings',
-        destination_type: 'Asset account',
-        category: 'Salary',
-      })],
-      accountMappings: { 'US Savings': CREATE_ACCOUNT_VALUE },
-      accountCreateDetails: { 'US Savings': { accountType: 'savings', currency: 'usd', institutionId: 'bank' } },
-      categoryMappings: { Salary: CREATE_CATEGORY_VALUE },
-      categoryCreateKinds: { Salary: 'income' },
-      categoryRenames: {},
-    }))
+    const rows = buildFireflyPreviewRows(
+      createOptions({
+        rows: [
+          createFireflyRow({
+            type: 'Deposit',
+            amount: '250.00',
+            currency_code: 'USD',
+            source_name: 'Employer',
+            source_type: 'Revenue account',
+            destination_name: 'US Savings',
+            destination_type: 'Asset account',
+            category: 'Salary',
+          }),
+        ],
+        accountMappings: { 'US Savings': CREATE_ACCOUNT_VALUE },
+        accountCreateDetails: { 'US Savings': { accountType: 'savings', currency: 'usd', institutionId: 'bank' } },
+        categoryMappings: { Salary: CREATE_CATEGORY_VALUE },
+        categoryCreateKinds: { Salary: 'income' },
+        categoryRenames: {},
+      }),
+    )
 
     expect(rows).toHaveLength(1)
     expect(rows[0]).toMatchObject({
@@ -186,33 +190,47 @@ describe('firefly preview rows', () => {
   })
 
   it('shows a new category under the name it is renamed to', () => {
-    const rows = buildFireflyPreviewRows(createOptions({
-      categoryMappings: { Groceries: CREATE_CATEGORY_VALUE },
-      categoryCreateKinds: { Groceries: 'income' },
-      categoryRenames: { Groceries: { name: 'Groceries (Firefly III)', sourceName: 'Groceries', kind: 'income', heldBy: createCategory(), isProposed: true } },
-    }))
+    const rows = buildFireflyPreviewRows(
+      createOptions({
+        categoryMappings: { Groceries: CREATE_CATEGORY_VALUE },
+        categoryCreateKinds: { Groceries: 'income' },
+        categoryRenames: {
+          Groceries: {
+            name: 'Groceries (Firefly III)',
+            sourceName: 'Groceries',
+            kind: 'income',
+            heldBy: createCategory(),
+            isProposed: true,
+          },
+        },
+      }),
+    )
 
     expect(rows[0]?.category).toMatchObject({ name: 'Groceries (Firefly III)', kind: 'income' })
   })
 
   it('maps a row between two tracked accounts to transfer legs using the foreign amount on the cross-currency side', () => {
     const usSavings = createAccount({ id: 'us-savings', name: 'US Savings', currency: 'USD' })
-    const rows = buildFireflyPreviewRows(createOptions({
-      rows: [createFireflyRow({
-        type: 'Transfer',
-        amount: '-100.00',
-        foreign_amount: '73.50',
-        foreign_currency_code: 'USD',
-        destination_name: 'US Savings',
-        destination_type: 'Asset account',
-        category: '',
-      })],
-      accountById: new Map([
-        ['checking', createAccount()],
-        ['us-savings', usSavings],
-      ]),
-      accountMappings: { Chequing: 'checking', 'US Savings': 'us-savings' },
-    }))
+    const rows = buildFireflyPreviewRows(
+      createOptions({
+        rows: [
+          createFireflyRow({
+            type: 'Transfer',
+            amount: '-100.00',
+            foreign_amount: '73.50',
+            foreign_currency_code: 'USD',
+            destination_name: 'US Savings',
+            destination_type: 'Asset account',
+            category: '',
+          }),
+        ],
+        accountById: new Map([
+          ['checking', createAccount()],
+          ['us-savings', usSavings],
+        ]),
+        accountMappings: { Chequing: 'checking', 'US Savings': 'us-savings' },
+      }),
+    )
 
     expect(rows).toHaveLength(2)
     expect(rows[0]).toMatchObject({
@@ -241,21 +259,25 @@ describe('firefly preview rows', () => {
 
   // Every account is new on a first import, so this is the ordinary case rather than an edge one
   it('shows a transfer between two accounts queued for creation under their imported names', () => {
-    const rows = buildFireflyPreviewRows(createOptions({
-      rows: [createFireflyRow({
-        type: 'Transfer',
-        amount: '-100.00',
-        destination_name: 'Savings',
-        destination_type: 'Asset account',
-        category: '',
-      })],
-      accountById: new Map(),
-      accountMappings: { Chequing: CREATE_ACCOUNT_VALUE, Savings: CREATE_ACCOUNT_VALUE },
-      accountCreateDetails: {
-        Chequing: { accountType: 'checking', currency: 'CAD', institutionId: '' },
-        Savings: { accountType: 'savings', currency: 'CAD', institutionId: '' },
-      },
-    }))
+    const rows = buildFireflyPreviewRows(
+      createOptions({
+        rows: [
+          createFireflyRow({
+            type: 'Transfer',
+            amount: '-100.00',
+            destination_name: 'Savings',
+            destination_type: 'Asset account',
+            category: '',
+          }),
+        ],
+        accountById: new Map(),
+        accountMappings: { Chequing: CREATE_ACCOUNT_VALUE, Savings: CREATE_ACCOUNT_VALUE },
+        accountCreateDetails: {
+          Chequing: { accountType: 'checking', currency: 'CAD', institutionId: '' },
+          Savings: { accountType: 'savings', currency: 'CAD', institutionId: '' },
+        },
+      }),
+    )
 
     expect(rows).toHaveLength(2)
     expect(rows[0]).toMatchObject({
@@ -272,11 +294,13 @@ describe('firefly preview rows', () => {
   // leaving the app means, and the commit writes the same
   it('shows a transfer-category row with one imported endpoint as leaving the app', () => {
     const transfer = createCategory({ id: 'transfer', name: 'Transfer', kind: 'transfer', is_system: true })
-    const rows = buildFireflyPreviewRows(createOptions({
-      rows: [createFireflyRow({ category: 'Moving money out' })],
-      categoryById: new Map([[transfer.id, transfer]]),
-      categoryMappings: { 'Moving money out': transfer.id },
-    }))
+    const rows = buildFireflyPreviewRows(
+      createOptions({
+        rows: [createFireflyRow({ category: 'Moving money out' })],
+        categoryById: new Map([[transfer.id, transfer]]),
+        categoryMappings: { 'Moving money out': transfer.id },
+      }),
+    )
 
     expect(rows).toHaveLength(1)
     expect(rows[0].transaction.counterparty_account_id).toBeNull()
@@ -284,30 +308,32 @@ describe('firefly preview rows', () => {
   })
 
   it('maps balance rows to one adjustment leg signed by the tracked side', () => {
-    const rows = buildFireflyPreviewRows(createOptions({
-      rows: [
-        createFireflyRow({
-          journal_id: '10',
-          type: 'Opening balance',
-          amount: '500.00',
-          source_name: 'Chequing initial balance',
-          source_type: 'Initial balance account',
-          destination_name: 'Chequing',
-          destination_type: 'Asset account',
-          category: '',
-        }),
-        createFireflyRow({
-          journal_id: '11',
-          type: 'Reconciliation',
-          amount: '25.00',
-          source_name: 'Chequing',
-          source_type: 'Asset account',
-          destination_name: 'Chequing reconciliation',
-          destination_type: 'Reconciliation account',
-          category: '',
-        }),
-      ],
-    }))
+    const rows = buildFireflyPreviewRows(
+      createOptions({
+        rows: [
+          createFireflyRow({
+            journal_id: '10',
+            type: 'Opening balance',
+            amount: '500.00',
+            source_name: 'Chequing initial balance',
+            source_type: 'Initial balance account',
+            destination_name: 'Chequing',
+            destination_type: 'Asset account',
+            category: '',
+          }),
+          createFireflyRow({
+            journal_id: '11',
+            type: 'Reconciliation',
+            amount: '25.00',
+            source_name: 'Chequing',
+            source_type: 'Asset account',
+            destination_name: 'Chequing reconciliation',
+            destination_type: 'Reconciliation account',
+            category: '',
+          }),
+        ],
+      }),
+    )
 
     expect(rows).toHaveLength(2)
     expect(rows[0]).toMatchObject({
@@ -321,29 +347,33 @@ describe('firefly preview rows', () => {
   })
 
   it('excludes rows the commit would skip', () => {
-    const rows = buildFireflyPreviewRows(createOptions({
-      rows: [
-        createFireflyRow({ journal_id: '20', type: 'Invalid type' }),
-        createFireflyRow({
-          journal_id: '21',
-          type: 'Transfer',
-          destination_name: 'Untracked Wallet',
-          destination_type: 'Expense account',
-        }),
-        createFireflyRow({ journal_id: '22', currency_code: 'USD' }),
-        createFireflyRow({ journal_id: '23' }),
-      ],
-    }))
+    const rows = buildFireflyPreviewRows(
+      createOptions({
+        rows: [
+          createFireflyRow({ journal_id: '20', type: 'Invalid type' }),
+          createFireflyRow({
+            journal_id: '21',
+            type: 'Transfer',
+            destination_name: 'Untracked Wallet',
+            destination_type: 'Expense account',
+          }),
+          createFireflyRow({ journal_id: '22', currency_code: 'USD' }),
+          createFireflyRow({ journal_id: '23' }),
+        ],
+      }),
+    )
 
     expect(rows).toHaveLength(1)
     expect(rows[0].transaction.id).toContain('23')
   })
 
   it('caps the sample at the preview limit', () => {
-    const rows = buildFireflyPreviewRows(createOptions({
-      rows: Array.from({ length: 4 }, (_, index) => createFireflyRow({ journal_id: `${index + 1}` })),
-      limit: 2,
-    }))
+    const rows = buildFireflyPreviewRows(
+      createOptions({
+        rows: Array.from({ length: 4 }, (_, index) => createFireflyRow({ journal_id: `${index + 1}` })),
+        limit: 2,
+      }),
+    )
 
     expect(rows).toHaveLength(2)
   })

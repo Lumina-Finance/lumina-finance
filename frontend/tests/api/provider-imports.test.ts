@@ -4,28 +4,24 @@
  * These tests catch regressions where the budgets are written outside the run, and where an upload
  * that stopped part way leaves a staged run behind
  */
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-import { ApiError } from '@/api/auth/errors';
-import type {
-  ImportRunBudgets,
-  JournalImportPayload,
-  JournalImportRow,
-} from '@/api/provider-imports';
+import { ApiError } from '@/api/auth/errors'
+import type { ImportRunBudgets, JournalImportPayload, JournalImportRow } from '@/api/provider-imports'
 
 const { authenticatedFetchMock } = vi.hoisted(() => ({
   authenticatedFetchMock: vi.fn(),
-}));
+}))
 
 vi.mock('@/api/client', () => ({
   authenticatedFetch: authenticatedFetchMock,
-}));
+}))
 
-import { runJournalImport } from '@/api/provider-imports';
-import { ImportRunError } from '@/api/import-runs';
+import { runJournalImport } from '@/api/provider-imports'
+import { ImportRunError } from '@/api/import-runs'
 
-const RUN_ID = 'run_1';
-const RUN_PATH = `/transactions/import/runs/${RUN_ID}`;
+const RUN_ID = 'run_1'
+const RUN_PATH = `/transactions/import/runs/${RUN_ID}`
 
 /** Builds one withdrawal from the imported chequing account, shaped as the screen sends it */
 function buildRow(journalId: string): JournalImportRow {
@@ -45,48 +41,53 @@ function buildRow(journalId: string): JournalImportRow {
     category: 'Groceries',
     tag_names: [],
     notes: null,
-  };
+  }
 }
 
 const PAYLOAD: JournalImportPayload = {
-  accounts: [{ source: 'Everyday Chequing', create: { name: 'Everyday Chequing', account_type: 'checking', currency: 'CAD' } }],
+  accounts: [
+    { source: 'Everyday Chequing', create: { name: 'Everyday Chequing', account_type: 'checking', currency: 'CAD' } },
+  ],
   categories: [{ source: 'Groceries', create: { name: 'Groceries', kind: 'expense' } }],
   rows: [buildRow('1'), buildRow('2')],
-};
+}
 
 const BUDGETS: ImportRunBudgets = {
   categories: PAYLOAD.categories,
-  budgets: [{
-    name: 'Food',
-    currency: 'CAD',
-    category_sources: ['Groceries'],
-    limits: [{ start: '2026-04-01', end: '2026-04-30', amount: '300' }],
-    recurrence: null,
-    is_archived: false,
-  }],
-};
+  budgets: [
+    {
+      name: 'Food',
+      currency: 'CAD',
+      category_sources: ['Groceries'],
+      limits: [{ start: '2026-04-01', end: '2026-04-30', amount: '300' }],
+      recurrence: null,
+      is_archived: false,
+    },
+  ],
+}
 
 /** Lists each request the import sent as its method and path */
 function getRequests() {
-  return authenticatedFetchMock.mock.calls.map(([path, init]) => `${init?.method ?? 'GET'} ${path}`);
+  return authenticatedFetchMock.mock.calls.map(([path, init]) => `${init?.method ?? 'GET'} ${path}`)
 }
 
 describe('runJournalImport', () => {
   beforeEach(() => {
-    authenticatedFetchMock.mockReset();
-  });
+    authenticatedFetchMock.mockReset()
+  })
 
   it('stages the rows, budgets and accounts to archive against one run for its app, then commits it once', async () => {
-    const summary = { rows_imported: 2 };
+    const summary = { rows_imported: 2 }
     authenticatedFetchMock
       .mockResolvedValueOnce({ id: RUN_ID })
       .mockResolvedValueOnce(undefined)
       .mockResolvedValueOnce(undefined)
       .mockResolvedValueOnce(undefined)
-      .mockResolvedValueOnce(summary);
+      .mockResolvedValueOnce(summary)
 
-    await expect(runJournalImport({ source: 'firefly', payload: PAYLOAD, budgets: BUDGETS, archiveAccountSources: ['account-1'] }))
-      .resolves.toBe(summary);
+    await expect(
+      runJournalImport({ source: 'firefly', payload: PAYLOAD, budgets: BUDGETS, archiveAccountSources: ['account-1'] }),
+    ).resolves.toBe(summary)
 
     expect(getRequests()).toEqual([
       'POST /transactions/import/runs',
@@ -94,46 +95,55 @@ describe('runJournalImport', () => {
       `PUT ${RUN_PATH}/budgets`,
       `PUT ${RUN_PATH}/archive`,
       `POST ${RUN_PATH}/journal/commit`,
-    ]);
-    const [[, open], [, stage], [, budgets], [, archive]] = authenticatedFetchMock.mock.calls;
-    expect(JSON.parse(open.body)).toEqual({ expected_transaction_count: 2, source: 'firefly' });
-    expect(JSON.parse(stage.body)).toEqual({ ...PAYLOAD, start_row_index: 0 });
-    expect(JSON.parse(budgets.body)).toEqual(BUDGETS);
-    expect(JSON.parse(archive.body)).toEqual({ account_sources: ['account-1'] });
-  });
+    ])
+    const [[, open], [, stage], [, budgets], [, archive]] = authenticatedFetchMock.mock.calls
+    expect(JSON.parse(open.body)).toEqual({ expected_transaction_count: 2, source: 'firefly' })
+    expect(JSON.parse(stage.body)).toEqual({ ...PAYLOAD, start_row_index: 0 })
+    expect(JSON.parse(budgets.body)).toEqual(BUDGETS)
+    expect(JSON.parse(archive.body)).toEqual({ account_sources: ['account-1'] })
+  })
 
   it('drops the run when the budgets are refused, so nothing is left staged', async () => {
     authenticatedFetchMock
       .mockResolvedValueOnce({ id: RUN_ID })
       .mockResolvedValueOnce(undefined)
       .mockRejectedValueOnce(new ApiError('Category not found', 422))
-      .mockResolvedValueOnce(undefined);
+      .mockResolvedValueOnce(undefined)
 
-    const error = await runJournalImport({ source: 'firefly', payload: PAYLOAD, budgets: BUDGETS, archiveAccountSources: [] }).catch((caught: unknown) => caught);
+    const error = await runJournalImport({
+      source: 'firefly',
+      payload: PAYLOAD,
+      budgets: BUDGETS,
+      archiveAccountSources: [],
+    }).catch((caught: unknown) => caught)
 
-    expect(error).toBeInstanceOf(ImportRunError);
-    expect(error).toMatchObject({ phase: 'staging', runId: null, message: 'Category not found' });
-    expect(getRequests().at(-1)).toBe(`DELETE ${RUN_PATH}`);
-  });
+    expect(error).toBeInstanceOf(ImportRunError)
+    expect(error).toMatchObject({ phase: 'staging', runId: null, message: 'Category not found' })
+    expect(getRequests().at(-1)).toBe(`DELETE ${RUN_PATH}`)
+  })
 
   it('drops the run when the import is stopped as staging finishes', async () => {
-    const controller = new AbortController();
+    const controller = new AbortController()
     authenticatedFetchMock
       .mockResolvedValueOnce({ id: RUN_ID })
       .mockResolvedValueOnce(undefined)
-      .mockResolvedValueOnce(undefined);
+      .mockResolvedValueOnce(undefined)
 
-    const error = await runJournalImport({ source: 'firefly', payload: PAYLOAD, budgets: null, archiveAccountSources: [] }, controller.signal, async () => {
-      controller.abort();
-    }).catch((caught: unknown) => caught);
+    const error = await runJournalImport(
+      { source: 'firefly', payload: PAYLOAD, budgets: null, archiveAccountSources: [] },
+      controller.signal,
+      async () => {
+        controller.abort()
+      },
+    ).catch((caught: unknown) => caught)
 
-    expect(error).toMatchObject({ phase: 'staging', runId: null });
+    expect(error).toMatchObject({ phase: 'staging', runId: null })
     expect(getRequests()).toEqual([
       'POST /transactions/import/runs',
       `POST ${RUN_PATH}/journal/rows`,
       `DELETE ${RUN_PATH}`,
-    ]);
-  });
+    ])
+  })
 
   it('opens an Actual Budget run and declares the category a transfer names for its budgeted leg', async () => {
     const loanPayment: JournalImportRow = {
@@ -143,21 +153,34 @@ describe('runJournalImport', () => {
       destination_name: null,
       category: 'transfer:car',
       category_leg: 'source',
-    };
+    }
     const payload: JournalImportPayload = {
-      accounts: [...PAYLOAD.accounts, { source: 'Car Loan', create: { name: 'Car Loan', account_type: 'loan', currency: 'CAD' } }],
+      accounts: [
+        ...PAYLOAD.accounts,
+        { source: 'Car Loan', create: { name: 'Car Loan', account_type: 'loan', currency: 'CAD' } },
+      ],
       categories: [{ source: 'transfer:car', create: { name: 'Car Payment', kind: 'transfer' } }],
       rows: [loanPayment],
-    };
+    }
     authenticatedFetchMock
       .mockResolvedValueOnce({ id: RUN_ID })
       .mockResolvedValueOnce(undefined)
-      .mockResolvedValueOnce({ rows_imported: 1 });
+      .mockResolvedValueOnce({ rows_imported: 1 })
 
-    await runJournalImport({ source: 'actual_budget', payload, budgets: null, archiveAccountSources: [], fileName: 'My Budget.zip' });
+    await runJournalImport({
+      source: 'actual_budget',
+      payload,
+      budgets: null,
+      archiveAccountSources: [],
+      fileName: 'My Budget.zip',
+    })
 
-    const [[, open], [, stage]] = authenticatedFetchMock.mock.calls;
-    expect(JSON.parse(open.body)).toEqual({ expected_transaction_count: 1, source: 'actual_budget', file_name: 'My Budget.zip' });
-    expect(JSON.parse(stage.body).categories).toEqual(payload.categories);
-  });
-});
+    const [[, open], [, stage]] = authenticatedFetchMock.mock.calls
+    expect(JSON.parse(open.body)).toEqual({
+      expected_transaction_count: 1,
+      source: 'actual_budget',
+      file_name: 'My Budget.zip',
+    })
+    expect(JSON.parse(stage.body).categories).toEqual(payload.categories)
+  })
+})

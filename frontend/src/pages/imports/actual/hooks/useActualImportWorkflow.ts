@@ -37,7 +37,11 @@ import {
   getActualUnsupportedCurrencyError,
 } from '@/pages/imports/actual/constants'
 import type { ActualBudgetFile, ActualJournal, ActualPaymentMode, ActualSkippedRow } from '@/pages/imports/actual/types'
-import { buildActualBudgetDrafts, buildActualRunBudgets, getActualBudgetRefusal } from '@/pages/imports/actual/utils/budgets'
+import {
+  buildActualBudgetDrafts,
+  buildActualRunBudgets,
+  getActualBudgetRefusal,
+} from '@/pages/imports/actual/utils/budgets'
 import {
   applyActualCreditPayments,
   applyActualPaymentModes,
@@ -48,7 +52,11 @@ import {
   inferActualCategoryMappings,
 } from '@/pages/imports/actual/utils/categories'
 import { getActualTransferSourceId, normaliseActualBudget } from '@/pages/imports/actual/utils/normalise'
-import { buildActualImportPayload, isArchivedWhenCreated, type ActualImportBuild } from '@/pages/imports/actual/utils/payload'
+import {
+  buildActualImportPayload,
+  isArchivedWhenCreated,
+  type ActualImportBuild,
+} from '@/pages/imports/actual/utils/payload'
 import { buildActualPreviewRows } from '@/pages/imports/actual/utils/preview'
 import { readActualBudgetFile } from '@/pages/imports/actual/utils/readFile'
 
@@ -178,66 +186,84 @@ export function useActualImportWorkflow() {
   } = useProviderImportReferenceData({ transferCategoryName: IMPORT_TRANSFER_CATEGORY_NAME })
 
   // A finished import is a record of what it did, so its answers are guessed without what it created
-  const referenceBeforeImport = useReferenceBeforeImport({ selectableAccounts, categories, categoryById }, run.workflow.importResult)
-
-  const journal = useMemo(
-    () => (budget ? normaliseActualBudget(budget, today) : EMPTY_JOURNAL),
-    [budget, today],
+  const referenceBeforeImport = useReferenceBeforeImport(
+    { selectableAccounts, categories, categoryById },
+    run.workflow.importResult,
   )
+
+  const journal = useMemo(() => (budget ? normaliseActualBudget(budget, today) : EMPTY_JOURNAL), [budget, today])
   const accountSources = journal.accounts
 
   const supportedCurrencyCodes = useMemo(() => getSupportedCurrencyCodes(currencies), [currencies])
 
   // A budget with Actual's currency feature on names its currency, and every new account takes it.
   // Without it the currency is the user's to choose, since guessing would write every amount wrong
-  const proposedCurrency = budget?.currencyCode && supportedCurrencyCodes.has(budget.currencyCode) ? budget.currencyCode : ''
+  const proposedCurrency =
+    budget?.currencyCode && supportedCurrencyCodes.has(budget.currencyCode) ? budget.currencyCode : ''
 
   // Every Actual account takes rows or is created, so none can be answered as money outside the import
   const accountMappingSources = useMemo(
-    () => accountSources.map((source) => ({ id: source.id, label: source.label, matchText: source.name, isCounterpartyOnly: false })),
+    () =>
+      accountSources.map((source) => ({
+        id: source.id,
+        label: source.label,
+        matchText: source.name,
+        isCounterpartyOnly: false,
+      })),
     [accountSources],
   )
 
   const { resolvedAccountMappings, autoFilledAccountSources, handAnsweredAccountSources } = useProviderAccountAnswers({
     sources: accountMappingSources,
     accountMappings,
-    reference: { accountsResolved, accountsCurrent, accountById, selectableAccounts: referenceBeforeImport.selectableAccounts },
+    reference: {
+      accountsResolved,
+      accountsCurrent,
+      accountById,
+      selectableAccounts: referenceBeforeImport.selectableAccounts,
+    },
   })
 
-  const resolvedAccountCreateDetails = useMemo(
-    () => {
-      const details: Record<string, ImportAccountCreateDetails> = {}
-      for (const source of accountSources) {
-        details[source.id] = {
-          accountType: accountCreateTypes[source.id] ?? source.proposedType,
-          currency: accountCreateCurrencies[source.id] ?? proposedCurrency,
-          institutionId: accountCreateInstitutions[source.id] ?? '',
-        }
+  const resolvedAccountCreateDetails = useMemo(() => {
+    const details: Record<string, ImportAccountCreateDetails> = {}
+    for (const source of accountSources) {
+      details[source.id] = {
+        accountType: accountCreateTypes[source.id] ?? source.proposedType,
+        currency: accountCreateCurrencies[source.id] ?? proposedCurrency,
+        institutionId: accountCreateInstitutions[source.id] ?? '',
       }
-      return details
-    },
-    [accountCreateCurrencies, accountCreateInstitutions, accountCreateTypes, accountSources, proposedCurrency],
-  )
+    }
+    return details
+  }, [accountCreateCurrencies, accountCreateInstitutions, accountCreateTypes, accountSources, proposedCurrency])
 
   // Whether a transfer pays a credit account follows the account each side is linked to or created as
   const revolvingAccountIds = useMemo(
-    () => getActualRevolvingAccountIds(
-      accountSources.map((source) => source.id),
-      resolvedAccountMappings,
-      resolvedAccountCreateDetails,
-      accountById,
-    ),
+    () =>
+      getActualRevolvingAccountIds(
+        accountSources.map((source) => source.id),
+        resolvedAccountMappings,
+        resolvedAccountCreateDetails,
+        accountById,
+      ),
     [accountById, accountSources, resolvedAccountCreateDetails, resolvedAccountMappings],
   )
 
-  const creditJournal = useMemo(() => applyActualCreditPayments(journal, revolvingAccountIds), [journal, revolvingAccountIds])
+  const creditJournal = useMemo(
+    () => applyActualCreditPayments(journal, revolvingAccountIds),
+    [journal, revolvingAccountIds],
+  )
   const categorySources = creditJournal.categories
 
   // Every category with payments to off-budget accounts has a mode, a transfer until the user says otherwise
   const resolvedPaymentModes = useMemo(
-    () => Object.fromEntries(categorySources.flatMap((source) => (
-      source.role === 'transfer' && source.categoryId ? [[source.id, getActualPaymentMode(paymentModes, source.id)]] : []
-    ))) as Record<string, ActualPaymentMode>,
+    () =>
+      Object.fromEntries(
+        categorySources.flatMap((source) =>
+          source.role === 'transfer' && source.categoryId
+            ? [[source.id, getActualPaymentMode(paymentModes, source.id)]]
+            : [],
+        ),
+      ) as Record<string, ActualPaymentMode>,
     [categorySources, paymentModes],
   )
 
@@ -249,7 +275,8 @@ export function useActualImportWorkflow() {
   )
 
   const inferCategoryMappings = useCallback(
-    (liveMappings: Record<string, string>) => inferActualCategoryMappings(categorySources, liveMappings, referenceBeforeImport.categories ?? []),
+    (liveMappings: Record<string, string>) =>
+      inferActualCategoryMappings(categorySources, liveMappings, referenceBeforeImport.categories ?? []),
     [referenceBeforeImport.categories, categorySources],
   )
 
@@ -259,7 +286,11 @@ export function useActualImportWorkflow() {
   )
 
   const proposedCategoryKinds = useMemo(
-    () => Object.fromEntries(categorySources.map((source) => [source.id, getActualCategoryKind(source)])) as Record<string, ImportCategoryKind>,
+    () =>
+      Object.fromEntries(categorySources.map((source) => [source.id, getActualCategoryKind(source)])) as Record<
+        string,
+        ImportCategoryKind
+      >,
     [categorySources],
   )
 
@@ -269,15 +300,16 @@ export function useActualImportWorkflow() {
     [categorySources],
   )
 
-  const { resolvedCategoryMappings, autoFilledCategories, resolvedCategoryKinds, categoryRenames } = useProviderCategoryAnswers({
-    sources: categoryNameSources,
-    answers: categoryAnswers,
-    inferMappings: inferCategoryMappings,
-    proposedKinds: proposedCategoryKinds,
-    fixedKindSources: fixedKindCategorySources,
-    appName: ACTUAL_CATEGORY_RENAME_APP_NAME,
-    reference: { categoriesResolved, categoryById: referenceBeforeImport.categoryById },
-  })
+  const { resolvedCategoryMappings, autoFilledCategories, resolvedCategoryKinds, categoryRenames } =
+    useProviderCategoryAnswers({
+      sources: categoryNameSources,
+      answers: categoryAnswers,
+      inferMappings: inferCategoryMappings,
+      proposedKinds: proposedCategoryKinds,
+      fixedKindSources: fixedKindCategorySources,
+      appName: ACTUAL_CATEGORY_RENAME_APP_NAME,
+      reference: { categoriesResolved, categoryById: referenceBeforeImport.categoryById },
+    })
 
   const currentMonth = today.slice(0, 7)
   const budgetDrafts = useMemo(
@@ -315,20 +347,21 @@ export function useActualImportWorkflow() {
   )
 
   const importBuild = useMemo(
-    () => (budget
-      ? buildActualImportPayload(effectiveJournal, {
-        accountMappings: resolvedAccountMappings,
-        accountCreateDetails: resolvedAccountCreateDetails,
-        accountById,
-        categoryMappings: resolvedCategoryMappings,
-        categoryCreateKinds: resolvedCategoryKinds,
-        categoryRenames,
-        categoryById,
-        currencies,
-        fileCurrency: budget.currencyCode,
-        budgetCategorySources,
-      })
-      : EMPTY_BUILD),
+    () =>
+      budget
+        ? buildActualImportPayload(effectiveJournal, {
+            accountMappings: resolvedAccountMappings,
+            accountCreateDetails: resolvedAccountCreateDetails,
+            accountById,
+            categoryMappings: resolvedCategoryMappings,
+            categoryCreateKinds: resolvedCategoryKinds,
+            categoryRenames,
+            categoryById,
+            currencies,
+            fileCurrency: budget.currencyCode,
+            budgetCategorySources,
+          })
+        : EMPTY_BUILD,
     [
       accountById,
       budget,
@@ -349,15 +382,29 @@ export function useActualImportWorkflow() {
   // A budget the answers make unimportable moves to the skipped list with its reason, and comes
   // back once the answer changes
   const budgetRefusals = useMemo(
-    () => new Map(budgetDrafts.map((draft) => [draft.categoryId, getActualBudgetRefusal(draft, {
-      currency: importBuild.currency,
-      budgetDecimals: budget?.budgetDecimals ?? 2,
-      currencyExponent,
-      categoryMappings: resolvedCategoryMappings,
-      categoryCreateKinds: resolvedCategoryKinds,
+    () =>
+      new Map(
+        budgetDrafts.map((draft) => [
+          draft.categoryId,
+          getActualBudgetRefusal(draft, {
+            currency: importBuild.currency,
+            budgetDecimals: budget?.budgetDecimals ?? 2,
+            currencyExponent,
+            categoryMappings: resolvedCategoryMappings,
+            categoryCreateKinds: resolvedCategoryKinds,
+            categoryById,
+          }),
+        ]),
+      ),
+    [
+      budget,
+      budgetDrafts,
       categoryById,
-    })])),
-    [budget, budgetDrafts, categoryById, currencyExponent, importBuild.currency, resolvedCategoryKinds, resolvedCategoryMappings],
+      currencyExponent,
+      importBuild.currency,
+      resolvedCategoryKinds,
+      resolvedCategoryMappings,
+    ],
   )
 
   const pendingBudgetDrafts = useMemo(
@@ -368,30 +415,34 @@ export function useActualImportWorkflow() {
   // Budgets count expenses only, so one whose category's payments to off-budget accounts come in as
   // transfers shows less spent than Actual did
   const budgetsMissingPayments = useMemo(
-    () => pendingBudgetDrafts
-      .filter((draft) => resolvedPaymentModes[getActualTransferSourceId(draft.categoryId)] === 'transfer')
-      .map((draft) => draft.name),
+    () =>
+      pendingBudgetDrafts
+        .filter((draft) => resolvedPaymentModes[getActualTransferSourceId(draft.categoryId)] === 'transfer')
+        .map((draft) => draft.name),
     [pendingBudgetDrafts, resolvedPaymentModes],
   )
 
-  const runBudgetsBuild = useMemo(
-    () => {
-      const currency = importBuild.currency
-      if (!importBuild.payload || !currency || currencyExponent === null || pendingBudgetDrafts.length === 0) {
-        return { budgets: null, error: null }
-      }
-      return buildProviderRunBudgets(() => buildActualRunBudgets(
+  const runBudgetsBuild = useMemo(() => {
+    const currency = importBuild.currency
+    if (!importBuild.payload || !currency || currencyExponent === null || pendingBudgetDrafts.length === 0) {
+      return { budgets: null, error: null }
+    }
+    return buildProviderRunBudgets(() =>
+      buildActualRunBudgets(
         pendingBudgetDrafts,
         currency,
         budget?.budgetDecimals ?? 2,
         currencyExponent,
         importBuild.budgetCategoryMappings,
-      ))
-    },
-    [budget, currencyExponent, importBuild, pendingBudgetDrafts],
-  )
+      ),
+    )
+  }, [budget, currencyExponent, importBuild, pendingBudgetDrafts])
 
-  const budgetSelectionError = getProviderBudgetSelectionError(pendingBudgetDrafts.length, IMPORT_MAX_BUDGETS, runBudgetsBuild.error)
+  const budgetSelectionError = getProviderBudgetSelectionError(
+    pendingBudgetDrafts.length,
+    IMPORT_MAX_BUDGETS,
+    runBudgetsBuild.error,
+  )
 
   // Rows the reader left out and rows the chosen currency can't hold, in date order
   const predictedSkippedRows = useMemo(
@@ -404,32 +455,34 @@ export function useActualImportWorkflow() {
     [importBuild.skippedRows],
   )
 
-  const importEstimate = useMemo(
-    () => {
-      const entries = effectiveJournal.entries.filter((entry) => !skippedTransactionIds.has(entry.transactionId))
-      return {
-        rowCount: entries.length,
-        transactionEstimate: entries.reduce((total, entry) => total + (entry.type === 'transfer' ? 2 : 1), 0),
-      }
-    },
-    [effectiveJournal.entries, skippedTransactionIds],
-  )
+  const importEstimate = useMemo(() => {
+    const entries = effectiveJournal.entries.filter((entry) => !skippedTransactionIds.has(entry.transactionId))
+    return {
+      rowCount: entries.length,
+      transactionEstimate: entries.reduce((total, entry) => total + (entry.type === 'transfer' ? 2 : 1), 0),
+    }
+  }, [effectiveJournal.entries, skippedTransactionIds])
 
   const previewRows = useMemo(
-    () => buildActualPreviewRows(effectiveJournal, {
-      accountMappings: resolvedAccountMappings,
-      accountCreateDetails: resolvedAccountCreateDetails,
-      accountById,
-      institutionById,
-      categoryMappings: resolvedCategoryMappings,
-      categoryCreateKinds: resolvedCategoryKinds,
-      categoryRenames,
-      categoryById,
-      transferCategory,
-      balanceAdjustmentCategory,
-      currencies,
-      skippedTransactionIds,
-    }, IMPORT_SAMPLE_PREVIEW_LIMIT),
+    () =>
+      buildActualPreviewRows(
+        effectiveJournal,
+        {
+          accountMappings: resolvedAccountMappings,
+          accountCreateDetails: resolvedAccountCreateDetails,
+          accountById,
+          institutionById,
+          categoryMappings: resolvedCategoryMappings,
+          categoryCreateKinds: resolvedCategoryKinds,
+          categoryRenames,
+          categoryById,
+          transferCategory,
+          balanceAdjustmentCategory,
+          currencies,
+          skippedTransactionIds,
+        },
+        IMPORT_SAMPLE_PREVIEW_LIMIT,
+      ),
     [
       accountById,
       balanceAdjustmentCategory,
@@ -464,14 +517,18 @@ export function useActualImportWorkflow() {
   )
 
   // Closed accounts the import creates are archived, and a balance left in one is brought to zero
-  const closedAccountsWithBalance = accountSources.filter((source) => (
-    isArchivedWhenCreated(source) && source.balance !== 0 && resolvedAccountMappings[source.id] === CREATE_ACCOUNT_VALUE
-  ))
+  const closedAccountsWithBalance = accountSources.filter(
+    (source) =>
+      isArchivedWhenCreated(source) &&
+      source.balance !== 0 &&
+      resolvedAccountMappings[source.id] === CREATE_ACCOUNT_VALUE,
+  )
 
   // A closed account holding rows dated after today can't be archived, so the import creates it open
-  const closedAccountsKeptOpen = accountSources.filter((source) => (
-    source.closed && !isArchivedWhenCreated(source) && resolvedAccountMappings[source.id] === CREATE_ACCOUNT_VALUE
-  ))
+  const closedAccountsKeptOpen = accountSources.filter(
+    (source) =>
+      source.closed && !isArchivedWhenCreated(source) && resolvedAccountMappings[source.id] === CREATE_ACCOUNT_VALUE,
+  )
 
   // Closed accounts linked to one the user has write their rows there and leave it as it is
   const closedAccountsLinked = accountSources.filter((source) => {
@@ -479,7 +536,11 @@ export function useActualImportWorkflow() {
     return source.closed && source.rowCount > 0 && Boolean(choice) && choice !== CREATE_ACCOUNT_VALUE
   })
 
-  const canCommitImport = run.canCommit({ hasPayload: importBuild.payload !== null, isProcessingFile, budgetSelectionError })
+  const canCommitImport = run.canCommit({
+    hasPayload: importBuild.payload !== null,
+    isProcessingFile,
+    budgetSelectionError,
+  })
 
   const resetAnswers = () => {
     setAccountMappings({})
