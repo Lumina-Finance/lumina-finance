@@ -248,7 +248,10 @@ async def test_an_answer_pointing_at_another_users_tag_is_refused_and_writes_not
     )
 
     assert resp.status_code == 422
-    assert resp.json()["detail"] == "Tag not found"
+    assert (
+        resp.json()["detail"]
+        == 'The tag chosen for "Trip" is no longer available, so go back to Tag matching and choose another tag or skip it'
+    )
     assert await _list_tag_names(client, headers) == []
     assert (await client.get("/transactions", headers=headers)).json() == []
 
@@ -269,7 +272,10 @@ async def test_an_answer_pointing_at_a_group_tag_is_refused(client):
     )
 
     assert resp.status_code == 422
-    assert resp.json()["detail"] == "Tag not found"
+    assert (
+        resp.json()["detail"]
+        == 'The tag chosen for "Trip" is no longer available, so go back to Tag matching and choose another tag or skip it'
+    )
 
 
 @pytest.mark.parametrize(
@@ -437,5 +443,31 @@ async def test_an_answer_pointing_at_a_tag_deleted_before_the_commit_is_refused(
     resp = await _commit_run(client, headers, run_id)
 
     assert resp.status_code == 422
-    assert resp.json()["detail"] == "Tag not found"
+    assert (
+        resp.json()["detail"]
+        == 'The tag chosen for "Trip" is no longer available, so go back to Tag matching and choose another tag or skip it'
+    )
     assert (await client.get("/transactions", headers=headers)).json() == []
+
+
+async def test_a_refusal_names_only_the_value_whose_tag_is_gone(client):
+    """Two values are pointed at tags and one tag is deleted, so only that value is called out."""
+    headers, account_id, category_id = await _setup_user_with_deps(client)
+    kept = (await _create_tag(client, headers, name="Holiday")).json()
+    gone = (await _create_tag(client, headers, name="Office")).json()
+    assert (await client.delete(f"/tags/{gone['id']}", headers=headers)).status_code == 204
+
+    resp = await _import_rows(
+        client,
+        headers,
+        account_id,
+        category_id,
+        [{"tag_names": ["Trip", "Work"]}],
+        tags=[{"source": "Trip", "tag_id": kept["id"]}, {"source": "Work", "tag_id": gone["id"]}],
+    )
+
+    assert resp.status_code == 422
+    assert (
+        resp.json()["detail"]
+        == 'The tag chosen for "Work" is no longer available, so go back to Tag matching and choose another tag or skip it'
+    )

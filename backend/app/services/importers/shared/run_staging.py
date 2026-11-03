@@ -636,4 +636,4 @@ async def _validate_tag_mapping(
         )
 
     if mapping.tag_id is not None:
-        await require_usable_import_tag(db, mapping.tag_id, user.id, tags_by_id=references.tags)
+        await require_usable_import_tag(db, mapping.tag_id, source, user.id, tags_by_id=references.tags)

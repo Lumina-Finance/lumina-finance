@@ -74,4 +74,7 @@ async def test_an_answer_pointing_at_a_tag_that_is_gone_is_refused_at_the_commit
             await create_missing_import_tags(session, uuid.uuid4(), ["Trip"], answers, ImportTags(existing_by_key={}), ImportStats())
 
         assert exc_info.value.status_code == 422
-        assert exc_info.value.detail == "Tag not found"
+        assert (
+            exc_info.value.detail
+            == 'The tag chosen for "Trip" is no longer available, so go back to Tag matching and choose another tag or skip it'
+        )

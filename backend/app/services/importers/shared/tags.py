@@ -86,9 +86,22 @@ async def load_usable_import_tags(
     return {tag.id: tag for tag in result.scalars().all()}
 
 
+def get_unusable_import_tag_detail(source: str) -> str:
+    """Return the refusal for a tag answer whose tag cannot be used, naming the file value it answers
+
+    Args:
+        source: The tag name in the file that was pointed at the tag
+
+    Returns:
+        The message, which says nothing about whether the tag exists for someone else
+    """
+    return f'The tag chosen for "{source}" is no longer available, so go back to Tag matching and choose another tag or skip it'
+
+
 async def require_usable_import_tag(
     db: AsyncSession,
     tag_id: uuid.UUID,
+    source: str,
     user_id: uuid.UUID,
     *,
     tags_by_id: dict[uuid.UUID, Tag] | None = None,
@@ -98,6 +111,7 @@ async def require_usable_import_tag(
     Args:
         db: Active database session
         tag_id: Tag an answer points at
+        source: The tag name in the file that was pointed at the tag, which a refusal names
         user_id: Identifier for the user running the import
         tags_by_id: Optional complete caller-eligible reference lookup for this request
 
@@ -112,7 +126,7 @@ async def require_usable_import_tag(
         tags_by_id = await load_usable_import_tags(db, {tag_id}, user_id)
     tag = tags_by_id.get(tag_id)
     if tag is None:
-        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail="Tag not found")
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail=get_unusable_import_tag_detail(source))
     return tag
 
 
@@ -320,15 +334,15 @@ async def _attach_chosen_import_tags(
     Raises:
         HTTPException: Raised with 422 when an answer points at a tag this import cannot use
     """
-    chosen = [(key, answer.tag_id) for key, answer in answers.items() if answer.tag_id is not None]
+    chosen = [(key, answer.source.strip(), answer.tag_id) for key, answer in answers.items() if answer.tag_id is not None]
     if not chosen:
         return
 
-    tags_by_id = await load_usable_import_tags(db, {tag_id for _, tag_id in chosen}, user_id)
-    for key, tag_id in chosen:
+    tags_by_id = await load_usable_import_tags(db, {tag_id for _, _, tag_id in chosen}, user_id)
+    for key, source, tag_id in chosen:
         tag = tags_by_id.get(tag_id)
         if tag is None:
-            raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail="Tag not found")
+            raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail=get_unusable_import_tag_detail(source))
         tags.resolved_by_key[key] = tag
 
 
