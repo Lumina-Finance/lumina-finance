@@ -253,7 +253,7 @@ async def stage_run_batch(
         allows_outside_accounts: Whether the importer can answer an account source as outside the
             tracked accounts
         merchants: Merchant answers the batch declares, which only the CSV import has
-        tags: Tag answers the batch declares, which only the CSV import has
+        tags: Tag answers the batch declares, which only the CSV and journal imports have
 
     Returns:
         None

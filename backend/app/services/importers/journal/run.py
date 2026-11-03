@@ -21,6 +21,7 @@ from app.schemas.import_run import (
     JournalTransactionRow,
     TransactionImportAccountMapping,
     TransactionImportCategoryMapping,
+    TransactionImportTagMapping,
 )
 from app.services.accounts.balance_adjustments import (
     validate_no_transactions_after_archive_date,
@@ -88,6 +89,7 @@ async def stage_journal_batch(
         rows=data.rows,
         start_row_index=data.start_row_index,
         allows_outside_accounts=False,
+        tags=data.tags,
     )
 
 
@@ -213,6 +215,7 @@ async def _write_run(
         run.id,
         [TransactionImportAccountMapping.model_validate(mapping) for mapping in run.account_mappings.values()],
         [TransactionImportCategoryMapping.model_validate(mapping) for mapping in run.category_mappings.values()],
+        [TransactionImportTagMapping.model_validate(mapping) for mapping in run.tag_mappings.values()],
         [JournalTransactionRow.model_validate(row.payload) for row in staged_rows],
     )
 

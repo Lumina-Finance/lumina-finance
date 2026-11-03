@@ -11,7 +11,12 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.models.base import TransferCounterpartyScope
 from app.models.import_run import ImportRunSource
 from app.models.user import User
-from app.schemas.import_run import JournalTransactionRow, TransactionImportAccountMapping, TransactionImportCategoryMapping
+from app.schemas.import_run import (
+    JournalTransactionRow,
+    TransactionImportAccountMapping,
+    TransactionImportCategoryMapping,
+    TransactionImportTagMapping,
+)
 from app.services.accounts.snapshots import recompute_account_snapshots
 from app.services.categories.transfer_rules import does_category_record_counterparty_account
 from app.services.importers.journal.constants import JOURNAL_GENERIC_REFUSAL_REASON, JOURNAL_ROW_LABELS
@@ -47,6 +52,7 @@ async def write_journal_transactions(
     import_run_id: uuid.UUID,
     accounts: list[TransactionImportAccountMapping],
     categories: list[TransactionImportCategoryMapping],
+    tags: list[TransactionImportTagMapping],
     rows: list[JournalTransactionRow],
 ) -> JournalWriteResult:
     """Write a journal export's rows and everything they reference, without committing
@@ -58,6 +64,7 @@ async def write_journal_transactions(
         import_run_id: Run being committed, which every written transaction is stamped with
         accounts: Account mappings covering every account source the rows name
         categories: Category mappings covering every category the rows read
+        tags: The tag names the user answered by hand, which may be none of them
         rows: Journal rows in export order
 
     Returns:
@@ -94,7 +101,7 @@ async def write_journal_transactions(
         import_run_id=import_run_id,
         transactions=[_to_imported_transaction(leg) for leg in legs],
         merchant_mappings=[],
-        tag_mappings=[],
+        tag_mappings=tags,
         import_lookups=import_lookups,
         stats=stats,
     )
