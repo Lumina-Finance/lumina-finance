@@ -1,10 +1,18 @@
 import {
   CREATE_MERCHANT_VALUE,
+  getTooManyMappingsError,
+  MAX_IMPORT_MAPPINGS,
   MERCHANT_MATCHES_LOAD_FAILURE_EXPLANATION,
   MERCHANT_MATCHES_LOAD_FAILURE_TITLE,
   SKIP_MERCHANT_VALUE,
 } from '@/pages/imports/constants'
-import { EmptyState, ImportLoadFailure, ImportStep, ImportValueMatchTable } from '@/pages/imports/components'
+import {
+  EmptyState,
+  ImportLoadFailure,
+  ImportNotice,
+  ImportStep,
+  ImportValueMatchTable,
+} from '@/pages/imports/components'
 import type { TransactionImportWorkflow } from '@/pages/imports/hooks'
 import { getImportMerchantRowState } from '@/pages/imports/utils'
 import { getNameKey } from '@/api/shared/nameKey'
@@ -66,7 +74,13 @@ export function ImportMerchantMatchingStep({
       title="Merchant matching"
       description="Match each merchant name in this import to the merchant its rows will be filed under."
     >
-      {matchesFailed ? (
+      {/* The server refuses to check more names than one import carries, so none are asked about and a
+          retry is not offered for a failure that cannot clear */}
+      {importedMerchants.length > MAX_IMPORT_MAPPINGS ? (
+        <ImportNotice tone="danger" title="Too many merchants to match">
+          {getTooManyMappingsError('merchant', importedMerchants.length)}
+        </ImportNotice>
+      ) : matchesFailed ? (
         <ImportLoadFailure
           title={MERCHANT_MATCHES_LOAD_FAILURE_TITLE}
           description={MERCHANT_MATCHES_LOAD_FAILURE_EXPLANATION}

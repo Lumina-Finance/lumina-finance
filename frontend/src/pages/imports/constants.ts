@@ -241,7 +241,7 @@ export const JOURNAL_ROW_FIELD_MAX_LENGTHS = {
   merchantName: 256,
 } as const
 
-// Distinct account or category values one import may declare, matching what the API accepts across
+// Distinct account, category, merchant or tag values one import may declare, matching what the API accepts across
 // a whole run rather than per request, so splitting the batches differently cannot get past it
 export const MAX_IMPORT_MAPPINGS = 1_000
 
@@ -252,8 +252,9 @@ export const MAX_IMPORT_MAPPINGS = 1_000
  * depends on which case it is, so the wording covers both: stage fewer files, or split the one file
  * that carries them all
  */
-export function getTooManyMappingsError(kind: 'account' | 'category', count: number) {
-  return `This import has ${count.toLocaleString()} different ${kind} values, and one import carries up to ${MAX_IMPORT_MAPPINGS.toLocaleString()}. Split the data into smaller imports.`
+export function getTooManyMappingsError(kind: 'account' | 'category' | 'merchant' | 'tag', count: number) {
+  const plural = kind === 'category' ? 'categories' : `${kind}s`
+  return `This import can't be started: it has ${count.toLocaleString()} different ${plural}, and one import carries up to ${MAX_IMPORT_MAPPINGS.toLocaleString()}. Import fewer files at a time, or split the data into smaller imports.`
 }
 
 /**

@@ -4,6 +4,7 @@ import { fetchTagNameMatches, useInfiniteTags, type Tag } from '@/api/tags'
 import { tagKeys } from '@/api/cache/queryKeys'
 import { getNameKey } from '@/api/shared/nameKey'
 import { useAuth } from '@/hooks/useAuth'
+import { MAX_IMPORT_MAPPINGS } from '@/pages/imports/constants'
 import { buildImportTagOptions } from '@/pages/imports/utils'
 
 // Tags one search page holds, matching what the transaction modal's own tag search uses
@@ -31,7 +32,10 @@ export function useImportTagMatches(importedTags: string[]) {
   } = useQuery({
     queryKey: tagKeys.nameMatches(importedTags),
     queryFn: ({ signal }) => fetchTagNameMatches(importedTags, signal),
-    enabled: Boolean(accessToken) && importedTags.length > 0,
+
+    // Over the limit the server refuses the whole request every time, so none is sent and the step
+    // says the import has too many different tags instead
+    enabled: Boolean(accessToken) && importedTags.length > 0 && importedTags.length <= MAX_IMPORT_MAPPINGS,
   })
 
   const trimmedSearch = tagSearch.trim()

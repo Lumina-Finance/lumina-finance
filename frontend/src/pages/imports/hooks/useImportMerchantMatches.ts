@@ -4,6 +4,7 @@ import { fetchMerchantNameMatches, useInfiniteMerchants, type Merchant } from '@
 import { merchantKeys } from '@/api/cache/queryKeys'
 import { getNameKey } from '@/api/shared/nameKey'
 import { useAuth } from '@/hooks/useAuth'
+import { MAX_IMPORT_MAPPINGS } from '@/pages/imports/constants'
 import { buildImportMerchantOptions } from '@/pages/imports/utils'
 
 // Merchants one search page holds, matching what the transaction modal's own merchant search uses
@@ -31,7 +32,10 @@ export function useImportMerchantMatches(importedMerchants: string[]) {
   } = useQuery({
     queryKey: merchantKeys.nameMatches(importedMerchants),
     queryFn: ({ signal }) => fetchMerchantNameMatches(importedMerchants, signal),
-    enabled: Boolean(accessToken) && importedMerchants.length > 0,
+
+    // Over the limit the server refuses the whole request every time, so none is sent and the step
+    // says the import has too many different merchants instead
+    enabled: Boolean(accessToken) && importedMerchants.length > 0 && importedMerchants.length <= MAX_IMPORT_MAPPINGS,
   })
 
   const trimmedSearch = merchantSearch.trim()
