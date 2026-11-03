@@ -1,6 +1,7 @@
 import { useCallback, useMemo, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { fetchTagNameMatches, useInfiniteTags, type Tag } from '@/api/tags'
+import { ApiError } from '@/api/auth/errors'
 import { tagKeys } from '@/api/cache/queryKeys'
 import { getNameKey } from '@/api/shared/nameKey'
 import { useAuth } from '@/hooks/useAuth'
@@ -28,6 +29,7 @@ export function useImportTagMatches(importedTags: string[]) {
     data: matches = [],
     isLoading: tagMatchesLoading,
     isError: tagMatchesFailed,
+    error: tagMatchesError,
     refetch: refetchTagMatches,
   } = useQuery({
     queryKey: tagKeys.nameMatches(importedTags),
@@ -70,6 +72,9 @@ export function useImportTagMatches(importedTags: string[]) {
     matchedTagByKey,
     tagMatchesLoading,
     tagMatchesFailed,
+
+    // Only a reason the server wrote is shown, since the generic sentence for a fault says nothing more
+    tagMatchesReason: tagMatchesError instanceof ApiError ? (tagMatchesError.detail ?? null) : null,
     refetchTagMatches,
     tagOptions,
     rememberPickedTag,

@@ -112,7 +112,7 @@ describe('what the tag step sends', () => {
     const { mappings, errors } = buildFor('trvl', CREATE_TAG_VALUE, '   ')
 
     expect(mappings).toEqual([])
-    expect(errors).toEqual(['Choose a name for the new tag "trvl".'])
+    expect(errors).toEqual(['The import can\'t go ahead: the new tag "trvl" has no name. Enter one in Tag matching.'])
   })
 
   it('refuses a value being created under a name longer than a tag can have, and takes one that long', () => {
@@ -120,7 +120,9 @@ describe('what the tag step sends', () => {
     const longest = buildFor('trvl', CREATE_TAG_VALUE, 't'.repeat(IMPORT_TAG_NAME_MAX_LENGTH))
 
     expect(tooLong.mappings).toEqual([])
-    expect(tooLong.errors).toEqual([`The name for the new tag "trvl" is longer than 64 characters.`])
+    expect(tooLong.errors).toEqual([
+      `The import can't go ahead: the name for the new tag "trvl" is longer than 64 characters. Shorten it in Tag matching.`,
+    ])
     expect(longest.errors).toEqual([])
     expect(longest.mappings).toHaveLength(1)
   })
@@ -128,9 +130,12 @@ describe('what the tag step sends', () => {
 
 describe('what is wrong with a name a tag would be created under', () => {
   it.each([
-    ['', 'Enter a name for the new tag.'],
-    ['   ', 'Enter a name for the new tag.'],
-    ['t'.repeat(IMPORT_TAG_NAME_MAX_LENGTH + 1), 'A tag name can have at most 64 characters.'],
+    ['', 'The new tag needs a name before it can be created. Enter one.'],
+    ['   ', 'The new tag needs a name before it can be created. Enter one.'],
+    [
+      't'.repeat(IMPORT_TAG_NAME_MAX_LENGTH + 1),
+      'This tag name is too long to be created, since a tag name can have at most 64 characters. Shorten it.',
+    ],
     ['t'.repeat(IMPORT_TAG_NAME_MAX_LENGTH), ''],
     [' Travel ', ''],
   ])('reads %j as %j', (name, error) => {

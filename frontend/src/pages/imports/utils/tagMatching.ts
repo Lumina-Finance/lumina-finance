@@ -142,9 +142,9 @@ export function buildImportTagMappings({
  */
 export function getImportTagCreateNameError(name: string) {
   const trimmed = name.trim()
-  if (!trimmed) return 'Enter a name for the new tag.'
+  if (!trimmed) return 'The new tag needs a name before it can be created. Enter one.'
   if ([...trimmed].length > IMPORT_TAG_NAME_MAX_LENGTH) {
-    return `A tag name can have at most ${IMPORT_TAG_NAME_MAX_LENGTH} characters.`
+    return `This tag name is too long to be created, since a tag name can have at most ${IMPORT_TAG_NAME_MAX_LENGTH} characters. Shorten it.`
   }
   return ''
 }

@@ -41,6 +41,7 @@ type ImportTagMatchingStepProps = {
   | 'loadMoreTagResults'
   | 'tagMatchesLoading'
   | 'tagMatchesFailed'
+  | 'tagMatchesReason'
   | 'refetchTagMatches'
   | 'importResult'
 >
@@ -68,6 +69,7 @@ export function ImportTagMatchingStep({
   loadMoreTagResults,
   tagMatchesLoading,
   tagMatchesFailed,
+  tagMatchesReason,
   refetchTagMatches,
   importResult,
 }: ImportTagMatchingStepProps) {
@@ -94,6 +96,7 @@ export function ImportTagMatchingStep({
         <ImportLoadFailure
           title={TAG_MATCHES_LOAD_FAILURE_TITLE}
           description={TAG_MATCHES_LOAD_FAILURE_EXPLANATION}
+          reason={tagMatchesReason}
           onRetry={refetchTagMatches}
         />
       ) : importedTags.length === 0 ? (

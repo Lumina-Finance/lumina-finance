@@ -82,6 +82,9 @@ export function buildImportNameMappings<TMatched extends { id: string }, TMappin
   const mappings: (TMapping | { source: string; skip: true } | { source: string; create: { name: string } })[] = []
   const errors: string[] = []
 
+  // The step where the user fixes a name, which every error here points at
+  const stepName = `${noun.charAt(0).toUpperCase()}${noun.slice(1)} matching`
+
   for (const value of values) {
     const key = getNameKey(value)
     const matched = matchedByKey.get(key)
@@ -97,12 +100,14 @@ export function buildImportNameMappings<TMatched extends { id: string }, TMappin
     if (answer === createValue) {
       const name = (createNames[value] ?? value).trim()
       if (!name) {
-        errors.push(`Choose a name for the new ${noun} "${value}".`)
+        errors.push(`The import can't go ahead: the new ${noun} "${value}" has no name. Enter one in ${stepName}.`)
         continue
       }
 
       if (maxNameLength !== undefined && [...name].length > maxNameLength) {
-        errors.push(`The name for the new ${noun} "${value}" is longer than ${maxNameLength} characters.`)
+        errors.push(
+          `The import can't go ahead: the name for the new ${noun} "${value}" is longer than ${maxNameLength} characters. Shorten it in ${stepName}.`,
+        )
         continue
       }
 

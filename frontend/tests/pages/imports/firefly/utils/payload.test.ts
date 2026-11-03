@@ -1058,6 +1058,8 @@ describe('the tag answers a Firefly III import sends', () => {
     })
 
     expect(result.payload).toBeNull()
-    expect(result.errors).toContain('Choose a name for the new tag "Trip".')
+    expect(result.errors).toContain(
+      'The import can\'t go ahead: the new tag "Trip" has no name. Enter one in Tag matching.',
+    )
   })
 })

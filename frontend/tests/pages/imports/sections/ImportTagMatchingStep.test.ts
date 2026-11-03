@@ -44,6 +44,7 @@ function render(overrides: Partial<Record<keyof Props, unknown>> = {}) {
       loadMoreTagResults: () => undefined,
       tagMatchesLoading: false,
       tagMatchesFailed: false,
+      tagMatchesReason: null,
       refetchTagMatches: () => undefined,
       importResult: null,
       ...overrides,
@@ -96,7 +97,8 @@ describe('the tag matching step', () => {
     const tags = Array.from({ length: MAX_IMPORT_MAPPINGS + 1 }, (_, index) => `Tag ${index}`)
     const markup = render({ importedTags: tags, tagMatchesFailed: true })
 
-    expect(markup).toContain(getTooManyMappingsError('tag', MAX_IMPORT_MAPPINGS + 1))
+    // Rendering escapes the apostrophe the sentence holds
+    expect(markup).toContain(getTooManyMappingsError('tag', MAX_IMPORT_MAPPINGS + 1).replaceAll("'", '&#x27;'))
     expect(markup).not.toContain('could not be checked')
     expect(markup).not.toContain('Retry')
     expect(markup).not.toContain('Tag from file')
@@ -114,6 +116,13 @@ describe('the tag matching step', () => {
     expect(markup).toContain('Your tags could not be checked')
     expect(markup).toContain('creates a tag only where you have none')
     expect(markup).not.toContain('could create tags you already have')
+  })
+
+  it("gives the server's reason when it sent one for the tags not being checked", () => {
+    const markup = render({ tagMatchesFailed: true, tagMatchesReason: 'Too many requests, wait a minute' })
+
+    expect(markup).toContain('Your tags could not be checked')
+    expect(markup).toContain('Too many requests, wait a minute')
   })
 
   it('shows a name already matching a tag as filed under it, matched in other capitals', () => {
@@ -155,7 +164,7 @@ describe('the name a new tag is created under', () => {
     const markup = render({ tagCreateNames: { Trip: '   ' } })
 
     expect(getNameField(markup, 'Trip')).toContain('aria-invalid="true"')
-    expect(markup).toContain('Enter a name for the new tag.')
+    expect(markup).toContain('The new tag needs a name before it can be created. Enter one.')
   })
 
   it('is marked invalid when it is longer than a tag can be named, and not at exactly that length', () => {

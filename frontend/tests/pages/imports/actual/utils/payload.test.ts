@@ -582,6 +582,8 @@ describe('the tag answers an Actual Budget import sends', () => {
     const build = buildActualImportPayload(journal, { ...createAnswers(journal), tagAnswers })
 
     expect(build.payload).toBeNull()
-    expect(build.errors).toContain('Choose a name for the new tag "Trip".')
+    expect(build.errors).toContain(
+      'The import can\'t go ahead: the new tag "Trip" has no name. Enter one in Tag matching.',
+    )
   })
 })

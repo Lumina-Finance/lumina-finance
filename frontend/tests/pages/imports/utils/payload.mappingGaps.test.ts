@@ -172,7 +172,9 @@ describe('refusing a category or merchant answer the builder cannot use', () => 
       },
     })
 
-    expect(result.errors).toContain('Choose a name for the new merchant "Acme".')
+    expect(result.errors).toContain(
+      'The import can\'t go ahead: the new merchant "Acme" has no name. Enter one in Merchant matching.',
+    )
   })
 
   it('forwards a tag answer the builder refuses, and builds no payload', () => {
@@ -185,7 +187,9 @@ describe('refusing a category or merchant answer the builder cannot use', () => 
       },
     })
 
-    expect(result.errors).toContain('Choose a name for the new tag "Trip".')
+    expect(result.errors).toContain(
+      'The import can\'t go ahead: the new tag "Trip" has no name. Enter one in Tag matching.',
+    )
     expect(result.payload).toBeNull()
   })
 
@@ -200,7 +204,7 @@ describe('refusing a category or merchant answer the builder cannot use', () => 
     })
 
     expect(result.errors).toContain(
-      `The name for the new tag "Trip" is longer than ${IMPORT_TAG_NAME_MAX_LENGTH} characters.`,
+      `The import can't go ahead: the name for the new tag "Trip" is longer than ${IMPORT_TAG_NAME_MAX_LENGTH} characters. Shorten it in Tag matching.`,
     )
     expect(result.payload).toBeNull()
   })

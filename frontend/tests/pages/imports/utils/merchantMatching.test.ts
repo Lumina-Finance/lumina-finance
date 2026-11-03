@@ -76,7 +76,9 @@ describe('what the merchant step sends', () => {
     const { mappings, errors } = buildFor('SQ *COFFEE 4471', CREATE_MERCHANT_VALUE, '   ')
 
     expect(mappings).toEqual([])
-    expect(errors).toEqual(['Choose a name for the new merchant "SQ *COFFEE 4471".'])
+    expect(errors).toEqual([
+      'The import can\'t go ahead: the new merchant "SQ *COFFEE 4471" has no name. Enter one in Merchant matching.',
+    ])
   })
 })
 
@@ -97,7 +99,10 @@ describe('what one row of the merchant step reads as', () => {
 describe('the merchant names a file offers to answer', () => {
   // The second pair lowercases alike only in PostgreSQL, whose lower() the commit matches merchant
   // names by
-  it.each([['Amazon', 'AMAZON'], ['İstanbul Kebap', 'ISTANBUL KEBAP']])('asks about %s and %s once', (spelling, otherSpelling) => {
+  it.each([
+    ['Amazon', 'AMAZON'],
+    ['İstanbul Kebap', 'ISTANBUL KEBAP'],
+  ])('asks about %s and %s once', (spelling, otherSpelling) => {
     const rows: CsvRow[] = [{ Merchant: spelling }, { Merchant: otherSpelling }, { Merchant: 'Zest Bakery' }]
     const file: ImportFileDraft = {
       id: 'file-1',
