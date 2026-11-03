@@ -126,7 +126,7 @@ describe('getExportFailureMessage', () => {
     [
       'a 413 with an empty body',
       buildApiError(413, null),
-      'Nothing was downloaded: the request was too large. Please select fewer transactions or narrow the filters and try again.',
+      'Nothing was downloaded: the request was too large. Please select fewer transactions and try again.',
     ],
     [
       'a 400 with an empty body',

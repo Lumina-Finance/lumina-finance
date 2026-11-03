@@ -76,7 +76,7 @@ const EXPORT_REASONS_BY_STATUS: Record<number, string> = {
   403: "you don't have permission to export.",
   404: "the transactions couldn't be found. Please refresh the list and try again.",
   408: 'the request took too long. Please try again.',
-  413: 'the request was too large. Please select fewer transactions or narrow the filters and try again.',
+  413: 'the request was too large. Please select fewer transactions and try again.',
   429: 'too many requests were sent. Please wait a moment and try again.',
 }
 
