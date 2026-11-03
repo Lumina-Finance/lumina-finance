@@ -7,10 +7,24 @@ from app.services.auth.user_lookup import normalize_typed_spelling
 
 _TYPED = TypeAdapter(EmailStr)
 
+# Built from code points so the decomposed and fullwidth forms survive any editor or formatter
+_COMBINING_DIAERESIS = chr(0x308)
+_FULLWIDTH_EXAMPLE = "".join(chr(0xFF21 + ord(letter) - ord("A")) for letter in "EXAMPLE")
+
 
 @pytest.mark.parametrize(
     "email",
-    ["sso@MÜNCHEN.de", "Sso@EXAMPLE.COM", "sso@example.com", "first.last@Sub.Example.Org", "Émile@Example.com"],
+    [
+        "sso@MÜNCHEN.de",
+        "Sso@EXAMPLE.COM",
+        "sso@example.com",
+        "first.last@Sub.Example.Org",
+        "Émile@Example.com",
+        "sso@xn--mnchen-3ya.de",
+        f"sso@mu{_COMBINING_DIAERESIS}nchen.de",
+        f"a@{_FULLWIDTH_EXAMPLE}.com",
+        f"Su{_COMBINING_DIAERESIS}@x.de",
+    ],
 )
 def test_matches_the_spelling_a_typed_address_is_stored_in(email):
     """The two spellings differing would give one address two accounts"""
