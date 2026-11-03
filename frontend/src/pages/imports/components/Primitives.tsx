@@ -145,7 +145,7 @@ export function ImportLoadFailure({
         <p className="text-[0.9375rem] font-semibold" style={{ color: 'var(--app-negative)' }}>
           {title}
         </p>
-        <p className="mt-1 text-sm leading-5">{description}</p>
+        <p className="mt-1 text-sm leading-5 text-pretty">{description}</p>
         {reason && (
           <p className="mt-1 text-sm leading-5" lang="en">
             {reason}
