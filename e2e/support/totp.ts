@@ -58,6 +58,21 @@ export function currentTotp(secret: string): string {
  * @throws When any step of enrolment is refused
  */
 export async function enrollTotp(request: APIRequestContext, user: TestUser): Promise<string> {
+  return (await enrollTotpWithRecoveryCodes(request, user)).secret
+}
+
+/**
+ * Turn TOTP on as `enrollTotp` does, keeping the recovery codes the server shows once.
+ *
+ * @param request - Playwright request context
+ * @param user - User to enrol, stepping up with their password
+ * @returns The base32 secret an authenticator app would hold and the plaintext recovery codes
+ * @throws When any step of enrolment is refused
+ */
+export async function enrollTotpWithRecoveryCodes(
+  request: APIRequestContext,
+  user: TestUser,
+): Promise<{ secret: string; recoveryCodes: string[] }> {
   const setup = await request.post(`${API_BASE_URL}/auth/2fa/setup`, {
     headers: asUser(user),
     data: { step_up: { password: user.password } },
@@ -70,9 +85,10 @@ export async function enrollTotp(request: APIRequestContext, user: TestUser): Pr
     data: { code: totpAt(secret, currentTotpStep() - 1) },
   })
   if (!confirm.ok()) throw new Error(`TOTP confirmation answered ${confirm.status()}: ${await confirm.text()}`)
+  const { recovery_codes: recoveryCodes } = (await confirm.json()) as { recovery_codes: string[] }
 
   const complete = await request.post(`${API_BASE_URL}/auth/2fa/complete`, { headers: asUser(user) })
   if (!complete.ok()) throw new Error(`TOTP completion answered ${complete.status()}: ${await complete.text()}`)
 
-  return secret
+  return { secret, recoveryCodes }
 }
