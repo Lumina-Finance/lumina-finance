@@ -11,6 +11,8 @@ import {
   QIF_NOT_READABLE_REASON,
   QIF_ONLY_LEFT_OUT_REASON,
   QIF_TOO_LARGE_REASON,
+  getQifTransactionWithoutSectionReason,
+  getQifTwoAlternateAmountsReason,
   QIF_TRUNCATED_REASON,
 } from '@/pages/imports/qif/constants'
 import { readQifFile } from '@/pages/imports/qif/utils/readFile'
@@ -234,6 +236,46 @@ describe('readQifFile files it refuses', () => {
   it('still reads one date and amount per record, and an alternate amount beside the amount', async () => {
     const file = await readFile(['!Type:Bank', 'D1/1/99', 'T10', 'U10', '^', 'D1/2/99', 'T20', '^'].join('\n'))
     expect(file.statements[0].transactions.map(({ amountText }) => amountText)).toEqual(['10', '20'])
+  })
+
+  it('refuses a transaction with a second alternate amount instead of ignoring it', async () => {
+    const lines = ['!Type:Bank', 'D1/2/24', 'T-5.00', 'PCoffee', 'U-5.00', 'U-9.00', '^']
+    const reason = getQifTwoAlternateAmountsReason('transaction dated 1/2/24 for "Coffee"')
+
+    expect(await readReason(lines.join('\n'))).toBe(reason)
+    expect(await readReason([BANK, ...lines].join('\n'))).toBe(reason)
+    expect(reason).toBe(
+      `This file has a transaction dated 1/2/24 for "Coffee" with two alternate amounts, so the importer can't tell which one is right. Export the file from Quicken again and choose the new file.`,
+    )
+  })
+
+  it('names a refused transaction by its date and payee, cutting a long payee, or just as a transaction', async () => {
+    const stray = (...lines: string[]) => readReason([...lines, '^'].join('\n'))
+    const payee = 'P'.repeat(40)
+
+    expect(await stray('!Type:Bank', `P${payee}`, 'U1', 'U2')).toBe(
+      getQifTwoAlternateAmountsReason(`transaction for "${'P'.repeat(30)}…"`),
+    )
+    expect(await stray('!Type:Bank', 'U1', 'U2')).toBe(getQifTwoAlternateAmountsReason('transaction'))
+  })
+
+  // A record with fields but no section to read it in would otherwise be dropped while the file's
+  // other transactions came in, leaving the user short with no word on why
+  it.each([
+    ['an account header', ['!Account', 'NChequing', '^', 'D1/2/24', 'T-5.00', '^']],
+    ['an option line with no section', ['!Option:AutoSwitch', 'D1/2/24', 'T-5.00', '^']],
+  ])('refuses a transaction under %s with no transaction section header', async (_name, stray) => {
+    const lines = [...stray, '!Type:Bank', 'D1/3/24', 'T-1.00', '^']
+
+    expect(await readReason(lines.join('\n'))).toBe(getQifTransactionWithoutSectionReason('transaction dated 1/2/24'))
+  })
+
+  it('still reads an account list followed by a section header and an empty record', async () => {
+    const file = await readFile(
+      ['!Account', 'NChequing', 'TBank', '^', '^', '!Type:Bank', 'D1/3/24', 'T-1.00', '^'].join('\n'),
+    )
+
+    expect(file.statements[0].transactions).toHaveLength(1)
   })
 
   it('refuses a file whose last record is only a date line cut off before its caret', async () => {

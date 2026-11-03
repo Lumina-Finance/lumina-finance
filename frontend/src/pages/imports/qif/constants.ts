@@ -15,6 +15,16 @@ export const QIF_ONLY_LEFT_OUT_REASON = "This file only holds investment transac
 export const QIF_TRUNCATED_REASON =
   'This file ends part way through a transaction. Export it again and choose the new file.'
 
+/** Says which transaction has two alternate amounts, described as {@link describeQifTransaction} does */
+export function getQifTwoAlternateAmountsReason(transaction: string) {
+  return `This file has a ${transaction} with two alternate amounts, so the importer can't tell which one is right. Export the file from Quicken again and choose the new file.`
+}
+
+/** Says which transaction sits outside every transaction section, described as {@link describeQifTransaction} does */
+export function getQifTransactionWithoutSectionReason(transaction: string) {
+  return `This file has a ${transaction} that isn't under a transaction section header, so the importer can't tell which account it belongs to. Export the file from Quicken again and choose the new file.`
+}
+
 export function getQifUnknownSectionReason(header: string) {
   return `This file has a section the importer doesn't recognize: ${header}. ${QIF_FILE_GUIDANCE}`
 }

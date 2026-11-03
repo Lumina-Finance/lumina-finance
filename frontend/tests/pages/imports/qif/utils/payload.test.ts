@@ -7,6 +7,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { AccountsOverview } from '@/api/accounts'
 import type { Category } from '@/api/categories'
 import type { Currency } from '@/api/currency'
+import { CREATE_ACCOUNT_VALUE, getImportAccountNameTooLongError } from '@/pages/imports/constants'
 import { QIF_AMOUNTS_DIFFER_REASON } from '@/pages/imports/qif/constants'
 import { OFX_DATE_UNREADABLE_REASON } from '@/pages/imports/ofx/constants'
 import type { OfxReadings } from '@/pages/imports/ofx/types'
@@ -177,6 +178,32 @@ describe('a QIF file through the statement import', () => {
     ])
     expect(QIF_EXPECTATIONS.changes.find((change) => change.source === 'An account')?.lumina).toContain(
       'Opening Balance transaction in the file comes in like any other',
+    )
+  })
+
+  it('refuses a QIF account named with 300 characters when it would be created, rather than leaving it to the server', async () => {
+    const name = 'N'.repeat(300)
+    const read = await readQifFile(
+      toQifFile(['!Account', `N${name}`, '^', '!Type:Bank', 'D1/2/2024', 'T-5.00', '^'].join('\n')),
+      'file-1',
+    )
+    if (read.status !== 'read') throw new Error(read.reason)
+    const file = resolveQifFile(read.file, READINGS)
+    const [statement] = file.statements
+    const result = buildOfxImportPayload(file, {
+      accountMappings: { [statement.id]: CREATE_ACCOUNT_VALUE },
+      accountCreateDetails: { [statement.id]: { accountType: 'checking', currency: 'CAD', institutionId: '' } },
+      accountById: new Map(),
+      categories: [MISCELLANEOUS, OTHER_INCOME],
+      currencies: CURRENCIES,
+    })
+
+    expect(result.payload).toBeNull()
+    expect(result.errors).toEqual([
+      getImportAccountNameTooLongError(statement.label, { length: 300, fileName: 'export.qif' }),
+    ])
+    expect(result.errors[0]).toBe(
+      `A new account can't be created for "${'N'.repeat(40)}…" in "export.qif": its name has 300 characters, and an account name holds at most 256. Map it to an existing account instead.`,
     )
   })
 

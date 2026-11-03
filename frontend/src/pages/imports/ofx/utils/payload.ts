@@ -4,6 +4,7 @@ import type { Currency } from '@/api/currency'
 import { JOURNAL_NO_CATEGORY_MONEY_IN_SOURCE, JOURNAL_NO_CATEGORY_SOURCE } from '@/api/provider-imports'
 import type { TransactionImportPayload } from '@/api/transaction-imports'
 import {
+  getImportAccountNameTooLongError,
   getImportMerchantTooLongReason,
   getImportNoRowsError,
   getRowNotesTooLongReason,
@@ -130,6 +131,8 @@ export function buildOfxImportPayload(file: OfxFile, answers: OfxImportAnswers):
         accountById: answers.accountById,
         takesRows: true,
         refusesGroupAccount: true,
+        fileName: statement.transactions[0]?.fileName,
+        getNameTooLongError: getImportAccountNameTooLongError,
       },
       addError,
     )

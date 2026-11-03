@@ -313,7 +313,7 @@ describe('a Firefly account name longer than a new account takes', () => {
 
     expect(result.payload).toBeNull()
     expect(result.errors).toEqual([
-      `${name} is too long for a new account name, which holds at most 256 characters, so map it to an existing account.`,
+      `A new account can't be created for "${'A'.repeat(40)}…": its name has 257 characters, and an account name holds at most 256. Map it to an existing account instead.`,
     ])
   })
 

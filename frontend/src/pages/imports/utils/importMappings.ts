@@ -47,7 +47,10 @@ interface ImportAccountAnswer {
   refusesGroupAccount: boolean
 
   /** Says why a new account's name is too long, for an import whose source app allows longer names */
-  getNameTooLongError?: (label: string) => string
+  getNameTooLongError?: (label: string, details: { length: number; fileName?: string }) => string
+
+  /** The file the source comes from, for a refusal that names it, where the import reads a file per source */
+  fileName?: string
 }
 
 export interface ImportAccountMappingResult {
@@ -63,7 +66,10 @@ export interface ImportAccountMappingResult {
  *
  * The CSV import's "outside this app" answer is its own and is settled before this is asked
  */
-export function buildImportAccountMapping(answer: ImportAccountAnswer, addError: AddError): ImportAccountMappingResult | null {
+export function buildImportAccountMapping(
+  answer: ImportAccountAnswer,
+  addError: AddError,
+): ImportAccountMappingResult | null {
   const { source, label, choice } = answer
   if (!choice) {
     addError(getImportAccountMappingError(label))
@@ -90,8 +96,9 @@ export function buildImportAccountMapping(answer: ImportAccountAnswer, addError:
     return { mapping: { source, account_id: choice }, account }
   }
 
-  if (answer.getNameTooLongError && [...answer.name].length > IMPORT_ACCOUNT_NAME_MAX_LENGTH) {
-    addError(answer.getNameTooLongError(label))
+  const nameLength = [...answer.name].length
+  if (answer.getNameTooLongError && nameLength > IMPORT_ACCOUNT_NAME_MAX_LENGTH) {
+    addError(answer.getNameTooLongError(label, { length: nameLength, fileName: answer.fileName }))
     return null
   }
 
@@ -170,7 +177,10 @@ export interface ImportCategoryMappingResult {
  * Turns one category answer into the mapping the server receives, reporting the reason the answer
  * can't be sent and returning null instead
  */
-export function buildImportCategoryMapping(answer: ImportCategoryAnswer, addError: AddError): ImportCategoryMappingResult | null {
+export function buildImportCategoryMapping(
+  answer: ImportCategoryAnswer,
+  addError: AddError,
+): ImportCategoryMappingResult | null {
   const { source, label, choice, categoryById } = answer
   if (!choice) {
     addError(getImportCategoryMappingError(label))
@@ -190,7 +200,12 @@ export function buildImportCategoryMapping(answer: ImportCategoryAnswer, addErro
       return null
     }
 
-    return { mapping: { source, category_id: choice }, kind: category?.kind ?? null, category, name: category?.name ?? '' }
+    return {
+      mapping: { source, category_id: choice },
+      kind: category?.kind ?? null,
+      category,
+      name: category?.name ?? '',
+    }
   }
 
   const kind = answer.createKind
@@ -200,8 +215,9 @@ export function buildImportCategoryMapping(answer: ImportCategoryAnswer, addErro
   }
 
   const name = answer.rename?.name.trim() ?? answer.createName
-  const refusal = answer.checkCategory?.({ kind, name }, true)
-    ?? checkImportCategoryCreate({
+  const refusal =
+    answer.checkCategory?.({ kind, name }, true) ??
+    checkImportCategoryCreate({
       label,
       name,
       isRenamed: answer.rename !== undefined,
