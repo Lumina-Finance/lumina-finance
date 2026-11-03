@@ -36,7 +36,7 @@ from app.services.auth.oidc_providers import get_enabled_oidc_provider_by_id
 from app.services.auth.registration import reject_closed_registration
 from app.services.auth.signup import reject_missing_base_currency, reject_registered_email
 from app.services.auth.token_hashing import hash_token
-from app.services.auth.user_lookup import find_user_id_by_email, fold_email
+from app.services.auth.user_lookup import find_user_id_by_email, fold_email, normalize_typed_spelling
 from app.services.auth.webauthn import is_passkey_registered
 
 # The one callback path every provider registers, appended to the public app origin
@@ -216,7 +216,7 @@ async def complete_oidc_sign_in(db: AsyncSession, code: str, state: str, browser
     # whoever signs in at the provider can type any unverified address, and answering differently
     # for a registered one would let them test which addresses have accounts
     if email_verified:
-        existing_user_id = await find_user_id_by_email(db, email)
+        existing_user_id = await _find_user_id_by_provider_email(db, claims, email)
         if existing_user_id is not None:
             raise HTTPException(
                 status_code=status.HTTP_409_CONFLICT,
@@ -497,8 +497,9 @@ async def complete_oidc_link(db: AsyncSession, user: User, code: str, state: str
     # A provider identity can only be linked to the account with the same address. Letter case is
     # ignored, since providers differ in how they cased the address the user registered with.
     # Checked before the subject lookup so a mismatch reveals nothing about which accounts a subject
-    # is linked to
-    if fold_email(email) != fold_email(user.email):
+    # is linked to. An account created from a provider before addresses were normalised may hold the
+    # spelling the provider sent, so that one matches too
+    if fold_email(user.email) not in {fold_email(email), fold_email(claims["email"])}:
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
             detail="The identity provider's email address must match your account's email address",
@@ -710,18 +711,39 @@ def _require_provider_email(claims: dict) -> str:
         claims: Verified and userinfo claims merged together
 
     Returns:
-        The asserted email address
+        The asserted email address, spelled as a typed one is so that both meet as one account
 
     Raises:
         HTTPException: The provider supplied no email address
     """
     email = claims.get("email")
-    if not email:
+    if not email or not email.strip():
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
             detail="Identity provider did not supply an email address",
         )
-    return email
+    return normalize_typed_spelling(email)
+
+
+async def _find_user_id_by_provider_email(db: AsyncSession, claims: dict, email: str) -> uuid.UUID | None:
+    """Return the id of the user holding a provider's address, in either spelling
+
+    Accounts made from a provider before its addresses were normalised hold the address as the
+    provider sent it, and are not rewritten, so that spelling is tried when the normalised one finds
+    nobody
+
+    Args:
+        db: Active database session
+        claims: Verified and userinfo claims merged together
+        email: The address after `_require_provider_email`
+
+    Returns:
+        The matching user id when one exists
+    """
+    user_id = await find_user_id_by_email(db, email)
+    if user_id is None and claims["email"] != email:
+        user_id = await find_user_id_by_email(db, claims["email"])
+    return user_id
 
 
 def _derive_first_name(claims: dict, email: str) -> str:

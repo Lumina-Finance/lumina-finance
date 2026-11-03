@@ -7,7 +7,7 @@ from urllib.parse import parse_qs, urlparse
 
 import jwt as pyjwt
 import pytest
-from sqlalchemy import select
+from sqlalchemy import select, update
 
 from app.config.oidc import OIDC_REAUTH_MAX_AGE_SECONDS
 from app.encryption import encrypt
@@ -359,6 +359,85 @@ async def test_callback_conflicts_when_the_provider_reports_the_email_in_other_c
         assert (await session.execute(select(OidcIdentity))).scalars().all() == []
 
 
+@pytest.mark.parametrize("sent", ["sso@MÜNCHEN.de", "  sso@münchen.DE ", "sso@MÜNCHEN.de\t"])
+async def test_callback_conflicts_when_the_provider_spells_the_domain_or_padding_differently(client, provider_protocol, sent):
+    """A provider's address meets the typed spelling of the same address as one account, not a second one"""
+    await _seed_currency()
+    await sign_up_confirmed(client, {**SIGNUP_PAYLOAD, "email": "sso@münchen.de"})
+    await _seed_provider()
+    provider_protocol["claims"] = _claims(email=sent, email_verified=True)
+
+    state = await _start_sign_in(client)
+    resp = await client.post("/auth/oidc/callback", json={"code": "any", "state": state})
+
+    assert resp.status_code == 409
+    assert resp.json()["detail"] == {"code": "email_already_registered", "email": "sso@münchen.de"}
+
+
+async def test_callback_matches_an_account_stored_in_the_spelling_the_provider_sends(client, provider_protocol):
+    """An account an earlier release made from a provider keeps its raw spelling and still meets that provider's address"""
+    await _seed_currency()
+    await _seed_provider()
+    async with TestSession() as session:
+        session.add(User(id=uuid.uuid4(), email="sso@MÜNCHEN.de", first_name="Old", tz="America/Toronto", base_currency="CAD"))
+        await session.commit()
+    provider_protocol["claims"] = _claims(email="sso@MÜNCHEN.de", email_verified=True)
+
+    state = await _start_sign_in(client)
+    resp = await client.post("/auth/oidc/callback", json={"code": "any", "state": state})
+
+    assert resp.status_code == 409
+    assert resp.json()["detail"]["code"] == "email_already_registered"
+
+
+@pytest.mark.parametrize("email", ["a@corp.local", "admin@localhost", "a@intranet", "a@home.arpa", "first_last@my_co.com"])
+async def test_signup_keeps_the_internal_address_a_provider_sends(client, provider_protocol, email):
+    """Normalising never refuses an address EmailStr would, so internal domains still sign up"""
+    await _seed_currency()
+    await _seed_provider()
+    provider_protocol["claims"] = _claims(email=email)
+    state = await _start_sign_in(client)
+    onboarding = (await client.post("/auth/oidc/callback", json={"code": "any", "state": state})).json()
+
+    resp = await client.post(
+        "/auth/oidc/signup",
+        json={"onboarding_token": onboarding["onboarding_token"], "first_name": "Sso", "tz": "America/Toronto", "base_currency": "CAD"},
+    )
+
+    assert resp.status_code == 201
+    assert resp.json()["user"]["email"] == email
+
+
+async def test_signup_stores_the_provider_address_in_the_typed_spelling(client, provider_protocol):
+    """The account and its provider link hold the trimmed address with a lower-case domain"""
+    await _seed_currency()
+    await _seed_provider()
+    provider_protocol["claims"] = _claims(email="sso@EXAMPLE.COM ")
+    state = await _start_sign_in(client)
+    onboarding = (await client.post("/auth/oidc/callback", json={"code": "any", "state": state})).json()
+
+    resp = await client.post(
+        "/auth/oidc/signup",
+        json={"onboarding_token": onboarding["onboarding_token"], "first_name": "Sso", "tz": "America/Toronto", "base_currency": "CAD"},
+    )
+
+    assert resp.status_code == 201
+    assert resp.json()["user"]["email"] == "sso@example.com"
+    async with TestSession() as session:
+        assert (await session.execute(select(OidcIdentity.email))).scalar_one() == "sso@example.com"
+
+
+async def test_callback_refuses_an_address_of_only_blanks(client, provider_protocol):
+    """A provider sending whitespace as its address supplied none"""
+    await _seed_provider()
+    provider_protocol["claims"] = _claims(email="   ")
+
+    state = await _start_sign_in(client)
+    resp = await client.post("/auth/oidc/callback", json={"code": "any", "state": state})
+
+    assert resp.status_code == 422
+
+
 async def test_callback_closed_registration_keeps_email_conflict(client, provider_protocol, monkeypatch):
     """An existing account's owner still gets the sign-in-and-link path, not the closed message"""
     await _seed_currency()
@@ -695,6 +774,38 @@ async def test_link_refuses_a_different_provider_email(client, provider_protocol
         auth_identities = (await session.execute(select(AuthIdentity).where(AuthIdentity.auth_provider == AuthProvider.OIDC))).scalars().all()
     assert identities == []
     assert auth_identities == []
+
+
+@pytest.mark.parametrize("sent", ["sso@MÜNCHEN.de", " sso@münchen.DE"])
+async def test_link_attaches_when_the_provider_spells_the_domain_differently(client, provider_protocol, sent):
+    """The typed account and the provider's spelling of the same address link as one"""
+    auth, user_id = await _create_password_user(client, email="sso@münchen.de")
+    await _seed_provider()
+    provider_protocol["claims"] = _claims(email=sent)
+
+    state = await _start_link(client, auth)
+    resp = await client.post("/auth/oidc/link/callback", headers=auth, json={"code": "any", "state": state})
+
+    assert resp.status_code == 200
+    async with TestSession() as session:
+        assert str((await session.execute(select(OidcIdentity.user_id))).scalar_one()) == user_id
+
+
+async def test_link_attaches_to_an_account_stored_in_the_spelling_the_provider_sends(client, provider_protocol):
+    """An account holding the provider's raw spelling still links the provider that sends it"""
+    auth, user_id = await _create_password_user(client, email="sso@münchen.de")
+    await _seed_provider()
+    async with TestSession() as session:
+        await session.execute(update(User).where(User.id == uuid.UUID(user_id)).values(email="sso@MÜNCHEN.de"))
+        await session.commit()
+    provider_protocol["claims"] = _claims(email="sso@MÜNCHEN.de")
+
+    state = await _start_link(client, auth)
+    resp = await client.post("/auth/oidc/link/callback", headers=auth, json={"code": "any", "state": state})
+
+    assert resp.status_code == 200
+    async with TestSession() as session:
+        assert str((await session.execute(select(OidcIdentity.user_id))).scalar_one()) == user_id
 
 
 async def test_link_refuses_an_email_that_only_casefolds_equal(client, provider_protocol):

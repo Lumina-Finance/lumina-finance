@@ -32,6 +32,24 @@ def fold_email(email: str) -> str:
     return email.encode().lower().decode()
 
 
+def normalize_typed_spelling(email: str) -> str:
+    """Return the address spelled as a typed one is stored: trimmed, with the domain lower-cased
+
+    EmailStr does this for typed addresses but also refuses internal domains such as corp.local, and an
+    address a sign-on provider sends must never be refused for that. The local part keeps its capitals,
+    which the lookups fold themselves
+
+    Args:
+        email: Address as a provider sent it
+
+    Returns:
+        The address in the spelling a typed one would have
+    """
+    trimmed = email.strip()
+    local, at, domain = trimmed.rpartition("@")
+    return f"{local}@{domain.lower()}" if at else trimmed
+
+
 async def find_user_id_by_email(db: AsyncSession, email: str) -> uuid.UUID | None:
     """Return the id of the user with the given email, or None
 
