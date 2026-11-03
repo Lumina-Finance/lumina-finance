@@ -110,13 +110,33 @@ describe('getExportFailureMessage', () => {
     ],
     [
       'a restricted session the server explained',
-      buildApiError(403, { detail: 'Set up two-factor sign-in again before you continue' }),
-      'Nothing was downloaded: set up two-factor sign-in again before you continue',
+      buildApiError(403, { detail: 'Set up two-factor authentication again before you continue' }),
+      'Nothing was downloaded: set up two-factor authentication again before you continue',
     ],
     [
       'a gateway answering 403 with an empty body',
       buildApiError(403, null),
-      "Nothing was downloaded: you don't have permission to export. Please check with whoever runs the app.",
+      "Nothing was downloaded: you don't have permission to export.",
+    ],
+    [
+      'a 408 with an empty body',
+      buildApiError(408, null),
+      'Nothing was downloaded: the request took too long. Please try again.',
+    ],
+    [
+      'a 413 with an empty body',
+      buildApiError(413, null),
+      'Nothing was downloaded: the request was too large. Please select fewer transactions or narrow the filters and try again.',
+    ],
+    [
+      'a 400 with an empty body',
+      buildApiError(400, null),
+      'Nothing was downloaded: the request was refused. Please refresh the page and try again.',
+    ],
+    [
+      'a 4xx from a proxy with an HTML page',
+      buildApiError(431, '<html>Request Header Or Cookie Too Large</html>'),
+      'Nothing was downloaded: the request was refused. Please refresh the page and try again.',
     ],
     [
       'a ticked row deleted elsewhere',
@@ -157,7 +177,6 @@ describe('getExportFailureMessage', () => {
     ['a bad gateway', buildApiError(502, null)],
     ['a server fault that carries a detail', buildApiError(500, { detail: 'upstream connect error' })],
     ['a service unavailable that carries a detail', buildApiError(503, { detail: 'upstream connect error' })],
-    ['a refusal nothing explains', buildApiError(400, null)],
   ])('gives the plain failure message, never joined to the prefix, for %s', (_name, error) => {
     expect(getExportFailureMessage(error)).toBe(EXPORT_FAILED_MESSAGE)
   })
