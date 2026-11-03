@@ -139,6 +139,11 @@ describe('getExportFailureMessage', () => {
       'Nothing was downloaded: start date must be before end date',
     ],
     [
+      'a refusal whose sentence opens with an acronym',
+      buildApiError(422, { detail: 'CSV export needs a date range' }),
+      'Nothing was downloaded: CSV export needs a date range',
+    ],
+    [
       'a 429 with an empty body',
       buildApiError(429, null),
       'Nothing was downloaded: too many requests were sent. Please wait a moment and try again.',
@@ -150,6 +155,8 @@ describe('getExportFailureMessage', () => {
   it.each([
     ['a server fault with an empty body', buildApiError(500, null)],
     ['a bad gateway', buildApiError(502, null)],
+    ['a server fault that carries a detail', buildApiError(500, { detail: 'upstream connect error' })],
+    ['a service unavailable that carries a detail', buildApiError(503, { detail: 'upstream connect error' })],
     ['a refusal nothing explains', buildApiError(400, null)],
   ])('gives the plain failure message, never joined to the prefix, for %s', (_name, error) => {
     expect(getExportFailureMessage(error)).toBe(EXPORT_FAILED_MESSAGE)
