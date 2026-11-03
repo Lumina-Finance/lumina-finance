@@ -67,19 +67,33 @@ export function getExportBlockReason({
 /** Said when the export fails with a server fault or no answer, since a status such as "Internal Server Error" never says the file wasn't saved */
 export const EXPORT_FAILED_MESSAGE = 'Oops, something went wrong and nothing was downloaded. Please try again.'
 
+// Said when the session is gone, whatever token detail the server gave, since only signing in again helps
+const EXPORT_SESSION_EXPIRED_REASON = 'your session has expired. Please sign in again.'
+
+// What a refusal that arrives with no body at all means, as a proxy in front of the server sends it.
+// The server itself always explains its refusals, so only these statuses have a known cause to name
+const EXPORT_REASONS_BY_STATUS: Record<number, string> = {
+  403: "you don't have permission to export. Please check with whoever runs the app.",
+  404: "the transactions couldn't be found. Please refresh the list and try again.",
+  429: 'too many requests were sent. Please wait a moment and try again.',
+}
+
 /**
  * Says in words why the export failed, always making clear that nothing was saved
  *
- * A refusal the server explained, such as an expired session or a ticked row deleted elsewhere, gives its
- * reason after saying nothing was downloaded. A server fault or a lost connection carries no explanation
- * worth showing
+ * A refusal the server explained gives its reason after saying nothing was downloaded, and so does one
+ * naming refused fields, in the sentence built from them. A refusal with no explanation gives the
+ * reason its status stands for. Only a server fault, a lost connection or a refusal nothing explains
+ * gets the plain message, which is never joined to the "Nothing was downloaded" prefix
  */
 export function getExportFailureMessage(error: unknown): string {
-  if (error instanceof ApiError && error.status < 500 && error.message) {
-    const reason = /^[A-Z][a-z]/.test(error.message)
-      ? error.message.charAt(0).toLowerCase() + error.message.slice(1)
-      : error.message
-    return `Nothing was downloaded: ${reason}`
-  }
-  return EXPORT_FAILED_MESSAGE
+  if (!(error instanceof ApiError) || error.status >= 500) return EXPORT_FAILED_MESSAGE
+  const message =
+    error.status === 401
+      ? EXPORT_SESSION_EXPIRED_REASON
+      : (error.detail ??
+        (error.fieldErrors ? error.message.replace(/^Oops, /, '') : EXPORT_REASONS_BY_STATUS[error.status]))
+  if (!message) return EXPORT_FAILED_MESSAGE
+  const reason = /^[A-Z][a-z]/.test(message) ? message.charAt(0).toLowerCase() + message.slice(1) : message
+  return `Nothing was downloaded: ${reason}`
 }
