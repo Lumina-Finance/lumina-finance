@@ -33,7 +33,8 @@ export const HintButton = forwardRef<HTMLButtonElement, HintButtonProps>(functio
   },
   ref,
 ) {
-  const { controlProps, tooltip } = useControlHint(hint)
+  const name = rest['aria-label'] ?? (typeof rest.children === 'string' ? rest.children : undefined)
+  const { controlProps, tooltip } = useControlHint(hint, name)
   const hintProps = getDisabledReasonProps<HTMLButtonElement>(
     { isUnavailable: false, controlProps, handleBlockedClick: () => undefined },
     {
