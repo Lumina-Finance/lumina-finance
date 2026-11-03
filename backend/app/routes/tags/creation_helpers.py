@@ -2,6 +2,8 @@
 
 import uuid
 
+from fastapi import HTTPException, status
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.tag import Tag
@@ -38,7 +40,15 @@ async def create_tag_for_user(
     db.add(tag)
 
     # Mark the tag scope stale before committing the newly created tag
-    await mark_cache_changed_for_scope(db, user_id=tag.owner_id, group_id=tag.group_id)
-    await db.commit()
+    try:
+        await mark_cache_changed_for_scope(db, user_id=tag.owner_id, group_id=tag.group_id)
+        await db.commit()
+    except IntegrityError as e:
+        await db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Tag with this name already exists",
+        ) from e
+
     await db.refresh(tag)
     return tag
