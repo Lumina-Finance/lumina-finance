@@ -12,7 +12,7 @@ import {
 import { useReducedMotion } from 'motion/react'
 import CursorTooltipPortal from '@/components/charts/CursorTooltipPortal'
 import { useCursorTooltip } from '@/hooks/useCursorTooltip'
-import { getClippingBoxes, getReasonAnchor, getViewportBounds, isBoxInView } from '@/utils/disabledReasonAnchor'
+import { getClippingBoxes, getReasonAnchor, getReasonBounds, isBoxInView } from '@/utils/disabledReasonAnchor'
 
 type ReasonEvent = MouseEvent<HTMLElement>
 
@@ -120,6 +120,7 @@ function useControlTooltip(
     }
     return placedBesideRef.current ? control : undefined
   }, [])
+  const getBounds = useCallback(() => getReasonBounds(originRef.current), [])
   const {
     tooltipRef,
     tooltipItem,
@@ -134,7 +135,7 @@ function useControlTooltip(
     xProperty: TOOLTIP_X_PROPERTY,
     yProperty: TOOLTIP_Y_PROPERTY,
     getItemKey: getReasonKey,
-    getBounds: getViewportBounds,
+    getBounds,
     getKeepClear,
     preferAbove: advisory,
   })

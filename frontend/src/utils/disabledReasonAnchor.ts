@@ -36,6 +36,26 @@ export function getClippingBoxes(control: HTMLElement) {
 }
 
 /**
+ * Where a control's reason must stay: the window, narrowed to the visible part of the dialogue body the
+ * control scrolls in, marked `data-dropdown-bounds`, so a reason never reaches the footer under the body or
+ * the rail beside it. A control outside the body, such as one in the footer, stays inside its dialogue
+ */
+export function getReasonBounds(control: HTMLElement | null) {
+  const viewport = getViewportBounds()
+  const body = control?.closest('[data-dropdown-bounds], [role="dialog"]')?.getBoundingClientRect()
+  if (!body) return viewport
+
+  const left = Math.max(viewport.left, body.left)
+  const top = Math.max(viewport.top, body.top)
+  return new DOMRect(
+    left,
+    top,
+    Math.max(Math.min(viewport.right, body.right) - left, 0),
+    Math.max(Math.min(viewport.bottom, body.bottom) - top, 0),
+  )
+}
+
+/**
  * The whole viewport, which holds a disabled control's reason in since the control belongs to no card
  */
 export function getViewportBounds() {
