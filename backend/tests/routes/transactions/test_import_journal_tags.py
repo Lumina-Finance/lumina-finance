@@ -2,6 +2,7 @@
 
 import pytest
 
+from tests.routes.base_budgets._helpers import _create_second_user
 from tests.routes.support import _create_user, _get_auth_header
 from tests.routes.transactions._import_helpers import (
     _GROCERIES,
@@ -106,6 +107,15 @@ async def _create_tag(client, headers, name):
     resp = await client.post("/tags", json={"name": name}, headers=headers)
     assert resp.status_code == 201, resp.text
     return resp.json()
+
+
+async def _list_written_records(client, headers):
+    """Return what the user owns of each kind an import writes, leaving out the categories every user starts with"""
+    records = {}
+    for kind in ("transactions", "accounts", "categories", "tags"):
+        found = (await client.get(f"/{kind}", headers=headers)).json()
+        records[kind] = [record for record in found if record.get("owner_id", "mine") is not None]
+    return records
 
 
 @pytest.mark.parametrize(
@@ -222,4 +232,31 @@ async def test_a_tag_answer_for_a_tag_deleted_before_the_commit_is_refused_and_w
         resp.json()["detail"]
         == 'The tag chosen for "Trip" is no longer available, so go back to Tag matching and choose another tag or skip it'
     )
-    assert (await client.get("/transactions", headers=headers)).json() == []
+    # The account and category the same commit reaches before the tags are rolled back with it
+    assert await _list_written_records(client, headers) == {"transactions": [], "accounts": [], "categories": [], "tags": []}
+
+
+@pytest.mark.parametrize(
+    ("source", "build"),
+    [("firefly", _firefly_payload), ("actual_budget", _actual_payload)],
+)
+async def test_a_tag_answer_pointing_at_another_users_tag_is_refused_like_a_deleted_one(client, source, build):
+    """Another user's tag is refused with the deleted tag's message, so it reveals nothing, and nothing is written."""
+    headers = _get_auth_header(await _create_user(client))
+    other_headers, _ = await _create_second_user(client)
+    theirs = await _create_tag(client, other_headers, "Theirs")
+
+    resp = await _import_run(
+        client,
+        headers,
+        _with_tags(build([["Trip"]]), [{"source": "Trip", "tag_id": theirs["id"]}]),
+        source=source,
+    )
+
+    assert resp.status_code == 422
+    assert (
+        resp.json()["detail"]
+        == 'The tag chosen for "Trip" is no longer available, so go back to Tag matching and choose another tag or skip it'
+    )
+    assert await _list_written_records(client, headers) == {"transactions": [], "accounts": [], "categories": [], "tags": []}
+    assert [tag["id"] for tag in (await client.get("/tags", headers=other_headers)).json()] == [theirs["id"]]
