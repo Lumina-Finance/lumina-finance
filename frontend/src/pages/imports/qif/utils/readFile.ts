@@ -2,6 +2,7 @@ import type { AccountType } from '@/api/accounts'
 import type { OfxFileRead, OfxStatement, OfxStatementKind, OfxTransaction } from '@/pages/imports/ofx/types'
 import {
   getQifTransactionWithoutSectionReason,
+  getQifTruncatedReason,
   getQifTwoAlternateAmountsReason,
   getQifUnknownSectionReason,
   MAX_QIF_FILE_BYTES,
@@ -14,7 +15,6 @@ import {
   QIF_NOT_READABLE_REASON,
   QIF_ONLY_LEFT_OUT_REASON,
   QIF_TOO_LARGE_REASON,
-  QIF_TRUNCATED_REASON,
 } from '@/pages/imports/qif/constants'
 import { createRandomId } from '@/utils/randomId'
 
@@ -114,7 +114,7 @@ function readQifText(text: string, origin: { fileId: string; fileName: string })
   for (const line of lines) {
     if (line.startsWith(HEADER_START)) {
       // A header cannot interrupt a record, which only a caret ends
-      if (fields.length > 0) return { status: 'refused', reason: QIF_TRUNCATED_REASON }
+      if (fields.length > 0) return { status: 'refused', reason: getQifTruncatedReason(describeQifTransaction(fields)) }
 
       const header = line.toLowerCase()
       if (header === CLEAR_AUTO_SWITCH_DIRECTIVE) {
@@ -174,7 +174,7 @@ function readQifText(text: string, origin: { fileId: string; fileName: string })
       // A transaction states its date and amount once, so a second means a caret went missing and
       // the next transaction has run into this one
       if (countFields(record, 'D') > 1 || countFields(record, 'T') > 1) {
-        return { status: 'refused', reason: QIF_TRUNCATED_REASON }
+        return { status: 'refused', reason: getQifTruncatedReason(describeQifTransaction(record)) }
       }
 
       // The alternate amount is read once, so a second would be ignored without a word
@@ -201,7 +201,7 @@ function readQifText(text: string, origin: { fileId: string; fileName: string })
     }
   }
 
-  if (fields.length > 0) return { status: 'refused', reason: QIF_TRUNCATED_REASON }
+  if (fields.length > 0) return { status: 'refused', reason: getQifTruncatedReason(describeQifTransaction(fields)) }
 
   if (statements.size === 0) {
     return { status: 'refused', reason: leftOut.investment > 0 ? QIF_ONLY_LEFT_OUT_REASON : QIF_NO_TRANSACTIONS_REASON }

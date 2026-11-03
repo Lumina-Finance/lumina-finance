@@ -12,17 +12,20 @@ export const QIF_NOT_READABLE_REASON = `This isn't a QIF file. ${QIF_FILE_GUIDAN
 export const QIF_TOO_LARGE_REASON = `This file is larger than ${MAX_QIF_FILE_BYTES / MIB} MB, which is more than an export holds. ${QIF_FILE_GUIDANCE}`
 export const QIF_NO_TRANSACTIONS_REASON = `This file has no bank, cash, credit card or other account transactions. ${QIF_FILE_GUIDANCE}`
 export const QIF_ONLY_LEFT_OUT_REASON = "This file only holds investment transactions, which aren't imported."
-export const QIF_TRUNCATED_REASON =
-  'This file ends part way through a transaction. Export it again and choose the new file.'
 
-/** Says which transaction has two alternate amounts, described as {@link describeQifTransaction} does */
-export function getQifTwoAlternateAmountsReason(transaction: string) {
-  return `This file has a ${transaction} with two alternate amounts, so the importer can't tell which one is right. Export the file from Quicken again and choose the new file.`
+/** Says which transaction is incomplete, described as {@link describeQifTransaction} does. The shared hint under a refusal says to choose another file */
+export function getQifTruncatedReason(transaction: string) {
+  return `This file looks damaged: the ${transaction} is incomplete. Export the file from Quicken again.`
 }
 
-/** Says which transaction sits outside every transaction section, described as {@link describeQifTransaction} does */
+/** Says which transaction has two amounts, described as {@link describeQifTransaction} does */
+export function getQifTwoAlternateAmountsReason(transaction: string) {
+  return `This file looks damaged: the ${transaction} has two amounts. Export the file from Quicken again.`
+}
+
+/** Says which transaction names no account, described as {@link describeQifTransaction} does */
 export function getQifTransactionWithoutSectionReason(transaction: string) {
-  return `This file has a ${transaction} that isn't under a transaction section header, so the importer can't tell which account it belongs to. Export the file from Quicken again and choose the new file.`
+  return `This file looks damaged: the ${transaction} doesn't say which account it belongs to. Export the file from Quicken again.`
 }
 
 export function getQifUnknownSectionReason(header: string) {

@@ -87,6 +87,10 @@ export function getQifFixedAccountExpectations(accountName: string): ImportExpec
     changes: [
       ...QIF_EXPECTATIONS.changes.filter((change) => change.source !== 'An account'),
       {
+        source: 'An Opening Balance transaction',
+        lumina: `Comes in like any other transaction, so it is added to the balance ${accountName} already has. If that balance already includes it, delete the transaction after the import`,
+      },
+      {
         source: 'A file with several accounts',
         lumina:
           'Refused here, since the page takes one account from each file. Import it from the Imports page in Settings',

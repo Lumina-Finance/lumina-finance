@@ -9,6 +9,7 @@ import {
 import { useStagedFileFocus } from '@/pages/imports/hooks'
 import { OfxReadingChoicesRows } from '@/pages/imports/ofx/components/OfxReadingChoicesRows'
 import { OfxReveal } from '@/pages/imports/ofx/components/OfxReveal'
+import { getStatementNouns } from '@/pages/imports/ofx/constants'
 import type { OfxImportWorkflow } from '@/pages/imports/ofx/hooks'
 import type { OfxStagedFile } from '@/pages/imports/ofx/types'
 import { countOfxTransactions } from '@/pages/imports/ofx/utils/stagedFiles'
@@ -62,6 +63,7 @@ export function OfxFilesStep({
   const { stagedListRef, uploadCardRef, removeFileKeepingFocus } = useStagedFileFocus(stagedFiles, removeOfxFile)
   const isUploadBlocked = isProcessingFile || uploadBlockReason !== null
   const isImportFinished = Boolean(importResult)
+  const { capitalPlural } = getStatementNouns(format.files.statementNoun)
   const isAddingFiles = stagedFiles.length > 0 && !isImportFinished
 
   const uploadArea = (
@@ -109,7 +111,7 @@ export function OfxFilesStep({
           value: stagedFiles.reduce((total, { file }) => total + countOfxTransactions(file), 0),
         },
         {
-          label: `${format.files.statementNoun[0].toUpperCase()}${format.files.statementNoun.slice(1)}s`,
+          label: capitalPlural,
           value: stagedFiles.reduce((total, { file }) => total + file.statements.length, 0),
         },
       ]}
@@ -122,7 +124,7 @@ export function OfxFilesStep({
       <div className="-mb-3">
         <OfxReveal show={Boolean(leftOutNotice)}>
           <div className="pb-3">
-            <ImportNotice title="Statements left out">{leftOutNotice}</ImportNotice>
+            <ImportNotice title={`${capitalPlural} left out`}>{leftOutNotice}</ImportNotice>
           </div>
         </OfxReveal>
       </div>

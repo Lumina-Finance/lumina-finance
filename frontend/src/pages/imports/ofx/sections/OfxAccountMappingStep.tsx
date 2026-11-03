@@ -1,9 +1,11 @@
 import { OfxCurrencyMismatchNotice } from '@/pages/imports/ofx/components/OfxCurrencyMismatchNotice'
+import { getOfxMappingWording } from '@/pages/imports/ofx/constants'
 import type { OfxImportWorkflow } from '@/pages/imports/ofx/hooks'
 import { ProviderAccountMappingStep } from '@/pages/imports/sections/ProviderAccountMappingStep'
 
 type OfxAccountMappingStepProps = Pick<
   OfxImportWorkflow,
+  | 'format'
   | 'ofxFile'
   | 'accountSources'
   | 'importBuild'
@@ -35,19 +37,26 @@ type OfxAccountMappingStepProps = Pick<
 >
 
 /**
- * Account mapping step of the OFX import flow, where each statement in the file maps to an
- * existing account or a new one in the statement's currency
+ * Account mapping step of the OFX and QIF import flows, where each statement in the files maps to
+ * an existing account or a new one, worded with the format's own noun for a statement
  */
-export function OfxAccountMappingStep({ ofxFile, accountSources, importBuild, updateOfxAccountMapping, ...props }: OfxAccountMappingStepProps) {
+export function OfxAccountMappingStep({
+  format,
+  ofxFile,
+  accountSources,
+  importBuild,
+  updateOfxAccountMapping,
+  ...props
+}: OfxAccountMappingStepProps) {
+  const { description, emptyState } = getOfxMappingWording(format.files.statementNoun, Boolean(ofxFile))
+
   return (
     <ProviderAccountMappingStep
       {...props}
       index="02"
-      description="Every statement must map to an existing account or a new one. Statements for the same account are matched once."
+      description={description}
       notice={<OfxCurrencyMismatchNotice mismatches={importBuild.currencyMismatches} />}
-      emptyState={ofxFile
-        ? { title: 'No accounts to import into', description: 'None of the statements has transactions.' }
-        : { title: 'No statements detected', description: 'Upload the statement files first.' }}
+      emptyState={emptyState}
       sources={accountSources}
       onAccountMappingChange={updateOfxAccountMapping}
     />

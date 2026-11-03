@@ -13,7 +13,7 @@ import {
   QIF_TOO_LARGE_REASON,
   getQifTransactionWithoutSectionReason,
   getQifTwoAlternateAmountsReason,
-  QIF_TRUNCATED_REASON,
+  getQifTruncatedReason,
 } from '@/pages/imports/qif/constants'
 import { readQifFile } from '@/pages/imports/qif/utils/readFile'
 import type { OfxFile } from '@/pages/imports/ofx/types'
@@ -205,13 +205,21 @@ describe('readQifFile sections it does not import', () => {
 describe('readQifFile files it refuses', () => {
   it('refuses a file cut off before the caret that ends a record', async () => {
     expect(await readReason(['!Type:Bank', 'D1/2/2024', 'T1.00', '^', 'D1/3/2024', 'T2.00'].join('\n'))).toBe(
-      QIF_TRUNCATED_REASON,
+      getQifTruncatedReason('transaction dated 1/3/2024'),
+    )
+  })
+
+  it('says which transaction is not closed properly where the end marker is missing between two', async () => {
+    const reason = await readReason(['!Type:Bank', 'D1/2/2024', 'T1.00', 'D1/3/2024', 'T2.00', '^'].join('\n'))
+
+    expect(reason).toBe(
+      'This file looks damaged: the transaction dated 1/2/2024 is incomplete. Export the file from Quicken again.',
     )
   })
 
   it('refuses a header that arrives inside a record', async () => {
     expect(await readReason(['!Type:Bank', 'D1/2/2024', '!Type:Cash', 'T1.00', '^'].join('\n'))).toBe(
-      QIF_TRUNCATED_REASON,
+      getQifTruncatedReason('transaction dated 1/2/2024'),
     )
   })
 
@@ -226,11 +234,15 @@ describe('readQifFile files it refuses', () => {
   // Two dates or two amounts in one record mean a caret went missing, so reading on would keep the
   // first amount and silently lose the second transaction
   it.each([
-    ['a second amount', ['!Type:Bank', 'D1/1/99', 'T10', 'D1/2/99', 'T20', '^']],
-    ['a second date', ['!Type:Bank', 'D1/1/99', 'D1/2/99', 'T10', '^']],
-    ['a second amount after a payee', ['!Type:Bank', 'D1/1/99', 'T10', 'PShop', 'T20', '^']],
-  ])('refuses a record with %s', async (_name, lines) => {
-    expect(await readReason(lines.join('\n'))).toBe(QIF_TRUNCATED_REASON)
+    ['a second amount', ['!Type:Bank', 'D1/1/99', 'T10', 'D1/2/99', 'T20', '^'], 'transaction dated 1/1/99'],
+    ['a second date', ['!Type:Bank', 'D1/1/99', 'D1/2/99', 'T10', '^'], 'transaction dated 1/1/99'],
+    [
+      'a second amount after a payee',
+      ['!Type:Bank', 'D1/1/99', 'T10', 'PShop', 'T20', '^'],
+      'transaction dated 1/1/99 for "Shop"',
+    ],
+  ])('refuses a record with %s', async (_name, lines, transaction) => {
+    expect(await readReason(lines.join('\n'))).toBe(getQifTruncatedReason(transaction))
   })
 
   it('still reads one date and amount per record, and an alternate amount beside the amount', async () => {
@@ -245,7 +257,7 @@ describe('readQifFile files it refuses', () => {
     expect(await readReason(lines.join('\n'))).toBe(reason)
     expect(await readReason([BANK, ...lines].join('\n'))).toBe(reason)
     expect(reason).toBe(
-      `This file has a transaction dated 1/2/24 for "Coffee" with two alternate amounts, so the importer can't tell which one is right. Export the file from Quicken again and choose the new file.`,
+      'This file looks damaged: the transaction dated 1/2/24 for "Coffee" has two amounts. Export the file from Quicken again.',
     )
   })
 
@@ -267,7 +279,12 @@ describe('readQifFile files it refuses', () => {
   ])('refuses a transaction under %s with no transaction section header', async (_name, stray) => {
     const lines = [...stray, '!Type:Bank', 'D1/3/24', 'T-1.00', '^']
 
-    expect(await readReason(lines.join('\n'))).toBe(getQifTransactionWithoutSectionReason('transaction dated 1/2/24'))
+    const reason = await readReason(lines.join('\n'))
+
+    expect(reason).toBe(getQifTransactionWithoutSectionReason('transaction dated 1/2/24'))
+    expect(reason).toBe(
+      "This file looks damaged: the transaction dated 1/2/24 doesn't say which account it belongs to. Export the file from Quicken again.",
+    )
   })
 
   it('still reads an account list followed by a section header and an empty record', async () => {
@@ -279,7 +296,9 @@ describe('readQifFile files it refuses', () => {
   })
 
   it('refuses a file whose last record is only a date line cut off before its caret', async () => {
-    expect(await readReason(['!Type:Bank', 'D1/1/99', 'T10', '^', 'D'].join('\n'))).toBe(QIF_TRUNCATED_REASON)
+    expect(await readReason(['!Type:Bank', 'D1/1/99', 'T10', '^', 'D'].join('\n'))).toBe(
+      getQifTruncatedReason('transaction'),
+    )
   })
 
   it('lists a record whose date and amount lines are empty instead of dropping it', async () => {
