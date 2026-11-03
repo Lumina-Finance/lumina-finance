@@ -76,5 +76,9 @@ export function buildImportMerchantMappings({
     skipValue: SKIP_MERCHANT_VALUE,
     noun: 'merchant',
     buildChosen: (source, id) => ({ source, merchant_id: id }),
+
+    // A merchant is written under the capitals it is given, so Amazon typed for AMAZON is a
+    // correction. The commit still reuses a merchant held under the name in any capitals
+    keepsCapitalCorrections: true,
   })
 }

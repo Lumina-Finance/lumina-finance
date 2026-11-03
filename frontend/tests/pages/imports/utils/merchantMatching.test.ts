@@ -41,6 +41,27 @@ describe('what the merchant step sends', () => {
     expect(buildFor('CORNER CAFE', CORNER_CAFE.id, undefined, CORNER_CAFE).mappings).toEqual([])
   })
 
+  it('sends a create for a value answered create under the same name in other capitals', () => {
+    expect(buildFor('AMAZON', CREATE_MERCHANT_VALUE, 'Amazon').mappings).toEqual([
+      { source: 'AMAZON', create: { name: 'Amazon' } },
+    ])
+    expect(buildFor('starbucks #123', CREATE_MERCHANT_VALUE, 'Starbucks #123').mappings).toEqual([
+      { source: 'starbucks #123', create: { name: 'Starbucks #123' } },
+    ])
+  })
+
+  it('sends a create for a value answered create under a name differing by more than capitals', () => {
+    expect(buildFor('AMAZON', CREATE_MERCHANT_VALUE, 'Amazon Marketplace').mappings).toEqual([
+      { source: 'AMAZON', create: { name: 'Amazon Marketplace' } },
+    ])
+  })
+
+  it('sends nothing for a value matching a merchant spelled in other capitals and left alone', () => {
+    const amazon: Merchant = { ...CORNER_CAFE, id: 'amazon', name: 'Amazon' }
+
+    expect(buildFor('AMAZON', '', undefined, amazon).mappings).toEqual([])
+  })
+
   it('sends nothing for a value answered create under its own spelling', () => {
     // Creating a merchant named after the value is what the commit does unasked, so saying it
     // again would spend one of the thousand mappings an import may carry on nothing
