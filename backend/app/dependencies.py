@@ -66,9 +66,7 @@ async def get_authenticated_user(
         )
     except jwt.PyJWTError:
         # from None suppresses exception chaining to keep logs clean and avoid leaking JWT internals
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid or expired token", headers=_TOKEN_AUTH_HEADERS
-        ) from None
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid or expired token", headers=_TOKEN_AUTH_HEADERS) from None
 
     if payload.get("token_use") != "access":
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid token", headers=_TOKEN_AUTH_HEADERS)
@@ -84,9 +82,7 @@ async def get_authenticated_user(
         session_id = uuid.UUID(str(sid))
         user_uuid = uuid.UUID(str(user_id))
     except ValueError:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid token", headers=_TOKEN_AUTH_HEADERS
-        ) from None
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid token", headers=_TOKEN_AUTH_HEADERS) from None
 
     # Stamp the identity from the signature-verified token before any scoped query,
     # so this request's transactions carry it for row-level security
@@ -104,9 +100,7 @@ async def get_authenticated_user(
     result = await db.execute(active_token_query)
     active_token = result.scalar_one_or_none()
     if not active_token:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED, detail="Token is not active", headers=_TOKEN_AUTH_HEADERS
-        )
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Token is not active", headers=_TOKEN_AUTH_HEADERS)
 
     active_session_query = select(AuthSession).where(
         AuthSession.id == session_id,
@@ -118,17 +112,13 @@ async def get_authenticated_user(
     result = await db.execute(active_session_query)
     active_session = result.scalar_one_or_none()
     if not active_session:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED, detail="Session is not active", headers=_TOKEN_AUTH_HEADERS
-        )
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Session is not active", headers=_TOKEN_AUTH_HEADERS)
     _current_session_id.set(active_session.id)
 
     result = await db.execute(select(User).where(User.id == user_uuid))
     user = result.scalar_one_or_none()
     if not user:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED, detail="User not found", headers=_TOKEN_AUTH_HEADERS
-        )
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="User not found", headers=_TOKEN_AUTH_HEADERS)
 
     return user
 
@@ -149,8 +139,6 @@ async def get_current_user(user: Annotated[User, Depends(get_authenticated_user)
         HTTPException 403: The session must re-enrol a second factor first
     """
     if user.second_factor_reenrollment_required:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN, detail="Two-factor re-enrolment required"
-        )
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Two-factor re-enrolment required")
 
     return user
