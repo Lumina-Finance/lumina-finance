@@ -65,6 +65,26 @@ async def test_create_group_tag_duplicate_returns_409(client):
     assert "already exists" in resp.json()["detail"]
 
 
+async def test_create_group_tag_losing_a_race_for_the_name_returns_409_and_saves_nothing_more(client, monkeypatch):
+    """Two members pass the name check together, so the second save hits the unique index and answers 409."""
+    admin_headers, member_headers, _, group_id = await _setup_group_with_member(client)
+    first = await _create_tag(client, admin_headers, name="Trip", group_id=group_id)
+    assert first.status_code == 201
+
+    async def _name_check_passes(*args, **kwargs):
+        return None
+
+    monkeypatch.setattr("app.routes.tags.creation_helpers.require_tag_name_available", _name_check_passes)
+    resp = await _create_tag(client, member_headers, name="Trip", group_id=group_id)
+
+    assert resp.status_code == 409
+    assert resp.json()["detail"] == "Tag with this name already exists"
+    listed = await client.get("/tags", headers=member_headers, params={"group_id": group_id})
+    assert [tag["name"] for tag in listed.json()] == ["Trip"]
+    again = await _create_tag(client, member_headers, name="Other", group_id=group_id)
+    assert again.status_code == 201
+
+
 async def test_create_group_tag_differing_only_in_capitals_from_a_members_returns_409(client):
     """A group's tags are unique per group whoever owns them, ignoring capitals."""
     admin_headers, member_headers, _, group_id = await _setup_group_with_member(client)

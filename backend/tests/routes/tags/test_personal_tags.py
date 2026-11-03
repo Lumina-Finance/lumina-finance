@@ -176,6 +176,27 @@ async def test_create_tag_duplicate_name_returns_409(client):
     assert "already exists" in resp.json()["detail"]
 
 
+async def test_create_tag_losing_a_race_for_the_name_returns_409_and_saves_nothing_more(client, monkeypatch):
+    """Both requests pass the name check, so the second save hits the unique index and still answers 409."""
+    signup_resp = await _create_user(client)
+    headers = _get_auth_header(signup_resp)
+    first = await _create_tag(client, headers, name="Travel")
+    assert first.status_code == 201
+
+    async def _name_check_passes(*args, **kwargs):
+        return None
+
+    monkeypatch.setattr("app.routes.tags.creation_helpers.require_tag_name_available", _name_check_passes)
+    resp = await _create_tag(client, headers, name="Travel")
+
+    assert resp.status_code == 409
+    assert resp.json()["detail"] == "Tag with this name already exists"
+    listed = await client.get("/tags", headers=headers)
+    assert [tag["name"] for tag in listed.json()] == ["Travel"]
+    again = await _create_tag(client, headers, name="Other")
+    assert again.status_code == 201
+
+
 async def test_create_tag_name_differing_only_in_capitals_returns_409(client):
     """Travel and travel are one tag, so the second is refused whichever way round they come."""
     signup_resp = await _create_user(client)
