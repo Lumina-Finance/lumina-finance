@@ -555,3 +555,26 @@ describe('hover on shaded surfaces', () => {
     expect(contrast(hovered, solid(tokens, '--app-bg'))).toBeGreaterThanOrEqual(1.05)
   })
 })
+
+describe('Runway account tile text', () => {
+  // The tile rests in the field colour, takes the soft accent tint under the pointer or when chosen, and the
+  // chosen tile's deeper tint under the pointer, all over the settings card. Its balance in the tinted
+  // positive green (or the negative red), its type and available-credit lines in muted text
+  const FILLS = {
+    'unchosen at rest': (tokens: Tokens, card: Rgb) => (void card, solid(tokens, '--app-input-bg')),
+    'unchosen under the pointer': (tokens: Tokens, card: Rgb) => washOver(tokens, '--app-accent-soft', card),
+    'chosen at rest': (tokens: Tokens, card: Rgb) => washOver(tokens, '--app-accent-soft', card),
+    'chosen under the pointer': (tokens: Tokens, card: Rgb) =>
+      washOver(tokens, '--app-accent-chosen-tile-hover-fill', card),
+  }
+  const TEXTS = ['--app-text-muted', '--app-positive-on-accent-tint', '--app-negative', '--app-text']
+  const cases = (Object.keys(THEMES) as Theme[]).flatMap((theme) =>
+    Object.keys(FILLS).flatMap((state) => TEXTS.map((token) => ({ theme, state, token }))),
+  )
+
+  it.each(cases)('$token reads at 4.5:1 or better on a $state tile in the $theme theme', ({ theme, state, token }) => {
+    const tokens = THEMES[theme]
+    const fill = FILLS[state as keyof typeof FILLS](tokens, solid(tokens, '--app-surface-soft'))
+    expect(contrast(resolve(tokens, token), fill)).toBeGreaterThanOrEqual(MINIMUM_TEXT_CONTRAST)
+  })
+})
