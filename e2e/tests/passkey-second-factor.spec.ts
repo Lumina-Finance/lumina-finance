@@ -1,7 +1,7 @@
 import { expect, test } from '@playwright/test'
 
-import { asUser, signUpUser } from '../support/api'
-import { addPasskeyAuthenticator, expectSignedIn, logInViaApi, openPage, runNativeCeremony } from '../support/app'
+import { signUpUser } from '../support/api'
+import { addPasskeyAuthenticator, expectSignedIn, logInViaApi, openPage, registerPasskeyOverApi } from '../support/app'
 import { API_BASE_URL } from '../support/target'
 
 // Runs on desktop only: the second-factor step behaves the same at every size
@@ -10,20 +10,9 @@ test('signs in with the password and then a passkey for a user whose second fact
   const cdp = await addPasskeyAuthenticator(page)
   await cdp.send('Page.enable')
   const user = await signUpUser(request)
-  const headers = asUser(user)
 
   // The only second factor is a passkey registered over the API, through the prompt the app's own settings use
-  const registerOptions = await request.post(`${API_BASE_URL}/auth/passkeys/register/options`, {
-    headers,
-    data: { step_up: { password: user.password } },
-  })
-  const created = await runNativeCeremony(page, cdp, 'create', await registerOptions.text())
-  const registered = await request.post(`${API_BASE_URL}/auth/passkeys/register`, {
-    headers,
-    data: { name: 'Laptop', credential: created },
-  })
-  expect(registered.status()).toBe(201)
-  expect((await request.post(`${API_BASE_URL}/auth/passkeys/register/confirm`, { headers })).status()).toBe(204)
+  await registerPasskeyOverApi(page, cdp, request, user, 'Laptop')
 
   await page.goto('/login')
   await page.getByLabel('Email').fill(user.email)
@@ -51,8 +40,9 @@ test('adds a passkey in settings and signs in with it from the login page', asyn
   await dialog.getByRole('button', { name: 'Add', exact: true }).click()
 
   // Adding a passkey asks for the password again, and the first second factor comes with recovery codes
-  await page.getByRole('dialog', { name: 'Add a passkey' }).getByLabel('Current password').fill(user.password)
-  await page.getByRole('button', { name: 'Add passkey' }).last().click()
+  const stepUp = page.getByRole('dialog', { name: 'Add a passkey' })
+  await stepUp.getByLabel('Current password').fill(user.password)
+  await stepUp.getByRole('button', { name: 'Add passkey' }).click()
   await page.getByLabel("I've saved my new recovery codes").check()
   await page.getByLabel(/I understand that losing my recovery codes/).check()
   await page.getByRole('button', { name: 'Done' }).last().click()

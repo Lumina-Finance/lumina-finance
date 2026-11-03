@@ -2,9 +2,9 @@
  * Driving the parts of the app a spec passes through on its way to the behaviour it tests.
  */
 
-import { expect, type CDPSession, type Locator, type Page, type Response } from '@playwright/test'
+import { expect, type APIRequestContext, type CDPSession, type Locator, type Page, type Response } from '@playwright/test'
 
-import { TEST_PASSWORD, type TestUser } from './api'
+import { asUser, TEST_PASSWORD, type TestUser } from './api'
 import { waitForConfirmationLink } from './mail'
 import { API_BASE_URL, BASE_URL } from './target'
 
@@ -26,6 +26,36 @@ export async function addPasskeyAuthenticator(page: Page): Promise<CDPSession> {
     options: { protocol: 'ctap2', transport: 'internal', hasResidentKey: true, hasUserVerification: true, isUserVerified: true },
   })
   return cdp
+}
+
+/**
+ * Registers a passkey for a user over the API, answering the browser's prompt with the virtual authenticator.
+ *
+ * @param page - Page whose virtual authenticator answers the prompt
+ * @param cdp - The session `addPasskeyAuthenticator` returned for that page
+ * @param request - Playwright request context
+ * @param user - User to register the passkey for, stepping up with their password
+ * @param name - Name the passkey is saved under
+ */
+export async function registerPasskeyOverApi(
+  page: Page,
+  cdp: CDPSession,
+  request: APIRequestContext,
+  user: TestUser,
+  name: string,
+): Promise<void> {
+  const headers = asUser(user)
+  const registerOptions = await request.post(`${API_BASE_URL}/auth/passkeys/register/options`, {
+    headers,
+    data: { step_up: { password: user.password } },
+  })
+  const created = await runNativeCeremony(page, cdp, 'create', await registerOptions.text())
+  const registered = await request.post(`${API_BASE_URL}/auth/passkeys/register`, {
+    headers,
+    data: { name, credential: created },
+  })
+  expect(registered.status()).toBe(201)
+  expect((await request.post(`${API_BASE_URL}/auth/passkeys/register/confirm`, { headers })).status()).toBe(204)
 }
 
 /**
