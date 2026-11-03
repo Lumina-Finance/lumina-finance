@@ -94,7 +94,7 @@ export function ModalContentPanel({
     >
       {RailIcon && railLabel ? (
         <>
-          <ModalRail level={level} Icon={RailIcon} label={railLabel} />
+          <ModalRail level={level} Icon={RailIcon} label={railLabel} insetClassName="pl-6" />
           <div className="relative flex min-h-0 min-w-0 flex-1 flex-col">{content}</div>
         </>
       ) : (

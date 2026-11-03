@@ -3222,19 +3222,6 @@
       box-shadow: none !important;
     }
 
-    .app-modal-panel[role="dialog"][aria-modal="true"] > [aria-hidden="true"]:first-child {
-      display: block !important;
-      width: 0.375rem !important;
-      min-width: 0.375rem !important;
-      padding: 0 !important;
-      overflow: hidden !important;
-      border-radius: 0 !important;
-    }
-
-    .app-modal-panel[role="dialog"][aria-modal="true"] > [aria-hidden="true"]:first-child > * {
-      display: none !important;
-    }
-
     /* A content dialog's title block takes the form modals' header on a phone: the eyebrow over the
        title, closed off from the body by a rule that reaches the screen's side edges */
     .app-modal-phone-header {
@@ -3246,11 +3233,19 @@
     .app-modal-phone-eyebrow {
       display: block;
     }
+  }
 
-    .app-modal-panel[role="dialog"][aria-modal="true"] > .app-secondary-modal-rail:first-child {
-      display: none !important;
-      width: 0 !important;
-      min-width: 0 !important;
+  /* Below the width a modal stops filling the screen its rail lies across the top as a slim strip, the
+     rail's icon and label in a row, so a modal still tells its level as a desktop does and the content
+     keeps the full width. The panel stacks the strip over the content */
+  @media (max-width: 1049.98px) {
+    .app-modal-panel[role="dialog"][aria-modal="true"]:has(> .app-modal-rail:first-child) {
+      flex-direction: column !important;
+    }
+
+    .app-modal-panel[role="dialog"][aria-modal="true"] > .app-modal-rail:first-child ~ * {
+      flex: 1 1 0%;
+      min-height: 0;
     }
   }
 
