@@ -4,7 +4,7 @@
  * with nothing to export, leaves them with a file they did not ask for or none
  */
 import { describe, expect, it } from 'vitest'
-import { ApiError } from '@/api/auth'
+import { ApiError, buildApiError } from '@/api/auth'
 import type { TransactionListFilters } from '@/components/transactions/types/transactionList'
 import {
   EXPORT_FAILED_MESSAGE,
@@ -97,16 +97,88 @@ describe('getExportFailureMessage', () => {
     expect(getExportFailureMessage(new TypeError('Failed to fetch'))).toBe(EXPORT_FAILED_MESSAGE)
   })
 
-  it('gives the reason of a refusal the server explained after saying nothing was downloaded', () => {
-    expect(getExportFailureMessage(new ApiError('Session expired', 401))).toBe(
-      'Nothing was downloaded: session expired',
-    )
+  it.each([
+    [
+      'a session that expired',
+      new ApiError('Session expired', 401),
+      'Nothing was downloaded: your session has expired. Please sign in again.',
+    ],
+    [
+      'a token the server called inactive',
+      buildApiError(401, { detail: 'Token is not active' }),
+      'Nothing was downloaded: your session has expired. Please sign in again.',
+    ],
+    [
+      'a restricted session the server explained',
+      buildApiError(403, { detail: 'Set up two-factor authentication again before you continue' }),
+      'Nothing was downloaded: set up two-factor authentication again before you continue',
+    ],
+    [
+      'a gateway answering 403 with an empty body',
+      buildApiError(403, null),
+      "Nothing was downloaded: you don't have permission to export.",
+    ],
+    [
+      'a 408 with an empty body',
+      buildApiError(408, null),
+      'Nothing was downloaded: the request took too long. Please try again.',
+    ],
+    [
+      'a 413 with an empty body',
+      buildApiError(413, null),
+      'Nothing was downloaded: the request was too large. Please select fewer transactions and try again.',
+    ],
+    [
+      'a 400 with an empty body',
+      buildApiError(400, null),
+      'Nothing was downloaded: the request was refused. Please refresh the page and try again.',
+    ],
+    [
+      'a 4xx from a proxy with an HTML page',
+      buildApiError(431, '<html>Request Header Or Cookie Too Large</html>'),
+      'Nothing was downloaded: the request was refused. Please refresh the page and try again.',
+    ],
+    [
+      'a ticked row deleted elsewhere',
+      buildApiError(404, { detail: '1 of 3 transactions were not found' }),
+      'Nothing was downloaded: 1 of 3 transactions were not found',
+    ],
+    [
+      'a 404 with an empty body',
+      buildApiError(404, null),
+      "Nothing was downloaded: the transactions couldn't be found. Please refresh the list and try again.",
+    ],
+    [
+      'a refusal naming one filter field',
+      buildApiError(422, { detail: [{ loc: ['query', 'min_amount'], msg: 'bad' }] }),
+      "Nothing was downloaded: the min amount wasn't accepted. Please check it and try again.",
+    ],
+    [
+      'a refusal the server worded as a sentence',
+      buildApiError(422, { detail: 'Start date must be before end date' }),
+      'Nothing was downloaded: start date must be before end date',
+    ],
+    [
+      'a refusal whose sentence opens with an acronym',
+      buildApiError(422, { detail: 'CSV export needs a date range' }),
+      'Nothing was downloaded: CSV export needs a date range',
+    ],
+    [
+      'a 429 with an empty body',
+      buildApiError(429, null),
+      'Nothing was downloaded: too many requests were sent. Please wait a moment and try again.',
+    ],
+  ])('gives the reason for %s after saying nothing was downloaded', (_name, error, expected) => {
+    expect(getExportFailureMessage(error)).toBe(expected)
   })
 
-  it('says nothing was downloaded when a ticked row was deleted elsewhere', () => {
-    expect(getExportFailureMessage(new ApiError('1 of 3 transactions were not found', 404))).toBe(
-      'Nothing was downloaded: 1 of 3 transactions were not found',
-    )
+  it.each([
+    ['a server fault with an empty body', buildApiError(500, null)],
+    ['a bad gateway', buildApiError(502, null)],
+    ['a server fault that carries a detail', buildApiError(500, { detail: 'upstream connect error' })],
+    ['a service unavailable that carries a detail', buildApiError(503, { detail: 'upstream connect error' })],
+  ])('gives the plain failure message, never joined to the prefix, for %s', (_name, error) => {
+    expect(getExportFailureMessage(error)).toBe(EXPORT_FAILED_MESSAGE)
   })
 })
 
