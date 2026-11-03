@@ -3,6 +3,7 @@
 import uuid
 from typing import NamedTuple
 
+from email_validator import EmailNotValidError, validate_email
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -30,6 +31,29 @@ def fold_email(email: str) -> str:
         The address in the form every comparison and count uses
     """
     return email.encode().lower().decode()
+
+
+def normalize_typed_spelling(email: str) -> str:
+    """Return the address spelled as a typed one is stored
+
+    Runs the normalisation EmailStr applies to a typed address: trimmed, the domain lower-cased and
+    Unicode composed, an internationalised domain in its Unicode form and a fullwidth letter in its
+    plain form. EmailStr also refuses internal domains such as corp.local, and an address a sign-on
+    provider sends must never be refused for that, so an address it refuses is only trimmed and has its
+    domain lower-cased. The local part keeps its capitals, which the lookups fold themselves
+
+    Args:
+        email: Address as a provider sent it
+
+    Returns:
+        The address in the spelling a typed one would have
+    """
+    trimmed = email.strip()
+    try:
+        return validate_email(trimmed, check_deliverability=False, globally_deliverable=False).normalized
+    except EmailNotValidError:
+        local, at, domain = trimmed.rpartition("@")
+        return f"{local}@{domain.lower()}" if at else trimmed
 
 
 async def find_user_id_by_email(db: AsyncSession, email: str) -> uuid.UUID | None:
