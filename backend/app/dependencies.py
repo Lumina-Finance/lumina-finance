@@ -139,6 +139,6 @@ async def get_current_user(user: Annotated[User, Depends(get_authenticated_user)
         HTTPException 403: The session must re-enrol a second factor first
     """
     if user.second_factor_reenrollment_required:
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Set up two-factor sign-in again before you continue")
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Set up two-factor authentication again before you continue")
 
     return user

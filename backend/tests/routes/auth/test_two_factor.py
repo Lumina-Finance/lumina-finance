@@ -870,7 +870,7 @@ async def test_restricted_session_refused_an_export_is_told_what_to_do(client):
     resp = await client.get("/transactions/export", headers={"Authorization": f"Bearer {token}"})
 
     assert resp.status_code == 403
-    assert resp.json()["detail"] == "Set up two-factor sign-in again before you continue"
+    assert resp.json()["detail"] == "Set up two-factor authentication again before you continue"
 
 
 async def test_restricted_session_re_enrols_with_fresh_codes(client):
