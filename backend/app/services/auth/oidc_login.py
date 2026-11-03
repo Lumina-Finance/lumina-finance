@@ -216,12 +216,11 @@ async def complete_oidc_sign_in(db: AsyncSession, code: str, state: str, browser
     # whoever signs in at the provider can type any unverified address, and answering differently
     # for a registered one would let them test which addresses have accounts
     if email_verified:
-        existing_match = await _find_user_id_by_provider_email(db, claims, email)
-        if existing_match is not None:
-            # The spelling that matched is what the password sign-in the client prefills must use
+        existing_user_id = await _find_user_id_by_provider_email(db, claims, email)
+        if existing_user_id is not None:
             raise HTTPException(
                 status_code=status.HTTP_409_CONFLICT,
-                detail={"code": OIDC_EMAIL_CONFLICT_CODE, "email": existing_match[1]},
+                detail={"code": OIDC_EMAIL_CONFLICT_CODE, "email": email},
             )
 
     # Everything past here leads to a new account, so a closed instance refuses before the profile form
@@ -726,13 +725,12 @@ def _require_provider_email(claims: dict) -> str:
     return normalize_typed_spelling(email)
 
 
-async def _find_user_id_by_provider_email(db: AsyncSession, claims: dict, email: str) -> tuple[uuid.UUID, str] | None:
-    """Return the id of the user holding a provider's address and the spelling that matched
+async def _find_user_id_by_provider_email(db: AsyncSession, claims: dict, email: str) -> uuid.UUID | None:
+    """Return the id of the user holding a provider's address, in either spelling
 
     Accounts made from a provider before its addresses were normalised hold the address as the
     provider sent it, and are not rewritten, so that spelling is tried when the normalised one finds
-    nobody. The lookups fold ASCII only, so the spelling that matched is the one a password sign-in
-    must be given
+    nobody
 
     Args:
         db: Active database session
@@ -740,16 +738,12 @@ async def _find_user_id_by_provider_email(db: AsyncSession, claims: dict, email:
         email: The address after `_require_provider_email`
 
     Returns:
-        The matching user id with the spelling that found it, or None when nobody holds the address
+        The matching user id when one exists
     """
     user_id = await find_user_id_by_email(db, email)
-    if user_id is not None:
-        return user_id, email
-    if claims["email"] != email:
+    if user_id is None and claims["email"] != email:
         user_id = await find_user_id_by_email(db, claims["email"])
-        if user_id is not None:
-            return user_id, claims["email"]
-    return None
+    return user_id
 
 
 def _derive_first_name(claims: dict, email: str) -> str:
