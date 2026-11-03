@@ -1,4 +1,11 @@
+import type { SetStateAction } from 'react'
 import { getNameKey } from '@/api/shared/nameKey'
+import {
+  readScopedImportAnswers,
+  writeScopedImportAnswers,
+  type ImportSourceScope,
+  type ScopedImportAnswers,
+} from './scopedAnswers'
 
 /**
  * What one imported name resolves to once the file's matches and the user's answer are both read
@@ -154,4 +161,40 @@ export function alignNameAnswersWithValues<T>(answers: Record<string, T>, values
   }
 
   return aligned
+}
+
+/**
+ * Reads the answers held for a kind of name, each under the spelling the step asks about now
+ *
+ * @param stored - The answers held, filed under what each was read from
+ * @param getSourceScope - Works out what a name was read from
+ * @param values - One name per record the step asks about now
+ */
+export function readNameAnswers<T>(
+  stored: ScopedImportAnswers<T>,
+  getSourceScope: ImportSourceScope,
+  values: string[],
+): Record<string, T> {
+  return alignNameAnswersWithValues(readScopedImportAnswers(stored, getSourceScope), values)
+}
+
+/**
+ * Files an update to the answers for a kind of name, starting from what {@link readNameAnswers} reads
+ *
+ * The old spelling of a moved answer is dropped on the write, so it cannot come back when the date
+ * range does
+ *
+ * @param stored - The answers held, filed under what each was read from
+ * @param update - The new answers, or a function from the answers read now to the new ones
+ * @param getSourceScope - Works out what a name was read from
+ * @param values - One name per record the step asks about now
+ */
+export function writeNameAnswers<T>(
+  stored: ScopedImportAnswers<T>,
+  update: SetStateAction<Record<string, T>>,
+  getSourceScope: ImportSourceScope,
+  values: string[],
+): ScopedImportAnswers<T> {
+  const answers = readNameAnswers(stored, getSourceScope, values)
+  return writeScopedImportAnswers(stored, typeof update === 'function' ? update(answers) : update, getSourceScope)
 }

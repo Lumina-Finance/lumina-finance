@@ -5,7 +5,14 @@
 import { describe, expect, it } from 'vitest'
 import type { Merchant } from '@/api/merchants'
 import { CREATE_MERCHANT_VALUE, SKIP_MERCHANT_VALUE } from '@/pages/imports/constants'
-import { buildImportMerchantMappings, getImportedMerchants, getImportMerchantRowState } from '@/pages/imports/utils'
+import {
+  buildImportAnswerScope,
+  buildImportMerchantMappings,
+  getImportedMerchants,
+  getImportMerchantRowState,
+  readNameAnswers,
+  writeNameAnswers,
+} from '@/pages/imports/utils'
 import type { CsvRow, ImportFileDraft } from '@/pages/imports/types'
 
 const CORNER_CAFE: Merchant = {
@@ -114,6 +121,77 @@ describe('what one row of the merchant step reads as', () => {
 
   it('reads as skipped where the user answered skip', () => {
     expect(getImportMerchantRowState(SKIP_MERCHANT_VALUE, CORNER_CAFE)).toBe('skipped')
+  })
+})
+
+describe('answers to a merchant spelled in other capitals once a date range leaves only one spelling', () => {
+  const file: ImportFileDraft = {
+    id: 'file-1',
+    name: 'Chequing.csv',
+    size: 128,
+    headers: ['Merchant', 'Date'],
+    hasHeaderRow: true,
+    rows: [
+      { Merchant: 'Starbucks', Date: '2026-01-10' },
+      { Merchant: 'STARBUCKS', Date: '2026-02-10' },
+    ],
+    error: null,
+  }
+  const onlyFebruary = (row: CsvRow) => row.Date === '2026-02-10'
+
+  const scope = buildImportAnswerScope('Merchant', [file])
+  const getScope = () => scope
+  const importedMerchants = getImportedMerchants([file], 'Merchant', onlyFebruary)
+
+  /** Builds what the step sends for the rows left in range, given answers held as the workflow holds them */
+  function sendFor(answers: Record<string, string>, createNames: Record<string, string> = {}) {
+    return buildImportMerchantMappings({
+      importedMerchants,
+      matchedMerchantByKey: new Map(),
+      merchantMappings: readNameAnswers({ [scope]: answers }, getScope, importedMerchants),
+      merchantCreateNames: readNameAnswers({ [scope]: createNames }, getScope, importedMerchants),
+    })
+  }
+
+  it('drops the old spelling when an answer is written, so it cannot return with the date range', () => {
+    const written = writeNameAnswers(
+      { [scope]: { Starbucks: BAKERY.id } },
+      (answers) => answers,
+      getScope,
+      importedMerchants,
+    )
+
+    expect(written).toEqual({ [scope]: { STARBUCKS: BAKERY.id } })
+  })
+
+  it('writes a new answer beside the moved ones', () => {
+    const written = writeNameAnswers(
+      { [scope]: { Starbucks: BAKERY.id } },
+      (answers) => ({ ...answers, Other: SKIP_MERCHANT_VALUE }),
+      getScope,
+      importedMerchants,
+    )
+
+    expect(written).toEqual({ [scope]: { STARBUCKS: BAKERY.id, Other: SKIP_MERCHANT_VALUE } })
+  })
+
+  it('asks about the spelling the range leaves', () => {
+    expect(getImportedMerchants([file], 'Merchant')).toEqual(['Starbucks'])
+    expect(getImportedMerchants([file], 'Merchant', onlyFebruary)).toEqual(['STARBUCKS'])
+  })
+
+  it('keeps the merchant chosen for the spelling the whole file showed', () => {
+    expect(sendFor({ Starbucks: BAKERY.id }).mappings).toEqual([{ source: 'STARBUCKS', merchant_id: BAKERY.id }])
+  })
+
+  it('keeps a skip', () => {
+    expect(sendFor({ Starbucks: SKIP_MERCHANT_VALUE }).mappings).toEqual([{ source: 'STARBUCKS', skip: true }])
+  })
+
+  it('keeps a corrected name', () => {
+    expect(sendFor({ Starbucks: CREATE_MERCHANT_VALUE }, { Starbucks: 'Starbucks Canada' }).mappings).toEqual([
+      { source: 'STARBUCKS', create: { name: 'Starbucks Canada' } },
+    ])
   })
 })
 
