@@ -183,6 +183,37 @@ async def test_export_transactions_with_reversed_dates_returns_422(client):
     assert resp.json()["detail"] == "Start date must be before end date"
 
 
+@pytest.mark.parametrize(
+    ("query", "reason"),
+    [
+        ("tag_id=11111111-1111-4111-8111-111111111111&tag_match=some", "Tag match must be 'all' or 'any'"),
+        ("min_amount=100", "Amount currency is required when filtering by amount"),
+        ("min_amount=500&max_amount=100&amount_currency=CAD", "Minimum amount must not exceed maximum amount"),
+    ],
+)
+async def test_export_transactions_with_a_refused_filter_states_the_reason(client, query, reason):
+    """Each filter combination the export refuses says why in a sentence the toolbar can show."""
+    headers, _, _ = await _setup_user_with_deps(client)
+
+    resp = await client.get(f"/transactions/export?{query}", headers=headers)
+
+    assert resp.status_code == 422
+    assert resp.json()["detail"] == reason
+
+
+async def test_export_transactions_with_a_refused_field_names_it(client):
+    """A value the request schema refuses lists the field, which the toolbar words as the field's name."""
+    headers, _, _ = await _setup_user_with_deps(client)
+
+    filtered = await client.get("/transactions/export?min_amount=-1&amount_currency=CAD", headers=headers)
+    selected = await _export_selected(client, headers, [])
+
+    assert filtered.status_code == 422
+    assert filtered.json()["detail"][0]["loc"] == ["query", "min_amount"]
+    assert selected.status_code == 422
+    assert selected.json()["detail"][0]["loc"] == ["body", "transaction_ids"]
+
+
 async def test_export_transactions_without_a_token_returns_401(client):
     """The export is not reachable without signing in."""
     resp = await client.get("/transactions/export")

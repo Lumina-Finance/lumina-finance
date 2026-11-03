@@ -862,6 +862,17 @@ async def test_restricted_session_is_blocked_from_normal_routes(client):
     assert blocked.status_code == 403
 
 
+async def test_restricted_session_refused_an_export_is_told_what_to_do(client):
+    """A recovery-code session refused a download gets a reason it can act on, not the name of the restriction"""
+    _, _, codes = await _enroll(client)
+    token = (await _login_with_code(client, codes[0])).json()["access_token"]
+
+    resp = await client.get("/transactions/export", headers={"Authorization": f"Bearer {token}"})
+
+    assert resp.status_code == 403
+    assert resp.json()["detail"] == "Set up two-factor sign-in again before you continue"
+
+
 async def test_restricted_session_re_enrols_with_fresh_codes(client):
     """A recovery-code session re-enrols, gets a fresh batch, and is sent back to a fresh login"""
     _, _, old_codes = await _enroll(client)
