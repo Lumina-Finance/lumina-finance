@@ -428,15 +428,40 @@ async def test_signup_stores_the_provider_address_in_the_typed_spelling(client, 
         assert (await session.execute(select(OidcIdentity.email))).scalar_one() == "sso@example.com"
 
 
-async def test_callback_refuses_an_address_of_only_blanks(client, provider_protocol):
-    """A provider sending whitespace as its address supplied none"""
+@pytest.mark.parametrize("sent", ["", "   "])
+async def test_callback_refuses_an_address_of_only_blanks(client, provider_protocol, sent):
+    """A provider sending nothing or whitespace as its address supplied none"""
     await _seed_provider()
-    provider_protocol["claims"] = _claims(email="   ")
+    provider_protocol["claims"] = _claims(email=sent)
 
     state = await _start_sign_in(client)
     resp = await client.post("/auth/oidc/callback", json={"code": "any", "state": state})
 
     assert resp.status_code == 422
+    assert resp.json()["detail"] == "Identity provider did not supply an email address"
+
+
+async def test_signup_completion_conflicts_when_the_provider_spells_the_domain_differently(client, provider_protocol, monkeypatch):
+    """With verification relaxed, an unverified address meets the typed account of the same address when the signup completes"""
+    monkeypatch.setattr(oidc_login, "OIDC_REQUIRE_VERIFIED_EMAIL", False)
+    await _seed_currency()
+    await sign_up_confirmed(client, {**SIGNUP_PAYLOAD, "email": "sso@münchen.de"})
+    await _seed_provider()
+    provider_protocol["claims"] = _claims(email="sso@MÜNCHEN.de", email_verified=False)
+    state = await _start_sign_in(client)
+    onboarding = (await client.post("/auth/oidc/callback", json={"code": "any", "state": state})).json()
+    assert onboarding["onboarding_required"] is True
+
+    resp = await client.post(
+        "/auth/oidc/signup",
+        json={"onboarding_token": onboarding["onboarding_token"], "first_name": "Sso", "tz": "America/Toronto", "base_currency": "CAD"},
+    )
+
+    assert resp.status_code == 409
+    assert resp.json()["detail"] == "Email already registered"
+    async with TestSession() as session:
+        assert len((await session.execute(select(User))).scalars().all()) == 1
+        assert (await session.execute(select(OidcIdentity))).scalars().all() == []
 
 
 async def test_callback_closed_registration_keeps_email_conflict(client, provider_protocol, monkeypatch):
@@ -790,6 +815,7 @@ async def test_link_attaches_when_the_provider_spells_the_domain_differently(cli
     assert resp.status_code == 200
     async with TestSession() as session:
         assert str((await session.execute(select(OidcIdentity.user_id))).scalar_one()) == user_id
+        assert (await session.execute(select(OidcIdentity.email))).scalar_one() == "sso@münchen.de"
 
 
 async def test_link_attaches_to_an_account_stored_in_the_spelling_the_provider_sends(client, provider_protocol):
@@ -807,6 +833,7 @@ async def test_link_attaches_to_an_account_stored_in_the_spelling_the_provider_s
     assert resp.status_code == 200
     async with TestSession() as session:
         assert str((await session.execute(select(OidcIdentity.user_id))).scalar_one()) == user_id
+        assert (await session.execute(select(OidcIdentity.email))).scalar_one() == "sso@münchen.de"
 
 
 async def test_link_refuses_an_email_that_only_casefolds_equal(client, provider_protocol):
