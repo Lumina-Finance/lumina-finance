@@ -2,7 +2,7 @@ import { expect, test } from '@playwright/test'
 
 import { signUpUser } from '../support/api'
 import { expectSignedIn, logIn } from '../support/app'
-import { waitForResetLink } from '../support/mail'
+import { chooseNewPassword, requestResetLink } from '../support/reset'
 
 // Runs on desktop only: asking for a link and choosing a password behave the same at every size
 
@@ -11,17 +11,8 @@ const NEW_PASSWORD = 'N3wE2ePassw0rd!'
 test('resets a forgotten password through the emailed link', async ({ page, request }) => {
   const user = await signUpUser(request)
 
-  await page.goto('/login')
-  await page.getByRole('button', { name: 'Forgot password?', exact: true }).click()
-  await page.getByLabel('Email').fill(user.email)
-  await page.getByRole('button', { name: 'Send reset link' }).click()
-  await expect(page.getByText(`If an account exists for ${user.email}`)).toBeVisible()
-
   // The link is the only way to the new-password form, and it chooses the account
-  await page.goto(await waitForResetLink(user.email))
-  await page.getByLabel('New password', { exact: true }).fill(NEW_PASSWORD)
-  await page.getByLabel('Confirm new password').fill(NEW_PASSWORD)
-  await page.getByRole('button', { name: 'Reset password' }).click()
+  await chooseNewPassword(page, await requestResetLink(page, user.email), NEW_PASSWORD)
   await expect(page.getByText('Your password has been reset. You can now log in with your new password.')).toBeVisible()
 
   // The old password stops working and the new one signs in
