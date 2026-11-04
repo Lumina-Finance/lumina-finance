@@ -20,6 +20,32 @@ describe('HintButton', () => {
     expect(markup).not.toContain('aria-describedby')
   })
 
+  it('describes itself by a hint that differs from its name, as the native title did', () => {
+    const markup = renderToStaticMarkup(<HintButton hint="Edit category" aria-label="Edit Foo" />)
+    const describedBy = /aria-describedby="([^"]+)"/.exec(markup)?.[1]
+
+    expect(describedBy).toBeDefined()
+    expect(markup).toContain(`<span id="${describedBy}" hidden="">Edit category</span>`)
+  })
+
+  it('adds no description when the hint only repeats its name, an aria-label or its text', () => {
+    expect(renderToStaticMarkup(<HintButton hint="Save" aria-label="Save" />)).not.toContain('aria-describedby')
+    expect(renderToStaticMarkup(<HintButton hint="Save">Save</HintButton>)).not.toContain('aria-describedby')
+  })
+
+  it('adds no description when the name already says the hint, as Save on Save Groceries', () => {
+    expect(renderToStaticMarkup(<HintButton hint="Save" aria-label="Save Groceries" />)).not.toContain(
+      'aria-describedby',
+    )
+    expect(renderToStaticMarkup(<HintButton hint="Delete merchant" aria-label="Delete Costco" />)).toContain(
+      'aria-describedby',
+    )
+  })
+
+  it('adds nothing for a button with no hint', () => {
+    expect(renderToStaticMarkup(<HintButton aria-label="Edit Foo" />)).not.toContain('aria-describedby')
+  })
+
   it('keeps a submit type and stays enabled while a hint is set', () => {
     const markup = renderToStaticMarkup(<HintButton type="submit" hint="Save" aria-label="Save" />)
 

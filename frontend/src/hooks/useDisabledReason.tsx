@@ -12,7 +12,7 @@ import {
 import { useReducedMotion } from 'motion/react'
 import CursorTooltipPortal from '@/components/charts/CursorTooltipPortal'
 import { useCursorTooltip } from '@/hooks/useCursorTooltip'
-import { getClippingBoxes, getReasonAnchor, getViewportBounds, isBoxInView } from '@/utils/disabledReasonAnchor'
+import { getClippingBoxes, getReasonAnchor, getReasonBounds, isBoxInView } from '@/utils/disabledReasonAnchor'
 
 type ReasonEvent = MouseEvent<HTMLElement>
 
@@ -73,10 +73,16 @@ export function useDisabledReason(
  * every pointer through, so a press always reaches the control. Give the control `controlProps` and
  * draw `tooltip` beside it. The control's name stays on its own `aria-label` or text
  *
+ * A hint that differs from the control's `name` is also its accessible description, as the native `title` it
+ * replaces was, since the tooltip itself is hidden from assistive technology. A hint the name already
+ * says, in whole or as a part of it, adds no second reading
+ *
  * Pass no hint while the control shows a disabled reason of its own, so the two never stack
  */
-export function useControlHint(hint: string | null | undefined) {
-  const { controlProps, tooltip } = useControlTooltip(hint, { advisory: true })
+export function useControlHint(hint: string | null | undefined, name?: string) {
+  // A hint the name already says, such as "Save" on "Save Groceries", adds nothing to read out
+  const repeatsName = Boolean(hint && name?.toLowerCase().includes(hint.toLowerCase()))
+  const { controlProps, tooltip } = useControlTooltip(hint, { advisory: true, isDescription: !repeatsName })
   return { controlProps, tooltip }
 }
 
@@ -87,11 +93,14 @@ type ControlTooltipOptions = {
   // The text only explains a control that works, so the control stays enabled, a click is never held
   // back, and a pointer that can't hover shows nothing
   advisory?: boolean
+
+  // Whether an advisory text is also read out as the control's description
+  isDescription?: boolean
 }
 
 function useControlTooltip(
   reason: string | null | undefined,
-  { shownById, keepClearOf, advisory = false }: ControlTooltipOptions,
+  { shownById, keepClearOf, advisory = false, isDescription = !advisory }: ControlTooltipOptions,
 ) {
   const activeReason = reason || null
   const ownDescriptionId = useId()
@@ -120,6 +129,7 @@ function useControlTooltip(
     }
     return placedBesideRef.current ? control : undefined
   }, [])
+  const getBounds = useCallback(() => getReasonBounds(originRef.current), [])
   const {
     tooltipRef,
     tooltipItem,
@@ -134,7 +144,7 @@ function useControlTooltip(
     xProperty: TOOLTIP_X_PROPERTY,
     yProperty: TOOLTIP_Y_PROPERTY,
     getItemKey: getReasonKey,
-    getBounds: getViewportBounds,
+    getBounds,
     getKeepClear,
     preferAbove: advisory,
   })
@@ -232,7 +242,8 @@ function useControlTooltip(
 
   const controlProps: DisabledReasonControlProps = activeReason
     ? {
-        ...(advisory ? null : { 'aria-disabled': true, 'aria-describedby': descriptionId }),
+        ...(advisory ? null : { 'aria-disabled': true }),
+        ...(isDescription ? { 'aria-describedby': descriptionId } : null),
         onMouseEnter: (event) => {
           if (!advisory) reveal(event.currentTarget, event)
           // A touch only echoes its tap as a hover, and a hint must not appear under the finger
@@ -260,7 +271,7 @@ function useControlTooltip(
     <>
       {/* Hidden, not `sr-only`: a screen reader still reads a hidden element named by `aria-describedby`,
           and an absolutely positioned one would escape a scrolling table's clip and widen the page */}
-      {!shownById && !advisory && (
+      {!shownById && isDescription && (
         <span id={descriptionId} hidden>
           {activeReason}
         </span>

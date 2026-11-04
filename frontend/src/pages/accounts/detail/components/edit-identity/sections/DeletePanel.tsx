@@ -104,12 +104,12 @@ export function DeleteAccountPanel({
                   only want it out of view.
                 </p>
 
-                <div className="mt-3 overflow-hidden">
+                <div className="-mx-3 mt-2 overflow-hidden px-3 py-1">
                   <AnimatePresence initial={false} mode="wait">
                     {deleteStage === 'confirm' ? (
                       <motion.div
                         key="confirm"
-                        className="overflow-hidden"
+                        className="-mx-3 -my-1 overflow-hidden px-3 py-1"
                         initial={{ height: 0, opacity: 0 }}
                         animate={{ height: 'auto', opacity: 1 }}
                         exit={{ height: 0, opacity: 0 }}
@@ -118,7 +118,10 @@ export function DeleteAccountPanel({
                         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                           {!account.is_archived ? (
                             <DisabledReasonButton
-                              className="group inline-flex items-center gap-2 text-sm font-medium disabled:cursor-not-allowed disabled:opacity-60 aria-disabled:cursor-not-allowed"
+                              // The padding gives the ring room between it and the icon and text, and the ring sits
+                              // inside the button's edge. The side margins hand the padding's room back so the label
+                              // lines up as before, and the two boxes around it clip with matching side room
+                              className="app-focus-inset group -mx-2 inline-flex items-center gap-2 rounded-md px-2 py-1.5 text-sm font-medium disabled:cursor-not-allowed disabled:opacity-60 aria-disabled:cursor-not-allowed"
                               style={{ color: 'var(--app-text-muted)' }}
                               onClick={onArchiveInstead}
                               disabled={isBusy}

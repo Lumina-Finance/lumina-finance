@@ -231,3 +231,92 @@ test('lines the delete confirmation and the save error up with the sections abov
     await page.keyboard.press('Escape')
   }
 })
+
+/**
+ * The focus ring of a control as it is drawn, and the boxes that would cut it off. Reads the ring's outer
+ * edge from the control's own outline, the gap between that edge and the control's icon and label, and
+ * whether every scrolling or clipping box around it still holds all four sides
+ */
+async function readFocusRing(control: Locator) {
+  return control.evaluate((element) => {
+    const style = getComputedStyle(element)
+    const box = element.getBoundingClientRect()
+    const width = parseFloat(style.outlineWidth)
+    const offset = parseFloat(style.outlineOffset)
+    // The outline sits `offset` outside the border box, a negative offset drawing it inside
+    const ring = {
+      left: box.left - offset - width,
+      top: box.top - offset - width,
+      right: box.right + offset + width,
+      bottom: box.bottom + offset + width,
+    }
+    const clips = []
+    for (let node = element.parentElement; node; node = node.parentElement) {
+      const { overflowX, overflowY } = getComputedStyle(node)
+      if (overflowX !== 'visible' || overflowY !== 'visible') clips.push(node.getBoundingClientRect())
+    }
+    const content = [...element.querySelectorAll('svg, span')].map((node) => node.getBoundingClientRect())
+    const innerLeft = Math.min(...content.map((rect) => rect.left))
+    const innerRight = Math.max(...content.map((rect) => rect.right))
+    const innerTop = Math.min(...content.map((rect) => rect.top))
+    const innerBottom = Math.max(...content.map((rect) => rect.bottom))
+    return {
+      isDrawn: style.outlineStyle !== 'none' && width > 0,
+      isCut: clips.some((clip) => ring.left < clip.left || ring.right > clip.right || ring.top < clip.top || ring.bottom > clip.bottom),
+      // Room between the ring's inner edge and the content, on each side
+      gap: {
+        left: innerLeft - (ring.left + width),
+        right: ring.right - width - innerRight,
+        top: innerTop - (ring.top + width),
+        bottom: ring.bottom - width - innerBottom,
+      },
+    }
+  })
+}
+
+/** Wait until the control and every box that clips it have the same edges on two reads in a row */
+async function waitUntilStill(control: Locator) {
+  let previous = ''
+  await expect.poll(async () => {
+    const edges = await control.evaluate((element) => {
+      const boxes = [element.getBoundingClientRect()]
+      for (let node = element.parentElement; node; node = node.parentElement) {
+        const { overflowX, overflowY } = getComputedStyle(node)
+        if (overflowX !== 'visible' || overflowY !== 'visible') boxes.push(node.getBoundingClientRect())
+      }
+      return JSON.stringify(boxes)
+    })
+    const isStill = edges === previous
+    previous = edges
+    return isStill
+  }).toBe(true)
+}
+
+test('shows the whole focus ring on Archive instead, with room around its icon and label', async ({ page, request }) => {
+  const user = await signUpUser(request)
+  const account = await createAccount(request, user, { name: ACCOUNT_NAME })
+  await createTransaction(request, user, { accountId: account.id, categoryName: 'Groceries', amount: -5000 })
+  await logInViaApi(page, user)
+
+  for (const size of [{ width: 1280, height: 800 }, { width: 390, height: 667 }]) {
+    const at = `${size.width}×${size.height}`
+    await page.setViewportSize(size)
+    const dialog = await openEditDialog(page, account.id)
+    await pressTrash(dialog)
+    const archiveInstead = dialog.getByRole('button', { name: 'Archive instead', exact: true })
+    await waitForFadeIn(archiveInstead)
+    // The panel hands focus to its first control, reached by keyboard, so the ring shows
+    await expect(archiveInstead, `focus at ${at}`).toBeFocused()
+
+    await expect.poll(async () => (await readFocusRing(archiveInstead)).isDrawn, { message: `ring drawn at ${at}` }).toBe(true)
+    // The panel grows in, and the boxes around the button clip it until it has finished, so the ring is read
+    // once the button and every clipping box around it have stopped moving
+    await waitUntilStill(archiveInstead)
+    const ring = await readFocusRing(archiveInstead)
+    expect.soft(ring.isCut, `ring cut off at ${at}`).toBe(false)
+    for (const [side, gap] of Object.entries(ring.gap)) {
+      expect.soft(gap, `gap on the ${side} at ${at}`).toBeGreaterThanOrEqual(4)
+    }
+    await page.keyboard.press('Escape')
+  }
+})

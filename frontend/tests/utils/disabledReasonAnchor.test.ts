@@ -4,8 +4,8 @@
  * the control's right edge and hangs clear below the control, or rises clear above it when there is no
  * room below, so it never lands on the control or on a field above it
  */
-import { describe, expect, it } from 'vitest'
-import { getReasonAnchor, isBoxInView } from '@/utils/disabledReasonAnchor'
+import { afterEach, describe, expect, it, vi } from 'vitest'
+import { getReasonAnchor, getReasonBounds, isBoxInView } from '@/utils/disabledReasonAnchor'
 import { getCursorTooltipPosition } from '@/utils/tooltipPosition'
 
 // A 40px high button in a 1280 by 800 window, with a reason 36px high and 200px wide
@@ -123,5 +123,64 @@ describe('hint beside the control', () => {
   it('hangs clear below the control when there is no room above it', () => {
     const { top, box } = placeHint(20)
     expect(top).toBeGreaterThanOrEqual(box.bottom)
+  })
+})
+
+describe('disabled control reason bounds', () => {
+  // A 1280 by 800 window with a dialogue body above a footer, the body's bottom edge 80px above the window's
+  const body = rect(300, 100, 700, 620)
+  const insideBody = { closest: () => ({ getBoundingClientRect: () => body }) } as unknown as HTMLElement
+  const outsideBody = { closest: () => null } as unknown as HTMLElement
+
+  // The tests run without a browser, so the window and the box constructor are stood in for
+  function stubWindow() {
+    vi.stubGlobal('window', { innerWidth: 1280, innerHeight: 800 })
+    vi.stubGlobal('DOMRect', function (left: number, top: number, width: number, height: number) {
+      return rect(left, top, width, height)
+    })
+  }
+
+  afterEach(() => vi.unstubAllGlobals())
+
+  it('is the window for a control outside any dialogue body', () => {
+    stubWindow()
+    expect(getReasonBounds(outsideBody)).toEqual(rect(0, 0, 1280, 800))
+    expect(getReasonBounds(null)).toEqual(rect(0, 0, 1280, 800))
+  })
+
+  it('is the dialogue body for a control inside one, so a reason never reaches the footer or the rail', () => {
+    stubWindow()
+    expect(getReasonBounds(insideBody)).toEqual(body)
+  })
+
+  it('is the dialogue for a control in its footer, so a reason never leaves the dialogue', () => {
+    stubWindow()
+    const panel = rect(300, 60, 680, 680)
+    const inFooter = {
+      closest: (selector: string) =>
+        selector.includes('[role="dialog"]') ? { getBoundingClientRect: () => panel } : null,
+    } as unknown as HTMLElement
+    expect(getReasonBounds(inFooter)).toEqual(panel)
+  })
+
+  it('is cut to the window where the body runs past it', () => {
+    stubWindow()
+    const tall = { closest: () => ({ getBoundingClientRect: () => rect(0, 100, 390, 900) }) } as unknown as HTMLElement
+    expect(getReasonBounds(tall)).toEqual(rect(0, 100, 390, 700))
+  })
+
+  it('makes a control near the bottom of the body rise above itself', () => {
+    stubWindow()
+    const box = rect(500, 660, 280, 40)
+    const origin = { getBoundingClientRect: () => box, closest: () => null } as unknown as HTMLElement
+    const position = getCursorTooltipPosition({
+      origin,
+      tooltip: TOOLTIP,
+      clientX: box.right,
+      clientY: box.bottom,
+      bounds: getReasonBounds(insideBody),
+      keepClear: box,
+    })
+    expect(position.y + position.flipY + TOOLTIP.offsetHeight).toBeLessThanOrEqual(box.top)
   })
 })
