@@ -4,6 +4,7 @@
  */
 import { describe, expect, it } from 'vitest'
 import { getImportExpectations } from '@/pages/imports/expectations'
+import { getOfxMappingWording, getOfxPreviewEmptyDescription } from '@/pages/imports/ofx/constants'
 import { OFX_FORMAT } from '@/pages/imports/ofx/format'
 import { readOfxFile } from '@/pages/imports/ofx/utils/readFile'
 import { getQifLeftOutNotice, getQifMultipleStatementsReason } from '@/pages/imports/qif/constants'
@@ -54,10 +55,33 @@ describe("the QIF import on an account's own page", () => {
     expect(expectations.intro).toBe('Each transaction in your QIF file becomes one transaction in Everyday chequing.')
     expect(expectations.deviation).toContain('The balance of Everyday chequing only changes')
     expect(sources).not.toContain('An account')
+    expect(expectations.changes.find((change) => change.source === 'An Opening Balance transaction')?.lumina).toBe(
+      'Comes in like any other transaction, so it is added to the balance Everyday chequing already has. If that balance already includes it, delete the transaction after the import',
+    )
     expect(sources).toContain('A file with several accounts')
     expect(sources).toContain('A split transaction')
     expect(getImportExpectations('qif', 'Everyday chequing')).toEqual(expectations)
     expect(getImportExpectations('qif', null)).toBe(QIF_EXPECTATIONS)
+  })
+})
+
+describe('the mapping and preview wording', () => {
+  it("uses each format's own noun instead of statement", () => {
+    expect(getOfxMappingWording(QIF_FORMAT.files.statementNoun, false)).toEqual({
+      description:
+        'Every account must map to an existing account or a new one. The same account in several files is matched once.',
+      emptyState: { title: 'No accounts detected', description: 'Upload the files first.' },
+    })
+    expect(getOfxMappingWording(QIF_FORMAT.files.statementNoun, true).emptyState.description).toBe(
+      'None of the accounts has transactions.',
+    )
+    expect(getOfxMappingWording(OFX_FORMAT.files.statementNoun, false).emptyState.title).toBe('No statements detected')
+    expect(getOfxPreviewEmptyDescription(QIF_FORMAT.files.statementNoun)).toBe(
+      'Transactions compiled from the account will appear here.',
+    )
+    expect(getOfxPreviewEmptyDescription(OFX_FORMAT.files.statementNoun)).toBe(
+      'Transactions compiled from the statement will appear here.',
+    )
   })
 })
 

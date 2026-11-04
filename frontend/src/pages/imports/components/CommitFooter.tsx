@@ -78,7 +78,7 @@ export function ImportCommitFooter({
       {buildError && (
         <p
           id={reasonId}
-          className="max-w-xl text-pretty text-right text-sm font-medium"
+          className="max-w-xl text-pretty px-5 [overflow-wrap:anywhere] text-right text-sm font-medium"
           style={{ color: 'var(--app-negative)' }}
         >
           {buildError}

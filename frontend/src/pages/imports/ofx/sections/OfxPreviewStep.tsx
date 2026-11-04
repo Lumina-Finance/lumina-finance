@@ -1,11 +1,13 @@
 import { OfxReveal } from '@/pages/imports/ofx/components/OfxReveal'
 import { OfxSkippedRowsTable } from '@/pages/imports/ofx/components/OfxSkippedRowsTable'
+import { getOfxPreviewEmptyDescription } from '@/pages/imports/ofx/constants'
 import type { OfxImportWorkflow } from '@/pages/imports/ofx/hooks'
 import { ImportPreviewLayout } from '@/pages/imports/sections'
 import { getSkippedRowsDisplay } from '@/pages/imports/utils'
 
 type OfxPreviewStepProps = Pick<
   OfxImportWorkflow,
+  | 'format'
   | 'importEstimate'
   | 'previewGroups'
   | 'predictedSkippedRows'
@@ -27,6 +29,7 @@ type OfxPreviewStepProps = Pick<
  * account step before it
  */
 export function OfxPreviewStep({
+  format,
   importEstimate,
   previewGroups,
   predictedSkippedRows,
@@ -49,7 +52,7 @@ export function OfxPreviewStep({
       index={fixedAccount ? '02' : '03'}
       stats={{ ...importEstimate, newAccountCount, newCategoryCount: 0 }}
       previewGroups={previewGroups}
-      emptyDescription="Transactions compiled from the statement will appear here."
+      emptyDescription={getOfxPreviewEmptyDescription(format.files.statementNoun)}
       buildError={importBuild.errors[0] ?? null}
       check={heldCheckNotice}
       importError={importError}

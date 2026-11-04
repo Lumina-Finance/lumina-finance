@@ -246,7 +246,9 @@ describe('refusing an account mapping answer', () => {
       accountCreateCurrencies: { [tooLong]: 'CAD', [longest]: 'CAD' },
     })
 
-    expect(result.errors).toEqual([getImportAccountNameTooLongError(tooLong)])
+    expect(result.errors).toEqual([
+      getImportAccountNameTooLongError(tooLong, { length: IMPORT_ACCOUNT_NAME_MAX_LENGTH + 1 }),
+    ])
   })
 })
 

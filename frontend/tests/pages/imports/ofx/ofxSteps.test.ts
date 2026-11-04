@@ -180,6 +180,7 @@ describe('the account step and the preview', () => {
   function renderPreviewStep(state: Awaited<ReturnType<typeof buildState>>, fileCount = 1) {
     return renderToStaticMarkup(
       createElement(OfxPreviewStep, {
+        format: OFX_FORMAT,
         stagedFiles: Array.from({ length: fileCount }, (_, index) => ({ id: String(index) })),
         importEstimate: { rowCount: 1, transactionEstimate: 1 },
         previewGroups: [],

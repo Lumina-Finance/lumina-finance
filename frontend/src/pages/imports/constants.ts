@@ -312,8 +312,16 @@ export function getImportGroupAccountError(label: string) {
 
 // The CSV and Firefly III imports name a new account after the source, so a name too long for one is
 // refused before saving rather than by the server
-export function getImportAccountNameTooLongError(label: string) {
-  return `${label} is too long for a new account name, which holds at most ${IMPORT_ACCOUNT_NAME_MAX_LENGTH} characters, so map it to an existing account.`
+// The name is cut to 40 characters, since a refused one can run to hundreds. The file is named where
+// the import reads one file per account
+export function getImportAccountNameTooLongError(
+  label: string,
+  { length, fileName }: { length: number; fileName?: string },
+) {
+  const characters = [...label]
+  const shown = characters.length > 40 ? `${characters.slice(0, 40).join('')}…` : label
+  const where = fileName ? ` in "${fileName}"` : ''
+  return `A new account can't be created for "${shown}"${where}: its name has ${length} characters, and an account name holds at most ${IMPORT_ACCOUNT_NAME_MAX_LENGTH}. Map it to an existing account instead.`
 }
 
 /** Says which account source still needs a mapping */

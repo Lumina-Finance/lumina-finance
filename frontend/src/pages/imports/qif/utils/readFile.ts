@@ -1,6 +1,9 @@
 import type { AccountType } from '@/api/accounts'
 import type { OfxFileRead, OfxStatement, OfxStatementKind, OfxTransaction } from '@/pages/imports/ofx/types'
 import {
+  getQifTransactionWithoutSectionReason,
+  getQifTruncatedReason,
+  getQifTwoAlternateAmountsReason,
   getQifUnknownSectionReason,
   MAX_QIF_FILE_BYTES,
   QIF_ASSET_ACCOUNT,
@@ -12,7 +15,6 @@ import {
   QIF_NOT_READABLE_REASON,
   QIF_ONLY_LEFT_OUT_REASON,
   QIF_TOO_LARGE_REASON,
-  QIF_TRUNCATED_REASON,
 } from '@/pages/imports/qif/constants'
 import { createRandomId } from '@/utils/randomId'
 
@@ -57,7 +59,8 @@ type Section =
  * transaction keeps the text of its date and amounts and leaves `date` and `amount` null. The
  * reading choices resolve them once every staged file is known. A file with an investment section
  * counts it as left out. A section the reader does not know, or a file that ends inside a
- * transaction, refuses the file, since going on would guess
+ * transaction, a transaction with two alternate amounts and one outside any transaction section
+ * refuse the file, since going on would guess or drop something
  *
  * @param file - The uploaded file, sent nowhere as it is
  * @param fileId - What tells this file's transactions from those of another file of the same name
@@ -111,7 +114,7 @@ function readQifText(text: string, origin: { fileId: string; fileName: string })
   for (const line of lines) {
     if (line.startsWith(HEADER_START)) {
       // A header cannot interrupt a record, which only a caret ends
-      if (fields.length > 0) return { status: 'refused', reason: QIF_TRUNCATED_REASON }
+      if (fields.length > 0) return { status: 'refused', reason: getQifTruncatedReason(describeQifTransaction(fields)) }
 
       const header = line.toLowerCase()
       if (header === CLEAR_AUTO_SWITCH_DIRECTIVE) {
@@ -157,13 +160,26 @@ function readQifText(text: string, origin: { fileId: string; fileName: string })
 
     const record = fields
     fields = []
+
+    // A record with fields but no transaction section to read it in would be dropped, and so would
+    // one in the account list that names no account, which is a transaction written without its
+    // section header
+    if (record.length > 0 && (section === null || (section.type === 'account' && countFields(record, 'N') === 0))) {
+      return { status: 'refused', reason: getQifTransactionWithoutSectionReason(describeQifTransaction(record)) }
+    }
+
     if (section?.type === 'account') {
       account = findField(record, 'N') || account
     } else if (section?.type === 'transactions' && record.length > 0) {
       // A transaction states its date and amount once, so a second means a caret went missing and
       // the next transaction has run into this one
       if (countFields(record, 'D') > 1 || countFields(record, 'T') > 1) {
-        return { status: 'refused', reason: QIF_TRUNCATED_REASON }
+        return { status: 'refused', reason: getQifTruncatedReason(describeQifTransaction(record)) }
+      }
+
+      // The alternate amount is read once, so a second would be ignored without a word
+      if (countFields(record, 'U') > 1) {
+        return { status: 'refused', reason: getQifTwoAlternateAmountsReason(describeQifTransaction(record)) }
       }
 
       const id = account === null ? `qif:${origin.fileId}:${section.kind}:${section.account.label}` : `qif:${account}`
@@ -185,7 +201,7 @@ function readQifText(text: string, origin: { fileId: string; fileName: string })
     }
   }
 
-  if (fields.length > 0) return { status: 'refused', reason: QIF_TRUNCATED_REASON }
+  if (fields.length > 0) return { status: 'refused', reason: getQifTruncatedReason(describeQifTransaction(fields)) }
 
   if (statements.size === 0) {
     return { status: 'refused', reason: leftOut.investment > 0 ? QIF_ONLY_LEFT_OUT_REASON : QIF_NO_TRANSACTIONS_REASON }
@@ -201,6 +217,18 @@ function findField(record: Field[], code: string) {
 
 function countFields(record: Field[], code: string) {
   return record.filter(([fieldCode]) => fieldCode === code).length
+}
+
+/**
+ * Says which transaction a refusal is about by the date and payee its lines give, such as
+ * `transaction dated 1/2/24 for "Coffee"`, so the person can find it in the file. A payee past 30
+ * characters is cut, and a record with neither is just `transaction`
+ */
+function describeQifTransaction(record: Field[]) {
+  const date = findField(record, 'D')
+  const payee = [...findField(record, 'P')]
+  const shownPayee = payee.length > 30 ? `${payee.slice(0, 30).join('')}…` : payee.join('')
+  return ['transaction', date && `dated ${date}`, shownPayee && `for "${shownPayee}"`].filter(Boolean).join(' ')
 }
 
 function readTransaction(record: Field[], index: number, origin: { fileId: string; fileName: string }): OfxTransaction {

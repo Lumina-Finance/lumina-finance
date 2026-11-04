@@ -11,7 +11,9 @@ import type { Category } from '@/api/categories'
 import type { Currency } from '@/api/currency'
 import {
   CREATE_ACCOUNT_VALUE,
+  getImportAccountNameTooLongError,
   getImportMerchantTooLongReason,
+  IMPORT_ACCOUNT_NAME_MAX_LENGTH,
   getImportNoRowsError,
   JOURNAL_ROW_FIELD_MAX_LENGTHS,
   MAX_IMPORT_NOTES_LENGTH,
@@ -220,6 +222,28 @@ describe('compiling an OFX import', () => {
     answers.accountCreateDetails[file.statements[0].id].currency = 'CAD'
 
     expect(buildOfxImportPayload(file, answers).currencyMismatches).toHaveLength(1)
+  })
+
+  it('refuses a new account whose name is over the limit, as the other imports do, and accepts one at it', async () => {
+    const file = await readStatements([CHECKING])
+    const named = (length: number): OfxFile => ({
+      ...file,
+      statements: [{ ...file.statements[0], name: 'a'.repeat(length) }],
+    })
+    const create = (candidate: OfxFile) =>
+      buildOfxImportPayload(candidate, createAnswers(candidate, CREATE_ACCOUNT_VALUE))
+
+    const tooLong = create(named(IMPORT_ACCOUNT_NAME_MAX_LENGTH + 1))
+    expect(tooLong.payload).toBeNull()
+    const { label, transactions } = file.statements[0]
+    expect(tooLong.errors).toEqual([
+      getImportAccountNameTooLongError(label, {
+        length: IMPORT_ACCOUNT_NAME_MAX_LENGTH + 1,
+        fileName: transactions[0].fileName,
+      }),
+    ])
+    expect(tooLong.errors[0]).toContain(`in "${transactions[0].fileName}"`)
+    expect(create(named(IMPORT_ACCOUNT_NAME_MAX_LENGTH)).errors).toEqual([])
   })
 
   it('refuses the whole import while a statement has no account answer', async () => {

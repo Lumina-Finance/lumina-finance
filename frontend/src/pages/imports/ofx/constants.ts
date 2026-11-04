@@ -117,3 +117,30 @@ export function getOfxLeftOutNotice({ investment }: { investment: number }, file
 
   return `${investment} investment ${investment === 1 ? 'statement' : 'statements'} in ${fileCount === 1 ? 'this file' : 'these files'} ${investment === 1 ? "isn't" : "aren't"} imported: only bank, credit card and loan statements are supported.`
 }
+
+/**
+ * Names what a format calls one statement of its files, in the plural and with a capital for a title,
+ * since a QIF file has accounts where an OFX file has statements
+ *
+ * @param statementNoun - The format's noun for one statement, singular and in lower case
+ */
+export function getStatementNouns(statementNoun: string) {
+  const plural = `${statementNoun}s`
+  return { plural, capitalPlural: `${plural[0].toUpperCase()}${plural.slice(1)}` }
+}
+
+/** Words the account mapping step with the format's own noun for a statement */
+export function getOfxMappingWording(statementNoun: string, hasFile: boolean) {
+  const { plural } = getStatementNouns(statementNoun)
+  return {
+    description: `Every ${statementNoun} must map to an existing account or a new one. The same account in several files is matched once.`,
+    emptyState: hasFile
+      ? { title: 'No accounts to import into', description: `None of the ${plural} has transactions.` }
+      : { title: `No ${plural} detected`, description: 'Upload the files first.' },
+  }
+}
+
+/** Says what the preview holds before any transaction is compiled, with the format's own noun */
+export function getOfxPreviewEmptyDescription(statementNoun: string) {
+  return `Transactions compiled from the ${statementNoun} will appear here.`
+}
