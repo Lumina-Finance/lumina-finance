@@ -1276,10 +1276,10 @@
     font-size: 0.875rem;
   }
 
-  /* Part of the panel rather than a field inside it, so it draws no border, no fill and no ring of
-     its own: the box around it already has all three. Its height is set rather than left to the line
-     box, so a browser with a raised minimum font size cannot make the row taller than the height
-     position.ts worked the list's own share out against */
+  /* Part of the panel rather than a field inside it, so it draws no fill and no box of its own, only
+     a hairline under it, and shows the focus ring for the field inside it, set out below. Its height
+     is set rather than left to the line box, so a browser with a raised minimum font size cannot
+     make the row taller than the height position.ts worked the list's own share out against */
   .app-dropdown-search {
     display: flex;
     align-items: center;
@@ -1288,6 +1288,7 @@
     padding: 0 var(--app-dropdown-row-padding-x);
     margin-bottom: var(--app-dropdown-inner-padding);
     border-bottom: 1px solid var(--app-border);
+    border-radius: var(--app-dropdown-row-radius);
   }
 
   /* Sits in the column an option row's own icon sits in, so the row lines up with the list under it */
@@ -1297,8 +1298,21 @@
     color: var(--app-text-subtle);
   }
 
-  /* Draws no focus ring, since focus lands here the moment the box opens and a ring there would be
-     permanent. The caret is what shows the field is live */
+  /* The row draws the focus ring for the field, inside its edge since the box around it clips
+     anything outside, and around the icon and clear button beside it so it reads as one field */
+  @media (forced-colors: none) {
+    .app-dropdown-search {
+      outline: var(--app-focus-outline-rest);
+      outline-offset: calc(var(--app-focus-offset) * -1);
+      transition: var(--app-focus-fade);
+    }
+  }
+
+  .app-dropdown-search:has(.app-dropdown-search-input:focus-visible) {
+    outline: var(--app-focus-outline);
+    outline-offset: calc(var(--app-focus-offset) * -1);
+  }
+
   .app-dropdown-search-input {
     flex: 1;
     min-width: 0;

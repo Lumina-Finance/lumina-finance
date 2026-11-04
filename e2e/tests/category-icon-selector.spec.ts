@@ -3,10 +3,10 @@ import { expect, test, type Page } from '@playwright/test'
 import { signUpUser } from '../support/api'
 import { logInViaApi, openPage } from '../support/app'
 
-// Runs on desktop only: it sets the one width it checks itself with page.setViewportSize
+// Runs on desktop only: it sets the width it checks itself with page.setViewportSize, and the touch screen block adds a phone
 
-async function openPicker(page: Page, request: Parameters<typeof signUpUser>[0]) {
-  await page.setViewportSize({ width: 1280, height: 800 })
+async function openPicker(page: Page, request: Parameters<typeof signUpUser>[0], size = { width: 1280, height: 800 }) {
+  await page.setViewportSize(size)
   const user = await signUpUser(request)
   await logInViaApi(page, user)
   await openPage(page, '/settings#categories')
@@ -18,6 +18,60 @@ async function openPicker(page: Page, request: Parameters<typeof signUpUser>[0])
   await expect(panel.getByRole('searchbox')).toBeVisible({ timeout: 15000 })
   return { dialog, button, panel }
 }
+
+test('focuses the search box when the panel opens, so typing filters at once', async ({ page, request }) => {
+  const { panel } = await openPicker(page, request)
+  const search = panel.getByRole('searchbox')
+  await expect(search).toBeFocused()
+  await expect(panel.getByRole('button', { name: '🐶', exact: true })).toHaveCount(0)
+
+  await page.keyboard.type('dog')
+
+  await expect(search).toHaveValue('dog')
+  await expect(panel.getByRole('button', { name: '🐶', exact: true })).toBeVisible()
+})
+
+test('focuses the search box when the panel is opened with the keyboard, and Escape returns to the button', async ({
+  page,
+  request,
+}) => {
+  const { button, panel } = await openPicker(page, request)
+  // The focused search box shows the keyboard focus ring, as any text field does
+  const ring = () =>
+    panel.getByRole('searchbox').evaluate((input) => {
+      const row = getComputedStyle(input.closest('.search')!)
+      return { color: row.outlineColor, width: row.outlineWidth }
+    })
+  await expect.poll(ring).toEqual({ color: 'rgb(161, 126, 79)', width: '2px' })
+  await page.keyboard.press('Escape')
+  await expect(panel).toHaveCount(0)
+  await expect(button).toBeFocused()
+
+  await page.keyboard.press('Enter')
+
+  await expect(panel.getByRole('searchbox')).toBeFocused()
+  await expect.poll(ring).toEqual({ color: 'rgb(161, 126, 79)', width: '2px' })
+  await page.keyboard.type('car')
+  await expect(panel.getByRole('button', { name: '🚗', exact: true })).toBeVisible()
+  await page.keyboard.press('Escape')
+  await expect(panel).toHaveCount(0)
+  await expect(button).toBeFocused()
+})
+
+test.describe('on a touch screen', () => {
+  test.use({ isMobile: true, hasTouch: true })
+
+  test('focuses the search box when the panel opens, so typing filters at once', async ({ page, request }) => {
+    const { panel } = await openPicker(page, request, { width: 390, height: 844 })
+    const search = panel.getByRole('searchbox')
+    await expect(search).toBeFocused()
+
+    await page.keyboard.type('dog')
+
+    await expect(search).toHaveValue('dog')
+    await expect(panel.getByRole('button', { name: '🐶', exact: true })).toBeVisible()
+  })
+})
 
 test('closes the emoji panel on Escape and leaves the form open', async ({ page, request }) => {
   const { dialog, panel } = await openPicker(page, request)

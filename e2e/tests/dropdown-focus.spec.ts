@@ -28,3 +28,24 @@ test('is one Tab stop, on its button', async ({ page, request }) => {
   await page.keyboard.press('Tab')
   await expect(field).toBeFocused()
 })
+
+test('draws the focus ring on the search row of a searchable dropdown opened with the keyboard', async ({ page, request }) => {
+  const user = await signUpUser(request)
+  await logInViaApi(page, user)
+  await openPage(page, '/settings')
+  const timezone = page.locator('section#profile').getByRole('combobox', { name: 'Timezone', exact: true })
+  await timezone.focus()
+  await page.keyboard.press('Enter')
+
+  const search = page.locator('[data-dropdown-search="true"]')
+  await expect(search).toBeFocused()
+  // The ring sits on the whole row around the field, inside its edge, as any focused text field shows it
+  await expect
+    .poll(() =>
+      search.evaluate((input) => {
+        const row = getComputedStyle(input.closest('.app-dropdown-search')!)
+        return { color: row.outlineColor, width: row.outlineWidth }
+      }),
+    )
+    .toEqual({ color: 'rgb(161, 126, 79)', width: '2px' })
+})

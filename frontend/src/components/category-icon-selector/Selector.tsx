@@ -389,7 +389,14 @@ function EmojiMartIconPicker({
       followContent()
     })
 
+    // The search field takes focus once the panel has opened around it, as the Dropdown's does, on touch
+    // screens too. The picker's own autoFocus runs before the element is attached, so it can't do this
+    const focusFrame = window.requestAnimationFrame(() => {
+      pickerElement.shadowRoot?.querySelector<HTMLInputElement>('input[type="search"]')?.focus({ preventScroll: true })
+    })
+
     return () => {
+      window.cancelAnimationFrame(focusFrame)
       stopFollowing()
       contentHeightRef.current = null
       pickerElement.remove()
