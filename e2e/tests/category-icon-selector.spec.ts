@@ -19,6 +19,37 @@ async function openPicker(page: Page, request: Parameters<typeof signUpUser>[0])
   return { dialog, button, panel }
 }
 
+test('focuses the search box when the panel opens, so typing filters at once', async ({ page, request }) => {
+  const { panel } = await openPicker(page, request)
+  const search = panel.getByRole('searchbox')
+  await expect(search).toBeFocused()
+  await expect(panel.getByRole('button', { name: '🐶', exact: true })).toHaveCount(0)
+
+  await page.keyboard.type('dog')
+
+  await expect(search).toHaveValue('dog')
+  await expect(panel.getByRole('button', { name: '🐶', exact: true })).toBeVisible()
+})
+
+test('focuses the search box when the panel is opened with the keyboard, and Escape returns to the button', async ({
+  page,
+  request,
+}) => {
+  const { button, panel } = await openPicker(page, request)
+  await page.keyboard.press('Escape')
+  await expect(panel).toHaveCount(0)
+  await expect(button).toBeFocused()
+
+  await page.keyboard.press('Enter')
+
+  await expect(panel.getByRole('searchbox')).toBeFocused()
+  await page.keyboard.type('car')
+  await expect(panel.getByRole('button', { name: '🚗', exact: true })).toBeVisible()
+  await page.keyboard.press('Escape')
+  await expect(panel).toHaveCount(0)
+  await expect(button).toBeFocused()
+})
+
 test('closes the emoji panel on Escape and leaves the form open', async ({ page, request }) => {
   const { dialog, panel } = await openPicker(page, request)
 
