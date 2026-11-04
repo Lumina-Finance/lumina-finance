@@ -1,8 +1,9 @@
+import type { CSSProperties } from 'react'
 import { Archive, Check } from 'lucide-react'
 import type { AccountsOverview } from '@/api/accounts'
 import MarqueeText from '@/components/display/MarqueeText'
 import { useMoneyFormatters } from '@/hooks/useMoneyFormatters'
-import { getSignedAmountColor } from '@/utils/negativeAmount'
+import { getColorOnAccentTint, getSignedAmountColor } from '@/utils/negativeAmount'
 
 interface ArchivedRunwayAccountTileProps {
   account: AccountsOverview
@@ -63,6 +64,14 @@ export function ArchivedRunwayAccountTile({ account }: ArchivedRunwayAccountTile
 export function RunwayAccountTile({ account, selected, onToggle }: RunwayAccountTileProps) {
   const { formatCurrency } = useMoneyFormatters()
   const institutionName = account.institution?.name ?? 'Cash'
+  // A chosen tile rests in the soft accent tint and any tile takes it under the pointer, where the plain
+  // positive green falls under 4.5:1, as on the Accounts page's rows
+  const balanceColor = getSignedAmountColor(account.current_balance)
+  const tintedBalanceColor = getColorOnAccentTint(balanceColor)
+  const balanceStyle = {
+    '--balance-text': selected ? tintedBalanceColor : balanceColor,
+    '--balance-tinted-text': tintedBalanceColor,
+  } as CSSProperties
 
   return (
     <button
@@ -70,9 +79,9 @@ export function RunwayAccountTile({ account, selected, onToggle }: RunwayAccount
       role="checkbox"
       aria-checked={selected}
       onClick={onToggle}
-      className={`app-marquee-trigger flex w-full min-w-0 items-center gap-3 overflow-hidden rounded-xl border px-3 py-2.5 text-left transition-colors hover:border-[var(--app-hover-border)] ${
+      className={`group/tile app-marquee-trigger flex w-full min-w-0 items-center gap-3 overflow-hidden rounded-xl border px-3 py-2.5 text-left transition-colors hover:border-[var(--app-hover-border)] ${
         selected
-          ? 'border-[var(--app-accent-border)] bg-[var(--app-accent-soft)] hover:bg-[var(--app-accent-border)]'
+          ? 'border-[var(--app-accent-border)] bg-[var(--app-accent-soft)] hover:bg-[var(--app-accent-chosen-tile-hover-fill)]'
           : 'border-[var(--app-input-border)] bg-[var(--app-input-bg)] hover:bg-[var(--app-accent-soft)]'
       }`}
     >
@@ -96,8 +105,8 @@ export function RunwayAccountTile({ account, selected, onToggle }: RunwayAccount
       </span>
       <span className="shrink-0 text-right tabular-nums">
         <span
-          className="block font-financial text-sm font-medium"
-          style={{ color: getSignedAmountColor(account.current_balance) }}
+          className="block font-financial text-sm font-medium text-[var(--balance-text)] transition-control group-hover/tile:text-[var(--balance-tinted-text)]"
+          style={balanceStyle}
         >
           {formatCurrency(account.current_balance, account.currency)}
         </span>

@@ -40,7 +40,8 @@ function surfaces(tokens: Tokens): Record<string, Rgb> {
 describe('secondary button label contrast', () => {
   // The button's fill is 62% of the input fill over whatever it sits on (.app-secondary-button)
   const cases = (Object.keys(THEMES) as Theme[]).flatMap((theme) =>
-    Object.entries(surfaces(THEMES[theme])).map(([surface, backdrop]) => ({ theme, surface, backdrop })))
+    Object.entries(surfaces(THEMES[theme])).map(([surface, backdrop]) => ({ theme, surface, backdrop })),
+  )
 
   it.each(cases)('reads at 4.5:1 or better in the $theme theme on the $surface', ({ theme, backdrop }) => {
     const tokens = THEMES[theme]
@@ -57,18 +58,24 @@ describe('text colour contrast', () => {
     const tokens = THEMES[theme]
     const backdrops = { ...surfaces(tokens), field: solid(tokens, '--app-input-bg') }
     return TEXT_TOKENS.flatMap((token) =>
-      Object.entries(backdrops).map(([surface, backdrop]) => ({ theme, token, surface, backdrop })))
+      Object.entries(backdrops).map(([surface, backdrop]) => ({ theme, token, surface, backdrop })),
+    )
   })
 
-  it.each(cases)('$token reads at 4.5:1 or better in the $theme theme on the $surface', ({ theme, token, backdrop }) => {
-    expect(contrast(solid(THEMES[theme], token), backdrop)).toBeGreaterThanOrEqual(MINIMUM_TEXT_CONTRAST)
-  })
+  it.each(cases)(
+    '$token reads at 4.5:1 or better in the $theme theme on the $surface',
+    ({ theme, token, backdrop }) => {
+      expect(contrast(solid(THEMES[theme], token), backdrop)).toBeGreaterThanOrEqual(MINIMUM_TEXT_CONTRAST)
+    },
+  )
 
   // Subtle text is the quieter of the two secondary levels, so raising it must not overtake muted
   it.each(Object.keys(THEMES) as Theme[])('keeps subtle text quieter than muted text in the %s theme', (theme) => {
     const tokens = THEMES[theme]
     const page = solid(tokens, '--app-bg')
-    expect(contrast(solid(tokens, '--app-text-subtle'), page)).toBeLessThan(contrast(solid(tokens, '--app-text-muted'), page))
+    expect(contrast(solid(tokens, '--app-text-subtle'), page)).toBeLessThan(
+      contrast(solid(tokens, '--app-text-muted'), page),
+    )
   })
 })
 
@@ -107,16 +114,21 @@ describe('primary button label contrast', () => {
     const tokens = THEMES[theme]
     const backdrops = { ...surfaces(tokens), field: solid(tokens, '--app-input-bg') }
     return (['rest', 'hover'] as const).flatMap((state) =>
-      Object.entries(backdrops).map(([surface, backdrop]) => ({ theme, state, surface, backdrop })))
+      Object.entries(backdrops).map(([surface, backdrop]) => ({ theme, state, surface, backdrop })),
+    )
   })
 
-  it.each(cases)('reads at 4.5:1 or better in the $theme theme at $state on the $surface', ({ theme, state, backdrop }) => {
-    const tokens = THEMES[theme]
-    const fill = state === 'rest'
-      ? paint(solid(tokens, '--app-button-primary-bg'), 0.82, backdrop)
-      : paint(solid(tokens, '--app-button-primary-bg-hover'), 0.88, backdrop)
-    expect(contrast(solid(tokens, '--app-button-primary-text'), fill)).toBeGreaterThanOrEqual(MINIMUM_TEXT_CONTRAST)
-  })
+  it.each(cases)(
+    'reads at 4.5:1 or better in the $theme theme at $state on the $surface',
+    ({ theme, state, backdrop }) => {
+      const tokens = THEMES[theme]
+      const fill =
+        state === 'rest'
+          ? paint(solid(tokens, '--app-button-primary-bg'), 0.82, backdrop)
+          : paint(solid(tokens, '--app-button-primary-bg-hover'), 0.88, backdrop)
+      expect(contrast(solid(tokens, '--app-button-primary-text'), fill)).toBeGreaterThanOrEqual(MINIMUM_TEXT_CONTRAST)
+    },
+  )
 })
 
 describe('danger button label contrast', () => {
@@ -127,16 +139,21 @@ describe('danger button label contrast', () => {
     const tokens = THEMES[theme]
     const backdrops = { ...surfaces(tokens), field: solid(tokens, '--app-input-bg') }
     return (['rest', 'hover'] as const).flatMap((state) =>
-      Object.entries(backdrops).map(([surface, backdrop]) => ({ theme, state, surface, backdrop })))
+      Object.entries(backdrops).map(([surface, backdrop]) => ({ theme, state, surface, backdrop })),
+    )
   })
 
-  it.each(cases)('reads at 4.5:1 or better in the $theme theme at $state on the $surface', ({ theme, state, backdrop }) => {
-    const tokens = THEMES[theme]
-    const fill = state === 'rest'
-      ? paint(resolve(tokens, '--app-danger-fill'), 0.82, backdrop)
-      : paint(resolve(tokens, '--app-danger-fill-hover'), 0.9, backdrop)
-    expect(contrast(WHITE, fill)).toBeGreaterThanOrEqual(MINIMUM_TEXT_CONTRAST)
-  })
+  it.each(cases)(
+    'reads at 4.5:1 or better in the $theme theme at $state on the $surface',
+    ({ theme, state, backdrop }) => {
+      const tokens = THEMES[theme]
+      const fill =
+        state === 'rest'
+          ? paint(resolve(tokens, '--app-danger-fill'), 0.82, backdrop)
+          : paint(resolve(tokens, '--app-danger-fill-hover'), 0.9, backdrop)
+      expect(contrast(WHITE, fill)).toBeGreaterThanOrEqual(MINIMUM_TEXT_CONTRAST)
+    },
+  )
 })
 
 describe('keyboard focus ring contrast', () => {
@@ -153,7 +170,8 @@ describe('keyboard focus ring contrast', () => {
       sidebar: solid(tokens, '--app-nav-bg'),
       // The Delete circle's confirmation panel in the Edit account window (DeletePanel)
       'delete panel': solid(tokens, '--app-negative-soft', card),
-      'hovered row': theme === 'light' ? solid(tokens, '--app-hover-soft') : paint(solid(tokens, '--app-text'), 0.06, card),
+      'hovered row':
+        theme === 'light' ? solid(tokens, '--app-hover-soft') : paint(solid(tokens, '--app-text'), 0.06, card),
     }
     return Object.entries(backdrops).map(([surface, backdrop]) => ({ theme, surface, backdrop }))
   })
@@ -212,7 +230,7 @@ describe('tinted state contrast', () => {
       // .app-dropdown-row-selected.app-dropdown-row-highlighted, 10% of the accent over the panel
       name: 'the chosen dropdown row while highlighted',
       text: ['--app-accent', '--app-text-muted'],
-      fill: (tokens) => paint(solid(tokens, '--app-accent'), 0.10, solid(tokens, '--app-input-bg')),
+      fill: (tokens) => paint(solid(tokens, '--app-accent'), 0.1, solid(tokens, '--app-input-bg')),
     },
     {
       // The budget details panel and a hovered tax-advantaged limit row, both drawn in a dialog, whose panel is the
@@ -262,7 +280,8 @@ describe('tinted state contrast', () => {
   ]
 
   const cases = (Object.keys(THEMES) as Theme[]).flatMap((theme) =>
-    STATES.flatMap((state) => state.text.map((token) => ({ theme, token, state: state.name, fill: state.fill }))))
+    STATES.flatMap((state) => state.text.map((token) => ({ theme, token, state: state.name, fill: state.fill }))),
+  )
 
   it.each(cases)('$token reads at 4.5:1 or better on $state in the $theme theme', ({ theme, token, fill }) => {
     const tokens = THEMES[theme]
@@ -272,13 +291,16 @@ describe('tinted state contrast', () => {
 
   // Faint text on the accent tint steps up from subtle toward muted, so each theme reads better there than
   // subtle did, but it must stay the quieter of the two
-  it.each(Object.keys(THEMES) as Theme[])('puts faint text on the accent tint between subtle and muted text in the %s theme', (theme) => {
-    const tokens = THEMES[theme]
-    const tint = solid(tokens, '--app-accent-soft', solid(tokens, '--app-bg'))
-    const faint = contrast(resolve(tokens, '--app-text-subtle-on-accent'), tint)
-    expect(faint).toBeGreaterThan(contrast(solid(tokens, '--app-text-subtle'), tint))
-    expect(faint).toBeLessThan(contrast(solid(tokens, '--app-text-muted'), tint))
-  })
+  it.each(Object.keys(THEMES) as Theme[])(
+    'puts faint text on the accent tint between subtle and muted text in the %s theme',
+    (theme) => {
+      const tokens = THEMES[theme]
+      const tint = solid(tokens, '--app-accent-soft', solid(tokens, '--app-bg'))
+      const faint = contrast(resolve(tokens, '--app-text-subtle-on-accent'), tint)
+      expect(faint).toBeGreaterThan(contrast(solid(tokens, '--app-text-subtle'), tint))
+      expect(faint).toBeLessThan(contrast(solid(tokens, '--app-text-muted'), tint))
+    },
+  )
 })
 
 describe('FX status badge label contrast', () => {
@@ -322,50 +344,75 @@ describe('FX status badge label contrast', () => {
     { state: 'missing rates (red)', tone: 'red' as const },
   ]
 
-  const cases = (Object.keys(THEMES) as Theme[]).flatMap((theme) => BADGES.flatMap((badge) =>
-    ['page', 'card', 'details panel'].map((surface) => ({ theme, surface, ...badge }))))
+  const cases = (Object.keys(THEMES) as Theme[]).flatMap((theme) =>
+    BADGES.flatMap((badge) => ['page', 'card', 'details panel'].map((surface) => ({ theme, surface, ...badge }))),
+  )
 
-  it.each(cases)('the $state badge label reads at 4.5:1 or better in the $theme theme on the $surface', ({ theme, tone, surface }) => {
-    const tokens = THEMES[theme]
-    const backdrops: Record<string, Rgb> = {
-      page: solid(tokens, '--app-bg'),
-      card: solid(tokens, '--app-surface-soft'),
-      'details panel': solid(tokens, '--app-accent-soft', solid(tokens, '--app-bg')),
-    }
-    const { label, fill } = paintBadge(FX_TONE_CLASS[tone].idle, tokens, backdrops[surface])
-    expect(contrast(label, fill)).toBeGreaterThanOrEqual(MINIMUM_TEXT_CONTRAST)
-  })
+  it.each(cases)(
+    'the $state badge label reads at 4.5:1 or better in the $theme theme on the $surface',
+    ({ theme, tone, surface }) => {
+      const tokens = THEMES[theme]
+      const backdrops: Record<string, Rgb> = {
+        page: solid(tokens, '--app-bg'),
+        card: solid(tokens, '--app-surface-soft'),
+        'details panel': solid(tokens, '--app-accent-soft', solid(tokens, '--app-bg')),
+      }
+      const { label, fill } = paintBadge(FX_TONE_CLASS[tone].idle, tokens, backdrops[surface])
+      expect(contrast(label, fill)).toBeGreaterThanOrEqual(MINIMUM_TEXT_CONTRAST)
+    },
+  )
 
   // Hovered, the idle classes' group-hover variants draw the label on a solid fill, and open, the active
   // classes do, so neither depends on what the badge sits on
   const FILLED_STATES = {
-    hovered: (tone: keyof typeof FX_TONE_CLASS) => FX_TONE_CLASS[tone].idle.split(/\s+/)
-      .filter((name) => name.startsWith('group-hover:')).map((name) => name.slice('group-hover:'.length)),
+    hovered: (tone: keyof typeof FX_TONE_CLASS) =>
+      FX_TONE_CLASS[tone].idle
+        .split(/\s+/)
+        .filter((name) => name.startsWith('group-hover:'))
+        .map((name) => name.slice('group-hover:'.length)),
     open: (tone: keyof typeof FX_TONE_CLASS) => OWN(FX_TONE_CLASS[tone].active),
   }
 
-  const filledCases = (Object.keys(THEMES) as Theme[]).flatMap((theme) => BADGES.flatMap((badge) =>
-    (Object.keys(FILLED_STATES) as (keyof typeof FILLED_STATES)[]).map((state) => ({ theme, filled: state, ...badge }))))
+  const filledCases = (Object.keys(THEMES) as Theme[]).flatMap((theme) =>
+    BADGES.flatMap((badge) =>
+      (Object.keys(FILLED_STATES) as (keyof typeof FILLED_STATES)[]).map((state) => ({
+        theme,
+        filled: state,
+        ...badge,
+      })),
+    ),
+  )
 
-  it.each(filledCases)('the $state badge label reads at 4.5:1 or better $filled in the $theme theme', ({ theme, tone, filled }) => {
-    const tokens = THEMES[theme]
-    const names = FILLED_STATES[filled](tone)
-    const text = /^text-(?:\[(.+)\]|(white))$/.exec(names.find((name) => name.startsWith('text-'))!)!
-    const fill = /^bg-\[(.+)\]$/.exec(names.find((name) => name.startsWith('bg-'))!)!
-    expect(contrast(readColour(tokens, text[1] ?? text[2]), readColour(tokens, fill[1]))).toBeGreaterThanOrEqual(MINIMUM_TEXT_CONTRAST)
-  })
+  it.each(filledCases)(
+    'the $state badge label reads at 4.5:1 or better $filled in the $theme theme',
+    ({ theme, tone, filled }) => {
+      const tokens = THEMES[theme]
+      const names = FILLED_STATES[filled](tone)
+      const text = /^text-(?:\[(.+)\]|(white))$/.exec(names.find((name) => name.startsWith('text-'))!)!
+      const fill = /^bg-\[(.+)\]$/.exec(names.find((name) => name.startsWith('bg-'))!)!
+      expect(contrast(readColour(tokens, text[1] ?? text[2]), readColour(tokens, fill[1]))).toBeGreaterThanOrEqual(
+        MINIMUM_TEXT_CONTRAST,
+      )
+    },
+  )
 })
 
 describe('avatar initials contrast', () => {
   // The initials sit on a gradient from the first stop to the last, and contrast moves steadily along the
   // blend, so the two stops bound it
   const cases = (Object.keys(THEMES) as Theme[]).flatMap((theme) =>
-    ['--app-avatar-start', '--app-avatar-end'].map((stop) => ({ theme, stop })))
+    ['--app-avatar-start', '--app-avatar-end'].map((stop) => ({ theme, stop })),
+  )
 
-  it.each(cases)('the initials read at 4.5:1 or better in the $theme theme on the gradient\'s $stop stop', ({ theme, stop }) => {
-    const tokens = THEMES[theme]
-    expect(contrast(solid(tokens, '--app-avatar-text'), solid(tokens, stop))).toBeGreaterThanOrEqual(MINIMUM_TEXT_CONTRAST)
-  })
+  it.each(cases)(
+    "the initials read at 4.5:1 or better in the $theme theme on the gradient's $stop stop",
+    ({ theme, stop }) => {
+      const tokens = THEMES[theme]
+      expect(contrast(solid(tokens, '--app-avatar-text'), solid(tokens, stop))).toBeGreaterThanOrEqual(
+        MINIMUM_TEXT_CONTRAST,
+      )
+    },
+  )
 })
 
 describe('selected row text on the page colour', () => {
@@ -390,17 +437,24 @@ describe('a chosen checklist row under the pointer', () => {
   // type and institution line keeps the muted text
   const MINIMUM_STEP = 1.05
   const cases = (Object.keys(THEMES) as Theme[]).flatMap((theme) =>
-    (['page', 'field'] as const).map((surface) => ({ theme, surface })))
+    (['page', 'field'] as const).map((surface) => ({ theme, surface })),
+  )
 
-  it.each(cases)('reads at 4.5:1 and shows against its resting tint in the $theme theme on the $surface', ({ theme, surface }) => {
-    const tokens = THEMES[theme]
-    const backdrop = surface === 'page' ? solid(tokens, '--app-bg') : solid(tokens, '--app-input-bg')
-    const fill = washOver(tokens, '--app-accent-chosen-hover-fill', backdrop)
-    expect(contrast(resolve(tokens, '--app-accent-on-hover-fill'), fill)).toBeGreaterThanOrEqual(MINIMUM_TEXT_CONTRAST)
-    // Only a list with details, which draws straight on the page colour, has the muted line
-    if (surface === 'page') expect(contrast(solid(tokens, '--app-text-muted'), fill)).toBeGreaterThanOrEqual(MINIMUM_TEXT_CONTRAST)
-    expect(contrast(fill, solid(tokens, '--app-accent-soft', backdrop))).toBeGreaterThanOrEqual(MINIMUM_STEP)
-  })
+  it.each(cases)(
+    'reads at 4.5:1 and shows against its resting tint in the $theme theme on the $surface',
+    ({ theme, surface }) => {
+      const tokens = THEMES[theme]
+      const backdrop = surface === 'page' ? solid(tokens, '--app-bg') : solid(tokens, '--app-input-bg')
+      const fill = washOver(tokens, '--app-accent-chosen-hover-fill', backdrop)
+      expect(contrast(resolve(tokens, '--app-accent-on-hover-fill'), fill)).toBeGreaterThanOrEqual(
+        MINIMUM_TEXT_CONTRAST,
+      )
+      // Only a list with details, which draws straight on the page colour, has the muted line
+      if (surface === 'page')
+        expect(contrast(solid(tokens, '--app-text-muted'), fill)).toBeGreaterThanOrEqual(MINIMUM_TEXT_CONTRAST)
+      expect(contrast(fill, solid(tokens, '--app-accent-soft', backdrop))).toBeGreaterThanOrEqual(MINIMUM_STEP)
+    },
+  )
 })
 
 describe('hover on shaded surfaces', () => {
@@ -411,42 +465,61 @@ describe('hover on shaded surfaces', () => {
   /** The token a rule's hover fill points at, which everything inside the rule takes under the pointer */
   function hoverFillOf(selector: string): string {
     let found: string | undefined
-    stylesheet.walkRules(selector, (rule) => rule.walkDecls('--app-hover-fill', (declaration) => { found = declaration.value }))
+    stylesheet.walkRules(selector, (rule) =>
+      rule.walkDecls('--app-hover-fill', (declaration) => {
+        found = declaration.value
+      }),
+    )
     return /^var\((--[\w-]+)\)$/.exec(found ?? '')![1]
   }
 
   const SHADED = [
-    { surface: 'card', token: hoverFillOf('.app-card'), backdrop: (tokens: Tokens) => solid(tokens, '--app-surface-soft') },
+    {
+      surface: 'card',
+      token: hoverFillOf('.app-card'),
+      backdrop: (tokens: Tokens) => solid(tokens, '--app-surface-soft'),
+    },
   ]
 
   const cases = (Object.keys(THEMES) as Theme[]).flatMap((theme) => SHADED.map((shaded) => ({ theme, ...shaded })))
 
   it.each(cases)('shows against the $surface in the $theme theme', ({ theme, token, backdrop }) => {
     const tokens = THEMES[theme]
-    expect(contrast(washOver(tokens, token, backdrop(tokens)), backdrop(tokens))).toBeGreaterThanOrEqual(MINIMUM_HOVER_STEP)
+    expect(contrast(washOver(tokens, token, backdrop(tokens)), backdrop(tokens))).toBeGreaterThanOrEqual(
+      MINIMUM_HOVER_STEP,
+    )
   })
 
   // The date-range list's options sit on the translucent glass panel (62% of the input fill over the page or a card),
   // where the flat hover colour all but vanishes in the light theme, so they take the wash of the text colour
   const GLASS_BACKDROPS = ['page', 'card'] as const
-  const glassCases = (Object.keys(THEMES) as Theme[]).flatMap((theme) => GLASS_BACKDROPS.map((under) => ({ theme, under })))
+  const glassCases = (Object.keys(THEMES) as Theme[]).flatMap((theme) =>
+    GLASS_BACKDROPS.map((under) => ({ theme, under })),
+  )
 
   it('has the date-range options take the wash on the glass panel', () => {
     expect(selectorSource).toContain('hover:bg-[var(--app-hover-on-surface-soft)]')
   })
 
-  it.each(glassCases)('shows a date-range option under the pointer against the glass panel in the $theme theme on the $under', ({ theme, under }) => {
-    const tokens = THEMES[theme]
-    const behind = solid(tokens, under === 'page' ? '--app-bg' : '--app-surface-soft')
-    const { rgb, alpha } = readHex(tokens, '--app-input-bg')
-    const glass = paint(rgb, alpha * 0.62, behind)
-    expect(contrast(washOver(tokens, '--app-hover-on-surface-soft', glass), glass)).toBeGreaterThanOrEqual(MINIMUM_HOVER_STEP)
-  })
+  it.each(glassCases)(
+    'shows a date-range option under the pointer against the glass panel in the $theme theme on the $under',
+    ({ theme, under }) => {
+      const tokens = THEMES[theme]
+      const behind = solid(tokens, under === 'page' ? '--app-bg' : '--app-surface-soft')
+      const { rgb, alpha } = readHex(tokens, '--app-input-bg')
+      const glass = paint(rgb, alpha * 0.62, behind)
+      expect(contrast(washOver(tokens, '--app-hover-on-surface-soft', glass), glass)).toBeGreaterThanOrEqual(
+        MINIMUM_HOVER_STEP,
+      )
+    },
+  )
 
   // The rows and toggles that take the menu items' accent hover (app-accent-hover) sit on the card and the import
   // panel, where the soft accent fill must step off the surface and carry text at 4.5:1
   const ACCENT_SURFACES = ['card', 'import panel'] as const
-  const accentCases = (Object.keys(THEMES) as Theme[]).flatMap((theme) => ACCENT_SURFACES.map((surface) => ({ theme, surface })))
+  const accentCases = (Object.keys(THEMES) as Theme[]).flatMap((theme) =>
+    ACCENT_SURFACES.map((surface) => ({ theme, surface })),
+  )
 
   it.each(accentCases)('shows the accent hover and reads on the $surface in the $theme theme', ({ theme, surface }) => {
     const tokens = THEMES[theme]
@@ -456,14 +529,21 @@ describe('hover on shaded surfaces', () => {
     expect(contrast(resolve(tokens, '--app-accent-nav-text'), fill)).toBeGreaterThanOrEqual(MINIMUM_TEXT_CONTRAST)
     // The Settings rows' count line, which sits on the card, steps to this quieter text so it still reads on the fill
     if (surface === 'card') {
-      expect(contrast(resolve(tokens, '--app-text-subtle-on-accent'), fill)).toBeGreaterThanOrEqual(MINIMUM_TEXT_CONTRAST)
+      expect(contrast(resolve(tokens, '--app-text-subtle-on-accent'), fill)).toBeGreaterThanOrEqual(
+        MINIMUM_TEXT_CONTRAST,
+      )
     }
   })
 
-  it.each(Object.keys(THEMES) as Theme[])('shows the upload card under the pointer against the import panel in the %s theme', (theme) => {
-    const tokens = THEMES[theme]
-    expect(contrast(resolve(tokens, '--app-hover-on-import-panel'), resolve(tokens, '--app-import-panel'))).toBeGreaterThanOrEqual(MINIMUM_HOVER_STEP)
-  })
+  it.each(Object.keys(THEMES) as Theme[])(
+    'shows the upload card under the pointer against the import panel in the %s theme',
+    (theme) => {
+      const tokens = THEMES[theme]
+      expect(
+        contrast(resolve(tokens, '--app-hover-on-import-panel'), resolve(tokens, '--app-import-panel')),
+      ).toBeGreaterThanOrEqual(MINIMUM_HOVER_STEP)
+    },
+  )
 
   // The light panel is nearly white, so the same 3.5% wash that reads in the dark theme gave it only 1.07, which
   // barely reads as a change on a card the size of the upload card. The hovered card also sits beside the page, whose
@@ -473,5 +553,28 @@ describe('hover on shaded surfaces', () => {
     const hovered = resolve(tokens, '--app-hover-on-import-panel')
     expect(contrast(hovered, resolve(tokens, '--app-import-panel'))).toBeGreaterThanOrEqual(1.1)
     expect(contrast(hovered, solid(tokens, '--app-bg'))).toBeGreaterThanOrEqual(1.05)
+  })
+})
+
+describe('Runway account tile text', () => {
+  // The tile rests in the field colour, takes the soft accent tint under the pointer or when chosen, and the
+  // chosen tile's deeper tint under the pointer, all over the settings card. Its balance in the tinted
+  // positive green (or the negative red), its type and available-credit lines in muted text
+  const FILLS = {
+    'unchosen at rest': (tokens: Tokens, card: Rgb) => (void card, solid(tokens, '--app-input-bg')),
+    'unchosen under the pointer': (tokens: Tokens, card: Rgb) => washOver(tokens, '--app-accent-soft', card),
+    'chosen at rest': (tokens: Tokens, card: Rgb) => washOver(tokens, '--app-accent-soft', card),
+    'chosen under the pointer': (tokens: Tokens, card: Rgb) =>
+      washOver(tokens, '--app-accent-chosen-tile-hover-fill', card),
+  }
+  const TEXTS = ['--app-text-muted', '--app-positive-on-accent-tint', '--app-negative', '--app-text']
+  const cases = (Object.keys(THEMES) as Theme[]).flatMap((theme) =>
+    Object.keys(FILLS).flatMap((state) => TEXTS.map((token) => ({ theme, state, token }))),
+  )
+
+  it.each(cases)('$token reads at 4.5:1 or better on a $state tile in the $theme theme', ({ theme, state, token }) => {
+    const tokens = THEMES[theme]
+    const fill = FILLS[state as keyof typeof FILLS](tokens, solid(tokens, '--app-surface-soft'))
+    expect(contrast(resolve(tokens, token), fill)).toBeGreaterThanOrEqual(MINIMUM_TEXT_CONTRAST)
   })
 })
