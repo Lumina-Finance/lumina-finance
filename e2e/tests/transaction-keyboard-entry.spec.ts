@@ -956,6 +956,53 @@ test('chooses no merchant from an Enter pressed before the Merchant search has n
   await expect(merchant).toContainText('Bakery')
 })
 
+test('filters a category list by text typed straight after Alt+C, and Enter chooses the match', async ({
+  page,
+  request,
+}) => {
+  const { dialog } = await openAddDialogue(page, request)
+
+  // No wait between the chord, the text and Enter, as a fast typist sends them
+  await page.keyboard.press('Alt+KeyC')
+  await page.keyboard.type('Groc')
+  await page.keyboard.press('Enter')
+
+  await expect(dialog.getByRole('combobox', { name: 'Category' })).toContainText('Groceries')
+  await expectNoOpenList(dialog)
+})
+
+test('filters a merchant list by text typed straight after Alt+M, and Enter chooses the match', async ({
+  page,
+  request,
+}) => {
+  const { dialog } = await openAddDialogue(page, request, { merchants: ['Alpha Shop', 'Amazon'] })
+  const merchant = dialog.getByRole('combobox', { name: 'Merchant' })
+
+  await page.keyboard.press('Alt+KeyM')
+  await page.keyboard.type('Ama')
+  await expect(dialog.getByPlaceholder('Search merchants...')).toHaveValue('Ama')
+
+  // The merchant search answers Enter only once its results match the text, so it is pressed until the list closes
+  await expect(async () => {
+    if ((await dialog.getByRole('combobox', { expanded: true }).count()) > 0) await page.keyboard.press('Enter')
+    await expect(dialog.getByRole('combobox', { expanded: true })).toHaveCount(0, { timeout: 1_000 })
+  }).toPass({ timeout: 15_000 })
+  await expect(merchant).toContainText('Amazon')
+})
+
+test('still chooses the first category when Enter follows Alt+C with nothing typed', async ({ page, request }) => {
+  const { dialog } = await openAddDialogue(page, request)
+  const category = dialog.getByRole('combobox', { name: 'Category' })
+
+  await page.keyboard.press('Alt+KeyC')
+  await expect(dialog.getByRole('textbox', { name: /^Search / })).toBeFocused()
+  // An option can show more than its name, so the name is the last line of what it shows
+  const first = (await dialog.getByRole('option').first().innerText()).trim().split('\n').pop()!.trim()
+  await page.keyboard.press('Enter')
+
+  await expect(category).toContainText(first)
+})
+
 test('takes one action from a chord that is held down, and one save from a held Alt+Enter', async ({
   page,
   request,

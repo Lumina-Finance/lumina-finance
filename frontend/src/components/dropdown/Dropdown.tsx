@@ -321,11 +321,11 @@ const Dropdown = ({
     }
   }, [effectiveHighlightedIndex, open])
 
-  // The search input receives focus only once the box has opened around it
-  useEffect(() => {
-    if (open && searchable) {
-      requestAnimationFrame(() => searchRef.current?.focus())
-    }
+  // The search input takes focus in the same commit that builds it, not on a later frame. Keys typed straight
+  // after a shortcut opens the list land in it. On the field's button they would be lost, and Enter would choose the
+  // unfiltered first option
+  useLayoutEffect(() => {
+    if (open && searchable) searchRef.current?.focus()
   }, [open, searchable])
 
   const handleSelect = (optionValue: string) => {
