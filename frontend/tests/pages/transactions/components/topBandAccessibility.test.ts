@@ -18,17 +18,34 @@ vi.mock('@/components/transactions/FilterLoadingOverlay', () => ({
 import TopBand from '@/pages/transactions/components/TopBand'
 
 /** Render the actual wrapper while replacing chart internals that require browser geometry */
-function render({ loading = false, failed = false, overview }: {
+function render({
+  loading = false,
+  failed = false,
+  overview,
+}: {
   loading?: boolean
   failed?: boolean
   overview?: TransactionsOverview
 } = {}) {
-  return renderToStaticMarkup(createElement(TopBand, {
-    overview, loading, failed, displayCurrency: 'CAD', retrying: false, skipEntrance: true,
-    rangeLabel: 'Test range', fromDate: '2026-01-01', toDate: '2026-01-31',
-    chartAnimationKey: 'test', prefersReducedMotion: true, openingOutlierId: null,
-    outlierLoadError: null, onRetry: () => {}, onOpenOutlierTransaction: () => {},
-  }))
+  return renderToStaticMarkup(
+    createElement(TopBand, {
+      overview,
+      loading,
+      failed,
+      displayCurrency: 'CAD',
+      retrying: false,
+      skipEntrance: true,
+      rangeLabel: 'Test range',
+      fromDate: '2026-01-01',
+      toDate: '2026-01-31',
+      chartAnimationKey: 'test',
+      prefersReducedMotion: true,
+      openingOutlierId: null,
+      outlierLoadError: null,
+      onRetry: () => {},
+      onOpenOutlierTransaction: () => {},
+    }),
+  )
 }
 
 const HIDDEN_WRAPPER = '<div inert="" aria-hidden="true">'
@@ -58,11 +75,19 @@ describe('transaction summary content accessibility', () => {
 
   it('keeps genuine summary data accessible', () => {
     const fx = { state: 'complete' as const, missing_pairs: [] }
-    const markup = render({ overview: {
-      total_inflow: 0, total_outflow: -4250, net_flow_fx_status: fx,
-      outliers: [], outliers_fx_status: fx, top_categories: [], top_categories_fx_status: fx,
-      daily_cash_flow: [], daily_cash_flow_fx_status: fx,
-    } })
+    const markup = render({
+      overview: {
+        total_inflow: 0,
+        total_outflow: -4250,
+        net_flow_fx_status: fx,
+        outliers: [],
+        outliers_fx_status: fx,
+        top_categories: [],
+        top_categories_fx_status: fx,
+        daily_cash_flow: [],
+        daily_cash_flow_fx_status: fx,
+      },
+    })
     expect(markup).not.toContain(HIDDEN_WRAPPER)
     expect(markup).toContain('Outlier edit action')
     expect(markup).not.toContain('No transaction data')

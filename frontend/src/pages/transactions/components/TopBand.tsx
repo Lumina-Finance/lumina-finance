@@ -25,8 +25,7 @@ const RETRY_TRANSITION_SECONDS = 0.2
 
 const topBandDividerStyle = {
   height: 1,
-  background:
-    'linear-gradient(to right, var(--app-accent), var(--app-accent-border), transparent)',
+  background: 'linear-gradient(to right, var(--app-accent), var(--app-accent-border), transparent)',
 }
 
 function TopBandDivider({ className = '' }: { className?: string }) {
@@ -73,8 +72,7 @@ export default function TransactionsTopBand({
   const overviewOutliers = overview?.outliers ?? []
   const overviewCategories = overview?.top_categories ?? []
   const overviewDailyCashFlow = overview?.daily_cash_flow ?? []
-  const hasNetFlowData =
-    (overview?.total_inflow ?? 0) !== 0 || (overview?.total_outflow ?? 0) !== 0
+  const hasNetFlowData = (overview?.total_inflow ?? 0) !== 0 || (overview?.total_outflow ?? 0) !== 0
   const hasOutlierData = overviewOutliers.length > 0
   const hasCategoryData = overviewCategories.length > 0
   const hasDailyCashFlowData = overviewDailyCashFlow.some((day) => day.inflow !== 0 || day.outflow !== 0)
@@ -175,7 +173,12 @@ export default function TransactionsTopBand({
             aria-busy={retrying}
             aria-label={retrying ? 'Retrying transaction summary' : 'Try again'}
             initial={false}
-            animate={{ width: retrying ? RETRY_BUTTON_DIAMETER : RETRY_BUTTON_WIDTH, paddingLeft: 0, paddingRight: 0, borderRadius: RETRY_BUTTON_DIAMETER / 2 }}
+            animate={{
+              width: retrying ? RETRY_BUTTON_DIAMETER : RETRY_BUTTON_WIDTH,
+              paddingLeft: 0,
+              paddingRight: 0,
+              borderRadius: RETRY_BUTTON_DIAMETER / 2,
+            }}
             transition={{ duration: prefersReducedMotion ? 0 : RETRY_TRANSITION_SECONDS }}
             style={{ transition: 'none' }}
           >
