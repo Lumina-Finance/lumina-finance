@@ -1,3 +1,5 @@
+import pytest
+
 from tests.routes.accounts._account_helpers import (
     NONEXISTENT_ID,
     _seed_institution,
@@ -392,3 +394,41 @@ async def test_create_account_notes_over_limit_returns_422(client):
     resp = await _create_account(client, headers, notes="x" * 2001)
 
     assert resp.status_code == 422
+
+
+ABOVE_RANGE_WORDING = "a larger balance than an account can hold"
+BELOW_RANGE_WORDING = "a balance further below zero than an account can hold"
+
+
+@pytest.mark.parametrize(
+    ("starting_balance", "wording"),
+    [
+        (10**20, ABOVE_RANGE_WORDING),
+        (2**63, ABOVE_RANGE_WORDING),
+        (-(10**20), BELOW_RANGE_WORDING),
+        (-(2**63) - 1, BELOW_RANGE_WORDING),
+    ],
+)
+async def test_create_account_refuses_starting_balance_too_large_to_store(client, starting_balance, wording):
+    """A starting balance outside the stored range is refused with that direction's wording and no account is left behind."""
+    signup_resp = await _create_user(client)
+    headers = _get_auth_header(signup_resp)
+
+    resp = await _create_account(client, headers, starting_balance=starting_balance)
+
+    assert resp.status_code == 422
+    assert resp.json()["detail"] == f"{ACCOUNT_PAYLOAD['name']} would end up with {wording}"
+    accounts_resp = await client.get("/accounts", headers=headers)
+    assert accounts_resp.json() == []
+
+
+@pytest.mark.parametrize("starting_balance", [2**63 - 1, -(2**63)])
+async def test_create_account_accepts_starting_balance_at_the_ends_of_the_stored_range(client, starting_balance):
+    """The largest and smallest storable starting balances still create the account."""
+    signup_resp = await _create_user(client)
+    headers = _get_auth_header(signup_resp)
+
+    resp = await _create_account(client, headers, starting_balance=starting_balance)
+
+    assert resp.status_code == 201
+    assert resp.json()["current_balance"] == starting_balance

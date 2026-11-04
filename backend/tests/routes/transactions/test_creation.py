@@ -37,6 +37,39 @@ async def test_create_transaction_limits_note_length(client, note_length, expect
         assert any(error["loc"] == ["body", "notes"] for error in resp.json()["detail"])
 
 
+@pytest.mark.parametrize(
+    ("amount", "wording"),
+    [
+        (10**20, "a larger balance than an account can hold"),
+        (2**63, "a larger balance than an account can hold"),
+        (-(10**20), "a balance further below zero than an account can hold"),
+        (-(2**63) - 1, "a balance further below zero than an account can hold"),
+    ],
+)
+async def test_create_transaction_refuses_amount_too_large_to_store(client, amount, wording):
+    """An amount outside the stored range is refused with that direction's wording and nothing is saved"""
+    headers, account_id, category_id = await _setup_user_with_deps(client)
+    account_name = (await client.get(f"/accounts/{account_id}", headers=headers)).json()["name"]
+
+    resp = await _create_transaction(client, headers, account_id, category_id, amount=amount)
+
+    assert resp.status_code == 422
+    assert resp.json()["detail"] == f"{account_name} would end up with {wording}"
+    listing = await client.get("/transactions", headers=headers)
+    assert listing.json() == []
+
+
+@pytest.mark.parametrize("amount", [2**63 - 1, -(2**63)])
+async def test_create_transaction_accepts_amount_at_the_ends_of_the_stored_range(client, amount):
+    """The largest and smallest storable amounts still create the transaction"""
+    headers, account_id, category_id = await _setup_user_with_deps(client)
+
+    resp = await _create_transaction(client, headers, account_id, category_id, amount=amount)
+
+    assert resp.status_code == 201
+    assert resp.json()["amount"] == amount
+
+
 async def test_create_transaction_returns_201(client):
     """Valid payload creates a transaction with correct fields."""
     signup_resp = await _create_user(client)

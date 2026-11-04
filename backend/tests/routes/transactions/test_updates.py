@@ -47,6 +47,62 @@ async def test_patch_transaction_limits_note_length(client, note_length, expecte
         assert unchanged.json()["amount"] == created.json()["amount"]
 
 
+@pytest.mark.parametrize(
+    ("amount", "wording"),
+    [
+        (10**20, "a larger balance than an account can hold"),
+        (2**63, "a larger balance than an account can hold"),
+        (-(10**20), "a balance further below zero than an account can hold"),
+        (-(2**63) - 1, "a balance further below zero than an account can hold"),
+    ],
+)
+async def test_patch_transaction_refuses_amount_too_large_to_store(client, amount, wording):
+    """An amount outside the stored range is refused with that direction's wording and the transaction keeps its amount"""
+    headers, account_id, category_id = await _setup_user_with_deps(client)
+    account_name = (await client.get(f"/accounts/{account_id}", headers=headers)).json()["name"]
+    created = await _create_transaction(client, headers, account_id, category_id, amount=-5000)
+    transaction_id = created.json()["id"]
+
+    resp = await client.patch(f"/transactions/{transaction_id}", json={"amount": amount}, headers=headers)
+
+    assert resp.status_code == 422
+    assert resp.json()["detail"] == f"{account_name} would end up with {wording}"
+    unchanged = await client.get(f"/transactions/{transaction_id}", headers=headers)
+    assert unchanged.json()["amount"] == -5000
+
+
+async def test_patch_transaction_names_the_account_it_moves_to_when_refusing_an_amount(client):
+    """A move with an amount too large to store names the receiving account and changes nothing"""
+    headers, account_id, category_id = await _setup_user_with_deps(client)
+    other_account = await _create_account(client, headers, name="Rainy day")
+    created = await _create_transaction(client, headers, account_id, category_id, amount=-5000)
+    transaction_id = created.json()["id"]
+
+    resp = await client.patch(
+        f"/transactions/{transaction_id}",
+        json={"account_id": other_account.json()["id"], "amount": 10**20},
+        headers=headers,
+    )
+
+    assert resp.status_code == 422
+    assert resp.json()["detail"] == "Rainy day would end up with a larger balance than an account can hold"
+    unchanged = await client.get(f"/transactions/{transaction_id}", headers=headers)
+    assert unchanged.json()["account_id"] == account_id
+    assert unchanged.json()["amount"] == -5000
+
+
+@pytest.mark.parametrize("amount", [2**63 - 1, -(2**63)])
+async def test_patch_transaction_accepts_amount_at_the_ends_of_the_stored_range(client, amount):
+    """The largest and smallest storable amounts still update the transaction"""
+    headers, account_id, category_id = await _setup_user_with_deps(client)
+    created = await _create_transaction(client, headers, account_id, category_id, amount=-5000)
+
+    resp = await client.patch(f"/transactions/{created.json()['id']}", json={"amount": amount}, headers=headers)
+
+    assert resp.status_code == 200
+    assert resp.json()["amount"] == amount
+
+
 async def test_patch_transaction_preserves_and_clears_legacy_long_notes(client):
     """Keep an omitted legacy note readable and allow the user to clear it explicitly"""
     headers, account_id, category_id = await _setup_user_with_deps(client)
