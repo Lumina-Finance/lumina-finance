@@ -4,6 +4,7 @@ import {
   MAX_IMPORT_MAPPINGS,
   MERCHANT_MATCHES_LOAD_FAILURE_EXPLANATION,
   MERCHANT_MATCHES_LOAD_FAILURE_TITLE,
+  MERCHANT_MATCHES_REFUSED_REASON,
   SKIP_MERCHANT_VALUE,
 } from '@/pages/imports/constants'
 import {
@@ -14,7 +15,7 @@ import {
   ImportValueMatchTable,
 } from '@/pages/imports/components'
 import type { TransactionImportWorkflow } from '@/pages/imports/hooks'
-import { getImportMerchantRowState } from '@/pages/imports/utils'
+import { getImportMerchantRowState, getLoadFailureReason } from '@/pages/imports/utils'
 import { getNameKey } from '@/api/shared/nameKey'
 
 type ImportMerchantMatchingStepProps = Pick<
@@ -34,6 +35,7 @@ type ImportMerchantMatchingStepProps = Pick<
   | 'loadMoreMerchantResults'
   | 'matchesLoading'
   | 'matchesFailed'
+  | 'matchesError'
   | 'refetchMatches'
   | 'importResult'
 >
@@ -59,6 +61,7 @@ export function ImportMerchantMatchingStep({
   loadMoreMerchantResults,
   matchesLoading,
   matchesFailed,
+  matchesError,
   refetchMatches,
   importResult,
 }: ImportMerchantMatchingStepProps) {
@@ -83,7 +86,7 @@ export function ImportMerchantMatchingStep({
       ) : matchesFailed ? (
         <ImportLoadFailure
           title={MERCHANT_MATCHES_LOAD_FAILURE_TITLE}
-          description={MERCHANT_MATCHES_LOAD_FAILURE_EXPLANATION}
+          description={`${getLoadFailureReason(matchesError, MERCHANT_MATCHES_REFUSED_REASON)} ${MERCHANT_MATCHES_LOAD_FAILURE_EXPLANATION}`}
           onRetry={refetchMatches}
         />
       ) : importedMerchants.length === 0 ? (

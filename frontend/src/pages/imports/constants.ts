@@ -685,10 +685,17 @@ export const CATEGORIES_LOAD_FAILURE_EXPLANATION =
   'Without them every category in this import would have to become a new one, which would duplicate categories you already have.'
 
 // Shown when the page could not ask which of the file's merchant names already have a merchant.
-// Every name would then read as one about to be created, which is what the step exists to stop
+// Every name would then read as one about to be created, which is what the step exists to stop.
+// The panel is one paragraph, the reason it failed first and then this, saying what the failure
+// means. Importing without the check sends no answer for a merchant. The commit then reuses a
+// merchant held under the name in any capitals and creates one where none matches
 export const MERCHANT_MATCHES_LOAD_FAILURE_TITLE = 'Your merchants could not be checked'
+
+// The reason when the server refuses the names the check sent. A file with over a thousand
+// different merchants never reaches it, since the step shows a notice and sends nothing
+export const MERCHANT_MATCHES_REFUSED_REASON = "The merchant names couldn't be sent."
 export const MERCHANT_MATCHES_LOAD_FAILURE_EXPLANATION =
-  'Without that check every merchant in this import reads as a new one, and importing would create merchants you already have.'
+  "You can't see which merchants are new or change them until the check works. If you import now, each row you haven't answered goes under the merchant you already have with that name, or a new merchant if there isn't one."
 
 // Shown when the page could not ask which of the file's tag names already have a tag
 export const TAG_MATCHES_LOAD_FAILURE_TITLE = 'Your tags could not be checked'

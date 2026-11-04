@@ -95,6 +95,8 @@ import {
   writeScopedImportAnswers,
   emptyScopedImportAnswers,
   alignNameAnswersWithValues,
+  readNameAnswers,
+  writeNameAnswers,
   SEVERAL_CSV_IMPORT_FILE_TYPE,
   labelStagedFiles,
   removeStagedFile,
@@ -429,38 +431,6 @@ export function useTransactionImportWorkflow(fixedAccount: AccountsOverview | nu
     })
   }
 
-  const merchantMappings = useMemo(
-    () => readScopedImportAnswers(scopedMerchantMappings, getMerchantSourceScope),
-    [getMerchantSourceScope, scopedMerchantMappings],
-  )
-
-  const merchantCreateNames = useMemo(
-    () => readScopedImportAnswers(scopedMerchantCreateNames, getMerchantSourceScope),
-    [getMerchantSourceScope, scopedMerchantCreateNames],
-  )
-
-  const setMerchantMappings: Dispatch<SetStateAction<Record<string, string>>> = (update) => {
-    setScopedMerchantMappings((current) => {
-      const answers = readScopedImportAnswers(current, getMerchantSourceScope)
-      return writeScopedImportAnswers(
-        current,
-        typeof update === 'function' ? update(answers) : update,
-        getMerchantSourceScope,
-      )
-    })
-  }
-
-  const setMerchantCreateNames: Dispatch<SetStateAction<Record<string, string>>> = (update) => {
-    setScopedMerchantCreateNames((current) => {
-      const answers = readScopedImportAnswers(current, getMerchantSourceScope)
-      return writeScopedImportAnswers(
-        current,
-        typeof update === 'function' ? update(answers) : update,
-        getMerchantSourceScope,
-      )
-    })
-  }
-
   const {
     currencies,
     categories,
@@ -777,6 +747,7 @@ export function useTransactionImportWorkflow(fixedAccount: AccountsOverview | nu
     matchedMerchantByKey,
     matchesLoading,
     matchesFailed,
+    matchesError,
     refetchMatches,
     merchantOptions,
     rememberPickedMerchant,
@@ -786,6 +757,29 @@ export function useTransactionImportWorkflow(fixedAccount: AccountsOverview | nu
     hasMoreMerchantResults,
     loadMoreMerchantResults,
   } = useImportMerchantMatches(importedMerchants)
+
+  // Answers are held under the spelling shown when each was given. A date range can leave that
+  // spelling out of the rows while another spelling of the same merchant stays, so they are read and
+  // written under the spelling the step asks about now
+  const merchantMappings = useMemo(
+    () => readNameAnswers(scopedMerchantMappings, getMerchantSourceScope, importedMerchants),
+    [getMerchantSourceScope, importedMerchants, scopedMerchantMappings],
+  )
+
+  const merchantCreateNames = useMemo(
+    () => readNameAnswers(scopedMerchantCreateNames, getMerchantSourceScope, importedMerchants),
+    [getMerchantSourceScope, importedMerchants, scopedMerchantCreateNames],
+  )
+
+  const setMerchantMappings: Dispatch<SetStateAction<Record<string, string>>> = (update) => {
+    setScopedMerchantMappings((current) => writeNameAnswers(current, update, getMerchantSourceScope, importedMerchants))
+  }
+
+  const setMerchantCreateNames: Dispatch<SetStateAction<Record<string, string>>> = (update) => {
+    setScopedMerchantCreateNames((current) =>
+      writeNameAnswers(current, update, getMerchantSourceScope, importedMerchants),
+    )
+  }
 
   const categoryTypesBySource = useMemo(
     () => getImportedCategoryTypes(files, columnMap, importedCategories, directionAnswers, amountFormat, isRowIncluded),
@@ -1584,6 +1578,7 @@ export function useTransactionImportWorkflow(fixedAccount: AccountsOverview | nu
     loadMoreMerchantResults,
     matchesLoading,
     matchesFailed,
+    matchesError,
     refetchMatches,
     tagMappings,
     tagCreateNames,

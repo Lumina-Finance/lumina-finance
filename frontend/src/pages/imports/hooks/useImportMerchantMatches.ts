@@ -28,6 +28,7 @@ export function useImportMerchantMatches(importedMerchants: string[]) {
     data: matches = [],
     isLoading: matchesLoading,
     isError: matchesFailed,
+    error: matchesError,
     refetch: refetchMatches,
   } = useQuery({
     queryKey: merchantKeys.nameMatches(importedMerchants),
@@ -73,6 +74,7 @@ export function useImportMerchantMatches(importedMerchants: string[]) {
     matchedMerchantByKey,
     matchesLoading,
     matchesFailed,
+    matchesError,
     refetchMatches,
     merchantOptions,
     rememberPickedMerchant,
