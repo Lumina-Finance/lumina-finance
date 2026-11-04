@@ -36,6 +36,13 @@ test('focuses the search box when the panel is opened with the keyboard, and Esc
   request,
 }) => {
   const { button, panel } = await openPicker(page, request)
+  // The focused search box shows the keyboard focus ring, as any text field does
+  const ring = () =>
+    panel.getByRole('searchbox').evaluate((input) => {
+      const row = getComputedStyle(input.closest('.search')!)
+      return { color: row.outlineColor, width: row.outlineWidth }
+    })
+  await expect.poll(ring).toEqual({ color: 'rgb(161, 126, 79)', width: '2px' })
   await page.keyboard.press('Escape')
   await expect(panel).toHaveCount(0)
   await expect(button).toBeFocused()
@@ -43,6 +50,7 @@ test('focuses the search box when the panel is opened with the keyboard, and Esc
   await page.keyboard.press('Enter')
 
   await expect(panel.getByRole('searchbox')).toBeFocused()
+  await expect.poll(ring).toEqual({ color: 'rgb(161, 126, 79)', width: '2px' })
   await page.keyboard.type('car')
   await expect(panel.getByRole('button', { name: '🚗', exact: true })).toBeVisible()
   await page.keyboard.press('Escape')

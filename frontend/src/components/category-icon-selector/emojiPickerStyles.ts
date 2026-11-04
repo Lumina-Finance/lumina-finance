@@ -86,6 +86,20 @@ export const EMOJI_PICKER_STYLES = `
   .search input[type="search"]:focus {
     background-color: transparent;
     box-shadow: none;
+    outline: none;
+  }
+
+  /* The row draws the focus ring, inside its edge since the panel clips anything outside, and
+     fading in and out as the app's rings do */
+  .search {
+    outline: 2px solid transparent;
+    outline-offset: -2px;
+    border-radius: var(--app-dropdown-row-radius);
+    transition: outline-color var(--app-focus-fade-duration, 150ms) var(--app-ease-curve);
+  }
+
+  .search:has(input[type="search"]:focus-visible) {
+    outline-color: var(--app-focus-ring);
   }
 
   .search input[type="search"]::placeholder {
@@ -153,6 +167,7 @@ export const EMOJI_PICKER_STYLES = `
 
   @media (prefers-reduced-motion: reduce) {
     .category button .background,
+    .search,
     .search .delete {
       transition: none;
     }
