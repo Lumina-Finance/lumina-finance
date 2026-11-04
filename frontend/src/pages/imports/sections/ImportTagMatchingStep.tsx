@@ -1,16 +1,30 @@
 import { useId } from 'react'
 import {
   CREATE_TAG_VALUE,
+  getTooManyMappingsError,
+  MAX_IMPORT_MAPPINGS,
   SKIP_TAG_VALUE,
   TAG_MATCHES_LOAD_FAILURE_EXPLANATION,
   TAG_MATCHES_LOAD_FAILURE_TITLE,
 } from '@/pages/imports/constants'
-import { EmptyState, ImportLoadFailure, ImportStep, ImportValueMatchTable } from '@/pages/imports/components'
+import {
+  EmptyState,
+  ImportLoadFailure,
+  ImportNotice,
+  ImportStep,
+  ImportValueMatchTable,
+} from '@/pages/imports/components'
 import type { TransactionImportWorkflow } from '@/pages/imports/hooks'
 import { getImportNameAnswer, getImportTagCreateNameError, getImportTagRowState } from '@/pages/imports/utils'
 import { getNameKey } from '@/api/shared/nameKey'
 
-type ImportTagMatchingStepProps = Pick<
+type ImportTagMatchingStepProps = {
+  /** The step's number, which follows however many steps the import has before it */
+  index: string
+
+  /** What the step says while the import holds no tag to ask about */
+  empty: { title: string; description: string }
+} & Pick<
   TransactionImportWorkflow,
   | 'importedTags'
   | 'tagMappings'
@@ -27,16 +41,19 @@ type ImportTagMatchingStepProps = Pick<
   | 'loadMoreTagResults'
   | 'tagMatchesLoading'
   | 'tagMatchesFailed'
+  | 'tagMatchesReason'
   | 'refetchTagMatches'
   | 'importResult'
 >
 
 /**
- * Tag matching step of the generic CSV import flow, showing every tag name found in the mapped
- * column against the tag it will be filed under, which the user can change, rename or skip before
- * anything is created
+ * Tag matching step of the CSV, Firefly III and Actual Budget import flows, showing every tag name
+ * found in the import against the tag it will be filed under, which the user can change, rename or
+ * skip before anything is created
  */
 export function ImportTagMatchingStep({
+  index,
+  empty,
   importedTags,
   tagMappings,
   tagCreateNames,
@@ -52,6 +69,7 @@ export function ImportTagMatchingStep({
   loadMoreTagResults,
   tagMatchesLoading,
   tagMatchesFailed,
+  tagMatchesReason,
   refetchTagMatches,
   importResult,
 }: ImportTagMatchingStepProps) {
@@ -64,18 +82,25 @@ export function ImportTagMatchingStep({
 
   return (
     <ImportStep
-      index="06"
+      index={index}
       title="Tag matching"
       description="Match each tag name in this import to the tag its rows will carry. Skip leaves a tag off its rows."
     >
-      {tagMatchesFailed ? (
+      {/* The server refuses to check more names than one import carries, so none are asked about and a
+          retry is not offered for a failure that cannot clear */}
+      {importedTags.length > MAX_IMPORT_MAPPINGS ? (
+        <ImportNotice tone="danger" title="Too many tags to match">
+          {getTooManyMappingsError('tag', importedTags.length)}
+        </ImportNotice>
+      ) : tagMatchesFailed ? (
         <ImportLoadFailure
           title={TAG_MATCHES_LOAD_FAILURE_TITLE}
           description={TAG_MATCHES_LOAD_FAILURE_EXPLANATION}
+          reason={tagMatchesReason}
           onRetry={refetchTagMatches}
         />
       ) : importedTags.length === 0 ? (
-        <EmptyState title="No tags yet" description="Map the column holding the tags first." />
+        <EmptyState title={empty.title} description={empty.description} />
       ) : (
         <ImportValueMatchTable
           sourceLabel="Tag from file"

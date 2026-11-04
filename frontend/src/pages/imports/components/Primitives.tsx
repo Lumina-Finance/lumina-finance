@@ -118,10 +118,14 @@ export function EmptyState({ title, description }: { title: string; description:
 export function ImportLoadFailure({
   title,
   description,
+  reason = null,
   onRetry,
 }: {
   title: string
   description: string
+
+  /** The server's own explanation, which stays in English, or null where it gave none */
+  reason?: string | null
   onRetry: () => void
 }) {
   return (
@@ -142,6 +146,11 @@ export function ImportLoadFailure({
           {title}
         </p>
         <p className="mt-1 text-sm leading-5">{description}</p>
+        {reason && (
+          <p className="mt-1 text-sm leading-5" lang="en">
+            {reason}
+          </p>
+        )}
       </div>
       <button type="button" className="app-secondary-button h-9" onClick={onRetry}>
         Try again

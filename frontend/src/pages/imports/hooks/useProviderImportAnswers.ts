@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useMemo, useState, type Dispatch, type SetStateAction } from 'react'
 import type { AccountsOverview } from '@/api/accounts'
 import type { Category } from '@/api/categories'
 import type { JournalImportRunResponse } from '@/api/provider-imports'
@@ -6,14 +6,22 @@ import { BALANCE_ADJUSTMENT_CATEGORY_NAME } from '@/utils/transfers'
 import { CREATE_CATEGORY_VALUE } from '@/pages/imports/constants'
 import type { ImportAccountSource, ImportCategoryKind } from '@/pages/imports/types'
 import {
+  alignNameAnswersWithValues,
   buildImportAccountOptions,
   dropVanishedAccountMappings,
   dropVanishedCategoryMappings,
   getImportCategoryRenames,
   isAutoFilledAccountSource,
+  type ImportTagAnswers,
+  type PreviewTagAnswers,
 } from '@/pages/imports/utils'
-import { getPersonalAccounts, getPersonalCategoryOptions, resolveProviderAccountMappings } from '@/pages/imports/utils/resourceScope'
+import {
+  getPersonalAccounts,
+  getPersonalCategoryOptions,
+  resolveProviderAccountMappings,
+} from '@/pages/imports/utils/resourceScope'
 import { useImportReferenceData } from './useImportReferenceData'
+import { useImportTagMatches } from './useImportTagMatches'
 
 /**
  * The user's accounts, categories and currencies as a provider import reads them
@@ -26,7 +34,10 @@ export function useProviderImportReferenceData({ transferCategoryName }: { trans
   const reference = useImportReferenceData()
   const { categories, selectableAccounts, categoryMatchOptions: allCategoryMatchOptions, categoryById } = reference
 
-  const accountOptions = useMemo(() => buildImportAccountOptions(getPersonalAccounts(selectableAccounts)), [selectableAccounts])
+  const accountOptions = useMemo(
+    () => buildImportAccountOptions(getPersonalAccounts(selectableAccounts)),
+    [selectableAccounts],
+  )
   const categoryMatchOptions = useMemo(
     () => getPersonalCategoryOptions(allCategoryMatchOptions, categoryById),
     [allCategoryMatchOptions, categoryById],
@@ -37,7 +48,8 @@ export function useProviderImportReferenceData({ transferCategoryName }: { trans
     [categories, transferCategoryName],
   )
   const balanceAdjustmentCategory = useMemo(
-    () => (categories ?? []).find((category) => category.is_system && category.name === BALANCE_ADJUSTMENT_CATEGORY_NAME),
+    () =>
+      (categories ?? []).find((category) => category.is_system && category.name === BALANCE_ADJUSTMENT_CATEGORY_NAME),
     [categories],
   )
 
@@ -102,26 +114,37 @@ export function useProviderAccountAnswers({
   )
 
   const resolvedAccountMappings = useMemo(
-    () => resolveProviderAccountMappings({
-      sources,
-      liveMappings: liveAccountMappings,
-      selectableAccounts,
-      accountsCurrent,
-    }),
+    () =>
+      resolveProviderAccountMappings({
+        sources,
+        liveMappings: liveAccountMappings,
+        selectableAccounts,
+        accountsCurrent,
+      }),
     [accountsCurrent, liveAccountMappings, selectableAccounts, sources],
   )
 
   const autoFilledAccountSources = useMemo(
-    () => new Set(sources.map((source) => source.id).filter((source) => (
-      isAutoFilledAccountSource(liveAccountMappings[source] ?? '', resolvedAccountMappings[source] ?? '', false)
-    ))),
+    () =>
+      new Set(
+        sources
+          .map((source) => source.id)
+          .filter((source) =>
+            isAutoFilledAccountSource(liveAccountMappings[source] ?? '', resolvedAccountMappings[source] ?? '', false),
+          ),
+      ),
     [liveAccountMappings, resolvedAccountMappings, sources],
   )
 
   // Read before the name match and the create-new default are layered on, so the batch bar can tell
   // an answer the user gave from one the step filled in for them
   const handAnsweredAccountSources = useMemo(
-    () => new Set(Object.entries(liveAccountMappings).filter(([, choice]) => choice).map(([source]) => source)),
+    () =>
+      new Set(
+        Object.entries(liveAccountMappings)
+          .filter(([, choice]) => choice)
+          .map(([source]) => source),
+      ),
     [liveAccountMappings],
   )
 
@@ -174,7 +197,10 @@ export function useProviderCategoryAnswers({
   reference: { categoriesResolved, categoryById },
 }: {
   sources: Array<{ id: string; name: string }>
-  answers: Pick<ReturnType<typeof useProviderCategoryAnswerState>, 'categoryMappings' | 'categoryCreateKinds' | 'categoryCreateNames'>
+  answers: Pick<
+    ReturnType<typeof useProviderCategoryAnswerState>,
+    'categoryMappings' | 'categoryCreateKinds' | 'categoryCreateNames'
+  >
   inferMappings: (liveMappings: Record<string, string>) => Record<string, string>
   proposedKinds: Record<string, ImportCategoryKind>
   fixedKindSources?: ReadonlySet<string>
@@ -183,41 +209,136 @@ export function useProviderCategoryAnswers({
 }) {
   // Same reason as the accounts: a match pointing at a deleted category would reach the commit
   const liveCategoryMappings = useMemo(
-    () => (categoriesResolved ? dropVanishedCategoryMappings(categoryMappings, categoryById).mappings : categoryMappings),
+    () =>
+      categoriesResolved ? dropVanishedCategoryMappings(categoryMappings, categoryById).mappings : categoryMappings,
     [categoriesResolved, categoryById, categoryMappings],
   )
 
-  const resolvedCategoryMappings = useMemo(() => inferMappings(liveCategoryMappings), [inferMappings, liveCategoryMappings])
+  const resolvedCategoryMappings = useMemo(
+    () => inferMappings(liveCategoryMappings),
+    [inferMappings, liveCategoryMappings],
+  )
 
   const autoFilledCategories = useMemo(
-    () => new Set(sources.map((source) => source.id).filter((source) => (
-      !liveCategoryMappings[source] && resolvedCategoryMappings[source] !== CREATE_CATEGORY_VALUE
-    ))),
+    () =>
+      new Set(
+        sources
+          .map((source) => source.id)
+          .filter(
+            (source) => !liveCategoryMappings[source] && resolvedCategoryMappings[source] !== CREATE_CATEGORY_VALUE,
+          ),
+      ),
     [liveCategoryMappings, resolvedCategoryMappings, sources],
   )
 
-  const resolvedCategoryKinds = useMemo(
-    () => {
-      const kinds: Record<string, ImportCategoryKind> = {}
-      for (const { id } of sources) {
-        kinds[id] = fixedKindSources?.has(id) ? proposedKinds[id] : categoryCreateKinds[id] ?? proposedKinds[id]
-      }
-      return kinds
-    },
-    [categoryCreateKinds, fixedKindSources, proposedKinds, sources],
-  )
+  const resolvedCategoryKinds = useMemo(() => {
+    const kinds: Record<string, ImportCategoryKind> = {}
+    for (const { id } of sources) {
+      kinds[id] = fixedKindSources?.has(id) ? proposedKinds[id] : (categoryCreateKinds[id] ?? proposedKinds[id])
+    }
+    return kinds
+  }, [categoryCreateKinds, fixedKindSources, proposedKinds, sources])
 
   const categoryRenames = useMemo(
-    () => getImportCategoryRenames({
-      sources,
-      mappings: resolvedCategoryMappings,
-      kinds: resolvedCategoryKinds,
-      typedNames: categoryCreateNames,
-      categoryById,
-      appName,
-    }),
+    () =>
+      getImportCategoryRenames({
+        sources,
+        mappings: resolvedCategoryMappings,
+        kinds: resolvedCategoryKinds,
+        typedNames: categoryCreateNames,
+        categoryById,
+        appName,
+      }),
     [appName, categoryById, categoryCreateNames, resolvedCategoryKinds, resolvedCategoryMappings, sources],
   )
 
   return { resolvedCategoryMappings, autoFilledCategories, resolvedCategoryKinds, categoryRenames }
+}
+
+/**
+ * What the user has chosen for each tag name of a provider import: the tag it is pointed at, and the
+ * name of one created for it, each held under the spelling shown when it was given
+ */
+export function useProviderTagAnswerState() {
+  const [heldTagMappings, setHeldTagMappings] = useState<Record<string, string>>({})
+  const [heldTagCreateNames, setHeldTagCreateNames] = useState<Record<string, string>>({})
+
+  const resetTagAnswers = () => {
+    setHeldTagMappings({})
+    setHeldTagCreateNames({})
+  }
+
+  return { heldTagMappings, heldTagCreateNames, setHeldTagMappings, setHeldTagCreateNames, resetTagAnswers }
+}
+
+/**
+ * Settles the tag answers of a provider import against the tags the export carries, with the checks
+ * of which names already have a tag
+ *
+ * Names differing only in capitals are one tag, so each answer is read and written under the
+ * spelling the step asks about now
+ *
+ * @param importedTags - One tag name per tag the export's rows carry
+ * @param answers - What the user has chosen so far
+ */
+export function useProviderTagAnswers(
+  importedTags: string[],
+  {
+    heldTagMappings,
+    heldTagCreateNames,
+    setHeldTagMappings,
+    setHeldTagCreateNames,
+  }: ReturnType<typeof useProviderTagAnswerState>,
+) {
+  const matches = useImportTagMatches(importedTags)
+
+  const tagMappings = useMemo(
+    () => alignNameAnswersWithValues(heldTagMappings, importedTags),
+    [heldTagMappings, importedTags],
+  )
+  const tagCreateNames = useMemo(
+    () => alignNameAnswersWithValues(heldTagCreateNames, importedTags),
+    [heldTagCreateNames, importedTags],
+  )
+
+  const setTagMappings: Dispatch<SetStateAction<Record<string, string>>> = (update) => {
+    setHeldTagMappings((current) => {
+      const answers = alignNameAnswersWithValues(current, importedTags)
+      return typeof update === 'function' ? update(answers) : update
+    })
+  }
+
+  const setTagCreateNames: Dispatch<SetStateAction<Record<string, string>>> = (update) => {
+    setHeldTagCreateNames((current) => {
+      const answers = alignNameAnswersWithValues(current, importedTags)
+      return typeof update === 'function' ? update(answers) : update
+    })
+  }
+
+  // What each tag a row can be pointed at is called, for the preview to show the tag it will carry
+  const tagLabelById = useMemo(
+    () => new Map(matches.tagOptions.map((option) => [option.value, option.label])),
+    [matches.tagOptions],
+  )
+
+  const tagAnswers = useMemo<ImportTagAnswers>(
+    () => ({ importedTags, matchedTagByKey: matches.matchedTagByKey, tagMappings, tagCreateNames }),
+    [importedTags, matches.matchedTagByKey, tagCreateNames, tagMappings],
+  )
+
+  const previewTagAnswers = useMemo<PreviewTagAnswers>(
+    () => ({ ...tagAnswers, tagLabelById }),
+    [tagAnswers, tagLabelById],
+  )
+
+  return {
+    ...matches,
+    importedTags,
+    tagMappings,
+    tagCreateNames,
+    setTagMappings,
+    setTagCreateNames,
+    tagAnswers,
+    previewTagAnswers,
+  }
 }

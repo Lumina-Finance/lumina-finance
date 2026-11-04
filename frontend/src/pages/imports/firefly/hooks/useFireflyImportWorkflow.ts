@@ -15,6 +15,8 @@ import {
   useProviderFileIntake,
   useProviderImportReferenceData,
   useProviderImportRun,
+  useProviderTagAnswers,
+  useProviderTagAnswerState,
   useReferenceBeforeImport,
 } from '@/pages/imports/hooks'
 import type { ImportAccountCreateDetails, ImportCategoryKind, ImportFileDraft } from '@/pages/imports/types'
@@ -41,6 +43,7 @@ import {
   getFireflyFileHeaders,
   getFireflyFileRows,
   getFireflyImportedCategories,
+  getFireflyImportedTags,
   getFireflyAccountSources,
   inferFireflyCategoryMappings,
   readFireflyAccountDetails,
@@ -95,6 +98,8 @@ export function useFireflyImportWorkflow() {
   } = useImportAccountCreateState(setAccountMappings, getFireflyAccountSourceScope)
   const categoryAnswers = useProviderCategoryAnswerState()
   const { categoryMappings, categoryCreateKinds, categoryCreateNames } = categoryAnswers
+  const tagAnswerState = useProviderTagAnswerState()
+  const { heldTagMappings, heldTagCreateNames } = tagAnswerState
   const [selectedBudgetNames, setSelectedBudgetNames] = useState<Set<string> | null>(null)
 
   // Every answer the user gives about the import, as one value that changes only when one of them does
@@ -109,6 +114,8 @@ export function useFireflyImportWorkflow() {
       categoryMappings,
       categoryCreateKinds,
       categoryCreateNames,
+      heldTagMappings,
+      heldTagCreateNames,
       selectedBudgetNames,
     }),
     [
@@ -121,6 +128,8 @@ export function useFireflyImportWorkflow() {
       categoryCreateKinds,
       categoryCreateNames,
       categoryMappings,
+      heldTagCreateNames,
+      heldTagMappings,
       selectedBudgetNames,
     ],
   )
@@ -156,19 +165,16 @@ export function useFireflyImportWorkflow() {
   } = useProviderImportReferenceData({ transferCategoryName: IMPORT_TRANSFER_CATEGORY_NAME })
 
   // A finished import is a record of what it did, so its answers are guessed without what it created
-  const referenceBeforeImport = useReferenceBeforeImport({ selectableAccounts, categories, categoryById }, run.workflow.importResult)
-
-  const fireflyRows = useMemo(
-    () => getFireflyFileRows(transactionsFile),
-    [transactionsFile],
+  const referenceBeforeImport = useReferenceBeforeImport(
+    { selectableAccounts, categories, categoryById },
+    run.workflow.importResult,
   )
+
+  const fireflyRows = useMemo(() => getFireflyFileRows(transactionsFile), [transactionsFile])
 
   // The skipped-row tables show every export column, so both the preview and
   // results steps read the same uploaded header order
-  const fireflyHeaders = useMemo(
-    () => getFireflyFileHeaders(transactionsFile),
-    [transactionsFile],
-  )
+  const fireflyHeaders = useMemo(() => getFireflyFileHeaders(transactionsFile), [transactionsFile])
 
   const accountDetails = useMemo(
     () => (accountsFile && !accountsFile.error ? readFireflyAccountDetails(accountsFile.rows) : null),
@@ -181,10 +187,7 @@ export function useFireflyImportWorkflow() {
   )
   const trackedAccounts = accountSources.list
 
-  const supportedCurrencyCodes = useMemo(
-    () => getSupportedCurrencyCodes(currencies),
-    [currencies],
-  )
+  const supportedCurrencyCodes = useMemo(() => getSupportedCurrencyCodes(currencies), [currencies])
 
   const accountPrefills = useMemo(
     () => buildFireflyAccountPrefills(fireflyRows, accountSources, supportedCurrencyCodes),
@@ -194,12 +197,13 @@ export function useFireflyImportWorkflow() {
   // Every Firefly source is an account the import writes rows into or creates, so none of them
   // can be answered as money outside the tracked accounts
   const accountMappingSources = useMemo(
-    () => trackedAccounts.map((source) => ({
-      id: source.id,
-      label: source.label,
-      matchText: source.name,
-      isCounterpartyOnly: false,
-    })),
+    () =>
+      trackedAccounts.map((source) => ({
+        id: source.id,
+        label: source.label,
+        matchText: source.name,
+        isCounterpartyOnly: false,
+      })),
     [trackedAccounts],
   )
 
@@ -208,99 +212,69 @@ export function useFireflyImportWorkflow() {
   const { resolvedAccountMappings, autoFilledAccountSources, handAnsweredAccountSources } = useProviderAccountAnswers({
     sources: accountMappingSources,
     accountMappings,
-    reference: { accountsResolved, accountsCurrent, accountById, selectableAccounts: referenceBeforeImport.selectableAccounts },
+    reference: {
+      accountsResolved,
+      accountsCurrent,
+      accountById,
+      selectableAccounts: referenceBeforeImport.selectableAccounts,
+    },
   })
 
-  const resolvedAccountCreateDetails = useMemo(
-    () => {
-      const details: Record<string, ImportAccountCreateDetails> = {}
-      for (const { id: source } of trackedAccounts) {
-        details[source] = {
-          accountType: accountCreateTypes[source] ?? accountPrefills[source]?.accountType ?? '',
-          currency: accountCreateCurrencies[source] ?? accountPrefills[source]?.currency ?? '',
-          institutionId: accountCreateInstitutions[source] ?? '',
-        }
+  const resolvedAccountCreateDetails = useMemo(() => {
+    const details: Record<string, ImportAccountCreateDetails> = {}
+    for (const { id: source } of trackedAccounts) {
+      details[source] = {
+        accountType: accountCreateTypes[source] ?? accountPrefills[source]?.accountType ?? '',
+        currency: accountCreateCurrencies[source] ?? accountPrefills[source]?.currency ?? '',
+        institutionId: accountCreateInstitutions[source] ?? '',
       }
-      return details
-    },
-    [accountCreateCurrencies, accountCreateInstitutions, accountCreateTypes, accountPrefills, trackedAccounts],
-  )
+    }
+    return details
+  }, [accountCreateCurrencies, accountCreateInstitutions, accountCreateTypes, accountPrefills, trackedAccounts])
 
   // Only rows the upload can carry with their category register category sources, so a category
   // only transfers, balance rows or rows no mapping could save carry is never asked about. One only
   // rows the forecast leaves out carry is still asked about, since which rows it leaves out depends
   // on the answers
-  const importedCategories = useMemo(
-    () => getFireflyImportedCategories(fireflyRows),
-    [fireflyRows],
-  )
+  const importedCategories = useMemo(() => getFireflyImportedCategories(fireflyRows), [fireflyRows])
 
-  const inferredCategoryKinds = useMemo(
-    () => buildFireflyCategoryKinds(fireflyRows),
-    [fireflyRows],
-  )
+  const inferredCategoryKinds = useMemo(() => buildFireflyCategoryKinds(fireflyRows), [fireflyRows])
 
   const inferCategoryMappings = useCallback(
-    (liveMappings: Record<string, string>) => inferFireflyCategoryMappings(importedCategories, liveMappings, referenceBeforeImport.categories ?? [], inferredCategoryKinds),
+    (liveMappings: Record<string, string>) =>
+      inferFireflyCategoryMappings(
+        importedCategories,
+        liveMappings,
+        referenceBeforeImport.categories ?? [],
+        inferredCategoryKinds,
+      ),
     [referenceBeforeImport.categories, importedCategories, inferredCategoryKinds],
   )
 
-  const categorySources = useMemo(() => importedCategories.map((source) => ({ id: source, name: source })), [importedCategories])
+  const categorySources = useMemo(
+    () => importedCategories.map((source) => ({ id: source, name: source })),
+    [importedCategories],
+  )
 
   // Category creates always carry a kind because unresolved sources default to
   // the majority journal-type kind, with expense as the final fallback
   const proposedCategoryKinds = useMemo(
-    () => Object.fromEntries(importedCategories.map((source) => [source, inferredCategoryKinds[source] ?? 'expense'])) as Record<string, ImportCategoryKind>,
+    () =>
+      Object.fromEntries(
+        importedCategories.map((source) => [source, inferredCategoryKinds[source] ?? 'expense']),
+      ) as Record<string, ImportCategoryKind>,
     [importedCategories, inferredCategoryKinds],
   )
 
-  const { resolvedCategoryMappings, autoFilledCategories, resolvedCategoryKinds, categoryRenames } = useProviderCategoryAnswers({
-    sources: categorySources,
-    answers: categoryAnswers,
-    inferMappings: inferCategoryMappings,
-    proposedKinds: proposedCategoryKinds,
-    appName: FIREFLY_CATEGORY_RENAME_APP_NAME,
-    reference: { categoriesResolved, categoryById: referenceBeforeImport.categoryById },
-  })
-
-  const previewRows = useMemo(
-    () => buildFireflyPreviewRows({
-      rows: fireflyRows,
-      limit: IMPORT_SAMPLE_PREVIEW_LIMIT,
-      accountSources,
-      accountById,
-      accountMappings: resolvedAccountMappings,
-      accountCreateDetails: resolvedAccountCreateDetails,
-      institutionById,
-      categoryById,
-      categoryMappings: resolvedCategoryMappings,
-      categoryCreateKinds: resolvedCategoryKinds,
-      categoryRenames,
-      transferCategory,
-      balanceAdjustmentCategory,
-      currencies,
-    }),
-    [
-      accountById,
-      accountSources,
-      balanceAdjustmentCategory,
-      categoryById,
-      currencies,
-      fireflyRows,
-      institutionById,
-      resolvedAccountCreateDetails,
-      resolvedAccountMappings,
-      categoryRenames,
-      resolvedCategoryKinds,
-      resolvedCategoryMappings,
-      transferCategory,
-    ],
-  )
-
-  const previewGroups = useMemo(
-    () => groupPreviewRowsByDate(previewRows),
-    [previewRows],
-  )
+  const { resolvedCategoryMappings, autoFilledCategories, resolvedCategoryKinds, categoryRenames } =
+    useProviderCategoryAnswers({
+      sources: categorySources,
+      answers: categoryAnswers,
+      inferMappings: inferCategoryMappings,
+      proposedKinds: proposedCategoryKinds,
+      appName: FIREFLY_CATEGORY_RENAME_APP_NAME,
+      reference: { categoriesResolved, categoryById: referenceBeforeImport.categoryById },
+    })
 
   const rowResolutionOptions = useMemo<FireflyRowResolutionOptions>(
     () => ({
@@ -350,21 +324,69 @@ export function useFireflyImportWorkflow() {
     [predictedSkippedRows],
   )
 
-  const importBuild = useMemo(
-    () => buildFireflyImportPayload({
-      transactionsFile,
-      rows: fireflyRows,
-      skippedRows: forecastSkippedRows,
-      accountSources,
-      accountMappings: resolvedAccountMappings,
+  // Only the rows the upload carries ask about their tags, so a row it leaves out asks about none
+  const importedTags = useMemo(
+    () => getFireflyImportedTags(fireflyRows, forecastSkippedRows, accountSources),
+    [accountSources, fireflyRows, forecastSkippedRows],
+  )
+  const tagStep = useProviderTagAnswers(importedTags, tagAnswerState)
+
+  const previewRows = useMemo(
+    () =>
+      buildFireflyPreviewRows({
+        tagAnswers: tagStep.previewTagAnswers,
+        rows: fireflyRows,
+        limit: IMPORT_SAMPLE_PREVIEW_LIMIT,
+        accountSources,
+        accountById,
+        accountMappings: resolvedAccountMappings,
+        accountCreateDetails: resolvedAccountCreateDetails,
+        institutionById,
+        categoryById,
+        categoryMappings: resolvedCategoryMappings,
+        categoryCreateKinds: resolvedCategoryKinds,
+        categoryRenames,
+        transferCategory,
+        balanceAdjustmentCategory,
+        currencies,
+      }),
+    [
       accountById,
-      accountCreateDetails: resolvedAccountCreateDetails,
-      importedCategories,
-      categoryMappings: resolvedCategoryMappings,
-      categoryCreateKinds: resolvedCategoryKinds,
-      categoryRenames,
+      accountSources,
+      balanceAdjustmentCategory,
       categoryById,
-    }),
+      currencies,
+      fireflyRows,
+      institutionById,
+      resolvedAccountCreateDetails,
+      resolvedAccountMappings,
+      categoryRenames,
+      resolvedCategoryKinds,
+      resolvedCategoryMappings,
+      tagStep.previewTagAnswers,
+      transferCategory,
+    ],
+  )
+
+  const previewGroups = useMemo(() => groupPreviewRowsByDate(previewRows), [previewRows])
+
+  const importBuild = useMemo(
+    () =>
+      buildFireflyImportPayload({
+        transactionsFile,
+        rows: fireflyRows,
+        skippedRows: forecastSkippedRows,
+        accountSources,
+        accountMappings: resolvedAccountMappings,
+        accountById,
+        accountCreateDetails: resolvedAccountCreateDetails,
+        importedCategories,
+        categoryMappings: resolvedCategoryMappings,
+        categoryCreateKinds: resolvedCategoryKinds,
+        categoryRenames,
+        categoryById,
+        tagAnswers: tagStep.tagAnswers,
+      }),
     [
       accountById,
       accountSources,
@@ -372,6 +394,7 @@ export function useFireflyImportWorkflow() {
       fireflyRows,
       forecastSkippedRows,
       importedCategories,
+      tagStep.tagAnswers,
       resolvedAccountCreateDetails,
       resolvedAccountMappings,
       categoryRenames,
@@ -384,22 +407,24 @@ export function useFireflyImportWorkflow() {
   // A source answered create is counted only while the import sends it, since the commit creates
   // nothing for a source whose rows are all skipped unless the accounts export lists it
   const newAccountCount = useMemo(
-    () => countCreatedImportSources(
-      trackedAccounts.map((source) => source.id),
-      resolvedAccountMappings,
-      CREATE_ACCOUNT_VALUE,
-      importBuild.writtenSources.accounts,
-    ),
+    () =>
+      countCreatedImportSources(
+        trackedAccounts.map((source) => source.id),
+        resolvedAccountMappings,
+        CREATE_ACCOUNT_VALUE,
+        importBuild.writtenSources.accounts,
+      ),
     [importBuild, resolvedAccountMappings, trackedAccounts],
   )
 
   const newCategoryCount = useMemo(
-    () => countCreatedImportSources(
-      importedCategories,
-      resolvedCategoryMappings,
-      CREATE_CATEGORY_VALUE,
-      importBuild.writtenSources.categories,
-    ),
+    () =>
+      countCreatedImportSources(
+        importedCategories,
+        resolvedCategoryMappings,
+        CREATE_CATEGORY_VALUE,
+        importBuild.writtenSources.categories,
+      ),
     [importBuild, importedCategories, resolvedCategoryMappings],
   )
 
@@ -407,13 +432,14 @@ export function useFireflyImportWorkflow() {
   // budget preview can be reviewed before the import, which sends their
   // categories by the export names the category step mapped
   const budgetDrafts = useMemo(
-    () => buildFireflyBudgetDrafts({
-      budgetsFile,
-      transactionRows: fireflyRows,
-      currencies,
-      categoryMappings: resolvedCategoryMappings,
-      categoryById,
-    }),
+    () =>
+      buildFireflyBudgetDrafts({
+        budgetsFile,
+        transactionRows: fireflyRows,
+        currencies,
+        categoryMappings: resolvedCategoryMappings,
+        categoryById,
+      }),
     [budgetsFile, categoryById, currencies, fireflyRows, resolvedCategoryMappings],
   )
 
@@ -440,27 +466,29 @@ export function useFireflyImportWorkflow() {
   // Read after the category matching, since what a budget counts depends on the Lumina categories
   // its Firefly categories become
   const budgetCountingNotes = useMemo(
-    () => buildFireflyBudgetCountingNotes({
-      drafts: budgetDrafts,
-      selectedNames: resolvedSelectedBudgets,
-      rows: fireflyRows,
-      options: rowResolutionOptions,
-    }),
+    () =>
+      buildFireflyBudgetCountingNotes({
+        drafts: budgetDrafts,
+        selectedNames: resolvedSelectedBudgets,
+        rows: fireflyRows,
+        options: rowResolutionOptions,
+      }),
     [budgetDrafts, fireflyRows, resolvedSelectedBudgets, rowResolutionOptions],
   )
 
   // What the run creates alongside the rows, sending their categories by the export names the
   // category step mapped
-  const runBudgetsBuild = useMemo(
-    () => {
-      const categoryMappings = importBuild.payload?.categories
-      if (!categoryMappings || pendingBudgetDrafts.length === 0) return { budgets: null, error: null }
-      return buildProviderRunBudgets(() => buildFireflyRunBudgets(pendingBudgetDrafts, categoryMappings))
-    },
-    [importBuild.payload, pendingBudgetDrafts],
-  )
+  const runBudgetsBuild = useMemo(() => {
+    const categoryMappings = importBuild.payload?.categories
+    if (!categoryMappings || pendingBudgetDrafts.length === 0) return { budgets: null, error: null }
+    return buildProviderRunBudgets(() => buildFireflyRunBudgets(pendingBudgetDrafts, categoryMappings))
+  }, [importBuild.payload, pendingBudgetDrafts])
 
-  const budgetSelectionError = getProviderBudgetSelectionError(pendingBudgetDrafts.length, IMPORT_MAX_BUDGETS, runBudgetsBuild.error)
+  const budgetSelectionError = getProviderBudgetSelectionError(
+    pendingBudgetDrafts.length,
+    IMPORT_MAX_BUDGETS,
+    runBudgetsBuild.error,
+  )
 
   const canCommitImport = run.canCommit({
     hasPayload: importBuild.payload !== null,
@@ -472,6 +500,7 @@ export function useFireflyImportWorkflow() {
     setAccountMappings({})
     resetAccountCreateState()
     categoryAnswers.resetCategoryAnswers()
+    tagAnswerState.resetTagAnswers()
   }
 
   const resetCommitState = () => {
@@ -520,10 +549,7 @@ export function useFireflyImportWorkflow() {
     resetBudgetPanelState()
   }
 
-  const handleFireflyFileChange = async (
-    kind: FireflyFileKind,
-    acquiredFiles: ImportFileAcquisition,
-  ) => {
+  const handleFireflyFileChange = async (kind: FireflyFileKind, acquiredFiles: ImportFileAcquisition) => {
     const intake = await fileIntake.readImportFile(kind, {
       files: acquiredFiles,
       unavailableReason: getImportUploadBlockReason(currencies, currenciesError)?.message ?? null,
@@ -595,6 +621,7 @@ export function useFireflyImportWorkflow() {
     autoFilledCategories,
     resolvedCategoryKinds,
     categoryRenames,
+    ...tagStep,
     importEstimate,
     previewRows,
     previewGroups,

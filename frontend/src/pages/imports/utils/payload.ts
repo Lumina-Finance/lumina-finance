@@ -1,7 +1,6 @@
 import type { AccountsOverview } from '@/api/accounts'
 import type { Category } from '@/api/categories'
 import type { Merchant } from '@/api/merchants'
-import type { Tag } from '@/api/tags'
 import type { TransactionImportPayload, TransactionImportResponse } from '@/api/transaction-imports'
 import {
   getDirectionValuesAgreeError,
@@ -46,7 +45,7 @@ import {
 import { getCategoryMatchKind, getDebtPaymentImportNote } from './categoryMatching'
 import { buildImportAccountMapping, buildImportCategoryMapping } from './importMappings'
 import { buildImportMerchantMappings } from './merchantMatching'
-import { buildImportTagMappings } from './tagMatching'
+import { buildImportTagPayload, type ImportTagAnswers } from './tagMatching'
 import { getImportDirectionValues } from './columnMapping'
 import { getImportRowId, includeEveryImportRow, joinImportSummaryParts } from './common'
 import { getImportDateRangeFilter, isImportDateRangeCrossed, isImportDateRangeIncomplete } from './dateRange'
@@ -145,12 +144,7 @@ export function buildTransactionImportPayload({
    * What the user answered about the file's tag names, absent where no tags column is mapped and
    * there are none to answer
    */
-  tagAnswers?: {
-    importedTags: string[]
-    matchedTagByKey: Map<string, Tag>
-    tagMappings: Record<string, string>
-    tagCreateNames: Record<string, string>
-  }
+  tagAnswers?: ImportTagAnswers
 }): ImportBuildResult {
   // Two kinds of problem, kept apart because only one of them makes judging a row meaningless. An
   // unanswered mapping question leaves every row looking broken for want of the answer, while a
@@ -305,18 +299,16 @@ export function buildTransactionImportPayload({
   // so a file with thousands of distinct descriptors nobody touched declares none of them
   const merchants: TransactionImportPayload['merchants'] = []
   if (merchantAnswers) {
+    if (merchantAnswers.importedMerchants.length > MAX_IMPORT_MAPPINGS) {
+      addError(getTooManyMappingsError('merchant', merchantAnswers.importedMerchants.length))
+    }
     const built = buildImportMerchantMappings(merchantAnswers)
     merchants.push(...built.mappings)
     for (const message of built.errors) addError(message)
   }
 
   // Tags are carried the same way, only where the user answered differently from the commit's own match
-  const tags: TransactionImportPayload['tags'] = []
-  if (tagAnswers) {
-    const built = buildImportTagMappings(tagAnswers)
-    tags.push(...built.mappings)
-    for (const message of built.errors) addError(message)
-  }
+  const tags: TransactionImportPayload['tags'] = buildImportTagPayload(tagAnswers, addError)
 
   // Judging rows before every mapping they depend on is answered blames them for the answer being
   // missing: with no date format settled, every row reads as one whose date does not fit

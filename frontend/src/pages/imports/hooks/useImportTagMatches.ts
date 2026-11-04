@@ -1,9 +1,11 @@
 import { useCallback, useMemo, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { fetchTagNameMatches, useInfiniteTags, type Tag } from '@/api/tags'
+import { ApiError } from '@/api/auth/errors'
 import { tagKeys } from '@/api/cache/queryKeys'
 import { getNameKey } from '@/api/shared/nameKey'
 import { useAuth } from '@/hooks/useAuth'
+import { MAX_IMPORT_MAPPINGS } from '@/pages/imports/constants'
 import { buildImportTagOptions } from '@/pages/imports/utils'
 
 // Tags one search page holds, matching what the transaction modal's own tag search uses
@@ -27,11 +29,15 @@ export function useImportTagMatches(importedTags: string[]) {
     data: matches = [],
     isLoading: tagMatchesLoading,
     isError: tagMatchesFailed,
+    error: tagMatchesError,
     refetch: refetchTagMatches,
   } = useQuery({
     queryKey: tagKeys.nameMatches(importedTags),
     queryFn: ({ signal }) => fetchTagNameMatches(importedTags, signal),
-    enabled: Boolean(accessToken) && importedTags.length > 0,
+
+    // Over the limit the server refuses the whole request every time, so none is sent and the step
+    // says the import has too many different tags instead
+    enabled: Boolean(accessToken) && importedTags.length > 0 && importedTags.length <= MAX_IMPORT_MAPPINGS,
   })
 
   const trimmedSearch = tagSearch.trim()
@@ -66,6 +72,9 @@ export function useImportTagMatches(importedTags: string[]) {
     matchedTagByKey,
     tagMatchesLoading,
     tagMatchesFailed,
+
+    // Only a reason the server wrote is shown, since the generic sentence for a fault says nothing more
+    tagMatchesReason: tagMatchesError instanceof ApiError ? (tagMatchesError.detail ?? null) : null,
     refetchTagMatches,
     tagOptions,
     rememberPickedTag,

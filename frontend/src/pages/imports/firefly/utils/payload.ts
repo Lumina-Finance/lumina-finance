@@ -8,10 +8,17 @@ import {
   getTooManyMappingsError,
   MAX_IMPORT_MAPPINGS,
 } from '@/pages/imports/constants'
-import type { CsvRow, ImportAccountCreateDetails, ImportCategoryKind, ImportCategoryRename, ImportFileDraft } from '@/pages/imports/types'
+import type {
+  CsvRow,
+  ImportAccountCreateDetails,
+  ImportCategoryKind,
+  ImportCategoryRename,
+  ImportFileDraft,
+} from '@/pages/imports/types'
 import { FIREFLY_TYPE_DEPOSIT } from '@/pages/imports/firefly/constants'
 import type { FireflyAccountSources, FireflyImportBuildResult } from '@/pages/imports/firefly/types'
 import { buildImportAccountMapping, buildImportCategoryMapping } from '@/pages/imports/utils/importMappings'
+import { buildImportTagPayload, getJournalImportedTags, type ImportTagAnswers } from '@/pages/imports/utils/tagMatching'
 import {
   getFireflyRowAmounts,
   getFireflyRowCategorySource,
@@ -42,6 +49,7 @@ export function buildFireflyImportPayload({
   categoryCreateKinds,
   categoryRenames,
   categoryById,
+  tagAnswers,
 }: {
   transactionsFile: ImportFileDraft | null
   rows: CsvRow[]
@@ -64,6 +72,9 @@ export function buildFireflyImportPayload({
 
   /** The user's categories, which a new category of the same name is created as */
   categoryById: Map<string, Category>
+
+  /** What the user answered about the export's tag names, absent where the rows carry none */
+  tagAnswers?: ImportTagAnswers
 }): FireflyImportBuildResult {
   const errors: string[] = []
   const addError = (message: string) => {
@@ -82,11 +93,11 @@ export function buildFireflyImportPayload({
     addError(getTooManyMappingsError('category', importedCategories.length))
   }
 
-  const { rows: payloadRows, rowAccountSources, writtenCategorySources } = buildFireflyImportRows(
-    rows,
-    skippedRows,
-    accountSources,
-  )
+  const {
+    rows: payloadRows,
+    rowAccountSources,
+    writtenCategorySources,
+  } = buildFireflyImportRows(rows, skippedRows, accountSources)
 
   // A source only skipped rows use is still answered, but the commit creates nothing for it
   const accounts: JournalImportPayload['accounts'] = []
@@ -101,18 +112,21 @@ export function buildFireflyImportPayload({
     // accounts export. An existing account only that export lists takes nothing, so its answer is
     // kept but not sent, and only an account the import creates is archived
     const isSent = hasRows || (isCreate && details !== null)
-    const built = buildImportAccountMapping({
-      source,
-      label,
-      name,
-      choice,
-      createDetails: accountCreateDetails[source],
-      accountById,
-      // An existing account only the accounts export lists takes no rows, so its state is not checked
-      takesRows: hasRows || details === null,
-      refusesGroupAccount: true,
-      getNameTooLongError: getImportAccountNameTooLongError,
-    }, addError)
+    const built = buildImportAccountMapping(
+      {
+        source,
+        label,
+        name,
+        choice,
+        createDetails: accountCreateDetails[source],
+        accountById,
+        // An existing account only the accounts export lists takes no rows, so its state is not checked
+        takesRows: hasRows || details === null,
+        refusesGroupAccount: true,
+        getNameTooLongError: getImportAccountNameTooLongError,
+      },
+      addError,
+    )
     if (!choice || !isSent) continue
 
     // Counted while its answer is still incomplete too, so the preview counts what the import creates
@@ -124,25 +138,52 @@ export function buildFireflyImportPayload({
   const categories: JournalImportPayload['categories'] = []
   const createdByKey = new Map<string, { label: string; kind: ImportCategoryKind }>()
   for (const source of importedCategories) {
-    const built = buildImportCategoryMapping({
-      source,
-      label: source,
-      createName: source,
-      choice: categoryMappings[source] ?? '',
-      createKind: categoryCreateKinds[source],
-      rename: categoryRenames[source],
-      categoryById,
-      createdByKey,
-      refusesGroupCategory: true,
-    }, addError)
+    const built = buildImportCategoryMapping(
+      {
+        source,
+        label: source,
+        createName: source,
+        choice: categoryMappings[source] ?? '',
+        createKind: categoryCreateKinds[source],
+        rename: categoryRenames[source],
+        categoryById,
+        createdByKey,
+        refusesGroupCategory: true,
+      },
+      addError,
+    )
     if (built) categories.push(built.mapping)
   }
+
+  // Only the tag names answered differently from what the commit would do unasked are sent
+  const tags = buildImportTagPayload(tagAnswers, addError)
 
   if (payloadRows.length === 0) addError(getImportNoRowsError('export'))
 
   const writtenSources = { accounts: sentAccountSources, categories: writtenCategorySources }
   if (errors.length > 0) return { errors, payload: null, writtenSources, archiveAccountSources }
-  return { errors: [], payload: { accounts, categories, rows: payloadRows }, writtenSources, archiveAccountSources }
+  return {
+    errors: [],
+    payload: { accounts, categories, tags, rows: payloadRows },
+    writtenSources,
+    archiveAccountSources,
+  }
+}
+
+/**
+ * Lists the tags the rows the upload carries are tagged with, which is what the tag step asks about
+ *
+ * Read from the rows the payload is built from, so a row the upload leaves out never asks about a tag
+ * only it carries
+ */
+export function getFireflyImportedTags(
+  rows: CsvRow[],
+  skippedRows: ReadonlySet<CsvRow>,
+  accountSources: FireflyAccountSources,
+) {
+  return getJournalImportedTags(
+    buildFireflyImportRows(rows, skippedRows, accountSources).rows.map((row) => row.tag_names),
+  )
 }
 
 /**

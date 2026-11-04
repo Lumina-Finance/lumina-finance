@@ -51,7 +51,7 @@ export function FireflyPreviewStep({
   return (
     <ImportPreviewLayout
       // The budget step only exists when a budgets export is staged
-      index={budgetsFile ? '05' : '04'}
+      index={budgetsFile ? '06' : '05'}
       stats={{ ...importEstimate, newAccountCount, newCategoryCount }}
       previewGroups={previewGroups}
       emptyDescription="Transactions compiled from the export will appear here."
@@ -74,7 +74,11 @@ export function FireflyPreviewStep({
         />
       )}
 
-      <ImportRowWarningsTable rowWarnings={predictedRowWarnings} headers={fireflyHeaders} amountHeaders={FIREFLY_AMOUNT_HEADERS} />
+      <ImportRowWarningsTable
+        rowWarnings={predictedRowWarnings}
+        headers={fireflyHeaders}
+        amountHeaders={FIREFLY_AMOUNT_HEADERS}
+      />
     </ImportPreviewLayout>
   )
 }

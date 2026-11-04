@@ -3,12 +3,19 @@ import type { Category } from '@/api/categories'
 import type { Currency } from '@/api/currency'
 import type { Institution } from '@/api/institutions'
 import { CREATE_CATEGORY_VALUE } from '@/pages/imports/constants'
-import type { ImportAccountCreateDetails, ImportCategoryKind, ImportCategoryRename, PreviewTransactionRow } from '@/pages/imports/types'
+import type {
+  ImportAccountCreateDetails,
+  ImportCategoryKind,
+  ImportCategoryRename,
+  PreviewTransactionRow,
+} from '@/pages/imports/types'
 import {
   buildPreviewCategory,
   buildPreviewTransactionRow,
   getPreviewCounterpartyScope,
+  getPreviewTagNames,
   type PreviewAccount,
+  type PreviewTagAnswers,
   resolvePreviewAccount,
 } from '@/pages/imports/utils'
 import { findCurrencyExponent } from '@/utils/moneyInput'
@@ -32,6 +39,9 @@ export interface ActualPreviewOptions {
 
   /** Rows the upload leaves out, which the preview leaves out too */
   skippedTransactionIds: ReadonlySet<string>
+
+  /** What the tag step holds, which decides the tags each row is shown with */
+  tagAnswers: PreviewTagAnswers
 }
 
 interface ActualPreviewAccount extends PreviewAccount {
@@ -53,7 +63,11 @@ interface ActualPreviewLeg {
  * A row waiting on an account answer is left out until it has one, since its currency and so its
  * amount aren't known yet
  */
-export function buildActualPreviewRows(journal: ActualJournal, options: ActualPreviewOptions, limit: number): PreviewTransactionRow[] {
+export function buildActualPreviewRows(
+  journal: ActualJournal,
+  options: ActualPreviewOptions,
+  limit: number,
+): PreviewTransactionRow[] {
   const sources = new Map(journal.accounts.map((account) => [account.id, account]))
   const categorySources = new Map(journal.categories.map((source) => [source.id, source]))
   const timestamp = new Date().toISOString()
@@ -67,7 +81,7 @@ export function buildActualPreviewRows(journal: ActualJournal, options: ActualPr
     if (!legs) continue
     for (const [legIndex, leg] of legs.entries()) {
       if (previewRows.length >= limit) break
-      previewRows.push(buildPreviewRow(entry, leg, legIndex, timestamp))
+      previewRows.push(buildPreviewRow(entry, leg, legIndex, timestamp, options.tagAnswers))
     }
   }
   return previewRows
@@ -80,7 +94,9 @@ function resolveLegs(
   options: ActualPreviewOptions,
 ): ActualPreviewLeg[] | null {
   const source = entry.sourceAccountId ? resolveAccount(sources.get(entry.sourceAccountId), options) : null
-  const destination = entry.destinationAccountId ? resolveAccount(sources.get(entry.destinationAccountId), options) : null
+  const destination = entry.destinationAccountId
+    ? resolveAccount(sources.get(entry.destinationAccountId), options)
+    : null
   if ((entry.sourceAccountId && !source) || (entry.destinationAccountId && !destination)) return null
 
   const mappedCategory = entry.categorySourceId
@@ -92,13 +108,15 @@ function resolveLegs(
     const account = (destination ?? source)!
     const amount = units(account)
     if (amount === null) return null
-    return [{
-      account,
-      minorUnits: destination ? amount : -amount,
-      category: options.balanceAdjustmentCategory,
-      merchantName: null,
-      counterpartyAccount: null,
-    }]
+    return [
+      {
+        account,
+        minorUnits: destination ? amount : -amount,
+        category: options.balanceAdjustmentCategory,
+        merchantName: null,
+        counterpartyAccount: null,
+      },
+    ]
   }
 
   if (entry.type === 'transfer' && source && destination) {
@@ -109,8 +127,20 @@ function resolveLegs(
     // The budget-side leg of a categorised transfer keeps its category, and the other takes Transfer.
     // Filed as spending or income, that leg records no other account and takes it as its merchant. A
     // credit card payment files both legs under its category
-    const buildLeg = (leg: 'source' | 'destination', account: ActualPreviewAccount, minorUnits: number, other: ActualPreviewAccount): ActualPreviewLeg => {
-      if (entry.categoryLeg !== leg && entry.categoryLeg !== 'both') return { account, minorUnits, category: options.transferCategory, merchantName: null, counterpartyAccount: other }
+    const buildLeg = (
+      leg: 'source' | 'destination',
+      account: ActualPreviewAccount,
+      minorUnits: number,
+      other: ActualPreviewAccount,
+    ): ActualPreviewLeg => {
+      if (entry.categoryLeg !== leg && entry.categoryLeg !== 'both')
+        return {
+          account,
+          minorUnits,
+          category: options.transferCategory,
+          merchantName: null,
+          counterpartyAccount: other,
+        }
       const isSpending = mappedCategory && !canCarryActualTransfer(mappedCategory)
       return {
         account,
@@ -129,16 +159,21 @@ function resolveLegs(
   const account = (source ?? destination)!
   const amount = units(account)
   if (amount === null) return null
-  return [{
-    account,
-    minorUnits: source ? -amount : amount,
-    category: mappedCategory,
-    merchantName: entry.merchantName,
-    counterpartyAccount: null,
-  }]
+  return [
+    {
+      account,
+      minorUnits: source ? -amount : amount,
+      category: mappedCategory,
+      merchantName: entry.merchantName,
+      counterpartyAccount: null,
+    },
+  ]
 }
 
-function resolveAccount(source: ActualAccountSource | undefined, options: ActualPreviewOptions): ActualPreviewAccount | null {
+function resolveAccount(
+  source: ActualAccountSource | undefined,
+  options: ActualPreviewOptions,
+): ActualPreviewAccount | null {
   if (!source) return null
   const account = resolvePreviewAccount(
     options.accountMappings[source.id] ?? '',
@@ -154,7 +189,11 @@ function resolveAccount(source: ActualAccountSource | undefined, options: Actual
 function resolveCategory(sourceId: string, createName: string, options: ActualPreviewOptions): Category | undefined {
   const choice = options.categoryMappings[sourceId]
   if (choice !== CREATE_CATEGORY_VALUE) return choice ? options.categoryById.get(choice) : undefined
-  return buildPreviewCategory(sourceId, options.categoryRenames[sourceId]?.name ?? createName, options.categoryCreateKinds[sourceId] ?? 'expense')
+  return buildPreviewCategory(
+    sourceId,
+    options.categoryRenames[sourceId]?.name ?? createName,
+    options.categoryCreateKinds[sourceId] ?? 'expense',
+  )
 }
 
 /** Converts hundredths into the minor units of a currency, or null when that currency can't hold them */
@@ -164,7 +203,13 @@ function toMinorUnits(hundredths: number, exponent: number) {
   return hundredths % divisor === 0 ? hundredths / divisor : null
 }
 
-function buildPreviewRow(entry: ActualJournalEntry, leg: ActualPreviewLeg, legIndex: number, timestamp: string): PreviewTransactionRow {
+function buildPreviewRow(
+  entry: ActualJournalEntry,
+  leg: ActualPreviewLeg,
+  legIndex: number,
+  timestamp: string,
+  tagAnswers: PreviewTagAnswers,
+): PreviewTransactionRow {
   return buildPreviewTransactionRow({
     id: `actual-preview-${entry.transactionId}-${legIndex}`,
     account: leg.account,
@@ -175,7 +220,7 @@ function buildPreviewRow(entry: ActualJournalEntry, leg: ActualPreviewLeg, legIn
     notes: entry.notes,
     counterpartyAccount: leg.counterpartyAccount,
     counterpartyScope: getPreviewCounterpartyScope(leg.category, leg.counterpartyAccount),
-    tagNames: entry.tags,
+    tagNames: getPreviewTagNames(entry.tags, tagAnswers),
     timestamp,
   })
 }

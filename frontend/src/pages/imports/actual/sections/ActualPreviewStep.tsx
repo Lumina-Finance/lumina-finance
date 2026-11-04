@@ -44,7 +44,7 @@ export function ActualPreviewStep({
   return (
     <ImportPreviewLayout
       // The budget step only exists once an export is staged
-      index={budget ? '05' : '04'}
+      index={budget ? '06' : '05'}
       stats={{ ...importEstimate, newAccountCount, newCategoryCount }}
       previewGroups={previewGroups}
       emptyDescription="Transactions compiled from the export will appear here."
@@ -56,7 +56,11 @@ export function ActualPreviewStep({
       onCommit={handleCommitImport}
     >
       {skipped.totalCount > 0 && (
-        <ActualSkippedRowsTable title={skipped.title} rows={skipped.rows} decimals={budget?.budgetDecimals ?? ACTUAL_TRANSACTION_DECIMALS} />
+        <ActualSkippedRowsTable
+          title={skipped.title}
+          rows={skipped.rows}
+          decimals={budget?.budgetDecimals ?? ACTUAL_TRANSACTION_DECIMALS}
+        />
       )}
     </ImportPreviewLayout>
   )

@@ -7,28 +7,29 @@ import {
 } from '@/pages/imports/components'
 import { ImportSkippedTable, type ImportSkippedTableRow } from '@/pages/imports/components/tables/SkippedTable'
 
-type ImportBudgetStepProps<Budget extends { name: string; isArchived: boolean }> = ImportBudgetSelectionTableProps<Budget> & {
-  description: string
+type ImportBudgetStepProps<Budget extends { name: string; isArchived: boolean }> =
+  ImportBudgetSelectionTableProps<Budget> & {
+    description: string
 
-  /** The notices and explanations shown above the budgets */
-  children?: ReactNode
+    /** The notices and explanations shown above the budgets */
+    children?: ReactNode
 
-  /** How many budgets the export holds, the skipped ones included */
-  detectedCount: number
+    /** How many budgets the export holds, the skipped ones included */
+    detectedCount: number
 
-  /** The facts shown beside each skipped budget's name and reason */
-  skippedHeaders: string[]
+    /** The facts shown beside each skipped budget's name and reason */
+    skippedHeaders: string[]
 
-  /** The facts among them that are amounts */
-  skippedAmountHeaders: string[]
-  skippedRows: ImportSkippedTableRow[]
+    /** The facts among them that are amounts */
+    skippedAmountHeaders: string[]
+    skippedRows: ImportSkippedTableRow[]
 
-  /** The language the skipped budgets' reasons are written in when it differs from the page's */
-  skippedReasonLang?: string
-  selectionError: string | null
-  noBudgetsDescription: string
-  allSkippedDescription: string
-}
+    /** The language the skipped budgets' reasons are written in when it differs from the page's */
+    skippedReasonLang?: string
+    selectionError: string | null
+    noBudgetsDescription: string
+    allSkippedDescription: string
+  }
 
 /**
  * Previews the budgets a provider import will create and lets the user choose them
@@ -51,7 +52,7 @@ export function ImportBudgetStep<Budget extends { name: string; isArchived: bool
   ...table
 }: ImportBudgetStepProps<Budget>) {
   return (
-    <ImportStep index="04" title="Budget import" description={description}>
+    <ImportStep index="05" title="Budget import" description={description}>
       {children}
 
       {skippedRows.length > 0 && (

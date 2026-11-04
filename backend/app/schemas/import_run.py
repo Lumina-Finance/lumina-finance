@@ -529,6 +529,9 @@ class JournalImportStageRequest(BaseModel):
 
     accounts: list[TransactionImportAccountMapping] = Field(min_length=1, max_length=MAX_IMPORT_MAPPINGS)
     categories: list[TransactionImportCategoryMapping] = Field(default=[], max_length=MAX_IMPORT_MAPPINGS)
+
+    # Only the tag names the user answered by hand, as in the CSV import
+    tags: list[TransactionImportTagMapping] = Field(default=[], max_length=MAX_IMPORT_MAPPINGS)
     rows: list[JournalTransactionRow] = Field(min_length=1, max_length=MAX_IMPORT_BATCH_ROWS)
 
     # Where this batch starts in the export, so a batch sent twice stages the same positions and

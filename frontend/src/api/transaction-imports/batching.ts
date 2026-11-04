@@ -1,4 +1,4 @@
-import { buildImportBatches } from '@/api/shared/importBatching'
+import { buildImportBatches, getAnsweredTagKeys } from '@/api/shared/importBatching'
 import { getNameKey } from '@/api/shared/nameKey'
 import type {
   TransactionImportPayload,
@@ -29,7 +29,7 @@ export async function buildStagedImportBatches(
       accounts: getRowAccountSources(row),
       categories: [row.category_source],
       merchants: getRowMerchantKeys(row, merchantMappingsByKey),
-      tags: getRowTagKeys(row, tagMappingsByKey),
+      tags: getAnsweredTagKeys(row.tag_names, tagMappingsByKey),
     }),
   })
 }
@@ -44,17 +44,6 @@ function getRowMerchantKeys(row: TransactionImportRow, merchantMappingsByKey: Ma
   if (!row.merchant_name) return []
   const key = getNameKey(row.merchant_name)
   return merchantMappingsByKey.has(key) ? [key] : []
-}
-
-/**
- * The answered tag names a row carries, leaving out the tags that were left alone
- *
- * A row can name several tags, so it can reference several answers. Only the names the user answered
- * carry a mapping, and a tag left alone adds nothing to the batch
- */
-function getRowTagKeys(row: TransactionImportRow, tagMappingsByKey: Map<string, unknown>) {
-  const keys = row.tag_names.map((name) => getNameKey(name)).filter((key) => tagMappingsByKey.has(key))
-  return [...new Set(keys)]
 }
 
 /**

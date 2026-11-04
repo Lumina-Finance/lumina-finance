@@ -1,5 +1,10 @@
 import type { CsvRow, PreviewTransactionRow } from '@/pages/imports/types'
-import { buildPreviewTransactionRow, getPreviewCounterpartyScope } from '@/pages/imports/utils'
+import {
+  buildPreviewTransactionRow,
+  getPreviewCounterpartyScope,
+  getPreviewTagNames,
+  type PreviewTagAnswers,
+} from '@/pages/imports/utils'
 import {
   getFireflyRowDate,
   getFireflyRowSentNotes,
@@ -13,6 +18,9 @@ import { resolveFireflyRowLegs, type FireflyResolvedLeg, type FireflyRowResoluti
 interface BuildFireflyPreviewRowsOptions extends FireflyRowResolutionOptions {
   rows: CsvRow[]
   limit: number
+
+  /** What the tag step holds, which decides the tags each row is shown with */
+  tagAnswers: PreviewTagAnswers
 }
 
 /**
@@ -39,7 +47,7 @@ export function buildFireflyPreviewRows(options: BuildFireflyPreviewRowsOptions)
 
     for (const [legIndex, leg] of resolution.legs.entries()) {
       if (previewRows.length >= options.limit) break
-      previewRows.push(buildFireflyPreviewRow(row, leg, legIndex, timestamp, groupSizes))
+      previewRows.push(buildFireflyPreviewRow(row, leg, legIndex, timestamp, groupSizes, options.tagAnswers))
     }
   }
 
@@ -55,6 +63,7 @@ function buildFireflyPreviewRow(
   legIndex: number,
   timestamp: string,
   groupSizes: FireflySplitGroupSizes,
+  tagAnswers: PreviewTagAnswers,
 ): PreviewTransactionRow {
   // The commit joins the journal description and the notes the row is sent with into the leg notes
   const notes = [row.description, getFireflyRowSentNotes(row, groupSizes)]
@@ -75,7 +84,7 @@ function buildFireflyPreviewRow(
     notes: notes || null,
     counterpartyAccount: leg.counterpartyAccount,
     counterpartyScope: getPreviewCounterpartyScope(leg.category, leg.counterpartyAccount),
-    tagNames: splitFireflyTags(row.tags ?? ''),
+    tagNames: getPreviewTagNames(splitFireflyTags(row.tags ?? ''), tagAnswers),
     timestamp,
   })
 }

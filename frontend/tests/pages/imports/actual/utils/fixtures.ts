@@ -22,6 +22,7 @@ import type { ActualBudgetFile, ActualJournal, ActualTransaction } from '@/pages
 import { applyActualPaymentModes } from '@/pages/imports/actual/utils/categories'
 import { normaliseActualBudget } from '@/pages/imports/actual/utils/normalise'
 import { readActualBudgetFile } from '@/pages/imports/actual/utils/readFile'
+import type { PreviewTagAnswers } from '@/pages/imports/utils'
 
 export type ActualFixtureBudget = 'envelope' | 'yen' | 'edges'
 
@@ -77,7 +78,9 @@ export function unzipActualDatabase(zip: Uint8Array): Uint8Array<ArrayBuffer> {
 }
 
 export async function readActualFixtureBudget(name: ActualFixtureBudget): Promise<ActualBudgetFile> {
-  const read = await readActualBudgetFile(new File([readActualFixture(name, 'export.zip')], 'export.zip'), () => initSqlJs())
+  const read = await readActualBudgetFile(new File([readActualFixture(name, 'export.zip')], 'export.zip'), () =>
+    initSqlJs(),
+  )
   if (read.status !== 'read') throw new Error(read.reason)
   return read.budget
 }
@@ -93,7 +96,10 @@ export async function normaliseActualFixture(name: ActualFixtureBudget) {
  * A budget written by hand for shapes none of the exports hold: a checking and a savings account
  * on the budget, a loan off it, a transfer payee for each and a Car category
  */
-export function buildActualBudget(transactions: Array<Partial<ActualTransaction> & Pick<ActualTransaction, 'id' | 'accountId' | 'date' | 'amount'>>, overrides: Partial<ActualBudgetFile> = {}): ActualBudgetFile {
+export function buildActualBudget(
+  transactions: Array<Partial<ActualTransaction> & Pick<ActualTransaction, 'id' | 'accountId' | 'date' | 'amount'>>,
+  overrides: Partial<ActualBudgetFile> = {},
+): ActualBudgetFile {
   return {
     budgetName: 'Hand written',
     databaseVersion: null,
@@ -132,8 +138,22 @@ export function buildActualBudget(transactions: Array<Partial<ActualTransaction>
  * matches what Actual counted against each budget
  */
 export function fileActualPaymentsInCategory(journal: ActualJournal) {
-  const modes = Object.fromEntries(journal.categories.flatMap((source) => (
-    source.role === 'transfer' && source.categoryId ? [[source.id, 'category' as const]] : []
-  )))
+  const modes = Object.fromEntries(
+    journal.categories.flatMap((source) =>
+      source.role === 'transfer' && source.categoryId ? [[source.id, 'category' as const]] : [],
+    ),
+  )
   return applyActualPaymentModes(journal, modes)
+}
+
+/**
+ * Tag answers for a test about anything other than tags: the file carries none, so every tag name a
+ * row states is shown as the file spells it
+ */
+export const NO_TAG_ANSWERS: PreviewTagAnswers = {
+  importedTags: [],
+  matchedTagByKey: new Map(),
+  tagMappings: {},
+  tagCreateNames: {},
+  tagLabelById: new Map(),
 }

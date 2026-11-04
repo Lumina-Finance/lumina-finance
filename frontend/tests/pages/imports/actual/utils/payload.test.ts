@@ -18,10 +18,15 @@ import {
 import type { ActualJournal } from '@/pages/imports/actual/types'
 import { normaliseActualBudget } from '@/pages/imports/actual/utils/normalise'
 import { applyActualCreditPayments } from '@/pages/imports/actual/utils/categories'
-import { buildActualImportPayload, type ActualImportAnswers } from '@/pages/imports/actual/utils/payload'
+import {
+  buildActualImportPayload,
+  getActualImportedTags,
+  type ActualImportAnswers,
+} from '@/pages/imports/actual/utils/payload'
 import {
   CREATE_ACCOUNT_VALUE,
   CREATE_CATEGORY_VALUE,
+  CREATE_TAG_VALUE,
   DEFAULT_CATEGORY_ICON,
   getCategoryCreateClashError,
   getCategoryDirectionClashError,
@@ -31,6 +36,7 @@ import {
   getImportGroupCategoryError,
   getImportReadOnlyAccountMappingError,
   JOURNAL_ROW_FIELD_MAX_LENGTHS,
+  SKIP_TAG_VALUE,
 } from '@/pages/imports/constants'
 import type { ImportCategoryKind } from '@/pages/imports/types'
 import { getImportCategoryRenames } from '@/pages/imports/utils'
@@ -41,12 +47,30 @@ const CURRENCIES = [
   { id: 'JPY', name: 'Japanese yen', symbol: '¥', minor_unit_exponent: 0 },
 ] as Currency[]
 
-const CHEQUING = { id: 'chequing', name: 'Chequing', currency: 'CAD', can_write: true, is_archived: false } as AccountsOverview
-const ARCHIVED = { id: 'old-savings', name: 'Old Savings', currency: 'CAD', can_write: true, is_archived: true } as AccountsOverview
+const CHEQUING = {
+  id: 'chequing',
+  name: 'Chequing',
+  currency: 'CAD',
+  can_write: true,
+  is_archived: false,
+} as AccountsOverview
+const ARCHIVED = {
+  id: 'old-savings',
+  name: 'Old Savings',
+  currency: 'CAD',
+  can_write: true,
+  is_archived: true,
+} as AccountsOverview
 const GROCERIES = { id: 'groceries', name: 'Groceries', kind: 'expense', group_id: null } as Category
 const CAR_INCOME = { id: 'car-income', name: 'Car', kind: 'income', group_id: null } as Category
 const TRANSFER = { id: 'transfer', name: 'Transfer', kind: 'transfer', group_id: null, is_system: true } as Category
-const BALANCE_ADJUSTMENT = { id: 'balance', name: 'Balance Adjustment', kind: 'transfer', group_id: null, is_system: true } as Category
+const BALANCE_ADJUSTMENT = {
+  id: 'balance',
+  name: 'Balance Adjustment',
+  kind: 'transfer',
+  group_id: null,
+  is_system: true,
+} as Category
 
 /** Creates every account in one currency and every category with the kind its role suggests */
 function createAnswers(journal: ActualJournal, currency = 'CAD'): ActualImportAnswers {
@@ -55,11 +79,16 @@ function createAnswers(journal: ActualJournal, currency = 'CAD'): ActualImportAn
   return {
     accountMappings: Object.fromEntries(journal.accounts.map((account) => [account.id, CREATE_ACCOUNT_VALUE])),
     accountCreateDetails: Object.fromEntries(
-      journal.accounts.map((account) => [account.id, { accountType: account.proposedType, currency, institutionId: '' }]),
+      journal.accounts.map((account) => [
+        account.id,
+        { accountType: account.proposedType, currency, institutionId: '' },
+      ]),
     ),
     accountById: new Map([CHEQUING, ARCHIVED].map((account) => [account.id, account])),
     categoryMappings: Object.fromEntries(journal.categories.map((source) => [source.id, CREATE_CATEGORY_VALUE])),
-    categoryCreateKinds: Object.fromEntries(journal.categories.map((source) => [source.id, kindOf(source.role, source.isIncome)])),
+    categoryCreateKinds: Object.fromEntries(
+      journal.categories.map((source) => [source.id, kindOf(source.role, source.isIncome)]),
+    ),
     categoryRenames: {},
     categoryById: new Map([[GROCERIES.id, GROCERIES]]),
     currencies: CURRENCIES,
@@ -106,16 +135,21 @@ describe('Actual Budget import payload', () => {
     expect(build.errors).toEqual([])
     const car = journal.categories.find((source) => source.label === 'Car')!
     const payments = build.payload!.rows.filter((row) => row.category_leg)
-    expect(payments.map((row) => [row.dt, row.type, row.category, row.category_leg, row.source_name, row.destination_name])).toEqual([
+    expect(
+      payments.map((row) => [row.dt, row.type, row.category, row.category_leg, row.source_name, row.destination_name]),
+    ).toEqual([
       ['2026-07-05', 'transfer', car.id, 'source', null, 'Car Loan'],
       ['2026-08-05', 'transfer', car.id, 'source', null, 'Car Loan'],
       ['2026-09-05', 'transfer', car.id, 'source', null, 'Car Loan'],
     ])
-    expect(build.payload!.categories).toContainEqual({ source: car.id, create: { name: 'Car', kind: 'expense', icon: expect.any(String) } })
+    expect(build.payload!.categories).toContainEqual({
+      source: car.id,
+      create: { name: 'Car', kind: 'expense', icon: expect.any(String) },
+    })
     expect(build.payload!.categories.some((mapping) => mapping.source === `transfer:${car.categoryId}`)).toBe(false)
   })
 
-  it('keeps a payment filed as spending off a transfer category that can\'t record the other account', async () => {
+  it("keeps a payment filed as spending off a transfer category that can't record the other account", async () => {
     const { journal } = await normaliseActualFixture('edges')
     const effective = fileActualPaymentsInCategory(journal)
     const answers = createAnswers(effective)
@@ -123,7 +157,9 @@ describe('Actual Budget import payload', () => {
     answers.categoryById.set(BALANCE_ADJUSTMENT.id, BALANCE_ADJUSTMENT)
     answers.categoryMappings[car.id] = BALANCE_ADJUSTMENT.id
 
-    expect(buildActualImportPayload(effective, answers).errors).toEqual([getActualPaymentCategoryError('Car', 'Balance Adjustment')])
+    expect(buildActualImportPayload(effective, answers).errors).toEqual([
+      getActualPaymentCategoryError('Car', 'Balance Adjustment'),
+    ])
 
     // A transfer category that records the other account keeps the payment a transfer
     answers.categoryById.set(TRANSFER.id, TRANSFER)
@@ -151,13 +187,17 @@ describe('Actual Budget import payload', () => {
 
     const build = buildActualImportPayload(effective, answers)
     expect(build.errors).toEqual([])
-    expect(build.payload?.categories).toContainEqual(expect.objectContaining({
-      create: { name: 'Car Payment (Actual)', kind: 'expense', icon: DEFAULT_CATEGORY_ICON },
-    }))
+    expect(build.payload?.categories).toContainEqual(
+      expect.objectContaining({
+        create: { name: 'Car Payment (Actual)', kind: 'expense', icon: DEFAULT_CATEGORY_ICON },
+      }),
+    )
 
     // A cleared name stops the upload instead of creating a category with no name
     for (const rename of Object.values(answers.categoryRenames)) rename.name = ' '
-    expect(buildActualImportPayload(effective, answers).errors).toEqual(['Enter a name for the new category from Car Payment (transfers in Actual).'])
+    expect(buildActualImportPayload(effective, answers).errors).toEqual([
+      'Enter a name for the new category from Car Payment (transfers in Actual).',
+    ])
   })
 
   it('writes yen rows in whole yen', async () => {
@@ -165,7 +205,11 @@ describe('Actual Budget import payload', () => {
     const build = buildActualImportPayload(journal, { ...createAnswers(journal, 'JPY'), fileCurrency: 'JPY' })
 
     expect(build.errors).toEqual([])
-    expect(build.payload?.rows.find((row) => row.dt === '2026-07-10')).toMatchObject({ amount: '4580', currency_code: 'JPY', destination_name: 'Lawson' })
+    expect(build.payload?.rows.find((row) => row.dt === '2026-07-10')).toMatchObject({
+      amount: '4580',
+      currency_code: 'JPY',
+      destination_name: 'Lawson',
+    })
   })
 
   it('leaves out rows a currency without cents cannot hold', async () => {
@@ -174,7 +218,11 @@ describe('Actual Budget import payload', () => {
 
     expect(build.errors).toEqual([])
     const groceries = build.skippedRows.find((row) => row.date === '2026-07-03')
-    expect(groceries).toMatchObject({ accountName: 'Checking', amount: -6420, reason: getActualAmountPrecisionReason('64.20', 'JPY') })
+    expect(groceries).toMatchObject({
+      accountName: 'Checking',
+      amount: -6420,
+      reason: getActualAmountPrecisionReason('64.20', 'JPY'),
+    })
     expect(build.payload?.rows.some((row) => row.dt === '2026-07-03')).toBe(false)
   })
 
@@ -245,16 +293,20 @@ describe('Actual Budget import payload', () => {
     withTwin.entries = [...journal.entries, { ...gymRow, transactionId: 'gym-twin-row', categorySourceId: gymTwin.id }]
 
     const errors = buildActualImportPayload(withTwin, answers).errors
-    expect(errors).toEqual(expect.arrayContaining([
-      getActualTransferCategoryError(carTransfers.label),
-      getCategoryDirectionClashError('Car', 'Car', 'income'),
-      getCategoryCreateClashError('Gym', 'Gym (Twin)'),
-    ]))
+    expect(errors).toEqual(
+      expect.arrayContaining([
+        getActualTransferCategoryError(carTransfers.label),
+        getCategoryDirectionClashError('Car', 'Car', 'income'),
+        getCategoryCreateClashError('Gym', 'Gym (Twin)'),
+      ]),
+    )
     expect(errors).toHaveLength(3)
 
     answers.categoryMappings[carTransfers.id] = CREATE_CATEGORY_VALUE
     answers.categoryCreateKinds[carTransfers.id] = 'expense'
-    expect(buildActualImportPayload(journal, answers).errors).toContain(getActualTransferCategoryError(carTransfers.label))
+    expect(buildActualImportPayload(journal, answers).errors).toContain(
+      getActualTransferCategoryError(carTransfers.label),
+    )
   })
 
   it('answers the categories a budget tracks even where no row uses them', async () => {
@@ -274,13 +326,19 @@ describe('Actual Budget import payload', () => {
     const { journal } = await normaliseActualFixture('yen')
     const answers = { ...createAnswers(journal, 'CAD'), fileCurrency: 'JPY' }
 
-    expect(buildActualImportPayload(journal, answers).errors)
-      .toEqual([getActualFileCurrencyError('JPY', journal.accounts.map((account) => account.label))])
+    expect(buildActualImportPayload(journal, answers).errors).toEqual([
+      getActualFileCurrencyError(
+        'JPY',
+        journal.accounts.map((account) => account.label),
+      ),
+    ])
 
     // An existing account counts by its own currency
     const linked = { ...createAnswers(journal, 'JPY'), fileCurrency: 'JPY' }
     linked.accountMappings[journal.accounts[0].id] = CHEQUING.id
-    expect(buildActualImportPayload(journal, linked).errors).toContain(getActualFileCurrencyError('JPY', [journal.accounts[0].label]))
+    expect(buildActualImportPayload(journal, linked).errors).toContain(
+      getActualFileCurrencyError('JPY', [journal.accounts[0].label]),
+    )
   })
 
   it('files payments kept as transfers under the built-in Transfer category when asked', async () => {
@@ -297,11 +355,31 @@ describe('Actual Budget import payload', () => {
 
   it('sends a credit card payment with its category on both legs, under Credit Card Payment, Transfer or a new one', () => {
     const budget = buildActualBudget([
-      { id: 'pay-card', accountId: 'checking', date: '2026-09-01', amount: -10000, payeeId: 'to-savings', transferredId: 'card-paid' },
-      { id: 'card-paid', accountId: 'savings', date: '2026-09-01', amount: 10000, payeeId: 'to-checking', transferredId: 'pay-card' },
+      {
+        id: 'pay-card',
+        accountId: 'checking',
+        date: '2026-09-01',
+        amount: -10000,
+        payeeId: 'to-savings',
+        transferredId: 'card-paid',
+      },
+      {
+        id: 'card-paid',
+        accountId: 'savings',
+        date: '2026-09-01',
+        amount: 10000,
+        payeeId: 'to-checking',
+        transferredId: 'pay-card',
+      },
     ])
     const journal = applyActualCreditPayments(normaliseActualBudget(budget, '2026-09-26'), new Set(['savings']))
-    const creditCardPayment = { id: 'credit-card-payment', name: 'Credit Card Payment', kind: 'transfer', group_id: null, is_system: true } as Category
+    const creditCardPayment = {
+      id: 'credit-card-payment',
+      name: 'Credit Card Payment',
+      kind: 'transfer',
+      group_id: null,
+      is_system: true,
+    } as Category
 
     for (const choice of [creditCardPayment.id, TRANSFER.id, CREATE_CATEGORY_VALUE]) {
       const answers = createAnswers(journal)
@@ -312,10 +390,18 @@ describe('Actual Budget import payload', () => {
       const build = buildActualImportPayload(journal, answers)
       expect(build.errors).toEqual([])
       const [row] = build.payload!.rows
-      expect([row.category, row.category_leg, row.source_name, row.destination_name]).toEqual(['credit-payment:', 'both', null, null])
+      expect([row.category, row.category_leg, row.source_name, row.destination_name]).toEqual([
+        'credit-payment:',
+        'both',
+        null,
+        null,
+      ])
       expect(build.payload!.categories.filter((mapping) => mapping.source === 'credit-payment:')).toEqual([
         choice === CREATE_CATEGORY_VALUE
-          ? { source: 'credit-payment:', create: expect.objectContaining({ name: 'Credit Card Payment', kind: 'transfer' }) }
+          ? {
+              source: 'credit-payment:',
+              create: expect.objectContaining({ name: 'Credit Card Payment', kind: 'transfer' }),
+            }
           : { source: 'credit-payment:', category_id: choice },
       ])
     }
@@ -333,13 +419,33 @@ describe('Actual Budget import payload', () => {
       { id: 'to-receiving', name: '', transferAccountId: 'receiving' },
       { id: 'shop', name: 'Corner Shop', transferAccountId: null },
     ]
-    const journal = normaliseActualBudget(buildActualBudget([
-      { id: 'past', accountId: 'paid-off', date: '2026-09-01', amount: -1000, payeeId: 'shop' },
-      { id: 'future', accountId: 'upcoming', date: '2026-10-01', amount: -1000, payeeId: 'shop' },
-      // Only the sending side is uploaded, so the closed account appears on its row alone
-      { id: 'out', accountId: 'checking', date: '2026-10-01', amount: -2000, payeeId: 'to-receiving', transferredId: 'in' },
-      { id: 'in', accountId: 'receiving', date: '2026-10-01', amount: 2000, payeeId: 'to-checking', transferredId: 'out' },
-    ], { accounts, payees }), '2026-09-26')
+    const journal = normaliseActualBudget(
+      buildActualBudget(
+        [
+          { id: 'past', accountId: 'paid-off', date: '2026-09-01', amount: -1000, payeeId: 'shop' },
+          { id: 'future', accountId: 'upcoming', date: '2026-10-01', amount: -1000, payeeId: 'shop' },
+          // Only the sending side is uploaded, so the closed account appears on its row alone
+          {
+            id: 'out',
+            accountId: 'checking',
+            date: '2026-10-01',
+            amount: -2000,
+            payeeId: 'to-receiving',
+            transferredId: 'in',
+          },
+          {
+            id: 'in',
+            accountId: 'receiving',
+            date: '2026-10-01',
+            amount: 2000,
+            payeeId: 'to-checking',
+            transferredId: 'out',
+          },
+        ],
+        { accounts, payees },
+      ),
+      '2026-09-26',
+    )
     const build = buildActualImportPayload(journal, createAnswers(journal))
 
     expect(build.errors).toEqual([])
@@ -398,7 +504,10 @@ describe('Actual Budget import payload', () => {
     const { journal } = await normaliseActualFixture('edges')
     const partId = '0c6a2f4e-9b1d-4e7a-8c3f-5d2e1b0a5e6f'
     const legacyId = `5b0f8e2a-7c4d-4f1b-9e6a-3d2c1b0a1a11/${partId}`
-    const legacy = { ...journal, entries: journal.entries.map((entry, index) => (index === 0 ? { ...entry, transactionId: legacyId } : entry)) }
+    const legacy = {
+      ...journal,
+      entries: journal.entries.map((entry, index) => (index === 0 ? { ...entry, transactionId: legacyId } : entry)),
+    }
     const build = buildActualImportPayload(legacy, createAnswers(legacy))
 
     expect(build.errors).toEqual([])
@@ -407,11 +516,74 @@ describe('Actual Budget import payload', () => {
     expect(sent.endsWith(partId)).toBe(true)
   })
 
-  it('asks for an existing category where a new one\'s name would be too long', async () => {
+  it("asks for an existing category where a new one's name would be too long", async () => {
     const { journal } = await normaliseActualFixture('edges')
     const groceries = journal.categories.find((source) => source.label === 'Groceries')!
-    const long = { ...journal, categories: journal.categories.map((source) => (source === groceries ? { ...source, createName: 'G'.repeat(257) } : source)) }
+    const long = {
+      ...journal,
+      categories: journal.categories.map((source) =>
+        source === groceries ? { ...source, createName: 'G'.repeat(257) } : source,
+      ),
+    }
 
-    expect(buildActualImportPayload(long, createAnswers(long)).errors).toEqual([getActualCategoryNameTooLongError(groceries.label)])
+    expect(buildActualImportPayload(long, createAnswers(long)).errors).toEqual([
+      getActualCategoryNameTooLongError(groceries.label),
+    ])
+  })
+})
+
+describe('the tag answers an Actual Budget import sends', () => {
+  const TRIP = { source: 'Trip', create: { name: 'Trips' } }
+  const SKIPPED = { source: 'Work', skip: true }
+
+  it('lists each tag the transactions carry once, whatever the capitals', async () => {
+    const { journal } = await normaliseActualFixture('edges')
+    const tagged = {
+      ...journal,
+      entries: journal.entries.map((entry, index) => ({
+        ...entry,
+        tags: index < 2 ? ['Trip', 'work'] : index === 2 ? ['TRIP'] : [],
+      })),
+    }
+
+    expect(getActualImportedTags(tagged)).toEqual(['Trip', 'work'])
+  })
+
+  it('carries the answers the user gave', async () => {
+    const { journal } = await normaliseActualFixture('edges')
+    const tagAnswers = {
+      importedTags: ['Trip', 'Work'],
+      matchedTagByKey: new Map(),
+      tagMappings: { Work: SKIP_TAG_VALUE },
+      tagCreateNames: { Trip: 'Trips' },
+    }
+
+    const build = buildActualImportPayload(journal, { ...createAnswers(journal), tagAnswers })
+
+    expect(build.errors).toEqual([])
+    expect(build.payload?.tags).toEqual([TRIP, SKIPPED])
+  })
+
+  it('sends no tag answers where none were asked for', async () => {
+    const { journal } = await normaliseActualFixture('edges')
+
+    expect(buildActualImportPayload(journal, createAnswers(journal)).payload?.tags).toEqual([])
+  })
+
+  it('refuses a tag created under a blank name, before anything is uploaded', async () => {
+    const { journal } = await normaliseActualFixture('edges')
+    const tagAnswers = {
+      importedTags: ['Trip'],
+      matchedTagByKey: new Map(),
+      tagMappings: { Trip: CREATE_TAG_VALUE },
+      tagCreateNames: { Trip: '  ' },
+    }
+
+    const build = buildActualImportPayload(journal, { ...createAnswers(journal), tagAnswers })
+
+    expect(build.payload).toBeNull()
+    expect(build.errors).toContain(
+      'The import can\'t go ahead: the new tag "Trip" has no name. Enter one in Tag matching.',
+    )
   })
 })
