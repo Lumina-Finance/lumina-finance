@@ -41,6 +41,7 @@ import {
   getCsvCategoryRenames,
   getImportedCategoryTypes,
   getImportedCategories,
+  fileRowsUnderAnsweredMerchants,
   getImportedMerchants,
   getImportedTags,
   getImportAccountRowState,
@@ -1053,7 +1054,7 @@ export function useTransactionImportWorkflow(fixedAccount: AccountsOverview | nu
 
   // Built after the payload so both read one decision about which rows can be converted, rather
   // than the preview coercing an unreadable amount to zero beside the entry refusing that row
-  const previewRows = useMemo<PreviewTransactionRow[]>(
+  const sampleRows = useMemo<PreviewTransactionRow[]>(
     () =>
       buildImportPreviewRows({
         files,
@@ -1107,6 +1108,20 @@ export function useTransactionImportWorkflow(fixedAccount: AccountsOverview | nu
     ],
   )
 
+  // The merchant step's answers decide which merchant a row is filed under, so the sample reads
+  // them the way the commit does rather than showing the file's spelling
+  const previewRows = useMemo(
+    () =>
+      fileRowsUnderAnsweredMerchants({
+        rows: sampleRows,
+        importedMerchants,
+        matchedMerchantByKey,
+        merchantMappings,
+        merchantCreateNames,
+        merchantNameById: new Map(merchantOptions.map((option) => [option.value, option.label])),
+      }),
+    [importedMerchants, matchedMerchantByKey, merchantCreateNames, merchantMappings, merchantOptions, sampleRows],
+  )
   const previewGroups = useMemo(() => groupPreviewRowsByDate(previewRows), [previewRows])
 
   const totalRows = files.reduce((sum, file) => sum + file.rows.length, 0)

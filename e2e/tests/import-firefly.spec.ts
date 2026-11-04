@@ -1,6 +1,6 @@
 import { expect, test } from '@playwright/test'
 
-import { signUpUser } from '../support/api'
+import { asUser, signUpUser } from '../support/api'
 import { commitImport, logInViaApi } from '../support/app'
 import { stageFireflyExport } from '../support/firefly'
 import { API_BASE_URL } from '../support/target'
@@ -82,4 +82,24 @@ test('a committed Firefly III import asks no account question while the account 
   await expect(question).toHaveCount(0)
   await expect(page.getByText('No preview rows', { exact: true })).toHaveCount(0)
   release()
+})
+
+test('previews a Firefly III row under the merchant the user already has, whatever capitals the export writes', async ({ page, request }) => {
+  const user = await signUpUser(request)
+  const created = await request.post(`${API_BASE_URL}/merchants`, { headers: asUser(user), data: { name: 'EMPLOYER INC' } })
+  expect(created.status()).toBe(201)
+  await logInViaApi(page, user)
+  await stageFireflyExport(page)
+
+  // The export spells it Employer Inc, and the commit files the salary under the merchant the user has
+  const preview = page.locator('section').filter({ has: page.getByText('Preview and commit', { exact: true }) }).last()
+  await expect(preview).toContainText('EMPLOYER INC')
+  await expect(preview).not.toContainText('Employer Inc')
+
+  const response = await commitImport(page)
+  expect(response.status()).toBe(201)
+  const transactions = await request.get(`${API_BASE_URL}/transactions`, { headers: asUser(user) })
+  const filedUnder = (await transactions.json() as { merchant_name: string }[]).map((transaction) => transaction.merchant_name)
+  expect(filedUnder).toContain('EMPLOYER INC')
+  expect(filedUnder).not.toContain('Employer Inc')
 })

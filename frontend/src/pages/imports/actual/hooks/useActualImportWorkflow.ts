@@ -11,6 +11,7 @@ import {
   IMPORT_TRANSFER_CATEGORY_NAME,
 } from '@/pages/imports/constants'
 import {
+  useFiledPreviewMerchants,
   useImportAccountCreateState,
   useImportBudgetSelection,
   useProviderAccountAnswers,
@@ -480,7 +481,7 @@ export function useActualImportWorkflow() {
     }
   }, [effectiveJournal.entries, skippedTransactionIds])
 
-  const previewRows = useMemo(
+  const sampleRows = useMemo(
     () =>
       buildActualPreviewRows(
         effectiveJournal,
@@ -519,6 +520,7 @@ export function useActualImportWorkflow() {
     ],
   )
 
+  const previewRows = useFiledPreviewMerchants(sampleRows)
   const previewGroups = useMemo(() => groupPreviewRowsByDate(previewRows), [previewRows])
 
   // A source answered create is counted only while the import sends it

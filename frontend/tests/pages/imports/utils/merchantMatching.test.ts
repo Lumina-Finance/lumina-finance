@@ -1,13 +1,17 @@
 /**
  * Tests what the merchant step sends for each merchant name in a file: only the values answered
- * differently from what the commit would do without being asked
+ * differently from what the commit would do without being asked, and that the preview shows each
+ * row under the merchant the commit files it under
  */
 import { describe, expect, it } from 'vitest'
 import type { Merchant } from '@/api/merchants'
-import { CREATE_MERCHANT_VALUE, SKIP_MERCHANT_VALUE } from '@/pages/imports/constants'
+import { CREATE_MERCHANT_VALUE, SKIP_MERCHANT_VALUE, UNKNOWN_MERCHANT_NAME } from '@/pages/imports/constants'
 import {
   buildImportAnswerScope,
   buildImportMerchantMappings,
+  buildPreviewTransactionRow,
+  fileRowsUnderAnsweredMerchants,
+  fileRowsUnderMatchedMerchants,
   getImportedMerchants,
   getImportMerchantRowState,
   readNameAnswers,
@@ -234,5 +238,117 @@ describe('the merchant names a file offers to answer', () => {
     const merchants = getImportedMerchants([file], 'Merchant')
     expect(merchants).toHaveLength(2)
     expect(merchants).toEqual(expect.arrayContaining(['ΟΔΟΣ', 'οδος']))
+  })
+})
+
+describe('the merchant a preview row is shown under', () => {
+  const AMAZON: Merchant = { ...CORNER_CAFE, id: 'amazon', name: 'Amazon' }
+  const AMAZON_ROW_MATCHES = new Map([['amazon', AMAZON]])
+  const NO_ANSWERS = { importedMerchants: ['AMAZON'], merchantMappings: {}, merchantCreateNames: {} }
+
+  /** Builds the sample's rows from the merchant names the file gives them, a null one stating none */
+  function buildRows(names: (string | null)[]) {
+    return names.map((merchantName, index) =>
+      buildPreviewTransactionRow({
+        id: `row-${index}`,
+        account: { id: 'account-1', name: 'Chequing', currency: 'CAD', institution: null },
+        category: undefined,
+        dt: '2026-03-15',
+        amount: -1250,
+        merchantName,
+        notes: null,
+        counterpartyAccount: null,
+        counterpartyScope: null,
+        tagNames: [],
+        timestamp: '2026-03-15T00:00:00Z',
+      }),
+    )
+  }
+
+  const namesOf = (rows: ReturnType<typeof buildRows>) => rows.map((row) => row.transaction.merchant_name)
+
+  describe('where the commit matches the name unasked', () => {
+    it('reads the existing merchant for a name spelled in other capitals', () => {
+      const rows = fileRowsUnderMatchedMerchants(buildRows(['AMAZON', 'amazon']), AMAZON_ROW_MATCHES)
+      expect(namesOf(rows)).toEqual(['Amazon', 'Amazon'])
+    })
+
+    it('reads a name matching nothing as the file gives it', () => {
+      const rows = fileRowsUnderMatchedMerchants(buildRows(['Brand New Shop']), AMAZON_ROW_MATCHES)
+      expect(namesOf(rows)).toEqual(['Brand New Shop'])
+    })
+
+    it('reads every spelling of a new merchant as the first one, as the commit creates it', () => {
+      const rows = fileRowsUnderMatchedMerchants(buildRows(['NEW SHOP', 'New Shop', 'new shop']), new Map())
+      expect(namesOf(rows)).toEqual(['NEW SHOP', 'NEW SHOP', 'NEW SHOP'])
+    })
+
+    it('leaves a row stating no merchant alone', () => {
+      expect(namesOf(fileRowsUnderMatchedMerchants(buildRows([null]), AMAZON_ROW_MATCHES))).toEqual([null])
+    })
+  })
+
+  describe('where the merchant step has been answered', () => {
+    function fileUnder(
+      names: (string | null)[],
+      answers: Partial<Parameters<typeof fileRowsUnderAnsweredMerchants>[0]>,
+    ) {
+      return namesOf(
+        fileRowsUnderAnsweredMerchants({
+          rows: buildRows(names),
+          matchedMerchantByKey: AMAZON_ROW_MATCHES,
+          merchantNameById: new Map([[CORNER_CAFE.id, CORNER_CAFE.name]]),
+          ...NO_ANSWERS,
+          ...answers,
+        }),
+      )
+    }
+
+    it('reads the merchant a name already matches when it is left alone', () => {
+      expect(fileUnder(['AMAZON', 'amazon'], {})).toEqual(['Amazon', 'Amazon'])
+    })
+
+    it('reads a new merchant under the name the file gives it', () => {
+      expect(
+        fileUnder(['Brand New Shop'], { importedMerchants: ['Brand New Shop'], matchedMerchantByKey: new Map() }),
+      ).toEqual(['Brand New Shop'])
+    })
+
+    it('reads the name the user wrote for a corrected name, on every spelling of it', () => {
+      const answers = {
+        merchantMappings: { AMAZON: CREATE_MERCHANT_VALUE },
+        merchantCreateNames: { AMAZON: 'Amazon Prime' },
+      }
+      expect(fileUnder(['amazon', 'AMAZON'], answers)).toEqual(['Amazon Prime', 'Amazon Prime'])
+    })
+
+    it('reads a name typed for a value nothing matches as the new merchant, though its dropdown was never opened', () => {
+      const answers = {
+        importedMerchants: ['SQ *COFFEE 4471'],
+        matchedMerchantByKey: new Map(),
+        merchantCreateNames: { 'SQ *COFFEE 4471': 'Corner Cafe' },
+      }
+      expect(fileUnder(['SQ *COFFEE 4471'], answers)).toEqual(['Corner Cafe'])
+    })
+
+    it('reads the merchant the user chose', () => {
+      expect(fileUnder(['AMAZON'], { merchantMappings: { AMAZON: CORNER_CAFE.id } })).toEqual(['Corner Cafe'])
+    })
+
+    it('reads the merchant the app stamps on a name the user skipped', () => {
+      expect(fileUnder(['AMAZON'], { merchantMappings: { AMAZON: SKIP_MERCHANT_VALUE } })).toEqual([
+        UNKNOWN_MERCHANT_NAME,
+      ])
+    })
+
+    it('reads the matched merchant for a create answer that keeps the file name in other capitals', () => {
+      // The commit reuses a merchant held under a name in any capitals rather than writing a second
+      const answers = { merchantMappings: { AMAZON: CREATE_MERCHANT_VALUE } }
+      expect(fileUnder(['AMAZON'], answers)).toEqual(['Amazon'])
+    })
+
+    it('leaves a row the step does not ask about as it is', () => {
+      expect(fileUnder([null, 'Unknown merchant'], {})).toEqual([null, 'Unknown merchant'])
+    })
   })
 })

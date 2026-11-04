@@ -7,6 +7,7 @@ import {
   IMPORT_TRANSFER_CATEGORY_NAME,
 } from '@/pages/imports/constants'
 import {
+  useFiledPreviewMerchants,
   useImportAccountCreateState,
   useImportBudgetSelection,
   useProviderAccountAnswers,
@@ -334,7 +335,7 @@ export function useFireflyImportWorkflow() {
   )
   const tagStep = useProviderTagAnswers(importedTags, tagAnswerState)
 
-  const previewRows = useMemo(
+  const sampleRows = useMemo(
     () =>
       buildFireflyPreviewRows({
         tagAnswers: tagStep.previewTagAnswers,
@@ -371,6 +372,7 @@ export function useFireflyImportWorkflow() {
     ],
   )
 
+  const previewRows = useFiledPreviewMerchants(sampleRows)
   const previewGroups = useMemo(() => groupPreviewRowsByDate(previewRows), [previewRows])
 
   const importBuild = useMemo(
