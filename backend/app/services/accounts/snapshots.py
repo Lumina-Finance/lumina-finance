@@ -124,6 +124,29 @@ def _snapshot_lock_key(account_id: uuid.UUID) -> int:
     return int.from_bytes(digest, byteorder="big", signed=True)
 
 
+def refuse_unstorable_balance(account_name: str, balance: int) -> None:
+    """Refuse a balance, or a single amount, outside the range the column holds
+
+    Args:
+        account_name: Account the balance belongs to, named in the refusal
+        balance: Balance or amount in minor units
+
+    Raises:
+        HTTPException: The value is outside the signed 64-bit range
+    """
+    if MIN_MINOR_UNITS <= balance <= MAX_MINOR_UNITS:
+        return
+
+    # A hugely negative balance is not a "larger" one, so each direction gets its own wording
+    limit_wording = (
+        "a larger balance than an account can hold" if balance > MAX_MINOR_UNITS else "a balance further below zero than an account can hold"
+    )
+    raise HTTPException(
+        status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+        detail=f"{account_name} would end up with {limit_wording}",
+    )
+
+
 async def _recompute_account_snapshots_from(
     db: AsyncSession,
     account_id: uuid.UUID,
@@ -170,16 +193,7 @@ async def _recompute_account_snapshots_from(
         # then fail as a server error instead of a refusal the caller can show
         if not MIN_MINOR_UNITS <= running_balance <= MAX_MINOR_UNITS:
             account_name = await db.scalar(select(Account.name).where(Account.id == account_id))
-            # A hugely negative balance is not a "larger" one, so each direction gets its own wording
-            limit_wording = (
-                "a larger balance than an account can hold"
-                if running_balance > MAX_MINOR_UNITS
-                else "a balance further below zero than an account can hold"
-            )
-            raise HTTPException(
-                status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
-                detail=f"{account_name} would end up with {limit_wording}",
-            )
+            refuse_unstorable_balance(account_name, running_balance)
         db.add(
             AccountBalanceSnapshot(
                 account_id=account_id,

@@ -13,7 +13,11 @@ from app.models.category import Category
 from app.models.merchant import Merchant
 from app.models.transaction import Transaction
 from app.models.user import User
-from app.services.accounts.snapshots import get_current_balances, recompute_account_snapshots
+from app.services.accounts.snapshots import (
+    get_current_balances,
+    recompute_account_snapshots,
+    refuse_unstorable_balance,
+)
 from app.services.merchants.defaults import SELF_MERCHANT_NAME
 
 _BALANCE_ADJUSTMENT_CATEGORY_NAME = "Balance Adjustment"
@@ -39,8 +43,11 @@ async def add_account_starting_balance_adjustment(
         adjustment_date: Date used for the adjustment transaction
 
     Raises:
-        HTTPException: Balance adjustment category or the Myself merchant is not configured
+        HTTPException: The amount is outside the range an account balance can hold, or the balance
+            adjustment category or the Myself merchant is not configured
     """
+    # A new account holds nothing else, so the amount is its whole balance
+    refuse_unstorable_balance(account.name, amount)
     db.add(
         Transaction(
             created_by_user_id=user_id,
