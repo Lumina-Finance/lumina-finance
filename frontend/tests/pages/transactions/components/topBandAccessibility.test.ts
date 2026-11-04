@@ -48,6 +48,19 @@ function render({
   )
 }
 
+const FX = { state: 'complete' as const, missing_pairs: [] }
+const GENUINE_OVERVIEW: TransactionsOverview = {
+  total_inflow: 0,
+  total_outflow: -4250,
+  net_flow_fx_status: FX,
+  outliers: [],
+  outliers_fx_status: FX,
+  top_categories: [],
+  top_categories_fx_status: FX,
+  daily_cash_flow: [],
+  daily_cash_flow_fx_status: FX,
+}
+
 const HIDDEN_WRAPPER = '<div inert="" aria-hidden="true">'
 
 describe('transaction summary content accessibility', () => {
@@ -58,11 +71,19 @@ describe('transaction summary content accessibility', () => {
     expect(markup.indexOf('Outlier edit action')).toBeGreaterThan(markup.indexOf(HIDDEN_WRAPPER))
   })
 
-  it('preserves the loading presentation', () => {
+  it('hides sample content while the first summary loads', () => {
     const markup = render({ loading: true })
-    expect(markup).not.toContain(HIDDEN_WRAPPER)
     expect(markup).toContain('Loading transaction summary')
     expect(markup).not.toContain('No transaction data')
+    expect(markup).toContain(HIDDEN_WRAPPER)
+    expect(markup.indexOf('Outlier edit action')).toBeGreaterThan(markup.indexOf(HIDDEN_WRAPPER))
+  })
+
+  it('keeps cached genuine data accessible while a refresh loads', () => {
+    const markup = render({ loading: true, overview: GENUINE_OVERVIEW })
+    expect(markup).toContain('Loading transaction summary')
+    expect(markup).not.toContain(HIDDEN_WRAPPER)
+    expect(markup).toContain('Outlier edit action')
   })
 
   it('retains failure protection and an accessible sibling retry action', () => {
@@ -74,20 +95,7 @@ describe('transaction summary content accessibility', () => {
   })
 
   it('keeps genuine summary data accessible', () => {
-    const fx = { state: 'complete' as const, missing_pairs: [] }
-    const markup = render({
-      overview: {
-        total_inflow: 0,
-        total_outflow: -4250,
-        net_flow_fx_status: fx,
-        outliers: [],
-        outliers_fx_status: fx,
-        top_categories: [],
-        top_categories_fx_status: fx,
-        daily_cash_flow: [],
-        daily_cash_flow_fx_status: fx,
-      },
-    })
+    const markup = render({ overview: GENUINE_OVERVIEW })
     expect(markup).not.toContain(HIDDEN_WRAPPER)
     expect(markup).toContain('Outlier edit action')
     expect(markup).not.toContain('No transaction data')

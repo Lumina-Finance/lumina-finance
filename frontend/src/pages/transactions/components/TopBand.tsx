@@ -85,6 +85,10 @@ export default function TransactionsTopBand({
     rangeLabel,
   })
 
+  // Sample content is hidden from assistive technology and the tab order whenever it stands in for missing
+  // data, including while that data loads, so it never reads as the user's own transactions
+  const isContentHidden = overviewState.kind === 'failed' || !hasOverviewData
+
   // Placeholders preserve chart geometry only when the whole top band is under the empty overlay
   const inflow = hasNetFlowData ? overview!.total_inflow! : PLACEHOLDER_FLOW.total_inflow
   const outflow = hasNetFlowData ? overview!.total_outflow! : PLACEHOLDER_FLOW.total_outflow
@@ -202,10 +206,7 @@ export default function TransactionsTopBand({
         </div>
       )}
 
-      <div
-        inert={overviewState.kind === 'failed' || (!showLoading && !hasOverviewData) ? true : undefined}
-        aria-hidden={overviewState.kind === 'failed' || (!showLoading && !hasOverviewData) ? true : undefined}
-      >
+      <div inert={isContentHidden ? true : undefined} aria-hidden={isContentHidden ? true : undefined}>
         <TopBandDivider className="mb-3" />
         <motion.div
           animate={metricsBandHeight === null ? undefined : { height: metricsBandHeight }}
