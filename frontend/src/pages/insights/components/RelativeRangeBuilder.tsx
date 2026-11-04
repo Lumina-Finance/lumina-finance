@@ -119,6 +119,9 @@ export function RelativeRangeBuilder({
             {option.value === qualifier && (
               <motion.span
                 layoutId={`${groupId}-qualifier`}
+                // The builder moves when the line of dates above it appears or goes, and the highlight
+                // must not animate that shift as if it had changed segment
+                layoutDependency={qualifier}
                 className="app-range-seg-thumb"
                 transition={thumbTransition}
               />
