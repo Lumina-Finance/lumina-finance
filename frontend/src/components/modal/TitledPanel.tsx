@@ -137,7 +137,7 @@ export function ModalTitledPanel({
       closeDisabled={closeDisabled}
       onExitComplete={onExitComplete}
     >
-      {RailIcon && railLabel && <ModalRail level={level} Icon={RailIcon} label={railLabel} />}
+      {RailIcon && railLabel && <ModalRail level={level} Icon={RailIcon} label={railLabel} insetClassName="pl-4" />}
 
       {/* Fields go in a form so Enter submits them. A panel that only manages things through their own
           controls has nothing to submit, and a form there would announce one that does nothing */}
