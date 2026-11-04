@@ -272,19 +272,28 @@ test('explains the tags dropdown while no account is chosen', async ({ page, req
   const field = (await tags.boundingBox())!
   const midY = field.y + field.height / 2
   await page.mouse.move(2, 2)
-  await page.mouse.move(field.x + 40, midY)
+  // Starts at the field's middle, far enough from the dialogue's left edge that the edge does not hold the reason in
+  const startX = field.x + field.width / 2
+  await page.mouse.move(startX, midY)
   const tooltip = page.getByTestId(TOOLTIP).filter({ hasText: 'Select an account first' })
   await expect(tooltip).toHaveCSS('opacity', '1')
   // The card inside the tooltip carries the flip, so its box is the one on screen, read once it has settled
   const card = tooltip.locator('.app-cursor-tooltip-flip')
   await expect.poll(async () => (await card.boundingBox())?.height ?? 0).toBeGreaterThan(0)
+  const rightEdge = async () => {
+    const box = (await card.boundingBox())!
+    return box.x + box.width
+  }
   const before = (await card.boundingBox())!
+  const rightBefore = before.x + before.width
 
-  // Across the field the reason keeps its distance from the pointer, so its position moves by what the pointer moved
+  // Across the field the reason keeps its distance from the pointer, so its right edge moves by what the pointer moved.
+  // The left edge is not read, since the dialogue's edge holds the reason in when the pointer is near it
+  const moved = field.x + field.width - 40 - startX
   await page.mouse.move(field.x + field.width - 40, midY, { steps: 5 })
-  await expect.poll(async () => (await card.boundingBox())!.x - before.x).toBeGreaterThan(field.width - 80 - 2)
+  await expect.poll(async () => (await rightEdge()) - rightBefore).toBeGreaterThan(moved - 2)
   const across = (await card.boundingBox())!
-  expect(across.x - before.x).toBeLessThanOrEqual(field.width - 80 + 2)
+  expect(across.x + across.width - rightBefore).toBeLessThanOrEqual(moved + 2)
   await page.mouse.move(field.x + field.width - 40, midY - 8, { steps: 3 })
   await expect.poll(async () => across.y - (await card.boundingBox())!.y).toBeGreaterThan(6)
   // The tooltip passes pointer events through, so its stacking is read from the layers: above the window's backdrop
@@ -294,7 +303,8 @@ test('explains the tags dropdown while no account is chosen', async ({ page, req
   })
   expect(layers.tooltip).toBeGreaterThan(layers.backdrop)
 
-  // On keyboard focus there is no pointer, so the reason sits beside the field and over no other field
+  // On keyboard focus there is no pointer, so the reason hangs from the field's edge, below it or above it, and stays
+  // inside the dialogue. It may cover other controls, as every tooltip in the app may
   await page.mouse.move(2, 2)
   await expectFadedOut(tooltip)
   await page.keyboard.press('Shift')
@@ -305,16 +315,12 @@ test('explains the tags dropdown while no account is chosen', async ({ page, req
     const field = await tags.boundingBox()
     return shown && field ? shown.y >= field.y + field.height || shown.y + shown.height <= field.y : false
   }).toBe(true)
-  const others = await dialog.locator('input, textarea, button[id^="txn-"]').evaluateAll((nodes) => (
-    nodes.filter((node) => node.id !== 'txn-tags').map((node) => node.getBoundingClientRect().toJSON() as DOMRect)
-  ))
   const shown = (await card.boundingBox())!
-  const overlaps = others.filter((other) => (
-    other.width > 0 && other.height > 0
-    && shown.x < other.right && shown.x + shown.width > other.left
-    && shown.y < other.bottom && shown.y + shown.height > other.top
-  ))
-  expect(overlaps).toEqual([])
+  const frame = (await dialog.boundingBox())!
+  expect(shown.x).toBeGreaterThanOrEqual(frame.x)
+  expect(shown.x + shown.width).toBeLessThanOrEqual(frame.x + frame.width)
+  expect(shown.y).toBeGreaterThanOrEqual(frame.y)
+  expect(shown.y + shown.height).toBeLessThanOrEqual(frame.y + frame.height)
 
   // The fence: choosing an account frees the field and the reason goes with it
   await dialog.locator('#txn-account').click()

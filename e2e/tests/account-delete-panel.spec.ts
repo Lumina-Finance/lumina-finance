@@ -274,6 +274,24 @@ async function readFocusRing(control: Locator) {
   })
 }
 
+/** Wait until the control and every box that clips it have the same edges on two reads in a row */
+async function waitUntilStill(control: Locator) {
+  let previous = ''
+  await expect.poll(async () => {
+    const edges = await control.evaluate((element) => {
+      const boxes = [element.getBoundingClientRect()]
+      for (let node = element.parentElement; node; node = node.parentElement) {
+        const { overflowX, overflowY } = getComputedStyle(node)
+        if (overflowX !== 'visible' || overflowY !== 'visible') boxes.push(node.getBoundingClientRect())
+      }
+      return JSON.stringify(boxes)
+    })
+    const isStill = edges === previous
+    previous = edges
+    return isStill
+  }).toBe(true)
+}
+
 test('shows the whole focus ring on Archive instead, with room around its icon and label', async ({ page, request }) => {
   const user = await signUpUser(request)
   const account = await createAccount(request, user, { name: ACCOUNT_NAME })
@@ -291,6 +309,9 @@ test('shows the whole focus ring on Archive instead, with room around its icon a
     await expect(archiveInstead, `focus at ${at}`).toBeFocused()
 
     await expect.poll(async () => (await readFocusRing(archiveInstead)).isDrawn, { message: `ring drawn at ${at}` }).toBe(true)
+    // The panel grows in, and the boxes around the button clip it until it has finished, so the ring is read
+    // once the button and every clipping box around it have stopped moving
+    await waitUntilStill(archiveInstead)
     const ring = await readFocusRing(archiveInstead)
     expect.soft(ring.isCut, `ring cut off at ${at}`).toBe(false)
     for (const [side, gap] of Object.entries(ring.gap)) {
