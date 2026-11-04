@@ -1,4 +1,5 @@
 """Account balance adjustment helpers"""
+
 import uuid
 from datetime import date
 
@@ -40,17 +41,19 @@ async def add_account_starting_balance_adjustment(
     Raises:
         HTTPException: Balance adjustment category or the Myself merchant is not configured
     """
-    db.add(Transaction(
-        created_by_user_id=user_id,
-        account_id=account.id,
-        dt=adjustment_date,
-        category_id=await _get_system_balance_adjustment_category_id(db),
-        merchant_id=await _get_self_merchant_id(db),
-        amount=amount,
-        currency=account.currency,
-        fx_rate=None,
-        notes=_STARTING_BALANCE_NOTE,
-    ))
+    db.add(
+        Transaction(
+            created_by_user_id=user_id,
+            account_id=account.id,
+            dt=adjustment_date,
+            category_id=await _get_system_balance_adjustment_category_id(db),
+            merchant_id=await _get_self_merchant_id(db),
+            amount=amount,
+            currency=account.currency,
+            fx_rate=None,
+            notes=_STARTING_BALANCE_NOTE,
+        )
+    )
     await db.flush()
     await recompute_account_snapshots(db, {account.id: adjustment_date})
 
@@ -67,9 +70,7 @@ async def has_transactions_after(db: AsyncSession, account_id: uuid.UUID, after_
         True when at least one transaction is dated after the date
     """
     later_transaction_id = await db.scalar(
-        select(Transaction.id)
-        .where(Transaction.account_id == account_id, Transaction.dt > after_date)
-        .limit(1),
+        select(Transaction.id).where(Transaction.account_id == account_id, Transaction.dt > after_date).limit(1),
     )
     return later_transaction_id is not None
 
@@ -130,18 +131,20 @@ async def zero_account_balance_for_archive(
     if current_balance == 0:
         return False
 
-    db.add(Transaction(
-        created_by_user_id=user.id,
-        account_id=account.id,
-        dt=archive_date,
-        category_id=await _get_system_balance_adjustment_category_id(db),
-        merchant_id=await _get_self_merchant_id(db),
-        amount=-current_balance,
-        currency=account.currency,
-        fx_rate=None,
-        notes=_ARCHIVE_BALANCE_ADJUSTMENT_NOTE,
-        import_run_id=import_run_id,
-    ))
+    db.add(
+        Transaction(
+            created_by_user_id=user.id,
+            account_id=account.id,
+            dt=archive_date,
+            category_id=await _get_system_balance_adjustment_category_id(db),
+            merchant_id=await _get_self_merchant_id(db),
+            amount=-current_balance,
+            currency=account.currency,
+            fx_rate=None,
+            notes=_ARCHIVE_BALANCE_ADJUSTMENT_NOTE,
+            import_run_id=import_run_id,
+        )
+    )
     await db.flush()
     await recompute_account_snapshots(db, {account.id: archive_date})
     return True
