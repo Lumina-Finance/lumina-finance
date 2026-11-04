@@ -3,10 +3,10 @@ import { expect, test, type Page } from '@playwright/test'
 import { signUpUser } from '../support/api'
 import { logInViaApi, openPage } from '../support/app'
 
-// Runs on desktop only: it sets the one width it checks itself with page.setViewportSize
+// Runs on desktop only: it sets the width it checks itself with page.setViewportSize, and the touch screen block adds a phone
 
-async function openPicker(page: Page, request: Parameters<typeof signUpUser>[0]) {
-  await page.setViewportSize({ width: 1280, height: 800 })
+async function openPicker(page: Page, request: Parameters<typeof signUpUser>[0], size = { width: 1280, height: 800 }) {
+  await page.setViewportSize(size)
   const user = await signUpUser(request)
   await logInViaApi(page, user)
   await openPage(page, '/settings#categories')
@@ -56,6 +56,21 @@ test('focuses the search box when the panel is opened with the keyboard, and Esc
   await page.keyboard.press('Escape')
   await expect(panel).toHaveCount(0)
   await expect(button).toBeFocused()
+})
+
+test.describe('on a touch screen', () => {
+  test.use({ isMobile: true, hasTouch: true })
+
+  test('focuses the search box when the panel opens, so typing filters at once', async ({ page, request }) => {
+    const { panel } = await openPicker(page, request, { width: 390, height: 844 })
+    const search = panel.getByRole('searchbox')
+    await expect(search).toBeFocused()
+
+    await page.keyboard.type('dog')
+
+    await expect(search).toHaveValue('dog')
+    await expect(panel.getByRole('button', { name: '🐶', exact: true })).toBeVisible()
+  })
 })
 
 test('closes the emoji panel on Escape and leaves the form open', async ({ page, request }) => {
