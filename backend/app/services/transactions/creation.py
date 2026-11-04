@@ -8,7 +8,7 @@ from app.models.transaction_link import TransactionLink
 from app.models.user import User
 from app.permissions import check_account_access
 from app.schemas.transaction import CreateTransactionRequest, TransactionResponse
-from app.services.accounts.snapshots import recompute_account_snapshots
+from app.services.accounts.snapshots import recompute_account_snapshots, refuse_unstorable_balance
 from app.services.cache_state import mark_cache_changed_for_scope
 from app.services.transactions.accounts import (
     validate_transaction_account_is_not_archived,
@@ -54,6 +54,7 @@ async def create_transaction_and_get_response(
         lock_against_delete=True,
     )
     validate_transaction_account_is_not_archived(account)
+    refuse_unstorable_balance(account.name, data.amount)
 
     # Check currency and account currency inputs before any transaction row is inserted
     await validate_transaction_currency_exists(db, data.currency)

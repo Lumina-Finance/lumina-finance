@@ -13,6 +13,7 @@ from app.models.transaction import Transaction
 from app.models.user import User
 from app.permissions import check_account_access, check_transaction_access
 from app.schemas.transaction import TransactionResponse, UpdateTransactionRequest
+from app.services.accounts.snapshots import refuse_unstorable_balance
 from app.services.cache_state import mark_cache_changed_for_scope
 from app.services.categories.transfer_rules import does_category_record_counterparty_account
 from app.services.transactions.accounts import (
@@ -96,6 +97,10 @@ async def update_transaction_and_get_response(
         if new_account.id != txn.account_id:
             validate_transaction_move_keeps_currency(txn.currency, new_account.currency)
         await _refuse_move_into_held_bank_transaction(db, txn, new_account)
+
+    # The amount lands on the account the transaction ends up in
+    if changed_fields.get("amount") is not None:
+        refuse_unstorable_balance((new_account or current_account).name, changed_fields["amount"])
 
     # Confirm changed category and merchant records belong to the selected account group
     if "category_id" in changed_fields:
