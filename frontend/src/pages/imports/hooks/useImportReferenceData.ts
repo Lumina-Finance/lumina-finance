@@ -114,37 +114,19 @@ export function useImportReferenceData(): ImportReferenceData {
   // import, so both are left out of every source rows are written to. A transfer's counterparty is
   // the one place they stay offerable, since recording it writes nothing to the account and the
   // transfer usually predates the archiving
-  const selectableAccounts = useMemo(
-    () => accounts.filter((account) => isImportableAccount(account)),
-    [accounts],
-  )
+  const selectableAccounts = useMemo(() => accounts.filter((account) => isImportableAccount(account)), [accounts])
 
-  const accountOptions = useMemo(
-    () => buildImportAccountOptions(selectableAccounts),
-    [selectableAccounts],
-  )
+  const accountOptions = useMemo(() => buildImportAccountOptions(selectableAccounts), [selectableAccounts])
 
-  const currencyOptions = useMemo(
-    () => buildImportCurrencyOptions(currencies),
-    [currencies],
-  )
+  const currencyOptions = useMemo(() => buildImportCurrencyOptions(currencies), [currencies])
 
-  const institutionOptions = useMemo(
-    () => buildImportInstitutionOptions(institutions),
-    [institutions],
-  )
+  const institutionOptions = useMemo(() => buildImportInstitutionOptions(institutions), [institutions])
 
-  const categoryMatchOptions = useMemo(
-    () => buildImportCategoryMatchOptions(categories),
-    [categories],
-  )
+  const categoryMatchOptions = useMemo(() => buildImportCategoryMatchOptions(categories), [categories])
 
   // Every account, not only the selectable ones, or a transfer recording an archived or read-only
   // counterparty would preview with no name against it
-  const accountById = useMemo(
-    () => new Map(accounts.map((account) => [account.id, account])),
-    [accounts],
-  )
+  const accountById = useMemo(() => new Map(accounts.map((account) => [account.id, account])), [accounts])
 
   const categoryById = useMemo(
     () => new Map((categories ?? []).map((category) => [category.id, category])),
