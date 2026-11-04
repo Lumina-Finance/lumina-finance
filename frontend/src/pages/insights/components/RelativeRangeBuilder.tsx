@@ -167,10 +167,7 @@ export function RelativeRangeBuilder({
                 type="button"
                 role="option"
                 aria-selected={value === unit}
-                className={joinClassNames(
-                  'app-range-unit-option',
-                  value === unit && 'app-range-unit-option-active',
-                )}
+                className={joinClassNames('app-range-unit-option', value === unit && 'app-range-unit-option-active')}
                 onClick={() => selectUnit(value)}
               >
                 {formatUnitLabel(value, usePlural)}
