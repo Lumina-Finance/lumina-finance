@@ -87,8 +87,15 @@ export interface ImportReferenceData {
 /**
  * Loads the accounts, currencies, institutions and categories both import flows resolve their
  * mappings against, and derives the dropdown options and by-id lookup maps every mapping step needs
+ *
+ * @param isImportFinished - Whether the import has run, and if so the account list counts as in hand
+ *   whatever it is doing. A finished import is a record of what it did, and the list it refetches
+ *   because of its own commit would otherwise take back the create-new answers it was run with
+ *   until the request lands, leaving the preview asking for accounts again
  */
-export function useImportReferenceData(): ImportReferenceData {
+export function useImportReferenceData({
+  isImportFinished = false,
+}: { isImportFinished?: boolean } = {}): ImportReferenceData {
   const {
     data: accounts = [],
     isLoading: accountsLoading,
@@ -154,7 +161,7 @@ export function useImportReferenceData(): ImportReferenceData {
     // failed, and a query switched off, and holds its earlier value when a later refetch fails
     accountsResolved: accountsUpdatedAt > 0,
     categoriesResolved: categoriesUpdatedAt > 0,
-    accountsCurrent: accountsUpdatedAt > 0 && !accountsFetching && !accountsError,
+    accountsCurrent: isImportFinished || (accountsUpdatedAt > 0 && !accountsFetching && !accountsError),
     refetchAccounts: refetchAccountsQuery,
     refetchCategories: refetchCategoriesQuery,
     institutionsLoading,

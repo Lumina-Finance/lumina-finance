@@ -192,7 +192,10 @@ export function useActualImportWorkflow() {
     // The commit files transfer legs and opening balances under these seeded categories
     transferCategory,
     balanceAdjustmentCategory,
-  } = useProviderImportReferenceData({ transferCategoryName: IMPORT_TRANSFER_CATEGORY_NAME })
+  } = useProviderImportReferenceData({
+    transferCategoryName: IMPORT_TRANSFER_CATEGORY_NAME,
+    isImportFinished: run.workflow.importResult !== null,
+  })
 
   // A finished import is a record of what it did, so its answers are guessed without what it created
   const referenceBeforeImport = useReferenceBeforeImport(

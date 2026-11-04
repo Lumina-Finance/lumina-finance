@@ -455,7 +455,7 @@ export function useTransactionImportWorkflow(fixedAccount: AccountsOverview | nu
     accountById,
     categoryById,
     institutionById,
-  } = useImportReferenceData()
+  } = useImportReferenceData({ isImportFinished: run.workflow.importResult !== null })
 
   const supportedCurrencyCodes = useMemo(() => getSupportedCurrencyCodes(currencies), [currencies])
 

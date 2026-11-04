@@ -176,7 +176,10 @@ export function useOfxImportWorkflow(fixedAccount: AccountsOverview | null = nul
     institutionOptions,
     accountById,
     institutionById,
-  } = useProviderImportReferenceData({ transferCategoryName: IMPORT_TRANSFER_CATEGORY_NAME })
+  } = useProviderImportReferenceData({
+    transferCategoryName: IMPORT_TRANSFER_CATEGORY_NAME,
+    isImportFinished: run.workflow.importResult !== null,
+  })
 
   const statements = useMemo(() => (ofxFile ? getOfxStatementsToImport(ofxFile) : []), [ofxFile])
   const supportedCurrencyCodes = useMemo(() => getSupportedCurrencyCodes(currencies), [currencies])

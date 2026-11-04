@@ -162,7 +162,10 @@ export function useFireflyImportWorkflow() {
     // The commit assigns these seeded system categories to transfer legs and balance rows
     transferCategory,
     balanceAdjustmentCategory,
-  } = useProviderImportReferenceData({ transferCategoryName: IMPORT_TRANSFER_CATEGORY_NAME })
+  } = useProviderImportReferenceData({
+    transferCategoryName: IMPORT_TRANSFER_CATEGORY_NAME,
+    isImportFinished: run.workflow.importResult !== null,
+  })
 
   // A finished import is a record of what it did, so its answers are guessed without what it created
   const referenceBeforeImport = useReferenceBeforeImport(
