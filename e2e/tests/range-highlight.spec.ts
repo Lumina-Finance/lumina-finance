@@ -12,7 +12,7 @@ import { logInViaApi, openPage } from '../support/app'
  * appeared and disappeared, since the highlight animated the jump of the segment it sits in
  */
 
-/** How far the highlight reaches outside its own segment right now, which is 0 once it has settled on it */
+/** How far the highlight reaches outside its own segment right now, 0 once it sits on it */
 function reachNow(page: Page): Promise<number> {
   return page.evaluate(() => {
     const thumb = document.querySelector('[aria-label="Relative range type"] .app-range-seg-thumb')!
@@ -64,19 +64,23 @@ test('keeps the This, Last and Past highlight on its segment while the Custom bu
   await head.click()
   await expect(head).toHaveAttribute('aria-expanded', 'true')
 
-  for (const qualifier of ['Past', 'Last', 'This']) {
-    // Open with this qualifier chosen: the builder is folded shut first, then opened by choosing Custom
-    const opening = await chooseAndMeasure(page, 'Custom')
-    // The slow dev host draws few frames in 700ms, but the first ones are where the highlight used to sit low
-    expect(opening.length).toBeGreaterThanOrEqual(3)
-    expect(Math.max(...opening)).toBeLessThanOrEqual(1)
-    // Clicked inside the page, since the floating control can sit under a card that catches a pointer click
-    await page.getByRole('tab', { name: qualifier, exact: true }).filter({ visible: true }).evaluate((node) => (node as HTMLElement).click())
-    await expect.poll(() => reachNow(page)).toBeLessThanOrEqual(1)
-    await expect(page.getByRole('tab', { name: qualifier, exact: true }).filter({ visible: true })).toHaveAttribute('aria-selected', 'true')
+  // The slow dev host draws few frames in 700ms, but the first ones are where the highlight used to sit low
+  const expectOnSegment = (reach: number[]) => {
+    expect(reach.length).toBeGreaterThanOrEqual(3)
+    expect(Math.max(...reach)).toBeLessThanOrEqual(1)
+  }
 
-    const closing = await chooseAndMeasure(page, 'YTD')
-    expect(closing.length).toBeGreaterThanOrEqual(3)
-    expect(Math.max(...closing)).toBeLessThanOrEqual(1)
+  // Past is the builder's default, so the first opening is measured with it. Each qualifier is then chosen with
+  // the builder open, then the builder is folded shut and opened again with the qualifier still chosen
+  expectOnSegment(await chooseAndMeasure(page, 'Custom'))
+  for (const qualifier of ['Past', 'Last', 'This']) {
+    const tab = page.getByRole('tab', { name: qualifier, exact: true }).filter({ visible: true })
+    // Clicked inside the page, since the floating control can sit under a card that catches a pointer click
+    await tab.evaluate((node) => (node as HTMLElement).click())
+    await expect(tab).toHaveAttribute('aria-selected', 'true')
+    await expect.poll(() => reachNow(page)).toBeLessThanOrEqual(1)
+
+    expectOnSegment(await chooseAndMeasure(page, 'YTD'))
+    expectOnSegment(await chooseAndMeasure(page, 'Custom'))
   }
 })
