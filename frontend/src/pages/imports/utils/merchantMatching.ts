@@ -84,6 +84,7 @@ export function buildImportMerchantMappings({
     keepsCapitalCorrections: true,
   })
 }
+
 /**
  * Replaces the merchant name each preview row carries from the file with the one its transaction
  * will be filed under
