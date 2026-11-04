@@ -67,7 +67,8 @@ export const EMOJI_PICKER_STYLES = `
   }
 
   /* .app-dropdown-search: a 36px row with the icon in the first column, no fill, no border of its
-     own, a hairline under it, and no focus ring since focus lands in it as the panel opens */
+     own, a hairline under it, and the focus ring for the field inside it, which takes focus as the
+     panel opens */
   .spacer {
     display: none;
   }

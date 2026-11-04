@@ -1276,10 +1276,10 @@
     font-size: 0.875rem;
   }
 
-  /* Part of the panel rather than a field inside it, so it draws no border, no fill and no ring of
-     its own: the box around it already has all three. Its height is set rather than left to the line
-     box, so a browser with a raised minimum font size cannot make the row taller than the height
-     position.ts worked the list's own share out against */
+  /* Part of the panel rather than a field inside it, so it draws no fill and no box of its own, only
+     a hairline under it, and shows the focus ring for the field inside it, set out below. Its height
+     is set rather than left to the line box, so a browser with a raised minimum font size cannot
+     make the row taller than the height position.ts worked the list's own share out against */
   .app-dropdown-search {
     display: flex;
     align-items: center;
