@@ -1,6 +1,7 @@
 import type { CSSProperties } from 'react'
 import type { Transition } from 'motion/react'
 import { joinClassNames } from '@/utils/classNames'
+import { CONTENT_EASE_CURVE, CONTENT_EASE_MS } from '@/utils/widthEase'
 
 // The collapsed filter pill matches the 44px create and search control height once its 1px glass
 // border is added, so the head fixes its inner height to 42px
@@ -11,10 +12,10 @@ export const FILTER_PILL_HEAD_STYLE: CSSProperties = {
   fontSize: '0.9375rem',
 }
 
-// The panel grows its height on a slower curve than the cross-fade so the content settles after the
-// box has finished expanding
+// The panel opens and closes its height over the app's 300ms, like the rest of the pill. The cross-fade
+// starts a little later, so the content settles just after the box
 export const FILTER_PANEL_BODY_TRANSITION: Transition = {
-  height: { duration: 0.45, ease: [0.22, 1, 0.36, 1] },
+  height: { duration: CONTENT_EASE_MS / 1000, ease: CONTENT_EASE_CURVE },
   opacity: { duration: 0.26, delay: 0.05 },
 }
 

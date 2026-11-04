@@ -90,3 +90,83 @@ for (const list of LISTS) {
     })
   })
 }
+
+// The pills' head and the range selector's custom dates eased over 0.4s, while every other control's look
+// eases over the app's 300ms. Motion is on, since reduced motion zeroes every duration
+test('the pills and the range selector ease over 300ms', async ({ page, request }) => {
+  await page.emulateMedia({ reducedMotion: 'no-preference' })
+  const user = await signUpUser(request)
+  await createAccount(request, user, { name: 'Everyday' })
+  await logInViaApi(page, user)
+
+  const durations = () => page.evaluate(() => {
+    const read = (selector: string, property: string) => [...document.querySelectorAll<HTMLElement>(selector)].map((node) => {
+      const style = getComputedStyle(node)
+      return style.transitionDuration.split(', ')[style.transitionProperty.split(', ').indexOf(property)]
+    })
+    return {
+      heads: read('.app-range-glass-head', 'padding-top'),
+      panels: read('.app-range-glass-bodywrap', 'grid-template-rows'),
+      custom: read('.app-range-custom', 'grid-template-rows'),
+    }
+  })
+
+  for (const path of ['/accounts', '/transactions']) {
+    await openPage(page, path)
+    const { heads } = await durations()
+    expect(heads.length).toBeGreaterThan(0)
+    expect(heads.every((duration) => duration === '0.3s')).toBe(true)
+  }
+
+  await openPage(page, '/insights')
+  const insights = await durations()
+  expect(insights.heads.length).toBeGreaterThan(0)
+  expect(insights.heads.every((duration) => duration === '0.3s')).toBe(true)
+  expect(insights.panels.length).toBeGreaterThan(0)
+  expect(insights.panels.every((duration) => duration === '0.3s')).toBe(true)
+  expect(insights.custom.length).toBeGreaterThan(0)
+  expect(insights.custom.every((duration) => duration === '0.3s')).toBe(true)
+})
+
+// The panel under the Accounts and Transactions pills used to take 0.45s to open fully. The page's clock is
+// faked and stepped, so the reading does not depend on how busy the machine is. A moment after the pill is
+// pressed, the ease-out curve of 300ms has covered more than 95% of the way and that of 450ms only 87%
+const PANEL_CHECK_AT_MS = 150
+const PANEL_ARRIVED_SHARE = 0.92
+
+for (const list of LISTS) {
+  test(`the panel under the ${list.name} pill opens and closes over 300ms`, async ({ page, request }) => {
+    await page.emulateMedia({ reducedMotion: 'no-preference' })
+    await page.clock.install()
+    await openList(page, request, list.path)
+    const pill = page.getByRole('button', { name: list.filters, exact: true })
+    const glass = page.locator('.app-range-glass').filter({ has: pill })
+    await expect(pill).toHaveAttribute('aria-expanded', 'false')
+
+    // Pressing the pill from the page, since a paused clock stops the frames a click waits for
+    await page.clock.pauseAt(new Date(Date.now() + 10_000))
+    const height = () => glass.evaluate((node) => (node.lastElementChild as HTMLElement).getBoundingClientRect().height)
+    const press = () => glass.evaluate((node) => node.querySelector('button')!.click())
+    // The first step starts the motion on its first frame, and the second is the time under test
+    const stepTo = async (ms: number) => {
+      await page.clock.runFor(16)
+      await page.clock.runFor(ms)
+      return height()
+    }
+
+    const closed = await height()
+    expect(closed).toBe(0)
+    await press()
+    const opening = await stepTo(PANEL_CHECK_AT_MS)
+    await page.clock.runFor(1000)
+    const open = await height()
+    expect(open, 'the panel opens').toBeGreaterThan(50)
+    expect((opening - closed) / (open - closed), 'the panel has arrived when opening').toBeGreaterThan(PANEL_ARRIVED_SHARE)
+
+    await press()
+    const closing = await stepTo(PANEL_CHECK_AT_MS)
+    await page.clock.runFor(1000)
+    expect(await height(), 'the panel closes').toBe(0)
+    expect((open - closing) / open, 'the panel has arrived when closing').toBeGreaterThan(PANEL_ARRIVED_SHARE)
+  })
+}

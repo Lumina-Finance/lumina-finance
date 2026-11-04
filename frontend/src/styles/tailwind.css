@@ -1407,7 +1407,7 @@
     font-weight: 500;
     white-space: nowrap;
     color: var(--app-text);
-    transition: padding-top 0.4s var(--app-range-glass-ease);
+    transition: padding-top var(--app-ease-duration) var(--app-range-glass-ease);
   }
 
   /* The bottom-floating mobile control is a primary tap target, so it sits taller and uses the
@@ -1511,7 +1511,7 @@
   .app-range-glass-bodywrap {
     display: grid;
     grid-template-rows: 0fr;
-    transition: grid-template-rows 0.45s var(--app-range-glass-ease);
+    transition: grid-template-rows var(--app-ease-duration) var(--app-range-glass-ease);
   }
 
   .app-range-glass-open .app-range-glass-bodywrap {
@@ -1636,7 +1636,7 @@
   .app-range-custom {
     display: grid;
     grid-template-rows: 0fr;
-    transition: grid-template-rows 0.4s var(--app-range-glass-ease);
+    transition: grid-template-rows var(--app-ease-duration) var(--app-range-glass-ease);
   }
 
   .app-range-custom-open {
