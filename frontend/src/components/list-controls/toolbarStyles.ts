@@ -59,7 +59,10 @@ export function getSearchFieldWrapperClassName(isTopRowAtMenuButton: boolean, de
  * Builds the desktop controls' room for the fixed mobile navigation toggle, which they need only while
  * the toolbar is stuck on one row, the create button then ending the row under the toggle
  */
-export function getDesktopControlsClearanceClassName(isTopRowAtMenuButton: boolean, desktopInlineLayout: boolean): string {
+export function getDesktopControlsClearanceClassName(
+  isTopRowAtMenuButton: boolean,
+  desktopInlineLayout: boolean,
+): string {
   return getMenuButtonClearanceClassName(isTopRowAtMenuButton && desktopInlineLayout)
 }
 
@@ -80,7 +83,5 @@ export function getToolbarStickyRowClass(desktopInlineLayout: boolean): string {
  * above the row
  */
 export function getToolbarStuckShadow(isStuck: boolean): string {
-  return isStuck
-    ? '0 0.25rem 0 var(--app-bg), 0 -1.5rem 0 var(--app-bg)'
-    : '0 0.25rem 0 var(--app-bg)'
+  return isStuck ? '0 0.25rem 0 var(--app-bg), 0 -1.5rem 0 var(--app-bg)' : '0 0.25rem 0 var(--app-bg)'
 }
