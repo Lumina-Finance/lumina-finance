@@ -12,8 +12,5 @@ export function useAccountSections({
   rows: AccountsOverview[]
   filteredRows: AccountsOverview[]
 }) {
-  return useMemo(
-    () => getAccountSections({ rows, filteredRows }),
-    [filteredRows, rows],
-  )
+  return useMemo(() => getAccountSections({ rows, filteredRows }), [filteredRows, rows])
 }

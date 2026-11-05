@@ -35,9 +35,8 @@ export default function AccountListSection({
   const prefersReducedMotion = useReducedMotion()
   const { formatCurrency } = useMoneyFormatters()
   const titleColor = accent === 'positive' ? 'var(--app-positive)' : 'var(--app-negative)'
-  const subtotalColor = accent === 'positive'
-    ? getSignedAmountColor(subtotal)
-    : subtotal < 0 ? 'var(--app-negative)' : 'var(--app-text)'
+  const subtotalColor =
+    accent === 'positive' ? getSignedAmountColor(subtotal) : subtotal < 0 ? 'var(--app-negative)' : 'var(--app-text)'
 
   return (
     <section>
@@ -48,8 +47,7 @@ export default function AccountListSection({
         <div
           className="h-px flex-1"
           style={{
-            background:
-              'linear-gradient(to right, var(--app-border-strong), var(--app-border), transparent)',
+            background: 'linear-gradient(to right, var(--app-border-strong), var(--app-border), transparent)',
           }}
         />
         <span
@@ -95,37 +93,38 @@ export default function AccountListSection({
           )}
         </AnimatePresence>
         <AnimatePresence initial={false}>
-          {!loading && accounts.map((account) => (
-            <motion.div
-              key={account.id}
-              layout={prefersReducedMotion ? false : 'position'}
-              // Without this motion re-measures every row on any re-render, so a change in page
-              // coordinates that has nothing to do with the list moves them: opening a modal below
-              // the fullscreen breakpoint pins the body at its scroll offset, which shifts every
-              // row's page position without moving it on screen, and the rows slide it back. The
-              // array is rebuilt whenever the account data, the filters or the search change, which
-              // covers every moment a row can be added, removed, reordered, or grow a line and push
-              // the rows below it down
-              layoutDependency={accounts}
-              className="overflow-hidden"
-              initial={prefersReducedMotion ? false : { opacity: 0, height: 0 }}
-              animate={{ opacity: 1, height: 'auto' }}
-              exit={prefersReducedMotion ? { opacity: 0 } : { opacity: 0, height: 0 }}
-              transition={{
-                duration: prefersReducedMotion ? 0 : 0.22,
-                ease: ACCOUNT_ROW_EASE,
-                layout: { duration: prefersReducedMotion ? 0 : 0.22, ease: ACCOUNT_ROW_EASE },
-              }}
-            >
-              <AccountRow
-                account={account}
-                accent={accent}
-                showCreditLimit={showCreditLimit}
-                taxAdvantagedCategoryById={taxAdvantagedCategoryById}
-                displayCurrency={displayCurrency}
-              />
-            </motion.div>
-          ))}
+          {!loading &&
+            accounts.map((account) => (
+              <motion.div
+                key={account.id}
+                layout={prefersReducedMotion ? false : 'position'}
+                // Without this motion re-measures every row on any re-render, so a change in page
+                // coordinates that has nothing to do with the list moves them: opening a modal below
+                // the fullscreen breakpoint pins the body at its scroll offset, which shifts every
+                // row's page position without moving it on screen, and the rows slide it back. The
+                // array is rebuilt whenever the account data, the filters or the search change, which
+                // covers every moment a row can be added, removed, reordered, or grow a line and push
+                // the rows below it down
+                layoutDependency={accounts}
+                className="overflow-hidden"
+                initial={prefersReducedMotion ? false : { opacity: 0, height: 0 }}
+                animate={{ opacity: 1, height: 'auto' }}
+                exit={prefersReducedMotion ? { opacity: 0 } : { opacity: 0, height: 0 }}
+                transition={{
+                  duration: prefersReducedMotion ? 0 : 0.22,
+                  ease: ACCOUNT_ROW_EASE,
+                  layout: { duration: prefersReducedMotion ? 0 : 0.22, ease: ACCOUNT_ROW_EASE },
+                }}
+              >
+                <AccountRow
+                  account={account}
+                  accent={accent}
+                  showCreditLimit={showCreditLimit}
+                  taxAdvantagedCategoryById={taxAdvantagedCategoryById}
+                  displayCurrency={displayCurrency}
+                />
+              </motion.div>
+            ))}
         </AnimatePresence>
       </div>
     </section>

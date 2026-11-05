@@ -3,10 +3,7 @@
  * section and the combined FX status cannot drift from the accounts they are built from
  */
 import { describe, expect, it } from 'vitest'
-import {
-  getAccountSections,
-  getCombinedAccountFxStatus,
-} from '@/pages/accounts/utils/accountSections'
+import { getAccountSections, getCombinedAccountFxStatus } from '@/pages/accounts/utils/accountSections'
 import { createAccount } from './fixtures'
 
 describe('account section helpers', () => {

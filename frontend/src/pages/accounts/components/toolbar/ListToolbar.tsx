@@ -37,7 +37,7 @@ export default function AccountListToolbar({
           value={search}
           onValueChange={onSearchChange}
           placeholder="Search accounts..."
-          wrapperClassName={getSearchFieldWrapperClassName(shell.isTopRowAtMenuButton,shell.desktopInlineLayout)}
+          wrapperClassName={getSearchFieldWrapperClassName(shell.isTopRowAtMenuButton, shell.desktopInlineLayout)}
         />
 
         <MobileToolbarActions

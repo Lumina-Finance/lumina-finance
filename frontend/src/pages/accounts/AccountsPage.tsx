@@ -60,11 +60,10 @@ export default function AccountsPage() {
   } = useFilters(rows)
   const accountSections = useAccountSections({ rows, filteredRows })
   const accountMetrics = useAccountsMetrics(rows, displayCurrency)
-  const { taxAdvantagedCategoryById, taxAdvantagedLimitSummaries } =
-    useTaxAdvantagedLimitSummaries({
-      rows,
-      taxAdvantagedCategories,
-    })
+  const { taxAdvantagedCategoryById, taxAdvantagedLimitSummaries } = useTaxAdvantagedLimitSummaries({
+    rows,
+    taxAdvantagedCategories,
+  })
 
   return (
     <div>
@@ -113,10 +112,12 @@ export default function AccountsPage() {
         institutionOptions={institutionOptions}
         kindOptions={kindOptions}
         typeOptions={typeOptions}
-        onAddAccount={() => requireCurrencies(() => {
-          setCreateModalKey((key) => key + 1)
-          setShowCreateModal(true)
-        })}
+        onAddAccount={() =>
+          requireCurrencies(() => {
+            setCreateModalKey((key) => key + 1)
+            setShowCreateModal(true)
+          })
+        }
       />
 
       <div className="space-y-4">
@@ -161,11 +162,7 @@ export default function AccountsPage() {
         />
       </div>
 
-      <CreateAccountModal
-        key={createModalKey}
-        open={showCreateModal}
-        onClose={() => setShowCreateModal(false)}
-      />
+      <CreateAccountModal key={createModalKey} open={showCreateModal} onClose={() => setShowCreateModal(false)} />
     </div>
   )
 }

@@ -19,11 +19,13 @@ const head = { bounds: null, headHeight: 40, held: null, searchable: false }
 
 describe('dropdown box placement', () => {
   it('pins the box by the head’s upper edge when the list grows downward', () => {
-    expect(getDropdownBoxPosition({
-      ...head,
-      anchorRect: { bottom: 140, left: 20, top: 100, width: 200 },
-      viewport,
-    })).toEqual({
+    expect(
+      getDropdownBoxPosition({
+        ...head,
+        anchorRect: { bottom: 140, left: 20, top: 100, width: 200 },
+        viewport,
+      }),
+    ).toEqual({
       bottom: 460,
       boxMaxHeight: 400,
       left: 20,

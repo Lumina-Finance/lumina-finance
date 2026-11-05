@@ -81,7 +81,7 @@ export function useDropdownPosition({
 
     // Kept as it is where the measurement landed in the same place, so a frame that found nothing
     // moved costs a measurement rather than a render of the whole control and its list
-    setBoxPosition((current) => isSameDropdownBoxPosition(current, next) ? current : next)
+    setBoxPosition((current) => (isSameDropdownBoxPosition(current, next) ? current : next))
   }, [searchable, wrapperRef])
 
   useEffect(() => {
