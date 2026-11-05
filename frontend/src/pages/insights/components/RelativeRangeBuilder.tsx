@@ -119,6 +119,9 @@ export function RelativeRangeBuilder({
             {option.value === qualifier && (
               <motion.span
                 layoutId={`${groupId}-qualifier`}
+                // The builder moves when the line of dates above it appears or goes, and the highlight
+                // must not animate that shift as if it had changed segment
+                layoutDependency={qualifier}
                 className="app-range-seg-thumb"
                 transition={thumbTransition}
               />
@@ -167,10 +170,7 @@ export function RelativeRangeBuilder({
                 type="button"
                 role="option"
                 aria-selected={value === unit}
-                className={joinClassNames(
-                  'app-range-unit-option',
-                  value === unit && 'app-range-unit-option-active',
-                )}
+                className={joinClassNames('app-range-unit-option', value === unit && 'app-range-unit-option-active')}
                 onClick={() => selectUnit(value)}
               >
                 {formatUnitLabel(value, usePlural)}
