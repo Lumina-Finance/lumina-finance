@@ -184,6 +184,7 @@ const Dropdown = ({
   const editShortcutDescriptionId = useId()
   const containerRef = useRef<HTMLDivElement>(null)
   const boxRef = useRef<HTMLDivElement>(null)
+  const bodyWrapRef = useRef<HTMLDivElement>(null)
   const triggerRef = useRef<HTMLButtonElement>(null)
   const listRef = useRef<HTMLUListElement>(null)
   const searchRef = useRef<HTMLInputElement>(null)
@@ -261,6 +262,29 @@ const Dropdown = ({
     // is instant, and no transition to end either, so the wait is skipped entirely
     if (!shouldReduceMotion) setCollapsing(true)
   }, [setSearchText, shouldReduceMotion])
+
+  // The collapse ends when the body finishes shrinking. A list closed before the frame that began opening
+  // it has nothing to shrink, so no transition runs and none ends, and the shut list would stay in the page
+  // and over the field. Two frames on, a collapse with no height transition running is over
+  useEffect(() => {
+    if (!collapsing) return
+
+    let secondFrame = 0
+    const firstFrame = window.requestAnimationFrame(() => {
+      secondFrame = window.requestAnimationFrame(() => {
+        const shrinking = bodyWrapRef.current
+          ?.getAnimations()
+          .some(
+            (animation) => animation instanceof CSSTransition && animation.transitionProperty === 'grid-template-rows',
+          )
+        if (!shrinking) setCollapsing(false)
+      })
+    })
+    return () => {
+      window.cancelAnimationFrame(firstFrame)
+      window.cancelAnimationFrame(secondFrame)
+    }
+  }, [collapsing])
 
   // The slot holds the collapsed height so the box can grow over what is below it rather than pushing
   // it down. Measured from the box rather than the head inside it, since the box's own border is part
@@ -533,6 +557,7 @@ const Dropdown = ({
             field and create action stay in the page's tab order, so a modal holding four closed
             dropdowns would put eight invisible stops between its first field and its save button */}
         <div
+          ref={bodyWrapRef}
           className="app-dropdown-bodywrap"
           inert={open ? undefined : true}
           onTransitionEnd={(event) => {
