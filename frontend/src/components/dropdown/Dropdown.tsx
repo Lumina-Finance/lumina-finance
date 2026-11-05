@@ -70,6 +70,9 @@ interface DropdownProps {
   /** How tall the control sits, which depends on what surrounds it rather than on what it holds */
   size?: DropdownSize
 
+  /** Keeps the open list exactly as wide as the field, for one inside a panel whose edge it must not pass */
+  matchFieldWidth?: boolean
+
   /** Draws the control in the error state, for a field the form has rejected */
   hasError?: boolean
 
@@ -142,6 +145,7 @@ const Dropdown = ({
   closeOnSelect = true,
   className,
   size = 'field',
+  matchFieldWidth = false,
   hasError = false,
   labelledBy,
   describedBy,
@@ -192,6 +196,7 @@ const Dropdown = ({
       ? DROPDOWN_RISE_TRANSITION
       : DROPDOWN_SINK_TRANSITION
   const { boxPosition, updateBoxPosition } = useDropdownPosition({
+    matchFieldWidth,
     placed,
     searchable,
     wrapperRef: containerRef,

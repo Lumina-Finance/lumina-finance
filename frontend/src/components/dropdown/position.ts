@@ -127,6 +127,8 @@ interface DropdownBoxPositionParams {
    */
   held: DropdownBoxDirection | null
 
+  /** Keeps the open box as wide as its slot instead of widening it into the room beside it */
+  matchFieldWidth?: boolean
   searchable: boolean
   viewport: DropdownViewport
 }
@@ -185,6 +187,7 @@ export function getDropdownBoxPosition({
   bounds,
   headHeight,
   held,
+  matchFieldWidth = false,
   searchable,
   viewport,
 }: DropdownBoxPositionParams): DropdownBoxPosition {
@@ -259,7 +262,9 @@ export function getDropdownBoxPosition({
     // control in a narrow slot opens to something a list can be read in. Floored at the closed
     // width, which covers both a slot already wider than the maximum and one hanging off the edge
     // of the screen with no room at all: either way the box opens exactly as wide as it sits
-    openWidth: Math.max(width, Math.min(DROPDOWN_MAX_WIDTH, openLeftward ? spaceLeft : spaceRight)),
+    openWidth: matchFieldWidth
+      ? width
+      : Math.max(width, Math.min(DROPDOWN_MAX_WIDTH, openLeftward ? spaceLeft : spaceRight)),
 
     // Pinned by the slot's right edge, so that edge stays put and the box grows away to the left of
     // it. Measured against the whole page, as `bottom` is, since that is what a fixed box's own
