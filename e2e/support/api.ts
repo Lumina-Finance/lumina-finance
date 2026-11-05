@@ -304,6 +304,9 @@ export interface CreateAccountOptions {
 
   /** Makes it a group account, which every member of the group can see */
   groupId?: string
+
+  /** Links the account to a tax-advantaged category, and its row and its institution's header carry the tag */
+  taxAdvantagedCategoryId?: string
 }
 
 /**
@@ -333,6 +336,7 @@ export async function createAccount(
       starting_balance: options.startingBalance ?? null,
       credit_limit: options.creditLimit,
       group_id: options.groupId,
+      tax_advantaged_category_id: options.taxAdvantagedCategoryId,
     },
   })
 

@@ -11,7 +11,7 @@ const KIND_OPTIONS: OptionItem[] = [
 ]
 
 // Group labels mirror the account sections so filter options follow the page structure
-const TYPE_OPTIONS: OptionItem[] = [
+export const TYPE_OPTIONS: OptionItem[] = [
   { value: 'checking', label: 'Checking', group: 'Assets' },
   { value: 'savings', label: 'Savings', group: 'Assets' },
   { value: 'term_deposit', label: 'Term deposit', group: 'Assets' },

@@ -1,4 +1,6 @@
 import { useMemo, useState } from 'react'
+import { AnimatePresence, LayoutGroup, motion, useReducedMotion } from 'motion/react'
+import { getRegroupTransition } from '@/pages/accounts/components/regroupMotion'
 import { useAuth } from '@/hooks/useAuth'
 import { useAccounts } from '@/api/accounts'
 import { useTaxAdvantagedCategories } from '@/api/tax-advantaged-categories'
@@ -11,15 +13,17 @@ import MetricsBand from '@/pages/accounts/components/metrics/Band'
 import ArchivedAccountsSection from '@/pages/accounts/components/ArchivedSection'
 import TaxAdvantagedLimitsSection from '@/pages/accounts/components/tax-advantaged-limits/Section'
 import { useFilters } from '@/pages/accounts/hooks/useFilters'
+import { useAccountGrouping } from '@/pages/accounts/hooks/useAccountGrouping'
 import { useAccountSections } from '@/pages/accounts/hooks/useAccountSections'
+import { getAccountGroups } from '@/pages/accounts/utils/accountGroups'
 import { useAccountsMetrics } from '@/pages/accounts/hooks/useAccountsMetrics'
 import { useTaxAdvantagedLimitSummaries } from '@/pages/accounts/hooks/useTaxAdvantagedLimitSummaries'
 import { useMinimumVisibleFlag } from '@/hooks/useMinimumVisibleFlag'
 import { LOADING_ANIMATION_MIN_MS } from '@/utils/timing'
 
 /**
- * Accounts overview page listing every unarchived account grouped into assets, revolving credit and
- * amortizing debt, alongside net worth, contribution limit summaries and archived accounts
+ * Accounts overview page listing every unarchived account grouped by the user's saved choice, account
+ * type by default, alongside net worth, contribution limit summaries and archived accounts
  *
  * Archived accounts are held out of the grouped lists, the totals and the filter toolbar, and
  * appear only in their own section. The create-account modal is remounted each time it opens so
@@ -58,7 +62,34 @@ export default function AccountsPage() {
     typeOptions,
     filteredRows,
   } = useFilters(rows)
-  const accountSections = useAccountSections({ rows, filteredRows })
+  const {
+    grouping,
+    setGrouping,
+    thenBy,
+    setThenBy,
+    showLogos,
+    setShowLogos,
+    keepExpanded,
+    setKeepExpanded,
+    toggledGroupKeys,
+    toggleGroup,
+  } = useAccountGrouping()
+  const groupingSettings = {
+    grouping,
+    onGroupingChange: setGrouping,
+    thenBy,
+    onThenByChange: setThenBy,
+    showLogos,
+    onShowLogosChange: setShowLogos,
+    keepExpanded,
+    onKeepExpandedChange: setKeepExpanded,
+  }
+  const regroupTransition = getRegroupTransition(useReducedMotion())
+  const accountSections = useAccountSections(rows)
+  const accountGroups = useMemo(
+    () => getAccountGroups({ rows, filteredRows, grouping, thenBy }),
+    [filteredRows, grouping, rows, thenBy],
+  )
   const accountMetrics = useAccountsMetrics(rows, displayCurrency)
   const { taxAdvantagedCategoryById, taxAdvantagedLimitSummaries } = useTaxAdvantagedLimitSummaries({
     rows,
@@ -112,6 +143,7 @@ export default function AccountsPage() {
         institutionOptions={institutionOptions}
         kindOptions={kindOptions}
         typeOptions={typeOptions}
+        grouping={groupingSettings}
         onAddAccount={() =>
           requireCurrencies(() => {
             setCreateModalKey((key) => key + 1)
@@ -121,45 +153,48 @@ export default function AccountsPage() {
       />
 
       <div className="space-y-4">
-        <AccountListSection
-          title="Assets"
-          accent="positive"
-          accounts={accountSections.assetRows}
-          subtotal={accountSections.totalAssets}
-          emptyLabel="No asset accounts"
-          displayCurrency={displayCurrency}
-          taxAdvantagedCategoryById={taxAdvantagedCategoryById}
-          loading={accountsLoading}
-        />
+        {/* Changing the grouping fades the old headers out and the new ones in, while the rows that stay
+            glide between their places. The exiting headers leave the flow at once, so the list settles
+            at its new height straight away and what sits below it glides there */}
+        <LayoutGroup>
+          <div className="relative">
+            <AnimatePresence initial={false} mode="popLayout">
+              {accountGroups.map((group) => (
+                <motion.div
+                  key={`${grouping}:${group.id}`}
+                  // A little more room above each top-level divider than a sub-group has
+                  className="mt-2 border-t first:mt-0 first:border-t-0"
+                  style={{ borderColor: 'var(--app-border)' }}
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  exit={{ opacity: 0 }}
+                  transition={regroupTransition}
+                >
+                  <AccountListSection
+                    group={group}
+                    grouping={grouping}
+                    thenBy={thenBy}
+                    toggledKeys={toggledGroupKeys}
+                    keepExpanded={keepExpanded}
+                    onToggle={toggleGroup}
+                    showLogos={showLogos}
+                    displayCurrency={displayCurrency}
+                    taxAdvantagedCategoryById={taxAdvantagedCategoryById}
+                    loading={accountsLoading}
+                  />
+                </motion.div>
+              ))}
+            </AnimatePresence>
+          </div>
 
-        <AccountListSection
-          title="Revolving credit"
-          accent="negative"
-          accounts={accountSections.revolvingRows}
-          subtotal={accountSections.revolvingSubtotal}
-          emptyLabel="No revolving credit accounts"
-          displayCurrency={displayCurrency}
-          taxAdvantagedCategoryById={taxAdvantagedCategoryById}
-          showCreditLimit
-          loading={accountsLoading}
-        />
-
-        <AccountListSection
-          title="Amortizing debt"
-          accent="negative"
-          accounts={accountSections.amortizingRows}
-          subtotal={accountSections.amortizingSubtotal}
-          emptyLabel="No amortizing debt accounts"
-          displayCurrency={displayCurrency}
-          taxAdvantagedCategoryById={taxAdvantagedCategoryById}
-          loading={accountsLoading}
-        />
-
-        <ArchivedAccountsSection
-          accounts={archivedRows}
-          taxAdvantagedCategoryById={taxAdvantagedCategoryById}
-          displayCurrency={displayCurrency}
-        />
+          <motion.div layout="position" transition={regroupTransition}>
+            <ArchivedAccountsSection
+              accounts={archivedRows}
+              taxAdvantagedCategoryById={taxAdvantagedCategoryById}
+              displayCurrency={displayCurrency}
+            />
+          </motion.div>
+        </LayoutGroup>
       </div>
 
       <CreateAccountModal key={createModalKey} open={showCreateModal} onClose={() => setShowCreateModal(false)} />

@@ -23,7 +23,7 @@ test('starts a new user with no accounts and creates one through the modal', asy
 
   // A fresh user sees this even against a database holding other people's records, so the
   // assertion also fails if row-level security ever stops separating one user from another
-  await expect(page.getByText('No asset accounts')).toBeVisible()
+  await expect(page.getByText('No accounts yet')).toBeVisible()
 
   const dialog = await openModal(page, ['Add account'], 'Add account')
   await chooseFromDropdown(dialog, 'Account type', 'Checking')

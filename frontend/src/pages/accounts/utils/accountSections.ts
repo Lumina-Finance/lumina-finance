@@ -8,16 +8,6 @@ export type AccountSections = {
   fxStatus: FxStatus
   assetCount: number
   debtCount: number
-  assetRows: AccountsOverview[]
-  revolvingRows: AccountsOverview[]
-  amortizingRows: AccountsOverview[]
-  revolvingSubtotal: number
-  amortizingSubtotal: number
-}
-
-type AccountSectionsOptions = {
-  rows: AccountsOverview[]
-  filteredRows: AccountsOverview[]
 }
 
 function getStatsBalance(account: AccountsOverview) {
@@ -63,16 +53,12 @@ export function getCombinedAccountFxStatus(accounts: AccountsOverview[]): FxStat
 }
 
 /**
- * Builds the account list sections from all rows and the currently filtered visible rows
+ * Builds the net worth statement figures from all unarchived rows. The list groups themselves are
+ * built by `getAccountGroups`
  */
-export function getAccountSections({ rows, filteredRows }: AccountSectionsOptions): AccountSections {
-  const byBalanceDesc = (a: AccountsOverview, b: AccountsOverview) => getStatsBalance(b) - getStatsBalance(a)
-  const byDebtBalanceDesc = (a: AccountsOverview, b: AccountsOverview) => getStatsBalance(a) - getStatsBalance(b)
-
+export function getAccountSections(rows: AccountsOverview[]): AccountSections {
   const totalAssets = sumByKind(rows, 'asset')
-  const revolvingSubtotal = sumByKind(rows, 'revolving')
-  const amortizingSubtotal = sumByKind(rows, 'amortizing')
-  const totalDebts = revolvingSubtotal + amortizingSubtotal
+  const totalDebts = sumByKind(rows, 'revolving') + sumByKind(rows, 'amortizing')
 
   return {
     totalAssets,
@@ -81,10 +67,5 @@ export function getAccountSections({ rows, filteredRows }: AccountSectionsOption
     fxStatus: getCombinedAccountFxStatus(rows),
     assetCount: rows.filter((account) => account.account_kind === 'asset').length,
     debtCount: rows.filter(isDebtAccount).length,
-    assetRows: filteredRows.filter((account) => account.account_kind === 'asset').sort(byBalanceDesc),
-    revolvingRows: filteredRows.filter((account) => account.account_kind === 'revolving').sort(byDebtBalanceDesc),
-    amortizingRows: filteredRows.filter((account) => account.account_kind === 'amortizing').sort(byDebtBalanceDesc),
-    revolvingSubtotal,
-    amortizingSubtotal,
   }
 }

@@ -48,7 +48,8 @@ async function openFailedAccountRow(page: Page, request: Parameters<typeof creat
   await logInViaApi(page, user)
   await openPage(page, '/accounts')
   const row = page.getByRole('link', { name: new RegExp(`${bank} account`) })
-  await expect(row.getByText('$', { exact: true })).toBeVisible()
+  // A bank that has no usable logo is drawn as a circle holding its initial
+  await expect(row.getByText(bank.charAt(0), { exact: true })).toBeVisible()
   await expect(row.getByRole('img')).toHaveCount(0)
   return { row, bank, service }
 }
@@ -60,7 +61,7 @@ test('draws a logo that failed to load once the connection returns, without a re
   await page.evaluate(() => window.dispatchEvent(new Event('online')))
 
   await expect(row.getByRole('img', { name: `${bank} logo` })).toHaveJSProperty('naturalWidth', 32)
-  await expect(row.getByText('$', { exact: true })).toHaveCount(0)
+  await expect(row.getByText(bank.charAt(0), { exact: true })).toHaveCount(0)
 })
 
 test('draws a logo that failed to load again when the page is shown again', async ({ page, request }) => {
@@ -90,13 +91,13 @@ test('draws a logo that failed to load when its page is opened again some time l
 })
 
 test('tries a logo that always fails a limited number of times, then keeps the placeholder', async ({ page, request }) => {
-  const { row, service } = await openFailedAccountRow(page, request)
+  const { row, bank, service } = await openFailedAccountRow(page, request)
 
   for (let event = 0; event < 6; event += 1) {
     await page.evaluate(() => window.dispatchEvent(new Event('online')))
     await page.waitForLoadState('networkidle')
   }
 
-  await expect(row.getByText('$', { exact: true })).toBeVisible()
+  await expect(row.getByText(bank.charAt(0), { exact: true })).toBeVisible()
   expect(service.requests).toBeLessThanOrEqual(MOST_REQUESTS)
 })
