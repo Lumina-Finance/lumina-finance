@@ -1,33 +1,16 @@
-import { fileURLToPath } from 'node:url'
 import { expect, test } from '@playwright/test'
 
-import { signUpUser } from '../support/api'
-import { chooseFromDropdown, commitImport, leaveImportSetup, logInViaApi, openPage, showImportSetup } from '../support/app'
+import { asUser, signUpUser } from '../support/api'
+import { commitImport, logInViaApi } from '../support/app'
+import { stageFireflyExport } from '../support/firefly'
+import { API_BASE_URL } from '../support/target'
 
 // Runs on desktop only: what the import writes is the same at every size
-
-// Copies of the export the frontend's unit tests read, written by a local Firefly III server from
-// the weekly check's seed. The suite runs from its own directory alone, so it holds the copies
-// rather than reaching into the frontend's
-const EXPORT_FILES = ['transactions.csv', 'budgets.csv', 'accounts.csv']
-  .map((name) => fileURLToPath(new URL(`../fixtures/firefly-export/${name}`, import.meta.url)))
 
 test('imports a Firefly III export with only the budgets left ticked', async ({ page, request }) => {
   const user = await signUpUser(request)
   await logInViaApi(page, user)
-  await openPage(page, '/settings/imports')
-  await chooseFromDropdown(page.locator('body'), 'Data source', /^Firefly III/)
-
-  // The screen reads one file at a time and refuses another meanwhile, so each lands before the next
-  const uploads = page.locator('input[type="file"][accept=".csv,text/csv"]')
-  for (const [index, file] of EXPORT_FILES.entries()) {
-    await expect(uploads.nth(index)).toBeEnabled()
-    await uploads.nth(index).setInputFiles(file)
-    // The setup panel collapses once the last file lands, so it is slid out to see that file
-    if (index === EXPORT_FILES.length - 1) await showImportSetup(page)
-    await expect(page.getByText(file.split('/').at(-1)!, { exact: true })).toBeVisible()
-  }
-  await leaveImportSetup(page)
+  await stageFireflyExport(page)
 
   // Category matching explains how the import files transfers once the transactions are staged
   await expect(page.getByText('Transfers and debt payments', { exact: true })).toBeVisible()
@@ -68,4 +51,55 @@ test('imports a Firefly III export with only the budgets left ticked', async ({ 
   const result = await response.json() as { budgets: { name: string }[] }
   expect(result.budgets.map((budget) => budget.name).sort()).toEqual(ticked.sort())
   expect(ticked).not.toContain('Travel')
+})
+
+test('a committed Firefly III import asks no account question while the account list reloads', async ({ page, request }) => {
+  const user = await signUpUser(request)
+  await logInViaApi(page, user)
+  await stageFireflyExport(page)
+
+  // The commit makes the page read the accounts again. Holding that answer keeps the list reloading for
+  // as long as the test looks, where a fast server would show it for only a moment
+  let isHolding = false
+  let release!: () => void
+  const released = new Promise<void>((resolve) => { release = resolve })
+  await page.route(`${API_BASE_URL}/accounts`, async (route) => {
+    if (isHolding && route.request().method() === 'GET') await released
+    await route.continue()
+  })
+
+  // Every account is new and answered by default, so nothing is asked before the commit either
+  const question = page.getByText(/^Choose an account for/)
+  await expect(page.getByRole('button', { name: 'Commit import', exact: true })).toBeEnabled()
+  await expect(question).toHaveCount(0)
+
+  isHolding = true
+  const response = await commitImport(page)
+  expect(response.status()).toBe(201)
+
+  // The finished button is the fence: the question, if it was coming, comes with the finished state
+  await expect(page.getByRole('button', { name: 'Imported', exact: true })).toBeDisabled()
+  await expect(question).toHaveCount(0)
+  await expect(page.getByText('No preview rows', { exact: true })).toHaveCount(0)
+  release()
+})
+
+test('previews a Firefly III row under the merchant the user already has, whatever capitals the export writes', async ({ page, request }) => {
+  const user = await signUpUser(request)
+  const created = await request.post(`${API_BASE_URL}/merchants`, { headers: asUser(user), data: { name: 'EMPLOYER INC' } })
+  expect(created.status()).toBe(201)
+  await logInViaApi(page, user)
+  await stageFireflyExport(page)
+
+  // The export spells it Employer Inc, and the commit files the salary under the merchant the user has
+  const preview = page.locator('section').filter({ has: page.getByText('Preview and commit', { exact: true }) }).last()
+  await expect(preview).toContainText('EMPLOYER INC')
+  await expect(preview).not.toContainText('Employer Inc')
+
+  const response = await commitImport(page)
+  expect(response.status()).toBe(201)
+  const transactions = await request.get(`${API_BASE_URL}/transactions`, { headers: asUser(user) })
+  const filedUnder = (await transactions.json() as { merchant_name: string }[]).map((transaction) => transaction.merchant_name)
+  expect(filedUnder).toContain('EMPLOYER INC')
+  expect(filedUnder).not.toContain('Employer Inc')
 })

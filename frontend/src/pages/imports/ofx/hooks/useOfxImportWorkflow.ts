@@ -15,6 +15,7 @@ import {
   IMPORT_TRANSFER_CATEGORY_NAME,
 } from '@/pages/imports/constants'
 import {
+  useFiledPreviewMerchants,
   useImportAccountCreateState,
   useImportRun,
   useProviderAccountAnswers,
@@ -176,7 +177,10 @@ export function useOfxImportWorkflow(fixedAccount: AccountsOverview | null = nul
     institutionOptions,
     accountById,
     institutionById,
-  } = useProviderImportReferenceData({ transferCategoryName: IMPORT_TRANSFER_CATEGORY_NAME })
+  } = useProviderImportReferenceData({
+    transferCategoryName: IMPORT_TRANSFER_CATEGORY_NAME,
+    isImportFinished: run.workflow.importResult !== null,
+  })
 
   const statements = useMemo(() => (ofxFile ? getOfxStatementsToImport(ofxFile) : []), [ofxFile])
   const supportedCurrencyCodes = useMemo(() => getSupportedCurrencyCodes(currencies), [currencies])
@@ -310,25 +314,23 @@ export function useOfxImportWorkflow(fixedAccount: AccountsOverview | null = nul
 
   const skippedRowIds = useMemo(() => new Set(importBuild.skippedRows.map((row) => row.id)), [importBuild.skippedRows])
 
-  const previewGroups = useMemo(
+  const sampleRows = useMemo(
     () =>
-      groupPreviewRowsByDate(
-        ofxFile && !readingError
-          ? buildOfxPreviewRows(
-              ofxFile,
-              {
-                accountMappings: resolvedAccountMappings,
-                accountCreateDetails: resolvedAccountCreateDetails,
-                accountById,
-                institutionById,
-                categories,
-                currencies,
-                skippedRowIds,
-              },
-              IMPORT_SAMPLE_PREVIEW_LIMIT,
-            )
-          : [],
-      ),
+      ofxFile && !readingError
+        ? buildOfxPreviewRows(
+            ofxFile,
+            {
+              accountMappings: resolvedAccountMappings,
+              accountCreateDetails: resolvedAccountCreateDetails,
+              accountById,
+              institutionById,
+              categories,
+              currencies,
+              skippedRowIds,
+            },
+            IMPORT_SAMPLE_PREVIEW_LIMIT,
+          )
+        : [],
     [
       accountById,
       categories,
@@ -341,6 +343,9 @@ export function useOfxImportWorkflow(fixedAccount: AccountsOverview | null = nul
       skippedRowIds,
     ],
   )
+
+  const previewRows = useFiledPreviewMerchants(sampleRows)
+  const previewGroups = useMemo(() => groupPreviewRowsByDate(previewRows), [previewRows])
 
   const transactionCount = statements.reduce((total, statement) => total + statement.transactions.length, 0)
   // Rows counts every transaction in the files, as in the other importers, and only Will create leaves

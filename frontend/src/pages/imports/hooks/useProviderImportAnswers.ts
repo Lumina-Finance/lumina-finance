@@ -30,8 +30,14 @@ import { useImportTagMatches } from './useImportTagMatches'
  * every group one. The seeded categories the commit files transfer legs and balance rows under are
  * read here too, so the preview can show them
  */
-export function useProviderImportReferenceData({ transferCategoryName }: { transferCategoryName: string }) {
-  const reference = useImportReferenceData()
+export function useProviderImportReferenceData({
+  transferCategoryName,
+  isImportFinished,
+}: {
+  transferCategoryName: string
+  isImportFinished: boolean
+}) {
+  const reference = useImportReferenceData({ isImportFinished })
   const { categories, selectableAccounts, categoryMatchOptions: allCategoryMatchOptions, categoryById } = reference
 
   const accountOptions = useMemo(

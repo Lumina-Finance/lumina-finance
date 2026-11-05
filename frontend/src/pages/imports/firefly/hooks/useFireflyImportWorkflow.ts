@@ -7,6 +7,7 @@ import {
   IMPORT_TRANSFER_CATEGORY_NAME,
 } from '@/pages/imports/constants'
 import {
+  useFiledPreviewMerchants,
   useImportAccountCreateState,
   useImportBudgetSelection,
   useProviderAccountAnswers,
@@ -162,7 +163,10 @@ export function useFireflyImportWorkflow() {
     // The commit assigns these seeded system categories to transfer legs and balance rows
     transferCategory,
     balanceAdjustmentCategory,
-  } = useProviderImportReferenceData({ transferCategoryName: IMPORT_TRANSFER_CATEGORY_NAME })
+  } = useProviderImportReferenceData({
+    transferCategoryName: IMPORT_TRANSFER_CATEGORY_NAME,
+    isImportFinished: run.workflow.importResult !== null,
+  })
 
   // A finished import is a record of what it did, so its answers are guessed without what it created
   const referenceBeforeImport = useReferenceBeforeImport(
@@ -331,7 +335,7 @@ export function useFireflyImportWorkflow() {
   )
   const tagStep = useProviderTagAnswers(importedTags, tagAnswerState)
 
-  const previewRows = useMemo(
+  const sampleRows = useMemo(
     () =>
       buildFireflyPreviewRows({
         tagAnswers: tagStep.previewTagAnswers,
@@ -368,6 +372,7 @@ export function useFireflyImportWorkflow() {
     ],
   )
 
+  const previewRows = useFiledPreviewMerchants(sampleRows)
   const previewGroups = useMemo(() => groupPreviewRowsByDate(previewRows), [previewRows])
 
   const importBuild = useMemo(

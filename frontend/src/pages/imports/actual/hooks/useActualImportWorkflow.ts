@@ -11,6 +11,7 @@ import {
   IMPORT_TRANSFER_CATEGORY_NAME,
 } from '@/pages/imports/constants'
 import {
+  useFiledPreviewMerchants,
   useImportAccountCreateState,
   useImportBudgetSelection,
   useProviderAccountAnswers,
@@ -192,7 +193,10 @@ export function useActualImportWorkflow() {
     // The commit files transfer legs and opening balances under these seeded categories
     transferCategory,
     balanceAdjustmentCategory,
-  } = useProviderImportReferenceData({ transferCategoryName: IMPORT_TRANSFER_CATEGORY_NAME })
+  } = useProviderImportReferenceData({
+    transferCategoryName: IMPORT_TRANSFER_CATEGORY_NAME,
+    isImportFinished: run.workflow.importResult !== null,
+  })
 
   // A finished import is a record of what it did, so its answers are guessed without what it created
   const referenceBeforeImport = useReferenceBeforeImport(
@@ -477,7 +481,7 @@ export function useActualImportWorkflow() {
     }
   }, [effectiveJournal.entries, skippedTransactionIds])
 
-  const previewRows = useMemo(
+  const sampleRows = useMemo(
     () =>
       buildActualPreviewRows(
         effectiveJournal,
@@ -516,6 +520,7 @@ export function useActualImportWorkflow() {
     ],
   )
 
+  const previewRows = useFiledPreviewMerchants(sampleRows)
   const previewGroups = useMemo(() => groupPreviewRowsByDate(previewRows), [previewRows])
 
   // A source answered create is counted only while the import sends it

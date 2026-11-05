@@ -467,3 +467,21 @@ test('keeps the finished import as saved, and asks again once its undo reopens t
   await expect(page.getByRole('button', { name: 'Commit import', exact: true })).toBeEnabled()
   expect(await countLedgerTransactions(request, user)).toBe(2)
 })
+
+test('previews a statement\'s transaction under the merchant the user already has, whatever capitals the bank writes', async ({ page, request }) => {
+  const user = await signUpUser(request)
+  const created = await request.post(`${API_BASE_URL}/merchants`, { headers: asUser(user), data: { name: 'CORNER CAFE' } })
+  expect(created.status()).toBe(201)
+  await uploadStatement(page, user, buildFile([buildBankMessageSet('CAD', [CAFE, PAYROLL])]))
+
+  // The statement writes Corner Cafe, and the commit files the transaction under the merchant the user has
+  const preview = page.locator('section').filter({ has: page.getByText('Preview and commit', { exact: true }) })
+  await expect(preview).toContainText('CORNER CAFE')
+  await expect(preview).not.toContainText('Corner Cafe')
+
+  expect((await commitImport(page)).status()).toBe(201)
+  const transactions = await request.get(`${API_BASE_URL}/transactions`, { headers: asUser(user) })
+  const filedUnder = (await transactions.json() as { merchant_name: string }[]).map((transaction) => transaction.merchant_name)
+  expect(filedUnder).toContain('CORNER CAFE')
+  expect(filedUnder).not.toContain('Corner Cafe')
+})
