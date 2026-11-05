@@ -1,7 +1,9 @@
 import { expect, test, type Locator, type Page } from '@playwright/test'
 
-import { createAccount, signUpUser } from '../support/api'
+import { asUser, createAccount, createTransaction, signUpUser } from '../support/api'
 import { logInViaApi, openPage } from '../support/app'
+import { card } from '../support/insights'
+import { API_BASE_URL } from '../support/target'
 
 // Runs on desktop only: it checks the desktop filter pill, and sets the narrower sizes it checks
 // itself
@@ -168,5 +170,60 @@ for (const list of LISTS) {
     await page.clock.runFor(1000)
     expect(await height(), 'the panel closes').toBe(0)
     expect((open - closing) / open, 'the panel has arrived when closing').toBeGreaterThan(PANEL_ARRIVED_SHARE)
+  })
+}
+
+// No control on the six pages of the sidebar reads a 0.4s transition. The pills used to. The pages are
+// sampled as they open for a user with one account, so controls that only data brings in are not in it
+const SIX_PAGES = ['/', '/accounts', '/transactions', '/budgets', '/insights', '/settings']
+
+test('no control on the six pages has a transition of 0.4s', async ({ page, request }) => {
+  await page.emulateMedia({ reducedMotion: 'no-preference' })
+  const user = await signUpUser(request)
+  await createAccount(request, user, { name: 'Everyday' })
+  await logInViaApi(page, user)
+
+  for (const path of SIX_PAGES) {
+    await openPage(page, path)
+    const slow = await page.evaluate(() => [...document.querySelectorAll<HTMLElement>('*')]
+      .filter((node) => getComputedStyle(node).transitionDuration.split(', ').includes('0.4s'))
+      .map((node) => `${node.tagName.toLowerCase()}.${node.className.toString().split(' ').slice(0, 3).join('.')}`))
+    expect(slow, `${path} has a 0.4s transition`).toEqual([])
+  }
+})
+
+// The merchant category filter pill on Insights, reached by keyboard. Its configured durations are read: the
+// focus ring fades over 150ms, the look eases over 300ms, and reduced motion removes the easing. The reduced
+// motion case also passes on main and guards that example
+for (const reducedMotion of ['no-preference', 'reduce'] as const) {
+  test(`the merchant category filter pill reads its focus and look durations with ${reducedMotion} motion`, async ({ page, request }) => {
+    await page.emulateMedia({ reducedMotion })
+    const user = await signUpUser(request)
+    const account = await createAccount(request, user, { name: 'Everyday' })
+    const merchant = await request.post(`${API_BASE_URL}/merchants`, { headers: asUser(user), data: { name: 'Pill Grocer' } })
+    expect(merchant.status()).toBe(201)
+    await createTransaction(request, user, { accountId: account.id, categoryName: 'Groceries', merchantName: 'Pill Grocer', amount: -30000 })
+    await logInViaApi(page, user)
+    await openPage(page, '/insights')
+
+    const pill = card(page, 3).getByRole('button', { name: 'Merchant category filter' }).filter({ visible: true }).first()
+    await pill.scrollIntoViewIfNeeded()
+    await pill.focus()
+    await page.keyboard.press('Shift+Tab')
+    await page.keyboard.press('Tab')
+    await expect(pill).toBeFocused()
+
+    const durations = await pill.evaluate((node) => {
+      const read = (element: Element, property: string) => {
+        const style = getComputedStyle(element)
+        return style.transitionDuration.split(', ')[style.transitionProperty.split(', ').indexOf(property)]
+      }
+      // The glass around the pill draws its look and its focus ring, and the pill's own head eases its padding
+      const glass = node.closest('.app-range-glass')!
+      return { focus: read(glass, 'outline-color'), look: read(glass, 'background-color'), padding: read(node, 'padding-top') }
+    })
+    // With reduced motion the focus ring has no transition at all, so it reads no duration
+    if (reducedMotion === 'reduce') expect(durations).toEqual({ focus: undefined, look: '0s', padding: '0s' })
+    else expect(durations).toEqual({ focus: '0.15s', look: '0.3s', padding: '0.3s' })
   })
 }
