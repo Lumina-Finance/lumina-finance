@@ -1,5 +1,6 @@
 import type { OptionItem } from '@/components/filters/OptionList'
 import type { FilterValues } from '@/pages/accounts/types/accounts'
+import type { AccountGroupingSettings } from '@/pages/accounts/components/toolbar/GroupingPanel'
 
 export type AccountFilterSetter = (patch: Partial<FilterValues>) => void
 
@@ -13,5 +14,6 @@ export type AccountListToolbarProps = {
   institutionOptions: OptionItem[]
   kindOptions: OptionItem[]
   typeOptions: OptionItem[]
+  grouping: AccountGroupingSettings
   onAddAccount: () => void
 }

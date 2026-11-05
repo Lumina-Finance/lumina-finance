@@ -19,11 +19,13 @@ const head = { bounds: null, headHeight: 40, held: null, searchable: false }
 
 describe('dropdown box placement', () => {
   it('pins the box by the head’s upper edge when the list grows downward', () => {
-    expect(getDropdownBoxPosition({
-      ...head,
-      anchorRect: { bottom: 140, left: 20, top: 100, width: 200 },
-      viewport,
-    })).toEqual({
+    expect(
+      getDropdownBoxPosition({
+        ...head,
+        anchorRect: { bottom: 140, left: 20, top: 100, width: 200 },
+        viewport,
+      }),
+    ).toEqual({
       bottom: 460,
       boxMaxHeight: 400,
       left: 20,
@@ -303,6 +305,15 @@ describe('dropdown box placement', () => {
     // it sits and never moves at all
     expect(position.openWidth).toBe(480)
     expect(position.width).toBe(480)
+  })
+
+  it('opens exactly as wide as its slot when asked to match the field', () => {
+    const anchorRect = { bottom: 140, left: 20, top: 100, width: 200 }
+
+    // A narrow slot with room beside it grows to the maximum. A dropdown inside a panel must not
+    // do that, since the list would pass the panel's edge
+    expect(getDropdownBoxPosition({ ...head, anchorRect, viewport }).openWidth).toBe(320)
+    expect(getDropdownBoxPosition({ ...head, anchorRect, viewport, matchFieldWidth: true }).openWidth).toBe(200)
   })
 
   it('measures the room to grow into from the part of the page that is on screen', () => {

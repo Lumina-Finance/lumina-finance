@@ -11,7 +11,7 @@ const KIND_OPTIONS: OptionItem[] = [
 ]
 
 // Group labels mirror the account sections so filter options follow the page structure
-const TYPE_OPTIONS: OptionItem[] = [
+export const TYPE_OPTIONS: OptionItem[] = [
   { value: 'checking', label: 'Checking', group: 'Assets' },
   { value: 'savings', label: 'Savings', group: 'Assets' },
   { value: 'term_deposit', label: 'Term deposit', group: 'Assets' },
@@ -81,14 +81,11 @@ function isAccountMatchingSearch(account: AccountsOverview, query: string): bool
  * least one selected value in every active facet. Accounts with no linked institution stay hidden
  * once an institution facet is active, since they cannot match any selected institution
  */
-export function getFilteredRows(
-  rows: AccountsOverview[],
-  filters: FilterValues,
-  search: string,
-) {
+export function getFilteredRows(rows: AccountsOverview[], filters: FilterValues, search: string) {
   const query = search.trim().toLowerCase()
   return rows.filter((account) => {
-    if (filters.institution_id && !(account.institution && filters.institution_id.includes(account.institution.id))) return false
+    if (filters.institution_id && !(account.institution && filters.institution_id.includes(account.institution.id)))
+      return false
     if (filters.account_kind && !filters.account_kind.includes(account.account_kind)) return false
     if (filters.account_type && !filters.account_type.includes(account.account_type)) return false
     if (query && !isAccountMatchingSearch(account, query)) return false

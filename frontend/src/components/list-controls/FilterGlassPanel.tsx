@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
-import type { ReactNode, RefObject } from 'react'
+import type { ComponentType, ReactNode, RefObject } from 'react'
 import { motion, useReducedMotion } from 'motion/react'
 import { ChevronDown, SlidersHorizontal, X } from 'lucide-react'
 import {
@@ -31,6 +31,8 @@ const PANEL_Z_INDEX = 50
 // The clear control would sit above the glass it is a child of with no level at all. Kept because it
 // says the control belongs over the panel rather than among the rows inside it
 const CLEAR_BUTTON_Z_INDEX = 2
+// One above the glass of a neighbouring pill, as that glass sits at the panel level in the page's stacking order
+const OPEN_PANEL_Z_INDEX = PANEL_Z_INDEX + 1
 
 // Chrome around the measured content span in the collapsed pill: horizontal padding, the gap to the
 // chevron, the chevron itself, and the borders, plus a couple of pixels so sub-pixel rounding never
@@ -56,12 +58,19 @@ type FilterGlassPanelProps = {
   open: boolean
   onOpenChange: (open: boolean) => void
   activeFacetCount: number
-  seedDraftFromFilters: () => void
-  clearAll: () => void
+  // Both are left out by a panel with no draft to seed or clear, such as the grouping settings
+  seedDraftFromFilters?: () => void
+  clearAll?: () => void
 
   // Wording for a panel that holds one filter. Other panels keep the plural
   label?: string
   clearLabel?: string
+
+  // The pill's icon. It is the Filters sliders unless the panel is another kind
+  icon?: ComponentType<{ size?: number; className?: string; 'aria-hidden'?: boolean }>
+
+  // Lets a dropdown inside the panel open its list past the glass, as the glass would otherwise clip it
+  floatingContent?: boolean
 
   // A panel with only a short list in it ends where its content does, instead of holding the usual
   // opening height of the panels that seat several facet tabs
@@ -87,6 +96,8 @@ export function FilterGlassPanel({
   label = 'Filters',
   clearLabel = 'Clear all filters',
   fitContent = false,
+  icon: PillIcon = SlidersHorizontal,
+  floatingContent = false,
   children,
 }: FilterGlassPanelProps) {
   const [collapsedSize, setCollapsedSize] = useState(COLLAPSED_FALLBACK)
@@ -111,7 +122,7 @@ export function FilterGlassPanel({
    * selections
    */
   function handleOpen() {
-    seedDraftFromFilters()
+    seedDraftFromFilters?.()
     onOpenChange(true)
   }
 
@@ -120,7 +131,7 @@ export function FilterGlassPanel({
    * Escape takes no action rather than leaving uncommitted selections showing on the pill
    */
   const dismiss = useCallback(() => {
-    seedDraftFromFilters()
+    seedDraftFromFilters?.()
     onOpenChange(false)
   }, [seedDraftFromFilters, onOpenChange])
 
@@ -284,10 +295,21 @@ export function FilterGlassPanel({
   return (
     <div
       ref={wrapperRef}
-      style={{ position: 'relative', marginLeft: 'auto', width: collapsedSize.width, height: collapsedSize.height }}
+      style={{
+        position: 'relative',
+        marginLeft: 'auto',
+        width: collapsedSize.width,
+        height: collapsedSize.height,
+        // An open panel can reach under the pill beside it, so it must sit above that pill
+        zIndex: open ? OPEN_PANEL_Z_INDEX : undefined,
+      }}
     >
       <motion.div
-        className={joinClassNames('app-range-glass', openUpward && 'app-range-glass-up')}
+        className={joinClassNames(
+          'app-range-glass',
+          openUpward && 'app-range-glass-up',
+          floatingContent && 'app-range-glass-floating',
+        )}
         style={{
           position: 'absolute',
           top: openUpward ? undefined : 0,
@@ -316,7 +338,7 @@ export function FilterGlassPanel({
           onClick={() => (open ? dismiss() : handleOpen())}
         >
           <span ref={headContentRef} className="app-range-glass-cur">
-            <SlidersHorizontal size={18} aria-hidden className="shrink-0" />
+            <PillIcon size={18} aria-hidden className="shrink-0" />
             <span>{label}</span>
             {activeFacetCount > 0 && (
               <span
@@ -347,7 +369,7 @@ export function FilterGlassPanel({
             style={{ top: 5, right: 8, height: 28, width: 28, zIndex: CLEAR_BUTTON_Z_INDEX }}
             onClick={(event) => {
               event.stopPropagation()
-              clearAll()
+              clearAll?.()
             }}
           >
             <X size={16} aria-hidden />

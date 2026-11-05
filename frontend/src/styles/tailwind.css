@@ -1368,6 +1368,32 @@
       var(--app-focus-fade);
   }
 
+  /* A backdrop blur on the glass makes it the container a fixed descendant is placed in and clipped
+     by, so a dropdown list inside could neither sit at its screen position nor leave the panel. The
+     blur is drawn on a layer behind the content instead, so the lists are free of the glass */
+  .app-range-glass-floating {
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
+  }
+
+  .app-range-glass-floating::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    z-index: 0;
+    border-radius: inherit;
+    pointer-events: none;
+    -webkit-backdrop-filter: blur(20px) saturate(160%);
+    backdrop-filter: blur(20px) saturate(160%);
+  }
+
+  /* The head and the body sit over that layer, or it would blur them as well. The clear control keeps
+     its own level */
+  .app-range-glass-floating > :not(.app-range-glass-clear) {
+    position: relative;
+    z-index: 1;
+  }
+
   /* The head fills the glass, so its hover look is drawn on the glass, the fill and border the glass
      button takes */
   .app-range-glass:has(> .app-range-glass-head:focus-visible) {

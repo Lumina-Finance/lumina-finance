@@ -3,14 +3,11 @@
  * section and the combined FX status cannot drift from the accounts they are built from
  */
 import { describe, expect, it } from 'vitest'
-import {
-  getAccountSections,
-  getCombinedAccountFxStatus,
-} from '@/pages/accounts/utils/accountSections'
+import { getAccountSections, getCombinedAccountFxStatus } from '@/pages/accounts/utils/accountSections'
 import { createAccount } from './fixtures'
 
 describe('account section helpers', () => {
-  it('uses base-currency balances for totals and sorts visible rows by section rules', () => {
+  it('uses base-currency balances for the statement totals', () => {
     const rows = [
       createAccount({
         id: 'savings',
@@ -38,14 +35,11 @@ describe('account section helpers', () => {
         current_balance: -4_000,
       }),
     ]
-    const sections = getAccountSections({ rows, filteredRows: rows })
+    const sections = getAccountSections(rows)
 
     expect(sections.totalAssets).toBe(1_600)
     expect(sections.totalDebts).toBe(-4_500)
     expect(sections.netWorth).toBe(-2_900)
-    expect(sections.assetRows.map((account) => account.id)).toEqual(['savings', 'checking'])
-    expect(sections.revolvingRows.map((account) => account.id)).toEqual(['card'])
-    expect(sections.amortizingRows.map((account) => account.id)).toEqual(['loan'])
   })
 
   it('combines duplicate missing FX pairs once and keeps incomplete status when some conversions are unavailable', () => {

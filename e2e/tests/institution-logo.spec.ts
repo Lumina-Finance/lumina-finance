@@ -58,14 +58,14 @@ test('shows every logo the icon service returns, a 16px one included, and falls 
   const row = (name: string) => page.getByRole('link', { name: new RegExp(`${name} account`) })
 
   // The icon that fails to load is the fence: its error is handled by the same code that would drop a loaded icon,
-  // so once its "$" shows, a loaded icon that was going to be dropped has been
+  // so once its initial shows, a loaded icon that was going to be dropped has been
   const broken = row(BANKS[2].name)
-  await expect(broken.getByText('$', { exact: true })).toBeVisible()
+  await expect(broken.getByText(BANKS[2].name.charAt(0), { exact: true })).toBeVisible()
   await expect(broken.getByRole('img')).toHaveCount(0)
 
   for (const bank of BANKS.filter((item) => item.logoWidth !== null)) {
     const logo = row(bank.name).getByRole('img', { name: `${bank.name} logo` })
     await expect(logo).toHaveJSProperty('naturalWidth', bank.logoWidth)
-    await expect(row(bank.name).getByText('$', { exact: true })).toHaveCount(0)
+    await expect(row(bank.name).getByText(bank.name.charAt(0), { exact: true })).toHaveCount(0)
   }
 })

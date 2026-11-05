@@ -6,6 +6,8 @@ import type { TaxAdvantagedCategory } from '@/api/tax-advantaged-categories'
 import { FxStatusBadge } from '@/components/tooltips/FxStatusBadge'
 import { useMoneyFormatters } from '@/hooks/useMoneyFormatters'
 import { InstitutionLogo } from '@/pages/accounts/components/InstitutionLogo'
+import { InstitutionMark } from '@/pages/accounts/components/InstitutionMark'
+import { TaxAdvantagedTag } from '@/pages/accounts/components/TaxAdvantagedTag'
 import { humanizeAccountType } from '@/utils/formatAccountType'
 import type { AccountAccent } from '@/pages/accounts/types/accounts'
 import { getAccountBalanceFxStatusMessage } from '@/pages/accounts/utils/fxTooltipMessages'
@@ -28,6 +30,9 @@ export default function AccountRow({
   taxAdvantagedCategoryById,
   displayCurrency,
   isArchived = false,
+  isBare = false,
+  showBankLogo = false,
+  meta,
 }: {
   account: AccountsOverview
   accent: AccountAccent
@@ -35,6 +40,12 @@ export default function AccountRow({
   taxAdvantagedCategoryById: Map<string, TaxAdvantagedCategory>
   displayCurrency: string
   isArchived?: boolean
+  // A bare row drops its accent bar and logo, for a list whose group header already carries them
+  isBare?: boolean
+  // Puts the bank's small round logo before the name of a bare row
+  showBankLogo?: boolean
+  // Replaces the second line, for a list whose grouping already says the type or the institution
+  meta?: string
 }) {
   const { formatCurrency } = useMoneyFormatters()
   const barColor = isArchived
@@ -58,7 +69,8 @@ export default function AccountRow({
     account.group_id === null && account.tax_advantaged_category_id
       ? taxAdvantagedCategoryById.get(account.tax_advantaged_category_id)
       : undefined
-  const metadataLabel = `${humanizeAccountType(account.account_type)}${account.institution ? ` · ${account.institution.name}` : ''}`
+  const metadataLabel =
+    meta ?? `${humanizeAccountType(account.account_type)}${account.institution ? ` · ${account.institution.name}` : ''}`
   const fxStatus = account.current_balance_fx_status
   const showConvertedBalance = fxStatus.state !== 'none'
   const convertedBalanceText =
@@ -76,24 +88,22 @@ export default function AccountRow({
       }`}
       style={isArchived ? { borderColor: 'var(--app-border)' } : undefined}
     >
-      <div className="my-3 ml-0.5 w-0.5 rounded-full" style={{ background: barColor, opacity: 0.3 }} />
-      <div className="grid min-w-0 flex-1 grid-cols-[2.25rem_minmax(0,1fr)] items-center gap-x-3 gap-y-1 px-3 py-3.5 min-[730px]:flex min-[730px]:gap-4 min-[730px]:px-4">
-        <InstitutionLogo institution={account.institution} />
+      {!isBare && <div className="my-3 ml-0.5 w-0.5 rounded-full" style={{ background: barColor, opacity: 0.3 }} />}
+      <div
+        className={`grid min-w-0 flex-1 items-center gap-x-3 gap-y-1 min-[730px]:flex min-[730px]:gap-4 ${
+          isBare
+            ? 'grid-cols-1 px-2 py-3.5 min-[730px]:px-2'
+            : 'grid-cols-[2.25rem_minmax(0,1fr)] px-3 py-3.5 min-[730px]:px-4'
+        }`}
+      >
+        {!isBare && <InstitutionLogo institution={account.institution} />}
         <div className="min-w-0 flex-1 overflow-hidden">
           <div className="flex min-w-0 items-center gap-2">
-            <p className="min-w-0 truncate font-medium">{account.name}</p>
-            {linkedPlan && (
-              <span
-                className="shrink-0 rounded-md px-2 py-0.5 text-xs font-medium"
-                style={{
-                  background: 'var(--app-accent-soft)',
-                  color: 'var(--app-accent-on-page-tint)',
-                  border: '1px solid var(--app-accent-border)',
-                }}
-              >
-                {linkedPlan.name}
-              </span>
+            {isBare && showBankLogo && account.institution && (
+              <InstitutionMark institution={account.institution} size="row" />
             )}
+            <p className="min-w-0 truncate font-medium">{account.name}</p>
+            {linkedPlan && <TaxAdvantagedTag name={linkedPlan.name} />}
           </div>
           <div className="mt-0.5 flex min-w-0 items-center gap-2">
             {isArchived && (
@@ -104,7 +114,9 @@ export default function AccountRow({
             </p>
           </div>
         </div>
-        <div className="col-start-2 min-w-0 text-left min-[730px]:shrink-0 min-[730px]:text-right">
+        <div
+          className={`${isBare ? 'col-start-1' : 'col-start-2'} min-w-0 text-left min-[730px]:shrink-0 min-[730px]:text-right`}
+        >
           <p
             className="font-financial font-medium text-[var(--balance-text)] transition-control group-hover/row:text-[var(--balance-tinted-text)]"
             style={balanceStyle}

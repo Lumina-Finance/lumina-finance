@@ -3,17 +3,8 @@ import type { AccountsOverview } from '@/api/accounts'
 import { getAccountSections } from '@/pages/accounts/utils/accountSections'
 
 /**
- * Memoizes account section totals and filtered section rows for the accounts page
+ * Memoizes the net worth statement figures for the accounts page
  */
-export function useAccountSections({
-  rows,
-  filteredRows,
-}: {
-  rows: AccountsOverview[]
-  filteredRows: AccountsOverview[]
-}) {
-  return useMemo(
-    () => getAccountSections({ rows, filteredRows }),
-    [filteredRows, rows],
-  )
+export function useAccountSections(rows: AccountsOverview[]) {
+  return useMemo(() => getAccountSections(rows), [rows])
 }

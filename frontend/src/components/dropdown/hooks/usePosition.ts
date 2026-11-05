@@ -14,6 +14,9 @@ interface UseDropdownPositionParams {
 
   searchable: boolean
 
+  /** Whether the open box stays as wide as its slot */
+  matchFieldWidth: boolean
+
   /** The slot the control occupies in the page, held at the collapsed height while the box is open */
   wrapperRef: RefObject<HTMLDivElement | null>
 }
@@ -50,6 +53,7 @@ function getViewport(): DropdownViewport {
  * the page scrolled underneath. The wrapper stays in the page and moves with it.
  */
 export function useDropdownPosition({
+  matchFieldWidth,
   placed,
   searchable,
   wrapperRef,
@@ -73,6 +77,7 @@ export function useDropdownPosition({
       bounds: bounds && { bottom: bounds.bottom, top: bounds.top },
       headHeight: rect.height,
       held: heldDirection.current,
+      matchFieldWidth,
       searchable,
       viewport: getViewport(),
     })
@@ -81,8 +86,8 @@ export function useDropdownPosition({
 
     // Kept as it is where the measurement landed in the same place, so a frame that found nothing
     // moved costs a measurement rather than a render of the whole control and its list
-    setBoxPosition((current) => isSameDropdownBoxPosition(current, next) ? current : next)
-  }, [searchable, wrapperRef])
+    setBoxPosition((current) => (isSameDropdownBoxPosition(current, next) ? current : next))
+  }, [matchFieldWidth, searchable, wrapperRef])
 
   useEffect(() => {
     // Kept up through the collapse as well. Stopping at the moment the list closes leaves a box that is
