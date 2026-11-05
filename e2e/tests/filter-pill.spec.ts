@@ -173,11 +173,11 @@ for (const list of LISTS) {
   })
 }
 
-// No control on the six pages of the sidebar reads a 0.4s transition. The pills used to. The pages are
+// No control on the six pages of the sidebar reads a 0.4s transition, and every pill reads the shared durations. The pills used to read 0.4s. The pages are
 // sampled as they open for a user with one account, so controls that only data brings in are not in it
 const SIX_PAGES = ['/', '/accounts', '/transactions', '/budgets', '/insights', '/settings']
 
-test('no control on the six pages has a transition of 0.4s', async ({ page, request }) => {
+test('no control on the six pages has a transition of 0.4s and every pill reads the shared durations', async ({ page, request }) => {
   await page.emulateMedia({ reducedMotion: 'no-preference' })
   const user = await signUpUser(request)
   await createAccount(request, user, { name: 'Everyday' })
@@ -189,6 +189,22 @@ test('no control on the six pages has a transition of 0.4s', async ({ page, requ
       .filter((node) => getComputedStyle(node).transitionDuration.split(', ').includes('0.4s'))
       .map((node) => `${node.tagName.toLowerCase()}.${node.className.toString().split(' ').slice(0, 3).join('.')}`))
     expect(slow, `${path} has a 0.4s transition`).toEqual([])
+
+    // Every pill on the page also reads the acceptance durations: the look eases over 0.3s, the focus ring
+    // fades over 0.15s and the head eases its padding over 0.3s. Accounts, Transactions and Insights have pills
+    const pills = await page.evaluate(() => {
+      const read = (element: Element, property: string) => {
+        const style = getComputedStyle(element)
+        return style.transitionDuration.split(', ')[style.transitionProperty.split(', ').indexOf(property)]
+      }
+      return [...document.querySelectorAll('.app-range-glass')].map((glass) => ({
+        focus: read(glass, 'outline-color'),
+        look: read(glass, 'background-color'),
+        padding: read(glass.querySelector('.app-range-glass-head')!, 'padding-top'),
+      }))
+    })
+    if (['/accounts', '/transactions', '/insights'].includes(path)) expect(pills.length, `${path} shows no pill`).toBeGreaterThan(0)
+    for (const pill of pills) expect(pill, `${path} pill durations`).toEqual({ focus: '0.15s', look: '0.3s', padding: '0.3s' })
   }
 })
 
