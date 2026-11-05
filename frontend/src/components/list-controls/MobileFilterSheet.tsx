@@ -16,9 +16,18 @@ type MobileFilterSheetProps = {
   onExitComplete: () => void
   // Accessible name for the modal dialog, naming the domain being filtered
   ariaLabel: string
-  activeFacetCount: number
-  clearAll: () => void
-  applyFilters: () => void
+  activeFacetCount?: number
+  clearAll?: () => void
+  applyFilters?: () => void
+
+  // The heading's summary line, in place of the active count, for a sheet holding another kind of setting
+  summary?: string
+
+  // A sheet whose changes apply as they are made has no clear and apply footer
+  showFooter?: boolean
+
+  // Draws the close button at the 44px touch size, for a sheet holding settings a thumb works directly
+  largeCloseButton?: boolean
 
   // Wording for a sheet that holds one filter. Other sheets keep the plural
   title?: string
@@ -56,9 +65,12 @@ export function MobileFilterSheet({
   onClose,
   onExitComplete,
   ariaLabel,
-  activeFacetCount,
+  activeFacetCount = 0,
   clearAll,
   applyFilters,
+  summary,
+  showFooter = true,
+  largeCloseButton = false,
   title = 'Filters',
   applyLabel = 'Apply filters',
   applyDisabledReason,
@@ -126,12 +138,13 @@ export function MobileFilterSheet({
                 {title}
               </h2>
               <p className="text-sm" style={{ color: 'var(--app-text-muted)' }}>
-                {activeFacetCount === 0 ? `No active ${title.toLowerCase()}` : `${activeFacetCount} active`}
+                {summary ??
+                  (activeFacetCount === 0 ? `No active ${title.toLowerCase()}` : `${activeFacetCount} active`)}
               </p>
             </div>
             <button
               type="button"
-              className="app-secondary-button h-10 w-10 rounded-full px-0"
+              className={`app-secondary-button rounded-full px-0 ${largeCloseButton ? 'h-11 w-11' : 'h-10 w-10'}`}
               onClick={onClose}
               aria-label={`Close ${title.toLowerCase()}`}
             >
@@ -143,26 +156,28 @@ export function MobileFilterSheet({
             {children(headingId)}
           </div>
 
-          <div
-            className={`${equalFooterButtons ? 'grid grid-cols-2' : 'flex items-center justify-between'} gap-3 border-t px-5 py-4`}
-            style={{ borderColor: 'var(--app-border)' }}
-          >
-            <DisabledReasonButton
-              className={`app-secondary-button${equalFooterButtons ? ' w-full' : ''}`}
-              disabledReason={activeFacetCount === 0 ? clearDisabledReason : undefined}
-              keepReasonClearOf={clearReasonKeepClearOf}
-              onClick={clearAll}
+          {showFooter && (
+            <div
+              className={`${equalFooterButtons ? 'grid grid-cols-2' : 'flex items-center justify-between'} gap-3 border-t px-5 py-4`}
+              style={{ borderColor: 'var(--app-border)' }}
             >
-              Clear all
-            </DisabledReasonButton>
-            <DisabledReasonButton
-              className={`app-glass-button-primary${equalFooterButtons ? ' w-full' : ''}`}
-              disabledReason={applyDisabledReason}
-              onClick={applyFilters}
-            >
-              {applyLabel}
-            </DisabledReasonButton>
-          </div>
+              <DisabledReasonButton
+                className={`app-secondary-button${equalFooterButtons ? ' w-full' : ''}`}
+                disabledReason={activeFacetCount === 0 ? clearDisabledReason : undefined}
+                keepReasonClearOf={clearReasonKeepClearOf}
+                onClick={clearAll}
+              >
+                Clear all
+              </DisabledReasonButton>
+              <DisabledReasonButton
+                className={`app-glass-button-primary${equalFooterButtons ? ' w-full' : ''}`}
+                disabledReason={applyDisabledReason}
+                onClick={applyFilters}
+              >
+                {applyLabel}
+              </DisabledReasonButton>
+            </div>
+          )}
         </motion.div>
       )}
     </AnimatePresence>,
