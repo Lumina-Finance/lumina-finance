@@ -56,7 +56,9 @@ import { Landmark, ReceiptText } from 'lucide-react'
 import { useAsideRoom } from '@/components/modal/asideRoom'
 import { ModalTitledPanel } from '@/components/modal/TitledPanel'
 import { FormError } from '@/components/forms/FormError'
-import TransactionBankSourcePanel from '@/components/transactions/transaction-modal/controls/BankSourcePanel'
+import TransactionBankSourcePanel, {
+  TransactionBankSourceCard,
+} from '@/components/transactions/transaction-modal/controls/BankSourcePanel'
 import TransactionBankValueCaption from '@/components/transactions/transaction-modal/controls/BankValueCaption'
 import TransactionReferenceCreationModals from '@/components/transactions/transaction-modal/modals/ReferenceCreationModals'
 import TransactionReferencesSection from '@/components/transactions/transaction-modal/sections/ReferencesSection'
@@ -544,6 +546,19 @@ export default function CreateTransactionModal({
   )
 
   // The next item's form, and its card beside it, slide in in place of the decided one's, with no exit
+  // What the bank sent for a transaction already in the ledger, open beside the modal as a review item's card
+  // is where there is room, and folded to its From strip heading the form where there isn't
+  const sourceCardProps = bankSource && {
+    providerName: bankSource.provider_name,
+    bankValues: bankSource.bank_values,
+    receivedAt: bankSource.received_at,
+    timeZone: user?.tz,
+    heading: sourceLink?.institution_name ?? sourceAccount?.name ?? bankSource.provider_name,
+    bankAccountName: sourceLink?.external_account_name,
+    currency: storedTransaction?.currency ?? form.currency,
+  }
+  const asideCard = filingCard || (sourceCardProps && <TransactionBankSourceCard {...sourceCardProps} />)
+
   const reviewSwap = {
     initial: isItemSwapped ? { opacity: 0, x: prefersReducedMotion ? 0 : REVIEW_SWAP_OFFSET_PX } : false,
     animate: { opacity: 1, x: 0 },
@@ -614,9 +629,9 @@ export default function CreateTransactionModal({
             onSubmit={handleSubmit}
             aside={
               isFilingCardBeside &&
-              filingCard && (
+              asideCard && (
                 <motion.div key={reviewItem?.id} {...reviewSwap}>
-                  {filingCard}
+                  {asideCard}
                 </motion.div>
               )
             }
@@ -647,17 +662,7 @@ export default function CreateTransactionModal({
           >
             <motion.div key={reviewItem?.id} className="flex flex-col gap-5" {...reviewSwap}>
               {!isFilingCardBeside && filingCard}
-              {bankSource && (
-                <TransactionBankSourcePanel
-                  providerName={bankSource.provider_name}
-                  bankValues={bankSource.bank_values}
-                  receivedAt={bankSource.received_at}
-                  timeZone={user?.tz}
-                  heading={sourceLink?.institution_name ?? sourceAccount?.name ?? bankSource.provider_name}
-                  bankAccountName={sourceLink?.external_account_name}
-                  currency={storedTransaction?.currency ?? form.currency}
-                />
-              )}
+              {!isFilingCardBeside && sourceCardProps && <TransactionBankSourcePanel {...sourceCardProps} />}
 
               <TransactionTypeDirectionSection
                 kind={form.kind}

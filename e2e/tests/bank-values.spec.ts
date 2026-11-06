@@ -19,6 +19,9 @@ import { API_BASE_URL } from '../support/target'
 // the server and what it saved is read back. Only a failed restore, which the server can't be made to
 // give, is answered in its place
 const BANK_DESCRIPTION = 'HARBOUR CAFE #12 VANCOUVER'
+
+// Where the modal has room for the bank's filing card beside it
+const ASIDE_MIN_WIDTH = 1320
 const RESTORE_FAILED = 'Could not restore the bank value. Please try again.'
 const UNSTORABLE_REASON = 'The bank\'s amount has more decimal places than CAD allows, so it can\'t be restored.'
 
@@ -136,13 +139,22 @@ test('restores the bank amount under an edited amount, bringing back its sign an
   await openPage(page, '/transactions')
   await expect(page.getByTestId(`transaction-row-${id}`).getByTestId('bank-edited-dot').filter({ visible: true })).toBeVisible()
 
-  // The provider heads the form closed to its own line, and opened shows the bank's filing card, read-only
+  // Where the window has room, the bank's filing card shows open beside the form, as a review item's does.
+  // Where it hasn't, the provider heads the form closed to its own line, and opened shows the card. Either
+  // way the card is read-only
   const dialog = await openTransaction(page, id)
   const source = dialog.getByRole('button', { name: 'From SimpleFIN', exact: true })
-  await expect(source).toHaveAttribute('aria-expanded', 'false')
-  await expect(dialog.getByRole('region', { name: 'SimpleFIN filing card' })).toHaveCount(0)
-  await source.click()
-  const card = dialog.getByRole('region', { name: 'SimpleFIN filing card' })
+  const card = page.getByRole('region', { name: 'SimpleFIN filing card' })
+  if (page.viewportSize()!.width >= ASIDE_MIN_WIDTH) {
+    await expect(card).toBeVisible()
+    await expect(source).toHaveCount(0)
+    const [cardBox, formBox] = await readBoxes(page, [card, dialog.getByRole('textbox', { name: 'Amount', exact: true })])
+    expect(cardBox.x).toBeGreaterThanOrEqual(formBox.x + formBox.width)
+  } else {
+    await expect(source).toHaveAttribute('aria-expanded', 'false')
+    await expect(card).toHaveCount(0)
+    await source.click()
+  }
   await expect(card.getByText(BANK_DESCRIPTION)).toBeVisible()
   await expect(card.getByText('Harbour Bank')).toBeVisible()
   await expect(dialog.getByRole('textbox', { name: 'Bank description' })).toHaveCount(0)

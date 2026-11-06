@@ -9,7 +9,7 @@ import { formatRawAmount } from '@/components/transactions/utils/bankReview'
 import { useMoneyFormatters } from '@/hooks/useMoneyFormatters'
 import { DATE_FORMATS, formatDate } from '@/utils/date'
 
-type BankSourcePanelProps = {
+type BankSourceCardProps = {
   providerName: string
 
   /** What the bank last sent for the transaction */
@@ -29,39 +29,61 @@ type BankSourcePanelProps = {
 
   /** The currency of the transaction's account, which the amount is in */
   currency: string
+}
 
+type BankSourcePanelProps = BankSourceCardProps & {
   /** Starts opened, for a test of the opened card, where the person starts it closed */
   defaultOpen?: boolean
 }
 
+/** The filing card's lines for what the bank sent, worded as the review step's card words them */
+function useSourceCardText({ bankValues, receivedAt, timeZone, currency }: BankSourceCardProps) {
+  const { formatMovedCurrency } = useMoneyFormatters()
+  return {
+    amountText:
+      bankValues.amount === null
+        ? formatRawAmount(bankValues.raw_amount ?? '', currency).text
+        : formatMovedCurrency(bankValues.amount, currency),
+    receivedText: formatDate(new Date(receivedAt), DATE_FORMATS.monthDayTime, timeZone),
+  }
+}
+
+/**
+ * What the bank sent for a bank-imported transaction as the provider's filing card, open and with its
+ * tab, as a transaction waiting for review shows it beside the modal where there is room
+ */
+export function TransactionBankSourceCard(props: BankSourceCardProps) {
+  const { amountText, receivedText } = useSourceCardText(props)
+  return (
+    <FilingCardSheet
+      providerName={props.providerName}
+      heading={props.heading}
+      bankAccountName={props.bankAccountName}
+      description={props.bankValues.description}
+      amountText={amountText}
+      date={props.bankValues.date}
+      receivedText={receivedText}
+    />
+  )
+}
+
 /**
  * Heads the form of a bank-imported transaction with the provider it came from, closed to that line
- * alone. Opened, it shows what the bank sent as the provider's filing card, as the review step did,
- * and always read-only, since the ledger has no description field and only the bank changes it
+ * alone, where there is no room for the card beside the modal. Opened, it shows what the bank sent as
+ * the provider's filing card, as the review step did, and always read-only, since the ledger has no
+ * description field and only the bank changes it
  *
  * Closed, it is the filing card shrunk to its top edge: the card's own tab stretched across the card's
  * width with "From" and the provider on it. Opened, that strip stays as the card's tab and the card
  * unfolds beneath it, so the open and closed states are one card
  */
-export default function TransactionBankSourcePanel({
-  providerName,
-  bankValues,
-  receivedAt,
-  timeZone,
-  heading,
-  bankAccountName,
-  currency,
-  defaultOpen = false,
-}: BankSourcePanelProps) {
-  const { formatMovedCurrency } = useMoneyFormatters()
+export default function TransactionBankSourcePanel({ defaultOpen = false, ...card }: BankSourcePanelProps) {
+  const { providerName, bankValues, heading, bankAccountName } = card
+  const { amountText, receivedText } = useSourceCardText(card)
   const prefersReducedMotion = useReducedMotion()
   const { collapsed, enterTransition, leave } = REVIEW_MOTION[prefersReducedMotion ? 'reduced' : 'full']
   const [open, setOpen] = useState(defaultOpen)
   const cardId = useId()
-  const amountText =
-    bankValues.amount === null
-      ? formatRawAmount(bankValues.raw_amount ?? '', currency).text
-      : formatMovedCurrency(bankValues.amount, currency)
 
   // The strip's corners wait for the fold, and its filter does not
   const foldSeconds = leave.transition.duration
@@ -112,7 +134,7 @@ export default function TransactionBankSourcePanel({
                 description={bankValues.description}
                 amountText={amountText}
                 date={bankValues.date}
-                receivedText={formatDate(new Date(receivedAt), DATE_FORMATS.monthDayTime, timeZone)}
+                receivedText={receivedText}
               />
             </div>
           </motion.div>
