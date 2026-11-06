@@ -45,14 +45,14 @@ https://github.com/user-attachments/assets/de14da6a-c15c-4dfc-ba02-81a9c7140cee
 
 Lumina Finance gives you one place to track accounts, transactions, budgets, and financial trends while you keep your data under your control.
 
-- **Accounts** - Lumina Finance helps you track cash, credit, savings, and every other account type, with a detailed view and balance history for each. Archived accounts can be hidden when you don't need to see them.
+- **Accounts** - Lumina Finance helps you track cash, credit, savings, and every other account type, with a detailed view and balance history for each. You can group accounts by institution or account type and add notes to each one. Archived accounts can be hidden when you don't need to see them.
 - **Multi-currency** - Exchange rate conversions help you follow accounts and activity in different currencies across dashboards, budgets, runway, and insights.
-- **Transactions** - You can add transactions and organize them with merchants, categories, tags, and notes to keep your records clear.
+- **Transactions** - You can add transactions and organize them with merchants, categories, tags, and notes to keep your records clear. Keyboard shortcuts let you add a transaction without touching the mouse. Refunds can be linked to the expense they repay, and the list can be exported as a CSV file.
 - **Imports** - CSV files and OFX or QFX bank statements bring in new transactions from your bank as you go, several files at a time, and statements skip the transactions you've already imported. App-specific importers help you move your history over from another app.
 - **Tax-advantaged accounts** - Accounts with the same tax-advantaged structure can be grouped together, helping you track their contribution and withdrawal limits in one place.
 - **Budgets** - Recurring and one-time budgets help you compare your spending against the amounts you set for each category. Their history stays available after you archive them.
-- **Dashboard** - The dashboard brings your net worth, credit usage across the cards you choose, spending, savings rate, recent activity, and top budgets together in one beautifully presented view.
-- **Runway** - The runway view shows you exactly how long your funds will last in the worst-case scenario.
+- **Dashboard** - The dashboard brings your net worth, credit usage across the cards you choose, spending compared with the previous period or your average, savings rate, recent activity, and top budgets together in one beautifully presented view.
+- **Runway** - The runway view estimates how many months the accounts you choose could cover your spending if your income stopped.
 - **Insights** - Cash flow reports, income and expense breakdowns, and merchant patterns help you understand your finances, alongside trends in your net worth and savings rate.
 - **Account security** - Two-factor authentication protects your sign-in through an authenticator app or passkeys, with recovery codes as a fallback. Email password resets help you regain access if you forget your password.
 - **Single sign-on** - You can sign in through your own OpenID Connect provider, or link it to an existing account and manage it from settings.
@@ -60,7 +60,7 @@ Lumina Finance gives you one place to track accounts, transactions, budgets, and
 
 ### Importers
 
-The Actual Budget and Firefly III importers are tested every week against the app's latest release. The Quicken 3.0 importer is in beta and is not tested that way.
+The app-specific importers are in beta. The Actual Budget and Firefly III importers are tested every week against each app's latest release.
 
 <!-- markdownlint-disable MD033 -->
 | Importer | Used for | Status |
@@ -68,8 +68,8 @@ The Actual Budget and Firefly III importers are tested every week against the ap
 | CSV | Everyday imports from your bank | |
 | OFX and QFX | Everyday imports from your bank's statements | |
 | Quicken 3.0 (QIF) | Moving over from Quicken 3.0 | Beta |
-| Actual Budget | Moving over from Actual Budget | <a href="https://github.com/Lumina-Finance/lumina-finance/actions/workflows/actual-check.yml"><img alt="Actual Budget import check" src="https://img.shields.io/github/actions/workflow/status/Lumina-Finance/lumina-finance/actual-check.yml?label=Weekly%20test&style=flat&logo=githubactions&logoColor=white"></a> |
-| Firefly III | Moving over from Firefly III | <a href="https://github.com/Lumina-Finance/lumina-finance/actions/workflows/firefly-check.yml"><img alt="Firefly III import check" src="https://img.shields.io/github/actions/workflow/status/Lumina-Finance/lumina-finance/firefly-check.yml?label=Weekly%20test&style=flat&logo=githubactions&logoColor=white"></a> |
+| Actual Budget | Moving over from Actual Budget | Beta <a href="https://github.com/Lumina-Finance/lumina-finance/actions/workflows/actual-check.yml"><img alt="Actual Budget import check" src="https://img.shields.io/github/actions/workflow/status/Lumina-Finance/lumina-finance/actual-check.yml?label=Weekly%20test&style=flat&logo=githubactions&logoColor=white"></a> |
+| Firefly III | Moving over from Firefly III | Beta <a href="https://github.com/Lumina-Finance/lumina-finance/actions/workflows/firefly-check.yml"><img alt="Firefly III import check" src="https://img.shields.io/github/actions/workflow/status/Lumina-Finance/lumina-finance/firefly-check.yml?label=Weekly%20test&style=flat&logo=githubactions&logoColor=white"></a> |
 <!-- markdownlint-enable MD033 -->
 
 ### Roadmap
@@ -85,6 +85,9 @@ This roadmap may change as Lumina Finance evolves based on user feedback, techni
 - [X] Row-level security for per-user data isolation
 - [X] Application security improvements and fixes
 - [X] OIDC and WebAuthN support
+- [X] Refunds linked to the expenses they repay
+- [X] Importers for Actual Budget, Firefly III and Quicken (QIF)
+- [X] Group accounts by institution or account type
 
 </details>
 <!-- markdownlint-enable MD033 -->
@@ -194,6 +197,8 @@ Setup, configuration and answers to common questions are on the docs site at [do
 - [Signing keys and JWKS](https://docs.luminafinance.co/self-hosting/signing-keys/)
 - [Single sign-on](https://docs.luminafinance.co/self-hosting/single-sign-on/)
 - [Encryption and hash keys](https://docs.luminafinance.co/self-hosting/encryption-keys/)
+- [Database role passwords](https://docs.luminafinance.co/self-hosting/database-role-passwords/)
+- [Fail2ban integration](https://docs.luminafinance.co/self-hosting/blocking-abuse/)
 - [Environment variables](https://docs.luminafinance.co/self-hosting/environment-variables/)
 - [FAQ](https://docs.luminafinance.co/self-hosting/faq/)
 
