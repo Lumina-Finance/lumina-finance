@@ -1,4 +1,5 @@
 import type { TaxAdvantagedCategory } from '@/api/tax-advantaged-categories'
+import { IdentityBand } from './Band'
 import { DetailLimitUsage } from './LimitUsage'
 
 type TaxAdvantagedCategoryBandProps = {
@@ -11,7 +12,7 @@ type TaxAdvantagedCategoryBandProps = {
  */
 export function TaxAdvantagedCategoryBand({ plan, hasError }: TaxAdvantagedCategoryBandProps) {
   return (
-    <div className="mt-5 pt-4 min-[750px]:mt-auto" style={{ borderTop: '1px solid var(--app-border)' }}>
+    <IdentityBand>
       {hasError || !plan ? (
         <p className="text-sm" style={{ color: 'var(--app-text-subtle)' }}>
           Linked category unavailable
@@ -49,6 +50,6 @@ export function TaxAdvantagedCategoryBand({ plan, hasError }: TaxAdvantagedCateg
           )}
         </>
       )}
-    </div>
+    </IdentityBand>
   )
 }
