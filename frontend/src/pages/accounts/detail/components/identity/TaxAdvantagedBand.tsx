@@ -9,10 +9,7 @@ type TaxAdvantagedCategoryBandProps = {
 /**
  * Renders linked tax-advantaged category context and current-year limits
  */
-export function TaxAdvantagedCategoryBand({
-  plan,
-  hasError,
-}: TaxAdvantagedCategoryBandProps) {
+export function TaxAdvantagedCategoryBand({ plan, hasError }: TaxAdvantagedCategoryBandProps) {
   return (
     <div className="mt-5 pt-4 min-[750px]:mt-auto" style={{ borderTop: '1px solid var(--app-border)' }}>
       {hasError || !plan ? (
@@ -30,8 +27,7 @@ export function TaxAdvantagedCategoryBand({
             </div>
           </div>
 
-          {plan.current_year_contribution_limit === null &&
-          plan.current_year_withdrawal_limit === null ? (
+          {plan.current_year_contribution_limit === null && plan.current_year_withdrawal_limit === null ? (
             <p className="mt-3 text-sm" style={{ color: 'var(--app-text-subtle)' }}>
               No current-year limits set
             </p>
