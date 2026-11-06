@@ -1,9 +1,11 @@
 import { useRef } from 'react'
 import { AnimatePresence, motion, useReducedMotion } from 'motion/react'
-import { LoaderCircle } from 'lucide-react'
+import { LoaderCircle, RotateCcw } from 'lucide-react'
 import { DisabledReasonButton } from '@/components/tooltips/DisabledReasonButton'
 import { DETAILS_LINE_TRANSITION } from '@/components/transactions/transaction-modal/constants'
 import { revealIfHidden } from '@/components/transactions/transaction-modal/utils/reveal'
+
+const RESTORE_LABEL = 'Restore bank value'
 
 type BankValueCaptionProps = {
   /** Names the bank's value, which the restore action is described by, telling the date's from the amount's */
@@ -29,19 +31,15 @@ type BankValueCaptionProps = {
 }
 
 /**
- * Shows the bank's value under a field the user edited, with an action that puts it back
+ * Shows the bank's value under a field the user edited, with a restore icon after it that puts it back
  *
- * The text and the action take the muted colour, which keeps them above 4.5:1 against the modal in
- * both themes, and the action is underlined, so it reads as one without the accent colour.
- * Its presses reach 24px tall through padding inside the caption, which clips nothing, while the line
- * of text stays as tall as the caption's own
+ * The text and the icon take the muted colour, which keeps them above 3:1 against the modal in both
+ * themes. The icon names itself in the app's tooltip and to a screen reader, and its press is 24px
+ * square. A restore that fails says so under the caption, by the field it was restoring rather than at
+ * the foot of the form, out of sight on a phone
  *
- * The action follows the value after a dot where both fit on one line, and otherwise starts a line of
- * its own, in line with the value and with no dot. A restore that fails says so under the caption, by
- * the field it was restoring rather than at the foot of the form, out of sight on a phone
- *
- * For a value the ledger can't store, the action shows greyed out and gives its reason beside the
- * pointer, or under it for the keyboard, as the app's other unavailable actions do. Only its label
+ * For a value the ledger can't store, the icon shows greyed out and gives its reason beside the
+ * pointer, or under it for the keyboard, as the app's other unavailable actions do. Only the icon
  * fades, so the focus ring around it keeps its full strength
  */
 export default function TransactionBankValueCaption({
@@ -74,55 +72,45 @@ export default function TransactionBankValueCaption({
           {/* The room around the line sits in a spacer, since padding on the box whose height animates
               would stay behind once it closes */}
           <div className="px-1 py-0.5">
-            {/* Each part starts with 16px kept for the dot before it, and the line starts 16px early to
-                match, so a part that wraps to the start of a line has its dot cut off by the clip */}
-            <p
-              className="-ml-4 flex flex-wrap items-center text-xs leading-4"
-              style={{ color: 'var(--app-text-muted)' }}
-            >
-              <span className="pl-4">
-                <span id={id}>
-                  Bank: <span className={financial ? 'font-financial' : undefined}>{bankValue}</span>
-                </span>
+            <p className="flex items-center text-xs leading-4" style={{ color: 'var(--app-text-muted)' }}>
+              <span id={id}>
+                Bank: <span className={financial ? 'font-financial' : undefined}>{bankValue}</span>
               </span>
-              <span className="inline-flex items-center">
-                <span aria-hidden className="w-4 shrink-0 text-center">
-                  &middot;
-                </span>
-                <DisabledReasonButton
-                  id={actionId}
-                  onClick={onRestore}
-                  // An unavailable action stays focusable, refused through aria-disabled instead, so the
-                  // keyboard can reach its reason. It is described by the bank's value it restores, then
-                  // by why it can't, where it can't
-                  disabled={disabled || restoring}
-                  disabledReason={unavailableReason}
-                  aria-busy={restoring}
-                  aria-describedby={id}
-                  // Restoring keeps its full colour, since it says what is happening rather than that
-                  // the action is unavailable. Focus scrolls the action in with room above and below it
-                  // for its ring, which the edge of the modal's body would otherwise cut off. The ring
-                  // sits against the action's edge, with no gap, since the clip around the line keeps
-                  // only 2px above and below it
-                  className={`inline-flex scroll-my-1 cursor-pointer items-center gap-1 border-0 bg-transparent py-1 font-medium focus-visible:outline-offset-0 disabled:cursor-not-allowed aria-disabled:cursor-not-allowed ${restoring ? '' : 'disabled:opacity-60'}`}
-                >
-                  {restoring && (
-                    <LoaderCircle
-                      size={12}
-                      strokeWidth={2.4}
-                      className="animate-spin motion-reduce:animate-none"
-                      aria-hidden
-                    />
-                  )}
-                  <span
-                    className={
-                      unavailableReason ? 'underline underline-offset-2 opacity-60' : 'underline underline-offset-2'
-                    }
-                  >
-                    {restoring ? 'Restoring' : 'Restore bank value'}
-                  </span>
-                </DisabledReasonButton>
-              </span>
+              <DisabledReasonButton
+                id={actionId}
+                onClick={onRestore}
+                // An unavailable action stays focusable, refused through aria-disabled instead, so the
+                // keyboard can reach its reason. It is described by the bank's value it restores, then
+                // by why it can't, where it can't
+                disabled={disabled || restoring}
+                disabledReason={unavailableReason}
+                hint={restoring ? null : RESTORE_LABEL}
+                aria-label={restoring ? 'Restoring' : RESTORE_LABEL}
+                aria-busy={restoring}
+                aria-describedby={id}
+                // Restoring keeps its full colour, since it says what is happening rather than that
+                // the action is unavailable. Focus scrolls the action in with room above and below it
+                // for its ring, which the edge of the modal's body would otherwise cut off. The ring
+                // sits against the action's edge, with no gap, since the clip around the line keeps
+                // only 2px above and below it
+                className={`ml-1 inline-flex size-6 shrink-0 scroll-my-1 cursor-pointer items-center justify-center rounded-md border-0 bg-transparent transition-colors hover:text-[var(--app-text)] focus-visible:outline-offset-0 disabled:cursor-not-allowed aria-disabled:cursor-not-allowed ${restoring ? '' : 'disabled:opacity-60'}`}
+              >
+                {restoring ? (
+                  <LoaderCircle
+                    size={14}
+                    strokeWidth={2.2}
+                    className="animate-spin motion-reduce:animate-none"
+                    aria-hidden
+                  />
+                ) : (
+                  <RotateCcw
+                    size={14}
+                    strokeWidth={2.2}
+                    className={unavailableReason ? 'opacity-60' : undefined}
+                    aria-hidden
+                  />
+                )}
+              </DisabledReasonButton>
             </p>
             <AnimatePresence initial={false}>
               {error && (

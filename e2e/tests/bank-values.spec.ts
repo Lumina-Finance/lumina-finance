@@ -99,33 +99,28 @@ async function expectUnder(caption: Locator, field: Locator): Promise<void> {
 }
 
 /**
- * Assert the restore action under the date or the amount follows a dot beside the bank's value or,
- * where the two don't fit on one line, starts a line of its own in line with the value, its dot cut off
- * by the caption's clip. Returns whether the action has a line of its own
+ * Assert the restore action under the date or the amount is an icon with no text, on the bank value's
+ * line just after it, and drawn whole inside the caption's clip
  */
-async function expectActionPlacement(dialog: Locator, field: 'date' | 'amount'): Promise<boolean> {
-  const placement = await restoreAction(dialog, field).evaluate((action, valueId) => {
-    const dot = action.previousElementSibling!
+async function expectIconAfterValue(dialog: Locator, field: 'date' | 'amount'): Promise<void> {
+  const action = restoreAction(dialog, field)
+  await expect(action).toHaveText('')
+  await expect(action.locator('svg')).toHaveCount(1)
+  const placement = await action.evaluate((button, valueId) => {
     const value = document.getElementById(valueId)!
-    let clip = action.parentElement!
+    let clip = button.parentElement!
     while (getComputedStyle(clip).overflowX === 'visible') clip = clip.parentElement!
-    const [actionBox, dotBox, valueBox, clipBox] = [action, dot, value, clip].map((part) => part.getBoundingClientRect())
+    const [actionBox, valueBox, clipBox] = [button, value, clip].map((part) => part.getBoundingClientRect())
     return {
-      ownLine: actionBox.top >= valueBox.bottom - 0.5,
-      dotShown: dotBox.left >= clipBox.left && dotBox.right <= clipBox.right,
-      dotBetween: dotBox.left >= valueBox.right - 0.5 && dotBox.right <= actionBox.left + 0.5,
-      indent: actionBox.left - valueBox.left,
+      gap: actionBox.left - valueBox.right,
+      middles: Math.abs(actionBox.top + actionBox.height / 2 - (valueBox.top + valueBox.height / 2)),
+      inside: actionBox.left >= clipBox.left && actionBox.right <= clipBox.right,
     }
   }, `txn-${field}-bank-value`)
-
-  if (placement.ownLine) {
-    expect(placement.dotShown, 'the dot before an action on a line of its own').toBe(false)
-    expect(Math.abs(placement.indent)).toBeLessThanOrEqual(1)
-  } else {
-    expect(placement.dotShown, 'the dot between the bank value and the action').toBe(true)
-    expect(placement.dotBetween).toBe(true)
-  }
-  return placement.ownLine
+  expect(placement.gap).toBeGreaterThanOrEqual(0)
+  expect(placement.gap).toBeLessThanOrEqual(8)
+  expect(placement.middles).toBeLessThanOrEqual(1)
+  expect(placement.inside).toBe(true)
 }
 
 // A stand-in can still be fetching for the page when a test ends, which would otherwise surface as an
@@ -157,7 +152,7 @@ test('restores the bank amount under an edited amount, bringing back its sign an
   const caption = dialog.locator('#txn-amount-bank-value')
   await expect(caption).toHaveText(`Bank: ${MINUS}$42.10`)
   await expectUnder(caption, amount)
-  await expectActionPlacement(dialog, 'amount')
+  await expectIconAfterValue(dialog, 'amount')
   await expect(dialog.locator('#txn-date-bank-value')).toHaveCount(0)
   await expect(dialog.getByRole('button', { name: 'Restore bank value' })).toHaveCount(1)
   await expect(amount).toHaveValue('42.10')
@@ -261,10 +256,8 @@ test('restores the bank date under an edited date, which stays restored once the
   await expectUnder(caption, date)
   await expect(dialog.locator('#txn-amount-bank-value')).toHaveCount(0)
 
-  // Beside the amount, the date's column is too narrow for the value and the action together, so the
-  // action takes a line of its own. Stacked on a phone, both fit on one line
-  const [dateBox, amountBox] = await readBoxes(page, [date, dialog.getByRole('textbox', { name: 'Amount', exact: true })])
-  expect(await expectActionPlacement(dialog, 'date')).toBe(amountBox.x >= dateBox.x + dateBox.width)
+  // The icon fits after the date's bank value even in the date's narrow column beside the amount
+  await expectIconAfterValue(dialog, 'date')
   await expect(date.getByRole('textbox', { name: 'Day' })).toHaveValue(EDITED_DATE.slice(8))
 
   await restoreAction(dialog, 'date').click()

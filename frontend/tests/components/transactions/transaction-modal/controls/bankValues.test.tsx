@@ -40,10 +40,10 @@ function renderCaption(overrides: Partial<Parameters<typeof TransactionBankValue
   )
 }
 
-/** The opening tag and text of the caption's one button */
-function restoreButton(markup: string): { tag: string; text: string } {
+/** The opening tag, name and visible text of the caption's one button */
+function restoreButton(markup: string): { tag: string; name: string; inner: string; text: string } {
   const [, tag, inner] = markup.match(/(<button[^>]*>)(.*?)<\/button>/) ?? []
-  return { tag, text: inner?.replace(/<[^>]*>/g, '') }
+  return { tag, name: tag?.match(/aria-label="([^"]*)"/)?.[1] ?? '', inner, text: inner?.replace(/<[^>]*>/g, '') }
 }
 
 describe('bank source panel', () => {
@@ -115,14 +115,17 @@ describe('bank source panel', () => {
 })
 
 describe('bank value caption', () => {
-  it('shows the bank value in the figures typeface with an action to restore it, described by that value', () => {
+  it('shows the bank value in the figures typeface with a restore icon after it, described by that value', () => {
     const markup = renderCaption()
 
     expect(markup).toContain(
       `<span id="txn-amount-bank-value">Bank: <span class="font-financial">${MINUS}CA$42.10</span></span>`,
     )
-    const { tag, text } = restoreButton(markup)
-    expect(text).toBe('Restore bank value')
+    const { tag, name, inner, text } = restoreButton(markup)
+    expect(markup.indexOf('id="txn-amount-bank-value"')).toBeLessThan(markup.indexOf('<button'))
+    expect(name).toBe('Restore bank value')
+    expect(text).toBe('')
+    expect(inner).toContain('lucide-rotate-ccw')
     expect(tag).toContain('aria-describedby="txn-amount-bank-value"')
     expect(tag).toContain('aria-busy="false"')
     expect(tag).not.toContain('disabled=""')
@@ -134,16 +137,17 @@ describe('bank value caption', () => {
     const markup = renderCaption({ error: 'Could not restore the bank value. Please try again.' })
 
     expect(markup).toMatch(/<\/p><p role="alert"[^>]*>Could not restore the bank value\. Please try again\.<\/p>/)
-    const { tag, text } = restoreButton(markup)
-    expect(text).toBe('Restore bank value')
+    const { tag, name } = restoreButton(markup)
+    expect(name).toBe('Restore bank value')
     expect(tag).toContain('id="txn-amount-restore"')
     expect(tag).not.toContain('disabled=""')
   })
 
   it('says it is restoring, busy and closed to a second press', () => {
-    const { tag, text } = restoreButton(renderCaption({ restoring: true }))
+    const { tag, name, inner } = restoreButton(renderCaption({ restoring: true }))
 
-    expect(text).toBe('Restoring')
+    expect(name).toBe('Restoring')
+    expect(inner).toContain('animate-spin')
     expect(tag).toContain('aria-busy="true"')
     expect(tag).toContain('disabled=""')
   })
@@ -152,8 +156,8 @@ describe('bank value caption', () => {
     const markup = renderCaption({ bankValue: `${MINUS}CA$42.505`, unavailableReason: UNSTORABLE_REASON })
 
     expect(markup).toContain(`Bank: <span class="font-financial">${MINUS}CA$42.505</span>`)
-    const { tag, text } = restoreButton(markup)
-    expect(text).toBe('Restore bank value')
+    const { tag, name } = restoreButton(markup)
+    expect(name).toBe('Restore bank value')
     expect(tag).toContain('aria-disabled="true"')
     expect(tag).not.toContain('disabled=""')
 
@@ -162,8 +166,8 @@ describe('bank value caption', () => {
     expect(valueId).toBe('txn-amount-bank-value')
     expect(markup).toContain(`<span id="${reasonId}" hidden="">${RENDERED_UNSTORABLE_REASON}</span>`)
 
-    // Only the label fades, so the focus ring around the action keeps its full strength
-    expect(markup).toContain('<span class="underline underline-offset-2 opacity-60">Restore bank value</span>')
+    // Only the icon fades, so the focus ring around the action keeps its full strength
+    expect(restoreButton(markup).inner).toMatch(/<svg[^>]*class="[^"]*opacity-60/)
     expect(tag).not.toMatch(/(^|\s)opacity-/)
   })
 })
