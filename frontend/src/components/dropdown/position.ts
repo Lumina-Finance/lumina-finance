@@ -255,7 +255,12 @@ export function getDropdownBoxPosition({
   // and a copy of it would have none, which put the box at the screen's left edge
   return placeDropdownBox({
     ...params,
-    viewport: clampDropdownViewportToPanel(viewport, { left: panel.left, right: panel.right, top: -Infinity, bottom: Infinity }),
+    viewport: clampDropdownViewportToPanel(viewport, {
+      left: panel.left,
+      right: panel.right,
+      top: -Infinity,
+      bottom: Infinity,
+    }),
   })
 }
 

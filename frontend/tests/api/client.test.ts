@@ -298,10 +298,10 @@ describe('authenticatedFetch', () => {
   })
 
   it('answers a request the server answers with no content with nothing rather than reading a body', async () => {
-    fetchMock.mockResolvedValueOnce(new Response(null, { status: 204 }));
+    fetchMock.mockResolvedValueOnce(new Response(null, { status: 204 }))
 
-    await expect(authenticatedFetch('/bank-review/items/item-1/dismiss', { method: 'POST' })).resolves.toBeUndefined();
-  });
+    await expect(authenticatedFetch('/bank-review/items/item-1/dismiss', { method: 'POST' })).resolves.toBeUndefined()
+  })
 
   it('does not refresh or resend a wrong-credential 401 that lacks the bearer challenge', async () => {
     fetchMock.mockResolvedValueOnce({

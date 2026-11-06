@@ -128,12 +128,7 @@ export function useTransactionSubmit({
       (mutation) => mutation.isSuccess && mutation.variables?.itemId === reviewItem.id,
     )
   const isPending =
-    createLoading ||
-    updateMutation.isPending ||
-    editSaving ||
-    deleteLoading ||
-    dismissLoading ||
-    isReviewItemDecided
+    createLoading || updateMutation.isPending || editSaving || deleteLoading || dismissLoading || isReviewItemDecided
 
   const selectedAccountSessionDelta = selectedAccount ? (sessionAccountDeltas[selectedAccount.id] ?? 0) : 0
   const runningBalance = selectedAccount ? selectedAccount.current_balance + selectedAccountSessionDelta : 0

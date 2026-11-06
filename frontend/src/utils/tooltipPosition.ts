@@ -124,7 +124,13 @@ const ICON_TOOLTIP_MARGIN = 8
  * can lie across the sidebar's edge, and a tooltip held right of that edge would leave the column and
  * be cut off by it
  */
-export function getIconTooltipOffset({ icon, tooltipWidth, surface, page, screenWidth }: IconTooltipOffsetOptions): number {
+export function getIconTooltipOffset({
+  icon,
+  tooltipWidth,
+  surface,
+  page,
+  screenWidth,
+}: IconTooltipOffsetOptions): number {
   const ownLeft = Math.max(ICON_TOOLTIP_MARGIN, (surface?.left ?? 0) + ICON_TOOLTIP_MARGIN)
   const ownRight = Math.min(screenWidth, surface?.right ?? screenWidth) - ICON_TOOLTIP_MARGIN
   const left = page ? Math.max(ownLeft, Math.min(page.left + ICON_TOOLTIP_MARGIN, ownRight - tooltipWidth)) : ownLeft
@@ -185,7 +191,6 @@ export function getIconTooltipPlacement({
 
   return { placement, shift: placement === 'top' ? anchor.top - icon.top : anchor.bottom - icon.bottom }
 }
-
 
 /**
  * Where the lowest bar marked with `data-tooltip-cover` ends, among those starting above the trigger

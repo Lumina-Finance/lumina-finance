@@ -265,7 +265,8 @@ export default function CreateTransactionModal({
   // A bank item's transfer can only name one of the user's own personal accounts, the only kind the
   // server takes, so any other is left off the list rather than refused once the form is filled in
   const counterpartyAccounts = useMemo(
-    () => (reviewItem ? accounts.filter((account) => user !== null && isOwnPersonalAccount(account, user.id)) : accounts),
+    () =>
+      reviewItem ? accounts.filter((account) => user !== null && isOwnPersonalAccount(account, user.id)) : accounts,
     [reviewItem, accounts, user],
   )
 
@@ -568,7 +569,13 @@ export default function CreateTransactionModal({
             titleId={refunding ? 'create-txn-title-refund' : 'create-txn-title'}
             level={level}
             title={
-              reviewItem ? 'Review bank item' : editing ? 'Edit transaction' : refunding ? 'Add refund' : 'Add transaction'
+              reviewItem
+                ? 'Review bank item'
+                : editing
+                  ? 'Edit transaction'
+                  : refunding
+                    ? 'Add refund'
+                    : 'Add transaction'
             }
             eyebrow={
               reviewItem

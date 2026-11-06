@@ -396,7 +396,9 @@ function AnimatedRoutes() {
 
   // Bank sync status is kept current from here rather than from a page, since this outlives every
   // navigation, so a sync that finishes while the user is anywhere in the app shows as finished
-  useBankSyncHeartbeat(Boolean(user && !user.second_factor_reenrollment_required && isProtectedPath(displayLocation.pathname)));
+  useBankSyncHeartbeat(
+    Boolean(user && !user.second_factor_reenrollment_required && isProtectedPath(displayLocation.pathname)),
+  )
 
   return (
     <>

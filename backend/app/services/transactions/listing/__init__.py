@@ -9,8 +9,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.user import User
 from app.schemas.transaction import TransactionResponse
-from app.services.transactions.links import get_transaction_links_batch
 from app.services.bank_sync.sources import get_bank_sources_batch
+from app.services.transactions.links import get_transaction_links_batch
 from app.services.transactions.listing.amounts import get_transaction_listing_converted_amounts
 from app.services.transactions.listing.queries import build_transaction_listing_query
 from app.services.transactions.listing.validation import validate_transaction_listing_filters

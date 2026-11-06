@@ -258,11 +258,7 @@ export default function TaxAdvantagedLimitDetailsModal({
           </div>
         ) : null}
       </div>
-      <div
-        {...keepClear}
-        className="shrink-0 border-t px-5 py-4"
-        style={{ borderColor: 'var(--app-border)' }}
-      >
+      <div {...keepClear} className="shrink-0 border-t px-5 py-4" style={{ borderColor: 'var(--app-border)' }}>
         {showAddTaxYear ? (
           <div className="grid grid-cols-2 gap-2">
             <button

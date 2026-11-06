@@ -14,8 +14,8 @@ from app.models.tag import Tag, TransactionTag
 from app.models.transaction import Transaction
 from app.schemas.bank_sync import TransactionBankSource
 from app.schemas.transaction import TransactionResponse, TransactionTagSummary
-from app.services.transactions.links import get_transaction_links_batch
 from app.services.bank_sync.sources import get_bank_sources_batch
+from app.services.transactions.links import get_transaction_links_batch
 
 
 async def get_tag_ids(db: AsyncSession, transaction_id: uuid.UUID) -> list[uuid.UUID]:

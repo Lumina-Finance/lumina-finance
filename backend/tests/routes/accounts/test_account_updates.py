@@ -111,7 +111,12 @@ async def test_patch_account_archiving_is_blocked_by_transactions_dated_after_to
 
     category_id = (await _create_category(client, headers)).json()["id"]
     future = await _create_transaction(
-        client, headers, account_id, category_id, dt=(archive_dt + timedelta(days=1)).isoformat(), amount=5_000,
+        client,
+        headers,
+        account_id,
+        category_id,
+        dt=(archive_dt + timedelta(days=1)).isoformat(),
+        amount=5_000,
     )
     assert future.status_code == 201
     blocked = await client.get(f"/accounts/{account_id}", headers=headers)

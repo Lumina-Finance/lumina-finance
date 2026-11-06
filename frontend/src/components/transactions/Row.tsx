@@ -122,7 +122,10 @@ interface TransactionRowProps {
   onOpen: (transaction: Transaction) => void
 }
 
-interface TransactionRowViewProps extends Omit<TransactionRowProps, 'transaction' | 'currency' | 'onShowReview' | 'onOpen'> {
+interface TransactionRowViewProps extends Omit<
+  TransactionRowProps,
+  'transaction' | 'currency' | 'onShowReview' | 'onOpen'
+> {
   transaction: TransactionRowMetadata
   amountPresentation: TransactionAmountPresentation
 
@@ -442,7 +445,9 @@ export function TransactionRowView({
       // controls doing the same thing
       tabIndex={selection ? -1 : undefined}
       {...titleReasonProps}
-      aria-describedby={[amountId(layout), dateHeadingId, titleReasonProps['aria-describedby']].filter(Boolean).join(' ')}
+      aria-describedby={[amountId(layout), dateHeadingId, titleReasonProps['aria-describedby']]
+        .filter(Boolean)
+        .join(' ')}
       aria-pressed={pressed}
       className={`min-w-0 ${isHeldOff ? 'cursor-not-allowed' : 'cursor-pointer'} text-left after:absolute after:inset-0 after:content-[''] focus-visible:outline-none`}
       style={{ scrollMarginTop: TITLE_SCROLL_MARGIN[layout] }}

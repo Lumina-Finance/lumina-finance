@@ -9,8 +9,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.config.dashboard import DASHBOARD_RECENT_TRANSACTIONS_LIMIT
 from app.models.transaction import Transaction
 from app.schemas.transaction import TransactionResponse
-from app.services.transactions.links import get_transaction_links_batch
 from app.services.bank_sync.sources import get_bank_sources_batch
+from app.services.transactions.links import get_transaction_links_batch
 from app.services.transactions.response_helpers import (
     build_transaction_response,
     get_merchant_names_batch,

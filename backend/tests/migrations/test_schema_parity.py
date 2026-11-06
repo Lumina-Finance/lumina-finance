@@ -999,6 +999,8 @@ async def test_email_fold_migration_refuses_case_variant_accounts_and_upgrades_o
     finally:
         await engine.dispose()
         await _drop_database(database_name)
+
+
 async def _seed_legacy_auth_state(database_name: str) -> None:
     """Insert old auth rows that the overhaul migration should discard"""
     user_id = UUID("11111111-1111-4111-8111-111111111111")
