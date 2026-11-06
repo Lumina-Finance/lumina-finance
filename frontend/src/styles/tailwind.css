@@ -2669,6 +2669,202 @@
     transform: translateY(1px);
   }
 
+  /* The spending comparison's average toggle, the word AVG in the time selector's type with no frame of its own.
+     It answers the pointer as a time period does, lights its text while on, and takes the chosen period's look
+     once kept. A fill grows inside it while it is held: letting go early sends the fill back quickly, and a
+     completed hold fades it out. A long press must not select text or open a menu on a touch screen */
+  .app-hold-toggle {
+    @apply relative font-medium transition-control motion-reduce:transition-none;
+    font-size: 0.71875rem;
+
+    /* The button fits the word alone, with 7px around it counting its border, which reaches past the content edge
+       into the card's padding. Kept eases the room on its left wider for the dot, so the word stays put */
+    @apply w-auto;
+    padding: 0 6px;
+    transition-property: color, background-color, border-color, outline-color, padding-left;
+    transition-duration:
+      var(--app-ease-duration), var(--app-ease-duration), var(--app-ease-duration), var(--app-focus-fade-duration),
+      var(--app-ease-duration);
+    touch-action: manipulation;
+    user-select: none;
+    -webkit-user-select: none;
+    -webkit-touch-callout: none;
+  }
+
+  /* A press stays put, since the icon button's 1px drop can slide the button out from under a pointer at its top
+     edge, which would end the hold */
+  .app-hold-toggle:active {
+    transform: none;
+  }
+
+  /* Under the pointer it answers as a time period does, tinting the inner shape rather than the button */
+  .app-hold-toggle:hover,
+  .app-hold-toggle:focus-visible {
+    color: var(--app-text);
+    background: transparent;
+    border-color: transparent;
+  }
+
+  .app-hold-toggle:not([aria-disabled="true"]):hover .app-hold-toggle-clip,
+  .app-hold-toggle:not([aria-disabled="true"]):focus-visible .app-hold-toggle-clip {
+    background: var(--app-accent-soft);
+  }
+
+  /* On for this visit, only the text takes the accent */
+  .app-hold-toggle[data-on="true"],
+  .app-hold-toggle[data-on="true"]:hover,
+  .app-hold-toggle[data-on="true"]:focus-visible {
+    color: var(--app-accent);
+  }
+
+  .app-hold-toggle[data-on="true"] {
+    font-weight: 700;
+  }
+
+  /* Kept adds a dot before the word and no fill or border, so what the pointer tints is the same shape as ever */
+  .app-hold-toggle[data-kept="true"][data-on="true"]:hover,
+  .app-hold-toggle[data-kept="true"][data-on="true"]:focus-visible {
+    color: var(--app-accent-on-hover-fill);
+  }
+
+  .app-hold-toggle[data-kept="true"][data-on="true"]:hover .app-hold-toggle-clip,
+  .app-hold-toggle[data-kept="true"][data-on="true"]:focus-visible .app-hold-toggle-clip {
+    background: var(--app-accent-hover-fill);
+  }
+
+  .app-hold-toggle[aria-disabled="true"],
+  .app-hold-toggle[aria-disabled="true"]:hover,
+  .app-hold-toggle[aria-disabled="true"]:focus-visible {
+    cursor: not-allowed;
+    color: var(--app-text-subtle);
+    background: transparent;
+    border-color: transparent;
+  }
+
+  /* The inner shape, sized like the time selector's sliding indicator, clips the growing fill */
+  .app-hold-toggle-clip {
+    @apply rounded-md motion-reduce:transition-none;
+    position: absolute;
+
+    /* Hugs the word with the same room on every side. Kept stretches the left to take in the dot and its gap, so
+       the room on the left stays even as the dot appears */
+    inset: -7px;
+    overflow: hidden;
+    border: 1px solid transparent;
+    pointer-events: none;
+    transition:
+      background-color var(--app-ease-duration) var(--app-ease-curve),
+      border-color var(--app-ease-duration) var(--app-ease-curve),
+      left var(--app-ease-duration) var(--app-ease-curve);
+  }
+
+  /* The dot marks the default, so it stays while the average is off for this visit and only a hold that stops
+     keeping it takes it away */
+  .app-hold-toggle[data-kept="true"] {
+    padding-left: 15px;
+  }
+
+  .app-hold-toggle[data-kept="true"] .app-hold-toggle-clip {
+    left: calc(-7px - 9px);
+  }
+
+  .app-hold-toggle-label {
+    position: relative;
+    isolation: isolate;
+    display: inline-block;
+    line-height: 1;
+    transition: transform var(--app-ease-duration) var(--app-ease-curve);
+  }
+
+  /* Hangs off the word's left, so the label's baseline is the word's own and the word never moves. The dot is
+     5px with a 4px gap, and appears once the toggle is kept */
+  .app-hold-toggle-dot {
+    position: absolute;
+    top: 50%;
+    right: calc(100% + 4px);
+    width: 5px;
+    height: 5px;
+    margin-top: -2.5px;
+    border-radius: 9999px;
+    background: currentColor;
+    opacity: 0;
+    transition: opacity var(--app-ease-duration) var(--app-ease-curve);
+  }
+
+  .app-hold-toggle[data-kept="true"] .app-hold-toggle-dot {
+    opacity: 1;
+  }
+
+  /* Off, the word is crossed out by a line drawn as a shape, not as text decoration, which grows across it from the
+     left when the average turns off and retracts to the left when it turns on. A held off toggle is off too */
+  .app-hold-toggle-strike {
+    position: absolute;
+    inset-inline: 0;
+    top: 50%;
+    height: 2px;
+    margin-top: -2.25px;
+    background: currentColor;
+    transform: scaleX(0);
+    transform-origin: left center;
+    transition: transform var(--app-ease-duration) var(--app-ease-curve);
+    pointer-events: none;
+  }
+
+  .app-hold-toggle[data-on="false"] .app-hold-toggle-strike {
+    transform: scaleX(1);
+  }
+
+  /* Pressing sinks the shape and the word as it does a time period, but never the button, whose box is what
+     keeps the pointer on it for the length of a hold */
+  .app-hold-toggle:not([aria-disabled="true"]):active .app-hold-toggle-label {
+    transform: scale(0.9);
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .app-hold-toggle-label,
+    .app-hold-toggle-strike {
+      transition: none;
+    }
+  }
+
+  /* Deeper than the hover tint it grows over, so the progress reads while the pointer is on the button */
+  .app-hold-toggle-fill {
+    position: absolute;
+    inset: 0;
+    background: var(--app-accent-hover-fill);
+    pointer-events: none;
+    transform: scaleX(0);
+    transform-origin: left;
+    transition:
+      transform var(--app-ease-duration) var(--app-ease-curve),
+      opacity var(--app-ease-duration) var(--app-ease-curve);
+  }
+
+  .app-hold-toggle[data-pressing="true"] .app-hold-toggle-fill {
+    transform: scaleX(1);
+    transition:
+      transform var(--app-hold-ms, 600ms) cubic-bezier(0.37, 0, 0.63, 1),
+      opacity var(--app-ease-duration) var(--app-ease-curve);
+  }
+
+  /* A completed hold fades the fill out as it eases back, and the next press fades it in from empty. Only
+     transitions move it, so a press that starts mid-fade carries on from wherever the fill had reached,
+     where an animation ending would leave the fill's last frame to start the next transition from */
+  .app-hold-toggle[data-finished="true"] .app-hold-toggle-fill {
+    opacity: 0;
+  }
+
+  /* Without motion there is no growing fill, so the held button shows the accent border instead */
+  @media (prefers-reduced-motion: reduce) {
+    .app-hold-toggle-fill {
+      display: none;
+    }
+
+    .app-hold-toggle[data-pressing="true"] .app-hold-toggle-clip {
+      border-color: var(--app-accent);
+    }
+  }
+
   /* The sidebar's own buttons, the log out button and the collapse toggle, take the look a menu item takes under
      the pointer: accent text, the soft accent fill and the accent border. Keyboard focus shows that look with no
      ring. They sit after the icon button rules to outrank them */

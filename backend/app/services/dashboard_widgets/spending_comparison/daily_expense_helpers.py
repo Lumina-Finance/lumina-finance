@@ -32,6 +32,63 @@ class ConvertedSpendingComparisonDailyExpenses:
     fx_status: FxStatus
 
 
+@dataclass(frozen=True, slots=True)
+class ConvertedAverageHistory:
+    """Converted daily expenses across the periods the average counts, and their own FX status
+
+    Attributes:
+        daily_expenses: Converted daily expenses keyed by date
+        fx_status: Status from converting the history alone, so a missing old rate flags only the average
+    """
+
+    daily_expenses: dict[date, int]
+    fx_status: FxStatus
+
+
+async def get_converted_average_history(
+    db: AsyncSession,
+    accounts_by_id: dict[uuid.UUID, Account],
+    base_currency: str,
+    history_window: DateSlotRange,
+) -> ConvertedAverageHistory:
+    """Return converted daily expenses for the average's periods under a converter of their own
+
+    Args:
+        db: Active database session
+        accounts_by_id: Account rows keyed by account ID
+        base_currency: User base currency used for dashboard totals
+        history_window: Inclusive dates from the oldest counted period's first day to the newest's last
+
+    Returns:
+        Converted daily expenses plus the FX status of this history alone
+    """
+    converter = await _build_converter(db, accounts_by_id, base_currency)
+    daily_expenses = await _get_converted_daily_expenses(
+        db,
+        accounts_by_id,
+        base_currency,
+        history_window[0],
+        history_window[1],
+        converter,
+    )
+    return ConvertedAverageHistory(daily_expenses=daily_expenses, fx_status=converter.get_status())
+
+
+async def _build_converter(
+    db: AsyncSession,
+    accounts_by_id: dict[uuid.UUID, Account],
+    base_currency: str,
+) -> FxConverter:
+    """Return a request-scoped FX converter for the base currency and the accounts' currencies"""
+    converter = FxConverter(
+        currency_exponents=await get_currency_exponents(
+            db,
+            {base_currency, *(account.currency for account in accounts_by_id.values())},
+        ),
+    )
+    return converter
+
+
 async def get_converted_spending_comparison_daily_expenses(
     db: AsyncSession,
     accounts_by_id: dict[uuid.UUID, Account],
@@ -51,12 +108,7 @@ async def get_converted_spending_comparison_daily_expenses(
     Returns:
         Converted current and previous daily expenses plus FX conversion status
     """
-    converter = FxConverter(
-        currency_exponents=await get_currency_exponents(
-            db,
-            {base_currency, *(account.currency for account in accounts_by_id.values())},
-        ),
-    )
+    converter = await _build_converter(db, accounts_by_id, base_currency)
     current_daily_expenses = await _get_daily_expenses_for_slot_ranges(
         db,
         accounts_by_id,
@@ -165,9 +217,7 @@ async def _get_converted_daily_expenses(
         if converted_total is None:
             continue
 
-        daily_expenses[daily_expense_total.transaction_date] = (
-            daily_expenses.get(daily_expense_total.transaction_date, 0) - converted_total
-        )
+        daily_expenses[daily_expense_total.transaction_date] = daily_expenses.get(daily_expense_total.transaction_date, 0) - converted_total
     return daily_expenses
 
 

@@ -1,8 +1,11 @@
 import type { SpendingComparisonResponse, SpendingRange } from '@/api/dashboard'
-import type { SpendingComparisonSeriesPoint } from '@/pages/dashboard/types/dashboard'
+import type { SpendingComparisonBasis, SpendingComparisonSeriesPoint } from '@/pages/dashboard/types/dashboard'
 import { formatMovedPercent } from '@/utils/negativeAmount'
 import { getRoundedPercent } from '@/utils/rounding'
-import { getSpendingComparisonSeries } from '@/pages/dashboard/utils/getSpendingComparisonSeries'
+import {
+  getSpendingAverageSeries,
+  getSpendingComparisonSeries,
+} from '@/pages/dashboard/utils/getSpendingComparisonSeries'
 
 export type SpendingComparisonSummary = {
   spendingChartData: SpendingComparisonSeriesPoint[]
@@ -11,30 +14,23 @@ export type SpendingComparisonSummary = {
   lastSpendingXAxisTick: string | undefined
   spendingPointsByLabel: Map<string, SpendingComparisonSeriesPoint>
   currentHasData: boolean
-  previousHasData: boolean
+  comparisonHasData: boolean
   spentToDate: number
   spendingDeltaPct: number | null
   spendingDeltaText: string
 }
 
 /**
- * Keeps dense month-to-date labels readable by labelling every other day and always the last day
- * The last label is end-aligned and the others are centred, so a label only two days before it
- * touches it on a phone, and the labels within two days of the last are dropped
+ * Keeps dense month, quarter and year labels readable by labelling every other slot and always the last
+ * The first and last labels are edge-aligned and the others are centred, so a label next to either
+ * touches it on a phone, and the labels within two slots of the last are dropped
  */
-function getSpendingComparisonXAxisTicks(
-  range: SpendingRange,
-  data: Array<{ label: string }>,
-) {
+function getSpendingComparisonXAxisTicks(range: SpendingRange, data: Array<{ label: string }>) {
   const labels = data.map((point) => point.label)
-  if (range === 'MTD') {
-    const lastIndex = labels.length - 1
-    return labels.filter((_, index) => (
-      index === lastIndex || (index % 2 === 0 && lastIndex - index >= 3)
-    ))
-  }
+  if (range === 'WTD') return labels
 
-  return labels
+  const lastIndex = labels.length - 1
+  return labels.filter((_, index) => index === lastIndex || (index % 2 === 0 && lastIndex - index >= 3))
 }
 
 /**
@@ -47,7 +43,7 @@ function getSpendingComparisonDeltaPct(currentSeries: number[], previousSeries: 
   const previousAtSameOffset =
     currentSeries.length === 0
       ? null
-      : previousSeries[Math.min(currentSeries.length, previousSeries.length) - 1] ?? null
+      : (previousSeries[Math.min(currentSeries.length, previousSeries.length) - 1] ?? null)
 
   return previousAtSameOffset != null && previousAtSameOffset > 0
     ? getRoundedPercent(spentToDate - previousAtSameOffset, previousAtSameOffset, 'up', 1)
@@ -60,11 +56,13 @@ function getSpendingComparisonDeltaPct(currentSeries: number[], previousSeries: 
 export function getSpendingComparisonSummary(
   spendingComparison: SpendingComparisonResponse | undefined,
   spendingRange: SpendingRange,
+  basis: SpendingComparisonBasis = 'previous',
 ): SpendingComparisonSummary {
   const spendingChartData = getSpendingComparisonSeries(spendingComparison)
   const spendingXAxisTicks = getSpendingComparisonXAxisTicks(spendingRange, spendingChartData)
   const currentSeries = spendingComparison?.current ?? []
-  const previousSeries = spendingComparison?.previous ?? []
+  const previousSeries =
+    basis === 'average' ? getSpendingAverageSeries(spendingComparison) : (spendingComparison?.previous ?? [])
   const spendingDeltaPct = getSpendingComparisonDeltaPct(currentSeries, previousSeries)
 
   return {
@@ -74,11 +72,9 @@ export function getSpendingComparisonSummary(
     lastSpendingXAxisTick: spendingXAxisTicks[spendingXAxisTicks.length - 1],
     spendingPointsByLabel: new Map(spendingChartData.map((point) => [point.label, point])),
     currentHasData: currentSeries.some((value) => value > 0),
-    previousHasData: previousSeries.some((value) => value > 0),
+    comparisonHasData: previousSeries.some((value) => value > 0),
     spentToDate: currentSeries.at(-1) ?? 0,
     spendingDeltaPct,
-    spendingDeltaText: spendingDeltaPct == null
-      ? '+00.0%'
-      : formatMovedPercent(spendingDeltaPct, 1),
+    spendingDeltaText: spendingDeltaPct == null ? '+00.0%' : formatMovedPercent(spendingDeltaPct, 1),
   }
 }

@@ -225,18 +225,22 @@ async def get_spending_comparison_route(
     user: Annotated[User, Depends(get_current_user)],
     db: Annotated[AsyncSession, Depends(get_db)],
     range_: Annotated[RangeKind, Query(alias="range")] = "MTD",
+    average: bool = False,
 ):
     """Return current-vs-prior cumulative expense series for the spending widget
 
     ``range`` picks the calendar period: week-, month-, quarter-, or
     year-to-date. The payload is always same-length ``current`` / ``previous``
     cumulative totals in positive minor units, converted to the user's base
-    currency when needed and scoped to expense categories
+    currency when needed and scoped to expense categories. ``average`` also
+    loads the earlier periods the average covers and their FX rates, which
+    the screen asks for only while the average is on
 
     Args:
         user: Authenticated user requesting spending comparison data
         db: Active database session
         range_: Calendar range used for current and previous comparison slots
+        average: Whether to load the earlier periods for the average
 
     Returns:
         Spending comparison widget response
@@ -245,7 +249,7 @@ async def get_spending_comparison_route(
         HTTPException: The stored timezone does not resolve
     """
     now = _get_viewer_local_now(user)
-    response = await get_spending_comparison_for_user(db, user, range_, now)
+    response = await get_spending_comparison_for_user(db, user, range_, now, average)
     return response
 
 

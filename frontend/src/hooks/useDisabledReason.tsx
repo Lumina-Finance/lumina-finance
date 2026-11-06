@@ -47,6 +47,10 @@ function getReasonKey(reason: string) {
  * chart tooltips do. With no cursor, on keyboard focus or a tap, it sits beside the control, below it or
  * above when there is no room, as `IconTooltip` does
  *
+ * Pass `hangFromControl` for a control beside text the reason must not cover, such as a card's title. The
+ * reason then hangs from the control's edge under the pointer as well, instead of following the cursor
+ * above it
+ *
  * Pass `shownById` when the page already prints the reason in an element with that id. The control is
  * then described by that element, and no hidden copy is added for a screen reader to read twice.
  *
@@ -60,8 +64,9 @@ export function useDisabledReason(
   reason: string | null | undefined,
   shownById?: string,
   keepClearOf?: RefObject<HTMLElement | null>,
+  hangFromControl = false,
 ) {
-  return useControlTooltip(reason, { shownById, keepClearOf })
+  return useControlTooltip(reason, { shownById, keepClearOf, hangFromControl })
 }
 
 /**
@@ -90,6 +95,9 @@ type ControlTooltipOptions = {
   shownById?: string
   keepClearOf?: RefObject<HTMLElement | null>
 
+  // Hangs the reason from the control's edge under the pointer too, so it never covers text beside the control
+  hangFromControl?: boolean
+
   // The text only explains a control that works, so the control stays enabled, a click is never held
   // back, and a pointer that can't hover shows nothing
   advisory?: boolean
@@ -100,7 +108,13 @@ type ControlTooltipOptions = {
 
 function useControlTooltip(
   reason: string | null | undefined,
-  { shownById, keepClearOf, advisory = false, isDescription = !advisory }: ControlTooltipOptions,
+  {
+    shownById,
+    keepClearOf,
+    hangFromControl = false,
+    advisory = false,
+    isDescription = !advisory,
+  }: ControlTooltipOptions,
 ) {
   const activeReason = reason || null
   const ownDescriptionId = useId()
@@ -146,6 +160,7 @@ function useControlTooltip(
     getItemKey: getReasonKey,
     getBounds,
     getKeepClear,
+    // A hint rises above its control and falls below only where there is no room above
     preferAbove: advisory,
   })
 
@@ -245,17 +260,21 @@ function useControlTooltip(
         ...(advisory ? null : { 'aria-disabled': true }),
         ...(isDescription ? { 'aria-describedby': descriptionId } : null),
         onMouseEnter: (event) => {
-          if (!advisory) reveal(event.currentTarget, event)
+          if (!advisory) {
+            if (hangFromControl) revealBeside(event.currentTarget)
+            else reveal(event.currentTarget, event)
+          }
           // A touch only echoes its tap as a hover, and a hint must not appear under the finger
           else if (window.matchMedia('(hover: hover)').matches) revealBeside(event.currentTarget)
         },
-        // A hint hangs from its control and stays put, so a moving pointer has nothing to follow
-        onMouseMove: advisory
-          ? undefined
-          : (event) => {
-              if (prefersReducedMotion && tooltipVisible) return
-              reveal(event.currentTarget, event)
-            },
+        // A tooltip that hangs from its control stays put, so a moving pointer has nothing to follow
+        onMouseMove:
+          advisory || hangFromControl
+            ? undefined
+            : (event) => {
+                if (prefersReducedMotion && tooltipVisible) return
+                reveal(event.currentTarget, event)
+              },
         onMouseLeave: () => {
           if (!isPinned) hideTooltip()
         },

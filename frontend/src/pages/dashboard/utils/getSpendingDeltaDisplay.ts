@@ -6,7 +6,7 @@ export type SpendingDeltaDisplay = {
 }
 
 /**
- * Returns how the spending comparison shows its change against the previous period, which is already
+ * Returns how the spending comparison shows its change against its baseline, the previous period or the average, which is already
  * rounded to the tenth it is written in. Spending less is the good direction, so a fall takes the
  * positive colour. A change of zero has no direction, so it takes the neutral colour and no arrow
  */

@@ -62,6 +62,7 @@ export const dashboardKeys = {
   recentActivity: (windowDays: number) => ['dashboard-recent-activity', windowDays] as const,
   recentActivityAll: ['dashboard-recent-activity'] as const,
   spendingComparison: (range: string) => ['spending-comparison', range] as const,
+  spendingComparisonAverage: (range: string) => ['spending-comparison', range, 'average'] as const,
   spendingComparisonAll: ['spending-comparison'] as const,
   spendingBreakdown: (range: string) => ['spending-breakdown', range] as const,
   spendingBreakdownAll: ['spending-breakdown'] as const,

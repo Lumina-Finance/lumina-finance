@@ -1,22 +1,13 @@
 import { useMemo, useRef, type MouseEvent as ReactMouseEvent } from 'react'
-import {
-  Area,
-  AreaChart,
-  ResponsiveContainer,
-  XAxis,
-  YAxis,
-} from 'recharts'
+import { Area, AreaChart, ResponsiveContainer, XAxis, YAxis } from 'recharts'
 import type { SpendingRange } from '@/api/dashboard'
 import {
   DeferredChartTooltipOverlay,
   type DeferredChartTooltipOverlayHandle,
 } from '@/components/charts/DeferredTooltipOverlay'
-import {
-  getChartDataSignature,
-  useChartEntranceAnimation,
-} from '@/components/charts/useChartEntranceAnimation'
+import { getChartDataSignature, useChartEntranceAnimation } from '@/components/charts/useChartEntranceAnimation'
 import { CHART_X_AXIS_TICK_FONT_SIZE } from '@/components/charts/constants'
-import type { SpendingComparisonSeriesPoint } from '@/pages/dashboard/types/dashboard'
+import type { SpendingComparisonBasis, SpendingComparisonSeriesPoint } from '@/pages/dashboard/types/dashboard'
 import {
   getRechartsTooltipPoint,
   getRechartsTooltipPointer,
@@ -33,6 +24,7 @@ type SpendingComparisonChartProps = {
   lastXAxisTick: string | undefined
   displayCurrency: string
   spendingRange: SpendingRange
+  basis: SpendingComparisonBasis
 }
 
 type SpendingComparisonXAxisTickProps = {
@@ -85,6 +77,7 @@ export function SpendingComparisonChart({
   lastXAxisTick,
   displayCurrency,
   spendingRange,
+  basis,
 }: SpendingComparisonChartProps) {
   const chartRef = useRef<HTMLDivElement>(null)
   const tooltipRef = useRef<DeferredChartTooltipOverlayHandle<SpendingComparisonSeriesPoint>>(null)
@@ -93,8 +86,8 @@ export function SpendingComparisonChart({
   // change in either moves both. One signature and one entrance keeps them animating together
   // rather than leaving the untouched series to jump to its rescaled position
   const dataSignature = useMemo(
-    () => getChartDataSignature(data, (point) => `${point.previous}|${point.current}`),
-    [data],
+    () => getChartDataSignature(data, (point) => `${point[basis]}|${point.current}`),
+    [data, basis],
   )
   const areasEntrance = useChartEntranceAnimation({ dataSignature })
 
@@ -112,7 +105,7 @@ export function SpendingComparisonChart({
     })
     const pointer = getRechartsTooltipPointer(state, event)
 
-    if (!point || (point.current == null && point.previous == null)) {
+    if (!point || (point.current == null && point[basis] == null)) {
       tooltipRef.current?.show(null, pointer)
       return
     }
@@ -123,11 +116,7 @@ export function SpendingComparisonChart({
   const hideTooltip = () => tooltipRef.current?.hide()
 
   return (
-    <div
-      ref={chartRef}
-      className="relative min-h-0 flex-1"
-      onMouseLeave={hideTooltip}
-    >
+    <div ref={chartRef} className="relative min-h-0 flex-1" onMouseLeave={hideTooltip}>
       <ResponsiveContainer width="100%" height="100%">
         <AreaChart
           data={data}
@@ -145,11 +134,7 @@ export function SpendingComparisonChart({
               <stop offset="100%" stopColor="var(--app-text-muted)" stopOpacity={0} />
             </linearGradient>
           </defs>
-          <XAxis
-            xAxisId="plot"
-            dataKey="label"
-            hide
-          />
+          <XAxis xAxisId="plot" dataKey="label" hide />
           <XAxis
             xAxisId="labels"
             dataKey="label"
@@ -158,11 +143,7 @@ export function SpendingComparisonChart({
             interval={0}
             ticks={xAxisTicks}
             tick={(props) => (
-              <SpendingComparisonXAxisTick
-                {...props}
-                firstLabel={firstXAxisTick}
-                lastLabel={lastXAxisTick}
-              />
+              <SpendingComparisonXAxisTick {...props} firstLabel={firstXAxisTick} lastLabel={lastXAxisTick} />
             )}
             tickMargin={4}
           />
@@ -170,7 +151,7 @@ export function SpendingComparisonChart({
           <Area
             xAxisId="plot"
             type="monotone"
-            dataKey="previous"
+            dataKey={basis}
             stroke="var(--app-text-muted)"
             strokeWidth={1.5}
             strokeDasharray="4 3"
@@ -200,6 +181,7 @@ export function SpendingComparisonChart({
             point={point}
             displayCurrency={displayCurrency}
             spendingRange={spendingRange}
+            basis={basis}
           />
         )}
       />

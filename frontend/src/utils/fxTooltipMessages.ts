@@ -65,6 +65,22 @@ export function getRunwayFxStatusMessage(fxStatus: FxStatus) {
 }
 
 /**
+ * Explains how FX conversion affected the earlier periods behind the spending comparison's average
+ */
+export function getSpendingAverageFxStatusMessage(fxStatus: FxStatus) {
+  switch (fxStatus.state) {
+    case 'none':
+      return 'Spending in the earlier periods was already in your base currency'
+    case 'complete':
+      return 'Foreign currency spending in the earlier periods was converted into your base currency'
+    case 'incomplete':
+      return 'Some foreign currency spending in the earlier periods could not be converted. The average is incomplete and only includes spending with available conversion rates'
+    case 'unavailable':
+      return 'Foreign currency spending in the earlier periods could not be converted. The average is incomplete and only includes base currency spending'
+  }
+}
+
+/**
  * Explains how FX conversion affected spending comparison values
  */
 export function getSpendingComparisonFxStatusMessage(fxStatus: FxStatus) {
@@ -105,12 +121,12 @@ export function getBreakdownFxStatusMessage(fxStatus: FxStatus, mode: 'spending'
 export function getTopBudgetsFxStatusMessage(fxStatus: FxStatus) {
   switch (fxStatus.state) {
     case 'none':
-      return 'Budget activity was already in each budget\'s currency'
+      return "Budget activity was already in each budget's currency"
     case 'complete':
-      return 'Foreign currency budget activity was converted into each budget\'s currency'
+      return "Foreign currency budget activity was converted into each budget's currency"
     case 'incomplete':
       return 'Some foreign currency budget activity could not be converted. Top budgets are incomplete and only include activity with available conversion rates'
     case 'unavailable':
-      return 'Foreign currency budget activity could not be converted. Top budgets are incomplete and only include activity already in each budget\'s currency'
+      return "Foreign currency budget activity could not be converted. Top budgets are incomplete and only include activity already in each budget's currency"
   }
 }

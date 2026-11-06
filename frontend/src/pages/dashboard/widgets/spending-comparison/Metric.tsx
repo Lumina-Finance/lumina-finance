@@ -1,7 +1,4 @@
-import {
-  ArrowDownRight,
-  ArrowUpRight,
-} from 'lucide-react'
+import { ArrowDownRight, ArrowUpRight } from 'lucide-react'
 import { AppScrambledNumber } from '@/components/display/ScrambledNumber'
 import { useMoneyFormatters } from '@/hooks/useMoneyFormatters'
 import { getSpendingDeltaDisplay } from '@/pages/dashboard/utils/getSpendingDeltaDisplay'
@@ -14,7 +11,7 @@ type SpendingComparisonMetricProps = {
 }
 
 /**
- * Renders the current spending total and its previous-period percentage delta
+ * Renders the current spending total and its percentage delta against the comparison baseline, the previous period or the average
  */
 export function SpendingComparisonMetric({
   spentToDate,
