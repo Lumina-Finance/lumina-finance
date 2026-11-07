@@ -253,6 +253,9 @@ test('shows bank logos on group headers, and on rows a bank header doesn’t hea
   await closePanel(page)
   await expect(groupHeading(page, bank).getByRole('img', { name: `${bank} logo` })).toBeVisible()
   await expect(logos).toHaveCount(1)
+  // In its place each row shows its account type's icon, since no level names the type
+  await expect(page.getByRole('link', { name: /Bank savings/ }).locator('[data-account-type-mark="savings"]')).toBeVisible()
+  await expect(page.getByRole('link', { name: /Store card/ }).locator('[data-account-type-mark="credit_card"]')).toBeVisible()
 
   // Under a second level the sub-groups and rows still sit under their bank's header, so they leave it out
   await openPanel(page)
@@ -263,6 +266,8 @@ test('shows bank logos on group headers, and on rows a bank header doesn’t hea
   const savingsRow = page.getByRole('link', { name: /Bank savings/ })
   await expect(savingsRow).toBeVisible()
   await expect(savingsRow.getByRole('img', { name: `${bank} logo` })).toHaveCount(0)
+  // The type sub-group's own icon names the type, so the row leaves its type mark out
+  await expect(savingsRow.locator('[data-account-type-mark]')).toHaveCount(0)
 
   await openPanel(page)
   await page.getByText('Show bank logos').click()

@@ -329,6 +329,8 @@ export default function AccountListSection({
                       isBare
                       // A bank's own header already carries its logo, so its rows leave it out
                       showBankLogo={showLogos && !levels.includes('institution')}
+                      // Under a bank with no type level, the row's mark says its type instead
+                      showTypeIcon={levels.includes('institution') && !levels.includes('type')}
                       meta={getAccountRowMeta(account, levels)}
                     />
                   </motion.div>

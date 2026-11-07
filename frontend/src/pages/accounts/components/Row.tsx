@@ -8,6 +8,7 @@ import { useMoneyFormatters } from '@/hooks/useMoneyFormatters'
 import { useFittedForm } from '@/pages/accounts/hooks/useFittedForm'
 import { getAvailableCreditForms } from '@/pages/accounts/utils/availableCreditForms'
 import { InstitutionLogo } from '@/pages/accounts/components/InstitutionLogo'
+import { AccountTypeMark } from '@/pages/accounts/components/GroupMark'
 import { InstitutionMark } from '@/pages/accounts/components/InstitutionMark'
 import { TaxAdvantagedTag } from '@/pages/accounts/components/TaxAdvantagedTag'
 import { humanizeAccountType } from '@/utils/formatAccountType'
@@ -34,6 +35,7 @@ export default function AccountRow({
   isArchived = false,
   isBare = false,
   showBankLogo = false,
+  showTypeIcon = false,
   meta,
 }: {
   account: AccountsOverview
@@ -46,6 +48,9 @@ export default function AccountRow({
   isBare?: boolean
   // Puts the bank's small round logo before the name of a bare row
   showBankLogo?: boolean
+  // Puts the account type's icon before the name of a bare row, for a list whose groups name the bank
+  // but not the type
+  showTypeIcon?: boolean
   // Replaces the second line, for a list whose grouping already says the type or the institution
   meta?: string
 }) {
@@ -128,6 +133,11 @@ export default function AccountRow({
             {isBare && showBankLogo && account.institution && (
               <span className="mt-0.5 flex shrink-0 self-start min-[750px]:mt-0 min-[750px]:self-center">
                 <InstitutionMark institution={account.institution} size="row" />
+              </span>
+            )}
+            {isBare && showTypeIcon && (
+              <span className="mt-0.5 flex shrink-0 self-start min-[750px]:mt-0 min-[750px]:self-center">
+                <AccountTypeMark accountType={account.account_type} />
               </span>
             )}
             {/* On a phone the name and plan tag flow as one line of text, so a wrapped name carries its tag
