@@ -101,7 +101,9 @@ export default function TransactionBankSourcePanel({ defaultOpen = false, ...car
         style={{ ...FILING_TAB_STYLE, transitionDelay: open ? undefined : closeDelay }}
       >
         <Landmark size={13} aria-hidden className="shrink-0" />
-        <span className="min-w-0 flex-1">From {providerName}</span>
+        <span className="min-w-0 flex-1">
+          From <span className="normal-case">{providerName}</span>
+        </span>
         <motion.span
           aria-hidden
           className="inline-flex shrink-0"

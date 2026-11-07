@@ -150,7 +150,11 @@ test('restores the bank amount under an edited amount, bringing back its sign an
     await expect(source).toHaveCount(0)
     const [cardBox, formBox] = await readBoxes(page, [card, dialog.getByRole('textbox', { name: 'Amount', exact: true })])
     expect(cardBox.x).toBeGreaterThanOrEqual(formBox.x + formBox.width)
+
+    // The tab names the provider as its header does, never in capitals. innerText reads the text as drawn
+    expect(await page.getByTestId('filing-card-tab').innerText()).toBe('SimpleFIN')
   } else {
+    expect(await source.innerText()).toMatch(/^FROM\s+SimpleFIN$/)
     await expect(source).toHaveAttribute('aria-expanded', 'false')
     await expect(card).toHaveCount(0)
     await source.click()

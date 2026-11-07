@@ -64,7 +64,7 @@ describe('bank source panel', () => {
   it('starts closed to the provider line alone, with a toggle that says so', () => {
     const markup = panel(false)
 
-    expect(markup).toContain('From SimpleFIN')
+    expect(markup).toContain('From <span class="normal-case">SimpleFIN</span>')
     expect(markup).toMatch(/aria-expanded="false"/)
     expect(markup).not.toContain('HARBOUR CAFE')
     expect(markup).not.toContain('filing card')

@@ -116,8 +116,8 @@ export function FilingCardSheet({
       {/* The tab stands above the card's top edge, flush with its left side, so it carries the same stock but
           none of the shadow, and the card's corner under it is square */}
       {showTab && (
-        <span className={`inline-block ${FILING_TAB_CLASS}`} style={FILING_TAB_STYLE}>
-          {providerName}
+        <span data-testid="filing-card-tab" className={`inline-block ${FILING_TAB_CLASS}`} style={FILING_TAB_STYLE}>
+          <span className="normal-case">{providerName}</span>
         </span>
       )}
       <div
