@@ -5,11 +5,8 @@ import {
   type BankReviewBacklog,
   type BankReviewItem,
   type BankReviewItemKind,
-  type BulkApprovalKind,
-  type BulkApprovalResult,
   type CorrectableBankField,
 } from '@/api/bank-sync'
-import type { ToastStatus } from '@/components/feedback/Toast'
 import { isOwnPersonalAccount } from '@/utils/bankSync'
 import { DATE_FORMATS, formatDate, parseYmd } from '@/utils/date'
 import { formatExactMovedAmount } from '@/utils/formatCurrency'
@@ -18,12 +15,6 @@ export const REVIEW_KIND_LABELS: Record<BankReviewItemKind, string> = {
   new: 'New',
   correction: 'Correction',
   removal: 'Removal',
-}
-
-// What a bulk approval group holds, after its count, for one item and for several
-const BULK_GROUP_TITLES: Record<BulkApprovalKind, [string, string]> = {
-  correction: ['correction to apply', 'corrections to apply'],
-  removal: ['transaction to remove', 'transactions to remove'],
 }
 
 // What "The bank changed the …" calls each field, in the order the line names them
@@ -191,41 +182,4 @@ export function findNextNewItem(items: BankReviewItem[], itemId: string): BankRe
   const following = items.slice(index + 1)
   const preceding = index === -1 ? [] : items.slice(0, index)
   return [...following, ...preceding].find((item) => item.kind === 'new') ?? null
-}
-
-/**
- * Heads a bulk approval group with its count, as in "2 corrections to apply"
- */
-export function describeBulkApprovalGroup(kind: BulkApprovalKind, count: number): string {
-  const [one, several] = BULK_GROUP_TITLES[kind]
-  return `${count.toLocaleString()} ${count === 1 ? one : several}`
-}
-
-/**
- * Counts the new items bulk approval leaves waiting
- */
-export function describeExcludedNewItems(count: number): string {
-  const items = count === 1 ? 'item stays' : 'items stay'
-  return `${count.toLocaleString()} new ${items} in review, since each needs a merchant and category before it is added.`
-}
-
-/**
- * Words the toast after bulk approval: what it applied, then how many of the items sent still wait,
- * which makes it an error. Items decided elsewhere since the preview are neither
- */
-export function describeBulkApprovalResult(result: BulkApprovalResult): { status: ToastStatus; text: string } {
-  const applied = [
-    result.corrected > 0 && `${result.corrected.toLocaleString()} corrected`,
-    result.removed > 0 && `${result.removed.toLocaleString()} removed`,
-  ]
-    .filter(Boolean)
-    .join(', ')
-  if (result.failed > 0) {
-    const waiting = `${result.failed.toLocaleString()} could not be applied and stay in review.`
-    return { status: 'error', text: `${applied || 'Nothing applied'}. ${waiting}` }
-  }
-  return {
-    status: 'success',
-    text: applied ? `${applied}.` : 'Nothing applied, since each item was decided elsewhere.',
-  }
 }

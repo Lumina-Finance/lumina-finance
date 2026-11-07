@@ -1,8 +1,7 @@
-import { useId, useRef, type CSSProperties, type Ref } from 'react'
+import { useId, useRef, type Ref } from 'react'
 import { AnimatePresence, motion } from 'motion/react'
-import { ChevronDown, Landmark, ListChecks, PauseCircle, TriangleAlert } from 'lucide-react'
+import { ChevronDown, Landmark, PauseCircle, TriangleAlert } from 'lucide-react'
 import type { BankReviewItem } from '@/api/bank-sync'
-import { DisabledReasonButton } from '@/components/tooltips/DisabledReasonButton'
 import { useMoneyFormatters } from '@/hooks/useMoneyFormatters'
 import { ReadFailureNotice, type BankReadFailure } from '@/components/transactions/bank-review/ReadFailureNotice'
 import { REVIEW_MOTION } from '@/components/transactions/constants/bankReview'
@@ -18,16 +17,8 @@ import {
 // How many items show before the block is opened, so a long backlog doesn't push the ledger away
 export const COLLAPSED_ITEM_COUNT = 4
 
-// What a failed read of the items calls them, in its notice and on Bulk approve
-// Bulk approve's label at the full text colour, set through the button's own variable so the held
-// fade still greys it out
-const BULK_APPROVE_LABEL = { '--app-secondary-button-text': 'var(--app-text)' } as CSSProperties
-
+// What a failed read of the items calls them in its notice
 const ITEMS_SUBJECT = 'Bank items to review'
-
-// Why Bulk approve is unavailable while only new items wait in scope
-export const BULK_APPROVE_UNAVAILABLE_REASON =
-  'Bulk approve applies corrections and removals. New items need a merchant and category, so each is added on its own.'
 
 // How a row out of view leaves as the block closes, so closing on hundreds of loaded items animates
 // only the rows anyone can see
@@ -91,9 +82,6 @@ type BankReviewBlockProps = {
   /** Opens an item for review */
   onOpenItem: (item: BankReviewItem) => void
 
-  /** Set while a correction or a removal waits in scope, which bulk approval can apply */
-  canBulkApprove: boolean
-  onBulkApprove: () => void
   prefersReducedMotion: boolean | null
 }
 
@@ -104,9 +92,6 @@ type BankReviewBlockProps = {
  * Each row opens its item for review. Rows grow in and collapse out with the list's day groups, except that closing the block collapses only
  * the rows on screen. A read that fails is said inside the block, under its title, rather than
  * leaving it empty
- *
- * Bulk approve in the header opens what bulk approval would apply. With no correction or removal in
- * scope, or while the items can't load, it says why it is unavailable, on hover and on focus
  */
 export function BankReviewBlock({
   items,
@@ -130,17 +115,9 @@ export function BankReviewBlock({
   isGoingToItem,
   registerRow,
   onOpenItem,
-  canBulkApprove,
-  onBulkApprove,
   prefersReducedMotion,
 }: BankReviewBlockProps) {
   const { formatMovedCurrency } = useMoneyFormatters()
-  // Unavailable with nothing it can apply, or while the items can't load, which it says as the block does
-  const bulkApproveReason = itemsFailure
-    ? `${ITEMS_SUBJECT} could not load.`
-    : canBulkApprove
-      ? undefined
-      : BULK_APPROVE_UNAVAILABLE_REASON
   const titleId = useId()
   const listId = useId()
   const visibleItems = expanded ? items : items.slice(0, COLLAPSED_ITEM_COUNT)
@@ -177,8 +154,6 @@ export function BankReviewBlock({
       className="overflow-hidden rounded-2xl border border-dashed"
       style={{ borderColor: 'var(--app-review-border)', background: 'var(--app-review-bg)' }}
     >
-      {/* The subtitle shares the header's rows, so on a phone Bulk approve takes a full-width row of its
-          own beneath it, leaving the title its line */}
       <div className="flex flex-wrap items-center gap-x-2.5 px-4 pt-3.5 sm:px-5">
         <Landmark
           size={17}
@@ -203,20 +178,6 @@ export function BankReviewBlock({
           </span>
         )}
 
-        {/* Beside the title from 750px. Its label takes the full text colour, since the muted one falls
-            short of AA on the block's tint in the dark theme */}
-        <div className="order-last basis-full pb-3 min-[750px]:order-none min-[750px]:ml-auto min-[750px]:basis-auto min-[750px]:pb-0">
-          <DisabledReasonButton
-            className="app-secondary-button w-full min-[750px]:w-auto"
-            style={BULK_APPROVE_LABEL}
-            onClick={onBulkApprove}
-            disabledReason={bulkApproveReason}
-          >
-            <ListChecks size={15} aria-hidden />
-            Bulk approve
-          </DisabledReasonButton>
-        </div>
-
         {/* The caret opens and closes the list, up here so a long list closes from where it starts, not
             from its end, and ends the header's first row like the chevron of the app's other collapsible
             sections. It stays mounted as the list changes, which keeps keyboard focus on it through both.
@@ -235,7 +196,7 @@ export function BankReviewBlock({
               aria-controls={listId}
               aria-label={expanded ? 'Show fewer' : `Show all ${total.toLocaleString()}`}
               onClick={onToggleExpanded}
-              className="ml-auto flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-[var(--app-text-muted)] transition-colors hover:bg-[var(--app-accent-soft)] hover:text-[var(--app-text)] focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-[var(--app-focus-ring)] motion-reduce:transition-none min-[750px]:ml-2"
+              className="ml-auto flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-[var(--app-text-muted)] transition-colors hover:bg-[var(--app-accent-soft)] hover:text-[var(--app-text)] focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-[var(--app-focus-ring)] motion-reduce:transition-none"
             >
               <ChevronDown size={16} aria-hidden className={`transition-transform ${expanded ? 'rotate-180' : ''}`} />
             </motion.button>

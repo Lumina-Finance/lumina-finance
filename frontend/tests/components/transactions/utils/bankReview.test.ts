@@ -1,7 +1,7 @@
 /**
  * Covers how the review block words and scopes waiting bank items: the line each kind asks with, the
  * amount it shows, its date, the backlog notice, which accounts' items it reads, which new item
- * is reviewed after another, the heading of the removals bulk approval applies, and the toast after it
+ * is reviewed after another
  *
  * These tests catch a correction naming its changed fields in another order than "amount and date",
  * or saying nothing when it names none the block knows, a new item with an amount its currency can't
@@ -9,18 +9,13 @@
  * a removal showing the bank's amount rather than the ledger's, a date in this year carrying its year,
  * a warning shown over a pause, accounts named out of the order given, a scoped list
  * asking for a group or shared account's items, which the server refuses, Keep window open
- * going on to a correction, skipping a new item, or ending while a new item before it still waits,
- * removals in bulk approval headed as something else, without their count, or in the wrong number,
- * and a bulk approval toast naming a kind it applied none of, or reading as a success while items
- * it was sent still wait
+ * going on to a correction, skipping a new item, or ending while a new item before it still waits
  */
 import { describe, expect, it } from 'vitest'
 import type { BankReviewBacklog, BankReviewItem, BankReviewItemKind } from '@/api/bank-sync/types'
 import type { Currency } from '@/api/currency'
 import {
   describeBacklogNotice,
-  describeBulkApprovalGroup,
-  describeBulkApprovalResult,
   describeReviewItem,
   findNextNewItem,
   formatReviewDate,
@@ -224,30 +219,5 @@ describe('the new item reviewed after another', () => {
 
   it('is none when no other new item is loaded', () => {
     expect(findNextNewItem([correction, last, removal], 'last')).toBeNull()
-  })
-})
-
-describe('the heading of the removals in bulk approval', () => {
-  it.each([
-    [1, '1 transaction to remove'],
-    [1500, '1,500 transactions to remove'],
-  ])('heads a group of %i as %s', (count, heading) => {
-    expect(describeBulkApprovalGroup('removal', count)).toBe(heading)
-  })
-})
-
-describe('the toast after bulk approval', () => {
-  // The counts lead, and an item left waiting follows as its own number
-  it.each([
-    [{ corrected: 2, removed: 1, failed: 0 }, 'success', /^2 corrected, 1 removed\.$/],
-    [{ corrected: 0, removed: 3, failed: 0 }, 'success', /^3 removed\.$/],
-    [{ corrected: 1, removed: 1, failed: 1 }, 'error', /^1 corrected, 1 removed\. 1 \D/],
-    [{ corrected: 0, removed: 0, failed: 2 }, 'error', /^Nothing applied\. 2 \D/],
-    [{ corrected: 0, removed: 0, failed: 0 }, 'success', /^Nothing applied\b/],
-  ] as const)('reads %o as a %s naming its counts', (counts, status, text) => {
-    const toast = describeBulkApprovalResult({ ...counts, applied_ids: [] })
-
-    expect(toast.status).toBe(status)
-    expect(toast.text).toMatch(text)
   })
 })

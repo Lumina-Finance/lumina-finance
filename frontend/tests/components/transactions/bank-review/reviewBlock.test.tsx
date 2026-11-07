@@ -1,13 +1,11 @@
 /**
  * Covers the rows of the review block above the transaction list: the first four items and the
  * toggle for the rest, how a removal and money in show their amounts, that every row opens its item,
- * when Bulk approve is offered, and how a read that failed is said inside the block
+ * and how a read that failed is said inside the block
  *
  * These tests catch the block hiding the toggle a long backlog needs, offering one a short backlog
  * doesn't, a removal showing anything but the ledger amount struck through, a kind of item whose row
- * a keyboard can't open, Bulk approve offered with only new items waiting or unavailable without
- * saying why, and a failed read counting nothing as zero, offering Bulk approve without saying the
- * items could not load, or offering no retry. The
+ * a keyboard can't open, and a failed read counting nothing as zero or offering no retry. The
  * notice's own retry is covered with the notice, and following a Needs review marker to a failed
  * read, and opening an item, run in the browser, since they need effects and clicks
  */
@@ -26,16 +24,14 @@ vi.mock('@/hooks/useMoneyFormatters', () => ({
   }),
 }))
 
-import { BankReviewBlock, BULK_APPROVE_UNAVAILABLE_REASON } from '@/components/transactions/bank-review/ReviewBlock'
+import { BankReviewBlock } from '@/components/transactions/bank-review/ReviewBlock'
 
 const ITEMS = Array.from({ length: 6 }, (_, index) => createReviewItem(`item-${index}`, 'new', 'everyday'))
 
 function renderBlock(
   items: BankReviewItem[],
   expanded: boolean,
-  overrides: Partial<
-    Pick<Parameters<typeof BankReviewBlock>[0], 'itemsFailure' | 'backlogFailure' | 'canBulkApprove'>
-  > = {},
+  overrides: Partial<Pick<Parameters<typeof BankReviewBlock>[0], 'itemsFailure' | 'backlogFailure'>> = {},
 ): string {
   return renderToStaticMarkup(
     createElement(BankReviewBlock, {
@@ -48,8 +44,6 @@ function renderBlock(
       today: '2026-10-05',
       backlogNotice: null,
       backlogFailure: null,
-      canBulkApprove: true,
-      onBulkApprove: () => {},
       ...overrides,
       expanded,
       onToggleExpanded: () => {},
@@ -131,34 +125,10 @@ describe('the rows the block shows', () => {
   })
 })
 
-/** Bulk approve's button, and the text of the reason it is described by when it is unavailable */
-function bulkApproveOf(markup: string): { button: string; reason: string | undefined } {
-  const button = /<button\b[^>]*>(?:(?!<\/button>).)*Bulk approve<\/button>/.exec(markup)?.[0] ?? ''
-  const describedBy = /aria-describedby="([^"]+)"/.exec(button)?.[1]
-  return { button, reason: describedBy && new RegExp(`id="${describedBy}"[^>]*>([^<]*)<`).exec(markup)?.[1] }
-}
-
-describe('Bulk approve', () => {
-  it('is offered while a correction or a removal waits', () => {
-    const { button, reason } = bulkApproveOf(renderBlock(ITEMS, false))
-
-    expect(button).not.toBe('')
-    expect(button).not.toContain('aria-disabled')
-    expect(reason).toBeUndefined()
-  })
-
-  it('is unavailable while only new items wait, describing why', () => {
-    const { button, reason } = bulkApproveOf(renderBlock(ITEMS, false, { canBulkApprove: false }))
-
-    expect(button).toContain('aria-disabled="true"')
-    expect(reason).toBe(BULK_APPROVE_UNAVAILABLE_REASON)
-  })
-})
-
 describe('a read that failed', () => {
   const failed = { retry: () => {}, isRetrying: false }
 
-  it('says the items could not load in place of their count and rows, offering to try again, and on Bulk approve', () => {
+  it('says the items could not load in place of their count and rows, offering to try again', () => {
     const markup = renderBlock([], false, { itemsFailure: failed })
 
     expect(markup).toContain('Waiting for review')
@@ -166,8 +136,6 @@ describe('a read that failed', () => {
       /role="alert"[^>]*>.*Bank items to review could not load\.<\/span><button[^>]*>Try again<\/button>/,
     )
     expect(markup).not.toMatch(/>0<\/span>/)
-    expect(bulkApproveOf(markup).button).toContain('aria-disabled="true"')
-    expect(bulkApproveOf(markup).reason).toBe('Bank items to review could not load.')
     expect(rowCount(markup)).toBe(0)
   })
 
