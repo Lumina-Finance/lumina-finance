@@ -281,13 +281,14 @@ export function ConnectionModal({
 
   const actions = (
     <>
-      {/* Shrinks to its icon while the disconnect asks for confirmation, so the longer confirming label
-          fits beside it in the connection's narrow pane */}
+      {/* The two share the pane's width equally. Beside the pane the column's narrow width leaves them
+          less padding, since Disconnect's label needs the room. Rename shrinks to its icon while the
+          disconnect asks for confirmation, so the longer confirming label fits beside it */}
       <button
         ref={renameButtonRef}
         type="button"
         aria-label="Rename"
-        className={`app-secondary-button h-9 justify-center overflow-hidden whitespace-nowrap text-sm ${confirmingDisconnect ? 'flex-[0_0_2.25rem] px-0' : 'flex-[1_0_auto] px-3'}`}
+        className={`app-secondary-button h-9 justify-center overflow-hidden whitespace-nowrap text-sm ${confirmingDisconnect ? 'flex-[0_0_2.25rem] px-0' : 'flex-1 px-3 min-[1050px]:px-1.5'}`}
         disabled={renaming || disconnect.isPending}
         onClick={() => setRenaming(true)}
       >
@@ -304,7 +305,7 @@ export function ConnectionModal({
         type="button"
         aria-label={confirmingDisconnect ? 'Yes, disconnect' : 'Disconnect'}
         aria-busy={disconnect.isPending}
-        className={`${confirmingDisconnect || disconnect.isPending ? 'app-danger-button' : 'app-secondary-button hover:bg-[var(--app-negative-soft)]'} relative h-9 flex-[1_0_auto] justify-center overflow-hidden whitespace-nowrap px-3 text-sm ${disconnect.isPending ? 'app-primary-button-loading' : ''}`}
+        className={`${confirmingDisconnect || disconnect.isPending ? 'app-danger-button' : 'app-secondary-button hover:bg-[var(--app-negative-soft)]'} relative h-9 flex-1 justify-center overflow-hidden whitespace-nowrap px-3 text-sm min-[1050px]:px-1.5 ${disconnect.isPending ? 'app-primary-button-loading' : ''}`}
         style={
           confirmingDisconnect || disconnect.isPending
             ? undefined

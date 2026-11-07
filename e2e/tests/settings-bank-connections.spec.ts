@@ -569,6 +569,22 @@ test("draws a connection's status as a round dot, never a dash", AT_EVERY_SIZE, 
   expect(factDot.height).toBeCloseTo(factDot.width, 0)
 })
 
+test("gives Rename and Disconnect one width and clips neither label", AT_EVERY_SIZE, async ({ page, request }) => {
+  const user = await signUpUser(request)
+  const scenario = await createSampleBridgeScenario(request)
+  await claimSetupToken(request, user, scenario.setupToken)
+  const section = await openBankConnections(page, user)
+  const dialog = await openConnection(page, section, 'SimpleFIN')
+
+  const rename = dialog.getByRole('button', { name: 'Rename' })
+  const disconnect = dialog.getByRole('button', { name: 'Disconnect' })
+  const [renameBox, disconnectBox] = await readBoxes(page, [rename, disconnect])
+  expect(Math.abs(renameBox.width - disconnectBox.width)).toBeLessThanOrEqual(1)
+  for (const button of [rename, disconnect]) {
+    expect(await button.evaluate((element) => element.scrollWidth <= element.clientWidth)).toBe(true)
+  }
+})
+
 test("shows a connection's facts", async ({ page, request }) => {
   const user = await signUpUser(request)
   const [household, scenario] = await Promise.all([
