@@ -488,8 +488,12 @@ for (const colorScheme of ['light', 'dark'] as const) {
       expect(await dialog.evaluate((panel) => panel.scrollWidth <= panel.clientWidth)).toBe(true)
     }
 
+    // The card's labels are set in capitals, but the provider's name inside one keeps its own case
+    const descriptionLabel = card.getByText('Description from SimpleFIN', { exact: true })
+    expect(await descriptionLabel.evaluate((label) => (label as HTMLElement).innerText)).toMatch(/SimpleFIN$/)
+
     const texts = [
-      page.getByText('SimpleFIN', { exact: true }).filter({ visible: true }),
+      page.getByText('SimpleFIN', { exact: true }).filter({ visible: true }).first(),
       card.getByText('Harbour Bank', { exact: true }),
       card.getByText('New', { exact: true }),
       card.getByText('Everyday Chequing', { exact: true }),

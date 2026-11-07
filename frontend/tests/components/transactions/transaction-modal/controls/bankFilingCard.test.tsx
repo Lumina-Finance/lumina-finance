@@ -77,12 +77,13 @@ describe('the filing card', () => {
     const markup = renderCard(ITEM)
 
     expect(markup).toContain('aria-label="SimpleFIN filing card"')
-    expect(textOf(markup).slice(0, 5)).toEqual([
+    expect(textOf(markup).slice(0, 6)).toEqual([
       'SimpleFIN',
       'Example Bank',
       'New',
       'Chequing',
-      'Description from SimpleFIN',
+      'Description from ',
+      'SimpleFIN',
     ])
   })
 
@@ -94,7 +95,9 @@ describe('the filing card', () => {
       }),
     )
 
-    expect(markup).toMatch(/>Description from SimpleFIN<\/p><p[^>]*>COUNTDOWN 123 AUCKLAND<\/p>/)
+    expect(markup).toMatch(
+      />Description from <span class="normal-case">SimpleFIN<\/span><\/p><p[^>]*>COUNTDOWN 123 AUCKLAND<\/p>/,
+    )
     expect(fieldsOf(markup)).toEqual([
       ['Amount', `${MINUS}$42.10`],
       ['Date', 'Sep 21, 2026'],
@@ -109,11 +112,12 @@ describe('the filing card', () => {
   })
 
   it('is headed by the account in the app when its link is not known', () => {
-    expect(textOf(renderCard(ITEM, false)).slice(0, 4)).toEqual([
+    expect(textOf(renderCard(ITEM, false)).slice(0, 5)).toEqual([
       'SimpleFIN',
       'Everyday',
       'New',
-      'Description from SimpleFIN',
+      'Description from ',
+      'SimpleFIN',
     ])
   })
 })

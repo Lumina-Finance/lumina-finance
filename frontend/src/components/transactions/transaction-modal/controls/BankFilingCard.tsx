@@ -149,7 +149,8 @@ export function FilingCardSheet({
           {/* The description is the one field the provider writes in full, so it gets its own heading and
               as many rules as it needs rather than sharing a line with a label */}
           <p className="text-xs leading-7 uppercase tracking-wider" style={{ color: 'var(--app-filing-card-muted)' }}>
-            Description from {providerName}
+            {/* The card's labels are set in capitals, but a provider's name keeps the case it is written in */}
+            Description from <span className="normal-case">{providerName}</span>
           </p>
           <p className="break-words font-semibold" style={{ color: 'var(--app-text)' }}>
             {description}

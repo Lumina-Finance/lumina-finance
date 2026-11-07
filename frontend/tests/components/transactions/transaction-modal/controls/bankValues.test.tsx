@@ -78,7 +78,7 @@ describe('bank source panel', () => {
     expect(markup).toContain('Harbour Bank')
     expect(markup).toContain('Everyday Chequing')
     expect(markup).toMatch(/HARBOUR CAFE #12 VANCOUVER/)
-    expect(markup).toContain('Description from SimpleFIN')
+    expect(markup).toContain('Description from <span class="normal-case">SimpleFIN</span>')
 
     // Told in the user's timezone, so 6:30 in the morning of the 5th in UTC is 11:30 at night on the 4th in Vancouver
     expect(markup).toMatch(/Received<\/dt><dd[^>]*>Oct 4,? .*11:30/)
@@ -110,7 +110,7 @@ describe('bank source panel', () => {
 
     expect(markup).not.toContain('app-card')
     expect(markup.match(/class="app-filing-card /g)).toHaveLength(1)
-    expect(markup.match(/>SimpleFIN</g) ?? []).toHaveLength(0)
+    expect(markup.match(/<span class="inline-block[^>]*>SimpleFIN</g) ?? []).toHaveLength(0)
   })
 })
 
