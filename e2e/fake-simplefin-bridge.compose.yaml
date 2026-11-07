@@ -14,7 +14,7 @@ services:
     environment:
       BANK_SYNC_SIMPLEFIN_TEST_ORIGIN: *fake-simplefin-bridge-origin
 
-  # Runs from the app's image, which has everything the fake imports, with the fake's source mounted
+  # Runs from the app's image, since it has everything the fake imports, with the fake's source mounted
   # from the checkout since the image leaves the tests out. It reads the app's origin for it too, so
   # a setup token a browser test mints through the published port still sends the app's claim to an
   # address the app can reach
@@ -27,7 +27,7 @@ services:
       - ../backend/tests/fake_simplefin_bridge:/fake/fake_simplefin_bridge:ro
     ports:
       - "127.0.0.1:8790:8790"
-    # The image's check is of the app's web server, which this container doesn't run, and nothing
+    # The image's check is of the app's web server. This container doesn't run one, and nothing
     # waits on this one's health, since the workflow asks the fake itself through the published port
     healthcheck:
       disable: true

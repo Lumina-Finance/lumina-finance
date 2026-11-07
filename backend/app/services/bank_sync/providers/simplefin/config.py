@@ -28,7 +28,7 @@ def read_simplefin_origins() -> list[str]:
 
 
 def warn_if_test_origin_set() -> None:
-    """Warn while the testing-only origin is set, which the app and the bank sync worker each do as they start"""
+    """Warn while the testing-only origin is set. The app and the bank sync worker each do so as they start"""
     if SIMPLEFIN_TEST_ORIGIN:
         logger.warning(
             "%s sends SimpleFIN requests only to %s, without HTTPS or the public address check, "

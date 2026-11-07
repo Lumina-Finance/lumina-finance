@@ -32,7 +32,7 @@ vi.mock('@/hooks/useToast', () => ({ useToast: () => ({ showToast: () => {} }) }
 // The crossfade needs a browser to mount, so a button's content is drawn without its animated layers
 vi.mock('@/components/loading/Crossfade', () => ({ Crossfade: ({ children }: { children: unknown }) => children }))
 
-// The real panel renders into a portal, which markup rendered to a string can't hold
+// The real panel renders into a portal, and markup rendered to a string can't hold one
 vi.mock('@/components/modal/TitledPanel', () => ({
   ModalTitledPanel: ({
     title,
@@ -61,7 +61,7 @@ const KEPT_NOTE = 'Your own value. Accepting leaves it as it is.'
 const FIELDS = ['date', 'amount', 'description'] as const
 const TINT = 'var(--app-warning-soft)'
 
-/** Countdown, approved at $42.10 out on Sep 21, which the bank now says was $45.10 */
+/** Countdown, approved at $42.10 out on Sep 21, and the bank now says it was $45.10 */
 const LEDGER: BankValues = {
   date: '2026-09-21',
   amount: -4210,
@@ -207,7 +207,7 @@ describe('a removal', () => {
     const markup = render(
       createReviewItem('uber', 'removal', 'everyday', {
         current: { ...LEDGER, amount: -1800, description: 'UBER TRIP' },
-        // Last reported at an amount the user changed, which a removal still doesn't offer to keep apart
+        // Last reported at an amount the user changed, and a removal still doesn't offer to keep it apart
         bank: { ...LEDGER, amount: -1750, description: 'UBER TRIP' },
       }),
     )

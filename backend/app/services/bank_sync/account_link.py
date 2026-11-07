@@ -95,7 +95,7 @@ async def list_bank_links(db: AsyncSession, user: User) -> list[BankLinkResponse
     A link waiting for its bank account to be chosen again is live, and an unlinked one isn't. An
     offered link reads as an opening balance to confirm even once the ledger closes its gap by hand,
     since telling would take a bank and a ledger read per offered link, and no screen shows this
-    list's status. The account's own read, which compares the balances anyway, follows the offer
+    list's status. The account's own read compares the balances anyway and follows the offer
 
     Args:
         db: Active database session
@@ -193,7 +193,7 @@ async def _count_items_found(db: AsyncSession, links: Sequence[BankAccountLink])
     """Return how many items each link's import has found, by account id, leaving out accounts with none
 
     Items found are the account's bank transactions received since the link was made, or since its
-    bank account was chosen again, which restarts its link time
+    bank account was chosen again, since that restarts its link time
     """
     if not links:
         return {}

@@ -31,7 +31,7 @@ from tests.routes.support.bank_sync_helpers import (
 from tests.routes.support.lock_helpers import _wait_until_waiting_on
 from tests.services.bank_sync.stand_ins import FROZEN_NOW
 
-# The next sync a paused link had set, which a lift brings forward to now
+# The next sync a paused link had set. A lift brings it forward to now
 _TOMORROW = FROZEN_NOW + timedelta(days=1)
 
 # Long enough for any step here to finish, so a missing lock fails the test rather than hanging it
@@ -75,7 +75,7 @@ async def _link_state(link: BankAccountLink) -> tuple[bool, datetime | None]:
 async def test_lift_review_pauses_lifts_at_50_new_items_waiting_and_queues_the_connections_sync_at_once(
     connections, waiting, paused, next_attempt_at, queued
 ):
-    """A review decision leaves paused Everyday with 51 new items waiting, which keeps the pause, or 50, which lifts it
+    """A review decision leaves paused Everyday with 51 new items waiting and keeps the pause, or with 50 and lifts it
 
     Lifted, Everyday is due now rather than tomorrow and its connection's sync is queued to run now
     """
@@ -100,7 +100,7 @@ async def test_lift_review_pauses_queues_nothing_for_an_account_that_isnt_paused
 
 
 async def test_lift_review_pauses_leaves_an_import_running_on_its_own_schedule(connections):
-    """Everyday keeps its pause through a reconnect import, whose last attempt failed, so it retries in 30 minutes
+    """Everyday keeps its pause through a reconnect import after its last attempt failed, so it retries in 30 minutes
 
     A review decision leaving 50 new items waiting lifts the pause, which never held the import back,
     so the retry stays where it was rather than going out early, and no sync is queued

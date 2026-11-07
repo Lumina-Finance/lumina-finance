@@ -1,6 +1,6 @@
 """The record of requests sent to bank data providers, and the rolling request budget it counts
 
-A provider may disable a credential that keeps going over its daily limit, which would put every
+A provider may disable a credential that keeps going over its daily limit. That would put every
 account on the connection into Reconnect needed. So every request is counted before it is sent,
 in a transaction committed on its own, against the daily budget the provider's adapter sets, and a
 provider saying its quota is spent marks the budget spent rather than letting the rest go out
@@ -27,7 +27,7 @@ REQUEST_BUDGET_WINDOW = timedelta(hours=24)
 class RequestBudget:
     """A connection's requests over the last 24 hours, for the settings meter, the status and Sync now"""
 
-    # None for a connection whose provider is no longer installed, which sends nothing
+    # None for a connection whose provider is no longer installed, so it sends nothing
     limit: int | None
     used: int
 
@@ -35,7 +35,7 @@ class RequestBudget:
     available_again_at: datetime | None
 
     # Whether the provider's word that its quota is spent, rather than the connection's own count,
-    # holds the next request back, which is so only when fewer than the limit were sent
+    # holds the next request back. That is so only when fewer than the limit were sent
     held_by_provider: bool = False
 
 
@@ -72,12 +72,12 @@ def summarize_request_budget(
     held_by_provider = False
 
     # Enough of the oldest requests have to leave the 24 hours to bring the count below the
-    # limit, which is more than one when the limit was lowered after they were sent
+    # limit. That is more than one when the limit was lowered after they were sent
     if used >= limit:
         available_again_at = counted[used - limit] + REQUEST_BUDGET_WINDOW
 
-    # The provider's word lasts until the oldest request counted leaves the 24 hours, which a full
-    # count frees no earlier than, so it holds the next request back only below the limit
+    # The provider's word lasts until the oldest request counted leaves the 24 hours. A full count
+    # frees no earlier than that, so the word holds the next request back only below the limit
     if spent_until is not None and spent_until > now:
         held_by_provider = available_again_at is None
         used = max(used, limit)

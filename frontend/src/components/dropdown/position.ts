@@ -85,8 +85,8 @@ export type DropdownPanelEdges = {
  * Inside a modal the room is the panel's own wherever it sits within the screen, so a box opened from
  * a field near one of the panel's edges grows the other way, or shorter or narrower, rather than out
  * over the backdrop. A field near the foot of a short panel opens upward for that reason, and the
- * list scrolls within whatever height the panel leaves it, which reaches up over the modal's title
- * once the dialog body's own bounds leave the list too few options. The layout sizes stay the
+ * list scrolls within whatever height the panel leaves it. The box reaches up over the modal's title
+ * once the dialogue body's own bounds leave the list too few options. The layout sizes stay the
  * screen's, since the box's pinned edges are still placed against the screen
  */
 export function clampDropdownViewportToPanel(
@@ -171,7 +171,7 @@ interface DropdownBoxPositionParams {
    * The modal panel the field sits in, or null outside a modal
    *
    * The box keeps to the panel's room while that leaves the list enough rows to read, or while the
-   * dialog body's bounds hold a few. Otherwise it grows past the panel's upper or lower edge into the
+   * dialogue body's bounds hold a few. Otherwise it grows past the panel's upper or lower edge into the
    * screen's room, still keeping to its sides
    */
   panel?: DropdownPanelEdges | null
@@ -218,14 +218,14 @@ export const DROPDOWN_BOX_CHROME = 14
 const DROPDOWN_VIEWPORT_PADDING = 12
 
 // The least list a box kept inside its bounds may be left with: three option rows of 36px. A field
-// scrolled hard against the edge of a dialog's body would otherwise open to a sliver, so there the
-// box takes the room its modal panel has instead, over the dialog's title or buttons, or the
+// scrolled hard against the edge of a dialogue's body would otherwise open to a sliver, so there the
+// box takes the room its modal panel has instead, over the dialogue's title or buttons, or the
 // screen's where the panel leaves fewer than five rows
 const DROPDOWN_MIN_BOUNDED_LIST_HEIGHT = 108
 
 // The fewest option rows a list kept inside a modal panel shows before the box grows past the
-// panel instead, and the height of one, which mirrors the 8px padding above and below
-// .app-dropdown-row in tailwind.css around the 20px line of its text-sm label. A dialog body that
+// panel instead, and the height of one. It mirrors the 8px padding above and below
+// .app-dropdown-row in tailwind.css around the 20px line of its text-sm label. A dialogue body that
 // leaves at least three rows still holds the box, since the body sits inside the panel and keeps
 // it on the second placement too
 const DROPDOWN_MIN_PANEL_ROWS = 5
@@ -237,7 +237,7 @@ const DROPDOWN_ROW_HEIGHT = 36
  * The control is one box holding the head and the list, so it is pinned by whichever of the head's
  * own edges the list grows away from, and it never leaves the visible viewport, nor its bounds while
  * they leave the list room for a few options. Inside a modal it keeps to the panel, unless neither
- * side of the field there leaves the list five rows and the dialog body's bounds hold fewer than
+ * side of the field there leaves the list five rows and the dialogue body's bounds hold fewer than
  * three, when it grows toward whichever side of the screen has more room, past the panel's edge and
  * over whatever lies beyond it, the modal's title included
  */
@@ -252,7 +252,7 @@ export function getDropdownBoxPosition({
   // The box picks the roomier side wherever the side it prefers is short, so a list short here is
   // short on both sides of the field, or on the side an open box is held to. The sides are read off
   // the panel one by one rather than copied, since a measured box keeps its edges on its prototype
-  // and a copy of it would have none, which put the box at the screen's left edge
+  // and a copy of it would have none. That put the box at the screen's left edge
   return placeDropdownBox({
     ...params,
     viewport: clampDropdownViewportToPanel(viewport, {

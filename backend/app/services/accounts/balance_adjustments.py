@@ -36,7 +36,7 @@ async def record_account_starting_balance(
 ) -> None:
     """Record the starting balance of an account that has no transactions yet
 
-    The amount is the balance as the user states it, so a liability's, which is what is owed, is
+    The amount is the balance as the user states it, so a liability's (what is owed) is
     saved negated. The account row is locked before its transactions are looked for, so a
     transaction still being saved, or a repeat of this request, is seen once it commits and this
     one is refused rather than adding a second starting balance. An archived account is not refused,
@@ -48,7 +48,7 @@ async def record_account_starting_balance(
         account: The account receiving the starting balance, one the user owns or administers
         user: User recording the starting balance
         amount: Starting balance in minor units, not zero
-        adjustment_date: The account owner's today, which dates the adjustment
+        adjustment_date: The account owner's today, used to date the adjustment
 
     Raises:
         HTTPException: The account already has transactions, its bank supplies today, the amount is outside
@@ -66,7 +66,7 @@ async def record_account_starting_balance(
             detail="This account already has transactions, so a starting balance can't be recorded",
         )
 
-    # Taken after the row lock above, which already holds back a link request
+    # Taken after the row lock above, since that lock already holds back a link request
     await refuse_days_a_bank_supplies(db, user, {account.id: [adjustment_date]})
 
     await add_account_starting_balance_adjustment(
@@ -130,8 +130,8 @@ async def add_balance_adjustment(
         user: User the adjustment is recorded by
         amount: Signed minor units, as the ledger keeps them, so a liability's debt is negative
         adjustment_date: The date it is recorded on
-        note: Why it was recorded, which the transaction shows
-        import_run_id: Import run that recorded it, which undoing the import deletes it with
+        note: Why it was recorded, as shown on the transaction
+        import_run_id: Import run that recorded it. Undoing the import deletes the adjustment with it
 
     Raises:
         HTTPException: The amount is outside the range an account balance can hold, or the Balance

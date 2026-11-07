@@ -56,8 +56,8 @@ export function buildCreateTransactionPayload(
 /**
  * Builds the Add to ledger payload for a bank item after the form has passed validation
  *
- * The transaction goes into the item's own account in that account's currency, which the server
- * takes from the item, so the payload names neither
+ * The transaction goes into the item's own account in that account's currency. The server
+ * takes both from the item, so the payload names neither
  */
 export function buildAddReviewItemPayload(
   form: TransactionFormValues,

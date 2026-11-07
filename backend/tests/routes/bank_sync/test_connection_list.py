@@ -254,7 +254,7 @@ async def test_connections_list_offers_no_account_at_a_new_institution_once_the_
     """A reached limit leaves a bank account at a new institution offering no account
 
     With a limit of one institution and Harbour Bank linked, a free Harbour bank account still offers
-    Everyday, and one at Lakeshore offers nothing, which settings shows as over the limit
+    Everyday, and one at Lakeshore offers nothing. Settings shows that as over the limit
     """
     monkeypatch.setattr(availability, "get_institution_limit", lambda _user_id, _provider: 1)
     headers, user_id = await _sign_up(client)

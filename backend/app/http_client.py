@@ -90,7 +90,7 @@ def build_http_client(
 
     Args:
         timeout: Per-request timeout in seconds, or separate connect and read timeouts
-        transport: Transport to send through in place of httpx's own, which tests substitute
+        transport: Transport to send through in place of httpx's own. Tests substitute it
         trust_env: Whether proxies and certificate settings in the environment apply
 
     Returns:

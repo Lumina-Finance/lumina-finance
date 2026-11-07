@@ -1,6 +1,6 @@
 """Shared helpers for tests that build a database through Alembic
 
-Each test builds its own database rather than reusing the worker's, which the test harness creates
+Each test builds its own database rather than reusing the worker's. The test harness creates that one
 from the model metadata, so what these tests see is what the migrations actually build
 """
 
@@ -52,8 +52,8 @@ async def _drop_database(database_name: str) -> None:
 async def _terminate_database_connections(conn: AsyncConnection, database_name: str) -> None:
     """Terminate open connections to a generated parity database"""
     # Close active connections so PostgreSQL can drop the generated database. Only client
-    # connections are ended here: an autovacuum worker runs as a superuser, which the test role
-    # may not terminate, and DROP DATABASE stops one by itself
+    # connections are ended here: an autovacuum worker runs as a superuser. The test role
+    # may not terminate it, and DROP DATABASE stops one by itself
     await conn.execute(
         text(
             """

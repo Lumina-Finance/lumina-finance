@@ -28,7 +28,7 @@ from app.services.bank_sync.providers.contract import (
     ProviderRecord,
 )
 
-# The id the fake provider is installed under, which test connections, links and bank transactions store
+# The id the fake provider is installed under. Test connections, links and bank transactions store it
 FAKE_PROVIDER = "fake"
 
 # The key the fake provider's one credential field is sent under

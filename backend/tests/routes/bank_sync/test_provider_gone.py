@@ -35,7 +35,7 @@ _GONE_NAME = "Lunar Bank"
 # Noon on October 5 in Toronto, the zone _sign_up stores
 _NOW = datetime(2026, 10, 5, 12, 0, tzinfo=ZoneInfo("America/Toronto"))
 
-# A link whose import ended, which last synced this morning
+# A link whose import ended and that last synced this morning
 _SYNCED = {"importing": False, "last_success_at": _NOW - timedelta(hours=5), "last_attempt_at": _NOW - timedelta(hours=5)}
 
 

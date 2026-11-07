@@ -289,7 +289,7 @@ async def test_adding_as_a_transfer_to_a_group_or_another_users_account_is_refus
 
 
 async def test_adding_to_a_linked_account_takes_a_day_its_bank_supplies(client, pin_clock):
-    """Everyday's bank supplies 12 July, which refuses a hand-entered transaction but takes the bank's own"""
+    """Everyday's bank supplies 12 July. A hand-entered transaction is refused on it, but the bank's own is taken"""
     pin_clock(NOW, manual_entries)
     inbox = await _tesco_waiting(client, observed_date=date(2026, 7, 12))
     await _commit_link(inbox.ledger, inbox.account_id)
@@ -404,7 +404,7 @@ async def test_adding_to_an_archived_account_is_refused_as_for_a_hand_entered_tr
 async def test_adding_the_item_that_leaves_50_new_items_waiting_resumes_the_paused_sync_at_once(client, pin_clock, waiting, pause_state):
     """Everyday is paused for review with the Tesco item among its new items waiting, its next sync set for tomorrow
 
-    Adding it leaves 51, which stays paused, or 50, which lifts the pause, makes Everyday due now and
+    Adding it leaves 51 and Everyday stays paused. Leaving 50 lifts the pause, makes Everyday due now and
     queues its connection's sync, with the cache mark still the last write
     """
     pin_clock(NOW, review_pause)

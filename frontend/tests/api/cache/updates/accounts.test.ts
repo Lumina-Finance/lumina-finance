@@ -3,7 +3,7 @@
  * and the net worth and credit figures built on it don't keep the zero it was created with, including
  * after a save that ended with no answer and may have landed
  *
- * useRecordStartingBalance calls useMutation and useQueryClient, which need a live React tree, so
+ * useRecordStartingBalance calls useMutation and useQueryClient. Both need a live React tree, so
  * this covers the cache updates directly against a real QueryClient
  */
 import { QueryClient, type QueryKey } from '@tanstack/react-query'

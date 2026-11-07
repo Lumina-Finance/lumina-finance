@@ -109,7 +109,7 @@ export interface CreateAccountPayload {
 }
 
 export type RecordStartingBalancePayload = {
-  /** Minor units as the user states the balance, so a liability's is the amount owed, which the backend saves negated */
+  /** Minor units as the user states the balance, so a liability's is the amount owed. The backend saves it negated */
   amount: number
 }
 

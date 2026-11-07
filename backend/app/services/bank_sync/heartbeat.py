@@ -19,7 +19,7 @@ SYNC_STOPPED_AFTER = timedelta(minutes=15)
 async def is_sync_worker_running(db: AsyncSession, now: datetime) -> bool:
     """Return whether a worker has scanned for due work recently enough to count as running
 
-    A deployment whose worker never started has no heartbeat, which reads as not running
+    A deployment whose worker never started has no heartbeat and reads as not running
 
     Args:
         db: Any session, since the heartbeat describes the deployment rather than a user

@@ -5,7 +5,7 @@ type GetBankDeleteRefusalOptions = {
   /** The stored transaction the modal edits */
   transaction: Pick<Transaction, 'account_id' | 'bank_source'> | undefined
 
-  /** The account the stored transaction sits in, which the reason names */
+  /** The account the stored transaction sits in, named in the reason */
   sourceAccount: Pick<AccountsOverview, 'name'> | undefined
   linksByAccount: ReadonlyMap<string, unknown>
 }
@@ -18,7 +18,7 @@ type GetBankDeleteRefusalOptions = {
  * server. While its account stays linked, only a bank removal the user approves
  * takes a bank-imported transaction out of the ledger. A manual transaction, or a bank one whose
  * account has since been unlinked, deletes as usual. Without the account's name the check is left to
- * the delete, whose refusal the modal shows like any other
+ * the delete, and the modal shows its refusal like any other
  */
 export function getBankDeleteRefusal({
   transaction,

@@ -3,7 +3,7 @@ import type { ActionFeedbackStatus } from '@/components/feedback/ActionButton'
 import { PROVIDER_UNAVAILABLE_DETAIL } from '@/utils/bankSync'
 import { formatRelativeFutureTime } from '@/utils/relativeTime'
 
-/** Why Sync now can't run while the bank sync worker is down, which would leave the sync queued until it's back */
+/** Why Sync now can't run while the bank sync worker is down: the sync would sit queued until it's back */
 export const SYNC_PAUSED_REASON = "Bank sync isn't running right now. You can sync once it's back."
 
 /** What a Sync now the server didn't answer says, while one it refused gives the server's reason */
@@ -29,7 +29,7 @@ export function isSyncWorkerDown(providers: BankProvidersResponse | undefined): 
  * has passed, though the connection still says spent until it is read again
  *
  * @param link - The live link
- * @param connection - Its connection, whose request budget a sync spends, undefined until read
+ * @param connection - Its connection, the owner of the request budget a sync spends, undefined until read
  * @param providers - Whether the bank sync worker is running, undefined until read
  */
 export function describeSyncNowBlock(
@@ -69,7 +69,7 @@ export function describeSyncNowBlock(
  *
  * @param feedback - What this window's own press shows
  * @param link - The live link
- * @param connection - Its connection, whose request budget a sync spends, undefined until read
+ * @param connection - Its connection, the owner of the request budget a sync spends, undefined until read
  * @param providers - Whether the bank sync worker is running, undefined until read
  */
 export function describeSyncNow(

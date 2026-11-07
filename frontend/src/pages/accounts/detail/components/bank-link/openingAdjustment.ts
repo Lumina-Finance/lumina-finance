@@ -3,10 +3,10 @@ import { toMinorUnits } from '@/utils/moneyInput'
 // The messages share the label's line, as the new-account prompt's does, so they stay short enough to
 // fit beside it on a phone and the field never moves when one shows
 
-/** What Record adjustment says for a blank or zero amount, which records nothing */
+/** What Record adjustment says for a blank or zero amount, since such an amount records nothing */
 export const ZERO_AMOUNT_MESSAGE = 'Enter more than zero'
 
-/** What the amount says when a sign is typed or pasted into it, which it refuses, since the offer's sign stands beside it */
+/** What the amount says when a sign is typed or pasted into it. It refuses the sign, since the offer's sign stands beside it */
 export const SIGNED_AMOUNT_MESSAGE = 'Leave out the sign'
 
 /** What an answer the server didn't give says, while one it refused gives the server's reason */
@@ -25,7 +25,7 @@ export function describeSign(offered: number): string {
 }
 
 /**
- * Whether text typed or pasted into the amount holds a sign, which the amount refuses since the
+ * Whether text typed or pasted into the amount holds a sign. The amount refuses it since the
  * offer's sign stands beside it
  *
  * @param text - The field's text as typed, before the field refuses it

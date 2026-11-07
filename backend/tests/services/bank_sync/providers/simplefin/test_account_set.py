@@ -180,7 +180,7 @@ def test_balances_are_read_with_their_time_and_an_unstorable_one_is_unavailable(
     ids=["url", "empty"],
 )
 def test_custom_currency_marks_the_account_and_keeps_its_figures_as_sent(account_id, currency_raw):
-    """A URL or nothing in place of an ISO code is a custom currency, whose amounts have no precision to read"""
+    """A URL or nothing in place of an ISO code is a custom currency, and its amounts have no precision to read"""
     account = _accounts()[account_id]
 
     assert account.currency is None

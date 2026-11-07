@@ -133,7 +133,7 @@ function hasNewBankData(previous: BankLink, link: BankLink): boolean {
 }
 
 /**
- * Whether a link's review pause or warning came or went, which the backlog notice shows too. A stop
+ * Whether a link's review pause or warning came or went. The backlog notice shows them too. A stop
  * only the user can fix ends both without bringing in data
  */
 function hasNewBacklogNotice(previous: BankLink, link: BankLink): boolean {
@@ -150,8 +150,8 @@ function hasNewBacklogNotice(previous: BankLink, link: BankLink): boolean {
  * any of these, since the worker writes them outside any request this window made
  *
  * Nothing is compared until there is a list on both sides, so the first read is never taken as every
- * link appearing at once, and a list read again unchanged, which the cache hands back as the same
- * array, costs no comparison
+ * link appearing at once, and a list read again unchanged costs no comparison, since the cache hands
+ * it back as the same array
  */
 export function applyBankLinkChanges(
   queryClient: QueryClient,
@@ -254,14 +254,14 @@ async function refetchLedgerAndWaitingCounts(queryClient: QueryClient, accountId
 /**
  * Brings the inbox up to date after a review decision that left every ledger value as it was
  *
- * A kept transaction comes back with its bank source updated, which replaces the cached one so the
+ * A kept transaction comes back with its bank source updated. That replaces the cached one so the
  * Needs review marker clears and the edited fields show without the lists refetching. The decided
  * items leave, and the marker clears, only once the links and the backlogs have refetched, since they
  * carry the waiting counts the sync status and the backlog notice read, so the notice never counts an
  * item the block no longer shows. The returned promise settles then
  *
  * Keeping a removal that took the place of a correction opens that correction again under the same
- * id, which the kept transaction names as still waiting. That item stays, and the inbox is read again
+ * id. The kept transaction names that id as still waiting. That item stays, and the inbox is read again
  * before the promise settles, since the item now asks something else
  */
 export async function applyReviewDecision(
@@ -282,7 +282,7 @@ export async function applyReviewDecision(
 }
 
 /**
- * Brings the inbox up to date after a review decision the server refused, which most often means
+ * Brings the inbox up to date after a review decision the server refused. That most often means
  * the item changed since it was read: decided in another tab or on another device, or withdrawn by
  * the bank. The inbox, any bulk approval preview, and the backlogs and the link list that carry the
  * waiting counts are read again, so an item that no longer waits leaves the block
@@ -318,8 +318,8 @@ export function applyRestoredBankValue(
  * as dismissing a reminder
  *
  * The account's bank link the server answered with takes the cached one's place, so what was answered
- * folds away straight away, or a newer reminder raised meanwhile shows, and the link list, which holds
- * the status and the reminders too, is read again
+ * folds away straight away, or a newer reminder raised meanwhile shows, and the link list is read again, since it
+ * holds the status and the reminders too
  */
 export function applyAccountBankStatus(queryClient: QueryClient, status: AccountBankStatus): void {
   queryClient.setQueryData(bankSyncKeys.accountStatus(status.account_id), status)
@@ -329,8 +329,8 @@ export function applyAccountBankStatus(queryClient: QueryClient, status: Account
 /**
  * Updates the views an answer to the opening adjustment offer changes
  *
- * The offer folds away as any answer's does. A recorded adjustment is a new ledger transaction, which
- * the transaction lists and the account's figures take in, and Difference with them
+ * The offer folds away as any answer's does. A recorded adjustment is a new ledger transaction. The
+ * transaction lists and the account's figures take it in, and Difference with them
  */
 export function applyOpeningAdjustmentAnswer(
   queryClient: QueryClient,
@@ -351,8 +351,8 @@ function asksAboutAccount(query: Query, accountId: string): boolean {
 }
 
 /**
- * Drops bank data that belonged to a deleted account, whose link, waiting items and pending rows the
- * server deleted with it. A cached bulk preview is dropped rather than refetched, since it would
+ * Drops bank data that belonged to a deleted account. The server deleted the account's link, waiting
+ * items and pending rows with it. A cached bulk preview is dropped rather than refetched, since it would
  * list the deleted account's items until it did
  *
  * The account's own bank views go now only if nothing shows them. Its page keeps showing them while

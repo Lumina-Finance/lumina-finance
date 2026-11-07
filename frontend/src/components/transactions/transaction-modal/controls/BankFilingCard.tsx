@@ -8,16 +8,16 @@ import { DATE_FORMATS, formatDate, formatDateLabel } from '@/utils/date'
 type BankFilingCardProps = {
   item: BankReviewItem
 
-  /** The link of the item's account, which names its institution and bank account, absent while unknown */
+  /** The link of the item's account, naming its institution and bank account, absent while unknown */
   link: Pick<BankAccountLink, 'institution_name' | 'external_account_name'> | undefined
 
-  /** The name of the item's account in the app, which heads the card when there is no link to name */
+  /** The name of the item's account in the app, heading the card when there is no link to name */
   accountName: string
 
-  /** The currency of the item's account, which the amount is in */
+  /** The currency of the item's account, the one the amount is in */
   currency: string
 
-  /** The user's profile timezone, which the time the item arrived is told in */
+  /** The user's profile timezone, the one the time the item arrived is told in */
   timeZone: string | undefined
 }
 
@@ -46,7 +46,7 @@ function Field({ label, value, strong = false }: { label: string; value: ReactNo
 
 /**
  * A bank item waiting for review, typed up as the provider's filing card: exactly what the bank sent,
- * read-only, which the form beside it turns into a ledger entry. It hangs beside the modal on wide
+ * read-only. The form beside it turns it into a ledger entry. It hangs beside the modal on wide
  * screens and heads the form on narrower ones
  *
  * The card is ruled every 1.75rem, and every line written on it is that high, so the text sits on the

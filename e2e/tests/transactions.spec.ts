@@ -13,7 +13,7 @@ import {
 import { AT_EVERY_SIZE } from '../support/sizes'
 import { API_BASE_URL } from '../support/target'
 
-// Runs on desktop only, apart from the category filter, Upcoming row focus and Upcoming header tests, which
+// Runs on desktop only, apart from the category filter, Upcoming row focus and Upcoming header tests. These
 // run at every size: filters show as a sheet on a phone, a row's text sits differently at each width, and the
 // header pins differently by layout. The row layout test resizes the desktop window itself, to widths no
 // project has
@@ -146,7 +146,7 @@ for (const selecting of [false, true]) {
  * as the sum of the change in each colour channel. The point sits in the row's own padding, above its text
  */
 async function hoverChange(page: Page, rowContent: Locator): Promise<number> {
-  // The background belongs to the row around its content, which also holds the checkbox in selection
+  // The background belongs to the row around its content. The row also holds the checkbox in selection
   const point = await rowContent.evaluate((content) => {
     const rect = content.parentElement!.getBoundingClientRect()
     return { x: rect.left + rect.width / 2, y: rect.top + 3 }
@@ -222,7 +222,7 @@ test('rings an upcoming transaction row inside the Upcoming section\'s dashed ed
   await upcoming.click()
   await expectTransactionRow(page, upcomingId, `${MINUS}$45.00`)
 
-  // The section draws its edge over the sides of the rows inside it, which the ring has to stay clear of
+  // The section draws its edge over the sides of the rows inside it. The ring has to stay clear of them
   await expectStretchedFocusRing(
     getTransactionRowButton(page.getByTestId(`transaction-row-${upcomingId}`)),
     page.getByTestId(`transaction-box-${upcomingId}`),

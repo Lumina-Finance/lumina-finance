@@ -95,7 +95,7 @@ async def claim_connection(db: AsyncSession, user: User, request: CreateBankConn
     await mark_user_cache_changed(db, user.id)
     await db.commit()
 
-    # Loads the times the database set, which the response states
+    # Loads the times the database set. The response states them
     await db.refresh(connection)
     return (await build_connection_responses(db, user.id, [connection]))[0]
 
@@ -235,11 +235,11 @@ def _refuse_working(connection: BankConnection) -> None:
 async def _resume_links(db: AsyncSession, connection: BankConnection) -> tuple[list[uuid.UUID], list[uuid.UUID]]:
     """Restart the connection's links after a reconnect, as its discovery left them
 
-    An active link catches up from its checkpoint as a reconnect import, which runs to today
-    whatever the review pause says, with a new retry series. No link keeps its last failure, which
+    An active link catches up from its checkpoint as a reconnect import. That import runs to today
+    whatever the review pause says, with a new retry series. No link keeps its last failure. That failure
     came before the new credential, so its sync status never shows it. The links are locked in id
     order after the connection, the order a disconnect takes them in, and before the job and the
-    cache row, so an unlink, which locks its link and then the cache row, can't deadlock with the
+    cache row. An unlink locks its link and then the cache row, so it can't deadlock with the
     reconnect
 
     Returns:

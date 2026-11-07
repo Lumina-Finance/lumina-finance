@@ -8,13 +8,13 @@ import { revealIfHidden } from '@/components/transactions/transaction-modal/util
 const RESTORE_LABEL = 'Restore bank value'
 
 type BankValueCaptionProps = {
-  /** Names the bank's value, which the restore action is described by, telling the date's from the amount's */
+  /** Names the bank's value for the restore action to be described by, telling the date's from the amount's */
   id: string
 
-  /** Names the restore action, which focus returns to when a restore fails */
+  /** Names the restore action. Focus returns to it when a restore fails */
   actionId: string
 
-  /** The bank's value as it reads, or null while the field isn't edited, which hides the caption */
+  /** The bank's value as it reads, or null while the field isn't edited. Null hides the caption */
   bankValue: string | null
 
   /** Sets the value in the figures' typeface, for an amount */
@@ -33,7 +33,7 @@ type BankValueCaptionProps = {
 /**
  * Shows the bank's value under a field the user edited, with a restore icon after it that puts it back
  *
- * The text and the icon take the muted colour, which keeps them above 3:1 against the modal in both
+ * The text and the icon take the muted colour. That keeps them above 3:1 against the modal in both
  * themes. The icon names itself in the app's tooltip and to a screen reader, and its press is 24px
  * square. A restore that fails says so under the caption, by the field it was restoring rather than at
  * the foot of the form, out of sight on a phone
@@ -90,7 +90,7 @@ export default function TransactionBankValueCaption({
                 aria-describedby={id}
                 // Restoring keeps its full colour, since it says what is happening rather than that
                 // the action is unavailable. Focus scrolls the action in with room above and below it
-                // for its ring, which the edge of the modal's body would otherwise cut off. The ring
+                // for its ring. The edge of the modal's body would otherwise cut that off. The ring
                 // sits against the action's edge, with no gap, since the clip around the line keeps
                 // only 2px above and below it
                 className={`ml-1 inline-flex size-6 shrink-0 scroll-my-1 cursor-pointer items-center justify-center rounded-md border-0 bg-transparent transition-colors hover:text-[var(--app-text)] focus-visible:outline-offset-0 disabled:cursor-not-allowed aria-disabled:cursor-not-allowed ${restoring ? '' : 'disabled:opacity-60'}`}

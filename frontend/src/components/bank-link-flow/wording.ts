@@ -9,7 +9,7 @@ export type LinkFlowMode = 'link' | 'relink' | 'choose_again'
 
 export type LinkFlowStep = 'connect-first' | 'account' | 'start'
 
-/** Each step's name, which the flow shows as its eyebrow */
+/** Each step's name. The flow shows it as its eyebrow */
 export const LINK_FLOW_STEP_NAMES: Record<LinkFlowStep, string> = {
   'connect-first': 'Connect a provider first',
   account: 'Choose the bank account',
@@ -27,7 +27,7 @@ export const LINK_FLOW_WORDING: Record<LinkFlowMode, { title: string; submitLabe
   },
 }
 
-/** The bank account an account followed before, which the flow names so the user can find it again */
+/** The bank account an account followed before. The flow names it so the user can find it again */
 export type PreviousBankAccount = {
   externalAccountId: string
   name: string
@@ -60,8 +60,8 @@ export function pickListedConnection(
 }
 
 /**
- * The bank account the account followed before, which a relink or a choice made again compares the
- * listed ones with, or null for a first link
+ * The bank account the account followed before. A relink or a choice made again compares the
+ * listed ones with it, and it is null for a first link
  */
 export function findPreviousBankAccount(status: AccountBankStatus): PreviousBankAccount | null {
   const before = status.link?.state === 'choose_account' ? status.link : status.previous_link

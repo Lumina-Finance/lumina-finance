@@ -28,9 +28,9 @@ async def compare_bank_balance(db: AsyncSession, link: BankAccountLink, *, tz: s
     """Return a live link's bank balance beside its account's ledger balance on the bank's balance date
 
     This is the one place the bank's balance meets the ledger's. The bank's keeps the sign it was
-    sent with, which takes the provider to report what a card or loan owes as a negative balance, the
+    sent with. That takes the provider to report what a card or loan owes as a negative balance, the
     sign the ledger keeps a liability in. Its balance date is taken as the moment the balance was
-    read, whose day is the owner's, not a bank date like a posted stamp at noon UTC. Neither is
+    read. That moment's day is the owner's, not a bank date like a posted stamp at noon UTC. Neither is
     checked against a real provider's data yet
 
     Args:
@@ -71,7 +71,7 @@ async def compare_bank_balance(db: AsyncSession, link: BankAccountLink, *, tz: s
 
 
 def read_balance_day(balance_at: datetime, *, tz: str) -> date:
-    """Return the owner's day the bank's balance is as of, whose end the ledger is compared at
+    """Return the owner's day the bank's balance is as of. The ledger is compared at the end of that day
 
     Raises:
         HTTPException 422: The profile's timezone no longer resolves
@@ -87,7 +87,7 @@ def opening_adjustment_date(link: BankAccountLink) -> date:
 async def describe_opening_adjustment(
     db: AsyncSession, link: BankAccountLink, balance: BankBalanceResponse | None, *, tz: str
 ) -> OpeningAdjustmentResponse | None:
-    """Return the opening adjustment the link offers, which brings the ledger to the bank's balance once the items waiting are approved
+    """Return the opening adjustment the link offers. It brings the ledger to the bank's balance once the items waiting are approved
 
     Args:
         db: The owner's session
@@ -120,7 +120,7 @@ async def work_out_opening_adjustment(
         tz: The owner's profile timezone
 
     Returns:
-        The adjustment, whose amount may be zero, or None while the balances don't compare or what
+        The adjustment (its amount may be zero), or None while the balances don't compare or what
         approving the items waiting would change isn't known
 
     Raises:

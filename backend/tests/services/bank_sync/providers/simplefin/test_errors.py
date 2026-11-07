@@ -1,7 +1,7 @@
 """SimpleFIN error mapping tests
 
 Guards which accounts stop, retry or carry on when SimpleFIN Bridge reports a problem. A wrong
-mapping either stops a working connection or keeps sending requests Bridge has refused, which can
+mapping either stops a working connection or keeps sending requests Bridge has refused. That can
 get the user's token disabled. The fake SimpleFIN Bridge produces each problem it can, and a recording
 stand-in answers the rest
 """
@@ -38,7 +38,7 @@ _UNKNOWN = ProviderErrorKind.UNKNOWN
 _UNREACHABLE = "SimpleFIN Bridge couldn't be reached"
 _UNREADABLE = "SimpleFIN Bridge sent a response Lumina Finance couldn't read"
 
-# The fake Bridge's quota warning, which it repeats in other words in the older errors list
+# The fake Bridge's quota warning. It repeats it in other words in the older errors list
 _FAKE_QUOTA_WARNING = "You are making too many requests. Make fewer requests or this access token may be disabled"
 
 
@@ -140,7 +140,7 @@ async def test_failed_request_fails_every_account_with_its_typed_error(respond, 
 async def test_access_url_on_a_server_no_longer_allowed_fails_without_reading_as_rejected():
     """The environment no longer allows the connection's server, or a development instance allows only its fake Bridge
 
-    Nothing is sent, and the failure isn't a rejected credential, which would stop the connection
+    Nothing is sent, and the failure isn't a rejected credential. That would stop the connection
     and email its owner to reconnect, a real user included on a development instance restored from
     production
     """
@@ -259,7 +259,7 @@ async def test_bank_login_problem_stops_only_that_logins_accounts(scenario: Fake
     assert result.request_error is None
     assert result.login_errors == {"CON-harbour": ProviderError(_BANK_LOGIN_NEEDED, "Harbour Bank needs you to sign in again.")}
     assert result.account_errors == {}
-    # The fake Bridge repeats the problem in other words in the older errors list, which errlist replaces
+    # The fake Bridge repeats the problem in other words in the older errors list, and errlist replaces that
     assert result.warnings == ()
     assert {account.external_id: account.login_key for account in result.accounts} == {
         "ACT-chequing": "CON-harbour",

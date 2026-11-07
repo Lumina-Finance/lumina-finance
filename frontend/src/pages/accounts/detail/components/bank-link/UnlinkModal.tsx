@@ -116,7 +116,7 @@ export function UnlinkModal({
     >
       <div className="space-y-3 pb-2">
         <div className="space-y-3" role="radiogroup" aria-label="What to unlink">
-          {/* The dialog opens on the chosen scope, which comes before Cancel in the dialog and so takes the
+          {/* The dialogue opens on the chosen scope. It comes before Cancel in the dialogue and so takes the
               first focus from it, and arrow keys move between the two from there */}
           <ChoiceCard
             selected={scope === 'account'}

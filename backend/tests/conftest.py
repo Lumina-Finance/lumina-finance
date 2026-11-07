@@ -217,7 +217,7 @@ def abuse_log_lines() -> Iterator[list[str]]:
 
 @pytest.fixture(autouse=True)
 def fake_provider(monkeypatch) -> FakeProviderAdapter:
-    """Install the scripted fake provider, enabled and offered, as the only provider, which every bank sync test's connections use
+    """Install the scripted fake provider, enabled and offered, as the only provider. Every bank sync test's connections use it
 
     Real providers are left out so a test reads the same whichever provider folders the server has.
     A provider's own tests install it again

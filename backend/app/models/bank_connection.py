@@ -147,7 +147,7 @@ class BankConnection(Base):
     server_host: Mapped[str] = mapped_column(Text, nullable=False)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, server_default=func.now())
 
-    # Set when the provider refuses the credential, which stops automatic sync until the user
+    # Set when the provider refuses the credential. That stops automatic sync until the user
     # reconnects. Its action-needed email goes out once the save that sets it commits
     credential_rejected_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
@@ -207,14 +207,14 @@ class BankExternalAccount(Base):
     external_id: Mapped[str] = mapped_column(Text, nullable=False)
     name: Mapped[str] = mapped_column(Text, nullable=False)
 
-    # The institution's identity, which counts once however many logins reach it, and its name
+    # The institution's identity, counted once however many logins reach it, and its name
     institution_key: Mapped[str] = mapped_column(Text, nullable=False)
     institution_name: Mapped[str] = mapped_column(Text, nullable=False)
 
-    # The bank login the account sits under, which a bank sign-in problem is reported against
+    # The bank login the account sits under, where a bank sign-in problem is reported
     login_key: Mapped[str] = mapped_column(Text, nullable=False)
 
-    # Exactly as the provider sent it, which may be an ISO code or a custom currency's URL, so a
+    # Exactly as the provider sent it. That may be an ISO code or a custom currency's URL, so a
     # bank account Lumina can't hold in a ledger is still listed and explained
     currency: Mapped[str] = mapped_column(Text, nullable=False)
 
@@ -223,8 +223,8 @@ class BankExternalAccount(Base):
     available_balance: Mapped[int | None] = mapped_column(BigInteger)
     balance_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
-    # Whether the provider sent an available balance that can't be stored exactly, which a null
-    # available balance can't tell apart from one never sent
+    # Whether the provider sent an available balance that can't be stored exactly. A null
+    # available balance can't tell that apart from one never sent
     available_balance_unreadable: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False, server_default="false")
 
     # Whether the latest discovery still listed it
@@ -290,13 +290,13 @@ class BankAccountLink(Base):
     )
     import_kind: Mapped[str] = mapped_column(VARCHAR(16), nullable=False)
 
-    # The first day the link's bank data covers, which choosing the bank account again sets anew. A
+    # The first day the link's bank data covers. Choosing the bank account again sets it anew. A
     # catch-up fetches from the checkpoint instead and never moves it
     import_start: Mapped[date] = mapped_column(Date, nullable=False)
     linked_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, server_default=func.now())
     unlinked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
-    # The last day the link's data is known complete through, which only moves forward once a
+    # The last day the link's data is known complete through. It only moves forward once a
     # sync has stored everything up to it
     checkpoint: Mapped[date] = mapped_column(Date, nullable=False)
 
@@ -317,15 +317,15 @@ class BankAccountLink(Base):
     retry_count: Mapped[int] = mapped_column(SmallInteger, nullable=False, default=0, server_default="0")
     next_attempt_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
-    # Set once a sync leaves 100 or more new items waiting for review, which stops the link's sync,
-    # and cleared once 50 or fewer are left, so the link stays paused in between
+    # Set once a sync leaves 100 or more new items waiting for review. That stops the link's sync,
+    # and it is cleared once 50 or fewer are left, so the link stays paused in between
     paused: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False, server_default="false")
 
     # While the link's latest import is under way. Syncs take an import to today whatever the review
     # backlog, and the pause applies once it ends. Every link starts with one
     importing: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True, server_default="true")
 
-    # When the latest import ended, on the database's clock, which stamps each bank transaction it
+    # When the latest import ended, on the database's clock. That clock stamps each bank transaction it
     # receives, so the items an import brought are those received by then. None until it ends.
     # Choosing the bank account again starts a new import, so it clears this, while a reconnect's
     # catch-up after the import ended leaves it
@@ -337,7 +337,7 @@ class BankAccountLink(Base):
     catchup_requested_start: Mapped[date | None] = mapped_column(Date)
 
     # The earliest booked date the provider returned to the running import or catch-up from its first
-    # day on, which tells whether it reached that day. None until one arrives
+    # day on. It tells whether the import reached that day. None until one arrives
     earliest_booked_date: Mapped[date | None] = mapped_column(Date)
 
     # The reminder the last import or catch-up that fell short raised: the first day it asked from,

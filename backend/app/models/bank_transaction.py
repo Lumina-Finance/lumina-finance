@@ -40,7 +40,7 @@ CorrectableBankField = Literal["date", "amount", "description"]
 _JSON = JSONB(none_as_null=True)
 
 
-# Every column a provider observation fills, which a dismissed record keeps none of
+# Every column a provider observation fills. A dismissed record keeps none of them
 OBSERVATION_COLUMNS = (
     "observed_date",
     "observed_amount",
@@ -129,7 +129,7 @@ class BankTransaction(Base):
 
     # The bank date and amount the ledger row was last aligned with, as the ledger holds them. A
     # field is edited while the ledger differs from these. The amount is null when the bank's
-    # couldn't be stored and the user entered one, which counts as edited
+    # couldn't be stored and the user entered one. That counts as edited
     aligned_date: Mapped[date | None] = mapped_column(Date)
     aligned_amount: Mapped[int | None] = mapped_column(BigInteger)
 

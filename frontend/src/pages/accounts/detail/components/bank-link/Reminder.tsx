@@ -34,7 +34,7 @@ type DismissibleReminderProps = {
 }
 
 /**
- * A reminder that history may be missing, in the review notices' colours, which the ✕ dismisses for
+ * A reminder that history may be missing, in the review notices' colours. The ✕ dismisses it for
  * the import, catch-up or day that raised it. A press while it runs does nothing, and the ✕ keeps the
  * focus it holds until the dismissal goes through, or a read of the link leaves the reminder out first,
  * and focus inside moves on. A newer reminder in the answer takes its place. A refused dismissal says
@@ -46,7 +46,7 @@ function DismissibleReminder({ copy, dismissing, dismiss, onDismissed }: Dismiss
 
   useMoveFocusOnFold(rootRef, onDismissed)
 
-  // The answer is awaited here rather than through the mutation's own callbacks, which are dropped once
+  // The answer is awaited here rather than through the mutation's own callbacks. Those are dropped once
   // the reminder has gone, so a refusal still says why after a read of the link has left it out
   const run = () => {
     void dismiss().then(

@@ -11,7 +11,7 @@ from tests.routes.support.manual_entry_helpers import TODAY, _commit_link, _date
 
 
 async def test_a_starting_balance_is_refused_once_the_import_has_started(client):
-    """Everyday linked from 3 October can't take a starting balance, which would be dated 3 October"""
+    """Everyday linked from 3 October can't take a starting balance, as it would be dated 3 October"""
     ledger = await _ledger(client)
     await _commit_link(ledger, ledger.everyday_id, import_start=TODAY)
 

@@ -74,8 +74,8 @@ test('checks nothing in a background tab while the sync runs, and shows it Synce
   await expect.poll(() => readLastSuccess(request, user, account.id), { timeout: WORKER_RESULT_TIMEOUT_MS }).not.toBe(syncedBefore)
   expect(linkReads).toEqual([])
 
-  // Coming back reads the list, which finds the sync over. A button greyed for the sync running
-  // keeps the name Sync now, so only the status and the button's state show the dialog got there
+  // Coming back reads the list and finds the sync over. A button greyed for the sync running
+  // keeps the name Sync now, so only the status and the button's state show the dialogue got there
   await setTabHidden(page, false)
   await expect(syncNow).toHaveAccessibleName('Sync now')
   await expect(syncNow).toBeFocused()

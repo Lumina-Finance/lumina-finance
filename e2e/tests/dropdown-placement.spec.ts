@@ -7,7 +7,7 @@ import { API_BASE_URL } from '../support/target'
 // Runs on desktop only: a box that loses the modal's sides shows only where the modal sits in the middle
 // of a wide screen
 
-// A modal too short for a list of five rows on either side of its field, which is when the list
+// A modal too short for a list of five rows on either side of its field. That is when the list
 // leaves the modal's height for the screen's while keeping to its sides. A box that lost the
 // modal's sides on the way opened at the screen's left edge, away from its field
 test('opens the replacement dropdown in the short merchant delete modal from its field, within the modal’s sides', async ({ page, request }) => {
@@ -37,7 +37,7 @@ test('opens the replacement dropdown in the short merchant delete modal from its
   await search.fill(name)
   await search.press('Enter')
 
-  // Refused while transactions use the merchant, which is what opens the modal
+  // Refused while transactions use the merchant. That is what opens the modal
   await page.getByRole('button', { name: `Delete ${name}`, exact: true }).click()
   await page.getByRole('button', { name: `Confirm delete ${name}`, exact: true }).click()
   const dialog = page.getByRole('dialog', { name: 'Move transactions first', exact: true })
@@ -46,7 +46,8 @@ test('opens the replacement dropdown in the short merchant delete modal from its
   const field = dialog.getByRole('combobox', { name: 'Replacement merchant', exact: true })
   await field.click()
   await expect(dialog.getByRole('listbox')).toBeVisible()
-  // The inner locator of a filter is looked for inside the box, so it starts from the page rather than the dialog
+  // The inner locator of a filter is looked for inside the box, so it starts from the page rather than
+  // the dialogue
   const head = page.getByRole('combobox', { name: 'Replacement merchant', exact: true })
   const measured = [
     dialog.getByTestId('dropdown-box').filter({ has: head }),

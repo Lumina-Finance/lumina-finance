@@ -5,7 +5,7 @@ import type { BankImportProgress, BankLinkState } from '@/api/bank-sync'
 const DONE_HOLD_MS = 1500
 
 /**
- * The import to show, which outlives the import for a moment so it can be seen finishing. Once a link
+ * The import to show. It outlives the import for a moment so it can be seen finishing. Once a link
  * that still syncs stops reporting an import, the import is taken to have finished, so the last one read
  * is held as complete, all its windows done, then dropped. A link whose bank account must be chosen again stops
  * reporting its import too, but that import was cut short, so it goes at once without reading as done

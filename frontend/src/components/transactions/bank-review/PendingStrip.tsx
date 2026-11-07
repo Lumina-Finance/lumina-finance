@@ -18,14 +18,14 @@ type BankPendingStripProps = {
   /** The pending transactions in scope, newest first, each of an account the caller can name */
   transactions: PendingBankTransaction[]
 
-  /** Set while they have never loaded, which the strip says in place of its count and rows */
+  /** Set while they have never loaded. The strip says so in place of its count and rows */
   failure: BankReadFailure | null
   accountFor: (accountId: string) => ReviewItemAccount
 
   /** Left out on an account's own page, where every transaction is that account's */
   showAccountNames: boolean
 
-  /** Today as "YYYY-MM-DD" in the user's profile timezone, which decides whether a date shows its year */
+  /** Today as "YYYY-MM-DD" in the user's profile timezone. It decides whether a date shows its year */
   today: string
   open: boolean
   onToggleOpen: () => void

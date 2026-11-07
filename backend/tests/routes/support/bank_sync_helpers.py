@@ -51,7 +51,7 @@ LINK_START = date(2026, 9, 1)
 BANK_DATE = date(2026, 10, 3)
 BANK_DESCRIPTION = "HARBOUR COFFEE 0412"
 
-# When the app received the record of a bank-sourced transaction, which a test pins where it reads it back
+# When the app received the record of a bank-sourced transaction. A test pins it where it reads it back
 BANK_RECEIVED_AT = datetime(2026, 10, 4, 9, 5, tzinfo=UTC)
 
 # The review list with nothing waiting
@@ -89,7 +89,7 @@ def _build_account(owner_id: uuid.UUID, name: str = "Everyday") -> Account:
 
 
 def _build_bank_connection(owner_id: uuid.UUID, provider: str = FAKE_PROVIDER, provider_name: str = "Fake Bank") -> BankConnection:
-    """Return an unsaved connection through a provider, the fake one unless told otherwise, whose credential is a placeholder token"""
+    """Return an unsaved connection through a provider, the fake one unless told otherwise, with a placeholder token as its credential"""
     return BankConnection(
         id=uuid.uuid4(),
         owner_id=owner_id,
@@ -283,7 +283,7 @@ async def _commit_waiting_items(link: BankAccountLink, count: int, *, external_a
     """Commit this many new items for the link's account, each awaiting its first review, sent by the link's bank account unless told otherwise
 
     Returns:
-        Their ids, which are also their review items'
+        Their ids, also their review items'
     """
     sent_by = external_account_id or link.external_account_id
     async with TestSession() as session:
@@ -390,7 +390,7 @@ async def _record_bank_source(
     """Commit the accepted bank transaction a ledger row came from, aligned with the bank's values
 
     Returns:
-        The bank transaction's id, which is also its review item's
+        The bank transaction's id, also its review item's
     """
     async with TestSession() as session:
         txn = await session.get(Transaction, uuid.UUID(str(transaction_id)))
@@ -579,7 +579,7 @@ class _QueuedWait(timedelta):
 async def _queued_jobs() -> list[tuple]:
     """Return the queued job's kind, how long after it was queued it may run, and whether it lists the bank accounts first
 
-    A job waits by the database's clock, which a test's frozen clock doesn't stop, so the wait it was
+    A job waits by the database's clock and a test's frozen clock doesn't stop it, so the wait it was
     queued with is what a test can pin
     """
     async with TestSession() as session:
@@ -617,7 +617,7 @@ async def _changed_at(client, headers) -> str | None:
 
 
 async def _import_a_file(client, headers) -> None:
-    """Import a file holding a $4.50 coffee into a new Wallet account, which the user can then undo for a while"""
+    """Import a file holding a $4.50 coffee into a new Wallet account, and the user can then undo it for a while"""
     imported = await _import_run(
         client,
         headers,

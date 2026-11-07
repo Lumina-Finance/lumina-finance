@@ -25,7 +25,7 @@ vi.mock('motion/react', () => ({
   useReducedMotion: () => false,
   motion: {
     div: ({ children }: { children: ReactNode }) => {
-      // The row's content, which every press on the row reaches, the title's own included
+      // The row's content. Every press on the row reaches it, the title's own included
       const content = ([children].flat() as ReactElement<RowContentProps>[]).find((child) =>
         child?.props?.['data-testid']?.startsWith('transaction-row-'),
       )

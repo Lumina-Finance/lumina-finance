@@ -1,5 +1,5 @@
 /**
- * Guards the FX badge's tooltip in an account list, which opens upward over the row above. A row or the
+ * Guards the FX badge's tooltip in an account list. It opens upward over the row above. A row or the
  * list around it clipped its contents, so the tooltip was cut off at the row's own top edge and looked
  * as though it sat behind the row above. Only a group body that is opening or closing may clip
  */
@@ -11,7 +11,7 @@ vi.mock('@/hooks/useMoneyFormatters', () => ({
   useMoneyFormatters: () => ({ formatCurrency: (amount: number) => `${amount}` }),
 }))
 
-// The motion props of each group body, which markup can't show: what the body does once it has settled
+// The motion props of each group body. Markup can't show them: what the body does once it has settled
 const { groupBodies } = vi.hoisted(() => ({
   groupBodies: [] as { style: Record<string, unknown>; animate: { transitionEnd?: Record<string, unknown> } }[],
 }))
@@ -67,8 +67,8 @@ describe('account list section', () => {
     )
     const ancestors = openTagsAt(markup, 'aria-label="Account balance FX status"')
 
-    // The group's body clips while it opens or closes and lets go once it has settled, which markup
-    // cannot show, so what sits between the body and the badge is what is checked
+    // The group's body clips while it opens or closes and lets go once it has settled. Markup
+    // cannot show that, so what sits between the body and the badge is what is checked
     const bodyIndex = ancestors.findIndex((tag) => tag.includes('id="account-group-'))
     expect(bodyIndex).toBeGreaterThanOrEqual(0)
     expect(ancestors.length).toBeGreaterThan(bodyIndex + 1)

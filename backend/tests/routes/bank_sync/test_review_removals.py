@@ -2,7 +2,7 @@
 
 Removing deletes the ledger transaction, its bank transaction with it, and rebuilds its balances,
 and works while the account is linked. Keeping leaves the ledger as it is, so a file imported just
-before it can still be undone, and closes the removal, which stays remembered so the same removal
+before it can still be undone, and closes the removal. That stays remembered, so the same removal
 sent again opens nothing. Either is one save with the
 cache mark last. A removal applied after a sync brought the transaction back deletes one the bank
 still lists, one taking the ledger row before the bank transaction can deadlock with a sync, one
@@ -255,7 +255,7 @@ async def test_removing_submitted_twice_at_once_deletes_once_and_the_second_find
 
 
 async def test_keeping_submitted_twice_at_once_closes_the_removal_once(client):
-    """Both submissions queue behind a lock on the item and answer with the same transaction, which the second leaves as the first did"""
+    """Both submissions queue behind a lock on the item and answer with the same transaction, and the second leaves it as the first did"""
     removal = await _removal_waiting(client)
 
     async with asyncio.timeout(10), TestSession() as holder:

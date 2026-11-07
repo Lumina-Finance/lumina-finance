@@ -1,5 +1,5 @@
 /**
- * Covers the Unlink dialog's two choices: unlinking this account alone, keeping the connection for
+ * Covers the Unlink dialogue's two choices: unlinking this account alone, keeping the connection for
  * the accounts still using it, or disconnecting the whole connection
  *
  * These tests catch the other accounts on the connection miscounted, including one waiting for its

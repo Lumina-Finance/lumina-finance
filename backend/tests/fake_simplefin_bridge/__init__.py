@@ -14,8 +14,8 @@ with the backend's environment:
 
     BANK_SYNC_SIMPLEFIN_TEST_ORIGIN=http://127.0.0.1:8790 uvicorn --app-dir tests fake_simplefin_bridge:app --host 127.0.0.1 --port 8790
 
---app-dir loads it as a package of its own, so tests/__init__.py, which points the process at the
-test database, doesn't run. Give it the BANK_SYNC_SIMPLEFIN_TEST_ORIGIN the app is given for it, and
+--app-dir loads it as a package of its own, so tests/__init__.py doesn't run. It points the process at the
+test database. Give it the BANK_SYNC_SIMPLEFIN_TEST_ORIGIN the app is given for it, and
 its setup tokens point there whatever address minted them
 """
 
@@ -33,14 +33,14 @@ app.include_router(control_router)
 
 
 class FakeBridgeTransport(httpx.ASGITransport):
-    """Mounts the fake in-process and applies the client's read timeout, which ASGITransport ignores
+    """Mounts the fake in-process and applies the client's read timeout that ASGITransport ignores
 
     Without it a timeout fault would hold a test for the whole stall and then answer, where a
     request to the running server times out
     """
 
     def __init__(self) -> None:
-        """Mount the shared app, whose scenarios keep each test's data apart"""
+        """Mount the shared app, with scenarios that keep each test's data apart"""
         super().__init__(app=app)
 
     async def handle_async_request(self, request: httpx.Request) -> httpx.Response:

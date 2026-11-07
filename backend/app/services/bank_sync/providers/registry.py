@@ -1,6 +1,6 @@
 """Finds the bank provider adapters installed as subpackages of the providers package
 
-A provider is one folder under providers, named after its provider id, whose package exports its
+A provider is one folder under providers, named after its provider id. Its package exports its
 adapter class as ADAPTER. Deleting the folder removes the provider: connections made through it stay
 readable under their stored provider id and sync nothing
 """

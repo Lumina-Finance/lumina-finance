@@ -1,10 +1,10 @@
 """Discovering the bank accounts a connection reaches
 
 Discovery is a balances-only read of every bank account the connection's credential reaches. The
-claim and the reconnect run it within their requests through run_discovery, which counts and sends
+claim and the reconnect run it within their requests through run_discovery. That counts and sends
 it and then stores what it read through apply_discovery. A bank added at the provider appears, and
 a linked bank account that vanished or changed currency stops syncing until it returns or the user
-chooses again. A sync's fetch reads the balances too, which store_fetched_balances keeps
+chooses again. A sync's fetch reads the balances too, and store_fetched_balances keeps them
 """
 
 import uuid
@@ -55,7 +55,7 @@ async def run_discovery(db: AsyncSession, connection: BankConnection, adapter: P
     """Discover a connection's bank accounts within a request
 
     The request is counted and committed before it is sent, together with whatever the request
-    wrote before, such as a newly claimed credential, which has to be kept once its token is spent.
+    wrote before, such as a newly claimed credential. That has to be kept once its token is spent.
     No transaction stays open while the provider answers. The connection is locked again before
     anything is stored and stays locked until the caller commits. The caller marks the user's cache
     changed once it has written everything else, as apply_discovery leaves it to
@@ -112,7 +112,7 @@ async def apply_discovery(db: AsyncSession, connection: BankConnection, result: 
         now: When the discovery was sent
 
     Returns:
-        The links it moved from active to Choose bank account, as locked, which a sync emails their owner about
+        The links it moved from active to Choose bank account, as locked. A sync emails their owner about them
     """
     # A quota warning beside usable data still means nothing more should be sent for now
     if is_quota_spent(result):

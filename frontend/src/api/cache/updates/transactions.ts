@@ -189,8 +189,8 @@ function withoutLinksTo(transaction: Transaction, removed: Set<string>): Transac
  * For a change that leaves every ledger value as it was, such as a review decision that only clears
  * the Needs review marker, so the rows update without the lists refetching
  *
- * Only a list works out a row's amount in its account's currency and in the base currency, which its
- * day's total adds up, so the server's copy comes back without them and each row keeps its own. A
+ * Only a list works out a row's amount in its account's currency and in the base currency, and its
+ * day's total adds them up, so the server's copy comes back without them and each row keeps its own. A
  * caller whose change moves the amount or the date reads the lists again for new ones
  */
 export function replaceCachedTransaction(queryClient: QueryClient, transaction: Transaction): void {
@@ -308,7 +308,7 @@ function invalidateReviewIfFromBank(
  * Refreshes the review inbox when an edit reaches what a waiting item shows of a bank-imported
  * transaction
  *
- * An item shows its transaction's ledger date and amount, which the server reads from the ledger each
+ * An item shows its transaction's ledger date and amount. The server reads them from the ledger each
  * time it lists the item, and a move out of its account drops the transaction's bank record and the
  * item with it. Any other field, such as the category, tags or notes, leaves every item as it was
  *
@@ -325,7 +325,7 @@ export function invalidateReviewOfEditedBankTransactions(
 
 /**
  * Refreshes the review inbox once a bank-imported transaction is deleted, alone or among others,
- * which deletes any item waiting about it too
+ * since that deletes any item waiting about it too
  *
  * @param transactions - The deleted transactions as cached before the deletion, any of them unknown to
  * the cache left undefined

@@ -65,7 +65,7 @@ async def offer_opening_adjustments(db: AsyncSession, links: Sequence[BankAccoun
 
     Args:
         db: The links' owner's session
-        links: Links the caller locked, any of which may have no offer to wait for
+        links: Links the caller locked. Any of them may have no offer to wait for
         tz: The owner's profile timezone
 
     Returns:
@@ -107,7 +107,7 @@ async def offer_opening_adjustments(db: AsyncSession, links: Sequence[BankAccoun
 
 
 async def record_opening_adjustment(db: AsyncSession, user: User, account_id: uuid.UUID, amount: int) -> AccountBankStatusResponse:
-    """Record the offered opening adjustment for the amount given, which ends the offer, in one save
+    """Record the offered opening adjustment for the amount given in one save. That ends the offer
 
     One already recorded answers as the account stands, so a double submission records it once
 
@@ -145,7 +145,7 @@ async def record_opening_adjustment(db: AsyncSession, user: User, account_id: uu
 
 
 async def skip_opening_adjustment(db: AsyncSession, user: User, account_id: uuid.UUID) -> AccountBankStatusResponse:
-    """Skip the offered opening adjustment, which ends the offer without recording anything
+    """Skip the offered opening adjustment. That ends the offer without recording anything
 
     One already skipped answers as the account stands, so a double submission skips it once
 

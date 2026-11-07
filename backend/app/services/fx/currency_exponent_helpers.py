@@ -32,7 +32,7 @@ async def get_currency_exponents(db: AsyncSession, currencies: set[str]) -> dict
 async def get_all_currency_exponents(db: AsyncSession) -> dict[str, int]:
     """Return the minor-unit exponent of every currency Lumina holds
 
-    For reading a bank provider's amounts, whose currencies aren't known until its answer arrives
+    For reading a bank provider's amounts. Their currencies aren't known until its answer arrives
 
     Args:
         db: Active database session

@@ -17,7 +17,7 @@ import { isOwnPersonalAccount } from '@/utils/bankSync'
 // How long a row stays ringed after a Needs review marker went to it
 const JUMP_HIGHLIGHT_MS = 1800
 
-// Animation frames a row must hold its place and size for before the block scrolls to it, which is
+// Animation frames a row must hold its place and size for before the block scrolls to it. That is
 // how long it takes to be sure the rows growing in above it have stopped
 const SETTLED_FRAMES = 2
 
@@ -42,7 +42,7 @@ type BankReviewSectionProps = {
 }
 
 /**
- * Calls back once an element has stopped moving and changing size, which it does for a moment while
+ * Calls back once an element has stopped moving and changing size. It does that for a moment while
  * rows grow in above it as the block opens. Returns what cancels the wait
  */
 function whenSettled(element: HTMLElement, onSettled: () => void): () => void {
@@ -121,8 +121,8 @@ export const BankReviewSection = memo(function BankReviewSection({
   } = useReviewBacklogs(accountIds, isInScope)
 
   // A read that has failed and never succeeded, each retried on its own so the other is left as it
-  // is. Read from the count of failures rather than the error, which a retry of a read with nothing
-  // loaded clears while it runs, so the failure stays in place, saying it is retrying, until it settles
+  // is. Read from the count of failures rather than the error, since a retry of a read with nothing
+  // loaded clears it while it runs, so the failure stays in place, saying it is retrying, until it settles
   const itemsFailure: BankReadFailure | null =
     isInScope && itemsErrorCount > 0 && !pages ? { retry: () => void refetchItems(), isRetrying: isFetching } : null
   const backlogFailure: BankReadFailure | null =
@@ -132,7 +132,7 @@ export const BankReviewSection = memo(function BankReviewSection({
   const counts = pages?.pages[0]?.counts
   const total = isInScope && counts ? counts.new + counts.correction + counts.removal : 0
 
-  // The notice names accounts in the order the server lists them, which is the order they were created
+  // The notice names accounts in the order the server lists them. That is the order they were created
   const scopedAccounts = (accounts ?? []).filter((account) =>
     accountIds === undefined
       ? user !== null && isOwnPersonalAccount(account, user.id)
@@ -237,7 +237,7 @@ export const BankReviewSection = memo(function BankReviewSection({
     setIsReviewOpen(true)
   }, [])
 
-  // Called back from the render the decision was made in, whose items still hold the decided one, so
+  // Called back from the render the decision was made in. Its items still hold the decided one, so
   // the next is found from its place even though it has left the list since. With no new item after it
   // among the loaded pages, the pages after them are read until one turns up, and only once the last
   // page has loaded does the review go back to the new items before it. A page is read once the
@@ -308,7 +308,8 @@ export const BankReviewSection = memo(function BankReviewSection({
         )}
       </AnimatePresence>
 
-      {/* Outside the block, which leaves once its last item is decided, while the modal still has to close */}
+      {/* Outside the block because it leaves once its last item is decided, while the modal still has
+          to close */}
       {reviewItem?.kind === 'new' && (
         <CreateTransactionModal
           key={reviewOpening}

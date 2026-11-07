@@ -102,7 +102,7 @@ export default function AccountRow({
   // Tabbing from account to account hears only the link's name, so the link is described by what the
   // row shows beside the name, in the row's order: the linked plan, the type and institution, the
   // balance, the converted balance and the credit available. The logo is left out, since the institution
-  // line already names the bank, and so is the FX badge, which is a control of its own
+  // line already names the bank, and so is the FX badge, since it is a control of its own
   const descriptionId = useId()
   const describedBy = [
     linkedPlan && `${descriptionId}-plan`,

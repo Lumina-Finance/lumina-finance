@@ -8,7 +8,7 @@
  * hold losing decimal places or not asking for an amount, a bank amount that isn't a number vanishing,
  * a removal showing the bank's amount rather than the ledger's, a date in this year carrying its year,
  * a warning shown over a pause, accounts named out of the order given, a scoped list
- * asking for a group or shared account's items, which the server refuses, Keep window open
+ * asking for a group or shared account's items (the server refuses it), Keep window open
  * going on to a correction, skipping a new item, or ending while a new item before it still waits
  */
 import { describe, expect, it } from 'vitest'

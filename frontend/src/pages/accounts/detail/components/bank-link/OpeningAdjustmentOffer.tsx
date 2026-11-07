@@ -30,7 +30,7 @@ type OpeningAdjustmentOfferProps = {
   accountId: string
   offer: OpeningAdjustment
 
-  /** The account's currency, which a live link's bank account shares */
+  /** The account's currency, shared by a live link's bank account */
   currency: string
   providerName: string
 
@@ -53,9 +53,9 @@ type OpeningAdjustmentOfferProps = {
  * says why it refuses a typed or pasted sign, recording the amount it keeps if pressed. A press while
  * either answer runs does nothing, and the buttons keep the focus they hold, as Sync now does, until
  * an answer goes through, or a read of the link leaves the offer out first, and focus inside the offer
- * moves on. A refused answer says why in a toast, and the account's bank link is read again, which
+ * moves on. A refused answer says why in a toast, and the account's bank link is read again. That
  * folds the offer away if it was answered elsewhere. Enter in the field records nothing, since the
- * offer sits inside the account's edit form, whose Save Enter would otherwise press. While the
+ * offer sits inside the account's edit form and Enter would otherwise press its Save. While the
  * currency list lacks the account's currency, the amount and Record adjustment lock, with the reason
  * beside the label, as other stored amounts do
  */
@@ -94,15 +94,15 @@ export function OpeningAdjustmentOffer({
       setTyped(value)
 
       // The field refuses text holding a sign and keeps its value, so the refused text is read to say
-      // why. Settling on blur reports no text, which leaves the message as it was
+      // why. Settling on blur reports no text, so the message is left as it was
       if (text !== undefined) setError(holdsSign(text) ? SIGNED_AMOUNT_MESSAGE : null)
     },
   })
   const busy = record.isPending || skip.isPending
   const prefix = signMovedAmount(getAmountSign(offer.amount), symbol)
 
-  // How approving the items waiting for review would move the ledger's balance, which the offer leaves
-  // out, as a direction in words and an unsigned amount
+  // How approving the items waiting for review would move the ledger's balance, as a direction in words
+  // and an unsigned amount. The offer leaves that movement out
   const waitingDirection = offer.waiting_amount < 0 ? 'lower' : 'raise'
   const waitingSize = formatCurrency(Math.abs(offer.waiting_amount), currency)
   useMoveFocusOnFold(rootRef, onAnswered)
@@ -110,7 +110,7 @@ export function OpeningAdjustmentOffer({
   const reportError = (cause: unknown) =>
     showToast({ status: 'error', text: cause instanceof ApiError ? cause.message : ANSWER_FAILED_MESSAGE })
 
-  // The answer is awaited here rather than through the mutation's own callbacks, which are dropped once
+  // The answer is awaited here rather than through the mutation's own callbacks. Those are dropped once
   // the offer has gone, so a refusal still says why after a read of the link has left it out. Focus
   // elsewhere stays where the person put it while the answer ran
   const answer = (send: () => Promise<unknown>) => {

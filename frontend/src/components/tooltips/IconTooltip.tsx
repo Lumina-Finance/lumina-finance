@@ -35,7 +35,7 @@ interface IconTooltipProps {
   // with `data-tooltip-bounds`, or only the viewport, for a panel meant to rise over the edge of its box
   sideBoundary?: IconTooltipSideBoundary
 
-  // Fills the icon on hover and while open, which suits the round info and help icons. An outline
+  // Fills the icon on hover and while open. That suits the round info and help icons. An outline
   // icon such as a building would lose its strokes to the fill, so it opts out
   hoverFill?: boolean
 
@@ -68,7 +68,7 @@ const levelConfig: Record<IconTooltipLevel, { Icon: LucideIcon; color: string }>
 
 const ICON_TRIGGER_CLASS = 'inline-flex cursor-pointer appearance-none border-0 bg-transparent p-0'
 // Keyboard focus shows what hovering shows, the filled icon and the open tooltip, so the trigger draws
-// no ring of its own unless it asks for the ring below, which takes this one's place
+// no ring of its own unless it asks for the ring below. That ring takes this one's place
 const ICON_NO_RING_CLASS = 'focus-visible:outline-none'
 const ICON_HIT_AREA_CLASS = "relative before:absolute before:-inset-1.5 before:content-['']"
 const ICON_FOCUS_RING_CLASS =
@@ -154,8 +154,8 @@ function getTooltipPosition(trigger: HTMLElement, tooltip: HTMLElement, side: To
  * The panel opens above or below the trigger, whichever has room within the viewport or the nearest
  * ancestor marked with `data-tooltip-bounds` and clear of any bar above it marked with
  * `data-tooltip-cover`, and shifts sideways to stay within them. While it shows it keeps that side until
- * a press on the trigger opens it, which picks the side afresh, and it is placed again with the trigger
- * on any scroll or resize, and whenever the trigger moves on its own, as it does during a dialog's
+ * a press on the trigger opens it and picks the side afresh, and it is placed again with the trigger
+ * on any scroll or resize, and whenever the trigger moves on its own, as it does during a dialogue's
  * entrance. It hides while its trigger is scrolled out of view, and it closes on any pointer down
  * outside the trigger. A trigger inside an element marked with
  * `data-tooltip-subject`, such as a fact whose value sits under its label, opens the panel above or
@@ -165,7 +165,7 @@ function getTooltipPosition(trigger: HTMLElement, tooltip: HTMLElement, side: To
  * The panel is as wide as its content up to 13rem, so a short note sits in a small panel rather than
  * one with a ragged gap beside it. A caller passing its own width takes that width instead. A note
  * that wraps avoids leaving one word alone on its last line, where the browser supports it, rather
- * than balancing its lines, which would leave the panel wider than the text it fits
+ * than balancing its lines. Balancing would leave the panel wider than the text it fits
  */
 export default function IconTooltip({
   label,

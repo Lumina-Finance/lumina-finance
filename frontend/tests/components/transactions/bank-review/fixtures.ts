@@ -5,7 +5,7 @@ import type { Currency } from '@/api/currency'
 
 export const MINUS = String.fromCodePoint(0x2212)
 
-/** US dollars and yen, which have no minor unit */
+/** US dollars and yen. Neither has a minor unit */
 export const TEST_CURRENCIES: Currency[] = [
   { id: 'USD', name: 'US Dollar', symbol: '$', minor_unit_exponent: 2 },
   { id: 'JPY', name: 'Japanese Yen', symbol: '¥', minor_unit_exponent: 0 },

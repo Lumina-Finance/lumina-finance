@@ -2,7 +2,7 @@ import { ApiError, isAnsweredByApp } from '@/api/auth/errors'
 import { fetchAccount, recordStartingBalance } from '@/api/accounts/requests'
 import type { Account } from '@/api/accounts/types'
 
-// A second save is refused with this once the first has landed, which is how a save sent again
+// A second save is refused with this once the first has landed. That is how a save sent again
 // after an unanswered one finds out it had been saved after all. Reading the account tells that
 // refusal from any other with the same status, so the backend's wording isn't relied on
 const REFUSED_STATUS = 422
@@ -31,7 +31,7 @@ function isRefused(error: unknown): boolean {
  * Records a starting balance and settles a save that ended with no answer by reading the account
  *
  * The account is new and the balance its only entry, so the account holding exactly that balance
- * means the save landed, which is then answered as a save. A save sent again after one that did
+ * means the save landed, and it is then answered as a save. A save sent again after one that did
  * land is refused for the transactions the account now has, so a refusal is settled the same way,
  * and passed on as it is when the account doesn't hold the balance
  *

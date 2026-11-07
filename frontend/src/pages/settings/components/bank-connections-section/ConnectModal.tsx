@@ -45,10 +45,10 @@ const credentialFieldId = (key: string) => `bank-connection-credential-${key}`
 const UNANSWERED_RECONNECT_MESSAGE = 'Something went wrong. Please try again.'
 
 // The server carries on with a claim whose own answer never reached the browser, lost on the way or
-// replaced by a proxy's page, so it may have saved the connection and spent the credential, which may
-// work only once. The dialogue waits for that connection to show in the list, and says this only when
-// none has by the time the claim must have finished. Sent again, the credential may be refused as
-// used, and a new one would add the same connection twice
+// replaced by a proxy's page, so it may have saved the connection and spent the credential. The
+// credential may work only once. The dialogue waits for that connection to show in the list, and says
+// this only when none has by the time the claim must have finished. Sent again, the credential may be
+// refused as used, and a new one would add the same connection twice
 function describeUnansweredClaim(noun: string): string {
   return `Oops, something went wrong. The connection may have been added, so please check before you create a new ${noun}.`
 }
@@ -66,7 +66,7 @@ type UnansweredClaim = {
 
   /**
    * When the wait ends, in epoch milliseconds: once the claim must have finished, and never before the
-   * next poll after the failure is due, which a claim the browser itself timed out comes near
+   * next poll after the failure is due. A claim the browser itself timed out comes near it
    */
   endsAt: number
 }
@@ -81,7 +81,7 @@ interface ConnectModalProps {
   reconnecting: BankConnection | null
 
   /**
-   * The provider of the connection being reconnected, as the server lists it, which says how to get a
+   * The provider of the connection being reconnected, as the server lists it. The provider says how to get a
    * new credential. Undefined while the providers load, or while the server has the provider turned off
    */
   reconnectingProvider?: BankProvider

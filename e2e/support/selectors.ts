@@ -4,7 +4,7 @@ import { API_BASE_URL } from './target'
 
 const NO_CONTENT_STATUS = 204
 
-/** The true minus sign the app puts before an amount that moved out, which a hyphen never matches */
+/** The true minus sign the app puts before an amount that moved out. A hyphen never matches it */
 export const MINUS = String.fromCodePoint(0x2212)
 
 /** Assert identity selection still finds an accessible pending action */
@@ -112,8 +112,8 @@ const FOCUS_RING_TEXT_CLEARANCE = 4
  * Assert keyboard focus on a control stretched over its row rings the row in the app's focus colour
  *
  * The ring is the row's own, drawn by the shared focus rule on the row's box inside the one given,
- * rather than by the control, which draws none. It has to sit against that box's edge and inside it,
- * and every line of the box's text has to clear its inner edge. Focus does not light the box in the
+ * rather than by the control. The control draws none. The ring has to sit against that box's edge and
+ * inside it, and every line of the box's text has to clear its inner edge. Focus does not light the box in the
  * accent's soft tint, since the ring falls under 3:1 against that tint on the light theme's page
  */
 export async function expectStretchedFocusRing(control: Locator, row: Locator): Promise<void> {
@@ -142,7 +142,7 @@ export async function expectStretchedFocusRing(control: Locator, row: Locator): 
       const accentSoft = resolve('var(--app-accent-soft)')
       probe.remove()
 
-      // The nearest box around the control that draws an outline, which is the box the ring belongs to
+      // The nearest box around the control that draws an outline. That is the box the ring belongs to
       let frame: Element | null = element
       while (frame && getComputedStyle(frame).outlineStyle === 'none') frame = frame.parentElement
       const ringStyle = frame ? getComputedStyle(frame) : null
@@ -201,7 +201,7 @@ export async function expectStretchedFocusRing(control: Locator, row: Locator): 
         width: ringStyle?.outlineWidth,
         color: ringStyle?.outlineColor,
         offset: ringStyle ? parseFloat(ringStyle.outlineOffset) : Number.NaN,
-        // How much of the row's sides an edge drawn over them takes, which the ring sits just inside of
+        // How much of the row's sides an edge drawn over them takes. The ring sits just inside of that
         frameGap: ringStyle ? parseFloat(ringStyle.getPropertyValue('--transaction-row-frame')) || 0 : 0,
         radius: ringStyle ? parseFloat(ringStyle.borderTopLeftRadius) || 0 : 0,
         focusRing,
@@ -257,7 +257,7 @@ export async function expectStretchedFocusRing(control: Locator, row: Locator): 
     // another box draws may cross it by more than a pixel's antialiased edge
     const stroke = parseFloat(ring.width!)
     const gap = -ring.offset
-    // The ring's outer rectangle, which is the box pulled in by the gap less the band's width
+    // The ring's outer rectangle is the box pulled in by the gap less the band's width
     const outer = { left: ring.rowBox.left + gap - stroke, top: ring.rowBox.top + gap - stroke, right: ring.rowBox.right - gap + stroke, bottom: ring.rowBox.bottom - gap + stroke }
     const ringSides: Edges[] = [
       { ...outer, right: outer.left + stroke },
@@ -295,8 +295,8 @@ export async function expectStretchedFocusRing(control: Locator, row: Locator): 
  * Assert a scoped row opens from a button named by its title alone and described by its amount, and
  * has exactly one rendered responsive amount
  *
- * A name holding the amount would mean the button is named by the whole row, which a screen reader
- * then reads twice, once as the button and once as the content. The description is what tabbing from
+ * A name holding the amount would mean the button is named by the whole row. A screen reader
+ * then reads it twice, once as the button and once as the content. The description is what tabbing from
  * row to row hears of the amount
  */
 export async function expectTransactionRow(page: Page, id: string, amount: string): Promise<void> {
@@ -330,7 +330,7 @@ export async function readBoxes(page: Page, locators: Locator[]): Promise<{ x: n
 /**
  * Returns whether nothing is drawn over the element at its centre or near any of its four edges, so
  * something covering only part of it, such as an open list, still counts as covering it. The points
- * stay clear of the corners, which a pill button's rounding leaves outside the button
+ * stay clear of the corners. A pill button's rounding leaves them outside the button
  */
 export async function isUncovered(locator: Locator): Promise<boolean> {
   return locator.evaluate((element) => {

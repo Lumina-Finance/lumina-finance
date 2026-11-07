@@ -118,7 +118,7 @@ async def test_a_double_clicked_dismiss_dismisses_the_item_once(client):
 
 
 async def test_dismissing_an_item_already_in_the_ledger_is_refused(client):
-    """A correction waiting on an accepted transaction can't be dismissed, which would orphan its ledger row"""
+    """A correction waiting on an accepted transaction can't be dismissed, since that would orphan its ledger row"""
     headers, user_id = await _sign_up(client)
     account_id = await _new_account(client, headers, "Everyday")
     async with TestSession() as session:
@@ -171,7 +171,7 @@ async def test_dismissing_another_users_item_or_one_on_a_group_account_is_not_fo
 async def test_a_dismissal_leaving_50_new_items_waiting_resumes_the_paused_sync_at_once(client, pin_clock, waiting, pause_state):
     """Everyday is paused for review with HARBOUR COFFEE 0412 among its new items waiting, its next sync set for tomorrow
 
-    Dismissing it leaves 51, which stays paused, or 50, which lifts the pause, makes Everyday due now
+    Dismissing it leaves 51 and Everyday stays paused. Leaving 50 lifts the pause, makes Everyday due now
     and queues its connection's sync, with the cache mark still the last write
     """
     pin_clock(_NOW, review_pause)
@@ -215,7 +215,7 @@ async def test_a_dismissal_waits_for_a_sync_holding_the_link_before_locking_the_
 async def test_a_dismissal_that_queues_a_sync_waits_for_a_disconnect_holding_the_connection_before_locking_the_link(client, pin_clock):
     """Everyday is paused for review, and a disconnect of its connection holds the connection, as it does before the links
 
-    Dismissing HARBOUR COFFEE 0412 leaves 50, so the dismissal queues a sync, which needs the
+    Dismissing HARBOUR COFFEE 0412 leaves 50, so the dismissal queues a sync. The sync needs the
     connection: it waits for the disconnect without holding the link, so the disconnect can still
     lock it rather than the two waiting on each other, then lifts the pause
     """

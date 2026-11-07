@@ -1,9 +1,9 @@
 /**
  * Covers where an icon's tooltip opens and the bars it keeps clear of
  *
- * These tests catch the page's stuck bars pushing a tooltip in a dialog below its icon, when the
- * dialog is drawn over those bars, and an icon's tooltip in a dialog's narrow column pushed out of the
- * column, where it is cut off, to clear the sidebar's edge behind the dialog, or one in a card kept
+ * These tests catch the page's stuck bars pushing a tooltip in a dialogue below its icon, when the
+ * dialogue is drawn over those bars, and an icon's tooltip in a dialogue's narrow column pushed out of the
+ * column, where it is cut off, to clear the sidebar's edge behind the dialogue, or one in a card kept
  * clear of the sidebar alone and left reaching past the card's left side. Last, they catch an icon's
  * tooltip covering the value of the fact it explains when it has no room on its preferred side, and one
  * beside no fact leaving the side it prefers when the other has no room either
@@ -17,7 +17,7 @@ describe('the sideways shift of an icon’s tooltip', () => {
   const tooltipWidth = 224
 
   it('keeps clear of the sidebar where the surface around the icon leaves room', () => {
-    // An icon near the left of a dialog's wide body, which lies across the sidebar's edge behind it
+    // An icon near the left of a dialogue's wide body. The body lies across the sidebar's edge behind it
     const offset = getIconTooltipOffset({
       icon: { left: 294, width: 12 },
       tooltipWidth,
@@ -97,7 +97,7 @@ describe('the side an icon’s tooltip opens on', () => {
 const STUCK_TOOLBAR = { left: 0, right: 390, top: 0, bottom: 120 }
 const ICON = { left: 100, right: 113, top: 160, bottom: 173 } as DOMRect
 
-/** An icon standing in for a tooltip's trigger, inside the given dialog or in no dialog at all */
+/** An icon standing in for a tooltip's trigger, inside the given dialogue or in no dialogue at all */
 function iconIn(dialog: object | null): HTMLElement {
   return { closest: (selector: string) => (selector === '[role="dialog"]' ? dialog : null) } as unknown as HTMLElement
 }

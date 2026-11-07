@@ -63,14 +63,14 @@ class SyncWindow:
 def next_due_at(link: BankAccountLink, *, now: datetime, timezone: ZoneInfo, overlap_days: int) -> datetime | None:
     """Return when a link is next due to sync, or None while it can't sync
 
-    A link syncs while it is active and not paused for review, which an import running never is. It
+    A link syncs while it is active and not paused for review. One with an import running never is. It
     is due at its next attempt, or now when none is set, but never before the first day it needs has
     started in the profile timezone, since a sync can't fetch a day still to come
 
     Args:
         link: The link
         now: The current time
-        timezone: The profile timezone, which days are counted in
+        timezone: The profile timezone, the one days are counted in
         overlap_days: Days before its checkpoint that a routine sync re-reads
     """
     if link.state != BankLinkState.ACTIVE or is_paused_for_review(link):
@@ -97,7 +97,7 @@ def find_due_links(
     Args:
         links: The connection's links
         now: The current time
-        timezone: The profile timezone, which days are counted in
+        timezone: The profile timezone, the one days are counted in
         overlap_days: Days before its checkpoint that a routine sync re-reads
         requested: The links the user asked to sync now
     """
@@ -118,8 +118,8 @@ def plan_window(needs: Iterable[LinkNeed], *, today: date, timezone: ZoneInfo, m
     """Return the window to fetch next, or None when no link needs one
 
     The window starts at the earliest need and runs to today, or for max_days days when today is
-    further off. A clock change can make that many days longer than max_days of elapsed time, which
-    the provider refuses, so such a window ends a day sooner
+    further off. A clock change can make that many days longer than max_days of elapsed time. The provider
+    refuses that, so such a window ends a day sooner
 
     Args:
         needs: The links due, each with the first day it needs

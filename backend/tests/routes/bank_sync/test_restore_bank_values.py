@@ -237,7 +237,7 @@ async def test_restoring_a_field_the_user_left_alone_changes_nothing(client):
 
 
 async def test_restoring_an_amount_the_currency_cant_hold_is_refused(client):
-    """The bank sent -12.505, which CAD can't hold, so the user entered -12.51 and there is no bank amount to put back"""
+    """The bank sent -12.505 and CAD can't hold it, so the user entered -12.51 and there is no bank amount to put back"""
     imported = await _bank_imported(client, ledger_amount=-1251, observed_amount=None, raw_amount="-12.505", aligned_amount=None)
 
     refused = await _restore(client, imported, "amount")
@@ -323,7 +323,7 @@ async def test_a_restore_waiting_on_a_sync_restores_the_value_the_sync_stored(cl
     """A sync on an account trusting corrections stores the bank's change from -42.10 to -46.00, leaving the user's -40.00 alone as edited
 
     The restore waits for the sync to commit, then puts the bank's newest -46.00 on the ledger rather
-    than the -42.10 it would have read before the sync finished, which would leave the ledger
+    than the -42.10 it would have read before the sync finished. That would leave the ledger
     differing from the bank with nothing marked edited
     """
     imported = await _bank_imported(client)

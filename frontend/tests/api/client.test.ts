@@ -1,6 +1,6 @@
 /**
  * Covers authenticated fetch session handling around token refresh and request failures, and an
- * answer with no content, which a caller such as a review decision reads as nothing
+ * answer with no content. A caller such as a review decision reads that as nothing
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { ApiError, type AuthResponse } from '@/api/auth'

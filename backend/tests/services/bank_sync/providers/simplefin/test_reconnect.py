@@ -3,8 +3,8 @@
 A setup token claims once, so the new credential has to be kept whatever happens after the claim.
 The linked accounts must come back as the listing finds them: one whose bank account is unchanged
 resumes from where it stopped, and one listed under a new id waits for the user rather than syncing
-into the wrong ledger. Neither may still show the failure from before the reconnect, which its new
-credential has answered
+into the wrong ledger. Neither may still show the failure from before the reconnect, since its new
+credential has answered it
 """
 
 import asyncio
@@ -146,7 +146,7 @@ async def _wait_on_signin(account_id: str) -> None:
 async def test_reconnect_with_both_bank_accounts_unchanged_resumes_both_and_clears_reconnect_needed(client, scenario: FakeBridgeScenario):
     """Everyday and Savings were stopped for 10 days: a new token brings both back, catching up from where each stopped
 
-    Everyday was also paused for review. Its catch-up is an import, which runs to today whatever the
+    Everyday was also paused for review. Its catch-up is an import. It runs to today whatever the
     pause, and the pause stays for when the import ends
     """
     headers, everyday_id, savings_id, connection_id = await _rejected_with_two_links(client, scenario)
@@ -313,7 +313,7 @@ async def test_reconnect_with_nothing_linked_whose_listing_works_queues_nothing(
 
 
 async def test_reconnect_keeps_a_bank_sign_in_the_bank_still_needs(client, scenario: FakeBridgeScenario):
-    """Savings was also waiting on a Harbour Bank sign-in, which the Bridge still reports, so it shows again once Reconnect needed clears"""
+    """Savings was also waiting on a Harbour Bank sign-in and the Bridge still reports it, so it shows again once Reconnect needed clears"""
     headers, _, savings_id, connection_id = await _rejected_with_two_links(client, scenario)
     await _wait_on_signin(savings_id)
     await scenario.change("POST", "/errors", {"code": "con.auth", "msg": "Harbour Bank needs you to sign in again.", "conn_id": "CON-harbour"})

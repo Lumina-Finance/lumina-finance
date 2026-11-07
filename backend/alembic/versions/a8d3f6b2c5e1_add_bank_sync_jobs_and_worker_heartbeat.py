@@ -31,7 +31,7 @@ _WORKER_FUNCTIONS = (
 def upgrade() -> None:
     """Create the job and heartbeat tables, empty, and the worker's definer functions
 
-    No heartbeat row exists until a worker first scans, which reads as sync not running. A
+    No heartbeat row exists until a worker first scans. That reads as sync not running. A
     database that ran the bootstrap migration on this code already has the functions, and
     creating them again replaces them with the same bodies
     """
@@ -98,7 +98,7 @@ def downgrade() -> None:
 
     Dropping a queued or running job would silently cancel a sync or an import part way, and
     finished jobs hold the last errors their links' status reads. The heartbeat only says when
-    the worker last scanned, which it writes again on its next scan, so it doesn't hold the
+    the worker last scanned. It writes that again on its next scan, so it doesn't hold the
     rollback back
     """
     refuse_while_tables_hold_rows(op.get_bind(), {"bank_sync_jobs": "bank sync jobs, queued, running and finished"})

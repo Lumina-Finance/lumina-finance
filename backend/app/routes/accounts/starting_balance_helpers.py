@@ -32,7 +32,7 @@ async def record_starting_balance_for_user(
         account_id: Account identifier from the route path
         data: Starting balance as the user states it
         user: Authenticated user recording the starting balance
-        now: The current time in the user's timezone, whose date sets the balance fields
+        now: The current time in the user's timezone. Its date sets the balance fields
 
     Returns:
         Account with derived balance fields
@@ -61,7 +61,7 @@ async def record_starting_balance_for_user(
 
 
 async def _account_owners_today(db: AsyncSession, account: Account, now: datetime) -> date:
-    """Return today for the account's owner, which dates its starting balance
+    """Return today for the account's owner, the date of its starting balance
 
     A group account's history starts on the group owner's day, as its creation snapshot does, so
     its starting balance lands on that day rather than the admin's who records it

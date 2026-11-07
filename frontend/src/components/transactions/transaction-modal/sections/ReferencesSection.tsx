@@ -34,7 +34,7 @@ interface TransactionReferencesSectionProps {
   accountError?: string | false
   accountPlaceholder: string
 
-  // Holds the account where it is, for a bank item, which belongs to the account whose feed it came from
+  // Holds the account where it is, for a bank item. The item belongs to the account whose feed it came from
   isAccountLocked: boolean
   runningBalance?: { amount: number; currency: string }
 

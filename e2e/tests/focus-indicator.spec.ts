@@ -244,7 +244,7 @@ async function seedOneTransaction(page: Page, request: Parameters<typeof signUpU
   return getTransactionRowButton(page.getByTestId(`transaction-row-${id}`))
 }
 
-/** The row's own box, which carries its padding and separator and is what a focused row's ring goes round */
+/** The row's own box. It carries its padding and separator and is what a focused row's ring goes round */
 function rowFrameOf(rowButton: Locator): Locator {
   return rowButton.locator('xpath=ancestor::*[contains(concat(" ", normalize-space(@class), " "), " app-transaction-row ")][1]')
 }
@@ -526,7 +526,7 @@ test('shows the whole ring and the hover look on a range selector option reached
 // shows its focus whole: a ring that nothing clips and that reaches 3:1, or no ring and a hover look that
 // differs from rest. A tooltip's trigger opens its tooltip instead, which its own test covers
 test('shows every Tab stop with a whole ring or a visible hover look', async ({ page, request }) => {
-  // About 145 stops, each read twice, which takes over 90s alone and passes the default 180s when the suite runs in parallel
+  // About 145 stops, each read twice. That takes over 90s alone and passes the default 180s when the suite runs in parallel
   test.slow()
   await page.emulateMedia({ reducedMotion: 'reduce' })
   const user = await signUpUser(request)
@@ -1276,7 +1276,7 @@ for (const colorScheme of ['light', 'dark'] as const) {
   })
 }
 
-// Tabbing from a bank row's title to its bank icon moves the ring onto the icon, which draws its own,
+// Tabbing from a bank row's title to its bank icon moves the ring onto the icon. The icon draws its own,
 // so the row around it holds none beside it
 test('draws one ring when the keyboard moves from a bank row title to its bank icon', async ({ page, request }) => {
   await page.emulateMedia({ reducedMotion: 'reduce' })

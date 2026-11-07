@@ -49,8 +49,8 @@ type NewAccountPromptModalProps = {
 }
 
 /**
- * Follows a new account's creation by asking how it stays up to date: linked to a bank account, which
- * continues on the account's page with the link flow open, or kept manual with an optional starting
+ * Follows a new account's creation by asking how it stays up to date: linked to a bank account and
+ * continuing on the account's page with the link flow open, or kept manual with an optional starting
  * balance, recorded as a balance adjustment dated today. The account is already saved, so deciding
  * later leaves it manual at a zero balance
  *
@@ -77,7 +77,7 @@ export default function NewAccountPromptModal({ open, account, onClose, onExitCo
     value: startingBalance,
     exponent,
     onChange: (value, typed) => {
-      // Settling on blur reports no typed text, which leaves the message as it was
+      // Settling on blur reports no typed text and leaves the message as it was
       if (typed !== undefined) setTypedMinus(MINUS_SIGN.test(typed))
       setStartingBalance(value)
       setSubmitError(null)

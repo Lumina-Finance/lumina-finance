@@ -35,7 +35,7 @@ export type BankSyncLabel = {
 
   /**
    * The Sync details tooltip's lines: what the label means, then only what it leaves unsaid. Empty
-   * for an account with no live link, whose section says the rest in its own words
+   * for an account with no live link. Its section says the rest in its own words
    */
   details: string[]
 }
@@ -75,7 +75,7 @@ function describeLinkSync(link: BankLink, timeZone: string | undefined): BankSyn
     details: details.filter((line): line is string => line !== null),
   })
   // A link that never synced can still be retrying its import, or reconnected and waiting on its
-  // catch-up, which reads as synced until the catch-up runs
+  // catch-up. That reads as synced until the catch-up runs
   const synced = sync.last_success_at ? `Synced ${formatRelativeTime(sync.last_success_at)}` : 'Not synced yet'
   const failure = sync.last_failure
     ? `Last attempt failed ${formatRelativeTime(sync.last_failure.at)}: ${sync.last_failure.reason}`
@@ -139,7 +139,7 @@ function describeLinkSync(link: BankLink, timeZone: string | undefined): BankSyn
  * @param ownPersonal - Whether the account is the user's own personal account, the only kind linked
  * @param status - The account's link, undefined until read
  * @param failed - Whether reading the link failed
- * @param timeZone - The user's profile zone, which decides whether a retry falls today
+ * @param timeZone - The user's profile zone, used to decide whether a retry falls today
  */
 export function describeBankSync(
   ownPersonal: boolean,

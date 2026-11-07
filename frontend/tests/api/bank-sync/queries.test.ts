@@ -62,7 +62,7 @@ let unsubscribes: Array<() => void> = []
 beforeEach(() => {
   authenticatedFetchMock.mockReset()
 
-  // No wait between attempts, which the library otherwise spaces a second apart
+  // No wait between attempts. The library otherwise spaces them a second apart
   queryClient = new QueryClient({ defaultOptions: { queries: { retryDelay: 0 } } })
 })
 
@@ -127,7 +127,7 @@ describe('a bank sync read a screen starts', () => {
   ])('hands the request for %s the signal that stops it once the screen is gone', async (_label, read) => {
     authenticatedFetchMock.mockResolvedValue([])
 
-    // Rendered once to build the screen's query in the cache, which is then read as the app would
+    // Rendered once to build the screen's query in the cache. The query is then read as the app would
     renderToStaticMarkup(
       createElement(
         QueryClientProvider,
@@ -159,8 +159,8 @@ describe('the heartbeat, as the user leaves the tab and comes back', () => {
     // choice counts
     queryClient = new QueryClient({ defaultOptions: { queries: { retryDelay: 0, refetchOnWindowFocus: false } } })
 
-    // The library runs the poll's timer only where it takes itself to be in a browser, which these
-    // tests aren't, and hears the tab coming back only through a mounted client
+    // The library runs the poll's timer only where it takes itself to be in a browser. These
+    // tests aren't, and it hears the tab coming back only through a mounted client
     wasServer = environmentManager.isServer()
     environmentManager.setIsServer(() => false)
     queryClient.mount()
@@ -238,7 +238,7 @@ describe('a Sync now answer', () => {
   }
 
   it('goes into the cached list at once, taking the poll to its fast pace, and settles only once the poll shows a worker started the sync', async () => {
-    // The server queued the sync, which no worker has started yet, so the link still reads as synced
+    // The server queued the sync and no worker has started it yet, so the link still reads as synced
     authenticatedFetchMock.mockResolvedValue(createBankLink({ sync: createSyncStatus({ sync_requested: true }) }))
 
     const observer = await syncNow()

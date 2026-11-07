@@ -22,8 +22,8 @@ depends_on: str | Sequence[str] | None = None
 def upgrade() -> None:
     """Create the bank holds table, empty, and enable its row-level security
 
-    Nothing existing changes: holds appear only once a linked account syncs a record of no amount,
-    which until now waited in review where it could not be approved
+    Nothing existing changes: holds appear only once a linked account syncs a record of no amount.
+    Until now such a record waited in review where it could not be approved
     """
     op.create_table(
         "bank_holds",

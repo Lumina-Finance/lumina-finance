@@ -11,7 +11,7 @@ Retrying can't fix a rejected credential, a bank sign-in problem or a payment pr
 starts a series: a rejected credential stops the connection's automatic sync until the user
 reconnects, and a link whose bank needs a sign-in, or whose provider needs a payment, stays on the
 connection's daily schedule. A retry, like any sync, waits
-for a free request when the budget is spent or the provider has asked for fewer requests, which
+for a free request when the budget is spent or the provider has asked for fewer requests. That
 counts as no attempt
 """
 
@@ -32,7 +32,7 @@ from app.services.bank_sync.review_pause import is_paused_for_review
 RETRY_DELAYS = (timedelta(minutes=30), timedelta(minutes=60), timedelta(minutes=90))
 RETRY_SERIES_REST = timedelta(hours=12)
 
-# The failures retrying can't fix, which start no retry series
+# The failures retrying can't fix. None starts a retry series
 _NOT_RETRIED = frozenset({ProviderErrorKind.CREDENTIAL_REJECTED, ProviderErrorKind.BANK_LOGIN_NEEDED, ProviderErrorKind.PAYMENT_REQUIRED})
 
 # The failures among them that wait for the link's next daily sync, since the user may have fixed
@@ -46,13 +46,13 @@ def is_waiting_to_retry(link: BankAccountLink) -> bool:
 
 
 def record_successful_attempt(link: BankAccountLink, *, at: datetime, next_sync: datetime | None) -> None:
-    """Record an attempt that brought in a link's data, which ends any retry series it was in
+    """Record an attempt that brought in a link's data and ends any retry series it was in
 
     Args:
         link: The link, locked by the caller
         at: When the attempt's request was sent
         next_sync: The link's next daily sync once the attempt brought it up to date through today,
-            or None while it has days still to catch up, which keeps it due
+            or None while it has days still to catch up, so it stays due
     """
     link.last_attempt_at = at
     link.last_failure_reason = None
@@ -69,7 +69,7 @@ def record_failed_attempt(link: BankAccountLink, error: ProviderError, *, at: da
 
     Args:
         link: The link, locked by the caller
-        error: Why the attempt failed, whose reason the account's sync status shows
+        error: Why the attempt failed. The account's sync status shows its reason
         at: When the attempt's request was sent, or the job stopped when it sent none
         next_sync: When the link's next daily sync falls
     """
@@ -98,20 +98,20 @@ async def queue_next_retry(
     """Queue a retry of the connection for the earliest retry its links wait on, once a request is free
 
     Called as each of the connection's jobs ends. A retry queued for later merges into any job queued
-    sooner, which runs it early or leaves it waiting, so each job that ends queues the earliest one
-    again, counting one that fell due while the job ran, which runs at once. A link waiting to retry
+    sooner. That job runs it early or leaves it waiting, so each job that ends queues the earliest one
+    again, counting one that fell due while the job ran, and that one runs at once. A link waiting to retry
     that a job found due but left, since links that could progress came first, is retried at once
     too. A link the review pause holds back retries nothing until the pause lifts, while one an
     import runs on retries whatever its pause. A connection whose credential was rejected, by now or
     by the job's last request, retries nothing
 
     Args:
-        db: The connection owner's session, which the caller commits, with the connection locked so
+        db: The connection owner's session, committed by the caller, with the connection locked so
             no writer changes its links meanwhile
         connection: The connection, as locked
         ended_by: What stopped the job, or None when it did all it could
         overdue: Whether the ending job left a link whose retry was due
-        started_at: When the job's attempt started, which it found the links due at
+        started_at: When the job's attempt started, the time it found the links due at
         now: When the job ends
     """
     rejected = ended_by is not None and ended_by.kind == ProviderErrorKind.CREDENTIAL_REJECTED

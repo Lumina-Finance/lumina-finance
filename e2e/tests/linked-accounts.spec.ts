@@ -17,7 +17,7 @@ import { contrastOf, MIN_TEXT_CONTRAST } from '../support/selectors'
 import { AT_EVERY_SIZE } from '../support/sizes'
 import { API_BASE_URL } from '../support/target'
 
-// Runs on desktop only, apart from the refused day, refused move and greyed Delete tests, which run at
+// Runs on desktop only. The refused day, refused move and greyed Delete tests run at
 // every size: the transaction modal's fields, messages and reasons sit differently at each width
 
 // A linked account's bank supplies its transactions from the import start through today, so the
@@ -29,7 +29,7 @@ import { API_BASE_URL } from '../support/target'
 // checking that archiving waits only on a link that can be read link nothing
 const SAMPLE_CHEQUING = 'Everyday Chequing'
 
-// A sample item dated 9 days before the Bridge's today, which an import from 10 days back brings in
+// A sample item dated 9 days before the Bridge's today. An import from 10 days back brings it in
 // even when the Bridge's UTC day has moved on from the test timezone's
 const SAMPLE_COFFEE = 'EFTPOS BEAN THERE CAFE'
 const IMPORT_START_DAYS_AGO = 10
@@ -96,7 +96,7 @@ async function enterDate(page: Page, dialog: Locator, date: string): Promise<voi
   await dialog.getByLabel('Notes').click()
 }
 
-// A stand-in can still be fetching for the page when a test ends, which would otherwise surface as an
+// A stand-in can still be fetching for the page when a test ends. That would otherwise surface as an
 // error outside any test
 test.afterEach(async ({ page }) => {
   await page.unrouteAll({ behavior: 'ignoreErrors' })
@@ -364,7 +364,7 @@ test('greys out Archive with its reason while the account is linked, and offers 
   await expect(archive).not.toBeChecked()
   await expect(warning).toBeHidden()
 
-  // Deleting offers archiving instead, which is unavailable for the same reason
+  // Deleting offers archiving instead, and that is unavailable for the same reason
   await dialog.getByRole('button', { name: 'Delete account', exact: true }).click()
   const archiveInstead = dialog.getByRole('button', { name: 'Archive instead', exact: true })
   await expect(archiveInstead).toHaveAttribute('aria-disabled', 'true')
@@ -514,7 +514,7 @@ test('greys out Delete on a bank transaction with its reason while the account i
   await expect(remove).toHaveAttribute('aria-disabled', 'true')
   await expect(remove).toHaveAccessibleDescription(DELETE_LINKED_REASON)
 
-  // Pointing at Delete shows the reason, which follows the cursor down the button. Hovering waits for
+  // Pointing at Delete shows the reason, and it follows the cursor down the button. Hovering waits for
   // Delete to stop moving, so the pointer lands where it is aimed once the modal has grown in
   const reason = page.getByText(DELETE_LINKED_REASON).filter({ visible: true })
   await remove.hover({ position: { x: POINTER_INSET_PX, y: POINTER_INSET_PX } })

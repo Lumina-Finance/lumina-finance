@@ -55,7 +55,7 @@ interface ModalTitledPanelProps {
   /** Shown beside the panel on wide screens, see ModalShell */
   aside?: ReactNode
 
-  /** The body between the header and the footer, which scrolls when the content is taller than it */
+  /** The body between the header and the footer. It scrolls when the content is taller than it */
   bodyRef?: Ref<HTMLDivElement>
   children: ReactNode
 }

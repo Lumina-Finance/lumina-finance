@@ -25,7 +25,7 @@ export async function colourContrast(element: Locator): Promise<number> {
 
 /**
  * The contrast of a filled shape, such as a dot, against what is drawn behind it, measured as
- * `colourContrast` measures an icon but from the shape's own background, which is its colour
+ * `colourContrast` measures an icon but from the shape's own background. That background is its colour
  */
 export async function fillContrast(element: Locator): Promise<number> {
   return (await readContrast(element, 'backgroundColor')).contrast

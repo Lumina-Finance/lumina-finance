@@ -152,7 +152,7 @@ export function describeBacklogNotice(backlogs: BankReviewBacklog[], accounts: R
 /**
  * Returns the accounts whose bank items the review block and the pending strip show for a transaction list
  *
- * A list of every account reads every account's items, which the server keeps to the user's own
+ * A list of every account reads every account's items. The server keeps those to the user's own
  * personal accounts. A list scoped to some accounts reads only those of them that are the user's own
  * personal accounts, since the server refuses the rest, and none at all when it holds none of them
  *

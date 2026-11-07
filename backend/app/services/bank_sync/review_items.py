@@ -40,7 +40,7 @@ REVIEW_PAGE_SIZE = 50
 # Why the reads of bank items refuse an account the user can see but doesn't own alone
 REVIEW_NOT_OWN_DETAIL = "Bank items aren't listed for accounts shared with a group"
 
-# Separates the bank date and the id of the last item a page returned, which its cursor carries
+# Separates the bank date and the id of the last item a page returned. Its cursor carries them
 _CURSOR_SEPARATOR = "_"
 
 _KIND = case((AWAITING_REVIEW, "new"), else_=BankTransaction.open_kind)

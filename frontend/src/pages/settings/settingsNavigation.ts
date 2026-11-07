@@ -31,7 +31,7 @@ export const SETTINGS_SECTIONS: SettingsSection[] = [
  * The sections the settings page shows, leaving out Bank connections for a user the bank-linking
  * check refuses
  *
- * @param mayLinkBanks - The check's answer, or undefined while it loads, which keeps the section so
+ * @param mayLinkBanks - The check's answer, or undefined while it loads. Undefined keeps the section so
  * it doesn't appear late for everyone it is meant for
  */
 export function listSettingsSections(mayLinkBanks: boolean | undefined): SettingsSection[] {

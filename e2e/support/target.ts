@@ -28,8 +28,8 @@ export const API_BASE_URL = (configuredApi ?? `${BASE_URL}/api`).replace(/\/+$/,
 const configuredMail = process.env.E2E_MAIL_API_URL
 export const MAIL_API_URL = configuredMail === undefined || configuredMail === '' ? undefined : configuredMail.replace(/\/+$/, '')
 
-// Where the runner reaches the fake SimpleFIN Bridge the instance claims setup tokens from, which the
-// bank specs set up through its control API. Optional, so an instance without bank sync still runs
+// Where the runner reaches the fake SimpleFIN Bridge the instance claims setup tokens from. The
+// bank specs set it up through its control API. Optional, so an instance without bank sync still runs
 // every other spec, and a bank spec run without it fails naming what is missing
 const configuredBridge = process.env.E2E_FAKE_SIMPLEFIN_BRIDGE_URL
 export const FAKE_SIMPLEFIN_BRIDGE_URL = configuredBridge ? configuredBridge.replace(/\/+$/, '') : null

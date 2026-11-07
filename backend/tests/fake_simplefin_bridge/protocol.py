@@ -231,7 +231,7 @@ def _wire_accounts(accounts: list[Account], start: int, end: int, *, include_pen
             )[:remaining]
             remaining -= len(booked)
             # Every pending transaction, whatever the window, since one has no posted date to place it
-            # by. Assumed, not yet checked against the Bridge, which may leave out pending items it
+            # by. Assumed, not yet checked against the Bridge. The Bridge may leave out pending items it
             # dates before the window's start
             pending = [item for item in account.transactions if item.pending] if include_pending else []
             wire["transactions"] = [_wire_transaction(item) for item in booked + pending]

@@ -37,7 +37,7 @@ from tests.routes.support.bank_sync_helpers import (
 # Noon on October 5 in Toronto, the zone _sign_up stores
 _NOW = datetime(2026, 10, 5, 12, 0, tzinfo=ZoneInfo("America/Toronto"))
 
-# A link whose import is long over, which last synced five hours ago and next syncs in 19 hours
+# A link whose import is long over. It last synced five hours ago and next syncs in 19 hours
 _SYNCED = {
     "importing": False,
     "last_success_at": _NOW - timedelta(hours=5),
@@ -97,7 +97,7 @@ async def _link_everyday(client, **values) -> tuple[dict, str, BankConnection, B
 
 
 async def test_sync_now_queues_a_sync_of_the_account_that_keeps_its_state_until_a_worker_starts_it(client):
-    """Everyday synced five hours ago, and Sync now queues a manual sync of it, which reads as requested while Everyday still reads as synced
+    """Everyday synced five hours ago, and Sync now queues a manual sync of it. It reads as requested while Everyday still reads as synced
 
     The user's open pages are told, as of a status change, since queueing a sync changes none of
     their data. Marked as a data change, it would stop the user undoing an import
@@ -156,7 +156,7 @@ async def test_sync_now_joins_the_sync_already_queued_for_the_connection(client)
 @pytest.mark.parametrize(
     ("values", "connection_values", "running", "detail"),
     [
-        # A worker fetching the import's next part runs a sync too, which the import's own reason outranks
+        # A worker fetching the import's next part runs a sync too. The import's own reason outranks the sync's
         pytest.param({}, {}, True, "The import is still running", id="importing"),
         pytest.param(_SYNCED, {}, True, "A sync is already running", id="syncing"),
         # The bank sign-in shows over the sync, but a second sync would only spend another request
@@ -223,7 +223,7 @@ async def test_sync_now_with_the_connections_requests_spent_says_when_one_frees(
     ],
 )
 async def test_sync_now_after_the_provider_said_its_quota_is_spent_says_whose_limit_holds_it_back(client, used, detail):
-    """Fake Bank said its quota was spent, which holds requests back until the oldest one counted leaves the last day, in 3 hours
+    """Fake Bank said its quota was spent. That holds requests back until the oldest one counted leaves the last day, in 3 hours
 
     With 4 of the connection's 20 requests used, Fake Bank's limit is what holds Sync now back. With
     all 20 used, the connection's own limit frees a request at the same time, so it says that one

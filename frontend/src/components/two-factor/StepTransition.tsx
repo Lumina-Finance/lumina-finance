@@ -18,7 +18,7 @@ interface StepTransitionProps {
   fillPhone?: boolean
   /**
    * Whether the height also eases when the step's own content changes size. Off for a step whose parts
-   * unfold on their own, which the height then follows at once, easing only between steps
+   * unfold on their own. The height then follows at once, easing only between steps
    */
   easeContentChanges?: boolean
   /** Runs once an outgoing step has faded and left */

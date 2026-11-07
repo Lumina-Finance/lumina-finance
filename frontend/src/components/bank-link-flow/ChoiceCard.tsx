@@ -31,7 +31,7 @@ interface ChoiceCardProps {
   /** A field of the choice's own, inside the card's frame but outside its button */
   extra?: ReactNode
 
-  /** Takes focus as its dialog opens, in place of the dialog's first field */
+  /** Takes focus as its dialogue opens, in place of the dialogue's first field */
   initialFocus?: boolean
 }
 
@@ -42,7 +42,7 @@ interface ChoiceCardProps {
  */
 export function ChoiceCard({ selected, disabled, onSelect, children, extra, initialFocus = false }: ChoiceCardProps) {
   // An unavailable card is marked by its plain fill and faded radio rather than by fading the whole
-  // card, which would take its text below readable contrast
+  // card. Fading the card would take its text below readable contrast
   const frameStyle = {
     borderColor: selected ? 'var(--app-accent)' : 'var(--app-border)',
     background: selected ? 'var(--app-accent-soft)' : disabled ? 'var(--app-surface-soft)' : 'transparent',

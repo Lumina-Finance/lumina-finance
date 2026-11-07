@@ -34,20 +34,20 @@ type BankReviewBlockProps = {
   /** The items loaded so far, newest first, each of an account the caller can name */
   items: BankReviewItem[]
 
-  /** Every item waiting in scope, loaded or not, which the header counts */
+  /** Every item waiting in scope, loaded or not. The header counts them */
   total: number
 
-  /** Set while the items have never loaded, which the block says in place of its count and rows */
+  /** Set while the items have never loaded. The block says so in place of its count and rows */
   itemsFailure: BankReadFailure | null
 
-  /** Takes the button that reads the items again, which a Needs review marker focuses while they can't load */
+  /** Takes the button that reads the items again. A Needs review marker focuses it while they can't load */
   itemsRetryRef: Ref<HTMLButtonElement>
   accountFor: (accountId: string) => ReviewItemAccount
 
   /** Left out on an account's own page, where every item is that account's */
   showAccountNames: boolean
 
-  /** Today as "YYYY-MM-DD" in the user's profile timezone, which decides whether a date shows its year */
+  /** Today as "YYYY-MM-DD" in the user's profile timezone. It decides whether a date shows its year */
   today: string
   backlogNotice: BacklogNotice | null
 
@@ -56,13 +56,13 @@ type BankReviewBlockProps = {
   expanded: boolean
   onToggleExpanded: () => void
 
-  /** The rows on screen as the block last closed, which collapse while the rest leave at once, or null to collapse every row that leaves */
+  /** The rows on screen as the block last closed, or null to collapse every row that leaves. Those rows collapse while the rest leave at once */
   rowsInViewAtClose: ReadonlySet<string> | null
 
   /** Called once every row that was leaving has gone */
   onRowsLeft: () => void
 
-  /** More items wait to load, which happens as the open block's end comes into view */
+  /** More items wait to load. That happens as the open block's end comes into view */
   hasMoreItems: boolean
   isLoadingMore: boolean
   loadMoreSentinelRef: (element: HTMLDivElement | null) => void
@@ -180,7 +180,7 @@ export function BankReviewBlock({
 
         {/* The caret opens and closes the list, up here so a long list closes from where it starts, not
             from its end, and ends the header's first row like the chevron of the app's other collapsible
-            sections. It stays mounted as the list changes, which keeps keyboard focus on it through both.
+            sections. It stays mounted as the list changes, so keyboard focus stays on it through both.
             It turns over as they do, and its name says what pressing it does */}
         {/* Grows in when the backlog passes the rows shown, and shrinks away when it falls back under */}
         <AnimatePresence initial={false}>
@@ -258,7 +258,7 @@ export function BankReviewBlock({
           growing in as the block opens */}
       <div ref={listRef} id={listId} role="list">
         {/* A leaving row reads which rows were on screen from here rather than from its own props,
-            which stop updating once it has left the list */}
+            since those stop updating once it has left the list */}
         <AnimatePresence initial={false} custom={rowsInViewAtClose} onExitComplete={onRowsLeft}>
           {visibleItems.map((item) => {
             const account = accountFor(item.account_id)
@@ -310,7 +310,7 @@ export function BankReviewBlock({
                 role="listitem"
 
                 // Focusable from a Needs review marker, so a screen reader moves to the item too, but
-                // never a tab stop, which the row has in its button
+                // never a tab stop, since the row has one in its button
                 tabIndex={-1}
                 className="relative overflow-hidden focus:outline-none"
                 initial={skipEnterAnimation ? false : collapsed}

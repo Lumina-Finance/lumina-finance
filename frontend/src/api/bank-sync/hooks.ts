@@ -205,8 +205,8 @@ export function useBankSyncHeartbeat(enabled: boolean) {
 /**
  * Reads one of the user's own personal accounts' link. It needs no poll of its own: the app shell's
  * poll of the link list reads the same link at the same pace, and again on coming back to the tab,
- * and refreshes this read whenever the link changes. Pass `enabled` false for any other account,
- * which the server refuses
+ * and refreshes this read whenever the link changes. Pass `enabled` false for any other account.
+ * The server refuses those
  */
 export function useAccountBankStatus(accountId: string, enabled: boolean) {
   const { accessToken } = useAuth()
@@ -233,8 +233,8 @@ export function useImportRange(accountId: string, provider: BankProviderId | nul
 
 /**
  * Reads whether each kind of bank data arriving for one of the user's own personal accounts waits for
- * review. Pass `enabled` false while nothing shows the choices, and for any other account, which the
- * server refuses
+ * review. Pass `enabled` false while nothing shows the choices, and for any other account. The
+ * server refuses those
  */
 export function useReviewPreferences(accountId: string, enabled: boolean) {
   const { accessToken } = useAuth()
@@ -449,7 +449,7 @@ function waitForSyncStart(queryClient: QueryClient, accountId: string): Promise<
 /**
  * How Sync now runs. The server queues the sync and answers with the link marked as requested, in the
  * state it had, since the link reads as Syncing only once a worker runs the sync. The answer goes
- * straight into the cached list, even one read before the link was made, which takes the poll to its
+ * straight into the cached list, even one read before the link was made. That takes the poll to its
  * fast pace without waiting to read the list again, and the request settles once a read of the list
  * shows a worker started the sync: the poll's, or in a tab in the background the read made on coming
  * back to it, so a button pending on it says the sync is starting until then. A refusal means the

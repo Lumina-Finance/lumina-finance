@@ -11,11 +11,11 @@ import { connectionName } from '@/utils/bankSync'
 // Crossfades the title and its field so neither snaps in, as a passkey's rename does
 const FIELD_TRANSITION = { duration: 0.18, ease: EASE }
 
-/** The connection's rename, which the modal holds so that it stays open while one is on its way */
+/** The connection's rename. The modal holds it so that the modal stays open while one is on its way */
 type RenameMutation = ReturnType<typeof useRenameBankConnection>
 
 /**
- * The nickname field, which starts from the current nickname each time it opens
+ * The nickname field. It starts from the current nickname each time it opens
  */
 function NicknameField({
   connection,
@@ -125,7 +125,7 @@ interface NicknameTitleProps {
 }
 
 /**
- * The connection modal's title, which names the connection by its nickname or its provider and turns
+ * The connection modal's title. It names the connection by its nickname or its provider and turns
  * into the nickname field while the modal's Rename is in use. Saving a blank nickname clears it, so the
  * provider's name comes back
  */

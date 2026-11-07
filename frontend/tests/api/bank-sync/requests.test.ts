@@ -117,7 +117,7 @@ describe('bank sync writes', () => {
 
 describe('giving a request that waits on the bank provider time to finish', () => {
   // The server answers each of these only once the provider has taken the credential and listed the
-  // bank accounts, which can outlast an ordinary request. By then the credential may be spent, so one
+  // bank accounts. That can outlast an ordinary request. By then the credential may be spent, so one
   // cut off at the shared limit shows an error the user can't fix by trying the same one again
   it.each([
     ['claiming a credential', () => claimCredential({ provider: 'simplefin', credentials: { setup_token: 'token' } })],

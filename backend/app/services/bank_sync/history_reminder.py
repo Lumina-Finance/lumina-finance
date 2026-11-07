@@ -68,7 +68,7 @@ def clear_no_history_reminders(deliveries: Iterable[tuple[BankAccountLink, Seque
 
     Whichever sync brings that history, the reminder's claim no longer holds. A routine sync's
     re-read days before the first day say nothing of the days after it, so they don't count. A
-    dismissed reminder is cleared too, which changes nothing the user sees. A reminder that less
+    dismissed reminder is cleared too. That changes nothing the user sees. A reminder that less
     history came back is never cleared this way
 
     Args:
@@ -147,7 +147,7 @@ def flag_cut_off_day(links: Iterable[BankAccountLink], day: date) -> bool:
 async def dismiss_history_reminder(
     db: AsyncSession, user: User, account_id: uuid.UUID, request: DismissHistoryReminderRequest
 ) -> AccountBankStatusResponse:
-    """Dismiss the history reminder a linked account shows, which hides it until a later import or catch-up falls short
+    """Dismiss the history reminder a linked account shows. This hides it until a later import or catch-up falls short
 
     Only the reminder the user saw is dismissed. One already dismissed, or replaced by a newer one
     meanwhile, answers as the account stands, so a double submission dismisses it once and a newer
@@ -180,7 +180,7 @@ async def dismiss_history_reminder(
 async def dismiss_cut_off_day(
     db: AsyncSession, user: User, account_id: uuid.UUID, request: DismissCutOffDayRequest
 ) -> AccountBankStatusResponse:
-    """Dismiss the reminder about a day that may be missing transactions, which hides it until a later day raises it
+    """Dismiss the reminder about a day that may be missing transactions. This hides it until a later day raises it
 
     Only the day the user saw is dismissed. One already dismissed, or replaced by a later day
     meanwhile, answers as the account stands. Like the history reminder's, the dismissal leaves an

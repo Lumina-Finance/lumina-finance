@@ -37,7 +37,7 @@ type TickedTransaction = {
  * one place, the way the server refuses them. A bank-imported transaction stays while its account is
  * linked, as it does when deleted alone, so a selection holding one is refused with the server's
  * reason for a selection, naming the provider and the first such row's account. Without that
- * account's name the check is left to the server, whose refusal the confirmation shows. A row bulk
+ * account's name the check is left to the server, and the confirmation shows its refusal. A row bulk
  * edit cannot change is never ticked, so the other rules single delete follows are already met by
  * the selection itself
  *

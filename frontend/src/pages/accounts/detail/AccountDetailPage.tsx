@@ -67,7 +67,8 @@ export default function AccountDetailPage() {
   const [arrivedToLinkBank] = useState(wantsBankLink)
   const [showArrivalLinkFlow, setShowArrivalLinkFlow] = useState(wantsBankLink)
 
-  // Set when the identity card's Bank sync fact opened the edit modal, which then shows its Bank link section
+  // Set when the identity card's Bank sync fact opened the edit modal. The modal then shows its Bank link
+  // section
   const [editShowsBankLink, setEditShowsBankLink] = useState(false)
   const [deleteExitPhase, setDeleteExitPhase] = useState<DeleteExitPhase>('idle')
   const [deletedAccountSnapshot, setDeletedAccountSnapshot] = useState<Account | null>(null)

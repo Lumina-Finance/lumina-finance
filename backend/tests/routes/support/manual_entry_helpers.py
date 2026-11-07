@@ -35,7 +35,7 @@ MOVE_REFUSED = "Transactions from Fake Bank can't move out of Everyday while it'
 # A delete of a bank-imported transaction is refused naming its account, for one transaction alone
 DELETE_REFUSED = "Imported from Fake Bank. While Everyday is linked, edit it rather than deleting it"
 
-# And for a selection deleted together, which may hold several
+# And for a selection deleted together. It may hold several
 BULK_DELETE_REFUSED = "Transactions from Fake Bank can't be deleted from Everyday while it's linked"
 
 # A day the bank supplies, where a manual transaction can only have been entered before the link
@@ -44,7 +44,7 @@ COFFEE_DAY = date(2026, 7, 12)
 # Either end of the range the bank supplies, and a day inside it
 INSIDE = [IMPORT_START, date(2026, 7, 12), TODAY]
 
-# The day before the import start, the day after today, which is already today in UTC, and a later future day
+# The day before the import start, the day after today (already today in UTC), and a later future day
 OUTSIDE = [IMPORT_START - timedelta(days=1), TODAY + timedelta(days=1), date(2026, 10, 10)]
 
 

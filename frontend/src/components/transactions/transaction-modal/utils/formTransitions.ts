@@ -5,7 +5,7 @@ import type { TransactionFormValues, TransactionModalKind } from '@/components/t
  * Applies a transaction-kind choice while preserving the form fields supplied by its caller
  *
  * @param keepDirection - Keeps the direction rather than taking the new kind's default, for a bank
- * item, whose direction is the bank's record of which way the money went
+ * item, since its direction is the bank's record of which way the money went
  */
 export function getFormAfterKindChange(
   form: TransactionFormValues,

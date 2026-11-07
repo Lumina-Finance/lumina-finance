@@ -21,7 +21,7 @@ interface TransactionFormState {
  * Owns the transaction form values and the submit-error banner, including the shared kind-change
  * routine that keeps the direction toggle in sync
  *
- * @param keepDirectionOnKindChange - Set for a bank item, whose direction a kind change leaves as
+ * @param keepDirectionOnKindChange - Set for a bank item. A kind change leaves its direction as
  * the bank sent it
  */
 export function useTransactionFormState(

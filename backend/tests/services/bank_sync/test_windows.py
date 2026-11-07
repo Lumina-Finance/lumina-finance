@@ -92,7 +92,7 @@ def test_find_due_links_leaves_out_an_import_starting_tomorrow_in_the_profile_ti
     """It's 8 pm on 3 October in Phoenix, already 4 October in UTC, so a link imported from 4 October has nothing to fetch yet
 
     An import start can run ahead of the profile's date after the user moves west, and a window for
-    it would end before it starts, which the provider refuses
+    it would end before it starts. The provider refuses that
     """
     link = _link(import_start=date(2026, 10, 4), checkpoint=date(2026, 10, 3))
 
@@ -109,7 +109,7 @@ def test_find_due_links_leaves_out_an_import_starting_tomorrow_in_the_profile_ti
 def test_plan_window_spans_at_most_90_days_of_elapsed_time_across_a_clock_change(first_day, last_day):
     """Clocks going back on 1 November would make 90 days in Toronto an hour too long, so the window ends a day sooner
 
-    Clocks going forward on 8 March leave 90 days an hour short, which SimpleFIN Bridge accepts
+    Clocks going forward on 8 March leave 90 days an hour short. SimpleFIN Bridge accepts that
     """
     need = LinkNeed(_link(import_start=first_day, checkpoint=first_day - timedelta(days=1)), first_day)
 

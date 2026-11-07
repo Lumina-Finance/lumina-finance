@@ -1,5 +1,5 @@
 /**
- * Covers the import the Bank link section shows as its link's reads arrive, which stays a moment as
+ * Covers the import the Bank link section shows as its link's reads arrive. It stays a moment as
  * done once the link stops reporting it
  *
  * These tests catch an import cut short by its bank account needing to be chosen again reading as

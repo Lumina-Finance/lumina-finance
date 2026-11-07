@@ -47,7 +47,7 @@ function describeConnection(connection: BankConnection, timeZone: string | undef
 
 /**
  * Notes a listed bank account that looks like the one the account followed before: the same one, or
- * one under the same name, which after a reconnect may be the same account listed differently
+ * one under the same name. After a reconnect that may be the same account listed differently
  */
 function describeLikeBefore(entry: DiscoveredBankAccount, previous: PreviousBankAccount | null): string {
   if (!previous) return ''

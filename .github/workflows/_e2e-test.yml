@@ -69,7 +69,7 @@ jobs:
           health-url: http://localhost:8080/api/health
           compose-files: -f docker/compose.yml -f e2e/compose.mail.yaml -f e2e/fake-simplefin-bridge.compose.yaml
 
-      # The worker counts as running once its first scan for due work stamps its heartbeat, which
+      # The worker counts as running once its first scan for due work stamps its heartbeat. That
       # comes after it has waited for the app to migrate the database
       - name: Wait for bank sync
         run: |

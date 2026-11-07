@@ -22,7 +22,7 @@ depends_on: str | Sequence[str] | None = None
 # Characters of a SHA-256 digest in lower-case hex
 _HASH_LENGTH = 64
 
-# Bytes in one SHA-256 block, which HMAC pads its key to
+# Bytes in one SHA-256 block. HMAC pads its key to that length
 _SHA256_BLOCK_BYTES = 64
 
 # The columns a dismissed record keeps empty, before and after the fields the app never shows go

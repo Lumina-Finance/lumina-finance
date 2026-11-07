@@ -1,5 +1,5 @@
 /**
- * Covers the Review settings dialog as it opens: on the preset the saved choices amount to, with
+ * Covers the Review settings dialogue as it opens: on the preset the saved choices amount to, with
  * Custom's rows for a mix, the explanations of what each choice does, and Save beside Cancel
  *
  * These tests catch a newly linked account opening on anything but Review all, a saved mix shown as
@@ -42,7 +42,7 @@ const ROWS = [
   ['Removals', 'The bank reports a transaction as removed'],
 ]
 
-// Static rendering marks where one text node meets the next, which text is matched without
+// Static rendering marks where one text node meets the next, and text is matched without those marks
 function renderDialog(): string {
   return renderToStaticMarkup(<ReviewSettingsModal open accountId="account-1" onClose={() => {}} />).replaceAll(
     '<!-- -->',

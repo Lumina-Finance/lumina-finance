@@ -10,11 +10,11 @@ transaction, its bank transaction with it, and rebuilds its balances in one save
 the bank transaction before deciding, then any ledger transaction it writes, so a double submission
 or any other write to the item, a sync's included, queues behind it and then finds the item as that
 write left it. A repeated action answers as the first did without writing again, except a repeated
-removal, which finds nothing left and answers that the item wasn't found. Adding or dismissing can
-leave 50 or fewer new items waiting, which lifts the account's review pause and queues its sync, so
+removal. That one finds nothing left and answers that the item wasn't found. Adding or dismissing can
+leave 50 or fewer new items waiting. That lifts the account's review pause and queues its sync, so
 every action first locks the connection that sync would need, then the account's links, the order
 every writer takes connections, links, bank transactions and their ledger transactions in. Either
-can also leave none of the import's items waiting, which offers the account's opening adjustment
+can also leave none of the import's items waiting. That offers the account's opening adjustment
 """
 
 import uuid
@@ -88,7 +88,7 @@ async def add_review_item_to_ledger(db: AsyncSession, user: User, item_id: uuid.
     Args:
         db: Active database session
         user: The user reviewing
-        item_id: The item to add, which is its bank transaction's id
+        item_id: The item to add: its bank transaction's id
         request: The date, amount, merchant, category and other values to add it with
 
     Returns:
@@ -137,7 +137,7 @@ async def dismiss_review_item(db: AsyncSession, user: User, item_id: uuid.UUID) 
     Args:
         db: Active database session
         user: The user reviewing
-        item_id: The item to dismiss, which is its bank transaction's id
+        item_id: The item to dismiss: its bank transaction's id
 
     Raises:
         HTTPException 404: The item isn't one of the user's, or was withdrawn by the bank
@@ -178,7 +178,7 @@ async def accept_bank_change(db: AsyncSession, user: User, item_id: uuid.UUID) -
     Args:
         db: Active database session
         user: The user reviewing
-        item_id: The correction, which is its bank transaction's id
+        item_id: The correction: its bank transaction's id
 
     Returns:
         The ledger transaction, with its bank source
@@ -260,7 +260,7 @@ async def keep_current_value(db: AsyncSession, user: User, item_id: uuid.UUID) -
     Args:
         db: Active database session
         user: The user reviewing
-        item_id: The correction, which is its bank transaction's id
+        item_id: The correction: its bank transaction's id
 
     Returns:
         The ledger transaction, with its bank source
@@ -302,7 +302,7 @@ async def remove_from_ledger(db: AsyncSession, user: User, item_id: uuid.UUID) -
     Args:
         db: Active database session
         user: The user reviewing
-        item_id: The removal, which is its bank transaction's id
+        item_id: The removal: its bank transaction's id
 
     Raises:
         HTTPException 404: The item isn't one of the user's, or is already removed
@@ -345,7 +345,7 @@ async def keep_transaction(db: AsyncSession, user: User, item_id: uuid.UUID) -> 
     Args:
         db: Active database session
         user: The user reviewing
-        item_id: The removal, which is its bank transaction's id
+        item_id: The removal: its bank transaction's id
 
     Returns:
         The ledger transaction, with its bank source
@@ -389,7 +389,7 @@ async def restore_bank_value(db: AsyncSession, user: User, transaction_id: uuid.
         The ledger transaction, with its bank source
 
     Raises:
-        HTTPException 404: The user has no bank-imported transaction with this id, which covers one
+        HTTPException 404: The user has no bank-imported transaction with this id. That covers one
             that is someone else's or was entered by hand, since only a personal account is linked
         HTTPException 409: Another change held the transaction too long
         HTTPException 422: The bank's amount can't be stored exactly, or the bank's value fails the
@@ -455,7 +455,7 @@ async def _lock_bank_transaction(
         not_found_detail: Why there is nothing to lock, as the caller names what it looked for
 
     Returns:
-        The bank transaction and its account, and the account's links, which a lift takes
+        The bank transaction and its account, and the account's links, for a lift to take
 
     Raises:
         HTTPException 404: No bank transaction of the user's own meets the condition
@@ -484,7 +484,7 @@ async def lock_bank_transactions(
         which: The condition picking out the bank transactions
 
     Returns:
-        Each bank transaction with its account, in id order, and the accounts' links, which a lift takes
+        Each bank transaction with its account, in id order, and the accounts' links, for a lift to take
     """
     own = [which, own_personal_account_condition(user.id)]
     account_ids = list(

@@ -5,16 +5,16 @@ unavailable with its reason from the one eligibility check, and links one of the
 start. Opening the flow asks for a fresh discovery when the last one is over an hour old, so a bank
 added at the provider a few minutes ago appears without waiting for the daily sync. The link
 request checks again everything the list showed, since the list can be stale, and queues the
-link's first import, which a job runs.
+link's first import. A job runs it.
 
 A link waiting in Choose bank account, because the provider now lists its bank account differently,
 goes through the same flow. Choosing moves the link to the new bank account with an import of its
-own from the chosen start, which the import range keeps after the account's latest ledger
+own from the chosen start. The import range keeps that start after the account's latest ledger
 transaction, since the old bank account's progress and transaction identities can't be assumed to
 carry over. Items the old one left waiting for review stay where they are.
 
 Unlinking ends one account's link and disconnecting ends every link on a connection and deletes it.
-Either clears the accounts' pending bank transactions, which nothing can refresh any more, and
+Either clears the accounts' pending bank transactions, since nothing can refresh them any more, and
 keeps everything else: ledger transactions and their bank source, review decisions and the items
 still waiting for review. An ended link stays as a row, so the account remembers what it followed
 """
@@ -110,7 +110,7 @@ async def list_bank_accounts_for_account(
     account = await _get_account_to_link(db, user, account_id, lock=False)
     connection, adapter = await _get_working_connection(db, user.id, connection_id, lock=False)
     if await _request_fresh_discovery(db, connection, now=datetime.now(UTC)):
-        # The connection now shows a listing pending, which changes none of the user's data
+        # The connection now shows a listing pending. That changes none of the user's data
         await mark_user_status_changed(db, user.id)
         await db.commit()
 
@@ -159,7 +159,7 @@ async def link_bank_account(
 ) -> BankAccountLinkResponse:
     """Link one of the user's accounts to a bank account on one of their connections, and queue its import
 
-    The import starts on the chosen day, which has to be inside the account's import range, and
+    The import starts on the chosen day. That day has to be inside the account's import range. The import
     runs as a job, so the request returns at once. An account linked before gets a relink import,
     keeping the answer to an opening adjustment an earlier link to the same bank account recorded or
     skipped, and one whose link waits in Choose bank account keeps its link, moved to the chosen
@@ -442,7 +442,7 @@ async def _request_fresh_discovery(db: AsyncSession, connection: BankConnection,
 
 
 async def _read_answered_opening_adjustment(db: AsyncSession, account: Account, provider: str, external_account_id: str) -> str:
-    """Return how the account's latest earlier link to the same bank account answered its opening adjustment, which a new link keeps
+    """Return how the account's latest earlier link to the same bank account answered its opening adjustment. A new link keeps it
 
     The adjustment is offered once for an account and its bank account, so one recorded or skipped
     isn't offered again on relinking, and a new link waits for its own import otherwise

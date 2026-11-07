@@ -37,8 +37,8 @@ LIST_DUE_BANK_CONNECTIONS = "public.list_due_bank_connections"
 RECORD_BANK_SYNC_SCAN = "public.record_bank_sync_scan"
 MIGRATION_REVISIONS = "public.migration_revisions"
 
-# The worker functions see across users, which only the worker, connecting with no request
-# identity, may do. Refusing a call made under an identity keeps a request from reaching them
+# The worker functions see across users. Only the worker, connecting with no request
+# identity, may do that. Refusing a call made under an identity keeps a request from reaching them
 _REFUSE_UNDER_A_REQUEST_IDENTITY = f"""
         IF {CURRENT_USER_ID}() IS NOT NULL THEN
             RAISE EXCEPTION 'Only the bank sync worker may call this'
@@ -304,7 +304,7 @@ _HELPERS: tuple[_Helper, ...] = (
     """,
         f"{PRUNE_EXPIRED_IMPORT_RUNS}()",
     ),
-    # The bank sync worker's functions are plpgsql, whose bodies are resolved only when they run,
+    # The bank sync worker's functions are plpgsql and their bodies are resolved only when they run,
     # because the bootstrap migration creates every helper before the bank sync tables exist.
     # Each returns only what the worker needs to go on as the owning user
     #
@@ -395,7 +395,7 @@ _HELPERS: tuple[_Helper, ...] = (
     """,
         f"{RECORD_BANK_SYNC_SCAN}(timestamptz)",
     ),
-    # The revisions the database is migrated to, which the worker compares with the head it
+    # The revisions the database is migrated to. The worker compares them with the head it
     # ships before it starts. The app role can't read the migration history itself, and the
     # revision says nothing about any user, so this one refuses no one. A database never
     # migrated, such as the test schema built from the models, has no history and returns none

@@ -1,7 +1,7 @@
 /**
  * Guards what the transaction modal shows of a bank-imported transaction: the provider and the bank's
- * description, read-only, and under an edited field the bank's value with an action to restore it,
- * which says when it is restoring and names the value it restores, or shows greyed out with its
+ * description, read-only, and under an edited field the bank's value with an action to restore it.
+ * The action says when it is restoring and names the value it restores, or shows greyed out with its
  * reason for a value the ledger can't store, and under it a restore that failed. Which fields are
  * edited is covered with the captions' values. Where each caption sits, when the action is turned off,
  * pressing it, focus after it, and the reason showing beside it, are covered end to end, since the

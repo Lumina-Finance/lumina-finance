@@ -12,7 +12,7 @@ type TransactionReviewFooterProps = {
 }
 
 /**
- * The two decisions on a bank item, Dismiss and Add to ledger, which is the form's submit, beside the
+ * The two decisions on a bank item, Dismiss and Add to ledger (the form's submit), beside the
  * choice to go on to the next item after either. Closing the modal leaves the item waiting, so there
  * is no Cancel beside them. Dismiss is drawn and pressed like Delete, twice, because it can't be undone
  * and sits where Cancel usually does

@@ -23,7 +23,7 @@ interface ConnectionRowProps {
 
   /**
    * Changes only when rows are added, removed or filtered, the only time rows should slide. Closing a
-   * modal releases the page's scroll lock in the same update, which would otherwise read as a move
+   * modal releases the page's scroll lock in the same update. That would otherwise read as a move
    */
   layoutKey: string
   isLast: boolean

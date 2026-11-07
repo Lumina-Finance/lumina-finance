@@ -2,7 +2,7 @@
 
 Bulk approval covers the corrections and removals of transactions already in the ledger. New items
 stay waiting, since each needs a merchant and category no bank item comes with yet, and so does a
-correction whose bank amount the account's currency can't hold, which accepting refuses. The
+correction whose bank amount the account's currency can't hold. Accepting refuses it. The
 preview groups the rest by kind, each with its net effect on balances in each currency: a
 correction that changes the amount moves its account's balance by the bank's amount less the
 ledger's, and a removal by the ledger amount it takes out.
@@ -146,7 +146,7 @@ async def apply_bulk_approval(db: AsyncSession, user: User, request: ApplyBulkAp
     waiting = [record for record, _ in rows if record.disposition == BankTransactionDisposition.AWAITING_REVIEW or record.open_kind is not None]
     approvable = [(record, account) for record, account in rows if record.open_kind is not None and record.version == versions[record.id]]
 
-    # The steps below lock each ledger transaction again, which this already holds
+    # The steps below lock each ledger transaction again. This already holds those locks
     for transaction_id in sorted(record.transaction_id for record, _ in approvable):
         await check_transaction_access(db, transaction_id, user.id, PermissionLevel.WRITE, lock_for_update=True)
 

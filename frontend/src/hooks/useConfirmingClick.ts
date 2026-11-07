@@ -1,10 +1,10 @@
 import { useEffect, useState, type RefObject } from 'react'
 
 /**
- * Whether a button that needs a second click is waiting for it, which a press anywhere outside the
- * button ends, as does the button locking while its action runs
+ * Whether a button that needs a second click is waiting for it. A press anywhere outside the
+ * button ends that, as does the button locking while its action runs
  *
- * Returns the flag and its setter, which the button's own click sets
+ * Returns the flag and its setter. The button's own click sets the flag
  */
 export function useConfirmingClick(buttonRef: RefObject<HTMLElement | null>, locked: boolean) {
   const [confirming, setConfirming] = useState(false)

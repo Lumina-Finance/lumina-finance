@@ -19,7 +19,7 @@ SIMPLEFIN_BRIDGE_ORIGIN = "https://beta-bridge.simplefin.org"
 
 
 def simplefin_adapter(transport: httpx.AsyncBaseTransport, *addresses: str) -> SimpleFinAdapter:
-    """Return a SimpleFIN adapter allowed to reach SimpleFIN Bridge, whose requests reach only the transport
+    """Return a SimpleFIN adapter allowed to reach SimpleFIN Bridge. Its requests reach only the transport
 
     Args:
         transport: Where every request goes

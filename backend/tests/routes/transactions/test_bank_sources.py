@@ -88,7 +88,7 @@ async def test_bank_source_marks_the_amount_edited_while_the_ledger_differs_from
 
 
 async def test_bank_source_with_an_amount_cad_cannot_hold_shows_it_as_sent_and_edited(client):
-    """The bank sent -12.505, which cents can't hold, so the user entered the ledger amount"""
+    """The bank sent -12.505, an amount cents can't hold, so the user entered the ledger amount"""
     headers, account_id, category_id = await _setup_user_with_deps(client)
     transaction_id = await _create_on_bank_date(client, headers, account_id, category_id, -1251)
     record_id = await _record_bank_source(transaction_id)
@@ -110,7 +110,7 @@ async def test_bank_source_with_an_amount_cad_cannot_hold_shows_it_as_sent_and_e
 
 
 async def test_editing_the_date_keeps_the_source_and_marks_the_date_edited(client):
-    """Moving a bank-sourced transaction a day edits that same row, which stays bank-sourced"""
+    """Moving a bank-sourced transaction a day edits that same row, and it stays bank-sourced"""
     headers, account_id, category_id = await _setup_user_with_deps(client)
     transaction_id = await _create_on_bank_date(client, headers, account_id, category_id, -1250)
     await _record_bank_source(transaction_id)

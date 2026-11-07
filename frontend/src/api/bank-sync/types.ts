@@ -10,7 +10,7 @@ export type BankProviderId = string
 export type BankProviderConnectsFrom = 'settings' | 'account'
 
 /**
- * One field of a provider's connect form, whose value is a secret the server never shows back
+ * One field of a provider's connect form. Its value is a secret the server never shows back
  */
 export type CredentialField = {
   /** The name its value is sent under, in the claim's credentials */
@@ -45,7 +45,7 @@ export type BankProvider = {
   connects_from: BankProviderConnectsFrom
 
   /**
-   * Whether new connections may be made, which the server controls per provider
+   * Whether new connections may be made. The server controls this per provider
    *
    * Withdrawing an offer leaves existing connections working: they keep syncing, link further
    * accounts, reconnect and disconnect as before
@@ -69,7 +69,7 @@ export type BankProvider = {
 }
 
 export type BankProvidersResponse = {
-  /** The single "may this user link bank accounts" check, which every linking request also makes */
+  /** The single "may this user link bank accounts" check. Every linking request also makes it */
   may_link: boolean
 
   /**
@@ -144,7 +144,7 @@ export type ConnectionBankAccount = {
   /** ISO 4217 code, or the provider's own currency exactly as sent */
   currency: string
 
-  /** True for a provider-specific currency, which no account can link to */
+  /** True for a provider-specific currency. No account can link to it */
   custom_currency: boolean
   linked_account_id: string | null
 
@@ -156,7 +156,7 @@ export type ConnectionBankAccount = {
 
   /**
    * True while the account linked to it through this connection waits on the user signing in to its
-   * bank again at the provider. Never set on a rejected connection, which needs reconnecting first
+   * bank again at the provider. Never set on a rejected connection, since that needs reconnecting first
    */
   signin_needed: boolean
 }
@@ -203,7 +203,7 @@ export type DiscoveredBankAccount = {
  */
 export type DiscoveredBankAccounts = {
   /**
-   * True while a fresh listing runs, which opening the link flow asks for when the last one is over
+   * True while a fresh listing runs. Opening the link flow asks for one when the last one is over
    * an hour old. `accounts` is the previous listing until it finishes
    */
   discovery_pending: boolean
@@ -213,7 +213,7 @@ export type DiscoveredBankAccounts = {
 export type ClaimCredentialPayload = {
   provider: BankProviderId
 
-  /** What the user pasted in each of the provider's fields, by its key, which the provider exchanges for lasting access */
+  /** What the user pasted in each of the provider's fields, by its key. The provider exchanges them for lasting access */
   credentials: Record<string, string>
 
   /** Optional, and blank means none */
@@ -226,10 +226,10 @@ export type ClaimCredentialPayload = {
 export type ReconnectConnectionResult = {
   connection: BankConnection
 
-  /** Accounts whose bank account came back unchanged, which resume syncing */
+  /** Accounts whose bank account came back unchanged and resume syncing */
   resumed_account_ids: string[]
 
-  /** Accounts whose bank account came back under a new identity, which must be chosen again */
+  /** Accounts whose bank account came back under a new identity and must be chosen again */
   choose_again_account_ids: string[]
 
   /**
@@ -306,7 +306,7 @@ export type BankSyncStatus = {
   /**
    * When the next sync or retry runs, or for an import waiting on the request budget, when a request
    * frees up for its next part. Null while the link is due at once, as while its import catches up,
-   * and after a rejected credential, which stops its sync until a reconnect. A bank sign-in keeps the
+   * and after a rejected credential, since that stops its sync until a reconnect. A bank sign-in keeps the
    * daily time the app checks again at
    */
   next_attempt_at: string | null
@@ -321,7 +321,7 @@ export type BankSyncStatus = {
   held_by_provider: boolean
 
   /**
-   * A worker is syncing the link, which the state shows as syncing unless a state outranks it, such as
+   * A worker is syncing the link. The state shows it as syncing unless a state outranks it, such as
    * a bank sign-in
    */
   sync_running: boolean
@@ -344,7 +344,7 @@ export type BankSyncStatus = {
 /**
  * Why an import runs: a first link, a link made again after the account was unlinked, or a bank
  * account chosen again after the provider stopped recognizing the linked one, each from a new import
- * start, or the catch-up after a rejected credential was replaced, which resumes where syncing stopped
+ * start, or the catch-up after a rejected credential was replaced. That catch-up resumes where syncing stopped
  */
 export type BankImportKind = 'initial' | 'relink' | 'choose_again' | 'reconnect'
 
@@ -357,7 +357,7 @@ export type BankImportKind = 'initial' | 'relink' | 'choose_again' | 'reconnect'
 export type BankImportState = 'running' | 'waiting' | 'waiting_on_budget' | 'complete'
 
 /**
- * Progress of the import that runs when an account is linked or reconnected, which always
+ * Progress of the import that runs when an account is linked or reconnected. It always
  * completes regardless of the review backlog
  */
 export type BankImportProgress = {
@@ -456,13 +456,13 @@ export type BankHistoryReminder = {
  * in the account currency's minor units. It only informs, so a difference never adjusts the ledger
  */
 export type BankBalance = {
-  /** Null when the bank's balance can't be read exactly in the account's currency, which isn't compared */
+  /** Null when the bank's balance can't be read exactly in the account's currency. It isn't compared */
   amount: number | null
 
   /** Null when the bank gives none or it can't be read exactly */
   available: number | null
 
-  /** Whether the bank gave an available balance that can't be read exactly, which shows as unavailable */
+  /** Whether the bank gave an available balance that can't be read exactly. It shows as unavailable */
   available_unreadable: boolean
 
   /** The moment the bank gives the balance as of */
@@ -509,8 +509,8 @@ export type BankField = 'date' | 'amount' | 'description'
 export type CorrectableBankField = BankField
 
 /**
- * The bank fields the ledger row can differ from, which count as the user's own once they do and
- * which Restore bank value puts back. The ledger has no description of its own to edit
+ * The bank fields the ledger row can differ from. They count as the user's own once they do, and
+ * Restore bank value puts them back. The ledger has no description of its own to edit
  */
 export type EditableBankField = Extract<BankField, 'date' | 'amount'>
 
@@ -522,7 +522,7 @@ export type BankValues = {
 
   /**
    * Signed minor units, money out negative. Null when the bank sent more decimal places than the
-   * currency holds, which is never rounded: `raw_amount` holds it and the user enters the amount
+   * currency holds. It is never rounded:`raw_amount` holds it and the user enters the amount
    */
   amount: number | null
 
@@ -567,8 +567,8 @@ export type BankReviewItem = {
 export type BankReviewCounts = Record<BankReviewItemKind, number>
 
 /**
- * One account's new items waiting for review, and whether its sync is paused or warned for them,
- * which the review block's notice reads
+ * One account's new items waiting for review, and whether its sync is paused or warned for them.
+ * The review block's notice reads it
  */
 export type BankReviewBacklog = Pick<BankLink, 'account_id'> &
   Pick<BankSyncStatus, 'waiting_new_count' | 'review_warning' | 'paused'>
@@ -618,7 +618,7 @@ export type BulkApprovalGroup = {
 export type BulkApprovalPreview = {
   groups: BulkApprovalGroup[]
 
-  /** New items in scope, which stay waiting */
+  /** New items in scope. They stay waiting */
   excluded_count: number
 }
 
@@ -644,7 +644,7 @@ export type BulkApprovalResult = {
    */
   failed: number
 
-  /** The items applied, which no longer wait */
+  /** The items applied. They no longer wait */
   applied_ids: string[]
 }
 
@@ -698,7 +698,7 @@ export type TransactionBankSource = {
   /** When the app received the bank's record of the transaction */
   received_at: string
 
-  /** The fields whose ledger value differs from the bank's, which a trusted correction leaves alone */
+  /** The fields whose ledger value differs from the bank's. A trusted correction leaves them alone */
   edited_fields: EditableBankField[]
 
   /** The waiting correction or removal about this transaction, if any */
@@ -707,8 +707,8 @@ export type TransactionBankSource = {
 
 /**
  * The one-time offer, once the import is reviewed, to record the gap between the bank's balance and
- * the ledger's as an opening adjustment, leaving out the items still waiting for review, which the
- * bank's balance already holds
+ * the ledger's as an opening adjustment, leaving out the items still waiting for review, since the
+ * bank's balance already holds them
  */
 export type OpeningAdjustment = {
   /**

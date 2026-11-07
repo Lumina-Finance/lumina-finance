@@ -318,7 +318,7 @@ export default function EditAccountIdentityModal({
   const isArchiveBlocked = !archiveLinkedReason && !account.is_archived && account.has_transactions_after_today
 
   // A link holds archiving back, so archiving waits until the link has been read. A read that failed
-  // leaves archiving to the server, which refuses a linked account with its reason
+  // leaves archiving to the server. It refuses a linked account with its reason
   const isLinkLoading = ownPersonal && !account.is_archived && bankStatus === undefined && bankStatusError === null
 
   /**

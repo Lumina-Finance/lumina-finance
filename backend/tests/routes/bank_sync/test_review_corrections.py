@@ -1,9 +1,9 @@
 """Deciding a bank correction to a transaction already in the ledger: accepting the bank's change or keeping the current value
 
-Accepting writes the bank's values for the changed fields to the same ledger transaction, which
-keeps its id and bank source, and rebuilds its balances from the earliest date it touches. Keeping
+Accepting writes the bank's values for the changed fields to the same ledger transaction. That transaction
+keeps its id and bank source, and Accepting rebuilds its balances from the earliest date it touches. Keeping
 leaves the ledger as it is, so a file imported just before it can still be undone, and remembers the
-values declined and the description kept, which the ledger has no column for. Either closes the
+values declined and the description kept. The ledger has no column for them. Either closes the
 correction in one save with the cache mark last. A decision applied twice moves money twice or
 overwrites the first, one that loses a sync's write made at the same moment decides values the bank
 no longer sends, one that forgets a kept description brings it back as a correction, and one
@@ -120,7 +120,7 @@ def _blue_bottle_source(*, amount: int | None = -475, raw_amount: str | None = N
 async def test_accepting_a_correction_that_would_over_refund_the_expense_is_refused_and_keeping_the_current_value_still_clears_it(client):
     """A $1.00 refund is linked to the coffee and the bank's change to -0.50 waits
 
-    Accepting is refused with the link's own wording, which says to unlink first, and changes nothing. Keeping
+    Accepting is refused, with the link's own wording saying to unlink first, and changes nothing. Keeping
     the current -4.50 is not refused, so the correction can always be cleared
     """
     correction = await _correction_waiting(client, observed_amount=-50)
@@ -342,7 +342,7 @@ async def test_accepting_waits_for_an_edit_to_the_ledger_row_and_rebuilds_balanc
 
 @pytest.mark.parametrize(("decision", "amount"), [("accept-change", -475), ("keep-current", -450)])
 async def test_a_decision_submitted_twice_at_once_is_applied_once(client, decision, amount):
-    """Both submissions queue behind a lock on the item and answer with the same transaction, which the second leaves as the first did"""
+    """Both submissions queue behind a lock on the item and answer with the same transaction, and the second leaves it as the first did"""
     correction = await _correction_waiting(client)
 
     async with asyncio.timeout(10), TestSession() as holder:

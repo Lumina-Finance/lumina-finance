@@ -48,7 +48,7 @@ async def delete_transaction_for_user(
     Raises:
         HTTPException 422: The transaction is bank-imported and its account is linked
     """
-    # The delete takes a bank-imported transaction's bank transaction with it, which is locked first
+    # The delete takes a bank-imported transaction's bank transaction with it, and that is locked first
     await lock_bank_imports(db, [transaction_id])
 
     # Take the same row lock before tag deletion so an edit and delete cannot interleave
@@ -100,7 +100,7 @@ async def delete_transaction(db: AsyncSession, txn: Transaction) -> Account:
 async def delete_transaction_row(db: AsyncSession, txn: Transaction) -> None:
     """Delete a transaction with its tag assignments, leaving its account's balances for the caller to rebuild
 
-    A save that changes ledger rows in several accounts rebuilds them all in one step, which takes
+    A save that changes ledger rows in several accounts rebuilds them all in one step. That step takes
     their balance locks in one order, so two such saves can't each hold a lock the other waits for
 
     Args:

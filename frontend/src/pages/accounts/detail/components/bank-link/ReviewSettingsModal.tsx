@@ -36,9 +36,9 @@ type ReviewSettingsModalProps = {
 /**
  * Whether each kind of bank data arriving for one of the user's own accounts waits for review or is
  * applied as it arrives, chosen as Review all, Auto-approve all or a Custom mix. Saved choices that
- * all match open on their preset, and Custom stays chosen while the dialog is open, so its rows don't
+ * all match open on their preset, and Custom stays chosen while the dialogue is open, so its rows don't
  * fold away under the pointer as the last one comes to match the others. Nothing changes until Save,
- * and the dialog opens on what was saved each time, since the section mounts it afresh
+ * and the dialogue opens on what was saved each time, since the section mounts it afresh
  */
 export function ReviewSettingsModal({ open, accountId, level = 'page', onClose }: ReviewSettingsModalProps) {
   const titleId = useId()
@@ -55,7 +55,7 @@ export function ReviewSettingsModal({ open, accountId, level = 'page', onClose }
     if (next !== 'custom') setDraft(presetPreferences(next))
   }
 
-  // The rows show only under Custom, which a saved mix opens on without choosing it, so a change here
+  // The rows show only under Custom. A saved mix opens on it without choosing it, so a change here
   // chooses it, keeping the rows open when the change leaves all three alike
   const chooseDecision = (key: keyof ReviewPreferences, decision: ReviewDecision) => {
     if (!current) return
@@ -91,7 +91,7 @@ export function ReviewSettingsModal({ open, accountId, level = 'page', onClose }
           submitLabel="Save"
           submitDisabled={update.isPending}
           submitUnavailable={!current}
-          // As wide as Cancel beside it, which the short label would otherwise fall short of
+          // As wide as Cancel beside it, since the short label would otherwise fall short of that
           submitWidthClassName="w-full sm:w-21"
           error={error}
           level={level}

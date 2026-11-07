@@ -30,7 +30,7 @@ _REVIEW_STATE_AFTER = (
 def upgrade() -> None:
     """Add when the provider reported each accepted bank transaction removed, so the same removal sent again opens nothing
 
-    Every stored record reads as one the provider still lists, which each is, since nothing opened a
+    Every stored record reads as one the provider still lists, and each is one, since nothing opened a
     removal before this. Only an accepted record may carry the time, and a removal under review
     needs it
     """

@@ -69,7 +69,7 @@ export interface CreateTransactionModalProps {
   /** Opens an existing transaction for viewing without allowing changes */
   readOnly?: boolean
 
-  /** Opens the modal to review this new bank item, which Add to ledger takes into the ledger */
+  /** Opens the modal to review this new bank item. Add to ledger takes it into the ledger */
   reviewItem?: BankReviewItem
 
   /**

@@ -34,7 +34,7 @@ function renderRow(bankMarker?: Parameters<typeof BankMarker>[0]) {
   )
 }
 
-/** The text of the element carrying the given id, which holds no markup of its own */
+/** The text of the element carrying the given id. The element holds no markup of its own */
 function textOf(markup: string, id: string): string | undefined {
   return markup.split(`id="${id}"`)[1]?.match(/^[^>]*>([^<]*)</)?.[1]
 }

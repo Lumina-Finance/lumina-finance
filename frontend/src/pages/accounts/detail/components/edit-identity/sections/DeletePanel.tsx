@@ -33,7 +33,7 @@ type DeleteAccountPanelProps = {
   /** Disables the archive shortcut until the account's bank link has been read, as the switch is */
   isLinkLoading: boolean
 
-  /** Why the account can't be archived while it is linked, which the archive switch shows under its row */
+  /** Why the account can't be archived while it is linked. The archive switch shows it under its row */
   archiveLinkedReason: string | null
   onArchiveInstead: () => void
   onContinue: () => void

@@ -61,7 +61,7 @@ async def update_transaction_and_get_response(
     Returns:
         Updated transaction response with related display data
     """
-    # A move takes a bank-imported transaction's bank transaction with it, which is locked first
+    # A move takes a bank-imported transaction's bank transaction with it, and that bank transaction is locked first
     if "account_id" in data.model_fields_set:
         await lock_bank_imports(db, [transaction_id])
 

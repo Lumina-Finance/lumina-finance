@@ -17,7 +17,7 @@ type UnfoldProps = {
 /**
  * Grows its content in and out by height as AnimatePresence adds and removes it, so what sits below
  * never jumps. The gap above the content sits inside, since padding on a box whose height animates to
- * zero stays behind. Flush content, whose own divider marks its top edge, goes without the gap
+ * zero stays behind. Flush content has its own divider marking its top edge and goes without the gap
  */
 export function Unfold({ children, flush = false, clipsOnlyWhileChanging = false }: UnfoldProps) {
   const prefersReducedMotion = useReducedMotion()

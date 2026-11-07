@@ -10,7 +10,7 @@ from app.models.base import Base
 
 
 class BankHold(Base):
-    """A booked bank record of exactly zero, which has no amount to review or to put in the ledger
+    """A booked bank record of exactly zero. It has no amount to review or to put in the ledger
 
     Banks send these for authorisation checks and card holds. A zero amount can't be approved, so
     the record is listed for awareness and kept out of the review inbox, the ledger and every
@@ -45,5 +45,5 @@ class BankHold(Base):
     description: Mapped[str] = mapped_column(Text, nullable=False)
     observed_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
 
-    # Set when the user dismissed it, which keeps it from being listed or stored again
+    # Set when the user dismissed it. That keeps it from being listed or stored again
     dismissed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))

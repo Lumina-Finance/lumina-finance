@@ -42,7 +42,7 @@ export function SyncStatusDot({ tone, pulse = false, size = 'sm' }: SyncStatusDo
   const color = TONE_COLORS[tone]
   const isBlinking = pulse && !prefersReducedMotion
 
-  // Played from here rather than through the element's own animate prop, which skips its first
+  // Played from here rather than through the element's own animate prop. That prop skips its first
   // animation inside a presence that skips its children's, such as a modal's opening view, so a dot
   // shown already fetching would never blink there
   useEffect(() => {

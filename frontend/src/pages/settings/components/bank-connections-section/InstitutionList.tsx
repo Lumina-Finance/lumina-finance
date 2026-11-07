@@ -63,7 +63,7 @@ interface BankAccountRowProps {
 
   /**
    * Set when its institution would go over the limit. The server then offers no account for it, so the
-   * row keeps its disabled dropdown, which the institution's note explains, rather than saying no
+   * row keeps its disabled dropdown, and the institution's note explains why, rather than saying no
    * account could take it
    */
   overLimit: boolean
@@ -152,7 +152,7 @@ function BankAccountRow({
                     Linking…
                   </span>
                 ) : targets.length === 0 && !overLimit ? (
-                  // Plain text rather than an empty, disabled dropdown, whose faded text would be unreadable
+                  // Plain text rather than an empty, disabled dropdown. Its faded text would be unreadable
                   <span
                     className={`${TILE_CLASS} border`}
                     style={{ borderColor: 'var(--app-border)', color: 'var(--app-text-muted)' }}
@@ -196,7 +196,7 @@ export interface InstitutionEntry {
   key: string
   name: string
 
-  /** What the user has to do here, in red under the name, which also puts the row under Needs attention */
+  /** What the user has to do here, in red under the name. It also puts the row under Needs attention */
   problem?: string
 
   /**
@@ -333,7 +333,7 @@ interface InstitutionListProps {
   query: string
   accountNameFor: AccountNameLookup
 
-  /** True while bank sync is down, which holds every dropdown with the reason */
+  /** True while bank sync is down. That holds every dropdown with the reason */
   linkingPaused: boolean
 
   /** The bank account just linked through the flow, shown as linking until its account settles in */

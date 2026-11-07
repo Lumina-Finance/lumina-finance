@@ -42,7 +42,7 @@ type SyncNowButtonProps = {
  * Asks for a sync of the linked account straight away. It reads Starting sync until a worker starts
  * the sync, then Sync started, after which the status shows the sync running. A sync asked for in
  * another window reads as starting too. Meanwhile a press does nothing, and the button keeps the
- * focus it holds, since a disabled one drops it to the page, which would stop Escape closing the
+ * focus it holds, since a disabled one drops it to the page. That would stop Escape closing the
  * modal. Whatever holds the sync back disables it without the attribute too, with its reason in a
  * tooltip, and a press the server refuses says why in a toast. A spent request budget lets it go
  * once a request frees up, whether or not the connection has been read again since, and its reason is

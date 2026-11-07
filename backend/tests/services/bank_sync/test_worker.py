@@ -300,7 +300,7 @@ async def test_scan_for_due_work_asked_to_stop_returns_at_once(monkeypatch):
 
 
 async def test_worker_stops_on_sigterm_once_its_runners_have_finished(monkeypatch):
-    """SIGTERM, which Docker sends on a stop or an upgrade, ends the worker rather than killing it mid-job"""
+    """SIGTERM (Docker sends it on a stop or an upgrade) ends the worker rather than killing it mid-job"""
     handlers = {}
     scanned = asyncio.Event()
 
@@ -402,7 +402,7 @@ async def test_run_jobs_records_a_job_that_fails_and_runs_the_next(connections, 
     following = await _seed_job(connections[1], BankSyncJobKind.SCHEDULED)
 
     async def runner(job: ClaimedJob) -> None:
-        """Fail the first connection's job, hanging until its time limit ends, which it ends at once, and run the other"""
+        """Fail the first connection's job, hanging until its time limit ends (the runner ends it at once), and run the other"""
         if job.id == failing.id:
             if failure == "raises":
                 raise RuntimeError("Unexpected bank data")
@@ -573,8 +573,8 @@ asyncio.run(worker.run_jobs(1))
 def test_worker_registers_every_table_before_running_jobs():
     """A job changing the ledger fails unless its runner has every model, since flushing needs them all
 
-    An auto-approved correction changes a ledger transaction, whose flush resolves its foreign key to
-    the import runs, which nothing the sync imports declares. The worker runs every job through
+    An auto-approved correction changes a ledger transaction. Its flush resolves its foreign key to
+    the import runs, and nothing the sync imports declares them. The worker runs every job through
     run_jobs. A clean interpreter is what makes this meaningful, since this process registered every
     model long ago
     """

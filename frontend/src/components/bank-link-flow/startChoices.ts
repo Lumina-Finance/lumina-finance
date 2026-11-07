@@ -18,7 +18,7 @@ export interface StartChoice {
 /**
  * The start dates offered as choices, newest first, none of them preselected
  *
- * Each begins on the first of its month, counted back from the provider's limit, which is itself the
+ * Each begins on the first of its month, counted back from the provider's limit. That limit is itself the
  * first of the month the provider's history reaches. The range never allows a start before the day
  * after the account's latest transaction, so a choice reaching further back is raised to that day and
  * says so. Choices that land on the same day are shown once

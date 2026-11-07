@@ -24,7 +24,7 @@ from app.models.base import Base, check_values
 
 
 class ProviderErrorKind(enum.StrEnum):
-    """What a provider failure means for sync, which decides whether trying again can help
+    """What a provider failure means for sync, and so whether trying again can help
 
     Provider adapters report these, and a job stores the last one it met
     """
@@ -32,7 +32,7 @@ class ProviderErrorKind(enum.StrEnum):
     # The stored credential no longer works, so automatic sync stops until the user reconnects
     CREDENTIAL_REJECTED = "credential_rejected"
 
-    # The bank needs the user to sign in again at the provider, which retrying can't fix
+    # The bank needs the user to sign in again at the provider, and retrying can't fix that
     BANK_LOGIN_NEEDED = "bank_login_needed"
 
     # The provider refuses requests until the user settles a payment problem with it
@@ -97,7 +97,7 @@ class BankSyncJob(Base):
         CheckConstraint("attempt >= 0", name="ck_bank_sync_jobs_attempt"),
         Index("uq_bank_sync_jobs_running", "connection_id", unique=True, postgresql_where=text("status = 'running'")),
         Index("uq_bank_sync_jobs_queued", "connection_id", unique=True, postgresql_where=text("status = 'queued'")),
-        # Serves the claim, which looks for queued jobs that are due and running ones whose lease ran out
+        # Serves the claim. The claim looks for queued jobs that are due and running ones whose lease ran out
         Index("ix_bank_sync_jobs_status_run_after", "status", "run_after"),
     )
 
@@ -121,13 +121,13 @@ class BankSyncJob(Base):
     # The links the job syncs, recorded once it runs so their status can say a sync is under way
     covered_link_ids: Mapped[list[uuid.UUID] | None] = mapped_column(ARRAY(Uuid))
 
-    # The links an earlier job of the connection couldn't bring back whole, which this one plans
+    # The links an earlier job of the connection couldn't bring back whole. This job plans them
     # only once no other link is due, so a link failing on every request doesn't take each request
     # the budget frees ahead of links that can progress
     deferred_link_ids: Mapped[list[uuid.UUID]] = mapped_column(ARRAY(Uuid), nullable=False, default=list, server_default="{}")
 
-    # The links the user asked to sync now, which the job syncs whatever their next daily time, and
-    # which a queued job's status reads as requested until a worker starts it
+    # The links the user asked to sync now. The job syncs them whatever their next daily time, and
+    # a queued job's status reads as requested until a worker starts it
     requested_link_ids: Mapped[list[uuid.UUID]] = mapped_column(ARRAY(Uuid), nullable=False, default=list, server_default="{}")
 
     # The kind of the last failure the provider adapter reported

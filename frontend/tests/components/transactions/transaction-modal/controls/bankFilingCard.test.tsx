@@ -27,7 +27,7 @@ import BankFilingCard from '@/components/transactions/transaction-modal/controls
 
 const LINK = { institution_name: 'Example Bank', external_account_name: 'Chequing' }
 
-// A new item for $12.50 out on Sep 21, which arrived late that evening in Phoenix, already Sep 22 in UTC
+// A new item for $12.50 out on Sep 21. It arrived late that evening in Phoenix, already Sep 22 in UTC
 const ITEM: BankReviewItem = {
   id: 'countdown',
   kind: 'new',

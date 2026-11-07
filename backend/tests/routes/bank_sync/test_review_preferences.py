@@ -3,7 +3,7 @@
 An account that read the wrong choice would apply bank changes the user asked to review, or hold
 back ones they chose to trust. A save that left a mix of two saves made at once, touched the items
 already waiting, lost the choice when the account was unlinked and linked again, or marked the
-user's data changed, which ends the undo of their last import, would each go unnoticed until the
+user's data changed and so ended the undo of their last import, would each go unnoticed until the
 bank next sent something. Only the owner's own personal account has preferences
 """
 
@@ -57,7 +57,7 @@ async def test_review_preferences_of_a_newly_linked_account_read_review_all(clie
 
 @pytest.mark.parametrize("choices", _ONE_KIND_TRUSTED, ids=lambda choices: "-".join(choices.values()))
 async def test_saving_review_preferences_replaces_every_choice_the_account_held(client, choices):
-    """Everyday holds the opposite of each choice, and the save replaces all three, which read back as saved"""
+    """Everyday holds the opposite of each choice, and the save replaces all three. They read back as saved"""
     headers, _ = await _sign_up(client)
     account_id = await _new_account(client, headers, "Everyday")
     opposite = {kind: "review" if decision == "trust" else "trust" for kind, decision in choices.items()}
@@ -162,7 +162,7 @@ async def test_two_saves_at_once_leave_the_later_saves_choices_whole(client):
 
 @pytest.mark.parametrize("method", ["GET", "PUT"])
 async def test_review_preferences_of_a_group_account_or_another_users_account_are_refused(client, method):
-    """Joint belongs to the Smith Family group, which the user administers, and Theirs to another user
+    """Joint belongs to the Smith Family group, administered by the user, and Theirs to another user
 
     Joint isn't the user's alone, so it has no preferences for them, and Theirs isn't found. Nothing
     is saved for either

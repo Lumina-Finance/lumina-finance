@@ -40,7 +40,7 @@ from app.services.bank_sync.provider_requests import read_request_budgets
 from app.services.bank_sync.providers.contract import is_iso_currency_code
 from app.services.cache_state.updates import mark_user_cache_changed
 
-# The stored nickname's length, which the form states in its refusal
+# The stored nickname's length. The form states it in its refusal
 NICKNAME_MAX_LENGTH = 64
 
 CONNECTION_NOT_FOUND = "Bank connection not found"

@@ -6,8 +6,8 @@ import { answerLinksWith, isRead, pageOf, reviewItem, SEP_21 } from '../support/
 import { contrastOf, MIN_TEXT_CONTRAST, MINUS, readBoxes } from '../support/selectors'
 import { AT_EVERY_SIZE } from '../support/sizes'
 
-// Runs on desktop only, apart from the closed strip test and the light theme's readable text test, which
-// run at every size: a phone moves the explanation inside the opened strip, and the strip has to fit every
+// Runs on desktop only, apart from the closed strip test and the light theme's readable text test.
+// Those run at every size: a phone moves the explanation inside the opened strip, and the strip has to fit every
 // width
 
 // Transactions the bank hasn't posted yet show in a muted strip under the review block, read-only
@@ -30,7 +30,7 @@ const HOUR_MS = 60 * 60 * 1000
 // How long the strip stays open after the bank was asked, long enough for its rows to move past just now
 const CHECK_AGE_MS = 5 * 60 * 1000
 
-// The reads of bank items the list's accounts hold, which only the user's own personal accounts have
+// The reads of bank items the list's accounts hold. Only the user's own personal accounts have them
 const BANK_ITEM_READS = ['/bank-sync/pending', '/bank-review/items', '/bank-review/backlogs']
 
 type PendingTransaction = {
@@ -100,8 +100,8 @@ function isPhoneLayout(page: Page): boolean {
 /**
  * Answers the pending list with Everyday's Uber trip and coffee and Visa's hotel hold, reported three
  * days earlier: all three for a read of every account, and an account's own for a read of that
- * account alone. Which transactions a read holds is the server's to decide, which the backend tests
- * check, so each read the tests make has its answer canned
+ * account alone. Which transactions a read holds is the server's to decide and the backend tests
+ * check that, so each read the tests make has its answer canned
  *
  * @returns The accounts each read asked for, in the order asked
  */
@@ -291,7 +291,7 @@ test('says in the strip that pending transactions could not load, and reads only
 
   await openPage(page, '/transactions')
 
-  // Said inside the strip's frame, which counts nothing while the transactions are unknown
+  // Said inside the strip's frame. The frame counts nothing while the transactions are unknown
   const strip = pendingStrip(page)
   const failure = strip.getByRole('alert').filter({ hasText: 'Pending bank transactions could not load.' })
   await expect(failure).toBeVisible()

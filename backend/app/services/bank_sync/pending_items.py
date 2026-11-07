@@ -2,7 +2,7 @@
 
 Only the user's own personal accounts have pending items, since only they can be linked. The list
 covers the accounts the transaction list is filtered to, or every such account when it isn't, and
-is never paged: it holds only what the bank hasn't posted yet, which each sync replaces
+is never paged: it holds only what the bank hasn't posted yet. Each sync replaces it
 """
 
 import uuid

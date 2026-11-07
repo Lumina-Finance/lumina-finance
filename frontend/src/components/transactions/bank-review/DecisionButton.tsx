@@ -12,7 +12,7 @@ type ReviewDecisionButtonProps = {
   label: string
   tone: keyof typeof TONE_CLASS_NAMES
 
-  /** Set while this decision runs, which swaps the label for a spinner */
+  /** Set while this decision runs. It swaps the label for a spinner */
   loading: boolean
   disabled: boolean
 
@@ -64,7 +64,7 @@ export function ReviewDecisionButton({
       <button
         ref={pressRef}
         type={onClick ? 'button' : 'submit'}
-        // The modal starts focus among its field tab stops, which a button joins only when marked
+        // The modal starts focus among its field tab stops. A button joins those only when marked
         data-modal-field-tab-stop={initialFocus ? 'true' : undefined}
         data-modal-initial-focus={initialFocus ? 'true' : undefined}
         data-testid={testId}

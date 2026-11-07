@@ -43,7 +43,7 @@ class Fault:
 
 @dataclass
 class Connection:
-    """One bank login on the Bridge, whose org_id names its institution"""
+    """One bank login on the Bridge, with an org_id that names its institution"""
 
     conn_id: str
     name: str
@@ -106,7 +106,7 @@ class Scenario:
     errors: list[BankError] = field(default_factory=list)
     fault: Fault | None = None
 
-    # Set once the fault is cleared or replaced, which frees the requests a timeout fault holds
+    # Set once the fault is cleared or replaced. That frees the requests a timeout fault holds
     stalls_released: asyncio.Event = field(default_factory=asyncio.Event)
 
     # Set once the fault shown now holds a request, so a test can free one only after it is held
@@ -135,7 +135,7 @@ class Bridge:
 
     scenarios: dict[str, Scenario] = field(default_factory=dict)
 
-    # Claim token to its scenario. Claiming removes the token, which is what makes it single use
+    # Claim token to its scenario. Claiming removes the token. That is what makes it single use
     setup_tokens: dict[str, Scenario] = field(default_factory=dict)
 
     # Basic auth username to the access it identifies

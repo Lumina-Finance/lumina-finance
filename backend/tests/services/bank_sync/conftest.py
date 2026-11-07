@@ -53,7 +53,7 @@ def day_later(monkeypatch) -> timedelta:
 
 
 class JobTimeLimits:
-    """The time limit of the job the worker started last, which runs until the next one starts"""
+    """The time limit of the job the worker started last. It runs until the next one starts"""
 
     def __init__(self) -> None:
         """Start with no job started"""

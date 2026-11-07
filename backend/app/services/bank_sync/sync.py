@@ -14,9 +14,9 @@ to the job it queues next
 
 A bank account a fetch lists in a currency other than its account's isn't brought back whole, since
 its amounts would be read at the wrong precision, and the job queues the next one to list the bank
-accounts first, which moves its link to Choose bank account. A job that listed them itself queues no
+accounts first. That moves its link to Choose bank account. A job that listed them itself queues no
 listing, so a provider whose listing and fetch disagree can't spend request after request, and nor
-does a job that ends on a rejected credential, which can't list anything
+does a job that ends on a rejected credential, since it can't list anything
 
 Each attempt is recorded on the links it was for, as the retries module describes: a link brought
 up to date succeeded, and one a request or listing failed for, or a response didn't bring back
@@ -259,7 +259,7 @@ class _JobRun:
         # The links this job recorded an attempt for, successful or failed
         self.attempted: set[uuid.UUID] = set()
 
-        # Each linked account's currency, which never changes, read with the links
+        # Each linked account's currency (it never changes), read with the links
         self.account_currencies: dict[uuid.UUID, str] = {}
 
         # The bank login each linked bank account was listed under, by external id, read with the
@@ -277,7 +277,7 @@ class _JobRun:
         A link whose fetch failed is left out of the rest of the job, so one failing on every request
         can't hold up the others: a window that ends before today and moves no checkpoint is followed
         in the same job by the next window the remaining links need. Retrying the failed link waits
-        for its retry time and a later job, which plans it once no other link is due, and a job that
+        for its retry time and a later job. That job plans it once no other link is due, and a job that
         leaves a retry that was due for links that could progress queues it again at once
 
         Raises:
@@ -406,13 +406,13 @@ class _JobRun:
         """Fetch the window and write what it found, noting each link a part didn't bring back whole
 
         The contract has no paging, so a response that may have been cut short is set aside and its days
-        fetched again in halves, down to a single day, which is kept however long, and the links it
+        fetched again in halves, down to a single day. That day is kept however long, and the links it
         brought back whole remind the user that some of that day's transactions may be missing.
         Parts are written as they come back, earliest first, so those fetched before the budget ran
         out or a request failed keep their progress
 
         Returns:
-            Whether the last part written, which ends where the window does, moved a checkpoint, or
+            Whether the last part written (it ends where the window does) moved a checkpoint, or
             None when the job ended instead
         """
         parts = [window]
@@ -528,8 +528,8 @@ class _JobRun:
             synced: The bank accounts the response brought back whole, by external id
             failures: Why the response failed each link it hadn't already failed in this job, by link id
             sent_with: The credential the request went out with
-            sent_at: When the request went out, which its records were observed at
-            cut_off: The response may have been cut short, which only a single day's is when written
+            sent_at: When the request went out, the time its records were observed at
+            cut_off: The response may have been cut short, but only a single day's is when written
 
         Returns:
             Whether a checkpoint moved
@@ -575,7 +575,7 @@ class _JobRun:
             paused_or_imported = await apply_review_pauses(db, whole, today=self.today)
             offered = await offer_opening_adjustments(db, whole, tz=self.timezone.key)
 
-            # Only a trusted correction or removal changes the owner's ledger, which makes an import
+            # Only a trusted correction or removal changes the owner's ledger. That makes an import
             # saved before it permanent. Anything else here changes only what their pages show
             if stored.ledger_changed:
                 await mark_user_cache_changed(db, self.job.owner_id)
@@ -632,7 +632,7 @@ class _JobRun:
             error: Why the request failed
             sent_with: The credential the request went out with
             discover: Whether the job queued again lists the bank accounts first
-            attempted: The links the request was for, which failed with it
+            attempted: The links the request was for. They failed with it
             sent_at: When the request was sent
         """
         if error.kind != ProviderErrorKind.RATE_LIMITED:
@@ -659,7 +659,7 @@ class _JobRun:
 
         The next one is queued to list the bank accounts first, whatever was asked, once a fetch
         found one in a currency other than its account's in a job that didn't list them, unless the
-        provider has since rejected the credential, which a listing would only spend a request on.
+        provider has since rejected the credential: a listing would only spend a request on it.
         It syncs now each link the user asked for that this one ends without an attempt for, such as
         one an import's earlier window on the same connection didn't reach
 
@@ -705,7 +705,7 @@ async def _hold_for_finish(
     can hold a link another waits for while waiting on the connection that one holds
 
     Args:
-        db: The job owner's session, which the step then writes in
+        db: The job owner's session. The step then writes in it
         job: The job as claimed
         links: The links the step writes for, as the step read them
         sent_with: The credential the request whose answer the step stores went out with, or None
@@ -807,7 +807,7 @@ async def _end_job(
     Args:
         job: The job as claimed
         error: What stopped the job, or None when it did all it could
-        again: Whether to queue another job of the same kind, which merges into one already queued
+        again: Whether to queue another job of the same kind. It merges into one already queued
         run_after: When that job may run, or at once when not given
         discover: Whether that job lists the bank accounts first
         deferred: The links that job plans only once no other link is due
@@ -816,7 +816,7 @@ async def _end_job(
         failed: The links the error failed an attempt for, as the caller read them
         attempted_at: When the failed attempt's request was sent, or now when not given
         retry_overdue: Whether the job left a link whose retry was due
-        started_at: When the job's attempt started, which it found the links due at
+        started_at: When the job's attempt started. It found the links due at that time
         outbox: Where the emails the step recorded wait to be sent
 
     Raises:

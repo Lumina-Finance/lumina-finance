@@ -24,7 +24,7 @@ type SyncFactProps = {
 }
 
 /**
- * The label, with a new one sliding in over the old as it leaves. Both share one cell, which eases to
+ * The label, with a new one sliding in over the old as it leaves. Both share one cell. It eases to
  * the new label's width, so whatever follows glides rather than jumps
  */
 function SlidingLabel({ label, underlinesOnHover }: { label: string; underlinesOnHover: boolean }) {

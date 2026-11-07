@@ -1,4 +1,4 @@
-/** The longest nickname a connection may have, which the server enforces too */
+/** The longest nickname a connection may have. The server enforces it too */
 export const CONNECTION_NICKNAME_MAX_LENGTH = 64
 
 // Review backlog thresholds, counted in new posted items awaiting their first review. The server

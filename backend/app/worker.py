@@ -10,12 +10,12 @@ import os
 import sys
 import time
 
-# Loads backend/.env, which is where a checkout run outside Docker, such as a development
+# Loads backend/.env. That is where a checkout run outside Docker, such as a development
 # instance, keeps the database role passwords the wait below looks for
 import app.config  # noqa: F401
 from app.db.credentials import resolve_role_password
 
-# Named rather than taken from __name__, which is __main__ when run as a module
+# Named rather than taken from __name__. That is __main__ when run as a module
 logger = logging.getLogger("app.worker")
 
 # How often to look for the password while waiting, the same as the database retries that follow
@@ -23,7 +23,7 @@ _PASSWORD_RETRY_SECONDS = 5
 
 
 def _wait_for_app_role_password() -> None:
-    """Return once the app database role's password exists, which the app's container creates on a fresh install"""
+    """Return once the app database role's password exists. The app's container creates it on a fresh install"""
     logged = False
     while True:
         try:

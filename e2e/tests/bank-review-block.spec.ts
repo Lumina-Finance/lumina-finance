@@ -32,15 +32,15 @@ import { contrastOf, MIN_TEXT_CONTRAST, MINUS, readBoxes } from '../support/sele
 import { AT_EVERY_SIZE } from '../support/sizes'
 import { API_BASE_URL } from '../support/target'
 
-// Runs on desktop only, apart from the Needs review marker test and the light theme's readable text test,
-// which run at every size: the block's rows wrap and the list's bars pin differently at each width
+// Runs on desktop only, apart from the Needs review marker test and the light theme's readable text test.
+// Those run at every size: the block's rows wrap and the list's bars pin differently at each width
 
 // Bank items waiting for review show in a block above the transaction list, outside the ledger.
 //
 // A test answers the review list with the items it needs, such as removals, a backlog of 1,500 or a
-// page that fails, which a sync from the fake SimpleFIN Bridge can't bring in. The one test that needs
-// only new items links Everyday to the fake, whose items the worker imports and syncs. The backlogs are
-// the server's own, which read nothing waiting, unless a test answers them too. Answers are canned for
+// page that fails. A sync from the fake SimpleFIN Bridge can't bring those in. The one test that needs
+// only new items links Everyday to the fake, and the worker imports and syncs its items. The backlogs are
+// the server's own and read nothing waiting, unless a test answers them too. Answers are canned for
 // the accounts a test expects the page to ask about, so which items, counts and backlogs the server
 // picks for those accounts is left to the backend tests
 
@@ -159,10 +159,10 @@ async function releaseIntersections(page: Page): Promise<void> {
 }
 
 /**
- * Waits for the block to finish growing in, which it does on the page's clock once its items have
+ * Waits for the block to finish growing in. It does that on the page's clock once its items have
  * loaded, on a busy machine well after the page is ready. A clock stopped part way holds the block cut
- * short, with Show all and the end of the list in the part cut off. Read from what holds the block,
- * which cuts part of it off from the moment it shows until the growth ends, since the height runs from
+ * short, with Show all and the end of the list in the part cut off. Read from what holds the block.
+ * That holder cuts part of the block off from the moment it shows until the growth ends, since the height runs from
  * script and leaves the browser no animation to wait on
  */
 async function waitForBlockToGrowIn(block: Locator): Promise<void> {
@@ -287,7 +287,7 @@ test('says in the block that the waiting items could not load, sends Needs revie
 
   await openPage(page, '/transactions')
 
-  // Said inside the block's frame, which counts nothing while the items are unknown
+  // Said inside the block's frame. The frame counts nothing while the items are unknown
   const block = reviewBlock(page)
   const failure = block.getByRole('alert').filter({ hasText: 'Bank items to review could not load.' })
   const retry = failure.getByRole('button', { name: 'Try again' })
@@ -351,7 +351,7 @@ test('says the pause status could not load while still showing the items, and re
   await expect(failure).toBeVisible()
   await expect(block.getByRole('listitem')).toHaveCount(1)
 
-  // Held in place while the read is made again, then giving way to the notice, which takes focus
+  // Held in place while the read is made again, then giving way to the notice. The notice takes focus
   const itemReads = reads.items
   const button = failure.getByRole('button')
   backlogsFail = false
@@ -405,7 +405,7 @@ test('moves focus on from a retry that succeeds only while the retry has it, to 
   gate.open()
   await expect(block.getByRole('listitem')).toHaveCount(1)
 
-  // The failure leaves the page in a render after the one that brought the rows, which React starts
+  // The failure leaves the page in a render after the one that brought the rows. React starts that render
   // only once it has run what came with them, any move of focus included
   await expect(itemsFailure).not.toBeAttached()
   await expect(block.getByRole('listitem')).not.toBeFocused()
@@ -466,7 +466,7 @@ test('shows the first 4 of a 1,500 item backlog, and loads the rest a page at a 
 // gone is held back while the wait runs out, then reaches the block's last look before the watch that
 // started the wait hears of it. Motion isn't reduced, as it is for other tests on the page's clock,
 // since reduced motion shows the rows at full height at once and leaves the end of the list nowhere
-// near, and nothing here has to fade out, which is what the page's clock would hold up
+// near, and nothing here has to fade out. A fade is what the page's clock would hold up
 test('loads no more of a 1,500 item backlog when the end of the list has moved away by the end of the wait, however late word of it comes', async ({ page, request }) => {
   const { everyday } = await start(page, request)
   await answerLongBacklog(page, everyday.id)
@@ -489,9 +489,9 @@ test('loads no more of a 1,500 item backlog when the end of the list has moved a
   const loading = block.getByRole('status')
   await expect(loading).toHaveText('Loading more items…')
 
-  // The block's last look at the end of the list, which it takes as the wait runs out, is answered as
+  // The block's last look at the end of the list is taken as the wait runs out and is answered as
   // the page is next laid out, held back with the rest. Both are held, so the order they come in is
-  // the one released: the last look's, then the watch's that started the wait, which heard of the
+  // the one released: the last look's, then the watch's that started the wait. That watch heard of the
   // rows growing as the clock moved on
   await holdIntersections(page)
   await page.clock.runFor(LOAD_WAIT_PASSED_MS)
@@ -604,7 +604,7 @@ test('opens the block for a marker whose item is the fifth, the first one it hid
   await expect(block.getByRole('button', { name: 'Show all 6' })).toHaveAttribute('aria-expanded', 'false')
   await expect(block.getByRole('listitem')).toHaveCount(4)
 
-  // The keyboard goes on from the icon to Needs review, which goes to the item
+  // The keyboard goes on from the icon to Needs review, and that goes to the item
   await page.keyboard.press('Tab')
   await expect(row.getByRole('button', { name: 'Needs review. Show the waiting item' })).toBeFocused()
   await page.keyboard.press('Enter')
@@ -657,7 +657,7 @@ test("stops going to a marker's item once the page it would be on fails to load"
   await expect(toggle).toHaveAttribute('aria-expanded', 'true')
 
   // The app tries a failed read twice. A search still under way opens the block again as soon as it
-  // closes, so it is closed once the search has ended, which it must
+  // closes, so it is closed once the search has ended, as it must be
   await expect(block).toHaveAttribute('data-going-to-item', 'false')
   await expect.poll(() => secondPageFailures).toBeGreaterThanOrEqual(2)
   await toggle.click()

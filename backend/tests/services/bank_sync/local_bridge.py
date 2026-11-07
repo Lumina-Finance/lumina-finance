@@ -63,7 +63,7 @@ def _key_usage(*, signs_certificates: bool) -> x509.KeyUsage:
 def _issue_tls(directory: Path, host: str) -> tuple[ssl.SSLContext, ssl.SSLContext]:
     """Issue a certificate for the host from a throwaway authority
 
-    Built with every extension strict verification asks for, which Python applies by default
+    Built with every extension strict verification asks for. Python applies that verification by default
 
     Args:
         directory: Where the server's certificate and key are written

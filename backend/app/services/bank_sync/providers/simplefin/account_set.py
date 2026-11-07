@@ -78,7 +78,7 @@ class AccountSet(_Model):
 
     errlist: list[Problem] = []
 
-    # The older list of plain messages, which SimpleFIN Bridge still sends
+    # The older list of plain messages. SimpleFIN Bridge still sends it
     errors: list[str] = []
     connections: list[_Connection] = []
     accounts: list[_Account] = []
@@ -129,7 +129,7 @@ def read_external_accounts(
     Args:
         account_set: The parsed response
         currency_exponents: Minor-unit exponent of every currency Lumina holds, by code
-        dating: How records are dated, or None for a balances-only read, whose records aren't read
+        dating: How records are dated, or None for a balances-only read. Its records aren't read
 
     Returns:
         The accounts, each with its records when dating is given

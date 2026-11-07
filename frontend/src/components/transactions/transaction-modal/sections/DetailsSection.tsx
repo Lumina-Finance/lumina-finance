@@ -142,7 +142,7 @@ export default function TransactionDetailsSection({
 
   return (
     <CreateModalSectionFrame step="03" title="Details">
-      {/* The rows carry their own spacing rather than a row gap, which the grid would hold open for the
+      {/* The rows carry their own spacing rather than a row gap, since the grid would hold one open for the
           message from its first frame. Stacked on a phone, Currency and Amount keep the space above them */}
       <div className="grid gap-x-3 sm:grid-cols-[11rem_8.5rem_minmax(0,1fr)]">
         <div>

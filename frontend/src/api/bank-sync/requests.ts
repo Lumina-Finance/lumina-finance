@@ -145,7 +145,7 @@ export function fetchAccountBankStatus(accountId: string, signal?: AbortSignal) 
 }
 
 /**
- * Fetches where an import into the account may start, which depends on how much history the provider
+ * Fetches where an import into the account may start. That depends on how much history the provider
  * the import would come from allows
  *
  * @param signal - Aborts the request when the load that asked for it is abandoned
@@ -169,7 +169,7 @@ export function deleteBankLink(accountId: string) {
 }
 
 /**
- * Asks for a sync of the account's link now, which the server refuses while the request budget is
+ * Asks for a sync of the account's link now. The server refuses it while the request budget is
  * spent or a job covering the link is already running
  */
 export function syncBankLink(accountId: string) {

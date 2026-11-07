@@ -318,7 +318,7 @@ async def test_unlink_waits_for_a_sync_finishing_on_the_account_and_clears_what_
 
 
 async def test_disconnect_waits_for_a_sync_finishing_on_its_job_and_clears_what_it_wrote(client):
-    """A sync holding its job finishes before the disconnect, whose unlink then clears the pending item it wrote"""
+    """A sync holding its job finishes before the disconnect, and the disconnect's unlink then clears the pending item the sync wrote"""
     headers, _, everyday_id, savings_id, connection = await _two_linked(client)
 
     async with TestSession() as finishing:
@@ -327,7 +327,7 @@ async def test_disconnect_waits_for_a_sync_finishing_on_its_job_and_clears_what_
         disconnecting = asyncio.create_task(client.delete(f"/bank-sync/connections/{connection.id}", headers=headers))
         await _wait_until_waiting_on(finishing_pid, disconnecting)
 
-        # The finishing step locks the links after its job, which the disconnect must not hold yet
+        # The finishing step locks the links after its job. The disconnect must not hold them yet
         await finishing.execute(select(BankAccountLink.id).where(BankAccountLink.connection_id == connection.id).with_for_update())
         account = await finishing.get_one(Account, uuid.UUID(everyday_id))
         await replace_pending_transactions(finishing, account.id, [_build_pending_transaction(account, "HOLD-NEW")])

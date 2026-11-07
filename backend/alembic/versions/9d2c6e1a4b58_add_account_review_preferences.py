@@ -22,7 +22,7 @@ depends_on: str | Sequence[str] | None = None
 def upgrade() -> None:
     """Create the review preferences table, empty, and enable its row-level security
 
-    Every existing account has no row, which reads as Review all, so nothing is backfilled
+    Every existing account has no row and reads as Review all, so nothing is backfilled
     """
     op.create_table(
         "account_review_preferences",

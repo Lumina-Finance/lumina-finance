@@ -43,7 +43,7 @@ def downgrade() -> None:
     """Drop the kept descriptions and restore the earlier check
 
     A transaction whose description the user kept then reads the bank's latest as its own again, so
-    the bank sending the kept one again opens a correction, which Accept or Keep closes. Nothing in
+    the bank sending the kept one again opens a correction. Accept or Keep closes it. Nothing in
     the ledger or its balances depends on them, so they don't hold the rollback back
     """
     op.drop_constraint("ck_bank_transactions_review_state", "bank_transactions", type_="check")

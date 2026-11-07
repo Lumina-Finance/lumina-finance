@@ -1,8 +1,8 @@
 /**
- * Guards the account row's FX badge, which sat inside the link to the account: a tap on it on a phone
+ * Guards the account row's FX badge. It sat inside the link to the account: a tap on it on a phone
  * opened the account instead of the badge's tooltip, and a link may not contain a button. The link
  * now sits on the account's name and the badge outside it, and the link is described by the rest of
- * the row, which its name carried while it wrapped the row
+ * the row. Its name carried that while it wrapped the row
  */
 import { renderToStaticMarkup } from 'react-dom/server'
 import { MemoryRouter } from 'react-router'

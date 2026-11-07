@@ -78,9 +78,9 @@ test('keeps the running balance in Add transaction right after switching windows
   await expect(amounts.filter({ hasText: '−$50.00' })).toHaveCount(1)
 })
 
-// The tab stays in view while the page's clock moves past the link list's next read, which finds the
-// sync over. Coming back to the tab instead would also run the check for changes made elsewhere,
-// which refreshes the review inbox by itself once the dialogue closes
+// The tab stays in view while the page's clock moves past the link list's next read. That read finds the
+// sync over. Coming back to the tab instead would also run the check for changes made elsewhere.
+// That check refreshes the review inbox by itself once the dialogue closes
 test('keeps the running balance in Add transaction when a bank sync ends behind it, then shows what the sync brought in', async ({ page, request }) => {
   const user = await signUpUser(request)
   await createAccount(request, user, { name: 'Wallet', startingBalance: 100000 })
@@ -135,9 +135,9 @@ test('keeps the running balance in Add transaction when a bank sync ends behind 
   await waitForRequestsSoFar(page)
   expect(reloads, 'The bank sync reloaded the lists behind the open dialogue').toEqual([])
 
-  // Closing runs the refresh the finished sync held back, which alone reads the review inbox again,
-  // and catches the list up with each create once. The dialogue fades out on the browser's own clock,
-  // which the page's clock has run ahead of, so the checks don't wait for the fade to end
+  // Closing runs the refresh the finished sync held back. That refresh alone reads the review inbox again,
+  // and catches the list up with each create once. The dialogue fades out on the browser's own clock.
+  // The page's clock has run ahead of it, so the checks don't wait for the fade to end
   await dialog.getByRole('button', { name: 'Cancel', exact: true }).click()
   await expect(reviewBlock(page).getByRole('listitem').filter({ hasText: 'HARBOUR GROCER' })).toBeVisible()
   const amounts = page.getByTestId(/^transaction-row-/).getByTestId('transaction-amount').filter({ visible: true })

@@ -59,7 +59,7 @@ SECURED_TABLES = (
     ("import_staged_rows", f"owner_id = {CURRENT_USER_ID}()", f"owner_id = {CURRENT_USER_ID}()"),
     # Bank sync records belong to their owner, and those tied to a Lumina account also need
     # access to it. Foreign keys skip row-level security, so a write naming a connection or a
-    # ledger row also has to see it, which keeps one user from attaching rows to another's
+    # ledger row also has to see it. That keeps one user from attaching rows to another's
     ("bank_connections", f"owner_id = {CURRENT_USER_ID}()", f"owner_id = {CURRENT_USER_ID}()"),
     ("bank_provider_requests", f"owner_id = {CURRENT_USER_ID}()", f"owner_id = {CURRENT_USER_ID}() AND {_SEES_CONNECTION}"),
     ("bank_external_accounts", f"owner_id = {CURRENT_USER_ID}()", f"owner_id = {CURRENT_USER_ID}() AND {_SEES_CONNECTION}"),

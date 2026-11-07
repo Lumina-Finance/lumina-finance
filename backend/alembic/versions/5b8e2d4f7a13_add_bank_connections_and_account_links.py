@@ -158,7 +158,7 @@ def upgrade() -> None:
 def downgrade() -> None:
     """Drop the bank connection tables, refusing while any of them holds a row
 
-    Dropping them would delete users' stored bank credentials, which only a new setup token
+    Dropping them would delete users' stored bank credentials that only a new setup token
     could replace, and every account link with its sync progress and "Previously linked to"
     details, so the rollback refuses rather than destroy them
     """

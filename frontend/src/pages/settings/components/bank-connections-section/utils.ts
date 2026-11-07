@@ -64,7 +64,7 @@ export function listShownBankAccounts(connection: BankConnection): ConnectionBan
 /**
  * The institutions whose bank login behind the connection needs the user to sign in again at the
  * provider, in the order the connection lists them. The server flags none on a rejected connection,
- * whose reconnect comes first
+ * and its reconnect comes first
  */
 export function listSignInInstitutions(connection: BankConnection): string[] {
   return [
@@ -189,7 +189,7 @@ export function describeInstitutionAllowance(
 
 /**
  * Explains the connection's request count beside it: the cap Lumina Finance keeps each connection
- * under, which the deployment configures, and once it's spent, when automatic syncs pick up
+ * under (the deployment configures it), and once it's spent, when automatic syncs pick up
  */
 export function describeRequestBudget(connection: BankConnection): string {
   const { limit, used, available_again_at: availableAgainAt } = connection.request_budget
@@ -202,7 +202,7 @@ export function describeRequestBudget(connection: BankConnection): string {
 export interface InstitutionGroup {
   name: string
 
-  /** Set when a bank login here needs signing in to again, which the row shows in red */
+  /** Set when a bank login here needs signing in to again. The row shows it in red */
   signInNeeded: boolean
 
   /** Set when linking one of its free bank accounts would go over the institution limit */
@@ -214,7 +214,7 @@ export interface InstitutionGroup {
 /**
  * The connection's bank accounts gathered by institution, in the order the connection lists them
  *
- * An institution not yet in use can't take a link once the limit is reached, which matters only
+ * An institution not yet in use can't take a link once the limit is reached. That matters only
  * where it still has a bank account that could be linked
  */
 export function groupInstitutions(

@@ -17,12 +17,12 @@ type BankHoldsStripProps = {
   /** Left out on an account's own page, where every transaction is that account's */
   showAccountNames: boolean
 
-  /** Today as "YYYY-MM-DD" in the user's profile timezone, which decides whether a date shows its year */
+  /** Today as "YYYY-MM-DD" in the user's profile timezone. It decides whether a date shows its year */
   today: string
   open: boolean
   onToggleOpen: () => void
 
-  /** The hold being dismissed now, whose button shows its spinner */
+  /** The hold being dismissed now. Its button shows its spinner */
   dismissingId: string | null
   onDismiss: (holdId: string) => void
   prefersReducedMotion: boolean | null

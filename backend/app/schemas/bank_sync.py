@@ -40,7 +40,7 @@ MAX_CREDENTIAL_FIELDS = 8
 
 
 class CredentialRequest(BaseModel):
-    """A request body carrying credentials the user supplied, which no refusal of the body may repeat"""
+    """A request body carrying credentials the user supplied. No refusal of the body may repeat them"""
 
     # Each of the provider's credential fields by its key. Each value is a secret, such as a setup
     # token: it is claimed once and never stored, logged or shown, so printing the request masks it
@@ -120,7 +120,7 @@ class ConnectionBankAccountResponse(BaseModel):
     # The ISO 4217 code, or the provider's own currency exactly as sent
     currency: str
 
-    # True for a currency of the provider's own, which no account can take
+    # True for a currency of the provider's own. No account can take it
     custom_currency: bool
     linked_account_id: uuid.UUID | None
 
@@ -128,7 +128,7 @@ class ConnectionBankAccountResponse(BaseModel):
     eligible_account_ids: list[uuid.UUID]
 
     # True while the account linked to it through this connection waits on the user signing in to
-    # its bank again at the provider. Never set on a rejected connection, which needs reconnecting first
+    # its bank again at the provider. Never set on a rejected connection, since it needs reconnecting first
     signin_needed: bool
 
 
@@ -178,10 +178,10 @@ class ReconnectBankConnectionResponse(BaseModel):
 
     connection: BankConnectionResponse
 
-    # Accounts whose bank account came back unchanged, which resume syncing
+    # Accounts whose bank account came back unchanged. They resume syncing
     resumed_account_ids: list[uuid.UUID]
 
-    # Accounts whose bank account came back under a new identity, which wait for it to be chosen again
+    # Accounts whose bank account came back under a new identity. They wait for it to be chosen again
     choose_again_account_ids: list[uuid.UUID]
 
     # True when the request couldn't list the connection's bank accounts, so both lists are empty
@@ -197,7 +197,7 @@ class CredentialFieldResponse(BaseModel):
     label: str
     placeholder: str
 
-    # The longest value the field takes, which the claim also refuses past
+    # The longest value the field takes. The claim also refuses a longer one
     max_length: int
 
 
@@ -352,7 +352,7 @@ class BankImportProgressResponse(BaseModel):
 
 
 class BankSyncFailureResponse(BaseModel):
-    """A link's last attempt, which failed"""
+    """A link's last attempt, the one that failed"""
 
     at: datetime
     reason: str
@@ -371,7 +371,7 @@ class BankSyncStatusResponse(BaseModel):
 
     # When the next sync or retry runs, or for an import waiting on the request budget, when a request
     # frees up for its next part. None while the link is due at once, as while its import catches up,
-    # and after a rejected credential, which stops its sync until a reconnect. A bank sign-in keeps
+    # and after a rejected credential, since that stops its sync until a reconnect. A bank sign-in keeps
     # the daily time the app checks again at
     next_attempt_at: datetime | None
 
@@ -382,7 +382,7 @@ class BankSyncStatusResponse(BaseModel):
     # the last 24 hours, holds the connection's next request back
     held_by_provider: bool
 
-    # A worker is syncing the link, which the state shows as syncing unless a state outranks it, such
+    # A worker is syncing the link. The state shows as syncing unless a state outranks it, such
     # as a bank sign-in
     sync_running: bool
 
@@ -418,7 +418,7 @@ class BankLinkResponse(BankAccountLinkResponse):
     # Choose account while the provider lists the bank account differently, until the user chooses it again
     state: Literal[BankLinkState.ACTIVE, BankLinkState.CHOOSE_ACCOUNT]
 
-    # Sent as "import", which Python keeps as a keyword. None while the link shows no import's
+    # Sent as "import" because Python keeps that as a keyword. None while the link shows no import's
     # progress: no import runs, it waits for its bank account to be chosen again, or it catches up
     # after a reconnect
     import_progress: BankImportProgressResponse | None = Field(serialization_alias="import")
@@ -463,14 +463,14 @@ class BankBalanceResponse(BaseModel):
     """
 
     # The bank's balance in the account currency's minor units, compared with the sign the bank sent.
-    # None when it can't be read exactly in that currency, which shows as unavailable and isn't compared
+    # None when it can't be read exactly in that currency. It then shows as unavailable and isn't compared
     amount: int | None
 
     # Read-only, in minor units, and None when the bank gives none or it can't be read exactly
     available: int | None
 
     # Whether the bank gave an available balance that can't be read exactly in the account's
-    # currency, which shows as unavailable rather than being left out like one the bank never gives
+    # currency. It shows as unavailable rather than being left out like one the bank never gives
     available_unreadable: bool
 
     # The moment the bank gives the balance as of
@@ -487,12 +487,12 @@ class BankBalanceResponse(BaseModel):
 class OpeningAdjustmentResponse(BaseModel):
     """The one-time offer to record the gap between the bank's balance and the ledger's once the import is reviewed
 
-    It leaves out what the items still waiting for review would change, which the bank's balance
-    already holds
+    It leaves out what the items still waiting for review would change. The bank's balance
+    already holds that
     """
 
     # The bank's balance minus the ledger's and waiting_amount, in minor units signed as the ledger
-    # keeps them, which closes the balances' difference once the items waiting are approved
+    # keeps them. That closes the balances' difference once the items waiting are approved
     amount: int
 
     # How much approving the items waiting as the bank sent them would move the ledger by the bank's
@@ -512,7 +512,7 @@ class RecordOpeningAdjustmentRequest(BaseModel):
     @field_validator("amount")
     @classmethod
     def _refuse_zero(cls, amount: int) -> int:
-        """Refuse an adjustment of nothing, which skipping stands for"""
+        """Refuse an adjustment of nothing, since skipping stands for it"""
         if amount == 0:
             raise ValueError("Enter an amount other than zero")
         return amount
@@ -544,7 +544,7 @@ class BankValues(BaseModel):
     date: date
 
     # Signed minor units, money out negative. Null when the bank sent more decimal places than the
-    # currency holds, which is never rounded: raw_amount then holds the amount exactly as sent
+    # currency holds. It is never rounded: raw_amount then holds the amount exactly as sent
     amount: int | None
     raw_amount: str | None
     description: str
@@ -558,7 +558,7 @@ class BankPendingTransactionResponse(BaseModel):
     date: date
 
     # Signed minor units in the account's currency, money out negative. Null when the bank sent more
-    # decimal places than the currency holds, which is never rounded: raw_amount then holds the
+    # decimal places than the currency holds. It is never rounded: raw_amount then holds the
     # amount exactly as sent
     amount: int | None
     raw_amount: str | None

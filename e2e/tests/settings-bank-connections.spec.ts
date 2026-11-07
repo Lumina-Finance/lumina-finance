@@ -25,8 +25,8 @@ import { expectMessageInCorner, readBoxes } from '../support/selectors'
 import { AT_EVERY_SIZE } from '../support/sizes'
 import { API_BASE_URL, BASE_URL } from '../support/target'
 
-// Runs on desktop only, apart from the linked account tile test, which runs on the phone, and the linking
-// and reconnect tests, which run at every size: the institutions sit below the connection and its actions
+// Runs on desktop only, apart from the linked account tile test (on the phone) and the linking
+// and reconnect tests (at every size): the institutions sit below the connection and its actions
 // on a phone, the connection fills a phone's screen with its message still in the corner, and a folded
 // institution's count moves under its name on a phone. The rest set the window sizes they check
 // themselves or give the same result at every size
@@ -163,8 +163,8 @@ async function holdRenamesUntilFailed(page: Page): Promise<() => void> {
 }
 
 /**
- * Claims a connection to Harbour Bank whose bank login needs signing in again, which the import a
- * link to Household queues finds, so its status reads Bank sign-in needed with a note beside it
+ * Claims a connection to Harbour Bank whose bank login needs signing in again. The import a
+ * link to Household queues finds this, so its status reads Bank sign-in needed with a note beside it
  */
 async function claimConnectionNeedingSignIn(request: APIRequestContext, user: TestUser): Promise<void> {
   const [household, scenario] = await Promise.all([
@@ -186,7 +186,7 @@ async function claimConnectionNeedingSignIn(request: APIRequestContext, user: Te
 }
 
 // A read the page sends as a test ends can still be on its way through a changed answer when the page
-// closes, which would fail a test whose checks all passed
+// closes. That would fail a test whose checks all passed
 test.afterEach(async ({ page }) => {
   await page.unrouteAll({ behavior: 'ignoreErrors' })
 })
@@ -384,7 +384,7 @@ test('waits on after a gateway timeout, and closes as connected once the server 
   await expect(dialog.getByRole('button', { name: 'Cancel' })).toBeEnabled()
 
   // The server saves the connection before it lists its bank accounts, so a read partway finds it
-  // with none and none due, which isn't yet the connection to report. A second such read comes a poll
+  // with none and none due, so it isn't yet the connection to report. A second such read comes a poll
   // later, by when a dialogue the first had closed would be long gone
   let listed = false
   let partwayReads = 0
@@ -437,7 +437,7 @@ test("renames a connection, and a blank nickname brings back the provider's name
   await expect(fact(dialog, 'Provider')).toHaveCount(0)
 })
 
-// Rename is pressed the moment a saved rename gives it back, which brings back the field that saved while
+// Rename is pressed the moment a saved rename gives it back. That brings back the field that saved while
 // it is still fading out, rather than a new one
 test('renames a connection again straight after a rename, from the field still fading out', async ({ page, request }) => {
   const user = await signUpUser(request)
@@ -489,7 +489,7 @@ test('keeps the modal open while a rename is on its way, saying there if it fail
   await expect(connectionRow(section, 'SimpleFIN')).toHaveCount(1)
 })
 
-// Escape pressed straight after Enter reaches the field before it has rendered as saving, which a later
+// Escape pressed straight after Enter reaches the field before it has rendered as saving. A later
 // press no longer does, since the field is held back by then. Both keys go to the field in one task, so
 // it can't render in between, and the rename is held until both are in, then fails
 test('keeps the nickname typed when Escape follows Enter straight away, so a failed rename can be tried again', async ({ page, request }) => {
@@ -513,8 +513,8 @@ test('keeps the nickname typed when Escape follows Enter straight away, so a fai
   await expect(field).toBeEnabled()
 })
 
-// The field fades out once its rename is saved, which is too short a while to catch by polling, so the
-// dialog's look is read after every change to it, from the save going out until the field has gone
+// The field fades out once its rename is saved. That is too short a while to catch by polling, so the
+// dialogue's look is read after every change to it, from the save going out until the field has gone
 test('stops Save spinning as soon as a rename is saved and the modal can close again', async ({ page, request }) => {
   const user = await signUpUser(request)
   const scenario = await createSampleBridgeScenario(request)
@@ -528,8 +528,8 @@ test('stops Save spinning as soon as a rename is saved and the modal can close a
     const looks: string[] = []
     const observedWindow = window as Window & { __renameLooks?: string[] }
     observedWindow.__renameLooks = looks
-    // Save counts as spinning while it is marked busy. Its spinner fades out after that, which the label
-    // swap keeps drawing for a moment, so the spinner is checked once the field has gone
+    // Save counts as spinning while it is marked busy. Its spinner fades out after that, and the label
+    // swap keeps drawing it for a moment, so the spinner is checked once the field has gone
     const read = () => {
       const close = panel.querySelector('button[aria-label="Close"]') as HTMLButtonElement
       const save = panel.querySelector('button[aria-label="Save nickname"]')
@@ -625,7 +625,7 @@ test("says a connection's provider is gone from the server, holding Reconnect ba
     externalAccountId: connection.accounts.find((bankAccount) => bankAccount.name === SAMPLE_CHEQUING)!.external_id,
     startDate: todayInTestTimezone(),
   })
-  // Stands for a server whose provider folder was deleted, which the backend tests answer this way
+  // Stands for a server whose provider folder was deleted. The backend tests answer this way
   await page.route(isRead('/bank-sync/connections'), async (route) => {
     const response = await route.fetch()
     const connections = (await response.json() as SeededConnection[]).map((entry) => ({
@@ -712,7 +712,7 @@ test('words when a spent request budget frees up anew as minutes pass with the c
   const trigger = dialog.getByRole('button', { name: 'About requests, 24 hours' })
   const note = dialog.locator('.app-tooltip-panel').filter({ hasText: /^Lumina Finance makes up to/ })
 
-  // The dialog grows into place as it opens, and a press aimed at the icon before it has settled
+  // The dialogue grows into place as it opens, and a press aimed at the icon before it has settled
   // lands beside it
   await expect(dialog).toHaveCSS('transform', 'none')
   await trigger.click()
@@ -982,7 +982,7 @@ test("keeps a connection's facts column from scrolling sideways, so the status n
   const drawnAtRest = await page.screenshot({ clip: atRest })
 
   // A trackpad swipe across the column, further than the closed note reaches past its edge. The browser
-  // answers once it has drawn the swipe, which the page itself learns of only at a later frame, so what
+  // answers once it has drawn the swipe, and the page itself learns of it only at a later frame, so what
   // is drawn where the icon sat is compared rather than where the page places the icon
   const columnBox = (await column.boundingBox())!
   const browser = await page.context().newCDPSession(page)
@@ -1001,13 +1001,13 @@ test("opens a fact's note below its value where the dialog leaves no room above 
   const scenario = await createSampleBridgeScenario(request)
   await claimSetupToken(request, user, scenario.setupToken)
 
-  // A phone on its side, where the facts are stacked above the institutions and the dialog scrolls
+  // A phone on its side, where the facts are stacked above the institutions and the dialogue scrolls
   await page.setViewportSize({ width: 844, height: 390 })
   const section = await openBankConnections(page, user)
   const dialog = await openConnection(page, section, 'SimpleFIN')
   await expect(dialog).toHaveCSS('transform', 'none')
 
-  // Scrolled until the fact is at the top of the dialog, or as near as the dialog goes
+  // Scrolled until the fact is at the top of the dialogue, or as near as the dialogue goes
   const value = fact(dialog, 'Institutions linked')
   await value.evaluate((element) => element.parentElement!.scrollIntoView({ block: 'start', behavior: 'instant' }))
   const trigger = dialog.getByRole('button', { name: 'About institutions linked' })
@@ -1017,7 +1017,7 @@ test("opens a fact's note below its value where the dialog leaves no room above 
   const note = dialog.locator('.app-tooltip-panel').filter({ hasText: /^Counts each institution/ })
   await expect.poll(() => placeOfNote(note, dialog, value)).toEqual({ inFull: true, clearOfValue: true })
 
-  // Below the value, since above the fact it would run off the dialog's top
+  // Below the value, since above the fact it would run off the dialogue's top
   const [opened, explained] = await readBoxes(page, [note, value])
   expect(opened.y).toBeGreaterThanOrEqual(explained.y + explained.height)
 })
@@ -1144,7 +1144,7 @@ test('holds Link and import back with the reason when bank sync stops as the lin
     createSampleBridgeScenario(request),
   ])
   await claimSetupToken(request, user, scenario.setupToken)
-  // The worker runs until the test stops it just before the flow opens, which reads the providers again
+  // The worker runs until the test stops it just before the flow opens. The flow reads the providers again
   let workerStopped = false
   await changeProviders(page, (body) => {
     body.sync_running = !workerStopped

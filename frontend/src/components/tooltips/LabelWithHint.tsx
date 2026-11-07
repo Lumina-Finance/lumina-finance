@@ -4,7 +4,7 @@ import IconTooltip from '@/components/tooltips/IconTooltip'
 type LabelWithHintProps = {
   label: string
 
-  /** The explanation after the label, which leaves the label on its own when absent */
+  /** The explanation after the label, and the label stands on its own when absent */
   hint?: ReactNode
 
   /** The explanation's accessible name, "About" and the label unless told otherwise */

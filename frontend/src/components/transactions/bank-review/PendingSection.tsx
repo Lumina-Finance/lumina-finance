@@ -34,7 +34,7 @@ export const BankPendingSection = memo(function BankPendingSection({
   const { data, errorUpdateCount, isFetching, refetch } = usePendingBankTransactions(accountIds, isInScope)
 
   // A read that has failed and never succeeded. Read from the count of failures rather than the
-  // error, which a retry of a read with nothing loaded clears while it runs, so the failure stays in
+  // error. A retry of a read with nothing loaded clears that while it runs, so the failure stays in
   // place, saying it is retrying, until it settles
   const failure: BankReadFailure | null =
     isInScope && errorUpdateCount > 0 && !data ? { retry: () => void refetch(), isRetrying: isFetching } : null

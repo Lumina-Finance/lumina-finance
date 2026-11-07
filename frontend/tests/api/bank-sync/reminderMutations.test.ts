@@ -1,8 +1,8 @@
 /**
  * Covers how dismissing a reminder in the Bank link section behaves through the query cache the app runs on
  *
- * These tests catch a dismissal sent to the wrong path or without the reminder as it showed, which
- * the server needs to leave a newer one in place, the reminder staying on screen until the account's
+ * These tests catch a dismissal sent to the wrong path or without the reminder as it showed, and
+ * the server needs it to leave a newer one in place, the reminder staying on screen until the account's
  * bank link is read again, the link list left holding it, the ledger reloaded though nothing in it
  * changed, and a refused dismissal leaving a reminder on screen that the server no longer shows
  */

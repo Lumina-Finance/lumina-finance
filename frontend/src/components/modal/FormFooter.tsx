@@ -12,7 +12,7 @@ const FOOTER_BASE_CLASS_NAME = 'grid shrink-0 grid-cols-2 gap-3 py-4 sm:flex min
 
 interface ModalFormFooterProps {
   submitLabel: string
-  /** Held down while the submission is in flight, which swaps the label for a spinner and, by default, blocks cancelling */
+  /** Held down while the submission is in flight. It swaps the label for a spinner and, by default, blocks cancelling */
   submitDisabled: boolean
   /**
    * Why the form can't go ahead, once a press found a problem. The submit button then fades but stays

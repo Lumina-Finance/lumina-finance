@@ -29,7 +29,7 @@ from tests.routes.support import (
 )
 from tests.routes.support.lock_helpers import _wait_until_waiting_on
 
-# The zone every test signup stores, whose evening is already the next day in UTC
+# The zone every test signup stores. Its evening is already the next day in UTC
 USER_TZ = "America/Toronto"
 
 ALREADY_HAS_TRANSACTIONS = "This account already has transactions, so a starting balance can't be recorded"
@@ -226,7 +226,7 @@ async def test_record_starting_balance_on_a_new_group_account_uses_the_group_own
 
     resp = await _record_starting_balance(client, member_headers, account_data["id"], 50_00)
 
-    # The account is read back as of the admin's own day, which is still the day before the owner's
+    # The account is read back as of the admin's own day. That day is still the day before the owner's
     # day the balance is dated, so the admin sees no balance yet
     assert resp.status_code == 200
     assert (resp.json()["id"], resp.json()["current_balance"]) == (account_data["id"], 0)

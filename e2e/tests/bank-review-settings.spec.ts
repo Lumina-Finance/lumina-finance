@@ -15,13 +15,13 @@ import {
 import { AT_EVERY_SIZE } from '../support/sizes'
 import { API_BASE_URL } from '../support/target'
 
-// Runs on desktop only, apart from the one-line and failed save tests, which run at every size: the
+// Runs on desktop only, apart from the one-line and failed save tests (these run at every size): the
 // choices have to fit on one line, and the save message moves above the actions, on a phone
 
-// Review settings in a linked account's Bank link section, which choose whether each kind of bank
+// Review settings in a linked account's Bank link section choose whether each kind of bank
 // data waits for review or is applied as it arrives. The account links to an empty bank account on
 // the fake SimpleFIN Bridge, and the worker syncs it there. Which presets the saved choices open on
-// and the dialog's wording are covered by its unit tests, and the routes' refusals, a save leaving
+// and the dialogue's wording are covered by its unit tests, and the routes' refusals, a save leaving
 // the items already waiting alone, choices kept through an unlink and two saves at once by the
 // backend route tests
 const ROWS = [

@@ -87,7 +87,7 @@ def read_origin_list_setting(key: str) -> list[str]:
 
 
 def read_test_origin_setting(key: str) -> str | None:
-    """Return a testing-only origin, which may use plain HTTP, or None when it is unset
+    """Return a testing-only origin, or None when it is unset. The origin may use plain HTTP
 
     Raises:
         RuntimeError: The value is not an HTTP or HTTPS origin
@@ -97,7 +97,7 @@ def read_test_origin_setting(key: str) -> str | None:
 
 
 def read_count_setting(key: str, default: int, *, maximum: int | None = None) -> int:
-    """Return a setting that counts something, such as months, requests or jobs, which must be at least 1
+    """Return a setting that counts something, such as months, requests or jobs. It must be at least 1
 
     Args:
         key: Environment variable holding the count

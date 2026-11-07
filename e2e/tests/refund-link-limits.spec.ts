@@ -82,8 +82,8 @@ test('greys out the refunds that no longer fit and updates them as rows are pick
   await expect(tooltip).toHaveCSS('opacity', '1')
   await expect(press('$37.19')).toHaveAccessibleDescription(`+$37.19 ${OVER_THE_EXPENSE}`)
   // The greyed look eases in and out rather than snapping, at the app's disabled strength
-  // The row's whole content fades, its amount and category cells with its title. The row itself, which draws the
-  // keyboard focus ring, and the title button stay at full strength
+  // The row's whole content fades, its amount and category cells with its title. The row itself and the
+  // title button stay at full strength, and the row draws the keyboard focus ring
   const greyed = picker.getByTestId('link-candidate').first()
   const content = greyed.locator('[data-row-content]')
   await expect(content).toHaveCSS('transition-property', 'opacity')

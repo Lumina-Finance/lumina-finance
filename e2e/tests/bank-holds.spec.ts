@@ -11,7 +11,7 @@ import { API_BASE_URL } from '../support/target'
 // read-only Holds strip under the review block instead of the review block, with a two-press Dismiss
 // that stops the same record coming back.
 //
-// Everyday links to an empty bank account at Harbour Bank on the fake SimpleFIN Bridge, which sends a
+// Everyday links to an empty bank account at Harbour Bank on the fake SimpleFIN Bridge. The fake sends a
 // $12.50 coffee and a $0.00 card check, and the worker imports them.
 
 const CHECK = 'CARD CHECK HARBOUR'

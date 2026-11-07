@@ -35,7 +35,7 @@ def upgrade() -> None:
     """Create the bank transactions table, empty, and enable its row-level security
 
     Ledger transactions gain no column: every existing one has no bank transaction pointing at
-    it, so each reads as manual, which it is
+    it, so each reads as manual, and each is
     """
     op.create_table(
         "bank_transactions",

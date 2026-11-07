@@ -50,7 +50,7 @@ def test_import_range_of_an_empty_account_reaches_back_to_the_providers_limit():
 
 
 def test_import_range_floor_after_the_limit_raises_a_first_links_suggestion():
-    """A ledger running to 14 August starts the range on 15 August, which the 1 June suggestion is raised to"""
+    """A ledger running to 14 August starts the range on 15 August, and the 1 June suggestion is raised to it"""
     imported = _range(date(2026, 9, 23), date(2026, 8, 14))
 
     assert (imported.ledger_floor, imported.earliest_allowed) == (date(2026, 8, 15), date(2026, 8, 15))

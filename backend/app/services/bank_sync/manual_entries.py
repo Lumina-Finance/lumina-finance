@@ -66,7 +66,7 @@ async def refuse_days_a_bank_supplies(
 
     Args:
         db: Active database session
-        user: The user writing, whose profile timezone sets today
+        user: The user writing. Their profile timezone sets today
         dates_by_account: The dates of the transactions to be written, by the account each lands in
         name_accounts: Whether a refusal names the account, for a write that can cover more than
             one, where "this account" wouldn't say which
@@ -97,7 +97,7 @@ async def refuse_edits_a_bank_supplies(db: AsyncSession, user: User, edits: Sequ
 
     Args:
         db: Active database session
-        user: The user editing, whose profile timezone sets today
+        user: The user editing. Their profile timezone sets today
         edits: Each edited transaction's account and date before the edit and once it applies
         name_accounts: Whether a refused date names the account, for an edit that can cover more
             than one, where "this account" wouldn't say which
@@ -154,7 +154,7 @@ async def lock_bank_imports(db: AsyncSession, transaction_ids: Iterable[uuid.UUI
 async def detach_moved_bank_imports(db: AsyncSession, edits: Sequence[LedgerEdit]) -> None:
     """Delete the bank transaction of each bank-imported transaction these edits move to another account, with any review item open on it
 
-    Called after refuse_edits_a_bank_supplies, which refused a move out of a linked account and
+    Called after refuse_edits_a_bank_supplies. That refused a move out of a linked account and
     holds the accounts against a new link, so no sync writes these bank transactions meanwhile
 
     Args:
@@ -175,7 +175,7 @@ async def refuse_deleting_bank_imports(db: AsyncSession, transactions: Sequence[
     Args:
         db: Active database session
         transactions: The transactions about to be deleted, locked by the caller
-        in_bulk: Whether they were selected to delete together, which the refusal speaks of as
+        in_bulk: Whether they were selected to delete together. The refusal speaks of them as
             several, as it does a move of several
 
     Raises:
@@ -241,7 +241,7 @@ async def _read_live_links(db: AsyncSession, account_ids: Iterable[uuid.UUID]) -
     """
     ids = sorted(set(account_ids))
     await db.execute(select(Account.id).where(Account.id.in_(ids)).order_by(Account.id).with_for_update(read=True))
-    # A live link always has its connection, which stored the provider's name
+    # A live link always has its connection. The connection stored the provider's name
     rows = await db.execute(
         select(BankAccountLink.account_id, Account.name, BankAccountLink.provider, BankConnection.provider_name, BankAccountLink.import_start)
         .join(Account, Account.id == BankAccountLink.account_id)

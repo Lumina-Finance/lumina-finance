@@ -47,7 +47,7 @@ async def store_holds(
     """Make each link's account's holds, within the days fetched, the zero-amount records its bank account came back with
 
     A hold the response doesn't list for a day it fetched goes, as does one the bank reports removed
-    or with an amount, which then takes the booked path. A dismissed hold the bank still reports
+    or with an amount. The record then takes the booked path. A dismissed hold the bank still reports
     stays dismissed. A record dated before the link's import start is left out, as a booked one is.
     The caller locked the links and commits
 

@@ -2,7 +2,7 @@
  * Tests the payloads the transaction modal sends, so an edit patch carries only what changed, a
  * transfer pair writes each leg recording the other, the counterparty selection reaches the API as
  * an id and a scope, and Add to ledger sends the amount as entered without naming an account or
- * currency, which the server takes from the bank item
+ * currency. The server takes them from the bank item
  */
 import { describe, expect, it } from 'vitest'
 import { OUTSIDE_ACCOUNT_VALUE } from '@/utils/transfers'

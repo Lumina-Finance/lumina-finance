@@ -90,7 +90,7 @@ async def apply_account_updates(
     """
     should_archive = updates.get("is_archived") is True and not account.is_archived
     if should_archive:
-        # Archiving writes an adjustment dated today, which a linked account's bank supplies
+        # Archiving writes an adjustment dated today. A linked account's bank supplies it
         await refuse_archiving_a_linked_account(db, account)
         await validate_no_transactions_after_archive_date(db, account, archive_date)
 

@@ -80,7 +80,7 @@ async def _commit_open_item(
 
 
 async def test_review_list_reads_100_new_items_in_two_pages_of_50_newest_first(client):
-    """An import left 100 items over three days, and two leave after the first page, which the second neither repeats nor skips past"""
+    """An import left 100 items over three days, and two leave after the first page. The second neither repeats nor skips past it"""
     headers, _, account_id = await _everyday(client)
     days = [date(2026, 10, 3)] * 30 + [date(2026, 10, 2)] * 40 + [date(2026, 10, 1)] * 30
     async with TestSession() as session:
@@ -251,7 +251,7 @@ async def test_review_list_shows_the_description_the_user_kept_as_the_current_on
     """The user kept SQ *BLUE BOTTLE over the bank's BLUE BOTTLE COFFEE, and a correction to BLUE BOTTLE CAFE now waits
 
     The comparison's current description is the one kept, not the bank's from before the
-    correction, which the user declined
+    correction. The user declined it
     """
     headers, user_id, account_id = await _everyday(client)
     async with TestSession() as session:
@@ -303,8 +303,8 @@ async def test_review_list_protects_only_the_edited_fields_a_correction_changes(
         description="BLUE BOTTLE COFFEE",
         previous_values={"description": "SQ *BLUE BOTTLE"},
     )
-    # The same edit, and the bank removes the transaction while its change to $4.75 waits, which
-    # the removal takes the place of
+    # The same edit, and the bank removes the transaction while its change to $4.75 waits. The removal
+    # takes the place of that change
     removal = await _commit_open_item(
         account,
         category.id,
@@ -339,7 +339,7 @@ async def test_review_list_protects_only_the_edited_fields_a_correction_changes(
 
 
 async def test_review_list_for_one_account_leaves_out_the_others(client):
-    """Everyday's two items list without Savings' one, which every account's list includes"""
+    """Everyday's two items list without Savings' one. Every account's list includes it"""
     headers, _, everyday_id = await _everyday(client)
     savings_id = await _new_account(client, headers, "Savings")
     everyday_items = [await _commit_review_item(everyday_id, "TRN-1"), await _commit_review_item(everyday_id, "TRN-2")]

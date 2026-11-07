@@ -18,7 +18,7 @@ depends_on: str | Sequence[str] | None = None
 
 
 def upgrade() -> None:
-    """Add whether each link's latest import is still running, which the review pause waits for
+    """Add whether each link's latest import is still running. The review pause waits for it
 
     Links already stored count as importing until their next sync reaches today, so none pauses
     part way through an import running now

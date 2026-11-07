@@ -1,4 +1,4 @@
-"""Listing the user's bank links with their status, which the app keeps current while it's open
+"""Listing the user's bank links with their status. The app keeps that status current while it's open
 
 Every live link on the user's own personal accounts is listed, a link waiting for its bank account to
 be chosen again included, so each screen reads the same status the account's page does

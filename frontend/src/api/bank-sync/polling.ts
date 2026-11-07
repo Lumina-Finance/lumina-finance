@@ -43,7 +43,7 @@ function isLinkBusy(link: BankLink): boolean {
 }
 
 /**
- * Whether the server refused the read, which asking again will not change, as against a failure on
+ * Whether the server refused the read. Asking again will not change that, as against a failure on
  * the way there that the next attempt may not meet
  */
 export function isRefusedRead(error: Error | null): boolean {

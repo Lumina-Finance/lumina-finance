@@ -64,12 +64,12 @@ async def store_accepted_observations(
     Args:
         db: The owner's session
         observations: Each accepted bank transaction the bank sent, with the observation columns it
-            now sends, which differ from those stored unless the bank had reported it removed
+            now sends. They differ from those stored unless the bank had reported it removed
         removals: Each accepted bank transaction the bank newly reports removed
         observed_at: When the request that brought them was sent
 
     Returns:
-        Whether a trusted correction or removal changed the ledger, which the caller marks as a
+        Whether a trusted correction or removal changed the ledger. The caller marks it as a
         change to the owner's data rather than only to what their pages show
     """
     records = [record for record, _ in observations] + list(removals)
@@ -85,7 +85,7 @@ async def store_accepted_observations(
     }
     preferences = await read_review_preferences(db, {record.account_id for record in records})
 
-    # A refund link needs its amounts to stay as they are, which an edit is checked against, so a
+    # A refund link needs its amounts to stay as they are and an edit is checked against them, so a
     # bank's new amount for a linked transaction is left for the user, as an edit of it would be
     linked = set(await db.scalars(_select_linked(ledger)))
 

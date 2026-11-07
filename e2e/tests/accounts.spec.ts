@@ -13,7 +13,7 @@ import {
 import { AT_EVERY_SIZE } from '../support/sizes'
 import { API_BASE_URL } from '../support/target'
 
-// Runs on desktop only, apart from the lost save and account row focus tests, which run at every size:
+// Runs on desktop only. The lost save and account row focus tests run at every size:
 // the starting balance prompt's message and the account row's text sit differently at each width.
 // Creating, recording and editing accounts give the same result at every size
 

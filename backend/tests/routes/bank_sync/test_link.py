@@ -91,7 +91,7 @@ async def _queued_jobs() -> list[tuple]:
 
 
 async def _importing(account_id: str) -> bool:
-    """Return whether an import runs on the account's live link, which holds back its review pause"""
+    """Return whether an import runs on the account's live link. It holds back its review pause"""
     async with TestSession() as session:
         return await session.scalar(
             select(BankAccountLink.importing).where(

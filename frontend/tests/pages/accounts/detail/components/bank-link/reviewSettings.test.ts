@@ -1,7 +1,7 @@
 /**
  * Covers how Review settings names a set of choices: the preset every kind shares, or Custom
  *
- * These tests catch a mix of choices shown as Review all or Auto-approve all, which would hide the
+ * These tests catch a mix of choices shown as Review all or Auto-approve all, hiding the
  * rows that say what differs, and a preset that leaves one kind out
  */
 import { describe, expect, it } from 'vitest'
@@ -22,7 +22,7 @@ describe('getReviewPreset', () => {
     expect(getReviewPreset(choices('trust', 'trust', 'trust'))).toBe('trust')
   })
 
-  // Each kind the odd one out, which any mix of three has
+  // Each kind the odd one out, since any mix of three has one
   it.each([
     choices('trust', 'review', 'review'),
     choices('review', 'trust', 'review'),

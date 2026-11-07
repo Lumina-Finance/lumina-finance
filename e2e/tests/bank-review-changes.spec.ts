@@ -25,11 +25,11 @@ import { AT_EVERY_SIZE } from '../support/sizes'
 import { API_BASE_URL } from '../support/target'
 
 // Runs on desktop only, apart from the removal, failed decision and action alignment tests and the light
-// theme's readable comparison test, which run at every size: the comparison fills a phone's screen and
+// theme's readable comparison test (these run at every size): the comparison fills a phone's screen and
 // stacks its actions there, and a removal's rows each keep to one line even on a phone
 
 // A correction or a removal opens from its row in the review block in a comparison with its ledger
-// transaction, which accepts or keeps the bank's change, or removes or keeps the transaction.
+// transaction. The comparison accepts or keeps the bank's change, or removes or keeps the transaction.
 //
 // A correction comes from the fake SimpleFIN Bridge: Everyday links to an empty bank account at
 // Harbour Bank, the user adds the bank's Countdown spend to the ledger, the bank then changes its
@@ -42,14 +42,14 @@ const COUNTDOWN = 'COUNTDOWN 123 AUCKLAND'
 
 type Setup = { user: TestUser; everyday: SeededAccount; id: string }
 
-// Signed up fresh for every test, which keeps every account here
+// Signed up fresh for every test, keeping every account here
 test.afterEach(async ({ page }) => {
   await page.unrouteAll({ behavior: 'ignoreErrors' })
 })
 
 /**
- * Signs up with Everyday, linked to Everyday Chequing at Harbour Bank, whose $42.10 spend at Countdown
- * three days ago the user added to the ledger, changing the amount to `edited` minor units where
+ * Signs up with Everyday, linked to Everyday Chequing at Harbour Bank. The user added its $42.10 spend at
+ * Countdown three days ago to the ledger, changing the amount to `edited` minor units where
  * given. The bank then says $45.10, and a sync brings that in as a correction waiting for review.
  * Answers with the ledger transaction's id
  */
@@ -74,8 +74,8 @@ async function startWithCorrection(page: Page, request: APIRequestContext, edite
  * Signs up with Everyday holding $100.00 and an $18.00 Uber trip on Sep 21, read as imported from
  * SimpleFIN with a removal of it waiting. Each decision on the removal is answered as the server answers
  * it, a removal with nothing and a keep with the transaction it kept, and the list is read as empty once
- * one has been sent. What a decision does to the ledger is the server's to decide, which the backend
- * tests check, so these answers are canned. Answers with the transaction's id and each decision sent
+ * one has been sent. What a decision does to the ledger is the server's to decide and the backend
+ * tests check it, so these answers are canned. Answers with the transaction's id and each decision sent
  */
 async function startWithRemoval(page: Page, request: APIRequestContext): Promise<Setup & { decisions: string[] }> {
   const user = await signUpUser(request)
@@ -144,7 +144,7 @@ test("accepts a bank change over an amount the user edited, writing the bank's a
   await expect(toast(page, 'Bank change applied.')).toBeVisible()
   await expect(dialog).toBeHidden()
 
-  // The ledger holds the bank's amount, which is no longer the user's own
+  // The ledger holds the bank's amount, no longer the user's own
   await expectTransactionRow(page, id, `${MINUS}$45.10`)
   await expect(needsReview(row)).toHaveCount(0)
   await expect(row.getByTestId('bank-edited-dot').filter({ visible: true })).toHaveCount(0)

@@ -7,7 +7,7 @@
  * server refuses, an account's page naming its own account on every row, an amount written in
  * another account's currency, a failed read leaving no trace or vanishing while it is read again,
  * the header counting only the loaded page of a large backlog, a marker's request opening a block of
- * four or fewer, which closes itself again on every render, and the notice missing or worded unlike
+ * four or fewer, a block that closes itself again on every render, and the notice missing or worded unlike
  * the status labels. Following a
  * Needs review marker to an item and loading more as the open block scrolls run in the browser,
  * since they need effects and a layout

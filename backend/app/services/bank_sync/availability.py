@@ -108,7 +108,7 @@ def enabled_adapters() -> dict[str, ProviderAdapter]:
 # A link that still feeds its account, active or waiting for its bank account to be chosen again
 LIVE_LINK = BankAccountLink.state != BankLinkState.UNLINKED
 
-# Joins a link to its bank account as the connection's provider last listed it, which records the
+# Joins a link to its bank account as the connection's provider last listed it. That listing records the
 # bank login the account sits under
 LINK_LISTING = and_(
     BankExternalAccount.connection_id == BankAccountLink.connection_id,
@@ -145,7 +145,7 @@ def is_offered(provider: str) -> bool:
 
 
 def may_link_bank_accounts(user_id: uuid.UUID) -> bool:
-    """Return whether a user may link bank accounts, which the provider list and every linking request check
+    """Return whether a user may link bank accounts. The provider list and every linking request check this
 
     Every user may, so it always returns true
     """
@@ -163,7 +163,7 @@ def require_bank_linking(user_id: uuid.UUID) -> None:
 
 
 def get_enabled_adapter(provider: str) -> ProviderAdapter:
-    """Return the adapter for a provider the user chose, which this deployment has to enable
+    """Return the adapter for a provider the user chose. This deployment has to enable it
 
     Raises:
         HTTPException 422: The deployment doesn't enable the provider, or it is no longer installed

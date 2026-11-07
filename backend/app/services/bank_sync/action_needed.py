@@ -1,7 +1,7 @@
 """Flagging what only the user can fix for a bank connection to sync, emailing them once as each starts, and reading it back
 
 Reconnect needed: the provider rejected the connection's credential, so none of its automatic sync
-runs until the user reconnects it with a new one, which clears the mark
+runs until the user reconnects it with a new one. That clears the mark
 
 Bank sign-in needed: the provider says a bank login behind the connection needs the user to sign in
 again on the provider's site. Each of that login's accounts is marked as an attempt fails for it,
@@ -45,7 +45,7 @@ from app.services.email import RenderedEmail, get_email_sender, render_action_ne
 
 logger = logging.getLogger(__name__)
 
-# The Reconnect needed email, which leaves the provider's own message to the last attempt's reason.
+# The Reconnect needed email leaves the provider's own message to the last attempt's reason.
 # A connection with no linked accounts gets the opening and closing without the list
 _RECONNECT_SUBJECT = "Reconnect {provider} to resume syncing"
 _RECONNECT_LEAD = "{provider} rejected your {connection}, so syncing has stopped for:"
@@ -54,13 +54,13 @@ _RECONNECT_LEAD_UNLINKED = "{provider} rejected your {connection}."
 _RECONNECT_CLOSING_UNLINKED = "Reconnect it in Settings before linking accounts to it."
 
 # The Bank sign-in needed email, one per bank login, naming that login's accounts. The subject
-# leaves out the institution's name, which comes from the provider
+# leaves out the institution's name, since it comes from the provider
 _SIGNIN_SUBJECT = "Sign in to your bank again in {site}"
 _SIGNIN_LEAD = "Sign in to {institution} again in {site}. Until you do, syncing has stopped for:"
 _SIGNIN_CLOSING = "Lumina Finance checks daily and picks up where it left off once you have."
 
 # The Choose bank account email, one per account a sync's listing moved there, worded as the
-# settings section explains it. The subject leaves out the names, which come from the user and the provider
+# settings section explains it. The subject leaves out the names, since they come from the user and the provider
 _CHOOSE_SUBJECT = "Choose a bank account again to resume syncing"
 _CHOOSE_LEAD = (
     "{provider} now lists {bank_account} differently, so Lumina Finance can't tell whether it's the same account. "
@@ -104,7 +104,7 @@ async def read_actions_needed(db: AsyncSession, account_ids: Collection[uuid.UUI
     """Return what the user has to do for each account's sync to resume, for the accounts that need something
 
     Every account still linked through a connection whose credential was rejected needs a
-    reconnect, from when the credential was rejected, which comes before any bank sign-in, since
+    reconnect, from when the credential was rejected. That comes before any bank sign-in, since
     reconnecting comes first. Otherwise a link marked as waiting on a bank sign-in needs one, from
     when it was marked. An account no longer linked needs nothing
 
@@ -138,9 +138,9 @@ async def flag_rejected_credential(db: AsyncSession, connection: BankConnection,
     without a request, so the connection here is never marked yet
 
     Args:
-        db: The owner's session, which the caller commits
+        db: The owner's session, committed by the caller
         connection: The connection, as locked
-        at: When the request the provider rejected was sent, which the mark starts at
+        at: When the request the provider rejected was sent. The mark starts at that time
 
     Returns:
         The email to send once the save commits
@@ -175,10 +175,10 @@ async def flag_signin_needed(
     active links was marked before, so the mark an unlinked account was left with doesn't keep it going
 
     Args:
-        db: The owner's session, which the caller commits, with the connection and the links locked
+        db: The owner's session, committed by the caller, with the connection and the links locked
         connection: The connection, as locked
         links: The links the attempt failed for with a bank sign-in problem, as locked
-        at: When the attempt's request was sent, which the marks start at
+        at: When the attempt's request was sent. The marks start at that time
 
     Returns:
         The emails to send once the save commits, one for each login whose state started
@@ -202,7 +202,7 @@ async def flag_signin_needed(
     for link in marking:
         link.signin_needed_since = at
 
-    # Every linked bank account keeps its listing, which records the login it sits under
+    # Every linked bank account keeps its listing, and the listing records the login it sits under
     rows = await db.execute(
         select(BankExternalAccount.login_key, BankExternalAccount.institution_name, Account.name)
         .join(BankAccountLink, LINK_LISTING)
@@ -270,7 +270,7 @@ async def choose_account_emails(db: AsyncSession, connection: BankConnection, li
 
 
 async def send_action_emails(outbox: list[ActionEmail]) -> None:
-    """Send the action-needed emails waiting in an outbox, whose saves have committed, through the configured sender
+    """Send the action-needed emails waiting in an outbox through the configured sender, once their saves have committed
 
     Each is taken out once tried, so it is sent at most once: one that fails is logged and not tried
     again, since its state has already started and shows in the app either way. The caller's time

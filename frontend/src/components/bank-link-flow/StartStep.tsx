@@ -12,7 +12,7 @@ type StartStepProps = {
   bankAccountName: string
   providerName: string
 
-  /** Whether the provider says how much history it holds for each bank, which makes its limit a promise */
+  /** Whether the provider says how much history it holds for each bank, and that makes its limit a promise */
   advertisesHistory: boolean
   startChoice: StartChoiceState
   disabled: boolean

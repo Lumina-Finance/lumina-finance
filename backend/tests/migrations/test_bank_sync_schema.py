@@ -492,7 +492,7 @@ def _app_role_engine(database_name: str) -> AsyncEngine:
 
 
 async def test_migration_revisions_tell_the_app_role_the_database_is_at_head(migrated_database):
-    """The worker checks the migration level through its own role, which can't read the history"""
+    """The worker checks the migration level through its own role. That role can't read the history"""
     head = ScriptDirectory.from_config(Config(str(_BACKEND_DIR / "alembic.ini"))).get_current_head()
     engine = _app_role_engine(migrated_database)
     try:

@@ -123,7 +123,7 @@ function buildFormFromTransaction(
  * An amount sent with more decimal places than the currency holds, or one in a currency the table
  * doesn't carry, starts empty for the user to enter, its direction still following the bank's sign
  *
- * @param currency - The currency of the item's account, which the amount is in
+ * @param currency - The currency of the item's account, the one the amount is in
  */
 export function buildReviewItemForm(
   item: Pick<BankReviewItem, 'account_id' | 'bank'>,

@@ -1,6 +1,6 @@
 """Outbound request guard for bank provider requests
 
-A credential the user pastes can carry a URL they control, which the server then calls, so every
+A credential the user pastes can carry a URL they control, and the server then calls it, so every
 provider request goes through this guard to keep a crafted URL from reaching an internal service.
 Only an allowed HTTPS origin is contacted, every address its host resolves to must be public, and
 the connection goes to the address that was checked, so a DNS answer that changes in between
@@ -97,8 +97,8 @@ class OutboundGuard:
             test_origin: Testing only, the one origin requests may reach while it is set, every
                 other origin, the allowed ones included, being refused. It is exempt from the
                 HTTPS and public address checks
-            resolve: Resolves a host name, which tests substitute
-            transport: Transport to send through, which tests substitute
+            resolve: Resolves a host name. Tests substitute it
+            transport: Transport to send through. Tests substitute it
         """
         self._allowed_origins = {_origin_of(httpx.URL(origin)) for origin in allowed_origins}
         self._test_origin = _origin_of(httpx.URL(test_origin)) if test_origin else None
@@ -112,8 +112,8 @@ class OutboundGuard:
             url: The URL a request would go to
 
         Raises:
-            OriginRefused: The URL carries user info, isn't HTTPS, or is on an origin not allowed, which
-                while a test origin is set is every origin but that one
+            OriginRefused: The URL carries user info, isn't HTTPS, or is on an origin not allowed. While
+                a test origin is set, that is every origin but that one
         """
         if url.userinfo:
             raise OriginRefused(f"A URL for {url.host} carries user info")
@@ -173,7 +173,7 @@ class OutboundGuard:
 
         if not addresses:
             raise httpx.ConnectError(f"Couldn't resolve {host}")
-        # An IPv4 address written in IPv6 form is judged as the IPv4 address it reaches, which
+        # An IPv4 address written in IPv6 form is judged as the IPv4 address it reaches. That is what
         # is_global does itself since Python 3.13
         if not is_test_origin and not all(address.is_global for address in addresses):
             raise AddressRefused(f"{host} resolves to an address that isn't public")

@@ -34,7 +34,7 @@ import { AT_EVERY_SIZE } from '../support/sizes'
 import { API_BASE_URL } from '../support/target'
 
 // Runs on desktop only, apart from the balance comparison, unavailable balance, retry and rejected
-// connection tests, which run at every size: the balances, the notes over them and the notice's action
+// connection tests. These run at every size: the balances, the notes over them and the notice's action
 // take their own layouts at each width. The tests that reopen Sync details set the one size they check
 
 // A linked account's bank sync status, as its page shows it once the worker has met each situation
@@ -84,7 +84,7 @@ async function answerSyncing(page: Page, accountId: string): Promise<void> {
 const FOCUS_RING_PX = 3
 
 /**
- * The boxes in the dialog that cut off part of an element, or of the room it needs around it for its
+ * The boxes in the dialogue that cut off part of an element, or of the room it needs around it for its
  * focus ring, named by their classes
  */
 async function readClippingBoxes(element: Locator, room = 0): Promise<string[]> {
@@ -100,7 +100,7 @@ async function readClippingBoxes(element: Locator, room = 0): Promise<string[]> 
       const cutsDown = style.overflowY !== 'visible' && (rect.top - needed < bounds.top - 0.5 || rect.bottom + needed > bounds.bottom + 0.5)
       if (cutsAcross || cutsDown) clipping.push(`${box.tagName.toLowerCase()}.${box.className}`)
 
-      // The page behind the dialog doesn't hold it, so nothing past the dialog cuts it off
+      // The page behind the dialogue doesn't hold it, so nothing past the dialogue cuts it off
       if (box.getAttribute('role') === 'dialog') break
     }
     return clipping
@@ -191,7 +191,7 @@ async function linkWithBalances(
   await linkToSampleBankAccount(request, user, { accountId, bankAccountName: SAMPLE_CHEQUING, balances })
 }
 
-// A read answered here can still be on its way to the page when a test ends, which would otherwise
+// A read answered here can still be on its way to the page when a test ends, and would otherwise
 // surface as an error outside any test
 test.afterEach(async ({ page }) => {
   await page.unrouteAll({ behavior: 'ignoreErrors' })
@@ -276,11 +276,11 @@ test('shows a bank balance that can\'t be read exactly as unavailable, its reaso
 })
 
 test('opens the reason for a gap below the difference where the dialog leaves no room above it', async ({ page, request }) => {
-  // A short window, where each balance's value sits under its label and the dialog's body scrolls
+  // A short window, where each balance's value sits under its label and the dialogue's body scrolls
   const dialog = await openBalancesThatDiffer(page, request, { width: 1280, height: 480 })
   const difference = fact(dialog, /^Difference/)
 
-  // Scrolled until the difference is at the top of the dialog's body
+  // Scrolled until the difference is at the top of the dialogue's body
   await difference.evaluate((element) => element.parentElement!.scrollIntoView({ block: 'start', behavior: 'instant' }))
   await dialog.getByRole('button', { name: 'Why the balances differ' }).click()
   const reason = dialog.locator('.app-tooltip-panel').filter({ hasText: 'Most gaps come from' })
@@ -288,7 +288,7 @@ test('opens the reason for a gap below the difference where the dialog leaves no
   expect(await isCovering(reason, difference)).toBe(false)
   await expect.poll(() => readClippingBoxes(reason)).toEqual([])
 
-  // Below the value, since above the balance it would run off the top of the dialog's body
+  // Below the value, since above the balance it would run off the top of the dialogue's body
   const [opened, explained] = await readBoxes(page, [reason, difference])
   expect(opened.y).toBeGreaterThanOrEqual(explained.y + explained.height)
 })
@@ -314,7 +314,7 @@ for (const { shown, show } of [
     const [opened, bankBalance] = await readBoxes(page, [reason, fact(dialog, 'SimpleFIN').locator('..')])
     expect(opened.y + opened.height).toBeLessThanOrEqual(bankBalance.y)
 
-    // Scrolled with the reason showing until the difference is at the top of the dialog's body, which
+    // Scrolled with the reason showing until the difference is at the top of the dialogue's body. That
     // leaves the reason no room above the balances
     await fact(dialog, /^Difference/).evaluate((element) => element.parentElement!.scrollIntoView({ block: 'start', behavior: 'instant' }))
     await expect.poll(() => readClippingBoxes(reason)).toEqual([])
@@ -327,7 +327,7 @@ for (const { shown, show } of [
 const RETRYING_STATUS = /Retrying at (\w{3} \d{1,2}, )?\d{1,2}:\d{2}\s[ap]\.m\./
 
 /**
- * Scrolls the fact to the foot of the dialog's body and returns once the scroll has gone out to the
+ * Scrolls the fact to the foot of the dialogue's body and returns once the scroll has gone out to the
  * page's listeners, and a message sent after them has come back, so a render React queued from one, in
  * a message of its own, has run first. Where the fact already sits at the foot, as on a screen tall
  * enough for the whole modal, nothing scrolls and there's nothing to wait for
@@ -356,11 +356,11 @@ async function readOffsetFromIcon(page: Page, panel: Locator, icon: Locator): Pr
 }
 
 // A screen on which the status at the foot of the modal leaves Sync details no room below it, the size
-// of the tablet project's, which the tests that need a screen this short set themselves
+// of the tablet project's. Tests that need a screen this short set the size themselves
 const FOOT_LEAVES_NO_ROOM_BELOW = { width: 1194, height: 834 }
 
 /**
- * Links a new account into a failed sync and opens its Bank link, returning the dialog with the Sync
+ * Links a new account into a failed sync and opens its Bank link, returning the dialogue with the Sync
  * details icon and panel in it
  */
 async function openRetryingLink(page: Page, request: APIRequestContext) {
@@ -442,7 +442,7 @@ test('blinks the status dot while a sync fetches, in the modal as on the card', 
   const bankSync = page.getByRole('button', { name: 'Bank sync: Syncing. Open bank link' })
   await expect.poll(() => isBlinking(bankSync.getByTestId('sync-status-dot'))).toBe(true)
 
-  // The modal opens with the link already read, which its first view mustn't hold still
+  // The modal opens with the link already read. Its first view mustn't hold still
   await bankSync.click()
   const dialog = page.getByRole('dialog', { name: 'Edit account', exact: true })
   await expect.poll(() => isBlinking(fact(dialog, 'Status').getByTestId('sync-status-dot'))).toBe(true)

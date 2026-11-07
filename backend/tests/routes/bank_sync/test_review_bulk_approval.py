@@ -265,7 +265,7 @@ async def test_preview_gives_no_balance_change_for_a_date_correction_of_an_amoun
 
 
 async def test_preview_follows_the_account_filter(client):
-    """Filtered to Savings, which has only new items, nothing can be approved, and filtered to Everyday only Everyday's items are previewed"""
+    """Savings has only new items, so filtered to it nothing can be approved, and filtered to Everyday only Everyday's items are previewed"""
     everyday = await _everyday_waiting(client)
     for number in range(2):
         await _commit_review_item(everyday.ledger.savings_id, f"TRN-SAVINGS-{number}")

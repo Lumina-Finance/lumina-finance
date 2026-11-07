@@ -122,7 +122,7 @@ async def test_listing_says_which_institutions_look_different_from_the_accounts(
     ids=["3-hours-ago", "20-minutes-ago"],
 )
 async def test_listing_marks_the_cache_changed_only_when_it_asks_for_a_fresh_discovery(client, last_discovered, asks):
-    """Listed 3 hours ago, opening the flow queues a discovery, which other sessions learn of. Listed 20 minutes ago, nothing changes
+    """Listed 3 hours ago, opening the flow queues a discovery that other sessions learn of. Listed 20 minutes ago, nothing changes
 
     Which ages ask for a discovery is tested to the second in the service tests
     """

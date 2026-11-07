@@ -58,7 +58,7 @@ interface UseTransactionSubmitOptions {
   flushDeferredRefresh: () => void
   closeModal: () => void
 
-  /** Turns the submit into Add to ledger for this bank item, which Dismiss can decide instead */
+  /** Turns the submit into Add to ledger for this bank item, and Dismiss can decide it instead */
   reviewItem?: BankReviewItem
 
   /** Called once the review item is added or dismissed while the modal is open, with the keep-open choice */

@@ -52,10 +52,10 @@ _HEADERS = {"User-Agent": f"LuminaFinance/{APP_VERSION}" if APP_VERSION else "Lu
 _PROTOCOL_VERSION = ("version", "2")
 
 # A setup token is the base64 of one claim URL, about 100 characters, so this leaves room to spare.
-# The Connect dialogue holds the same limit, which the providers list sends it
+# The Connect dialogue holds the same limit. The providers list sends it
 MAX_SETUP_TOKEN_LENGTH = 2048
 
-# The one credential field, which the claim sends the setup token under
+# The one credential field. The claim sends the setup token under that name
 SETUP_TOKEN_KEY = "setup_token"  # noqa: S105 - a field name, not a secret
 
 _SETUP_BLANK_MESSAGE = "Paste the setup token from SimpleFIN Bridge"

@@ -179,7 +179,7 @@ async def test_claim_with_the_provider_withdrawn_is_refused(client, fake_provide
 
 @pytest.mark.parametrize("gone", ["turned-off", "removed", "never-installed"])
 async def test_claim_with_a_provider_this_server_lacks_is_refused(client, fake_provider, monkeypatch, gone):
-    """A provider turned off, whose folder was deleted, or that never existed has nothing to claim with"""
+    """A provider that is turned off, has had its folder deleted or never existed has nothing to claim with"""
     _claimable(fake_provider)
     provider = "fake"
     if gone == "turned-off":

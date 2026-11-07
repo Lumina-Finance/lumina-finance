@@ -27,13 +27,13 @@ import { AT_EVERY_SIZE } from '../support/sizes'
 import { API_BASE_URL } from '../support/target'
 
 // Runs on desktop only, apart from the light theme's filing card test and the footer and short phone
-// screen tests, which run at every size: the card and the footer take their own layouts at each width,
-// and a phone gives the dialog its whole screen
+// screen tests. Those run at every size: the card and the footer take their own layouts at each width,
+// and a phone gives the dialogue its whole screen
 
-// A new bank item opens from its row in the review block in the transaction modal, which files it
-// into the ledger or dismisses it.
+// A new bank item opens from its row in the review block in the transaction modal. The item is filed
+// into the ledger or dismissed.
 //
-// Everyday links to an empty bank account at Harbour Bank on the fake SimpleFIN Bridge, which sends
+// Everyday links to an empty bank account at Harbour Bank on the fake SimpleFIN Bridge. The bridge sends
 // the transactions each test needs, and the worker imports them for review, so every decision goes to
 // the server and what it saved is read back. Only what the server doesn't give is answered in its
 // place: a failed or unanswered decision, and pages of two items for a list too short to need a second
@@ -55,7 +55,7 @@ const EDITED_DATE = daysFromTodayInTestTimezone(-3)
 const ASIDE_MIN_WIDTH = 1320
 const FULL_SCREEN_BELOW = 1050
 
-// Signed up and linked fresh for every test, which keeps every account here
+// Signed up and linked fresh for every test. That keeps every account here
 test.afterEach(async ({ page }) => {
   await page.unrouteAll({ behavior: 'ignoreErrors' })
 })
@@ -74,7 +74,7 @@ async function start(page: Page, request: APIRequestContext, transactions: Bridg
   return { user, everyday, savings }
 }
 
-/** Opens a new item from its row in the review block, and answers with the review dialog */
+/** Opens a new item from its row in the review block, and answers with the review dialogue */
 async function openReview(page: Page, description: string): Promise<Locator> {
   await reviewBlock(page).getByRole('button', { name: description }).click()
   const dialog = page.getByRole('dialog', { name: DIALOG_NAME })
@@ -82,7 +82,7 @@ async function openReview(page: Page, description: string): Promise<Locator> {
   return dialog
 }
 
-/** The filing card shown for the item under review, beside the dialog or inside it */
+/** The filing card shown for the item under review, beside the dialogue or inside it */
 function filingCard(page: Page): Locator {
   return page.getByRole('region', { name: 'SimpleFIN filing card' })
 }
@@ -106,7 +106,7 @@ function formOf(dialog: Locator) {
   }
 }
 
-/** Dismisses the open item, which takes the two presses of Dismiss and Yes, dismiss */
+/** Dismisses the open item, in the two presses of Dismiss and Yes, dismiss */
 async function dismissItem(dialog: Locator): Promise<void> {
   const { dismiss, confirmDismiss } = formOf(dialog)
   await dismiss.click()
@@ -155,8 +155,8 @@ test('opens a new item as the bank sent it beside its filing card, and adds noth
   const decisions = watchDecisions(page)
   await expect(dialog.getByText('New from SimpleFIN', { exact: true })).toBeVisible()
 
-  // An expense, since the money went out, for the bank's amount on its date in the account it came to,
-  // which stays put
+  // An expense, since the money went out, for the bank's amount on its date in the account it came to.
+  // That account stays put
   const [year, month, day] = COUNTDOWN.posted.split('-')
   await expect(dialog.getByRole('tab', { name: 'Expense', exact: true })).toHaveAttribute('aria-selected', 'true')
   await expect(form.amount).toHaveValue('42.10')
@@ -178,7 +178,7 @@ test('opens a new item as the bank sent it beside its filing card, and adds noth
   await expect(card).toContainText('Everyday Chequing')
   await expect(card).toContainText(COUNTDOWN.description)
 
-  // The bank's description starts the notes, which the user may change
+  // The bank's description starts the notes, and the user may change them
   await expect(form.notes).toHaveValue(COUNTDOWN.description)
 
   await form.add.click()
@@ -205,7 +205,7 @@ test('adds an item with its date and amount changed, and with the window kept op
   await form.amount.fill('40.00')
   await form.keepOpen.check()
 
-  // Three days ago is a day Everyday's bank supplies, which a manual entry may not take, and a review may
+  // Three days ago is a day Everyday's bank supplies. A manual entry may not take it, and a review may
   const id = await addToLedger(page, dialog)
 
   // The next new item, in a fresh form with the window still open
@@ -213,7 +213,7 @@ test('adds an item with its date and amount changed, and with the window kept op
   await expect(form.amount).toHaveValue('12.50')
   await expectMerchantAndCategoryEmpty(dialog)
   await expect(form.keepOpen).toBeChecked()
-  // Behind the open dialog, which takes the page out of the accessibility tree
+  // Behind the open dialogue. It takes the page out of the accessibility tree
   await expect(page.getByTestId('review-count')).toHaveText('1')
   await expect(page.getByTestId(`transaction-row-${id}`)).toBeVisible()
 
@@ -224,7 +224,7 @@ test('adds an item with its date and amount changed, and with the window kept op
   await expectTransactionRow(page, id, `${MINUS}$40.00`)
 
   // Saved in Everyday under the merchant and category chosen, on the day and with the amount the user
-  // changed, which count as their edits
+  // changed. Those count as their edits
   expect(await readTransaction(request, user, id)).toMatchObject({
     account_id: everyday.id,
     dt: EDITED_DATE,
@@ -258,7 +258,7 @@ test('records money in from Savings as one transfer that names Savings, kept as 
   // The bank recorded one side only, so recording the other is left to Savings' own bank
   await expect(dialog.getByRole('checkbox', { name: /Record in both accounts/ })).toHaveCount(0)
 
-  // A bank item's transfer names one of the user's own accounts, which a group account isn't
+  // A bank item's transfer names one of the user's own accounts, and a group account isn't one
   await counterparty.click()
   await expect(dialog.getByRole('option', { name: 'Savings' })).toBeVisible()
   await expect(dialog.getByRole('option', { name: 'Household' })).toHaveCount(0)
@@ -471,8 +471,8 @@ for (const colorScheme of ['light', 'dark'] as const) {
 
     // The layout is the same in either theme, so it is measured in the light one only
     if (colorScheme === 'light') {
-      // Beside the dialog, level with its top, wherever there is room, and otherwise at the head of the
-      // form inside it. A phone gives the dialog its whole screen. Read once the dialog has settled
+      // Beside the dialogue, level with its top, wherever there is room, and otherwise at the head of the
+      // form inside it. A phone gives the dialogue its whole screen. Read once the dialogue has settled
       await expect(async () => {
         const [dialogBox, cardBox, amountBox] = await Promise.all([dialog, card, amount].map((part) => part.boundingBox()))
         if (viewport.width >= ASIDE_MIN_WIDTH) {
@@ -511,7 +511,7 @@ for (const colorScheme of ['light', 'dark'] as const) {
 // sides alike, so Keep window open started further in than the title and the form's numbered sections,
 // and Add to ledger stopped short of where the fields end. The footer stacks its items below 640 and sets
 // them in a row from there, so each layout is checked once: stacked on the phone, and in a row at the
-// widest screen the dialog fills
+// widest screen the dialogue fills
 for (const { project, width } of [{ project: 'phone', width: null }, { project: 'desktop', width: 1049 }] as const) {
   test(`lines the footer up with the form above it on the ${project}`, AT_EVERY_SIZE, async ({ page, request }) => {
     test.skip(test.info().project.name !== project, 'Each layout of the footer is checked at one width')
@@ -521,7 +521,7 @@ for (const { project, width } of [{ project: 'phone', width: null }, { project: 
 
     const dialog = await openReview(page, COUNTDOWN.description)
     const form = formOf(dialog)
-    // Measured together and polled, since the dialog scales in as it opens and edges read mid-animation
+    // Measured together and polled, since the dialogue scales in as it opens and edges read mid-animation
     // drift apart by however far it has to go. Keep window open's checkbox starts the footer, as it does
     // in the Add Transaction footer, and Amount ends the fields
     const readEdgeOffsets = async () => {
@@ -630,7 +630,7 @@ test('eases Dismiss to Yes, dismiss and back rather than jumping between their w
           requestAnimationFrame(frame)
         }),
     )
-  // The first width the button takes once it starts moving, which a jump makes its final width
+  // The first width the button takes once it starts moving. A jump makes that its final width
   const firstMove = (widths: number[]) => widths.find((width) => Math.abs(width - widths[0]) > 1)
 
   const narrow = (await form.dismiss.boundingBox())!.width

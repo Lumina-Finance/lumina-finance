@@ -129,7 +129,7 @@ export function invalidateAccountAggregateData(
 }
 
 /**
- * Invalidates the rollups a newly created account joins, which starts at a zero balance
+ * Invalidates the rollups a newly created account joins. The account starts at a zero balance
  */
 export function invalidateCreatedAccountData(
   queryClient: QueryClient,

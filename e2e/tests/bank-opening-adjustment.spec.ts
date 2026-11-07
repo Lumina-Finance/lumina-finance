@@ -28,9 +28,9 @@ import { contrastOf, MIN_TEXT_CONTRAST, MINUS, readBoxes } from '../support/sele
 import { AT_EVERY_SIZE } from '../support/sizes'
 import { API_BASE_URL } from '../support/target'
 
-// Runs on desktop only, apart from the answers' layout test and the light theme's readable offer test,
-// which run at every size, and the message test, which runs on the phone: the answers take a row each
-// under the amount on a phone, and the offer may not scroll sideways at any width
+// Runs on desktop only, apart from the answers' layout test, the light theme's readable offer test and the
+// message test. The first two run at every size and the message test runs on the phone: the answers take
+// a row each under the amount on a phone, and the offer may not scroll sideways at any width
 
 // The one-time opening adjustment a linked account offers once its import is in with nothing left to
 // review, at the foot of the Bank link section's balance panel, run by the worker against the fake
@@ -112,7 +112,7 @@ async function readLedger(request: APIRequestContext, { user, accountId }: Setup
   return { rows: stored.map(({ dt, amount }) => [dt, amount]), notes: stored.map(({ notes }) => notes) }
 }
 
-// A request held or refused here can still be on its way to the page when a test ends, which would
+// A request held or refused here can still be on its way to the page when a test ends, and would
 // otherwise surface as an error outside any test
 test.afterEach(async ({ page }) => {
   await page.unrouteAll({ behavior: 'ignoreErrors' })
@@ -134,7 +134,7 @@ test('keeps the offer when a sync brings an item to review, naming the amount of
   const { setup, offer } = await openOffer(page, request)
   await expect(offer.amount).toHaveValue('250.00')
 
-  // SimpleFIN's balance takes in a 4.50 coffee from today, which waits for review
+  // SimpleFIN's balance takes in a 4.50 coffee from today. That coffee waits for review
   await addBridgeTransactions(request, setup.scenarioId, setup.bankAccountId, [
     { posted: daysFromTodayInTestTimezone(0), amount: '-4.50', description: 'HARBOUR COFFEE' },
   ])
@@ -169,7 +169,7 @@ test('keeps the amount and the answers in place on a phone when a message shows 
   await page.setViewportSize({ width: 390, height: 844 })
   const { offer } = await openOffer(page, request)
 
-  // Each control's place below the sentence, which scrolling the modal moves alike
+  // Each control's place below the sentence. Scrolling the modal moves them alike
   const placed = async () => {
     const [sentence, ...controls] = await readBoxes(page, [offer.sentence, offer.amount, offer.skip, offer.record])
     return controls.map(({ y }) => Math.round(y - sentence.y))
@@ -184,7 +184,7 @@ test('keeps the amount and the answers in place on a phone when a message shows 
 
   // Every frame from the change until the new message shows on its own, whole and still: the field's
   // place, where a click on an answer would otherwise land off, and whether two messages still showing
-  // cross, which neither could then be read through
+  // cross. Neither could then be read through
   type Frame = { place: number; crossing: boolean }
   const sampling = offer.sentence.evaluate((sentence, { field, message, frameLimit }) => new Promise<{ frames: Frame[]; settled: boolean }>((resolve) => {
     const row = document.querySelector(`label[for="${field!.id}"]`)!.parentElement!
@@ -441,7 +441,7 @@ for (const colorScheme of ['light', 'dark'] as const) {
     }
 
     // So can the signed currency symbol before the amount, read against the tint the field takes for its
-    // error, which is drawn behind the symbol rather than around it
+    // error. The tint is drawn behind the symbol rather than around it
     await expect(offer.amount).toHaveClass(/app-input-error/)
     const symbol = await faintestText(offer.amount.locator('..').getByText(/^[+−]?\$$/))
     expect(symbol.contrast, `"${symbol.text}" before the amount`).toBeGreaterThanOrEqual(MIN_TEXT_CONTRAST)

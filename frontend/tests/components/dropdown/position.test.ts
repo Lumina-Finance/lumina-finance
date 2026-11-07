@@ -1,7 +1,7 @@
 /**
  * Tests where the open dropdown sits, how much of it the option list gets and how wide it opens,
  * so a change catches a box growing off the screen, out of its modal over the backdrop or over a
- * dialog's title or buttons, a list kept inside a short modal too short to read, a head that shifts
+ * dialogue's title or buttons, a list kept inside a short modal too short to read, a head that shifts
  * as the box opens, or a list clipped by its own box
  */
 import { describe, expect, it } from 'vitest'
@@ -107,7 +107,7 @@ describe('dropdown box placement', () => {
   })
 
   it('keeps the box inside a dialog’s body when the panel around it leaves fewer than five rows', () => {
-    // The same Category field, with the dialog's panel around the body as every bounded field has
+    // The same Category field, with the dialogue's panel around the body as every bounded field has
     const bounds = { bottom: 643, top: 172 }
     const position = getDropdownBoxPosition({
       ...head,

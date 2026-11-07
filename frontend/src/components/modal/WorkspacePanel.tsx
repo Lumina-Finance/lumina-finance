@@ -5,7 +5,7 @@ import { ModalShell, type ModalLevel } from '@/components/modal/Shell'
 type ModalWorkspacePanelProps = {
   open: boolean
   onClose: () => void
-  /** Id given to the heading, which is what the dialog is labelled by */
+  /** Id given to the heading that the dialogue is labelled by */
   titleId: string
   /** The kind of thing being managed, shown above its name */
   eyebrow: string

@@ -85,7 +85,7 @@ async def insert_transaction(
     Args:
         db: Active database session
         user: The user creating the transaction
-        account: The account named by the payload, which the user may write to
+        account: The account named by the payload, one the user may write to
         data: Transaction creation payload
 
     Returns:

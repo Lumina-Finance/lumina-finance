@@ -337,7 +337,7 @@ async def revoke_access(scenario_id: str):
 
 def _setup_token(request: Request, scenario: Scenario) -> str:
     """Return a setup token, the base64 of a claim URL on the fake's test origin, or else on whatever address the caller reached it at"""
-    # Read from the setting the app reads, which agrees with the app's only when whoever starts the
+    # Read from the setting the app reads. It agrees with the app's only when whoever starts the
     # two gives both the same value, as the dev instance tooling and the browser tests' Compose
     # file do. Then a token minted at another address, such as the port a browser test's machine
     # reaches, still sends the app's claim somewhere the app can reach. Blank when the fake is
@@ -365,7 +365,7 @@ def _find[T](items: list[T], key: str, value: str, entity: str) -> T:
 
 
 def _refuse_taken_id(new_id: str, taken: list[str]) -> None:
-    """Refuse an id another item already has, which the Bridge would never send twice"""
+    """Refuse an id another item already has, since the Bridge would never send one twice"""
     if new_id in taken:
         raise HTTPException(status.HTTP_409_CONFLICT, f"{new_id} is already taken")
 

@@ -25,7 +25,7 @@ export type ProvidersAnswer = { may_link: boolean; sync_running: boolean; provid
 
 /**
  * Changes the server's answer to the bank providers read before the page sees it, such as whether the
- * deployment's worker is running, which a spec can't switch on the instance itself
+ * deployment's worker is running. A spec can't switch that on the instance itself
  */
 export async function changeProviders(page: Page, change: (body: ProvidersAnswer) => void | Promise<void>): Promise<void> {
   await page.route(`${API_BASE_URL}/bank-sync/providers`, async (route) => {
@@ -150,7 +150,7 @@ export const BANK_SOURCE: BankSource = {
 /**
  * Sends a request the page made on to the instance, changed as given, on a connection of its own. The
  * instance closes a connection left idle for its keep-alive, and a request sent on one as it closes
- * is hung up on, which the browser would send again on a new one but a route's fetch doesn't
+ * is hung up on. The browser would send it again on a new one but a route's fetch doesn't
  */
 export async function fetchOnOwnConnection(
   route: Route,
@@ -181,7 +181,7 @@ export async function answerAsBankImported(page: Page, sources: Record<string, B
 export type BankLinkSyncStatus = {
   last_success_at: string | null
 
-  /** Whether a sync is under way, which the app polls for every couple of seconds */
+  /** Whether a sync is under way. The app polls for it every couple of seconds */
   sync_in_progress: boolean
 
   /** New items waiting for their first review */
@@ -189,8 +189,8 @@ export type BankLinkSyncStatus = {
 }
 
 /**
- * An account's live link as the server answers it, to Example Bank's chequing, which imports from
- * Jan 1, 2026 and has never synced, with nothing waiting, unless `status` says otherwise
+ * An account's live link as the server answers it, to Example Bank's chequing. That account imports
+ * from Jan 1, 2026 and has never synced, with nothing waiting, unless `status` says otherwise
  */
 export function buildLinkAnswer(accountId: string, status: Partial<BankLinkSyncStatus> = {}) {
   const { last_success_at = null, sync_in_progress = false, waiting_new_count = 0 } = status
@@ -240,23 +240,23 @@ export async function answerLinksWith(
   })
 }
 
-// Long enough for the worker, which claims queued jobs every 5 seconds, to run one and save its result
+// Long enough for the worker to run a queued job and save its result, since it claims jobs every 5 seconds
 export const WORKER_RESULT_TIMEOUT_MS = 60_000
 
 // One frame on a page's clock, as the browser spaces animation frames
 const CLOCK_FRAME_MS = 16
 
 /**
- * Stops the page's clock where it has got to, which a test installs before opening the page, so its
+ * Stops the page's clock where it has got to. A test installs this before opening the page, so its
  * timers and animation frames move only as `runClockUntil` moves them. A test that reads what it waits on
  * frame by frame, or keeps a message up for longer than a busy machine takes to reach it, then gets the
  * same frames and the same time however slowly the machine runs
  *
- * The clock can only be stopped at a time of day, which runs on while the call is on its way, and stopping
+ * The clock can only be stopped at a time of day. That runs on while the call is on its way, and stopping
  * it short of that fails. So the time of day is held first and the clock stopped at it, and only then let
  * go. Stopping it at a later time instead would move the page's own clock past the browser's, and a fade
  * the browser runs from a start the page sets would wait that long to begin, holding a message out or a
- * closing dialog in
+ * closing dialogue in
  */
 export async function stopClock(page: Page): Promise<void> {
   const timeOfDay = Date.now()
@@ -266,7 +266,7 @@ export async function stopClock(page: Page): Promise<void> {
 }
 
 // How long a stopped clock moves on, at most, for a page to reach the state a test waits for. It is the
-// page's own time, which a busy machine slows along with everything the page does
+// page's own time. A busy machine slows it along with everything the page does
 const CLOCK_RUN_LIMIT_MS = 10_000
 
 /**
@@ -302,7 +302,7 @@ export async function runClockUntil(page: Page, reached: () => Promise<boolean>,
 }
 
 /**
- * Waits for the dialog to finish scaling in. Motion scales it frame by frame from script, which leaves the
+ * Waits for the dialogue to finish scaling in. Motion scales it frame by frame from script and leaves the
  * browser no animation to wait on, and a distance or place read before it ends comes out off by the scale
  */
 export async function waitForEntrance(dialog: Locator): Promise<void> {
@@ -328,12 +328,12 @@ export function bankSyncFact(page: Page, status: string | RegExp): Locator {
 /**
  * Opens the account's page and, once the identity card's Bank sync fact reads as given, its edit
  * modal at the Bank link section through that fact. Returns once the modal's scroll to the section has
- * ended, which it asks for a moment after opening and eases into where its content runs past what it
+ * ended. The modal asks for it a moment after opening and eases into where its content runs past what it
  * shows by then. A press on a control before then has the browser bring the control into view on the
- * way, which stops the modal short of the section
+ * way, so the modal stops short of the section
  *
- * @param status - The label the fact should come to show, which may take the worker a while, as
- * `bankSyncFact` reads it
+ * @param status - The label the fact should come to show, as
+ * `bankSyncFact` reads it. It may take the worker a while
  */
 export async function openBankLink(page: Page, accountId: string, status: string | RegExp): Promise<Locator> {
   await openPage(page, `/accounts/${accountId}`)
@@ -412,7 +412,7 @@ export async function openBankLinkHoldingRead(
   return page.getByRole('dialog', { name: 'Edit account', exact: true })
 }
 
-/** A toast saying why something failed, which is announced as an alert */
+/** A toast saying why something failed. It is announced as an alert */
 export function errorToast(page: Page, text: string): Locator {
   return page.getByRole('alert').filter({ hasText: text })
 }
@@ -470,7 +470,7 @@ export async function createEmptyBridgeScenario(request: APIRequestContext): Pro
 }
 
 /**
- * Add a bank login, whose name the app shows as the institution of every bank account under it.
+ * Add a bank login. The app shows its name as the institution of every bank account under it.
  *
  * @returns The login's id
  */
@@ -773,7 +773,7 @@ export async function readTransaction(request: APIRequestContext, user: TestUser
 }
 
 /**
- * Edit a ledger transaction's date or amount as the user does, which a bank-imported one then counts as
+ * Edit a ledger transaction's date or amount as the user does. A bank-imported one then counts as
  * edited
  *
  * @throws When the edit is refused

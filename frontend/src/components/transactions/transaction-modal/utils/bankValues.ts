@@ -23,7 +23,7 @@ export type BankValueCaptions = Record<EditableBankField, BankValueCaption | nul
  * restore with, for the action to show greyed out
  *
  * @param source - The transaction's bank source, null for a transaction entered by hand
- * @param currency - The transaction's currency, which the bank's amount is in
+ * @param currency - The transaction's currency. The bank's amount is in it
  */
 export function getBankValueCaptions(
   source: TransactionBankSource | null | undefined,

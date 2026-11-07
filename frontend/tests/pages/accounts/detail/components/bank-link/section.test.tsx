@@ -56,11 +56,11 @@ vi.mock('@/api/client', async (importOriginal) => ({
 }))
 
 // Closed throughout, and their shell reads the open modals through a store that has no server
-// snapshot, which a static render can't read
+// snapshot, so a static render can't read them
 vi.mock('@/components/bank-link-flow/Modal', () => ({ BankLinkFlowModal: () => null }))
 vi.mock('@/pages/accounts/detail/components/bank-link/ReviewSettingsModal', () => ({ ReviewSettingsModal: () => null }))
 
-// User-1, whose own personal account the fixtures build
+// User-1, with its own personal account built by the fixtures
 const AUTH: AuthContextValue = {
   user: {
     id: 'user-1',
@@ -120,7 +120,7 @@ function unbroken(date: string): string {
 /**
  * Renders the section in the app's providers over a cache holding what `read` says. A failed read
  * stays failed on render, as it does once the app's own retries have run out. Static rendering marks
- * where one text node meets the next, which text is matched without
+ * where one text node meets the next. Text is matched without them
  */
 function renderSection(account: Account = createAccount(), autoFocus = false): string {
   const client = new QueryClient({
@@ -159,7 +159,7 @@ function getButton(markup: string, label: string): string {
 }
 
 // Sync now's label sits inside its feedback wrapper, beside the copy it measures its width by, and
-// gives way to a spinner or a tick, which are labelled instead
+// gives way to a spinner or a tick. Those are labelled instead
 function getSyncNowButton(markup: string): string {
   return (
     markup.match(
@@ -168,7 +168,7 @@ function getSyncNowButton(markup: string): string {
   )
 }
 
-// Synced an hour ago and due again in three hours, which is what Sync now normally meets
+// Synced an hour ago and due again in three hours. That is what Sync now normally meets
 function linkSynced(sync = createSync()): AccountBankStatus {
   return createStatus({
     link: createLink({ state: sync.state === 'choose_account' ? 'choose_account' : 'active', sync }),
@@ -497,7 +497,7 @@ describe('BankLinkSection', () => {
 
   it.each([
     [
-      // A worker fetching the import's next part runs a sync too, which the import's own reason outranks
+      // A worker fetching the import's next part runs a sync too. The import's own reason outranks the sync's
       'an import runs',
       createStatus({
         link: createLink({
@@ -625,7 +625,7 @@ describe('BankLinkSection', () => {
   })
 })
 
-// What this window's own press shows lives in the button's state, which a static render can't drive
+// What this window's own press shows lives in the button's state. A static render can't drive it
 describe('describeSyncNow', () => {
   it("reads Sync started once the worker has started this window's sync, rather than as held back by it", () => {
     const link = createLink({ sync: createSync({ state: 'syncing', sync_running: true }) })

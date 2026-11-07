@@ -2,7 +2,7 @@
 
 A record kept past the window would count against a budget it no longer belongs to, and one
 pruned early, a request let through at the cap or a quota warning ignored would let Lumina exceed
-the Bridge's limit, which disables the user's token
+the Bridge's limit. Exceeding it disables the user's token
 """
 
 import asyncio
@@ -85,7 +85,7 @@ async def test_record_provider_request_prunes_the_connections_records_past_24_ho
 
 
 async def _connection_with_requests(db, *sent_at: datetime) -> BankConnection:
-    """Add a user and their connection, which sent a request at each of the times"""
+    """Add a user and their connection. The connection sent a request at each of the times"""
     db.add(Currency(id="CAD", name="Canadian Dollar", symbol="$", minor_unit_exponent=2))
     await db.flush()
     connection = await _seed_connection(db, "budget@example.com")

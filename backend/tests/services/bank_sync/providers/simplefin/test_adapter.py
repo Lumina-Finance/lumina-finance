@@ -86,7 +86,7 @@ async def test_claim_returns_an_access_url_that_reaches_the_users_accounts(scena
 
 
 async def test_setup_token_copied_with_line_breaks_and_no_padding_still_claims(scenario: FakeBridgeScenario):
-    """Copying a token can wrap it or drop its trailing padding, which doesn't change what it holds"""
+    """Copying a token can wrap it or drop its trailing padding. Neither changes what it holds"""
     token = scenario.setup_token.rstrip("=")
 
     access_url = await _fake_adapter().claim_setup_token(f"{token[:20]}\n{token[20:]}")
@@ -95,7 +95,7 @@ async def test_setup_token_copied_with_line_breaks_and_no_padding_still_claims(s
 
 
 async def test_claimed_setup_token_is_refused_the_second_time(scenario: FakeBridgeScenario):
-    """SimpleFIN Bridge answers a spent token with a plain 403, which the link flow explains"""
+    """SimpleFIN Bridge answers a spent token with a plain 403. The link flow explains it"""
     await _fake_adapter().claim_setup_token(scenario.setup_token)
 
     with pytest.raises(ClaimRefused) as refusal:
@@ -283,7 +283,7 @@ async def test_fetch_holding_1000_transactions_may_be_cut_off(scenario: FakeBrid
     await scenario.change("POST", "/accounts/ACT-chequing/transactions", {"transactions": transactions})
     adapter = _fake_adapter()
 
-    # A window ending today, which a sync asks for pending transactions with
+    # A window ending today. A sync asks for pending transactions with it
     result = await _fetch(
         adapter, frozen_now - timedelta(days=30), frozen_now, access_url=await adapter.claim_setup_token(scenario.setup_token)
     )

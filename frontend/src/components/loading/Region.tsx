@@ -93,10 +93,10 @@ export default function LoadingRegion<T>({
     const element = contentRef.current
     if (!heightHeld || !element) return undefined
 
-    // The layout height rather than the box on screen, which a dialog still scaling in shrinks. The
+    // The layout height rather than the box on screen, since a dialogue still scaling in shrinks it. The
     // observer reports only layout changes, so a height read part way through that entrance would be
     // held short of the content, clipping it, until the content next changed size. Observing also
-    // reports the height the content already has, which is the first one held
+    // reports the height the content already has. That is the first one held
     const observer = new ResizeObserver(([entry]) => setContentHeight(entry.borderBoxSize[0].blockSize))
     observer.observe(element)
 

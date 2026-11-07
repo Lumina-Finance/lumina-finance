@@ -27,12 +27,12 @@ import { isUncovered, MESSAGE_IN_CORNER, readMessageInset } from '../support/sel
 import { AT_EVERY_SIZE } from '../support/sizes'
 import { API_BASE_URL } from '../support/target'
 
-// Runs on desktop only, apart from the test linking an account from its page, which runs at every size:
-// the linked view is taller than the one it replaces, which on a phone could push the action it focuses
+// Runs on desktop only, apart from the test linking an account from its page. That one runs at every size
+// since the linked view is taller than the one it replaces, so on a phone it could push the action it focuses
 // out of view. The rest set the window sizes they check themselves
 
 // An account links to a bank account from its own page, through the Bank link section of its edit
-// modal, which the identity card's Bank sync fact opens, and straight after it is created. Connections
+// modal (the identity card's Bank sync fact opens it) and straight after it is created. Connections
 // are claimed from the fake SimpleFIN Bridge the instance syncs with, and links are made and ended on
 // the server. Only whether the deployment's worker is running is answered here instead
 const SAMPLE_BANK = 'Harbour Bank'
@@ -52,7 +52,7 @@ const OPENING_FOCUS_PASSED_MS = 1_000
 const FRAMES_PAST_FADE_MS = 48
 
 // How far the page's clock moves at a time while a test waits for the app shell's next read of the
-// links, which comes every 2 seconds while a link imports
+// links. That read comes every 2 seconds while a link imports
 const LINK_READ_CLOCK_STEP_MS = 100
 
 // Either side of where a modal stops filling the screen and sits in the middle of it, at a laptop's height
@@ -76,7 +76,7 @@ function toast(page: Page, text: string): Locator {
 }
 
 /**
- * The tooltip carrying a disabled control's reason, which sits on the page rather than beside the
+ * The tooltip carrying a disabled control's reason. It sits on the page rather than beside the
  * control and fades rather than leaving
  */
 function shownReason(page: Page, reason: string): Locator {
@@ -84,7 +84,7 @@ function shownReason(page: Page, reason: string): Locator {
 }
 
 /**
- * Collects the bank account listings the page asks for, which name the account they are for
+ * Collects the bank account listings the page asks for. Each names the account it is for
  */
 function watchListings(page: Page): string[] {
   const listings: string[] = []
@@ -102,7 +102,7 @@ async function chooseFirstStart(flow: Locator): Promise<void> {
 }
 
 /**
- * Links Everyday to the sample chequing account from its edit modal, which stays open behind the
+ * Links Everyday to the sample chequing account from its edit modal. The modal stays open behind the
  * message confirming the link once the link flow closes. The page's clock stops as the link is made and,
  * once the server has answered it, moves on only until the flow has gone and the message has come in, so
  * the message stays up however long a busy machine takes over the checks on it. Modals still come and go
@@ -136,12 +136,12 @@ async function linkFromEditAccount(page: Page, request: APIRequestContext): Prom
   return { dialog, message }
 }
 
-/** One frame of a dialog's entrance, with the heights on screen of the Bank link section's loading cover and of what it covers */
+/** One frame of a dialogue's entrance, with the heights on screen of the Bank link section's loading cover and of what it covers */
 type EntranceFrame = { scale: number; held: boolean; coverHeight: number; contentHeight: number }
 
 /**
  * Records every frame from the one the Bank link section's loading cover first shows in until its
- * dialog has finished scaling in, or until a few seconds have passed. Runs in the page, since the
+ * dialogue has finished scaling in, or until a few seconds have passed. Runs in the page, since the
  * entrance lasts a fraction of a second
  */
 function recordEntrance(): Promise<EntranceFrame[]> {
@@ -152,7 +152,7 @@ function recordEntrance(): Promise<EntranceFrame[]> {
     const record = () => {
       const spinner = document.querySelector('[role="status"][aria-label="Loading bank link"]')
 
-      // The cover lays its spinner over what it covers, which is its first child
+      // The cover lays its spinner over what it covers, and that is its first child
       const cover = spinner?.parentElement?.parentElement
       const dialog = spinner?.closest<HTMLElement>('[role="dialog"]')
       if (cover && dialog) {
@@ -248,7 +248,7 @@ function readReviewSettingsOpacity(dialog: Locator): Promise<number> {
 }
 
 // A read the page sends as a test ends can still be on its way through a changed answer when the page
-// closes, which would fail a test whose checks all passed
+// closes. That would fail a test whose checks all passed
 test.afterEach(async ({ page }) => {
   await page.unrouteAll({ behavior: 'ignoreErrors' })
 })
@@ -322,12 +322,12 @@ test('links an account from its page, from choosing the bank account to its impo
     await expect(reviewSettings).toBeFocused()
     await expect(dialog.getByRole('button', { name: 'Sync now' })).toHaveAttribute('aria-disabled', 'true')
 
-    // The linked view is taller than the one it replaced, which on a phone pushes the action below
+    // The linked view is taller than the one it replaced, so on a phone it pushes the action below
     // what the modal shows. The modal's own area scrolls to show it whole, leaving the page where it was
     await expect(reviewSettings).toBeInViewport({ ratio: 1 })
     expect(await page.evaluate(() => window.scrollY)).toBe(pageScroll)
   } finally {
-    // Frees the worker the held request keeps waiting, which would otherwise hold up other tests' syncs
+    // Frees the worker the held request keeps waiting. It would otherwise hold up other tests' syncs
     await clearBridgeFault(request, scenario.id)
   }
 })
@@ -378,7 +378,7 @@ test('moves focus to Link bank account once the link it sat by is undone elsewhe
 })
 
 test("keeps the link's message clear of Cancel and Save changes where the edit modal fills the screen, and back in the corner once it closes", async ({ page, request }) => {
-  // The widest screen the modal still fills, which stands for every screen it fills
+  // The widest screen the modal still fills. It stands for every screen the modal fills
   await page.setViewportSize(WIDEST_FULL_SCREEN_MODAL_SIZE)
   const { dialog, message } = await linkFromEditAccount(page, request)
   const cancel = dialog.getByRole('button', { name: 'Cancel', exact: true })
@@ -583,7 +583,7 @@ test('opens at the bank link with Review settings focused while Sync now is held
     startDate: todayInTestTimezone(),
   })
 
-  // The page reads bank sync as stopped, which holds Sync now back whatever the import has reached.
+  // The page reads bank sync as stopped, so it holds Sync now back whatever the import has reached.
   // The read lands before the modal opens, so the modal knows which action is held as it focuses one
   await changeProviders(page, (body) => {
     body.sync_running = false
@@ -658,14 +658,14 @@ test('leaves focus in Account Name when a press lands there before the Bank link
   await expect(name).toBeFocused()
 })
 
-// The Bank link section holds its height while it loads, and the dialog opens around it scaling up from
-// a little smaller. A height read off the screen mid-entrance came out short by the dialog's scale and was
+// The Bank link section holds its height while it loads, and the dialogue opens around it scaling up from
+// a little smaller. A height read off the screen mid-entrance came out short by the dialogue's scale and was
 // kept, clipping the section until the hold ended and then letting it jump. The link's read is held for
 // the whole entrance, so nothing under the cover changes size while the height held is compared with it.
-// The page's clock stops once the page shows the fact, before the dialog opens, and moves on a frame at a
+// The page's clock stops once the page shows the fact, before the dialogue opens, and moves on a frame at a
 // time, so the recording starts however long the click takes to land and holds every frame of the
 // entrance however rarely a busy machine draws one. Motion isn't reduced, as it is for other tests on the
-// page's clock, since the height is held only to ease the section's move, which reduced motion leaves out
+// page's clock, since the height is held only to ease the section's move and reduced motion leaves that out
 test('holds the loading Bank link section at its real height while the dialog scales in', async ({ page, request }) => {
   const user = await signUpUser(request)
   const everyday = await createAccount(request, user, { name: 'Everyday' })
@@ -858,13 +858,13 @@ test('lists the bank accounts of the connection switched to, dropping the one ch
   await expect(flow.getByRole('button', { name: 'Continue' })).toBeDisabled()
 })
 
-/** The account page's identity card, which names the account and its institution */
+/** The account page's identity card. It names the account and its institution */
 function identityCard(page: Page): Locator {
   return page.locator('section').filter({ has: page.getByRole('button', { name: 'Edit account', exact: true }) })
 }
 
 // The identity card names the account's own institution, so the bank's shows there only where the
-// account has none. Each look waits for the page to have read the link, which the bank's name comes in
+// account has none. Each look waits for the page to have read the link, since the bank's name comes in
 test("names the linked bank's institution on the identity card until the account has one of its own", async ({ page, request }) => {
   const user = await signUpUser(request)
   const everyday = await createAccount(request, user, { name: 'Everyday' })
@@ -914,7 +914,7 @@ test('names no institution on the identity card while its bank link is being rea
 })
 
 // An account of the user's own says so once its bank link is read and found to be none, and a group
-// account, whose link the page never reads, straight away
+// account straight away, since the page never reads a group account's link
 test("says an account with no institution and no bank link has none, whether it's the user's own or a group's", async ({ page, request }) => {
   const user = await signUpUser(request)
   const groupId = await createGroup(request, user, 'Household')

@@ -113,7 +113,7 @@ interface TransactionRowProps {
   disabledReason?: DisabledReasonState
   selection?: TransactionRowSelection
 
-  // The id of the day's heading above the row, which names the date the row's button is described by
+  // The id of the day's heading above the row. It names the date the row's button is described by
   dateHeadingId?: string
 
   // Goes to the waiting correction or removal a bank-imported transaction names, given where the list
@@ -422,18 +422,18 @@ export function TransactionRowView({
 
   // The row's own control is its title, stretched over the whole row by a layer laid across it, the
   // way an account row stretches its name. The controls inside the row, such as the bank marker and
-  // the tags, are positioned and so sit above that layer, which keeps them hoverable and pressable
+  // the tags, are positioned and so sit above that layer. That keeps them hoverable and pressable
   // and keeps one button from holding another. A screen reader reads the row once, in order, with
   // the title as the button. Both layouts render, each with its own title, and the one not on screen
-  // is hidden with display: none, which keeps its title out of the tab order and away from a screen
+  // is hidden with display: none. That keeps its title out of the tab order and away from a screen
   // reader. The press and the pointer are taken by the content the layer stretches across, so a title
-  // carries only the rest of the reason: its focus and the blocked key press, and its description,
-  // which follows the amount and the day's heading. The row draws the shared focus ring around itself
+  // carries only the rest of the reason: its focus and the blocked key press, and its description.
+  // That follows the amount and the day's heading. The row draws the shared focus ring around itself
   // and takes the hover shade while a title or the checkbox has keyboard focus, so the bank icon and the
   // marker beside the title keep their own rings without a second one around the row
   //
   // Tabbing from row to row hears only the button's name and description, so each title is
-  // described by the amount beside it in its own layout and by its day's heading, which names its date
+  // described by the amount beside it in its own layout and by its day's heading. The heading names its date
   const descriptionId = useId()
   const amountId = (layout: RowLayout) => `${descriptionId}-amount-${layout}`
   const { onClick: handleContentClick, onMouseEnter, onMouseMove, onMouseLeave, ...titleReasonProps } = reasonProps
@@ -458,7 +458,7 @@ export function TransactionRowView({
 
   return (
     // The row's own box, around the content that carries transaction-row-<id>, with the row's padding
-    // and separator, which is what a focused row's ring has to go round
+    // and separator. That is what a focused row's ring has to go round
     <motion.div
       data-testid={`transaction-box-${transaction.id}`}
       onMouseEnter={selection?.onPointerEnter}
@@ -510,7 +510,7 @@ export function TransactionRowView({
             // Laid over the rail rather than placed in the row, because a cell of the row would take
             // one of the list's columns, and the content beside it asks for all five of them. The rail
             // is the row's own left padding, so the box sits still at the list's edge while the rail
-            // opens and closes underneath the rest of the row. Raised above the title's layer, which
+            // opens and closes underneath the rest of the row. Raised above the title's layer. That layer
             // spans the rail too, so a press on the box ticks it rather than landing on the row
             className="absolute inset-y-0 left-0 z-10 flex items-center justify-center"
             style={{ width: TRANSACTION_CHECKBOX_RAIL_WIDTH }}
@@ -552,7 +552,7 @@ export function TransactionRowView({
         }}
         className={`block w-full min-w-0 flex-1 ${isHeldOff ? 'cursor-not-allowed' : 'cursor-pointer'} px-3 text-left ${wide ? 'min-[750px]:col-span-5 min-[750px]:grid min-[750px]:grid-cols-subgrid min-[750px]:items-center min-[750px]:gap-x-3 min-[1300px]:gap-x-4' : ''}`}
       >
-        {/* Row from 750px wide: each cell is a direct child of this content's subgrid, which spans the
+        {/* Row from 750px wide: each cell is a direct child of this content's subgrid. The subgrid spans the
           list's content tracks, so every row shares the same column tracks and stays aligned. The
           category and account tracks grow to their widest content across all rows, showing long
           names while there is room and truncating only when there is not, with the note and tags

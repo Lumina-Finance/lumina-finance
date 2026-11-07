@@ -20,7 +20,7 @@ from app.models.bank_sync_job import ProviderErrorKind
 MAX_ERROR_REASON_LENGTH = 500
 
 # An ISO 4217 code. Anything else in its place, such as a URL or nothing, is a currency of the
-# provider's own, which no Lumina account can hold
+# provider's own. No Lumina account can hold one
 _ISO_CURRENCY_CODE = re.compile(r"[A-Z]{3}")
 
 
@@ -41,7 +41,7 @@ class CredentialField:
     label: str
     placeholder: str
 
-    # The longest value the field takes, which the claim also refuses past
+    # The longest value the field takes, and the claim also refuses values past it
     max_length: int
 
 
@@ -100,7 +100,7 @@ class ExternalAccount:
     # The bank login the account sits under, for a provider whose one credential spans several
     login_key: str | None
 
-    # The ISO 4217 code, or None for a provider-specific custom currency, which can't be linked
+    # The ISO 4217 code, or None for a provider-specific custom currency. A custom currency can't be linked
     currency: str | None
 
     # The currency exactly as the provider sent it
@@ -111,7 +111,7 @@ class ExternalAccount:
     available_balance: int | None
     balance_at: datetime
 
-    # Whether the provider sent an available balance that can't be read or stored exactly, which
+    # Whether the provider sent an available balance that can't be read or stored exactly. That
     # tells it apart from one never sent, since both leave available_balance None
     available_balance_unreadable: bool = False
 
@@ -121,7 +121,7 @@ class ExternalAccount:
 
     @property
     def bank_login(self) -> str:
-        """The bank login the account sits under, which login errors are keyed by
+        """The bank login the account sits under, the key that login errors use
 
         A provider without separate bank logins has one per institution
         """
@@ -134,7 +134,7 @@ class FetchResult:
 
     An account synced only when it is in accounts, has no entry in account_errors, and its login
     has none in login_errors. A request_error fails every account in the request, and accounts is
-    then empty. Warnings arrived alongside account data, which is kept unless a request_error
+    then empty. Warnings arrived alongside account data. The data is kept unless a request_error
     fails the request: a rate-limited one means the provider's request quota is spent even when
     the response was usable
     """
@@ -276,7 +276,7 @@ class ProviderAdapter(ABC):
             include_pending: Whether to ask for pending records too, as the engine does only for a
                 window ending on the day it fixed as today. The adapter asks exactly as told, since
                 a request sent after midnight still serves that day
-            timezone: The user's profile timezone, which dates records
+            timezone: The user's profile timezone, used to date records
             currency_exponents: Minor-unit exponent of every currency Lumina holds, by code
 
         Returns:

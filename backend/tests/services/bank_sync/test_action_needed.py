@@ -63,7 +63,7 @@ async def _read_as_owner(connection: BankConnection, account_ids) -> dict:
 
 
 async def test_read_actions_needed_shows_reconnect_needed_for_every_account_still_linked_through_a_rejected_connection(connections):
-    """Everyday, which also waits on a bank sign-in, and Card, waiting for its bank account to be chosen, need a reconnect
+    """Everyday waits on a bank sign-in too, and Card waits for its bank account to be chosen. Both need a reconnect
 
     Reconnecting comes before the bank sign-in, and Old, unlinked, needs nothing
     """
@@ -192,7 +192,7 @@ async def test_send_action_emails_logs_a_send_that_fails_by_its_connection_and_s
 
 
 async def test_read_actions_needed_reads_nothing_of_another_users_accounts(connections):
-    """The second owner asks about the first owner's accounts, which need a reconnect, and learns nothing"""
+    """The first owner's accounts need a reconnect, but the second owner asks about them and learns nothing"""
     connection = connections[0]
     ids = await _commit_links(connection, everyday={})
     await _reject(connection)

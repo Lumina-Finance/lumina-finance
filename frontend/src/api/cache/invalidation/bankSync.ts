@@ -48,14 +48,14 @@ export function invalidateBankReview(queryClient: QueryClient) {
 
 /**
  * Invalidates the review inbox and any bulk approval preview listing its items, leaving the pending
- * strip, which only a sync changes
+ * strip, since only a sync changes it
  */
 export function invalidateBankReviewItems(queryClient: QueryClient) {
   invalidateTargets(queryClient, reviewItemTargets)
 }
 
 /**
- * Invalidates the link list, whose waiting counts and pause move with every review decision
+ * Invalidates the link list. Its waiting counts and pause move with every review decision
  */
 export function invalidateBankLinks(queryClient: QueryClient) {
   invalidateTargets(queryClient, [linkListTarget])

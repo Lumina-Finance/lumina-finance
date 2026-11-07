@@ -117,7 +117,7 @@ export default function TransactionDateGroupList({
   buildHeadingSelection?: (shownTransactionIds: string[]) => TransactionDateHeadingSelection
 
   // Goes to a row's waiting correction or removal in the review block. Absent where there is no
-  // block, such as the import preview, which leaves the rows without a Needs review marker
+  // block, such as the import preview. That leaves the rows without a Needs review marker
   onShowReview?: (reviewItemId: string) => void
   onEditTransaction: (transaction: Transaction) => void
 }) {

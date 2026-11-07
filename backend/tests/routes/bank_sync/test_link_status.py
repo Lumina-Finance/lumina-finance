@@ -1,7 +1,7 @@
 """A linked account's sync status: the one state every surface shows, and the facts its Sync details word
 
 The first state that applies wins, so each ordering case gives a link two states and expects the one
-ranked higher. Read through the account's bank link, which the list of links shares, apart from an
+ranked higher. Read through the account's bank link, shared with the list of links, apart from an
 offer the account's read finds nothing to show
 """
 
@@ -30,7 +30,7 @@ from tests.routes.support.bank_sync_helpers import (
 # Noon on October 5 in Toronto, the zone _sign_up stores
 _NOW = datetime(2026, 10, 5, 12, 0, tzinfo=ZoneInfo("America/Toronto"))
 
-# A link whose import is long over, which last synced three hours ago and next syncs in 21 hours
+# A link whose import is long over. It last synced three hours ago and next syncs in 21 hours
 _SYNCED = {
     "importing": False,
     "last_success_at": _NOW - timedelta(hours=3),
@@ -114,7 +114,7 @@ async def _read_sync(client, headers, account_id) -> dict:
 async def test_sync_status_shows_the_first_state_that_applies(client, link_values, connection_values, waiting, syncing, state, warned):
     """A link meeting two states shows the one ranked higher, and still says when a sync runs or the review warning applies under it
 
-    Sync now reads that to refuse a second sync, which would spend another request, and the warning
+    Sync now reads that to refuse a second sync, since that would spend another request, and the warning
     notice reads the flag whatever state shows
     """
     headers, user_id = await _sign_up(client)

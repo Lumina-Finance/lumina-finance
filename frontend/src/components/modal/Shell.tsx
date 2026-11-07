@@ -52,11 +52,11 @@ interface ModalShellProps {
   /** Keeps tooltips opened inside the panel within its edges, for one whose content would otherwise push them off */
   boundsTooltips?: boolean
   /**
-   * Shown beside the panel rather than inside it, as part of the same dialog
+   * Shown beside the panel rather than inside it, as part of the same dialogue
    *
    * The panel stays centred and this hangs off its right edge, 18rem wide. It is left out while
    * `useAsideRoom` says there is no room for it, so whatever it holds needs another place in the panel.
-   * While shown it describes the dialog, so a screen reader reads it with the title. It is for reading
+   * While shown it describes the dialogue, so a screen reader reads it with the title. It is for reading
    * only: focus is kept inside the panel, so Tab never reaches a control placed here
    */
   aside?: ReactNode
@@ -113,9 +113,9 @@ export function ModalShell({
 
   // No layout animation, and nothing else may put a settled transform or a filter on the panel either.
   // Motion animates a layout change by scaling the element, and a scaled or filtered box becomes what its
-  // `position: fixed` descendants measure themselves from, which throws the open dropdown box hundreds of
+  // `position: fixed` descendants measure themselves from. That throws the open dropdown box hundreds of
   // pixels out of place and clips it to the panel for as long as the animation runs. The panel is sized
-  // by its content, so it follows anything inside it that animates its own height, which is how a form
+  // by its content, so it follows anything inside it that animates its own height. That is how a form
   // that reveals whole rows grows
   const entrance = {
     initial: appearance.panelOffset,
@@ -138,8 +138,8 @@ export function ModalShell({
           {aside ? (
             // The frame is the panel's size and carries its entrance, so the panel keeps its centred place
             // and the aside hangs off the frame's edge. It takes the panel's size classes but never their
-            // clipping, which would cut the aside off. The dialog itself stays the panel, which is what
-            // the full-screen rules for narrow viewports and the scroll lock look for
+            // clipping, since that would cut the aside off. The dialogue itself stays the panel, and that is
+            // what the full-screen rules for narrow viewports and the scroll lock look for
             <motion.div className={`app-modal-frame relative ${panelClassName} !overflow-visible`} {...entrance}>
               <div
                 ref={panelRef}

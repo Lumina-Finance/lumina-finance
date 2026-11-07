@@ -90,7 +90,7 @@ import TransactionModalLinkedDeleteConfirm from '@/components/transactions/trans
 
 const RESTORE_FAILED_MESSAGE = 'Could not restore the bank value. Please try again.'
 
-/** Names a field's restore action, which focus returns to when its restore fails */
+/** Names a field's restore action. Focus returns to it when its restore fails */
 function getRestoreActionId(field: EditableBankField): string {
   return `txn-${field}-restore`
 }
@@ -106,7 +106,7 @@ function getRestoreActionId(field: EditableBankField): string {
  *
  * Given a new bank item, it reviews that instead: the form starts from what the bank sent, in the
  * item's account, with a filing card showing what was sent, and the footer adds the item to the
- * ledger, which updates the ledger and the review block together, or dismisses it, which leaves the
+ * ledger, updating the ledger and the review block together, or dismisses it, leaving the
  * ledger as it is
  */
 export default function CreateTransactionModal({
@@ -215,8 +215,8 @@ export default function CreateTransactionModal({
         today: getTodayYmd(user?.tz),
       })
 
-  // The account the stored transaction sits in, which a bank-imported one can't leave or be deleted
-  // from while it is linked
+  // The account the stored transaction sits in. A bank-imported one can't leave it or be deleted
+  // from it while it is linked
   const sourceAccount = storedTransaction && accounts.find((account) => account.id === storedTransaction.account_id)
   const sourceLink = storedTransaction && linksByAccount.get(storedTransaction.account_id)
 
@@ -296,7 +296,7 @@ export default function CreateTransactionModal({
   // blank it leaves behind as a zero, and a new transaction has no stored amount to lock over
   const isAmountLocked = editing && knownCurrencyExponent === null
 
-  // Filled in from the saved amount, which after a restore is the bank's rather than the one the
+  // Filled in from the saved amount. After a restore that is the bank's rather than the one the
   // modal opened with
   useRestoreLockedAmount({ open, transaction: storedTransaction, currencies, isAmountLocked, setForm })
 
@@ -326,13 +326,13 @@ export default function CreateTransactionModal({
   })
   // A date on days a linked account's bank supplies is a problem like any other, so a press refuses it
   if (suppliedDays.message && !problems.date) problems.date = suppliedDays.message
-  // So is a bank transaction moved out of its linked account, which the account field shows at once
+  // So is a bank transaction moved out of its linked account. The account field shows it at once
   if (bankMoveRefusal && !problems.account_id) problems.account_id = bankMoveRefusal
   const refusal = useRefusedSubmit(problems, fieldLayout.order, suffixControlIds(fieldLayout.controlIds, idSuffix))
   const showError = (field: keyof TransactionFormFieldErrors) => refusal.errors[field]
 
   // Going on to the next item swaps the item under the open modal, so the form starts over from it and
-  // slides in, which the first item doesn't, since it arrives with the modal
+  // slides in. The first item doesn't, since it arrives with the modal
   const [formItemId, setFormItemId] = useState(reviewItem?.id)
   const [isItemSwapped, setIsItemSwapped] = useState(false)
   if (reviewItem && reviewItem.id !== formItemId) {
@@ -350,7 +350,7 @@ export default function CreateTransactionModal({
     if (isItemSwapped) formBodyRef.current?.scrollTo({ top: 0 })
   }, [reviewItem?.id, isItemSwapped])
 
-  // The failed save message sits at the foot of the form, which a short screen or a long form leaves below
+  // The failed save message sits at the foot of the form. A short screen or a long form leaves it below
   // the fold, so once it appears it is scrolled into view wherever anything hides it
   const submitErrorRef = useRef<HTMLDivElement>(null)
   useEffect(() => {
@@ -452,7 +452,7 @@ export default function CreateTransactionModal({
 
   // The pressed action goes with its caption, so focus moves to the field it restored once the field
   // shows the bank's value, and a screen reader reads that value out. A restore that fails leaves the
-  // caption, so focus goes back to its action, which was turned off while it ran. A new object each
+  // caption, so focus goes back to its action. That action was turned off while it ran. A new object each
   // time, so a second restore of the same field moves focus again
   const [focusAfterRestore, setFocusAfterRestore] = useState<{ id: string } | null>(null)
   useEffect(() => {
@@ -474,7 +474,7 @@ export default function CreateTransactionModal({
             return
           }
           // The field holds the amount's size and the direction its sign, so the bank's sign goes in
-          // as if typed, which sets the direction to the bank's as well
+          // as if typed. That sets the direction to the bank's as well
           const size = amountToInputString(restored.amount, selectedCurrencyExponent)
           handleAmountChange(size, `${restored.amount < 0 ? '-' : '+'}${size}`)
         },

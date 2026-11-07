@@ -42,7 +42,7 @@ EDITABLE_COLUMNS: dict[EditableBankField, EditableColumns] = {
 
 
 class LedgerEntry(NamedTuple):
-    """A ledger row's date and its amount in signed minor units, which is None for a bank amount the account's currency can't hold"""
+    """A ledger row's date and its amount in signed minor units (None for a bank amount the account's currency can't hold)"""
 
     dt: date
     amount: int | None
@@ -56,7 +56,7 @@ def approved_entry(record: BankTransaction, ledger: LedgerEntry | None) -> Ledge
 
     Args:
         record: A bank transaction waiting for review
-        ledger: Its ledger row, which a new item doesn't have yet
+        ledger: Its ledger row. A new item doesn't have one yet
 
     Returns:
         The row as approving leaves it, or None for a removal
@@ -107,7 +107,7 @@ def bank_values(record: BankTransaction) -> dict[CorrectableBankField, Any]:
 
 
 def approved_description(record: BankTransaction) -> str:
-    """Return the bank description the ledger row was last decided with, which the ledger has no column for
+    """Return the bank description the ledger row was last decided with. The ledger has no column for it
 
     That is the one the user kept over a later one, or else the bank's from before a correction
     waiting on it, or else the bank's latest

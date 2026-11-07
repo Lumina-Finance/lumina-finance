@@ -119,8 +119,8 @@ const ICON_TOOLTIP_MARGIN = 8
  * How far an icon's tooltip, centred on the icon, shifts sideways to stay within the screen and the
  * surface around it, and clear of the sidebar by keeping within the page content
  *
- * The page's left edge, which is the sidebar's, gives way to the surface's right edge where the
- * tooltip can't keep to both. A dialog sits over the page rather than in it, so a narrow column in one
+ * The page's left edge (the sidebar's) gives way to the surface's right edge where the
+ * tooltip can't keep to both. A dialogue sits over the page rather than in it, so a narrow column in one
  * can lie across the sidebar's edge, and a tooltip held right of that edge would leave the column and
  * be cut off by it
  */
@@ -168,9 +168,9 @@ type IconTooltipPlacementOptions = {
  * It keeps to the preferred side unless that clips and the other side doesn't. Given what the icon
  * explains, such as a fact whose value sits under its label, it opens beyond the whole of that instead,
  * and goes to the other side whenever the preferred one clips, even where the surface says that side
- * clips too. The surface can be one that cuts nothing off, such as a dialog's side column once it is
- * stacked above the rest of the dialog, where a tooltip kept on a side it doesn't fit runs off the
- * dialog's edge instead
+ * clips too. The surface can be one that cuts nothing off, such as a dialogue's side column once it is
+ * stacked above the rest of the dialogue, where a tooltip kept on a side it doesn't fit runs off the
+ * dialogue's edge instead
  */
 export function getIconTooltipPlacement({
   preferred,
@@ -198,8 +198,8 @@ export function getIconTooltipPlacement({
  * panel opening upwards past it would be drawn under the bar
  *
  * A bar holding the trigger is its own surface rather than one over it, so it is left out. So is
- * every bar for a trigger in a dialog, since the page behind the dialog keeps its stuck bars in
- * place under the dialog rather than over it
+ * every bar for a trigger in a dialogue, since the page behind the dialogue keeps its stuck bars in
+ * place under the dialogue rather than over it
  */
 export function getTooltipCoverBottom(trigger: HTMLElement, triggerRect: DOMRect): number {
   if (trigger.closest('[role="dialog"]')) return 0

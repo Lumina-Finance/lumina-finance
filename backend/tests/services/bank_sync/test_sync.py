@@ -136,7 +136,7 @@ _PHOENIX = ZoneInfo("America/Phoenix")
 # than in elapsed time shows
 _SYDNEY = ZoneInfo("Australia/Sydney")
 
-# Yesterday's daily sync, which left a link complete through 3 October
+# Yesterday's daily sync. It left a link complete through 3 October
 _YESTERDAYS_SYNC = datetime(2026, 10, 3, 9, 0, tzinfo=_BRISBANE)
 
 # More jobs than any test here queues, so a job that keeps queueing another fails the test
@@ -273,7 +273,7 @@ async def _store_bank_transaction(link: BankAccountLink, external_transaction_id
     """Commit a bank transaction the link's bank account sent, awaiting review as the shared builder makes it unless told otherwise
 
     Returns:
-        Its id, which is also its review item's
+        Its id, the same as its review item's
     """
     _KNOWN_BANK_IDS.add(external_transaction_id)
     async with TestSession() as session:
@@ -287,7 +287,7 @@ async def _store_bank_transaction(link: BankAccountLink, external_transaction_id
 
 
 def _cut_off(*external_ids: str) -> FetchResult:
-    """Return a response with 1,000 transactions or more, which Fake Bank may have cut short"""
+    """Return a response with 1,000 transactions or more, since Fake Bank may have cut it short"""
     return FetchResult(accounts=tuple(_bank_account(external_id) for external_id in external_ids), possibly_cut_off=True)
 
 
@@ -540,7 +540,7 @@ async def test_job_keeps_records_and_moves_checkpoints_only_for_bank_accounts_th
 async def test_job_keeps_a_bank_transaction_by_the_keyed_hash_of_its_id_and_stores_a_resent_one_once(connection, provider):
     """Everyday's coffee is kept as the hash of the bank account and ID, never as the ID the bank sent
 
-    A second job brings the same record back as the same transaction rather than a new one, which is
+    A second job brings the same record back as the same transaction rather than a new one. That is
     what keeps a transaction the user approved or dismissed from returning for review
     """
     link = await _link(connection, "ACT-everyday", **_synced_through_yesterday())
@@ -556,7 +556,7 @@ async def test_job_keeps_a_bank_transaction_by_the_keyed_hash_of_its_id_and_stor
 
 
 class _CardFailingProvider(FakeProviderAdapter):
-    """Brings back each bank account asked for whole, except Card, whose bank login needs a sign-in on every request"""
+    """Brings back each bank account asked for whole, except Card, as its bank login needs a sign-in on every request"""
 
     @override
     async def fetch(self, credential: str, **window) -> FetchResult:
@@ -681,7 +681,7 @@ async def test_job_takes_days_in_the_profile_timezone_west_of_utc(connection, pr
 
 
 async def test_job_imports_a_link_whose_import_starts_today(connection, provider):
-    """A link imported from today needs one window of today, which asks for pending transactions and brings it up to date"""
+    """A link imported from today needs one window of today. That window asks for pending transactions and brings it up to date"""
     link = await _link(connection, "ACT-1", import_start=_TODAY, checkpoint=date(2026, 10, 3))
     provider.outcomes = [_returned("ACT-1")]
     await _seed_job(connection, BankSyncJobKind.INITIAL)
@@ -714,8 +714,8 @@ async def test_job_syncs_a_link_asked_for_now_while_it_waits_to_retry_and_leaves
 ):
     """Everyday and Savings failed at 12:50 pm and retry at 1:20, and at 1 pm the user asks Everyday to sync now
 
-    Everyday is fetched alone and next syncs tomorrow, while Savings still retries at 1:20, which its
-    status reads as. Left out, Everyday would skip the account the user sees failing
+    Everyday is fetched alone and next syncs tomorrow, while Savings still retries at 1:20, and its
+    status reads as a retry. Left out, Everyday would skip the account the user sees failing
     """
     retry_at = frozen_now + timedelta(minutes=20)
     failed = _synced_through_yesterday(retry_count=1, last_failure_reason="Fake Bank Online reported a problem", next_attempt_at=retry_at)
@@ -845,7 +845,7 @@ async def test_job_without_a_request_to_spend_queues_itself_for_when_one_frees(c
 
 
 def _reported_a_problem() -> ProviderError:
-    """Return an error of a bank account's own, which retrying may fix"""
+    """Return an error of a bank account's own, and retrying may fix it"""
     return ProviderError(ProviderErrorKind.TEMPORARY, "Fake Bank Online reported a problem")
 
 
@@ -855,8 +855,8 @@ async def test_job_syncs_the_bank_accounts_it_brought_back_whole_and_retries_the
     """At 1 pm Everyday comes back whole, while Savings has an error of its own and Travel didn't come back
 
     Everyday reads as synced now and next syncs tomorrow. Savings and Travel keep yesterday's last
-    sync, show why this attempt failed and are retried at 1:30 pm, which the queued retry and the
-    connection's next scheduled sync wait for
+    sync, show why this attempt failed and are retried at 1:30 pm. The queued retry and the
+    connection's next scheduled sync wait for that
     """
     everyday, savings, travel = [
         await _link(connection, name, **_synced_through_yesterday()) for name in ("ACT-everyday", "ACT-savings", "ACT-travel")
@@ -963,7 +963,7 @@ async def test_job_for_a_retry_due_while_the_budget_is_spent_records_no_attempt_
     """The third retry is due at 1 pm with no request free until 5:10 pm, so nothing is sent and the link still shows its last failure
 
     Waiting for a request is no attempt, so the series doesn't move on. Once a request frees the
-    retry brings the bank account back whole, which ends the series and puts it back on the daily
+    retry brings the bank account back whole. That ends the series and puts it back on the daily
     schedule
     """
     failed_at = frozen_now - timedelta(minutes=90)
@@ -1028,7 +1028,7 @@ async def test_job_starts_no_retry_series_for_a_bank_account_whose_bank_needs_a_
 
 
 async def test_job_whose_request_met_a_payment_problem_starts_no_retry_series(connection, provider, frozen_now, day_later):
-    """Card's daily sync is refused with a payment problem, which waiting minutes can't fix
+    """Card's daily sync is refused with a payment problem, and waiting minutes can't fix that
 
     Card shows the payment problem as why it failed and rests until the next daily sync, with no
     retry queued, so the user's one request a day is all it spends while the problem stands
@@ -1086,7 +1086,7 @@ async def _rejection(connection: BankConnection) -> datetime | None:
         return await session.scalar(select(BankConnection.credential_rejected_at).where(BankConnection.id == connection.id))
 
 
-# The subject of each kind of action-needed email, whose wording test_action_needed pins
+# The subject of each kind of action-needed email. test_action_needed pins its wording
 _RECONNECT_SUBJECT = "Reconnect Fake Bank to resume syncing"
 _SIGNIN_SUBJECT = "Sign in to your bank again in Fake Bank Online"
 _CHOOSE_SUBJECT = "Choose a bank account again to resume syncing"
@@ -1150,7 +1150,7 @@ async def test_job_whose_listing_meets_a_rejected_credential_marks_the_connectio
 async def test_job_ending_on_a_rejected_credential_marks_and_emails_only_for_that_connection_of_its_owner(
     connection, provider, frozen_now, sent_action_emails
 ):
-    """The owner also syncs Joint through a second connection, which Fake Bank Online still accepts, when it refuses Everyday's
+    """The owner also syncs Joint through a second connection and Fake Bank Online still accepts it, when it refuses Everyday's
 
     Only Everyday's connection is marked, and the email and the accounts needing a reconnect name
     Everyday alone, while Joint carries on as before
@@ -1278,7 +1278,7 @@ async def test_job_finding_a_bank_login_needs_a_sign_in_marks_its_accounts_and_e
     """Fake Bank Online says the Chase login needs a sign-in, on a connection that also holds an Amex login
 
     Chase Checking and Chase Card are marked from when the request went out, and one email names
-    both. Amex syncs, and no retry is queued for the Chase accounts, which wait for the next daily sync
+    both. Amex syncs, and no retry is queued for the Chase accounts. They wait for the next daily sync
     """
     await _list_under(connection, "CON-chase", "Chase", "ACT-chase-checking", "ACT-chase-card")
     await _list_under(connection, "CON-amex", "American Express", "ACT-amex")
@@ -1343,7 +1343,7 @@ async def test_job_finding_two_bank_logins_need_a_sign_in_emails_only_for_the_on
 
 
 async def test_job_marks_no_bank_sign_in_for_an_account_failing_for_another_reason(connection, provider, sent_action_emails):
-    """Fake Bank Online reports a problem with Everyday alone, which a retry can fix, so nothing asks the user to act"""
+    """Fake Bank Online reports a problem with Everyday alone, and a retry can fix it, so nothing asks the user to act"""
     await _list_under(connection, "CON-harbour", "Harbour Bank", "ACT-everyday")
     everyday = await _link(connection, "ACT-everyday", **_synced_through_yesterday())
     provider.outcomes = [FetchResult(account_errors={"ACT-everyday": _reported_a_problem()})]
@@ -1358,7 +1358,7 @@ async def test_job_marks_no_bank_sign_in_for_an_account_failing_for_another_reas
 async def test_job_whose_request_needs_a_bank_sign_in_marks_every_account_in_it_and_emails_once_per_login(
     connection, provider, frozen_now, sent_action_emails
 ):
-    """Fake Bank Online reports a bank sign-in problem naming no login, which applies to every account in the request
+    """Fake Bank Online reports a bank sign-in problem naming no login, and it applies to every account in the request
 
     Chase Checking, under the Chase login, and Amex, under the Amex one, are both marked, and each
     login gets an email of its own
@@ -1385,7 +1385,7 @@ async def test_job_bringing_a_bank_login_back_clears_its_sign_in_and_emails_agai
 ):
     """The user signed in to Chase again in Fake Bank Online, and the next daily sync brings Chase Checking back whole
 
-    The daily sync tries Checking with no retry queued for it and clears its mark, which ends the
+    The daily sync tries Checking with no retry queued for it and clears its mark. That ends the
     login's state, since Chase Savings, unlinked while it waited on the same sign-in, doesn't keep it
     going. When a later sync finds the login needing a sign-in again, a new email goes out
     """
@@ -1418,9 +1418,9 @@ async def test_job_bringing_a_bank_login_back_clears_its_sign_in_and_emails_agai
 async def test_job_clears_a_bank_sign_in_once_its_account_comes_back_whole_though_a_later_part_fails(connection, provider, frozen_now):
     """Chase Checking has waited on a Chase sign-in since yesterday, and the daily sync's window may be cut short, so it is fetched in halves
 
-    The earlier half brings Checking back whole, though only over days it already has, which shows
-    the login answering again, so its mark clears. The later half fails for a reason of its own,
-    which a retry handles, and the mark stays cleared, so a later sign-in problem starts afresh
+    The earlier half brings Checking back whole, though only over days it already has. That shows
+    the login answering again, so its mark clears. The later half fails for a reason of its own.
+    A retry handles it, and the mark stays cleared, so a later sign-in problem starts afresh
     """
     yesterday = frozen_now - timedelta(days=1)
     await _list_under(connection, "CON-chase", "Chase", "ACT-chase-checking")
@@ -1514,8 +1514,8 @@ async def test_job_whose_listing_moves_a_link_to_choose_bank_account_emails_once
 ):
     """The listing no longer shows Everyday's bank account, or shows it in US dollars, so Everyday waits for its bank account to be chosen again
 
-    The owner gets one email naming Everyday and its bank account, and the next listing, which still
-    doesn't show it as before, sends nothing more
+    The owner gets one email naming Everyday and its bank account. The next listing still
+    doesn't show it as before and sends nothing more
     """
     await _list_under(connection, "CON-harbour", "Harbour Bank", "ACT-everyday")
     everyday = await _link(connection, "ACT-everyday", **_synced_through_yesterday())
@@ -1555,7 +1555,7 @@ async def test_job_whose_listing_shows_a_bank_account_again_resumes_its_link_una
     """Everyday's bank account leaves the listing, comes back before the user chooses one, and then leaves again
 
     Everyday returns to active with nothing sent as its bank account comes back, and leaving again
-    starts the state again, which emails again
+    starts the state again and emails again
     """
     await _list_under(connection, "CON-harbour", "Harbour Bank", "ACT-everyday")
     everyday = await _link(connection, "ACT-everyday", **_synced_through_yesterday())
@@ -1576,7 +1576,7 @@ async def test_job_whose_listing_still_misses_a_bank_account_a_reconnect_left_to
 ):
     """A reconnect left Everyday waiting for its bank account to be chosen again, and the next listing still misses it
 
-    Everyday was already waiting, which the user saw in the app as they reconnected, so no email goes out
+    Everyday was already waiting and the user saw that in the app as they reconnected, so no email goes out
     """
     await _list_under(connection, "CON-harbour", "Harbour Bank", "ACT-everyday")
     everyday = await _link(connection, "ACT-everyday", **_synced_through_yesterday(state=BankLinkState.CHOOSE_ACCOUNT))
@@ -1613,7 +1613,7 @@ async def test_job_whose_save_starting_a_state_fails_emails_nothing_and_the_next
     The state is Reconnect needed as the job ends, Bank sign-in needed as a part is written, or
     Choose bank account as the listing is stored. None started, so nothing is marked and no email
     goes out, and the job fails on the error. The connection's next job 30 minutes on meets the
-    same answer, which starts the state from when that job's request went out and emails once
+    same answer. That starts the state from when that job's request went out and emails once
     """
     await _set_discovered_at(connection, frozen_now - timedelta(hours=listed_hours_ago))
     await _list_under(connection, "CON-harbour", "Harbour Bank", "ACT-everyday")
@@ -2005,7 +2005,7 @@ async def test_job_moves_no_checkpoint_past_a_half_that_failed_for_the_link(conn
 
 
 async def test_job_never_moves_a_checkpoint_back_to_the_end_of_an_earlier_half(connection, frozen_now, provider):
-    """The daily re-read from 19 September comes back cut short and the budget runs out after the earlier half, which ends 26 September
+    """The daily re-read from 19 September comes back cut short and the budget runs out after the earlier half, and that half ends 26 September
 
     That half brought the bank account back whole, but the link is complete through 3 October, so its checkpoint stays there
     """
@@ -2039,7 +2039,7 @@ async def test_job_keeps_a_single_day_whose_response_may_still_be_cut_short(conn
 async def test_job_sends_nothing_for_a_rejected_connection(connection, provider, frozen_now):
     """A credential the provider rejected can't work until the user reconnects, so the job ends without spending a request
 
-    Nor does it queue the retry Savings waits on, which couldn't work either
+    Nor does it queue the retry Savings waits on, since that couldn't work either
     """
     await _link(connection, "ACT-1", **_synced_through_yesterday())
     await _link(connection, "ACT-savings", **_synced_through_yesterday(retry_count=1, next_attempt_at=frozen_now + timedelta(minutes=20)))
@@ -2206,7 +2206,7 @@ async def test_job_fetches_nothing_for_a_linked_bank_account_its_listing_no_long
 
 
 def _ramen_in_yen() -> ProviderRecord:
-    """Return a 1,500 yen meal, which an account in Canadian dollars would read as $15.00"""
+    """Return a 1,500 yen meal, and an account in Canadian dollars would read it as $15.00"""
     return _record("TRN-ramen", amount=-1500, raw_amount="-1500", description="RAMEN BAR")
 
 
@@ -2214,7 +2214,7 @@ async def test_job_stores_nothing_for_a_bank_account_a_fetch_lists_in_another_cu
     """Sync now, with no listing due, finds Everyday's bank account in yen, though Everyday is in Canadian dollars
 
     Everyday keeps nothing and its checkpoint stays, while Savings syncs. The next job lists the bank
-    accounts first, which leaves Everyday waiting for a bank account to be chosen
+    accounts first. That leaves Everyday waiting for a bank account to be chosen
     """
     everyday = await _link(connection, "ACT-everyday", **_synced_through_yesterday())
     savings = await _link(connection, "ACT-savings", **_synced_through_yesterday())
@@ -2275,7 +2275,7 @@ async def test_job_whose_listing_fails_records_it_and_fetches_nothing(connection
     """Fake Bank Online couldn't be reached for a stale listing, so the connection and the job record it, and no window is sent
 
     The listing was the attempt of the link the job was to sync, so the link records the failure too
-    and is retried 30 minutes on. Savings, whose retry isn't due for 20 minutes, wasn't to sync, so
+    and is retried 30 minutes on. Savings wasn't to sync, since its retry isn't due for 20 minutes, so
     it keeps its own record, and the retry is queued for Savings' sooner one
     """
     link = await _link(connection, "ACT-1", **_synced_through_yesterday())
@@ -3417,7 +3417,7 @@ async def test_job_tells_the_owners_pages_as_a_part_that_stores_nothing_pauses_t
 async def test_job_a_review_queues_by_lifting_the_pause_catches_the_account_up_from_where_it_stopped(connection, provider, frozen_now):
     """Everyday was paused three weeks ago, complete through 13 September, with 80 new items waiting and its next sync set for tomorrow
 
-    Dismissing 30 leaves 50, which lifts the pause and makes Everyday due at once: the sync this
+    Dismissing 30 leaves 50. That lifts the pause and makes Everyday due at once: the sync this
     queues re-reads from 30 August, 14 days before the checkpoint, through today
     """
     link = await _link(
@@ -3756,10 +3756,10 @@ async def test_job_reminds_once_the_catch_up_after_the_worker_stopped_gets_no_tr
 
 
 async def test_job_leaves_a_raised_reminder_the_user_dismissed_as_the_next_sync_gets_nothing_either(connection, provider, frozen_now):
-    """Everyday's catch-up after failed syncs asks from 21 September and gets nothing, raising the reminder, which the user dismisses
+    """Everyday's catch-up after failed syncs asks from 21 September and gets nothing, raising the reminder, and the user dismisses it
 
     The catch-up stops noting what it returned once it raises the reminder, so the next scheduled
-    sync, which gets nothing either, isn't a catch-up falling short and leaves the reminder dismissed
+    sync, getting nothing either, isn't a catch-up falling short and leaves the reminder dismissed
     """
     link = await _link(
         connection,
@@ -3795,7 +3795,7 @@ async def test_job_raises_a_later_catch_ups_own_reminder_over_one_the_user_dismi
     """Everyday's import from 1 June got history from 9 June, and the user dismissed its reminder
 
     Its catch-up after failed syncs asks from 21 September. One getting nothing raises its own
-    reminder, which shows. One whose earliest transaction is 22 September reached back far enough,
+    reminder, and it shows. One whose earliest transaction is 22 September reached back far enough,
     so the dismissed reminder stays as it was. Either way the catch-up stops noting what it returned
     """
     link = await _link(
@@ -3852,7 +3852,7 @@ async def test_job_reminds_each_link_a_day_kept_though_cut_short_was_fetched_for
     """Everyday and Savings, in Phoenix, import from 2 October, and each day alone still comes back with 1,000 transactions
 
     Fake Bank's limit counts both bank accounts, so either may be missing some, and both name 3
-    October, the latest day kept, which is Phoenix's today though it's already 4 October in UTC
+    October, the latest day kept, and Phoenix's today though it's already 4 October in UTC
     """
     await _set_owner_timezone(connection, _PHOENIX)
     both = ("ACT-everyday", "ACT-savings")
@@ -3872,10 +3872,10 @@ async def test_job_reminds_each_link_a_day_kept_though_cut_short_was_fetched_for
 
 
 async def test_job_reminds_only_the_links_a_day_kept_though_cut_short_brought_back_whole(connection, provider):
-    """Everyday and Savings import from today, which alone comes back with 1,000 transactions, and Savings fails in it
+    """Everyday and Savings import from today. Today alone comes back with 1,000 transactions, and Savings fails in it
 
     Only Everyday was brought back whole, so only Everyday names today. Savings' import waits for
-    its retry, which reads the day again
+    its retry. That reads the day again
     """
     everyday = await _link(connection, "ACT-everyday", import_start=_TODAY, checkpoint=date(2026, 10, 3))
     savings = await _link(connection, "ACT-savings", import_start=_TODAY, checkpoint=date(2026, 10, 3))
@@ -3979,7 +3979,7 @@ async def test_job_offers_the_opening_adjustment_beside_the_reminder_of_an_impor
     assert await _offer_states(link) == ["offered"]
 
 
-# The day the bank first dated the coffee _record sends, which the user added to the ledger
+# The day the bank first dated the coffee _record sends. The user added that coffee to the ledger
 _COFFEE_DAY = date(2026, 10, 2)
 
 # The bank values Keep current value declined when the bank changed the coffee to $4.75
@@ -4006,7 +4006,7 @@ async def _accept_coffee(
     values replaced
 
     Returns:
-        The bank transaction's id, which is also its review item's
+        The bank transaction's id, the same as its review item's
     """
     _KNOWN_BANK_IDS.add(external_id)
     async with TestSession() as session:
@@ -4126,7 +4126,7 @@ async def test_job_proposes_a_new_bank_description_on_its_own(connection, provid
 async def test_job_widens_an_open_correction_and_keeps_comparing_with_the_values_added(connection, provider, frozen_now):
     """A correction to $4.75 waits, then the bank moves the coffee to 3 October, then changes it to $5.00
 
-    Each change joins the same correction, which still compares with the $4.50 on 2 October the user
+    Each change joins the same correction. It still compares with the $4.50 on 2 October the user
     added, and the ledger keeps those values throughout
     """
     link = await _link(connection, "ACT-1", **_synced_through_yesterday())
@@ -4363,7 +4363,7 @@ async def test_job_bringing_a_new_item_for_review_leaves_the_last_import_undoabl
 async def test_scan_listing_a_connection_never_listed_leaves_the_last_import_undoable(connection, provider, frozen_now):
     """The owner saved an import into Everyday, a manual account, while a claim two hours ago stopped before listing the bank accounts
 
-    The scan queues the listing and the job lists them, which changes none of the owner's data, so
+    The scan queues the listing and the job lists them. That changes none of the owner's data, so
     the import can still be undone
     """
     await _set_discovered_at(connection, None)
@@ -4428,9 +4428,9 @@ async def test_job_stores_a_bank_change_dating_a_stored_transaction_before_the_i
 
 
 async def test_job_opens_nothing_when_the_bank_goes_back_to_values_the_user_declined(connection, provider):
-    """The user kept $4.50 over the bank's $4.75, and while corrections were trusted the bank moved on to $5.00, which left $4.50 alone
+    """The user kept $4.50 over the bank's $4.75, and while corrections were trusted the bank moved on to $5.00, and that left $4.50 alone
 
-    With corrections back to review, the bank sends $4.75 again, which the user already declined, so no correction opens
+    With corrections back to review, the bank sends $4.75 again, a value the user already declined, so no correction opens
     """
     link = await _link(connection, "ACT-1", **_synced_through_yesterday())
     await _accept_coffee(link, observed_amount=-5_00, aligned_amount=-4_75, declined_observation=_DECLINED_AT_4_75)
@@ -4512,7 +4512,7 @@ async def test_job_asks_about_a_declined_value_again_once_the_bank_has_since_mat
 
 
 async def test_job_asks_again_when_the_bank_revises_an_amount_it_cant_store_exactly(connection, provider):
-    """The user kept $4.50 over the bank's -4.755, which CAD can't hold, and the bank now says -4.756
+    """The user kept $4.50 over the bank's -4.755, a value CAD can't hold, and the bank now says -4.756
 
     Both amounts are kept only as the bank sent them, and they differ, so a correction opens
     against the -4.755 declined
@@ -4701,7 +4701,7 @@ async def _accept_groceries(link: BankAccountLink, **values) -> uuid.UUID:
     Their bank transaction holds the bank's values, aligned with them, with any of its values replaced
 
     Returns:
-        The bank transaction's id, which is also its review item's
+        The bank transaction's id, the same as its review item's
     """
     bank_values = {"observed_amount": -40_00, "aligned_amount": -40_00, "description": "FRESHCO GROCERIES"}
     return await _accept_coffee(link, "TRN-groceries", ledger=(_COFFEE_DAY, -42_00), **bank_values | values)
@@ -4723,7 +4723,7 @@ async def _ledger_transaction_id(record_id: uuid.UUID) -> uuid.UUID:
 async def _move_out_while_unlinked(connection: BankConnection, link: BankAccountLink, transaction_id: uuid.UUID) -> uuid.UUID:
     """Unlink the link's account, move the ledger transaction to a new Savings account through the edit service, then link the account again
 
-    The edit files the transaction under Groceries and Myself, which an edit needs, and the new link
+    The edit files the transaction under Groceries and Myself, as an edit needs them, and the new link
     follows the same bank account, synced through yesterday
 
     Returns:
@@ -4955,7 +4955,7 @@ async def test_job_closes_a_removal_once_the_provider_sends_the_transaction_agai
 
     The groceries are back, so the removal is over, and what was sent is compared like any other
     change: -41.00 opens a correction against the -40.00 the ledger was decided against, whether new
-    or the correction the removal took the place of, which keeps waiting though corrections are now
+    or the correction the removal took the place of. That one keeps waiting though corrections are now
     trusted. The ledger keeps the user's -42.00
     """
     link = await _link(connection, "ACT-1", **_synced_through_yesterday())
@@ -5219,7 +5219,7 @@ async def test_connections_next_sync_waits_until_the_first_day_a_link_needs_star
     """In Phoenix it's 8 pm on 3 October, and Everyday, with no next attempt set, imports from the 4th
 
     No sync before midnight there has a day to fetch for Everyday, so the connection next syncs at
-    midnight in Phoenix, not now, and not at midnight in UTC, which has already passed
+    midnight in Phoenix, not now, and not at midnight in UTC, since that has already passed
     """
     await _set_owner_timezone(connection, _PHOENIX)
     await _link(connection, "ACT-everyday", import_start=date(2026, 10, 4), checkpoint=date(2026, 10, 3), importing=True)
@@ -5366,8 +5366,8 @@ async def test_scan_queues_nothing_for_a_provider_no_longer_installed(connection
 async def test_scan_queues_nothing_after_a_job_finds_the_credential_rejected(connection, provider, frozen_now):
     """Fake Bank Online rejects the credential in Everyday's daily sync, so automatic sync stops until the user reconnects
 
-    The job leaves Everyday with no next attempt set, which would make it due at once, but marks the
-    connection Reconnect needed, so the scan after it queues nothing
+    The job leaves Everyday with no next attempt set. That would make it due at once, but the job marks
+    the connection Reconnect needed, so the scan after it queues nothing
     """
     await _link(connection, "ACT-everyday", **_synced_through_yesterday(next_attempt_at=frozen_now))
     provider.outcomes = [FetchResult(request_error=_rejected())]
@@ -5427,7 +5427,7 @@ async def test_scan_retries_a_link_whose_retry_no_job_was_queued_for(connection,
 async def test_scan_after_the_worker_stopped_for_three_days_queues_one_job_that_catches_up(connection, provider, frozen_now, day_later):
     """The worker stopped after Everyday's sync at 1 pm on 1 October, and restarts at 1 pm on the 4th, three daily syncs later
 
-    The first scan queues one job, which fetches from 14 days before Everyday's checkpoint through
+    The first scan queues one job. It fetches from 14 days before Everyday's checkpoint through
     today in one request, and the next sync is a day on
     """
     stopped_at = frozen_now - timedelta(days=3)

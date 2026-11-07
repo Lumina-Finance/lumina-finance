@@ -48,7 +48,7 @@ type BankLinkFlowModalProps = {
   /** One of the user's own personal accounts */
   account: AccountsOverview
 
-  /** A bank account already chosen in settings, which starts the flow at where history starts */
+  /** A bank account already chosen in settings. It starts the flow at where history starts */
   chosen?: Omit<BankLinkTarget, 'account'>
   onClose: () => void
 
@@ -99,7 +99,7 @@ export function BankLinkFlowModal({
   const connection = chosen?.connection ?? pickListedConnection(workingConnections, chosenConnectionId, status)
 
   // The flow waits on the account's link for its wording and, opened from the account, on the
-  // connections and providers, which decide whether there is anything to choose from
+  // connections and providers. They decide whether there is anything to choose from
   const ready = status !== undefined && (chosen !== undefined || (connections !== undefined && providers !== undefined))
   const loadError = statusError ?? (chosen ? null : (connectionsError ?? providersError))
   const step: LinkFlowStep | null = !ready
@@ -107,7 +107,7 @@ export function BankLinkFlowModal({
     : (chosenStep ?? (chosen ? 'start' : connection ? 'account' : 'connect-first'))
 
   // Listed only while open, since a closed flow stays mounted beside an account that may be linked or
-  // archived, which the server refuses a listing for
+  // archived. The server refuses a listing for an archived account
   const choosesBankAccount = open && !chosen && (step === 'account' || step === 'start')
 
   const { data: discovered, error: discoveredError } = useDiscoveredBankAccounts(

@@ -56,9 +56,9 @@ async def read_link_statuses(
     Args:
         db: The owner's session
         links: Live links, each with its connection
-        now: The current time, which the request budgets are read at
+        now: The current time that the request budgets are read at
         hidden_offers: Offered links whose offer the caller found nothing to show, such as a gap the
-            ledger has since closed by hand, which read on past the opening balance
+            ledger has since closed by hand. Such links read on past the opening balance
 
     Returns:
         Each link's status, by link id
@@ -110,7 +110,7 @@ def _choose_state(
 ) -> BankSyncState:
     """Return the first state that applies to a live link
 
-    An import held by a retry shows the retry, which says when the import goes on, and an offer the
+    An import held by a retry shows the retry. The retry says when the import goes on. An offer the
     caller found nothing to show doesn't ask for the opening balance
     """
     if action is not None:
@@ -161,7 +161,7 @@ async def _read_job_links(db: AsyncSession, *, now: datetime) -> tuple[set[uuid.
     """Return the links the owner's running jobs are syncing, and those a queued job is to sync now as the user asked
 
     A job records the links it covers once it has planned its window, so a job still listing the
-    bank accounts covers none yet, apart from those the user asked it to sync, which it syncs from
+    bank accounts covers none yet, apart from those the user asked it to sync. It syncs those from
     the start. A job whose lease has run out was left by a worker that stopped, so it syncs nothing
     until a worker claims it again. A queued job syncs nothing yet, so a link the user asked to sync
     keeps its state until a worker starts the job. One waiting for the request budget to free a
@@ -172,7 +172,7 @@ async def _read_job_links(db: AsyncSession, *, now: datetime) -> tuple[set[uuid.
         select(BankSyncJob.status, BankSyncJob.covered_link_ids, BankSyncJob.requested_link_ids).where(
             or_(
                 and_(BankSyncJob.status == BankSyncJobStatus.RUNNING, BankSyncJob.lease_expires_at > now),
-                # Due by the database's clock, which the claim reads it by
+                # Due by the database's clock. The claim reads it by that clock
                 and_(BankSyncJob.status == BankSyncJobStatus.QUEUED, BankSyncJob.run_after <= func.now()),
             )
         )

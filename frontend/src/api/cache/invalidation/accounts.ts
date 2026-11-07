@@ -26,7 +26,7 @@ export function invalidateAllAccountBalances(queryClient: QueryClient) {
 
 /**
  * Invalidates account balances and balance history after balance-changing mutations, and the
- * accounts' bank links, which compare the bank's balance with the ledger's
+ * accounts' bank links. Those compare the bank's balance with the ledger's
  */
 export function invalidateAccountBalances(queryClient: QueryClient, accountIds: string[]) {
   invalidateAccountSummaries(queryClient)
@@ -66,7 +66,7 @@ export function invalidateAccountActivity(queryClient: QueryClient, accountIds: 
 }
 
 /**
- * Invalidates every cached query under specific account scopes, and the accounts' bank links, which
+ * Invalidates every cached query under specific account scopes, and the accounts' bank links. Those
  * compare the bank's balance with the ledger's
  */
 export function invalidateAccountData(queryClient: QueryClient, accountIds: string[]) {

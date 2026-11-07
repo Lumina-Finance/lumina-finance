@@ -56,7 +56,7 @@ def calculate_import_range(*, today: date, latest_ledger_date: date | None, hist
         latest_ledger_date: The account's latest transaction dated today or earlier, or None
         history_months: How many calendar months back the provider's limit reaches
         was_linked_before: Whether the account was linked before, as on a relink or when choosing its
-            bank account again, which suggests picking up after the ledger rather than three months back
+            bank account again. That suggests picking up after the ledger rather than three months back
 
     Returns:
         The allowed range, the suggestions and the facts the start step shows beside them
@@ -86,7 +86,7 @@ async def read_import_range(db: AsyncSession, account_id: uuid.UUID, *, history_
 
     Args:
         db: Active database session
-        account_id: The account an import would go into, which the caller has checked the user may link
+        account_id: The account an import would go into. The caller has checked the user may link it
         history_months: How many calendar months back the provider's limit reaches
         today: Today in the user's profile timezone
 

@@ -20,10 +20,10 @@ due and sends nothing
 
 The due scan queues a scheduled sync for each connection due one, as its owner, to run once the
 connection's request budget has a request free, merging into any sync already queued for it. A
-connection whose bank accounts were never listed, which has no link to come due, is due a sync that
+connection whose bank accounts were never listed has no link to come due. It is due a sync that
 lists them once nothing is under way for it, so a claim stopped mid-listing isn't left empty. A
-connection whose provider this server has turned off gets no scheduled sync, which could only fail,
-and stays due, so the first scan after the provider is allowed again queues one. Nothing here
+connection whose provider this server has turned off gets no scheduled sync, since one could only
+fail, and stays due, so the first scan after the provider is allowed again queues one. Nothing here
 fetches or stores, so another policy, such as syncing inactive users less often, can change who is
 due without touching ingestion
 """
@@ -75,7 +75,7 @@ async def schedule_next_sync(db: AsyncSession, connection: BankConnection, *, no
     through a sync of its own, such as the one a lifted review pause queues
 
     Args:
-        db: The connection owner's session, which the caller commits
+        db: The connection owner's session, committed by the caller
         connection: The connection, locked by the caller
         now: The current time, when a link with no next attempt set is due
     """
@@ -102,14 +102,14 @@ async def queue_scheduled_sync(db: AsyncSession, connection_id: uuid.UUID, *, no
     is spent to run out. A connection whose bank accounts were never listed has them listed first
 
     Args:
-        db: The connection owner's session, which the caller commits
+        db: The connection owner's session, committed by the caller
         connection_id: The connection the scan found due
         now: When the scan started
     """
     connection = await db.get(BankConnection, connection_id)
 
     # Disconnected since the scan listed it, or its provider is turned off or no longer installed on
-    # this server, which every sync would fail on until it is back
+    # this server, since every sync would fail on until it is back
     if connection is None or connection.provider not in enabled_adapters():
         return
     budget = await read_request_budget(db, connection, now=now)
@@ -123,6 +123,6 @@ async def queue_scheduled_sync(db: AsyncSession, connection_id: uuid.UUID, *, no
         run_after=budget.available_again_at,
     )
 
-    # The connection now shows a listing pending, which the owner's open pages are told of
+    # The connection now shows a listing pending, so the owner's open pages are told of it
     if discover:
         await mark_user_status_changed(db, connection.owner_id)

@@ -98,7 +98,7 @@ async def bulk_update_transactions(
     sent = data.model_fields_set
     requested_ids = list(dict.fromkeys(data.transaction_ids))
 
-    # A move takes each bank-imported transaction's bank transaction with it, which is locked first
+    # A move takes each bank-imported transaction's bank transaction with it. The bank transaction is locked first
     if "account_id" in sent:
         await lock_bank_imports(db, requested_ids)
     transactions = await load_locked_transactions(db, user, requested_ids)

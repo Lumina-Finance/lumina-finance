@@ -49,7 +49,7 @@ class StoredRecords:
     # Anything stored, so the caller tells the owner's open pages
     changed: bool = False
 
-    # A trusted correction or removal reached the ledger, which the caller marks as a change to the
+    # A trusted correction or removal reached the ledger. The caller marks that as a change to the
     # owner's data rather than only to what their pages show
     ledger_changed: bool = False
 

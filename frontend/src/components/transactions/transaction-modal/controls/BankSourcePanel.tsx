@@ -18,7 +18,7 @@ type BankSourceCardProps = {
   /** When the app received the bank's record, as the API sent it */
   receivedAt: string
 
-  /** The user's profile timezone, which the time the record arrived is told in */
+  /** The user's profile timezone. The time the record arrived is told in it */
   timeZone: string | undefined
 
   /** The institution the transaction's account is linked to, or the account's own name where the link isn't known */
@@ -27,7 +27,7 @@ type BankSourceCardProps = {
   /** The bank account's name at the institution, absent where the link isn't known */
   bankAccountName: string | undefined
 
-  /** The currency of the transaction's account, which the amount is in */
+  /** The currency of the transaction's account. The amount is in it */
   currency: string
 }
 
@@ -125,7 +125,7 @@ export default function TransactionBankSourcePanel({ defaultOpen = false, ...car
             exit={leave}
             transition={enterTransition}
           >
-            {/* The room around the card is for its shadow, which the unfolding clip would otherwise cut off */}
+            {/* The room around the card is for its shadow. The unfolding clip would otherwise cut it off */}
             <div className="pb-7">
               <FilingCardSheet
                 showTab={false}

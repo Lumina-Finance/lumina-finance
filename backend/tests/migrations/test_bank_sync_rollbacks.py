@@ -43,7 +43,7 @@ _CONNECTION = (
 )
 _CONNECTIONS_REVISION = "5b8e2d4f7a13"
 
-# The functions the sync jobs migration adds for the worker, which its rollback drops
+# The functions the sync jobs migration adds for the worker. Its rollback drops them
 _WORKER_FUNCTIONS = ("claim_bank_sync_jobs", "list_due_bank_connections", "record_bank_sync_scan", "migration_revisions")
 
 # Each revision, the rows seeded into it, the tables to empty afterwards with the one under test

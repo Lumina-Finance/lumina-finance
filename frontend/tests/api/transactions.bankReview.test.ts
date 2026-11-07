@@ -1,6 +1,6 @@
 /**
  * Covers the waiting bank items after a transaction is edited or deleted. An item shows its
- * transaction's ledger date and amount, which the server reads each time it lists the item, a move
+ * transaction's ledger date and amount (the server reads them each time it lists the item), a move
  * out of its account drops the transaction's bank record and its item, and deleting the transaction
  * deletes the item too
  *

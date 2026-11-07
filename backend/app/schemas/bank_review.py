@@ -118,7 +118,7 @@ class BulkApprovalPreviewResponse(BaseModel):
 
     groups: list[BulkApprovalGroupResponse]
 
-    # The new items in scope, which stay waiting since each needs a merchant and category
+    # The new items in scope. They stay waiting since each needs a merchant and category
     excluded_count: int
 
 
@@ -130,7 +130,7 @@ class BulkApprovalItemRequest(BaseModel):
 
 
 class ApplyBulkApprovalRequest(BaseModel):
-    """The items a preview listed, which are applied only while each is still at the version sent"""
+    """The items a preview listed. They are applied only while each is still at the version sent"""
 
     items: list[BulkApprovalItemRequest] = Field(min_length=1, max_length=MAX_BULK_APPROVAL_ITEMS)
 
@@ -145,7 +145,7 @@ class BulkApprovalResultResponse(BaseModel):
     # refused them. One decided elsewhere since no longer waits and isn't counted
     failed: int
 
-    # The items applied, which the review list can take out as the ledger shows them
+    # The items applied. The review list can take them out as the ledger shows them
     applied_ids: list[uuid.UUID]
 
 

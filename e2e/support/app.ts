@@ -108,8 +108,8 @@ async function isAtLeast(page: Page, widthPx: number): Promise<boolean> {
 }
 
 /**
- * One of the facts a dialog or card lists as terms and their values, by its label, or by a pattern
- * for a label followed by a tooltip, whose text the term holds too
+ * One of the facts a dialogue or card lists as terms and their values, by its label, or by a pattern
+ * for a label followed by a tooltip. The term holds the tooltip's text too
  */
 export function fact(container: Locator, label: string | RegExp): Locator {
   const term = container.page().getByRole('term').filter({ hasText: typeof label === 'string' ? new RegExp(`^${label}$`) : label })
@@ -389,7 +389,7 @@ export async function reachTwoFactorChallenge(page: Page, user: TestUser): Promi
 
 /**
  * Watches the requests the page sends the server from now on, for a test that moves the page's clock
- * on. A read still out as the clock moves re-renders the view it lands in, which would word a time
+ * on. A read still out as the clock moves re-renders the view it lands in. That would word a time
  * anew whether or not the app keeps it current, so such a test waits for every one to land first
  *
  * @returns Waits until every request sent so far has landed

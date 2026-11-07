@@ -160,10 +160,10 @@
     /* The gray FX badge's hover and open fill, which its white label sits on */
     --app-fx-gray-fill: var(--app-text-muted);
     --app-negative: #9a3c34;
-    /* Edges items waiting for review, which take the warning hue until the user decides on them */
+    /* Edges items waiting for review. They take the warning hue until the user decides on them */
     --app-warning-border: #d6b40066;
     /* Items waiting for review. Light mode keeps the card neutral and marks it with an ochre dashed edge,
-       since a yellow wash turns sickly on the cream background; dark mode can carry a faint wash */
+       since a yellow wash turns sickly on the cream background. Dark mode can carry a faint wash */
     --app-review-bg: #fbf8f0;
     --app-review-border: #a8840080;
     --app-review-count-bg: #6f5700;
@@ -175,7 +175,7 @@
     --app-filing-card-rule: #6f9cc438;
     --app-filing-card-red: #c4574c99;
     --app-filing-card-shadow: #4b372329;
-    /* The card's labels, which keep 4.5:1 on its stock in both themes */
+    /* The card's labels keep 4.5:1 on its stock in both themes */
     --app-filing-card-muted: var(--app-text-muted);
     --app-negative-soft: #9a3c341a;
     --app-negative-border: #9a3c344d;
@@ -1011,7 +1011,7 @@
   }
 
   /* A day the field refuses, struck through as well as faded so it does not rest on colour alone.
-     Faded by mixing its colour into the calendar's own background rather than by opacity, which took
+     Faded by mixing its colour into the calendar's own background rather than by opacity. Opacity took
      it below AA. This mix keeps about 5.6:1, and 6.3:1 in dark */
   .app-calendar-day[data-disabled] {
     cursor: not-allowed;
@@ -2079,8 +2079,8 @@
     background: color-mix(in srgb, var(--app-input-bg) 62%, transparent);
   }
 
-  /* A button that needs a stronger label sets --app-secondary-button-text rather than an inline colour,
-     which would beat the held fade below */
+  /* A button that needs a stronger label sets --app-secondary-button-text rather than an inline colour.
+     An inline colour would beat the held fade below */
   .app-secondary-button {
     @apply inline-flex h-10 items-center justify-center gap-2 px-4 font-medium;
     font-size: 0.9375rem;
@@ -3549,7 +3549,7 @@
       padding: 0 !important;
     }
 
-    /* A modal with an aside wraps its panel in a frame, which takes the whole screen as the panel does */
+    /* A modal with an aside wraps its panel in a frame. The frame takes the whole screen as the panel does */
     .app-modal-frame {
       width: 100dvw !important;
       max-width: none !important;

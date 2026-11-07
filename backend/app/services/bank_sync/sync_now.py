@@ -1,13 +1,13 @@
 """Syncing a linked account now, as the user asks from its Bank link section
 
-The request queues a sync of the account's connection for the worker, which syncs the account
+The request queues a sync of the account's connection for the worker. The worker syncs the account
 whatever its next daily time, a retry's included, and takes in any other account on the connection
 due within 12 hours, in the same request to the provider. A sync already queued for the connection
 takes the request in rather than queueing another. The request is refused, saying why, while an
 import or a sync already runs on the account, while only the user can restart its sync, while the
 review pause holds it, and while the connection's request budget is spent. A bank sign-in doesn't
 refuse it, so the user can check straight after signing in again at the provider, unless a sync
-already runs on the account, which the bank sign-in shows over in its state
+already runs on the account, and the bank sign-in shows over that in its state
 """
 
 import math
@@ -66,7 +66,7 @@ async def sync_account_now(db: AsyncSession, user: User, account_id: uuid.UUID) 
         account_id: The linked account
 
     Returns:
-        The link, whose status says the sync is requested until a worker starts it
+        The link. Its status says the sync is requested until a worker starts it
 
     Raises:
         HTTPException 403: The account is visible but isn't the user's own personal account
@@ -101,7 +101,7 @@ async def sync_account_now(db: AsyncSession, user: User, account_id: uuid.UUID) 
         )
 
     await enqueue_bank_sync_job(db, owner_id=user.id, connection_id=connection.id, kind=BankSyncJobKind.MANUAL, requested_link_ids=[link.id])
-    # The link now reads as requested, which changes none of the user's data, so the data mark an
+    # The link now reads as requested. That changes none of the user's data, so the data mark an
     # import's undo compares with stays where it was
     await mark_user_status_changed(db, user.id)
     await db.commit()

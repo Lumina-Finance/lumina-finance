@@ -16,13 +16,13 @@ import { contrastOf, MIN_TEXT_CONTRAST, readBoxes } from '../support/selectors'
 import { AT_EVERY_SIZE } from '../support/sizes'
 import { API_BASE_URL } from '../support/target'
 
-// Runs on desktop only, apart from the test of an import that got nothing, which runs on the phone:
+// Runs on desktop only, apart from the test of an import that got nothing (run on the phone):
 // the reminder and the offer below it each have to show whole at a phone's width
 
 // The reminder a linked account's Bank link section shows once its import returned less history than
 // it asked for, or none, run by the worker against the fake SimpleFIN Bridge. Everyday imports the
-// sample chequing account from 45 days ago, whose earliest transaction is 33 days old, or an empty
-// bank account from 30 days ago, which leaves the opening adjustment to confirm too. Which imports and
+// sample chequing account from 45 days ago, with its earliest transaction 33 days old, or an empty
+// bank account from 30 days ago, leaving the opening adjustment to confirm too. Which imports and
 // catch-ups fall short, the reminder's words for each and the cache writes behind a dismissal are
 // covered by backend and unit tests
 const SAMPLE_CHEQUING = 'Everyday Chequing'
@@ -45,7 +45,7 @@ async function readReminder(request: APIRequestContext, user: TestUser, accountI
   return ((await response.json()) as { link: { history_reminder: HistoryReminder | null } | null }).link?.history_reminder ?? null
 }
 
-/** Signs up with Everyday, links it as given and waits for the worker to end its import, which raises the reminder */
+/** Signs up with Everyday, links it as given and waits for the worker to end its import and raise the reminder */
 async function linkFallingShort(request: APIRequestContext, link: (user: TestUser, accountId: string) => Promise<unknown>): Promise<Setup> {
   const user = await signUpUser(request)
   const account = await createAccount(request, user, { name: 'Everyday' })
@@ -58,13 +58,13 @@ async function linkFallingShort(request: APIRequestContext, link: (user: TestUse
   return { user, accountId: account.id, reminder: reminder! }
 }
 
-/** Links Everyday to the sample chequing account from 45 days ago, which returns history from 33 days ago */
+/** Links Everyday to the sample chequing account from 45 days ago. It returns history from 33 days ago */
 async function linkGettingLess(request: APIRequestContext): Promise<Setup> {
   return linkFallingShort(request, (user, accountId) =>
     linkToSampleBankAccount(request, user, { accountId, bankAccountName: SAMPLE_CHEQUING, startDate: daysFromTodayInTestTimezone(-45) }))
 }
 
-/** Links Everyday to an empty bank account from 30 days ago, which returns nothing */
+/** Links Everyday to an empty bank account from 30 days ago. It returns nothing */
 async function linkGettingNothing(request: APIRequestContext): Promise<Setup> {
   return linkFallingShort(request, (user, accountId) => linkToEmptyBankAccount(request, user, { accountId, startDate: daysFromTodayInTestTimezone(-30) }))
 }
@@ -90,7 +90,7 @@ function watchDismissals(page: Page): string[] {
   return sent
 }
 
-// A request held or refused here can still be on its way to the page when a test ends, which would
+// A request held or refused here can still be on its way to the page when a test ends. That would
 // otherwise surface as an error outside any test
 test.afterEach(async ({ page }) => {
   await page.unrouteAll({ behavior: 'ignoreErrors' })

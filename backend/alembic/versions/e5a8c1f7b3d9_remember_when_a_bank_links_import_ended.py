@@ -18,7 +18,7 @@ depends_on: str | Sequence[str] | None = None
 
 
 def upgrade() -> None:
-    """Add when each link's latest import ended, which tells the items it brought from those later syncs brought
+    """Add when each link's latest import ended. That tells the items it brought from those later syncs brought
 
     The opening adjustment waits until no item the import brought is still waiting for review. Links
     already stored have no time, so one whose import has already ended is never offered the

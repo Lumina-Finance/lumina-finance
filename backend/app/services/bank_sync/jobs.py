@@ -63,9 +63,10 @@ async def enqueue_bank_sync_job(
     earlier of the two times. A running job is left alone, so the queued one runs after it. The
     caller commits
 
-    A time is kept as the same wait from the database's clock, which the claim compares it with, so
-    a database clock running ahead of the app's can't have a job claimed before the app counts it
-    due, which would have it fetch every link due then and queue itself for the same time again
+    A time is kept as the same wait from the database's clock, and the claim compares it with that
+    clock, so a database clock running ahead of the app's can't have a job claimed before the app
+    counts it due. Claimed early, it would fetch every link due then and queue itself for the same
+    time again
 
     Args:
         db: Session of the connection's owner
@@ -140,13 +141,13 @@ async def claim_bank_sync_job(db: AsyncSession) -> ClaimedJob | None:
 async def lock_held_job(db: AsyncSession, job: ClaimedJob) -> None:
     """Start a job's finishing step by locking the job while its runner still holds it
 
-    A job writes what it found in one transaction, which this opens, and only while its runner
+    A job writes what it found in one transaction that this opens, and only while its runner
     still holds the job, so a runner that outlived its lease writes nothing. The job stays locked
     until the caller commits. A step that writes for links locks them with lock_covered_links next,
     after any bank accounts it writes, the order a listing takes them in
 
     Args:
-        db: The job owner's session, which the results are then written in
+        db: The job owner's session, in which the results are then written
         job: The job as claimed
 
     Raises:

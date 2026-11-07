@@ -54,10 +54,10 @@ const CELL_CLASS_NAME = 'px-1.5 text-left align-top first:pl-4 last:pr-4'
 type BankComparisonModalProps = {
   open: boolean
 
-  /** A correction or a removal, which keeps showing while the modal closes after it is decided */
+  /** A correction or a removal. It keeps showing while the modal closes after it is decided */
   item: BankReviewItem
 
-  /** The currency of the item's account, which both its amounts are in */
+  /** The currency of the item's account. Both its amounts are in it */
   currency: string
   onClose: () => void
 }
@@ -182,7 +182,7 @@ export function BankComparisonModal({ open, item, currency, onClose }: BankCompa
               const isChanged = item.changed_fields.includes(field)
               const isEdited = item.protected_fields.some((edited) => edited === field)
 
-              // A value the user kept apart from the bank's before, which this change leaves alone. A
+              // A value the user kept apart from the bank's before. This change leaves it alone. A
               // removal shows no bank value to differ from
               const isKept =
                 !isRemoval && !isChanged && formatValue(field, item.current) !== formatValue(field, item.bank)

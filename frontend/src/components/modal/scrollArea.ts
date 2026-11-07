@@ -19,7 +19,7 @@ export function findScrollableAncestor(start: Node, boundary: HTMLElement): HTML
 
 /**
  * Scrolls the nearest area around an element that scrolls just far enough to show the element whole,
- * for a control focused without the browser's own scroll, which would move the page behind a modal too
+ * for a control focused without the browser's own scroll. That scroll would move the page behind a modal too
  */
 export function revealInScrollArea(element: HTMLElement): void {
   const area = element.parentElement && findScrollableAncestor(element.parentElement, document.body)

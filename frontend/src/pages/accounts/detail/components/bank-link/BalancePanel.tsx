@@ -64,7 +64,7 @@ type BalancePanelProps = {
   currency: string
   providerName: string
 
-  /** What the balances ask of the user, under a hairline at the panel's foot, which unfolds as it comes and goes */
+  /** What the balances ask of the user, under a hairline at the panel's foot. It unfolds as it comes and goes */
   footer?: ReactNode
 }
 

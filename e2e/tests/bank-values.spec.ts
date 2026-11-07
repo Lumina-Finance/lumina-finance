@@ -7,17 +7,17 @@ import { expectPendingAction, expectTransactionRow, MINUS, readBoxes } from '../
 import { AT_EVERY_SIZE } from '../support/sizes'
 import { API_BASE_URL } from '../support/target'
 
-// Runs on desktop only, apart from the restore placement, failed restore and greyed restore tests,
-// which run at every size, and the short screen test, which runs on the phone: the restore action
-// wraps under its value where the two don't fit on one line, and a phone gives the modal its whole screen
+// Runs on desktop only, apart from the restore placement, failed restore and greyed restore tests
+// at every size and the short screen test on the phone. The restore action wraps under its value
+// where the two don't fit on one line, and a phone gives the modal its whole screen
 
 // The edit modal of a bank-imported transaction shows the bank's description and, under each field
 // the user edited, the bank's value with Restore bank value.
 //
-// Everyday links to an empty bank account at Harbour Bank on the fake SimpleFIN Bridge, whose one
-// transaction the user adds to the ledger as the bank sent it and then edits, so every restore goes to
-// the server and what it saved is read back. Only a failed restore, which the server can't be made to
-// give, is answered in its place
+// Everyday links to an empty bank account at Harbour Bank on the fake SimpleFIN Bridge. The Bridge has one
+// transaction. The user adds it to the ledger as the bank sent it and then edits it, so every restore goes
+// to the server and what it saved is read back. Only a failed restore is answered in its place, since the
+// server can't be made to give one
 const BANK_DESCRIPTION = 'HARBOUR CAFE #12 VANCOUVER'
 
 // Where the modal has room for the bank's filing card beside it
@@ -33,7 +33,7 @@ const EDITED_DATE = daysFromTodayInTestTimezone(-5)
 const ACTION_OUT_OF_VIEW_PX = 6
 
 /**
- * Signs up with Everyday, linked to Everyday Chequing at Harbour Bank, which sends `amount` on the
+ * Signs up with Everyday, linked to Everyday Chequing at Harbour Bank. The bank sends `amount` on the
  * bank's day. The user adds it to the ledger as the bank sent it, or with `added` minor units where
  * the bank's amount can't be held, then makes the edit given. Answers with the transaction's id
  */
@@ -92,7 +92,7 @@ function restoreAction(dialog: Locator, field: 'date' | 'amount'): Locator {
 
 /**
  * Assert the first box sits below the second and starts within its left and right edges. The two are
- * measured together, since the dialog can still be scaling in around them
+ * measured together, since the dialogue can still be scaling in around them
  */
 async function expectUnder(caption: Locator, field: Locator): Promise<void> {
   const [captionBox, fieldBox] = await readBoxes(caption.page(), [caption, field])
@@ -126,14 +126,14 @@ async function expectIconAfterValue(dialog: Locator, field: 'date' | 'amount'): 
   expect(placement.inside).toBe(true)
 }
 
-// A stand-in can still be fetching for the page when a test ends, which would otherwise surface as an
+// A stand-in can still be fetching for the page when a test ends. That would otherwise surface as an
 // error outside any test
 test.afterEach(async ({ page }) => {
   await page.unrouteAll({ behavior: 'ignoreErrors' })
 })
 
 test('restores the bank amount under an edited amount, bringing back its sign and direction', AT_EVERY_SIZE, async ({ page, request }) => {
-  // The bank sent money out, which the user turned into money in
+  // The bank sent money out and the user turned it into money in
   const { user, id } = await startWithImported(page, request, '-42.10', { amount: 4210 })
   const release = await holdRestores(page, id)
   await openPage(page, '/transactions')
@@ -201,7 +201,7 @@ test('restores the bank amount under an edited amount, bringing back its sign an
 })
 
 test('restores money coming in, bringing back the Credit direction', async ({ page, request }) => {
-  // The bank sent money in, which the user turned into money out
+  // The bank sent money in and the user turned it into money out
   const { user, id } = await startWithImported(page, request, '50.00', { amount: -5000 })
   await openPage(page, '/transactions')
 
@@ -348,7 +348,7 @@ test('brings a failed restore into view above the footer, from an action at the 
 })
 
 test('greys out Restore bank value on an amount the currency can\'t hold, saying why', AT_EVERY_SIZE, async ({ page, request }) => {
-  // Added with an amount of the user's own, which counts as their edit
+  // Added with an amount of the user's own. That counts as their edit
   const { id } = await startWithImported(page, request, '-42.505', {}, -4250)
   let restores = 0
   page.on('request', (sent) => {

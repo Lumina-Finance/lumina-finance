@@ -73,7 +73,7 @@ type LinkedViewProps = {
   balance: BankBalance | null
   openingAdjustment: OpeningAdjustment | null
 
-  /** The account's currency, which a live link's bank account shares */
+  /** The account's currency. A live link's bank account shares it */
   currency: string
   sync: BankSyncLabel
   connection: BankConnection | undefined
@@ -118,7 +118,7 @@ function LinkedView({
   // An import that has just finished stays a moment as done, whatever the status has moved on to
   const showsImport = shownImport !== null && (shownImport.state === 'complete' || IMPORT_STATES.has(state))
 
-  // A dismissed reminder folds away with the ✕ holding focus, which moves on to the next reminder's ✕,
+  // A dismissed reminder folds away with the ✕ holding focus. Focus moves on to the next reminder's ✕,
   // or with none left, to the link's actions
   const moveOnFromReminder = (reminder: HTMLElement) => {
     const later = Array.from(viewRef.current?.querySelectorAll<HTMLElement>(`[${REMINDER_ATTRIBUTE}]`) ?? []).find(
@@ -306,7 +306,7 @@ type BankLinkSectionProps = {
 /**
  * Focuses the first action inside the element that isn't held back with its reason, as the modal
  * passes over a held field, since focus would open the reason over the section. With every action
- * held, the first takes focus anyway, so it stays inside the dialog. A view that swaps in taller can
+ * held, the first takes focus anyway, so it stays inside the dialogue. A view that swaps in taller can
  * leave the action below what the modal shows, so the modal's scroll area brings it into view
  */
 function focusFirstAction(container: HTMLElement | null) {
@@ -329,11 +329,11 @@ export function BankLinkSection({ account, sectionNumber, autoFocus = false }: B
   const [linkFlowOpen, setLinkFlowOpen] = useState(false)
   const [linkFlowKey, setLinkFlowKey] = useState(0)
 
-  // Held past the unlink itself, so the dialog can finish closing once the link is gone
+  // Held past the unlink itself, so the dialogue can finish closing once the link is gone
   const [unlinking, setUnlinking] = useState<BankLink | null>(null)
   const [unlinkOpen, setUnlinkOpen] = useState(false)
 
-  // Mounted afresh for each opening, so the dialog never starts on choices an earlier one left unsaved
+  // Mounted afresh for each opening, so the dialogue never starts on choices an earlier one left unsaved
   const [reviewSettingsOpen, setReviewSettingsOpen] = useState(false)
   const [reviewSettingsKey, setReviewSettingsKey] = useState(0)
 
@@ -379,11 +379,11 @@ export function BankLinkSection({ account, sectionNumber, autoFocus = false }: B
     return () => window.clearTimeout(timer)
   }, [focusOnShow, showsControls])
 
-  // Linking and unlinking swap the view, taking away the control the dialog opened from, so focus would
-  // fall to the page once the dialog or the old view has gone. It moves to the new view's action
-  // instead, after the dialog has put focus back wherever it still could. Motion reports an exit before
+  // Linking and unlinking swap the view, taking away the control the dialogue opened from, so focus would
+  // fall to the page once the dialogue or the old view has gone. It moves to the new view's action
+  // instead, after the dialogue has put focus back wherever it still could. Motion reports an exit before
   // React takes what left off the page, in a render a busy machine can draw a frame ahead of, so the
-  // check waits for that render, which the report's own update joins, rather than for the next frame
+  // check waits for that render (the report's own update joins it) rather than for the next frame
   const [exitsReported, setExitsReported] = useState(0)
   const restoreLostFocus = () => setExitsReported((count) => count + 1)
   useEffect(() => {
@@ -416,7 +416,7 @@ export function BankLinkSection({ account, sectionNumber, autoFocus = false }: B
                 </p>
               )}
               {/* The reason a pause gives for Link bank account keeps to the section's sides. The Sync
-                    details in the linked view take the room the modal has, which a short section lacks */}
+                    details in the linked view take the room the modal has. A short section lacks it */}
               {viewKey === 'unlinked' && (
                 <div className="space-y-3" data-tooltip-bounds>
                   <p className="text-sm" style={{ color: 'var(--app-text-muted)' }}>

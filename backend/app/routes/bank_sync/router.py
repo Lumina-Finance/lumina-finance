@@ -80,7 +80,7 @@ bank_link_router = APIRouter(prefix="/accounts/{account_id}/bank-link", tags=["b
 # The bank items waiting for the user to add, dismiss or decide
 review_router = APIRouter(prefix="/bank-review", tags=["bank-sync"])
 
-# An account's own choices for bank data, which stay with it whatever bank account it follows
+# An account's own choices for bank data stay with it whatever bank account it follows
 review_preferences_router = APIRouter(prefix="/accounts/{account_id}/review-preferences", tags=["bank-sync"])
 
 
@@ -263,7 +263,7 @@ async def list_pending_bank_transactions(
     db: Annotated[AsyncSession, Depends(get_db)],
     account_id: Annotated[list[uuid.UUID] | None, Query()] = None,
 ):
-    """Return the transactions the bank hasn't posted yet, newest first, which stay out of the ledger
+    """Return the transactions the bank hasn't posted yet, newest first. They stay out of the ledger
 
     Args:
         user: Authenticated owner of the accounts
@@ -282,7 +282,7 @@ async def list_bank_holds(
     db: Annotated[AsyncSession, Depends(get_db)],
     account_id: Annotated[list[uuid.UUID] | None, Query()] = None,
 ):
-    """Return the bank records of no amount that haven't been dismissed, newest first, which stay out of the ledger and review
+    """Return the bank records of no amount that haven't been dismissed, newest first. They stay out of the ledger and review
 
     Args:
         user: Authenticated owner of the accounts
@@ -384,7 +384,7 @@ async def sync_bank_link_now(
         db: Active database session
 
     Returns:
-        The link, whose status says the sync is requested until a worker starts it
+        The link, with a status that says the sync is requested until a worker starts it
     """
     return await sync_account_now(db, user, account_id)
 

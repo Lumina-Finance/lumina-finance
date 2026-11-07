@@ -124,7 +124,7 @@ async def _holds(job: ClaimedJob) -> bool:
 
 
 async def test_lock_held_job_refuses_an_attempt_a_later_claim_took_over(connections):
-    """Attempt 1, whose lease ran out, may write nothing, while attempt 2 and the owner's other job's attempt 1 still may"""
+    """Attempt 1 may write nothing once its lease has run out, while attempt 2 and the owner's other job's attempt 1 still may"""
     second_connection = _build_bank_connection(connections[0].owner_id)
     async with TestSession() as session:
         session.add(second_connection)

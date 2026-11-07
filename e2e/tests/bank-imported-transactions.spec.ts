@@ -31,7 +31,7 @@ const MIN_GRAPHIC_CONTRAST = 3
 // small target to take presses across
 const NEAR_MISS_PX = 4
 
-// Older days seeded under the row scrolled up to the sticky bars, which with a heading each fill more
+// Older days seeded under the row scrolled up to the sticky bars. With a heading each they fill more
 // than the short window below it at every width, inside the list's first page of fifteen
 const OLDER_DAYS = 14
 const SHORT_WINDOW_HEIGHT = 600
@@ -131,8 +131,8 @@ async function expectTooltipClosed(row: Locator, firstLine: string): Promise<voi
 }
 
 /**
- * Signs up with Everyday, linked to Everyday Chequing at Harbour Bank, whose $42.50 grocery spend the
- * user adds to the ledger as the bank sent it, then changes to `editedAmount` minor units where given.
+ * Signs up with Everyday, linked to Everyday Chequing at Harbour Bank. The user adds its $42.50 grocery spend
+ * to the ledger as the bank sent it, then changes to `editedAmount` minor units where given.
  * Answers with the transaction's id
  */
 async function startWithImported(

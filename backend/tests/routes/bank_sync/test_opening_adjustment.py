@@ -6,8 +6,8 @@ then, since the bank's balance already holds them. One made while the import's i
 from a balance older than the imported transactions, in the wrong timezone, or counting waiting
 items as the ledger's or ones dated later gets the amount wrong, and one recorded twice or with the
 starting balance's liability sign moves the ledger away from the bank. An answer that marks the
-user's data changed ends the undo of their last import, which only recording, as it adds to the
-ledger, should. Once recorded or skipped the offer never returns, and only the owner's own personal
+user's data changed ends the undo of their last import. Only recording should, as it adds to the
+ledger. Once recorded or skipped the offer never returns, and only the owner's own personal
 account can answer it
 """
 
@@ -162,7 +162,7 @@ async def _bank_source(everyday: _Everyday, ledger_id: str, **values) -> uuid.UU
     """Commit Fake Bank's 12.50 coffee from 3 October as the accepted source of an Everyday ledger row, with any of its values replaced
 
     Returns:
-        Its id, which is also the id of any correction or removal open on it
+        Its id, also the id of any correction or removal open on it
     """
     return await _commit_review_item(
         everyday.account_id,
@@ -415,7 +415,7 @@ async def test_recording_a_cards_adjustment_keeps_the_sign_offered(client):
     """Everyday is a credit card here, owing 300.00 in the ledger and 320.00 at Fake Bank, so 20.00 more owed is offered
 
     It is recorded with the sign offered. A starting balance is stated as what's owed and negated for
-    a card, which here would close the gap the wrong way
+    a card. Negating here would close the gap the wrong way
     """
     everyday = await _offering_everyday(
         client, ("2026-09-15", -30000), account_kind="revolving", account_type="credit_card", bank={"balance": -32000}
@@ -552,7 +552,7 @@ async def test_recording_the_offer_while_items_wait_brings_the_ledger_to_the_ban
     ],
 )
 async def test_offer_leaves_out_what_each_waiting_item_changes_by_the_balance_date(client, coffee, source, new_item, bank, offer):
-    """Everyday holds 1,000.00 and a coffee that came from Fake Bank, whose balance is 1,250.00 at 6:00 PM on 3 October
+    """Everyday holds 1,000.00 and a coffee that came from Fake Bank. Its balance is 1,250.00 at 6:00 PM on 3 October
 
     The coffee is 12.50 from 3 October at the bank, and 10.00 in the ledger where the user edited it.
     Accepting Fake Bank's correction to 15.00 takes 2.50 more off the ledger, so 2.50 more is offered.
@@ -704,7 +704,7 @@ async def test_only_recording_ends_the_undo_of_the_last_import(client, answer, u
     """The user imported a file, then skipped or recorded Everyday's offered 250.00
 
     A skip changes none of their data, so the import can still be undone. Recording adds a ledger
-    transaction, which makes the import permanent
+    transaction and makes the import permanent
     """
     everyday = await _offering_everyday(client, ("2026-09-15", 100000))
     await _import_a_file(client, everyday.headers)
@@ -841,7 +841,7 @@ async def test_answering_for_an_unlinked_account_a_group_account_or_another_user
 
 
 async def test_recording_nothing_is_refused(client):
-    """An adjustment of 0.00 records nothing, which Skip stands for, so it's refused and the offer stays"""
+    """An adjustment of 0.00 records nothing. Skip stands for that, so it's refused and the offer stays"""
     everyday = await _offering_everyday(client, ("2026-09-15", 100000))
 
     refused = await _record(client, everyday.headers, everyday.account_id, 0)

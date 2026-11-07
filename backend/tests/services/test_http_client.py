@@ -38,7 +38,7 @@ def _streamed(content: bytes, chunk_size: int = 1024 * 1024, **kwargs) -> httpx.
 def _client_returning(build_response, max_response_bytes: int = MAX_RESPONSE_BYTES) -> httpx.AsyncClient:
     """Return a capped client whose transport answers with a freshly built response
 
-    Built directly rather than through build_http_client, which always applies the
+    Built directly rather than through build_http_client. That always applies the
     application's cap, so these tests can set a small one
 
     Args:

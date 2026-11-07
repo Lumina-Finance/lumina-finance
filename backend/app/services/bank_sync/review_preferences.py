@@ -32,7 +32,7 @@ REVIEW_ALL = ReviewPreferences(ReviewDecision.REVIEW, ReviewDecision.REVIEW, Rev
 
 
 async def get_review_preferences(db: AsyncSession, user_id: uuid.UUID, account_id: uuid.UUID) -> ReviewPreferences:
-    """Return an account's review preferences, which only its owner may read
+    """Return an account's review preferences. Only its owner may read them
 
     Args:
         db: Active database session
@@ -61,8 +61,8 @@ async def update_review_preferences(
 
     Each save names all three choices, so two at once leave one of them whole: the later waits on
     the row the first writes, then replaces all three. The save locks that row before the owner's
-    cache row, which comes last as in every bank sync write. The first save for an account also
-    takes key-share locks on the account row and the user row its foreign keys name, which
+    cache row. That comes last as in every bank sync write. The first save for an account also
+    takes key-share locks on the account row and the user row its foreign keys name. The locks
     conflict only with a FOR UPDATE lock, as a deletion, a key change or recording a starting
     balance takes. A sync reads the choices without a lock, taking
     whichever were committed when it reads them, so neither waits on the other
