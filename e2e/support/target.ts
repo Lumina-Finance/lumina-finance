@@ -38,9 +38,14 @@ export const FAKE_SIMPLEFIN_BRIDGE_URL = configuredBridge ? configuredBridge.rep
 const configuredLunchFlow = process.env.E2E_FAKE_LUNCHFLOW_URL
 export const FAKE_LUNCHFLOW_URL = configuredLunchFlow ? configuredLunchFlow.replace(/\/+$/, '') : null
 
+// Where the runner reaches the fake Akahu the instance syncs with, on the same terms
+const configuredAkahu = process.env.E2E_FAKE_AKAHU_URL
+export const FAKE_AKAHU_URL = configuredAkahu ? configuredAkahu.replace(/\/+$/, '') : null
+
 const targets = [['E2E_BASE_URL', BASE_URL], ['E2E_API_BASE_URL', API_BASE_URL]]
 if (FAKE_SIMPLEFIN_BRIDGE_URL !== null) targets.push(['E2E_FAKE_SIMPLEFIN_BRIDGE_URL', FAKE_SIMPLEFIN_BRIDGE_URL])
 if (FAKE_LUNCHFLOW_URL !== null) targets.push(['E2E_FAKE_LUNCHFLOW_URL', FAKE_LUNCHFLOW_URL])
+if (FAKE_AKAHU_URL !== null) targets.push(['E2E_FAKE_AKAHU_URL', FAKE_AKAHU_URL])
 
 for (const [name, value] of targets) {
   try {
