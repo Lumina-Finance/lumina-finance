@@ -74,7 +74,7 @@ def upgrade() -> None:
             name="uq_bank_transactions_identity",
         ),
         sa.UniqueConstraint("transaction_id", name="uq_bank_transactions_transaction_id"),
-        sa.CheckConstraint("provider IN ('simplefin')", name="ck_bank_transactions_provider"),
+        sa.CheckConstraint("provider ~ '^[a-z][a-z0-9_]*$'", name="ck_bank_transactions_provider"),
         sa.CheckConstraint(
             "disposition IN ('awaiting_review', 'accepted', 'dismissed')", name="ck_bank_transactions_disposition",
         ),

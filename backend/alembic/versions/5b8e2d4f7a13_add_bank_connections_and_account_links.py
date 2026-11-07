@@ -50,7 +50,7 @@ def upgrade() -> None:
         sa.Column("last_success_at", sa.DateTime(timezone=True), nullable=True),
         sa.ForeignKeyConstraint(["owner_id"], ["users.id"], ondelete="CASCADE"),
         sa.PrimaryKeyConstraint("id"),
-        sa.CheckConstraint("provider IN ('simplefin')", name="ck_bank_connections_provider"),
+        sa.CheckConstraint("provider ~ '^[a-z][a-z0-9_]*$'", name="ck_bank_connections_provider"),
     )
     op.create_table(
         "bank_provider_requests",
@@ -121,7 +121,7 @@ def upgrade() -> None:
         sa.ForeignKeyConstraint(["account_id"], ["accounts.id"], ondelete="CASCADE"),
         sa.ForeignKeyConstraint(["connection_id"], ["bank_connections.id"], ondelete="SET NULL"),
         sa.PrimaryKeyConstraint("id"),
-        sa.CheckConstraint("provider IN ('simplefin')", name="ck_bank_account_links_provider"),
+        sa.CheckConstraint("provider ~ '^[a-z][a-z0-9_]*$'", name="ck_bank_account_links_provider"),
         sa.CheckConstraint("state IN ('active', 'choose_account', 'unlinked')", name="ck_bank_account_links_state"),
         sa.CheckConstraint(
             "import_kind IN ('initial', 'relink', 'choose_again', 'reconnect')",
