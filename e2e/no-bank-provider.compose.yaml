@@ -1,7 +1,8 @@
 # Added to docker/compose.yml for the browser tests written for a server offering no bank sync.
-# SimpleFIN is on unless switched off, so switching it off leaves no provider enabled, and the app
-# starts no bank sync worker
+# SimpleFIN and Lunch Flow are each on unless switched off, so switching both off leaves no provider
+# enabled, and the app starts no bank sync worker
 services:
   app:
     environment:
       BANK_SYNC_SIMPLEFIN_ENABLED: "false"
+      BANK_SYNC_LUNCHFLOW_ENABLED: "false"

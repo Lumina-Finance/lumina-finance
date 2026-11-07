@@ -44,8 +44,8 @@ jobs:
     # Every matrix job starts its own application and database on its runner, and runs its tests
     # against two servers in turn. The first offers no bank sync, with no provider enabled and so no
     # bank sync worker, for every test but those tagged as needing bank sync. The same stack then
-    # restarts with SimpleFIN on, its worker running inside the app as it does by default, and the
-    # fake SimpleFIN Bridge the tagged tests connect bank accounts through
+    # restarts with SimpleFIN and Lunch Flow on, the worker running inside the app as it does by
+    # default, and the fake SimpleFIN Bridge and Lunch Flow the tagged tests connect bank accounts through
     env:
       APP_IMAGE_TAG: ci
       DB_HOST: postgres
@@ -96,42 +96,43 @@ jobs:
         if: ${{ failure() && steps.no-bank-sync-tests.outcome == 'failure' }}
         run: docker compose -f docker/compose.yml -f e2e/compose.mail.yaml -f e2e/no-bank-provider.compose.yaml logs || true
 
-      # The app is recreated with SimpleFIN on and the database kept. Every test creates its own
-      # user, so nothing the first run wrote reaches the second. Runs after a failed first run too,
-      # so a run reports both halves
-      - name: Restart the stack with SimpleFIN
+      # The app is recreated with the bank providers on and the database kept. Every test creates its
+      # own user, so nothing the first run wrote reaches the second. Runs after a failed first run
+      # too, so a run reports both halves
+      - name: Restart the stack with bank sync
         if: ${{ !cancelled() && steps.no-bank-sync-tests.outcome != 'skipped' }}
-        run: docker compose -f docker/compose.yml -f e2e/compose.mail.yaml -f e2e/fake-simplefin-bridge.compose.yaml up -d
+        run: docker compose -f docker/compose.yml -f e2e/compose.mail.yaml -f e2e/fake-simplefin-bridge.compose.yaml -f e2e/fake-lunchflow.compose.yaml up -d
 
-      - name: Wait for the stack with SimpleFIN
+      - name: Wait for the stack with bank sync
         if: ${{ !cancelled() && steps.no-bank-sync-tests.outcome != 'skipped' }}
         uses: ./.github/actions/e2e-health
         with:
           health-url: http://localhost:8080/api/health
-          compose-files: -f docker/compose.yml -f e2e/compose.mail.yaml -f e2e/fake-simplefin-bridge.compose.yaml
+          compose-files: -f docker/compose.yml -f e2e/compose.mail.yaml -f e2e/fake-simplefin-bridge.compose.yaml -f e2e/fake-lunchflow.compose.yaml
 
       # The worker counts as running once its first scan for due work stamps its heartbeat. That
       # comes after it has waited for the app to migrate the database
       - name: Wait for bank sync
         if: ${{ !cancelled() && steps.no-bank-sync-tests.outcome != 'skipped' }}
         run: |
-          compose="docker compose -f docker/compose.yml -f e2e/compose.mail.yaml -f e2e/fake-simplefin-bridge.compose.yaml"
+          compose="docker compose -f docker/compose.yml -f e2e/compose.mail.yaml -f e2e/fake-simplefin-bridge.compose.yaml -f e2e/fake-lunchflow.compose.yaml"
           for attempt in $(seq 1 30); do
             if ${compose} exec -T app python -m app.worker check-health \
-              && curl -fsS -o /dev/null http://localhost:8790/docs; then
-              echo "The bank sync worker and the fake SimpleFIN Bridge are running"
+              && curl -fsS -o /dev/null http://localhost:8790/docs \
+              && curl -fsS -o /dev/null http://localhost:8791/docs; then
+              echo "The bank sync worker and the fake SimpleFIN Bridge and Lunch Flow are running"
               exit 0
             fi
             echo "Attempt ${attempt}: bank sync not ready yet"
             sleep 5
           done
           echo "Bank sync never became ready, dumping logs"
-          ${compose} logs app fake-simplefin-bridge
+          ${compose} logs app fake-simplefin-bridge fake-lunchflow
           exit 1
 
       # A shard can hold none of the tests needing bank sync, so finding none passes. The contract
       # checks ran with the first half. The report and results go beside the first run's
-      - name: Run E2E tests with SimpleFIN
+      - name: Run E2E tests with bank sync
         id: bank-sync-tests
         if: ${{ !cancelled() && steps.no-bank-sync-tests.outcome != 'skipped' }}
         working-directory: e2e
@@ -141,13 +142,14 @@ jobs:
           E2E_BANK_SYNC: "on"
           # Where the bank specs set up the fake SimpleFIN Bridge the stack syncs with
           E2E_FAKE_SIMPLEFIN_BRIDGE_URL: http://localhost:8790
+          E2E_FAKE_LUNCHFLOW_URL: http://localhost:8791
           PLAYWRIGHT_HTML_OUTPUT_DIR: playwright-report-bank-sync
         run: npx playwright test --project=${{ matrix.suite.project }} --shard=${{ matrix.suite.shard }}/${{ matrix.suite.shards }} --pass-with-no-tests --output=test-results-bank-sync
 
       # The report shows only what the browser saw, so a failed request is explained by the app's own log
-      - name: Dump container logs from the server with SimpleFIN
+      - name: Dump container logs from the server with bank sync
         if: ${{ failure() && steps.bank-sync-tests.outcome == 'failure' }}
-        run: docker compose -f docker/compose.yml -f e2e/compose.mail.yaml -f e2e/fake-simplefin-bridge.compose.yaml logs || true
+        run: docker compose -f docker/compose.yml -f e2e/compose.mail.yaml -f e2e/fake-simplefin-bridge.compose.yaml -f e2e/fake-lunchflow.compose.yaml logs || true
 
       # Setup failures do not produce an E2E report
       - name: Keep the reports from a failed run
@@ -162,7 +164,7 @@ jobs:
 
       - name: Tear down the stack
         if: always()
-        run: docker compose -f docker/compose.yml -f e2e/compose.mail.yaml -f e2e/fake-simplefin-bridge.compose.yaml down -v
+        run: docker compose -f docker/compose.yml -f e2e/compose.mail.yaml -f e2e/fake-simplefin-bridge.compose.yaml -f e2e/fake-lunchflow.compose.yaml down -v
 
   # The packaged image serves the app and the API from one origin, so the tests that need two run
   # here. The frontend is built a second time to reach the API at another address of the same stack,
