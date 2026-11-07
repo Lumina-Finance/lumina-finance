@@ -170,10 +170,12 @@ class ProviderUnreachable(Exception):
 class ProviderAdapter(ABC):
     """One bank provider as the sync engine sees it
 
-    Each operation sends exactly one request to the provider, so the engine counts one against the
-    provider's request budget before calling it. Each adapter lives in a subpackage of its own under
-    providers, named after its provider_id and exporting the adapter class as ADAPTER, so deleting
-    that folder removes the provider and nothing else
+    The engine counts one unit against the connection's request budget for each operation it calls,
+    whatever number of requests the adapter sends inside it, so daily_request_budget is a count of
+    operations. An adapter that sends several requests for one operation keeps them within what its
+    provider tolerates. Each adapter lives in a subpackage of its own under providers, named after
+    its provider_id and exporting the adapter class as ADAPTER, so deleting that folder removes the
+    provider and nothing else
     """
 
     # Stored on every connection, link and bank transaction, so it never changes once used. Lowercase
@@ -206,6 +208,8 @@ class ProviderAdapter(ABC):
 
     # The longest window one fetch may span
     max_window_days: ClassVar[int]
+
+    # The operations a connection may run in a rolling 24 hours, each counted once
     daily_request_budget: ClassVar[int]
     connects_from: ClassVar[ConnectsFrom]
 
