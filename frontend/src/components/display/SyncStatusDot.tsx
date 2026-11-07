@@ -55,7 +55,7 @@ export function SyncStatusDot({ tone, pulse = false, size = 'sm' }: SyncStatusDo
   return (
     <span
       ref={dot}
-      className={`inline-flex shrink-0 rounded-full transition-colors${SIZE_CLASSES[size]}`}
+      className={`inline-flex shrink-0 rounded-full transition-colors ${SIZE_CLASSES[size]}`}
       style={{ background: tone === 'off' ? 'transparent' : color, border: `1.5px solid ${color}` }}
       data-testid="sync-status-dot"
       aria-hidden

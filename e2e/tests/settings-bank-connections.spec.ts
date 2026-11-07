@@ -548,6 +548,21 @@ test('stops Save spinning as soon as a rename is saved and the modal can close a
   expect(looks).not.toContain('close enabled, save spinning')
 })
 
+test("draws a connection's status as a round dot, never a dash", AT_EVERY_SIZE, async ({ page, request }) => {
+  const user = await signUpUser(request)
+  const scenario = await createSampleBridgeScenario(request)
+  await claimSetupToken(request, user, scenario.setupToken)
+  const section = await openBankConnections(page, user)
+
+  const [listDot] = await readBoxes(page, [connectionRow(section, 'SimpleFIN').getByTestId('sync-status-dot').filter({ visible: true })])
+  expect(listDot.width).toBeGreaterThanOrEqual(8)
+  expect(listDot.height).toBeCloseTo(listDot.width, 0)
+
+  const dialog = await openConnection(page, section, 'SimpleFIN')
+  const [factDot] = await readBoxes(page, [fact(dialog, 'Status').getByTestId('sync-status-dot')])
+  expect(factDot.height).toBeCloseTo(factDot.width, 0)
+})
+
 test("shows a connection's facts", async ({ page, request }) => {
   const user = await signUpUser(request)
   const [household, scenario] = await Promise.all([
