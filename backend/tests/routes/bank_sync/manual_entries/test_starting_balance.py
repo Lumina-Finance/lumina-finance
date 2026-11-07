@@ -18,7 +18,7 @@ async def test_a_starting_balance_is_refused_once_the_import_has_started(client)
     recorded = await _record_starting_balance(client, ledger.headers, ledger.everyday_id, 1_250_00)
 
     assert recorded.status_code == 422, recorded.text
-    assert recorded.json()["detail"] == "SimpleFIN supplies this account's transactions from Oct 3, 2026 to today"
+    assert recorded.json()["detail"] == "Fake Bank supplies this account's transactions from Oct 3, 2026 to today"
     assert await _dates_in(ledger.everyday_id) == []
 
 

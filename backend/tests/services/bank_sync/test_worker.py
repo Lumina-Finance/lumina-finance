@@ -27,12 +27,12 @@ import pytest
 from sqlalchemy import select, text, update
 
 from app.models.account import Account
-from app.models.bank_connection import BankAccountLink, BankConnection, BankLinkState, BankProvider
+from app.models.bank_connection import BankAccountLink, BankConnection, BankLinkState
 from app.models.bank_pending_transaction import BankPendingTransaction
 from app.models.bank_sync_job import BankSyncHeartbeat, BankSyncJob, BankSyncJobKind, BankSyncJobStatus
 from app.models.base import Base
 from app.models.user import User
-from app.services.bank_sync import availability, worker
+from app.services.bank_sync import worker
 from app.services.bank_sync.jobs import ClaimedJob, finish_job, lock_covered_links, lock_held_job
 from app.services.bank_sync.links import disconnect_connection, unlink_account
 from app.services.bank_sync.pending import replace_pending_transactions
@@ -53,20 +53,13 @@ from tests.routes.support.bank_sync_helpers import (
     _seed_job,
 )
 from tests.routes.support.identity_helpers import _act_as
-from tests.services.bank_sync.fake_provider import FakeProviderAdapter
 
 # Long enough for any step here to finish, so a missing protection fails the test rather than hanging it
 _WAIT_SECONDS = 10
 
 _BACKEND_DIR = Path(__file__).resolve().parents[3]
 
-pytestmark = pytest.mark.usefixtures("worker_sessions", "simplefin_enabled")
-
-
-@pytest.fixture
-def simplefin_enabled(monkeypatch) -> None:
-    """Serve SimpleFIN through a scripted fake whatever the deployment's setting, as the jobs here run the real runner on its connections"""
-    monkeypatch.setitem(availability.ENABLED_ADAPTERS, BankProvider.SIMPLEFIN, FakeProviderAdapter())
+pytestmark = pytest.mark.usefixtures("worker_sessions")
 
 
 class _FetchingRunner:

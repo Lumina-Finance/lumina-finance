@@ -16,18 +16,15 @@ from app.models.currency import Currency
 from app.services.bank_sync.provider_requests import (
     RequestBudget,
     RequestBudgetSpent,
-    is_quota_spent,
-    mark_request_budget_spent,
     read_request_budget,
     record_provider_request,
     reserve_provider_request,
     summarize_request_budget,
 )
 from tests.conftest import TestSession
-from tests.fake_simplefin_bridge import FakeBridgeTransport
 from tests.routes.support.bank_sync_helpers import _build_bank_connection, _build_user
 from tests.routes.support.lock_helpers import _wait_until_waiting_on
-from tests.services.bank_sync.stand_ins import FakeBridgeScenario, simplefin_adapter
+from tests.services.bank_sync.fake_provider import remove_provider
 
 _NOW = datetime(2026, 10, 4, 12, 0, tzinfo=UTC)
 
@@ -168,39 +165,9 @@ async def test_reserve_by_two_senders_at_once_gives_the_last_request_to_one():
         assert await _counted(check, connection) == 20
 
 
-@pytest.mark.parametrize("fault", ["rate_limited", "quota_warning"], ids=["429", "quota-warning-with-data"])
-async def test_quota_spent_answer_marks_the_budget_spent_until_the_oldest_request_leaves(db, scenario: FakeBridgeScenario, fault):
-    """With 3 of 20 used, a 429 or a quota warning beside data leaves none until the oldest of the 3 leaves"""
-    await scenario.add_harbour_accounts()
-    adapter = simplefin_adapter(FakeBridgeTransport())
-    access_url = await adapter.claim(scenario.setup_token)
-    await scenario.change("PUT", "/fault", {"kind": fault})
-    oldest = _NOW - timedelta(hours=5)
-    connection = await _connection_with_requests(db, oldest, _NOW - timedelta(hours=1))
-    await reserve_provider_request(db, connection, purpose=ProviderRequestPurpose.DISCOVERY, now=_NOW)
+async def test_request_budget_of_a_provider_no_longer_installed_reads_as_none_used_with_no_limit(db, monkeypatch):
+    """With the provider's folder deleted the connection can't send anything, so its budget shows no use and no limit"""
+    connection = await _connection_with_requests(db, _NOW - timedelta(hours=1))
+    remove_provider(monkeypatch, connection.provider)
 
-    result = await adapter.discover(access_url, currency_exponents={"USD": 2})
-    assert is_quota_spent(result)
-    await mark_request_budget_spent(db, connection, now=_NOW)
-
-    frees_at = oldest + timedelta(hours=24)
-    assert await read_request_budget(db, connection, now=_NOW) == RequestBudget(
-        limit=20, used=20, available_again_at=frees_at, held_by_provider=True
-    )
-    with pytest.raises(RequestBudgetSpent) as refused:
-        await reserve_provider_request(db, connection, purpose=ProviderRequestPurpose.SYNC, now=frees_at - timedelta(seconds=1))
-    assert refused.value.available_again_at == frees_at
-    await reserve_provider_request(db, connection, purpose=ProviderRequestPurpose.SYNC, now=frees_at)
-
-
-async def test_other_warnings_beside_data_leave_the_budget_alone(scenario: FakeBridgeScenario):
-    """A maintenance notice isn't about the quota, so the rest of the budget can still be used"""
-    await scenario.add_harbour_accounts()
-    adapter = simplefin_adapter(FakeBridgeTransport())
-    access_url = await adapter.claim(scenario.setup_token)
-    await scenario.change("POST", "/errors", {"code": "gen.maintenance", "msg": "Some banks may be slow to update tonight."})
-
-    result = await adapter.discover(access_url, currency_exponents={"USD": 2})
-
-    assert result.warnings
-    assert not is_quota_spent(result)
+    assert await read_request_budget(db, connection, now=_NOW) == RequestBudget(limit=None, used=0, available_again_at=None)

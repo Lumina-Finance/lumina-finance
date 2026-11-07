@@ -21,7 +21,7 @@ from app.services.bank_sync.providers.simplefin.account_set import (
     read_external_accounts,
 )
 
-_FIXTURES = Path(__file__).resolve().parents[2] / "fixtures" / "simplefin"
+_FIXTURES = Path(__file__).resolve().parents[4] / "fixtures" / "simplefin"
 _EXPONENTS = {"USD": 2, "JPY": 0, "BHD": 3}
 
 # The day the sample response stands as requested on, after every stamp in it, so a record dated

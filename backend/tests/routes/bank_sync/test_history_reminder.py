@@ -37,7 +37,7 @@ _NOW = datetime(2026, 10, 5, 12, 0, tzinfo=ZoneInfo("America/Toronto"))
 _FELL_SHORT = {"history_reminder_start": date(2026, 6, 1), "history_reminder_earliest": date(2026, 6, 9)}
 _SHOWN = {"requested_start": "2026-06-01", "earliest_returned": "2026-06-09"}
 
-# 2 October came back as long as SimpleFIN's longest response
+# 2 October came back as long as Fake Bank's longest response
 _CUT_SHORT = {"cut_off_day": date(2026, 10, 2)}
 
 
@@ -48,7 +48,7 @@ def _pinned_now(pin_clock):
 
 
 async def _linked_everyday(client, **link_values) -> tuple[dict, str, BankAccountLink]:
-    """Sign up with Everyday linked to SimpleFIN, its import ended and synced through today an hour ago, its link's values set as given
+    """Sign up with Everyday linked to Fake Bank, its import ended and synced through today an hour ago, its link's values set as given
 
     Returns:
         The auth headers, Everyday's id and its link

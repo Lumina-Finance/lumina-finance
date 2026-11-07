@@ -22,6 +22,6 @@ async def test_recent_activity_carries_each_transactions_bank_source(client, mon
     assert response.status_code == 200, response.text
     sources = {row["id"]: row["bank_source"] for row in response.json()["recent_transactions"]}
     assert sources[manual.json()["id"]] is None
-    assert sources[imported.json()["id"]]["provider_name"] == "SimpleFIN"
+    assert sources[imported.json()["id"]]["provider_name"] == "Fake Bank"
     assert sources[imported.json()["id"]]["bank_values"]["amount"] == -1250
     assert sources[imported.json()["id"]]["edited_fields"] == ["amount"]

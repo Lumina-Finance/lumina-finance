@@ -1,6 +1,6 @@
 """Outbound request guard for bank provider requests
 
-A SimpleFIN setup token decodes to a URL the user controls, which the server then calls, so every
+A credential the user pastes can carry a URL they control, which the server then calls, so every
 provider request goes through this guard to keep a crafted URL from reaching an internal service.
 Only an allowed HTTPS origin is contacted, every address its host resolves to must be public, and
 the connection goes to the address that was checked, so a DNS answer that changes in between

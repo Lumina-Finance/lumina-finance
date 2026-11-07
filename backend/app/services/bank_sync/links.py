@@ -274,6 +274,8 @@ async def link_bank_account(
         connection_id=connection.id,
         provider=link.provider,
         provider_name=adapter.provider_name,
+        provider_site=adapter.provider_site,
+        provider_available=True,
         external_account_id=link.external_account_id,
         external_account_name=link.external_account_name,
         institution_name=link.institution_name,
@@ -416,7 +418,7 @@ async def _get_working_connection(
     if connection.credential_rejected_at is not None:
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
-            detail=f"{adapter.provider_name} rejected this connection. Reconnect it in Settings with a new setup token",
+            detail=f"{adapter.provider_name} rejected this connection. Reconnect it in Settings",
         )
     return connection, adapter
 

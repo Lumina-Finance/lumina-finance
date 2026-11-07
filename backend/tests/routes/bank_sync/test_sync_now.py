@@ -3,7 +3,7 @@
 A sync already queued for the connection takes the request in. The request is refused with the
 reason the button shows while an import or a sync runs on the account, only the user can restart its
 sync, or the review pause holds it, and while the budget is spent, saying whether the connection's
-own limit or SimpleFIN's holds it and when a request frees up. A refusal that queues anything spends
+own limit or Fake Bank's holds it and when a request frees up. A refusal that queues anything spends
 a request the user was told it wouldn't. The job running the
 sync is tested with the others, in the bank sync service tests
 """
@@ -49,7 +49,7 @@ _SYNCED = {
 _RETRY = {
     "retry_count": 1,
     "last_attempt_at": _NOW - timedelta(minutes=10),
-    "last_failure_reason": "SimpleFIN Bridge couldn't be reached",
+    "last_failure_reason": "Fake Bank Online couldn't be reached",
     "next_attempt_at": _NOW + timedelta(minutes=20),
 }
 
@@ -84,7 +84,7 @@ async def _data_changed_at(user_id: uuid.UUID) -> datetime:
 
 
 async def _link_everyday(client, **values) -> tuple[dict, str, BankConnection, BankAccountLink]:
-    """Sign up with Everyday linked on a SimpleFIN connection listed at noon, its link's values replaced as given
+    """Sign up with Everyday linked on a Fake Bank connection listed at noon, its link's values replaced as given
 
     Returns:
         The user's headers, Everyday's id, the connection and the link
@@ -124,7 +124,7 @@ async def test_sync_now_queues_a_sync_of_the_account_that_keeps_its_state_until_
     ],
 )
 async def test_sync_now_runs_while_the_bank_needs_a_sign_in_or_a_retry_waits(client, values, state):
-    """The user may have just signed in again at SimpleFIN Bridge, or wants the account a retry is waiting on, so neither refuses"""
+    """The user may have just signed in again at Fake Bank Online, or wants the account a retry is waiting on, so neither refuses"""
     headers, account_id, _, link = await _link_everyday(client, **values)
 
     response = await _sync_now(client, headers, account_id)
@@ -161,7 +161,7 @@ async def test_sync_now_joins_the_sync_already_queued_for_the_connection(client)
         pytest.param(_SYNCED, {}, True, "A sync is already running", id="syncing"),
         # The bank sign-in shows over the sync, but a second sync would only spend another request
         pytest.param(_SYNCED | _SIGNIN_NEEDED, {}, True, "A sync is already running", id="syncing-while-the-bank-needs-a-sign-in"),
-        pytest.param(_SYNCED, {"credential_rejected_at": _NOW}, False, "Reconnect SimpleFIN in Settings before syncing", id="reconnect-needed"),
+        pytest.param(_SYNCED, {"credential_rejected_at": _NOW}, False, "Reconnect Fake Bank in Settings before syncing", id="reconnect-needed"),
         pytest.param(
             {"state": BankLinkState.CHOOSE_ACCOUNT, "importing": False},
             {},
@@ -209,23 +209,23 @@ async def test_sync_now_with_the_connections_requests_spent_says_when_one_frees(
     response = await _sync_now(client, headers, account_id)
 
     assert response.status_code == 429, response.text
-    assert response.json()["detail"] == f"This connection has used its 20 SimpleFIN requests in the last 24 hours. More are available {when}"
+    assert response.json()["detail"] == f"This connection has used its 20 Fake Bank requests in the last 24 hours. More are available {when}"
     assert await _queued_requests() == []
 
 
 @pytest.mark.parametrize(
     ("used", "detail"),
     [
-        pytest.param(4, "SimpleFIN says this connection has reached its request limit. More are available in 3 hours", id="provider-limit"),
+        pytest.param(4, "Fake Bank says this connection has reached its request limit. More are available in 3 hours", id="provider-limit"),
         pytest.param(
-            20, "This connection has used its 20 SimpleFIN requests in the last 24 hours. More are available in 3 hours", id="own-limit-too"
+            20, "This connection has used its 20 Fake Bank requests in the last 24 hours. More are available in 3 hours", id="own-limit-too"
         ),
     ],
 )
 async def test_sync_now_after_the_provider_said_its_quota_is_spent_says_whose_limit_holds_it_back(client, used, detail):
-    """SimpleFIN said its quota was spent, which holds requests back until the oldest one counted leaves the last day, in 3 hours
+    """Fake Bank said its quota was spent, which holds requests back until the oldest one counted leaves the last day, in 3 hours
 
-    With 4 of the connection's 20 requests used, SimpleFIN's limit is what holds Sync now back. With
+    With 4 of the connection's 20 requests used, Fake Bank's limit is what holds Sync now back. With
     all 20 used, the connection's own limit frees a request at the same time, so it says that one
     """
     headers, account_id, connection, _ = await _link_everyday(client, **_SYNCED)

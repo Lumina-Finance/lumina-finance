@@ -6,7 +6,6 @@ from typing import Literal
 
 from pydantic import BaseModel, Field
 
-from app.models.bank_connection import BankProvider
 from app.models.bank_transaction import CorrectableBankField, EditableBankField
 from app.schemas.bank_sync import BankValues
 from app.schemas.transaction import TransactionEntry
@@ -28,7 +27,7 @@ class BankReviewItemResponse(BaseModel):
     id: uuid.UUID
     kind: ReviewItemKind
     account_id: uuid.UUID
-    provider: BankProvider
+    provider: str
     provider_name: str
     received_at: datetime
 

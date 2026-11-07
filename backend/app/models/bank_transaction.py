@@ -9,7 +9,7 @@ from sqlalchemy import VARCHAR, BigInteger, CheckConstraint, Date, DateTime, For
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column
 
-from app.models.bank_connection import BankProvider
+from app.models.bank_connection import PROVIDER_ID_MAX_LENGTH, provider_id_check
 from app.models.base import Base, check_values
 
 
@@ -72,7 +72,7 @@ class BankTransaction(Base):
         ),
         # A ledger row comes from at most one bank transaction
         UniqueConstraint("transaction_id", name="uq_bank_transactions_transaction_id"),
-        CheckConstraint(f"provider IN ({check_values(BankProvider)})", name="ck_bank_transactions_provider"),
+        provider_id_check("bank_transactions"),
         CheckConstraint(
             f"disposition IN ({check_values(BankTransactionDisposition)})",
             name="ck_bank_transactions_disposition",
@@ -108,7 +108,7 @@ class BankTransaction(Base):
     id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
     owner_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
     account_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("accounts.id", ondelete="CASCADE"), nullable=False)
-    provider: Mapped[str] = mapped_column(VARCHAR(32), nullable=False)
+    provider: Mapped[str] = mapped_column(VARCHAR(PROVIDER_ID_MAX_LENGTH), nullable=False)
     external_account_id: Mapped[str] = mapped_column(Text, nullable=False)
 
     # The keyed hash of the provider's ID for the transaction. The server's key keeps anything of the ID

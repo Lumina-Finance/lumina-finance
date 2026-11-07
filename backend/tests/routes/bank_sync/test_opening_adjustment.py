@@ -65,7 +65,7 @@ _ADJUSTMENT_DATE = "2026-05-31"
 _NOTHING_TO_RECORD = "There is no opening balance to confirm"
 _NOTHING_TO_SKIP = "There is no opening balance to skip"
 
-# When SimpleFIN reported a transaction removed, the morning after the balance
+# When Fake Bank reported a transaction removed, the morning after the balance
 _REMOVED_AT = datetime(2026, 10, 4, 9, 0, tzinfo=UTC)
 
 
@@ -77,7 +77,7 @@ def _pinned_now(pin_clock):
 
 @dataclass(frozen=True)
 class _Everyday:
-    """A signed-up user's Everyday account, linked to SimpleFIN from 1 June"""
+    """A signed-up user's Everyday account, linked to Fake Bank from 1 June"""
 
     headers: dict
     account_id: str
@@ -159,7 +159,7 @@ async def _offer_state(link: BankAccountLink) -> str:
 
 
 async def _bank_source(everyday: _Everyday, ledger_id: str, **values) -> uuid.UUID:
-    """Commit SimpleFIN's 12.50 coffee from 3 October as the accepted source of an Everyday ledger row, with any of its values replaced
+    """Commit Fake Bank's 12.50 coffee from 3 October as the accepted source of an Everyday ledger row, with any of its values replaced
 
     Returns:
         Its id, which is also the id of any correction or removal open on it
@@ -192,7 +192,7 @@ async def _adjustments(account_id: str) -> list[tuple]:
 async def test_offer_waits_until_none_of_the_imports_items_is_waiting(client):
     """Everyday's import from 1 June left 3 items waiting, and a sync after it brought a 12.50 coffee from 3 October
 
-    The ledger is 1,000.00 at the end of 3 October and SimpleFIN's balance 1,250.00. Nothing is
+    The ledger is 1,000.00 at the end of 3 October and Fake Bank's balance 1,250.00. Nothing is
     offered while any of the import's 3 waits. Reviewing the last offers 262.50 on May 31, 2026,
     though the coffee still waits, leaving out the 12.50 adding it takes off the ledger, and the
     status reads as an opening balance to confirm
@@ -216,7 +216,7 @@ async def test_offer_waits_until_none_of_the_imports_items_is_waiting(client):
 
 
 async def test_offer_reads_the_balance_date_in_the_profile_timezone_against_the_last_imported_transaction(client):
-    """In Phoenix, SimpleFIN's balance at 02:00 UTC on October 4 is from 7:00 PM on October 3, the day of the import's last transaction
+    """In Phoenix, Fake Bank's balance at 02:00 UTC on October 4 is from 7:00 PM on October 3, the day of the import's last transaction
 
     That transaction, 50.00 of groceries, may have come after the balance, so nothing is offered and
     the link waits for a newer one, though on the UTC day the balance would read as a day later
@@ -263,7 +263,7 @@ async def test_offer_reads_the_balance_date_in_the_profile_timezone_against_the_
 async def test_offer_waits_for_a_bank_balance_dated_after_the_last_imported_transaction(client, balance_day, offer, state):
     """The import's last transaction, 50.00 of groceries, is dated 1 October and is in the ledger with 1,000.00 of salary
 
-    A SimpleFIN balance of 1,250.00 at 6:00 PM on 30 September or 1 October gets no offer, and the
+    A Fake Bank balance of 1,250.00 at 6:00 PM on 30 September or 1 October gets no offer, and the
     link waits for a newer one. On 2 October the ledger is 950.00, and 300.00 is offered
     """
     everyday = await _linked_everyday(
@@ -301,7 +301,7 @@ async def test_offer_waits_for_a_bank_balance_dated_after_the_last_imported_tran
 async def test_no_offer_when_the_ledger_matches_the_bank_or_the_bank_gives_no_balance_it_can_read(client, bank_balance, state):
     """The ledger is 1,250.00 at the end of 3 October
 
-    SimpleFIN's 1,250.00 matches, so nothing is ever offered. A balance it sent with more decimals than
+    Fake Bank's 1,250.00 matches, so nothing is ever offered. A balance it sent with more decimals than
     CAD holds can't be compared, so the link waits for one that can
     """
     everyday = await _linked_everyday(client, ("2026-09-15", 125000), bank={"balance": bank_balance})
@@ -316,7 +316,7 @@ async def test_no_offer_when_the_ledger_matches_the_bank_or_the_bank_gives_no_ba
 
 
 async def test_adding_the_imports_last_waiting_item_to_the_ledger_offers_the_adjustment(client):
-    """Everyday's import left the bank's 12.50 coffee from 3 October waiting, and SimpleFIN's 1,250.00 is dated 4 October
+    """Everyday's import left the bank's 12.50 coffee from 3 October waiting, and Fake Bank's 1,250.00 is dated 4 October
 
     Adding the coffee to the ledger leaves 987.50 there and nothing of the import's waiting, so
     262.50 is offered
@@ -390,10 +390,10 @@ async def test_choosing_the_bank_account_again_waits_for_its_import_unless_the_o
     [pytest.param(25000, 0, id="as-offered"), pytest.param(24000, -1000, id="overwritten")],
 )
 async def test_recording_adds_one_balance_adjustment_the_day_before_the_import_start(client, amount, difference):
-    """Everyday offers 250.00 with 1,000.00 in the ledger and SimpleFIN at 1,250.00
+    """Everyday offers 250.00 with 1,000.00 in the ledger and Fake Bank at 1,250.00
 
     Recording 250.00, or 240.00 typed over it, adds that Balance Adjustment from Myself on 31 May,
-    before the days SimpleFIN supplies. The offer is gone and Difference shows what remains, with the
+    before the days Fake Bank supplies. The offer is gone and Difference shows what remains, with the
     cache mark the last write
     """
     everyday = await _offering_everyday(client, ("2026-09-15", 100000))
@@ -412,7 +412,7 @@ async def test_recording_adds_one_balance_adjustment_the_day_before_the_import_s
 
 
 async def test_recording_a_cards_adjustment_keeps_the_sign_offered(client):
-    """Everyday is a credit card here, owing 300.00 in the ledger and 320.00 at SimpleFIN, so 20.00 more owed is offered
+    """Everyday is a credit card here, owing 300.00 in the ledger and 320.00 at Fake Bank, so 20.00 more owed is offered
 
     It is recorded with the sign offered. A starting balance is stated as what's owed and negated for
     a card, which here would close the gap the wrong way
@@ -433,9 +433,9 @@ async def test_recording_a_cards_adjustment_keeps_the_sign_offered(client):
 async def test_an_offer_the_ledger_catches_up_with_shows_nothing_and_ends_at_the_next_review_decision(client):
     """Everyday offers 250.00, and the user records the 250.00 by hand on 31 May instead
 
-    The ledger matches SimpleFIN, so the offer shows nothing from then on and the status no longer
+    The ledger matches Fake Bank, so the offer shows nothing from then on and the status no longer
     asks for an opening balance, and the next review decision ends it. The coffee it decides is
-    dated 4 October, after SimpleFIN's balance, so it changes nothing the offer leaves out
+    dated 4 October, after Fake Bank's balance, so it changes nothing the offer leaves out
     """
     everyday = await _offering_everyday(client, ("2026-09-15", 100000))
     item_id = await _commit_review_item(everyday.account_id, "TRN-later", observed_date=date(2026, 10, 4))
@@ -451,11 +451,11 @@ async def test_an_offer_the_ledger_catches_up_with_shows_nothing_and_ends_at_the
 
 
 async def test_recording_the_offer_while_items_wait_brings_the_ledger_to_the_bank_once_they_are_added(client):
-    """Everyday holds 50.00 and SimpleFIN's balance is 100.00, with three 4.50 coffees from 3 October waiting for review
+    """Everyday holds 50.00 and Fake Bank's balance is 100.00, with three 4.50 coffees from 3 October waiting for review
 
-    SimpleFIN's balance already holds the coffees, and adding them will take 13.50 off the ledger,
+    Fake Bank's balance already holds the coffees, and adding them will take 13.50 off the ledger,
     so 63.50 is offered rather than 50.00. Recording it and adding the coffees leaves the ledger at
-    SimpleFIN's 100.00, where the full difference would leave it at 86.50. A coffee waiting in
+    Fake Bank's 100.00, where the full difference would leave it at 86.50. A coffee waiting in
     Savings isn't Everyday's to count
     """
     everyday = await _offering_everyday(client, ("2026-09-15", 5000), bank={"balance": 10000})
@@ -552,10 +552,10 @@ async def test_recording_the_offer_while_items_wait_brings_the_ledger_to_the_ban
     ],
 )
 async def test_offer_leaves_out_what_each_waiting_item_changes_by_the_balance_date(client, coffee, source, new_item, bank, offer):
-    """Everyday holds 1,000.00 and a coffee that came from SimpleFIN, whose balance is 1,250.00 at 6:00 PM on 3 October
+    """Everyday holds 1,000.00 and a coffee that came from Fake Bank, whose balance is 1,250.00 at 6:00 PM on 3 October
 
     The coffee is 12.50 from 3 October at the bank, and 10.00 in the ledger where the user edited it.
-    Accepting SimpleFIN's correction to 15.00 takes 2.50 more off the ledger, so 2.50 more is offered.
+    Accepting Fake Bank's correction to 15.00 takes 2.50 more off the ledger, so 2.50 more is offered.
     Moving the coffee to 4 October, or removing it, gives back its 12.50 by 3 October, and removing
     it when it is from 4 October gives back nothing. A changed description moves nothing, though the
     user's 10.00 differs from the bank's 12.50. A new item from 4 October lands after the balance, so
@@ -577,11 +577,11 @@ async def test_offer_leaves_out_what_each_waiting_item_changes_by_the_balance_da
 
 @pytest.mark.parametrize("state", [OpeningAdjustmentState.OFFERED, OpeningAdjustmentState.NOT_READY], ids=["offered", "import-just-reviewed"])
 async def test_an_item_waiting_with_an_amount_the_currency_cant_hold_keeps_the_offer_waiting(client, state):
-    """SimpleFIN sent a coffee from 3 October as 12.505, more decimals than CAD holds, so what adding it takes off the ledger isn't known
+    """Fake Bank sent a coffee from 3 October as 12.505, more decimals than CAD holds, so what adding it takes off the ledger isn't known
 
     An offer shows nothing while the coffee waits and the status doesn't ask for it, and a link whose
     import has just been reviewed isn't offered one, rather than rounding the coffee. Dismissing it
-    offers the 250.00 the ledger and SimpleFIN differ by
+    offers the 250.00 the ledger and Fake Bank differ by
     """
     everyday = await _linked_everyday(client, ("2026-09-15", 100000), opening_adjustment_state=state)
     [import_item] = await _commit_waiting_items(everyday.link, 1)
@@ -618,7 +618,7 @@ async def test_an_item_waiting_with_an_amount_the_currency_cant_hold_keeps_the_o
     ],
 )
 async def test_offer_holds_still_as_the_items_waiting_are_approved(client, source, decision, decided_status, ledger_balance):
-    """Everyday's 12.50 coffee from 3 October waits on SimpleFIN's correction to 15.00, or on its removal
+    """Everyday's 12.50 coffee from 3 October waits on Fake Bank's correction to 15.00, or on its removal
 
     The offer already leaves out what approving it changes, so accepting the correction or removing
     the coffee moves the ledger and leaves the offer as it was
@@ -637,10 +637,10 @@ async def test_offer_holds_still_as_the_items_waiting_are_approved(client, sourc
 
 
 async def test_offer_ends_when_a_dismissal_leaves_items_waiting_that_close_the_gap(client):
-    """Everyday holds 113.50 and SimpleFIN's balance is 100.00, with four 4.50 coffees waiting, one a copy of another
+    """Everyday holds 113.50 and Fake Bank's balance is 100.00, with four 4.50 coffees waiting, one a copy of another
 
     Adding all four would take 18.00 off the ledger, so 4.50 is offered. Dismissing the copy leaves
-    three that bring the ledger to SimpleFIN's 100.00 once added, so the offer ends for good
+    three that bring the ledger to Fake Bank's 100.00 once added, so the offer ends for good
     """
     everyday = await _offering_everyday(client, ("2026-09-15", 11350), bank={"balance": 10000})
     for number in range(3):
@@ -657,9 +657,9 @@ async def test_offer_ends_when_a_dismissal_leaves_items_waiting_that_close_the_g
 
 
 async def test_no_offer_when_leaving_out_the_items_waiting_closes_the_gap(client):
-    """Everyday holds 113.50 and SimpleFIN's balance is 100.00, with three 4.50 coffees from a later sync waiting
+    """Everyday holds 113.50 and Fake Bank's balance is 100.00, with three 4.50 coffees from a later sync waiting
 
-    Adding the coffees will bring the ledger to SimpleFIN's 100.00, so once the import's last item
+    Adding the coffees will bring the ledger to Fake Bank's 100.00, so once the import's last item
     is dismissed nothing is offered, for good, where the full difference would offer 13.50 less
     """
     everyday = await _linked_everyday(client, ("2026-09-15", 11350), bank={"balance": 10000})

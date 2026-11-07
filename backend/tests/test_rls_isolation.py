@@ -529,7 +529,7 @@ async def _create_bank_records(session, owner_id) -> tuple[Account, BankConnecti
             BankHold(
                 owner_id=owner_id,
                 account_id=account.id,
-                provider="simplefin",
+                provider="fake",
                 external_account_id="ACT-1",
                 external_transaction_hash="h" * 64,
                 hold_date=date(2026, 10, 4),
@@ -625,7 +625,7 @@ async def test_bank_record_naming_another_users_connection_is_refused(users, ban
         lambda account, _, owner_id: BankHold(
             owner_id=owner_id,
             account_id=account.id,
-            provider="simplefin",
+            provider="fake",
             external_account_id="ACT-B",
             external_transaction_hash="b" * 64,
             hold_date=date(2026, 10, 4),

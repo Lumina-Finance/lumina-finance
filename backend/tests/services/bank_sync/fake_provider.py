@@ -1,8 +1,10 @@
 """A scripted bank provider for testing the provider-neutral sync engine
 
-Tests queue the exact outcomes they need, including ones SimpleFIN never produces, such as a
-removed record, and read back the requests the engine made. A fetch gives each bank account asked
-for that its outcome leaves out an error of its own, as the contract has every provider do
+Tests queue the exact outcomes they need, including ones a real provider may never produce, such as
+a removed record, and read back the requests the engine made. A fetch gives each bank account asked
+for that its outcome leaves out an error of its own, as the contract has every provider do. Every
+test runs with it installed under FAKE_PROVIDER, enabled and offered, so engine and route tests need
+no real provider
 """
 
 from collections.abc import Mapping, Sequence
@@ -11,16 +13,36 @@ from datetime import UTC, datetime
 from typing import override
 from zoneinfo import ZoneInfo
 
+import pytest
+
 from app.models.bank_connection import ConnectsFrom
 from app.models.bank_sync_job import ProviderErrorKind
+from app.services.bank_sync.availability import InstalledProvider, installed_providers
 from app.services.bank_sync.providers.contract import (
     ClaimRefused,
+    CredentialField,
     ExternalAccount,
     FetchResult,
     ProviderAdapter,
     ProviderError,
     ProviderRecord,
 )
+
+# The id the fake provider is installed under, which test connections, links and bank transactions store
+FAKE_PROVIDER = "fake"
+
+# The key the fake provider's one credential field is sent under
+ACCESS_KEY = "access_key"
+
+
+def use_adapter(monkeypatch: pytest.MonkeyPatch, adapter: ProviderAdapter, *, enabled: bool = True, offered: bool = True) -> None:
+    """Install an adapter under its provider id for the test, with the deployment switches given"""
+    monkeypatch.setitem(installed_providers(), adapter.provider_id, InstalledProvider(adapter=adapter, enabled=enabled, offered=offered))
+
+
+def remove_provider(monkeypatch: pytest.MonkeyPatch, provider_id: str) -> None:
+    """Leave a provider uninstalled for the test, as though its folder were deleted"""
+    monkeypatch.delitem(installed_providers(), provider_id, raising=False)
 
 
 @dataclass(frozen=True)
@@ -37,8 +59,13 @@ class FetchCall:
 class FakeProviderAdapter(ProviderAdapter):
     """Answers each operation from what the test queued, in order, leaving pending records out of a fetch that didn't ask for them"""
 
-    provider_id = "fake"
+    provider_id = FAKE_PROVIDER
     provider_name = "Fake Bank"
+    display_order = 0
+    provider_site = "Fake Bank Online"
+    provider_description = "One access key reaches every account you hold at Fake Bank."
+    credential_fields = (CredentialField(ACCESS_KEY, "Access key", "Paste the key", 512),)
+    connect_steps = ("Sign in to Fake Bank Online.", "Create an access key and paste it here.")
     history_limit_months = 12
     advertises_history = False
     revisit_overlap_days = 14
@@ -51,16 +78,20 @@ class FakeProviderAdapter(ProviderAdapter):
         # Each supplied credential claims once, giving its stored credential or raising its error
         self.claimable: dict[str, str | Exception] = {}
 
+        # Every set of credentials the engine handed to claim, in order
+        self.claims: list[dict[str, str]] = []
+
         # Answers to discover and fetch alike, given out in order, an error raised in place of an answer
         self.outcomes: list[FetchResult | Exception] = []
         self.discoveries: list[str] = []
         self.fetches: list[FetchCall] = []
 
     @override
-    async def claim(self, supplied_credential: str) -> str:
-        outcome = self.claimable.pop(supplied_credential, None)
+    async def claim(self, supplied: Mapping[str, str]) -> str:
+        self.claims.append(dict(supplied))
+        outcome = self.claimable.pop(supplied[ACCESS_KEY], None)
         if outcome is None:
-            raise ClaimRefused("This setup token has already been used. Create a new one in SimpleFIN Bridge")
+            raise ClaimRefused("This access key has already been used. Create a new one in Fake Bank Online")
         if isinstance(outcome, Exception):
             raise outcome
         return outcome

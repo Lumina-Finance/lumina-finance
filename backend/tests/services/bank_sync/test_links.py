@@ -96,7 +96,7 @@ async def test_link_flow_asks_for_a_discovery_once_the_last_is_over_an_hour_old(
 
 
 async def test_link_flow_with_the_request_budget_spent_asks_for_no_discovery(linkable, frozen_now):
-    """A discovery counts against the budget, so none is asked for while SimpleFIN says it is spent"""
+    """A discovery counts against the budget, so none is asked for while Fake Bank says it is spent"""
     user, account, connection = linkable
     await _update_connection(
         connection,

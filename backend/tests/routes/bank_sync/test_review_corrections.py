@@ -102,8 +102,8 @@ async def _decide(client, correction: _Correction, decision: str, item_id: uuid.
 def _blue_bottle_source(*, amount: int | None = -475, raw_amount: str | None = None, edited_fields: list[str] | None = None) -> dict:
     """Return the bank source of the coffee once the correction is decided"""
     return {
-        "provider": "simplefin",
-        "provider_name": "SimpleFIN",
+        "provider": "fake",
+        "provider_name": "Fake Bank",
         "bank_values": {
             "date": BANK_DATE.isoformat(),
             "amount": amount,

@@ -81,7 +81,7 @@ def _journal_transfer(journal_id: str, day: date) -> dict:
 
 @pytest.mark.parametrize("day", INSIDE)
 async def test_a_file_import_with_a_row_inside_the_range_is_refused_whole(client, day):
-    """A file importing 31 May and a day SimpleFIN supplies into Everyday writes neither"""
+    """A file importing 31 May and a day Fake Bank supplies into Everyday writes neither"""
     ledger = await _ledger(client)
     await _commit_link(ledger, ledger.everyday_id)
 
@@ -105,7 +105,7 @@ async def test_a_file_import_outside_the_range_saves(client):
 
 @pytest.mark.parametrize("day", INSIDE)
 async def test_a_journal_import_with_a_row_inside_the_range_is_refused_whole(client, day):
-    """A journal export with a 31 May Coffee and one on a day SimpleFIN supplies writes neither"""
+    """A journal export with a 31 May Coffee and one on a day Fake Bank supplies writes neither"""
     ledger = await _ledger(client)
     await _commit_link(ledger, ledger.everyday_id)
 
@@ -140,7 +140,7 @@ async def test_a_journal_import_names_the_linked_account_whose_row_lands_inside_
     imported = await _import_run(client, ledger.headers, _journal_import(ledger, *rows), source="firefly")
 
     assert imported.status_code == 422, imported.text
-    assert imported.json()["detail"] == "SimpleFIN supplies the transactions in Savings from Jun 1, 2026 to today"
+    assert imported.json()["detail"] == "Fake Bank supplies the transactions in Savings from Jun 1, 2026 to today"
 
 
 async def test_a_journal_import_outside_the_range_saves(client):

@@ -327,7 +327,7 @@ def test_render_action_needed_email_lists_the_accounts_in_both_parts_escaping_th
         "Reconnect SimpleFIN to resume syncing",
         "SimpleFIN rejected your <Home> connection, so syncing has stopped for:",
         ["Bills & <Savings>", "Everyday"],
-        "Reconnect it in Settings with a new setup token to pick up where it left off.",
+        "Reconnect it in Settings to pick up where it left off.",
     )
 
     assert message.subject == "Reconnect SimpleFIN to resume syncing"
@@ -335,7 +335,7 @@ def test_render_action_needed_email_lists_the_accounts_in_both_parts_escaping_th
         "SimpleFIN rejected your <Home> connection, so syncing has stopped for:\n\n"
         "- Bills & <Savings>\n"
         "- Everyday\n\n"
-        "Reconnect it in Settings with a new setup token to pick up where it left off."
+        "Reconnect it in Settings to pick up where it left off."
     )
     assert "your &lt;Home&gt; connection" in message.html_body
     assert "<li>Bills &amp; &lt;Savings&gt;</li>" in message.html_body

@@ -19,7 +19,8 @@ from app.services.bank_sync import outbound
 from app.services.bank_sync.providers.contract import ClaimRefused, FetchResult, ProviderUnreachable
 from app.services.bank_sync.providers.simplefin.adapter import SimpleFinAdapter
 from tests.fake_simplefin_bridge import FakeBridgeTransport
-from tests.services.bank_sync.stand_ins import FakeBridgeScenario, RecordingBridge, answer_with, fail_with, simplefin_adapter
+from tests.services.bank_sync.providers.simplefin.stand_ins import FakeBridgeScenario, simplefin_adapter
+from tests.services.bank_sync.stand_ins import RecordingBridge, answer_with, fail_with
 
 _EXPONENTS = {"USD": 2}
 
@@ -72,7 +73,7 @@ async def test_claim_returns_an_access_url_that_reaches_the_users_accounts(scena
     await scenario.add_harbour_accounts()
     adapter = _fake_adapter()
 
-    access_url = await adapter.claim(scenario.setup_token)
+    access_url = await adapter.claim_setup_token(scenario.setup_token)
     result = await adapter.discover(access_url, currency_exponents=_EXPONENTS)
 
     assert httpx.URL(access_url).host == "beta-bridge.simplefin.org"
@@ -88,17 +89,17 @@ async def test_setup_token_copied_with_line_breaks_and_no_padding_still_claims(s
     """Copying a token can wrap it or drop its trailing padding, which doesn't change what it holds"""
     token = scenario.setup_token.rstrip("=")
 
-    access_url = await _fake_adapter().claim(f"{token[:20]}\n{token[20:]}")
+    access_url = await _fake_adapter().claim_setup_token(f"{token[:20]}\n{token[20:]}")
 
     assert httpx.URL(access_url).password
 
 
 async def test_claimed_setup_token_is_refused_the_second_time(scenario: FakeBridgeScenario):
     """SimpleFIN Bridge answers a spent token with a plain 403, which the link flow explains"""
-    await _fake_adapter().claim(scenario.setup_token)
+    await _fake_adapter().claim_setup_token(scenario.setup_token)
 
     with pytest.raises(ClaimRefused) as refusal:
-        await _fake_adapter().claim(scenario.setup_token)
+        await _fake_adapter().claim_setup_token(scenario.setup_token)
 
     assert str(refusal.value) == _SETUP_ALREADY_USED_MESSAGE
 
@@ -118,7 +119,7 @@ async def test_setup_token_that_is_not_a_claim_url_is_refused_before_anything_is
     bridge = RecordingBridge()
 
     with pytest.raises(ClaimRefused) as refusal:
-        await simplefin_adapter(bridge.transport).claim(setup_token)
+        await simplefin_adapter(bridge.transport).claim_setup_token(setup_token)
 
     assert str(refusal.value) == _SETUP_UNREADABLE_MESSAGE
     assert bridge.requests == []
@@ -129,7 +130,7 @@ async def test_setup_token_for_a_server_not_added_names_its_host():
     bridge = RecordingBridge()
 
     with pytest.raises(ClaimRefused) as refusal:
-        await simplefin_adapter(bridge.transport).claim(_setup_token("https://intranet.example/simplefin/claim/DEMO-CLAIM"))
+        await simplefin_adapter(bridge.transport).claim_setup_token(_setup_token("https://intranet.example/simplefin/claim/DEMO-CLAIM"))
 
     assert str(refusal.value) == "This setup token points to intranet.example, which this Lumina Finance server is not set up to contact"
     assert bridge.requests == []
@@ -142,7 +143,7 @@ async def test_setup_token_for_a_host_resolving_privately_is_refused_and_logged_
     claim_url = "https://beta-bridge.simplefin.org/simplefin/claim/CLAIM-PATH-5e1d"
 
     with pytest.raises(ClaimRefused) as refusal:
-        await simplefin_adapter(bridge.transport, "10.0.4.2").claim(_setup_token(claim_url))
+        await simplefin_adapter(bridge.transport, "10.0.4.2").claim_setup_token(_setup_token(claim_url))
 
     assert str(refusal.value) == (
         "This setup token points to beta-bridge.simplefin.org, which this Lumina Finance server is not set up to contact"
@@ -165,7 +166,7 @@ async def test_claim_meeting_a_bridge_fault_reports_the_bridge_unreachable(scena
     await scenario.change("PUT", "/fault", fault)
 
     with pytest.raises(ProviderUnreachable):
-        await _fake_adapter().claim(scenario.setup_token)
+        await _fake_adapter().claim_setup_token(scenario.setup_token)
 
 
 async def test_claim_meeting_a_payment_problem_names_it(scenario: FakeBridgeScenario):
@@ -173,7 +174,7 @@ async def test_claim_meeting_a_payment_problem_names_it(scenario: FakeBridgeScen
     await scenario.change("PUT", "/fault", {"kind": "payment_required"})
 
     with pytest.raises(ClaimRefused) as refusal:
-        await _fake_adapter().claim(scenario.setup_token)
+        await _fake_adapter().claim_setup_token(scenario.setup_token)
 
     assert str(refusal.value) == "SimpleFIN Bridge reports a payment problem"
 
@@ -191,7 +192,7 @@ async def test_claim_meeting_a_payment_problem_names_it(scenario: FakeBridgeScen
 async def test_claim_without_a_usable_answer_reports_the_bridge_unreachable(respond):
     """A server error, a connection failure or a body that isn't an Access URL can't be claimed"""
     with pytest.raises(ProviderUnreachable):
-        await simplefin_adapter(RecordingBridge(respond).transport).claim(_setup_token(_CLAIM_URL))
+        await simplefin_adapter(RecordingBridge(respond).transport).claim_setup_token(_setup_token(_CLAIM_URL))
 
 
 async def test_access_url_for_a_server_not_added_is_refused():
@@ -199,7 +200,7 @@ async def test_access_url_for_a_server_not_added_is_refused():
     bridge = RecordingBridge(answer_with(200, b"https://user:pass@intranet.example/simplefin"))
 
     with pytest.raises(ClaimRefused) as refusal:
-        await simplefin_adapter(bridge.transport).claim(_setup_token(_CLAIM_URL))
+        await simplefin_adapter(bridge.transport).claim_setup_token(_setup_token(_CLAIM_URL))
 
     assert str(refusal.value) == "This setup token points to intranet.example, which this Lumina Finance server is not set up to contact"
 
@@ -218,7 +219,9 @@ async def test_fetch_returns_only_the_chosen_accounts_records_in_the_window(scen
     await scenario.change("POST", "/accounts/ACT-savings/transactions", {"transactions": [savings]})
     adapter = _fake_adapter()
 
-    result = await _fetch(adapter, _WINDOW_START, _WINDOW_END, access_url=await adapter.claim(scenario.setup_token), include_pending=False)
+    result = await _fetch(
+        adapter, _WINDOW_START, _WINDOW_END, access_url=await adapter.claim_setup_token(scenario.setup_token), include_pending=False
+    )
 
     assert result.request_error is None
     assert {account.external_id: [record.external_id for record in account.records] for account in result.accounts} == {
@@ -236,7 +239,7 @@ async def test_window_of_exactly_90_days_across_a_clock_change_is_served(scenari
         adapter,
         datetime(2026, 3, 1, tzinfo=_TORONTO),
         datetime(2026, 5, 30, 1, tzinfo=_TORONTO),
-        access_url=await adapter.claim(scenario.setup_token),
+        access_url=await adapter.claim_setup_token(scenario.setup_token),
     )
 
     assert result.request_error is None
@@ -260,7 +263,7 @@ async def test_account_in_a_currency_lumina_doesnt_hold_stores_no_amounts(scenar
     await scenario.change("POST", "/accounts/ACT-chequing/transactions", {"transactions": [transaction]})
     adapter = _fake_adapter()
 
-    result = await _fetch(adapter, _WINDOW_START, _WINDOW_END, access_url=await adapter.claim(scenario.setup_token))
+    result = await _fetch(adapter, _WINDOW_START, _WINDOW_END, access_url=await adapter.claim_setup_token(scenario.setup_token))
 
     [dinar] = result.accounts
     assert (dinar.currency, dinar.balance, dinar.available_balance) == ("KWD", None, None)
@@ -281,7 +284,9 @@ async def test_fetch_holding_1000_transactions_may_be_cut_off(scenario: FakeBrid
     adapter = _fake_adapter()
 
     # A window ending today, which a sync asks for pending transactions with
-    result = await _fetch(adapter, frozen_now - timedelta(days=30), frozen_now, access_url=await adapter.claim(scenario.setup_token))
+    result = await _fetch(
+        adapter, frozen_now - timedelta(days=30), frozen_now, access_url=await adapter.claim_setup_token(scenario.setup_token)
+    )
 
     assert sum(len(account.records) for account in result.accounts) == booked + pending
     assert result.possibly_cut_off is cut_off
@@ -312,7 +317,7 @@ async def test_claim_is_an_empty_post_naming_lumina_finance():
     """The claim is an empty POST to the decoded URL under the Bridge's own host name"""
     bridge = RecordingBridge(answer_with(200, f"{_ACCESS_URL}\n".encode()))
 
-    access_url = await simplefin_adapter(bridge.transport).claim(_setup_token(_CLAIM_URL))
+    access_url = await simplefin_adapter(bridge.transport).claim_setup_token(_setup_token(_CLAIM_URL))
 
     assert access_url == _ACCESS_URL
     [request] = bridge.requests
@@ -387,7 +392,9 @@ async def test_pending_record_without_a_time_is_dated_the_users_today(scenario: 
     await scenario.change("POST", "/accounts/ACT-chequing/transactions", {"transactions": [hold]})
     adapter = _fake_adapter()
 
-    result = await _fetch(adapter, frozen_now - timedelta(days=30), frozen_now, access_url=await adapter.claim(scenario.setup_token))
+    result = await _fetch(
+        adapter, frozen_now - timedelta(days=30), frozen_now, access_url=await adapter.claim_setup_token(scenario.setup_token)
+    )
 
     [record] = result.accounts[0].records
     assert (record.external_id, record.pending, record.date) == ("TRN-hold", True, date(2026, 10, 3))

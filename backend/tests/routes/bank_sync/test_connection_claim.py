@@ -1,43 +1,56 @@
-"""Claiming a SimpleFIN setup token as a new connection
+"""Claiming a credential the user supplied as a new connection, through any provider
 
-A setup token claims once, so a refusal that saves a connection, or an unreachable Bridge read as a
-used token, costs the user a new token. The token, its claim URL and the Access URL are secrets that
-must never reach a response, a log or the database in the clear
+The credential claims once and is a secret, so a refusal of the request body never repeats it, and
+a provider that is withdrawn, turned off or no longer installed takes no new connection
 """
 
-import asyncio
-import base64
 import json
-import logging
-import uuid
+from collections.abc import Mapping
+from typing import override
 
 import httpx
 import pytest
 from sqlalchemy import select
 
-from app.encryption import decrypt
-from app.models.bank_connection import BankConnection, BankProvider, BankProviderRequest
-from app.models.bank_sync_job import BankSyncJob
+from app.models.bank_connection import BankConnection
 from app.schemas.bank_sync import CreateBankConnectionRequest
 from app.services.bank_sync import availability
+from app.services.bank_sync.providers.contract import CredentialField
 from tests.conftest import TestSession
-from tests.routes.support import _create_account
-from tests.routes.support.bank_sync_helpers import _changed_at, _PausedBridge, _sign_up
-from tests.services.bank_sync.stand_ins import AccountsTimeOut, FakeBridgeScenario, simplefin_adapter
+from tests.routes.support.bank_sync_helpers import _sign_up
+from tests.services.bank_sync.fake_provider import ACCESS_KEY, FakeProviderAdapter, _returned, remove_provider, use_adapter
 
-# A setup token that validation refuses before anything could claim it
-_TOKEN = base64.b64encode(b"https://beta-bridge.simplefin.org/simplefin/claim/never-claimed").decode()
-
-_ALREADY_USED = "This setup token has already been used. Create a new one in SimpleFIN Bridge"
-_TOO_LONG = "That setup token is too long. Copy only the token from SimpleFIN Bridge and try again"
-_UNREACHABLE = "SimpleFIN Bridge couldn't be reached. Try again in a few minutes"
+# A credential the fake provider claims, and the access it hands over for it
+_CREDENTIAL = "fake-access-key"
+_STORED = "fake-stored-access"
 
 
-async def _claim(client, headers, setup_token: str, nickname: str | None = None, provider: str = "simplefin") -> httpx.Response:
-    """Claim a setup token through the route"""
-    return await client.post(
-        "/bank-sync/connections", json={"provider": provider, "setup_token": setup_token, "nickname": nickname}, headers=headers
+async def _claim(
+    client, headers, credential: str = _CREDENTIAL, nickname: str | None = None, provider: str = "fake", credentials: dict | None = None
+) -> httpx.Response:
+    """Claim a credential through the route, as the fake provider's one field unless other credentials are given"""
+    sent = {ACCESS_KEY: credential} if credentials is None else credentials
+    return await client.post("/bank-sync/connections", json={"provider": provider, "credentials": sent, "nickname": nickname}, headers=headers)
+
+
+class _TwoFieldProvider(FakeProviderAdapter):
+    """A provider whose connect form takes two tokens, as one with an app token and a user token does"""
+
+    credential_fields = (
+        CredentialField("app_token", "App ID token", "Paste the app token", 64),
+        CredentialField("user_token", "User access token", "Paste the user token", 64),
     )
+
+    @override
+    async def claim(self, supplied: Mapping[str, str]) -> str:
+        self.claims.append(dict(supplied))
+        return _STORED
+
+
+def _claimable(fake_provider: FakeProviderAdapter) -> None:
+    """Let the fake provider claim the credential once, listing one bank account straight after"""
+    fake_provider.claimable[_CREDENTIAL] = _STORED
+    fake_provider.outcomes = [_returned("ACT-1")]
 
 
 async def _stored_connections() -> list[BankConnection]:
@@ -46,245 +59,152 @@ async def _stored_connections() -> list[BankConnection]:
         return list(await session.scalars(select(BankConnection)))
 
 
-async def test_claim_with_a_fresh_token_saves_the_connection_and_lists_its_bank_accounts(client, scenario: FakeBridgeScenario):
-    """Joint is saved, discovery finds 3 bank accounts, and each says which of the user's accounts could take it"""
-    headers, user_id = await _sign_up(client)
-    everyday = await _create_account(client, headers, name="Everyday", currency="USD")
-    assert everyday.status_code == 201, everyday.text
-    everyday_id = everyday.json()["id"]
-    await scenario.add_harbour_accounts()
-
-    response = await _claim(client, headers, scenario.setup_token, nickname="  Joint  ")
-
-    assert response.status_code == 201, response.text
-    body = response.json()
-    stored = await _stored_connections()
-    assert [connection.id for connection in stored] == [uuid.UUID(body["id"])]
-    assert body == {
-        "id": body["id"],
-        "provider": "simplefin",
-        "provider_name": "SimpleFIN",
-        "nickname": "Joint",
-        "server_label": "beta-bridge.simplefin.org",
-        "created_at": body["created_at"],
-        "status": "active",
-        "accounts": [
-            {
-                "external_id": external_id,
-                "name": name,
-                "institution_name": institution,
-                "currency": "USD",
-                "custom_currency": False,
-                "linked_account_id": None,
-                "eligible_account_ids": [everyday_id],
-                "signin_needed": False,
-            }
-            for external_id, name, institution in [
-                ("ACT-chequing", "Everyday Chequing", "Harbour Bank"),
-                ("ACT-savings", "Online Savings", "Harbour Bank"),
-                ("ACT-visa", "Rewards Visa", "Harbourline Card Services"),
-            ]
-        ],
-        "choose_again_links": [],
-        "discovery_pending": False,
-        "request_budget": {"limit": 20, "used": 2, "available_again_at": None, "held_by_provider": False},
-    }
-    assert stored[0].owner_id == user_id
-    async with TestSession() as session:
-        purposes = (await session.scalars(select(BankProviderRequest.purpose).order_by(BankProviderRequest.purpose))).all()
-    assert purposes == ["claim", "discovery"]
-
-
 @pytest.mark.parametrize(
     ("body", "content_type", "loc", "error_type"),
     [
-        ({"setup_token": _TOKEN}, "application/json", ["body", "provider"], "missing"),
-        ({"provider": "simplefin", "setup_token": _TOKEN}, "text/plain", ["body"], "model_attributes_type"),
-        (_TOKEN, "application/json", ["body"], "model_attributes_type"),
-        ([_TOKEN], "application/json", ["body"], "model_attributes_type"),
-        ({"provider": "simplefin", "setup_token": [_TOKEN]}, "application/json", ["body", "setup_token"], "string_type"),
-        ({"provider": "simplefin", "setupToken": _TOKEN}, "application/json", ["body", "setup_token"], "missing"),
+        ({"credentials": {ACCESS_KEY: _CREDENTIAL}}, "application/json", ["body", "provider"], "missing"),
+        ({"provider": "fake", "credentials": {ACCESS_KEY: _CREDENTIAL}}, "text/plain", ["body"], "model_attributes_type"),
+        (_CREDENTIAL, "application/json", ["body"], "model_attributes_type"),
+        ([_CREDENTIAL], "application/json", ["body"], "model_attributes_type"),
+        ({"provider": "fake", "credentials": _CREDENTIAL}, "application/json", ["body", "credentials"], "dict_type"),
+        ({"provider": "fake", "credentials": {ACCESS_KEY: [_CREDENTIAL]}}, "application/json", ["body", "credentials"], "dict_type"),
+        ({"provider": "fake", "credential": _CREDENTIAL}, "application/json", ["body", "credentials"], "missing"),
+        (
+            {"provider": "fake", "credentials": {f"field_{n}": _CREDENTIAL for n in range(9)}},
+            "application/json",
+            ["body", "credentials"],
+            "too_long",
+        ),
     ],
-    ids=["missing-provider", "sent-as-text", "bare-token", "token-in-a-list", "token-not-a-string", "token-under-another-name"],
+    ids=[
+        "missing-provider",
+        "sent-as-text",
+        "bare-credential",
+        "in-a-list",
+        "not-an-object",
+        "not-a-string",
+        "under-another-name",
+        "too-many-fields",
+    ],
 )
-async def test_claim_refused_by_validation_never_repeats_the_setup_token(client, body, content_type, loc, error_type):
-    """However the body is malformed, the refusal names what is wrong without the token"""
+async def test_claim_refused_by_validation_never_repeats_the_credential(client, body, content_type, loc, error_type):
+    """However the body is malformed, the refusal names what is wrong without the credential"""
     headers, _ = await _sign_up(client)
 
     refused = await client.post("/bank-sync/connections", content=json.dumps(body), headers={**headers, "Content-Type": content_type})
 
     assert refused.status_code == 422, refused.text
     assert [(error["loc"], error["type"]) for error in refused.json()["detail"]] == [(loc, error_type)]
-    assert _TOKEN not in refused.text
+    assert _CREDENTIAL not in refused.text
 
 
-def test_claim_request_printed_masks_the_setup_token():
-    """A request that reaches a log or a traceback never shows the token"""
-    assert _TOKEN not in repr(CreateBankConnectionRequest(provider="simplefin", setup_token=_TOKEN))
+def test_claim_request_printed_masks_the_credential():
+    """A request that reaches a log or a traceback never shows the credential"""
+    assert _CREDENTIAL not in repr(CreateBankConnectionRequest(provider="fake", credentials={ACCESS_KEY: _CREDENTIAL}))
 
 
-async def test_claim_stores_the_access_url_encrypted_and_never_shows_a_secret(client, scenario: FakeBridgeScenario, caplog):
-    """Neither the setup token, its claim URL nor the Access URL appears in a response or a log, even at DEBUG"""
+async def test_claim_hands_the_adapter_each_field_it_lists_by_key_and_nothing_else(client, monkeypatch):
+    """A provider with two fields gets both values under their keys, and a field it doesn't list is left out"""
+    provider = _TwoFieldProvider()
+    provider.outcomes = [_returned("ACT-1")]
+    use_adapter(monkeypatch, provider)
     headers, _ = await _sign_up(client)
-    await scenario.add_harbour_accounts()
-    claim_url = base64.b64decode(scenario.setup_token).decode()
-    caplog.set_level(logging.DEBUG)
 
-    claimed = await _claim(client, headers, scenario.setup_token)
-    reused = await _claim(client, headers, scenario.setup_token)
-    listed = await client.get("/bank-sync/connections", headers=headers)
-
-    assert claimed.status_code == 201, claimed.text
-    assert reused.status_code == 422, reused.text
-    assert listed.status_code == 200, listed.text
-    [connection] = await _stored_connections()
-    access_url = decrypt(connection.credential_encrypted)
-    assert access_url.startswith("https://") and "@beta-bridge.simplefin.org/" in access_url
-    assert access_url not in connection.credential_encrypted
-    secrets = [scenario.setup_token, claim_url, access_url, access_url.split("@")[0]]
-    for secret in secrets:
-        for text in (claimed.text, reused.text, listed.text, caplog.text):
-            assert secret not in text
-
-
-async def test_claim_whose_discovery_fails_keeps_the_connection_and_queues_discovery(client, scenario: FakeBridgeScenario, monkeypatch):
-    """The token is spent, so the connection is saved, and its bank accounts appear once a job discovers them"""
-    monkeypatch.setitem(availability.ENABLED_ADAPTERS, BankProvider.SIMPLEFIN, simplefin_adapter(AccountsTimeOut()))
-    headers, _ = await _sign_up(client)
-    await scenario.add_harbour_accounts()
-
-    response = await _claim(client, headers, scenario.setup_token, nickname="Joint")
-    listed = await client.get("/bank-sync/connections", headers=headers)
+    response = await _claim(client, headers, credentials={"app_token": "app-1", "user_token": "user-1", "other": "ignored"})
 
     assert response.status_code == 201, response.text
-    assert response.json()["accounts"] == []
-    assert response.json()["discovery_pending"] is True
-    assert response.json()["request_budget"] == {"limit": 20, "used": 2, "available_again_at": None, "held_by_provider": False}
-    assert listed.status_code == 200, listed.text
-    assert [(connection["nickname"], connection["discovery_pending"]) for connection in listed.json()] == [("Joint", True)]
-    async with TestSession() as session:
-        jobs = (await session.execute(select(BankSyncJob.connection_id, BankSyncJob.kind, BankSyncJob.discover, BankSyncJob.status))).all()
-    assert [tuple(job) for job in jobs] == [(uuid.UUID(response.json()["id"]), "retry", True, "queued")]
-
-
-async def test_claim_marks_the_cache_changed_again_once_it_has_stored_the_bank_accounts(client, scenario: FakeBridgeScenario, monkeypatch):
-    """The connection is committed before SimpleFIN lists its bank accounts, so storing them marks the cache again"""
-    headers, _ = await _sign_up(client)
-    await scenario.add_harbour_accounts()
-    before = await _changed_at(client, headers)
-    paused = _PausedBridge("/accounts")
-    monkeypatch.setitem(availability.ENABLED_ADAPTERS, BankProvider.SIMPLEFIN, simplefin_adapter(paused))
-
-    async with asyncio.timeout(10):
-        claiming = asyncio.create_task(_claim(client, headers, scenario.setup_token))
-        await paused.reached.wait()
-        while_listing = await _changed_at(client, headers)
-        paused.release.set()
-        response = await claiming
-
-    assert response.status_code == 201, response.text
-    assert while_listing != before
-    assert await _changed_at(client, headers) != while_listing
-
-
-async def test_claim_with_a_used_token_is_refused_and_saves_nothing_more(client, scenario: FakeBridgeScenario):
-    """The same token pasted again is refused as already used"""
-    headers, _ = await _sign_up(client)
-    first = await _claim(client, headers, scenario.setup_token)
-    assert first.status_code == 201, first.text
-
-    again = await _claim(client, headers, scenario.setup_token)
-
-    assert again.status_code == 422, again.text
-    assert again.json()["detail"] == _ALREADY_USED
-    assert len(await _stored_connections()) == 1
-
-
-async def test_claim_when_the_bridge_answers_with_an_error_page_saves_nothing_and_leaves_the_token_usable(client, scenario: FakeBridgeScenario):
-    """An error page, even a 403 one, reads as the Bridge being unreachable, and the same token works once it recovers"""
-    headers, _ = await _sign_up(client)
-    await scenario.change("PUT", "/fault", {"kind": "html_error"})
-
-    refused = await _claim(client, headers, scenario.setup_token)
-
-    assert refused.status_code == 502, refused.text
-    assert refused.json()["detail"] == _UNREACHABLE
-    assert await _stored_connections() == []
-
-    await scenario.change("DELETE", "/fault")
-    retried = await _claim(client, headers, scenario.setup_token)
-    assert retried.status_code == 201, retried.text
+    assert provider.claims == [{"app_token": "app-1", "user_token": "user-1"}]
 
 
 @pytest.mark.parametrize(
-    ("setup_token", "detail"),
+    ("credentials", "detail"),
     [
-        ("   ", "Paste the setup token from SimpleFIN Bridge"),
-        ("not a setup token", "That doesn't look like a SimpleFIN setup token. Copy the whole token from SimpleFIN Bridge and try again"),
+        ({"app_token": "app-1"}, "Paste the user access token from Fake Bank Online"),
+        ({"app_token": "app-1", "user_token": "   "}, "Paste the user access token from Fake Bank Online"),
         (
-            base64.b64encode(b"https://bridge.evil.example/simplefin/claim/abc").decode(),
-            "This setup token points to bridge.evil.example, which this Lumina Finance server is not set up to contact",
+            {"app_token": "a" * 65, "user_token": "user-1"},
+            "That app ID token is too long. Copy only the app ID token from Fake Bank Online and try again",
         ),
     ],
-    ids=["blank", "malformed", "origin-not-allowed"],
+    ids=["missing", "blank", "too-long"],
 )
-async def test_claim_with_a_token_that_cant_be_claimed_says_why(client, setup_token, detail):
-    """A blank or malformed token, or one pointing outside the allowlist, is refused before anything is sent"""
+async def test_claim_refuses_a_field_missing_blank_or_too_long_by_its_name_before_the_provider_is_asked(
+    client, monkeypatch, credentials, detail
+):
+    """Each field is checked against its own label and length, and the refusal never repeats what was sent"""
+    provider = _TwoFieldProvider()
+    use_adapter(monkeypatch, provider)
     headers, _ = await _sign_up(client)
 
-    refused = await _claim(client, headers, setup_token)
+    refused = await _claim(client, headers, credentials=credentials)
 
     assert refused.status_code == 422, refused.text
     assert refused.json()["detail"] == detail
+    assert "a" * 65 not in refused.text
+    assert provider.claims == []
     assert await _stored_connections() == []
 
 
-@pytest.mark.parametrize(("encoded_length", "too_long"), [(2048, False), (2052, True)], ids=["at-the-cap", "over-the-cap"])
-async def test_claim_with_a_token_over_the_length_cap_is_refused_before_anything_is_sent(
-    client, scenario: FakeBridgeScenario, encoded_length, too_long
-):
-    """A token of 2,052 characters that decodes to a claim URL is refused with a sentence, one of 2,048 is not, and a real token still claims"""
-    headers, _ = await _sign_up(client)
-    prefix = b"https://beta-bridge.simplefin.org/simplefin/claim/"
-    token = base64.b64encode(prefix + b"a" * (encoded_length // 4 * 3 - len(prefix))).decode()
-    assert len(token) == encoded_length
-
-    refused = await _claim(client, headers, token)
-    claimed = await _claim(client, headers, scenario.setup_token)
-
-    assert (refused.json().get("detail") == _TOO_LONG) is too_long, refused.text
-    assert claimed.status_code == 201, claimed.text
-
-
-async def test_claim_with_simplefin_withdrawn_is_refused(client, scenario: FakeBridgeScenario, monkeypatch):
-    """New connections are refused once the environment withdraws SimpleFIN's offer"""
-    monkeypatch.setattr(availability, "OFFERED_PROVIDERS", frozenset())
+async def test_claim_through_the_fake_provider_saves_the_connection_under_its_id(client, fake_provider):
+    """The engine claims and lists through whichever provider was chosen, storing its id and its name for the response"""
+    _claimable(fake_provider)
     headers, _ = await _sign_up(client)
 
-    refused = await _claim(client, headers, scenario.setup_token)
+    response = await _claim(client, headers)
+
+    assert response.status_code == 201, response.text
+    body = response.json()
+    assert (body["provider"], body["provider_name"], body["provider_site"], body["provider_available"]) == (
+        "fake",
+        "Fake Bank",
+        "Fake Bank Online",
+        True,
+    )
+    assert [account["external_id"] for account in body["accounts"]] == ["ACT-1"]
+    assert [connection.provider for connection in await _stored_connections()] == ["fake"]
+
+
+async def test_claim_with_the_provider_withdrawn_is_refused(client, fake_provider, monkeypatch):
+    """New connections are refused once the environment withdraws the provider's offer"""
+    _claimable(fake_provider)
+    use_adapter(monkeypatch, fake_provider, offered=False)
+    headers, _ = await _sign_up(client)
+
+    refused = await _claim(client, headers)
 
     assert refused.status_code == 403, refused.text
-    assert refused.json()["detail"] == "SimpleFIN is not offered for new connections. Existing connections keep working"
+    assert refused.json()["detail"] == "Fake Bank is not offered for new connections. Existing connections keep working"
     assert await _stored_connections() == []
 
 
-async def test_claim_with_simplefin_disabled_is_refused(client, scenario: FakeBridgeScenario, monkeypatch):
-    """A deployment that disabled SimpleFIN has no provider to claim with"""
-    monkeypatch.delitem(availability.ENABLED_ADAPTERS, BankProvider.SIMPLEFIN)
+@pytest.mark.parametrize("gone", ["turned-off", "removed", "never-installed"])
+async def test_claim_with_a_provider_this_server_lacks_is_refused(client, fake_provider, monkeypatch, gone):
+    """A provider turned off, whose folder was deleted, or that never existed has nothing to claim with"""
+    _claimable(fake_provider)
+    provider = "fake"
+    if gone == "turned-off":
+        use_adapter(monkeypatch, fake_provider, enabled=False)
+    elif gone == "removed":
+        remove_provider(monkeypatch, "fake")
+    else:
+        provider = "lunar_bank"
     headers, _ = await _sign_up(client)
 
-    refused = await _claim(client, headers, scenario.setup_token)
+    refused = await _claim(client, headers, provider=provider)
 
     assert refused.status_code == 422, refused.text
     assert refused.json()["detail"] == "Choose a bank provider this server supports"
+    assert fake_provider.claimable == {_CREDENTIAL: _STORED}
+    assert await _stored_connections() == []
 
 
-async def test_claim_by_a_user_who_may_not_link_bank_accounts_is_refused(client, scenario: FakeBridgeScenario, monkeypatch):
+async def test_claim_by_a_user_who_may_not_link_bank_accounts_is_refused(client, fake_provider, monkeypatch):
     """The bank-linking check is enforced on the claim, not only in the interface"""
+    _claimable(fake_provider)
     monkeypatch.setattr(availability, "may_link_bank_accounts", lambda _user_id: False)
     headers, _ = await _sign_up(client)
 
-    refused = await _claim(client, headers, scenario.setup_token)
+    refused = await _claim(client, headers)
 
     assert refused.status_code == 403, refused.text
     assert refused.json()["detail"] == "Bank sync isn't available for your account"
@@ -292,22 +212,24 @@ async def test_claim_by_a_user_who_may_not_link_bank_accounts_is_refused(client,
 
 
 @pytest.mark.parametrize(("nickname", "stored"), [("J" * 64, "J" * 64), ("   ", None), (None, None)], ids=["64-characters", "blank", "none"])
-async def test_claim_nickname_up_to_64_characters_is_kept_and_blank_means_none(client, scenario: FakeBridgeScenario, nickname, stored):
+async def test_claim_nickname_up_to_64_characters_is_kept_and_blank_means_none(client, fake_provider, nickname, stored):
     """A nickname at the limit is kept whole, and a blank one leaves the provider's name showing"""
+    _claimable(fake_provider)
     headers, _ = await _sign_up(client)
 
-    response = await _claim(client, headers, scenario.setup_token, nickname=nickname)
+    response = await _claim(client, headers, nickname=nickname)
 
     assert response.status_code == 201, response.text
     assert response.json()["nickname"] == stored
 
 
-async def test_claim_nickname_over_64_characters_is_refused_before_the_token_is_spent(client, scenario: FakeBridgeScenario):
-    """A 65-character nickname is refused, and the token still claims afterwards"""
+async def test_claim_nickname_over_64_characters_is_refused_before_the_credential_is_spent(client, fake_provider):
+    """A 65-character nickname is refused, and the credential still claims afterwards"""
+    _claimable(fake_provider)
     headers, _ = await _sign_up(client)
 
-    refused = await _claim(client, headers, scenario.setup_token, nickname="J" * 65)
-    retried = await _claim(client, headers, scenario.setup_token, nickname="Joint")
+    refused = await _claim(client, headers, nickname="J" * 65)
+    retried = await _claim(client, headers, nickname="Joint")
 
     assert refused.status_code == 422, refused.text
     assert refused.json()["detail"] == "Keep the nickname to 64 characters or fewer"

@@ -9,7 +9,9 @@ own the boundary
 import uuid
 from datetime import UTC, datetime, timedelta
 
-from app.models.bank_connection import BankLinkState, BankProvider
+import pytest
+
+from app.models.bank_connection import BankLinkState
 from app.models.bank_sync_job import BankSyncHeartbeat
 from app.services.bank_sync import availability
 from tests.conftest import TestSession
@@ -21,11 +23,15 @@ from tests.routes.support.bank_sync_helpers import (
     _build_user,
     _sign_up,
 )
+from tests.services.bank_sync.fake_provider import FAKE_PROVIDER, FakeProviderAdapter, remove_provider, use_adapter
 
-_SIMPLEFIN = {
-    "id": "simplefin",
-    "name": "SimpleFIN",
-    "description": "One setup token reaches every bank you add in SimpleFIN Bridge.",
+_FAKE = {
+    "id": "fake",
+    "name": "Fake Bank",
+    "site": "Fake Bank Online",
+    "description": "One access key reaches every account you hold at Fake Bank.",
+    "credential_fields": [{"key": "access_key", "label": "Access key", "placeholder": "Paste the key", "max_length": 512}],
+    "connect_steps": ["Sign in to Fake Bank Online.", "Create an access key and paste it here."],
     "connects_from": "settings",
     "offered": True,
     "history_limit_months": 12,
@@ -61,32 +67,50 @@ async def _link_at(owner_id: uuid.UUID, institution_key: str, institution_name: 
         await session.commit()
 
 
-async def test_providers_on_a_default_install_offer_simplefin_with_12_months_and_no_limit(client):
-    """With no settings changed, SimpleFIN is enabled and offered, back 12 months, with no institution limit"""
+async def test_providers_offer_an_installed_provider_with_its_credential_steps_and_no_limit(client):
+    """With no settings changed, an installed provider is enabled and offered with how to get its credential, and no institution limit"""
     headers, _ = await _sign_up(client)
     await _record_heartbeat(minutes_ago=5)
 
     response = await client.get("/bank-sync/providers", headers=headers)
 
     assert response.status_code == 200, response.text
-    assert response.json() == {"may_link": True, "sync_running": True, "providers": [_SIMPLEFIN]}
+    assert response.json() == {"may_link": True, "sync_running": True, "providers": [_FAKE]}
 
 
-async def test_providers_report_a_withdrawn_provider_as_not_offered(client, monkeypatch):
-    """SimpleFIN stays listed once the environment withdraws its offer, so existing connections keep its facts"""
-    monkeypatch.setattr(availability, "OFFERED_PROVIDERS", frozenset())
+async def test_providers_list_in_display_order_then_by_id(client, monkeypatch):
+    """A provider placed earlier lists first, and two placed alike list by id"""
+    second, third, first = FakeProviderAdapter(), FakeProviderAdapter(), FakeProviderAdapter()
+    second.provider_id, third.provider_id, first.provider_id = "alpha_bank", "beta_bank", "zeta_bank"
+    first.display_order = -1
+    for adapter in (second, third, first):
+        use_adapter(monkeypatch, adapter)
+    headers, _ = await _sign_up(client)
+
+    response = await client.get("/bank-sync/providers", headers=headers)
+
+    assert [provider["id"] for provider in response.json()["providers"]] == ["zeta_bank", "alpha_bank", "beta_bank", "fake"]
+
+
+async def test_providers_report_a_withdrawn_provider_as_not_offered(client, fake_provider, monkeypatch):
+    """A provider stays listed once the environment withdraws its offer, so existing connections keep its facts"""
+    use_adapter(monkeypatch, fake_provider, offered=False)
     headers, _ = await _sign_up(client)
     await _record_heartbeat(minutes_ago=0)
 
     response = await client.get("/bank-sync/providers", headers=headers)
 
     assert response.status_code == 200, response.text
-    assert response.json()["providers"] == [{**_SIMPLEFIN, "offered": False}]
+    assert response.json()["providers"] == [{**_FAKE, "offered": False}]
 
 
-async def test_providers_leave_out_a_disabled_provider(client, monkeypatch):
-    """A deployment with SimpleFIN disabled has no provider to offer"""
-    monkeypatch.delitem(availability.ENABLED_ADAPTERS, BankProvider.SIMPLEFIN)
+@pytest.mark.parametrize("gone", ["turned-off", "removed"])
+async def test_providers_leave_out_a_provider_turned_off_or_removed(client, fake_provider, monkeypatch, gone):
+    """A deployment that turned its one provider off, or deleted its folder, has no provider to offer"""
+    if gone == "turned-off":
+        use_adapter(monkeypatch, fake_provider, enabled=False)
+    else:
+        remove_provider(monkeypatch, FAKE_PROVIDER)
     headers, _ = await _sign_up(client)
     await _record_heartbeat(minutes_ago=0)
 
@@ -134,4 +158,4 @@ async def test_providers_count_an_institution_once_however_many_logins_reach_it(
     response = await client.get("/bank-sync/providers", headers=headers)
 
     assert response.status_code == 200, response.text
-    assert response.json()["providers"] == [{**_SIMPLEFIN, "institutions_in_use": ["Harbour Bank"]}]
+    assert response.json()["providers"] == [{**_FAKE, "institutions_in_use": ["Harbour Bank"]}]

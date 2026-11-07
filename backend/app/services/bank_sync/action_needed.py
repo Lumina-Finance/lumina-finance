@@ -40,7 +40,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.models.account import Account
 from app.models.bank_connection import BankAccountLink, BankConnection, BankExternalAccount, BankLinkState
 from app.models.user import User
-from app.services.bank_sync.availability import LINK_LISTING, LIVE_LINK, PROVIDER_ADAPTERS
+from app.services.bank_sync.availability import LINK_LISTING, LIVE_LINK, provider_label, provider_site_label
 from app.services.email import RenderedEmail, get_email_sender, render_action_needed_email
 
 logger = logging.getLogger(__name__)
@@ -49,9 +49,9 @@ logger = logging.getLogger(__name__)
 # A connection with no linked accounts gets the opening and closing without the list
 _RECONNECT_SUBJECT = "Reconnect {provider} to resume syncing"
 _RECONNECT_LEAD = "{provider} rejected your {connection}, so syncing has stopped for:"
-_RECONNECT_CLOSING = "Reconnect it in Settings with a new setup token to pick up where it left off."
+_RECONNECT_CLOSING = "Reconnect it in Settings to pick up where it left off."
 _RECONNECT_LEAD_UNLINKED = "{provider} rejected your {connection}."
-_RECONNECT_CLOSING_UNLINKED = "Reconnect it in Settings with a new setup token before linking accounts to it."
+_RECONNECT_CLOSING_UNLINKED = "Reconnect it in Settings before linking accounts to it."
 
 # The Bank sign-in needed email, one per bank login, naming that login's accounts. The subject
 # leaves out the institution's name, which comes from the provider
@@ -155,7 +155,7 @@ async def flag_rejected_credential(db: AsyncSession, connection: BankConnection,
             .order_by(Account.name)
         )
     ).all()
-    provider = PROVIDER_ADAPTERS[connection.provider].provider_name
+    provider = provider_label(connection.provider, connection.provider_name)
     named = {"provider": provider, "connection": f"{connection.nickname} connection" if connection.nickname else "connection"}
     lead, closing = (_RECONNECT_LEAD, _RECONNECT_CLOSING) if accounts else (_RECONNECT_LEAD_UNLINKED, _RECONNECT_CLOSING_UNLINKED)
     message = render_action_needed_email(_RECONNECT_SUBJECT.format(**named), lead.format(**named), accounts, closing)
@@ -217,7 +217,7 @@ async def flag_signin_needed(
     if not started:
         return []
 
-    site = PROVIDER_ADAPTERS[connection.provider].provider_site
+    site = provider_site_label(connection.provider)
     recipient = await _owner_email(db, connection)
     return [
         ActionEmail(
@@ -259,7 +259,7 @@ async def choose_account_emails(db: AsyncSession, connection: BankConnection, li
         return []
     accounts = await db.execute(select(Account.id, Account.name).where(Account.id.in_([link.account_id for link in links])))
     names = {account_id: name for account_id, name in accounts}
-    provider = PROVIDER_ADAPTERS[connection.provider].provider_name
+    provider = provider_label(connection.provider, connection.provider_name)
     recipient = await _owner_email(db, connection)
     emails = []
     for link in links:

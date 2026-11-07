@@ -30,7 +30,7 @@ from app.schemas.bank_review import (
 )
 from app.schemas.bank_sync import BankValues
 from app.services.accounts.access import check_own_personal_accounts, own_personal_account_condition
-from app.services.bank_sync.availability import PROVIDER_ADAPTERS
+from app.services.bank_sync.availability import provider_label
 from app.services.bank_sync.review_pause import read_review_backlogs
 from app.services.bank_sync.review_state import AWAITING_REVIEW, IS_REVIEW_ITEM, approved_description, edited_fields
 
@@ -157,7 +157,7 @@ def build_review_item(record: BankTransaction, ledger_date: date | None, ledger_
         "id": record.id,
         "account_id": record.account_id,
         "provider": record.provider,
-        "provider_name": PROVIDER_ADAPTERS[record.provider].provider_name,
+        "provider_name": provider_label(record.provider),
         "received_at": record.received_at,
         "version": record.version,
         "bank": bank,

@@ -31,7 +31,7 @@ async def compare_bank_balance(db: AsyncSession, link: BankAccountLink, *, tz: s
     sent with, which takes the provider to report what a card or loan owes as a negative balance, the
     sign the ledger keeps a liability in. Its balance date is taken as the moment the balance was
     read, whose day is the owner's, not a bank date like a posted stamp at noon UTC. Neither is
-    checked against real SimpleFIN Bridge data yet
+    checked against a real provider's data yet
 
     Args:
         db: The owner's session

@@ -31,7 +31,7 @@ from tests.routes.support.manual_entry_helpers import (
 
 @pytest.mark.parametrize("day", INSIDE)
 async def test_a_manual_transaction_dated_from_the_import_start_through_today_is_refused(client, day):
-    """Adding a Coffee to Everyday on a day SimpleFIN supplies is refused, naming the range"""
+    """Adding a Coffee to Everyday on a day Fake Bank supplies is refused, naming the range"""
     ledger = await _ledger(client)
     await _commit_link(ledger, ledger.everyday_id)
 
@@ -44,7 +44,7 @@ async def test_a_manual_transaction_dated_from_the_import_start_through_today_is
 
 @pytest.mark.parametrize("day", OUTSIDE)
 async def test_a_manual_transaction_dated_before_the_import_start_or_after_today_saves(client, day):
-    """31 May, 4 October and 10 October are outside the days SimpleFIN supplies, so they save"""
+    """31 May, 4 October and 10 October are outside the days Fake Bank supplies, so they save"""
     ledger = await _ledger(client)
     await _commit_link(ledger, ledger.everyday_id)
 

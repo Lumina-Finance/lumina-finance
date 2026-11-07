@@ -39,6 +39,7 @@ def upgrade() -> None:
         sa.Column("id", sa.Uuid(), nullable=False),
         sa.Column("owner_id", sa.Uuid(), nullable=False),
         sa.Column("provider", sa.VARCHAR(length=32), nullable=False),
+        sa.Column("provider_name", sa.Text(), nullable=False),
         sa.Column("nickname", sa.VARCHAR(length=64), nullable=True),
         sa.Column("credential_encrypted", sa.Text(), nullable=False),
         sa.Column("server_host", sa.Text(), nullable=False),

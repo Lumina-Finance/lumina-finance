@@ -17,7 +17,7 @@ import pytest
 from sqlalchemy import func, select
 
 from app.models.account import Account
-from app.models.bank_connection import BankAccountLink, BankConnection, BankProvider
+from app.models.bank_connection import BankAccountLink, BankConnection
 from app.models.bank_transaction import OBSERVATION_COLUMNS, BankTransaction, BankTransactionDisposition, OpenReviewKind
 from app.services.bank_sync import review_pause
 from app.services.bank_sync.transaction_hash import hash_bank_transaction_id
@@ -43,6 +43,7 @@ from tests.routes.support.bank_sync_helpers import (
 )
 from tests.routes.support.lock_helpers import _wait_until_waiting_on
 from tests.routes.support.query_helpers import _recorded_statements, _writes
+from tests.services.bank_sync.fake_provider import FAKE_PROVIDER
 
 # The instant a lifted pause makes the account due at, as its clock is pinned
 _NOW = datetime(2026, 10, 4, 9, 0, tzinfo=UTC)
@@ -68,9 +69,9 @@ async def test_dismissing_keeps_only_the_items_identity_and_leaves_the_inbox(cli
     stored = await _stored_item(item_id)
     assert (stored.account_id, stored.provider, stored.external_account_id, stored.external_transaction_hash, stored.disposition) == (
         uuid.UUID(account_id),
-        BankProvider.SIMPLEFIN,
+        FAKE_PROVIDER,
         BANK_ACCOUNT_ID,
-        hash_bank_transaction_id(BankProvider.SIMPLEFIN, BANK_ACCOUNT_ID, "TRN-1001"),
+        hash_bank_transaction_id(FAKE_PROVIDER, BANK_ACCOUNT_ID, "TRN-1001"),
         BankTransactionDisposition.DISMISSED,
     )
     assert {column: getattr(stored, column) for column in OBSERVATION_COLUMNS} == dict.fromkeys(OBSERVATION_COLUMNS)

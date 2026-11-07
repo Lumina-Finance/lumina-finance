@@ -2,7 +2,7 @@
 
 A linked account syncs about once a day. A sync that brings it up to date through today sets its next
 attempt 24 hours after the sync started plus a random 0 to 30 minutes, so syncs don't land on the
-hour, as SimpleFIN Bridge asks. A sync takes in every link due within the next 12 hours, so the links
+hour, as providers ask of their clients. A sync takes in every link due within the next 12 hours, so the links
 of one connection converge on one daily request. A link whose bank needs a sign-in keeps the daily
 schedule, since retrying can't fix it but the user may fix it at the provider at any time
 
@@ -38,7 +38,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.models.bank_connection import BankAccountLink, BankConnection, BankLinkState
 from app.models.bank_sync_job import BankSyncJobKind
 from app.models.user import User
-from app.services.bank_sync.availability import ENABLED_ADAPTERS, LIVE_LINK, PROVIDER_ADAPTERS
+from app.services.bank_sync.availability import LIVE_LINK, adapter_for, enabled_adapters
 from app.services.bank_sync.jobs import enqueue_bank_sync_job
 from app.services.bank_sync.provider_requests import read_request_budget
 from app.services.bank_sync.windows import next_due_at
@@ -49,7 +49,7 @@ from app.utils.dates import resolve_timezone
 DAILY_SYNC_INTERVAL = timedelta(hours=24)
 
 # Plus a random wait of up to this long, so syncs spread out rather than land on the hour, as
-# SimpleFIN Bridge asks of its clients
+# providers ask of their clients
 DAILY_SYNC_SPREAD = timedelta(minutes=30)
 
 
@@ -79,9 +79,14 @@ async def schedule_next_sync(db: AsyncSession, connection: BankConnection, *, no
         connection: The connection, locked by the caller
         now: The current time, when a link with no next attempt set is due
     """
+    # A provider no longer installed is sent nothing, so nothing is scheduled for it
+    adapter = adapter_for(connection.provider)
+    if adapter is None:
+        connection.next_sync_at = None
+        return
     links = (await db.scalars(select(BankAccountLink).where(BankAccountLink.connection_id == connection.id, LIVE_LINK))).all()
     timezone = resolve_timezone(await db.scalar(select(User.tz).where(User.id == connection.owner_id)))
-    overlap_days = PROVIDER_ADAPTERS[connection.provider].revisit_overlap_days
+    overlap_days = adapter.revisit_overlap_days
     due = [due_at for link in links if (due_at := next_due_at(link, now=now, timezone=timezone, overlap_days=overlap_days)) is not None]
     if any(link.state == BankLinkState.CHOOSE_ACCOUNT for link in links):
         listed = [at for at in (connection.discovered_at, connection.discovery_failed_at) if at is not None]
@@ -103,9 +108,9 @@ async def queue_scheduled_sync(db: AsyncSession, connection_id: uuid.UUID, *, no
     """
     connection = await db.get(BankConnection, connection_id)
 
-    # Disconnected since the scan listed it, or its provider is turned off on this server, which
-    # every sync would fail on until it is allowed again
-    if connection is None or connection.provider not in ENABLED_ADAPTERS:
+    # Disconnected since the scan listed it, or its provider is turned off or no longer installed on
+    # this server, which every sync would fail on until it is back
+    if connection is None or connection.provider not in enabled_adapters():
         return
     budget = await read_request_budget(db, connection, now=now)
     discover = connection.discovered_at is None

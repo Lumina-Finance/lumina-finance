@@ -29,11 +29,11 @@ from sqlalchemy import delete, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.account import Account
-from app.models.bank_connection import BankAccountLink, BankProvider
+from app.models.bank_connection import BankAccountLink
 from app.models.bank_transaction import BankTransaction
 from app.models.transaction import Transaction
 from app.models.user import User
-from app.services.bank_sync.availability import LIVE_LINK, PROVIDER_ADAPTERS
+from app.services.bank_sync.availability import LIVE_LINK, provider_label
 from app.utils.dates import format_day, resolve_timezone
 
 
@@ -51,7 +51,7 @@ class _LiveLink(NamedTuple):
     """A linked account's name, the provider it follows and the day its bank import starts"""
 
     account_name: str
-    provider: BankProvider
+    provider: str
     import_start: date
 
 
@@ -124,7 +124,7 @@ async def refuse_edits_a_bank_supplies(db: AsyncSession, user: User, edits: Sequ
         if edit.transaction_id in bank_imported:
             source_link = links.get(edit.account_id)
             if moved and source_link is not None:
-                provider_name = PROVIDER_ADAPTERS[source_link.provider].provider_name
+                provider_name = provider_label(source_link.provider)
                 raise HTTPException(
                     status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
                     detail=f"Transactions from {provider_name} can't move out of {source_link.account_name} while it's linked",
@@ -195,7 +195,7 @@ async def refuse_deleting_bank_imports(db: AsyncSession, transactions: Sequence[
     for txn in transactions:
         link = links.get(txn.account_id)
         if txn.id in providers and link is not None:
-            provider_name = PROVIDER_ADAPTERS[providers[txn.id]].provider_name
+            provider_name = provider_label(providers[txn.id])
             detail = (
                 f"Transactions from {provider_name} can't be deleted from {link.account_name} while it's linked"
                 if in_bulk
@@ -222,7 +222,7 @@ async def refuse_archiving_a_linked_account(db: AsyncSession, account: Account) 
     if provider is not None:
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
-            detail=f"This account can't be archived while it's linked to {PROVIDER_ADAPTERS[provider].provider_name}. Unlink it first",
+            detail=f"This account can't be archived while it's linked to {provider_label(provider)}. Unlink it first",
         )
 
 
@@ -258,5 +258,5 @@ def _refuse_supplied_days(link: _LiveLink, dates: Iterable[date], *, today: date
         transactions = f"the transactions in {link.account_name}" if name_account else "this account's transactions"
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
-            detail=f"{PROVIDER_ADAPTERS[link.provider].provider_name} supplies {transactions} from {format_day(link.import_start)} to today",
+            detail=f"{provider_label(link.provider)} supplies {transactions} from {format_day(link.import_start)} to today",
         )

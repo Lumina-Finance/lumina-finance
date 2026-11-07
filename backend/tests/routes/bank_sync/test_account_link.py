@@ -76,8 +76,10 @@ async def test_account_bank_link_shows_its_imports_progress(client):
         "link": {
             "account_id": account_id,
             "connection_id": str(connection.id),
-            "provider": "simplefin",
-            "provider_name": "SimpleFIN",
+            "provider": "fake",
+            "provider_name": "Fake Bank",
+            "provider_site": "Fake Bank Online",
+            "provider_available": True,
             "external_account_id": "ACT-1",
             "external_account_name": "Everyday Chequing",
             "institution_name": "Harbour Bank",
@@ -224,7 +226,7 @@ async def test_account_bank_link_after_an_unlink_shows_what_it_was_linked_to(cli
         "account_id": account_id,
         "link": None,
         "previous_link": {
-            "provider_name": "SimpleFIN",
+            "provider_name": "Fake Bank",
             "external_account_id": "ACT-1",
             "external_account_name": "Everyday Chequing",
             "institution_name": "Harbour Bank",

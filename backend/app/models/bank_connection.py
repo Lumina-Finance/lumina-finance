@@ -24,11 +24,18 @@ from sqlalchemy.orm import Mapped, mapped_column
 from app.models.base import Base, check_values
 from app.models.types import EncryptedText
 
+# The longest provider id the provider columns hold
+PROVIDER_ID_MAX_LENGTH = 32
 
-class BankProvider(enum.StrEnum):
-    """A bank data provider Lumina can hold a connection to"""
 
-    SIMPLEFIN = "simplefin"
+def provider_id_check(table: str) -> CheckConstraint:
+    """Return a provider column's check: lowercase letters, digits and underscores, starting with a letter
+
+    The id names one of the provider folders the app finds as it starts, so the column takes any id
+    of that form rather than a fixed list, and rows of a provider since removed stay valid. The
+    registry holds adapters to the same form (services/bank_sync/providers/registry.py)
+    """
+    return CheckConstraint("provider ~ '^[a-z][a-z0-9_]*$'", name=f"ck_{table}_provider")
 
 
 class ConnectsFrom(enum.StrEnum):
@@ -122,14 +129,18 @@ class BankConnection(Base):
     """
 
     __tablename__ = "bank_connections"
-    __table_args__ = (CheckConstraint(f"provider IN ({check_values(BankProvider)})", name="ck_bank_connections_provider"),)
+    __table_args__ = (provider_id_check("bank_connections"),)
 
     id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
     owner_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
-    provider: Mapped[str] = mapped_column(VARCHAR(32), nullable=False)
+    provider: Mapped[str] = mapped_column(VARCHAR(PROVIDER_ID_MAX_LENGTH), nullable=False)
+
+    # The provider's name as its adapter last gave it, set when the connection is made and on each
+    # listing, so the connection is still named properly once the provider's folder is deleted
+    provider_name: Mapped[str] = mapped_column(Text, nullable=False)
     nickname: Mapped[str | None] = mapped_column(VARCHAR(64))
 
-    # For SimpleFIN, the Access URL, which carries the user's credentials before the Bridge's host
+    # Whatever access the provider's claim handed over, such as a URL carrying the user's credentials
     credential_encrypted: Mapped[str] = mapped_column(EncryptedText, nullable=False)
 
     # The credential's host, the only part of it ever logged or shown ("Server")
@@ -233,7 +244,7 @@ class BankAccountLink(Base):
 
     __tablename__ = "bank_account_links"
     __table_args__ = (
-        CheckConstraint(f"provider IN ({check_values(BankProvider)})", name="ck_bank_account_links_provider"),
+        provider_id_check("bank_account_links"),
         CheckConstraint(f"state IN ({check_values(BankLinkState)})", name="ck_bank_account_links_state"),
         CheckConstraint(f"import_kind IN ({check_values(BankImportKind)})", name="ck_bank_account_links_import_kind"),
         CheckConstraint(
@@ -266,7 +277,7 @@ class BankAccountLink(Base):
     connection_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("bank_connections.id", ondelete="SET NULL"))
 
     # What the link was made to, kept after the connection and its bank accounts are gone
-    provider: Mapped[str] = mapped_column(VARCHAR(32), nullable=False)
+    provider: Mapped[str] = mapped_column(VARCHAR(PROVIDER_ID_MAX_LENGTH), nullable=False)
     external_account_id: Mapped[str] = mapped_column(Text, nullable=False)
     external_account_name: Mapped[str] = mapped_column(Text, nullable=False)
     institution_name: Mapped[str] = mapped_column(Text, nullable=False)

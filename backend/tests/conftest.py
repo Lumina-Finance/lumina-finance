@@ -5,7 +5,6 @@ from datetime import datetime
 from types import ModuleType, SimpleNamespace
 from uuid import uuid4
 
-import httpx
 import pytest
 from sqlalchemy import event, text
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
@@ -21,13 +20,13 @@ from app.db.rls import apply_rls
 from app.models import import_all_models
 from app.models.base import Base
 from app.request_hook import RequestRecord, observe_requests
+from app.services.bank_sync.availability import installed_providers
 from app.services.categories.defaults import seed_system_categories
 from app.services.email import RenderedEmail
 from app.services.email import contract as email_contract
 from app.services.merchants.defaults import seed_system_merchants
 from app.valkey_store import ValkeyStore, use_valkey
-from tests.fake_simplefin_bridge import FakeBridgeTransport
-from tests.services.bank_sync.stand_ins import SIMPLEFIN_BRIDGE_ORIGIN, FakeBridgeScenario
+from tests.services.bank_sync.fake_provider import FakeProviderAdapter, remove_provider, use_adapter
 
 # Import all models so Base.metadata has the full schema
 import_all_models()
@@ -216,11 +215,18 @@ def abuse_log_lines() -> Iterator[list[str]]:
         abuse_log.removeHandler(collector)
 
 
-@pytest.fixture
-async def scenario() -> AsyncIterator[FakeBridgeScenario]:
-    """An empty scenario on the in-process fake SimpleFIN Bridge, reached at SimpleFIN Bridge's own origin"""
-    async with httpx.AsyncClient(transport=FakeBridgeTransport(), base_url=SIMPLEFIN_BRIDGE_ORIGIN) as control:
-        yield await FakeBridgeScenario.create(control)
+@pytest.fixture(autouse=True)
+def fake_provider(monkeypatch) -> FakeProviderAdapter:
+    """Install the scripted fake provider, enabled and offered, as the only provider, which every bank sync test's connections use
+
+    Real providers are left out so a test reads the same whichever provider folders the server has.
+    A provider's own tests install it again
+    """
+    for provider_id in list(installed_providers()):
+        remove_provider(monkeypatch, provider_id)
+    adapter = FakeProviderAdapter()
+    use_adapter(monkeypatch, adapter)
+    return adapter
 
 
 @pytest.fixture

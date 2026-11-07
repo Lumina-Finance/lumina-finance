@@ -13,7 +13,7 @@ from datetime import date, datetime
 from typing import ClassVar
 from zoneinfo import ZoneInfo
 
-from app.models.bank_connection import BankProvider, ConnectsFrom
+from app.models.bank_connection import ConnectsFrom
 from app.models.bank_sync_job import ProviderErrorKind
 
 # The most characters of an error reason that are kept, enough for a line of the sync status details
@@ -27,6 +27,22 @@ _ISO_CURRENCY_CODE = re.compile(r"[A-Z]{3}")
 def is_iso_currency_code(currency: str) -> bool:
     """Return whether a provider's currency is an ISO 4217 code rather than one of its own"""
     return _ISO_CURRENCY_CODE.fullmatch(currency) is not None
+
+
+@dataclass(frozen=True)
+class CredentialField:
+    """One field of a provider's connect form, the frontend drawing whatever fields the provider lists
+
+    Each value is a secret: it is masked in every refusal and never stored, logged or shown
+    """
+
+    # The name its value is sent under, in the claim's credentials
+    key: str
+    label: str
+    placeholder: str
+
+    # The longest value the field takes, which the claim also refuses past
+    max_length: int
 
 
 @dataclass(frozen=True)
@@ -155,17 +171,29 @@ class ProviderAdapter(ABC):
     """One bank provider as the sync engine sees it
 
     Each operation sends exactly one request to the provider, so the engine counts one against the
-    provider's request budget before calling it
+    provider's request budget before calling it. Each adapter lives in a subpackage of its own under
+    providers, named after its provider_id and exporting the adapter class as ADAPTER, so deleting
+    that folder removes the provider and nothing else
     """
 
-    provider_id: ClassVar[BankProvider]
+    # Stored on every connection, link and bank transaction, so it never changes once used. Lowercase
+    # letters, digits and underscores, starting with a letter, as the provider columns' check requires
+    provider_id: ClassVar[str]
     provider_name: ClassVar[str]
+
+    # Where the provider comes in the list the user chooses from, lowest first
+    display_order: ClassVar[int]
 
     # The provider's own site, where the user signs in to a bank again when it asks
     provider_site: ClassVar[str]
 
     # One sentence on what connecting it reaches, shown where the user chooses a provider
     provider_description: ClassVar[str]
+
+    # What the user pastes to connect, at least one field, and the steps to get it from the provider,
+    # each a sentence
+    credential_fields: ClassVar[tuple[CredentialField, ...]]
+    connect_steps: ClassVar[tuple[str, ...]]
 
     # How many calendar months back an import may start
     history_limit_months: ClassVar[int]
@@ -181,12 +209,21 @@ class ProviderAdapter(ABC):
     daily_request_budget: ClassVar[int]
     connects_from: ClassVar[ConnectsFrom]
 
+    @classmethod
+    def on_startup(cls) -> None:
+        """Run as the app and the bank sync worker start, such as to warn about a testing-only setting
+
+        Does nothing unless the adapter has something to check
+        """
+        return
+
     @abstractmethod
-    async def claim(self, supplied_credential: str) -> str:
-        """Exchange the credential the user supplied for the access Lumina stores
+    async def claim(self, supplied: Mapping[str, str]) -> str:
+        """Exchange the credentials the user supplied for the access Lumina stores
 
         Args:
-            supplied_credential: What the user pasted or the provider's flow handed back
+            supplied: Each of the provider's credential fields by its key, none blank or over its
+                longest, as the engine checked them
 
         Returns:
             The credential to store encrypted and pass to discover and fetch

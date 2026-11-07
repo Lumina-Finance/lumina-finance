@@ -197,7 +197,7 @@ async def test_review_list_shows_each_kind_with_the_values_its_review_compares(c
     page = await _review_page(client, headers)
 
     assert [datetime.fromisoformat(listed.pop("received_at")) for listed in page["items"]] == [_RECEIVED_AT] * 4
-    item = {"provider": "simplefin", "provider_name": "SimpleFIN", "version": 1}
+    item = {"provider": "fake", "provider_name": "Fake Bank", "version": 1}
     new_item = {"transaction_id": None, "current": None, "changed_fields": [], "protected_fields": [], "needs_merchant_or_category": True}
     assert page == {
         "items": [

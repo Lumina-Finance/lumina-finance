@@ -1,21 +1,44 @@
-"""Bank sync settings"""
+"""Bank sync settings, and the readers each bank provider reads its own settings through"""
 
-import logging
 import os
+from dataclasses import dataclass
 
 import httpx
 
 from app.config.env import optional_bool_env, optional_csv_env
 
-logger = logging.getLogger(__name__)
-
-# SimpleFIN Bridge's two servers, always allowed. Servers set in the environment are added beside
-# them, so connections already made through the Bridge keep working
-_SIMPLEFIN_BRIDGE_ORIGINS = ["https://beta-bridge.simplefin.org", "https://bridge.simplefin.org"]
-
 # Jobs the worker runs at once unless the environment sets another number, so one slow bank
 # doesn't hold up every other connection's sync
 _DEFAULT_WORKER_CONCURRENCY = 2
+
+
+@dataclass(frozen=True)
+class ProviderSettings:
+    """A bank provider's deployment switches"""
+
+    # Whether the provider is available at all
+    enabled: bool
+
+    # Whether new connections may be made with it. Withdrawing the offer leaves existing
+    # connections syncing, linking, reconnecting and disconnecting as before
+    offered: bool
+
+
+def provider_setting_key(provider_id: str, name: str) -> str:
+    """Return the environment variable holding one of a provider's settings, such as BANK_SYNC_<ID>_ENABLED"""
+    return f"BANK_SYNC_{provider_id.upper()}_{name}"
+
+
+def read_provider_settings(provider_id: str) -> ProviderSettings:
+    """Return a provider's switches, each on unless the environment turns it off
+
+    Raises:
+        RuntimeError: A switch is set to something other than true or false
+    """
+    return ProviderSettings(
+        enabled=optional_bool_env(provider_setting_key(provider_id, "ENABLED"), True),
+        offered=optional_bool_env(provider_setting_key(provider_id, "OFFERED"), True),
+    )
 
 
 def _read_origin(key: str, value: str, *, schemes: tuple[str, ...]) -> str:
@@ -54,6 +77,25 @@ def _read_origin(key: str, value: str, *, schemes: tuple[str, ...]) -> str:
     return value
 
 
+def read_origin_list_setting(key: str) -> list[str]:
+    """Return the HTTPS origins a comma-separated setting lists, empty when it is unset
+
+    Raises:
+        RuntimeError: An entry is not an HTTPS origin
+    """
+    return [_read_origin(key, origin, schemes=("https",)) for origin in optional_csv_env(key)]
+
+
+def read_test_origin_setting(key: str) -> str | None:
+    """Return a testing-only origin, which may use plain HTTP, or None when it is unset
+
+    Raises:
+        RuntimeError: The value is not an HTTP or HTTPS origin
+    """
+    value = os.getenv(key, "").strip()
+    return _read_origin(key, value, schemes=("http", "https")) if value else None
+
+
 def read_count_setting(key: str, default: int, *, maximum: int | None = None) -> int:
     """Return a setting that counts something, such as months, requests or jobs, which must be at least 1
 
@@ -74,64 +116,5 @@ def read_count_setting(key: str, default: int, *, maximum: int | None = None) ->
     return int(value)
 
 
-def read_simplefin_origins() -> list[str]:
-    """Return the origins SimpleFIN requests may reach: SimpleFIN Bridge's, then any the environment adds
-
-    Raises:
-        RuntimeError: An added entry is not an HTTPS origin
-    """
-    added = [
-        _read_origin("BANK_SYNC_SIMPLEFIN_ORIGINS", origin, schemes=("https",)) for origin in optional_csv_env("BANK_SYNC_SIMPLEFIN_ORIGINS")
-    ]
-    return [*_SIMPLEFIN_BRIDGE_ORIGINS, *added]
-
-
-def read_simplefin_test_origin() -> str | None:
-    """Return the testing-only origin, or None when it is unset
-
-    Raises:
-        RuntimeError: The value is not an HTTP or HTTPS origin
-    """
-    value = os.getenv("BANK_SYNC_SIMPLEFIN_TEST_ORIGIN", "").strip()
-    return _read_origin("BANK_SYNC_SIMPLEFIN_TEST_ORIGIN", value, schemes=("http", "https")) if value else None
-
-
-def warn_if_test_origin_set() -> None:
-    """Warn while the testing-only origin is set, which the app and the bank sync worker each do as they start"""
-    if BANK_SYNC_SIMPLEFIN_TEST_ORIGIN:
-        logger.warning(
-            "BANK_SYNC_SIMPLEFIN_TEST_ORIGIN sends SimpleFIN requests only to %s, without HTTPS or the public address check, "
-            "and refuses every other origin, SimpleFIN Bridge's included. It is for testing only",
-            BANK_SYNC_SIMPLEFIN_TEST_ORIGIN,
-        )
-
-
-# Origins SimpleFIN requests may reach while no test origin is set, always over HTTPS and only at
-# public addresses
-BANK_SYNC_SIMPLEFIN_ORIGINS = read_simplefin_origins()
-
-# Testing only: while set, the one origin SimpleFIN requests may reach, exempt from the HTTPS and
-# public address checks, so development instances and browser tests reach a fake SimpleFIN Bridge on
-# a private network and nothing else, not even a real connection restored from production. Unset by
-# default and kept out of the environment variable docs, and the app and the bank sync worker each
-# warn as they start while it is set
-BANK_SYNC_SIMPLEFIN_TEST_ORIGIN = read_simplefin_test_origin()
-
 # How many jobs the worker runs at once, each on a different connection
 BANK_SYNC_WORKER_CONCURRENCY = read_count_setting("BANK_SYNC_WORKER_CONCURRENCY", _DEFAULT_WORKER_CONCURRENCY)
-
-# Whether SimpleFIN is available at all. Every provider is enabled unless the environment turns it off
-BANK_SYNC_SIMPLEFIN_ENABLED = optional_bool_env("BANK_SYNC_SIMPLEFIN_ENABLED", True)
-
-# Whether new SimpleFIN connections may be made. Withdrawing the offer leaves existing connections
-# syncing, linking, reconnecting and disconnecting as before
-BANK_SYNC_SIMPLEFIN_OFFERED = optional_bool_env("BANK_SYNC_SIMPLEFIN_OFFERED", True)
-
-# How many calendar months back a SimpleFIN import may start. A change applies only to start
-# dates chosen afterwards
-BANK_SYNC_SIMPLEFIN_HISTORY_MONTHS = read_count_setting("BANK_SYNC_SIMPLEFIN_HISTORY_MONTHS", 12)
-
-# Requests each SimpleFIN connection may send in a rolling 24 hours, below the 24 a day SimpleFIN
-# Bridge expects, so setup and retries never earn a warning that could get the token disabled. A higher value than
-# the 24 is refused at start
-BANK_SYNC_SIMPLEFIN_DAILY_REQUESTS = read_count_setting("BANK_SYNC_SIMPLEFIN_DAILY_REQUESTS", 20, maximum=24)

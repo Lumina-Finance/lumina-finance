@@ -1,12 +1,14 @@
 """Claiming a provider credential, as a new bank connection or in place of a rejected one
 
-The supplied credential, such as a SimpleFIN setup token, is exchanged once for the access Lumina
+The supplied credential, such as a setup token, is exchanged once for the access Lumina
 stores encrypted, and is never kept. The access itself is never logged or returned: only its host
 is kept in the clear. Right after the claim, the same request discovers the connection's bank
 accounts, so the response can list them, or say which linked accounts resume after a reconnect
 """
 
+import re
 import uuid
+from collections.abc import Mapping
 from datetime import UTC, datetime
 
 from fastapi import HTTPException, status
@@ -24,7 +26,14 @@ from app.schemas.bank_sync import (
     ReconnectBankConnectionRequest,
     ReconnectBankConnectionResponse,
 )
-from app.services.bank_sync.availability import LIVE_LINK, get_enabled_adapter, is_offered, require_bank_linking
+from app.services.bank_sync.availability import (
+    LIVE_LINK,
+    PROVIDER_GONE_DETAIL,
+    adapter_for,
+    get_enabled_adapter,
+    is_offered,
+    require_bank_linking,
+)
 from app.services.bank_sync.connections import build_connection_responses, get_own_connection, read_nickname
 from app.services.bank_sync.discovery import run_discovery
 from app.services.bank_sync.jobs import enqueue_bank_sync_job
@@ -32,7 +41,7 @@ from app.services.bank_sync.provider_requests import record_provider_request
 from app.services.bank_sync.providers.contract import ClaimRefused, ProviderAdapter, ProviderUnreachable
 from app.services.cache_state.updates import mark_user_cache_changed
 
-WORKING_CONNECTION_DETAIL = "This connection is working, so it needs no new setup token"
+WORKING_CONNECTION_DETAIL = "This connection is working, so it doesn't need reconnecting"
 
 
 async def claim_connection(db: AsyncSession, user: User, request: CreateBankConnectionRequest) -> BankConnectionResponse:
@@ -68,9 +77,9 @@ async def claim_connection(db: AsyncSession, user: User, request: CreateBankConn
             detail=f"{adapter.provider_name} is not offered for new connections. Existing connections keep working",
         )
 
-    credential = await _claim_credential(adapter, request.setup_token)
+    credential = await _claim_credential(adapter, request.credentials)
     now = datetime.now(UTC)
-    connection = BankConnection(owner_id=user.id, provider=request.provider, nickname=nickname)
+    connection = BankConnection(owner_id=user.id, provider=request.provider, provider_name=adapter.provider_name, nickname=nickname)
     _store_credential(connection, adapter, credential)
     db.add(connection)
     await db.flush()
@@ -120,16 +129,18 @@ async def reconnect_connection(
         HTTPException 403: The user may not link bank accounts
         HTTPException 404: The connection doesn't exist, is another user's, or was disconnected
             while its bank accounts were listed
-        HTTPException 409: The connection's credential still works
+        HTTPException 409: The connection's provider is no longer installed, or its credential still works
         HTTPException 422: The provider isn't enabled, or refused the credential, saying why
         HTTPException 502: The provider couldn't be reached or gave no usable answer, so nothing
             is saved and the credential can be tried again
     """
     require_bank_linking(user.id)
     connection = await get_own_connection(db, user.id, connection_id)
+    if adapter_for(connection.provider) is None:
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=PROVIDER_GONE_DETAIL)
     adapter = get_enabled_adapter(connection.provider)
     _refuse_working(connection)
-    credential = await _claim_credential(adapter, request.setup_token)
+    credential = await _claim_credential(adapter, request.credentials)
 
     # Checked again under a lock, since nothing is locked while the provider answers: a second
     # reconnect sent at the same time finds the first one's credential working, and a connection
@@ -159,17 +170,46 @@ async def reconnect_connection(
     )
 
 
-async def _claim_credential(adapter: ProviderAdapter, setup_token: SecretStr) -> str:
-    """Exchange the credential the user supplied for the access the provider hands over
+def credential_noun(label: str) -> str:
+    """A field's label as it reads mid-sentence, lowered unless it opens with an acronym, as "API key" does"""
+    return label[0].lower() + label[1:] if re.match(r"[A-Z][a-z]", label) else label
+
+
+def read_credentials(adapter: ProviderAdapter, supplied: Mapping[str, SecretStr]) -> dict[str, str]:
+    """Take each of the provider's credential fields from what the user supplied, leaving out anything else
 
     Raises:
-        HTTPException 422: The provider refused the credential, saying why
+        HTTPException 422: A field is missing, blank or longer than it takes, named in a sentence
+            that never repeats what was sent
+    """
+    credentials = {}
+    for field in adapter.credential_fields:
+        noun = credential_noun(field.label)
+        value = supplied[field.key].get_secret_value() if field.key in supplied else ""
+        if not value.strip():
+            detail = f"Paste the {noun} from {adapter.provider_site}"
+            raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail=detail)
+        if len(value) > field.max_length:
+            detail = f"That {noun} is too long. Copy only the {noun} from {adapter.provider_site} and try again"
+            raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail=detail)
+        credentials[field.key] = value
+    return credentials
+
+
+async def _claim_credential(adapter: ProviderAdapter, supplied: Mapping[str, SecretStr]) -> str:
+    """Exchange the credentials the user supplied for the access the provider hands over
+
+    Raises:
+        HTTPException 422: A field is missing, blank or too long, or the provider refused the
+            credentials, saying why
         HTTPException 502: The provider couldn't be reached or gave no usable answer
     """
-    # The refusals are written for the user and never repeat the credential, and nothing is
+    credentials = read_credentials(adapter, supplied)
+
+    # The refusals are written for the user and never repeat a credential, and nothing is
     # chained to them that could
     try:
-        return await adapter.claim(setup_token.get_secret_value())
+        return await adapter.claim(credentials)
     except ClaimRefused as refused:
         raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail=str(refused)) from None
     except ProviderUnreachable as unreachable:

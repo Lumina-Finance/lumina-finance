@@ -71,7 +71,7 @@ from app.services.bank_sync.action_needed import (
     log_unsent_action_emails,
     send_action_emails,
 )
-from app.services.bank_sync.availability import ENABLED_ADAPTERS, LINK_LISTING, PROVIDER_ADAPTERS
+from app.services.bank_sync.availability import LINK_LISTING, PROVIDER_GONE_DETAIL, adapter_for, enabled_adapters, provider_label
 from app.services.bank_sync.discovery import apply_discovery, store_fetched_balances
 from app.services.bank_sync.history_reminder import (
     clear_no_history_reminders,
@@ -151,10 +151,11 @@ async def run_sync_job(job: ClaimedJob) -> None:
     # The emails of each save that committed, until they are sent
     outbox: list[ActionEmail] = []
     try:
-        adapter = ENABLED_ADAPTERS.get(connection.provider)
-        if adapter is None:
-            provider_name = PROVIDER_ADAPTERS[connection.provider].provider_name
-            error = ProviderError(ProviderErrorKind.UNKNOWN, f"{provider_name} is turned off on this server")
+        adapter = enabled_adapters().get(connection.provider)
+        if adapter_for(connection.provider) is None:
+            await _end_job(job, ProviderError(ProviderErrorKind.UNKNOWN, PROVIDER_GONE_DETAIL), started_at=now, outbox=outbox)
+        elif adapter is None:
+            error = ProviderError(ProviderErrorKind.UNKNOWN, f"{provider_label(connection.provider)} is turned off on this server")
             await _end_job(job, error, started_at=now, outbox=outbox)
         elif connection.credential_rejected_at is not None:
             await _end_job(job, started_at=now, outbox=outbox)
@@ -377,6 +378,7 @@ class _JobRun:
         result = await self.adapter.discover(credential, currency_exponents=self.currency_exponents)
         async with async_session() as db:
             connection, _ = await _hold_for_finish(db, self.job, sent_with=credential)
+            connection.provider_name = self.adapter.provider_name
             moved = await apply_discovery(db, connection, result, now=sent_at)
             emails = await choose_account_emails(db, connection, moved)
 
@@ -403,7 +405,7 @@ class _JobRun:
     async def _fetch(self, window: SyncWindow) -> bool | None:
         """Fetch the window and write what it found, noting each link a part didn't bring back whole
 
-        SimpleFIN has no paging, so a response that may have been cut short is set aside and its days
+        The contract has no paging, so a response that may have been cut short is set aside and its days
         fetched again in halves, down to a single day, which is kept however long, and the links it
         brought back whole remind the user that some of that day's transactions may be missing.
         Parts are written as they come back, earliest first, so those fetched before the budget ran

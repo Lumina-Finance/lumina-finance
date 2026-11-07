@@ -110,6 +110,16 @@ async def _owner(session: AsyncSession, email: str = "owner@example.com") -> Use
     return user
 
 
+@pytest.mark.parametrize("provider", ["Lunar", "lunar-bank", "1bank", ""], ids=["capitals", "hyphen", "leading-digit", "empty"])
+async def test_bank_connection_provider_outside_the_folder_name_form_is_refused(session, provider):
+    """A provider is stored by its folder's name, so an id no folder could carry is refused, while any such name is taken"""
+    user = await _owner(session)
+    connection = _build_bank_connection(user.id, provider)
+
+    await _refused(session, connection, "ck_bank_connections_provider")
+    await _add(session, _build_bank_connection(user.id, "lunar_bank2"))
+
+
 async def test_bank_link_second_live_link_on_an_account_is_refused_until_the_first_is_unlinked(session):
     """Everyday already has an active link, so a second one waits until the first is unlinked"""
     user = await _owner(session)
@@ -183,7 +193,7 @@ async def test_bank_connection_deleted_after_unlinking_keeps_the_links_previous_
             ).where(BankAccountLink.id == link.id)
         )
     ).one()
-    assert tuple(kept) == (None, "simplefin", "ACT-1", "Everyday Chequing", "Harbour Bank")
+    assert tuple(kept) == (None, "fake", "ACT-1", "Everyday Chequing", "Harbour Bank")
     for model in (BankExternalAccount, BankProviderRequest):
         assert (await session.scalars(select(model.id))).all() == []
 

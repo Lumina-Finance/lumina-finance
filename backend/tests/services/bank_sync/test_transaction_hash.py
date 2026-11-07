@@ -10,7 +10,6 @@ import hashlib
 import hmac
 
 from app.bank_transaction_key import resolve_key
-from app.models.bank_connection import BankProvider
 from app.services.bank_sync.transaction_hash import hash_bank_transaction_id
 
 
@@ -19,11 +18,9 @@ def test_the_hash_is_the_keyed_digest_of_the_provider_bank_account_and_id():
     digest = hashlib.sha256(b"simplefin:ACT-1\0TRN-coffee").digest()
     expected = hmac.new(resolve_key(generate=False), digest, hashlib.sha256).hexdigest()
 
-    assert hash_bank_transaction_id(BankProvider.SIMPLEFIN, "ACT-1", "TRN-coffee") == expected
+    assert hash_bank_transaction_id("simplefin", "ACT-1", "TRN-coffee") == expected
 
 
 def test_the_same_id_on_two_bank_accounts_hashes_apart():
     """An ID is the bank account's own, so only the pair names a transaction"""
-    assert hash_bank_transaction_id(BankProvider.SIMPLEFIN, "ACT-1", "TRN-1") != hash_bank_transaction_id(
-        BankProvider.SIMPLEFIN, "ACT-2", "TRN-1"
-    )
+    assert hash_bank_transaction_id("fake", "ACT-1", "TRN-1") != hash_bank_transaction_id("fake", "ACT-2", "TRN-1")

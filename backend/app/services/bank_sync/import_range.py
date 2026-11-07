@@ -15,7 +15,7 @@ from datetime import date, datetime, timedelta
 from sqlalchemy import exists, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.models.bank_connection import BankAccountLink, BankProvider
+from app.models.bank_connection import BankAccountLink
 from app.models.transaction import Transaction
 from app.models.user import User
 from app.services.accounts.access import get_own_personal_account
@@ -103,7 +103,7 @@ async def read_import_range(db: AsyncSession, account_id: uuid.UUID, *, history_
     )
 
 
-async def get_import_range(db: AsyncSession, user: User, account_id: uuid.UUID, provider: BankProvider) -> ImportRange:
+async def get_import_range(db: AsyncSession, user: User, account_id: uuid.UUID, provider: str) -> ImportRange:
     """Return where an import from a provider into one of the user's own accounts may start
 
     Args:

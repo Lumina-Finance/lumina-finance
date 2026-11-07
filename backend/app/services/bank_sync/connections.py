@@ -28,10 +28,12 @@ from app.schemas.bank_sync import (
 from app.services.bank_sync.action_needed import ActionNeededKind, read_actions_needed
 from app.services.bank_sync.availability import (
     LIVE_LINK,
-    PROVIDER_ADAPTERS,
+    adapter_for,
     find_unavailability,
     get_institution_allowance,
     list_link_candidates,
+    provider_label,
+    provider_site_label,
     read_linked_bank_accounts,
 )
 from app.services.bank_sync.provider_requests import read_request_budgets
@@ -137,19 +139,23 @@ async def build_connection_responses(
 
     responses = []
     for connection in connections:
-        adapter = PROVIDER_ADAPTERS[connection.provider]
+        provider_name = provider_label(connection.provider, connection.provider_name)
+
+        # A provider no longer installed can't link, so none of its bank accounts offers an account
+        available = adapter_for(connection.provider) is not None
         accounts = []
         for bank_account in bank_accounts[connection.id]:
             link = linked_to.get((connection.provider, bank_account.external_id))
             eligible = [
                 account.id
                 for account in candidates
-                if find_unavailability(
+                if available
+                and find_unavailability(
                     bank_account,
                     account,
                     linked_to=link[1] if link else None,
                     allowance=allowances[connection.provider],
-                    provider_name=adapter.provider_name,
+                    provider_name=provider_name,
                 )
                 is None
             ]
@@ -170,7 +176,9 @@ async def build_connection_responses(
             BankConnectionResponse(
                 id=connection.id,
                 provider=connection.provider,
-                provider_name=adapter.provider_name,
+                provider_name=provider_name,
+                provider_site=provider_site_label(connection.provider),
+                provider_available=available,
                 nickname=connection.nickname,
                 server_label=connection.server_host,
                 created_at=connection.created_at,

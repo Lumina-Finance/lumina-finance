@@ -64,7 +64,7 @@ async def test_listing_marks_each_bank_account_linkable_or_unavailable_with_its_
         "ACT-1": ("already_linked", "Already linked to Savings"),
         "ACT-PTS": ("custom_currency", "Uses a currency of its own, which Lumina Finance can't track"),
         "ACT-USD": ("currency_mismatch", "In USD, but Everyday is in CAD"),
-        "ACT-LAKE": ("institution_limit", "Would go over your limit of 1 institution for SimpleFIN"),
+        "ACT-LAKE": ("institution_limit", "Would go over your limit of 1 institution for Fake Bank"),
     }
     assert [
         (account["external_id"], account["linkable"], account["unavailable_reason"], account["unavailable_message"])

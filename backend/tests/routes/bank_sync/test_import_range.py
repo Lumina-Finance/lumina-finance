@@ -6,13 +6,15 @@ personal account, through a provider the deployment enables, and only for a user
 
 import uuid
 
-from app.models.bank_connection import BankProvider
+import pytest
+
 from app.services.bank_sync import availability
 from tests.conftest import TestSession
 from tests.routes.support.bank_sync_helpers import _build_account, _build_user, _new_account, _sign_up
+from tests.services.bank_sync.fake_provider import FAKE_PROVIDER, remove_provider, use_adapter
 
 
-async def _read_range(client, headers, account_id, provider: str = "simplefin"):
+async def _read_range(client, headers, account_id, provider: str = FAKE_PROVIDER):
     """Read an account's import range through the route"""
     return await client.get(f"/accounts/{account_id}/bank-link/import-range", params={"provider": provider}, headers=headers)
 
@@ -50,9 +52,13 @@ async def test_import_range_of_another_users_account_is_not_found(client):
     assert missing.json()["detail"] == "Account not found"
 
 
-async def test_import_range_through_a_disabled_provider_is_refused(client, monkeypatch):
-    """A deployment that disabled SimpleFIN has no history limit to offer"""
-    monkeypatch.delitem(availability.ENABLED_ADAPTERS, BankProvider.SIMPLEFIN)
+@pytest.mark.parametrize("gone", ["turned-off", "removed"])
+async def test_import_range_through_a_provider_turned_off_or_removed_is_refused(client, fake_provider, monkeypatch, gone):
+    """A deployment that turned the provider off, or deleted its folder, has no history limit to offer"""
+    if gone == "turned-off":
+        use_adapter(monkeypatch, fake_provider, enabled=False)
+    else:
+        remove_provider(monkeypatch, FAKE_PROVIDER)
     headers, _ = await _sign_up(client)
     account_id = await _new_account(client, headers, "Everyday")
 

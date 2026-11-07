@@ -130,16 +130,16 @@ async def test_action_emails_say_what_stopped_syncing_and_how_to_resume_it(conne
     assert [(email.recipient, email.message.subject, email.message.text_body) for email in emails] == [
         (
             "owner0@example.com",
-            "Reconnect SimpleFIN to resume syncing",
-            "SimpleFIN rejected your Family banks connection, so syncing has stopped for:\n\n"
+            "Reconnect Fake Bank to resume syncing",
+            "Fake Bank rejected your Family banks connection, so syncing has stopped for:\n\n"
             "- Card\n"
             "- Everyday\n\n"
-            "Reconnect it in Settings with a new setup token to pick up where it left off.",
+            "Reconnect it in Settings to pick up where it left off.",
         ),
         (
             "owner0@example.com",
-            "Sign in to your bank again in SimpleFIN Bridge",
-            "Sign in to Chase again in SimpleFIN Bridge. Until you do, syncing has stopped for:\n\n"
+            "Sign in to your bank again in Fake Bank Online",
+            "Sign in to Chase again in Fake Bank Online. Until you do, syncing has stopped for:\n\n"
             "- Card\n"
             "- Everyday\n\n"
             "Lumina Finance checks daily and picks up where it left off once you have.",
@@ -147,14 +147,14 @@ async def test_action_emails_say_what_stopped_syncing_and_how_to_resume_it(conne
         (
             "owner0@example.com",
             "Choose a bank account again to resume syncing",
-            "SimpleFIN now lists Everyday Chequing differently, so Lumina Finance can't tell whether it's the same account. "
+            "Fake Bank now lists Everyday Chequing differently, so Lumina Finance can't tell whether it's the same account. "
             "Everyday won't sync until you choose its bank account again.\n\n"
-            "If SimpleFIN goes back to listing it as before, Everyday resumes syncing by itself.",
+            "If Fake Bank goes back to listing it as before, Everyday resumes syncing by itself.",
         ),
         (
             "owner1@example.com",
-            "Reconnect SimpleFIN to resume syncing",
-            "SimpleFIN rejected your connection.\n\nReconnect it in Settings with a new setup token before linking accounts to it.",
+            "Reconnect Fake Bank to resume syncing",
+            "Fake Bank rejected your connection.\n\nReconnect it in Settings before linking accounts to it.",
         ),
     ]
 

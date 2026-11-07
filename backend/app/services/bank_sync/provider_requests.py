@@ -1,9 +1,9 @@
 """The record of requests sent to bank data providers, and the rolling request budget it counts
 
-SimpleFIN Bridge may disable a token that keeps going over its daily limit, which would put every
+A provider may disable a credential that keeps going over its daily limit, which would put every
 account on the connection into Reconnect needed. So every request is counted before it is sent,
-in a transaction committed on its own, and a provider saying its quota is spent marks the budget
-spent rather than letting the rest go out
+in a transaction committed on its own, against the daily budget the provider's adapter sets, and a
+provider saying its quota is spent marks the budget spent rather than letting the rest go out
 """
 
 import uuid
@@ -16,7 +16,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.bank_connection import BankConnection, BankProviderRequest, ProviderRequestPurpose
 from app.models.bank_sync_job import ProviderErrorKind
-from app.services.bank_sync.availability import PROVIDER_ADAPTERS
+from app.services.bank_sync.availability import adapter_for
 from app.services.bank_sync.providers.contract import FetchResult
 
 # How far back the request budget counts. A record older than this can never count again
@@ -27,7 +27,8 @@ REQUEST_BUDGET_WINDOW = timedelta(hours=24)
 class RequestBudget:
     """A connection's requests over the last 24 hours, for the settings meter, the status and Sync now"""
 
-    limit: int
+    # None for a connection whose provider is no longer installed, which sends nothing
+    limit: int | None
     used: int
 
     # When the next request can be sent once the budget is spent, or None while one is free
@@ -117,15 +118,21 @@ async def read_request_budgets(db: AsyncSession, connections: Collection[BankCon
     )
     for connection_id, requested_at in rows:
         counted[connection_id].append(requested_at)
-    return {
-        connection.id: summarize_request_budget(
+    budgets = {}
+    for connection in connections:
+        adapter = adapter_for(connection.provider)
+
+        # A provider no longer installed is sent nothing, so its connection uses none and has no limit
+        if adapter is None:
+            budgets[connection.id] = RequestBudget(limit=None, used=0, available_again_at=None)
+            continue
+        budgets[connection.id] = summarize_request_budget(
             counted[connection.id],
-            limit=PROVIDER_ADAPTERS[connection.provider].daily_request_budget,
+            limit=adapter.daily_request_budget,
             spent_until=connection.request_budget_spent_until,
             now=now,
         )
-        for connection in connections
-    }
+    return budgets
 
 
 async def record_provider_request(

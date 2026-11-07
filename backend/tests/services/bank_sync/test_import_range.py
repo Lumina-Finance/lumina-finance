@@ -9,7 +9,7 @@ from datetime import date
 
 import pytest
 
-from app.models.bank_connection import BankLinkState, BankProvider
+from app.models.bank_connection import BankLinkState
 from app.models.currency import Currency
 from app.services.bank_sync.import_range import ImportRange, calculate_import_range, get_import_range
 from tests.routes.support.bank_sync_helpers import (
@@ -20,16 +20,17 @@ from tests.routes.support.bank_sync_helpers import (
     _build_ledger_transaction,
     _build_user,
 )
+from tests.services.bank_sync.fake_provider import FAKE_PROVIDER
 
-_SIMPLEFIN_MONTHS = 12
+_HISTORY_MONTHS = 12
 
 
 def _range(today: date, latest_ledger_date: date | None, *, was_linked_before: bool = False) -> ImportRange:
-    """Work out SimpleFIN's default 12-month range"""
+    """Work out the range for a provider reaching back 12 months"""
     return calculate_import_range(
         today=today,
         latest_ledger_date=latest_ledger_date,
-        history_months=_SIMPLEFIN_MONTHS,
+        history_months=_HISTORY_MONTHS,
         was_linked_before=was_linked_before,
     )
 
@@ -132,7 +133,7 @@ async def test_import_range_reads_the_ledger_on_the_users_own_day(db, frozen_now
         db.add(_build_bank_link(account, connection, state=previous_link))
     await db.flush()
 
-    imported = await get_import_range(db, user, account.id, BankProvider.SIMPLEFIN)
+    imported = await get_import_range(db, user, account.id, FAKE_PROVIDER)
 
     assert (imported.latest_ledger_date, imported.ledger_floor, imported.earliest_allowed, imported.latest_allowed) == (
         date(2026, 10, 3),

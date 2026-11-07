@@ -39,7 +39,7 @@ _SYNCED = {
 }
 
 # An attempt that failed ten minutes ago, waiting for the first retry of its series
-_FAILED_REASON = "SimpleFIN Bridge couldn't be reached"
+_FAILED_REASON = "Fake Bank Online couldn't be reached"
 _RETRY = {
     "retry_count": 1,
     "last_attempt_at": _NOW - timedelta(minutes=10),
@@ -127,7 +127,7 @@ async def test_sync_status_shows_the_first_state_that_applies(client, link_value
     if syncing:
         await _commit_running_job(connection, link, now=_NOW)
 
-    # SimpleFIN's balance sits 250.00 above the empty ledger, so an offered link shows its offer
+    # Fake Bank's balance sits 250.00 above the empty ledger, so an offered link shows its offer
     await _commit_bank_balance(connection, balance=25000, balance_at=_NOW - timedelta(hours=3))
 
     sync = await _read_sync(client, headers, account_id)
@@ -287,13 +287,13 @@ async def test_sync_status_says_whether_the_next_sync_waits_on_the_request_budge
     ],
 )
 async def test_sync_status_says_whose_request_limit_holds_the_next_sync(client, sent, held_by_provider):
-    """SimpleFIN saying its quota is spent holds the next sync on its own limit after 4 of 20 requests, and on the connection's after 20"""
+    """Fake Bank saying its quota is spent holds the next sync on its own limit after 4 of 20 requests, and on the connection's after 20"""
     headers, user_id = await _sign_up(client)
     account_id = await _new_account(client, headers, "Everyday")
     connection = await _commit_listed_connection(user_id, discovered_at=_NOW)
     await _commit_link(account_id, connection, **_SYNCED | {"next_attempt_at": _SPENT_UNTIL - timedelta(hours=1)})
 
-    # The oldest request leaves the 24 hours just as SimpleFIN's word that its quota is spent runs out
+    # The oldest request leaves the 24 hours just as Fake Bank's word that its quota is spent runs out
     oldest = _SPENT_UNTIL - timedelta(hours=24)
     async with TestSession() as session:
         session.add_all(

@@ -23,7 +23,7 @@ async def _stored_nickname(connection_id: uuid.UUID) -> str | None:
 
 @pytest.mark.parametrize("cleared_with", ["  ", None], ids=["blank", "null"])
 async def test_rename_sets_and_clears_the_nickname_in_any_state(client, cleared_with):
-    """A rejected connection is renamed Joint, and a blank or null nickname brings back SimpleFIN"""
+    """A rejected connection is renamed Joint, and a blank or null nickname brings back Fake Bank"""
     headers, user_id = await _sign_up(client)
     connection = await _commit_bank_connection(user_id, created_at=datetime.now(UTC), rejected=True)
 
@@ -33,7 +33,7 @@ async def test_rename_sets_and_clears_the_nickname_in_any_state(client, cleared_
     assert named.status_code == 200, named.text
     assert (named.json()["nickname"], named.json()["status"]) == ("Joint", "credential_rejected")
     assert cleared.status_code == 200, cleared.text
-    assert (cleared.json()["nickname"], cleared.json()["provider_name"]) == (None, "SimpleFIN")
+    assert (cleared.json()["nickname"], cleared.json()["provider_name"]) == (None, "Fake Bank")
     assert await _stored_nickname(connection.id) is None
 
 

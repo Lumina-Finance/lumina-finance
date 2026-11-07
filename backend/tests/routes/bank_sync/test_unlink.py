@@ -13,7 +13,7 @@ from datetime import UTC, datetime
 from sqlalchemy import func, select, update
 
 from app.models.account import Account
-from app.models.bank_connection import BankAccountLink, BankConnection, BankLinkState, BankProvider
+from app.models.bank_connection import BankAccountLink, BankConnection, BankLinkState
 from app.models.bank_pending_transaction import BankPendingTransaction
 from app.models.bank_sync_job import BankSyncJob
 from app.models.bank_transaction import BankTransaction
@@ -38,11 +38,12 @@ from tests.routes.support.bank_sync_helpers import (
     _sign_up,
 )
 from tests.routes.support.lock_helpers import _wait_until_waiting_on
+from tests.services.bank_sync.fake_provider import FAKE_PROVIDER
 
 _NOT_LINKED = "This account is not linked to a bank"
 
 # The kept bank transactions' keyed hashes, in the order they are read back
-_KEPT_HASHES = sorted(hash_bank_transaction_id(BankProvider.SIMPLEFIN, BANK_ACCOUNT_ID, bank_id) for bank_id in ("TRN-ACCEPTED", "TRN-WAITING"))
+_KEPT_HASHES = sorted(hash_bank_transaction_id(FAKE_PROVIDER, BANK_ACCOUNT_ID, bank_id) for bank_id in ("TRN-ACCEPTED", "TRN-WAITING"))
 
 
 async def _two_linked(client) -> tuple[dict, uuid.UUID, str, str, BankConnection]:

@@ -9,7 +9,6 @@ from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.abuse_log import log_source_address
-from app.config.bank_sync import warn_if_test_origin_set
 from app.config.log_level import LOG_LEVEL
 from app.config.oidc import OIDC_PROVIDER_CONFIGS
 from app.config.runtime import ALLOWED_ORIGINS, RUNTIME
@@ -42,6 +41,7 @@ from app.routes.transactions import router as transaction_router
 from app.routes.users import router as user_router
 from app.services.auth.oidc_providers import sync_oidc_providers
 from app.services.auth.step_up import ATTEMPTS_REMAINING_HEADER
+from app.services.bank_sync.providers.registry import run_startup_checks
 from app.services.email import build_email_sender, set_email_sender
 from app.services.fx.lookup_budget import FxLookupBudgetMiddleware
 from app.services.maintenance.expired_records import prune_expired_records_on_schedule
@@ -78,7 +78,7 @@ async def _lifespan(_app: FastAPI):
     else:
         logger.info("OIDC sign-in is not configured")
 
-    warn_if_test_origin_set()
+    run_startup_checks()
 
     # The cache's pool lives as long as the app, in every runtime, and a server without ValKey starts as usual
     async with use_valkey():

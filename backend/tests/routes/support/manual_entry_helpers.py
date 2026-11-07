@@ -1,6 +1,6 @@
 """Writing transactions into a linked account around the days its bank supplies
 
-Everyday is linked to SimpleFIN from 1 June 2026, and it is 11pm on 3 October 2026 in the user's
+Everyday is linked to Fake Bank from 1 June 2026, and it is 11pm on 3 October 2026 in the user's
 zone, already 4 October in UTC, so the bank supplies 1 June through 3 October. The tests pin the
 clock to NOW, so a check reading the day in UTC would refuse 4 October as well
 """
@@ -23,19 +23,19 @@ NOW = datetime(2026, 10, 3, 23, 0, tzinfo=ZoneInfo("America/Toronto"))
 TODAY = NOW.date()
 IMPORT_START = date(2026, 6, 1)
 
-SUPPLIED = "SimpleFIN supplies this account's transactions from Jun 1, 2026 to today"
+SUPPLIED = "Fake Bank supplies this account's transactions from Jun 1, 2026 to today"
 
 # A write that can cover several accounts names the one refused
-SUPPLIED_IN_EVERYDAY = "SimpleFIN supplies the transactions in Everyday from Jun 1, 2026 to today"
+SUPPLIED_IN_EVERYDAY = "Fake Bank supplies the transactions in Everyday from Jun 1, 2026 to today"
 
 # A move is refused naming the account it would leave, for one transaction or several
-MOVE_REFUSED = "Transactions from SimpleFIN can't move out of Everyday while it's linked"
+MOVE_REFUSED = "Transactions from Fake Bank can't move out of Everyday while it's linked"
 
 # A delete of a bank-imported transaction is refused naming its account, for one transaction alone
-DELETE_REFUSED = "Imported from SimpleFIN. While Everyday is linked, edit it rather than deleting it"
+DELETE_REFUSED = "Imported from Fake Bank. While Everyday is linked, edit it rather than deleting it"
 
 # And for a selection deleted together, which may hold several
-BULK_DELETE_REFUSED = "Transactions from SimpleFIN can't be deleted from Everyday while it's linked"
+BULK_DELETE_REFUSED = "Transactions from Fake Bank can't be deleted from Everyday while it's linked"
 
 # A day the bank supplies, where a manual transaction can only have been entered before the link
 COFFEE_DAY = date(2026, 7, 12)
@@ -76,7 +76,7 @@ async def _commit_link(
     state: str = BankLinkState.ACTIVE,
     external_account_id: str = "ACT-1",
 ) -> None:
-    """Commit the account's link to a bank account on a new SimpleFIN connection, importing from the start given"""
+    """Commit the account's link to a bank account on a new Fake Bank connection, importing from the start given"""
     connection = await _commit_listed_connection(ledger.user_id, external_account_id)
     async with TestSession() as session:
         account = await session.get_one(Account, uuid.UUID(account_id))

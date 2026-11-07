@@ -38,8 +38,8 @@ _OWNER = (
     "VALUES (:account_id, :user_id, 'ASSET', 'CHECKING', 'Everyday', 'CAD', false)",
 )
 _CONNECTION = (
-    "INSERT INTO bank_connections (id, owner_id, provider, credential_encrypted, server_host) "
-    "VALUES (:connection_id, :user_id, 'simplefin', 'not-a-real-token', 'bridge.example')"
+    "INSERT INTO bank_connections (id, owner_id, provider, provider_name, credential_encrypted, server_host) "
+    "VALUES (:connection_id, :user_id, 'simplefin', 'SimpleFIN', 'not-a-real-token', 'bridge.example')"
 )
 _CONNECTIONS_REVISION = "5b8e2d4f7a13"
 

@@ -20,7 +20,6 @@ from app.models.bank_connection import (
     BankConnection,
     BankExternalAccount,
     BankLinkState,
-    BankProvider,
     OpeningAdjustmentState,
 )
 from app.models.bank_pending_transaction import BankPendingTransaction
@@ -44,6 +43,7 @@ from tests.routes.support.bank_sync_helpers import (
     _new_account,
     _sign_up,
 )
+from tests.services.bank_sync.fake_provider import FAKE_PROVIDER, remove_provider, use_adapter
 
 # Noon on October 4 in Toronto, the zone _sign_up stores
 _NOW = datetime(2026, 10, 4, 12, 0, tzinfo=ZoneInfo("America/Toronto"))
@@ -117,8 +117,10 @@ async def test_link_creates_the_link_and_queues_its_first_import(client):
     assert body == {
         "account_id": account_id,
         "connection_id": str(connection.id),
-        "provider": "simplefin",
-        "provider_name": "SimpleFIN",
+        "provider": "fake",
+        "provider_name": "Fake Bank",
+        "provider_site": "Fake Bank Online",
+        "provider_available": True,
         "external_account_id": BANK_ACCOUNT_ID,
         "external_account_name": "Everyday Chequing",
         "institution_name": "Harbour Bank",
@@ -240,7 +242,7 @@ async def test_choose_again_moves_the_link_to_the_new_bank_account_from_after_th
     headers, account_id, connection, link_id, latest = await _waiting_to_choose_again(client)
     floor = latest + timedelta(days=1)
 
-    ranged = await client.get(f"/accounts/{account_id}/bank-link/import-range", params={"provider": "simplefin"}, headers=headers)
+    ranged = await client.get(f"/accounts/{account_id}/bank-link/import-range", params={"provider": "fake"}, headers=headers)
     too_early = await _link(client, headers, account_id, connection.id, "ACT-2", start_date=latest)
     chosen = await _link(client, headers, account_id, connection.id, "ACT-2", start_date=floor)
 
@@ -340,9 +342,9 @@ async def test_choose_again_carries_over_no_reminder_about_the_earlier_bank_acco
     assert tuple(live) == (None, None, False, None, False, None, None)
 
 
-async def test_link_through_a_provider_withdrawn_from_new_connections_still_links(client, monkeypatch):
-    """Withdrawing SimpleFIN's offer stops only new connections, so an existing one links further accounts"""
-    monkeypatch.setattr(availability, "OFFERED_PROVIDERS", frozenset())
+async def test_link_through_a_provider_withdrawn_from_new_connections_still_links(client, fake_provider, monkeypatch):
+    """Withdrawing the provider's offer stops only new connections, so an existing one links further accounts"""
+    use_adapter(monkeypatch, fake_provider, offered=False)
     headers, _, account_id, connection = await _linkable(client)
 
     linked = await _link(client, headers, account_id, connection.id)
@@ -379,8 +381,8 @@ def _change_currency(currency):
     ("change", "status_code", "detail"),
     [
         (_archive_account, 422, "Archived accounts can't be linked to a bank"),
-        (_reject_connection, 409, "SimpleFIN rejected this connection. Reconnect it in Settings with a new setup token"),
-        (_unlist_bank_account, 404, "SimpleFIN no longer returns that bank account"),
+        (_reject_connection, 409, "Fake Bank rejected this connection. Reconnect it in Settings"),
+        (_unlist_bank_account, 404, "Fake Bank no longer returns that bank account"),
         (_change_currency("USD"), 422, "That bank account is in USD, but Everyday is in CAD"),
         (
             _change_currency("https://bank.example/points"),
@@ -417,9 +419,13 @@ async def test_link_by_a_user_who_may_not_link_bank_accounts_is_refused(client, 
     assert await _stored_links() == []
 
 
-async def test_link_through_a_disabled_provider_is_refused(client, monkeypatch):
-    """A connection whose provider the deployment disabled links nothing"""
-    monkeypatch.delitem(availability.ENABLED_ADAPTERS, BankProvider.SIMPLEFIN)
+@pytest.mark.parametrize("gone", ["turned-off", "removed"])
+async def test_link_through_a_provider_turned_off_or_removed_is_refused(client, fake_provider, monkeypatch, gone):
+    """A connection whose provider the deployment turned off, or whose folder it deleted, links nothing"""
+    if gone == "turned-off":
+        use_adapter(monkeypatch, fake_provider, enabled=False)
+    else:
+        remove_provider(monkeypatch, FAKE_PROVIDER)
     headers, _, account_id, connection = await _linkable(client)
 
     refused = await _link(client, headers, account_id, connection.id)
@@ -507,7 +513,7 @@ async def test_link_to_an_institution_over_the_limit_is_refused(client, monkeypa
     refused = await _link(client, headers, account_id, connection.id, "ACT-LAKE")
 
     assert refused.status_code == 403, refused.text
-    assert refused.json()["detail"] == "Would go over your limit of 1 institution for SimpleFIN"
+    assert refused.json()["detail"] == "Would go over your limit of 1 institution for Fake Bank"
     assert [account for account, *_ in await _stored_links()] == [uuid.UUID(savings_id)]
 
 
@@ -533,5 +539,5 @@ async def test_link_of_another_users_account_connection_or_bank_account_is_not_f
     assert their_connection_refused.status_code == 404, their_connection_refused.text
     assert their_connection_refused.json()["detail"] == "Bank connection not found"
     assert their_bank_account_refused.status_code == 404, their_bank_account_refused.text
-    assert their_bank_account_refused.json()["detail"] == "SimpleFIN no longer returns that bank account"
+    assert their_bank_account_refused.json()["detail"] == "Fake Bank no longer returns that bank account"
     assert await _stored_links() == []

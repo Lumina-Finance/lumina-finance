@@ -13,7 +13,7 @@ A record the provider explicitly reports removed takes out an item still waiting
 task and nothing kept, so the same transaction sent later is a new import, and opens or applies a
 removal on one in the ledger (corrections.py). It changes nothing for a transaction never brought in
 or dismissed. A transaction merely missing from a response is never treated as removed, since a
-provider that reports no removals, such as SimpleFIN, says nothing about what it leaves out.
+provider that reports no removals says nothing about what it leaves out.
 
 A new record dated before the link's import start is left out, but never one dated before the
 window that brought it back, since a provider can date a record the day before the window it came

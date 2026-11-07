@@ -9,37 +9,81 @@ import uuid
 from collections.abc import Mapping
 from dataclasses import dataclass
 from datetime import UTC, datetime
+from functools import cache
 
 from fastapi import HTTPException, status
 from sqlalchemy import and_, exists, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.config.bank_sync import BANK_SYNC_SIMPLEFIN_ENABLED, BANK_SYNC_SIMPLEFIN_OFFERED
+from app.config.bank_sync import read_provider_settings
 from app.models.account import Account
-from app.models.bank_connection import BankAccountLink, BankExternalAccount, BankLinkState, BankProvider, UnavailableReason
+from app.models.bank_connection import BankAccountLink, BankExternalAccount, BankLinkState, UnavailableReason
 from app.models.user import User
-from app.schemas.bank_sync import BankProviderResponse, BankProvidersResponse
+from app.schemas.bank_sync import BankProviderResponse, BankProvidersResponse, CredentialFieldResponse
 from app.services.accounts.access import own_personal_account_condition
 from app.services.bank_sync.heartbeat import is_sync_worker_running
 from app.services.bank_sync.providers.contract import ProviderAdapter, is_iso_currency_code
-from app.services.bank_sync.providers.simplefin.adapter import SimpleFinAdapter
+from app.services.bank_sync.providers.registry import load_adapters
 
-# Every provider adapter Lumina has, enabled here or not, so the name of the provider a connection
-# or transaction came from stays readable after the environment disables it
-PROVIDER_ADAPTERS: dict[BankProvider, type[ProviderAdapter]] = {adapter.provider_id: adapter for adapter in (SimpleFinAdapter,)}
+# What a connection whose provider is no longer installed says in place of syncing
+PROVIDER_GONE_DETAIL = "This provider is no longer available on this server, so this connection doesn't sync"
 
-# Each provider's deployment settings: whether it is enabled at all, and whether it is offered for
-# new connections
-_PROVIDER_SWITCHES = {BankProvider.SIMPLEFIN: (BANK_SYNC_SIMPLEFIN_ENABLED, BANK_SYNC_SIMPLEFIN_OFFERED)}
 
-# The adapter serving each provider this deployment enables
-ENABLED_ADAPTERS: dict[BankProvider, ProviderAdapter] = {
-    provider: PROVIDER_ADAPTERS[provider]() for provider, (enabled, _) in _PROVIDER_SWITCHES.items() if enabled
-}
+@dataclass(frozen=True)
+class InstalledProvider:
+    """A provider installed on this server, with its deployment switches"""
 
-# The providers new connections may be made with. Withdrawing one refuses only new connections, so
-# existing ones keep syncing, linking, reconnecting and disconnecting
-OFFERED_PROVIDERS: frozenset[BankProvider] = frozenset(provider for provider, (_, offered) in _PROVIDER_SWITCHES.items() if offered)
+    adapter: ProviderAdapter
+
+    # Whether it is available at all. A provider turned off keeps its name readable on what it brought in
+    enabled: bool
+
+    # Whether new connections may be made. Withdrawing it refuses only new connections, so existing
+    # ones keep syncing, linking, reconnecting and disconnecting
+    offered: bool
+
+
+@cache
+def installed_providers() -> dict[str, InstalledProvider]:
+    """Return every provider installed on this server, enabled or not, by provider id
+
+    A connection, link or bank transaction whose provider id is missing here came through a provider
+    since removed, and is read without an adapter: it syncs nothing and keeps what it brought in
+
+    Raises:
+        RuntimeError: A provider refuses one of its settings
+    """
+    installed = {}
+    for provider_id, adapter in load_adapters().items():
+        settings = read_provider_settings(provider_id)
+        installed[provider_id] = InstalledProvider(adapter=adapter(), enabled=settings.enabled, offered=settings.offered)
+    return installed
+
+
+def adapter_for(provider_id: str) -> ProviderAdapter | None:
+    """Return the adapter of an installed provider, enabled or not, or None for one no longer installed"""
+    installed = installed_providers().get(provider_id)
+    return installed.adapter if installed is not None else None
+
+
+def provider_label(provider_id: str, stored_name: str | None = None) -> str:
+    """Return the name a provider is shown by: its own, else once it is no longer installed the name its connection stored, or the stored id"""
+    adapter = adapter_for(provider_id)
+    if adapter is not None:
+        return adapter.provider_name
+    return stored_name or provider_id
+
+
+def provider_site_label(provider_id: str) -> str:
+    """Return the name of the site where the user manages a provider's bank logins, or its stored id once it is no longer installed"""
+    adapter = adapter_for(provider_id)
+    return adapter.provider_site if adapter is not None else provider_id
+
+
+def enabled_adapters() -> dict[str, ProviderAdapter]:
+    """Return the adapter of each provider this deployment enables, by provider id"""
+    return {provider_id: installed.adapter for provider_id, installed in installed_providers().items() if installed.enabled}
+
 
 # A link that still feeds its account, active or waiting for its bank account to be chosen again
 LIVE_LINK = BankAccountLink.state != BankLinkState.UNLINKED
@@ -74,9 +118,10 @@ class InstitutionAllowance:
     in_use: Mapping[str, str]
 
 
-def is_offered(provider: BankProvider) -> bool:
+def is_offered(provider: str) -> bool:
     """Return whether new connections may be made with a provider"""
-    return provider in OFFERED_PROVIDERS
+    installed = installed_providers().get(provider)
+    return installed is not None and installed.offered
 
 
 def may_link_bank_accounts(user_id: uuid.UUID) -> bool:
@@ -97,19 +142,19 @@ def require_bank_linking(user_id: uuid.UUID) -> None:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Bank sync isn't available for your account")
 
 
-def get_enabled_adapter(provider: BankProvider) -> ProviderAdapter:
+def get_enabled_adapter(provider: str) -> ProviderAdapter:
     """Return the adapter for a provider the user chose, which this deployment has to enable
 
     Raises:
-        HTTPException 422: The deployment doesn't enable the provider
+        HTTPException 422: The deployment doesn't enable the provider, or it is no longer installed
     """
-    adapter = ENABLED_ADAPTERS.get(provider)
+    adapter = enabled_adapters().get(provider)
     if adapter is None:
         raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail="Choose a bank provider this server supports")
     return adapter
 
 
-def get_institution_limit(user_id: uuid.UUID, provider: BankProvider) -> int | None:
+def get_institution_limit(user_id: uuid.UUID, provider: str) -> int | None:
     """Return how many institutions a user may link through a provider across their connections
 
     Always None, meaning no limit, since every provider here only needs the user's own credential
@@ -117,7 +162,7 @@ def get_institution_limit(user_id: uuid.UUID, provider: BankProvider) -> int | N
     return None
 
 
-async def get_institution_allowance(db: AsyncSession, user_id: uuid.UUID, provider: BankProvider) -> InstitutionAllowance:
+async def get_institution_allowance(db: AsyncSession, user_id: uuid.UUID, provider: str) -> InstitutionAllowance:
     """Return a user's institution limit for a provider and the institutions already counting toward it
 
     An institution counts once while any of its bank accounts is linked, through any connection,
@@ -238,13 +283,20 @@ async def list_providers(db: AsyncSession, user: User) -> BankProvidersResponse:
     """
     may_link = may_link_bank_accounts(user.id)
     providers = []
-    for provider, adapter in ENABLED_ADAPTERS.items() if may_link else ():
+    listed = sorted(enabled_adapters().items(), key=lambda entry: (entry[1].display_order, entry[0])) if may_link else []
+    for provider, adapter in listed:
         allowance = await get_institution_allowance(db, user.id, provider)
         providers.append(
             BankProviderResponse(
                 id=provider,
                 name=adapter.provider_name,
+                site=adapter.provider_site,
                 description=adapter.provider_description,
+                credential_fields=[
+                    CredentialFieldResponse(key=entry.key, label=entry.label, placeholder=entry.placeholder, max_length=entry.max_length)
+                    for entry in adapter.credential_fields
+                ],
+                connect_steps=list(adapter.connect_steps),
                 connects_from=adapter.connects_from,
                 offered=is_offered(provider),
                 history_limit_months=adapter.history_limit_months,

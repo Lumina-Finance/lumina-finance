@@ -24,7 +24,7 @@ from app.models.user import User
 from app.schemas.bank_sync import BankLinkResponse, BankSyncState, BankSyncStatusResponse
 from app.services.accounts.access import get_own_personal_account
 from app.services.bank_sync.account_link import describe_links
-from app.services.bank_sync.availability import LINK_NOT_OWN_DETAIL, LIVE_LINK, PROVIDER_ADAPTERS
+from app.services.bank_sync.availability import LINK_NOT_OWN_DETAIL, LIVE_LINK, PROVIDER_GONE_DETAIL, adapter_for
 from app.services.bank_sync.connections import get_own_connection
 from app.services.bank_sync.jobs import enqueue_bank_sync_job
 from app.services.bank_sync.links import ACCOUNT_NOT_LINKED
@@ -72,7 +72,8 @@ async def sync_account_now(db: AsyncSession, user: User, account_id: uuid.UUID) 
         HTTPException 403: The account is visible but isn't the user's own personal account
         HTTPException 404: The user can't see the account, or it isn't linked
         HTTPException 409: An import or a sync already runs on the account, the provider rejected
-            its connection, its bank account has to be chosen again, or the review pause holds it
+            its connection or is no longer installed, its bank account has to be chosen again, or
+            the review pause holds it
         HTTPException 429: The connection's request budget is spent, saying when a request frees up
     """
     account = await get_own_personal_account(db, account_id, user.id, not_own_detail=LINK_NOT_OWN_DETAIL)
@@ -82,7 +83,10 @@ async def sync_account_now(db: AsyncSession, user: User, account_id: uuid.UUID) 
 
     # Shared, so a disconnect waits until the sync is queued and then deletes it with the connection
     connection = await get_own_connection(db, user.id, link.connection_id, lock={"read": True, "key_share": True})
-    provider = PROVIDER_ADAPTERS[connection.provider].provider_name
+    adapter = adapter_for(connection.provider)
+    if adapter is None:
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=PROVIDER_GONE_DETAIL)
+    provider = adapter.provider_name
     now = datetime.now(UTC)
     [link_status] = (await read_link_statuses(db, [link], now=now)).values()
     refusal = _find_refusal(link_status.sync)

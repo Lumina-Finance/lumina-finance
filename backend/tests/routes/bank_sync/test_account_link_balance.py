@@ -59,7 +59,7 @@ async def _read_balance(client, headers, account_id) -> dict | None:
 
 
 async def test_bank_balance_that_matches_the_ledger_has_no_difference(client):
-    """SimpleFIN reports 1,250.00 as of Oct 3, 6:00 PM with 1,180.00 available, and the ledger at the end of October 3 is 1,250.00"""
+    """Fake Bank reports 1,250.00 as of Oct 3, 6:00 PM with 1,180.00 available, and the ledger at the end of October 3 is 1,250.00"""
     headers, account_id = await _synced_account(client, ("2026-10-01", 130000), ("2026-10-03", -5000), balance=125000, available_balance=118000)
 
     balance = await _read_balance(client, headers, account_id)
@@ -76,9 +76,9 @@ async def test_bank_balance_that_matches_the_ledger_has_no_difference(client):
     ],
 )
 async def test_bank_balance_difference_is_the_ledger_against_the_bank(client, bank_balance, difference):
-    """A ledger of 1,250.00 is 50.00 above SimpleFIN's 1,200.00 and 50.00 below its 1,300.00
+    """A ledger of 1,250.00 is 50.00 above Fake Bank's 1,200.00 and 50.00 below its 1,300.00
 
-    SimpleFIN gives no available balance here, so none is shown
+    Fake Bank gives no available balance here, so none is shown
     """
     headers, account_id = await _synced_account(client, ("2026-10-03", 125000), balance=bank_balance)
 
@@ -88,7 +88,7 @@ async def test_bank_balance_difference_is_the_ledger_against_the_bank(client, ba
 
 
 async def test_bank_balance_of_an_account_with_no_transactions_is_compared_with_a_ledger_of_zero(client):
-    """Nothing is recorded on Everyday yet, so its ledger is 0.00 and falls 1,250.00 short of SimpleFIN's 1,250.00"""
+    """Nothing is recorded on Everyday yet, so its ledger is 0.00 and falls 1,250.00 short of Fake Bank's 1,250.00"""
     headers, account_id = await _synced_account(client, balance=125000)
 
     balance = await _read_balance(client, headers, account_id)
@@ -118,7 +118,7 @@ async def test_bank_balance_ledger_leaves_out_transactions_after_the_balance_dat
 
 
 async def test_bank_balance_that_cant_be_read_exactly_isnt_compared(client):
-    """A balance SimpleFIN sent with more decimals than CAD holds is stored as none, so there's no difference to give"""
+    """A balance Fake Bank sent with more decimals than CAD holds is stored as none, so there's no difference to give"""
     headers, account_id = await _synced_account(client, ("2026-10-03", 125000), balance=None, available_balance=118000)
 
     balance = await _read_balance(client, headers, account_id)
@@ -128,7 +128,7 @@ async def test_bank_balance_that_cant_be_read_exactly_isnt_compared(client):
 
 
 async def test_available_balance_that_cant_be_read_exactly_is_flagged_rather_than_left_out(client):
-    """An available balance SimpleFIN sent with more decimals than CAD holds reads as unreadable, not as never sent
+    """An available balance Fake Bank sent with more decimals than CAD holds reads as unreadable, not as never sent
 
     The balance itself is still compared with the ledger
     """

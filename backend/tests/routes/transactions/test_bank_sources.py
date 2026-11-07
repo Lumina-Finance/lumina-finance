@@ -33,10 +33,10 @@ def _bank_source(
     edited_fields: list[str] | None = None,
     review_item_id: UUID | None = None,
 ) -> dict:
-    """Return the bank source a SimpleFIN coffee purchase on the bank's date carries"""
+    """Return the bank source a Fake Bank coffee purchase on the bank's date carries"""
     return {
-        "provider": "simplefin",
-        "provider_name": "SimpleFIN",
+        "provider": "fake",
+        "provider_name": "Fake Bank",
         "bank_values": {
             "date": BANK_DATE.isoformat(),
             "amount": amount,
@@ -140,7 +140,7 @@ async def test_bank_source_names_the_waiting_correction_about_the_transaction(cl
 
 
 async def test_bank_source_stays_readable_after_unlinking_and_disconnecting(client):
-    """Everyday's imported transaction still shows SimpleFIN and the bank's values"""
+    """Everyday's imported transaction still shows Fake Bank and the bank's values"""
     headers, account_id, category_id = await _setup_user_with_deps(client)
     transaction_id = await _create_on_bank_date(client, headers, account_id, category_id, -1250)
     async with TestSession() as session:
@@ -189,7 +189,7 @@ async def test_listing_loads_a_pages_bank_sources_in_a_fixed_number_of_queries(c
 
     full_page, full_selects = await _get_with_selects(client, "/transactions", headers, limit=50)
 
-    assert [row["bank_source"]["provider"] for row in one_page] == ["simplefin"]
+    assert [row["bank_source"]["provider"] for row in one_page] == ["fake"]
     assert len(full_page) == 50
     assert all(row["bank_source"] == _bank_source() for row in full_page)
     assert len(full_selects) == len(one_selects)

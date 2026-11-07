@@ -32,7 +32,7 @@ from tests.routes.support.bank_sync_helpers import (
     _build_pending_transaction,
     _build_user,
 )
-from tests.services.bank_sync.stand_ins import FakeBridgeScenario, simplefin_adapter
+from tests.services.bank_sync.providers.simplefin.stand_ins import FakeBridgeScenario, simplefin_adapter
 
 _NOW = datetime(2026, 10, 4, 12, 0, tzinfo=UTC)
 _BALANCE_AT = datetime.fromtimestamp(1791115200, UTC)
@@ -79,7 +79,7 @@ async def _stored_connection(db) -> BankConnection:
 
 async def _claimed_connection(db, scenario: FakeBridgeScenario) -> BankConnection:
     """Claim the scenario and store its connection for a new user, as the claim request would"""
-    access_url = await simplefin_adapter(FakeBridgeTransport()).claim(scenario.setup_token)
+    access_url = await simplefin_adapter(FakeBridgeTransport()).claim_setup_token(scenario.setup_token)
     db.add_all(
         [
             Currency(id="USD", name="US Dollar", symbol="$", minor_unit_exponent=2),

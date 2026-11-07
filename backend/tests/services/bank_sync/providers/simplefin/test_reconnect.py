@@ -21,7 +21,6 @@ from app.models.bank_connection import (
     BankAccountLink,
     BankConnection,
     BankLinkState,
-    BankProvider,
     BankProviderRequest,
 )
 from app.models.bank_sync_job import BankSyncJob
@@ -30,6 +29,7 @@ from app.schemas.bank_sync import ReconnectBankConnectionRequest
 from app.services.bank_sync import availability
 from app.services.cache_state.updates import mark_user_cache_changed
 from tests.conftest import TestSession
+from tests.fake_simplefin_bridge import FakeBridgeTransport
 from tests.routes.support.bank_sync_helpers import (
     _build_bank_transaction,
     _build_user,
@@ -37,14 +37,14 @@ from tests.routes.support.bank_sync_helpers import (
     _commit_bank_connection,
     _link,
     _new_account,
-    _PausedBridge,
     _sign_up,
 )
 from tests.routes.support.lock_helpers import _wait_until_waiting_on
 from tests.routes.support.mailbox import mailbox
-from tests.services.bank_sync.stand_ins import AccountsTimeOut, FakeBridgeScenario, simplefin_adapter
+from tests.services.bank_sync.fake_provider import use_adapter
+from tests.services.bank_sync.providers.simplefin.stand_ins import AccountsTimeOut, FakeBridgeScenario, PausedBridge, simplefin_adapter
 
-_WORKING = "This connection is working, so it needs no new setup token"
+_WORKING = "This connection is working, so it doesn't need reconnecting"
 _ALREADY_USED = "This setup token has already been used. Create a new one in SimpleFIN Bridge"
 _NOT_FOUND = "Bank connection not found"
 _SIGNIN_SINCE = datetime(2026, 9, 30, tzinfo=UTC)
@@ -74,7 +74,9 @@ async def _rejected_with_two_links(client, scenario: FakeBridgeScenario) -> tupl
 async def _claim_harbour(client, headers, scenario: FakeBridgeScenario) -> str:
     """Connect Harbour Bank's three bank accounts through the route and return the connection's id"""
     await scenario.add_harbour_accounts()
-    claimed = await client.post("/bank-sync/connections", json={"provider": "simplefin", "setup_token": scenario.setup_token}, headers=headers)
+    claimed = await client.post(
+        "/bank-sync/connections", json={"provider": "simplefin", "credentials": {"setup_token": scenario.setup_token}}, headers=headers
+    )
     assert claimed.status_code == 201, claimed.text
     return claimed.json()["id"]
 
@@ -93,7 +95,9 @@ async def _reject(scenario: FakeBridgeScenario, connection_id: str) -> None:
 
 async def _reconnect(client, headers, connection_id: str, setup_token: str) -> httpx.Response:
     """Reconnect a connection with a setup token through the route"""
-    return await client.post(f"/bank-sync/connections/{connection_id}/reconnect", json={"setup_token": setup_token}, headers=headers)
+    return await client.post(
+        f"/bank-sync/connections/{connection_id}/reconnect", json={"credentials": {"setup_token": setup_token}}, headers=headers
+    )
 
 
 async def _stored_connection(connection_id: str) -> BankConnection | None:
@@ -260,7 +264,7 @@ async def test_reconnect_with_nothing_linked_whose_listing_fails_queues_a_sync_t
     headers, _ = await _sign_up(client)
     connection_id = await _claim_harbour(client, headers, scenario)
     await _reject(scenario, connection_id)
-    monkeypatch.setitem(availability.ENABLED_ADAPTERS, BankProvider.SIMPLEFIN, simplefin_adapter(AccountsTimeOut()))
+    use_adapter(monkeypatch, simplefin_adapter(AccountsTimeOut()))
 
     response = await _reconnect(client, headers, connection_id, await scenario.new_setup_token())
 
@@ -326,7 +330,9 @@ async def test_reconnect_keeps_a_bank_sign_in_the_bank_still_needs(client, scena
 async def test_reconnect_of_a_working_connection_is_refused_before_the_token_is_spent(client, scenario: FakeBridgeScenario):
     """A token pasted for a connection that still works is refused, and still claims a connection afterwards"""
     headers, _ = await _sign_up(client)
-    claimed = await client.post("/bank-sync/connections", json={"provider": "simplefin", "setup_token": scenario.setup_token}, headers=headers)
+    claimed = await client.post(
+        "/bank-sync/connections", json={"provider": "simplefin", "credentials": {"setup_token": scenario.setup_token}}, headers=headers
+    )
     assert claimed.status_code == 201, claimed.text
     token = await scenario.new_setup_token()
 
@@ -335,7 +341,7 @@ async def test_reconnect_of_a_working_connection_is_refused_before_the_token_is_
     assert refused.status_code == 409, refused.text
     assert refused.json()["detail"] == _WORKING
     assert await _request_purposes() == ["claim", "discovery"]
-    reused = await client.post("/bank-sync/connections", json={"provider": "simplefin", "setup_token": token}, headers=headers)
+    reused = await client.post("/bank-sync/connections", json={"provider": "simplefin", "credentials": {"setup_token": token}}, headers=headers)
     assert reused.status_code == 201, reused.text
 
 
@@ -358,7 +364,7 @@ async def test_reconnect_whose_listing_fails_keeps_the_new_credential_and_leaves
 ):
     """The token is spent, so the credential is kept and Reconnect needed clears, and the next sync lists the bank accounts first"""
     headers, everyday_id, savings_id, connection_id = await _rejected_with_two_links(client, scenario)
-    monkeypatch.setitem(availability.ENABLED_ADAPTERS, BankProvider.SIMPLEFIN, simplefin_adapter(AccountsTimeOut()))
+    use_adapter(monkeypatch, simplefin_adapter(AccountsTimeOut()))
 
     response = await _reconnect(client, headers, connection_id, await scenario.new_setup_token())
 
@@ -376,8 +382,8 @@ async def test_reconnect_marks_the_cache_changed_again_once_it_has_stored_the_li
     """The new credential is committed before SimpleFIN lists the bank accounts, so the listing and the resumed links mark the cache again"""
     headers, _, _, connection_id = await _rejected_with_two_links(client, scenario)
     before = await _changed_at(client, headers)
-    paused = _PausedBridge("/accounts")
-    monkeypatch.setitem(availability.ENABLED_ADAPTERS, BankProvider.SIMPLEFIN, simplefin_adapter(paused))
+    paused = PausedBridge("/accounts")
+    use_adapter(monkeypatch, simplefin_adapter(paused))
 
     async with asyncio.timeout(10):
         reconnecting = asyncio.create_task(_reconnect(client, headers, connection_id, await scenario.new_setup_token()))
@@ -394,7 +400,7 @@ async def test_reconnect_marks_the_cache_changed_again_once_it_has_stored_the_li
 async def test_reconnect_through_a_provider_withdrawn_from_new_connections_still_reconnects(client, scenario: FakeBridgeScenario, monkeypatch):
     """Withdrawing SimpleFIN stops new connections only, so a rejected one can still be restored"""
     headers, _, _, connection_id = await _rejected_with_two_links(client, scenario)
-    monkeypatch.setattr(availability, "OFFERED_PROVIDERS", frozenset())
+    use_adapter(monkeypatch, simplefin_adapter(FakeBridgeTransport()), offered=False)
 
     response = await _reconnect(client, headers, connection_id, await scenario.new_setup_token())
 
@@ -416,7 +422,7 @@ async def test_reconnect_by_a_user_who_may_not_link_bank_accounts_is_refused(cli
 async def test_reconnect_through_a_disabled_provider_is_refused(client, scenario: FakeBridgeScenario, monkeypatch):
     """A deployment that disabled SimpleFIN has no provider to claim the token with, so the connection stays rejected"""
     headers, _, _, connection_id = await _rejected_with_two_links(client, scenario)
-    monkeypatch.delitem(availability.ENABLED_ADAPTERS, BankProvider.SIMPLEFIN)
+    use_adapter(monkeypatch, simplefin_adapter(FakeBridgeTransport()), enabled=False)
 
     refused = await _reconnect(client, headers, connection_id, await scenario.new_setup_token())
 
@@ -446,19 +452,21 @@ async def test_reconnect_refused_by_validation_never_repeats_the_setup_token(cli
     headers, _, _, connection_id = await _rejected_with_two_links(client, scenario)
     token = await scenario.new_setup_token()
 
-    refused = await client.post(f"/bank-sync/connections/{connection_id}/reconnect", json={"setup_token": [token]}, headers=headers)
+    refused = await client.post(
+        f"/bank-sync/connections/{connection_id}/reconnect", json={"credentials": {"setup_token": [token]}}, headers=headers
+    )
 
     assert refused.status_code == 422, refused.text
-    assert [(error["loc"], error["type"]) for error in refused.json()["detail"]] == [(["body", "setup_token"], "string_type")]
+    assert [(error["loc"], error["type"]) for error in refused.json()["detail"]] == [(["body", "credentials"], "dict_type")]
     assert token not in refused.text
-    assert token not in repr(ReconnectBankConnectionRequest(setup_token=token))
+    assert token not in repr(ReconnectBankConnectionRequest(credentials={"setup_token": token}))
 
 
 async def test_reconnect_sent_while_another_is_claiming_keeps_the_first_credential_stored(client, scenario: FakeBridgeScenario, monkeypatch):
     """Two reconnects at once: the one whose claim answers last finds the connection working and is refused"""
     headers, _, _, connection_id = await _rejected_with_two_links(client, scenario)
-    paused = _PausedBridge("/claim/")
-    monkeypatch.setitem(availability.ENABLED_ADAPTERS, BankProvider.SIMPLEFIN, simplefin_adapter(paused))
+    paused = PausedBridge("/claim/")
+    use_adapter(monkeypatch, simplefin_adapter(paused))
     slow_token, fast_token = await scenario.new_setup_token(), await scenario.new_setup_token()
 
     async with asyncio.timeout(10):
@@ -487,8 +495,8 @@ async def test_reconnect_storing_its_listing_while_an_account_is_unlinked_waits_
     headers, everyday_id, savings_id, connection_id = await _rejected_with_two_links(client, scenario)
     if everyday_listed_as != "ACT-chequing":
         await scenario.change("PATCH", "/accounts/ACT-chequing", {"id": everyday_listed_as})
-    paused = _PausedBridge("/accounts")
-    monkeypatch.setitem(availability.ENABLED_ADAPTERS, BankProvider.SIMPLEFIN, simplefin_adapter(paused))
+    paused = PausedBridge("/accounts")
+    use_adapter(monkeypatch, simplefin_adapter(paused))
 
     async with asyncio.timeout(10):
         reconnecting = asyncio.create_task(_reconnect(client, headers, connection_id, await scenario.new_setup_token()))
@@ -514,8 +522,8 @@ async def test_reconnect_storing_its_listing_while_an_account_is_unlinked_waits_
 async def test_reconnect_of_a_connection_disconnected_meanwhile_is_not_found(client, scenario: FakeBridgeScenario, monkeypatch, marker):
     """Disconnected while SimpleFIN answered the reconnect, the connection stays gone and the reconnect says so"""
     headers, everyday_id, savings_id, connection_id = await _rejected_with_two_links(client, scenario)
-    paused = _PausedBridge(marker)
-    monkeypatch.setitem(availability.ENABLED_ADAPTERS, BankProvider.SIMPLEFIN, simplefin_adapter(paused))
+    paused = PausedBridge(marker)
+    use_adapter(monkeypatch, simplefin_adapter(paused))
 
     async with asyncio.timeout(10):
         reconnecting = asyncio.create_task(_reconnect(client, headers, connection_id, await scenario.new_setup_token()))

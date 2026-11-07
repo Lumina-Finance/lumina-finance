@@ -78,8 +78,8 @@ async def _store_secrets(key: str) -> None:
         )
         await connection.execute(
             text(
-                "INSERT INTO bank_connections (id, owner_id, provider, credential_encrypted, server_host) "
-                "VALUES (gen_random_uuid(), :user_id, 'simplefin', :secret, 'bridge.example')"
+                "INSERT INTO bank_connections (id, owner_id, provider, provider_name, credential_encrypted, server_host) "
+                "VALUES (gen_random_uuid(), :user_id, 'simplefin', 'SimpleFIN', :secret, 'bridge.example')"
             ),
             {"user_id": user_id, "secret": fernet.encrypt(_BANK_CREDENTIAL.encode()).decode()},
         )

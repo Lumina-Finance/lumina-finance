@@ -9,7 +9,6 @@ Review items, ledger rows and balances are read back as the table owner, whateve
 Jobs are committed, since the worker reaches them through sessions of its own
 """
 
-import asyncio
 import contextlib
 import uuid
 from collections.abc import AsyncIterator, Collection
@@ -27,7 +26,6 @@ from app.models.bank_connection import (
     BankConnection,
     BankExternalAccount,
     BankImportKind,
-    BankProvider,
     BankProviderRequest,
     ProviderRequestPurpose,
 )
@@ -42,11 +40,11 @@ from app.models.user import User
 from app.services.bank_sync import links
 from app.services.bank_sync.transaction_hash import hash_bank_transaction_id
 from tests.conftest import ScopedSession, TestSession
-from tests.fake_simplefin_bridge import FakeBridgeTransport
 from tests.routes.support.account_helpers import _create_account
 from tests.routes.support.auth_helpers import SIGNUP_PAYLOAD, _create_user, _get_auth_header
 from tests.routes.support.transaction_helpers import _create_transaction, _get_system_category_id
 from tests.routes.transactions._import_helpers import _import_run
+from tests.services.bank_sync.fake_provider import FAKE_PROVIDER
 
 BANK_ACCOUNT_ID = "ACT-1"
 LINK_START = date(2026, 9, 1)
@@ -90,12 +88,13 @@ def _build_account(owner_id: uuid.UUID, name: str = "Everyday") -> Account:
     )
 
 
-def _build_bank_connection(owner_id: uuid.UUID) -> BankConnection:
-    """Return an unsaved SimpleFIN connection whose credential is a placeholder token"""
+def _build_bank_connection(owner_id: uuid.UUID, provider: str = FAKE_PROVIDER, provider_name: str = "Fake Bank") -> BankConnection:
+    """Return an unsaved connection through a provider, the fake one unless told otherwise, whose credential is a placeholder token"""
     return BankConnection(
         id=uuid.uuid4(),
         owner_id=owner_id,
-        provider=BankProvider.SIMPLEFIN,
+        provider=provider,
+        provider_name=provider_name,
         credential_encrypted="not-a-real-token",
         server_host="bridge.example",
     )
@@ -108,7 +107,7 @@ async def _commit_bank_connection(
     nickname: str | None = None,
     rejected: bool = False,
 ) -> BankConnection:
-    """Commit a SimpleFIN connection for the owner, rejected a day after it was made when asked"""
+    """Commit a connection on the fake provider for the owner, rejected a day after it was made when asked"""
     async with TestSession() as session:
         connection = _build_bank_connection(owner_id)
         connection.created_at = created_at
@@ -120,13 +119,19 @@ async def _commit_bank_connection(
     return connection
 
 
-async def _commit_listed_connection(owner_id: uuid.UUID, *external_ids: str, discovered_at: datetime | None = None) -> BankConnection:
-    """Commit a SimpleFIN connection listing a CAD chequing account at Harbour Bank under each external id
+async def _commit_listed_connection(
+    owner_id: uuid.UUID,
+    *external_ids: str,
+    discovered_at: datetime | None = None,
+    provider: str = FAKE_PROVIDER,
+    provider_name: str = "Fake Bank",
+) -> BankConnection:
+    """Commit a connection listing a CAD chequing account at Harbour Bank under each external id, on the fake provider unless told otherwise
 
     It lists BANK_ACCOUNT_ID when given no id, and was never discovered unless told when
     """
     async with TestSession() as session:
-        connection = _build_bank_connection(owner_id)
+        connection = _build_bank_connection(owner_id, provider, provider_name)
         connection.discovered_at = discovered_at
         session.add(connection)
         await session.flush()
@@ -213,7 +218,7 @@ def _build_bank_link(
         owner_id=account.owner_id,
         account_id=account.id,
         connection_id=connection.id if connection else None,
-        provider=BankProvider.SIMPLEFIN,
+        provider=connection.provider if connection else FAKE_PROVIDER,
         external_account_id=external_account_id,
         external_account_name="Everyday Chequing",
         institution_name="Harbour Bank",
@@ -260,9 +265,9 @@ def _build_bank_transaction(
         id=uuid.uuid4(),
         owner_id=account.owner_id,
         account_id=account.id,
-        provider=BankProvider.SIMPLEFIN,
+        provider=FAKE_PROVIDER,
         external_account_id=external_account_id,
-        external_transaction_hash=hash_bank_transaction_id(BankProvider.SIMPLEFIN, external_account_id, external_transaction_id),
+        external_transaction_hash=hash_bank_transaction_id(FAKE_PROVIDER, external_account_id, external_transaction_id),
         disposition=BankTransactionDisposition.ACCEPTED if accepted else BankTransactionDisposition.AWAITING_REVIEW,
         transaction_id=transaction.id if accepted else None,
         observed_date=BANK_DATE,
@@ -342,7 +347,7 @@ async def _update_connection(connection: BankConnection, **values) -> None:
 
 
 async def _commit_paused_link(account_id: str | uuid.UUID, now: datetime) -> BankAccountLink:
-    """Commit the account's link on a new SimpleFIN connection, paused for review, its import long ended and its next sync a day after now"""
+    """Commit the account's link on a new connection, paused for review, its import long ended and its next sync a day after now"""
     async with TestSession() as session:
         account = await session.get_one(Account, uuid.UUID(str(account_id)))
     connection = await _commit_listed_connection(account.owner_id)
@@ -638,21 +643,3 @@ async def _undoable_import(client, headers) -> dict | None:
     last = await client.get("/transactions/import/last", headers=headers)
     assert last.status_code == 200, last.text
     return last.json()
-
-
-class _PausedBridge(httpx.AsyncBaseTransport):
-    """Forwards to the fake SimpleFIN Bridge, holding the first request whose path has a marker until released"""
-
-    def __init__(self, marker: str) -> None:
-        """Hold the first request whose path contains the marker, such as /claim/ or /accounts"""
-        self._inner = FakeBridgeTransport()
-        self._marker = marker
-        self.reached = asyncio.Event()
-        self.release = asyncio.Event()
-
-    async def handle_async_request(self, request: httpx.Request) -> httpx.Response:
-        """Hold the first marked request until released, and forward every request"""
-        if self._marker in request.url.path and not self.reached.is_set():
-            self.reached.set()
-            await self.release.wait()
-        return await self._inner.handle_async_request(request)

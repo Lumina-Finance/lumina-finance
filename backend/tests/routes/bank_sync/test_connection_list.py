@@ -97,7 +97,7 @@ async def test_connections_list_describes_each_connection_and_its_bank_accounts(
 
 
 async def test_connections_list_says_when_the_providers_quota_signal_holds_the_next_request(client):
-    """SimpleFIN said its quota was spent after 4 of the connection's 20 requests, so its limit, not the connection's own, holds the next one"""
+    """Fake Bank said its quota was spent after 4 of the connection's 20 requests, so its limit, not the connection's own, holds the next one"""
     headers, user_id = await _sign_up(client)
     now = datetime.now(UTC)
     harbour = await _commit_bank_connection(user_id, created_at=now - timedelta(days=2))

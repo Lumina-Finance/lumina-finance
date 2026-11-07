@@ -21,7 +21,7 @@ from app.services.bank_sync.providers.simplefin.adapter import SimpleFinAdapter
 from tests.services.bank_sync.local_bridge import LOOPBACK, LocalBridge, serve_local_bridge
 from tests.services.bank_sync.stand_ins import FixedResolver
 
-_FIXTURES = Path(__file__).resolve().parents[2] / "fixtures" / "simplefin"
+_FIXTURES = Path(__file__).resolve().parents[4] / "fixtures" / "simplefin"
 
 _CLAIM_SECRET = "CLAIM-SECRET-7f3a"
 _USERNAME = "ACCESS-USER-91c2"
@@ -65,7 +65,7 @@ async def test_claim_keeps_both_urls_out_of_every_log(tmp_path, caplog):
         return 200, "text/plain", _access_url(bridge).encode()
 
     async with serve_local_bridge(tmp_path, "bridge.test", answer) as bridge:
-        access_url = await _adapter(bridge).claim(_setup_token(bridge))
+        access_url = await _adapter(bridge).claim_setup_token(_setup_token(bridge))
 
     assert access_url == _access_url(bridge)
     _assert_kept_out(bridge, caplog.text)
@@ -77,7 +77,7 @@ async def test_failed_claim_keeps_the_claim_url_out_of_the_error_and_logs(tmp_pa
 
     async with serve_local_bridge(tmp_path, "bridge.test", lambda _head: (403, "text/plain", b"Forbidden")) as bridge:
         with pytest.raises(ClaimRefused) as failure:
-            await _adapter(bridge).claim(_setup_token(bridge))
+            await _adapter(bridge).claim_setup_token(_setup_token(bridge))
 
     _assert_kept_out(bridge, *_described(failure.value), caplog.text)
 

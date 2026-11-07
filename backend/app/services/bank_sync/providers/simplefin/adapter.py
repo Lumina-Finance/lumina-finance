@@ -13,18 +13,13 @@ from zoneinfo import ZoneInfo
 
 import httpx
 
-from app.config.bank_sync import (
-    BANK_SYNC_SIMPLEFIN_DAILY_REQUESTS,
-    BANK_SYNC_SIMPLEFIN_HISTORY_MONTHS,
-    BANK_SYNC_SIMPLEFIN_ORIGINS,
-    BANK_SYNC_SIMPLEFIN_TEST_ORIGIN,
-)
 from app.config.runtime import APP_VERSION
 from app.http_client import ResponseTooLargeError
-from app.models.bank_connection import BankProvider, ConnectsFrom
+from app.models.bank_connection import ConnectsFrom
 from app.services.bank_sync.outbound import AddressRefused, OriginRefused, OutboundGuard
 from app.services.bank_sync.providers.contract import (
     ClaimRefused,
+    CredentialField,
     FetchResult,
     ProviderAdapter,
     ProviderError,
@@ -36,6 +31,14 @@ from app.services.bank_sync.providers.simplefin.account_set import (
     UnreadableAccountSet,
     read_account_set,
     read_external_accounts,
+)
+from app.services.bank_sync.providers.simplefin.config import (
+    PROVIDER_ID,
+    SIMPLEFIN_DAILY_REQUESTS,
+    SIMPLEFIN_HISTORY_MONTHS,
+    SIMPLEFIN_ORIGINS,
+    SIMPLEFIN_TEST_ORIGIN,
+    warn_if_test_origin_set,
 )
 from app.services.bank_sync.providers.simplefin.errlist import CREDENTIAL_REJECTED_MESSAGE, RATE_LIMITED_MESSAGE, fetch_result
 
@@ -49,8 +52,11 @@ _HEADERS = {"User-Agent": f"LuminaFinance/{APP_VERSION}" if APP_VERSION else "Lu
 _PROTOCOL_VERSION = ("version", "2")
 
 # A setup token is the base64 of one claim URL, about 100 characters, so this leaves room to spare.
-# The Connect dialog holds the same limit (SETUP_TOKEN_MAX_LENGTH in the frontend)
+# The Connect dialogue holds the same limit, which the providers list sends it
 MAX_SETUP_TOKEN_LENGTH = 2048
+
+# The one credential field, which the claim sends the setup token under
+SETUP_TOKEN_KEY = "setup_token"  # noqa: S105 - a field name, not a secret
 
 _SETUP_BLANK_MESSAGE = "Paste the setup token from SimpleFIN Bridge"
 _SETUP_UNREADABLE_MESSAGE = "That doesn't look like a SimpleFIN setup token. Copy the whole token from SimpleFIN Bridge and try again"
@@ -68,18 +74,30 @@ _SERVER_NOT_ALLOWED_MESSAGE = "This Lumina Finance server is not set up to conta
 class SimpleFinAdapter(ProviderAdapter):
     """SimpleFIN, reached through SimpleFIN Bridge or another SimpleFIN server set in the environment"""
 
-    provider_id = BankProvider.SIMPLEFIN
+    provider_id = PROVIDER_ID
     provider_name = "SimpleFIN"
+    display_order = 10
     provider_site = "SimpleFIN Bridge"
     provider_description = "One setup token reaches every bank you add in SimpleFIN Bridge."
-    history_limit_months = BANK_SYNC_SIMPLEFIN_HISTORY_MONTHS
+    credential_fields = (CredentialField(SETUP_TOKEN_KEY, "Setup token", "Paste the token", MAX_SETUP_TOKEN_LENGTH),)
+    connect_steps = (
+        "Open SimpleFIN Bridge and connect your banks there.",
+        "Create a setup token. It works once and expires if unused.",
+        "Paste it here. Lumina Finance exchanges it for access and never sees your bank login.",
+    )
+    history_limit_months = SIMPLEFIN_HISTORY_MONTHS
     advertises_history = False
     revisit_overlap_days = 14
 
     # SimpleFIN Bridge refuses an accounts request spanning more
     max_window_days = 90
-    daily_request_budget = BANK_SYNC_SIMPLEFIN_DAILY_REQUESTS
+    daily_request_budget = SIMPLEFIN_DAILY_REQUESTS
     connects_from = ConnectsFrom.SETTINGS
+
+    @override
+    @classmethod
+    def on_startup(cls) -> None:
+        warn_if_test_origin_set()
 
     def __init__(self, guard: OutboundGuard | None = None) -> None:
         """Build the adapter over the configured origins, or over a guard tests supply
@@ -87,10 +105,26 @@ class SimpleFinAdapter(ProviderAdapter):
         Args:
             guard: The guard requests go through
         """
-        self._guard = guard or OutboundGuard(BANK_SYNC_SIMPLEFIN_ORIGINS, BANK_SYNC_SIMPLEFIN_TEST_ORIGIN)
+        self._guard = guard or OutboundGuard(SIMPLEFIN_ORIGINS, SIMPLEFIN_TEST_ORIGIN)
 
     @override
-    async def claim(self, supplied_credential: str) -> str:
+    async def claim(self, supplied: Mapping[str, str]) -> str:
+        return await self.claim_setup_token(supplied[SETUP_TOKEN_KEY])
+
+    async def claim_setup_token(self, supplied_credential: str) -> str:
+        """Exchange a setup token for the access URL it claims, checking it again for a caller other than the engine
+
+        Args:
+            supplied_credential: The setup token as pasted
+
+        Returns:
+            The access URL, to store encrypted
+
+        Raises:
+            ClaimRefused: The token is blank, too long, unreadable, already used, or points where
+                this server may not reach
+            ProviderUnreachable: SimpleFIN Bridge couldn't be reached or gave no usable answer
+        """
         if not supplied_credential.strip():
             raise ClaimRefused(_SETUP_BLANK_MESSAGE)
         if len(supplied_credential) > MAX_SETUP_TOKEN_LENGTH:

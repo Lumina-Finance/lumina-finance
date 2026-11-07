@@ -88,8 +88,8 @@ async def _add(client, inbox: _Inbox, item_id: uuid.UUID | None = None, **change
 def _tesco_source(*, amount: int | None = -2340, raw_amount: str | None = None, edited_fields: list[str] | None = None) -> dict:
     """Return the bank source of a transaction added from the TESCO item"""
     return {
-        "provider": "simplefin",
-        "provider_name": "SimpleFIN",
+        "provider": "fake",
+        "provider_name": "Fake Bank",
         "bank_values": {
             "date": BANK_DATE.isoformat(),
             "amount": amount,
@@ -104,7 +104,7 @@ def _tesco_source(*, amount: int | None = -2340, raw_amount: str | None = None, 
 
 
 async def test_adding_tesco_writes_one_bank_sourced_transaction_and_empties_the_inbox(client):
-    """Added as Tesco and Groceries, the -23.40 is in the ledger from SimpleFIN, the balance moves and the cache mark is the last write"""
+    """Added as Tesco and Groceries, the -23.40 is in the ledger from Fake Bank, the balance moves and the cache mark is the last write"""
     inbox = await _tesco_waiting(client)
     before = await _changed_at(client, inbox.headers)
 

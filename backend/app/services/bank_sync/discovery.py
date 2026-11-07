@@ -85,6 +85,7 @@ async def run_discovery(db: AsyncSession, connection: BankConnection, adapter: P
     # A disconnect sent while the provider answered has either deleted the connection, so nothing is
     # stored, or waits until this request commits
     await get_own_connection(db, connection.owner_id, connection.id, lock={"key_share": True})
+    connection.provider_name = adapter.provider_name
 
     # The user is in the app choosing as a claim or reconnect lists the bank accounts, so the links
     # it moves to Choose bank account are shown there rather than emailed

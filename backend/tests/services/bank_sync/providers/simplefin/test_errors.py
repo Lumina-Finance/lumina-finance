@@ -23,15 +23,8 @@ from app.services.bank_sync.provider_requests import is_quota_spent
 from app.services.bank_sync.providers.contract import FetchResult, ProviderError, ProviderErrorKind
 from app.services.bank_sync.providers.simplefin.adapter import SimpleFinAdapter
 from tests.fake_simplefin_bridge import FakeBridgeTransport
-from tests.services.bank_sync.stand_ins import (
-    SIMPLEFIN_BRIDGE_ORIGIN,
-    FakeBridgeScenario,
-    RecordingBridge,
-    Responder,
-    answer_with,
-    fail_with,
-    simplefin_adapter,
-)
+from tests.services.bank_sync.providers.simplefin.stand_ins import SIMPLEFIN_BRIDGE_ORIGIN, FakeBridgeScenario, simplefin_adapter
+from tests.services.bank_sync.stand_ins import RecordingBridge, Responder, answer_with, fail_with
 
 _ACCESS_URL = "https://demo-user:demo-password@beta-bridge.simplefin.org/simplefin"
 _ALL_ACCOUNTS = ("ACT-chequing", "ACT-savings", "ACT-visa")
@@ -65,7 +58,7 @@ async def _fetch(adapter: SimpleFinAdapter, access_url: str = _ACCESS_URL) -> Fe
 async def _fetch_from(scenario: FakeBridgeScenario, *problems: dict[str, Any], fault: str | None = None) -> FetchResult:
     """Claim the scenario, give every response the problems and fault, and fetch every Harbour account once"""
     adapter = simplefin_adapter(FakeBridgeTransport())
-    access_url = await adapter.claim(scenario.setup_token)
+    access_url = await adapter.claim_setup_token(scenario.setup_token)
     for problem in problems:
         await scenario.change("POST", "/errors", problem)
     if fault:
@@ -99,7 +92,7 @@ async def test_revoked_access_needs_reconnecting(scenario: FakeBridgeScenario):
     """The Bridge's plain 403 for a revoked Access URL means only a new connection can sync"""
     await scenario.add_harbour_accounts()
     adapter = simplefin_adapter(FakeBridgeTransport())
-    access_url = await adapter.claim(scenario.setup_token)
+    access_url = await adapter.claim_setup_token(scenario.setup_token)
     await scenario.change("POST", "/revoke")
 
     result = await _fetch(adapter, access_url)

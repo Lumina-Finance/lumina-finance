@@ -185,8 +185,8 @@ async def test_keeping_the_transaction_leaves_the_ledger_and_remembers_the_remov
     assert kept.status_code == 200, kept.text
     assert (kept.json()["id"], kept.json()["dt"], kept.json()["amount"]) == (removal.transaction_id, BANK_DATE.isoformat(), -4200)
     assert kept.json()["bank_source"] == {
-        "provider": "simplefin",
-        "provider_name": "SimpleFIN",
+        "provider": "fake",
+        "provider_name": "Fake Bank",
         "bank_values": {
             "date": BANK_DATE.isoformat(),
             "amount": -4000,
@@ -392,7 +392,7 @@ async def test_removing_a_transaction_moved_out_of_its_account_while_unlinked_fi
     assert await _balances(savings_id) == [(BANK_DATE, -4200)]
     assert await _still_stored(coffee_record_id)
     assert coffee.status_code == 200, coffee.text
-    assert coffee.json()["bank_source"]["provider"] == "simplefin"
+    assert coffee.json()["bank_source"]["provider"] == "fake"
 
 
 @pytest.mark.parametrize(("how", "answer"), [("delete", 204), ("bulk delete", 200), ("move", 200), ("bulk move", 200)])

@@ -7,7 +7,7 @@ from typing import Literal
 from pydantic import BaseModel, Field, SecretStr, field_validator, model_validator
 
 from app.models.account_review_preference import ReviewDecision
-from app.models.bank_connection import BankImportKind, BankLinkState, BankProvider, ConnectsFrom, UnavailableReason
+from app.models.bank_connection import PROVIDER_ID_MAX_LENGTH, BankImportKind, BankLinkState, ConnectsFrom, UnavailableReason
 from app.models.bank_transaction import EditableBankField
 from app.schemas.names import TrimmedName
 from app.utils.money import MAX_MINOR_UNITS, MIN_MINOR_UNITS
@@ -35,48 +35,57 @@ BankSyncState = Literal[
 ]
 
 
-class SetupTokenRequest(BaseModel):
-    """A request body carrying a setup token, which no refusal of the body may repeat"""
+# More fields than any provider's connect form has, so a body can't send a pile of them
+MAX_CREDENTIAL_FIELDS = 8
 
-    # A secret: it is claimed once and never stored, logged or shown, so printing the request masks it
-    setup_token: SecretStr
+
+class CredentialRequest(BaseModel):
+    """A request body carrying credentials the user supplied, which no refusal of the body may repeat"""
+
+    # Each of the provider's credential fields by its key. Each value is a secret, such as a setup
+    # token: it is claimed once and never stored, logged or shown, so printing the request masks it
+    credentials: dict[str, SecretStr] = Field(max_length=MAX_CREDENTIAL_FIELDS)
 
     @model_validator(mode="before")
     @classmethod
-    def _mask_setup_token(cls, value: object) -> object:
-        """Mask the setup token before the fields are checked
+    def _mask_credentials(cls, value: object) -> object:
+        """Mask every credential before the fields are checked
 
         A refusal repeats what it refused in the 422 response, such as the whole body for a missing
-        field. Anything but an object, such as a body sent as text, is replaced, since the token
-        could be anywhere in it. Only the model's own fields are kept, since a token could be sent
-        under another name, and a token that isn't text is replaced with null so it is still refused
+        field. Anything but an object, such as a body sent as text, is replaced, since a credential
+        could be anywhere in it. Only the model's own fields are kept, since a credential could be
+        sent under another name. Credentials that aren't an object of text are replaced with null,
+        so they are still refused
 
         Args:
             value: The request body as sent
 
         Returns:
-            The model's fields with the setup token masked, or None for a body that isn't an object
+            The model's fields with the credentials masked, or None for a body that isn't an object
         """
         if not isinstance(value, dict):
             return None
         fields = {name: value[name] for name in cls.model_fields if name in value}
-        if "setup_token" in fields:
-            token = fields["setup_token"]
-            fields["setup_token"] = SecretStr(token) if isinstance(token, str) else None
+        if "credentials" in fields:
+            credentials = fields["credentials"]
+            readable = isinstance(credentials, dict) and all(
+                isinstance(key, str) and isinstance(text, str) for key, text in credentials.items()
+            )
+            fields["credentials"] = {key: SecretStr(text) for key, text in credentials.items()} if readable else None
         return fields
 
 
-class CreateBankConnectionRequest(SetupTokenRequest):
-    """A setup token to claim as a new connection"""
+class CreateBankConnectionRequest(CredentialRequest):
+    """A credential to claim as a new connection"""
 
-    provider: BankProvider
+    provider: str = Field(max_length=PROVIDER_ID_MAX_LENGTH)
 
     # Blank means none. The length is checked where the refusal can say it in a sentence
     nickname: TrimmedName | None = None
 
 
-class ReconnectBankConnectionRequest(SetupTokenRequest):
-    """A new setup token for a connection whose credential the provider rejected"""
+class ReconnectBankConnectionRequest(CredentialRequest):
+    """A new credential for a connection whose old one the provider rejected"""
 
 
 class UpdateBankConnectionRequest(BaseModel):
@@ -89,7 +98,8 @@ class UpdateBankConnectionRequest(BaseModel):
 class BankRequestBudgetResponse(BaseModel):
     """A connection's requests to its provider over the last 24 hours"""
 
-    limit: int
+    # Null once the provider is no longer installed, when nothing is sent and none are counted
+    limit: int | None
     used: int
 
     # When the next request can be sent once the budget is spent, null while one is free
@@ -135,8 +145,16 @@ class BankConnectionResponse(BaseModel):
     """One of the user's provider credentials, described without the credential itself"""
 
     id: uuid.UUID
-    provider: BankProvider
+    provider: str
+
+    # The provider's name and the site where its bank logins are managed, each its stored id once the
+    # provider is no longer installed
     provider_name: str
+    provider_site: str
+
+    # False once the provider is no longer installed on this server, when the connection syncs
+    # nothing and keeps what it brought in
+    provider_available: bool
     nickname: str | None
 
     # The host the credential reaches, the only part of it ever shown
@@ -171,14 +189,34 @@ class ReconnectBankConnectionResponse(BaseModel):
     accounts_pending: bool
 
 
+class CredentialFieldResponse(BaseModel):
+    """One field of a provider's connect form"""
+
+    # The name its value is sent under, in the claim's credentials
+    key: str
+    label: str
+    placeholder: str
+
+    # The longest value the field takes, which the claim also refuses past
+    max_length: int
+
+
 class BankProviderResponse(BaseModel):
     """A bank provider the deployment enables"""
 
-    id: BankProvider
+    id: str
     name: str
+
+    # Where the user manages the bank logins the provider reaches
+    site: str
 
     # One sentence on what connecting it reaches
     description: str
+
+    # The fields the user fills in to connect, in order, and the steps to get what they take, each a
+    # sentence. The connect form draws whatever is listed
+    credential_fields: list[CredentialFieldResponse]
+    connect_steps: list[str]
     connects_from: ConnectsFrom
 
     # Whether new connections may be made. Existing connections keep working when it is withdrawn
@@ -277,8 +315,15 @@ class BankAccountLinkResponse(BaseModel):
 
     account_id: uuid.UUID
     connection_id: uuid.UUID
-    provider: BankProvider
+    provider: str
+
+    # The provider's name and the site where its bank logins are managed, each its stored id once the
+    # provider is no longer installed
     provider_name: str
+    provider_site: str
+
+    # False once the provider is no longer installed on this server, when the link syncs nothing
+    provider_available: bool
     external_account_id: str
     external_account_name: str
     institution_name: str
@@ -539,7 +584,7 @@ class BankHoldResponse(BaseModel):
 class TransactionBankSource(BaseModel):
     """Where a bank-imported ledger transaction came from, readable after unlinking or disconnecting"""
 
-    provider: BankProvider
+    provider: str
     provider_name: str
 
     # The latest values the bank supplied

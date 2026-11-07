@@ -8,7 +8,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db
 from app.dependencies import get_current_user
-from app.models.bank_connection import BankProvider
+from app.models.bank_connection import PROVIDER_ID_MAX_LENGTH
 from app.models.user import User
 from app.schemas.bank_review import (
     AddReviewItemRequest,
@@ -124,10 +124,10 @@ async def create_bank_connection(
     user: Annotated[User, Depends(get_current_user)],
     db: Annotated[AsyncSession, Depends(get_db)],
 ):
-    """Claim a setup token as a new connection and discover its bank accounts
+    """Claim a credential the user supplied as a new connection and discover its bank accounts
 
     Args:
-        request: The provider, the setup token and an optional nickname
+        request: The provider, the credential and an optional nickname
         user: Authenticated user connecting
         db: Active database session
 
@@ -184,11 +184,11 @@ async def reconnect_bank_connection(
     user: Annotated[User, Depends(get_current_user)],
     db: Annotated[AsyncSession, Depends(get_db)],
 ):
-    """Replace a rejected connection's credential with a new setup token, and resume its linked accounts
+    """Replace a rejected connection's credential with a newly supplied one, and resume its linked accounts
 
     Args:
         connection_id: The connection to reconnect
-        request: The new setup token
+        request: The new credential
         user: Authenticated owner of the connection
         db: Active database session
 
@@ -474,7 +474,7 @@ async def dismiss_bank_cut_off_day(
 @bank_link_router.get("/import-range", response_model=BankImportRangeResponse)
 async def get_bank_import_range(
     account_id: uuid.UUID,
-    provider: BankProvider,
+    provider: Annotated[str, Query(max_length=PROVIDER_ID_MAX_LENGTH)],
     user: Annotated[User, Depends(get_current_user)],
     db: Annotated[AsyncSession, Depends(get_db)],
 ):
