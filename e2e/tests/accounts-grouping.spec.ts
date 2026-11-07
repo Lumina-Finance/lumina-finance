@@ -814,6 +814,51 @@ test('on a phone, a credit card’s available amount follows its type, shortenin
   expect(Math.abs(travelAvailable.x + travelAvailable.width - (travelBalance.x + travelBalance.width))).toBeLessThan(1)
 })
 
+test('an open top-level group’s header sticks under the toolbar while its rows scroll past, and closing it from there keeps it in view', async ({
+  page,
+  request,
+}) => {
+  const { user } = await seedAccounts(page, request)
+  // Enough savings accounts that their group runs well past one screen of a short phone
+  for (let index = 1; index <= 8; index += 1) {
+    await createAccount(request, user, { name: `Savings ${index}`, accountType: 'savings', startingBalance: 10_000 * index })
+  }
+  await page.setViewportSize({ width: 390, height: 600 })
+  await openPage(page, '/accounts')
+
+  const header = groupButton(page, 'Savings')
+  const firstRow = page.getByRole('link', { name: /Savings 8/ })
+  await expect(firstRow).toBeVisible()
+  const box = async (locator: Locator) => (await locator.boundingBox())!
+  // The toolbar is the sticky row holding the search field, with the phone's buttons under it
+  const toolbarBottom = () =>
+    page
+      .getByPlaceholder('Search accounts...')
+      .filter({ visible: true })
+      .evaluate((element) => {
+        let node: Element | null = element
+        while (node && getComputedStyle(node).position !== 'sticky') node = node.parentElement
+        return node!.getBoundingClientRect().bottom
+      })
+
+  // Scrolled so the group's first rows have gone under the toolbar
+  const headerStart = await header.evaluate((element) => element.getBoundingClientRect().top + window.scrollY)
+  await page.evaluate((top) => window.scrollTo(0, top), headerStart + 250)
+  await expect
+    .poll(async () => (await box(header)).y - (await toolbarBottom()))
+    .toBeGreaterThanOrEqual(0)
+  const stuck = await box(header)
+  expect(stuck.y - (await toolbarBottom())).toBeLessThan(24)
+  // The rows scroll on under it while it stays put
+  expect((await box(firstRow)).y).toBeLessThan(stuck.y)
+
+  // Closing it from there brings the page back to the group, so its header stays on screen
+  await header.click()
+  await expect(header).toHaveAttribute('aria-expanded', 'false')
+  await expect.poll(async () => (await box(header)).y).toBeGreaterThanOrEqual(stuck.y - 1)
+  await expect(header).toBeInViewport()
+})
+
 test('on a desktop, an open group draws a guide line from its logo to its last row, and a line between rows', async ({
   page,
   request,

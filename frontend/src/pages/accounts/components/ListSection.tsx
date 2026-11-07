@@ -1,3 +1,4 @@
+import { useRef } from 'react'
 import { AnimatePresence, motion, useReducedMotion } from 'motion/react'
 import { ChevronDown } from 'lucide-react'
 import type { AccountsOverview } from '@/api/accounts'
@@ -85,6 +86,7 @@ export default function AccountListSection({
   displayCurrency,
   taxAdvantagedCategoryById,
   loading = false,
+  stickyTop,
 }: {
   group: AccountGroup
   grouping: AccountGrouping
@@ -104,6 +106,9 @@ export default function AccountListSection({
   displayCurrency: string
   taxAdvantagedCategoryById: Map<string, TaxAdvantagedCategory>
   loading?: boolean
+  // Where the list toolbar ends once it sticks. A top-level header given it sticks there while its open
+  // group's rows scroll past, as a day's total does on the transactions list
+  stickyTop?: number
 }) {
   const prefersReducedMotion = useReducedMotion()
   const regroupTransition = getRegroupTransition(prefersReducedMotion)
@@ -119,15 +124,37 @@ export default function AccountListSection({
   // A bank's header carries the tags its accounts' rows carry, once each, in the order the rows list
   // them. Only a top-level bank gets them, and the rows keep theirs as well
   const planNames = isTopLevel && grouping === 'institution' ? getGroupPlanNames(group, taxAdvantagedCategoryById) : []
+  const sectionRef = useRef<HTMLElement>(null)
+  const isSticky = isTopLevel && stickyTop !== undefined
+
+  // Closing from a stuck header would leave it above the screen once the rows go. So the page first
+  // scrolls back to the group's start, and the stuck header stays where it is on screen
+  function handleToggle() {
+    if (
+      isOpen &&
+      isTopLevel &&
+      stickyTop !== undefined &&
+      (sectionRef.current?.getBoundingClientRect().top ?? 0) < stickyTop
+    ) {
+      sectionRef.current?.scrollIntoView({ block: 'start' })
+    }
+    onToggle(key)
+  }
 
   return (
-    <section>
-      <h3>
+    // Never a scroll anchor, so the browser doesn't move the page to hold a row in place while the group
+    // closes. That move would push its header back under the toolbar
+    <section ref={sectionRef} style={isSticky ? { scrollMarginTop: stickyTop, overflowAnchor: 'none' } : undefined}>
+      {/* The page's colour behind a stuck header hides the rows scrolling under it */}
+      <h3
+        className={isSticky ? 'sticky z-20' : undefined}
+        style={isSticky ? { top: stickyTop, background: 'var(--app-bg)' } : undefined}
+      >
         <button
           type="button"
           aria-expanded={isOpen}
           aria-controls={bodyId}
-          onClick={() => onToggle(key)}
+          onClick={handleToggle}
           // On a phone the title takes the whole first line beside the chevron, and the total moves to the
           // second line beside the account count, so a long name never gives way to the figure. The right
           // inset matches the rows', so the total ends where their balances do

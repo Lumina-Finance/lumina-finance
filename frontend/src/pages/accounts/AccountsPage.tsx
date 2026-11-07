@@ -33,6 +33,9 @@ export default function AccountsPage() {
   const [showCreateModal, setShowCreateModal] = useState(false)
   const requireCurrencies = useCurrencyGuard()
   const [createModalKey, setCreateModalKey] = useState(0)
+  // Where the toolbar ends once it sticks, which is where an open group's header sticks as its rows scroll
+  // past. The toolbar measures it, and this guess holds until then
+  const [groupHeaderStickyTop, setGroupHeaderStickyTop] = useState(72)
   const { user } = useAuth()
   const { data: accounts, isFetching, error } = useAccounts()
   const {
@@ -144,6 +147,7 @@ export default function AccountsPage() {
         kindOptions={kindOptions}
         typeOptions={typeOptions}
         grouping={groupingSettings}
+        onStickyOffsetChange={setGroupHeaderStickyTop}
         onAddAccount={() =>
           requireCurrencies(() => {
             setCreateModalKey((key) => key + 1)
@@ -181,6 +185,7 @@ export default function AccountsPage() {
                     displayCurrency={displayCurrency}
                     taxAdvantagedCategoryById={taxAdvantagedCategoryById}
                     loading={accountsLoading}
+                    stickyTop={groupHeaderStickyTop}
                   />
                 </motion.div>
               ))}
