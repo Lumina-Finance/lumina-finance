@@ -1,6 +1,5 @@
 import { useRef } from 'react'
-import { Crossfade } from '@/components/loading/Crossfade'
-import { NamedSpinner } from '@/components/loading/PendingLabel'
+import { PendingLabel } from '@/components/loading/PendingLabel'
 import { useConfirmingClick } from '@/hooks/useConfirmingClick'
 
 const TONE_CLASS_NAMES = {
@@ -78,9 +77,9 @@ export function ReviewDecisionButton({
       >
         {/* One crossfade for the label and the spinner, so the width eases with whichever comes in. The
             button's name already says which label is on */}
-        <Crossfade swapKey={loading ? 'pending' : shownLabel}>
-          {loading ? <NamedSpinner name={shownLabel} /> : <span aria-hidden>{shownLabel}</span>}
-        </Crossfade>
+        <PendingLabel pending={loading} name={shownLabel} contentKey={shownLabel}>
+          <span aria-hidden>{shownLabel}</span>
+        </PendingLabel>
       </button>
       {confirm && (
         <span role="status" className="sr-only">
