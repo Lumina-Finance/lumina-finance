@@ -34,6 +34,9 @@ const FIELD_IDS = {
   nickname: 'bank-connection-nickname',
 } as const
 
+// Every credential field the refusal is about points to the one message as its description
+const CREDENTIAL_ERROR_ID = 'bank-connection-credential-error'
+
 /** The id of the input for one of the provider's credential fields */
 const credentialFieldId = (key: string) => `bank-connection-credential-${key}`
 
@@ -123,9 +126,9 @@ export function ConnectModal({
   const [values, setValues] = useState<Record<string, string>>({})
   const [nickname, setNickname] = useState('')
 
-  // A refused credential, on the field it is about: the one too long, or the last for the server's
-  // own refusal, which may be about any of them
-  const [fieldError, setFieldError] = useState<{ key: string; message: string } | null>(null)
+  // A refused credential, on the fields it is about: the one too long, or every field for the server's
+  // own refusal, since that speaks of the credentials as a whole. The message is drawn once, on the last
+  const [fieldError, setFieldError] = useState<{ keys: string[]; message: string } | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [unanswered, setUnanswered] = useState<UnansweredClaim | null>(null)
 
@@ -158,7 +161,7 @@ export function ConnectModal({
 
   const reportAnswered = (cause: ApiError) => {
     if (cause.status === 422) {
-      setFieldError({ key: fields[fields.length - 1].key, message: cause.message })
+      setFieldError({ keys: fields.map((field) => field.key), message: cause.message })
       return
     }
     setError(cause.message)
@@ -170,7 +173,7 @@ export function ConnectModal({
     for (const field of fields) {
       const lengthProblem = describeCredentialLength(field, site, trimmed[field.key])
       if (lengthProblem) {
-        setFieldError({ key: field.key, message: lengthProblem })
+        setFieldError({ keys: [field.key], message: lengthProblem })
         return
       }
     }
@@ -329,22 +332,26 @@ export function ConnectModal({
           </ol>
         )}
         {fields.map((field) => {
-          const message = fieldError?.key === field.key ? fieldError.message : null
+          const invalid = fieldError?.keys.includes(field.key) ?? false
+          const message =
+            invalid && fieldError?.keys[fieldError.keys.length - 1] === field.key ? fieldError.message : null
           return (
             <div key={field.key}>
               <CreateModalFieldLabelRow
                 htmlFor={credentialFieldId(field.key)}
                 label={field.label}
                 error={message ?? undefined}
+                errorId={message ? CREDENTIAL_ERROR_ID : undefined}
               />
               <textarea
                 id={credentialFieldId(field.key)}
-                className={`app-input w-full resize-none py-2.5 ${fields.length > 1 ? 'h-16' : 'h-24'} ${message ? 'app-input-error' : ''}`}
+                className={`app-input w-full resize-none py-2.5 ${fields.length > 1 ? 'h-16' : 'h-24'} ${invalid ? 'app-input-error' : ''}`}
                 value={values[field.key] ?? ''}
                 placeholder={field.placeholder}
                 spellCheck={false}
                 autoComplete="off"
-                aria-invalid={message ? true : undefined}
+                aria-invalid={invalid ? true : undefined}
+                aria-describedby={invalid ? CREDENTIAL_ERROR_ID : undefined}
                 disabled={busy}
                 onChange={(event) => {
                   setFieldError(null)

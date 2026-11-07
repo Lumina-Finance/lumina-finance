@@ -286,8 +286,14 @@ test('draws each field a provider lists, checks each against its own limit and s
   await appToken.fill('app-1')
   await dialog.getByRole('button', { name: 'Connect' }).click()
   await expect(dialog.getByRole('alert')).toHaveText(refusal)
-  await expect(userToken).toHaveAttribute('aria-invalid', 'true')
+  // The refusal is about the credentials as a whole, so every field is marked and points to the one message
+  for (const field of [appToken, userToken]) {
+    await expect(field).toHaveAttribute('aria-invalid', 'true')
+    await expect(field).toHaveAccessibleDescription(refusal)
+  }
+  await appToken.fill('app-2')
   await expect(appToken).not.toHaveAttribute('aria-invalid')
+  await expect(userToken).not.toHaveAttribute('aria-invalid')
   expect(sent).toEqual([expect.objectContaining({ provider: 'simplefin', credentials: { app_token: 'app-1', user_token: 'user-1' } })])
 })
 
