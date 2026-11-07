@@ -147,10 +147,10 @@ class BankConnectionResponse(BaseModel):
     id: uuid.UUID
     provider: str
 
-    # The provider's name and the site where its bank logins are managed, each its stored id once the
-    # provider is no longer installed
+    # The provider's name, the one its connection stored once the provider is no longer installed,
+    # and the site where its bank logins are managed, None once it is no longer installed
     provider_name: str
-    provider_site: str
+    provider_site: str | None
 
     # False once the provider is no longer installed on this server, when the connection syncs
     # nothing and keeps what it brought in
@@ -317,10 +317,10 @@ class BankAccountLinkResponse(BaseModel):
     connection_id: uuid.UUID
     provider: str
 
-    # The provider's name and the site where its bank logins are managed, each its stored id once the
-    # provider is no longer installed
+    # The provider's name, the one its connection stored once the provider is no longer installed,
+    # and the site where its bank logins are managed, None once it is no longer installed
     provider_name: str
-    provider_site: str
+    provider_site: str | None
 
     # False once the provider is no longer installed on this server, when the link syncs nothing
     provider_available: bool

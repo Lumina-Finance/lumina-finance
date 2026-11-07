@@ -41,6 +41,8 @@ const SAMPLE_CHEQUING = 'Everyday Chequing'
 const SAMPLE_VISA = 'Rewards Visa'
 const ADDING_PAUSED = "Bank sync isn't running right now. You can add one once it's back."
 const LINKING_PAUSED = "Bank sync isn't running right now. You can link accounts once it's back."
+const PROVIDER_GONE =
+  "This provider is no longer available on this server, so this connection doesn't sync. You can disconnect it to remove it, and its accounts keep everything already imported."
 
 // Where a connection is claimed, and the list read
 const CONNECTIONS_URL = `${API_BASE_URL}/bank-sync/connections`
@@ -91,6 +93,18 @@ async function openConnection(page: Page, section: Locator, name: string): Promi
  */
 function fact(dialog: Locator, label: string): Locator {
   return dialog.locator('dl > div').filter({ has: dialog.page().locator('dt', { hasText: label }) }).locator('dd')
+}
+
+/** What a theme token draws as on one CSS property, so a tone is compared by name rather than by value */
+async function tokenColour(page: Page, property: 'color' | 'background-color' | 'border-top-color', token: string): Promise<string> {
+  return page.evaluate(([cssProperty, name]) => {
+    const probe = document.createElement('span')
+    probe.style.setProperty(cssProperty, `var(${name})`)
+    document.body.append(probe)
+    const drawn = getComputedStyle(probe).getPropertyValue(cssProperty)
+    probe.remove()
+    return drawn
+  }, [property, token] as const)
 }
 
 function toast(page: Page, text: string): Locator {
@@ -199,6 +213,27 @@ test('adds a connection with a nickname and lists it with its bank accounts', as
   await expect(row).toContainText('OK')
 })
 
+test("draws the setup token field's hint like the nickname's and says why Connect is held back", async ({ page, request }) => {
+  const user = await signUpUser(request)
+  const scenario = await createSampleBridgeScenario(request)
+  const section = await openBankConnections(page, user)
+
+  await section.getByRole('button', { name: 'Add a connection' }).click()
+  const dialog = page.getByRole('dialog', { name: 'Add a connection' })
+  const token = dialog.getByRole('textbox', { name: 'Setup token' })
+  const hint = (field: Locator) => field.evaluate((element) => {
+    const style = getComputedStyle(element, '::placeholder')
+    return `${style.fontFamily} ${style.fontSize}`
+  })
+  expect(await hint(token)).toBe(await hint(dialog.getByRole('textbox', { name: 'Nickname' })))
+
+  const connect = dialog.getByRole('button', { name: 'Connect' })
+  await expect(connect).toBeDisabled()
+  await expect(connect).toHaveAccessibleDescription('Paste the setup token first')
+  await token.fill(scenario.setupToken)
+  await expect(connect).toBeEnabled()
+})
+
 test("shows a used setup token's refusal on the token field and adds no connection", async ({ page, request }) => {
   const [user, earlierUser] = await Promise.all([signUpUser(request), signUpUser(request)])
   const scenario = await createSampleBridgeScenario(request)
@@ -215,6 +250,45 @@ test("shows a used setup token's refusal on the token field and adds no connecti
   await expect(token).toHaveAttribute('aria-invalid', 'true')
   await dialog.getByRole('button', { name: 'Cancel' }).click()
   await expect(section.getByText('No connections yet.')).toBeVisible()
+})
+
+test('draws each field a provider lists, checks each against its own limit and sends them under their keys', async ({ page, request }) => {
+  const user = await signUpUser(request)
+  await changeProviders(page, (body) => {
+    body.providers[0].credential_fields = [
+      { key: 'app_token', label: 'App ID token', placeholder: 'Paste the app token', max_length: 8 },
+      { key: 'user_token', label: 'User access token', placeholder: 'Paste the user token', max_length: 64 },
+    ]
+  })
+  const sent: unknown[] = []
+  const refusal = 'That user access token has expired. Create a new one and try again'
+  await page.route(CONNECTIONS_URL, async (route) => {
+    if (route.request().method() !== 'POST') return route.fallback()
+    sent.push(route.request().postDataJSON())
+    await route.fulfill({ status: 422, json: { detail: refusal } })
+  })
+  const section = await openBankConnections(page, user)
+
+  await section.getByRole('button', { name: 'Add a connection' }).click()
+  const dialog = page.getByRole('dialog', { name: 'Add a connection' })
+  const appToken = dialog.getByRole('textbox', { name: 'App ID token' })
+  const userToken = dialog.getByRole('textbox', { name: 'User access token' })
+  await expect(dialog.getByRole('textbox', { name: 'Setup token' })).toHaveCount(0)
+  await appToken.fill('app-token-too-long')
+  await expect(dialog.getByRole('button', { name: 'Connect' })).toBeDisabled()
+  await userToken.fill('user-1')
+  await dialog.getByRole('button', { name: 'Connect' }).click()
+
+  await expect(dialog.getByRole('alert')).toHaveText('That app ID token is too long. Copy only the app ID token from SimpleFIN Bridge and try again')
+  await expect(appToken).toHaveAttribute('aria-invalid', 'true')
+  expect(sent).toEqual([])
+
+  await appToken.fill('app-1')
+  await dialog.getByRole('button', { name: 'Connect' }).click()
+  await expect(dialog.getByRole('alert')).toHaveText(refusal)
+  await expect(userToken).toHaveAttribute('aria-invalid', 'true')
+  await expect(appToken).not.toHaveAttribute('aria-invalid')
+  expect(sent).toEqual([expect.objectContaining({ provider: 'simplefin', credentials: { app_token: 'app-1', user_token: 'user-1' } })])
 })
 
 test("shows that SimpleFIN Bridge couldn't be reached beside the form's actions", async ({ page, request }) => {
@@ -499,6 +573,84 @@ test("shows a connection's facts", async ({ page, request }) => {
   await expect(fact(dialog, 'Institutions linked')).toHaveText('1 · no limit')
   await expect(fact(dialog, 'Requests, 24 hours')).toHaveText(/^\d+ of 20$/)
   await expect(dialog.getByRole('region', { name: 'Institutions · 1 of 2 bank accounts linked' })).toBeVisible()
+})
+
+test("says a connection's provider is gone from the server, holding Reconnect back with the reason", AT_EVERY_SIZE, async ({ page, request }) => {
+  const user = await signUpUser(request)
+  const [household, scenario] = await Promise.all([
+    createAccount(request, user, { name: 'Household' }),
+    createSampleBridgeScenario(request),
+  ])
+  const connection = await claimSetupToken(request, user, scenario.setupToken)
+  await linkBankAccount(request, user, {
+    accountId: household.id,
+    connectionId: connection.id,
+    externalAccountId: connection.accounts.find((bankAccount) => bankAccount.name === SAMPLE_CHEQUING)!.external_id,
+    startDate: todayInTestTimezone(),
+  })
+  // Stands for a server whose provider folder was deleted, which the backend tests answer this way
+  await page.route(isRead('/bank-sync/connections'), async (route) => {
+    const response = await route.fetch()
+    const connections = (await response.json() as SeededConnection[]).map((entry) => ({
+      ...entry,
+      provider_site: null,
+      provider_available: false,
+      request_budget: { ...entry.request_budget, limit: null, used: 0, available_again_at: null },
+    }))
+    await route.fulfill({ response, json: connections })
+  })
+  const section = await openBankConnections(page, user)
+  await expect(connectionRow(section, 'SimpleFIN')).toContainText('Provider unavailable')
+  const dialog = await openConnection(page, section, 'SimpleFIN')
+  await expect(dialog).toHaveCSS('transform', 'none')
+
+  await expect(dialog.getByText('SimpleFIN is no longer available', { exact: true })).toBeInViewport()
+  // The held-back Reconnect gives the same reason, as its description
+  await expect(dialog.getByRole('paragraph').filter({ hasText: PROVIDER_GONE })).toBeInViewport()
+  await expect(fact(dialog, 'Status')).toHaveText('Provider unavailable')
+  await expect(fact(dialog, 'Requests, 24 hours')).toHaveText('None sent')
+  // The folded row writes its note once for a phone and once beside the count, showing one at each size
+  await expect(dialog.getByRole('button', { name: '1 institution' })).toContainText('1 of 2 linked · Nothing links or syncs here now')
+
+  const reconnect = dialog.getByRole('button', { name: 'Reconnect' })
+  await expect(reconnect).toBeInViewport()
+  await expect(reconnect).toHaveAttribute('aria-disabled', 'true')
+  await expect(reconnect).toHaveAccessibleDescription(PROVIDER_GONE)
+  // Forced, since Playwright waits for a control marked unavailable to become available before pressing it
+  await reconnect.click({ force: true })
+  await expect(page.getByRole('dialog', { name: /^Reconnect/ })).toHaveCount(0)
+  await expect(dialog.getByRole('button', { name: 'Disconnect' })).toBeEnabled()
+  expect(await dialog.evaluate((element) => element.scrollWidth <= element.clientWidth)).toBe(true)
+
+  // The actions clip what doesn't fit their buttons, so a whole label showing is its words ending inside every box around them
+  for (const action of ['Rename', 'Disconnect']) {
+    const edges = await dialog.getByRole('button', { name: action }).evaluate((button, word) => {
+      const walker = document.createTreeWalker(button, NodeFilter.SHOW_TEXT)
+      const words = document.createRange()
+      while (walker.nextNode()) {
+        if (walker.currentNode.textContent?.includes(word)) words.selectNodeContents(walker.currentNode)
+      }
+      const drawn = words.getBoundingClientRect()
+      const gaps: number[] = []
+      for (let box = words.startContainer.parentElement; box && box !== button.parentElement; box = box.parentElement) {
+        const edge = box.getBoundingClientRect()
+        gaps.push(drawn.left - edge.left, edge.right - drawn.right)
+      }
+      return Math.min(...gaps)
+    }, action)
+    expect(edges, `${action} label inside its button`).toBeGreaterThanOrEqual(-0.5)
+  }
+
+  // A state that needs the user's attention but breaks nothing takes the watch colour, never the error red
+  const tile = dialog.getByTestId('connection-state-tile')
+  expect(await tile.evaluate((element) => getComputedStyle(element).backgroundColor)).toBe(await tokenColour(page, 'background-color', '--app-warning-soft'))
+  expect(await tile.evaluate((element) => getComputedStyle(element).color)).toBe(await tokenColour(page, 'color', '--app-warning-text'))
+  const dotBorder = (dot: Locator) => dot.evaluate((element) => getComputedStyle(element).borderTopColor)
+  const warningDot = await tokenColour(page, 'border-top-color', '--app-warning-dot')
+  expect(await dotBorder(fact(dialog, 'Status').getByTestId('sync-status-dot'))).toBe(warningDot)
+  await dialog.getByRole('button', { name: 'Close' }).first().click()
+  await expect(dialog).toBeHidden()
+  expect(await dotBorder(connectionRow(section, 'SimpleFIN').getByTestId('sync-status-dot').filter({ visible: true }))).toBe(warningDot)
 })
 
 test('words when a spent request budget frees up anew as minutes pass with the connection open', async ({ page, request }) => {

@@ -5,11 +5,12 @@ import {
   CONNECTION_NICKNAME_MAX_LENGTH,
   UNANSWERED_CLAIM_POLL_MS,
   UNANSWERED_CLAIM_WATCH_MS,
-  useClaimSetupToken,
+  useClaimCredential,
   useReconnectBankConnection,
   type BankConnection,
   type BankProvider,
   type BankProviderId,
+  type CredentialField,
 } from '@/api/bank-sync'
 import CreateModalFieldLabelRow from '@/components/create-modal/FieldLabelRow'
 import Dropdown from '@/components/dropdown/Dropdown'
@@ -21,30 +22,39 @@ import { useAuth } from '@/hooks/useAuth'
 import { useToast } from '@/hooks/useToast'
 import {
   describeConnected,
+  describeCredentialLength,
   describeReconnected,
-  describeSetupTokenLength,
   isClaimSettled,
 } from '@/pages/settings/components/bank-connections-section/utils'
-import { connectionName, providerSite } from '@/utils/bankSync'
+import { connectionName, credentialNoun } from '@/utils/bankSync'
 import { DATE_FORMATS, formatDate } from '@/utils/date'
 
 const FIELD_IDS = {
   provider: 'bank-connection-provider',
   nickname: 'bank-connection-nickname',
-  setupToken: 'bank-connection-setup-token',
 } as const
 
-// A reconnect sent again with the same token is safe, since the server refuses it for a connection
+/** The id of the input for one of the provider's credential fields */
+const credentialFieldId = (key: string) => `bank-connection-credential-${key}`
+
+// A reconnect sent again with the same credential is safe, since the server refuses it for a connection
 // already working again
 const UNANSWERED_RECONNECT_MESSAGE = 'Something went wrong. Please try again.'
 
 // The server carries on with a claim whose own answer never reached the browser, lost on the way or
-// replaced by a proxy's page, so it may have saved the connection and spent the setup token, which
-// works only once. The dialogue waits for that connection to show in the list, and says this only
-// when none has by the time the claim must have finished. Sent again, the token is refused as used,
-// and a new one would add the same connection twice
-const UNANSWERED_CLAIM_MESSAGE =
-  'Oops, something went wrong. The connection may have been added, so please check before you create a new setup token.'
+// replaced by a proxy's page, so it may have saved the connection and spent the credential, which may
+// work only once. The dialogue waits for that connection to show in the list, and says this only when
+// none has by the time the claim must have finished. Sent again, the credential may be refused as
+// used, and a new one would add the same connection twice
+function describeUnansweredClaim(noun: string): string {
+  return `Oops, something went wrong. The connection may have been added, so please check before you create a new ${noun}.`
+}
+
+// The one field shown while the provider being reconnected is turned off on the server, so its own
+// fields aren't listed. The server refuses the reconnect with its reason
+const FALLBACK_FIELDS: CredentialField[] = [
+  { key: 'credential', label: 'Credential', placeholder: '', max_length: Number.MAX_SAFE_INTEGER },
+]
 
 /** A claim whose answer was lost, waited on until its connection shows or the claim must have finished */
 type UnansweredClaim = {
@@ -67,6 +77,12 @@ interface ConnectModalProps {
   /** A connection whose credential was rejected, given a new one in place, or null to add a connection */
   reconnecting: BankConnection | null
 
+  /**
+   * The provider of the connection being reconnected, as the server lists it, which says how to get a
+   * new credential. Undefined while the providers load, or while the server has the provider turned off
+   */
+  reconnectingProvider?: BankProvider
+
   /** The user's connections as last read, or undefined until they load */
   connections: BankConnection[] | undefined
 
@@ -79,19 +95,21 @@ interface ConnectModalProps {
 }
 
 /**
- * Adds one bank connection: the user picks one of the offered providers and exchanges its setup token
+ * Adds one bank connection: the user picks one of the offered providers and exchanges its credential
  * for stored access, all in one form. Reconnecting a rejected connection has no provider to pick and
- * replaces its credential in place
+ * replaces its credential in place. Each provider says what its credential is called and how to get it
  *
  * A connection reaches every bank account the user holds with the provider, so connecting links
- * nothing by itself. Each account then chooses one of them. A refused token is about the token, so
- * its reason sits on that field, and anything else, such as the Bridge being out of reach, sits beside
- * the actions. Callers remount it with a key for each opening, so nothing typed carries over
+ * nothing by itself. Each account then chooses one of them. A refused credential is about the
+ * credential, so its reason sits on that field, and anything else, such as the provider being out of
+ * reach, sits beside the actions. Callers remount it with a key for each opening, so nothing typed
+ * carries over
  */
 export function ConnectModal({
   open,
   providers,
   reconnecting,
+  reconnectingProvider,
   connections,
   level = 'page',
   onClose,
@@ -99,12 +117,15 @@ export function ConnectModal({
 }: ConnectModalProps) {
   const { showToast } = useToast()
   const { user } = useAuth()
-  const claim = useClaimSetupToken()
+  const claim = useClaimCredential()
   const reconnect = useReconnectBankConnection()
   const [providerId, setProviderId] = useState<BankProviderId | null>(providers[0]?.id ?? null)
-  const [setupToken, setSetupToken] = useState('')
+  const [values, setValues] = useState<Record<string, string>>({})
   const [nickname, setNickname] = useState('')
-  const [tokenError, setTokenError] = useState<string | null>(null)
+
+  // A refused credential, on the field it is about: the one too long, or the last for the server's
+  // own refusal, which may be about any of them
+  const [fieldError, setFieldError] = useState<{ key: string; message: string } | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [unanswered, setUnanswered] = useState<UnansweredClaim | null>(null)
 
@@ -115,16 +136,29 @@ export function ConnectModal({
   const busy = sending || unanswered !== null
   const saved = unanswered ? connections?.find((connection) => !unanswered.knownIds.has(connection.id)) : undefined
   const settled = saved !== undefined && isClaimSettled(saved)
-  const provider = providers.find((entry) => entry.id === providerId)
-  const providerName = reconnecting?.provider_name ?? provider?.name ?? 'SimpleFIN'
-  const site = providerSite({
-    provider: reconnecting?.provider ?? providerId ?? 'simplefin',
-    provider_name: providerName,
-  })
+  const provider = reconnecting ? reconnectingProvider : providers.find((entry) => entry.id === providerId)
+  const providerName = reconnecting?.provider_name ?? provider?.name ?? ''
+  const site = reconnecting?.provider_site ?? provider?.site ?? ''
+  const fields = provider?.credential_fields ?? FALLBACK_FIELDS
+
+  // The messages that speak of the credential as one thing name the provider's first field
+  const noun = credentialNoun(fields[0].label)
+  const trimmed = Object.fromEntries(fields.map((field) => [field.key, (values[field.key] ?? '').trim()]))
+  const allFilled = fields.every((field) => trimmed[field.key])
+
+  // Why Connect can't be pressed yet, shown on the button the way any held-back button says it
+  const heldBackReason =
+    !reconnecting && !providerId
+      ? 'Choose a provider first'
+      : allFilled
+        ? null
+        : fields.length === 1
+          ? `Paste the ${noun} first`
+          : 'Fill in every field first'
 
   const reportAnswered = (cause: ApiError) => {
     if (cause.status === 422) {
-      setTokenError(cause.message)
+      setFieldError({ key: fields[fields.length - 1].key, message: cause.message })
       return
     }
     setError(cause.message)
@@ -132,19 +166,20 @@ export function ConnectModal({
 
   const submit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
-    const token = setupToken.trim()
-    if (busy || !token) return
-    const lengthProblem = describeSetupTokenLength(token)
-    if (lengthProblem) {
-      setTokenError(lengthProblem)
-      return
+    if (busy || !allFilled) return
+    for (const field of fields) {
+      const lengthProblem = describeCredentialLength(field, site, trimmed[field.key])
+      if (lengthProblem) {
+        setFieldError({ key: field.key, message: lengthProblem })
+        return
+      }
     }
-    setTokenError(null)
+    setFieldError(null)
     setError(null)
 
     if (reconnecting) {
       reconnect.mutate(
-        { connectionId: reconnecting.id, setupToken: token },
+        { connectionId: reconnecting.id, credentials: trimmed },
         {
           onSuccess: (result) => {
             showToast({ status: 'success', text: describeReconnected(result) })
@@ -162,7 +197,7 @@ export function ConnectModal({
     const knownIds = connections && new Set(connections.map((connection) => connection.id))
     const finishedBy = Date.now() + UNANSWERED_CLAIM_WATCH_MS
     claim.mutate(
-      { provider: providerId, setup_token: token, nickname },
+      { provider: providerId, credentials: trimmed, nickname },
       {
         onSuccess: (connection) => {
           showToast({ status: 'success', text: describeConnected(connection) })
@@ -175,7 +210,7 @@ export function ConnectModal({
           }
           onClaimUnanswered()
           if (knownIds) setUnanswered({ knownIds, endsAt: Math.max(finishedBy, Date.now() + UNANSWERED_CLAIM_POLL_MS) })
-          else setError(UNANSWERED_CLAIM_MESSAGE)
+          else setError(describeUnansweredClaim(noun))
         },
       },
     )
@@ -198,10 +233,10 @@ export function ConnectModal({
     const timer = window.setTimeout(() => {
       setUnanswered(null)
       if (saved) connected(saved)
-      else setError(UNANSWERED_CLAIM_MESSAGE)
+      else setError(describeUnansweredClaim(noun))
     }, unanswered.endsAt - Date.now())
     return () => window.clearTimeout(timer)
-  }, [open, unanswered, saved, settled, showToast, onClose])
+  }, [open, unanswered, saved, settled, showToast, onClose, noun])
 
   return (
     <ModalTitledPanel
@@ -224,7 +259,7 @@ export function ConnectModal({
           submitLabel={reconnecting ? 'Reconnect' : 'Connect'}
           submitDisabled={busy}
           cancelDisabled={sending}
-          submitUnavailable={(!reconnecting && !providerId) || !setupToken.trim()}
+          submitReason={heldBackReason}
           submitWidthClassName="w-full sm:w-32"
           error={error}
           level={level}
@@ -247,7 +282,7 @@ export function ConnectModal({
               disabled={busy}
               onChange={(value) => {
                 setError(null)
-                setTokenError(null)
+                setFieldError(null)
                 setProviderId(value as BankProviderId)
               }}
             />
@@ -277,8 +312,8 @@ export function ConnectModal({
         )}
         {reconnecting ? (
           <WarningCallout>
-            {site} no longer accepts this connection. Create a new setup token there and paste it below. Linked accounts
-            pick up where they stopped.
+            {site} no longer accepts this connection. Create a new {noun} there and paste it below. Linked accounts pick
+            up where they stopped.
           </WarningCallout>
         ) : (
           <p className="text-sm" style={{ color: 'var(--app-text-muted)' }}>
@@ -286,32 +321,39 @@ export function ConnectModal({
             then chooses its bank account.
           </p>
         )}
-        <ol className="list-decimal space-y-1 pl-5 text-sm" style={{ color: 'var(--app-text-muted)' }}>
-          <li>Open {site} and connect your banks there.</li>
-          <li>Create a setup token. It works once and expires if unused.</li>
-          <li>Paste it here. Lumina Finance exchanges it for access and never sees your bank login.</li>
-        </ol>
-        <div>
-          <CreateModalFieldLabelRow
-            htmlFor={FIELD_IDS.setupToken}
-            label="Setup token"
-            error={tokenError ?? undefined}
-          />
-          <textarea
-            id={FIELD_IDS.setupToken}
-            className={`app-input h-24 w-full resize-none py-2.5 font-mono text-xs ${tokenError ? 'app-input-error' : ''}`}
-            value={setupToken}
-            placeholder="Paste the token"
-            spellCheck={false}
-            autoComplete="off"
-            aria-invalid={tokenError ? true : undefined}
-            disabled={busy}
-            onChange={(event) => {
-              setTokenError(null)
-              setSetupToken(event.target.value)
-            }}
-          />
-        </div>
+        {provider && provider.connect_steps.length > 0 && (
+          <ol className="list-decimal space-y-1 pl-5 text-sm" style={{ color: 'var(--app-text-muted)' }}>
+            {provider.connect_steps.map((step) => (
+              <li key={step}>{step}</li>
+            ))}
+          </ol>
+        )}
+        {fields.map((field) => {
+          const message = fieldError?.key === field.key ? fieldError.message : null
+          return (
+            <div key={field.key}>
+              <CreateModalFieldLabelRow
+                htmlFor={credentialFieldId(field.key)}
+                label={field.label}
+                error={message ?? undefined}
+              />
+              <textarea
+                id={credentialFieldId(field.key)}
+                className={`app-input w-full resize-none py-2.5 ${fields.length > 1 ? 'h-16' : 'h-24'} ${message ? 'app-input-error' : ''}`}
+                value={values[field.key] ?? ''}
+                placeholder={field.placeholder}
+                spellCheck={false}
+                autoComplete="off"
+                aria-invalid={message ? true : undefined}
+                disabled={busy}
+                onChange={(event) => {
+                  setFieldError(null)
+                  setValues((current) => ({ ...current, [field.key]: event.target.value }))
+                }}
+              />
+            </div>
+          )
+        })}
       </div>
     </ModalTitledPanel>
   )

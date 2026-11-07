@@ -12,6 +12,8 @@ export function createBankLink(overrides: Partial<BankLink> = {}): BankLink {
     connection_id: 'connection-1',
     provider: 'simplefin',
     provider_name: 'SimpleFIN',
+    provider_site: 'SimpleFIN Bridge',
+    provider_available: true,
     external_account_id: 'bank-account-1',
     external_account_name: 'Chequing',
     institution_name: 'Example Bank',

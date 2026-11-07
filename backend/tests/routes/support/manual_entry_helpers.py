@@ -18,6 +18,7 @@ from app.models.transaction import Transaction
 from tests.conftest import TestSession
 from tests.routes.support.bank_sync_helpers import _build_bank_link, _commit_listed_connection, _new_account, _sign_up
 from tests.routes.support.transaction_helpers import _create_transaction
+from tests.services.bank_sync.fake_provider import FAKE_PROVIDER
 
 NOW = datetime(2026, 10, 3, 23, 0, tzinfo=ZoneInfo("America/Toronto"))
 TODAY = NOW.date()
@@ -75,9 +76,11 @@ async def _commit_link(
     import_start: date = IMPORT_START,
     state: str = BankLinkState.ACTIVE,
     external_account_id: str = "ACT-1",
+    provider: str = FAKE_PROVIDER,
+    provider_name: str = "Fake Bank",
 ) -> None:
-    """Commit the account's link to a bank account on a new Fake Bank connection, importing from the start given"""
-    connection = await _commit_listed_connection(ledger.user_id, external_account_id)
+    """Commit the account's link to a bank account on a new connection, Fake Bank's unless told otherwise, importing from the start given"""
+    connection = await _commit_listed_connection(ledger.user_id, external_account_id, provider=provider, provider_name=provider_name)
     async with TestSession() as session:
         account = await session.get_one(Account, uuid.UUID(account_id))
         link = _build_bank_link(account, connection, external_account_id, state=state)

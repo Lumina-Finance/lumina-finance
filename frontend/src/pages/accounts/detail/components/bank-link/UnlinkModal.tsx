@@ -9,7 +9,7 @@ import { ModalFormFooter } from '@/components/modal/FormFooter'
 import type { ModalLevel } from '@/components/modal/Shell'
 import { ModalTitledPanel } from '@/components/modal/TitledPanel'
 import { useToast } from '@/hooks/useToast'
-import { connectionName, countNoun, describeDisconnected, providerSite } from '@/utils/bankSync'
+import { connectionName, countNoun, describeDisconnected, providerSiteName } from '@/utils/bankSync'
 
 type UnlinkScope = 'account' | 'connection'
 
@@ -60,7 +60,7 @@ export function UnlinkModal({
   const [error, setError] = useState<string | null>(null)
   const busy = unlink.isPending || disconnect.isPending
   const otherCount = connection ? countOtherAccounts(connection, account.id) : 0
-  const site = providerSite(link)
+  const site = providerSiteName(link)
 
   const reportError = (cause: unknown) =>
     setError(cause instanceof ApiError ? cause.message : 'Something went wrong. Please try again.')

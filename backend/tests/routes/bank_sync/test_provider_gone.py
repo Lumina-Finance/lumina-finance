@@ -5,12 +5,14 @@ transactions stay readable under the provider name the connection stored, while 
 claimed through them, and every request that would reach the provider says why it can't
 """
 
+import uuid
 from datetime import datetime, timedelta
 from zoneinfo import ZoneInfo
 
 import pytest
-from sqlalchemy import select
+from sqlalchemy import select, update
 
+from app.models.bank_connection import BankAccountLink
 from app.models.bank_sync_job import BankSyncJob
 from app.services.bank_sync import account_link, import_range, links
 from app.services.bank_sync.availability import PROVIDER_GONE_DETAIL
@@ -75,7 +77,7 @@ async def test_connection_list_shows_the_connection_under_its_stored_name_with_n
         str(connection.id),
         _GONE,
         _GONE_NAME,
-        _GONE,
+        None,
         False,
     )
     assert [(account["linked_account_id"], account["eligible_account_ids"]) for account in listed["accounts"]] == [(account_id, [])]
@@ -91,8 +93,29 @@ async def test_account_page_reads_the_link_and_its_waiting_items(client):
 
     assert response.status_code == 200, response.text
     link = response.json()["link"]
-    assert (link["provider"], link["provider_name"], link["provider_available"], link["import"]) == (_GONE, _GONE_NAME, False, None)
+    assert (link["provider"], link["provider_name"], link["provider_site"], link["provider_available"], link["import"]) == (
+        _GONE,
+        _GONE_NAME,
+        None,
+        False,
+        None,
+    )
     assert link["sync"]["waiting_new_count"] == 1
+
+
+async def test_account_page_names_the_previous_link_by_the_stored_name(client):
+    """Once Everyday is unlinked, "Previously linked to" reads Lunar Bank"""
+    headers, account_id, _ = await _everyday_on_a_gone_provider(client)
+    async with TestSession() as session:
+        await session.execute(
+            update(BankAccountLink).where(BankAccountLink.account_id == uuid.UUID(account_id)).values(state="unlinked", unlinked_at=_NOW)
+        )
+        await session.commit()
+
+    response = await client.get(f"/accounts/{account_id}/bank-link", headers=headers)
+
+    assert response.status_code == 200, response.text
+    assert (response.json()["link"], response.json()["previous_link"]["provider_name"]) == (None, _GONE_NAME)
 
 
 async def test_links_and_review_list_read_as_before(client):
@@ -106,7 +129,7 @@ async def test_links_and_review_list_read_as_before(client):
     assert listed.status_code == 200, listed.text
     assert [(link["provider"], link["provider_name"], link["provider_available"]) for link in listed.json()] == [(_GONE, _GONE_NAME, False)]
     assert review.status_code == 200, review.text
-    assert [item["provider_name"] for item in review.json()["items"]] == [_GONE]
+    assert [item["provider_name"] for item in review.json()["items"]] == [_GONE_NAME]
 
 
 async def test_sync_now_is_refused_saying_the_provider_is_gone_and_queues_nothing(client):

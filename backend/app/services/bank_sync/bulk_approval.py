@@ -44,6 +44,7 @@ from app.schemas.bank_review import (
 )
 from app.services.accounts.access import check_own_personal_accounts, own_personal_account_condition
 from app.services.accounts.snapshots import sort_by_snapshot_lock
+from app.services.bank_sync.availability import read_provider_labels
 from app.services.bank_sync.review_decisions import (
     delete_removed_transaction,
     is_bank_change_storable,
@@ -90,12 +91,14 @@ async def preview_bulk_approval(
         .where(*scope, BankTransaction.open_kind.is_not(None))
         .order_by(BankTransaction.observed_date.desc(), BankTransaction.id.desc())
     )
+    rows = rows.all()
+    names = await read_provider_labels(db, (record.provider for record, _, _, _ in rows))
     items: defaultdict[str, list[BankReviewItemResponse]] = defaultdict(list)
     net_effects: defaultdict[str, defaultdict[str, int]] = defaultdict(lambda: defaultdict(int))
     for record, ledger_date, ledger_amount, currency in rows:
         if record.open_kind == OpenReviewKind.CORRECTION and not is_bank_change_storable(record):
             continue
-        items[record.open_kind].append(build_review_item(record, ledger_date, ledger_amount))
+        items[record.open_kind].append(build_review_item(record, ledger_date, ledger_amount, names[record.provider]))
         net_effects[record.open_kind][currency] += _balance_change(record, LedgerEntry(ledger_date, ledger_amount))
 
     excluded_count = await db.scalar(

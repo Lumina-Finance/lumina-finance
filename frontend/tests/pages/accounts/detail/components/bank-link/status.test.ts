@@ -136,8 +136,16 @@ describe('describeBankSync for a live link', () => {
         label: 'Reconnect needed',
         tone: 'stopped',
         pulse: false,
-        details: ['Reconnect SimpleFIN in Settings with a new setup token', FAILURE_LINE],
+        details: ['Reconnect SimpleFIN in Settings', FAILURE_LINE],
       },
+    ],
+    [
+      'a provider removed from the server, ahead of the state its link was left in',
+      {
+        provider_available: false,
+        sync: createSync({ state: 'reconnect_needed', last_failure: FAILURE, next_attempt_at: null }),
+      },
+      { label: 'Provider unavailable', tone: 'review', pulse: false, details: ['Synced 1 hour ago', FAILURE_LINE] },
     ],
     [
       'a bank asking the user to sign in again',

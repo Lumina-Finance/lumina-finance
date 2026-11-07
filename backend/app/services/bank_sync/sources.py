@@ -14,16 +14,17 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.models.bank_transaction import BankTransaction
 from app.models.transaction import Transaction
 from app.schemas.bank_sync import BankValues, TransactionBankSource
-from app.services.bank_sync.availability import provider_label
+from app.services.bank_sync.availability import read_provider_labels
 from app.services.bank_sync.review_state import edited_fields
 
 
-def build_bank_source(record: BankTransaction, txn: Transaction) -> TransactionBankSource:
+def build_bank_source(record: BankTransaction, txn: Transaction, provider_name: str) -> TransactionBankSource:
     """Return the bank source of a ledger transaction from the accepted record pointing at it
 
     Args:
         record: The accepted bank transaction the ledger row came from
         txn: The ledger row
+        provider_name: The name the record's provider is shown by
 
     Returns:
         The provider, the bank's latest values, the fields the user has edited and the waiting
@@ -31,7 +32,7 @@ def build_bank_source(record: BankTransaction, txn: Transaction) -> TransactionB
     """
     return TransactionBankSource(
         provider=record.provider,
-        provider_name=provider_label(record.provider),
+        provider_name=provider_name,
         bank_values=BankValues(
             date=record.observed_date,
             amount=record.observed_amount,
@@ -63,5 +64,6 @@ async def get_bank_sources_batch(
     by_id = {txn.id: txn for txn in transactions}
 
     # Only an accepted record has a ledger row, so matching on it finds exactly the sources
-    result = await db.execute(select(BankTransaction).where(BankTransaction.transaction_id.in_(by_id)))
-    return {record.transaction_id: build_bank_source(record, by_id[record.transaction_id]) for record in result.scalars()}
+    records = (await db.scalars(select(BankTransaction).where(BankTransaction.transaction_id.in_(by_id)))).all()
+    names = await read_provider_labels(db, (record.provider for record in records))
+    return {record.transaction_id: build_bank_source(record, by_id[record.transaction_id], names[record.provider]) for record in records}

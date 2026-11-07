@@ -39,6 +39,8 @@ export function createConnection(overrides: Partial<BankConnection> = {}): BankC
     id: 'connection-1',
     provider: 'simplefin',
     provider_name: 'SimpleFIN',
+    provider_site: 'SimpleFIN Bridge',
+    provider_available: true,
     nickname: null,
     server_label: 'bridge.simplefin.org',
     created_at: '2026-09-02T15:00:00Z',
@@ -89,7 +91,12 @@ export function createProviders(offered = true): BankProvidersResponse {
       {
         id: 'simplefin',
         name: 'SimpleFIN',
+        site: 'SimpleFIN Bridge',
         description: 'Connects to banks through SimpleFIN Bridge',
+        credential_fields: [
+          { key: 'setup_token', label: 'Setup token', placeholder: 'Paste the token', max_length: 2048 },
+        ],
+        connect_steps: [],
         connects_from: 'settings',
         offered,
         history_limit_months: 12,

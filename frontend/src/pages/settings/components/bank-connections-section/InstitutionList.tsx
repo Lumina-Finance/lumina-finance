@@ -15,7 +15,7 @@ import {
   matchesInstitutionSearch,
   type AccountNameLookup,
 } from '@/pages/settings/components/bank-connections-section/utils'
-import { countNoun, providerSite } from '@/utils/bankSync'
+import { countNoun, providerSiteName } from '@/utils/bankSync'
 
 // On phones the bank account spans the row, with the arrow and the account under it. From tablets up
 // the three sit side by side
@@ -370,7 +370,7 @@ export function InstitutionList({
   const entries: InstitutionEntry[] = groups.map((group) => ({
     key: `institution:${group.name}`,
     name: group.name,
-    problem: group.signInNeeded ? `Sign in again in ${providerSite(connection)}` : undefined,
+    problem: group.signInNeeded ? `Sign in again in ${providerSiteName(connection)}` : undefined,
     note:
       group.overLimit && institutionLimit !== null
         ? `Linking here would go over your limit of ${countNoun(institutionLimit, 'institution')}.`
@@ -465,7 +465,7 @@ export function InstitutionList({
       </p>
     ) : (
       <p className="py-6 text-center text-sm" style={{ color: 'var(--app-text-muted)' }}>
-        {providerSite(connection)} returned no bank accounts for this connection.
+        {providerSiteName(connection)} returned no bank accounts for this connection.
       </p>
     )
   }

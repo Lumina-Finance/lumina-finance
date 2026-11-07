@@ -2102,6 +2102,20 @@ async def test_job_flagged_to_discover_lists_the_bank_accounts_a_claim_couldnt(c
     assert await _listing(connection) == (False, ["ACT-everyday", "ACT-savings"])
 
 
+async def test_listing_refreshes_the_provider_name_the_connection_stored(connection, provider):
+    """A connection made while the provider went by another name stores its current name once a job lists its bank accounts"""
+    async with TestSession() as session:
+        await session.execute(update(BankConnection).where(BankConnection.id == connection.id).values(provider_name="Fake Bank Classic"))
+        await session.commit()
+    provider.outcomes = [_returned("ACT-everyday")]
+    await _seed_job(connection, BankSyncJobKind.RETRY, discover=True)
+
+    await _run_jobs_until_none_is_due()
+
+    async with TestSession() as session:
+        assert await session.scalar(select(BankConnection.provider_name).where(BankConnection.id == connection.id)) == "Fake Bank"
+
+
 @pytest.mark.parametrize("cause", ["budget_spent", "provider_asked_to_slow_down"])
 async def test_job_flagged_to_discover_keeps_the_listing_pending_until_a_request_frees(connection, provider, frozen_now, cause):
     """With no request to spend, the flagged job queues itself still flagged, and lists the bank accounts once a request frees"""

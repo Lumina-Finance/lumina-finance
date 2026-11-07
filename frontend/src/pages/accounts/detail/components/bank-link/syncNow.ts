@@ -1,5 +1,6 @@
 import { REVIEW_RESUME_COUNT, type BankConnection, type BankLink, type BankProvidersResponse } from '@/api/bank-sync'
 import type { ActionFeedbackStatus } from '@/components/feedback/ActionButton'
+import { PROVIDER_UNAVAILABLE_DETAIL } from '@/utils/bankSync'
 import { formatRelativeFutureTime } from '@/utils/relativeTime'
 
 /** Why Sync now can't run while the bank sync worker is down, which would leave the sync queued until it's back */
@@ -36,6 +37,7 @@ export function describeSyncNowBlock(
   connection: BankConnection | undefined,
   providers: BankProvidersResponse | undefined,
 ): string | null {
+  if (!link.provider_available) return PROVIDER_UNAVAILABLE_DETAIL
   if (link.sync.state === 'importing') return 'The import is still running'
   if (link.sync.state === 'syncing' || link.sync.sync_running) return 'A sync is already running'
   switch (link.sync.state) {

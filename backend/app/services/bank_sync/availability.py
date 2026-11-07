@@ -6,7 +6,7 @@ bank accounts, and how many institutions they may link, are each answered by one
 """
 
 import uuid
-from collections.abc import Mapping
+from collections.abc import Iterable, Mapping
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from functools import cache
@@ -17,7 +17,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config.bank_sync import read_provider_settings
 from app.models.account import Account
-from app.models.bank_connection import BankAccountLink, BankExternalAccount, BankLinkState, UnavailableReason
+from app.models.bank_connection import BankAccountLink, BankConnection, BankExternalAccount, BankLinkState, UnavailableReason
 from app.models.user import User
 from app.schemas.bank_sync import BankProviderResponse, BankProvidersResponse, CredentialFieldResponse
 from app.services.accounts.access import own_personal_account_condition
@@ -74,10 +74,30 @@ def provider_label(provider_id: str, stored_name: str | None = None) -> str:
     return stored_name or provider_id
 
 
-def provider_site_label(provider_id: str) -> str:
-    """Return the name of the site where the user manages a provider's bank logins, or its stored id once it is no longer installed"""
+async def read_provider_labels(db: AsyncSession, provider_ids: Iterable[str]) -> dict[str, str]:
+    """Return the name each provider is shown by, as provider_label gives it, by provider id
+
+    A record or link kept after its own connection was disconnected still finds the name through
+    any connection the user has on that provider, the newest winning. Only a provider no longer
+    installed is looked up, so a read through installed providers sends no query
+    """
+    ids = set(provider_ids)
+    gone = {provider_id for provider_id in ids if adapter_for(provider_id) is None}
+    stored: dict[str, str] = {}
+    if gone:
+        rows = await db.execute(
+            select(BankConnection.provider, BankConnection.provider_name)
+            .where(BankConnection.provider.in_(gone))
+            .order_by(BankConnection.created_at)
+        )
+        stored = dict(rows.tuples().all())
+    return {provider_id: provider_label(provider_id, stored.get(provider_id)) for provider_id in ids}
+
+
+def provider_site_label(provider_id: str) -> str | None:
+    """Return the name of the site where the user manages a provider's bank logins, or None once it is no longer installed"""
     adapter = adapter_for(provider_id)
-    return adapter.provider_site if adapter is not None else provider_id
+    return adapter.provider_site if adapter is not None else None
 
 
 def enabled_adapters() -> dict[str, ProviderAdapter]:

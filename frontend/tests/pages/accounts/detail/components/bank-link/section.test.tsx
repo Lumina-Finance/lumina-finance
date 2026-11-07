@@ -34,6 +34,7 @@ import { AuthContext, type AuthContextValue } from '@/contexts/AuthContext'
 import { ToastContext, type ToastValue } from '@/contexts/ToastContext'
 import { BankLinkSection } from '@/pages/accounts/detail/components/bank-link/Section'
 import { describeSyncNow, SYNC_PAUSED_REASON } from '@/pages/accounts/detail/components/bank-link/syncNow'
+import { PROVIDER_UNAVAILABLE_DETAIL } from '@/utils/bankSync'
 import {
   createAccount,
   createConnection,
@@ -96,7 +97,7 @@ const read = {
 
 // The notices name what each state stops or waits on
 const RECONNECT_NOTICE =
-  'SimpleFIN Bridge rejected the connection this account uses. Automatic sync is stopped for every account on it until you reconnect it in Settings with a new setup token.'
+  'SimpleFIN Bridge rejected the connection this account uses. Automatic sync is stopped for every account on it until you reconnect it in Settings.'
 const CHOOSE_NOTICE =
   "SimpleFIN now lists Everyday Chequing differently, so Lumina Finance can't tell whether it's the same account. Choose its bank account again to resume syncing."
 const SIGN_IN_NOTICE = 'Sign in to your bank again in SimpleFIN Bridge.'
@@ -411,6 +412,16 @@ describe('BankLinkSection', () => {
     if (action) expect(getButton(markup, action)).toContain('data-bank-link-action="true"')
   })
 
+  it('says a provider removed from the server stops the link, in place of the notice its state would show', () => {
+    read.status = createStatus({
+      link: createLink({ provider_available: false, sync: createSync({ state: 'reconnect_needed' }) }),
+    })
+    const markup = renderSection()
+    expect(markup).toContain(escaped(PROVIDER_UNAVAILABLE_DETAIL))
+    expect(markup).toContain('Provider unavailable')
+    for (const notice of NOTICES) expect(markup).not.toContain(escaped(notice))
+  })
+
   it('shows the import while it waits on the request budget, as while it runs', () => {
     read.status = createStatus({
       link: createLink({
@@ -621,6 +632,14 @@ describe('describeSyncNow', () => {
     expect(describeSyncNow('success', link, createConnection(), createProviders())).toEqual({
       status: 'success',
       block: null,
+    })
+  })
+
+  it('holds Sync now back while the provider is gone from the server, saying why', () => {
+    const link = createLink({ provider_available: false })
+    expect(describeSyncNow('idle', link, createConnection(), createProviders())).toEqual({
+      status: 'idle',
+      block: PROVIDER_UNAVAILABLE_DETAIL,
     })
   })
 

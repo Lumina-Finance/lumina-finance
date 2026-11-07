@@ -30,7 +30,7 @@ from app.schemas.bank_review import (
 )
 from app.schemas.bank_sync import BankValues
 from app.services.accounts.access import check_own_personal_accounts, own_personal_account_condition
-from app.services.bank_sync.availability import provider_label
+from app.services.bank_sync.availability import read_provider_labels
 from app.services.bank_sync.review_pause import read_review_backlogs
 from app.services.bank_sync.review_state import AWAITING_REVIEW, IS_REVIEW_ITEM, approved_description, edited_fields
 
@@ -102,8 +102,9 @@ async def list_review_items(
     )
 
     page = rows[:limit]
+    names = await read_provider_labels(db, (record.provider for record, _, _ in page))
     return BankReviewPageResponse(
-        items=[build_review_item(record, ledger_date, ledger_amount) for record, ledger_date, ledger_amount in page],
+        items=[build_review_item(record, ledger_date, ledger_amount, names[record.provider]) for record, ledger_date, ledger_amount in page],
         counts=BankReviewCountsResponse(new=counts.get("new", 0), correction=counts.get("correction", 0), removal=counts.get("removal", 0)),
         next_cursor=_write_cursor(page[-1][0]) if len(rows) > limit else None,
     )
@@ -145,8 +146,10 @@ async def list_review_backlogs(
     ]
 
 
-def build_review_item(record: BankTransaction, ledger_date: date | None, ledger_amount: int | None) -> BankReviewItemResponse:
-    """Return a bank transaction as a review item, given its ledger row's date and amount when it has one"""
+def build_review_item(
+    record: BankTransaction, ledger_date: date | None, ledger_amount: int | None, provider_name: str
+) -> BankReviewItemResponse:
+    """Return a bank transaction as a review item, given its ledger row's date and amount when it has one and its provider's name"""
     bank = BankValues(
         date=record.observed_date,
         amount=record.observed_amount,
@@ -157,7 +160,7 @@ def build_review_item(record: BankTransaction, ledger_date: date | None, ledger_
         "id": record.id,
         "account_id": record.account_id,
         "provider": record.provider,
-        "provider_name": provider_label(record.provider),
+        "provider_name": provider_name,
         "received_at": record.received_at,
         "version": record.version,
         "bank": bank,

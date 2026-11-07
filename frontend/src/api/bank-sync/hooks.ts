@@ -20,7 +20,7 @@ import {
 import {
   addReviewItem,
   applyBulkApproval,
-  claimSetupToken,
+  claimCredential,
   createBankLink,
   deleteBankConnection,
   deleteBankLink,
@@ -334,29 +334,29 @@ export function useBulkApprovalPreview(accountIds: string[] | undefined, enabled
 }
 
 /**
- * Sends a setup token even while the browser reports being offline, so a request that cannot go
+ * Sends a credential even while the browser reports being offline, so a request that cannot go
  * fails at once with a message rather than waiting, with its Cancel held, for a connection
  *
  * A failed claim reads the connections again too, since the server carries on with one whose own
- * answer never reached the browser and may have saved its connection, and a token refused as used
- * may have been saved by an earlier try whose answer was lost
+ * answer never reached the browser and may have saved its connection, and a credential refused as
+ * used may have been saved by an earlier try whose answer was lost
  */
-export function claimSetupTokenMutationOptions(queryClient: QueryClient) {
+export function claimCredentialMutationOptions(queryClient: QueryClient) {
   return mutationOptions({
-    mutationFn: (payload: Parameters<typeof claimSetupToken>[0]) =>
-      runWithMinimumPendingTime(ACTION_LOADING_MIN_MS, () => claimSetupToken(payload)),
+    mutationFn: (payload: Parameters<typeof claimCredential>[0]) =>
+      runWithMinimumPendingTime(ACTION_LOADING_MIN_MS, () => claimCredential(payload)),
     networkMode: 'always',
     onSettled: () => invalidateBankSyncStatus(queryClient),
   })
 }
 
-export function useClaimSetupToken() {
+export function useClaimCredential() {
   const queryClient = useQueryClient()
-  return useMutation(claimSetupTokenMutationOptions(queryClient))
+  return useMutation(claimCredentialMutationOptions(queryClient))
 }
 
 /**
- * Sends a new setup token the way a claim does, failing at once while offline
+ * Sends a new credential the way a claim does, failing at once while offline
  *
  * A failed reconnect reads the connection again too, since the server may have reconnected it
  * though its answer never reached the browser. Only a success waits for those reads, so its toast

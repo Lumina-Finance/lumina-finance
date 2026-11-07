@@ -8,7 +8,7 @@ import { InfoCallout } from '@/components/InfoCallout'
 import LoadingRegion from '@/components/loading/Region'
 import { useAuth } from '@/hooks/useAuth'
 import { useMoneyFormatters } from '@/hooks/useMoneyFormatters'
-import { connectionName, countNoun, providerSite } from '@/utils/bankSync'
+import { connectionName, countNoun, providerSiteName } from '@/utils/bankSync'
 import { DATE_FORMATS, formatDate } from '@/utils/date'
 
 const LOADING_OVERLAY_CLASS = 'absolute inset-0 z-10 flex items-center justify-center bg-[var(--app-bg)]'
@@ -114,7 +114,7 @@ export function BankAccountStep({
         >
           {discovered.discovery_pending
             ? 'Listing the bank accounts…'
-            : `${providerSite(connection)} returned no bank accounts for this connection.`}
+            : `${providerSiteName(connection)} returned no bank accounts for this connection.`}
         </p>
       ) : (
         <LoadingRegion
@@ -164,7 +164,7 @@ export function BankAccountStep({
         </LoadingRegion>
       )}
       <p className="text-xs" style={{ color: 'var(--app-text-muted)' }}>
-        Missing a bank account? Add it in {providerSite(connection)}, or add another connection in{' '}
+        Missing a bank account? Add it in {providerSiteName(connection)}, or add another connection in{' '}
         <button
           type="button"
           className="font-medium underline underline-offset-2"

@@ -29,11 +29,11 @@ from sqlalchemy import delete, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.account import Account
-from app.models.bank_connection import BankAccountLink
+from app.models.bank_connection import BankAccountLink, BankConnection
 from app.models.bank_transaction import BankTransaction
 from app.models.transaction import Transaction
 from app.models.user import User
-from app.services.bank_sync.availability import LIVE_LINK, provider_label
+from app.services.bank_sync.availability import LIVE_LINK, provider_label, read_provider_labels
 from app.utils.dates import format_day, resolve_timezone
 
 
@@ -48,10 +48,10 @@ class LedgerEdit(NamedTuple):
 
 
 class _LiveLink(NamedTuple):
-    """A linked account's name, the provider it follows and the day its bank import starts"""
+    """A linked account's name, the name of the provider it follows and the day its bank import starts"""
 
     account_name: str
-    provider: str
+    provider_name: str
     import_start: date
 
 
@@ -124,10 +124,9 @@ async def refuse_edits_a_bank_supplies(db: AsyncSession, user: User, edits: Sequ
         if edit.transaction_id in bank_imported:
             source_link = links.get(edit.account_id)
             if moved and source_link is not None:
-                provider_name = provider_label(source_link.provider)
                 raise HTTPException(
                     status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
-                    detail=f"Transactions from {provider_name} can't move out of {source_link.account_name} while it's linked",
+                    detail=f"Transactions from {source_link.provider_name} can't move out of {source_link.account_name} while it's linked",
                 )
             if not moved:
                 continue
@@ -192,10 +191,11 @@ async def refuse_deleting_bank_imports(db: AsyncSession, transactions: Sequence[
     if not providers:
         return
     links = await _read_live_links(db, {txn.account_id for txn in transactions if txn.id in providers})
+    names = await read_provider_labels(db, providers.values())
     for txn in transactions:
         link = links.get(txn.account_id)
         if txn.id in providers and link is not None:
-            provider_name = provider_label(providers[txn.id])
+            provider_name = names[providers[txn.id]]
             detail = (
                 f"Transactions from {provider_name} can't be deleted from {link.account_name} while it's linked"
                 if in_bulk
@@ -218,11 +218,17 @@ async def refuse_archiving_a_linked_account(db: AsyncSession, account: Account) 
         HTTPException 422: The account is linked, saying to which provider
     """
     await db.execute(select(Account.id).where(Account.id == account.id).with_for_update(key_share=True))
-    provider = await db.scalar(select(BankAccountLink.provider).where(BankAccountLink.account_id == account.id, LIVE_LINK))
-    if provider is not None:
+    linked = (
+        await db.execute(
+            select(BankAccountLink.provider, BankConnection.provider_name)
+            .join(BankConnection, BankConnection.id == BankAccountLink.connection_id)
+            .where(BankAccountLink.account_id == account.id, LIVE_LINK)
+        )
+    ).first()
+    if linked is not None:
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
-            detail=f"This account can't be archived while it's linked to {provider_label(provider)}. Unlink it first",
+            detail=f"This account can't be archived while it's linked to {provider_label(*linked)}. Unlink it first",
         )
 
 
@@ -235,12 +241,17 @@ async def _read_live_links(db: AsyncSession, account_ids: Iterable[uuid.UUID]) -
     """
     ids = sorted(set(account_ids))
     await db.execute(select(Account.id).where(Account.id.in_(ids)).order_by(Account.id).with_for_update(read=True))
+    # A live link always has its connection, which stored the provider's name
     rows = await db.execute(
-        select(BankAccountLink.account_id, Account.name, BankAccountLink.provider, BankAccountLink.import_start)
+        select(BankAccountLink.account_id, Account.name, BankAccountLink.provider, BankConnection.provider_name, BankAccountLink.import_start)
         .join(Account, Account.id == BankAccountLink.account_id)
+        .join(BankConnection, BankConnection.id == BankAccountLink.connection_id)
         .where(BankAccountLink.account_id.in_(ids), LIVE_LINK)
     )
-    return {account_id: _LiveLink(name, provider, import_start) for account_id, name, provider, import_start in rows}
+    return {
+        account_id: _LiveLink(name, provider_label(provider, stored_name), import_start)
+        for account_id, name, provider, stored_name, import_start in rows
+    }
 
 
 def _today(user: User) -> date:
@@ -258,5 +269,5 @@ def _refuse_supplied_days(link: _LiveLink, dates: Iterable[date], *, today: date
         transactions = f"the transactions in {link.account_name}" if name_account else "this account's transactions"
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
-            detail=f"{provider_label(link.provider)} supplies {transactions} from {format_day(link.import_start)} to today",
+            detail=f"{link.provider_name} supplies {transactions} from {format_day(link.import_start)} to today",
         )

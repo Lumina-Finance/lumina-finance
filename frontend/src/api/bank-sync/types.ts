@@ -1,6 +1,7 @@
 import type { TransferCounterpartyScope } from '@/api/transactions/types'
 
-export type BankProviderId = 'simplefin'
+/** A provider's id, the name of its folder on the server. A connection keeps it after its provider is removed */
+export type BankProviderId = string
 
 /**
  * Where a provider is connected: once in settings when one credential reaches every bank account the
@@ -9,14 +10,38 @@ export type BankProviderId = 'simplefin'
 export type BankProviderConnectsFrom = 'settings' | 'account'
 
 /**
+ * One field of a provider's connect form, whose value is a secret the server never shows back
+ */
+export type CredentialField = {
+  /** The name its value is sent under, in the claim's credentials */
+  key: string
+
+  /** What the provider calls it, such as "Setup token" */
+  label: string
+  placeholder: string
+
+  /** The most characters the server accepts for it */
+  max_length: number
+}
+
+/**
  * A provider adapter the deployment has enabled
  */
 export type BankProvider = {
   id: BankProviderId
   name: string
 
+  /** The site where the user manages the provider's bank logins and creates its credential */
+  site: string
+
   /** One sentence on what connecting it reaches, shown where the user chooses a provider */
   description: string
+
+  /** The fields the user fills in to connect, in order, at least one. The connect form draws whatever is listed */
+  credential_fields: CredentialField[]
+
+  /** The steps for getting what the fields take, each one sentence */
+  connect_steps: string[]
   connects_from: BankProviderConnectsFrom
 
   /**
@@ -30,7 +55,7 @@ export type BankProvider = {
   /** How many calendar months back an import may start, set per deployment */
   history_limit_months: number
 
-  /** False when the provider cannot say how much history it holds, which SimpleFIN cannot */
+  /** False when the provider cannot say how much history it holds */
   advertises_history: boolean
 
   /**
@@ -59,7 +84,8 @@ export type BankProvidersResponse = {
  * Rolling 24-hour request count for one provider connection
  */
 export type BankRequestBudget = {
-  limit: number
+  /** Null once the provider is no longer available on this server, when nothing is sent */
+  limit: number | null
   used: number
 
   /** ISO timestamp when the oldest counted request leaves the window, null while requests remain */
@@ -77,7 +103,13 @@ export type BankConnectionStatus = 'active' | 'credential_rejected'
 export type BankConnection = {
   id: string
   provider: BankProviderId
+
+  /** The provider's name, kept once it is removed, and the site where its bank logins are managed, null once it is removed */
   provider_name: string
+  provider_site: string | null
+
+  /** False once the provider is no longer available on this server, when the connection syncs nothing */
+  provider_available: boolean
 
   /** The user's own name for the connection, shown in place of the provider's name when set */
   nickname: string | null
@@ -109,7 +141,7 @@ export type ConnectionBankAccount = {
   name: string
   institution_name: string
 
-  /** ISO 4217 code, or the URL SimpleFIN uses for a custom currency */
+  /** ISO 4217 code, or the provider's own currency exactly as sent */
   currency: string
 
   /** True for a provider-specific currency, which no account can link to */
@@ -150,7 +182,7 @@ export type DiscoveredBankAccount = {
   name: string
   institution_name: string
 
-  /** ISO 4217 code, or the URL SimpleFIN uses for a custom currency */
+  /** ISO 4217 code, or the provider's own currency exactly as sent */
   currency: string
 
   /** Provider balance in minor units of the bank account's currency, null when it can't be stored exactly */
@@ -178,9 +210,11 @@ export type DiscoveredBankAccounts = {
   accounts: DiscoveredBankAccount[]
 }
 
-export type ClaimSetupTokenPayload = {
+export type ClaimCredentialPayload = {
   provider: BankProviderId
-  setup_token: string
+
+  /** What the user pasted in each of the provider's fields, by its key, which the provider exchanges for lasting access */
+  credentials: Record<string, string>
 
   /** Optional, and blank means none */
   nickname?: string | null
@@ -346,6 +380,12 @@ export type BankAccountLink = {
   connection_id: string
   provider: BankProviderId
   provider_name: string
+
+  /** Null once the provider is removed */
+  provider_site: string | null
+
+  /** False once the provider is no longer available on this server, when the link syncs nothing */
+  provider_available: boolean
   external_account_id: string
   external_account_name: string
   institution_name: string

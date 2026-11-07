@@ -86,7 +86,7 @@ export function describeConnectFirst(
   if (connections.some((connection) => connection.status === 'credential_rejected')) {
     return {
       message:
-        'Your bank connection needs a new setup token before it can link accounts. Reconnect it in Settings, then come back here.',
+        'Your bank connection needs reconnecting before it can link accounts. Reconnect it in Settings, then come back here.',
       canOpenSettings: true,
     }
   }

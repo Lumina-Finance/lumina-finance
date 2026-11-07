@@ -89,12 +89,12 @@ function describeLinkSync(link: BankLink, timeZone: string | undefined): BankSyn
     `Importing · ${progress.windows_done} of ${progress.windows_total}`
   const waiting = sync.waiting_new_count.toLocaleString()
 
+  // A provider removed from the server outranks every state, since nothing the user does here resumes it
+  if (!link.provider_available) return label('review', 'Provider unavailable', [synced, failure])
+
   switch (sync.state) {
     case 'reconnect_needed':
-      return label('stopped', 'Reconnect needed', [
-        `Reconnect ${link.provider_name} in Settings with a new setup token`,
-        failure,
-      ])
+      return label('stopped', 'Reconnect needed', [`Reconnect ${link.provider_name} in Settings`, failure])
     case 'bank_signin_needed':
       return label('stopped', 'Bank sign-in needed', ['The app checks daily', failure])
     case 'choose_account':

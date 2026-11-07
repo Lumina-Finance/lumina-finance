@@ -6,7 +6,13 @@
  * under Mismatch detected
  */
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import type { BankConnection, BankProvider, ConnectionBankAccount, ReconnectConnectionResult } from '@/api/bank-sync'
+import type {
+  BankConnection,
+  BankProvider,
+  ConnectionBankAccount,
+  CredentialField,
+  ReconnectConnectionResult,
+} from '@/api/bank-sync'
 import {
   countLinkedBankAccounts,
   describeConnected,
@@ -15,7 +21,7 @@ import {
   describeMismatch,
   describeReconnected,
   describeRequestBudget,
-  describeSetupTokenLength,
+  describeCredentialLength,
   describeSignInDetail,
   groupInstitutions,
   isClaimSettled,
@@ -42,6 +48,8 @@ function connection(overrides: Partial<BankConnection> = {}): BankConnection {
     id: 'connection-1',
     provider: 'simplefin',
     provider_name: 'SimpleFIN',
+    provider_site: 'SimpleFIN Bridge',
+    provider_available: true,
     nickname: null,
     server_label: 'bridge.simplefin.org',
     created_at: '2026-10-01T15:00:00Z',
@@ -54,11 +62,21 @@ function connection(overrides: Partial<BankConnection> = {}): BankConnection {
   }
 }
 
+const SETUP_TOKEN: CredentialField = {
+  key: 'setup_token',
+  label: 'Setup token',
+  placeholder: 'Paste the token',
+  max_length: 2048,
+}
+
 function provider(overrides: Partial<BankProvider> = {}): BankProvider {
   return {
     id: 'simplefin',
     name: 'SimpleFIN',
+    site: 'SimpleFIN Bridge',
     description: 'Every bank you add in SimpleFIN Bridge',
+    credential_fields: [SETUP_TOKEN],
+    connect_steps: [],
     connects_from: 'settings',
     offered: true,
     history_limit_months: 12,
@@ -366,11 +384,37 @@ describe('bank connection institution search and mismatches', () => {
   })
 })
 
-describe('describeSetupTokenLength', () => {
-  it('refuses a pasted setup token over 2048 characters with a sentence and keeps one at the limit', () => {
-    expect(describeSetupTokenLength('a'.repeat(2048))).toBeNull()
-    expect(describeSetupTokenLength('a'.repeat(2049))).toBe(
-      'That setup token is too long. Copy only the token from SimpleFIN Bridge and try again',
+describe('describeCredentialLength', () => {
+  it("refuses a pasted value over its field's limit in the field's own words and keeps one at the limit", () => {
+    expect(describeCredentialLength(SETUP_TOKEN, 'SimpleFIN Bridge', 'a'.repeat(2048))).toBeNull()
+    expect(describeCredentialLength(SETUP_TOKEN, 'SimpleFIN Bridge', 'a'.repeat(2049))).toBe(
+      'That setup token is too long. Copy only the setup token from SimpleFIN Bridge and try again',
+    )
+  })
+
+  it('keeps a name in capitals as the provider wrote it', () => {
+    const field: CredentialField = { key: 'api_key', label: 'API key', placeholder: '', max_length: 4 }
+    expect(describeCredentialLength(field, 'Fake Bank Online', 'abcde')).toBe(
+      'That API key is too long. Copy only the API key from Fake Bank Online and try again',
+    )
+  })
+})
+
+describe('a connection whose provider was removed from the server', () => {
+  const gone = connection({
+    provider_available: false,
+    status: 'credential_rejected',
+    accounts: HARBOUR,
+    request_budget: { limit: null, used: 0, available_again_at: null, held_by_provider: false },
+  })
+
+  it('reads Provider unavailable ahead of any other state', () => {
+    expect(describeConnectionStatus(gone)).toEqual({ tone: 'review', label: 'Provider unavailable' })
+  })
+
+  it('says no requests go out rather than counting a cap', () => {
+    expect(describeRequestBudget(gone)).toBe(
+      'Lumina Finance sends this connection no requests while its provider is unavailable.',
     )
   })
 })

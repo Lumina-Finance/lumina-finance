@@ -209,6 +209,7 @@ export function BankConnectionsSection() {
         open={connectOpen}
         providers={offeredProviders}
         reconnecting={reconnecting}
+        reconnectingProvider={providers?.providers.find((provider) => provider.id === reconnecting?.provider)}
         connections={connections}
         level={reconnecting ? 'stacked' : 'page'}
         onClose={() => setConnectOpen(false)}

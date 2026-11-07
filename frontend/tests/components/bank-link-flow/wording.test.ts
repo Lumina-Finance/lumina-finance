@@ -27,8 +27,10 @@ const PREVIOUS_LINK = {
 const WAITING_LINK = {
   account_id: 'account-1',
   connection_id: 'connection-2',
-  provider: 'simplefin' as const,
+  provider: 'simplefin',
   provider_name: 'SimpleFIN',
+  provider_site: 'SimpleFIN Bridge',
+  provider_available: true,
   external_account_id: 'ACT-gone',
   external_account_name: 'Rewards Visa',
   institution_name: 'Harbour Bank',

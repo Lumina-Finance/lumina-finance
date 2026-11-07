@@ -199,6 +199,8 @@ export function buildLinkAnswer(accountId: string, status: Partial<BankLinkSyncS
     connection_id: 'connection',
     provider: 'simplefin',
     provider_name: 'SimpleFIN',
+    provider_site: 'SimpleFIN Bridge',
+    provider_available: true,
     external_account_id: 'bank-account',
     external_account_name: 'Chequing',
     institution_name: 'Example Bank',
@@ -577,7 +579,7 @@ export async function claimSetupToken(
 ): Promise<SeededConnection> {
   const response = await request.post(`${API_BASE_URL}/bank-sync/connections`, {
     headers: asUser(user),
-    data: { provider: 'simplefin', setup_token: setupToken, nickname },
+    data: { provider: 'simplefin', credentials: { setup_token: setupToken }, nickname },
   })
   if (response.status() !== 201) {
     throw new Error(`claiming a setup token answered ${response.status()}: ${await response.text()}`)

@@ -1,17 +1,24 @@
-import type { BankConnection, BankProvider, ConnectionBankAccount, ReconnectConnectionResult } from '@/api/bank-sync'
+import type {
+  BankConnection,
+  BankProvider,
+  ConnectionBankAccount,
+  CredentialField,
+  ReconnectConnectionResult,
+} from '@/api/bank-sync'
 import type { SyncStatusTone } from '@/components/display/SyncStatusDot'
-import { connectionName, countNoun, providerSite } from '@/utils/bankSync'
+import { connectionName, countNoun, credentialNoun, providerSiteName } from '@/utils/bankSync'
 import { formatRelativeFutureTime } from '@/utils/relativeTime'
 
-// A setup token is about 100 characters. The server refuses more than this
-export const SETUP_TOKEN_MAX_LENGTH = 2048
-
 /**
- * Says what is wrong with a pasted setup token before it is sent, or null when its length is fine
+ * Says what is wrong with a value pasted in one of the provider's fields before it is sent, or null
+ * when its length is fine, in the words the server would use. The field says how long it may be
+ *
+ * @param site - The provider's site, where the user copies the value from
  */
-export function describeSetupTokenLength(token: string): string | null {
-  return token.length > SETUP_TOKEN_MAX_LENGTH
-    ? 'That setup token is too long. Copy only the token from SimpleFIN Bridge and try again'
+export function describeCredentialLength(field: CredentialField, site: string, value: string): string | null {
+  const noun = credentialNoun(field.label)
+  return value.length > field.max_length
+    ? `That ${noun} is too long. Copy only the ${noun} from ${site} and try again`
     : null
 }
 
@@ -72,6 +79,8 @@ export function listSignInInstitutions(connection: BankConnection): string[] {
  * still works, and otherwise whether a bank login behind it needs signing in to again
  */
 export function describeConnectionStatus(connection: BankConnection): { tone: SyncStatusTone; label: string } {
+  // Nothing the user does here resumes it, but nothing is broken either, so it takes the watch colour
+  if (!connection.provider_available) return { tone: 'review', label: 'Provider unavailable' }
   if (connection.status === 'credential_rejected') return { tone: 'stopped', label: 'Reconnect needed' }
   if (listSignInInstitutions(connection).length > 0) return { tone: 'stopped', label: 'Bank sign-in needed' }
   return { tone: 'ok', label: 'OK' }
@@ -84,7 +93,7 @@ export function describeConnectionStatus(connection: BankConnection): { tone: Sy
 export function describeSignInDetail(connection: BankConnection): string | null {
   const institutions = listSignInInstitutions(connection)
   if (institutions.length === 0) return null
-  return `Sign in to ${joinNames(institutions)} again in ${providerSite(connection)}. The app checks daily.`
+  return `Sign in to ${joinNames(institutions)} again in ${providerSiteName(connection)}. The app checks daily.`
 }
 
 /**
@@ -134,7 +143,7 @@ export function describeConnected(connection: BankConnection): string {
 }
 
 /**
- * The confirmation once a rejected connection takes a new setup token: how many of its accounts resume
+ * The confirmation once a rejected connection takes a new credential: how many of its accounts resume
  * syncing and how many need their bank account chosen again, or that they wait on a listing still to run
  */
 export function describeReconnected(result: ReconnectConnectionResult): string {
@@ -184,6 +193,7 @@ export function describeInstitutionAllowance(
  */
 export function describeRequestBudget(connection: BankConnection): string {
   const { limit, used, available_again_at: availableAgainAt } = connection.request_budget
+  if (limit === null) return 'Lumina Finance sends this connection no requests while its provider is unavailable.'
   const cap = `Lumina Finance makes up to ${countNoun(limit, 'request')} a day for each connection. Automatic syncs and Sync now share them across every account linked through it.`
   if (used < limit || !availableAgainAt) return cap
   return `${cap} Automatic syncs wait until one frees up ${formatRelativeFutureTime(availableAgainAt)}.`

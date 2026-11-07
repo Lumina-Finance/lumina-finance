@@ -2,8 +2,8 @@ import { useEffect } from 'react'
 import { useAnimate, useReducedMotion } from 'motion/react'
 
 /**
- * The colour family of a bank sync state: the app is working on it, it is up to date, it is waiting on
- * the user's review, it is stopped until the user fixes it, or the account does not sync at all
+ * The colour family of a bank sync state: the app is working on it, it is up to date, it needs the
+ * user's attention without being broken, such as waiting on their review, it is stopped until the user fixes it, or the account does not sync at all
  */
 export type SyncStatusTone = 'working' | 'ok' | 'review' | 'stopped' | 'off'
 

@@ -15,7 +15,7 @@ import type {
   BulkApprovalPayload,
   BulkApprovalPreview,
   BulkApprovalResult,
-  ClaimSetupTokenPayload,
+  ClaimCredentialPayload,
   DiscoveredBankAccounts,
   EditableBankField,
   LinkBankAccountPayload,
@@ -29,7 +29,7 @@ import type { Transaction } from '@/api/transactions/types'
 import { buildQueryString } from '@/api/utils/queryString'
 
 // How long a claim or a reconnect may go unanswered. The server answers each only after two requests
-// to the provider, taking the setup token and then listing the bank accounts, and lets each take 5
+// to the provider, claiming the credential and then listing the bank accounts, and lets each take 5
 // seconds to resolve the provider's host, 5 to connect and 30 for each wait on the answer, about 80 in
 // all for answers that arrive in one piece. The rest covers a host whose first addresses can't be
 // reached, since each further one gets its own 5 to connect
@@ -73,20 +73,26 @@ export function fetchBankConnections(signal?: AbortSignal) {
 }
 
 /**
- * Claims a SimpleFIN setup token, storing the credential it yields as a new connection
+ * Claims the credential the user pasted, storing the access the provider exchanges it for as a new connection
  */
-export function claimSetupToken(payload: ClaimSetupTokenPayload) {
+export function claimCredential(payload: ClaimCredentialPayload) {
   return post<BankConnection>('/bank-sync/connections', payload, { timeoutMs: PROVIDER_REQUEST_TIMEOUT_MS })
 }
 
 /**
- * Replaces a rejected credential with the one a new setup token yields, keeping the connection and
+ * Replaces a rejected credential with the access a newly pasted one yields, keeping the connection and
  * the accounts linked through it
  */
-export function reconnectBankConnection({ connectionId, setupToken }: { connectionId: string; setupToken: string }) {
+export function reconnectBankConnection({
+  connectionId,
+  credentials,
+}: {
+  connectionId: string
+  credentials: Record<string, string>
+}) {
   return post<ReconnectConnectionResult>(
     `/bank-sync/connections/${connectionId}/reconnect`,
-    { setup_token: setupToken },
+    { credentials },
     { timeoutMs: PROVIDER_REQUEST_TIMEOUT_MS },
   )
 }

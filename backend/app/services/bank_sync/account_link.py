@@ -14,7 +14,7 @@ from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.account import Account
-from app.models.bank_connection import BankAccountLink, BankConnection
+from app.models.bank_connection import BankAccountLink
 from app.models.bank_transaction import BankTransaction
 from app.models.user import User
 from app.schemas.bank_sync import (
@@ -26,7 +26,7 @@ from app.schemas.bank_sync import (
     PreviousBankLinkResponse,
 )
 from app.services.accounts.access import get_own_personal_account, own_personal_account_condition
-from app.services.bank_sync.availability import LINK_NOT_OWN_DETAIL, LIVE_LINK, adapter_for, provider_label, provider_site_label
+from app.services.bank_sync.availability import LINK_NOT_OWN_DETAIL, LIVE_LINK, adapter_for, provider_site_label, read_provider_labels
 from app.services.bank_sync.balance_comparison import compare_bank_balance, describe_opening_adjustment
 from app.services.bank_sync.status import read_link_statuses
 from app.services.bank_sync.windows import LinkNeed, plan_window
@@ -78,7 +78,7 @@ async def read_account_bank_status(db: AsyncSession, user: User, account_id: uui
         previous_link=None
         if previous is None
         else PreviousBankLinkResponse(
-            provider_name=provider_label(previous.provider),
+            provider_name=(await read_provider_labels(db, [previous.provider]))[previous.provider],
             external_account_id=previous.external_account_id,
             external_account_name=previous.external_account_name,
             institution_name=previous.institution_name,
@@ -130,14 +130,7 @@ async def describe_links(
     importing = [link for link in links if statuses[link.id].import_state is not None]
     items_found = await _count_items_found(db, importing)
     timezone = resolve_timezone(user.tz) if importing else None
-
-    # Only a link whose provider is no longer installed needs the name its connection stored
-    gone = {link.connection_id for link in links if link.connection_id is not None and adapter_for(link.provider) is None}
-    stored_names = (
-        dict((await db.execute(select(BankConnection.id, BankConnection.provider_name).where(BankConnection.id.in_(gone)))).tuples().all())
-        if gone
-        else {}
-    )
+    names = await read_provider_labels(db, (link.provider for link in links))
 
     described = []
     for link in links:
@@ -155,7 +148,7 @@ async def describe_links(
                 account_id=link.account_id,
                 connection_id=link.connection_id,
                 provider=link.provider,
-                provider_name=provider_label(link.provider, stored_names.get(link.connection_id)),
+                provider_name=names[link.provider],
                 provider_site=provider_site_label(link.provider),
                 provider_available=adapter is not None,
                 external_account_id=link.external_account_id,

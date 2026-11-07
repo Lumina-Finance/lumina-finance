@@ -45,7 +45,7 @@ import { useAccountBankLink } from '@/pages/accounts/detail/components/bank-link
 import { useLingeringImport } from '@/pages/accounts/detail/components/bank-link/useLingeringImport'
 import { EditModalSection } from '@/pages/accounts/detail/components/edit-identity/layout/Section'
 import { IdentityFacts } from '@/pages/accounts/detail/components/identity/Facts'
-import { providerSite } from '@/utils/bankSync'
+import { PROVIDER_UNAVAILABLE_DETAIL, providerSiteName } from '@/utils/bankSync'
 import { DATE_FORMATS, formatDate, formatDateLabel } from '@/utils/date'
 
 const ARCHIVED_REASON = 'Archived accounts are read-only'
@@ -153,7 +153,14 @@ function LinkedView({
             <ImportProgress progress={shownImport} />
           </Unfold>
         )}
-        {state === 'reconnect_needed' && (
+        {!link.provider_available && (
+          <Unfold key="provider-unavailable">
+            <InfoCallout tone="review" icon={TriangleAlert}>
+              {PROVIDER_UNAVAILABLE_DETAIL}
+            </InfoCallout>
+          </Unfold>
+        )}
+        {link.provider_available && state === 'reconnect_needed' && (
           <Unfold key="reconnect">
             <InfoCallout
               tone="stopped"
@@ -170,8 +177,8 @@ function LinkedView({
                 </button>
               }
             >
-              {providerSite(link)} rejected the connection this account uses. Automatic sync is stopped for every
-              account on it until you reconnect it in Settings with a new setup token.
+              {providerSiteName(link)} rejected the connection this account uses. Automatic sync is stopped for every
+              account on it until you reconnect it in Settings.
             </InfoCallout>
           </Unfold>
         )}
@@ -200,7 +207,7 @@ function LinkedView({
         {state === 'bank_signin_needed' && (
           <Unfold key="bank-sign-in">
             <InfoCallout tone="stopped" icon={TriangleAlert}>
-              Sign in to your bank again in {providerSite(link)}.
+              Sign in to your bank again in {providerSiteName(link)}.
             </InfoCallout>
           </Unfold>
         )}

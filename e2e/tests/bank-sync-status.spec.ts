@@ -556,7 +556,7 @@ test('asks for the bank account again once SimpleFIN lists it differently, openi
   await changeBridgeBankAccountId(request, scenario.id, chequing.external_id, `${chequing.external_id}-relisted`)
   const reconnected = await request.post(`${API_BASE_URL}/bank-sync/connections/${connection.id}/reconnect`, {
     headers: asUser(user),
-    data: { setup_token: await createBridgeSetupToken(request, scenario.id) },
+    data: { credentials: { setup_token: await createBridgeSetupToken(request, scenario.id) } },
   })
   expect(reconnected.ok()).toBe(true)
 

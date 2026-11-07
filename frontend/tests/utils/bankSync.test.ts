@@ -5,13 +5,15 @@
  */
 import { describe, expect, it } from 'vitest'
 import type { BankConnection } from '@/api/bank-sync'
-import { describeDisconnected, isOwnPersonalAccount } from '@/utils/bankSync'
+import { credentialNoun, describeDisconnected, isOwnPersonalAccount } from '@/utils/bankSync'
 
 function connection(overrides: Partial<BankConnection> = {}): BankConnection {
   return {
     id: 'connection-1',
     provider: 'simplefin',
     provider_name: 'SimpleFIN',
+    provider_site: 'SimpleFIN Bridge',
+    provider_available: true,
     nickname: null,
     server_label: 'bridge.simplefin.org',
     created_at: '2026-10-01T15:00:00Z',
@@ -32,6 +34,13 @@ describe('isOwnPersonalAccount', () => {
   })
 })
 
+describe('credentialNoun', () => {
+  it('lowers a label written as a heading for use mid-sentence, and keeps one in capitals', () => {
+    expect(credentialNoun('Setup token')).toBe('setup token')
+    expect(credentialNoun('API key')).toBe('API key')
+  })
+})
+
 describe('describeDisconnected', () => {
   it('counts the accounts a disconnect unlinked, and leaves the count out when there were none', () => {
     const joint = connection({ nickname: 'Joint banks' })
@@ -39,5 +48,13 @@ describe('describeDisconnected', () => {
     expect(describeDisconnected(joint, 2)).toContain('Joint banks disconnected. 2 accounts unlinked.')
     expect(describeDisconnected(joint, 1)).toContain(' 1 account unlinked.')
     expect(describeDisconnected(joint, 0)).not.toContain('unlinked')
+  })
+
+  it('names the site to revoke access at, or the provider once it is removed and its site unknown', () => {
+    expect(describeDisconnected(connection(), 0)).toContain('To stop SimpleFIN Bridge sharing data at all')
+    const gone = connection({ provider_site: null, provider_available: false })
+
+    expect(describeDisconnected(gone, 0)).toContain('To stop SimpleFIN sharing data at all')
+    expect(describeDisconnected(gone, 0)).not.toContain('null')
   })
 })

@@ -35,7 +35,8 @@ import {
   describeSignInDetail,
   type AccountNameLookup,
 } from '@/pages/settings/components/bank-connections-section/utils'
-import { countNoun, describeDisconnected } from '@/utils/bankSync'
+import { DisabledReasonButton } from '@/components/tooltips/DisabledReasonButton'
+import { countNoun, describeDisconnected, PROVIDER_UNAVAILABLE_DETAIL } from '@/utils/bankSync'
 import { DATE_FORMATS, formatDate } from '@/utils/date'
 
 /**
@@ -74,13 +75,14 @@ function ConnectionFact({
  * it is spent
  */
 function RequestBudgetMeter({
-  connection,
+  used,
+  limit,
   prefersReducedMotion,
 }: {
-  connection: BankConnection
+  used: number
+  limit: number
   prefersReducedMotion: boolean | null
 }) {
-  const { used, limit } = connection.request_budget
   const exhausted = used >= limit
   return (
     <span
@@ -181,7 +183,11 @@ export function ConnectionModal({
 
   const isRejected = connection.status === 'credential_rejected'
 
-  // The pane that fills the modal fades into the other when the connection is rejected or comes back
+  // A provider removed from the server outranks a rejection, since reconnecting can't fix it
+  const isUnavailable = !connection.provider_available
+  const isStopped = isRejected || isUnavailable
+
+  // The pane that fills the modal fades into the other when the connection stops or comes back
   const paneFade = {
     initial: { opacity: 0 },
     animate: { opacity: 1 },
@@ -253,12 +259,22 @@ export function ConnectionModal({
         {allowance.value}
       </ConnectionFact>
       <ConnectionFact label="Requests, 24 hours" wide hint={describeRequestBudget(connection)}>
-        <span className="block tabular-nums">
-          {requestsUsed} of {requestLimit}
-        </span>
-        <span className="mt-1.5 block">
-          <RequestBudgetMeter connection={connection} prefersReducedMotion={prefersReducedMotion} />
-        </span>
+        {requestLimit === null ? (
+          <span className="block">None sent</span>
+        ) : (
+          <>
+            <span className="block tabular-nums">
+              {requestsUsed} of {requestLimit}
+            </span>
+            <span className="mt-1.5 block">
+              <RequestBudgetMeter
+                used={requestsUsed}
+                limit={requestLimit}
+                prefersReducedMotion={prefersReducedMotion}
+              />
+            </span>
+          </>
+        )}
       </ConnectionFact>
     </dl>
   )
@@ -271,7 +287,7 @@ export function ConnectionModal({
         ref={renameButtonRef}
         type="button"
         aria-label="Rename"
-        className={`app-secondary-button h-9 justify-center overflow-hidden whitespace-nowrap text-sm ${confirmingDisconnect ? 'flex-[0_0_2.25rem] px-0' : 'flex-[1_1_0%] px-3'}`}
+        className={`app-secondary-button h-9 justify-center overflow-hidden whitespace-nowrap text-sm ${confirmingDisconnect ? 'flex-[0_0_2.25rem] px-0' : 'flex-[1_0_auto] px-3'}`}
         disabled={renaming || disconnect.isPending}
         onClick={() => setRenaming(true)}
       >
@@ -288,7 +304,7 @@ export function ConnectionModal({
         type="button"
         aria-label={confirmingDisconnect ? 'Yes, disconnect' : 'Disconnect'}
         aria-busy={disconnect.isPending}
-        className={`${confirmingDisconnect || disconnect.isPending ? 'app-danger-button' : 'app-secondary-button hover:bg-[var(--app-negative-soft)]'} relative h-9 flex-1 justify-center overflow-hidden whitespace-nowrap px-3 text-sm ${disconnect.isPending ? 'app-primary-button-loading' : ''}`}
+        className={`${confirmingDisconnect || disconnect.isPending ? 'app-danger-button' : 'app-secondary-button hover:bg-[var(--app-negative-soft)]'} relative h-9 flex-[1_0_auto] justify-center overflow-hidden whitespace-nowrap px-3 text-sm ${disconnect.isPending ? 'app-primary-button-loading' : ''}`}
         style={
           confirmingDisconnect || disconnect.isPending
             ? undefined
@@ -322,7 +338,7 @@ export function ConnectionModal({
       connection={connection}
       institutionLimit={institutionLimit}
       institutionsInUse={institutionsInUse}
-      query={isRejected ? '' : query}
+      query={isStopped ? '' : query}
       accountNameFor={accountNameFor}
       linkingPaused={linkingPaused}
       linkingExternalId={linkingExternalId}
@@ -331,8 +347,8 @@ export function ConnectionModal({
     />
   )
 
-  // A rejected connection folds its institutions away, so there is nothing to search
-  const search = !isRejected && institutionCount > INSTITUTION_SEARCH_AFTER && (
+  // A stopped connection folds its institutions away, so there is nothing to search
+  const search = !isStopped && institutionCount > INSTITUTION_SEARCH_AFTER && (
     <GlassSearchField
       value={query}
       onValueChange={setQuery}
@@ -371,40 +387,53 @@ export function ConnectionModal({
       partsTools={search || undefined}
     >
       <AnimatePresence initial={false} mode="wait">
-        {isRejected ? (
+        {isStopped ? (
           // Nothing in the institutions can be acted on until the connection is back, so the pane gives way
           // to what to do about it, and the institutions fold into one row that still opens to show the links
-          <motion.div key="rejected" className="flex flex-1 flex-col gap-4" {...paneFade}>
+          <motion.div
+            key={isUnavailable ? 'unavailable' : 'rejected'}
+            className="flex flex-1 flex-col gap-4"
+            {...paneFade}
+          >
             <div className="flex flex-1 flex-col items-center justify-center px-2 py-3 text-center sm:px-8 sm:py-6">
               <span
+                data-testid="connection-state-tile"
                 className="flex h-11 w-11 items-center justify-center rounded-xl"
-                style={{ background: 'var(--app-negative-soft)', color: 'var(--app-negative)' }}
+                style={
+                  isUnavailable
+                    ? { background: 'var(--app-warning-soft)', color: 'var(--app-warning-text)' }
+                    : { background: 'var(--app-negative-soft)', color: 'var(--app-negative)' }
+                }
               >
                 <AlertTriangle size={20} aria-hidden />
               </span>
               <p className="mt-3.5 font-serif text-2xl leading-8">
-                {connection.provider_name} rejected this connection
+                {isUnavailable
+                  ? `${connection.provider_name} is no longer available`
+                  : `${connection.provider_name} rejected this connection`}
               </p>
               <p className="mt-1.5 max-w-sm text-sm" style={{ color: 'var(--app-text-muted)' }}>
-                Every account on it has stopped syncing. Reconnect it with a new setup token to pick up where it left
-                off.
+                {isUnavailable
+                  ? PROVIDER_UNAVAILABLE_DETAIL
+                  : 'Every account on it has stopped syncing. Reconnect it to pick up where it left off.'}
               </p>
-              <button
+              <DisabledReasonButton
                 type="button"
                 className="app-primary-button mt-4 h-9 justify-center px-4 text-sm"
-                disabled={disconnect.isPending}
+                disabled={isUnavailable || disconnect.isPending}
+                disabledReason={isUnavailable ? PROVIDER_UNAVAILABLE_DETAIL : null}
                 onClick={onReconnect}
               >
                 <RefreshCw size={14} aria-hidden />
                 Reconnect
-              </button>
+              </DisabledReasonButton>
             </div>
             <div className="border-y border-[var(--app-border)]">
               <InstitutionRow
                 entry={{
                   key: 'folded',
                   name: countNoun(institutionCount, 'institution'),
-                  countNote: 'Linking resumes after you reconnect',
+                  countNote: isUnavailable ? 'Nothing links or syncs here now' : 'Linking resumes after you reconnect',
                   linked: linkedCount,
                   total: bankAccountCount,
                   body: institutionList,
