@@ -43,6 +43,9 @@ type Accounts = { user: TestUser; everyday: SeededAccount; savings: SeededAccoun
 
 const DIALOG_NAME = 'Review bank item'
 
+// What a refused dismissal says, which the dialogue shows as the server gave it
+const DISMISS_REFUSED = 'This item has already been decided'
+
 // Each a day apart from the others, so the review list, newest first, holds them in this order
 const COUNTDOWN = { posted: daysFromTodayInTestTimezone(-2), amount: '-42.10', description: 'COUNTDOWN 123 AUCKLAND' } as const
 const HARBOUR = { posted: daysFromTodayInTestTimezone(-4), amount: '-12.50', description: 'HARBOUR COFFEE' } as const
@@ -393,7 +396,7 @@ test('keeps the item open and says what went wrong when a decision fails', async
   // lets them through
   let failure: 'error' | 'no answer' | null = 'error'
   await page.route((url) => url.href.startsWith(`${API_BASE_URL}/bank-review/items/`), (route) => {
-    if (failure === 'error') return route.fulfill({ status: 500, json: { detail: 'Something went wrong' } })
+    if (failure === 'error') return route.fulfill({ status: 409, json: { detail: DISMISS_REFUSED } })
     if (failure === 'no answer') return route.abort()
     return route.fallback()
   })
@@ -401,7 +404,7 @@ test('keeps the item open and says what went wrong when a decision fails', async
 
   const dialog = await openReview(page, COUNTDOWN.description)
   const form = formOf(dialog)
-  const dismissFailed = dialog.getByText('Could not dismiss this item. Please try again.', { exact: true })
+  const dismissFailed = dialog.getByText(DISMISS_REFUSED, { exact: true })
   await dismissItem(dialog)
   await expect(dismissFailed).toBeVisible()
 
@@ -602,13 +605,13 @@ test.describe('on a short phone screen', AT_EVERY_SIZE, () => {
 
     // The dismissal fails as the server never would
     await page.route((url) => url.href.startsWith(`${API_BASE_URL}/bank-review/items/`), (route) =>
-      route.fulfill({ status: 500, json: { detail: 'Something went wrong' } }))
+      route.fulfill({ status: 409, json: { detail: DISMISS_REFUSED } }))
     await openPage(page, '/transactions')
 
     const dialog = await openReview(page, COUNTDOWN.description)
     await dismissItem(dialog)
 
-    await expect(dialog.getByText('Could not dismiss this item. Please try again.', { exact: true })).toBeInViewport({ ratio: 1 })
+    await expect(dialog.getByText(DISMISS_REFUSED, { exact: true })).toBeInViewport({ ratio: 1 })
   })
 })
 

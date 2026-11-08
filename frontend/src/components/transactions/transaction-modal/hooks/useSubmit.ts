@@ -3,7 +3,7 @@ import type { AccountsOverview } from '@/api/accounts'
 import { ApiError } from '@/api/auth'
 import { useAddReviewItem, useResolveReviewItem, type BankReviewItem } from '@/api/bank-sync'
 import { useCreateTransaction, useUpdateTransaction, type Transaction } from '@/api/transactions'
-import { getCreateFailureMessage, getTransferFailureNotice } from '@/utils/createFailure'
+import { getCreateFailureMessage, getSaveFailureMessage, getTransferFailureNotice } from '@/utils/createFailure'
 import { createRandomId } from '@/utils/randomId'
 import { LOADING_ANIMATION_MIN_MS, waitForMilliseconds } from '@/utils/timing'
 import {
@@ -21,8 +21,6 @@ import {
 import { isSymmetricTransferForm } from '@/components/transactions/transaction-modal/utils/validation'
 import type { TransactionFormValues } from '@/components/transactions/transaction-modal/types'
 import type { PendingLinks, PendingRefund } from '@/components/transactions/transaction-modal/hooks/usePendingLinks'
-
-const DISMISS_FAILED_MESSAGE = 'Could not dismiss this item. Please try again.'
 
 interface UseTransactionSubmitOptions {
   editing: boolean
@@ -174,9 +172,7 @@ export function useTransactionSubmit({
           onSuccess: () => {
             if (openRef.current) onReviewDecided?.(keepOpenAfterCreate)
           },
-          onError: (err) => {
-            setSubmitError(err instanceof ApiError ? err.message : 'Something went wrong. Please try again.')
-          },
+          onError: (err) => setSubmitError(getSaveFailureMessage(err)),
         },
       )
       return
@@ -351,7 +347,7 @@ export function useTransactionSubmit({
         onSuccess: () => {
           if (openRef.current) onReviewDecided?.(keepOpenAfterCreate)
         },
-        onError: () => setSubmitError(DISMISS_FAILED_MESSAGE),
+        onError: (err) => setSubmitError(getSaveFailureMessage(err)),
       },
     )
   }
