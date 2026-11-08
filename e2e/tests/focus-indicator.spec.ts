@@ -471,8 +471,7 @@ test('opens an info tooltip on keyboard focus without a ring', async ({ page, re
   await page.emulateMedia({ reducedMotion: 'reduce' })
   await seedOneTransaction(page, request)
   const info = page.getByRole('button', { name: 'How net flow is calculated', exact: true })
-  // Found while closed too, when it is hidden from assistive technology
-  const tooltip = page.getByRole('tooltip', { includeHidden: true }).filter({ hasText: /^Money in minus money out for this period/ })
+  const tooltip = page.getByRole('tooltip').filter({ hasText: /^Money in minus money out for this period/ })
   const opacity = () => tooltip.evaluate((node) => getComputedStyle(node).opacity)
   await expect.poll(opacity).toBe('0')
 
@@ -490,7 +489,7 @@ test('toggles an info tooltip with the mouse', async ({ page, request }) => {
   await page.emulateMedia({ reducedMotion: 'reduce' })
   await seedOneTransaction(page, request)
   const info = page.getByRole('button', { name: 'How net flow is calculated', exact: true })
-  const tooltip = page.getByRole('tooltip', { includeHidden: true }).filter({ hasText: /^Money in minus money out for this period/ })
+  const tooltip = page.getByRole('tooltip').filter({ hasText: /^Money in minus money out for this period/ })
   const opacity = () => tooltip.evaluate((node) => getComputedStyle(node).opacity)
 
   await info.click()

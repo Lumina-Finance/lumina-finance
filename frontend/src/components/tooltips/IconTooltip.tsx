@@ -47,6 +47,10 @@ interface IconTooltipProps {
   // Rings the trigger under keyboard focus in the app's focus ring, as the controls beside it are, for
   // an icon that isn't an info or FX icon and so has no hover look to show in its place
   focusRing?: boolean
+
+  // Keeps a screen reader from reading the panel until it shows, for a trigger whose label already says
+  // what the panel says, such as a row's bank icon. Every other panel is read where it sits, closed or not
+  hidesClosedPanel?: boolean
 }
 
 type IconTooltipSideBoundary = 'bounds' | 'viewport'
@@ -162,17 +166,15 @@ function getTooltipPosition(trigger: HTMLElement, tooltip: HTMLElement, side: To
  * below that whole element, so the panel never covers what it explains, and picks its side again as
  * anything around it scrolls while it shows
  *
- * The panel is as wide as its content up to 13rem, so a short note sits in a small panel rather than
- * one with a ragged gap beside it. A caller passing its own width takes that width instead. A note
- * that wraps avoids leaving one word alone on its last line, where the browser supports it, rather
- * than balancing its lines. Balancing would leave the panel wider than the text it fits
+ * The panel is 13rem wide unless the caller passes its own width. A note that wraps avoids leaving one
+ * word alone on its last line, where the browser supports it
  */
 export default function IconTooltip({
   label,
   children,
   level = 'info',
   placement = 'top',
-  widthClassName = 'w-max max-w-52',
+  widthClassName = 'w-52',
   icon: IconOverride,
   iconColor,
   fxTone = 'blue',
@@ -184,7 +186,8 @@ export default function IconTooltip({
   hoverFill = true,
   widensHitArea = false,
   focusRing = false,
-}: IconTooltipProps) {
+  hidesClosedPanel = false,
+}:IconTooltipProps) {
   const { Icon: DefaultIcon, color } = levelConfig[level]
   const isFxIcon = IconOverride === 'fx'
   const Icon = isFxIcon ? DefaultIcon : (IconOverride ?? DefaultIcon)
@@ -329,13 +332,14 @@ export default function IconTooltip({
       >
         {isFxIcon ? 'FX' : <Icon size={size} strokeWidth={strokeWidth} aria-hidden className={iconClassName} />}
       </button>
-      {/* Hidden from assistive technology until it shows, opened or reached from the keyboard, so a
-          screen reader does not read a panel nobody can see after the trigger has already named it */}
+      {/* A trigger that asks for it keeps the panel from assistive technology until it shows, opened or
+          reached from the keyboard, so a screen reader does not read a panel nobody can see after the
+          trigger has already named it */}
       <span
         ref={tooltipRef}
         role={interactive ? undefined : 'tooltip'}
         className={tooltipWrapperClassName}
-        aria-hidden={!isShown && !isHovered ? true : undefined}
+        aria-hidden={hidesClosedPanel && !isShown && !isHovered ? true : undefined}
         inert={interactive && !isShown && !isHovered}
         style={{
           left: position.left,

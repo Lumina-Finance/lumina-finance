@@ -79,8 +79,7 @@ async function readPlacement(trigger: Locator, note: Locator) {
 
 /**
  * Opens the note from its trigger and, once it has faded in, runs the check while it shows. Returns the
- * box of the note's visible panel and the trigger's box. The note is found with `includeHidden`, since a
- * closed one is kept from assistive technology and so from the role query
+ * box of the note's visible panel and the trigger's box
  */
 async function openNote(page: Page, trigger: Locator, note: Locator, whileOpen?: () => Promise<void>): Promise<{ note: Box; trigger: Box }> {
   await trigger.click()
@@ -160,7 +159,7 @@ test('opens the Opening usage note clear of what it labels', async ({ page, requ
     await openPageAt(page, size, '/settings#tax-advantaged-categories')
     const category = await openCategoryDialog(page)
     const triggers = category.getByRole('button', { name: 'Opening usage info', exact: true })
-    const notes = category.getByRole('tooltip', { name: OPENING_USAGE_NOTE, includeHidden: true })
+    const notes = category.getByRole('tooltip', { name: OPENING_USAGE_NOTE })
 
     // The annual limits panel labels the lifetime figure, and from 750px wide the column of each year's figure
     await expectNoteClear(page, triggers.first(), notes.first(), category.getByText('None', { exact: true }), category, `in the limits panel ${at}`)
@@ -173,8 +172,7 @@ test('opens the Opening usage note clear of what it labels', async ({ page, requ
     const field = details.getByRole('textbox', { name: 'Opening usage', exact: true })
     await expect(field).toBeVisible()
     const trigger = details.getByRole('button', { name: 'Opening usage info', exact: true })
-    const note = details.getByRole('tooltip', { name: OPENING_USAGE_NOTE, includeHidden: true })
-    await expectNoteClear(page, trigger, note, field, details, `in the edit dialog ${at}`)
+    await expectNoteClear(page, trigger, details.getByRole('tooltip', { name: OPENING_USAGE_NOTE }), field, details, `in the edit dialog ${at}`)
   }
 })
 
@@ -237,7 +235,7 @@ test('opens other notes on the side they always have', async ({ page, request })
     const runway = await openNote(
       page,
       page.getByRole('button', { name: 'How runway is calculated', exact: true }),
-      page.getByRole('tooltip', { name: /^Runway estimates/, includeHidden: true }),
+      page.getByRole('tooltip', { name: /^Runway estimates/ }),
     )
     expect.soft(runway.note.y, `the runway note opens below its trigger ${at}`).toBeGreaterThanOrEqual(runway.trigger.y + runway.trigger.height - EDGE_TOLERANCE)
 
@@ -247,7 +245,7 @@ test('opens other notes on the side they always have', async ({ page, request })
     const warning = await openNote(
       page,
       details.getByRole('button', { name: 'Tax-advantaged category currency limitation', exact: true }),
-      details.getByRole('tooltip', { name: /^Tax-advantaged categories currently link/, includeHidden: true }),
+      details.getByRole('tooltip', { name: /^Tax-advantaged categories currently link/ }),
     )
     expect.soft(warning.note.y + warning.note.height, `the currency note opens above its trigger ${at}`).toBeLessThanOrEqual(warning.trigger.y + EDGE_TOLERANCE)
 

@@ -6,18 +6,27 @@ type AccountIdentityFieldLabelRowProps = {
   htmlFor?: string
   error?: string
   errorId?: string
+
+  /** Fades one error out before the next fades in, where the row's width has room for only one */
+  sequential?: boolean
 }
 
 /**
  * Keeps validation feedback aligned with labels without shifting the field below
  */
-export function AccountIdentityFieldLabelRow({ label, htmlFor, error, errorId }: AccountIdentityFieldLabelRowProps) {
+export function AccountIdentityFieldLabelRow({
+  label,
+  htmlFor,
+  error,
+  errorId,
+  sequential,
+}: AccountIdentityFieldLabelRowProps) {
   return (
     <div className="mb-1.5 flex items-start justify-between gap-3">
       <label htmlFor={htmlFor} className="app-label block shrink-0 text-[0.9375rem] leading-5">
         {label}
       </label>
-      <FieldError message={error} id={errorId} sequential />
+      <FieldError message={error} id={errorId} sequential={sequential} />
     </div>
   )
 }

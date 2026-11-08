@@ -1143,13 +1143,6 @@
     opacity: var(--app-dropdown-disabled-opacity-control);
   }
 
-  /* A dropdown held back with a reason stays focusable so the reason can be read, so it keeps the
-     focus ring the disabled look above takes away */
-  .app-dropdown-glass.app-dropdown-glass-disabled:has(.app-dropdown-head[aria-disabled="true"]:focus-visible) {
-    border-color: var(--app-accent-border);
-    box-shadow: 0 0 0 2px var(--app-accent-soft);
-  }
-
   /* Mixed from the opaque negative rather than its soft variant, which carries alpha of its own. The
      two land on nearly the same colour over a form, and this one stays solid over anything */
   .app-dropdown-glass.app-dropdown-glass-error {

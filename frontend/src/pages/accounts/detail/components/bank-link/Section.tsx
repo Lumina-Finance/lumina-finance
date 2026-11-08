@@ -141,6 +141,7 @@ function LinkedView({
     <div ref={viewRef}>
       <IdentityFacts
         className=""
+        wrapsValues
         facts={[
           { label: 'Bank account', value: link.external_account_name },
           { label: 'Institution', value: link.institution_name },

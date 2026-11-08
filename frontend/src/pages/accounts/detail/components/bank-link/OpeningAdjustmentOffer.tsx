@@ -183,6 +183,7 @@ export function OpeningAdjustmentOffer({
           htmlFor={amountId}
           error={error ?? undefined}
           errorId={errorId}
+          sequential
         />
         <div className="flex flex-col gap-3 sm:flex-row">
           <div className="relative min-w-0 sm:flex-1">

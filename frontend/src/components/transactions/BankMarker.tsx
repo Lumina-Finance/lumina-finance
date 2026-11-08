@@ -51,6 +51,7 @@ export function BankMarker({ providerName, isEdited, needsReview, onShowReview }
           hoverFill={false}
           widensHitArea
           focusRing
+          hidesClosedPanel
         >
           <span className="block">From {providerName}</span>
           {isEdited && <span className="mt-0.5 block">You edited a value the bank supplied</span>}
