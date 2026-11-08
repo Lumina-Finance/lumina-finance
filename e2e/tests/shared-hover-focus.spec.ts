@@ -575,8 +575,14 @@ for (const { url, name } of [
     await openWithArchived(page, request, 'light', url, 4)
     const header = page.getByRole('button', { name: new RegExp(name) })
     await header.click()
-    await expect.poll(() => page.evaluate(() => window.scrollY)).toBeGreaterThan(0)
-    await page.waitForTimeout(1000)
+    // The list has finished opening once it is fully shown and the page holds still for two frames after scrolling
+    // it into view
+    const body = page.locator(`#${await header.getAttribute('aria-controls')}`)
+    await expect(body).toHaveCSS('opacity', '1')
+    await expect.poll(() => page.evaluate(() => new Promise<boolean>((resolve) => {
+      const scrollY = window.scrollY
+      requestAnimationFrame(() => requestAnimationFrame(() => resolve(scrollY > 0 && window.scrollY === scrollY)))
+    }))).toBe(true)
 
     // Each frame the page may only scroll up as far as its shrinking height forces it to
     const frames = await header.evaluate((node) => new Promise<number[][]>((resolve) => {
