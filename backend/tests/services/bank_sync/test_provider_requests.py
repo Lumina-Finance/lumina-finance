@@ -1,7 +1,7 @@
 """Provider request records, and the rolling 24-hour request budget they count
 
 A record kept past the window would count against a budget it no longer belongs to, and one
-pruned early, a request let through at the cap or a quota warning ignored would let Lumina exceed
+pruned early, a request let through at the cap or a quota warning ignored would let the app exceed
 the Bridge's limit. Exceeding it disables the user's token
 """
 

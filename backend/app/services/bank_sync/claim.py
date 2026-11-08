@@ -1,6 +1,6 @@
 """Claiming a provider credential, as a new bank connection or in place of a rejected one
 
-The supplied credential, such as a setup token, is exchanged once for the access Lumina
+The supplied credential, such as a setup token, is exchanged once for the access the app
 stores encrypted, and is never kept. The access itself is never logged or returned: only its host
 is kept in the clear. Right after the claim, the same request discovers the connection's bank
 accounts, so the response can list them, or say which linked accounts resume after a reconnect

@@ -1,7 +1,7 @@
 """Storing the booked records a sync brings back as review items
 
-A booked record is identified by its Lumina account, provider, bank account and the provider's
-transaction ID, so the same ID from another provider or bank account, or sent into another Lumina
+A booked record is identified by its account, provider, bank account and the provider's
+transaction ID, so the same ID from another provider or bank account, or sent into another
 account, is another transaction. An unknown identity becomes an item awaiting review,
 outside the ledger and every calculation, whatever the account's preference for new transactions
 says, since nothing can fill in its merchant and category yet. An item still waiting has its bank

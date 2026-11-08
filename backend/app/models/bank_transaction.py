@@ -51,9 +51,9 @@ OBSERVATION_COLUMNS = (
 
 
 class BankTransaction(Base):
-    """One distinct booked transaction a provider reported for a Lumina account
+    """One distinct booked transaction a provider reported for an account
 
-    The identity namespaces the provider's transaction ID by the Lumina account, the provider and
+    The identity namespaces the provider's transaction ID by the account, the provider and
     the bank account, so imports never duplicate and decisions survive unlinking and disconnecting.
     The record's ID is also its review item's, so it has at most one open item: a new item while it
     awaits review, or a correction or removal once accepted. An item the provider withdraws before

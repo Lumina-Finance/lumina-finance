@@ -209,7 +209,7 @@ def _build_bank_link(
     external_account_id: str = BANK_ACCOUNT_ID,
     **values,
 ) -> BankAccountLink:
-    """Return an unsaved link from a Lumina account to a bank account on a connection, active unless told otherwise
+    """Return an unsaved link from an account to a bank account on a connection, active unless told otherwise
 
     The link is owned by the account's owner and names the connection's provider
     """

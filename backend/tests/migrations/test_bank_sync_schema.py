@@ -284,7 +284,7 @@ async def test_bank_transaction_identity_is_namespaced_by_account_and_bank_accou
         session,
         _build_bank_transaction(everyday, "TRN-1001", external_account_id="ACT-CHQ"),
         _build_bank_transaction(rewards, "TRN-1001", external_account_id="ACT-VISA"),
-        # A Lumina account that follows another bank account later keeps both namespaces apart
+        # An account that follows another bank account later keeps both namespaces apart
         _build_bank_transaction(everyday, "TRN-1001", external_account_id="ACT-SAV"),
     )
 
@@ -419,7 +419,7 @@ async def test_bank_transaction_deleted_with_its_ledger_row(session):
 
 
 async def test_bank_transaction_records_go_with_the_account_dismissals_included(session):
-    """Deleting the Lumina account deletes every record, waiting, accepted and dismissed"""
+    """Deleting the account deletes every record, waiting, accepted and dismissed"""
     everyday, ledger_row = await _everyday_with_ledger_row(session)
     await _add(
         session,
@@ -449,7 +449,7 @@ async def test_bank_pending_transaction_amount_is_stored_exactly_or_as_sent(sess
 
 
 async def test_bank_pending_transactions_go_with_the_account(session):
-    """Deleting the Lumina account deletes its pending items and no one else's"""
+    """Deleting the account deletes its pending items and no one else's"""
     user = await _owner(session)
     everyday = _build_account(user.id, "Everyday")
     rewards = _build_account(user.id, "Rewards Visa")

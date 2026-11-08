@@ -128,7 +128,7 @@ def read_external_accounts(
 
     Args:
         account_set: The parsed response
-        currency_exponents: Minor-unit exponent of every currency Lumina holds, by code
+        currency_exponents: Minor-unit exponent of every currency the app holds, by code
         dating: How records are dated, or None for a balances-only read. Its records aren't read
 
     Returns:
@@ -215,7 +215,7 @@ def _minor_units(amount: str | None, currency: str | None, exponent: int | None)
     """Return an amount in minor units, or None when it can't be stored exactly
 
     Extra trailing zeros are fine, but more significant decimals than the currency holds are never
-    rounded away, and an amount in a currency Lumina doesn't hold has no exponent to read it at
+    rounded away, and an amount in a currency the app doesn't hold has no exponent to read it at
     """
     if amount is None or currency is None or exponent is None:
         return None

@@ -1,6 +1,6 @@
 """SimpleFIN's quota answers and the request budget
 
-A quota warning ignored would let Lumina exceed SimpleFIN Bridge's limit and disable the user's
+A quota warning ignored would let the app exceed SimpleFIN Bridge's limit and disable the user's
 token, while a notice taken for one would hold back requests the budget still has
 """
 

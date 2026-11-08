@@ -1,4 +1,4 @@
-"""Linking a Lumina account to a bank account on one of the user's connections
+"""Linking an account to a bank account on one of the user's connections
 
 A link decides which ledger a bank account's transactions land in, so every rule the link flow's
 list shows is checked again here: one bank account feeds one ledger, an account follows one bank

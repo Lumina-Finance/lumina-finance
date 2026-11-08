@@ -1,4 +1,4 @@
-"""Which Lumina accounts can take a bank account
+"""Which accounts can take a bank account
 
 Every screen and request asks this one place, so each rule is checked here: only the user's own
 personal accounts that aren't archived or already linked are candidates, and a candidate takes a

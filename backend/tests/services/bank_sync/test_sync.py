@@ -2811,7 +2811,7 @@ async def test_job_leaves_a_dismissed_item_dismissed_when_the_bank_sends_it_chan
 
 @pytest.mark.parametrize("dismissed_from", ["another_bank_account", "another_lumina_account"])
 async def test_job_brings_in_an_id_dismissed_under_another_identity_as_a_new_item(connection, provider, dismissed_from):
-    """TRN-1 was dismissed when another bank account sent it into this account, or when this bank account fed another Lumina account
+    """TRN-1 was dismissed when another bank account sent it into this account, or when this bank account fed another account
 
     The same ID is another transaction here, so it arrives as a new item and the dismissal stays where it was
     """
@@ -3099,7 +3099,7 @@ async def test_job_tells_the_owners_pages_as_a_part_stores_records_without_movin
 
 
 def _new_records(count: int, prefix: str = "TRN-new", day: date = date(2026, 10, 2)) -> list[ProviderRecord]:
-    """Return this many booked records new to Lumina, each a $4.50 coffee on the day given, 2 October unless told otherwise"""
+    """Return this many booked records new to the app, each a $4.50 coffee on the day given, 2 October unless told otherwise"""
     return [_record(f"{prefix}-{number}", day) for number in range(count)]
 
 

@@ -152,7 +152,7 @@ export type ConnectionBankAccount = {
   linked_account_id: string | null
 
   /**
-   * The Lumina accounts this bank account may be linked to: personally owned, not archived, writable,
+   * The accounts this bank account may be linked to: personally owned, not archived, writable,
    * in the same currency and not already linked. Empty for a custom currency
    */
   eligible_account_ids: string[]

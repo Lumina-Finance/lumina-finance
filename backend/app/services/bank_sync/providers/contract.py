@@ -20,7 +20,7 @@ from app.models.bank_sync_job import ProviderErrorKind
 MAX_ERROR_REASON_LENGTH = 500
 
 # An ISO 4217 code. Anything else in its place, such as a URL or nothing, is a currency of the
-# provider's own. No Lumina account can hold one
+# provider's own. No account can hold one
 _ISO_CURRENCY_CODE = re.compile(r"[A-Z]{3}")
 
 
@@ -226,7 +226,7 @@ class ProviderAdapter(ABC):
 
     @abstractmethod
     async def claim(self, supplied: Mapping[str, str]) -> str:
-        """Exchange the credentials the user supplied for the access Lumina stores
+        """Exchange the credentials the user supplied for the access the app stores
 
         Args:
             supplied: Each of the provider's credential fields by its key, none blank or over its
@@ -250,7 +250,7 @@ class ProviderAdapter(ABC):
 
         Args:
             credential: The stored credential
-            currency_exponents: Minor-unit exponent of every currency Lumina holds, by code
+            currency_exponents: Minor-unit exponent of every currency the app holds, by code
 
         Returns:
             The accounts found, and any errors and warnings the provider sent
@@ -280,7 +280,7 @@ class ProviderAdapter(ABC):
                 window ending on the day it fixed as today. The adapter asks exactly as told, since
                 a request sent after midnight still serves that day
             timezone: The user's profile timezone, used to date records
-            currency_exponents: Minor-unit exponent of every currency Lumina holds, by code
+            currency_exponents: Minor-unit exponent of every currency the app holds, by code
 
         Returns:
             The accounts with their records, and any errors and warnings the provider sent. Each

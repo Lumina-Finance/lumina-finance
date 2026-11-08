@@ -636,7 +636,7 @@ async def test_bank_record_naming_another_users_connection_is_refused(users, ban
     ids=["account_link", "review_preferences", "bank_transaction", "pending_transaction", "bank_hold"],
 )
 async def test_bank_record_on_another_users_account_is_refused(users, bank_records, build):
-    """A user can't put bank records on someone else's Lumina account, even as the row's owner"""
+    """A user can't put bank records on someone else's account, even as the row's owner"""
     user_a, user_b = users
     async with TestSession() as session:
         account_a = (await session.scalars(select(Account).where(Account.owner_id == user_a.id))).one()

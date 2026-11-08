@@ -1,4 +1,4 @@
-"""Bank connections, the bank accounts they list, and the links to Lumina accounts"""
+"""Bank connections, the bank accounts they list, and the links to accounts"""
 
 import enum
 import uuid
@@ -57,7 +57,7 @@ class ProviderRequestPurpose(enum.StrEnum):
 
 
 class BankLinkState(enum.StrEnum):
-    """Where a link between a Lumina account and a bank account stands"""
+    """Where a link between an account and a bank account stands"""
 
     ACTIVE = "active"
 
@@ -87,7 +87,7 @@ class BankImportKind(enum.StrEnum):
 
 
 class UnavailableReason(enum.StrEnum):
-    """Why a bank account can't be linked to a given Lumina account"""
+    """Why a bank account can't be linked to a given account"""
 
     ALREADY_LINKED = "already_linked"
     CURRENCY_MISMATCH = "currency_mismatch"
@@ -215,7 +215,7 @@ class BankExternalAccount(Base):
     login_key: Mapped[str] = mapped_column(Text, nullable=False)
 
     # Exactly as the provider sent it. That may be an ISO code or a custom currency's URL, so a
-    # bank account Lumina can't hold in a ledger is still listed and explained
+    # bank account the app can't hold in a ledger is still listed and explained
     currency: Mapped[str] = mapped_column(Text, nullable=False)
 
     # In the currency's minor units, or null when the provider's figure can't be stored exactly
@@ -233,12 +233,12 @@ class BankExternalAccount(Base):
 
 
 class BankAccountLink(Base):
-    """The link between one Lumina account and one bank account on a connection
+    """The link between one account and one bank account on a connection
 
     The link names its bank account by provider and external ID rather than by row, and
     keeps that account's name and institution, so "Previously linked to" reads correctly
     after unlinking or disconnecting has removed the connection and its bank accounts.
-    Which Lumina accounts may be linked is decided by the bank-linking eligibility check,
+    Which accounts may be linked is decided by the bank-linking eligibility check,
     not here
     """
 
@@ -256,7 +256,7 @@ class BankAccountLink(Base):
         # still feeds a ledger is refused rather than leaving a link with nothing to sync from
         CheckConstraint("state = 'unlinked' OR connection_id IS NOT NULL", name="ck_bank_account_links_connection"),
         CheckConstraint("retry_count >= 0", name="ck_bank_account_links_retry_count"),
-        # A Lumina account follows at most one bank account at a time
+        # An account follows at most one bank account at a time
         Index("uq_bank_account_links_account_id", "account_id", unique=True, postgresql_where=text(_LIVE_LINK)),
         # A bank account feeds at most one ledger per user, even when two connections reach it
         Index(

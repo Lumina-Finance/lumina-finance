@@ -1,4 +1,4 @@
-"""Linking a Lumina account to a bank account on one of the user's connections, and ending links
+"""Linking an account to a bank account on one of the user's connections, and ending links
 
 The account's link flow lists a connection's bank accounts for the account, each linkable or
 unavailable with its reason from the one eligibility check, and links one of them from a chosen
