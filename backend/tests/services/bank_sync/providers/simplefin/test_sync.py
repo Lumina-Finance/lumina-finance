@@ -19,7 +19,7 @@ from app.services.bank_sync.providers.simplefin.config import PROVIDER_ID
 from tests.conftest import TestSession
 from tests.routes.support.bank_sync_helpers import _seed_job
 from tests.services.bank_sync.providers.simplefin.stand_ins import FakeBridgeScenario
-from tests.services.bank_sync.test_sync import (
+from tests.services.bank_sync.support import (
     _BANK_ID,
     _KNOWN_BANK_IDS,
     _TODAY,
@@ -28,10 +28,7 @@ from tests.services.bank_sync.test_sync import (
     _link,
     _run_jobs_until_none_is_due,
     _set_owner_timezone,
-    connection,
 )
-
-__all__ = ["connection"]
 
 pytestmark = pytest.mark.usefixtures("worker_sessions")
 

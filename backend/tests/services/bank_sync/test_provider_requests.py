@@ -22,26 +22,13 @@ from app.services.bank_sync.provider_requests import (
     summarize_request_budget,
 )
 from tests.conftest import TestSession
-from tests.routes.support.bank_sync_helpers import _build_bank_connection, _build_user
 from tests.routes.support.lock_helpers import _wait_until_waiting_on
 from tests.services.bank_sync.fake_provider import remove_provider
-
-_NOW = datetime(2026, 10, 4, 12, 0, tzinfo=UTC)
+from tests.services.bank_sync.support import _NOW, _connection_with_requests, _seed_connection
 
 # Connection A in the example: 20 requests in the last 24 hours, the oldest at 09:12 yesterday
 _EXAMPLE_NOW = datetime(2026, 10, 4, 8, 30, tzinfo=UTC)
 _EXAMPLE_OLDEST = datetime(2026, 10, 3, 9, 12, tzinfo=UTC)
-
-
-async def _seed_connection(db, email: str):
-    """Add a user and their connection, returning the connection"""
-    user = _build_user(email)
-    db.add(user)
-    await db.flush()
-    connection = _build_bank_connection(user.id)
-    db.add(connection)
-    await db.flush()
-    return connection
 
 
 async def test_record_provider_request_prunes_the_connections_records_past_24_hours(db):
@@ -82,19 +69,6 @@ async def test_record_provider_request_prunes_the_connections_records_past_24_ho
         (connection.id, _NOW - timedelta(hours=23), "sync"),
         (connection.id, _NOW, "discovery"),
     ]
-
-
-async def _connection_with_requests(db, *sent_at: datetime) -> BankConnection:
-    """Add a user and their connection. The connection sent a request at each of the times"""
-    db.add(Currency(id="CAD", name="Canadian Dollar", symbol="$", minor_unit_exponent=2))
-    await db.flush()
-    connection = await _seed_connection(db, "budget@example.com")
-    db.add_all(
-        BankProviderRequest(owner_id=connection.owner_id, connection_id=connection.id, purpose=ProviderRequestPurpose.SYNC, requested_at=moment)
-        for moment in sent_at
-    )
-    await db.flush()
-    return connection
 
 
 def _example_requests(count: int = 20) -> list[datetime]:

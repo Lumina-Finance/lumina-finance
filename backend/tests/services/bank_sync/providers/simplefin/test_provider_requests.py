@@ -19,7 +19,7 @@ from app.services.bank_sync.provider_requests import (
 )
 from tests.fake_simplefin_bridge import FakeBridgeTransport
 from tests.services.bank_sync.providers.simplefin.stand_ins import FakeBridgeScenario, simplefin_adapter
-from tests.services.bank_sync.test_provider_requests import _NOW, _connection_with_requests
+from tests.services.bank_sync.support import _NOW, _connection_with_requests
 
 
 @pytest.mark.parametrize("fault", ["rate_limited", "quota_warning"], ids=["429", "quota-warning-with-data"])

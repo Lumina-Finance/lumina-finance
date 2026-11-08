@@ -5,12 +5,15 @@ from datetime import datetime, timedelta
 import pytest
 from freezegun import freeze_time
 
+from app.encryption import encrypt
 from app.models.bank_connection import BankConnection
 from app.models.currency import Currency
+from app.models.user import User
 from app.services.bank_sync import schedule, sync, worker
 from tests.conftest import ScopedSession, TestSession
 from tests.routes.support.bank_sync_helpers import _build_bank_connection, _build_user
 from tests.services.bank_sync.stand_ins import FROZEN_NOW
+from tests.services.bank_sync.support import _CREDENTIAL
 
 
 @pytest.fixture(autouse=True)
@@ -39,6 +42,18 @@ async def connections() -> list[BankConnection]:
         session.add_all(built)
         await session.commit()
     return built
+
+
+@pytest.fixture
+async def connection(connections, frozen_now) -> BankConnection:
+    """The first owner's connection, with a credential the job can read, listed an hour ago, and its owner in Brisbane"""
+    async with TestSession() as session:
+        stored = await session.get(BankConnection, connections[0].id)
+        stored.credential_encrypted = encrypt(_CREDENTIAL)
+        stored.discovered_at = frozen_now - timedelta(hours=1)
+        (await session.get(User, stored.owner_id)).tz = "Australia/Brisbane"
+        await session.commit()
+    return stored
 
 
 @pytest.fixture

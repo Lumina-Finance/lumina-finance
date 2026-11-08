@@ -122,11 +122,21 @@ from tests.routes.support.bank_sync_helpers import (
 )
 from tests.routes.support.lock_helpers import _wait_until_waiting_on
 from tests.services.bank_sync.fake_provider import FAKE_PROVIDER, FakeProviderAdapter, _bank_account, _returned, remove_provider, use_adapter
+from tests.services.bank_sync.support import (
+    _BANK_ID,
+    _CREDENTIAL,
+    _KNOWN_BANK_IDS,
+    _TODAY,
+    _bank_transactions,
+    _checkpoints,
+    _link,
+    _run_jobs_until_none_is_due,
+    _set_owner_timezone,
+)
 
 # Without clock changes, so the examples' windows are whole runs of 90 calendar days. The frozen
 # clock reads 1 pm on 4 October there
 _BRISBANE = ZoneInfo("Australia/Brisbane")
-_TODAY = date(2026, 10, 4)
 
 # West of UTC without clock changes. The frozen clock reads 8 pm on 3 October there, already
 # 4 October in UTC, so a day taken in the wrong timezone shows
@@ -139,22 +149,13 @@ _SYDNEY = ZoneInfo("Australia/Sydney")
 # Yesterday's daily sync. It left a link complete through 3 October
 _YESTERDAYS_SYNC = datetime(2026, 10, 3, 9, 0, tzinfo=_BRISBANE)
 
-# More jobs than any test here queues, so a job that keeps queueing another fails the test
-_MOST_JOBS = 10
-
-# A stored bank transaction keeps only the keyed hash of the ID the bank sent. Naming this column in what
-# _bank_transactions returns reads that ID back, from the IDs the tests have sent so far
-_BANK_ID = BankTransaction.external_transaction_hash.label("bank_id")
-_KNOWN_BANK_IDS: set[str] = set()
-
 # Long enough for any step here to finish, so a missing protection fails the test rather than hanging it
 _WAIT_SECONDS = 10
 
 # Requests a connection may send in 24 hours
 _DAILY_REQUESTS = FakeProviderAdapter.daily_request_budget
 
-# The connection's credential, and the one reconnecting it stores in its place
-_CREDENTIAL = "https://user:secret@bridge.example/simplefin"
+# The credential reconnecting a connection stores in place of its first
 _RENEWED = "https://user:renewed@bridge.example/simplefin"
 
 pytestmark = pytest.mark.usefixtures("worker_sessions")
@@ -166,32 +167,6 @@ def provider(monkeypatch) -> FakeProviderAdapter:
     fake = FakeProviderAdapter()
     use_adapter(monkeypatch, fake)
     return fake
-
-
-@pytest.fixture
-async def connection(connections, frozen_now) -> BankConnection:
-    """The first owner's connection, with a credential the job can read, listed an hour ago, and its owner in Brisbane"""
-    async with TestSession() as session:
-        stored = await session.get(BankConnection, connections[0].id)
-        stored.credential_encrypted = encrypt(_CREDENTIAL)
-        stored.discovered_at = frozen_now - timedelta(hours=1)
-        (await session.get(User, stored.owner_id)).tz = "Australia/Brisbane"
-        await session.commit()
-    return stored
-
-
-async def _link(connection: BankConnection, external_id: str, **values) -> BankAccountLink:
-    """Commit an account linked to the bank account, its link's fields set as given"""
-    account = _build_account(connection.owner_id, name=external_id)
-    link = _build_bank_link(account, connection, external_id)
-    for field, value in values.items():
-        setattr(link, field, value)
-    async with TestSession() as session:
-        session.add(account)
-        await session.flush()
-        session.add(link)
-        await session.commit()
-    return link
 
 
 def _synced_through_yesterday(**values) -> dict:
@@ -225,30 +200,6 @@ def _pending_record(external_id: str, day: date = _TODAY, **values) -> ProviderR
     A pending item keeps no ID, so the description is what tells one stored item from another
     """
     return _record(external_id, day, pending=True, **{"description": external_id} | values)
-
-
-def _read_back_id(provider: str, bank_account: str, stored_hash: str) -> str:
-    """Return the ID the tests sent that a bank transaction's keyed hash stands for, or the hash itself when none matches"""
-    sent = (bank_id for bank_id in _KNOWN_BANK_IDS if hash_bank_transaction_id(provider, bank_account, bank_id) == stored_hash)
-    return next(sent, stored_hash)
-
-
-async def _bank_transactions(*columns) -> list[tuple]:
-    """Return these columns of every stored bank transaction, by bank account and then the ID the bank sent
-
-    Only the keyed hash of that ID is stored, so _BANK_ID reads back the ID among those the tests sent
-    """
-    async with TestSession() as session:
-        rows = await session.execute(
-            select(BankTransaction.provider, BankTransaction.external_account_id, BankTransaction.external_transaction_hash, *columns)
-        )
-    found = [
-        (bank_account, _read_back_id(provider, bank_account, stored_hash), values) for provider, bank_account, stored_hash, *values in rows
-    ]
-    return [
-        tuple(bank_id if column is _BANK_ID else value for column, value in zip(columns, values, strict=True))
-        for _, bank_id, values in sorted(found, key=lambda stored: stored[:2])
-    ]
 
 
 async def _pending_transactions(*columns) -> list[tuple]:
@@ -310,31 +261,10 @@ def _fetched(provider: FakeProviderAdapter) -> list[tuple]:
     return [(tuple(sorted(call.account_ids)), call.start, call.end, call.include_pending) for call in provider.fetches]
 
 
-async def _run_jobs_until_none_is_due() -> None:
-    """Run jobs one at a time until none is due, failing rather than looping if jobs keep coming"""
-    for _ in range(_MOST_JOBS):
-        if not await run_jobs(1):
-            return
-    pytest.fail(f"Jobs were still queued after {_MOST_JOBS} ran")
-
-
-async def _checkpoints(*links: BankAccountLink) -> list[date]:
-    """Return each link's committed checkpoint"""
-    async with TestSession() as session:
-        return [await session.scalar(select(BankAccountLink.checkpoint).where(BankAccountLink.id == link.id)) for link in links]
-
-
 async def _link_states(*links: BankAccountLink) -> list[str]:
     """Return each link's committed state"""
     async with TestSession() as session:
         return [await session.scalar(select(BankAccountLink.state).where(BankAccountLink.id == link.id)) for link in links]
-
-
-async def _set_owner_timezone(connection: BankConnection, timezone: ZoneInfo) -> None:
-    """Commit the connection's owner's profile timezone"""
-    async with TestSession() as session:
-        (await session.get(User, connection.owner_id)).tz = timezone.key
-        await session.commit()
 
 
 async def _set_discovered_at(connection: BankConnection, discovered_at: datetime) -> None:
