@@ -176,8 +176,8 @@ async def run_sync_job(job: ClaimedJob) -> None:
             except _CredentialReplaced:
                 await _end_job(job, started_at=now, outbox=outbox)
     except asyncio.CancelledError:
-        # The time limit or the worker stopping ended the job, so nothing is sent after it, where
-        # a mail server that hangs would hold the runner
+        # The time limit or the worker stopping ended the job, so nothing is sent after it. A
+        # mail server that hangs would hold the runner
         log_unsent_action_emails(outbox)
         raise
     except Exception:
@@ -229,7 +229,7 @@ class _JobRun:
         currency_exponents: Mapping[str, int],
         now: datetime,
     ) -> None:
-        """Hold the job, its connection as read, its provider, where its emails go, the links it plans last or syncs now, and when it started"""
+        """Hold the job, its connection as read, its provider, its emails' outbox, the links it plans last or syncs now, and when it started"""
         self.job = job
         self.connection = connection
         self.adapter = adapter

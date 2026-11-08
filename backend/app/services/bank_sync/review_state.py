@@ -1,6 +1,6 @@
 """The rules that read a bank transaction's review state
 
-Which bank transactions wait for review, which ledger fields count as edited, the bank values a
+The bank transactions that wait for review, the ledger fields that count as edited, the bank values a
 correction compares and stores, the description the ledger row was decided with, and the ledger row
 approving a waiting item leaves are worked out here from the stored record, so the transaction
 responses, ingestion, the review actions and the balances that look ahead to them all apply the same

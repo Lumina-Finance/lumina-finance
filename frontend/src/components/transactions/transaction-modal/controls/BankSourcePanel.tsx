@@ -32,7 +32,7 @@ type BankSourceCardProps = {
 }
 
 type BankSourcePanelProps = BankSourceCardProps & {
-  /** Starts opened, for a test of the opened card, where the person starts it closed */
+  /** Starts opened, for a test of the opened card. The person starts it closed */
   defaultOpen?: boolean
 }
 
@@ -69,7 +69,7 @@ export function TransactionBankSourceCard(props: BankSourceCardProps) {
 
 /**
  * Heads the form of a bank-imported transaction with the provider it came from, closed to that line
- * alone, where there is no room for the card beside the modal. Opened, it shows what the bank sent as
+ * alone, since there is no room for the card beside the modal. Opened, it shows what the bank sent as
  * the provider's filing card, as the review step did, and always read-only, since the ledger has no
  * description field and only the bank changes it
  *

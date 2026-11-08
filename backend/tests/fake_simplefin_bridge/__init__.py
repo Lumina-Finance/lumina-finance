@@ -35,8 +35,8 @@ app.include_router(control_router)
 class FakeBridgeTransport(httpx.ASGITransport):
     """Mounts the fake in-process and applies the client's read timeout that ASGITransport ignores
 
-    Without it a timeout fault would hold a test for the whole stall and then answer, where a
-    request to the running server times out
+    Without it a timeout fault would hold a test for the whole stall and then answer. A
+    request to the running server times out instead
     """
 
     def __init__(self) -> None:

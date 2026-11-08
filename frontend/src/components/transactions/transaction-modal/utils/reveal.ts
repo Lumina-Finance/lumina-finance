@@ -1,5 +1,5 @@
 /**
- * Scrolls a line to the middle of the form once it has opened, where anything hides part of it, such
+ * Scrolls a line to the middle of the form once it has opened, if anything hides part of it, such
  * as the modal's footer under an action at the foot of a short screen. Focus stays where it is
  */
 export function revealIfHidden(line: HTMLElement | null, prefersReducedMotion: boolean) {

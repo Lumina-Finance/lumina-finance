@@ -157,7 +157,7 @@ test("accepts a bank change over an amount the user edited, writing the bank's a
   expect(await readReviewItems(request, user, everyday.id)).toEqual([])
 })
 
-test("keeps the current value, which then counts as edited, clearing the marker and keeping the day's total without reading the ledger again", async ({ page, request }) => {
+test("keeps the current value, counting it as edited, clearing the marker and keeping the day's total without reading the ledger again", async ({ page, request }) => {
   const { user, everyday, id } = await startWithCorrection(page, request)
   await openPage(page, '/transactions')
   const row = page.getByTestId(`transaction-row-${id}`)

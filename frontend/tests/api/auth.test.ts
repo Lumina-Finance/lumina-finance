@@ -2,9 +2,9 @@
  * Covers auth API request functions that manage login, signup, refresh, and logout
  *
  * These tests catch regressions where auth endpoints lose cookie credentials,
- * JSON headers, bearer logout headers, or backend error details, where restoring the
- * session on page load signs the user out over a server error rather than a refused session, and
- * where a proxy's page is taken for the app's own answer, or the app's answer for a proxy's page
+ * JSON headers, bearer logout headers, or backend error details, and where restoring the
+ * session on page load signs the user out over a server error rather than a refused session, or
+ * a proxy's page is taken for the app's own answer, or the app's answer for a proxy's page
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { API_BASE } from '@/api/config'

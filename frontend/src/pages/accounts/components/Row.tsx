@@ -238,7 +238,7 @@ export default function AccountRow({
           )}
           {/* Wider screens keep the credit still available under the balance. A phone puts it beside the type */}
           {availableCreditText && (
-            // The description names this wrapper, which is always drawn, since a screen reader reads a
+            // The description names this wrapper, as it is always drawn, and a screen reader reads a
             // named element that is hidden itself but leaves out a hidden element inside it
             <div id={`${descriptionId}-credit`} className="contents">
               <p

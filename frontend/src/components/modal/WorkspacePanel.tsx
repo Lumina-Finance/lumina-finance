@@ -29,11 +29,11 @@ type ModalWorkspacePanelProps = {
 }
 
 /**
- * A modal for looking after one thing and the parts beneath it, where every control acts straight away and
+ * A modal for looking after one thing and the parts beneath it. Every control acts straight away and
  * there is nothing to save. The thing keeps a pane of its own with its name, facts and actions, and its
  * parts fill the rest
  *
- * Side by side from 1050px, where the parts scroll on their own and the thing stays in view. Narrower, the
+ * Side by side from 1050px. The parts scroll on their own and the thing stays in view. Narrower, the
  * modal takes the whole screen as every modal does, and the thing comes first on one scroll with its parts
  * after it
  */

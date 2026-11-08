@@ -7,7 +7,7 @@ Bank sign-in needed: the provider says a bank login behind the connection needs 
 again on the provider's site. Each of that login's accounts is marked as an attempt fails for it,
 while the connection's other accounts keep syncing, and stays on the connection's daily sync rather
 than retrying, so the mark clears once an attempt brings the account back whole, or once a listing
-moves its link to Choose bank account, where no sync would clear it. The state starts for a login,
+moves its link to Choose bank account, since no sync would clear it there. The state starts for a login,
 and emails the owner, when the first of its active links is marked
 
 Choose bank account: a sync's listing found a linked bank account gone or in another currency, so its

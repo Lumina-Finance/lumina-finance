@@ -61,7 +61,7 @@ vi.mock('@/hooks/useMoneyFormatters', () => ({
   useMoneyFormatters: () => ({
     currencies: [
       { id: 'CAD', name: 'Canadian Dollar', symbol: '$', minor_unit_exponent: 2 },
-      // The seeded table's own symbol, which the field must not show in place of the reader's
+      // The seeded table's own symbol. The field must not show it in place of the reader's
       { id: 'CHF', name: 'Swiss Franc', symbol: 'Fr.', minor_unit_exponent: 2 },
     ],
   }),

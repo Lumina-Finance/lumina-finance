@@ -16,7 +16,7 @@ import { createImport, createLink, createSync } from './fixtures'
 
 /**
  * Shows the import the section would after each read in turn, each read the next poll's answer.
- * Rendered on the server, where nothing re-renders, so the reads are stepped through within the one
+ * Rendered on the server, so nothing re-renders. The reads are stepped through within the one
  * render instead, and no effect runs to fold a done import away before it is read
  */
 function ShownImport({ reads }: { reads: BankLink[] }) {

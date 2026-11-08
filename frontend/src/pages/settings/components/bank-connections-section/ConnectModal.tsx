@@ -132,7 +132,7 @@ export function ConnectModal({
   const [values, setValues] = useState<Record<string, string>>({})
   const [nickname, setNickname] = useState('')
 
-  // The server's own refusal of the credential, which speaks of the credentials as a whole, so every
+  // The server's own refusal of the credential. It speaks of the credentials as a whole, so every
   // field is marked and the message is drawn once, on the last. A value too long is refused before
   // any press goes through, as a problem of its own field
   const [fieldError, setFieldError] = useState<string | null>(null)

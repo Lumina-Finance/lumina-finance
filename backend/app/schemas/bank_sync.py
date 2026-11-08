@@ -89,7 +89,7 @@ class ReconnectBankConnectionRequest(CredentialRequest):
 
 
 class UpdateBankConnectionRequest(BaseModel):
-    """A connection's new nickname, where blank or null brings back the provider's name"""
+    """A connection's new nickname, and a blank or null one brings back the provider's name"""
 
     # Required, so an empty body can't clear it by accident
     nickname: TrimmedName | None

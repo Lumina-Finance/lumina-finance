@@ -80,7 +80,7 @@ export type DropdownPanelEdges = {
 }
 
 /**
- * The modal panel the box keeps to, or null for a dropdown that did not ask to be clamped, which uses
+ * The modal panel the box keeps to, or null for a dropdown that did not ask to be clamped. That one uses
  * the screen's room wherever it sits
  */
 export function findDropdownPanel(

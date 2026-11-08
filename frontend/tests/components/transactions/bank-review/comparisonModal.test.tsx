@@ -1,6 +1,6 @@
 /**
  * Covers the comparison a correction or a removal opens from the review block: its title, eyebrow and
- * line for each kind, the rows it compares, which of them it tints and notes, and the two decisions
+ * line for each kind, the rows it compares, the ones it tints and notes, and the two decisions
  * each kind offers
  *
  * These tests catch a removal worded as a correction or the other way round, a value shown in the
@@ -178,7 +178,7 @@ describe('a correction', () => {
     expect(rowOf(markup, 'date')).toMatchObject({ tint: TINT, note: undefined })
   })
 
-  it("notes under a value the user kept apart from the bank's, which the change doesn't touch, that accepting leaves it", () => {
+  it("notes under a value the user kept apart from the bank's, one the change doesn't touch, that accepting leaves it", () => {
     const markup = render({
       ...COUNTDOWN,
       bank: { ...COUNTDOWN.bank, date: '2026-09-22' },

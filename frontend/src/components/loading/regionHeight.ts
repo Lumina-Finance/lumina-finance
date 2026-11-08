@@ -33,7 +33,7 @@ export function getLoadingRegionHeight({
  * Reports the content's height now and each time it changes, until the returned function stops it
  *
  * By default the height is the box on screen, read a frame after each change. With `readsLayoutHeight`
- * it is the layout height instead, which a dialogue still scaling in does not shrink. The observer
+ * it is the layout height instead. A dialogue still scaling in does not shrink that height. The observer
  * reports only layout changes, so a height read part way through that entrance would be held short
  * of the content, clipping it, until the content next changed size. Observing also reports the height
  * the content already has. That is the first one held

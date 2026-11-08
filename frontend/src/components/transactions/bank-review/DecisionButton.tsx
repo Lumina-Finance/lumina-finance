@@ -18,7 +18,7 @@ type ReviewDecisionButtonProps = {
   loading: boolean
   disabled: boolean
 
-  /** Why the decision can't run yet, such as a field a refused press found missing, which fades the button */
+  /** Why the decision can't run yet, such as a field a refused press found missing, so the button fades */
   disabledReason?: string
 
   /** Left out by a decision that submits its form */
@@ -38,7 +38,7 @@ type ReviewDecisionButtonProps = {
 
 /**
  * One decision on a bank item, sized to its label. A new label, or the spinner while the decision runs,
- * crossfades in as the button eases to its width. Full width on phones, where the decisions share the
+ * crossfades in as the button eases to its width. Full width on phones, so the decisions share the
  * footer's width
  */
 export function ReviewDecisionButton({

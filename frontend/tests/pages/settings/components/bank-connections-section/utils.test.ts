@@ -329,7 +329,7 @@ describe('an institution over a reached limit', () => {
     ).toBe(false)
   })
 
-  it('is not one on a rejected connection, which links nothing until it is back', () => {
+  it('is not one on a rejected connection, since it links nothing until it is back', () => {
     expect(tidewaterOverLimit(TIDEWATER, { status: 'credential_rejected' })).toBe(false)
   })
 })

@@ -82,7 +82,7 @@ async function openOffer(page: Page, request: APIRequestContext): Promise<{ setu
     amount: dialog.getByRole('textbox', { name: 'Adjustment amount' }),
     skip: dialog.getByRole('button', { name: 'Skip', exact: true }),
     record: dialog.getByRole('button', { name: 'Record adjustment' }),
-    // The field's own message, not the faded Record adjustment's tooltip, which gives the same reason
+    // The field's own message, not the faded Record adjustment's tooltip that gives the same reason
     zeroMessage: dialog.getByRole('alert').filter({ hasText: ZERO_AMOUNT_MESSAGE }),
   }
   await expect(offer.sentence).toBeVisible()
@@ -184,7 +184,7 @@ test('keeps the amount and the answers in place on a phone when a message shows 
   expect(await placed()).toEqual(before)
 
   // Every frame from the change until the new message shows on its own, whole and still: the field's
-  // place, where a click on an answer would otherwise land off, and whether two messages still showing
+  // place (a click on an answer would otherwise land off) and whether two messages still showing
   // cross. Neither could then be read through
   type Frame = { place: number; crossing: boolean }
   const sampling = offer.sentence.evaluate((sentence, { field, message, frameLimit }) => new Promise<{ frames: Frame[]; settled: boolean }>((resolve) => {

@@ -1,6 +1,6 @@
 /**
  * Reads rendered markup the way a screen reader reads an element a description names. The tests that
- * use it render a component to a string, where no stylesheet runs, so a width is stood in for by the
+ * use it render a component to a string and no stylesheet runs, so a width is stood in for by the
  * Tailwind classes that show or hide an element from it
  */
 

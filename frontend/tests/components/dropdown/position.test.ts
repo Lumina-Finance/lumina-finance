@@ -119,7 +119,7 @@ describe('dropdown box placement', () => {
       viewport: { ...viewport, height: 800, layoutHeight: 800 },
     })
 
-    // The 150px list is under five rows, so the box is placed again against the whole screen, where
+    // The 150px list is under five rows, so the box is placed again against the whole screen, and
     // the body still holds it: it opens down and ends above the buttons rather than upward over the
     // title
     expect(position.openAbove).toBe(false)

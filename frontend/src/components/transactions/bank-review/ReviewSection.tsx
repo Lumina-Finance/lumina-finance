@@ -35,7 +35,7 @@ type BankReviewSectionProps = {
   /** The accounts the transaction list is filtered or fixed to, empty or absent when it shows every account */
   listAccountIds: string[] | undefined
 
-  /** Set on an account's own page, where every item is that account's, so rows leave its name out */
+  /** Set on an account's own page. Every item there is that account's, so rows leave its name out */
   isFixedAccount: boolean
   focusRequest: ReviewFocusRequest | null
   prefersReducedMotion: boolean | null

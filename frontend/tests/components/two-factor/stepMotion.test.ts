@@ -1,6 +1,6 @@
 /**
- * Guards the motion between steps of the two-factor and passkey modals, which fade and ease their height
- * as they always did, and that a step asking to follow reduced motion swaps at once instead
+ * Guards the motion between steps of the two-factor and passkey modals: they fade and ease their height
+ * as they always did, and a step asking to follow reduced motion swaps at once instead
  */
 import { describe, expect, it } from 'vitest'
 import { getStepTransitions } from '@/components/two-factor/stepMotion'

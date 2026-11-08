@@ -1,6 +1,6 @@
 /**
- * Covers the review section above the transaction list: what each kind of waiting item shows, which
- * accounts' items it reads for a filtered list and an account's own page, the currency each amount
+ * Covers the review section above the transaction list: what each kind of waiting item shows, the
+ * accounts whose items it reads for a filtered list and an account's own page, the currency each amount
  * is written in, its empty and failure states, and the backlog notice
  *
  * These tests catch the section reading items the list doesn't show, or a group account's that the

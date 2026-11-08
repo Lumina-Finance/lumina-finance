@@ -455,7 +455,7 @@ async def test_recording_the_offer_while_items_wait_brings_the_ledger_to_the_ban
 
     Fake Bank's balance already holds the coffees, and adding them will take 13.50 off the ledger,
     so 63.50 is offered rather than 50.00. Recording it and adding the coffees leaves the ledger at
-    Fake Bank's 100.00, where the full difference would leave it at 86.50. A coffee waiting in
+    Fake Bank's 100.00. The full difference would leave it at 86.50. A coffee waiting in
     Savings isn't Everyday's to count
     """
     everyday = await _offering_everyday(client, ("2026-09-15", 5000), bank={"balance": 10000})
@@ -660,7 +660,7 @@ async def test_no_offer_when_leaving_out_the_items_waiting_closes_the_gap(client
     """Everyday holds 113.50 and Fake Bank's balance is 100.00, with three 4.50 coffees from a later sync waiting
 
     Adding the coffees will bring the ledger to Fake Bank's 100.00, so once the import's last item
-    is dismissed nothing is offered, for good, where the full difference would offer 13.50 less
+    is dismissed nothing is offered, for good. The full difference would offer 13.50 less
     """
     everyday = await _linked_everyday(client, ("2026-09-15", 11350), bank={"balance": 10000})
     [import_item] = await _commit_waiting_items(everyday.link, 1)

@@ -123,9 +123,9 @@ class BankConnection(Base):
     """One user's credential with a bank data provider
 
     The provider's own credential is the only way to read the user's bank data, so it is
-    stored encrypted under the application key, which the key rotation re-encrypts with the
-    other secrets, and it is never returned to the browser. Whether the connection is
-    healthy is worked out from the times recorded here rather than stored as a status
+    stored encrypted under the application key and never returned to the browser. The key
+    rotation re-encrypts it with the other secrets. Whether the connection is healthy is
+    worked out from the times recorded here rather than stored as a status
     """
 
     __tablename__ = "bank_connections"
@@ -211,7 +211,7 @@ class BankExternalAccount(Base):
     institution_key: Mapped[str] = mapped_column(Text, nullable=False)
     institution_name: Mapped[str] = mapped_column(Text, nullable=False)
 
-    # The bank login the account sits under, where a bank sign-in problem is reported
+    # The bank login the account sits under. A bank sign-in problem is reported against it
     login_key: Mapped[str] = mapped_column(Text, nullable=False)
 
     # Exactly as the provider sent it. That may be an ISO code or a custom currency's URL, so a

@@ -8,7 +8,7 @@ type TransactionReviewFooterProps = {
   isPending: boolean
   submitLoading: boolean
 
-  /** What a refused press of Add to ledger found missing, which fades it as every dialogue's submit */
+  /** What a refused press of Add to ledger found missing. It fades the button as every dialogue's submit does */
   submitBlockedReason?: string
   dismissLoading: boolean
   keepOpen: boolean

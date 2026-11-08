@@ -1,6 +1,6 @@
 """The SimpleFIN protocol version 2 endpoints, answered the way SimpleFIN Bridge answers them
 
-Where the Bridge's behaviour isn't published (the 90-day refusal, the 1,000-transaction cap, which
+Where the Bridge's behaviour isn't published (the 90-day refusal, the 1,000-transaction cap, the
 pending transactions it returns, its warning and error bodies), the fake makes the assumption the
 app is built on, noted beside each one
 """

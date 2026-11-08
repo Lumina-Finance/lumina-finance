@@ -35,7 +35,7 @@ interface IconTooltipProps {
   hoverFill?: boolean
 
   // Takes presses a few pixels around the icon too, making the 24px square WCAG asks of a small
-  // target, for an icon in a surface that does something else on a press, where a near miss would
+  // target, for an icon in a surface that does something else on a press, since a near miss would
   // do that instead. The icon keeps its size and place
   widensHitArea?: boolean
 
@@ -47,7 +47,7 @@ interface IconTooltipProps {
   // what the panel says, such as a row's bank icon. Every other panel is read where it sits, closed or not
   hidesClosedPanel?: boolean
 
-  // Keeps a wrapped note from leaving one word alone on its last line, where the browser supports it
+  // Keeps a wrapped note from leaving one word alone on its last line, in a browser that supports it
   avoidsLoneWord?: boolean
 
   // Picks the side afresh when a press opens the panel, for a trigger whose closed panel keeps its

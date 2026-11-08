@@ -497,7 +497,7 @@ test('describes a focused row by its category, account and amount, in the order 
 test('describes a wide row by the note and tags its extras column draws at its width', async ({ page, request }) => {
   await page.emulateMedia({ reducedMotion: 'reduce' })
   const user = await signUpUser(request)
-  // Long names take the room of the extras column at 750px, where it has room for icons only
+  // Long names take the room of the extras column at 750px and has room for icons only
   const merchantName = 'Pacific Northwest Organic Grocers'
   expect((await request.post(`${API_BASE_URL}/merchants`, { headers: asUser(user), data: { name: merchantName } })).status()).toBe(201)
   const account = await createAccount(request, user, { name: 'Joint Household Chequing' })
@@ -551,7 +551,7 @@ test('brings the category and account lines of a phone row into view with its ti
   const lastRow = page.getByTestId(`transaction-row-${ids[ids.length - 1]}`)
   await lastRow.locator('[data-row-title]:visible').focus()
 
-  // Focus brings the title into view as Tab does, and the lines under it, which the title does not
+  // Focus brings the title into view as Tab does, and the lines under it, that the title does not
   // contain, come with it rather than staying below the screen
   await expect.poll(async () => {
     const accountLine = await lastRow.getByText('Foot account', { exact: true }).filter({ visible: true }).boundingBox()

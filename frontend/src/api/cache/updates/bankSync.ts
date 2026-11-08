@@ -89,8 +89,8 @@ export async function refreshBankLinkState(queryClient: QueryClient): Promise<vo
 /**
  * Puts a link the server answered with in place of the cached one, so the status shows what the
  * request did without waiting for the next poll. A list read before the link was made, such as on
- * another device, or restored from storage as the app opened, takes it last, where the server
- * lists the newest, so the poll still follows it
+ * another device, or restored from storage as the app opened, takes it last, as the server
+ * lists the newest last, so the poll still follows it
  */
 export function putCachedBankLink(queryClient: QueryClient, link: BankLink): void {
   queryClient.setQueryData<BankLink[]>(bankSyncKeys.links(), (links) => {
@@ -122,7 +122,7 @@ export function putCachedReviewPreferences(
 
 /**
  * Whether a link brought in data since it was last read: a sync that succeeded, or an import that
- * finished another part. Either can add review items, pending rows and, where a kind of change is
+ * finished another part. Either can add review items, pending rows and, for a kind of change that is
  * trusted, ledger transactions
  */
 function hasNewBankData(previous: BankLink, link: BankLink): boolean {

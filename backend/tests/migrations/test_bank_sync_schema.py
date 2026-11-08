@@ -1,7 +1,7 @@
 """Bank sync storage rules, checked on a database the migrations built
 
-The rest of the suite builds its schema from the models, where a uniqueness rule or a cascade the
-migration left out would still pass. These tests share one migrated database per worker, and each
+The rest of the suite builds its schema from the models, so a uniqueness rule or a cascade the
+migration left out would still pass there. These tests share one migrated database per worker, and each
 runs inside a transaction rolled back at its end, so none sees another's rows
 """
 

@@ -318,7 +318,7 @@ export default function EditAccountIdentityModal({
   // Left until the account is unlinked, so the switch gives one reason at a time
   const isArchiveBlocked = !archiveLinkedReason && !account.is_archived && account.has_transactions_after_today
 
-  // The one reason archiving is unavailable, if any, which the switch prints and the delete panel's shortcut points to
+  // The one reason archiving is unavailable, if any. The switch prints it and the delete panel's shortcut points to it
   const archiveReason = getArchiveReason(archiveLinkedReason, isArchiveBlocked)
 
   // A link holds archiving back, so archiving waits until the link has been read, but only where a

@@ -181,7 +181,7 @@ test('marks a bank-imported row with its provider on hover, focus or a press, le
   await page.keyboard.press('Tab')
   await expectTooltipClosed(imported, 'From SimpleFIN')
 
-  // A pointer opens it on hover, where there is one to hover with
+  // A pointer opens it on hover if there is one to hover with
   if (!test.info().project.use.hasTouch) {
     await marker.hover()
     await expectTooltipOpen(page, marker, imported, ['From SimpleFIN'])

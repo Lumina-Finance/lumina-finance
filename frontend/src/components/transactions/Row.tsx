@@ -580,8 +580,8 @@ export function TransactionRowView({
             // Laid over the rail rather than placed in the row, because a cell of the row would take
             // one of the list's columns, and the content beside it asks for all five of them. The rail
             // is the row's own left padding, so the box sits still at the list's edge while the rail
-            // opens and closes underneath the rest of the row. Raised above the title's layer, which spans
-            // the rail too, so a press on the box ticks it rather than landing on the row
+            // opens and closes underneath the rest of the row. Raised above the title's layer, since the
+            // layer spans the rail too and a press on the box would land on the row
             className="absolute inset-y-0 left-0 flex items-center justify-center"
             style={{ width: TRANSACTION_CHECKBOX_RAIL_WIDTH, zIndex: CHECKBOX_OVER_TITLE_LAYER }}
             title={tickTitle}
@@ -607,7 +607,7 @@ export function TransactionRowView({
           line up against the tracks the list declares. Left unpositioned, so the title's layer
           stretches across the whole row, its padding included, and its focus ring goes round the
           row rather than tight around the text. A press anywhere on the row lands here, the title's
-          own press and Enter on it included, along with a press on a tag, which sits above the layer
+          own press and Enter on it included, along with a press on a tag that sits above the layer
           for its tooltip. A shift-press holds back the text selection it would otherwise stretch
           across the rows it ranges over */}
       <div
@@ -746,7 +746,7 @@ export function TransactionRowView({
         {/* Three lines on a phone: merchant and amount, category, then account. Set close together, and
           reaching a little into the row's padding, which the wide layout keeps, so a row takes less
           height without crowding the account in beside the category. Only so far that the first and
-          last lines stay 4px clear of the focus ring, which sits 2px in from the row's edge, or 4px
+          last lines stay 4px clear of the focus ring. The ring sits 2px in from the row's edge, or 4px
           in a row inside the Upcoming section's edge */}
         <span
           className={`-my-0.5 grid grid-cols-[2.125rem_minmax(0,1fr)_max-content] items-start gap-x-2.5 gap-y-0.5 ${wide ? 'min-[750px]:hidden' : ''}`}

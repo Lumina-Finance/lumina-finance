@@ -10,7 +10,7 @@ type BankHoldsSectionProps = {
   /** The accounts the transaction list is filtered or fixed to, empty or absent when it shows every account */
   listAccountIds: string[] | undefined
 
-  /** Set on an account's own page, where every transaction is that account's, so rows leave its name out */
+  /** Set on an account's own page. Every transaction there is that account's, so rows leave its name out */
   isFixedAccount: boolean
   prefersReducedMotion: boolean | null
 }

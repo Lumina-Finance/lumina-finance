@@ -222,7 +222,7 @@ async def is_database_migrated(connection: AsyncConnection) -> bool:
     """Return whether the database is migrated to exactly the revisions this release ships
 
     Args:
-        connection: Connection as the app role, which reads the revisions through a definer function
+        connection: Connection as the app role. It reads the revisions through a definer function
     """
     revisions = await connection.scalars(text(f"SELECT {MIGRATION_REVISIONS}()"))
     return set(revisions) == _shipped_heads()

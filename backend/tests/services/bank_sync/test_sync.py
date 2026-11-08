@@ -128,7 +128,7 @@ from tests.services.bank_sync.fake_provider import FAKE_PROVIDER, FakeProviderAd
 _BRISBANE = ZoneInfo("Australia/Brisbane")
 _TODAY = date(2026, 10, 4)
 
-# West of UTC without clock changes, where the frozen clock reads 8 pm on 3 October, already
+# West of UTC without clock changes. The frozen clock reads 8 pm on 3 October there, already
 # 4 October in UTC, so a day taken in the wrong timezone shows
 _PHOENIX = ZoneInfo("America/Phoenix")
 
@@ -663,7 +663,7 @@ async def test_job_brings_up_to_date_a_link_whose_checkpoint_is_long_before_its_
 async def test_job_takes_days_in_the_profile_timezone_west_of_utc(connection, provider):
     """In Phoenix it's 8 pm on 3 October, already 4 October in UTC, and the link last synced at 7 pm on 2 October through that day
 
-    So it re-reads from 18 September to 3 October, where dates taken in UTC would carry on from 3 October to 4 October
+    So it re-reads from 18 September to 3 October. Dates taken in UTC would carry on from 3 October to 4 October
     """
     await _set_owner_timezone(connection, _PHOENIX)
     link = await _link(
@@ -736,7 +736,7 @@ async def test_job_syncs_a_link_asked_for_now_while_it_waits_to_retry_and_leaves
 async def test_job_plans_a_link_asked_for_now_with_the_others_though_an_earlier_job_found_it_failing(connection, provider):
     """Card failed in the job before, so it would wait for Everyday's window, but the user asked Card to sync now
 
-    So one request fetches both, where planning Card last would spend a second request on it
+    So one request fetches both. Planning Card last would spend a second request on it
     """
     await _link(connection, "ACT-everyday", **_synced_through_yesterday())
     card = await _link(connection, "ACT-card", **_synced_through_yesterday())
@@ -5128,7 +5128,7 @@ def test_next_daily_sync_falls_24_hours_on_plus_a_random_0_to_30_minutes(monkeyp
 async def test_job_bringing_a_link_through_today_sets_its_next_sync_a_day_on(connection, provider, timezone, started_at, today, next_sync):
     """A daily sync brings Everyday through today in the owner's timezone, and Everyday and its connection next sync 24 and a half hours on
 
-    In Phoenix, where it's still 3 October, today is the 3rd though UTC has reached the 4th. In
+    In Phoenix it's still 3 October, so today is the 3rd though UTC has reached the 4th. In
     Sydney, a sync at 1 am on the day clocks go forward an hour next runs at 2:30 am, a day of
     elapsed time on, not at 1:30 am by the clock
     """

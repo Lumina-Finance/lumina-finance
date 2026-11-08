@@ -102,7 +102,7 @@ async def test_lift_review_pauses_queues_nothing_for_an_account_that_isnt_paused
 async def test_lift_review_pauses_leaves_an_import_running_on_its_own_schedule(connections):
     """Everyday keeps its pause through a reconnect import after its last attempt failed, so it retries in 30 minutes
 
-    A review decision leaving 50 new items waiting lifts the pause, which never held the import back,
+    A review decision leaving 50 new items waiting lifts the pause. The pause never held the import back,
     so the retry stays where it was rather than going out early, and no sync is queued
     """
     retry_at = FROZEN_NOW + timedelta(minutes=30)

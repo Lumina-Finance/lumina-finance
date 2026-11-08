@@ -4,7 +4,7 @@ Dropping a bank sync table would delete stored credentials, links and decisions 
 rebuild, so each downgrade refuses while its tables hold a row, names what would be lost, and
 drops them once they are empty. Seeding is plain SQL, so a later change to a model can't break
 the insert into a database built only up to the revision under test. A rollback that drops a
-column puts back the checks the column joined, which Postgres would otherwise drop with it
+column puts back the checks the column joined, since Postgres would otherwise drop them with it
 """
 
 from uuid import UUID

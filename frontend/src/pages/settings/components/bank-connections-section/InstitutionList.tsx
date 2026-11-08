@@ -66,7 +66,7 @@ interface BankAccountRowProps {
    */
   overLimit: boolean
 
-  /** Why linking is held, which fades the dropdown and gives it this reason. Undefined when it can be used */
+  /** Why linking is held. It fades the dropdown and gives it this reason. Undefined when it can be used */
   heldReason: string | undefined
 
   /** Set once the link flow has linked it, until its account settles in */
@@ -191,7 +191,7 @@ export interface InstitutionEntry {
 
   /**
    * Why linking is as it is when that is not a problem, said after the count as in "2 of 2 linked ·
-   * Linking resumes after you reconnect". The line sits under the name on phones, where it can't fit beside it
+   * Linking resumes after you reconnect". The line sits under the name on phones, since it can't fit beside it there
    */
   countNote?: string
 

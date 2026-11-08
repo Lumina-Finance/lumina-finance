@@ -69,7 +69,7 @@ async def refuse_days_a_bank_supplies(
         user: The user writing. Their profile timezone sets today
         dates_by_account: The dates of the transactions to be written, by the account each lands in
         name_accounts: Whether a refusal names the account, for a write that can cover more than
-            one, where "this account" wouldn't say which
+            one, since "this account" wouldn't say which
 
     Raises:
         HTTPException 422: A transaction lands on a linked account from its import start through
@@ -100,7 +100,7 @@ async def refuse_edits_a_bank_supplies(db: AsyncSession, user: User, edits: Sequ
         user: The user editing. Their profile timezone sets today
         edits: Each edited transaction's account and date before the edit and once it applies
         name_accounts: Whether a refused date names the account, for an edit that can cover more
-            than one, where "this account" wouldn't say which
+            than one, since "this account" wouldn't say which
 
     Raises:
         HTTPException 422: A bank-imported transaction would leave its linked account, an edit
@@ -255,7 +255,7 @@ async def _read_live_links(db: AsyncSession, account_ids: Iterable[uuid.UUID]) -
 
 
 def _today(user: User) -> date:
-    """Return today in the user's profile timezone, where every import start is a calendar day"""
+    """Return today in the user's profile timezone, since every import start is a calendar day"""
     return datetime.now(resolve_timezone(user.tz)).date()
 
 

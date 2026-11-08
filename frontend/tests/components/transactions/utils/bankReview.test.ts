@@ -1,7 +1,7 @@
 /**
  * Covers how the review block words and scopes waiting bank items: the line each kind asks with, the
- * amount it shows, its date, the backlog notice, which accounts' items it reads, which new item
- * is reviewed after another
+ * amount it shows, its date, the backlog notice, the accounts whose items it reads, and the order
+ * new items are reviewed in
  *
  * These tests catch a correction naming its changed fields in another order than "amount and date",
  * or saying nothing when it names none the block knows, a new item with an amount its currency can't

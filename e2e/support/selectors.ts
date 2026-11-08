@@ -87,7 +87,7 @@ export async function whileApiRequestHeld(
  * Find the button that opens a transaction row, given the row's content
  *
  * The button is the row's title, stretched over the row. Each responsive layout has its own title
- * and only the one on screen is exposed, where it comes before the controls beside it
+ * and only the one on screen is exposed. It comes before the controls beside it
  */
 export function getTransactionRowButton(row: Locator): Locator {
   return row.getByRole('button').first()

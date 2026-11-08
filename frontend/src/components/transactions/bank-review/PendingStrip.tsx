@@ -11,7 +11,7 @@ import { useFocusAfterRetry } from '@/components/transactions/hooks/useFocusAfte
 import { formatRawAmount, formatReviewDate } from '@/components/transactions/utils/bankReview'
 import { formatRelativeTime } from '@/utils/relativeTime'
 
-// Beside the count on the closed strip, and inside the opened one on phones, where it doesn't fit beside it
+// Beside the count on the closed strip, and inside the opened one on phones. It doesn't fit beside the count there
 const EXPLANATION = 'Not in your balance until the bank settles them'
 
 type BankPendingStripProps = {
@@ -22,7 +22,7 @@ type BankPendingStripProps = {
   failure: BankReadFailure | null
   accountFor: (accountId: string) => ReviewItemAccount
 
-  /** Left out on an account's own page, where every transaction is that account's */
+  /** Left out on an account's own page, since every transaction there is that account's */
   showAccountNames: boolean
 
   /** Today as "YYYY-MM-DD" in the user's profile timezone. It decides whether a date shows its year */

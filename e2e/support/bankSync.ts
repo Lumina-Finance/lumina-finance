@@ -375,7 +375,7 @@ export const READ_LINK_STATUS = /(?!Checking…).+\./
  * that read found, and the held read brings in whatever the server holds by the time it is let through
  *
  * @param status - The label the fact should come to show, as `bankSyncFact` reads it
- * @param timeout - How long the fact may take to come to show it, where the worker has yet to finish
+ * @param timeout - How long the fact may take to come to show it while the worker has yet to finish
  */
 export async function openBankLinkHoldingRead(
   page: Page,

@@ -203,7 +203,7 @@ export default function TransactionListToolbar({
     )
   }
 
-  // Sits beside Edit, square below the 1050px breakpoint, where the row has no room left for another
+  // Sits beside Edit, square below the 1050px breakpoint since the row has no room left for another
   // word. Its reason for being off shows on it when it is pointed at, focused or tapped, as Delete's
   // does in the transaction modal, since a selection holding a bank-imported row is refused for the
   // same reason

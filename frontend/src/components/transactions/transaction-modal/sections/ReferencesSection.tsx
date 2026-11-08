@@ -36,7 +36,7 @@ interface TransactionReferencesSectionProps {
   // Holds the account where it is, for a bank item. The item belongs to the account whose feed it came from
   isAccountLocked: boolean
 
-  // Set while the account's problem is the long refusal to move a bank item, which wraps beside the whole label
+  // Set while the account's problem is the long refusal to move a bank item. That refusal wraps beside the whole label
   isAccountErrorLong: boolean
   runningBalance?: { amount: number; currency: string }
 
@@ -238,7 +238,7 @@ export default function TransactionReferencesSection({
 
   return (
     <CreateModalSectionFrame step="02" title="Source/Destination">
-      {/* A bank item's account is held with its reason, which focus would open over the form */}
+      {/* A bank item's account is held with its reason. Focus would open the reason over the form */}
       <div data-modal-skip-initial-focus={isAccountLocked || undefined}>
         <CreateModalFieldLabelRow
           htmlFor={TRANSACTION_MODAL_FIELD_IDS.account}

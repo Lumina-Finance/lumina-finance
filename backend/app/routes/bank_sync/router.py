@@ -148,7 +148,7 @@ async def update_bank_connection(
 
     Args:
         connection_id: The connection to rename
-        request: The new nickname, where blank brings back the provider's name
+        request: The new nickname, and a blank one brings back the provider's name
         user: Authenticated owner of the connection
         db: Active database session
 

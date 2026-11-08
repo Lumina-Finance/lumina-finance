@@ -23,7 +23,7 @@ import { useMeasuredHeight } from '@/pages/settings/components/shared/hooks/useM
 
 /**
  * Settings section listing the user's bank connections, laid out like the tag, merchant and category
- * lists, where connections are added, renamed, reconnected and disconnected and their bank accounts
+ * lists. Connections are added, renamed, reconnected and disconnected there, and their bank accounts
  * linked
  *
  * Only providers the server offers for new connections can be added, and only those connected here

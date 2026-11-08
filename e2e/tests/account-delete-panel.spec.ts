@@ -17,7 +17,7 @@ const ACCOUNT_NAME = 'Everyday'
 
 // On a tablet the dialog has room for the panel under the Identity, Details and Archive sections, and
 // on a phone those sections fill it, so the panel opens below what it shows. The last size is the one
-// the typed-name step is checked at. Bank sync offered adds the bank link section, which takes the room
+// the typed-name step is checked at. Bank sync offered adds the bank link section that takes the room
 // a 1024px tablet had, so that size is checked with bank sync not offered and a taller tablet with it.
 // Each phone size is checked without bank sync, and the shorter one with it too
 const DIALOG_SIZES = [

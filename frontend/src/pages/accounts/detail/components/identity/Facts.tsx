@@ -12,14 +12,14 @@ type IdentityFactsProps = {
   children?: ReactNode
   className?: string
 
-  /** Lets a value too long for its column wrap onto further lines, where the identity card cuts it off */
+  /** Lets a value too long for its column wrap onto further lines. The identity card cuts it off */
   wrapsValues?: boolean
 }
 
 /**
  * Renders account facts as small labels over values in two columns, as the identity card and the bank
  * link section set them out. A value too long for its column is cut off with an ellipsis, unless the
- * caller asks for it to wrap so it shows whole on a phone too, where nothing can be hovered
+ * caller asks for it to wrap so it shows whole on a phone too, since nothing can be hovered there
  */
 export function IdentityFacts({ facts, children, className = 'mt-5', wrapsValues = false }: IdentityFactsProps) {
   return (

@@ -1,5 +1,5 @@
 /**
- * Tests the one place bulk delete decides, in the browser, which ticked transactions can't go together:
+ * Tests the one place bulk delete decides, in the browser, what stops ticked transactions going together:
  * any in a group account, and any a bank imported into an account still linked
  */
 import { describe, expect, it } from 'vitest'

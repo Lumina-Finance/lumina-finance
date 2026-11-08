@@ -14,7 +14,7 @@ type BankHoldsStripProps = {
   holds: BankHold[]
   accountFor: (accountId: string) => ReviewItemAccount
 
-  /** Left out on an account's own page, where every transaction is that account's */
+  /** Left out on an account's own page, since every transaction there is that account's */
   showAccountNames: boolean
 
   /** Today as "YYYY-MM-DD" in the user's profile timezone. It decides whether a date shows its year */

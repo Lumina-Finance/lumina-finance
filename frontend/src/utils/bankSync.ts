@@ -28,8 +28,8 @@ export function connectionName(connection: Pick<BankConnection, 'nickname' | 'pr
 }
 
 /**
- * Why a connection or link whose provider was removed from the server no longer syncs, where its card
- * says so and where Sync now and Reconnect are held back
+ * Why a connection or link whose provider was removed from the server no longer syncs. Its card
+ * says so, and Sync now and Reconnect are held back
  */
 export const PROVIDER_UNAVAILABLE_DETAIL =
   "This provider is no longer available on this server, so this connection doesn't sync. You can disconnect it to remove it, and its accounts keep everything already imported."

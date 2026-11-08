@@ -525,7 +525,7 @@ describe('BankLinkSection', () => {
     ],
     ['a sync runs', linkSynced(createSync({ state: 'syncing', sync_running: true })), 'A sync is already running'],
     [
-      'a sync runs under a bank sign-in, which shows over it, since a second sync would spend another request',
+      'a sync runs under a bank sign-in that shows over it, since a second sync would spend another request',
       linkSynced(createSync({ state: 'bank_signin_needed', sync_running: true })),
       'A sync is already running',
     ],
@@ -604,7 +604,7 @@ describe('BankLinkSection', () => {
   it.each([
     ['nothing asked for', createSync()],
     [
-      'a sync asked for in any window, which nothing starts until the worker is back',
+      'a sync asked for in any window that nothing starts until the worker is back',
       createSync({ sync_requested: true }),
     ],
   ])("disables Sync now while bank sync isn't set up, with %s, saying why under the actions", (_, sync) => {

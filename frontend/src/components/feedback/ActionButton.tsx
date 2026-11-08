@@ -23,7 +23,7 @@ interface ActionFeedbackButtonProps extends Omit<HTMLMotionProps<'button'>, 'chi
   /** Why the button is unavailable, shown in a tooltip beside the cursor, on keyboard focus and on a tap */
   disabledReason?: string | null
 
-  /** The id of an element on the page that already prints the reason, which then describes the button */
+  /** The id of an element on the page that already prints the reason, and the button is described by it */
   reasonShownById?: string
 
   /**

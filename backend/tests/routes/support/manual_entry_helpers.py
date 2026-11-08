@@ -38,7 +38,7 @@ DELETE_REFUSED = "Imported from Fake Bank. While Everyday is linked, edit it rat
 # And for a selection deleted together. It may hold several
 BULK_DELETE_REFUSED = "Transactions from Fake Bank can't be deleted from Everyday while it's linked"
 
-# A day the bank supplies, where a manual transaction can only have been entered before the link
+# A day the bank supplies. A manual transaction on it can only have been entered before the link
 COFFEE_DAY = date(2026, 7, 12)
 
 # Either end of the range the bank supplies, and a day inside it

@@ -131,7 +131,7 @@ test('shows the pending count closed, and each pending transaction newest first 
 
   await openPage(page, '/transactions')
 
-  // Closed, with the explanation beside the count except on phones, where it waits inside
+  // Closed, with the explanation beside the count except on phones. There it waits inside
   const strip = pendingStrip(page)
   const toggle = strip.getByRole('button', { name: /^3 pending/ })
   const rows = strip.getByRole('listitem')

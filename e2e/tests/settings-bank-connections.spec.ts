@@ -141,7 +141,7 @@ async function changeAnswer<T>(page: Page, path: string, change: (body: T) => vo
   })
 }
 
-/** Whether a request goes to one connection's own address, where a rename is sent */
+/** Whether a request goes to one connection's own address, the one a rename is sent to */
 function isRename(url: URL): boolean {
   return /\/bank-sync\/connections\/[^/]+$/.test(url.pathname)
 }
@@ -1055,7 +1055,7 @@ test("opens a fact's note below its value where the dialog leaves no room above 
   const scenario = await createSampleBridgeScenario(request)
   await claimSetupToken(request, user, scenario.setupToken)
 
-  // A phone on its side, where the facts are stacked above the institutions and the dialogue scrolls
+  // A phone on its side. The facts are stacked above the institutions and the dialogue scrolls
   await page.setViewportSize({ width: 844, height: 390 })
   const section = await openBankConnections(page, user)
   const dialog = await openConnection(page, section, 'SimpleFIN')
@@ -1079,7 +1079,7 @@ test("opens a fact's note below its value where the dialog leaves no room above 
 // The linked account's tile draws its edge with its fill, Disconnect with its border and the institution's
 // count with its text, each on the edge of its own box, so comparing the boxes compares what is drawn
 test("ends a linked account's tile and its institution's count on the edge the connection's actions end on, on a phone", AT_EVERY_SIZE, async ({ page, request }) => {
-  test.skip(test.info().project.name !== 'phone', 'The institutions sit below the connection and its actions under 1050px, which only the phone project is')
+  test.skip(test.info().project.name !== 'phone', 'The institutions sit below the connection and its actions under 1050px, and only the phone project is that narrow')
   const user = await signUpUser(request)
   const [household, scenario] = await Promise.all([
     createAccount(request, user, { name: 'Household' }),

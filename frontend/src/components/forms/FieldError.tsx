@@ -9,7 +9,7 @@ interface FieldErrorProps {
   className?: string
   /** Grows and shrinks the message's own height as it comes and goes, without the sideways slide, for a heading row that gets taller when the message wraps */
   collapse?: boolean
-  /** Fades a message out before the one replacing it fades in, so the two never share the row, where they would wrap it or cross */
+  /** Fades a message out before the one replacing it fades in, so the two never share the row, since they would wrap it or cross */
   sequential?: boolean
   /** Called once a message that was shown has finished leaving */
   onExitComplete?: () => void

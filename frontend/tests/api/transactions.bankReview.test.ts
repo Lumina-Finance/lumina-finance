@@ -122,7 +122,7 @@ describe('the waiting bank items after a change to a bank-imported transaction',
     expect(isReviewStale()).toBe(true)
   })
 
-  it('are read again after a move out of its account, which the server answers without its bank source', async () => {
+  it('are read again after a move out of its account, since the server answers without its bank source', async () => {
     authenticatedFetchMock.mockResolvedValue({ ...BANK_IMPORTED, account_id: 'savings', bank_source: null })
 
     await renderMutations().update.mutateAsync({ id: 'uber', patch: { account_id: 'savings' } })

@@ -62,7 +62,7 @@ class _Imported:
 
     @property
     def account_id(self) -> str:
-        """Everyday, where the coffee is"""
+        """The Everyday account that holds the coffee"""
         return self.ledger.everyday_id
 
 
@@ -158,7 +158,7 @@ async def test_a_restored_amount_takes_the_banks_latest_and_follows_trusted_corr
     """The user saved -40.00 before a trusted change to -45.10 left it alone, on an account that trusts corrections
 
     Restoring sets the bank's latest -45.10 rather than the -42.10 the user first edited, so when the
-    bank next changes the coffee to -46.00 the ledger takes it, where the user's own amount would have
+    bank next changes the coffee to -46.00 the ledger takes it. The user's own amount would have
     stayed
     """
     imported = await _bank_imported(client, observed_amount=-4510)
@@ -277,7 +277,7 @@ async def test_restoring_waits_for_an_edit_to_the_ledger_row_and_rebuilds_balanc
     """The user is moving the coffee to 1 October as they restore the bank's -42.10 over their -40.00
 
     Restoring waits for the move, then writes -42.10 to the moved transaction and rebuilds its
-    balances from 1 October, where it now sits, leaving the moved date edited
+    balances from 1 October, the date it now sits on, leaving the moved date edited
     """
     imported = await _bank_imported(client)
     ledger_row = Transaction.id == uuid.UUID(imported.transaction_id)

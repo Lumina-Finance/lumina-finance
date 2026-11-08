@@ -186,7 +186,7 @@ class ProviderAdapter(ABC):
     # Where the provider comes in the list the user chooses from, lowest first
     display_order: ClassVar[int]
 
-    # The provider's own site, where the user signs in to a bank again when it asks
+    # The provider's own site. The user signs in to a bank again there when it asks
     provider_site: ClassVar[str]
 
     # One sentence on what connecting it reaches, shown where the user chooses a provider

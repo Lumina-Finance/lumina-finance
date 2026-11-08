@@ -174,7 +174,7 @@ type IconTooltipPlacementOptions = {
  * explains, such as a fact whose value sits under its label, it opens beyond the whole of that instead,
  * and goes to the other side whenever the preferred one clips, even where the surface says that side
  * clips too. The surface can be one that cuts nothing off, such as a dialogue's side column once it is
- * stacked above the rest of the dialogue, where a tooltip kept on a side it doesn't fit runs off the
+ * stacked above the rest of the dialogue. A tooltip kept on a side it doesn't fit would run off the
  * dialogue's edge instead
  */
 export function getIconTooltipPlacement({

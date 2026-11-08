@@ -349,7 +349,7 @@ export default function CreateTransactionModal({
     setSubmitErrorTitle('')
   }
 
-  // The form scrolls on a short screen, so the next item's form starts from its top, where its card is
+  // The form scrolls on a short screen, so the next item's form starts from its top, at its card
   const formBodyRef = useRef<HTMLDivElement>(null)
   useEffect(() => {
     if (isItemSwapped) formBodyRef.current?.scrollTo({ top: 0 })

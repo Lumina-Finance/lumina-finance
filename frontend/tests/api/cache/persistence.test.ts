@@ -205,7 +205,7 @@ describe('saving the query cache', () => {
     saving.client.setQueryData(['transactions'], [{ id: 'saved-before-bank-source' }])
     saving.hide()
     const stored = Object.fromEntries(saving.localStorage.items)
-    // The shape that was current before, which this copy then reads as saved by
+    // The shape that was current before. This copy then reads it as saved by
     stored[QUERY_CACHE_STORAGE_KEY] = stored[QUERY_CACHE_STORAGE_KEY].replace(`"buster":"6:`, `"buster":"5:`)
     expect(stored[QUERY_CACHE_STORAGE_KEY]).toContain('"buster":"5:')
 

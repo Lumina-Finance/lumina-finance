@@ -64,7 +64,7 @@ class _Inbox:
 
     @property
     def account_id(self) -> str:
-        """Everyday, where the item waits"""
+        """The Everyday account that holds the waiting item"""
         return self.ledger.everyday_id
 
 

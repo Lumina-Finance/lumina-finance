@@ -44,7 +44,7 @@ type Accounts = { user: TestUser; everyday: SeededAccount; savings: SeededAccoun
 
 const DIALOG_NAME = 'Review bank item'
 
-// What a refused dismissal says, which the dialogue shows as the server gave it
+// What a refused dismissal says, shown by the dialogue as the server gave it
 const DISMISS_REFUSED = 'This item has already been decided'
 
 // Each a day apart from the others, so the review list, newest first, holds them in this order
@@ -554,7 +554,7 @@ for (const { project, width } of [{ project: 'phone', width: null }, { project: 
   })
 }
 
-// A short phone screen, where the card heading the form leaves most of the form below the fold
+// A short phone screen. The card heading the form leaves most of the form below the fold
 test.describe('on a short phone screen', AT_EVERY_SIZE, () => {
   test.beforeEach(async ({ page }) => {
     test.skip(test.info().project.name !== 'phone', 'Only a phone screen is short enough')

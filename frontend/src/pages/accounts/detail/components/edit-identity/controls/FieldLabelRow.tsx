@@ -7,7 +7,7 @@ type AccountIdentityFieldLabelRowProps = {
   error?: string
   errorId?: string
 
-  /** Fades one error out before the next fades in, where the row's width has room for only one */
+  /** Fades one error out before the next fades in, since the row's width has room for only one */
   sequential?: boolean
 }
 

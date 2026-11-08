@@ -347,7 +347,7 @@ for (const colorScheme of ['light', 'dark'] as const) {
 
   // A row has no border, so it keeps the ring, drawn around the row itself inside its edges where the
   // next row can't cover it. The row's title reaches the ring through the row's own outline and shows the
-  // row's hover look as well. The same holds when its checkbox while selecting holds focus, which also
+  // row's hover look as well. The same holds when its checkbox while selecting holds focus, and that also
   // turns its own border the focus colour
   test(`shows a transaction row's ring and hover look on keyboard focus in the ${colorScheme} theme`, async ({ page, request }) => {
     await page.emulateMedia({ colorScheme, reducedMotion: 'reduce' })

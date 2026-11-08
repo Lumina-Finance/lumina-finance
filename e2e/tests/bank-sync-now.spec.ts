@@ -61,7 +61,7 @@ test('checks nothing in a background tab while the sync runs, and shows it Synce
   await expect(syncNow).toHaveAccessibleName('Starting sync')
   await expect(syncNow).toBeFocused()
 
-  // The user moves to another tab, so this one goes to the background, where nothing it shows needs
+  // The user moves to another tab, so this one goes to the background and nothing it shows needs
   // the link list read on the timer
   await setTabHidden(page, true)
   const linkReads: string[] = []

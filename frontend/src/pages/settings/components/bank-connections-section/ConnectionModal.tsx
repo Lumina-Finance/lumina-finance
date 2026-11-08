@@ -230,7 +230,7 @@ export function ConnectionModal({
     })
   }
 
-  // Two to a row only between 640px and 1050px, where the pane spans the full-screen modal. From 1050px it
+  // Two to a row only between 640px and 1050px. There the pane spans the full-screen modal. From 1050px it
   // is a narrow column beside the institutions. The range is bounded both ways so neither width depends on
   // the order Tailwind writes its breakpoints in
   const facts = (

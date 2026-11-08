@@ -9,7 +9,7 @@ import { LOADING_ANIMATION_MIN_MS } from '@/utils/timing'
 export const EASE = [0.25, 0.1, 0.25, 1] as const
 export const SELECTOR_SPRING = { type: 'spring', stiffness: 420, damping: 36, mass: 0.8 } as const
 
-// The app's ease-out, which the modal's bank item motions share
+// The app's ease-out, shared by the modal's bank item motions
 export const APP_EASE_OUT = [0.22, 1, 0.36, 1] as const
 
 // For a line under a details field opening and closing: the message under the date row and the bank's
@@ -49,7 +49,7 @@ export const TRANSACTION_MODAL_FIXED_CONTROL_IDS: Omit<
   amount: TRANSACTION_MODAL_FIELD_IDS.amount,
 }
 
-// The id of the message a failed save shows at the foot of the form, which a bank item's form scrolls into view
+// The id of the message a failed save shows at the foot of the form. A bank item's form scrolls it into view
 export const SUBMIT_ERROR_ID = 'txn-submit-error'
 
 // The id of each validated field's message, which the field points to as its description

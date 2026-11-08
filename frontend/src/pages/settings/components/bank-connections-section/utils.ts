@@ -16,7 +16,7 @@ import { formatRelativeFutureTime } from '@/utils/relativeTime'
  * Says what is wrong with a value pasted in one of the provider's fields before it is sent, or null
  * when its length is fine, in the words the server would use. The field says how long it may be
  *
- * @param site - The provider's site, where the user copies the value from
+ * @param site - The provider's site. The user copies the value from it
  */
 export function describeCredentialLength(field: CredentialField, site: string, value: string): string | null {
   const noun = credentialNoun(field.label)
@@ -30,7 +30,7 @@ export function describeCredentialLength(field: CredentialField, site: string, v
  * limit. A field with nothing wrong has no entry
  *
  * @param values - The fields' values, already trimmed
- * @param site - The provider's site, where the user copies the values from
+ * @param site - The provider's site. The user copies the values from it
  */
 export function getCredentialProblems(
   fields: CredentialField[],

@@ -77,7 +77,7 @@ class _Removal:
 
     @property
     def account_id(self) -> str:
-        """Everyday, where the groceries are"""
+        """The Everyday account that holds the groceries"""
         return self.ledger.everyday_id
 
 
@@ -325,8 +325,8 @@ async def test_removing_locks_the_bank_transaction_before_the_ledger_transaction
 async def test_removing_waits_for_an_edit_to_the_ledger_row_and_rebuilds_balances_from_its_new_date(client):
     """The user is moving the groceries from 3 to 1 October, before a coffee on 2 October, as they remove them
 
-    Removing waits for the move, then rebuilds the balances from 1 October, where the groceries now
-    sit, so the coffee's balance no longer counts them
+    Removing waits for the move, then rebuilds the balances from 1 October, the date the groceries now
+    sit on, so the coffee's balance no longer counts them
     """
     removal = await _removal_waiting(client)
     await _commit_coffee(removal, date(2026, 10, 2))

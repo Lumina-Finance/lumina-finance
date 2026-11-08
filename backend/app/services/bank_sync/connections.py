@@ -47,7 +47,7 @@ CONNECTION_NOT_FOUND = "Bank connection not found"
 
 
 def read_nickname(nickname: str | None) -> str | None:
-    """Return a trimmed nickname to store, where blank means none
+    """Return a trimmed nickname to store, or None when it is blank
 
     Raises:
         HTTPException 422: The nickname is longer than a connection can store
@@ -249,7 +249,7 @@ async def rename_connection(
         db: Active database session
         user: The connection's owner
         connection_id: The connection to rename
-        request: The new nickname, where blank brings back the provider's name
+        request: The new nickname, and a blank one brings back the provider's name
 
     Returns:
         The renamed connection

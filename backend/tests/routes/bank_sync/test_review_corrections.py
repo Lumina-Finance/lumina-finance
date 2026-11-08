@@ -68,7 +68,7 @@ class _Correction:
 
     @property
     def account_id(self) -> str:
-        """Everyday, where the coffee is"""
+        """The Everyday account that holds the coffee"""
         return self.ledger.everyday_id
 
 
@@ -321,7 +321,7 @@ async def test_accepting_waits_for_an_edit_to_the_ledger_row_and_rebuilds_balanc
     """The user is moving the coffee to 1 October as they accept the bank's -4.75
 
     Accepting waits for the move, then writes -4.75 to the moved transaction and rebuilds its
-    balances from 1 October, where it now sits
+    balances from 1 October, the date it now sits on
     """
     correction = await _correction_waiting(client)
     ledger_row = Transaction.id == uuid.UUID(correction.transaction_id)

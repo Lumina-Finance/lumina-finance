@@ -137,7 +137,7 @@ async def lift_review_pauses(db: AsyncSession, owner_id: uuid.UUID, links: Seque
 
     Args:
         db: The owner's session
-        owner_id: The user who made the decisions, who owns the accounts
+        owner_id: The user who made the decisions and owns the accounts
         links: The links of the accounts the review action decided. It locked them with
             lock_account_links before its bank transaction rows, so a sync writing one finished first
             and is counted

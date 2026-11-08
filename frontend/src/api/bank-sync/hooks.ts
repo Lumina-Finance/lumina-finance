@@ -146,7 +146,7 @@ export const bankLinksQueryOptions = queryOptions({
 
 /**
  * How the heartbeat reads the link list: on the poll's timer while the tab is in view, and not while
- * it is in the background, where nothing the user sees needs it. Coming back to the tab reads the
+ * it is in the background, since nothing the user sees needs it there. Coming back to the tab reads the
  * list at once, so a sync or import that moved on meanwhile shows without waiting for the next tick
  */
 export const bankLinksHeartbeatQueryOptions = queryOptions({

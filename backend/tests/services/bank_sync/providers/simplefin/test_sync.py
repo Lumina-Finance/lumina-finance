@@ -1,6 +1,6 @@
 """SimpleFIN sync tests
 
-Runs a sync job end to end through SimpleFIN and the fake SimpleFIN Bridge, where the way the Bridge
+Runs a sync job end to end through SimpleFIN and the fake SimpleFIN Bridge. The way the Bridge
 stamps bank dates decides which records an import keeps
 """
 
@@ -43,7 +43,7 @@ async def test_job_keeps_records_from_the_import_start_on_for_a_user_far_east_of
 
     SimpleFIN Bridge stamps each bank date at noon UTC, midnight starting the next day in Tarawa, so the
     first window brings back 4 July, before the import start and left out, and the second brings back
-    2 October, which the first ended too soon for and which is kept though it is the checkpoint's own day
+    2 October. The first window ended too soon for it, and it is kept though it is the checkpoint's own day
     """
     await _set_owner_timezone(connection, ZoneInfo("Pacific/Tarawa"))
     await scenario.change("POST", "/connections", {"conn_id": "CON-harbour", "name": "Harbour Bank", "org_id": "ORG-harbour"})

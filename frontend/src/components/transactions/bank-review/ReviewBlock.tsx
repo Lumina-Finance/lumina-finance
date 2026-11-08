@@ -44,7 +44,7 @@ type BankReviewBlockProps = {
   itemsRetryRef: Ref<HTMLButtonElement>
   accountFor: (accountId: string) => ReviewItemAccount
 
-  /** Left out on an account's own page, where every item is that account's */
+  /** Left out on an account's own page, since every item there is that account's */
   showAccountNames: boolean
 
   /** Today as "YYYY-MM-DD" in the user's profile timezone. It decides whether a date shows its year */

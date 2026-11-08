@@ -1,6 +1,6 @@
 /**
  * Why bank actions that need the sync worker are held back, wherever they are offered. The app reads
- * the worker as missing when none has checked in lately, which on a server with none stays so
+ * the worker as missing when none has checked in lately, and on a server with none it stays missing
  */
 export const BANK_SYNC_NOT_SET_UP_REASON = "Bank sync isn't set up on this server yet."
 

@@ -16,7 +16,7 @@ export const STARTING_BALANCE_CONTROL_IDS = { starting_balance: STARTING_BALANCE
  * typed. Only a prompt keeping the account manual shows the field, so choosing a bank link leaves it
  * out
  *
- * @param keepsManual - Whether the prompt is keeping the account manual, which shows the field
+ * @param keepsManual - Whether the prompt is keeping the account manual, the only case that shows the field
  * @param typedMinus - Whether the field's last refused text held a minus
  */
 export function getStartingBalanceProblems(

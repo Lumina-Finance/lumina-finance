@@ -72,7 +72,7 @@ export default function AccountIdentityCard({
       </p>
 
       <IdentityFacts facts={identityFacts}>
-        {/* A way into the edit modal's Bank link section, where everything about the link is managed */}
+        {/* A way into the edit modal's Bank link section. Everything about the link is managed there */}
         <AnimatePresence initial={false}>
           {showsBankSync && (
             <SyncFact key="bank-sync" name="Bank sync" sync={syncLabel} onOpen={onOpenBankSync} fades />

@@ -74,7 +74,7 @@ describe('the start step', () => {
     )
   })
 
-  it('shows the choice message beneath the list, which the list points to, and gives the first choice the focus id', () => {
+  it('shows the choice message beneath the list that the list points to, and gives the first choice the focus id', () => {
     const markup = renderStep({ startChoice: 'Choose where to start' }, null)
 
     expect(markup).toMatch(/<p id="bank-link-start-choice-error" role="alert"[^>]*>Choose where to start<\/p>/)

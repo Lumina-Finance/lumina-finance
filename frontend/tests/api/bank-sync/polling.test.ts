@@ -51,7 +51,7 @@ describe('bank link polling interval', () => {
     )
   })
 
-  it('polls quickly while a sync runs under a bank sign-in, which shows over it', () => {
+  it('polls quickly while a sync runs under a bank sign-in that shows over it', () => {
     const link = createBankLink({ sync: createSyncStatus({ state: 'bank_signin_needed', sync_running: true }) })
     expect(getBankLinksPollInterval([link], null)).toBe(BANK_LINKS_ACTIVE_POLL_MS)
   })

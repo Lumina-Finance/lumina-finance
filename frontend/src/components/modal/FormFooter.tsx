@@ -27,7 +27,7 @@ interface ModalFormFooterProps {
    */
   submitReason?: string | null
 
-  /** The id of an element in the modal that already prints the submit reason, which then describes the button */
+  /** The id of an element in the modal that already prints the submit reason, and the button is described by it */
   submitReasonShownById?: string
   /** Width classes for the submit button, so a short label does not stretch the whole way across */
   submitWidthClassName: string

@@ -276,7 +276,7 @@ test('shows a bank balance that can\'t be read exactly as unavailable, its reaso
 })
 
 test('opens the reason for a gap below the difference where the dialog leaves no room above it', async ({ page, request }) => {
-  // A short window, where each balance's value sits under its label and the dialogue's body scrolls
+  // A short window. Each balance's value sits under its label and the dialogue's body scrolls
   const dialog = await openBalancesThatDiffer(page, request, { width: 1280, height: 480 })
   const difference = fact(dialog, /^Difference/)
 
@@ -323,7 +323,7 @@ for (const { shown, show } of [
   },
 ]) {
   test(`moves the reason for a gap below the balances as the dialog body scrolls them to its top, ${shown}`, async ({ page, request }) => {
-    // A small phone, where each balance takes a row. The reason shows above the three while they have
+    // A small phone. Each balance takes a row. The reason shows above the three while they have
     // room above them
     const dialog = await openBalancesThatDiffer(page, request, { width: 390, height: 667 })
     await show(dialog.getByRole('button', { name: 'Why the balances differ' }))
@@ -396,7 +396,7 @@ async function openRetryingLink(page: Page, request: APIRequestContext) {
  * Scrolls the status to the foot of the modal with the details showing beside it. They explain nothing
  * marked around them, so they stay where they showed, and there the modal's body cuts them off
  *
- * @returns How far below the icon their top sits, where they have stayed
+ * @returns How far below the icon their top sits after they have stayed
  */
 async function scrollShownDetailsToFoot(page: Page, dialog: Locator, showDetails: Locator, details: Locator): Promise<number> {
   const shownAt = await readOffsetFromIcon(page, details, showDetails)

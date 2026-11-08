@@ -261,7 +261,7 @@ test('saves an edit made after a restore in the same modal, compared with the re
   expect(await readTransaction(request, user, id)).toMatchObject({ amount: 4210, bank_source: { edited_fields: ['amount'] } })
 })
 
-test('restores the bank date under an edited date, which stays restored once the modal reopens', AT_EVERY_SIZE, async ({ page, request }) => {
+test('restores the bank date under an edited date, staying restored once the modal reopens', AT_EVERY_SIZE, async ({ page, request }) => {
   const { user, id } = await startWithImported(page, request, '-42.50', { dt: EDITED_DATE })
   await openPage(page, '/transactions')
 
@@ -320,7 +320,7 @@ test('brings a failed restore into view above the footer, from an action at the 
   await page.setViewportSize({ width: 390, height: 667 })
   await openPage(page, '/transactions')
 
-  // The form scrolls until the amount's action sits just above the footer, where the failure would
+  // The form scrolls until the amount's action sits just above the footer. The failure would
   // open underneath it. The footer is the part of the modal holding Save that doesn't hold the form
   const dialog = await openTransaction(page, id)
   const restore = restoreAction(dialog, 'amount')

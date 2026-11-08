@@ -81,7 +81,7 @@ export default function TransactionBankValueCaption({
                 onClick={onRestore}
                 // An unavailable action stays focusable, refused through aria-disabled instead, so the
                 // keyboard can reach its reason. It is described by the bank's value it restores, then
-                // by why it can't, where it can't
+                // by why it can't, when it can't
                 disabled={disabled || restoring}
                 disabledReason={unavailableReason}
                 hint={restoring ? null : RESTORE_LABEL}

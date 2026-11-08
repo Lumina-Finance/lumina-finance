@@ -249,7 +249,7 @@ describe('decided review items', () => {
     expect(queryClient.getQueryData(reviewKey)).toBe(cached)
   })
 
-  it('leave the cached backlogs, which hold no pages, as they were', () => {
+  it('leave the cached backlogs as they were, since they hold no pages', () => {
     const backlogs = [createBacklog()]
     queryClient.setQueryData(backlogKey, backlogs)
 
@@ -443,7 +443,7 @@ describe('a review decision that left the ledger alone', () => {
     expect(queryClient.getQueryData<Transaction[]>(transactionKeys.list({}))).toEqual([waiting])
   })
 
-  it('settles a dismissed item, which answers with no transaction, leaving the ledger as it was', async () => {
+  it('settles a dismissed item, answered with no transaction, leaving the ledger as it was', async () => {
     const done = applyReviewDecision(queryClient, (item) => item.id === 'item-1', undefined)
     answerLinks()
     answerBacklogs()
@@ -464,7 +464,7 @@ describe('a restored bank value', () => {
     queryClient.setQueryData(transactionKeys.detail('transaction-1'), edited)
   })
 
-  it('puts the restored transaction in place and refreshes the inbox, which shows its amount, and the balance panel', () => {
+  it('puts the restored transaction in place and refreshes the inbox that shows its amount, and the balance panel', () => {
     applyRestoredBankValue(queryClient, restored, 'amount')
 
     expect(queryClient.getQueryData(transactionKeys.detail('transaction-1'))).toEqual(restored)

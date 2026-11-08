@@ -404,8 +404,8 @@ _HELPERS: tuple[_Helper, ...] = (
     """,
         f"{RECORD_BANK_SYNC_SCAN}(timestamptz)",
     ),
-    # Deletes every user's jobs finished longer ago than the retention, which a sweep with no request
-    # identity could not see through the owner policy. The retention is written into the body rather
+    # Deletes every user's jobs finished longer ago than the retention. A sweep with no request
+    # identity could not see them through the owner policy. The retention is written into the body rather
     # than taken as an argument, since the app role can execute every helper and must not be able to
     # choose a shorter one. Written in plpgsql so creating it does not check the table exists
     _Helper(

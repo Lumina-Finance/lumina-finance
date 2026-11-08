@@ -17,7 +17,7 @@ provider that reports no removals says nothing about what it leaves out.
 
 A new record dated before the link's import start is left out, but never one dated before the
 window that brought it back, since a provider can date a record the day before the window it came
-back in, and the window before it, which ended at that midnight, didn't include it. The import start
+back in, and the window before it ended at that midnight and didn't include it. The import start
 decides only which records come in, so one already stored that the bank now dates before it is
 stored like any other change: an item waiting keeps waiting with the new date, and one in the
 ledger has its correction opened or applied.

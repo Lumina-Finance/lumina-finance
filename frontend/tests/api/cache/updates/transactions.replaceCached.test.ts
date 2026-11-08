@@ -36,7 +36,7 @@ describe('replacing a cached transaction', () => {
     expect(queryClient.getQueryData(transactionKeys.detail(waiting.id))).toEqual(kept)
   })
 
-  it('keeps the amounts a list worked out for its row, which a single transaction comes back without', () => {
+  it('keeps the amounts a list worked out for its row, since a single transaction comes back without them', () => {
     const listed: Transaction = { ...waiting, account_amount: -1250, base_currency_amount: -910 }
     const pagedKey = transactionKeys.infinite({}, 2)
     queryClient.setQueryData<InfiniteData<Transaction[]>>(pagedKey, { pages: [[listed]], pageParams: [0] })

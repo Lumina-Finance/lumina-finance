@@ -3,7 +3,7 @@
  *
  * These tests catch the page's stuck bars pushing a tooltip in a dialogue below its icon, when the
  * dialogue is drawn over those bars, and an icon's tooltip in a dialogue's narrow column pushed out of the
- * column, where it is cut off, to clear the sidebar's edge behind the dialogue, or one in a card kept
+ * column and cut off, to clear the sidebar's edge behind the dialogue, or one in a card kept
  * clear of the sidebar alone and left reaching past the card's left side. Last, they catch an icon's
  * tooltip covering the value of the fact it explains when it has no room on its preferred side, and one
  * beside no fact leaving the side it prefers when the other has no room either
@@ -60,12 +60,12 @@ describe('the sideways shift of an icon’s tooltip', () => {
   })
 
   it('keeps clear of the sidebar with no surface around the icon', () => {
-    // An icon just past the sidebar's edge, where centred it would start at 164
+    // An icon just past the sidebar's edge. Centred, it would start at 164
     expect(getIconTooltipOffset({ icon: { left: 270, width: 12 }, tooltipWidth, ...sidebarEdge })).toBe(104)
   })
 
   it('stays inside a card that starts right of the sidebar’s edge', () => {
-    // An icon near the left of a card in the page, where centred it would start at 304, clear of the
+    // An icon near the left of a card in the page. Centred, it would start at 304, clear of the
     // sidebar's edge but left of the card's 408
     const offset = getIconTooltipOffset({
       icon: { left: 410, width: 12 },
@@ -85,11 +85,11 @@ describe('the side an icon’s tooltip opens on', () => {
   const surface = { top: 0, bottom: 600 }
   const factAt = (top: number) => ({ icon: { top: top + 2, bottom: top + 14 }, subject: { top, bottom: top + 38 } })
 
-  it('keeps to the preferred side, above the whole fact, where it fits', () => {
+  it('keeps to the preferred side, above the whole fact, if it fits', () => {
     expect(getIconTooltipPlacement({ ...screen, ...factAt(300), surface })).toEqual({ placement: 'top', shift: -2 })
   })
 
-  it('opens below the whole fact, clear of its value, where there is no room above', () => {
+  it('opens below the whole fact, clear of its value, if there is no room above', () => {
     expect(getIconTooltipPlacement({ ...screen, ...factAt(100), surface })).toEqual({ placement: 'bottom', shift: 24 })
   })
 
@@ -148,7 +148,7 @@ describe('the side an icon’s tooltip opens on beside a stuck list bar', () => 
     vi.unstubAllGlobals()
   })
 
-  // The icon sits 160px down with 100px of tooltip above it, which fits over the page but not over the
+  // The icon sits 160px down with 100px of tooltip above it. That fits over the page but not over the
   // 120px toolbar stuck across the top
   function sideOf(clearsStickyBars?: boolean) {
     vi.stubGlobal('window', { innerHeight: 800 })
