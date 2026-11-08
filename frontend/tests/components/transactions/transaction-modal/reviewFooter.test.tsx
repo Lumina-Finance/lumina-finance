@@ -1,7 +1,7 @@
 /**
  * Guards the bank review dialogue's footer. Add to ledger is the form's submit, so it announces the
  * submit shortcut and carries the key cap shown while the action key is held, as every dialogue's
- * submit does, and Dismiss does not. The keep open choice reads its hint after its label
+ * submit does, and Dismiss does not. The keep open choice is main's native checkbox, named by both lines
  */
 import { renderToStaticMarkup } from 'react-dom/server'
 import { afterEach, describe, expect, it, vi } from 'vitest'
@@ -36,12 +36,13 @@ describe('the bank review footer', () => {
     expect(markup).toContain('app-shortcut-hints-save')
   })
 
-  it('describes the keep open checkbox by its hint', () => {
+  it('draws the keep open choice as main does, a native checkbox inside a label holding its hint', () => {
     const markup = render()
-    const describedBy = markup.match(/<button\b[^>]*role="checkbox"[^>]*aria-describedby="([^"]*)"/)?.[1] ?? ''
-    const hint = markup.match(new RegExp(`<span\\b[^>]*\\bid="${describedBy.replaceAll(':', '\\:')}"[^>]*>(.*?)</span>`))
+    const label = markup.match(/<label\b[^>]*\bfor="([^"]*)"[^>]*>(.*?)<\/label>/)
 
-    expect(describedBy).not.toBe('')
-    expect(hint?.[1]).toBe('Review one item after another')
+    expect(label?.[2]).toMatch(new RegExp(`<input\\b[^>]*\\bid="${label?.[1]}"[^>]*\\btype="checkbox"`))
+    expect(label?.[2].replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim()).toBe(
+      'Keep window open Review one item after another',
+    )
   })
 })

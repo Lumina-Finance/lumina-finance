@@ -1,9 +1,7 @@
-import { useId } from 'react'
 import { AnimatePresence, motion } from 'motion/react'
 import { Tag as TagIcon, X } from 'lucide-react'
 import CreateModalFieldLabelRow from '@/components/create-modal/FieldLabelRow'
 import CreateModalSectionFrame from '@/components/create-modal/SectionFrame'
-import { Checkbox } from '@/components/forms/Checkbox'
 import Dropdown, { type DropdownOption } from '@/components/dropdown/Dropdown'
 import { AppSlotMachineText } from '@/components/display/SlotMachineText'
 import { HintButton } from '@/components/tooltips/HintButton'
@@ -215,7 +213,6 @@ export default function TransactionReferencesSection({
   // Named as the constants were, so each field reads the id this modal gives it
   const TRANSACTION_MODAL_FIELD_IDS = useTransactionModalIds()
   const TRANSACTION_MODAL_ERROR_IDS = TRANSACTION_MODAL_FIELD_IDS.errors
-  const symmetricTransferHintId = useId()
   // Every transfer-kind category except Balance Adjustment records which counterparty account the
   // money touched
   const recordsCounterpartyAccount = doesTransferRecordCounterpartyAccount(kind, isBalanceAdjustmentCategory)
@@ -346,19 +343,24 @@ export default function TransactionReferencesSection({
 
               {isTransferPairOffered && (
                 <div className="pt-3">
-                  <label className="flex cursor-pointer items-start gap-3 rounded-xl px-1 py-1">
-                    <Checkbox
-                      label="Record in both accounts"
-                      describedBy={symmetricTransferHintId}
+                  <label
+                    htmlFor={TRANSACTION_MODAL_FIELD_IDS.symmetricTransfer}
+                    className="flex cursor-pointer items-start gap-3 rounded-xl px-1 py-1"
+                  >
+                    <input
+                      id={TRANSACTION_MODAL_FIELD_IDS.symmetricTransfer}
+                      type="checkbox"
                       checked={isSymmetricTransfer}
+                      onChange={(event) => onSymmetricTransferChange(event.target.checked)}
                       disabled={readOnly}
-                      onChange={() => onSymmetricTransferChange(!isSymmetricTransfer)}
+                      className="mt-0.5 h-4 w-4 shrink-0 cursor-pointer disabled:cursor-not-allowed"
+                      style={{ accentColor: 'var(--app-accent)' }}
                     />
                     <span className="min-w-0">
                       <span className="block text-sm font-medium" style={{ color: 'var(--app-text)' }}>
                         Record in both accounts
                       </span>
-                      <span id={symmetricTransferHintId} className="block text-xs" style={{ color: 'var(--app-text-muted)' }}>
+                      <span className="block text-xs" style={{ color: 'var(--app-text-muted)' }}>
                         Also create the matching entry in the receiving account
                       </span>
                     </span>

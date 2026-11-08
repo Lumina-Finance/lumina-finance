@@ -83,11 +83,7 @@ function cycleChoice(groupId: string) {
 
 /** Reports whether a key is aimed at a field that takes typed text, or a checkbox that sits among them */
 function isTextEntry(target: EventTarget | null): boolean {
-  return (
-    target instanceof HTMLInputElement ||
-    target instanceof HTMLTextAreaElement ||
-    (target instanceof HTMLElement && target.getAttribute('role') === 'checkbox')
-  )
+  return target instanceof HTMLInputElement || target instanceof HTMLTextAreaElement
 }
 
 /**

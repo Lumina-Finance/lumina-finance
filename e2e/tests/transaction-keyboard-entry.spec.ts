@@ -816,8 +816,9 @@ test('shows key caps only where a keyboard can be attached, and none on a phone'
   await expect(dialog.getByTestId('transaction-submit')).toHaveAttribute('aria-keyshortcuts', 'Alt+Enter')
   await expect(dialog.getByRole('combobox', { name: 'Category' })).toHaveAttribute('aria-keyshortcuts', 'Alt+C')
   await expect(dialog.getByTestId('transaction-submit')).toHaveAccessibleName('Add transaction')
-  await expect(dialog.getByRole('checkbox', { name: 'Keep modal open after adding' })).toHaveAccessibleDescription(
-    'Keep type, date, account, merchant, and category',
+  // A native checkbox inside its label, as on main, so its name holds the hint too
+  await expect(dialog.getByRole('checkbox', { name: /^Keep modal open after adding/ })).toHaveAccessibleName(
+    'Keep modal open after adding Keep type, date, account, merchant, and category',
   )
 })
 
@@ -1228,7 +1229,7 @@ test('answers no key in the dialogue below a Create category dialogue, and shows
 
 test('steps the date with [ and ] while the keep-open checkbox has focus', async ({ page, request }) => {
   const { dialog } = await openAddDialogue(page, request)
-  const keepOpen = dialog.getByRole('checkbox', { name: 'Keep modal open after adding', exact: true })
+  const keepOpen = dialog.getByRole('checkbox', { name: /^Keep modal open after adding/ })
 
   await keepOpen.focus()
   await expect(keepOpen).toBeFocused()

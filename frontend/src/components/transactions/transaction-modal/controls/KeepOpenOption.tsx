@@ -1,5 +1,4 @@
-import { useId } from 'react'
-import { Checkbox } from '@/components/forms/Checkbox'
+import { useTransactionModalIds } from '@/components/transactions/transaction-modal/ids'
 
 type KeepOpenOptionProps = {
   label: string
@@ -10,7 +9,8 @@ type KeepOpenOptionProps = {
 }
 
 /**
- * The footer's choice to keep the modal open after an action, so the next entry follows on from it
+ * The footer's choice to keep the modal open after an action, so the next entry follows on from it. A
+ * native checkbox inside its label, so its name holds both lines
  */
 export default function TransactionKeepOpenOption({
   label,
@@ -19,23 +19,25 @@ export default function TransactionKeepOpenOption({
   disabled,
   onChange,
 }: KeepOpenOptionProps) {
-  const descriptionId = useId()
+  const id = useTransactionModalIds().keepOpen
 
   return (
     <div className="min-w-0 sm:max-w-xs">
-      <label className="-ml-1 flex cursor-pointer items-center gap-3 rounded-xl px-1 py-1">
-        <Checkbox
-          label={label}
-          describedBy={descriptionId}
+      <label htmlFor={id} className="-ml-1 flex cursor-pointer items-center gap-3 rounded-xl px-1 py-1">
+        <input
+          id={id}
+          type="checkbox"
           checked={checked}
+          onChange={(event) => onChange(event.target.checked)}
           disabled={disabled}
-          onChange={() => onChange(!checked)}
+          className="h-4 w-4 shrink-0 cursor-pointer disabled:cursor-not-allowed"
+          style={{ accentColor: 'var(--app-accent)' }}
         />
         <span className="min-w-0">
           <span className="block text-sm font-medium" style={{ color: 'var(--app-text)' }}>
             {label}
           </span>
-          <span id={descriptionId} className="block text-xs" style={{ color: 'var(--app-text-muted)' }}>
+          <span className="block text-xs" style={{ color: 'var(--app-text-muted)' }}>
             {description}
           </span>
         </span>
