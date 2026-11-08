@@ -74,6 +74,17 @@ export function getArchiveBlockedByLinkReason(providerName: string): string {
   return `This account can't be archived while it's linked to ${providerName}. Unlink it first.`
 }
 
+/**
+ * The one reason archiving is unavailable, or null when it is available. A link's reason comes first,
+ * since the later transactions of a linked account don't block it, so the two never hold together
+ *
+ * @param linkedReason - Why the account can't be archived while it is linked, or null
+ * @param isBlockedByLaterTransactions - Whether later-dated transactions block it
+ */
+export function getArchiveReason(linkedReason: string | null, isBlockedByLaterTransactions: boolean): string | null {
+  return linkedReason ?? (isBlockedByLaterTransactions ? ARCHIVE_BLOCKED_BY_LATER_TRANSACTIONS_REASON : null)
+}
+
 export type BalanceRange = '7D' | '30D' | '90D' | '1Y'
 export type BalanceChartMode = 'balance' | 'change'
 export const BALANCE_RANGES: BalanceRange[] = ['7D', '30D', '90D', '1Y']

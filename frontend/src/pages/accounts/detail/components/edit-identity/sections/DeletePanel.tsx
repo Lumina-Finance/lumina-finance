@@ -8,11 +8,7 @@ import { PendingLabel } from '@/components/loading/PendingLabel'
 import { getFocusableElements } from '@/components/modal/focus'
 import { useRevealWhenGrown } from '@/pages/accounts/detail/hooks/useRevealWhenGrown'
 import { DisabledReasonButton } from '@/components/tooltips/DisabledReasonButton'
-import {
-  ARCHIVE_BLOCKED_BY_LATER_TRANSACTIONS_REASON,
-  EDIT_ACCOUNT_IDENTITY_FIELD_IDS,
-  EASE,
-} from '@/pages/accounts/detail/constants/accountDetail'
+import { EDIT_ACCOUNT_IDENTITY_FIELD_IDS, EASE } from '@/pages/accounts/detail/constants/accountDetail'
 import type { DeleteStage } from '@/pages/accounts/detail/components/edit-identity/types'
 
 type DeleteAccountPanelProps = {
@@ -27,14 +23,11 @@ type DeleteAccountPanelProps = {
 
   /** Fades Delete account with this reason once a press found the typed name wrong */
   blockedReason?: string
-  /** Disables the archive shortcut for the same reason the archive switch is locked */
-  isArchiveBlocked: boolean
-
   /** Disables the archive shortcut until the account's bank link has been read, as the switch is */
   isLinkLoading: boolean
 
-  /** Why the account can't be archived while it is linked. The archive switch shows it under its row */
-  archiveLinkedReason: string | null
+  /** Why the account can't be archived, or null when it can. The archive switch shows it under its row */
+  archiveReason: string | null
   onArchiveInstead: () => void
   onContinue: () => void
   onDelete: () => void
@@ -53,9 +46,8 @@ export function DeleteAccountPanel({
   isBusy,
   nameError,
   blockedReason,
-  isArchiveBlocked,
   isLinkLoading,
-  archiveLinkedReason,
+  archiveReason,
   onArchiveInstead,
   onContinue,
   onDelete,
@@ -63,8 +55,6 @@ export function DeleteAccountPanel({
 }: DeleteAccountPanelProps) {
   const questionId = useId()
   const { ref: panelRef, reveal: revealPanel } = useRevealWhenGrown<HTMLDivElement>(deleteStage !== 'idle')
-  const archiveReason =
-    archiveLinkedReason ?? (isArchiveBlocked ? ARCHIVE_BLOCKED_BY_LATER_TRANSACTIONS_REASON : undefined)
 
   // The trash button that opens the panel and the Continue button that leads on are gone once pressed, so
   // each step that grows in takes focus on its first control rather than leaving it on the page
@@ -137,7 +127,7 @@ export function DeleteAccountPanel({
                               style={{ color: 'var(--app-text-muted)' }}
                               onClick={onArchiveInstead}
                               disabled={isBusy || isLinkLoading}
-                              disabledReason={!isBusy && !isLinkLoading ? archiveReason : undefined}
+                              disabledReason={!isBusy && !isLinkLoading ? (archiveReason ?? undefined) : undefined}
                               // The archive section above already prints this reason, so it describes the button
                               reasonShownById={EDIT_ACCOUNT_IDENTITY_FIELD_IDS.archiveBlockedReason}
                             >

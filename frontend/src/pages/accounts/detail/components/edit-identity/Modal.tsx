@@ -23,6 +23,7 @@ import {
   EDIT_ACCOUNT_IDENTITY_FIELD_IDS,
   EDIT_ACCOUNT_IDENTITY_FIELDS,
   getArchiveBlockedByLinkReason,
+  getArchiveReason,
 } from '@/pages/accounts/detail/constants/accountDetail'
 import { BankLinkSection } from '@/pages/accounts/detail/components/bank-link/Section'
 import { useAccountBankLink } from '@/pages/accounts/detail/components/bank-link/useAccountBankLink'
@@ -317,6 +318,9 @@ export default function EditAccountIdentityModal({
   // Left until the account is unlinked, so the switch gives one reason at a time
   const isArchiveBlocked = !archiveLinkedReason && !account.is_archived && account.has_transactions_after_today
 
+  // The one reason archiving is unavailable, if any, which the switch prints and the delete panel's shortcut points to
+  const archiveReason = getArchiveReason(archiveLinkedReason, isArchiveBlocked)
+
   // A link holds archiving back, so archiving waits until the link has been read, but only where a
   // link could exist. With bank sync not offered, a link that is still unread can't be there, so
   // archiving behaves as it always has. A read that failed leaves archiving to the server. It refuses
@@ -398,6 +402,7 @@ export default function EditAccountIdentityModal({
                 isArchiveBlocked={isArchiveBlocked}
                 isLinkLoading={isLinkLoading}
                 archiveLinkedReason={archiveLinkedReason}
+                archiveReason={archiveReason}
                 currentBalance={account.current_balance}
                 currency={account.currency}
                 onToggle={handleArchiveToggle}
@@ -415,9 +420,8 @@ export default function EditAccountIdentityModal({
                 isBusy={isBusy}
                 nameError={deleteRefusal.errors.deleteName}
                 blockedReason={deleteRefusal.blockedReason}
-                isArchiveBlocked={isArchiveBlocked}
                 isLinkLoading={isLinkLoading}
-                archiveLinkedReason={archiveLinkedReason}
+                archiveReason={archiveReason}
                 onArchiveInstead={handleArchiveInstead}
                 onContinue={() => {
                   setDeleteStage('type-name')
