@@ -493,6 +493,48 @@ test('describes a focused row by its category, account and amount, in the order 
   )
 })
 
+// Resizes the desktop window itself, to widths no project has, so it runs on desktop only
+test('describes a wide row by the note and tags its extras column draws at its width', async ({ page, request }) => {
+  await page.emulateMedia({ reducedMotion: 'reduce' })
+  const user = await signUpUser(request)
+  // Long names take the room of the extras column at 750px, where it has room for icons only
+  const merchantName = 'Pacific Northwest Organic Grocers'
+  expect((await request.post(`${API_BASE_URL}/merchants`, { headers: asUser(user), data: { name: merchantName } })).status()).toBe(201)
+  const account = await createAccount(request, user, { name: 'Joint Household Chequing' })
+  const tagIds: string[] = []
+  for (const name of ['Family', 'Reviewed']) {
+    const response = await request.post(`${API_BASE_URL}/tags`, { headers: asUser(user), data: { name } })
+    expect(response.status()).toBe(201)
+    tagIds.push((await response.json() as { id: string }).id)
+  }
+  const id = await createTransaction(request, user, {
+    accountId: account.id, categoryName: 'Groceries', amount: -3000, notes: 'Cottage trip', merchantName, tagIds,
+  })
+  await logInViaApi(page, user)
+  await openPage(page, '/transactions')
+  const row = page.getByTestId(`transaction-row-${id}`)
+  await expectTransactionRow(page, id, '−$30.00')
+  const title = getTransactionRowButton(row)
+  const drawn = (label: string) => row.getByLabel(label, { exact: true }).filter({ visible: true })
+  const noteText = row.getByText('Cottage trip', { exact: true }).filter({ visible: true })
+
+  // A hidden form is left out of the description, so it reads what the row draws: icons here, and the
+  // note and the tag names at 1920px
+  await page.setViewportSize({ ...page.viewportSize()!, width: 750 })
+  await expect(noteText).toHaveCount(0)
+  await expect(drawn('Has note')).toHaveCount(1)
+  await expect(drawn('2 tags')).toHaveCount(1)
+  await expect(title).toHaveAccessibleDescription(/ Has note 2 tags −\$30\.00/)
+  await expect(title).not.toHaveAccessibleDescription(/Cottage trip|Family/)
+
+  await page.setViewportSize({ ...page.viewportSize()!, width: 1920 })
+  await expect(noteText).toHaveCount(1)
+  await expect(drawn('Has note')).toHaveCount(0)
+  await expect(drawn('2 tags')).toHaveCount(0)
+  await expect(title).toHaveAccessibleDescription(/ Cottage trip Family \+1 −\$30\.00/)
+  await expect(title).not.toHaveAccessibleDescription(/Has note|2 tags/)
+})
+
 test('brings the category and account lines of a phone row into view with its title, at the foot of the screen', AT_EVERY_SIZE, async ({ page, request }) => {
   test.skip(test.info().project.name !== 'phone', 'The title is the first line of the row only in the phone layout, below 750px')
   const user = await signUpUser(request)

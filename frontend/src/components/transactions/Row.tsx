@@ -216,9 +216,13 @@ function ReadOnlyReasonPill({ id, reason }: { id: string; reason: string }) {
   )
 }
 
+// Hidden from a screen reader since the row's description already names the tags
 function TagTooltip({ tags }: { tags: Transaction['tags'] }) {
   return (
-    <span className="pointer-events-none absolute bottom-full left-1/2 z-50 mb-2 flex w-52 -translate-x-1/2 flex-col items-start gap-1">
+    <span
+      aria-hidden
+      className="pointer-events-none absolute bottom-full left-1/2 z-50 mb-2 flex w-52 -translate-x-1/2 flex-col items-start gap-1"
+    >
       <span
         className="app-tag-tooltip-glass absolute -inset-6 rounded-3xl"
         style={{
@@ -245,8 +249,8 @@ function TagTooltip({ tags }: { tags: Transaction['tags'] }) {
   )
 }
 
-/** The ids a row's title is described by, one for each mark the icons draw */
-type NoteAndTagIconIds = { refund: string; note: string; tags: string }
+/** The ids a row's title is described by, one for each mark the icons draw that the layout has no text for */
+type NoteAndTagIconIds = Partial<{ refund: string; note: string; tags: string }>
 
 // Where a row has no room for the tag names or the note's text, it marks that they exist
 function NoteAndTagIcons({
@@ -457,8 +461,10 @@ export function TransactionRowView({
   // described by the category, the account and the amount beside it in its own layout, in the order that
   // layout shows them, and by its day's heading. The heading names its date. What the row says beyond
   // those, the exchange rate note, the read-only reason, the refund link, the note and the tags, is read
-  // too, wherever the layout shows it. The logo and the icons are left out, since the account's name
-  // already says what they show
+  // too, in the form the layout draws at that width. The wide layout reads the note's text and the tag
+  // names where the extras track has room for them and the icons that stand for them where it has not,
+  // and the phone layout reads the icons. The logo and the category icon are left out, since the names
+  // beside them already say what they show
   const descriptionId = useId()
   const amountId = (layout: RowLayout) => `${descriptionId}-amount-${layout}`
   const categoryId = (layout: RowLayout) => `${descriptionId}-category-${layout}`
@@ -466,27 +472,23 @@ export function TransactionRowView({
   // Only the phone layout draws the note apart from the amount. The wide layout's amount holds it
   const phoneFxNoteId = `${descriptionId}-fx-narrow`
   const readOnlyId = (layout: RowLayout) => `${descriptionId}-read-only-${layout}`
-  const iconIds = (layout: RowLayout): NoteAndTagIconIds => ({
-    refund: `${descriptionId}-refund-${layout}`,
-    note: `${descriptionId}-note-${layout}`,
-    tags: `${descriptionId}-tags-${layout}`,
-  })
+  // The phone layout has room for the icons alone, each described by its own id
+  const phoneIconIds: NoteAndTagIconIds = {
+    refund: `${descriptionId}-refund-narrow`,
+    note: `${descriptionId}-note-narrow`,
+    tags: `${descriptionId}-tags-narrow`,
+  }
+  // The wide layout holds the note's text, the tag names and their icons in one element that is always
+  // drawn. The extras track's width decides which form of each shows, and a screen reader leaves the
+  // hidden forms out of an element's text, so the description follows what the row draws
+  const wideExtrasId = `${descriptionId}-extras-wide`
   const describingIds = (layout: RowLayout) => {
     const category = categoryId(layout)
     const account = accountName ? accountId(layout) : null
     const amount = amountId(layout)
-    const icons = iconIds(layout)
     if (layout === 'wide') {
       const readOnlyPill = readOnlyReason && hasAccountMeta ? readOnlyId(layout) : null
-      return [
-        category,
-        account,
-        readOnlyPill,
-        hasNotes ? icons.note : null,
-        refundLink ? icons.refund : null,
-        hasVisibleTags ? icons.tags : null,
-        amount,
-      ]
+      return [category, account, readOnlyPill, hasSupplementalMeta ? wideExtrasId : null, amount]
     }
     const readOnlyPill = readOnlyReason && (hasAccountMeta || hasSupplementalMeta) ? readOnlyId(layout) : null
     // The phone layout shows the amount first
@@ -496,9 +498,9 @@ export function TransactionRowView({
       category,
       account,
       readOnlyPill,
-      refundLink ? icons.refund : null,
-      hasNotes ? icons.note : null,
-      tags.length > 0 ? icons.tags : null,
+      refundLink ? phoneIconIds.refund : null,
+      hasNotes ? phoneIconIds.note : null,
+      tags.length > 0 ? phoneIconIds.tags : null,
     ]
   }
   const { onClick: handleContentClick, onMouseEnter, onMouseMove, onMouseLeave, ...titleReasonProps } = reasonProps
@@ -676,20 +678,17 @@ export function TransactionRowView({
           tag list that opens above it */}
             <span className="@container/extras hidden min-w-0 hover:z-50 min-[750px]:block">
               <span
+                id={wideExtrasId}
                 className="flex min-w-0 items-center gap-3 text-sm leading-5 @min-[12rem]/extras:pl-5"
                 style={{ color: 'var(--app-text-muted)' }}
               >
                 <span className="hidden min-w-0 truncate @min-[12rem]/extras:block">{transaction.notes}</span>
-                {hasNotes && (
-                  <NoteAndTagIcons ids={iconIds('wide')} hasNotes tagCount={0} className="@min-[12rem]/extras:hidden" />
-                )}
+                {hasNotes && <NoteAndTagIcons ids={{}} hasNotes tagCount={0} className="@min-[12rem]/extras:hidden" />}
                 <span className="ml-auto flex shrink-0 items-center justify-end gap-1.5">
-                  {refundLink && (
-                    <NoteAndTagIcons ids={iconIds('wide')} hasNotes={false} tagCount={0} refundLink={refundLink} />
-                  )}
+                  {refundLink && <NoteAndTagIcons ids={{}} hasNotes={false} tagCount={0} refundLink={refundLink} />}
                   {hasVisibleTags && (
                     <span className="group relative inline-flex @min-[22rem]/extras:hidden">
-                      <NoteAndTagIcons ids={iconIds('wide')} hasNotes={false} tagCount={tags.length} />
+                      <NoteAndTagIcons ids={{}} hasNotes={false} tagCount={tags.length} />
                       <TagTooltip tags={tags} />
                     </span>
                   )}
@@ -809,7 +808,7 @@ export function TransactionRowView({
               </span>
               {hasSupplementalMeta && (
                 <NoteAndTagIcons
-                  ids={iconIds('narrow')}
+                  ids={phoneIconIds}
                   hasNotes={hasNotes}
                   tagCount={tags.length}
                   refundLink={refundLink}
