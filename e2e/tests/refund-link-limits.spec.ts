@@ -510,7 +510,10 @@ test('reaches the rows from Filters with Tab and keeps the focus ring of a greye
   await expectOnlyPickableRows(picker, ['+$37.19', '+$20.00', '+$15.00'], 3713)
   const rows = picker.getByTestId('link-candidate')
 
-  // The greyed $37.19 row is first. Tab from Filters lands on it, with its ring drawn and its reason shown
+  // The greyed $37.19 row is first. Tab from Filters lands on it, with its ring drawn and its reason shown.
+  // The picker puts focus on its search field a frame after it opens, so that comes first, or it can take
+  // focus back from Filters on a busy host
+  await expect(picker.getByPlaceholder('Merchant or note…')).toBeFocused()
   await picker.getByRole('button', { name: 'Transaction filters' }).focus()
   await page.keyboard.press('Tab')
   const greyed = rows.first().getByRole('button')
