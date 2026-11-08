@@ -1,5 +1,6 @@
 import { createContext, useContext } from 'react'
 import {
+  SUBMIT_ERROR_ID,
   TRANSACTION_MODAL_ERROR_IDS,
   TRANSACTION_MODAL_FIELD_IDS,
 } from '@/components/transactions/transaction-modal/constants'
@@ -40,6 +41,7 @@ export function getTransactionModalIds(suffix: string) {
     keepOpen: `txn-keep-open${suffix}`,
     symmetricTransfer: `txn-symmetric-transfer${suffix}`,
     title: `create-txn-title${suffix}`,
+    submitError: `${SUBMIT_ERROR_ID}${suffix}`,
     errors: Object.fromEntries(
       Object.entries(TRANSACTION_MODAL_ERROR_IDS).map(([field, id]) => [field, `${id}${suffix}`]),
     ) as typeof TRANSACTION_MODAL_ERROR_IDS,

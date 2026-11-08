@@ -86,7 +86,11 @@ import {
   getLinkedTransactionIds,
   isRefundable,
 } from '@/components/transactions/transaction-modal/utils/refund'
-import { TransactionModalIdSuffix, suffixControlIds } from '@/components/transactions/transaction-modal/ids'
+import {
+  TransactionModalIdSuffix,
+  getTransactionModalIds,
+  suffixControlIds,
+} from '@/components/transactions/transaction-modal/ids'
 import TransactionModalLinkedDeleteConfirm from '@/components/transactions/transaction-modal/modals/LinkedDeleteConfirm'
 
 /** Names a field's restore action. Focus returns to it when its restore fails */
@@ -124,6 +128,7 @@ export default function CreateTransactionModal({
   const editing = !!transaction
   const refunding = !editing && !!refundOf
   const idSuffix = refunding ? '-refund' : ''
+  const submitErrorId = getTransactionModalIds(idSuffix).submitError
   // The refund modal keeps its form between opens, so each open remounts it to start from the expense again
   const [refundModal, setRefundModal] = useState({ open: false, key: 0 })
   const { user } = useAuth()
@@ -349,12 +354,17 @@ export default function CreateTransactionModal({
     if (isItemSwapped) formBodyRef.current?.scrollTo({ top: 0 })
   }, [reviewItem?.id, isItemSwapped])
 
-  // The failed save message sits at the foot of the form. A short screen or a long form leaves it below
-  // the fold, so once it appears it is scrolled into view wherever anything hides it
-  const submitErrorRef = useRef<HTMLDivElement>(null)
+  // A bank item's form is longer than the usual one, with its source panel above the fields. Its failed
+  // save message sits at the foot of the form, below the fold on a short screen, so once it appears it is
+  // scrolled into view wherever anything hides it. A form that is not for a bank item is left as it was
+  const isBankItem = Boolean(reviewItem)
   useEffect(() => {
-    if (submitError) revealIfHidden(submitErrorRef.current, Boolean(prefersReducedMotion))
-  }, [submitError, prefersReducedMotion])
+    if (!submitError || !isBankItem) return
+    revealIfHidden(
+      formBodyRef.current?.querySelector<HTMLElement>(`#${submitErrorId}`) ?? null,
+      Boolean(prefersReducedMotion),
+    )
+  }, [submitError, isBankItem, prefersReducedMotion, submitErrorId])
 
   // The supplied-days message names a provider and a date, too long for the label row beside Date, so
   // the section shows it under the date row instead
@@ -660,7 +670,7 @@ export default function CreateTransactionModal({
               )
             }
           >
-            <motion.div key={reviewItem?.id} className="flex flex-col gap-5" {...reviewSwap}>
+            <motion.div key={reviewItem?.id} className="space-y-5" {...reviewSwap}>
               {!isFilingCardBeside && filingCard}
               {!isFilingCardBeside && sourceCardProps && <TransactionBankSourcePanel {...sourceCardProps} />}
 
@@ -781,9 +791,7 @@ export default function CreateTransactionModal({
                 />
               )}
 
-              <div ref={submitErrorRef} className="empty:hidden">
-                <FormError message={submitError} title={submitErrorTitle} />
-              </div>
+              <FormError id={submitErrorId} message={submitError} title={submitErrorTitle} />
             </motion.div>
           </ModalTitledPanel>
         </DateStepHighlightContext.Provider>

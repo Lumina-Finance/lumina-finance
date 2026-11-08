@@ -49,6 +49,9 @@ export const TRANSACTION_MODAL_FIXED_CONTROL_IDS: Omit<
   amount: TRANSACTION_MODAL_FIELD_IDS.amount,
 }
 
+// The id of the message a failed save shows at the foot of the form, which a bank item's form scrolls into view
+export const SUBMIT_ERROR_ID = 'txn-submit-error'
+
 // The id of each validated field's message, which the field points to as its description
 export const TRANSACTION_MODAL_ERROR_IDS: Record<keyof TransactionFormFieldErrors, string> = {
   account_id: 'txn-account-error',
