@@ -2067,12 +2067,9 @@
     background: color-mix(in srgb, var(--app-input-bg) 62%, transparent);
   }
 
-  /* A button that needs a stronger label sets --app-secondary-button-text rather than an inline colour.
-     An inline colour would beat the held fade below */
   .app-secondary-button {
     @apply inline-flex h-10 items-center justify-center gap-2 px-4 font-medium;
     font-size: 0.9375rem;
-    color: var(--app-secondary-button-text, var(--app-text-muted));
   }
 
   /* The expanding button draws no border at rest. Its border eases in under the pointer and on keyboard focus */
@@ -2317,7 +2314,7 @@
   }
 
   :is(.app-secondary-button, .app-glass-button)[aria-disabled="true"] {
-    color: color-mix(in srgb, var(--app-secondary-button-text, var(--app-text-muted)) 50%, transparent);
+    color: color-mix(in srgb, var(--app-text-muted) 50%, transparent);
     border-color: color-mix(in srgb, var(--app-border-strong) 50%, transparent);
     background: color-mix(in srgb, var(--app-input-bg) 31%, transparent);
   }
