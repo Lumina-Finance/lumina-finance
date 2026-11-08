@@ -107,7 +107,7 @@ describe('dropdown box placement', () => {
     expect(position.listMaxHeight).toBe(150)
   })
 
-  it('keeps the box inside a dialog’s body when the panel around it leaves fewer than five rows', () => {
+  it('keeps the box inside a dialogue’s body when the panel around it leaves fewer than five rows', () => {
     // The same Category field, with the dialogue's panel around the body as every bounded field has
     const bounds = { bottom: 643, top: 172 }
     const position = getDropdownBoxPosition({
