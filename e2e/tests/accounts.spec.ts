@@ -151,6 +151,18 @@ test('shows a server without bank sync no bank choice, link section or blank ins
   await expect(editDialog.getByText('Bank link', { exact: true })).toHaveCount(0)
 })
 
+test('reads the bank providers while Add account is open, so the prompt after the save need not wait for them', async ({ page, request }) => {
+  const user = await signUpUser(request)
+  await logInViaApi(page, user)
+  await openPage(page, '/accounts')
+
+  // Watched from here, so a read the accounts page made while loading cannot stand in for the dialogue's
+  const providersRead = page.waitForRequest(`${API_BASE_URL}/bank-sync/providers`, { timeout: 5_000 })
+  const dialog = await openModal(page, ['Add account'], 'Add account')
+  await providersRead
+  await expect(dialog).toBeVisible()
+})
+
 test('leaves a new account at zero when its starting balance is left blank', async ({ page, request }) => {
   const user = await signUpUser(request)
   await logInViaApi(page, user)

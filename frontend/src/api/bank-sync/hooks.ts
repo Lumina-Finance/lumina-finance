@@ -81,12 +81,17 @@ const BANK_DATA_STALE_TIME_MS = 0
 // The app's own default, kept for a link read that failed on the way rather than being refused
 const LINKS_READ_RETRIES = 1
 
-export function useBankProviders() {
+/**
+ * Reads the deployment's bank providers and whether the user may link
+ *
+ * @param enabled - False to make no read, for a screen that reads ahead only while a dialogue is open
+ */
+export function useBankProviders({ enabled = true }: { enabled?: boolean } = {}) {
   const { accessToken } = useAuth()
   return useQuery({
     queryKey: bankSyncKeys.providers(),
     queryFn: ({ signal }) => fetchBankProviders(signal),
-    enabled: !!accessToken,
+    enabled: !!accessToken && enabled,
     staleTime: BANK_DATA_STALE_TIME_MS,
   })
 }

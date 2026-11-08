@@ -8,6 +8,7 @@ import CreateModalSectionFrame from '@/components/create-modal/SectionFrame'
 import { Landmark } from 'lucide-react'
 import { ModalTitledPanel } from '@/components/modal/TitledPanel'
 import { ModalFormFooter } from '@/components/modal/FormFooter'
+import { useBankProviders } from '@/api/bank-sync'
 import { useCurrencies } from '@/api/currency'
 import { useInstitutions, type Institution } from '@/api/institutions'
 import { useTaxAdvantagedCategories } from '@/api/tax-advantaged-categories'
@@ -65,6 +66,10 @@ type CreateAccountModalProps = {
 export default function CreateAccountModal({ open, onClose, onCreated, onExitComplete }: CreateAccountModalProps) {
   const { user } = useAuth()
   const mutation = useCreateAccount()
+
+  // The prompt that follows the save waits for this read, so it is started while the dialogue is open
+  // and answered by the time the prompt opens. It holds the deployment's providers, not anyone's bank data
+  useBankProviders({ enabled: open })
   const { data: currencies = [] } = useCurrencies()
   const { data: institutions = [] } = useInstitutions()
   const {
