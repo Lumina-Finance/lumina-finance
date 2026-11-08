@@ -22,6 +22,8 @@ import {
   describeReconnected,
   describeRequestBudget,
   describeCredentialLength,
+  getCredentialProblems,
+  getNicknameProblem,
   describeSignInDetail,
   groupInstitutions,
   isClaimSettled,
@@ -398,6 +400,39 @@ describe('describeCredentialLength', () => {
     expect(describeCredentialLength(field, 'Fake Bank Online', 'abcde')).toBe(
       'That API key is too long. Copy only the API key from Fake Bank Online and try again',
     )
+  })
+})
+
+describe('getCredentialProblems', () => {
+  it('counts a pasted value over its limit as its field’s problem, so a press on Connect is refused', () => {
+    expect(getCredentialProblems([SETUP_TOKEN], { [SETUP_TOKEN.key]: 'a'.repeat(2049) }, 'SimpleFIN Bridge')).toEqual({
+      [SETUP_TOKEN.key]: 'That setup token is too long. Copy only the setup token from SimpleFIN Bridge and try again',
+    })
+  })
+
+  it('asks for a value left empty, and finds nothing wrong with one that fits', () => {
+    const accountId: CredentialField = { key: 'account_id', label: 'Account ID', placeholder: '', max_length: 20 }
+
+    expect(getCredentialProblems([SETUP_TOKEN], { [SETUP_TOKEN.key]: '' }, 'SimpleFIN Bridge')).toEqual({
+      [SETUP_TOKEN.key]: 'Paste the setup token',
+    })
+    expect(
+      getCredentialProblems([SETUP_TOKEN, accountId], { [SETUP_TOKEN.key]: 'abc', account_id: '' }, 'Bank'),
+    ).toEqual({
+      account_id: 'Fill this in',
+    })
+  })
+})
+
+describe('getNicknameProblem', () => {
+  it('refuses a nickname past the limit with a message rather than cutting it off, and keeps one at the limit', () => {
+    expect(getNicknameProblem('a'.repeat(64))).toBeUndefined()
+    expect(getNicknameProblem('a'.repeat(65))).toBe('Nickname must be 64 characters or less.')
+  })
+
+  it('measures the nickname as it is sent, trimmed, and lets a blank one clear it', () => {
+    expect(getNicknameProblem(`  ${'a'.repeat(64)}  `)).toBeUndefined()
+    expect(getNicknameProblem('')).toBeUndefined()
   })
 })
 

@@ -2,7 +2,6 @@ import { useEffect, useState, type FormEvent } from 'react'
 import { Landmark } from 'lucide-react'
 import { isAnsweredByApp, type ApiError } from '@/api/auth'
 import {
-  CONNECTION_NICKNAME_MAX_LENGTH,
   UNANSWERED_CLAIM_POLL_MS,
   UNANSWERED_CLAIM_WATCH_MS,
   useClaimCredential,
@@ -23,8 +22,9 @@ import { useRefusedSubmit } from '@/hooks/useRefusedSubmit'
 import { useToast } from '@/hooks/useToast'
 import {
   describeConnected,
-  describeCredentialLength,
   describeReconnected,
+  getCredentialProblems,
+  getNicknameProblem,
   isClaimSettled,
 } from '@/pages/settings/components/bank-connections-section/utils'
 import { connectionName, credentialNoun } from '@/utils/bankSync'
@@ -34,6 +34,11 @@ const FIELD_IDS = {
   provider: 'bank-connection-provider',
   nickname: 'bank-connection-nickname',
 } as const
+
+// The nickname's name among the problems a refused press marks. A provider's credential fields have
+// keys of their own
+const NICKNAME_FIELD = 'nickname'
+const NICKNAME_ERROR_ID = 'bank-connection-nickname-error'
 
 // Every credential field the refusal is about points to the one message as its description
 const CREDENTIAL_ERROR_ID = 'bank-connection-credential-error'
@@ -127,9 +132,10 @@ export function ConnectModal({
   const [values, setValues] = useState<Record<string, string>>({})
   const [nickname, setNickname] = useState('')
 
-  // A refused credential, on the fields it is about: the one too long, or every field for the server's
-  // own refusal, since that speaks of the credentials as a whole. The message is drawn once, on the last
-  const [fieldError, setFieldError] = useState<{ keys: string[]; message: string } | null>(null)
+  // The server's own refusal of the credential, which speaks of the credentials as a whole, so every
+  // field is marked and the message is drawn once, on the last. A value too long is refused before
+  // any press goes through, as a problem of its own field
+  const [fieldError, setFieldError] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [unanswered, setUnanswered] = useState<UnansweredClaim | null>(null)
 
@@ -152,20 +158,23 @@ export function ConnectModal({
   // Without a provider there is nothing to fill in, so Connect says so before any press, the way any
   // held-back button does. An empty field is only marked once a press finds it
   const heldBackReason = !reconnecting && !providerId ? 'Choose a provider first' : null
+  // The nickname comes first, as the form draws it, and a reconnect has none
+  const nicknameFields = reconnecting ? [] : [NICKNAME_FIELD]
   const refusal = useRefusedSubmit(
-    Object.fromEntries(
-      fields.map((field) => [
-        field.key,
-        trimmed[field.key] ? undefined : fields.length === 1 ? `Paste the ${noun}` : 'Fill this in',
-      ]),
-    ),
-    fields.map((field) => field.key),
-    Object.fromEntries(fields.map((field) => [field.key, credentialFieldId(field.key)])),
+    {
+      ...(reconnecting ? {} : { [NICKNAME_FIELD]: getNicknameProblem(nickname) }),
+      ...getCredentialProblems(fields, trimmed, site),
+    },
+    [...nicknameFields, ...fields.map((field) => field.key)],
+    {
+      [NICKNAME_FIELD]: FIELD_IDS.nickname,
+      ...Object.fromEntries(fields.map((field) => [field.key, credentialFieldId(field.key)])),
+    },
   )
 
   const reportAnswered = (cause: ApiError) => {
     if (cause.status === 422) {
-      setFieldError({ keys: fields.map((field) => field.key), message: cause.message })
+      setFieldError(cause.message)
       return
     }
     setError(cause.message)
@@ -174,13 +183,6 @@ export function ConnectModal({
   const submit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
     if (busy || !refusal.guard()) return
-    for (const field of fields) {
-      const lengthProblem = describeCredentialLength(field, site, trimmed[field.key])
-      if (lengthProblem) {
-        setFieldError({ keys: [field.key], message: lengthProblem })
-        return
-      }
-    }
     setFieldError(null)
     setError(null)
 
@@ -310,15 +312,19 @@ export function ConnectModal({
                   (optional)
                 </span>
               }
+              error={refusal.errors[NICKNAME_FIELD]}
+              errorId={refusal.errors[NICKNAME_FIELD] ? NICKNAME_ERROR_ID : undefined}
             />
             <input
               id={FIELD_IDS.nickname}
-              className="app-input"
+              className={`app-input ${refusal.errors[NICKNAME_FIELD] ? 'app-input-error' : ''}`}
               value={nickname}
-              maxLength={CONNECTION_NICKNAME_MAX_LENGTH}
               placeholder={`Shown instead of ${providerName}`}
+              aria-invalid={refusal.errors[NICKNAME_FIELD] ? true : undefined}
+              aria-describedby={refusal.errors[NICKNAME_FIELD] ? NICKNAME_ERROR_ID : undefined}
               disabled={busy}
               onChange={(event) => setNickname(event.target.value)}
+              onBlur={() => refusal.touch(NICKNAME_FIELD)}
             />
           </div>
         )}
@@ -344,9 +350,8 @@ export function ConnectModal({
           const refusedMessage = refusal.errors[field.key]
           const refused = Boolean(refusedMessage)
           const refusedErrorId = `${credentialFieldId(field.key)}-error`
-          const refusedByServer = fieldError?.keys.includes(field.key) ?? false
-          const serverMessage =
-            refusedByServer && fieldError?.keys[fieldError.keys.length - 1] === field.key ? fieldError.message : null
+          const refusedByServer = fieldError !== null
+          const serverMessage = refusedByServer && field.key === fields[fields.length - 1].key ? fieldError : null
           const invalid = refused || refusedByServer
           const message = refusedMessage ?? serverMessage
           const messageId = refused ? refusedErrorId : CREDENTIAL_ERROR_ID

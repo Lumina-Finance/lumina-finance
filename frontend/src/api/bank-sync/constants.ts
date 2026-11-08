@@ -1,6 +1,9 @@
 /** The longest nickname a connection may have. The server enforces it too */
 export const CONNECTION_NICKNAME_MAX_LENGTH = 64
 
+/** The refusal both nickname fields show past the limit, worded as the account notes' is */
+export const CONNECTION_NICKNAME_TOO_LONG_MESSAGE = `Nickname must be ${CONNECTION_NICKNAME_MAX_LENGTH} characters or less.`
+
 // Review backlog thresholds, counted in new posted items awaiting their first review. The server
 // pauses and resumes an account's sync at these counts, and the app words its warning from them
 export const REVIEW_WARNING_COUNT = 80

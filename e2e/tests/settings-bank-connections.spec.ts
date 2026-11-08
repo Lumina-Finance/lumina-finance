@@ -283,14 +283,17 @@ test('draws each field a provider lists, checks each against its own limit and s
   const userToken = dialog.getByRole('textbox', { name: 'User access token' })
   await expect(dialog.getByRole('textbox', { name: 'Setup token' })).toHaveCount(0)
   await appToken.fill('app-token-too-long')
-  // The press finds the user token empty and marks it, leaving the app token to be judged once it is whole
+  // The press marks every field with a problem on its own field, the empty one and the one past its limit
   await dialog.getByRole('button', { name: 'Connect' }).click()
   await expect(userToken).toHaveAttribute('aria-invalid', 'true')
+  await expect(userToken).toHaveAccessibleDescription('Fill this in')
+  await expect(appToken).toHaveAttribute('aria-invalid', 'true')
+  await expect(appToken).toHaveAccessibleDescription(
+    'That app ID token is too long. Copy only the app ID token from SimpleFIN Bridge and try again',
+  )
   await expect(dialog.getByRole('button', { name: 'Connect' })).toHaveAttribute('aria-disabled', 'true')
   await userToken.fill('user-1')
-  await dialog.getByRole('button', { name: 'Connect' }).click()
-
-  await expect(dialog.getByRole('alert')).toHaveText('That app ID token is too long. Copy only the app ID token from SimpleFIN Bridge and try again')
+  await expect(userToken).not.toHaveAttribute('aria-invalid')
   await expect(appToken).toHaveAttribute('aria-invalid', 'true')
   expect(sent).toEqual([])
 

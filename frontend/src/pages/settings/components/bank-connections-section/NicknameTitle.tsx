@@ -1,15 +1,21 @@
-import { useRef, useState } from 'react'
+import { useId, useRef, useState } from 'react'
 import { AnimatePresence, motion, useIsPresent } from 'motion/react'
 import { Check, X } from 'lucide-react'
 import { ApiError } from '@/api/auth'
-import { CONNECTION_NICKNAME_MAX_LENGTH, type BankConnection, type useRenameBankConnection } from '@/api/bank-sync'
+import type { BankConnection, useRenameBankConnection } from '@/api/bank-sync'
+import { FieldLabelRow } from '@/components/forms/FieldLabelRow'
 import { PendingLabel } from '@/components/loading/PendingLabel'
+import { DisabledReasonButton } from '@/components/tooltips/DisabledReasonButton'
+import { useRefusedSubmit } from '@/hooks/useRefusedSubmit'
 import { useToast } from '@/hooks/useToast'
 import { EASE } from '@/pages/settings/components/bank-connections-section/constants'
+import { getNicknameProblem } from '@/pages/settings/components/bank-connections-section/utils'
 import { connectionName } from '@/utils/bankSync'
 
 // Crossfades the title and its field so neither snaps in, as a passkey's rename does
 const FIELD_TRANSITION = { duration: 0.18, ease: EASE }
+
+const NICKNAME_FIELDS = ['nickname'] as const
 
 /** The connection's rename. The modal holds it so that the modal stays open while one is on its way */
 type RenameMutation = ReturnType<typeof useRenameBankConnection>
@@ -28,6 +34,13 @@ function NicknameField({
 }) {
   const { showToast } = useToast()
   const [draft, setDraft] = useState(connection.nickname ?? '')
+  const inputId = useId()
+  const errorId = `${inputId}-error`
+
+  // A nickname past the limit is refused with a message on the field, as an over-long note is, and Save
+  // fades with the reason until it is shortened
+  const refusal = useRefusedSubmit({ nickname: getNicknameProblem(draft) }, NICKNAME_FIELDS, { nickname: inputId })
+  const problem = refusal.errors.nickname
 
   // Once a nickname is saved, editing ends and the field fades out still holding the rename as it was
   // while on its way. Leaving, it stops spinning, since the modal's close is already back, and stays
@@ -43,6 +56,7 @@ function NicknameField({
 
   const save = () => {
     if (saveSent.current) return
+    if (!refusal.guard()) return
     if (draft.trim() === (connection.nickname ?? '')) {
       onDone()
       return
@@ -71,47 +85,74 @@ function NicknameField({
   }
 
   return (
-    <>
-      <input
-        className="app-input min-w-0 flex-1"
-        value={draft}
-        maxLength={CONNECTION_NICKNAME_MAX_LENGTH}
-        placeholder={connection.provider_name}
-        aria-label="Connection nickname"
-        autoFocus
-        disabled={rename.isPending}
-        onChange={(event) => setDraft(event.target.value)}
-        onKeyDown={(event) => {
-          if (event.key === 'Enter') save()
-          if (event.key === 'Escape') {
-            // Leaves the field without closing the modal around it
-            event.stopPropagation()
-            cancel()
-          }
-        }}
-      />
-      <button
-        type="button"
-        className="app-icon-button shrink-0"
-        aria-label="Save nickname"
-        aria-busy={isSaving}
-        disabled={rename.isPending}
-        onClick={save}
-      >
-        <PendingLabel pending={isSaving} name="Save nickname">
-          <Check size={16} aria-hidden />
-        </PendingLabel>
-      </button>
-      <button
-        type="button"
-        className="app-icon-button shrink-0"
-        aria-label="Cancel renaming"
-        disabled={rename.isPending}
-        onClick={cancel}
-      >
-        <X size={16} aria-hidden />
-      </button>
-    </>
+    <div className="min-w-0 flex-1">
+      {/* The label row only takes room while there is a problem to show, so the resting rename stays one line */}
+      <AnimatePresence initial={false}>
+        {problem && (
+          <motion.div
+            key="nickname-problem"
+            className="overflow-hidden"
+            initial={{ opacity: 0, height: 0 }}
+            animate={{ opacity: 1, height: 'auto' }}
+            exit={{ opacity: 0, height: 0 }}
+            transition={FIELD_TRANSITION}
+          >
+            <FieldLabelRow
+              label="Nickname"
+              htmlFor={inputId}
+              error={problem}
+              errorId={errorId}
+              compact
+              spacingClassName="mb-1"
+            />
+          </motion.div>
+        )}
+      </AnimatePresence>
+      <div className="flex items-center gap-1.5">
+        <input
+          id={inputId}
+          className={`app-input min-w-0 flex-1 ${problem ? 'app-input-error' : ''}`}
+          value={draft}
+          placeholder={connection.provider_name}
+          aria-label="Connection nickname"
+          aria-invalid={problem ? true : undefined}
+          aria-describedby={problem ? errorId : undefined}
+          autoFocus
+          disabled={rename.isPending}
+          onChange={(event) => setDraft(event.target.value)}
+          onKeyDown={(event) => {
+            if (event.key === 'Enter') save()
+            if (event.key === 'Escape') {
+              // Leaves the field without closing the modal around it
+              event.stopPropagation()
+              cancel()
+            }
+          }}
+        />
+        <DisabledReasonButton
+          type="button"
+          className="app-icon-button shrink-0"
+          aria-label="Save nickname"
+          aria-busy={isSaving}
+          disabled={rename.isPending}
+          disabledReason={rename.isPending ? undefined : refusal.blockedReason}
+          onClick={save}
+        >
+          <PendingLabel pending={isSaving} name="Save nickname">
+            <Check size={16} aria-hidden />
+          </PendingLabel>
+        </DisabledReasonButton>
+        <button
+          type="button"
+          className="app-icon-button shrink-0"
+          aria-label="Cancel renaming"
+          disabled={rename.isPending}
+          onClick={cancel}
+        >
+          <X size={16} aria-hidden />
+        </button>
+      </div>
+    </div>
   )
 }
 

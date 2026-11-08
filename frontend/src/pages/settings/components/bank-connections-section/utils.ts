@@ -1,9 +1,11 @@
-import type {
-  BankConnection,
-  BankProvider,
-  ConnectionBankAccount,
-  CredentialField,
-  ReconnectConnectionResult,
+import {
+  CONNECTION_NICKNAME_MAX_LENGTH,
+  CONNECTION_NICKNAME_TOO_LONG_MESSAGE,
+  type BankConnection,
+  type BankProvider,
+  type ConnectionBankAccount,
+  type CredentialField,
+  type ReconnectConnectionResult,
 } from '@/api/bank-sync'
 import type { SyncStatusTone } from '@/components/display/SyncStatusDot'
 import { connectionName, countNoun, credentialNoun, providerSiteName } from '@/utils/bankSync'
@@ -20,6 +22,39 @@ export function describeCredentialLength(field: CredentialField, site: string, v
   return value.length > field.max_length
     ? `That ${noun} is too long. Copy only the ${noun} from ${site} and try again`
     : null
+}
+
+/**
+ * What is wrong with each credential field right now, by field: an empty one, or a pasted value over its
+ * limit. A field with nothing wrong has no entry
+ *
+ * @param values - The fields' values, already trimmed
+ * @param site - The provider's site, where the user copies the values from
+ */
+export function getCredentialProblems(
+  fields: CredentialField[],
+  values: Record<string, string>,
+  site: string,
+): Partial<Record<string, string>> {
+  const noun = credentialNoun(fields[0].label)
+  return Object.fromEntries(
+    fields.map((field) => [
+      field.key,
+      values[field.key]
+        ? (describeCredentialLength(field, site, values[field.key]) ?? undefined)
+        : fields.length === 1
+          ? `Paste the ${noun}`
+          : 'Fill this in',
+    ]),
+  )
+}
+
+/**
+ * Refuses a nickname past the limit, measured as it is sent, trimmed. A blank one is fine, since it
+ * clears the nickname
+ */
+export function getNicknameProblem(nickname: string): string | undefined {
+  return nickname.trim().length > CONNECTION_NICKNAME_MAX_LENGTH ? CONNECTION_NICKNAME_TOO_LONG_MESSAGE : undefined
 }
 
 /** Looks up an account's name by its id, or undefined while the accounts are loading */
