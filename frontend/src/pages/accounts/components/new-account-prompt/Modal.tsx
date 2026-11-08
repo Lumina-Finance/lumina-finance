@@ -68,7 +68,10 @@ export default function NewAccountPromptModal({ open, account, onClose, onExitCo
   const { currencies } = useMoneyFormatters()
   const recordStartingBalance = useRecordStartingBalance()
   const { data: providers, isPending: providersPending } = useBankProviders()
-  const { data: connections, isPending: connectionsPending } = useBankConnections()
+  // Linking is offered to a user the bank-linking check allows, on a deployment with a provider. The
+  // connections are read only then, so a user without bank sync makes no read of them
+  const offersLink = providers !== undefined && providers.may_link && providers.providers.length > 0
+  const { data: connections, isPending: connectionsPending } = useBankConnections({ enabled: offersLink })
   const [chosen, setChosen] = useState<KeepUpToDate | null>(null)
   const [startingBalance, setStartingBalance] = useState('')
 
@@ -93,11 +96,10 @@ export default function NewAccountPromptModal({ open, account, onClose, onExitCo
   })
   const balanceError = typedMinus ? MUST_BE_ZERO_OR_HIGHER_MESSAGE : undefined
 
-  // Linking is offered to a user the bank-linking check allows, on a deployment with a provider. It is
-  // refused, saying why, for a group account, while bank sync isn't set up, as the account page's
-  // Link bank account is, and when there is no working connection to link through and no provider
-  // open to a new one. A failed read leaves the account manual rather than holding the prompt back
-  const offersLink = providers !== undefined && providers.may_link && providers.providers.length > 0
+  // Linking is refused, saying why, for a group account, while bank sync isn't set up, as the account
+  // page's Link bank account is, and when there is no working connection to link through and no
+  // provider open to a new one. A failed read leaves the account manual rather than holding the
+  // prompt back
   const hasWorkingConnection = connections?.some((connection) => connection.status === 'active') ?? false
   const linkReason = !(user !== null && isOwnPersonalAccount(account, user.id))
     ? GROUP_ACCOUNT_LINK_REASON

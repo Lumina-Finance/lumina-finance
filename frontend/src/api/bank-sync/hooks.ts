@@ -97,13 +97,17 @@ export function useBankProviders() {
  *
  * @param claimUnansweredAt - When a claim from this screen last ended without the app's answer, in
  * epoch milliseconds
+ * @param enabled - False to make no read, for a screen that needs the connections only where bank sync is offered
  */
-export function useBankConnections({ claimUnansweredAt = null }: { claimUnansweredAt?: number | null } = {}) {
+export function useBankConnections({
+  claimUnansweredAt = null,
+  enabled = true,
+}: { claimUnansweredAt?: number | null; enabled?: boolean } = {}) {
   const { accessToken } = useAuth()
   return useQuery({
     queryKey: bankSyncKeys.connections(),
     queryFn: ({ signal }) => fetchBankConnections(signal),
-    enabled: !!accessToken,
+    enabled: !!accessToken && enabled,
     staleTime: BANK_DATA_STALE_TIME_MS,
     refetchInterval: (query) => getBankConnectionsPollInterval(query.state.data, claimUnansweredAt, Date.now()),
   })

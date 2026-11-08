@@ -9,7 +9,8 @@
  * Settings, a group account sent to Settings for what it can't do there, a rejected connection counted as one
  * that can link, Keep it manual chosen by default
  * when linking is available, its starting balance shown before it is chosen, a liability's field not
- * asking for the amount owed, and the prompt opening before the bank reads settle. Choosing,
+ * asking for the amount owed, the connections read for a user who is offered no linking, and the prompt
+ * opening before the bank reads settle. Choosing,
  * continuing and the balance's typing run in the browser
  */
 import type { ReactNode } from 'react'
@@ -33,6 +34,9 @@ const reads = vi.hoisted(() => ({
   providersPending: false,
   connections: undefined as BankConnection[] | undefined,
   connectionsPending: false,
+
+  // Whether each render's connections read was allowed to run
+  connectionReadsEnabled: [] as boolean[],
 }))
 
 // The crossfade needs a browser to mount, so a button's content is drawn without its animated layers
@@ -44,7 +48,10 @@ vi.mock('@/components/modal/Shell', async (importOriginal) => ({
 vi.mock('@/api/bank-sync', async (importOriginal) => ({
   ...(await importOriginal<typeof import('@/api/bank-sync')>()),
   useBankProviders: () => ({ data: reads.providers, isPending: reads.providersPending }),
-  useBankConnections: () => ({ data: reads.connections, isPending: reads.connectionsPending }),
+  useBankConnections: (options?: { enabled?: boolean }) => {
+    reads.connectionReadsEnabled.push(options?.enabled ?? true)
+    return { data: reads.connections, isPending: reads.connectionsPending }
+  },
 }))
 vi.mock('@/api/accounts', async (importOriginal) => ({
   ...(await importOriginal<typeof import('@/api/accounts')>()),
@@ -95,9 +102,24 @@ beforeEach(() => {
   reads.providersPending = false
   reads.connections = [createConnection()]
   reads.connectionsPending = false
+  reads.connectionReadsEnabled = []
 })
 
 describe('NewAccountPromptModal', () => {
+  it('reads the connections only where linking is offered', () => {
+    for (const providers of [createProviders({ mayLink: false }), { ...createProviders(), providers: [] }, undefined]) {
+      reads.providers = providers
+      reads.connectionReadsEnabled = []
+      renderPrompt()
+      expect(reads.connectionReadsEnabled).toEqual([false])
+    }
+
+    reads.providers = createProviders()
+    reads.connectionReadsEnabled = []
+    renderPrompt()
+    expect(reads.connectionReadsEnabled).toEqual([true])
+  })
+
   it('asks how the account stays up to date, with linking chosen and no starting balance yet', () => {
     const markup = renderPrompt()
     expect(markup).toContain('Keep it up to date')
