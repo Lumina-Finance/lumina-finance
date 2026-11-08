@@ -296,7 +296,8 @@ test('draws each field a provider lists, checks each against its own limit and s
 
   await appToken.fill('app-1')
   await dialog.getByRole('button', { name: 'Connect' }).click()
-  await expect(dialog.getByRole('alert')).toHaveText(refusal)
+  // The messages of the earlier press fade out as this one's arrives, so it is found by its words
+  await expect(dialog.getByRole('alert').filter({ hasText: refusal })).toHaveText(refusal)
   // The refusal is about the credentials as a whole, so every field is marked and points to the one message
   for (const field of [appToken, userToken]) {
     await expect(field).toHaveAttribute('aria-invalid', 'true')
@@ -446,6 +447,40 @@ test("renames a connection, and a blank nickname brings back the provider's name
   await page.keyboard.press('Enter')
   await expect(dialog.getByRole('heading', { name: 'SimpleFIN' })).toBeVisible()
   await expect(fact(dialog, 'Provider')).toHaveCount(0)
+})
+
+test('takes a nickname of any length typed and refuses one over the limit once Connect or Save is pressed', async ({ page, request }) => {
+  const user = await signUpUser(request)
+  const scenario = await createSampleBridgeScenario(request)
+  const tooLong = 'Nickname must be 64 characters or less.'
+  const section = await openBankConnections(page, user)
+
+  await section.getByRole('button', { name: 'Add a connection' }).click()
+  const add = page.getByRole('dialog', { name: 'Add a connection' })
+  const nickname = add.getByRole('textbox', { name: 'Nickname' })
+  await nickname.fill('n'.repeat(70))
+  await expect(nickname).toHaveValue('n'.repeat(70))
+  await add.getByRole('textbox', { name: 'Setup token' }).fill(scenario.setupToken)
+  await add.getByRole('button', { name: 'Connect' }).click()
+  await expect(nickname).toHaveAttribute('aria-invalid', 'true')
+  await expect(nickname).toHaveAccessibleDescription(tooLong)
+  await expect(add.getByRole('button', { name: 'Connect' })).toHaveAttribute('aria-disabled', 'true')
+  await nickname.fill('n'.repeat(64))
+  await expect(nickname).not.toHaveAttribute('aria-invalid')
+  await add.getByRole('button', { name: 'Connect' }).click()
+  await expect(toast(page, `${'n'.repeat(64)} connected with 2 bank accounts.`)).toBeVisible()
+
+  const dialog = await openConnection(page, section, 'n'.repeat(64))
+  await dialog.getByRole('button', { name: 'Rename' }).click()
+  const field = dialog.getByRole('textbox', { name: 'Connection nickname' })
+  await field.fill('m'.repeat(65))
+  await expect(field).toHaveValue('m'.repeat(65))
+  await dialog.getByRole('button', { name: 'Save nickname' }).click()
+  await expect(field).toHaveAttribute('aria-invalid', 'true')
+  await expect(field).toHaveAccessibleDescription(tooLong)
+  await expect(dialog.getByRole('button', { name: 'Save nickname' })).toHaveAttribute('aria-disabled', 'true')
+  await field.fill('m'.repeat(64))
+  await expect(field).not.toHaveAttribute('aria-invalid')
 })
 
 // Rename is pressed the moment a saved rename gives it back. That brings back the field that saved while
