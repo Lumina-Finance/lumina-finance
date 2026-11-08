@@ -1,6 +1,7 @@
 import { useRef } from 'react'
 import { PendingLabel } from '@/components/loading/PendingLabel'
 import { DisabledReasonButton } from '@/components/tooltips/DisabledReasonButton'
+import { ARIA_SUBMIT_SHORTCUT } from '@/components/transactions/transaction-modal/utils/shortcuts'
 import { useConfirmingClick } from '@/hooks/useConfirmingClick'
 
 const TONE_CLASS_NAMES = {
@@ -75,6 +76,8 @@ export function ReviewDecisionButton({
         data-testid={testId}
         aria-label={shownLabel}
         aria-busy={loading}
+        // The decision that submits its form is the one the modal's submit shortcut runs
+        aria-keyshortcuts={onClick ? undefined : ARIA_SUBMIT_SHORTCUT}
         onClick={onClick ? handleClick : undefined}
         onBlur={() => setConfirming(false)}
         disabled={disabled}

@@ -1,5 +1,7 @@
 import { MODAL_INSET_CLASS_NAME } from '@/components/modal/inset'
 import { ReviewDecisionButton } from '@/components/transactions/bank-review/DecisionButton'
+import ShortcutHint from '@/components/transactions/transaction-modal/controls/ShortcutHint'
+import ShortcutHints from '@/components/transactions/transaction-modal/controls/ShortcutHints'
 import TransactionKeepOpenOption from '@/components/transactions/transaction-modal/controls/KeepOpenOption'
 
 type TransactionReviewFooterProps = {
@@ -41,7 +43,7 @@ export default function TransactionReviewFooter({
         disabled={isPending}
         onChange={onKeepOpenChange}
       />
-      <div className="grid grid-cols-2 gap-3 sm:ml-auto sm:flex sm:items-center">
+      <div className="relative grid grid-cols-2 gap-3 sm:ml-auto sm:flex sm:items-center">
         <ReviewDecisionButton
           label="Dismiss"
           tone="danger"
@@ -58,6 +60,9 @@ export default function TransactionReviewFooter({
           disabledReason={submitBlockedReason}
           testId="transaction-submit"
         />
+        <ShortcutHints placement="save">
+          <ShortcutHint submit />
+        </ShortcutHints>
       </div>
     </div>
   )

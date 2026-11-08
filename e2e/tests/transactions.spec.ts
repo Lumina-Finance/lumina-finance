@@ -443,6 +443,25 @@ test('keeps transaction account controls identifiable as transfer labels change'
   await dialog.getByRole('button', { name: 'Cancel', exact: true }).click()
 })
 
+test('describes a focused row by its category, account and amount, in the order its layout shows them', AT_EVERY_SIZE, async ({ page, request }) => {
+  const user = await signUpUser(request)
+  const account = await createAccount(request, user, { name: 'Described account' })
+  const id = await createTransaction(request, user, {
+    accountId: account.id, categoryName: 'Groceries', amount: -4250,
+  })
+  await logInViaApi(page, user)
+  await openPage(page, '/transactions')
+  await expectTransactionRow(page, id, '−$42.50')
+
+  const title = getTransactionRowButton(page.getByTestId(`transaction-row-${id}`))
+
+  // The wide layout shows the category and the account before the amount, and the phone layout the amount first
+  const phone = (page.viewportSize()?.width ?? 0) < 750
+  await expect(title).toHaveAccessibleDescription(
+    phone ? /^−\$42\.50 Groceries Described account\b/ : /^Groceries Described account −\$42\.50\b/,
+  )
+})
+
 test('preserves transaction action names through save and delete confirmation', async ({ page, request }) => {
   const user = await signUpUser(request)
   const account = await createAccount(request, user, { name: 'Action account' })

@@ -18,6 +18,7 @@ export function Checkbox({
   disabled,
   indeterminate = false,
   label,
+  describedBy,
   uncheckedBackground = 'var(--app-input-bg)',
   onChange,
 }: {
@@ -25,6 +26,10 @@ export function Checkbox({
   disabled?: boolean
   indeterminate?: boolean
   label: string
+
+  // The id of the text that says more than the label, such as a hint beside the box, which a screen reader
+  // reads after the label
+  describedBy?: string
 
   // What an empty box is filled with. The default reads against the page, and a caller putting a box
   // on a surface of that same colour passes something else so the box does not disappear into it
@@ -39,6 +44,7 @@ export function Checkbox({
       role="checkbox"
       aria-checked={indeterminate ? 'mixed' : checked}
       aria-label={label}
+      aria-describedby={describedBy}
       className="relative flex h-5 w-5 items-center justify-center rounded-lg transition-[background-color,border-color,opacity] motion-reduce:transition-none app-field-focus-visible"
       style={{
         background: checked || indeterminate ? 'var(--app-accent)' : uncheckedBackground,

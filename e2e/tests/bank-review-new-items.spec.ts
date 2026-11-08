@@ -171,6 +171,11 @@ test('opens a new item as the bank sent it beside its filing card, and adds noth
   // Closing leaves the item waiting, so the header's Close is the only way out besides a decision
   await expect(dialog.getByRole('button', { name: 'Cancel', exact: true })).toHaveCount(0)
   await expect(form.keepOpen).not.toBeChecked()
+  await expect(form.keepOpen).toHaveAccessibleDescription('Review one item after another')
+
+  // Add to ledger is the form's submit, so it announces the submit shortcut as every dialogue's does
+  await expect(form.add).toHaveAttribute('aria-keyshortcuts', 'Alt+Enter')
+  await expect(form.dismiss).not.toHaveAttribute('aria-keyshortcuts')
 
   // The card's fields are covered with the card, leaving what the link and the item's account bring it
   const card = filingCard(page)

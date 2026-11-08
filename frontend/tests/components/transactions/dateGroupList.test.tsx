@@ -225,8 +225,8 @@ describe('day headings as the name of a row’s date', () => {
       onToggleUpcoming: () => {},
     })
 
-    // The second id each title button is described by, after its amount, as the text it points at
-    const days = [...markup.matchAll(/<button [^>]*aria-describedby="[^" ]+ ([^"]+)"/g)].map(
+    // The last id each title button is described by, after its category, account and amount, as the text it points at
+    const days = [...markup.matchAll(/<button [^>]*aria-describedby="(?:[^" ]+ )+([^" ]+)"/g)].map(
       ([, id]) => markup.split(`id="${id}"`)[1]?.match(/^[^>]*>([^<]*)</)?.[1],
     )
 

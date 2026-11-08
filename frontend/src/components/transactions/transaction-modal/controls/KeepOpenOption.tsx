@@ -1,3 +1,4 @@
+import { useId } from 'react'
 import { Checkbox } from '@/components/forms/Checkbox'
 
 type KeepOpenOptionProps = {
@@ -18,15 +19,23 @@ export default function TransactionKeepOpenOption({
   disabled,
   onChange,
 }: KeepOpenOptionProps) {
+  const descriptionId = useId()
+
   return (
     <div className="min-w-0 sm:max-w-xs">
       <label className="-ml-1 flex cursor-pointer items-center gap-3 rounded-xl px-1 py-1">
-        <Checkbox label={label} checked={checked} disabled={disabled} onChange={() => onChange(!checked)} />
+        <Checkbox
+          label={label}
+          describedBy={descriptionId}
+          checked={checked}
+          disabled={disabled}
+          onChange={() => onChange(!checked)}
+        />
         <span className="min-w-0">
           <span className="block text-sm font-medium" style={{ color: 'var(--app-text)' }}>
             {label}
           </span>
-          <span className="block text-xs" style={{ color: 'var(--app-text-muted)' }}>
+          <span id={descriptionId} className="block text-xs" style={{ color: 'var(--app-text-muted)' }}>
             {description}
           </span>
         </span>

@@ -82,7 +82,7 @@ describe('bank marker', () => {
     ).toHaveLength(LAYOUTS)
   })
 
-  it('describes each title by the amount in its own layout and by the heading that names its day', () => {
+  it('describes each title by the category and the amount in its own layout and by the heading that names its day', () => {
     const markup = renderToStaticMarkup(
       <>
         <p id="day-heading">October 4, 2026</p>
@@ -99,7 +99,11 @@ describe('bank marker', () => {
       ...markup.matchAll(/<button [^>]*aria-describedby="([^"]+)"[^>]*><span [^>]*>Corner Grocer</g),
     ].map(([, ids]) => ids.split(' ').map((id) => textOf(markup, id)))
 
-    expect(descriptions).toEqual(Array.from({ length: LAYOUTS }, () => ['+CA$42.50', 'October 4, 2026']))
+    // The wide layout shows the category before the amount and the phone layout after it
+    expect(descriptions).toEqual([
+      ['Uncategorized', '+CA$42.50', 'October 4, 2026'],
+      ['+CA$42.50', 'Uncategorized', 'October 4, 2026'],
+    ])
     expect(new Set([...markup.matchAll(/aria-describedby="([^" ]+) /g)].map(([, id]) => id)).size).toBe(LAYOUTS)
 
     // The date is the heading's alone, so a search for it finds the heading rather than a copy in each row

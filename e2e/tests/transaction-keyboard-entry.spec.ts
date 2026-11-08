@@ -816,6 +816,9 @@ test('shows key caps only where a keyboard can be attached, and none on a phone'
   await expect(dialog.getByTestId('transaction-submit')).toHaveAttribute('aria-keyshortcuts', 'Alt+Enter')
   await expect(dialog.getByRole('combobox', { name: 'Category' })).toHaveAttribute('aria-keyshortcuts', 'Alt+C')
   await expect(dialog.getByTestId('transaction-submit')).toHaveAccessibleName('Add transaction')
+  await expect(dialog.getByRole('checkbox', { name: 'Keep modal open after adding' })).toHaveAccessibleDescription(
+    'Keep type, date, account, merchant, and category',
+  )
 })
 
 test('jumps with the key events a Mac keyboard sends, Option held past the key caps and kept down between chords', async ({

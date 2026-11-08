@@ -433,9 +433,20 @@ export function TransactionRowView({
   // marker beside the title keep their own rings without a second one around the row
   //
   // Tabbing from row to row hears only the button's name and description, so each title is
-  // described by the amount beside it in its own layout and by its day's heading. The heading names its date
+  // described by the category, the account and the amount beside it in its own layout, in the order that
+  // layout shows them, and by its day's heading. The heading names its date. The logo, the pills and the
+  // icons are left out, since the account's name already says what they show
   const descriptionId = useId()
   const amountId = (layout: RowLayout) => `${descriptionId}-amount-${layout}`
+  const categoryId = (layout: RowLayout) => `${descriptionId}-category-${layout}`
+  const accountId = (layout: RowLayout) => `${descriptionId}-account-${layout}`
+  const describingIds = (layout: RowLayout) => {
+    const category = categoryId(layout)
+    const account = accountName ? accountId(layout) : null
+    const amount = amountId(layout)
+    // The wide layout shows the category, then the account, then the amount. The phone layout shows the amount first
+    return layout === 'wide' ? [category, account, amount] : [amount, category, account]
+  }
   const { onClick: handleContentClick, onMouseEnter, onMouseMove, onMouseLeave, ...titleReasonProps } = reasonProps
   const renderTitleButton = (layout: RowLayout) => (
     <button
@@ -445,7 +456,7 @@ export function TransactionRowView({
       // controls doing the same thing
       tabIndex={selection ? -1 : undefined}
       {...titleReasonProps}
-      aria-describedby={[amountId(layout), dateHeadingId, titleReasonProps['aria-describedby']]
+      aria-describedby={[...describingIds(layout), dateHeadingId, titleReasonProps['aria-describedby']]
         .filter(Boolean)
         .join(' ')}
       aria-pressed={pressed}
@@ -568,7 +579,9 @@ export function TransactionRowView({
             </span>
 
             <span className="hidden min-w-0 min-[750px]:block">
-              <span className="block truncate font-medium">{categoryName}</span>
+              <span id={categoryId('wide')} className="block truncate font-medium">
+                {categoryName}
+              </span>
               <span
                 className="mt-0.5 flex min-w-0 items-center gap-1.5 text-sm"
                 style={{ color: 'var(--app-text-muted)' }}
@@ -586,7 +599,11 @@ export function TransactionRowView({
                 <>
                   <span className="inline-flex min-w-0 max-w-full items-center gap-2">
                     <AccountLogo accountName={accountName} institution={accountInstitution} />
-                    {accountName && <span className="min-w-0 truncate">{accountName}</span>}
+                    {accountName && (
+                      <span id={accountId('wide')} className="min-w-0 truncate">
+                        {accountName}
+                      </span>
+                    )}
                   </span>
                   {readOnlyReason && <ReadOnlyReasonPill reason={readOnlyReason} />}
                 </>
@@ -696,6 +713,7 @@ export function TransactionRowView({
           </span>
 
           <span
+            id={categoryId('narrow')}
             className={`col-start-2 row-start-2 min-w-0 truncate text-sm leading-[1.125rem] ${fxNote ? '' : 'col-span-2'}`}
             style={{ color: 'var(--app-text-muted)' }}
           >
@@ -718,7 +736,11 @@ export function TransactionRowView({
                 {hasAccountMeta && (
                   <span className="inline-flex min-w-0 items-center gap-1.5">
                     <AccountLogo accountName={accountName} institution={accountInstitution} />
-                    {accountName && <span className="min-w-0 truncate">{accountName}</span>}
+                    {accountName && (
+                      <span id={accountId('narrow')} className="min-w-0 truncate">
+                        {accountName}
+                      </span>
+                    )}
                   </span>
                 )}
                 {readOnlyReason && <ReadOnlyReasonPill reason={readOnlyReason} />}

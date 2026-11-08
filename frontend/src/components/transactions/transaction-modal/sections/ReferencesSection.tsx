@@ -1,3 +1,4 @@
+import { useId } from 'react'
 import { AnimatePresence, motion } from 'motion/react'
 import { Tag as TagIcon, X } from 'lucide-react'
 import CreateModalFieldLabelRow from '@/components/create-modal/FieldLabelRow'
@@ -214,6 +215,7 @@ export default function TransactionReferencesSection({
   // Named as the constants were, so each field reads the id this modal gives it
   const TRANSACTION_MODAL_FIELD_IDS = useTransactionModalIds()
   const TRANSACTION_MODAL_ERROR_IDS = TRANSACTION_MODAL_FIELD_IDS.errors
+  const symmetricTransferHintId = useId()
   // Every transfer-kind category except Balance Adjustment records which counterparty account the
   // money touched
   const recordsCounterpartyAccount = doesTransferRecordCounterpartyAccount(kind, isBalanceAdjustmentCategory)
@@ -347,6 +349,7 @@ export default function TransactionReferencesSection({
                   <label className="flex cursor-pointer items-start gap-3 rounded-xl px-1 py-1">
                     <Checkbox
                       label="Record in both accounts"
+                      describedBy={symmetricTransferHintId}
                       checked={isSymmetricTransfer}
                       disabled={readOnly}
                       onChange={() => onSymmetricTransferChange(!isSymmetricTransfer)}
@@ -355,7 +358,7 @@ export default function TransactionReferencesSection({
                       <span className="block text-sm font-medium" style={{ color: 'var(--app-text)' }}>
                         Record in both accounts
                       </span>
-                      <span className="block text-xs" style={{ color: 'var(--app-text-muted)' }}>
+                      <span id={symmetricTransferHintId} className="block text-xs" style={{ color: 'var(--app-text-muted)' }}>
                         Also create the matching entry in the receiving account
                       </span>
                     </span>
