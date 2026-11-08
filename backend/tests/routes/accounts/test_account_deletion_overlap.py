@@ -6,10 +6,8 @@ the two orders they could have run in, rather than one being cancelled as a dead
 """
 
 import asyncio
-import contextvars
 
 import pytest
-from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.permissions import accounts as account_permissions_module
@@ -18,51 +16,11 @@ from app.services.importers.shared import run_history as run_history_module
 from app.services.transactions import creation as creation_module
 from app.services.transactions import deletion as deletion_module
 from app.services.transactions import update as update_module
-from tests.routes.support import _create_account, _get_system_merchant_id, _wait_until_blocked
+from tests.routes.support import _create_account, _get_system_merchant_id
+from tests.routes.support.lock_helpers import _held_request, _overlap, _pid, _record_pid
 from tests.routes.transactions._helpers import _create_transaction, _get_system_category_id, _setup_user_with_deps
 from tests.routes.transactions._import_helpers import _import_run
 from tests.routes.transactions.test_import_run_undo import _csv_payload
-
-# Set inside one request's task, so a patched session method acts on that request alone
-_held_request = contextvars.ContextVar("held_request", default=False)
-
-
-async def _pid(db) -> int:
-    return await db.scalar(text("SELECT pg_backend_pid()"))
-
-
-async def _overlap(first, second, *, first_held, release, second_entered, pids):
-    """Run the first request to its hold, queue the second behind it, then let both finish."""
-    requests = []
-    try:
-        async with asyncio.timeout(10):
-            requests.append(asyncio.create_task(first()))
-            await first_held.wait()
-            requests.append(asyncio.create_task(second()))
-            await second_entered.wait()
-            await _wait_until_blocked(pids[0], pids[1])
-            release.set()
-            return await asyncio.gather(*requests)
-    finally:
-        release.set()
-        for request in requests:
-            if not request.done():
-                request.cancel()
-        await asyncio.gather(*requests, return_exceptions=True)
-
-
-def _record_pid(monkeypatch, module, name: str, pids: list[int], entered: asyncio.Event):
-    """Record the queued request's database backend as it enters a step, so its lock wait can be observed."""
-    original = getattr(module, name)
-
-    async def record(db, *args, **kwargs):
-        if _held_request.get():
-            return await original(db, *args, **kwargs)
-        pids.append(await _pid(db))
-        entered.set()
-        return await original(db, *args, **kwargs)
-
-    monkeypatch.setattr(module, name, record)
 
 
 def _hold_delete_at_commit(monkeypatch, client, headers, account_id, held, release, pids):

@@ -1,6 +1,7 @@
 """Waiting for a request to queue behind a row lock"""
 
 import asyncio
+import contextvars
 from collections.abc import Sequence
 
 from sqlalchemy import text
@@ -62,3 +63,45 @@ async def _wait_until_blocked(blocker_pid: int, blocked_pid: int) -> None:
                 {"pid": blocked_pid},
             ):
                 await asyncio.sleep(0.01)
+
+
+# Set inside one request's task, so a patched session method acts on that request alone
+_held_request = contextvars.ContextVar("held_request", default=False)
+
+
+async def _pid(db) -> int:
+    return await db.scalar(text("SELECT pg_backend_pid()"))
+
+
+async def _overlap(first, second, *, first_held, release, second_entered, pids):
+    """Run the first request to its hold, queue the second behind it, then let both finish."""
+    requests = []
+    try:
+        async with asyncio.timeout(10):
+            requests.append(asyncio.create_task(first()))
+            await first_held.wait()
+            requests.append(asyncio.create_task(second()))
+            await second_entered.wait()
+            await _wait_until_blocked(pids[0], pids[1])
+            release.set()
+            return await asyncio.gather(*requests)
+    finally:
+        release.set()
+        for request in requests:
+            if not request.done():
+                request.cancel()
+        await asyncio.gather(*requests, return_exceptions=True)
+
+
+def _record_pid(monkeypatch, module, name: str, pids: list[int], entered: asyncio.Event):
+    """Record the queued request's database backend as it enters a step, so its lock wait can be observed."""
+    original = getattr(module, name)
+
+    async def record(db, *args, **kwargs):
+        if _held_request.get():
+            return await original(db, *args, **kwargs)
+        pids.append(await _pid(db))
+        entered.set()
+        return await original(db, *args, **kwargs)
+
+    monkeypatch.setattr(module, name, record)
