@@ -423,6 +423,7 @@ export function BankLinkSection({ account, sectionNumber, autoFocus = false }: B
             loading={viewKey === 'loading'}
             label="Loading bank link"
             animateLoadingHeight
+            readsLayoutHeight
             clipsOnlyWhileChanging
             overlayClassName={LOADING_OVERLAY_CLASS}
           >

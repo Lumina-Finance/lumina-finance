@@ -5,7 +5,7 @@ import {
   LoadingOverlay,
   loadingVisibilityCss,
 } from '@/components/loading/Transition'
-import { getLoadingRegionHeight } from '@/components/loading/regionHeight'
+import { getLoadingRegionHeight, observeContentHeight } from '@/components/loading/regionHeight'
 import { useLoadingSnapshot } from '@/hooks/useLoadingSnapshot'
 
 type LoadingRegionBaseProps = {
@@ -24,6 +24,9 @@ type LoadingRegionBaseProps = {
    * inside can reach past the region's edges once it has settled
    */
   clipsOnlyWhileChanging?: boolean
+
+  /** Holds the content's layout height rather than its box on screen, for a region in a dialogue still scaling in */
+  readsLayoutHeight?: boolean
 }
 
 // The two forms are kept apart so children written as a function cannot be left without the
@@ -59,6 +62,7 @@ export default function LoadingRegion<T>({
   snapshot,
   animateLoadingHeight = false,
   clipsOnlyWhileChanging = false,
+  readsLayoutHeight = false,
 }: LoadingRegionProps<T>) {
   const { displaySnapshot, contentConcealed, loadingVisible, shouldReduceMotion } = useLoadingSnapshot({
     snapshot: snapshot as T,
@@ -93,20 +97,15 @@ export default function LoadingRegion<T>({
     const element = contentRef.current
     if (!heightHeld || !element) return undefined
 
-    // The layout height rather than the box on screen, since a dialogue still scaling in shrinks it. The
-    // observer reports only layout changes, so a height read part way through that entrance would be
-    // held short of the content, clipping it, until the content next changed size. Observing also
-    // reports the height the content already has. That is the first one held
-    const observer = new ResizeObserver(([entry]) => setContentHeight(entry.borderBoxSize[0].blockSize))
-    observer.observe(element)
+    const stopObserving = observeContentHeight(element, setContentHeight, readsLayoutHeight)
 
     return () => {
-      observer.disconnect()
+      stopObserving()
       // Dropped rather than kept, since the content is free to change size while nothing is
       // measuring it and the next load would open at a height it no longer has
       setContentHeight(null)
     }
-  }, [heightHeld])
+  }, [heightHeld, readsLayoutHeight])
 
   const height = getLoadingRegionHeight({
     contentHeight,

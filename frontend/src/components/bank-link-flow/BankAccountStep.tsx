@@ -131,6 +131,7 @@ export function BankAccountStep({
           loading={!discovered}
           label="Loading bank accounts"
           animateLoadingHeight
+          readsLayoutHeight
           overlayClassName={LOADING_OVERLAY_CLASS}
         >
           <div

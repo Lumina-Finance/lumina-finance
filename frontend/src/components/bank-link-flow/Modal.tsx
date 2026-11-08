@@ -262,6 +262,7 @@ export function BankLinkFlowModal({
           loading={step === null}
           label="Loading bank link"
           animateLoadingHeight
+          readsLayoutHeight
           overlayClassName={LOADING_OVERLAY_CLASS}
         >
           {/* Room for the spinner only while loading, so a short step is not padded out below */}
@@ -301,6 +302,7 @@ export function BankLinkFlowModal({
                     loading={!range}
                     label="Loading the import range"
                     animateLoadingHeight
+                    readsLayoutHeight
                     overlayClassName={LOADING_OVERLAY_CLASS}
                   >
                     {range ? (

@@ -105,7 +105,7 @@ export function ReviewSettingsModal({ open, accountId, level = 'page', onClose }
       {readError && !saved ? (
         <LoadFailure error={readError} subject="Review settings" />
       ) : (
-        <LoadingRegion loading={!current} label="Loading review settings" animateLoadingHeight>
+        <LoadingRegion loading={!current} label="Loading review settings" animateLoadingHeight readsLayoutHeight>
           {/* Spaced by padding inside each part rather than margins between them, so the Custom rows
                   fold away with their space and nothing below jumps as they go */}
           <div className="min-h-32 pb-2">
