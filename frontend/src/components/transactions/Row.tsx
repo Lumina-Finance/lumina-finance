@@ -195,9 +195,10 @@ function AccountLogo({
   )
 }
 
-function ReadOnlyReasonPill({ reason }: { reason: string }) {
+function ReadOnlyReasonPill({ id, reason }: { id: string; reason: string }) {
   return (
     <span
+      id={id}
       className="inline-flex w-fit max-w-full rounded-full border px-1.5 py-0.5 text-[0.6875rem] leading-none"
       style={{ borderColor: 'var(--app-border)', color: 'var(--app-text-muted)' }}
     >
@@ -235,15 +236,20 @@ function TagTooltip({ tags }: { tags: Transaction['tags'] }) {
   )
 }
 
+/** The ids a row's title is described by, one for each mark the icons draw */
+type NoteAndTagIconIds = { refund: string; note: string; tags: string }
+
 // Where a row has no room for the tag names or the note's text, it marks that they exist
 function NoteAndTagIcons({
   hasNotes,
   tagCount,
+  ids,
   refundLink = null,
   className = '',
 }: {
   hasNotes: boolean
   tagCount: number
+  ids: NoteAndTagIconIds
   refundLink?: string | null
   className?: string
 }) {
@@ -251,6 +257,7 @@ function NoteAndTagIcons({
     <span className={`inline-flex shrink-0 items-center gap-2 ${className}`}>
       {refundLink && (
         <span
+          id={ids.refund}
           className="inline-flex"
           role="img"
           aria-label={refundLink}
@@ -261,12 +268,16 @@ function NoteAndTagIcons({
         </span>
       )}
       {hasNotes && (
-        <span className="inline-flex" aria-label="Has note">
+        <span id={ids.note} className="inline-flex" aria-label="Has note">
           <StickyNote size={14} strokeWidth={2} aria-hidden />
         </span>
       )}
       {tagCount > 0 && (
-        <span className="inline-flex items-center gap-1" aria-label={`${tagCount} ${tagCount === 1 ? 'tag' : 'tags'}`}>
+        <span
+          id={ids.tags}
+          className="inline-flex items-center gap-1"
+          aria-label={`${tagCount} ${tagCount === 1 ? 'tag' : 'tags'}`}
+        >
           <TagIcon size={14} strokeWidth={2} aria-hidden />
           {tagCount > 1 && <span className="text-xs font-medium">{tagCount}</span>}
         </span>
@@ -286,10 +297,10 @@ const FX_NOTES: Record<TransactionFxNote, { text: string; color: string }> = {
  * Says under an amount that it has no exchange rate, and whether that is a failure or only a rate
  * that is not published yet
  */
-function FxNote({ note }: { note: TransactionFxNote }) {
+function FxNote({ id, note }: { id?: string; note: TransactionFxNote }) {
   const { text, color } = FX_NOTES[note]
   return (
-    <span className="block text-right text-xs font-normal leading-4" style={{ color }}>
+    <span id={id} className="block text-right text-xs font-normal leading-4" style={{ color }}>
       {text}
     </span>
   )
@@ -434,18 +445,51 @@ export function TransactionRowView({
   //
   // Tabbing from row to row hears only the button's name and description, so each title is
   // described by the category, the account and the amount beside it in its own layout, in the order that
-  // layout shows them, and by its day's heading. The heading names its date. The logo, the pills and the
-  // icons are left out, since the account's name already says what they show
+  // layout shows them, and by its day's heading. The heading names its date. What the row says beyond
+  // those, the exchange rate note, the read-only reason, the refund link, the note and the tags, is read
+  // too, wherever the layout shows it. The logo and the icons are left out, since the account's name
+  // already says what they show
   const descriptionId = useId()
   const amountId = (layout: RowLayout) => `${descriptionId}-amount-${layout}`
   const categoryId = (layout: RowLayout) => `${descriptionId}-category-${layout}`
   const accountId = (layout: RowLayout) => `${descriptionId}-account-${layout}`
+  // Only the phone layout draws the note apart from the amount. The wide layout's amount holds it
+  const phoneFxNoteId = `${descriptionId}-fx-narrow`
+  const readOnlyId = (layout: RowLayout) => `${descriptionId}-read-only-${layout}`
+  const iconIds = (layout: RowLayout): NoteAndTagIconIds => ({
+    refund: `${descriptionId}-refund-${layout}`,
+    note: `${descriptionId}-note-${layout}`,
+    tags: `${descriptionId}-tags-${layout}`,
+  })
   const describingIds = (layout: RowLayout) => {
     const category = categoryId(layout)
     const account = accountName ? accountId(layout) : null
     const amount = amountId(layout)
-    // The wide layout shows the category, then the account, then the amount. The phone layout shows the amount first
-    return layout === 'wide' ? [category, account, amount] : [amount, category, account]
+    const icons = iconIds(layout)
+    if (layout === 'wide') {
+      const readOnlyPill = readOnlyReason && hasAccountMeta ? readOnlyId(layout) : null
+      return [
+        category,
+        account,
+        readOnlyPill,
+        hasNotes ? icons.note : null,
+        refundLink ? icons.refund : null,
+        hasVisibleTags ? icons.tags : null,
+        amount,
+      ]
+    }
+    const readOnlyPill = readOnlyReason && (hasAccountMeta || hasSupplementalMeta) ? readOnlyId(layout) : null
+    // The phone layout shows the amount first
+    return [
+      amount,
+      fxNote ? phoneFxNoteId : null,
+      category,
+      account,
+      readOnlyPill,
+      refundLink ? icons.refund : null,
+      hasNotes ? icons.note : null,
+      tags.length > 0 ? icons.tags : null,
+    ]
   }
   const { onClick: handleContentClick, onMouseEnter, onMouseMove, onMouseLeave, ...titleReasonProps } = reasonProps
   const renderTitleButton = (layout: RowLayout) => (
@@ -605,7 +649,7 @@ export function TransactionRowView({
                       </span>
                     )}
                   </span>
-                  {readOnlyReason && <ReadOnlyReasonPill reason={readOnlyReason} />}
+                  {readOnlyReason && <ReadOnlyReasonPill id={readOnlyId('wide')} reason={readOnlyReason} />}
                 </>
               )}
             </span>
@@ -623,12 +667,16 @@ export function TransactionRowView({
                 style={{ color: 'var(--app-text-muted)' }}
               >
                 <span className="hidden min-w-0 truncate @min-[12rem]/extras:block">{transaction.notes}</span>
-                {hasNotes && <NoteAndTagIcons hasNotes tagCount={0} className="@min-[12rem]/extras:hidden" />}
+                {hasNotes && (
+                  <NoteAndTagIcons ids={iconIds('wide')} hasNotes tagCount={0} className="@min-[12rem]/extras:hidden" />
+                )}
                 <span className="ml-auto flex shrink-0 items-center justify-end gap-1.5">
-                  {refundLink && <NoteAndTagIcons hasNotes={false} tagCount={0} refundLink={refundLink} />}
+                  {refundLink && (
+                    <NoteAndTagIcons ids={iconIds('wide')} hasNotes={false} tagCount={0} refundLink={refundLink} />
+                  )}
                   {hasVisibleTags && (
                     <span className="group relative inline-flex @min-[22rem]/extras:hidden">
-                      <NoteAndTagIcons hasNotes={false} tagCount={tags.length} />
+                      <NoteAndTagIcons ids={iconIds('wide')} hasNotes={false} tagCount={tags.length} />
                       <TagTooltip tags={tags} />
                     </span>
                   )}
@@ -670,6 +718,7 @@ export function TransactionRowView({
               </span>
             </span>
 
+            {/* The note under the amount is part of what the amount's id names, so the description reads it with the amount */}
             <span
               id={amountId('wide')}
               className="hidden min-w-0 text-right font-financial text-base font-semibold tabular-nums min-[750px]:block"
@@ -723,7 +772,7 @@ export function TransactionRowView({
           {/* In the category line's own row beside it, so the marker never moves the lines in the left column */}
           {fxNote && (
             <span className="col-start-3 row-start-2 ml-2 justify-self-end">
-              <FxNote note={fxNote} />
+              <FxNote id={phoneFxNoteId} note={fxNote} />
             </span>
           )}
 
@@ -743,10 +792,11 @@ export function TransactionRowView({
                     )}
                   </span>
                 )}
-                {readOnlyReason && <ReadOnlyReasonPill reason={readOnlyReason} />}
+                {readOnlyReason && <ReadOnlyReasonPill id={readOnlyId('narrow')} reason={readOnlyReason} />}
               </span>
               {hasSupplementalMeta && (
                 <NoteAndTagIcons
+                  ids={iconIds('narrow')}
                   hasNotes={hasNotes}
                   tagCount={tags.length}
                   refundLink={refundLink}

@@ -50,13 +50,23 @@ const TRANSACTION: Transaction = {
   bank_source: null,
 }
 
-function render(options: { phoneLayout?: boolean; accountName?: string }): string {
+function render(
+  options: {
+    phoneLayout?: boolean
+    accountName?: string
+    fxNote?: 'unavailable' | 'rateNotPublished'
+    readOnlyReason?: string
+    transaction?: Partial<Transaction>
+  } = {},
+): string {
   return renderToStaticMarkup(
     <TransactionRow
       category={undefined}
       currency="USD"
-      transaction={TRANSACTION}
+      transaction={{ ...TRANSACTION, ...options.transaction }}
       accountName={options.accountName}
+      fxNote={options.fxNote}
+      readOnlyReason={options.readOnlyReason}
       phoneLayout={options.phoneLayout}
       dateHeadingId="day-heading"
       onOpen={() => {}}
@@ -64,7 +74,10 @@ function render(options: { phoneLayout?: boolean; accountName?: string }): strin
   )
 }
 
-/** The text of the element each id in a title's description names, with React's text markers taken out */
+/**
+ * What each id in a title's description names, as a screen reader reads it: the element's own label
+ * where it has one, else its text with React's text markers taken out
+ */
 function describedTexts(markup: string): string[][] {
   const titles = [...markup.matchAll(/<button\b[^>]*data-row-title[^>]*>/g)]
   return titles.map((title) => {
@@ -72,10 +85,15 @@ function describedTexts(markup: string): string[][] {
     return ids.map((id) => {
       if (id === 'day-heading') return id
       const escaped = id.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
-      return (
-        markup.match(new RegExp(`<span\\b[^>]*\\bid="${escaped}"[^>]*>(.*?)</span>`))?.[1].replaceAll('<!-- -->', '') ??
-        `missing ${id}`
-      )
+      const element = markup.match(new RegExp(`<span\\b([^>]*\\bid="${escaped}"[^>]*)>(.*?)</span>`))
+      if (!element) return `missing ${id}`
+      // A block inside the element, such as the note under an amount, reads apart from the text before it
+      const text = element[2]
+        .replaceAll('<!-- -->', '')
+        .replace(/<[^>]*>/g, ' ')
+        .replace(/\s+/g, ' ')
+        .trim()
+      return element[1].match(/aria-label="([^"]*)"/)?.[1] ?? text
     })
   })
 }
@@ -98,6 +116,75 @@ describe('what a transaction row title is described by', () => {
     const [wide, narrow] = describedTexts(render({}))
 
     expect(wide).toEqual(['Uncategorized', AMOUNT, 'day-heading'])
+    expect(narrow).toEqual([AMOUNT, 'Uncategorized', 'day-heading'])
+  })
+
+  it('reads the exchange rate note after the amount in both layouts', () => {
+    const [wide, narrow] = describedTexts(render({ accountName: 'Everyday Chequing', fxNote: 'unavailable' }))
+
+    expect(wide).toEqual(['Uncategorized', 'Everyday Chequing', `${AMOUNT} FX unavailable`, 'day-heading'])
+    expect(narrow).toEqual([AMOUNT, 'FX unavailable', 'Uncategorized', 'Everyday Chequing', 'day-heading'])
+  })
+
+  it('reads the read-only pill after the account in both layouts', () => {
+    const [wide, narrow] = describedTexts(
+      render({ accountName: 'Everyday Chequing', readOnlyReason: 'Account archived' }),
+    )
+
+    expect(wide).toEqual(['Uncategorized', 'Everyday Chequing', 'Account archived', AMOUNT, 'day-heading'])
+    expect(narrow).toEqual([AMOUNT, 'Uncategorized', 'Everyday Chequing', 'Account archived', 'day-heading'])
+  })
+
+  it('reads the refund link label in the place each layout shows it', () => {
+    const [wide, narrow] = describedTexts(
+      render({ accountName: 'Everyday Chequing', transaction: { refund_transaction_ids: ['refund-1'] } }),
+    )
+
+    expect(wide).toEqual(['Uncategorized', 'Everyday Chequing', 'Refunded once', AMOUNT, 'day-heading'])
+    expect(narrow).toEqual([AMOUNT, 'Uncategorized', 'Everyday Chequing', 'Refunded once', 'day-heading'])
+  })
+
+  it('says a row has a note', () => {
+    const [wide, narrow] = describedTexts(
+      render({ accountName: 'Everyday Chequing', transaction: { notes: 'Airport run' } }),
+    )
+
+    expect(wide).toEqual(['Uncategorized', 'Everyday Chequing', 'Has note', AMOUNT, 'day-heading'])
+    expect(narrow).toEqual([AMOUNT, 'Uncategorized', 'Everyday Chequing', 'Has note', 'day-heading'])
+  })
+
+  it('says how many tags a row has, in the singular and the plural', () => {
+    const tag = (id: string) => ({ id, group_id: null, name: `Tag ${id}` })
+    const one = describedTexts(render({ transaction: { tags: [tag('a')] } }))
+    const two = describedTexts(render({ transaction: { tags: [tag('a'), tag('b')] } }))
+
+    expect(one).toEqual([
+      ['Uncategorized', '1 tag', AMOUNT, 'day-heading'],
+      [AMOUNT, 'Uncategorized', '1 tag', 'day-heading'],
+    ])
+    expect(two).toEqual([
+      ['Uncategorized', '2 tags', AMOUNT, 'day-heading'],
+      [AMOUNT, 'Uncategorized', '2 tags', 'day-heading'],
+    ])
+  })
+
+  it('reads the refund link, the note and the tags in the order the phone layout draws them', () => {
+    const [, narrow] = describedTexts(
+      render({
+        transaction: {
+          refund_of_transaction_id: 'expense-1',
+          notes: 'Airport run',
+          tags: [{ id: 'a', group_id: null, name: 'Travel' }],
+        },
+      }),
+    )
+
+    expect(narrow).toEqual([AMOUNT, 'Uncategorized', 'Refund of an expense', 'Has note', '1 tag', 'day-heading'])
+  })
+
+  it('leaves out a read-only pill the phone layout does not draw for a row with no account or extras', () => {
+    const [, narrow] = describedTexts(render({ readOnlyReason: 'Account archived' }))
+
     expect(narrow).toEqual([AMOUNT, 'Uncategorized', 'day-heading'])
   })
 })
