@@ -95,6 +95,7 @@ export function ReviewSettingsModal({ open, accountId, level = 'page', onClose }
           // As wide as Cancel beside it, since the short label would otherwise fall short of that
           submitWidthClassName="w-full sm:w-21"
           error={error}
+          holdsButtonWidth
           level={level}
           onCancel={onClose}
           onPrimary={save}

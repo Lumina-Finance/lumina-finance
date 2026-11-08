@@ -204,6 +204,7 @@ export default function NewAccountPromptModal({ open, account, onClose, onExitCo
           submitBlockedReason={refusal.blockedReason}
           submitWidthClassName="w-full sm:w-32"
           error={submitError}
+          holdsButtonWidth={offersLink}
           onCancel={onClose}
           cancelLabel={offersLink ? 'Decide later' : 'Skip'}
         />

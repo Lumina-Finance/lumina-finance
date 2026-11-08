@@ -1,10 +1,9 @@
-import { useCallback, useEffect, useRef } from 'react'
+import { useEffect, useRef } from 'react'
 import { FormError } from '@/components/forms/FormError'
 import { PendingLabel } from '@/components/loading/PendingLabel'
 import { MODAL_INSET_CLASS_NAME } from '@/components/modal/inset'
 import type { ModalLevel } from '@/components/modal/Shell'
 import { DisabledReasonButton } from '@/components/tooltips/DisabledReasonButton'
-import { useFittedButtonWidth } from '@/hooks/useFittedButtonWidth'
 
 // The justify side is applied separately below, since a footer drawn with the primary on the left
 // swaps it for sm:justify-between rather than adding to it
@@ -56,17 +55,22 @@ interface ModalFormFooterProps {
   tone?: 'primary' | 'danger'
 
   /**
-   * Every label the primary button can show, for one whose label changes while the modal is open. The
-   * labels fade into each other and the button's width eases between them, in place of `submitWidthClassName`
-   * and a snap. Left out by a button with one label
+   * Crossfades the primary button's label into the next when `submitLabel` changes while the modal is
+   * open, and eases the button's width to the new label's, as any button does between its label and a
+   * spinner. The button must take its width from its label, such as `sm:w-auto` in
+   * `submitWidthClassName`, since a fixed width has nothing to ease. Without it a changed label snaps in
    */
-  submitLabels?: readonly string[]
+  fadesLabelChanges?: boolean
+
+  /**
+   * Keeps both buttons their width when the error beside them is long, so the error wraps in the room
+   * left. Without it the buttons give way to the error, as they do in every other modal
+   */
+  holdsButtonWidth?: boolean
 }
 
 /**
- * Cancel and submit actions for a modal form, with the submission's own error message beside them.
- * In the row the buttons wider screens get, the buttons keep their width and the message wraps
- * in the space left beside them
+ * Cancel and submit actions for a modal form, with the submission's own error message beside them
  */
 export function ModalFormFooter({
   submitLabel,
@@ -84,18 +88,10 @@ export function ModalFormFooter({
   onPrimary,
   primaryOnLeft = false,
   tone = 'primary',
-  submitLabels,
+  fadesLabelChanges = false,
+  holdsButtonWidth = false,
 }: ModalFormFooterProps) {
-  const primaryRef = useRef<HTMLButtonElement | null>(null)
-  const fitted = useFittedButtonWidth(submitLabels ?? submitLabel)
-  const { buttonRef: fittedRef } = fitted
-  const setPrimary = useCallback(
-    (node: HTMLButtonElement | null) => {
-      primaryRef.current = node
-      fittedRef.current = node
-    },
-    [fittedRef],
-  )
+  const primaryRef = useRef<HTMLButtonElement>(null)
   const primaryHadFocus = useRef(false)
 
   // Disabling a focused button drops focus to the page, which leaves the next Tab starting from the top of
@@ -119,7 +115,7 @@ export function ModalFormFooter({
   const cancelButton = (
     <button
       type="button"
-      className="app-secondary-button w-full shrink-0 sm:w-auto"
+      className={`app-secondary-button w-full sm:w-auto${holdsButtonWidth ? ' shrink-0' : ''}`}
       onClick={onCancel}
       disabled={cancelDisabled}
       data-modal-initial-focus={primaryOnLeft ? 'true' : undefined}
@@ -129,8 +125,7 @@ export function ModalFormFooter({
   )
   const primaryButton = (
     <DisabledReasonButton
-      ref={setPrimary}
-      style={submitLabels ? fitted.style : undefined}
+      ref={primaryRef}
       type={onPrimary ? 'button' : 'submit'}
       onClick={() => {
         primaryHadFocus.current = true
@@ -141,28 +136,16 @@ export function ModalFormFooter({
       disabledReason={submitDisabled ? undefined : (submitReason ?? submitBlockedReason)}
       reasonShownById={submitReason ? submitReasonShownById : undefined}
       aria-busy={submitDisabled}
-      className={`${tone === 'danger' ? 'app-danger-button' : 'app-primary-button'} shrink-0${submitLabels ? ' relative' : ''}${submitDisabled ? ' app-primary-button-loading justify-self-center sm:justify-self-auto' : ` ${submitLabels ? 'w-full sm:w-(--fit-width)' : submitWidthClassName}`}`}
+      className={`${tone === 'danger' ? 'app-danger-button' : 'app-primary-button'}${holdsButtonWidth ? ' shrink-0' : ''}${submitDisabled ? ' app-primary-button-loading justify-self-center sm:justify-self-auto' : ` ${submitWidthClassName}`}`}
     >
       {/* The spinner replaces the label, so it carries the label as its own name and a screen reader still
           says which action is in flight */}
-      {submitLabels && fitted.measure}
-      <PendingLabel pending={submitDisabled} name={submitLabel}>
-        {submitLabels ? (
-          <span className="grid">
-            {submitLabels.map((label) => (
-              <span
-                key={label}
-                aria-hidden={label !== submitLabel}
-                className="col-start-1 row-start-1 flex items-center justify-center transition-opacity motion-reduce:transition-none"
-                style={{ opacity: label === submitLabel ? 1 : 0 }}
-              >
-                {label}
-              </span>
-            ))}
-          </span>
-        ) : (
-          submitLabel
-        )}
+      <PendingLabel
+        pending={submitDisabled}
+        name={submitLabel}
+        contentKey={fadesLabelChanges ? submitLabel : undefined}
+      >
+        {submitLabel}
       </PendingLabel>
     </DisabledReasonButton>
   )

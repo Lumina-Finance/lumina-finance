@@ -68,8 +68,8 @@ describe('UnlinkModal', () => {
     expect(markup).toContain('Everyday Chequing at Harbour Bank')
     expect(getRadio(markup, 'Unlink this account')).toContain('aria-checked="true"')
     expect(getRadio(markup, 'Disconnect SimpleFIN')).toContain('aria-checked="false"')
-    expect(markup).toMatch(/<button[^>]*app-danger-button[^>]*>(?:(?!<\/button>).)*opacity:1[^>]*>Unlink<\/span>/s)
-    expect(markup).toMatch(/opacity:0[^>]*>Disconnect<\/span><\/span><\/button>/)
+    // The button holds the label it shows alone, so it is as wide as that label and no wider
+    expect(markup).toMatch(/<button[^>]*app-danger-button[^>]*>Unlink<\/button>/)
   })
 
   it('keeps the connection ready for another link when no other account uses it', () => {
@@ -99,8 +99,6 @@ describe('UnlinkModal', () => {
   })
 
   it('puts Unlink before Cancel, as every confirmation that changes records does', () => {
-    expect(renderDialog(createConnection())).toMatch(
-      />Unlink<\/span><span[^>]*>Disconnect<\/span><\/span><\/button>.*>Cancel<\/button>/s,
-    )
+    expect(renderDialog(createConnection())).toMatch(/>Unlink<\/button>.*>Cancel<\/button>/s)
   })
 })

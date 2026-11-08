@@ -240,13 +240,14 @@ export function BankLinkFlowModal({
       footer={
         <ModalFormFooter
           submitLabel={primary.label}
-          submitLabels={[...new Set(['Continue', 'Open settings', 'Close', primary.label])]}
+          fadesLabelChanges
           submitDisabled={busy}
           submitReason={heldBackReason}
           submitBlockedReason={refusal.blockedReason}
           submitReasonShownById={showsNotSetUp ? notSetUpReasonId : undefined}
-          submitWidthClassName="w-full sm:w-40"
+          submitWidthClassName="w-full sm:w-auto"
           error={error}
+          holdsButtonWidth
           level="stacked"
           onCancel={backsToAccount ? () => goTo('account') : onClose}
           cancelLabel={backsToAccount ? 'Back' : 'Cancel'}

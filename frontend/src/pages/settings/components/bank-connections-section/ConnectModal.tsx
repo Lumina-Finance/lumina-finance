@@ -270,6 +270,7 @@ export function ConnectModal({
           submitBlockedReason={refusal.blockedReason}
           submitWidthClassName="w-full sm:w-32"
           error={error}
+          holdsButtonWidth
           level={level}
           onCancel={onClose}
         />

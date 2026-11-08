@@ -104,9 +104,10 @@ export function UnlinkModal({
           submitLabel={scope === 'account' ? 'Unlink' : 'Disconnect'}
           submitDisabled={busy}
           submitWidthClassName="w-full sm:w-auto"
-          submitLabels={['Unlink', 'Disconnect']}
+          fadesLabelChanges
           tone="danger"
           error={error}
+          holdsButtonWidth
           level={level}
           onCancel={onClose}
           onPrimary={confirm}
