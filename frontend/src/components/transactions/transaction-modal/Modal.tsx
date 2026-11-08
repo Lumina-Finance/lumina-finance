@@ -12,6 +12,7 @@ import { formatCurrencySymbol } from '@/utils/formatCurrency'
 import { DEFAULT_MINOR_UNIT_EXPONENT, findCurrencyExponent } from '@/utils/moneyInput'
 import { useAuth } from '@/hooks/useAuth'
 import { getTodayYmd } from '@/utils/date'
+import { getSaveFailureMessage } from '@/utils/createFailure'
 import { isOwnPersonalAccount } from '@/utils/bankSync'
 import {
   APP_EASE_OUT,
@@ -87,8 +88,6 @@ import {
 } from '@/components/transactions/transaction-modal/utils/refund'
 import { TransactionModalIdSuffix, suffixControlIds } from '@/components/transactions/transaction-modal/ids'
 import TransactionModalLinkedDeleteConfirm from '@/components/transactions/transaction-modal/modals/LinkedDeleteConfirm'
-
-const RESTORE_FAILED_MESSAGE = 'Could not restore the bank value. Please try again.'
 
 /** Names a field's restore action. Focus returns to it when its restore fails */
 function getRestoreActionId(field: EditableBankField): string {
@@ -458,11 +457,11 @@ export default function CreateTransactionModal({
   useEffect(() => {
     if (focusAfterRestore) document.getElementById(focusAfterRestore.id)?.focus()
   }, [focusAfterRestore])
-  const [restoreFailedField, setRestoreFailedField] = useState<EditableBankField | null>(null)
+  const [restoreFailure, setRestoreFailure] = useState<{ field: EditableBankField; message: string } | null>(null)
 
   const restoreField = (field: EditableBankField) => {
     if (!storedTransaction) return
-    setRestoreFailedField(null)
+    setRestoreFailure(null)
     restoreBankValue.mutate(
       { transactionId: storedTransaction.id, field },
       {
@@ -478,8 +477,8 @@ export default function CreateTransactionModal({
           const size = amountToInputString(restored.amount, selectedCurrencyExponent)
           handleAmountChange(size, `${restored.amount < 0 ? '-' : '+'}${size}`)
         },
-        onError: () => {
-          setRestoreFailedField(field)
+        onError: (err) => {
+          setRestoreFailure({ field, message: getSaveFailureMessage(err) })
           setFocusAfterRestore({ id: getRestoreActionId(field) })
         },
       },
@@ -492,7 +491,7 @@ export default function CreateTransactionModal({
         actionId={getRestoreActionId(field)}
         bankValue={bankValueCaptions[field]?.value ?? null}
         unavailableReason={bankValueCaptions[field]?.unavailableReason ?? null}
-        error={restoreFailedField === field ? RESTORE_FAILED_MESSAGE : null}
+        error={restoreFailure?.field === field ? restoreFailure.message : null}
         financial={field === 'amount'}
         restoring={restoringField === field}
         disabled={readOnly || isPending || restoring}

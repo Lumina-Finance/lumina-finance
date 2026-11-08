@@ -22,7 +22,7 @@ const BANK_DESCRIPTION = 'HARBOUR CAFE #12 VANCOUVER'
 
 // Where the modal has room for the bank's filing card beside it
 const ASIDE_MIN_WIDTH = 1320
-const RESTORE_FAILED = 'Could not restore the bank value. Please try again.'
+const RESTORE_FAILED = 'The bank value for this transaction is no longer available'
 const UNSTORABLE_REASON = 'The bank\'s amount has more decimal places than CAD allows, so it can\'t be restored.'
 
 // The day the bank booked the transaction on, and the earlier one a test moves it to
@@ -74,7 +74,7 @@ async function holdRestores(page: Page, id: string): Promise<() => void> {
 /** Fails the page's restores of the transaction's bank values with a server error */
 async function failRestores(page: Page, id: string): Promise<void> {
   await page.route(`${API_BASE_URL}/bank-sync/transaction-sources/${id}/restore`, (route) =>
-    route.fulfill({ status: 500, json: { detail: 'Internal Server Error' } }))
+    route.fulfill({ status: 409, json: { detail: RESTORE_FAILED } }))
 }
 
 /** Opens the edit modal of the transaction from its row */
