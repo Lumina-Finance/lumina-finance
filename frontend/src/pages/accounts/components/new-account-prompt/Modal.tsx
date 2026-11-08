@@ -19,22 +19,24 @@ import { ModalTitledPanel } from '@/components/modal/TitledPanel'
 import { useAuth } from '@/hooks/useAuth'
 import { useMoneyFormatters } from '@/hooks/useMoneyFormatters'
 import { useMoneyInput } from '@/hooks/useMoneyInput'
+import { useRefusedSubmit } from '@/hooks/useRefusedSubmit'
+import {
+  getStartingBalanceProblems,
+  MUST_BE_ZERO_OR_HIGHER_MESSAGE,
+  STARTING_BALANCE_CONTROL_IDS,
+  STARTING_BALANCE_ERROR_ID,
+  STARTING_BALANCE_FIELDS,
+  STARTING_BALANCE_INPUT_ID,
+} from '@/pages/accounts/components/new-account-prompt/startingBalance'
 import type { AccountDetailArrivalState } from '@/pages/accounts/detail/constants/accountDetail'
 import { isOwnPersonalAccount } from '@/utils/bankSync'
 import { formatCurrencySymbol, getSymbolInputStyle } from '@/utils/formatCurrency'
-import { getCurrencyExponent, toMinorUnits } from '@/utils/moneyInput'
+import { getCurrencyExponent, holdsMinus, toMinorUnits } from '@/utils/moneyInput'
 
 type KeepUpToDate = 'bank' | 'manual'
 
-const STARTING_BALANCE_INPUT_ID = 'new-account-starting-balance'
-const STARTING_BALANCE_ERROR_ID = 'new-account-starting-balance-error'
-
 // Arriving on the account's page with this opens the link flow there
 const LINK_BANK_ARRIVAL: AccountDetailArrivalState = { linkBank: true }
-
-// A starting balance is zero or higher, so a hyphen or a true minus typed or pasted into the field
-// is answered with a message rather than dropped without a word
-const MINUS_SIGN = /[-−]/
 
 // A save that ended with no answer is settled by reading the account, and closes as saved when it
 // landed. These answer the other two outcomes, keeping the prompt and the typed balance, since the
@@ -84,12 +86,12 @@ export default function NewAccountPromptModal({ open, account, onClose, onExitCo
     exponent,
     onChange: (value, typed) => {
       // Settling on blur reports no typed text and leaves the message as it was
-      if (typed !== undefined) setTypedMinus(MINUS_SIGN.test(typed))
+      if (typed !== undefined) setTypedMinus(holdsMinus(typed))
       setStartingBalance(value)
       setSubmitError(null)
     },
   })
-  const balanceError = typedMinus ? 'Must be zero or higher' : undefined
+  const balanceError = typedMinus ? MUST_BE_ZERO_OR_HIGHER_MESSAGE : undefined
 
   // Linking is offered to a user the bank-linking check allows, on a deployment with a provider. It is
   // refused, saying why, for a group account, while bank sync isn't set up, as the account page's
@@ -107,16 +109,24 @@ export default function NewAccountPromptModal({ open, account, onClose, onExitCo
   const choice: KeepUpToDate = !offersLink ? 'manual' : (chosen ?? (linkReason ? 'manual' : 'bank'))
   const ready = !providersPending && (!offersLink || !connectionsPending)
 
+  // The message shows as soon as the minus is refused, so this only holds Continue and brings the field into view
+  const refusal = useRefusedSubmit(
+    getStartingBalanceProblems(choice === 'manual', typedMinus),
+    STARTING_BALANCE_FIELDS,
+    STARTING_BALANCE_CONTROL_IDS,
+  )
+
   // Deleting in a field the refused text left empty changes no text, so no change arrives to clear
   // the message, yet it is still the person taking the minus back
   const handleBalanceKeyDown = (event: KeyboardEvent<HTMLInputElement>) => {
     if (event.key === 'Backspace' || event.key === 'Delete') setTypedMinus(false)
   }
 
-  // The refused text never reached the field, so Continue takes the field as it stands, closing a
-  // blank one as blank whether or not the message still shows
+  // The refused text never reached the field, so while its message shows Continue refuses, fading with
+  // the reason and focusing the field, rather than record what the field held before
   const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
+    if (!refusal.guard()) return
 
     if (choice === 'bank') {
       onClose()
@@ -191,6 +201,7 @@ export default function NewAccountPromptModal({ open, account, onClose, onExitCo
         <ModalFormFooter
           submitLabel="Continue"
           submitDisabled={recordStartingBalance.isPending}
+          submitBlockedReason={refusal.blockedReason}
           submitWidthClassName="w-full sm:w-32"
           error={submitError}
           onCancel={onClose}

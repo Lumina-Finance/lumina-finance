@@ -258,7 +258,7 @@ test('keeps the notes written for an account, shows them on its page and clears 
   await expect(page.getByText('Notes', { exact: true })).toHaveCount(0)
 })
 
-test('lets a refused minus in an empty field be cleared, and closes it as blank', async ({ page, request }) => {
+test('lets a refused minus in an empty field be cleared, and refuses Continue while it shows', async ({ page, request }) => {
   const user = await signUpUser(request)
   await logInViaApi(page, user)
   await openPage(page, '/accounts')
@@ -277,10 +277,24 @@ test('lets a refused minus in an empty field be cleared, and closes it as blank'
   await balance.press('Backspace')
   await expect(error).toBeHidden()
 
-  // Continue takes the field as it stands, so a blank one closes as blank with the message showing
+  // Continue refuses while the message shows: it fades with the reason, stays focusable, takes the
+  // press for nothing and moves focus to the field
   await balance.fill('-5')
   await expect(error).toBeVisible()
-  await prompt.getByRole('button', { name: 'Continue' }).click()
+  const continueButton = prompt.getByRole('button', { name: 'Continue' })
+  await expect(continueButton).not.toHaveAttribute('aria-disabled', 'true')
+  await continueButton.click()
+  await expect(continueButton).toHaveAttribute('aria-disabled', 'true')
+  await expect(continueButton).toHaveAccessibleDescription('Must be zero or higher')
+  await expect(balance).toBeFocused()
+  await continueButton.press('Enter')
+  await expect(prompt).toBeVisible()
+
+  // Taking the minus back makes Continue whole again, and a blank field then closes as blank
+  await balance.press('Backspace')
+  await expect(error).toBeHidden()
+  await expect(continueButton).not.toHaveAttribute('aria-disabled', 'true')
+  await continueButton.click()
 
   await expect(prompt).toBeHidden()
   await expect(getAccountRow(page, ACCOUNT_NAME)).toContainText('$0.00')
