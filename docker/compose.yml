@@ -12,7 +12,7 @@ services:
     volumes:
       - lumina_data:/data
 
-    # Time for the bank sync worker inside it to finish the job it is running
+    # Bank sync worker shutdown time
     stop_grace_period: 6m
 
   postgres:
