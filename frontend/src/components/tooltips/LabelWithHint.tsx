@@ -34,6 +34,7 @@ export function LabelWithHint({
           widthClassName="w-max max-w-52"
           avoidsLoneWord
           picksSideOnPress
+          staysInSurface
         >
           <span className="font-normal normal-case">{hint}</span>
         </IconTooltip>

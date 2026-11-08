@@ -2,12 +2,7 @@ import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react'
 import { Info, TriangleAlert, type LucideIcon } from 'lucide-react'
 import { joinClassNames } from '@/utils/classNames'
 import { FX_TONE_CLASS, type IconTooltipFxTone } from '@/components/tooltips/fxToneClass'
-import {
-  getIconTooltipOffset,
-  getIconTooltipPlacement,
-  getTooltipCoverBottom,
-  type IconTooltipPlacement,
-} from '@/utils/tooltipPosition'
+import { getIconTooltipOffset, getIconTooltipSide, type IconTooltipPlacement } from '@/utils/tooltipPosition'
 
 export type IconTooltipLevel = 'info' | 'warn' | 'important'
 
@@ -59,6 +54,14 @@ interface IconTooltipProps {
   // place, shown where the screen has hover, and so could open cut off. Every other panel keeps the
   // side it had until it hides
   picksSideOnPress?: boolean
+
+  // Keeps the panel from opening upwards under a sticky list bar marked `data-tooltip-cover`, for a
+  // trigger in a row that scrolls under one. Every other panel may open over a bar, as it is drawn above it
+  clearsStickyBars?: boolean
+
+  // Keeps the panel inside the surface around the icon when the sidebar's edge lies across a narrow
+  // surface, such as a dialogue's side column. Every other panel keeps clear of the sidebar first
+  staysInSurface?: boolean
 }
 
 type IconTooltipSideBoundary = 'bounds' | 'viewport'
@@ -108,29 +111,7 @@ type TooltipPosition = { left: number; top: number }
 
 // The side of the trigger the panel opens on, and how far it moves up or down from the trigger's edge on
 // that side to clear what the trigger explains
-type TooltipSide = ReturnType<typeof getIconTooltipPlacement>
-
-/**
- * Picks the side of the trigger the panel opens on, the preferred one unless only the other has room, or
- * beyond the whole of what the trigger explains when it sits inside an element marked `data-tooltip-subject`
- */
-function getTooltipSide(
-  trigger: HTMLElement,
-  tooltip: HTMLElement,
-  preferredPlacement: IconTooltipPlacement,
-  sideBoundary: IconTooltipSideBoundary,
-): TooltipSide {
-  const triggerRect = trigger.getBoundingClientRect()
-  return getIconTooltipPlacement({
-    preferred: preferredPlacement,
-    icon: triggerRect,
-    tooltipHeight: tooltip.getBoundingClientRect().height,
-    subject: trigger.closest('[data-tooltip-subject]')?.getBoundingClientRect(),
-    surface: sideBoundary === 'bounds' ? trigger.closest('[data-tooltip-bounds]')?.getBoundingClientRect() : undefined,
-    coverBottom: getTooltipCoverBottom(trigger, triggerRect),
-    screenHeight: window.innerHeight,
-  })
-}
+type TooltipSide = ReturnType<typeof getIconTooltipSide>
 
 /**
  * Works out where the fixed panel goes on the given side of the trigger, shifted sideways to stay in bounds
@@ -139,7 +120,12 @@ function getTooltipSide(
  * it measures from, as a frosted toolbar's backdrop filter does. The panel's current place on screen,
  * against the coordinates it was given, shows where that box starts, so the result is written in its terms
  */
-function getTooltipPosition(trigger: HTMLElement, tooltip: HTMLElement, side: TooltipSide): TooltipPosition {
+function getTooltipPosition(
+  trigger: HTMLElement,
+  tooltip: HTMLElement,
+  side: TooltipSide,
+  staysInSurface: boolean,
+): TooltipPosition {
   const triggerRect = trigger.getBoundingClientRect()
   const tooltipRect = tooltip.getBoundingClientRect()
   const left =
@@ -152,6 +138,7 @@ function getTooltipPosition(trigger: HTMLElement, tooltip: HTMLElement, side: To
       surface: trigger.closest('[data-tooltip-bounds]')?.getBoundingClientRect(),
       page: document.getElementById('app-page-content')?.getBoundingClientRect(),
       screenWidth: window.innerWidth,
+      staysInSurface,
     })
   const top =
     side.placement === 'top' ? triggerRect.top + side.shift - tooltipRect.height : triggerRect.bottom + side.shift
@@ -164,8 +151,8 @@ function getTooltipPosition(trigger: HTMLElement, tooltip: HTMLElement, side: To
  * Icon that opens a tooltip panel on click, showing `children` as its content
  *
  * The panel opens above or below the trigger, whichever has room within the viewport or the nearest
- * ancestor marked with `data-tooltip-bounds` and clear of any bar above it marked with
- * `data-tooltip-cover`, and shifts sideways to stay within them. While it shows it keeps that side until
+ * ancestor marked with `data-tooltip-bounds`, and shifts sideways to stay within them. A trigger that
+ * asks for it also keeps clear of any bar above it marked with `data-tooltip-cover`. While it shows it keeps that side until
  * a press on the trigger opens it and picks the side afresh, and it is placed again with the trigger
  * on any scroll or resize, and whenever the trigger moves on its own, as it does during a dialogue's
  * entrance. It hides while its trigger is scrolled out of view, and it closes on any pointer down
@@ -196,6 +183,8 @@ export default function IconTooltip({
   hidesClosedPanel = false,
   avoidsLoneWord = false,
   picksSideOnPress = false,
+  clearsStickyBars = false,
+  staysInSurface = false,
 }: IconTooltipProps) {
   const { Icon: DefaultIcon, color } = levelConfig[level]
   const isFxIcon = IconOverride === 'fx'
@@ -222,10 +211,16 @@ export default function IconTooltip({
     const tooltip = tooltipRef.current
     if (!trigger || !tooltip) return
     if (!sideRef.current || trigger.closest('[data-tooltip-subject]')) {
-      sideRef.current = getTooltipSide(trigger, tooltip, placement, sideBoundary)
+      sideRef.current = getIconTooltipSide({
+        trigger,
+        tooltip,
+        preferred: placement,
+        sideBoundary,
+        clearsStickyBars,
+      })
     }
-    setPosition(getTooltipPosition(trigger, tooltip, sideRef.current))
-  }, [placement, sideBoundary])
+    setPosition(getTooltipPosition(trigger, tooltip, sideRef.current, staysInSurface))
+  }, [placement, sideBoundary, clearsStickyBars, staysInSurface])
 
   // A fixed panel stays where it was put while the page under it moves, so it follows the trigger for as
   // long as it shows. Scrolls are caught on the way down, since a dialog's body scrolls without the page.

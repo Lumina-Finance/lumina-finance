@@ -9,7 +9,12 @@
  * beside no fact leaving the side it prefers when the other has no room either
  */
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { getIconTooltipOffset, getIconTooltipPlacement, getTooltipCoverBottom } from '@/utils/tooltipPosition'
+import {
+  getIconTooltipOffset,
+  getIconTooltipPlacement,
+  getIconTooltipSide,
+  getTooltipCoverBottom,
+} from '@/utils/tooltipPosition'
 
 describe('the sideways shift of an icon’s tooltip', () => {
   // A 1280px screen with the sidebar expanded, and a tooltip as wide as a long note makes it
@@ -29,7 +34,21 @@ describe('the sideways shift of an icon’s tooltip', () => {
     expect(offset).toBe(80)
   })
 
-  it('stays inside a narrow column lying across the sidebar’s edge rather than clearing that edge', () => {
+  it('stays inside a narrow column lying across the sidebar’s edge when asked, rather than clearing that edge', () => {
+    const offset = getIconTooltipOffset({
+      icon: { left: 310, width: 12 },
+      tooltipWidth,
+      surface: { left: 160, right: 448 },
+      staysInSurface: true,
+      ...sidebarEdge,
+    })
+
+    // Centred it would start at 204, and held right of the sidebar's edge at 268 it would end at 492,
+    // past the column's 440. It goes only as far right as the column leaves room for
+    expect(offset).toBe(12)
+  })
+
+  it('clears the sidebar’s edge in that column unless asked to stay inside it', () => {
     const offset = getIconTooltipOffset({
       icon: { left: 310, width: 12 },
       tooltipWidth,
@@ -37,9 +56,7 @@ describe('the sideways shift of an icon’s tooltip', () => {
       ...sidebarEdge,
     })
 
-    // Centred it would start at 204, and held right of the sidebar's edge at 268 it would end at 492,
-    // past the column's 440. It goes only as far right as the column leaves room for
-    expect(offset).toBe(12)
+    expect(offset).toBe(64)
   })
 
   it('keeps clear of the sidebar with no surface around the icon', () => {
@@ -123,5 +140,31 @@ describe('the bars a tooltip opening upwards keeps clear of', () => {
     stubPageWithStuckToolbar()
 
     expect(getTooltipCoverBottom(iconIn({}), ICON)).toBe(0)
+  })
+})
+
+describe('the side an icon’s tooltip opens on beside a stuck list bar', () => {
+  afterEach(() => {
+    vi.unstubAllGlobals()
+  })
+
+  // The icon sits 160px down with 100px of tooltip above it, which fits over the page but not over the
+  // 120px toolbar stuck across the top
+  function sideOf(clearsStickyBars?: boolean) {
+    vi.stubGlobal('window', { innerHeight: 800 })
+    vi.stubGlobal('document', {
+      querySelectorAll: () => [{ contains: () => false, getBoundingClientRect: () => STUCK_TOOLBAR }],
+    })
+    const trigger = { getBoundingClientRect: () => ICON, closest: () => null } as unknown as HTMLElement
+    const tooltip = { getBoundingClientRect: () => ({ height: 100 }) } as unknown as HTMLElement
+    return getIconTooltipSide({ trigger, tooltip, preferred: 'top', sideBoundary: 'viewport', clearsStickyBars })
+  }
+
+  it('opens upwards over the bar unless the icon asks to clear it', () => {
+    expect(sideOf()).toEqual({ placement: 'top', shift: 0 })
+  })
+
+  it('opens below the icon when it asks to clear the bar', () => {
+    expect(sideOf(true)).toEqual({ placement: 'bottom', shift: 0 })
   })
 })

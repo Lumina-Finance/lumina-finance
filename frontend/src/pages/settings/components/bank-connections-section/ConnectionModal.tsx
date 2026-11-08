@@ -247,6 +247,7 @@ export function ConnectionModal({
               widthClassName="w-max max-w-52"
               avoidsLoneWord
               picksSideOnPress
+              staysInSurface
             >
               {statusDetail}
             </IconTooltip>
