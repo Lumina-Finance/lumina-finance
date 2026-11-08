@@ -67,15 +67,10 @@ export function DeleteAccountPanel({
     archiveLinkedReason ?? (isArchiveBlocked ? ARCHIVE_BLOCKED_BY_LATER_TRANSACTIONS_REASON : undefined)
 
   // The trash button that opens the panel and the Continue button that leads on are gone once pressed, so
-  // each step that grows in takes focus on its first control rather than leaving it on the page. A control
-  // held back through aria-disabled is passed over, since Enter on it does nothing
+  // each step that grows in takes focus on its first control rather than leaving it on the page
   const revealStep = () => {
     const panel = revealPanel()
-    if (!panel) return
-    const firstAvailable = getFocusableElements(panel).find(
-      (control) => control.getAttribute('aria-disabled') !== 'true',
-    )
-    firstAvailable?.focus({ preventScroll: true })
+    if (panel) getFocusableElements(panel)[0]?.focus({ preventScroll: true })
   }
 
   return (

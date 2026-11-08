@@ -422,9 +422,9 @@ test('holds Archive back until the link has been read, so a linked account is ne
   await expect(archiveInstead).toHaveAccessibleDescription(ARCHIVE_LINKED_REASON)
 })
 
-// Held back through aria-disabled, Archive instead still takes focus and does nothing on Enter, so the
-// panel's first step starts on Continue, as it does where Archive instead is absent
-test('focuses Continue, not the held Archive instead, when the delete panel opens on a linked account', async ({ page, request }) => {
+// Held back through aria-disabled, Archive instead still takes focus, as it does for an account with
+// later-dated transactions, so its reason can be read from the keyboard
+test('focuses the held Archive instead, as with later-dated transactions, when the delete panel opens on a linked account', async ({ page, request }) => {
   const user = await signUpUser(request)
   const account = await createAccount(request, user, { name: 'Everyday' })
   await linkToSampleBankAccount(request, user, { accountId: account.id, bankAccountName: SAMPLE_CHEQUING })
@@ -440,7 +440,8 @@ test('focuses Continue, not the held Archive instead, when the delete panel open
 
   const archiveInstead = dialog.getByRole('button', { name: 'Archive instead', exact: true })
   await expect(archiveInstead).toHaveAttribute('aria-disabled', 'true')
-  await expect(dialog.getByRole('button', { name: 'Continue', exact: true })).toBeFocused()
+  await expect(archiveInstead).toBeFocused()
+  await expect(archiveInstead).toHaveAccessibleDescription(ARCHIVE_LINKED_REASON)
 })
 
 // The link is read only for the user's own personal accounts, so archiving one in a group never waits on it
