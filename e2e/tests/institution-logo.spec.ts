@@ -2,6 +2,7 @@ import { expect, test, type Page } from '@playwright/test'
 
 import { asUser, createAccount, signUpUser, type TestUser } from '../support/api'
 import { logInViaApi, openPage } from '../support/app'
+import { getAccountRow } from '../support/selectors'
 import { API_BASE_URL } from '../support/target'
 
 // Runs on desktop only: which logo an account row draws doesn't depend on the width
@@ -55,11 +56,7 @@ test('shows every logo the icon service returns, a 16px one included, and falls 
   await logInViaApi(page, user)
   await openPage(page, '/accounts')
 
-  // The row is its own box, with the link on the account's name stretched over it
-  const row = (name: string) =>
-    page
-      .locator('[data-testid^="account-row-"]')
-      .filter({ has: page.getByRole('link', { name: new RegExp(`${name} account`) }) })
+  const row = (name: string) => getAccountRow(page, `${name} account`)
 
   // The icon that fails to load is the fence: its error is handled by the same code that would drop a loaded icon,
   // so once its initial shows, a loaded icon that was going to be dropped has been
