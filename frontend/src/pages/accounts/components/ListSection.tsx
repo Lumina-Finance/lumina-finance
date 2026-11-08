@@ -1,3 +1,4 @@
+import { useRef } from 'react'
 import { AnimatePresence, motion, useReducedMotion } from 'motion/react'
 import { ChevronDown } from 'lucide-react'
 import type { AccountsOverview } from '@/api/accounts'
@@ -27,7 +28,8 @@ const LOGO_STACK_LIMIT = 5
  */
 function AccountDots({ members, isTopLevel }: { members: AccountsOverview[]; isTopLevel: boolean }) {
   return (
-    <span className="flex shrink-0 items-center gap-[3px]" aria-hidden>
+    // Left off a phone, where the header already shows the count beside the total
+    <span data-account-dots className="hidden shrink-0 items-center gap-[3px] min-[750px]:flex" aria-hidden>
       {getGroupDots(members).map((dot) => (
         <span
           key={dot.id}
@@ -84,6 +86,7 @@ export default function AccountListSection({
   displayCurrency,
   taxAdvantagedCategoryById,
   loading = false,
+  stickyTop,
 }: {
   group: AccountGroup
   grouping: AccountGrouping
@@ -103,6 +106,9 @@ export default function AccountListSection({
   displayCurrency: string
   taxAdvantagedCategoryById: Map<string, TaxAdvantagedCategory>
   loading?: boolean
+  // Where the list toolbar ends once it sticks. A top-level header given it sticks there while its open
+  // group's rows scroll past, as a day's total does on the transactions list
+  stickyTop?: number
 }) {
   const prefersReducedMotion = useReducedMotion()
   const regroupTransition = getRegroupTransition(prefersReducedMotion)
@@ -118,22 +124,54 @@ export default function AccountListSection({
   // A bank's header carries the tags its accounts' rows carry, once each, in the order the rows list
   // them. Only a top-level bank gets them, and the rows keep theirs as well
   const planNames = isTopLevel && grouping === 'institution' ? getGroupPlanNames(group, taxAdvantagedCategoryById) : []
+  const sectionRef = useRef<HTMLElement>(null)
+  const isSticky = isTopLevel && stickyTop !== undefined
+
+  // Closing from a stuck header would leave it above the screen once the rows go. So the page first
+  // scrolls back to the group's start, and the stuck header stays where it is on screen
+  function handleToggle() {
+    if (
+      isOpen &&
+      isTopLevel &&
+      stickyTop !== undefined &&
+      (sectionRef.current?.getBoundingClientRect().top ?? 0) < stickyTop
+    ) {
+      sectionRef.current?.scrollIntoView({ block: 'start' })
+    }
+    onToggle(key)
+  }
 
   return (
-    <section>
-      <h3>
+    // Never a scroll anchor, so the browser doesn't move the page to hold a row in place while the group
+    // closes. That move would push its header back under the toolbar
+    <section ref={sectionRef} style={isSticky ? { scrollMarginTop: stickyTop, overflowAnchor: 'none' } : undefined}>
+      {/* The page's colour behind a stuck header hides the rows scrolling under it */}
+      <h3
+        className={isSticky ? 'sticky z-20' : undefined}
+        style={isSticky ? { top: stickyTop, background: 'var(--app-bg)' } : undefined}
+      >
         <button
           type="button"
           aria-expanded={isOpen}
           aria-controls={bodyId}
-          onClick={() => onToggle(key)}
-          className="app-focus-inset flex w-full min-w-0 items-center gap-3 rounded-xl py-3 text-left"
+          onClick={handleToggle}
+          // On a phone the title takes the whole first line beside the chevron, and the total moves to the
+          // second line beside the account count, so a long name never gives way to the figure. The right
+          // inset matches the rows', so the total ends where their balances do
+          className="app-focus-inset relative grid w-full min-w-0 grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-x-3 rounded-xl py-3 pr-2 text-left min-[750px]:flex min-[750px]:pr-0"
         >
-          <GroupMark group={group} grouping={grouping} showLogos={showLogos} isTopLevel={isTopLevel} />
-          <span className="min-w-0 flex-1">
-            <span className="flex min-w-0 items-center gap-2">
+          <span className="row-span-2 flex shrink-0">
+            <GroupMark group={group} grouping={grouping} showLogos={showLogos} isTopLevel={isTopLevel} />
+          </span>
+          <span className="contents min-[750px]:block min-[750px]:min-w-0 min-[750px]:flex-1">
+            {/* Spans the total's column too, leaving the chevron its room at the end */}
+            <span className="col-span-2 col-start-2 row-start-1 flex min-w-0 items-center gap-2 pr-7 min-[750px]:pr-0">
               <span
-                className={`block min-w-0 truncate font-serif font-semibold ${isTopLevel ? 'text-[21px] leading-7' : 'text-xl leading-6'}`}
+                className={`block min-w-0 truncate font-serif font-semibold ${
+                  isTopLevel
+                    ? 'text-xl leading-6 min-[750px]:text-[21px] min-[750px]:leading-7'
+                    : 'text-lg leading-6 min-[750px]:text-xl'
+                }`}
                 title={group.title}
               >
                 {group.title}
@@ -147,14 +185,17 @@ export default function AccountListSection({
                 </span>
               )}
             </span>
-            <span className="mt-0.5 flex min-w-0 items-center gap-2">
+            <span className="col-start-2 row-start-2 mt-0.5 flex min-w-0 items-center gap-2">
               {grouping === 'institution' ? (
                 <AccountDots members={group.members} isTopLevel={isTopLevel} />
               ) : (
-                showLogos && <LogoStack members={group.members} isTopLevel={isTopLevel} />
+                // A sub-group under a bank holds only that bank's accounts, and the bank's header above already
+                // carries its logo
+                showLogos &&
+                !outerGroupings.includes('institution') && <LogoStack members={group.members} isTopLevel={isTopLevel} />
               )}
               <span
-                className={`shrink-0 ${isTopLevel ? 'text-[14.5px]' : 'text-sm'}`}
+                className={`shrink-0 ${isTopLevel ? 'text-[14.5px] max-[750px]:text-sm' : 'text-sm'}`}
                 style={{ color: 'var(--app-text-muted)' }}
               >
                 {count} {count === 1 ? 'account' : 'accounts'}
@@ -162,7 +203,7 @@ export default function AccountListSection({
             </span>
           </span>
           <span
-            className="font-financial flex min-h-7 shrink-0 items-center text-lg font-semibold"
+            className="font-financial col-start-3 row-start-2 mt-0.5 flex shrink-0 items-center justify-self-end text-base font-semibold min-[750px]:mt-0 min-[750px]:min-h-7 min-[750px]:text-lg"
             style={{ color: loading || group.subtotal >= 0 ? 'var(--app-text)' : 'var(--app-negative)' }}
           >
             {loading ? (
@@ -173,10 +214,20 @@ export default function AccountListSection({
           </span>
           <ChevronDown
             size={18}
-            className={`shrink-0 transition-transform ${isOpen ? 'rotate-180' : ''}`}
+            className={`col-start-3 row-start-1 shrink-0 justify-self-end transition-transform ${isOpen ? 'rotate-180' : ''}`}
             style={{ color: 'var(--app-text-subtle)' }}
             aria-hidden
           />
+          {/* An open top-level group's guide line starts at its mark's bottom edge. The mark sits at the
+              header's middle, so the line starts half the mark below it and runs on into the body */}
+          {isTopLevel && isOpen && (
+            <span
+              aria-hidden
+              data-group-guide
+              className="absolute bottom-0 left-4 top-[calc(50%+1rem)] w-px -translate-x-1/2 min-[750px]:left-[19px] min-[750px]:top-[calc(50%+19px)]"
+              style={{ background: 'var(--app-border)' }}
+            />
+          )}
         </button>
       </h3>
 
@@ -193,8 +244,21 @@ export default function AccountListSection({
             exit={prefersReducedMotion ? { opacity: 0 } : { opacity: 0, height: 0, overflow: 'hidden' }}
             transition={{ duration: prefersReducedMotion ? 0 : 0.22, ease: ACCOUNT_ROW_EASE }}
           >
-            {/* Indented to line up with the name beside the mark. The top level draws the mark larger */}
-            <div className={`relative pb-3 ${isTopLevel ? 'pl-[3.125rem]' : 'pl-12'}`}>
+            {/* Indented to line up with the name beside the mark. The top level draws the mark larger,
+                and a phone draws both smaller */}
+            <div
+              className={`relative pb-3 ${isTopLevel ? 'pl-11 min-[750px]:pl-[3.125rem]' : 'pl-10 min-[750px]:pl-12'}`}
+            >
+              {/* The top level's guide line, carried on from under its mark down the whole open group */}
+              {isTopLevel && (
+                <span
+                  aria-hidden
+                  data-group-guide
+                  // Ends with the last row, above the body's bottom padding
+                  className="absolute top-0 bottom-3 left-4 w-px -translate-x-1/2 min-[750px]:left-[19px]"
+                  style={{ background: 'var(--app-border)' }}
+                />
+              )}
               {loading && (
                 <div className="flex min-h-[4.625rem] items-center justify-center">
                   <div className="app-spinner" aria-label={`Loading ${group.title.toLowerCase()} accounts`} />
@@ -205,9 +269,10 @@ export default function AccountListSection({
                   {group.children.map((child) => (
                     <motion.div
                       key={`${thenBy}:${child.id}`}
-                      // The divider sits on the wrapper, and the first sub-group's wrapper is the first
-                      // child, so it draws none
-                      className="border-t first:border-t-0"
+                      // The divider sits on the wrapper, and the first sub-group's wrapper is the body's
+                      // first div, after the guide line's span, so it draws none. A phone spaces them apart
+                      // with no line
+                      className="border-t first-of-type:border-t-0 max-[750px]:border-t-0"
                       style={{ borderColor: 'var(--app-border)' }}
                       initial={{ opacity: 0 }}
                       animate={{ opacity: 1 }}
@@ -248,8 +313,11 @@ export default function AccountListSection({
                     // Keeps a modal's scroll lock from sliding the rows, as the list's rows were on main
                     layoutDependency={group.rows}
                     // A sub-group's rows start under its title. A row's own padding would put them 8px
-                    // right of it, so the row reaches back over that padding and its hover fill with it
-                    className={isTopLevel ? undefined : '-ml-2'}
+                    // right of it, so the row reaches back over that padding and its hover fill with it.
+                    // A hairline between rows marks where each account starts, none above the first. A phone
+                    // leaves it out and lets the space between rows do that
+                    className={`border-t first-of-type:border-t-0 max-[750px]:border-t-0 ${isTopLevel ? '' : '-ml-2'}`}
+                    style={{ borderColor: 'var(--app-border)' }}
                     transition={regroupTransition}
                   >
                     <AccountRow
@@ -259,7 +327,10 @@ export default function AccountListSection({
                       taxAdvantagedCategoryById={taxAdvantagedCategoryById}
                       displayCurrency={displayCurrency}
                       isBare
-                      showBankLogo={showLogos}
+                      // A bank's own header already carries its logo, so its rows leave it out
+                      showBankLogo={showLogos && !levels.includes('institution')}
+                      // Under a bank with no type level, the row's mark says its type instead
+                      showTypeIcon={levels.includes('institution') && !levels.includes('type')}
                       meta={getAccountRowMeta(account, levels)}
                     />
                   </motion.div>

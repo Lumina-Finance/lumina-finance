@@ -16,4 +16,6 @@ export type AccountListToolbarProps = {
   typeOptions: OptionItem[]
   grouping: AccountGroupingSettings
   onAddAccount: () => void
+  // Takes where the toolbar ends once it sticks, so a group's header can stick just below it
+  onStickyOffsetChange?: (offset: number) => void
 }

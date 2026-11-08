@@ -41,7 +41,29 @@ const GROUP_ICONS: Record<string, ComponentType<IconProps>> = {
 }
 
 /**
- * Renders the 36px round mark at the start of a group row: the bank's logo when grouped by
+ * Renders an account type's icon in a small round mark the size of a row's bank logo, for a row whose
+ * group already names its bank
+ */
+export function AccountTypeMark({ accountType }: { accountType: string }) {
+  const Icon = GROUP_ICONS[accountType] ?? Wallet
+  return (
+    <span
+      data-account-type-mark={accountType}
+      className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full"
+      style={{
+        background: 'var(--app-accent-soft)',
+        border: '1px solid var(--app-border)',
+        color: 'var(--app-accent-on-page-tint)',
+      }}
+      aria-hidden
+    >
+      <Icon size={12} />
+    </span>
+  )
+}
+
+/**
+ * Renders the round mark at the start of a group row, drawn smaller on a phone: the bank's logo when grouped by
  * institution, a dashed wallet circle for accounts with no institution, and an icon for the group
  * on the page's chip colour for every other grouping
  */
@@ -69,7 +91,9 @@ export function GroupMark({
 
   return (
     <span
-      className={`flex shrink-0 items-center justify-center rounded-full ${isTopLevel ? 'h-[38px] w-[38px]' : 'h-9 w-9'}`}
+      className={`flex shrink-0 items-center justify-center rounded-full ${
+        isTopLevel ? 'h-8 w-8 min-[750px]:h-[38px] min-[750px]:w-[38px]' : 'h-7 w-7 min-[750px]:h-9 min-[750px]:w-9'
+      }`}
       style={{
         background: isUnfiled ? 'transparent' : 'var(--app-accent-soft)',
         border: isUnfiled ? '1px dashed var(--app-border-strong)' : '1px solid var(--app-border)',
