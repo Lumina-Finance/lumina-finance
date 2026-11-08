@@ -80,7 +80,10 @@ test('greys out the refunds that no longer fit and updates them as rows are pick
   await press('$37.19').hover()
   await expect(tooltip).toHaveText(OVER_THE_EXPENSE)
   await expect(tooltip).toHaveCSS('opacity', '1')
-  await expect(press('$37.19')).toHaveAccessibleDescription(`+$37.19 ${OVER_THE_EXPENSE}`)
+  // The title is described by what the row shows beside it, starting with the amount, then by the reason
+  await expect(press('$37.19')).toHaveAccessibleDescription(
+    new RegExp(`^\\+\\$37\\.19 .*${OVER_THE_EXPENSE.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`),
+  )
   // The greyed look eases in and out rather than snapping, at the app's disabled strength
   // The row's whole content fades, its amount and category cells with its title. The row itself and the
   // title button stay at full strength, and the row draws the keyboard focus ring

@@ -334,6 +334,8 @@ test('records an expense through the modal and shows it as money out', async ({ 
   await expect(row).toHaveCount(1)
   await expect(getTransactionRowButton(row)).toHaveAccessibleName('Unknown')
   await expect(row.getByTestId('transaction-amount').filter({ visible: true })).toHaveText(`${MINUS}$42.50`)
+  // A screen reader hears the signed amount with the row, as main checked through the row's name
+  await expect(getTransactionRowButton(row)).toHaveAccessibleDescription(new RegExp(`${MINUS}\\$42\\.50`))
 })
 
 test('rings an account row in the focus colour under keyboard focus', AT_EVERY_SIZE, async ({ page, request }) => {
