@@ -39,7 +39,7 @@ export function BankConnectionsSection() {
   // still be saving that connection
   const [claimUnansweredAt, setClaimUnansweredAt] = useState<number | null>(null)
   const { data: connections, error: connectionsError } = useBankConnections({ claimUnansweredAt })
-  const { data: providers, error: providersError } = useBankProviders()
+  const { data: providers } = useBankProviders()
   const { data: accounts } = useAccounts()
   const accountNameFor = (accountId: string) => accounts?.find((account) => account.id === accountId)?.name
 
@@ -48,11 +48,8 @@ export function BankConnectionsSection() {
     : []
   const noneOffered = providers !== undefined && offeredProviders.length === 0
   const notSetUp = providers !== undefined && offeredProviders.length > 0 && !providers.sync_running
-  const addReason = notSetUp
-    ? BANK_SYNC_NOT_SET_UP_REASON
-    : !providers && providersError
-      ? 'Bank providers could not load. Reload the page to try again.'
-      : null
+  // The page shows this section only once the providers have loaded
+  const addReason = notSetUp ? BANK_SYNC_NOT_SET_UP_REASON : null
 
   // Connections are few and already loaded, so the search filters them here rather than on the server
   const [search, setSearch] = useState('')

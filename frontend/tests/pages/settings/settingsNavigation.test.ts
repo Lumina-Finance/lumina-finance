@@ -1,8 +1,9 @@
 /**
- * Tests which settings sections show, so a rewrite catches Bank connections shown to a user the
- * bank-linking check refuses, or held back from everyone while the check loads
+ * Tests which settings sections show, so a rewrite catches Bank connections shown where the deployment
+ * offers the user no bank sync
  */
 import { describe, expect, it } from 'vitest'
+import { createProviders } from '@tests/pages/accounts/detail/components/bank-link/fixtures'
 import { isHeldWhenLinked, listSettingsSections, SETTINGS_SECTIONS } from '@/pages/settings/settingsNavigation'
 
 describe('sections held when linked', () => {
@@ -14,13 +15,21 @@ describe('sections held when linked', () => {
 })
 
 describe('settings sections', () => {
-  it('leaves out Bank connections when the bank-linking check refuses the user', () => {
-    expect(listSettingsSections(false).map((section) => section.id)).not.toContain('bank-connections')
-    expect(listSettingsSections(false)).toHaveLength(SETTINGS_SECTIONS.length - 1)
+  const withoutBankConnections = SETTINGS_SECTIONS.filter((section) => section.id !== 'bank-connections')
+
+  it('shows every section while the deployment offers bank sync to the user', () => {
+    expect(listSettingsSections(createProviders())).toEqual(SETTINGS_SECTIONS)
   })
 
-  it('shows every section when the check allows linking or is still loading', () => {
-    expect(listSettingsSections(true)).toEqual(SETTINGS_SECTIONS)
-    expect(listSettingsSections(undefined)).toEqual(SETTINGS_SECTIONS)
+  it('shows the sections as they are without bank sync when no provider is enabled', () => {
+    expect(listSettingsSections(createProviders({ providers: [] }))).toEqual(withoutBankConnections)
+  })
+
+  it('shows the sections as they are without bank sync when the bank-linking check refuses the user', () => {
+    expect(listSettingsSections(createProviders({ may_link: false }))).toEqual(withoutBankConnections)
+  })
+
+  it('leaves out Bank connections until the providers are read, so it never shows for a moment without bank sync', () => {
+    expect(listSettingsSections(undefined)).toEqual(withoutBankConnections)
   })
 })

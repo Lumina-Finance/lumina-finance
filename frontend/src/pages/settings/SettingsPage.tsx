@@ -80,9 +80,9 @@ export default function SettingsPage() {
   const oidcIdentities = useOidcIdentities()
   // Assume a password until the identities load, so the change-password form is the default view
   const hasPassword = oidcIdentities.data?.has_password ?? true
-  const sectionNavigation = useSettingsSectionNavigation()
   const { data: bankProviders } = useBankProviders()
-  const sections = listSettingsSections(bankProviders?.may_link)
+  const sections = listSettingsSections(bankProviders)
+  const sectionNavigation = useSettingsSectionNavigation(sections)
   const showBankConnections = sections.some((section) => section.id === 'bank-connections')
 
   const profileActions = (

@@ -1,4 +1,5 @@
 import {
+  offersBankSync,
   REVIEW_PAUSE_COUNT,
   REVIEW_RESUME_COUNT,
   type AccountBankStatus,
@@ -22,8 +23,7 @@ export function showsBankSync(
   providers: BankProvidersResponse | undefined,
   status: AccountBankStatus | undefined,
 ): boolean {
-  const offered = providers !== undefined && providers.may_link && providers.providers.length > 0
-  return offered || Boolean(status?.link)
+  return offersBankSync(providers) || Boolean(status?.link)
 }
 
 /**

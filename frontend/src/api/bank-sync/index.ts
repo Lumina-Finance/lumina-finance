@@ -56,6 +56,8 @@ export type {
 
 export type { ReviewResolution } from '@/api/bank-sync/requests'
 
+export { offersBankSync } from '@/api/bank-sync/availability'
+
 export {
   useAccountBankStatus,
   useAddReviewItem,

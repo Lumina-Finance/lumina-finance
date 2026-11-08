@@ -1,4 +1,5 @@
 import { Landmark, LifeBuoy, Link2, Shield, Store, Tag, Tags, User as UserIcon, type LucideIcon } from 'lucide-react'
+import { offersBankSync, type BankProvidersResponse } from '@/api/bank-sync'
 
 export type SettingsSectionId =
   | 'profile'
@@ -39,14 +40,14 @@ export function isHeldWhenLinked(id: SettingsSectionId): boolean {
 }
 
 /**
- * The sections the settings page shows, leaving out Bank connections for a user the bank-linking
- * check refuses
+ * The sections the settings page shows. Bank connections shows only while the deployment offers bank
+ * sync to the user, as the account page's bank link section does. Wherever it offers none, settings is
+ * as it was before bank sync
  *
- * @param mayLinkBanks - The check's answer, or undefined while it loads. Undefined keeps the section so
- * it doesn't appear late for everyone it is meant for
+ * @param providers - The deployment's providers and whether the user may link, undefined until read
  */
-export function listSettingsSections(mayLinkBanks: boolean | undefined): SettingsSection[] {
-  return mayLinkBanks === false
-    ? SETTINGS_SECTIONS.filter((section) => section.id !== 'bank-connections')
-    : SETTINGS_SECTIONS
+export function listSettingsSections(providers: BankProvidersResponse | undefined): SettingsSection[] {
+  return offersBankSync(providers)
+    ? SETTINGS_SECTIONS
+    : SETTINGS_SECTIONS.filter((section) => section.id !== 'bank-connections')
 }

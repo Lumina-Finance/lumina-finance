@@ -2,7 +2,12 @@ import { useEffect, useRef, useState } from 'react'
 import { useLocation, useNavigate } from 'react-router'
 import { BELOW_MOBILE_NAVIGATION_TOGGLE_ROOT_MARGIN } from '@/components/navigation/constants/data'
 import { buildImportOriginState } from '@/utils/importOrigin'
-import { isHeldWhenLinked, SETTINGS_SECTIONS, type SettingsSectionId } from '@/pages/settings/settingsNavigation'
+import {
+  isHeldWhenLinked,
+  SETTINGS_SECTIONS,
+  type SettingsSection,
+  type SettingsSectionId,
+} from '@/pages/settings/settingsNavigation'
 import { ignoreFirstReport } from '@/pages/settings/utils/ignoreFirstReport'
 
 const PROGRAMMATIC_SCROLL_SETTLE_MS = 600
@@ -19,10 +24,16 @@ const SECTION_GAP_WITHOUT_MENU_PX = 32
 
 /**
  * Owns settings section scroll spy state, mobile menu state, and section navigation
+ *
+ * @param shownSections - The sections the page shows. A link to one that shows only once a read answers,
+ * such as Bank connections, scrolls to it when it appears
  */
-export function useSettingsSectionNavigation() {
+export function useSettingsSectionNavigation(shownSections: readonly SettingsSection[]) {
   const navigate = useNavigate()
   const location = useLocation()
+  const linkedId = location.hash
+    ? shownSections.find(({ id }) => id === decodeURIComponent(location.hash.slice(1)))?.id
+    : undefined
   const [activeSection, setActiveSection] = useState<SettingsSectionId>('profile')
   const [settingsMenuOpen, setSettingsMenuOpen] = useState(false)
   const [settingsMenuStuck, setSettingsMenuStuck] = useState(false)
@@ -83,10 +94,7 @@ export function useSettingsSectionNavigation() {
   }
 
   useEffect(() => {
-    if (!location.hash) return undefined
-
-    const section = SETTINGS_SECTIONS.find(({ id }) => id === decodeURIComponent(location.hash.slice(1)))
-    if (!section) return undefined
+    if (!linkedId) return undefined
 
     let observer: ResizeObserver | null = null
     let releaseTimer: number | null = null
@@ -96,7 +104,7 @@ export function useSettingsSectionNavigation() {
     // hold runs out. The observer's first report is ignored, since it comes before anything has grown
     // and its unanimated scroll would cut the smooth scroll that just began short. Any other section
     // scrolls once and lets the scroll spy resume when that has settled
-    const holds = isHeldWhenLinked(section.id)
+    const holds = isHeldWhenLinked(linkedId)
     function release() {
       observer?.disconnect()
       observer = null
@@ -107,11 +115,11 @@ export function useSettingsSectionNavigation() {
     }
 
     const frameId = window.requestAnimationFrame(() => {
-      const element = document.getElementById(section.id)
+      const element = document.getElementById(linkedId)
       if (!element) return
 
       skipScrollSpyRef.current = true
-      setActiveSection(section.id)
+      setActiveSection(linkedId)
       scrollToSection(element)
       if (holds) {
         observer = new ResizeObserver(ignoreFirstReport(() => scrollToSection(element, 'auto')))
@@ -125,7 +133,7 @@ export function useSettingsSectionNavigation() {
       window.cancelAnimationFrame(frameId)
       release()
     }
-  }, [location.hash])
+  }, [linkedId])
 
   useEffect(() => {
     let frameId: number | null = null
