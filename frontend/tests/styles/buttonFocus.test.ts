@@ -567,3 +567,20 @@ describe('button keyboard focus', () => {
     expect(variant).toMatch(/&:is\(button, \[role="button"\][^)]*\):focus-visible/)
   })
 })
+
+describe('refused calendar days', () => {
+  // A neighbouring month's day takes the text colour under the pointer and on keyboard focus. A refused
+  // one must keep its faded colour there, or it reads as a day that can be chosen apart from its strike
+  it('leaves a refused day of a neighbouring month faded under the pointer and on keyboard focus', () => {
+    const lifting: string[] = []
+    stylesheet.walkRules((rule) => {
+      if (declared(rule, 'color') === undefined) return
+      for (const selector of selectorsOf(rule)) {
+        const outsideState =
+          selector.includes('.app-calendar-day[data-outside]') && /:(hover|focus-visible)/.test(selector)
+        if (outsideState && !selector.includes(':not([data-disabled])')) lifting.push(selector)
+      }
+    })
+    expect(lifting).toEqual([])
+  })
+})
