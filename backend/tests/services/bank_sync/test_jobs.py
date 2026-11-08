@@ -348,12 +348,11 @@ async def test_list_due_bank_connections_returns_one_never_listed_once_nothing_i
     assert await _list_due(now) == ([(connections[0].id, connections[0].owner_id)] if due else [])
 
 
-async def test_record_bank_sync_scan_stamps_the_heartbeat_and_deletes_old_finished_jobs(connections):
-    """A job finished on 1 September is gone by 2 October, and the heartbeat says when the scan ran"""
+async def test_record_bank_sync_scan_stamps_the_heartbeat_and_leaves_finished_jobs_to_the_cleanup(connections):
+    """A scan, made every few minutes, keeps the job finished long ago, and the heartbeat says when it ran"""
     first_of_september = datetime(2026, 9, 1, 12, 0, tzinfo=UTC)
     finished = {"status": BankSyncJobStatus.SUCCEEDED, "attempt": 1}
-    await _seed_job(connections[0], BankSyncJobKind.SCHEDULED, finished_at=first_of_september, **finished)
-    kept = await _seed_job(connections[1], BankSyncJobKind.SCHEDULED, finished_at=first_of_september + timedelta(days=5), **finished)
+    old = await _seed_job(connections[0], BankSyncJobKind.SCHEDULED, finished_at=first_of_september, **finished)
     queued = await _seed_job(connections[2], BankSyncJobKind.SCHEDULED)
     scans = (datetime(2026, 10, 1, 13, 0, tzinfo=UTC), datetime(2026, 10, 2, 12, 0, tzinfo=UTC))
 
@@ -362,7 +361,7 @@ async def test_record_bank_sync_scan_stamps_the_heartbeat_and_deletes_old_finish
             await worker.execute(text("SELECT public.record_bank_sync_scan(:now)"), {"now": scanned_at})
             await worker.commit()
 
-    assert set(await _job_states()) == {kept.id, queued.id}
+    assert set(await _job_states()) == {old.id, queued.id}
     async with TestSession() as session:
         assert (await session.execute(select(BankSyncHeartbeat.id, BankSyncHeartbeat.last_scan_at))).all() == [(1, scans[1])]
         assert await session.scalar(select(func.count()).select_from(BankSyncHeartbeat)) == 1

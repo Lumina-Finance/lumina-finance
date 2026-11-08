@@ -35,6 +35,7 @@ PRUNE_EXPIRED_IMPORT_RUNS = "public.prune_expired_import_runs"
 CLAIM_BANK_SYNC_JOBS = "public.claim_bank_sync_jobs"
 LIST_DUE_BANK_CONNECTIONS = "public.list_due_bank_connections"
 RECORD_BANK_SYNC_SCAN = "public.record_bank_sync_scan"
+PRUNE_FINISHED_BANK_SYNC_JOBS = "public.prune_finished_bank_sync_jobs"
 MIGRATION_REVISIONS = "public.migration_revisions"
 
 # The worker functions see across users. Only the worker, connecting with no request
@@ -60,9 +61,9 @@ _FRESH_DISCOVERY_AGE = f"interval '{int(FRESH_DISCOVERY_AGE.total_seconds())} se
 # function, so a change reaches a database only through a migration that recreates the helpers
 _JOB_LEASE = "interval '10 minutes'"
 
-# How long a finished job row is kept before the due scan's record function deletes it, the retention the
-# design sets for job rows. Copied into that function, so a change reaches a database only through a
-# migration that recreates the helpers
+# How long a finished job row is kept before the expired-record cleanup deletes it, the retention the
+# design sets for job rows. Copied into the function that prunes them, so a change reaches a database
+# only through a migration that recreates the helpers
 _FINISHED_JOB_RETENTION = "interval '30 days'"
 
 # Signatures the app no longer creates, dropped wherever the helpers are applied or revoked.
@@ -389,8 +390,7 @@ _HELPERS: tuple[_Helper, ...] = (
     """,
         f"{LIST_DUE_BANK_CONNECTIONS}(timestamptz)",
     ),
-    # Stamp the worker's heartbeat after a due scan, and delete jobs finished more than 30 days
-    # ago, the retention the design sets for job rows. The heartbeat is its table's one row, id 1
+    # Stamp the worker's heartbeat after a due scan. The heartbeat is its table's one row, id 1
     _Helper(
         f"""
     CREATE OR REPLACE FUNCTION {RECORD_BANK_SYNC_SCAN}(p_now timestamptz) RETURNS void
@@ -399,11 +399,31 @@ _HELPERS: tuple[_Helper, ...] = (
 
         INSERT INTO public.bank_sync_heartbeat (id, last_scan_at) VALUES (1, p_now)
         ON CONFLICT (id) DO UPDATE SET last_scan_at = EXCLUDED.last_scan_at;
-        DELETE FROM public.bank_sync_jobs WHERE finished_at < p_now - {_FINISHED_JOB_RETENTION};
     END
     $$
     """,
         f"{RECORD_BANK_SYNC_SCAN}(timestamptz)",
+    ),
+    # Deletes every user's jobs finished longer ago than the retention, which a sweep with no request
+    # identity could not see through the owner policy. The retention is written into the body rather
+    # than taken as an argument, since the app role can execute every helper and must not be able to
+    # choose a shorter one. Written in plpgsql so creating it does not check the table exists
+    _Helper(
+        f"""
+    CREATE OR REPLACE FUNCTION {PRUNE_FINISHED_BANK_SYNC_JOBS}() RETURNS integer
+    LANGUAGE plpgsql VOLATILE SECURITY DEFINER SET search_path = '' AS $$
+    DECLARE
+        pruned integer;
+    BEGIN
+        WITH deleted AS (
+            DELETE FROM public.bank_sync_jobs WHERE finished_at < now() - {_FINISHED_JOB_RETENTION} RETURNING 1
+        )
+        SELECT count(*)::integer INTO pruned FROM deleted;
+        RETURN pruned;
+    END
+    $$
+    """,
+        f"{PRUNE_FINISHED_BANK_SYNC_JOBS}()",
     ),
     # The revisions the database is migrated to. The worker compares them with the head it
     # ships before it starts. The app role can't read the migration history itself, and the

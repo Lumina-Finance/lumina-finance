@@ -75,7 +75,7 @@ def _acting_as(user_id: uuid.UUID) -> Iterator[None]:
 
 
 async def enqueue_due_work() -> None:
-    """Queue a scheduled sync for each connection due one, then stamp the heartbeat and prune old jobs
+    """Queue a scheduled sync for each connection due one, then stamp the heartbeat
 
     The due list comes through a definer function, since only the worker sees across users, and
     each sync is queued as its connection's owner, for once a request is free, merging into any job

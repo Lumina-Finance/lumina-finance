@@ -24,6 +24,7 @@ _WORKER_FUNCTIONS = (
     "public.claim_bank_sync_jobs(integer)",
     "public.list_due_bank_connections(timestamptz)",
     "public.record_bank_sync_scan(timestamptz)",
+    "public.prune_finished_bank_sync_jobs()",
     "public.migration_revisions()",
 )
 

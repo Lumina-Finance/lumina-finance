@@ -9,10 +9,23 @@ from sqlalchemy import DateTime, case, func, literal_column, select, text, updat
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.db.rls.functions import CLAIM_BANK_SYNC_JOBS
+from app.db.rls.functions import CLAIM_BANK_SYNC_JOBS, PRUNE_FINISHED_BANK_SYNC_JOBS
 from app.models.bank_connection import BankAccountLink, BankLinkState
 from app.models.bank_sync_job import CLAIM_RANK, BankSyncJob, BankSyncJobKind, BankSyncJobStatus
 from app.services.bank_sync.providers.contract import ProviderError
+
+
+async def delete_finished_bank_sync_jobs(db: AsyncSession) -> None:
+    """Delete every user's jobs that finished more than 30 days ago
+
+    Jobs are secured to their owner, so the rule lives in a SECURITY DEFINER helper that reaches
+    every user's rows. The retention is written into it
+
+    Args:
+        db: Active database session
+    """
+    await db.execute(text(f"SELECT {PRUNE_FINISHED_BANK_SYNC_JOBS}()"))
+
 
 _CLAIM_ONE = text(f"SELECT job_id, owner_id, connection_id, kind, discover, attempt FROM {CLAIM_BANK_SYNC_JOBS}(1)")  # noqa: S608
 
