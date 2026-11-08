@@ -20,7 +20,7 @@ import { ApiError } from '@/api/auth/errors'
 import type { BankReviewBacklog } from '@/api/bank-sync/types'
 import { accountKeys, bankSyncKeys } from '@/api/cache/queryKeys'
 import { formatCurrency, formatMovedCurrency } from '@/utils/formatCurrency'
-import { createAccount, createReviewItem, MINUS, rowCount, TEST_CURRENCIES, toPages } from './fixtures'
+import { createAccount, createLinks, createReviewItem, MINUS, rowCount, TEST_CURRENCIES, toPages } from './fixtures'
 
 vi.mock('@/hooks/useMoneyFormatters', () => ({
   useMoneyFormatters: () => ({
@@ -57,6 +57,8 @@ beforeEach(() => {
   // A failed read stays failed on render, as it does once the app's own retries have run out
   client = new QueryClient({ defaultOptions: { queries: { staleTime: Infinity, retry: false, retryOnMount: false } } })
   client.setQueryData(accountKeys.list(), ACCOUNTS)
+  // Only a linked account has bank items, so each personal account is linked
+  client.setQueryData(bankSyncKeys.links(), createLinks(['everyday', 'savings', 'visa']))
 })
 
 function renderSection(

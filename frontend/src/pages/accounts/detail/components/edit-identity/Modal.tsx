@@ -317,9 +317,16 @@ export default function EditAccountIdentityModal({
   // Left until the account is unlinked, so the switch gives one reason at a time
   const isArchiveBlocked = !archiveLinkedReason && !account.is_archived && account.has_transactions_after_today
 
-  // A link holds archiving back, so archiving waits until the link has been read. A read that failed
-  // leaves archiving to the server. It refuses a linked account with its reason
-  const isLinkLoading = ownPersonal && !account.is_archived && bankStatus === undefined && bankStatusError === null
+  // A link holds archiving back, so archiving waits until the link has been read, but only where a
+  // link could exist. With bank sync not offered, a link that is still unread can't be there, so
+  // archiving behaves as it always has. A read that failed leaves archiving to the server. It refuses
+  // a linked account with its reason
+  const isLinkLoading =
+    showsBankLinkSection &&
+    ownPersonal &&
+    !account.is_archived &&
+    bankStatus === undefined &&
+    bankStatusError === null
 
   /**
    * Blocks closing while a mutation is pending so user intent and network state cannot diverge

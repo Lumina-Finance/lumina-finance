@@ -118,6 +118,39 @@ test('records a new credit card\'s amount owed as a balance below zero', async (
   await expect(getAccountRow(page, 'Rewards Card')).toContainText('($400.00)')
 })
 
+test('shows a server without bank sync no bank choice, link section or blank institution line', async ({ page, request }) => {
+  const user = await signUpUser(request)
+  await page.route(`${API_BASE_URL}/bank-sync/providers`, (route) => route.fulfill({ json: { may_link: false, providers: [] } }))
+  await logInViaApi(page, user)
+  await openPage(page, '/accounts')
+
+  const createDialog = await openModal(page, ['Add account'], 'Add account')
+  await chooseFromDropdown(createDialog, 'Account type', 'Checking')
+  await createDialog.getByLabel('Account name').fill(ACCOUNT_NAME)
+  await createDialog.getByRole('button', { name: 'Create account' }).click()
+  await expect(createDialog).toBeHidden()
+
+  // The prompt opens on the starting balance, with no choice of how the account stays up to date
+  const prompt = page.getByRole('dialog', { name: 'Add a starting balance' })
+  await expect(prompt).toBeVisible()
+  await expect(page.getByRole('dialog', { name: 'Keep it up to date' })).toHaveCount(0)
+  await expect(prompt.getByRole('radio')).toHaveCount(0)
+  await prompt.getByRole('button', { name: /^(Skip|Decide later)$/ }).click()
+  await expect(prompt).toBeHidden()
+
+  await page.getByRole('link', { name: new RegExp(ACCOUNT_NAME) }).click()
+  await expect(page.getByRole('heading', { name: ACCOUNT_NAME, level: 1 })).toBeVisible()
+
+  // The identity card reads as it always has, with its institution line filled at once and no way into bank sync
+  await expect(page.getByText('No institution', { exact: true })).toBeVisible()
+  await expect(page.getByRole('button', { name: /^Bank sync:/ })).toHaveCount(0)
+
+  await page.getByRole('button', { name: 'Edit account', exact: true }).click()
+  const editDialog = page.getByRole('dialog', { name: 'Edit account', exact: true })
+  await expect(editDialog.getByLabel('Account name', { exact: true })).toBeVisible()
+  await expect(editDialog.getByText('Bank link', { exact: true })).toHaveCount(0)
+})
+
 test('leaves a new account at zero when its starting balance is left blank', async ({ page, request }) => {
   const user = await signUpUser(request)
   await logInViaApi(page, user)

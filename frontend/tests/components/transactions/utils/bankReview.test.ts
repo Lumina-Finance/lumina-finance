@@ -188,14 +188,25 @@ describe('the backlog notice', () => {
 describe('the accounts whose items the block reads', () => {
   const accounts = [EVERYDAY, SAVINGS, JOINT, SHARED]
 
+  const linked = new Set(['everyday', 'savings', 'joint'])
+
   it('reads every account for a list of every account', () => {
-    expect(getReviewAccountIds(accounts, 'user-1', undefined)).toBeUndefined()
-    expect(getReviewAccountIds(accounts, 'user-1', [])).toBeUndefined()
+    expect(getReviewAccountIds(accounts, 'user-1', undefined, linked)).toBeUndefined()
+    expect(getReviewAccountIds(accounts, 'user-1', [], linked)).toBeUndefined()
   })
 
   it('reads only the own personal accounts a list is filtered or fixed to', () => {
-    expect(getReviewAccountIds(accounts, 'user-1', ['savings', 'joint', 'shared'])).toEqual(['savings'])
-    expect(getReviewAccountIds(accounts, 'user-1', ['joint'])).toEqual([])
+    expect(getReviewAccountIds(accounts, 'user-1', ['savings', 'joint', 'shared'], linked)).toEqual(['savings'])
+    expect(getReviewAccountIds(accounts, 'user-1', ['joint'], linked)).toEqual([])
+  })
+
+  it('reads only the linked accounts a list is filtered or fixed to', () => {
+    expect(getReviewAccountIds(accounts, 'user-1', ['everyday', 'savings'], new Set(['savings']))).toEqual(['savings'])
+  })
+
+  it('reads nothing for a user with no linked account', () => {
+    expect(getReviewAccountIds(accounts, 'user-1', undefined, new Set())).toEqual([])
+    expect(getReviewAccountIds(accounts, 'user-1', ['everyday'], new Set())).toEqual([])
   })
 })
 

@@ -14,6 +14,7 @@ import {
 import { logInViaApi, openModal, openPage, reachTwoFactorChallenge, signUpThroughTheForm } from '../support/app'
 import {
   answerAsBankImported,
+  answerLinksWith,
   answerReviewItems,
   BANK_SOURCE,
   claimSetupToken,
@@ -414,7 +415,9 @@ test('draws keyboard focus on the bank screens in the focus colour', async ({ pa
     date: daysFromTodayInTestTimezone(-1),
   })
   const connection = await claimSetupToken(request, user, (await createEmptyBridgeScenario(request)).setupToken)
-  // A removal waits on the row, so the row carries a Needs review marker and the block holds the item
+  // A removal waits on the row of the linked account, so the row carries a Needs review marker and the
+  // block holds the item
+  await answerLinksWith(page, () => [account.id])
   await answerAsBankImported(page, { [id]: { ...BANK_SOURCE, review_item_id: 'item-1' } })
   await answerReviewItems(page, () => pageOf([reviewItem('item-1', 'removal', account.id, {}, { transaction_id: id })], { removal: 1 }))
   await logInViaApi(page, user)

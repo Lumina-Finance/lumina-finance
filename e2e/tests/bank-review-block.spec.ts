@@ -14,6 +14,7 @@ import { filterTransactions, logInViaApi, openPage, setTabHidden } from '../supp
 import {
   addBridgeTransactions,
   answerAsBankImported,
+  answerLinksWith,
   answerReviewItems,
   BANK_SOURCE,
   isRead,
@@ -181,6 +182,8 @@ async function start(page: Page, request: APIRequestContext): Promise<Accounts> 
   const visa = await createAccount(request, user, { name: 'Visa', accountKind: 'revolving', accountType: 'credit_card' })
   const savings = await createAccount(request, user, { name: 'Savings', accountType: 'savings' })
   await createTransaction(request, user, { accountId: everyday.id, categoryName: 'Groceries', amount: -4250 })
+  // Only a linked account has bank items, so all three are linked
+  await answerLinksWith(page, () => [everyday.id, visa.id, savings.id])
   await logInViaApi(page, user)
   return { user, everyday, visa, savings }
 }

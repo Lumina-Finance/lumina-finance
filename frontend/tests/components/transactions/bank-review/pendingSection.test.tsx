@@ -15,7 +15,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { ApiError } from '@/api/auth/errors'
 import { accountKeys, bankSyncKeys } from '@/api/cache/queryKeys'
 import { formatCurrency, formatMovedCurrency } from '@/utils/formatCurrency'
-import { createAccount, createPendingTransaction, TEST_CURRENCIES } from './fixtures'
+import { createAccount, createLinks, createPendingTransaction, TEST_CURRENCIES } from './fixtures'
 
 vi.mock('@/hooks/useMoneyFormatters', () => ({
   useMoneyFormatters: () => ({
@@ -50,6 +50,8 @@ beforeEach(() => {
   // A failed read stays failed on render, as it does once the app's own retries have run out
   client = new QueryClient({ defaultOptions: { queries: { staleTime: Infinity, retry: false, retryOnMount: false } } })
   client.setQueryData(accountKeys.list(), ACCOUNTS)
+  // Only a linked account has bank transactions, so each personal account is linked
+  client.setQueryData(bankSyncKeys.links(), createLinks(['everyday', 'savings', 'visa']))
 })
 
 function renderSection(listAccountIds?: string[]): string {

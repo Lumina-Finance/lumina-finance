@@ -33,14 +33,15 @@ export default function AccountIdentityCard({
 }) {
   const { formatCurrency } = useMoneyFormatters()
   const prefersReducedMotion = useReducedMotion()
-  const { ownPersonal, status, statusError, shown: showsBankSync, syncLabel } = useAccountBankLink(account)
+  const { status, statusError, shown: showsBankSync, syncLabel, ownPersonal } = useAccountBankLink(account)
   const linkedTaxAdvantagedCategoryId = account.group_id === null ? account.tax_advantaged_category_id : null
 
-  // An account with no institution of its own names the bank it is linked to. Until its link is read,
-  // the line stays empty rather than saying it has none
-  const linkUnread = ownPersonal && status === undefined && statusError === null
+  // An account with no institution of its own names the bank it is linked to once its link is read. Where
+  // bank sync is offered that read decides it, so the line waits for it rather than naming no institution
+  // and then a bank. Where it isn't, or the read fails, the line reads as it always has
+  const linkUnread = showsBankSync && ownPersonal && status === undefined && statusError === null
   const institutionName =
-    account.institution?.name ?? status?.link?.institution_name ?? (linkUnread ? null : 'No institution')
+    account.institution?.name ?? status?.link?.institution_name ?? (linkUnread ? '' : 'No institution')
 
   const identityFacts = [
     { label: 'Kind', value: ACCOUNT_KIND_LABEL[account.account_kind] ?? account.account_kind },

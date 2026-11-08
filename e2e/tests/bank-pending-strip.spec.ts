@@ -85,6 +85,8 @@ async function start(page: Page, request: APIRequestContext): Promise<Accounts> 
   const visa = await createAccount(request, user, { name: 'Visa', accountKind: 'revolving', accountType: 'credit_card' })
   const savings = await createAccount(request, user, { name: 'Savings', accountType: 'savings' })
   await createTransaction(request, user, { accountId: everyday.id, categoryName: 'Groceries', amount: -4250 })
+  // Only a linked account has bank transactions, so all three are linked
+  await answerLinksWith(page, () => [everyday.id, visa.id, savings.id])
   await logInViaApi(page, user)
   return { everyday, visa, savings }
 }
@@ -221,6 +223,8 @@ test('reads neither pending transactions nor review items for a list filtered to
   const joint = await createAccount(request, user, { name: 'Joint', groupId: await createGroup(request, user, 'Household') })
   await createTransaction(request, user, { accountId: everyday.id, categoryName: 'Groceries', amount: -4250 })
   await createTransaction(request, user, { accountId: joint.id, categoryName: 'Groceries', amount: -1800 })
+  // Only a linked account has bank transactions, so Everyday is linked
+  await answerLinksWith(page, () => [everyday.id])
   await logInViaApi(page, user)
 
   // Everyday's hold answers every read, so a read made for no account in particular would show it

@@ -5,6 +5,7 @@ import { logInViaApi, openPage, waitForRequestsSoFar } from '../support/app'
 import {
   addImportedItem,
   answerAsBankImported,
+  answerLinksWith,
   answerReviewItems,
   BANK_SOURCE,
   changeBridgeTransaction,
@@ -87,6 +88,8 @@ async function startWithRemoval(page: Page, request: APIRequestContext): Promise
   const kept = { ...await readTransaction(request, user, id), bank_source: { ...source, review_item_id: null } }
   const decisions: string[] = []
 
+  // Only a linked account has bank items, so Everyday is linked
+  await answerLinksWith(page, () => [everyday.id])
   await answerAsBankImported(page, { [id]: source })
   await answerReviewItems(page, () => decisions.length === 0 ? pageOf([item], { removal: 1 }) : pageOf([]))
   await page.route(`${API_BASE_URL}/bank-review/items/${item.id}/*`, (route) => {

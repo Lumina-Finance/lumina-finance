@@ -1,6 +1,12 @@
 import type { InfiniteData } from '@tanstack/react-query'
 import type { AccountsOverview } from '@/api/accounts/types'
-import type { BankReviewItem, BankReviewItemKind, BankReviewPage, PendingBankTransaction } from '@/api/bank-sync/types'
+import type {
+  BankLink,
+  BankReviewItem,
+  BankReviewItemKind,
+  BankReviewPage,
+  PendingBankTransaction,
+} from '@/api/bank-sync/types'
 import type { Currency } from '@/api/currency'
 
 export const MINUS = String.fromCodePoint(0x2212)
@@ -74,6 +80,40 @@ export function createPendingTransaction(
     observed_at: '2026-10-05T09:00:00Z',
     ...overrides,
   }
+}
+
+/** One synced SimpleFIN link for each account, since only a linked account has bank transactions */
+export function createLinks(accountIds: string[]): BankLink[] {
+  return accountIds.map((accountId) => ({
+    account_id: accountId,
+    connection_id: 'connection-1',
+    provider: 'simplefin',
+    provider_name: 'SimpleFIN',
+    provider_site: 'SimpleFIN Bridge',
+    provider_available: true,
+    external_account_id: `bank-${accountId}`,
+    external_account_name: accountId,
+    institution_name: 'Example Bank',
+    import_start: '2026-01-01',
+    linked_at: '2026-09-01T12:00:00Z',
+    state: 'active',
+    import: null,
+    sync: {
+      state: 'synced',
+      last_success_at: '2026-09-30T12:00:00Z',
+      last_failure: null,
+      next_attempt_at: '2026-10-01T00:00:00Z',
+      waiting_on_budget: false,
+      held_by_provider: false,
+      sync_running: false,
+      sync_requested: false,
+      waiting_new_count: 0,
+      paused: false,
+      review_warning: false,
+    },
+    history_reminder: null,
+    cut_off_day: null,
+  }))
 }
 
 /** The review list as one loaded page of these items, counted by kind unless told otherwise */

@@ -152,23 +152,28 @@ export function describeBacklogNotice(backlogs: BankReviewBacklog[], accounts: R
 /**
  * Returns the accounts whose bank items the review block and the pending strip show for a transaction list
  *
- * A list of every account reads every account's items. The server keeps those to the user's own
+ * Only a linked account has bank items, so a user with no linked account reads none at all. A list of
+ * every account otherwise reads every account's items. The server keeps those to the user's own
  * personal accounts. A list scoped to some accounts reads only those of them that are the user's own
- * personal accounts, since the server refuses the rest, and none at all when it holds none of them
+ * personal accounts and linked, since the server refuses the first kind of the rest, and none at all
+ * when it holds none of them
  *
  * @param listAccountIds - The accounts the list is filtered or fixed to, empty or absent for every account
+ * @param linkedAccountIds - The accounts that have a bank link
  * @returns The accounts to read, or undefined for every account
  */
 export function getReviewAccountIds(
   accounts: Pick<AccountsOverview, 'id' | 'owner_id' | 'group_id'>[],
   userId: string,
   listAccountIds: string[] | undefined,
+  linkedAccountIds: ReadonlySet<string>,
 ): string[] | undefined {
+  if (linkedAccountIds.size === 0) return []
   if (!listAccountIds || listAccountIds.length === 0) return undefined
   const ownPersonal = new Set(
     accounts.filter((account) => isOwnPersonalAccount(account, userId)).map((account) => account.id),
   )
-  return listAccountIds.filter((accountId) => ownPersonal.has(accountId))
+  return listAccountIds.filter((accountId) => ownPersonal.has(accountId) && linkedAccountIds.has(accountId))
 }
 
 /**
