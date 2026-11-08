@@ -1,7 +1,7 @@
 import { expect, test, type Locator, type Page } from '@playwright/test'
 
 import { createAccount, createTransaction, signUpUser } from '../support/api'
-import { openPage, chooseFromDropdown, logInViaApi, openModal } from '../support/app'
+import { openPage, chooseFromDropdown, logInViaApi, openModal, waitForRequestsSoFar } from '../support/app'
 import {
   expectPendingAction,
   expectStretchedFocusRing,
@@ -174,6 +174,7 @@ test('leaves a new account at zero when its starting balance is left blank', asy
 
   await expect(prompt).toBeHidden()
   await expect(getAccountRow(page, ACCOUNT_NAME)).toContainText('$0.00')
+  await waitForRequestsSoFar(page)
   expect(startingBalanceRequests).toEqual([])
 })
 
@@ -189,6 +190,7 @@ test('leaves a new account at zero when its starting balance is left for later',
 
   await expect(prompt).toBeHidden()
   await expect(getAccountRow(page, ACCOUNT_NAME)).toContainText('$0.00')
+  await waitForRequestsSoFar(page)
   expect(startingBalanceRequests).toEqual([])
 })
 
@@ -310,6 +312,7 @@ test('lets a refused minus in an empty field be cleared, and refuses Continue wh
 
   await expect(prompt).toBeHidden()
   await expect(getAccountRow(page, ACCOUNT_NAME)).toContainText('$0.00')
+  await waitForRequestsSoFar(page)
   expect(startingBalanceRequests).toEqual([])
 })
 
