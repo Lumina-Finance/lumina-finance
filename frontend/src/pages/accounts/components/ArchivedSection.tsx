@@ -48,12 +48,13 @@ export default function ArchivedAccountsSection({
         summary={<CollapsibleSectionCount count={accounts.length} />}
         expanded={expanded}
         onToggle={() => setExpanded((current) => !current)}
-        opensInstantly
         onExpandComplete={() => {
           if (sectionRef.current) scrollArchivedAccountsIntoView(sectionRef.current, prefersReducedMotion)
         }}
       >
-        <div className="pt-1">
+        {/* Holds the rows' margins inside it, so the list rests at the height it opened to rather than
+            losing the last row's margin once the body stops clipping */}
+        <div className="flow-root pt-1">
           {accounts.map((account) => (
             <AccountRow
               key={account.id}

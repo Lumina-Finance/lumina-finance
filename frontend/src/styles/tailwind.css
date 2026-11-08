@@ -77,6 +77,8 @@
     --app-text-subtle: #786858;
     --app-accent: #8a5f25;
     --app-accent-soft: #9b6c2c1a;
+    /* The soft accent tint laid over --app-surface-soft as one solid colour, for a header rows scroll under */
+    --app-accent-soft-on-surface-soft: color-mix(in srgb, #9b6c2c 10%, var(--app-surface-soft));
     --app-accent-border: #9b6c2c38;
     /* A menu item's text on the soft accent tint. The accent itself reads 4.28:1 there on the page, where
        the settings sidebar sits, so the light theme draws it a little toward the page text colour */
@@ -246,6 +248,7 @@
     --app-text-subtle: #918579;
     --app-accent: #c9a96a;
     --app-accent-soft: #c9a96a1f;
+    --app-accent-soft-on-surface-soft: color-mix(in srgb, var(--app-accent) 12%, var(--app-surface-soft));
     --app-accent-border: #c9a96a38;
     --app-accent-nav-text: var(--app-accent);
     --app-accent-nav-focus-border: color-mix(in srgb, var(--app-text) 40%, var(--app-accent));

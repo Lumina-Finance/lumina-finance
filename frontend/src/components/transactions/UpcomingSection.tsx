@@ -30,11 +30,19 @@ const ROW_HOVER_ON_THE_SHADING = { '--app-hover-soft': 'var(--app-hover-on-surfa
 
 // Runs the header across the checkbox rail like a day heading, indented as a day heading is outside
 // selection. It holds nothing to tick, so its icon stays put when the rail opens and sits over the ticks
-// rather than leaving an empty slot beside it
+// rather than leaving an empty slot beside it. Its focus ring is drawn inside its edge, since the box's
+// top strip covers anything above it
 const HEADER_ACROSS_THE_LIST: CSSProperties = {
   ...REACHES_ACROSS_TRANSACTION_CHECKBOX_RAIL,
-  paddingInline: '0.75rem',
+  outlineOffset: '-2px',
 }
+
+// A stuck header is filled like the box's shading so rows scroll under it unseen, and takes the accent
+// tint mixed onto that shading under the pointer
+const HEADER_FILLED_LIKE_THE_SHADING = {
+  '--collapsible-header-fill': 'var(--app-surface-soft)',
+  '--collapsible-header-hover-fill': 'var(--app-accent-soft-on-surface-soft)',
+} as CSSProperties
 
 // Draws the section as a shaded box with a dashed edge, set apart from the rows that count. Both are layers
 // over the section rather than a border and padding on it, since the section shares the list's columns and
@@ -212,7 +220,7 @@ export function UpcomingSection({
               borderTop: 'none',
               ...(stickyTop === undefined
                 ? {}
-                : { top: `calc(${stickyTop}px + ${BOX_TOP_HEIGHT})`, background: 'var(--app-surface-soft)' }),
+                : { top: `calc(${stickyTop}px + ${BOX_TOP_HEIGHT})`, ...HEADER_FILLED_LIKE_THE_SHADING }),
             }}
           >
             {/* Inside a list that scrolls sideways, the explanation wraps to the visible width and stays in view.
@@ -232,8 +240,7 @@ export function UpcomingSection({
                 ...(stickyTop === undefined
                   ? {}
                   : {
-                      [TRANSACTION_ROW_SCROLL_MARGIN_VARIABLE]:
-                        `calc(${stickyTop + headerHeight + TRANSACTION_ROW_GAP_BELOW_PINNED_BARS_PX}px + ${BOX_TOP_HEIGHT})`,
+                      [TRANSACTION_ROW_SCROLL_MARGIN_VARIABLE]: `calc(${stickyTop + headerHeight + TRANSACTION_ROW_GAP_BELOW_PINNED_BARS_PX}px + ${BOX_TOP_HEIGHT})`,
                     }),
               }}
             >

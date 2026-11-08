@@ -48,10 +48,14 @@ export default function BudgetArchivedSection({
   const sectionRef = useRef<HTMLElement>(null)
   const prefersReducedMotion = useReducedMotion()
 
+  // Clipped only while the height animates, so the header's focus ring, drawn outside its edge, shows at rest.
+  // Unclipped to start, since a section already on screen when the page first draws never animates in
+  const [isResizing, setIsResizing] = useState(false)
+
   return (
     <motion.section
       ref={sectionRef}
-      className="overflow-hidden"
+      style={{ overflow: isResizing ? 'hidden' : 'visible' }}
       initial={{ height: 0, opacity: 0, marginTop: 0 }}
       animate={{ height: 'auto', opacity: 1, marginTop: ARCHIVED_SECTION_MARGIN_TOP_PX }}
       exit={{ height: 0, opacity: 0, marginTop: 0 }}
@@ -59,6 +63,8 @@ export default function BudgetArchivedSection({
         duration: prefersReducedMotion ? 0 : ARCHIVED_SECTION_APPEAR_SECONDS,
         ease: EASE,
       }}
+      onAnimationStart={() => setIsResizing(true)}
+      onAnimationComplete={() => setIsResizing(false)}
     >
       <CollapsibleSection
         icon={EyeOff}
