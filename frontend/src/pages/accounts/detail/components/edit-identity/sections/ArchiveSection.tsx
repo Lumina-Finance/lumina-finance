@@ -51,16 +51,19 @@ export function AccountArchiveSection({
 
   return (
     <EditModalSection number={sectionNumber} title="Archive">
-      {/* The switch's input is visually hidden, so a press lands on the row, and the row refuses it as well */}
+      {/* The switch's input is visually hidden, so a press lands on the row, and the row refuses it as well. A
+          switch held off by a link stays focusable, so its row keeps its ring whole and the text inside fades */}
       <label
         htmlFor={EDIT_ACCOUNT_IDENTITY_FIELD_IDS.archive}
-        className={`flex items-center justify-between gap-4 rounded-xl p-4 transition-opacity motion-reduce:transition-none ${unavailableReason ? 'cursor-not-allowed opacity-60' : 'cursor-pointer'}`}
+        className={`flex items-center justify-between gap-4 rounded-xl p-4 ${unavailableReason ? 'cursor-not-allowed' : 'cursor-pointer'} ${isArchiveBlocked && archiveLinkedReason === null ? 'opacity-60' : ''}`}
         style={{
           background: 'var(--app-input-bg)',
           border: '1px solid var(--app-input-border)',
         }}
       >
-        <span className="min-w-0">
+        <span
+          className={`min-w-0 transition-opacity motion-reduce:transition-none ${archiveLinkedReason !== null ? 'opacity-60' : ''}`}
+        >
           <span className="flex items-center gap-2 font-medium">
             <EyeOff size={16} style={{ color: 'var(--app-text-muted)' }} aria-hidden />
             Archive account

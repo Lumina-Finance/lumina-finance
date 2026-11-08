@@ -99,6 +99,23 @@ describe('archive held back by a link', () => {
     expect(markup).not.toMatch(/<input[^>]*role="switch"[^>]*disabled=""/)
   })
 
+  // A faded row fades its focus ring with it, and the switch it holds is still focusable
+  it("fades the row's text and leaves the row whole, so the focus ring on the switch stays at full strength", () => {
+    const markup = renderArchiveSection(false, LINKED_REASON)
+    const label = markup.match(/<label[^>]*>/)?.[0] ?? ''
+    const text = markup.match(/<span class="[^"]*opacity-60[^"]*">/)?.[0] ?? ''
+
+    expect(label).not.toContain('opacity-60')
+    expect(text).not.toBe('')
+    expect(markup.indexOf(text)).toBeGreaterThan(markup.indexOf(label))
+    expect(markup.indexOf(text)).toBeLessThan(markup.indexOf('role="switch"'))
+  })
+
+  it('still fades a row whose switch is disabled outright by later-dated transactions as a whole', () => {
+    const label = renderArchiveSection(true).match(/<label[^>]*>/)?.[0] ?? ''
+    expect(label).toContain('opacity-60')
+  })
+
   it('points the archive shortcut at the same reason without disabling it', () => {
     const button = getArchiveInsteadButton(renderDeletePanel(false, LINKED_REASON))
     expect(button).toContain('aria-disabled="true"')
