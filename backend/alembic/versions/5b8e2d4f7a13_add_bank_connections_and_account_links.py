@@ -167,7 +167,7 @@ def downgrade() -> None:
         {
             "bank_connections": "bank connections and their stored credentials",
             "bank_external_accounts": "the bank accounts connections list",
-            "bank_account_links": "links between Lumina accounts and bank accounts",
+            "bank_account_links": "links between accounts and bank accounts",
             "bank_provider_requests": "the record of provider requests the daily request budget counts",
         },
     )

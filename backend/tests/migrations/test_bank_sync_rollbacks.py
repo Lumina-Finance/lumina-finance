@@ -99,7 +99,7 @@ _ROLLBACKS = [
             "'unlinked', 'initial', '2026-09-01', '2026-10-01', now())",
         ),
         ("bank_account_links",),
-        "links between Lumina accounts and bank accounts",
+        "links between accounts and bank accounts",
         (),
         id="link_without_connection",
     ),
