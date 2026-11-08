@@ -267,9 +267,12 @@ async def link_bank_account(
 
     await enqueue_bank_sync_job(db, owner_id=user.id, connection_id=connection.id, kind=BankSyncJobKind.INITIAL)
     await mark_user_cache_changed(db, user.id)
-    await db.commit()
+
+    # Build the response before committing, since a delete of the account may take the link the moment
+    # this commits
+    await db.flush()
     await db.refresh(link)
-    return BankAccountLinkResponse(
+    response = BankAccountLinkResponse(
         account_id=link.account_id,
         connection_id=connection.id,
         provider=link.provider,
@@ -282,6 +285,8 @@ async def link_bank_account(
         import_start=link.import_start,
         linked_at=link.linked_at,
     )
+    await db.commit()
+    return response
 
 
 async def unlink_account(db: AsyncSession, user: User, account_id: uuid.UUID) -> UnlinkResponse:

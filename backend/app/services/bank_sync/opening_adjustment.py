@@ -140,7 +140,13 @@ async def record_opening_adjustment(db: AsyncSession, user: User, account_id: uu
         )
         link.opening_adjustment_state = OpeningAdjustmentState.RECORDED
         await mark_user_cache_changed(db, user.id)
+
+        # Build the response before committing, since a delete of the account may take the link the
+        # moment this commits
+        await db.flush()
+        response = await read_account_bank_status(db, user, account.id)
         await db.commit()
+        return response
     return await read_account_bank_status(db, user, account.id)
 
 
