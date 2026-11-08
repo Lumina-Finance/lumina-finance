@@ -568,6 +568,7 @@ export default function CreateTransactionModal({
     <TransactionReviewFooter
       isPending={isPending}
       submitLoading={submitLoading}
+      submitBlockedReason={refusal.blockedReason}
       dismissLoading={dismissLoading}
       keepOpen={keepOpenAfterCreate}
       onKeepOpenChange={setKeepOpenAfterCreate}

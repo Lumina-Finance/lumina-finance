@@ -181,11 +181,15 @@ test('opens a new item as the bank sent it beside its filing card, and adds noth
   // The bank's description starts the notes, and the user may change them
   await expect(form.notes).toHaveValue(COUNTDOWN.description)
 
+  // As every other dialogue's submit, Add to ledger stays whole until a press finds what is missing, then fades
+  await expect(form.add).not.toHaveAttribute('aria-disabled', 'true')
   await form.add.click()
   await expect(form.merchant).toHaveAttribute('aria-invalid', 'true')
   await expect(form.category).toHaveAttribute('aria-invalid', 'true')
-  await expect(dialog.getByText('Select or create a merchant', { exact: true })).toBeVisible()
-  await expect(dialog.getByText('Select a category', { exact: true })).toBeVisible()
+  await expect(form.merchant).toHaveAccessibleDescription('Select or create a merchant')
+  await expect(form.category).toHaveAccessibleDescription('Select a category')
+  await expect(form.add).toHaveAttribute('aria-disabled', 'true')
+  await expect(form.add).toHaveAccessibleDescription('Select or create a merchant')
   expect(decisions).toEqual([])
   await expect(dialog).toBeVisible()
   expect(await readWaiting(request, user, everyday.id)).toEqual([COUNTDOWN.description])
@@ -435,7 +439,7 @@ test('opens an amount its currency cannot hold empty, and adds the item once one
   await chooseFromDropdown(dialog, 'Merchant', 'Unknown')
   await chooseFromDropdown(dialog, 'Category', 'Groceries')
   await form.add.click()
-  await expect(dialog.getByText('Enter an amount', { exact: true })).toBeVisible()
+  await expect(form.amount).toHaveAccessibleDescription('Enter an amount')
   expect(decisions).toEqual([])
 
   await form.amount.fill('42.11')

@@ -5,6 +5,9 @@ import TransactionKeepOpenOption from '@/components/transactions/transaction-mod
 type TransactionReviewFooterProps = {
   isPending: boolean
   submitLoading: boolean
+
+  /** What a refused press of Add to ledger found missing, which fades it as every dialogue's submit */
+  submitBlockedReason?: string
   dismissLoading: boolean
   keepOpen: boolean
   onKeepOpenChange: (value: boolean) => void
@@ -20,6 +23,7 @@ type TransactionReviewFooterProps = {
 export default function TransactionReviewFooter({
   isPending,
   submitLoading,
+  submitBlockedReason,
   dismissLoading,
   keepOpen,
   onKeepOpenChange,
@@ -51,6 +55,7 @@ export default function TransactionReviewFooter({
           tone="primary"
           loading={submitLoading}
           disabled={isPending}
+          disabledReason={submitBlockedReason}
           testId="transaction-submit"
         />
       </div>

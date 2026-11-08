@@ -1,5 +1,6 @@
 import { useRef } from 'react'
 import { PendingLabel } from '@/components/loading/PendingLabel'
+import { DisabledReasonButton } from '@/components/tooltips/DisabledReasonButton'
 import { useConfirmingClick } from '@/hooks/useConfirmingClick'
 
 const TONE_CLASS_NAMES = {
@@ -15,6 +16,9 @@ type ReviewDecisionButtonProps = {
   /** Set while this decision runs. It swaps the label for a spinner */
   loading: boolean
   disabled: boolean
+
+  /** Why the decision can't run yet, such as a field a refused press found missing, which fades the button */
+  disabledReason?: string
 
   /** Left out by a decision that submits its form */
   onClick?: () => void
@@ -41,6 +45,7 @@ export function ReviewDecisionButton({
   tone,
   loading,
   disabled,
+  disabledReason,
   onClick,
   confirm,
   initialFocus,
@@ -61,7 +66,7 @@ export function ReviewDecisionButton({
 
   return (
     <>
-      <button
+      <DisabledReasonButton
         ref={pressRef}
         type={onClick ? 'button' : 'submit'}
         // The modal starts focus among its field tab stops. A button joins those only when marked
@@ -73,6 +78,7 @@ export function ReviewDecisionButton({
         onClick={onClick ? handleClick : undefined}
         onBlur={() => setConfirming(false)}
         disabled={disabled}
+        disabledReason={disabled ? undefined : disabledReason}
         className={`${TONE_CLASS_NAMES[tone]} relative shrink-0 overflow-hidden whitespace-nowrap ${loading ? 'app-primary-button-loading justify-self-center sm:justify-self-auto' : 'w-full sm:w-auto'}`}
       >
         {/* One crossfade for the label and the spinner, so the width eases with whichever comes in. The
@@ -80,7 +86,7 @@ export function ReviewDecisionButton({
         <PendingLabel pending={loading} name={shownLabel} contentKey={shownLabel}>
           <span aria-hidden>{shownLabel}</span>
         </PendingLabel>
-      </button>
+      </DisabledReasonButton>
       {confirm && (
         <span role="status" className="sr-only">
           {confirming ? confirm.announcement : ''}
