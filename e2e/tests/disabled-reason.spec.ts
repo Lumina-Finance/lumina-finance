@@ -1,7 +1,7 @@
 import { expect, test, type APIRequestContext, type Locator, type Page, type Request } from '@playwright/test'
 
 import { createAccount, createTransaction, daysFromTodayInTestTimezone, signUpUser } from '../support/api'
-import { logInViaApi, openModal, openPage } from '../support/app'
+import { logInViaApi, openModal, openPage, readSettledBox } from '../support/app'
 
 // Runs on desktop only, except the tap test, which sets up a touch screen of its own. A control held off
 // for a reason does nothing when it is clicked, tabbed to or pressed with Enter, and says why instead
@@ -262,6 +262,9 @@ test.describe('on a touch screen', () => {
     const tooltip = page.getByTestId(TOOLTIP).filter({ hasText: FIX_FIELDS })
     await expectFadedOut(tooltip)
 
+    // The email's error eases in and moves the form down. A forced tap skips the wait for the button to stop
+    // moving, so it waits here, or the tap can land on the field above
+    await readSettledBox(submit)
     await submit.tap({ force: true })
     await expect(tooltip).toHaveCSS('opacity', '1')
 
