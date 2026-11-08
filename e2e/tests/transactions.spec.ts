@@ -462,6 +462,30 @@ test('describes a focused row by its category, account and amount, in the order 
   )
 })
 
+test('brings the category and account lines of a phone row into view with its title, at the foot of the screen', AT_EVERY_SIZE, async ({ page, request }) => {
+  test.skip(test.info().project.name !== 'phone', 'The title is the first line of the row only in the phone layout, below 750px')
+  const user = await signUpUser(request)
+  const account = await createAccount(request, user, { name: 'Foot account' })
+  // One page of rows, more than the screen holds, so the oldest sits below the fold
+  const ids: string[] = []
+  for (let day = 0; day > -15; day -= 1) {
+    ids.push(await createTransaction(request, user, { accountId: account.id, categoryName: 'Groceries', amount: -1000, date: daysFromTodayInTestTimezone(day) }))
+  }
+  await logInViaApi(page, user)
+  await openPage(page, '/transactions')
+  await expectTransactionRow(page, ids[0], '−$10.00')
+
+  const lastRow = page.getByTestId(`transaction-row-${ids[ids.length - 1]}`)
+  await lastRow.locator('[data-row-title]:visible').focus()
+
+  // Focus brings the title into view as Tab does, and the lines under it, which the title does not
+  // contain, come with it rather than staying below the screen
+  await expect.poll(async () => {
+    const accountLine = await lastRow.getByText('Foot account', { exact: true }).filter({ visible: true }).boundingBox()
+    return accountLine === null ? Infinity : accountLine.y + accountLine.height - page.viewportSize()!.height
+  }).toBeLessThanOrEqual(0)
+})
+
 test('preserves transaction action names through save and delete confirmation', async ({ page, request }) => {
   const user = await signUpUser(request)
   const account = await createAccount(request, user, { name: 'Action account' })
