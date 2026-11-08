@@ -151,6 +151,41 @@ test('shows a server without bank sync no bank choice, link section or blank ins
   await expect(editDialog.getByText('Bank link', { exact: true })).toHaveCount(0)
 })
 
+test('names no institution as the account page first shows on a server without bank sync, though the providers answer last', async ({ page, request }) => {
+  const user = await signUpUser(request)
+  const account = await createAccount(request, user, { name: ACCOUNT_NAME })
+
+  // Records the institution line as the account's name first appears, before any later read can fill it
+  await page.addInitScript((name) => {
+    new MutationObserver((_, observer) => {
+      const heading = [...document.querySelectorAll('h1')].find((element) => element.textContent === name)
+      if (!heading) return
+      ;(window as Window & { firstInstitutionLine?: string }).firstInstitutionLine =
+        heading.nextElementSibling?.textContent ?? ''
+      observer.disconnect()
+    }).observe(document, { childList: true, subtree: true, characterData: true })
+  }, ACCOUNT_NAME)
+
+  // The providers answer only once the account's own read has reached the page and had a frame to draw
+  let releaseProviders!: () => void
+  const providersHeld = new Promise<void>((resolve) => { releaseProviders = resolve })
+  await page.route(`${API_BASE_URL}/bank-sync/providers`, async (route) => {
+    await providersHeld
+    await route.fulfill({ json: { may_link: false, providers: [] } })
+  })
+  await logInViaApi(page, user)
+  const accountRead = page.waitForResponse((response) =>
+    response.request().method() === 'GET' && new URL(response.url()).pathname.endsWith(`/accounts/${account.id}`))
+  await page.goto(`/accounts/${account.id}`)
+  await accountRead
+  await page.evaluate(() => new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve))))
+  releaseProviders()
+
+  await expect(page.getByRole('heading', { name: ACCOUNT_NAME, level: 1 })).toBeVisible()
+  expect(await page.evaluate(() => (window as Window & { firstInstitutionLine?: string }).firstInstitutionLine))
+    .toBe('No institution')
+})
+
 test('reads the bank providers while Add account is open, so the prompt after the save need not wait for them', async ({ page, request }) => {
   const user = await signUpUser(request)
   await logInViaApi(page, user)
