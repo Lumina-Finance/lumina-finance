@@ -690,7 +690,7 @@ test('on a phone, a bank’s full name keeps its line, and a long account name w
   expect((await box(total)).y).toBeGreaterThanOrEqual((await box(title)).y + (await box(title)).height)
 
   const row = accountRow(page, /Tax-Free First Home Savings Account/)
-  const name =row.getByText('Tax-Free First Home Savings Account', { exact: true })
+  const name = row.getByText('Tax-Free First Home Savings Account', { exact: true })
   const balance = row.getByText('$21,904.12')
   await expect(row.getByText('TFSA', { exact: true })).toBeVisible()
   await expect(row.getByText('Savings', { exact: true })).toBeVisible()
