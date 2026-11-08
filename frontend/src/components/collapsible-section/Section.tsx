@@ -102,11 +102,12 @@ export function CollapsibleSection({
     <div className={className}>
       {/* Inside a list that scrolls sideways, the header fits the visible width and stays in view. Each
           part sits on the first line, so a summary that wraps keeps the label and chevron level with its
-          first line rather than centred between its lines */}
+          first line rather than centred between its lines. The side padding keeps the hover tint clear
+          of the icon and chevron */}
       <button
         ref={headerRef}
         type="button"
-        className="sticky left-0 z-10 col-span-full flex w-full max-w-[100cqw] items-start gap-3 py-2 text-left transition-control hover:bg-[var(--app-accent-soft)] hover:text-[var(--app-text)]"
+        className="sticky left-0 z-10 col-span-full flex w-full max-w-[100cqw] items-start gap-3 px-3 py-2 text-left transition-control hover:bg-[var(--app-accent-soft)] hover:text-[var(--app-text)]"
         style={{
           borderTop: '1px solid var(--app-border)',
           color: 'var(--app-text-muted)',
