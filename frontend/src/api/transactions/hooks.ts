@@ -22,7 +22,7 @@ import {
   invalidateBulkUpdatedTransactionData,
   invalidateFinancialTransactionData,
   invalidatePatchedTransactionData,
-  invalidateReviewOfDeletedBankTransactions,
+  invalidateReviewIfFromBank,
   invalidateReviewOfEditedBankTransactions,
   invalidateTransactionAccountData,
   readBulkEditAsPatch,
@@ -303,7 +303,7 @@ export function applyTransactionDeletion(
  */
 function applyTransactionsDeletion(queryClient: QueryClient, transactionIds: string[], accountIds: string[]) {
   // Read from the cache before the rows are removed from it
-  invalidateReviewOfDeletedBankTransactions(
+  invalidateReviewIfFromBank(
     queryClient,
     transactionIds.map((transactionId) => findCachedTransaction(queryClient, transactionId)),
   )

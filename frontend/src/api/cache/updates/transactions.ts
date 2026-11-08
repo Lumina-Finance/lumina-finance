@@ -297,7 +297,14 @@ function invalidateTaxAdvantagedActivity(queryClient: QueryClient, accountIds: s
   invalidateTaxAdvantagedCategories(queryClient, categoryIds)
 }
 
-function invalidateReviewIfFromBank(
+/**
+ * Refreshes the review inbox when any of the transactions came from the bank, as when one is deleted,
+ * alone or among others, since that deletes any item waiting about it too
+ *
+ * @param transactions - The transactions as cached before the change, any of them unknown to the
+ * cache left undefined
+ */
+export function invalidateReviewIfFromBank(
   queryClient: QueryClient,
   transactions: ReadonlyArray<Pick<Transaction, 'bank_source'> | undefined>,
 ): void {
@@ -321,20 +328,6 @@ export function invalidateReviewOfEditedBankTransactions(
   patch: UpdateTransactionPayload,
 ): void {
   if (patchTouches(patch, REVIEW_ITEM_FIELDS)) invalidateReviewIfFromBank(queryClient, transactions)
-}
-
-/**
- * Refreshes the review inbox once a bank-imported transaction is deleted, alone or among others,
- * since that deletes any item waiting about it too
- *
- * @param transactions - The deleted transactions as cached before the deletion, any of them unknown to
- * the cache left undefined
- */
-export function invalidateReviewOfDeletedBankTransactions(
-  queryClient: QueryClient,
-  transactions: ReadonlyArray<Pick<Transaction, 'bank_source'> | undefined>,
-): void {
-  invalidateReviewIfFromBank(queryClient, transactions)
 }
 
 /**
