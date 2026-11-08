@@ -3090,8 +3090,9 @@
 
   /* A transaction row is focused through the button inside it, or its checkbox while selecting, and
      neither fills the row, so the ring goes around the row itself, drawn inside the row's edges where
-     the next row and the list's own edge cannot cover it. The row also shows the hover look while its
-     button is focused */
+     the next row and the list's own edge cannot cover it. A bank control in the row draws its own focus
+     and takes no ring here. The row also shows the hover look while any button in it is focused, as
+     it does under the pointer anywhere on it */
   .app-transaction-row {
     transition:
       background-color var(--app-ease-duration) var(--app-ease-curve),
@@ -3103,7 +3104,7 @@
     outline-offset: calc(var(--app-focus-offset) * -1 - var(--transaction-row-frame, 0px));
   }
 
-  .app-transaction-row:has([data-row-title]:focus-visible, button[role="checkbox"]:focus-visible) {
+  .app-transaction-row:has(button:focus-visible) {
     background: var(--app-hover-soft);
   }
 
