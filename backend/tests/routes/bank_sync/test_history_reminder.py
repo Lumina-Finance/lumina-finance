@@ -7,8 +7,7 @@ Only the owner's own personal account can dismiss one
 """
 
 import asyncio
-from datetime import date, datetime, timedelta
-from zoneinfo import ZoneInfo
+from datetime import date
 
 import pytest
 from sqlalchemy import func, select, update
@@ -18,8 +17,6 @@ from app.services.bank_sync import account_link
 from tests.conftest import TestSession
 from tests.routes.support.bank_sync_helpers import (
     _changed_at,
-    _commit_link,
-    _commit_listed_connection,
     _commit_other_users_account,
     _import_a_file,
     _new_account,
@@ -27,40 +24,15 @@ from tests.routes.support.bank_sync_helpers import (
     _sign_up,
     _undoable_import,
 )
+from tests.routes.support.history_reminder_helpers import _CUT_SHORT, _FELL_SHORT, _NOW, _SHOWN, _linked_everyday
 from tests.routes.support.lock_helpers import _cancel_unfinished, _wait_until_waiting_on
 from tests.routes.support.query_helpers import _recorded_statements, _writes
-
-# Noon on October 5 in Toronto, the zone _sign_up stores
-_NOW = datetime(2026, 10, 5, 12, 0, tzinfo=ZoneInfo("America/Toronto"))
-
-# Everyday's import from 1 June got history from 9 June
-_FELL_SHORT = {"history_reminder_start": date(2026, 6, 1), "history_reminder_earliest": date(2026, 6, 9)}
-_SHOWN = {"requested_start": "2026-06-01", "earliest_returned": "2026-06-09"}
-
-# 2 October came back as long as Fake Bank's longest response
-_CUT_SHORT = {"cut_off_day": date(2026, 10, 2)}
 
 
 @pytest.fixture(autouse=True)
 def _pinned_now(pin_clock):
     """Pin the time the account link route describes the link at"""
     pin_clock(_NOW, account_link)
-
-
-async def _linked_everyday(client, **link_values) -> tuple[dict, str, BankAccountLink]:
-    """Sign up with Everyday linked to Fake Bank, its import ended and synced through today an hour ago, its link's values set as given
-
-    Returns:
-        The auth headers, Everyday's id and its link
-    """
-    headers, user_id = await _sign_up(client)
-    account_id = await _new_account(client, headers, "Everyday")
-    connection = await _commit_listed_connection(user_id, discovered_at=_NOW)
-    link = await _commit_link(account_id, connection, importing=False, last_success_at=_NOW - timedelta(hours=1), **link_values)
-    async with TestSession() as session:
-        await session.execute(update(BankAccountLink).where(BankAccountLink.id == link.id).values(checkpoint=_NOW.date()))
-        await session.commit()
-    return headers, account_id, link
 
 
 async def _read_link(client, headers: dict, account_id: str) -> dict:

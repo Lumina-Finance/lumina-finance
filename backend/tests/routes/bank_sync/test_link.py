@@ -8,8 +8,7 @@ nothing of the old bank account's progress
 """
 
 import uuid
-from datetime import date, datetime, timedelta
-from zoneinfo import ZoneInfo
+from datetime import date, timedelta
 
 import pytest
 from sqlalchemy import func, select, update
@@ -43,10 +42,9 @@ from tests.routes.support.bank_sync_helpers import (
     _new_account,
     _sign_up,
 )
+from tests.routes.support.link_helpers import _NOW, _linkable
 from tests.services.bank_sync.fake_provider import FAKE_PROVIDER, remove_provider, use_adapter
 
-# Noon on October 4 in Toronto, the zone _sign_up stores
-_NOW = datetime(2026, 10, 4, 12, 0, tzinfo=ZoneInfo("America/Toronto"))
 _TODAY = _NOW.date()
 _ACCOUNT_ALREADY_LINKED = "This account is already linked to a bank"
 _BANK_ACCOUNT_ALREADY_LINKED = "That bank account is already linked to another account"
@@ -56,14 +54,6 @@ _BANK_ACCOUNT_ALREADY_LINKED = "That bank account is already linked to another a
 def _pinned_now(pin_clock):
     """Pin the time the link and import range routes read"""
     pin_clock(_NOW, links, import_range)
-
-
-async def _linkable(client, name: str = "Everyday") -> tuple[dict, uuid.UUID, str, BankConnection]:
-    """Sign up with an empty CAD account and a connection listing one CAD bank account at Harbour Bank"""
-    headers, user_id = await _sign_up(client)
-    account_id = await _new_account(client, headers, name)
-    connection = await _commit_listed_connection(user_id, discovered_at=_NOW)
-    return headers, user_id, account_id, connection
 
 
 async def _stored_links() -> list[tuple]:

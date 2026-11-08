@@ -13,9 +13,7 @@ account can answer it
 
 import asyncio
 import uuid
-from dataclasses import dataclass
 from datetime import UTC, date, datetime, timedelta
-from zoneinfo import ZoneInfo
 
 import pytest
 from sqlalchemy import func, select, text, update
@@ -30,9 +28,6 @@ from app.services.bank_sync import account_link, import_range, links
 from tests.conftest import TestSession
 from tests.routes.support.bank_sync_helpers import (
     _changed_at,
-    _commit_bank_balance,
-    _commit_link,
-    _commit_listed_connection,
     _commit_other_users_account,
     _commit_review_item,
     _commit_waiting_items,
@@ -47,19 +42,17 @@ from tests.routes.support.bank_sync_helpers import (
 )
 from tests.routes.support.lock_helpers import _cancel_unfinished, _wait_until_waiting_on
 from tests.routes.support.merchant_helpers import _get_system_merchant_id
+from tests.routes.support.opening_adjustment_helpers import (
+    _BALANCE_AT,
+    _NOW,
+    _Everyday,
+    _linked_everyday,
+    _offering_everyday,
+)
 from tests.routes.support.query_helpers import _recorded_statements, _writes
 from tests.routes.support.transaction_helpers import _get_system_category_id
 
-_TORONTO = ZoneInfo("America/Toronto")
-
-# Noon on October 5 in Toronto, the zone _sign_up stores
-_NOW = datetime(2026, 10, 5, 12, 0, tzinfo=_TORONTO)
-
-# 6:00 PM on October 3 in Toronto
-_BALANCE_AT = datetime(2026, 10, 3, 18, 0, tzinfo=_TORONTO)
-
 # Everyday's import starts on 1 June, so its opening adjustment is dated 31 May
-_IMPORT_START = date(2026, 6, 1)
 _ADJUSTMENT_DATE = "2026-05-31"
 
 _NOTHING_TO_RECORD = "There is no opening balance to confirm"
@@ -73,53 +66,6 @@ _REMOVED_AT = datetime(2026, 10, 4, 9, 0, tzinfo=UTC)
 def _pinned_now(pin_clock):
     """Pin the time the account link route describes the link at"""
     pin_clock(_NOW, account_link)
-
-
-@dataclass(frozen=True)
-class _Everyday:
-    """A signed-up user's Everyday account, linked to Fake Bank from 1 June"""
-
-    headers: dict
-    account_id: str
-    link: BankAccountLink
-
-    # The ledger transactions recorded before linking, in the order given
-    ledger_ids: list[str]
-
-
-async def _linked_everyday(
-    client,
-    *ledger: tuple[str, int],
-    tz: str | None = None,
-    account_kind: str = "asset",
-    account_type: str = "checking",
-    bank: dict | None = None,
-    **link_values,
-) -> _Everyday:
-    """Sign up, record the ledger on a new Everyday account, give its bank account a balance and link it after its import, synced an hour ago
-
-    The bank's balance is 1,250.00 as of _BALANCE_AT unless told otherwise
-    """
-    headers, user_id = await _sign_up(client)
-    if tz is not None:
-        moved = await client.patch("/me", json={"tz": tz}, headers=headers)
-        assert moved.status_code == 200, moved.text
-    account_id = await _new_account(client, headers, "Everyday", account_kind=account_kind, account_type=account_type)
-    ledger_ids = await _record_ledger(client, headers, account_id, *ledger)
-    connection = await _commit_listed_connection(user_id, discovered_at=_NOW)
-    await _commit_bank_balance(connection, **{"balance": 125000, "balance_at": _BALANCE_AT, **(bank or {})})
-    link = await _commit_link(account_id, connection, **{"importing": False, "last_success_at": _NOW - timedelta(hours=1), **link_values})
-    async with TestSession() as session:
-        await session.execute(
-            update(BankAccountLink).where(BankAccountLink.id == link.id).values(import_start=_IMPORT_START, checkpoint=_NOW.date())
-        )
-        await session.commit()
-    return _Everyday(headers, account_id, link, ledger_ids)
-
-
-async def _offering_everyday(client, *ledger: tuple[str, int], **values) -> _Everyday:
-    """Everyday as _linked_everyday leaves it, its link offering the opening adjustment"""
-    return await _linked_everyday(client, *ledger, opening_adjustment_state=OpeningAdjustmentState.OFFERED, **values)
 
 
 async def _end_import(link: BankAccountLink) -> None:
