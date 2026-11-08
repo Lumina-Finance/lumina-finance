@@ -535,8 +535,6 @@ test('shows the whole ring and the hover look on a range selector option reached
 // shows its focus whole: a ring that nothing clips and that reaches 3:1, or no ring and a hover look that
 // differs from rest. A tooltip's trigger opens its tooltip instead, which its own test covers
 test('shows every Tab stop with a whole ring or a visible hover look', async ({ page, request }) => {
-  // About 145 stops, each read twice. That takes over 90s alone and passes the default 180s when the suite runs in parallel
-  test.slow()
   await page.emulateMedia({ reducedMotion: 'reduce' })
   const user = await signUpUser(request)
   const account = await createAccount(request, user, { name: 'Everyday' })
