@@ -75,6 +75,7 @@ function provider(overrides: Partial<BankProvider> = {}): BankProvider {
     name: 'SimpleFIN',
     site: 'SimpleFIN Bridge',
     description: 'Every bank you add in SimpleFIN Bridge',
+    in_beta: false,
     credential_fields: [SETUP_TOKEN],
     connect_steps: [],
     connects_from: 'settings',

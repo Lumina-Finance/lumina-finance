@@ -312,6 +312,7 @@ async def list_providers(db: AsyncSession, user: User) -> BankProvidersResponse:
                 name=adapter.provider_name,
                 site=adapter.provider_site,
                 description=adapter.provider_description,
+                in_beta=adapter.in_beta,
                 credential_fields=[
                     CredentialFieldResponse(key=entry.key, label=entry.label, placeholder=entry.placeholder, max_length=entry.max_length)
                     for entry in adapter.credential_fields

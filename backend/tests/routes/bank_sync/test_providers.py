@@ -30,6 +30,7 @@ _FAKE = {
     "name": "Fake Bank",
     "site": "Fake Bank Online",
     "description": "One access key reaches every account you hold at Fake Bank.",
+    "in_beta": False,
     "credential_fields": [{"key": "access_key", "label": "Access key", "placeholder": "Paste the key", "max_length": 512}],
     "connect_steps": ["Sign in to Fake Bank Online.", "Create an access key and paste it here."],
     "connects_from": "settings",
@@ -76,6 +77,18 @@ async def test_providers_offer_an_installed_provider_with_its_credential_steps_a
 
     assert response.status_code == 200, response.text
     assert response.json() == {"may_link": True, "sync_running": True, "providers": [_FAKE]}
+
+
+async def test_providers_mark_a_provider_in_beta(client, monkeypatch):
+    """A provider that says it is in beta is listed as in beta, and one that says nothing is not"""
+    beta = FakeProviderAdapter()
+    beta.provider_id, beta.in_beta = "beta_bank", True
+    use_adapter(monkeypatch, beta)
+    headers, _ = await _sign_up(client)
+
+    response = await client.get("/bank-sync/providers", headers=headers)
+
+    assert {provider["id"]: provider["in_beta"] for provider in response.json()["providers"]} == {"beta_bank": True, "fake": False}
 
 
 async def test_providers_list_in_display_order_then_by_id(client, monkeypatch):

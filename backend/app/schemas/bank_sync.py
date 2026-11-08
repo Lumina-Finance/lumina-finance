@@ -213,6 +213,9 @@ class BankProviderResponse(BaseModel):
     # One sentence on what connecting it reaches
     description: str
 
+    # Whether the provider is marked as in beta where the user chooses one
+    in_beta: bool
+
     # The fields the user fills in to connect, in order, and the steps to get what they take, each a
     # sentence. The connect form draws whatever is listed
     credential_fields: list[CredentialFieldResponse]

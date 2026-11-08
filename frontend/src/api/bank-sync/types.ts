@@ -37,6 +37,9 @@ export type BankProvider = {
   /** One sentence on what connecting it reaches, shown where the user chooses a provider */
   description: string
 
+  /** Whether the provider shows a Beta pill where the user chooses one */
+  in_beta: boolean
+
   /** The fields the user fills in to connect, in order, at least one. The connect form draws whatever is listed */
   credential_fields: CredentialField[]
 

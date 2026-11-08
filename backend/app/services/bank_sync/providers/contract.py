@@ -192,6 +192,9 @@ class ProviderAdapter(ABC):
     # One sentence on what connecting it reaches, shown where the user chooses a provider
     provider_description: ClassVar[str]
 
+    # Marks the provider as in beta where the user chooses one
+    in_beta: ClassVar[bool] = False
+
     # What the user pastes to connect, at least one field, and the steps to get it from the provider,
     # each a sentence
     credential_fields: ClassVar[tuple[CredentialField, ...]]

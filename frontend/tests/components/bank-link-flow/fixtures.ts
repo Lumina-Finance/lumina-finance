@@ -93,6 +93,7 @@ export function createProviders(offered = true): BankProvidersResponse {
         name: 'SimpleFIN',
         site: 'SimpleFIN Bridge',
         description: 'Connects to banks through SimpleFIN Bridge',
+        in_beta: false,
         credential_fields: [
           { key: 'setup_token', label: 'Setup token', placeholder: 'Paste the token', max_length: 2048 },
         ],

@@ -280,6 +280,7 @@ export function ConnectModal({
                 value: entry.id,
                 label: entry.name,
                 description: entry.description,
+                badge: entry.in_beta ? 'Beta' : undefined,
               }))}
               value={providerId ?? ''}
               disabled={busy}
