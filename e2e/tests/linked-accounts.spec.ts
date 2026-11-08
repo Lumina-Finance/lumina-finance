@@ -37,7 +37,7 @@ const IMPORT_START_DAYS_AGO = 10
 const MESSAGE_FROM_TODAY = `SimpleFIN supplies this account's transactions from ${formatToday()} to today`
 const MOVE_REFUSAL = "Transactions from SimpleFIN can't move out of Everyday while it's linked"
 const ARCHIVE_LINKED_REASON = "This account can't be archived while it's linked to SimpleFIN. Unlink it first."
-const DELETE_LINKED_REASON = 'Imported from SimpleFIN. While Everyday is linked, edit it rather than deleting it.'
+const DELETE_LINKED_REASON = 'Imported from SimpleFIN. While Everyday is linked, edit it rather than deleting it'
 const BULK_DELETE_LINKED_REASON = "Transactions from SimpleFIN can't be deleted from Everyday while it's linked"
 
 // Where the pointer first rests on Delete, measured in from the button's top-left corner, and how far
