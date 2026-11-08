@@ -21,11 +21,13 @@ import { useMoneyFormatters } from '@/hooks/useMoneyFormatters'
 import { useMoneyInput } from '@/hooks/useMoneyInput'
 import type { AccountDetailArrivalState } from '@/pages/accounts/detail/constants/accountDetail'
 import { isOwnPersonalAccount } from '@/utils/bankSync'
+import { formatCurrencySymbol, getSymbolInputStyle } from '@/utils/formatCurrency'
 import { getCurrencyExponent, toMinorUnits } from '@/utils/moneyInput'
 
 type KeepUpToDate = 'bank' | 'manual'
 
 const STARTING_BALANCE_INPUT_ID = 'new-account-starting-balance'
+const STARTING_BALANCE_ERROR_ID = 'new-account-starting-balance-error'
 
 // Arriving on the account's page with this opens the link flow there
 const LINK_BANK_ARRIVAL: AccountDetailArrivalState = { linkBank: true }
@@ -72,7 +74,10 @@ export default function NewAccountPromptModal({ open, account, onClose, onExitCo
   const [typedMinus, setTypedMinus] = useState(false)
   const [submitError, setSubmitError] = useState<string | null>(null)
   const exponent = getCurrencyExponent(currencies, account.currency)
-  const symbol = currencies.find((currency) => currency.id === account.currency)?.symbol
+  // Written the way the rest of the app writes it, in the reader's own language
+  const symbol = currencies.some((currency) => currency.id === account.currency)
+    ? formatCurrencySymbol(account.currency)
+    : ''
   const isLiability = account.account_kind !== 'asset'
   const balanceInput = useMoneyInput({
     value: startingBalance,
@@ -144,6 +149,7 @@ export default function NewAccountPromptModal({ open, account, onClose, onExitCo
         htmlFor={STARTING_BALANCE_INPUT_ID}
         label={isLiability ? 'Starting amount owed' : 'Starting balance'}
         error={balanceError}
+        errorId={STARTING_BALANCE_ERROR_ID}
       />
       <div className="relative">
         {symbol && (
@@ -154,7 +160,9 @@ export default function NewAccountPromptModal({ open, account, onClose, onExitCo
         <input
           id={STARTING_BALANCE_INPUT_ID}
           className={`app-input ${symbol ? 'pl-8' : ''} ${balanceError ? 'app-input-error' : ''}`}
+          style={getSymbolInputStyle(symbol)}
           aria-invalid={balanceError ? true : undefined}
+          aria-describedby={balanceError ? STARTING_BALANCE_ERROR_ID : undefined}
           placeholder="Optional"
           disabled={recordStartingBalance.isPending}
           {...balanceInput}

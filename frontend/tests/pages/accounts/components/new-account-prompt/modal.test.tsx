@@ -25,6 +25,7 @@ import {
   NOTHING_TO_LINK_REASON,
 } from '@/components/bank-link-flow/constants'
 import NewAccountPromptModal from '@/pages/accounts/components/new-account-prompt/Modal'
+import { formatCurrencySymbol } from '@/utils/formatCurrency'
 import { createAccount, createConnection, createProviders } from './fixtures'
 
 const reads = vi.hoisted(() => ({
@@ -51,7 +52,11 @@ vi.mock('@/api/accounts', async (importOriginal) => ({
 }))
 vi.mock('@/hooks/useMoneyFormatters', () => ({
   useMoneyFormatters: () => ({
-    currencies: [{ id: 'CAD', name: 'Canadian Dollar', symbol: '$', minor_unit_exponent: 2 }],
+    currencies: [
+      { id: 'CAD', name: 'Canadian Dollar', symbol: '$', minor_unit_exponent: 2 },
+      // The seeded table's own symbol, which the field must not show in place of the reader's
+      { id: 'CHF', name: 'Swiss Franc', symbol: 'Fr.', minor_unit_exponent: 2 },
+    ],
   }),
 }))
 vi.mock('@/hooks/useAuth', () => ({
@@ -169,6 +174,17 @@ describe('NewAccountPromptModal', () => {
   it('asks a liability for the amount owed', () => {
     reads.providers = createProviders({ mayLink: false })
     expect(renderPrompt(createAccount({ account_kind: 'revolving' }))).toContain('Starting amount owed')
+  })
+
+  it('writes the starting balance symbol as the rest of the app does, with room for a longer one', () => {
+    reads.providers = createProviders({ mayLink: false })
+    const markup = renderPrompt(createAccount({ currency: 'CHF' }))
+    const symbol = formatCurrencySymbol('CHF')
+    expect(symbol).not.toBe('Fr.')
+    expect(markup).toContain(`aria-hidden="true">${symbol}</span>`)
+    expect(markup).not.toContain('>Fr.</span>')
+    const input = markup.match(/<input[^>]*id="new-account-starting-balance"[^>]*>/)?.[0] ?? ''
+    expect(input).toMatch(/style="padding-left:[^"]+"/)
   })
 
   it('opens without waiting on the connections where linking is not offered', () => {
