@@ -345,13 +345,16 @@ for (const colorScheme of ['light', 'dark'] as const) {
   })
 
   // A row has no border, so it keeps the ring, drawn around the row itself inside its edges where the
-  // next row can't cover it. The row's title reaches the ring through the row's own outline and leaves
-  // the row unlit, and the checkbox while selecting rings the row and turns its own border the focus colour
-  test(`shows a transaction row's ring on keyboard focus in the ${colorScheme} theme`, async ({ page, request }) => {
+  // next row can't cover it. The row's title reaches the ring through the row's own outline and shows the
+  // row's hover look as well. The same holds when its checkbox while selecting holds focus, which also
+  // turns its own border the focus colour
+  test(`shows a transaction row's ring and hover look on keyboard focus in the ${colorScheme} theme`, async ({ page, request }) => {
     await page.emulateMedia({ colorScheme, reducedMotion: 'reduce' })
     const rowButton = await seedOneTransaction(page, request)
     const row = rowFrameOf(rowButton)
 
+    const { rest, focused } = await expectHoverLook(page, rowButton, null)
+    expect(focused.frame.backgroundColor).not.toBe(rest.frame.backgroundColor)
     await expectStretchedFocusRing(rowButton, row)
     await expectSharedRing(row, 'outline', '-2px')
 
@@ -361,6 +364,7 @@ for (const colorScheme of ['light', 'dark'] as const) {
     await expect(checkbox).toBeFocused()
     await expectSharedRing(checkbox, 'border')
     await expectSharedRing(row, 'outline', '-2px')
+    await expect.poll(async () => (await readLook(row)).button.backgroundColor).toBe(focused.frame.backgroundColor)
   })
 }
 
@@ -626,10 +630,10 @@ for (const colorScheme of ['light', 'dark'] as const) {
     // The rows are already covered on desktop by the row test above, so this adds the tablet and phone
     // sizes for the issue's two row examples
     for (const id of rows) {
-      await expectStretchedFocusRing(
-        getTransactionRowButton(page.getByTestId(`transaction-row-${id}`)),
-        page.getByTestId(`transaction-box-${id}`),
-      )
+      const rowButton = getTransactionRowButton(page.getByTestId(`transaction-row-${id}`))
+      await expectStretchedFocusRing(rowButton, page.getByTestId(`transaction-box-${id}`))
+      // The ring is the row's own, so it is the row that has to keep it whole and at 3:1 against the page
+      await expectWholeRing(rowFrameOf(rowButton))
     }
     await expectEveryChart()
 
