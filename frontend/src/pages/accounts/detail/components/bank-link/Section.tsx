@@ -338,7 +338,7 @@ function focusFirstAction(container: HTMLElement | null) {
 export function BankLinkSection({ account, sectionNumber, autoFocus = false }: BankLinkSectionProps) {
   const { user } = useAuth()
   const { ownPersonal, status, statusError, providers, syncLabel } = useAccountBankLink(account)
-  const { data: connections } = useBankConnections()
+  const { data: connections, error: connectionsError } = useBankConnections()
   const [linkFlowOpen, setLinkFlowOpen] = useState(false)
   const [linkFlowKey, setLinkFlowKey] = useState(0)
 
@@ -520,6 +520,7 @@ export function BankLinkSection({ account, sectionNumber, autoFocus = false }: B
           account={account}
           link={unlinking}
           connection={connections?.find((connection) => connection.id === unlinking.connection_id)}
+          connectionFailed={connectionsError !== null && connections === undefined}
           level="stacked"
           onClose={() => setUnlinkOpen(false)}
           onExitComplete={() => {

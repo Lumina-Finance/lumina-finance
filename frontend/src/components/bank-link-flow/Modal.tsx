@@ -2,7 +2,6 @@ import { useId, useState } from 'react'
 import { Landmark } from 'lucide-react'
 import { useNavigate } from 'react-router'
 import type { AccountsOverview } from '@/api/accounts'
-import { ApiError } from '@/api/auth'
 import {
   useAccountBankStatus,
   useBankConnections,
@@ -43,6 +42,7 @@ import { ModalTitledPanel } from '@/components/modal/TitledPanel'
 import { StepTransition } from '@/components/two-factor/StepTransition'
 import { useRefusedSubmit } from '@/hooks/useRefusedSubmit'
 import { useToast } from '@/hooks/useToast'
+import { getSaveFailureMessage } from '@/utils/createFailure'
 
 type LinkFlowField = (typeof LINK_FLOW_FIELDS)[number]
 
@@ -196,8 +196,7 @@ export function BankLinkFlowModal({
           onLinked?.()
           onClose()
         },
-        onError: (cause) =>
-          setError(cause instanceof ApiError ? cause.message : 'Something went wrong. Please try again.'),
+        onError: (cause) => setError(getSaveFailureMessage(cause)),
       },
     )
   }

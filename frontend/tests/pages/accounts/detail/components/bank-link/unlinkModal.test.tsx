@@ -4,7 +4,7 @@
  *
  * These tests catch the other accounts on the connection miscounted, including one waiting for its
  * bank account to be chosen again, the connection named by its provider rather than its nickname,
- * Disconnect offered before the connection has loaded, and the confirm button losing its danger
+ * Disconnect offered before the connection has loaded or held back without a reason, and the confirm button losing its danger
  * colour or its place before Cancel. Choosing and confirming run in the browser
  */
 import type { ReactNode } from 'react'
@@ -40,13 +40,14 @@ function bankAccountLinkedTo(accountId: string | null, externalId: string): Conn
   }
 }
 
-function renderDialog(connection: BankConnection | undefined): string {
+function renderDialog(connection: BankConnection | undefined, connectionFailed = false): string {
   return renderToStaticMarkup(
     <UnlinkModal
       open
       account={createAccount()}
       link={createLink()}
       connection={connection}
+      connectionFailed={connectionFailed}
       onClose={() => {}}
       onExitComplete={() => {}}
     />,
@@ -93,9 +94,16 @@ describe('UnlinkModal', () => {
     expect(getRadio(markup, 'Disconnect Household')).not.toBe('')
   })
 
-  it('names the provider and holds back Disconnect until the connection loads', () => {
-    const markup = renderDialog(undefined)
-    expect(getRadio(markup, 'Disconnect SimpleFIN')).toContain('disabled=""')
+  it('names the provider and holds back Disconnect until the connection loads, saying so', () => {
+    const disconnect = getRadio(renderDialog(undefined), 'Disconnect SimpleFIN')
+    expect(disconnect).toContain('disabled=""')
+    expect(disconnect).toContain('Loading this connection…')
+  })
+
+  it('says why Disconnect stays held when the connection could not load', () => {
+    const disconnect = getRadio(renderDialog(undefined, true), 'Disconnect SimpleFIN')
+    expect(disconnect).toContain('disabled=""')
+    expect(disconnect).toContain('Couldn&#x27;t load this connection, so it can&#x27;t be disconnected right now.')
   })
 
   it('puts Unlink before Cancel, as every confirmation that changes records does', () => {

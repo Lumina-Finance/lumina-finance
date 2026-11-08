@@ -1,15 +1,21 @@
 import { useState } from 'react'
 import { Unlink } from 'lucide-react'
 import type { AccountsOverview } from '@/api/accounts'
-import { ApiError } from '@/api/auth'
-import { useDisconnectBankConnection, useUnlinkBankAccount, type BankConnection, type BankLink } from '@/api/bank-sync'
+import {
+  useBankProviders,
+  useDisconnectBankConnection,
+  useUnlinkBankAccount,
+  type BankConnection,
+  type BankLink,
+} from '@/api/bank-sync'
 import { ChoiceCard } from '@/components/bank-link-flow/ChoiceCard'
 import { InfoCallout } from '@/components/InfoCallout'
 import { ModalFormFooter } from '@/components/modal/FormFooter'
 import type { ModalLevel } from '@/components/modal/Shell'
 import { ModalTitledPanel } from '@/components/modal/TitledPanel'
 import { useToast } from '@/hooks/useToast'
-import { connectionName, countNoun, describeDisconnected, providerSiteName } from '@/utils/bankSync'
+import { connectionName, countNoun, credentialNoun, describeDisconnected, providerSiteName } from '@/utils/bankSync'
+import { getSaveFailureMessage } from '@/utils/createFailure'
 
 type UnlinkScope = 'account' | 'connection'
 
@@ -20,6 +26,9 @@ type UnlinkModalProps = {
 
   /** The connection the link goes through, undefined while the connections load */
   connection: BankConnection | undefined
+
+  /** Whether reading the connections failed, leaving the connection unknown */
+  connectionFailed: boolean
   level?: ModalLevel
   onClose: () => void
   onExitComplete: () => void
@@ -49,6 +58,7 @@ export function UnlinkModal({
   account,
   link,
   connection,
+  connectionFailed,
   level = 'page',
   onClose,
   onExitComplete,
@@ -61,9 +71,22 @@ export function UnlinkModal({
   const busy = unlink.isPending || disconnect.isPending
   const otherCount = connection ? countOtherAccounts(connection, account.id) : 0
   const site = providerSiteName(link)
+  const { data: providers } = useBankProviders()
 
-  const reportError = (cause: unknown) =>
-    setError(cause instanceof ApiError ? cause.message : 'Something went wrong. Please try again.')
+  // Names the provider's first field, as the connect form's messages do. A provider gone from the
+  // server can't be connected again, so the card says nothing of connecting
+  const fields = providers?.providers.find((provider) => provider.id === link.provider)?.credential_fields
+  const connectAgain = fields ? ` Connecting again needs a new ${credentialNoun(fields[0].label)}.` : ''
+
+  // Why Disconnect can't be chosen while the connection is unknown, printed on its card as the bank link
+  // flow's cards print theirs
+  const disconnectReason = connection
+    ? null
+    : connectionFailed
+      ? "Couldn't load this connection, so it can't be disconnected right now."
+      : 'Loading this connection…'
+
+  const reportError = (cause: unknown) => setError(getSaveFailureMessage(cause))
 
   const confirm = () => {
     setError(null)
@@ -77,7 +100,10 @@ export function UnlinkModal({
       })
       return
     }
-    if (!connection) return
+    if (!connection) {
+      setError(disconnectReason)
+      return
+    }
     disconnect.mutate(connection.id, {
       onSuccess: (result) => {
         showToast({ status: 'success', text: describeDisconnected(connection, result.unlinked_account_ids.length) })
@@ -144,8 +170,8 @@ export function UnlinkModal({
               Disconnect {connection ? connectionName(connection) : link.provider_name}
             </span>
             <span className="block text-xs" style={{ color: 'var(--app-text-muted)' }}>
-              Unlinks every account on this connection and deletes the stored access. Connecting again needs a new setup
-              token.
+              {disconnectReason ??
+                `Unlinks every account on this connection and deletes the stored access.${connectAgain}`}
             </span>
           </ChoiceCard>
         </div>
