@@ -23,7 +23,7 @@ import {
   type BridgeTransaction,
 } from '../support/bankSync'
 import { faintestText } from '../support/contrast'
-import { expectTransactionRow, MINUS } from '../support/selectors'
+import { expectTransactionRow, getTransactionRowButton, MINUS } from '../support/selectors'
 import { AT_EVERY_SIZE } from '../support/sizes'
 import { API_BASE_URL } from '../support/target'
 
@@ -204,16 +204,30 @@ test('opens a new item as the bank sent it beside its filing card, and adds noth
   expect(await readWaiting(request, user, everyday.id)).toEqual([COUNTDOWN.description])
 })
 
-test('opens a bank description over 500 characters whole in Notes, and takes typing after it', async ({ page, request }) => {
+test('opens a bank description over 500 characters whole in Notes, and takes typing after it in review and once in the ledger', async ({ page, request }) => {
   const long = { ...HARBOUR, description: `HARBOUR COFFEE ${'REF '.repeat(130)}`.trim() }
   await start(page, request, [long])
   await openPage(page, '/transactions')
 
-  const { notes } = formOf(await openReview(page, 'HARBOUR COFFEE'))
+  const review = await openReview(page, 'HARBOUR COFFEE')
+  const { notes } = formOf(review)
   await expect(notes).toHaveValue(long.description)
   await notes.press('End')
   await notes.pressSequentially(' paid')
   await expect(notes).toHaveValue(`${long.description} paid`)
+
+  // Added to the ledger, the transaction keeps its bank source, and its Notes still take typing when edited
+  await chooseFromDropdown(review, 'Merchant', 'Unknown')
+  await chooseFromDropdown(review, 'Category', 'Groceries')
+  const id = await addToLedger(page, review)
+  await expect(review).toBeHidden()
+  await getTransactionRowButton(page.getByTestId(`transaction-row-${id}`)).click()
+  const edit = page.getByRole('dialog', { name: 'Edit transaction', exact: true })
+  const editNotes = edit.getByRole('textbox', { name: 'Notes', exact: true })
+  await expect(editNotes).toHaveValue(`${long.description} paid`)
+  await editNotes.press('End')
+  await editNotes.pressSequentially(' twice')
+  await expect(editNotes).toHaveValue(`${long.description} paid twice`)
 })
 
 test('adds an item with its date and amount changed, and with the window kept open goes on through the new items until none are left', async ({ page, request }) => {
