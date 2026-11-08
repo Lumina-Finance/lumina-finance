@@ -15,9 +15,10 @@ from app.routes.accounts.creation_helpers import create_account_for_user
 from app.routes.accounts.deletion_helpers import delete_account_for_user
 from app.routes.accounts.listing_helpers import get_account_overviews_for_user
 from app.routes.accounts.permissions import router as permissions_router
-from app.routes.accounts.response_loading_helpers import get_account_for_response, get_account_response_for_user
+from app.routes.accounts.response_loading_helpers import get_account_response_for_user
 from app.routes.accounts.snapshots import router as snapshots_router
 from app.routes.accounts.spending_breakdown_helpers import get_account_spending_breakdown_for_user
+from app.routes.accounts.starting_balance_helpers import record_starting_balance_response
 from app.routes.accounts.update_helpers import update_account_for_user
 from app.schemas.account import (
     AccountResponse,
@@ -28,7 +29,6 @@ from app.schemas.account import (
     UpdateAccountRequest,
 )
 from app.schemas.dashboard import MonthlyIncomeExpense, RangeKind
-from app.services.accounts.starting_balance import record_starting_balance_for_user
 from app.utils.dates import resolve_timezone
 
 router = APIRouter(prefix="/accounts", tags=["accounts"])
@@ -189,9 +189,7 @@ async def record_starting_balance(
             group account they administer, or already has transactions, or a stored timezone does
             not resolve
     """
-    now = datetime.now(resolve_timezone(user.tz))
-    await record_starting_balance_for_user(db, account_id, data, user, now)
-    return await get_account_for_response(db, user, account_id, now.date())
+    return await record_starting_balance_response(db, account_id, data, user)
 
 
 @router.patch("/{account_id}", response_model=AccountResponse)
