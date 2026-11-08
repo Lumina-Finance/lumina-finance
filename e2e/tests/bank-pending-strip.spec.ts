@@ -178,7 +178,7 @@ test('counts only the accounts the list is filtered to, hiding for those with no
   await expect(strip.getByRole('button', { name: /^1 pending/ })).toBeVisible()
   expect(asked.at(-1)).toEqual([accounts.visa.id])
 
-  await filterTransactions(page, 'Accounts', 'Visa')
+  await filterTransactions(page, 'Accounts', 'Visa', 1)
   await filterTransactions(page, 'Accounts', 'Savings')
 
   await expect(strip).toBeHidden()
@@ -323,7 +323,7 @@ test("reads the server's pending transactions for every account and for several 
 
   await filterTransactions(page, 'Accounts', 'Visa')
   const twoAccounts = page.waitForResponse(isPendingRead(2))
-  await filterTransactions(page, 'Accounts', 'Savings')
+  await filterTransactions(page, 'Accounts', 'Savings', 1)
   const read = await twoAccounts
   expect(read.status()).toBe(200)
   expect(new URL(read.url()).searchParams.getAll('account_id')).toContain(visa.id)
