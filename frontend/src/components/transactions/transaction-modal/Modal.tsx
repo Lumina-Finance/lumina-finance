@@ -555,7 +555,6 @@ export default function CreateTransactionModal({
     />
   )
 
-  // The next item's form, and its card beside it, slide in in place of the decided one's, with no exit
   // What the bank sent for a transaction already in the ledger, open beside the modal as a review item's card
   // is where there is room, and folded to its From strip heading the form where there isn't
   const sourceCardProps = bankSource && {
@@ -569,6 +568,7 @@ export default function CreateTransactionModal({
   }
   const asideCard = filingCard || (sourceCardProps && <TransactionBankSourceCard {...sourceCardProps} />)
 
+  // The next item's form, and its card beside it, slide in in place of the decided one's, with no exit
   const reviewSwap = {
     initial: isItemSwapped ? { opacity: 0, x: prefersReducedMotion ? 0 : REVIEW_SWAP_OFFSET_PX } : false,
     animate: { opacity: 1, x: 0 },
