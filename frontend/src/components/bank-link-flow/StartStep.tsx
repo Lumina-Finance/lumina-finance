@@ -38,7 +38,16 @@ export function StartStep({
   onDateBlur,
   disabled,
 }: StartStepProps) {
-  const { choice, choose, customStart, setCustomStart, choices, isDateDisabled, uncoveredUntil } = startChoice
+  const {
+    choice,
+    choose,
+    customStart,
+    setCustomStart,
+    choices,
+    isDateDisabled,
+    getDateDisabledReason,
+    uncoveredUntil,
+  } = startChoice
 
   return (
     <div className="space-y-4">
@@ -104,6 +113,7 @@ export function StartStep({
                     error={Boolean(errors.startDate)}
                     describedById={errors.startDate ? LINK_FLOW_FIELD_IDS.startDateError : undefined}
                     isDateDisabled={isDateDisabled}
+                    getDateDisabledReason={getDateDisabledReason}
                     onChange={setCustomStart}
                     onBlur={onDateBlur}
                   />

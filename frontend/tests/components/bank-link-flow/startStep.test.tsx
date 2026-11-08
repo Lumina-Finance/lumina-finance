@@ -39,6 +39,7 @@ function renderStep(errors: { startChoice?: string; startDate?: string }, choice
     start: '2020-01-01',
     outOfRange: true,
     isDateDisabled: () => true,
+    getDateDisabledReason: () => null,
     uncoveredUntil: null,
     reset: () => {},
   } as StartChoiceState

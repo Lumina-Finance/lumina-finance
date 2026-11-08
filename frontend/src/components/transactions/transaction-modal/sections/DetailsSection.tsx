@@ -41,6 +41,7 @@ type TransactionDetailsSectionProps = {
 
   // Days the calendar refuses, the same days the message above refuses typed in
   isDateDisabled?: (iso: string) => boolean
+  getDateDisabledReason?: (iso: string) => string | null
   currencyOptions: DropdownOption[]
   currencyValue: string
   currencyPlaceholder: string
@@ -85,6 +86,7 @@ export default function TransactionDetailsSection({
   dateError,
   suppliedDaysError,
   isDateDisabled,
+  getDateDisabledReason,
   currencyOptions,
   currencyValue,
   currencyPlaceholder,
@@ -176,6 +178,7 @@ export default function TransactionDetailsSection({
               onChange={onDateChange}
               onBlur={onDateBlur}
               isDateDisabled={isDateDisabled}
+              getDateDisabledReason={getDateDisabledReason}
             />
           </div>
           {dateCaption}

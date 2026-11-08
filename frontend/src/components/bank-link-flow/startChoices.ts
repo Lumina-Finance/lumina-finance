@@ -1,5 +1,5 @@
 import type { BankImportRange } from '@/api/bank-sync'
-import { addDays, addMonths, formatYmd, parseYmd } from '@/utils/date'
+import { addDays, addMonths, formatDateLabel, formatYmd, parseYmd } from '@/utils/date'
 
 // How many months back the shorter start choices reach, offered beside the provider's own limit
 const START_CHOICE_MONTHS = [3, 6]
@@ -68,4 +68,16 @@ export function findUncoveredUntil(range: BankImportRange, start: string): strin
   if (!parsed || !range.ledger_floor || start <= range.ledger_floor) return null
 
   return formatYmd(addDays(parsed, -1))
+}
+
+/**
+ * Why the range refuses a day as the import's start, null for a day it allows
+ *
+ * @param range - Where the server allows the import to start
+ * @param iso - The day, as "YYYY-MM-DD"
+ */
+export function describeStartRefusal(range: BankImportRange, iso: string): string | null {
+  if (iso < range.earliest_allowed) return `An import can start from ${formatDateLabel(range.earliest_allowed)}`
+  if (iso > range.latest_allowed) return `An import can't start after ${formatDateLabel(range.latest_allowed)}`
+  return null
 }

@@ -61,6 +61,8 @@ interface DateFieldProps {
   stepHighlight?: 'lit' | 'fading' | null
   // Days the calendar refuses. Typing one is still possible, so the form validates the value too
   isDateDisabled?: (iso: string) => boolean
+  // Why the calendar refuses a day, said when the day is pressed, hovered or focused. Left out, a refused day says nothing
+  getDateDisabledReason?: (iso: string) => string | null
 }
 
 const SEGMENT_PLACEHOLDER: Record<DateSegmentName, string> = { year: 'yyyy', month: 'mm', day: 'dd' }
@@ -98,6 +100,7 @@ export default function DateField({
   keyShortcuts,
   stepHighlight = null,
   isDateDisabled,
+  getDateDisabledReason,
 }: DateFieldProps) {
   const { user } = useAuth()
   const [segments, setSegments] = useState<DateSegments>(() => parseIsoDate(value))
@@ -321,6 +324,7 @@ export default function DateField({
         onSelect={(iso) => commit(parseIsoDate(iso))}
         onClose={() => setPopoverOpen(false)}
         isDateDisabled={isDateDisabled}
+        getDateDisabledReason={getDateDisabledReason}
       />
     </div>
   )

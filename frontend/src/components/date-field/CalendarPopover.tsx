@@ -20,6 +20,9 @@ interface CalendarPopoverProps {
 
   // Days the field refuses, shown as unavailable and never selected
   isDateDisabled?: (iso: string) => boolean
+
+  // Why the field refuses a day, for the days isDateDisabled refuses. Left out, a refused day says nothing
+  getDateDisabledReason?: (iso: string) => string | null
 }
 
 const POPOVER_WIDTH = 264
@@ -110,6 +113,7 @@ export default function CalendarPopover({
   onSelect,
   onClose,
   isDateDisabled,
+  getDateDisabledReason,
 }: CalendarPopoverProps) {
   const position = useCalendarPosition(open, anchorRef)
   const gridRef = useRef<HTMLDivElement>(null)
@@ -352,6 +356,7 @@ export default function CalendarPopover({
               >
                 {cells.map((date) => {
                   const iso = formatYmd(date)
+                  const isDisabled = isDateDisabled?.(iso) ?? false
 
                   return (
                     <CalendarDay
@@ -361,7 +366,8 @@ export default function CalendarPopover({
                       inMonth={date.getMonth() + 1 === viewMonth.month}
                       isSelected={iso === value}
                       isToday={iso === todayIso}
-                      isDisabled={isDateDisabled?.(iso) ?? false}
+                      isDisabled={isDisabled}
+                      disabledReason={isDisabled ? getDateDisabledReason?.(iso) : null}
                       focusable={iso === focusedIso}
                       onPick={(picked) => {
                         onSelect(picked)

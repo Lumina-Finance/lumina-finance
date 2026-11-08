@@ -5,7 +5,7 @@
  */
 import { describe, expect, it } from 'vitest'
 import type { BankImportRange } from '@/api/bank-sync'
-import { findUncoveredUntil, listStartChoices } from '@/components/bank-link-flow/startChoices'
+import { describeStartRefusal, findUncoveredUntil, listStartChoices } from '@/components/bank-link-flow/startChoices'
 
 // Today is Oct 5, 2026, with a provider reaching 12 months back to Oct 1, 2025 and an empty account
 const EMPTY_ACCOUNT: BankImportRange = {
@@ -83,6 +83,22 @@ describe('bank link start choices', () => {
     expect(listStartChoices(coveredToday, 'Everyday').map((choice) => [choice.label, choice.date])).toEqual([
       ['After the latest transaction', '2026-10-06'],
     ])
+  })
+})
+
+describe('days the range refuses as an import start', () => {
+  it('says where an import can start for a day before the range', () => {
+    expect(describeStartRefusal(ACCOUNT_WITH_HISTORY, '2026-05-14')).toBe('An import can start from May 15, 2026')
+  })
+
+  it('says the latest start for a day after the range', () => {
+    expect(describeStartRefusal(EMPTY_ACCOUNT, '2026-10-06')).toBe("An import can't start after Oct 5, 2026")
+  })
+
+  it('gives no reason for either end of the range or a day between', () => {
+    expect(describeStartRefusal(EMPTY_ACCOUNT, '2025-10-01')).toBeNull()
+    expect(describeStartRefusal(EMPTY_ACCOUNT, '2026-02-03')).toBeNull()
+    expect(describeStartRefusal(EMPTY_ACCOUNT, '2026-10-05')).toBeNull()
   })
 })
 

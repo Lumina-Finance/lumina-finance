@@ -1,3 +1,5 @@
+import { DisabledReasonButton } from '@/components/tooltips/DisabledReasonButton'
+
 type CalendarDayProps = {
   date: Date
   // The day as an ISO yyyy-mm-dd string
@@ -9,6 +11,10 @@ type CalendarDayProps = {
   // A day the field refuses, drawn struck through and ignored when clicked or pressed. It stays
   // focusable so arrow keys can still walk across it to a permitted day
   isDisabled: boolean
+
+  // Why the field refuses this day, said beside it under the pointer, on keyboard focus and on a tap.
+  // Left out, the day is only struck through, as it is in a field that gives no reason
+  disabledReason?: string | null
 
   // Whether this is the one day in the grid that Tab lands on
   focusable: boolean
@@ -28,27 +34,30 @@ export function CalendarDay({
   isSelected,
   isToday,
   isDisabled,
+  disabledReason,
   focusable,
   onPick,
 }: CalendarDayProps) {
-  return (
-    <button
-      type="button"
-      data-iso={iso}
-      tabIndex={focusable ? 0 : -1}
-      aria-pressed={isSelected}
-      aria-disabled={isDisabled || undefined}
-      onClick={() => {
-        if (isDisabled) return
-        onPick(iso)
-      }}
-      className="app-calendar-day"
-      data-selected={isSelected || undefined}
-      data-today={isToday || undefined}
-      data-outside={!inMonth || undefined}
-      data-disabled={isDisabled || undefined}
-    >
-      {date.getDate()}
-    </button>
-  )
+  const buttonProps = {
+    type: 'button' as const,
+    'data-iso': iso,
+    tabIndex: focusable ? 0 : -1,
+    'aria-pressed': isSelected,
+    'aria-disabled': isDisabled || undefined,
+    onClick: () => {
+      if (isDisabled) return
+      onPick(iso)
+    },
+    className: 'app-calendar-day',
+    'data-selected': isSelected || undefined,
+    'data-today': isToday || undefined,
+    'data-outside': !inMonth || undefined,
+    'data-disabled': isDisabled || undefined,
+    children: date.getDate(),
+  }
+
+  // The reason's hooks mount only on a refused day that has one, so every other cell stays a plain button
+  if (isDisabled && disabledReason) return <DisabledReasonButton {...buttonProps} disabledReason={disabledReason} />
+
+  return <button {...buttonProps} />
 }

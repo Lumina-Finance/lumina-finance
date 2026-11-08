@@ -17,12 +17,19 @@ export type SuppliedDays = {
   /** Days the calendar refuses, absent when the save writes into no linked account */
   isDateDisabled: ((iso: string) => boolean) | undefined
 
+  /** Why the calendar refuses a day, worded for the account that supplies it, null for a day it allows */
+  getDateDisabledReason: ((iso: string) => string | null) | undefined
+
   /** Why the form's date can't be saved, null when it can */
   message: string | null
 }
 
 /** A save that writes into no linked account, or one that brings in a bank item, any day can take */
-export const NO_SUPPLIED_DAYS: SuppliedDays = { isDateDisabled: undefined, message: null }
+export const NO_SUPPLIED_DAYS: SuppliedDays = {
+  isDateDisabled: undefined,
+  getDateDisabledReason: undefined,
+  message: null,
+}
 
 type GetSuppliedDaysOptions = {
   form: TransactionFormValues
@@ -84,9 +91,14 @@ export function getSuppliedDays({
   if (accounts.length === 0) return NO_SUPPLIED_DAYS
 
   const isUnchanged = transaction !== undefined && !moved && form.date === transaction.dt
-  const supplying = isUnchanged ? undefined : accounts.find(({ link }) => isSuppliedDay(form.date, link, today))
+  const findSupplying = (iso: string) => accounts.find(({ link }) => isSuppliedDay(iso, link, today))
+  const supplying = isUnchanged ? undefined : findSupplying(form.date)
   return {
-    isDateDisabled: (iso) => accounts.some(({ link }) => isSuppliedDay(iso, link, today)),
+    isDateDisabled: (iso) => findSupplying(iso) !== undefined,
+    getDateDisabledReason: (iso) => {
+      const day = findSupplying(iso)
+      return day ? describeSuppliedDays(day) : null
+    },
     message: supplying ? describeSuppliedDays(supplying) : null,
   }
 }

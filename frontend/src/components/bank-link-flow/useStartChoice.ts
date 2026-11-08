@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import type { BankImportRange } from '@/api/bank-sync'
-import { findUncoveredUntil, listStartChoices } from '@/components/bank-link-flow/startChoices'
+import { describeStartRefusal, findUncoveredUntil, listStartChoices } from '@/components/bank-link-flow/startChoices'
 
 // The start step's own date, kept apart from the preset choices' keys
 export const CUSTOM_START = 'custom'
@@ -19,7 +19,8 @@ export function useStartChoice(range: BankImportRange | undefined, accountName: 
 
   const choices = range ? listStartChoices(range, accountName) : []
   const start = choice === CUSTOM_START ? customStart : (choices.find((preset) => preset.key === choice)?.date ?? '')
-  const isDateDisabled = (iso: string) => Boolean(range && (iso < range.earliest_allowed || iso > range.latest_allowed))
+  const getDateDisabledReason = (iso: string) => (range ? describeStartRefusal(range, iso) : null)
+  const isDateDisabled = (iso: string) => getDateDisabledReason(iso) !== null
 
   return {
     choice,
@@ -32,6 +33,7 @@ export function useStartChoice(range: BankImportRange | undefined, accountName: 
     start,
     outOfRange: start !== '' && isDateDisabled(start),
     isDateDisabled,
+    getDateDisabledReason,
     uncoveredUntil: range && start ? findUncoveredUntil(range, start) : null,
 
     /** Forgets the choice, for a range that changed under it */

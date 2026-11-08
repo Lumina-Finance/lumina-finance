@@ -11,7 +11,7 @@ import {
   startOfDayInTestTimezone,
   todayInTestTimezone,
 } from '../support/api'
-import { chooseFromDropdown, logInViaApi, openModal, openPage, typeDate } from '../support/app'
+import { chooseFromDropdown, logInViaApi, openModal, openPage, readSettledBox, typeDate } from '../support/app'
 import { addImportedItem, answerLinksWith, linkToSampleBankAccount } from '../support/bankSync'
 import { faintestText } from '../support/contrast'
 import { AT_EVERY_SIZE } from '../support/sizes'
@@ -166,6 +166,45 @@ test('refuses a new manual entry on the days a linked account’s bank supplies'
   expect((await created).status()).toBe(201)
   await expect(dialog).toBeHidden()
   expect(sentDates).toEqual([daysFromTodayInTestTimezone(1)])
+})
+
+test('says why a struck calendar day is refused when it is pressed', async ({ page, request }) => {
+  const user = await signUpUser(request)
+  const account = await createAccount(request, user, { name: 'Everyday' })
+  await linkToSampleBankAccount(request, user, { accountId: account.id, bankAccountName: SAMPLE_CHEQUING })
+  await logInViaApi(page, user)
+  await openPage(page, `/accounts/${account.id}`)
+
+  const dialog = await openAddTransaction(page, 'Everyday')
+  await dialog.getByRole('button', { name: 'Open calendar' }).click()
+  const calendar = page.getByRole('dialog', { name: 'Choose date', exact: true })
+  const todayCell = calendar.locator(`[data-iso="${todayInTestTimezone()}"]`)
+  const tomorrowCell = calendar.locator(`[data-iso="${daysFromTodayInTestTimezone(1)}"]`)
+  const reason = page.getByTestId('disabled-reason-tooltip').filter({ hasText: MESSAGE_FROM_TODAY })
+
+  // A screen reader hears the reason on the struck day, and a day the bank has not supplied has none
+  await expect(todayCell).toHaveAttribute('aria-disabled', 'true')
+  await expect(todayCell).toHaveAccessibleDescription(MESSAGE_FROM_TODAY)
+  await expect(tomorrowCell).not.toHaveAttribute('aria-describedby')
+  await expect(reason).toHaveCount(0)
+
+  // A press shows the reason and picks nothing, so the calendar stays open on the same day
+  // Forced, since Playwright waits for an aria-disabled control to become enabled before it clicks. A forced press
+  // skips the wait for the day to stop moving too, so it waits for the calendar to finish easing in first
+  await readSettledBox(todayCell)
+  await todayCell.click({ force: true })
+  await expect(reason).toHaveCSS('opacity', '1')
+  await expect(calendar).toBeVisible()
+  await expect(todayCell).toHaveAttribute('aria-pressed', 'true')
+
+  // Escape puts only the reason away, and Enter on the focused day brings it back without picking it
+  await page.keyboard.press('Escape')
+  await expect(reason).toHaveCount(0)
+  await expect(calendar).toBeVisible()
+  await todayCell.focus()
+  await page.keyboard.press('Enter')
+  await expect(reason).toHaveCSS('opacity', '1')
+  await expect(calendar).toBeVisible()
 })
 
 test('refuses the days the other account’s bank supplies once a new transfer is recorded in both, naming it', async ({ page, request }) => {

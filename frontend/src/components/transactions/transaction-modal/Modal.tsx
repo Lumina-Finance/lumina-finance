@@ -760,6 +760,7 @@ export default function CreateTransactionModal({
                 dateError={suppliedDaysError ? undefined : showError('date')}
                 suppliedDaysError={suppliedDaysError}
                 isDateDisabled={suppliedDays.isDateDisabled}
+                getDateDisabledReason={suppliedDays.getDateDisabledReason}
                 currencyOptions={currencyOptions}
                 currencyValue={form.currency}
                 currencyPlaceholder={currencyState === 'loading' ? CURRENCY_LIST_LOADING : 'Select...'}

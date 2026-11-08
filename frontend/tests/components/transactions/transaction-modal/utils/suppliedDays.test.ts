@@ -50,6 +50,7 @@ function check(overrides: Partial<TransactionFormValues>, transaction?: Transact
 function expectNothingRefused(days: SuppliedDays) {
   expect(days.message).toBeNull()
   expect(days.isDateDisabled).toBeFalsy()
+  expect(days.getDateDisabledReason).toBeFalsy()
 }
 
 // A new transfer recorded in both accounts
@@ -74,6 +75,25 @@ describe('days a linked account’s bank supplies', () => {
 
     expect(days.message).toBe(message)
     expect(days.isDateDisabled?.(date)).toBe(message !== null)
+  })
+
+  it('gives each refused day its reason, worded for the account that supplies it, and none for an open day', () => {
+    const days = check({ date: '2026-05-31' })
+
+    expect(days.getDateDisabledReason?.('2026-05-31')).toBeNull()
+    expect(days.getDateDisabledReason?.('2026-06-01')).toBe(EVERYDAY_MESSAGE)
+    expect(days.getDateDisabledReason?.(TODAY)).toBe(EVERYDAY_MESSAGE)
+    expect(days.getDateDisabledReason?.('2026-10-05')).toBeNull()
+  })
+
+  it('words a refused day for the other account of a new pair, not the form’s current date', () => {
+    // The form's own date is open, yet pressing a day Visa's bank supplies still says which account it means
+    const days = pair(SAVINGS.id, VISA.id, '2026-08-15')
+
+    expect(days.message).toBeNull()
+    expect(days.getDateDisabledReason?.('2026-09-15')).toBe(
+      `SimpleFIN supplies the transactions in Visa from ${unbroken('Sep 1, 2026')} to today`,
+    )
   })
 
   it('leaves an account without a link alone', () => {
