@@ -11,7 +11,7 @@ import { DateStepHighlightContext } from '@/components/transactions/transaction-
 import ShortcutHint from '@/components/transactions/transaction-modal/controls/ShortcutHint'
 import ShortcutHints from '@/components/transactions/transaction-modal/controls/ShortcutHints'
 import { toShortcutKeyEvent } from '@/components/transactions/transaction-modal/hooks/useShortcuts'
-import { DETAILS_LINE_TRANSITION, NOTES_MAX_LENGTH } from '@/components/transactions/transaction-modal/constants'
+import { DETAILS_LINE_TRANSITION } from '@/components/transactions/transaction-modal/constants'
 import {
   getAriaFieldShortcut,
   getDateKeyAction,
@@ -61,6 +61,9 @@ type TransactionDetailsSectionProps = {
   currencyState: CurrencyListState
   currencyExponent: number
   notes: string
+
+  /** The most characters Notes takes, 500 unless a form for bank data lifts it */
+  notesMaxLength?: number
   readOnly: boolean
   onDateChange: (value: string) => void
   onDateBlur: () => void
@@ -93,6 +96,7 @@ export default function TransactionDetailsSection({
   currencyState,
   currencyExponent,
   notes,
+  notesMaxLength = 500,
   readOnly,
   onDateChange,
   onDateBlur,
@@ -304,7 +308,7 @@ export default function TransactionDetailsSection({
           value={notes}
           disabled={readOnly}
           onChange={(event) => onNotesChange(event.target.value)}
-          maxLength={NOTES_MAX_LENGTH}
+          maxLength={notesMaxLength}
         />
       </div>
     </CreateModalSectionFrame>

@@ -86,9 +86,10 @@ export const DEFAULT_DIRECTION_BY_KIND: Record<TransactionModalKind, Transaction
   transfer: 'debit',
 }
 
-// The most characters the Notes field takes. A value put there for the user, such as a bank item's
-// description, is cut to that length
-export const NOTES_MAX_LENGTH = 500
+// The most Notes takes for a bank item and for a transaction added from one, the server's limit for a
+// note. Their notes start as the bank's whole description, so main's 500 would refuse any typing in a
+// longer one without a word
+export const BANK_ITEM_NOTES_MAX_LENGTH = 10_000
 
 export const INITIAL_TRANSACTION_FORM: TransactionFormValues = {
   kind: 'expense',

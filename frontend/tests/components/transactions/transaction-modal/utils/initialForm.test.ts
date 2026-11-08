@@ -10,7 +10,6 @@
  */
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import type { BankValues } from '@/api/bank-sync'
-import { NOTES_MAX_LENGTH } from '@/components/transactions/transaction-modal/constants'
 import {
   buildInitialTransactionForm,
   buildReviewItemForm,
@@ -157,12 +156,10 @@ describe('the form a new bank item opens with', () => {
     })
   })
 
-  it('starts the notes with the bank description, cut to the length the Notes field takes', () => {
-    const long = 'x'.repeat(NOTES_MAX_LENGTH + 40)
+  it('starts the notes with the whole bank description, even one longer than the Notes field takes', () => {
+    const long = 'x'.repeat(540)
 
-    expect(buildReviewItemForm(withBank({ description: long }), 'CAD', currencies).notes).toBe(
-      'x'.repeat(NOTES_MAX_LENGTH),
-    )
+    expect(buildReviewItemForm(withBank({ description: long }), 'CAD', currencies).notes).toBe(long)
   })
 
   it('opens money in as Income', () => {

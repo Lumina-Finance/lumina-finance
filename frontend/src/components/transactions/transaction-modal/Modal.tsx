@@ -16,6 +16,7 @@ import { getSaveFailureMessage } from '@/utils/createFailure'
 import { isOwnPersonalAccount } from '@/utils/bankSync'
 import {
   APP_EASE_OUT,
+  BANK_ITEM_NOTES_MAX_LENGTH,
   KIND_LABELS,
   REVIEW_SWAP_DURATION_S,
   REVIEW_SWAP_OFFSET_PX,
@@ -770,6 +771,7 @@ export default function CreateTransactionModal({
                 amount={form.amount}
                 amountError={showError('amount')}
                 notes={form.notes}
+                notesMaxLength={isBankItem || bankSource ? BANK_ITEM_NOTES_MAX_LENGTH : undefined}
                 readOnly={readOnly}
                 onDateChange={(value) => handleField('date', value)}
                 onDateBlur={() => refusal.touch('date')}
