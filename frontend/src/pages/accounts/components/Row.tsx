@@ -239,8 +239,9 @@ export default function AccountRow({
           {/* Wider screens keep the credit still available under the balance. A phone puts it beside the type */}
           {availableCreditText && (
             // The description names this wrapper, as it is always drawn, and a screen reader reads a
-            // named element that is hidden itself but leaves out a hidden element inside it
-            <div id={`${descriptionId}-credit`} className="contents">
+            // named element that is hidden itself but leaves out a hidden element inside it. On a phone
+            // it takes no room, and from 750px it adds no box of its own
+            <div id={`${descriptionId}-credit`} className="absolute min-[750px]:contents">
               <p
                 className="hidden font-financial text-xs min-[750px]:mt-0.5 min-[750px]:block"
                 style={{ color: 'var(--app-text-muted)' }}
