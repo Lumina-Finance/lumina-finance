@@ -105,7 +105,9 @@ describe('the bank account step', () => {
     const markup = renderStep({ error: 'Choose a bank account' })
 
     expect(markup).toMatch(/<p id="bank-link-bank-account-error" role="alert"[^>]*>Choose a bank account<\/p>/)
-    expect(markup).toMatch(/role="radiogroup"[^>]*aria-invalid="true"[^>]*aria-describedby="bank-link-bank-account-error"/)
+    expect(markup).toMatch(
+      /role="radiogroup"[^>]*aria-invalid="true"[^>]*aria-describedby="bank-link-bank-account-error"/,
+    )
     expect(markup).toMatch(/<button id="bank-link-bank-account"/)
   })
 

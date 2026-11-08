@@ -46,7 +46,7 @@ import { useToast } from '@/hooks/useToast'
 
 type LinkFlowField = (typeof LINK_FLOW_FIELDS)[number]
 
-const LOADING_OVERLAY_CLASS ='absolute inset-0 z-10 flex items-center justify-center bg-[var(--app-bg)]'
+const LOADING_OVERLAY_CLASS = 'absolute inset-0 z-10 flex items-center justify-center bg-[var(--app-bg)]'
 
 /** A bank account chosen in settings, and the account chosen there to take it */
 export type BankLinkTarget = {

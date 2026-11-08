@@ -274,7 +274,12 @@ export function InstitutionRow({
         </button>
         {entry.hint && (
           <span className="relative z-10 ml-1.5 mt-[1.0625rem] flex shrink-0">
-            <IconTooltip label={entry.hintLabel ?? 'What this means'} icon={CircleHelp} size={13} widthClassName="w-max max-w-52">
+            <IconTooltip
+              label={entry.hintLabel ?? 'What this means'}
+              icon={CircleHelp}
+              size={13}
+              widthClassName="w-max max-w-52"
+            >
               <span className="font-normal normal-case">{entry.hint}</span>
             </IconTooltip>
           </span>

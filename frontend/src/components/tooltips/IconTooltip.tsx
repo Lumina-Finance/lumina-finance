@@ -187,7 +187,7 @@ export default function IconTooltip({
   widensHitArea = false,
   focusRing = false,
   hidesClosedPanel = false,
-}:IconTooltipProps) {
+}: IconTooltipProps) {
   const { Icon: DefaultIcon, color } = levelConfig[level]
   const isFxIcon = IconOverride === 'fx'
   const Icon = isFxIcon ? DefaultIcon : (IconOverride ?? DefaultIcon)

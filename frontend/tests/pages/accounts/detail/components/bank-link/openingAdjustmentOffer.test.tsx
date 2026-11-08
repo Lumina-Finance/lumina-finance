@@ -177,14 +177,17 @@ describe('the opening adjustment offer', () => {
     },
   )
 
-  it.each(['CAD', 'JPY'])('clears the sign and the %s symbol with the money fields helper, not a character count', (currency) => {
-    const markup = renderOffer({ amount: -2000, waiting_amount: 0, adjustment_date: '2026-05-31' }, currency)
-    const attributes = readAttributes(markup)
+  it.each(['CAD', 'JPY'])(
+    'clears the sign and the %s symbol with the money fields helper, not a character count',
+    (currency) => {
+      const markup = renderOffer({ amount: -2000, waiting_amount: 0, adjustment_date: '2026-05-31' }, currency)
+      const attributes = readAttributes(markup)
 
-    expect(attributes).toMatch(/class="[^"]*\bpl-8\b/)
-    expect(attributes).toMatch(/style="padding-left:/)
-    expect(attributes).not.toContain('1.5rem')
-  })
+      expect(attributes).toMatch(/class="[^"]*\bpl-8\b/)
+      expect(attributes).toMatch(/style="padding-left:/)
+      expect(attributes).not.toContain('1.5rem')
+    },
+  )
 
   it("locks the amount and Record adjustment, showing no amount, while the currency's decimal places are unknown", () => {
     const markup = renderOffer({ amount: -3000, waiting_amount: 0, adjustment_date: '2026-05-31' }, 'XYZ')

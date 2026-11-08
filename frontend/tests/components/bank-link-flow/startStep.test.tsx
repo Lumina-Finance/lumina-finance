@@ -69,7 +69,9 @@ describe('the start step', () => {
     const markup = renderStep({ startDate: 'Outside the allowed range.' })
 
     expect(markup).toMatch(/<p id="bank-link-start-date-error" role="alert"[^>]*>Outside the allowed range\.<\/p>/)
-    expect(markup).toMatch(/<input id="bank-link-start-date" aria-invalid="true" aria-describedby="bank-link-start-date-error"/)
+    expect(markup).toMatch(
+      /<input id="bank-link-start-date" aria-invalid="true" aria-describedby="bank-link-start-date-error"/,
+    )
   })
 
   it('shows the choice message beneath the list, which the list points to, and gives the first choice the focus id', () => {

@@ -43,7 +43,11 @@ interface ChoiceCardProps {
  *
  * Anything passed as extra sits beneath the choice on phones and beside it from sm up
  */
-export function ChoiceCard({ selected, disabled, onSelect, children,
+export function ChoiceCard({
+  selected,
+  disabled,
+  onSelect,
+  children,
   extra,
   initialFocus = false,
   id,

@@ -41,8 +41,11 @@ describe('the bank review footer', () => {
     const label = markup.match(/<label\b[^>]*\bfor="([^"]*)"[^>]*>(.*?)<\/label>/)
 
     expect(label?.[2]).toMatch(new RegExp(`<input\\b[^>]*\\bid="${label?.[1]}"[^>]*\\btype="checkbox"`))
-    expect(label?.[2].replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim()).toBe(
-      'Keep window open Review one item after another',
-    )
+    expect(
+      label?.[2]
+        .replace(/<[^>]*>/g, ' ')
+        .replace(/\s+/g, ' ')
+        .trim(),
+    ).toBe('Keep window open Review one item after another')
   })
 })

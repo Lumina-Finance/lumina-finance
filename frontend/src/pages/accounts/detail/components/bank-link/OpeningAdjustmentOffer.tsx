@@ -27,7 +27,7 @@ const SKIP_LABEL = 'Skip'
 const RECORD_LABEL = 'Record adjustment'
 // The sign and symbol are drawn 1rem in from the field's edge in 1rem text
 const PREFIX_PLACEMENT = { insetRem: 1, fontRem: 1 }
-const BUTTON_CLASS ='relative w-full shrink-0 whitespace-nowrap sm:w-(--fit-width)'
+const BUTTON_CLASS = 'relative w-full shrink-0 whitespace-nowrap sm:w-(--fit-width)'
 
 type OpeningAdjustmentOfferProps = {
   accountId: string

@@ -53,9 +53,7 @@ async def _commit_item(client, ledger: _Ledger, decision: str) -> tuple[str, dic
         item_id = await _commit_review_item(ledger.everyday_id, observed_amount=-2340)
         return f"/bank-review/items/{item_id}/add", payload
 
-    created = await _create_transaction(
-        client, ledger.headers, ledger.everyday_id, ledger.category_id, dt=BANK_DATE.isoformat(), amount=-4000
-    )
+    created = await _create_transaction(client, ledger.headers, ledger.everyday_id, ledger.category_id, dt=BANK_DATE.isoformat(), amount=-4000)
     assert created.status_code == 201, created.text
     values = {
         "disposition": BankTransactionDisposition.ACCEPTED,
@@ -130,9 +128,7 @@ async def test_an_account_delete_waits_for_a_review_decision_saving_to_the_accou
 
 
 @pytest.mark.parametrize("change", ["link", "dismiss-history-reminder", "dismiss-cut-off-day", "record-opening-adjustment"])
-async def test_an_account_delete_waits_for_a_bank_link_change_saving_to_the_account_and_the_change_still_answers(
-    client, monkeypatch, change
-):
+async def test_an_account_delete_waits_for_a_bank_link_change_saving_to_the_account_and_the_change_still_answers(client, monkeypatch, change):
     """The link change commits and answers with the link, then the delete takes the account."""
     if change == "link":
         headers, _, account_id, connection = await _linkable(client)

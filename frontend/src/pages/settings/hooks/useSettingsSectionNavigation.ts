@@ -37,9 +37,10 @@ export function useSettingsSectionNavigation() {
   function scrollToSection(element: HTMLElement, behavior: ScrollBehavior = 'smooth') {
     const menu = mobileSettingsMenuRef.current
     // The menu sits inside its sticky shell, so its own offset is where its bottom lands once pinned
-    const offset = window.matchMedia(COMPACT_MENU_QUERY).matches && menu
-      ? menu.offsetTop + menu.offsetHeight + SECTION_GAP_BELOW_MENU_PX
-      : SECTION_GAP_WITHOUT_MENU_PX
+    const offset =
+      window.matchMedia(COMPACT_MENU_QUERY).matches && menu
+        ? menu.offsetTop + menu.offsetHeight + SECTION_GAP_BELOW_MENU_PX
+        : SECTION_GAP_WITHOUT_MENU_PX
     window.scrollTo({ top: window.scrollY + element.getBoundingClientRect().top - offset, behavior })
   }
 
@@ -53,7 +54,9 @@ export function useSettingsSectionNavigation() {
     skipScrollSpyRef.current = true
     setActiveSection(id)
     scrollToSection(element)
-    window.setTimeout(() => { skipScrollSpyRef.current = false }, PROGRAMMATIC_SCROLL_SETTLE_MS)
+    window.setTimeout(() => {
+      skipScrollSpyRef.current = false
+    }, PROGRAMMATIC_SCROLL_SETTLE_MS)
   }
 
   /**
@@ -139,9 +142,7 @@ export function useSettingsSectionNavigation() {
 
         const isCompactMenu = window.matchMedia(COMPACT_MENU_QUERY).matches
         const compactMenuBottom = mobileSettingsMenuRef.current?.getBoundingClientRect().bottom ?? 0
-        const activationLine = isCompactMenu
-          ? compactMenuBottom + 24
-          : Math.min(window.innerHeight * 0.32, 240)
+        const activationLine = isCompactMenu ? compactMenuBottom + 24 : Math.min(window.innerHeight * 0.32, 240)
         let nextActiveSection = SETTINGS_SECTIONS[0].id
 
         for (const section of SETTINGS_SECTIONS) {
@@ -151,9 +152,7 @@ export function useSettingsSectionNavigation() {
           nextActiveSection = section.id
         }
 
-        setActiveSection((current) => (
-          current === nextActiveSection ? current : nextActiveSection
-        ))
+        setActiveSection((current) => (current === nextActiveSection ? current : nextActiveSection))
       })
     }
 
