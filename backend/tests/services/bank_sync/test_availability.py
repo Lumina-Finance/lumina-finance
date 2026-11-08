@@ -135,7 +135,7 @@ def test_link_eligibility_refuses_a_currency_of_the_providers_own(currency):
     assert unavailable is not None
     assert (unavailable.reason, unavailable.message) == (
         UnavailableReason.CUSTOM_CURRENCY,
-        "Uses a currency of its own, which Lumina Finance can't track",
+        "Uses a currency of its own that Lumina Finance can't track",
     )
 
 

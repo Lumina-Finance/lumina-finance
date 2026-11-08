@@ -368,7 +368,7 @@ test('links an account from its page, from choosing the bank account to its impo
 
 // The old view says it has faded out before React takes it off the page, in a render of its own, and a
 // busy machine can draw a frame in between. Focus is looked after once the view has gone, not on that
-// frame, where it still sits on a control about to go and would then fall to the page. Renders are held,
+// frame, since it still sits on a control about to go and would then fall to the page. Renders are held,
 // and the page's clock stopped, so frames pass only as the test moves it on, and they pass with the old
 // view still on the page. Motion isn't reduced, as it is for other tests on the page's clock, since the
 // fade is what the report of the old view's exit waits for
@@ -438,8 +438,8 @@ async function isInCorner(message: Locator): Promise<boolean> {
   return right === MESSAGE_IN_CORNER.right && bottom === MESSAGE_IN_CORNER.bottom
 }
 
-test("leaves the link's message in the corner, clear of Cancel and Save changes, where the edit modal sits in the middle", async ({ page, request }) => {
-  // The narrowest screen the modal sits in the middle of, where the message in the corner comes closest
+test("leaves the link's message in the corner, clear of Cancel and Save changes, with the edit modal in the middle", async ({ page, request }) => {
+  // The narrowest screen the modal sits in the middle of. The message in the corner comes closest there
   // to its buttons. The footer's padding reaches the corner there without any button doing so, and the
   // message stays down as it does on main
   await page.setViewportSize(NARROWEST_CENTRED_MODAL_SIZE)
@@ -477,7 +477,7 @@ test("lists the bank accounts that can't be linked with the reason for each", as
   const reasons = [
     [SAMPLE_CHEQUING, 'Already linked to Household'],
     ['US Dollar Savings', 'In USD, but Everyday is in CAD'],
-    ['Flight Miles', "Uses a currency of its own, which Lumina Finance can't track"],
+    ['Flight Miles', "Uses a currency of its own that Lumina Finance can't track"],
   ]
   for (const [name, reason] of reasons) {
     const card = flow.getByRole('radio', { name: new RegExp(`^${name}`) })
@@ -565,7 +565,7 @@ test('keeps the start within the range and never chooses Custom date on its own'
   await expect(submit).not.toHaveAttribute('aria-disabled', 'true')
 
   // A date that is wrong is not called out while it is typed, only once focus leaves it
-  // The field's own message, not the faded button's tooltip, which gives the same reason
+  // The field's own message, not the faded button's tooltip that gives the same reason
   const rangeMessage = flow.getByRole('alert').filter({ hasText: 'Outside the allowed range.' })
   await typeDate(page, 'Start date', '2020-01-01')
   await expect(rangeMessage).toBeHidden()
@@ -602,7 +602,7 @@ test('unlinks the account alone, then reconnects it with the relink wording', as
   await logInViaApi(page, user)
   await openPage(page, `/accounts/${everyday.id}`)
 
-  // Opened once today's import is over, so Sync now is live and takes the focus, where the import
+  // Opened once today's import is over, so Sync now is live and takes the focus. The import
   // would have it pass to Review settings. The opening adjustment offered for the gap from the empty ledger
   // doesn't take it either
   const bankSync = page.getByRole('button', { name: 'Bank sync: Opening balance to confirm. Open bank link' })
@@ -1077,7 +1077,7 @@ test("says an account with no institution and no bank link has none, whether it'
 })
 
 // The Bank sync fact takes a row of its own under the account's other facts, so its status has the card's
-// whole width rather than half of it, where a status such as "Synced just now" was cut short
+// whole width rather than half of it, since a status such as "Synced just now" was cut short
 test('sets the Bank sync fact on a row of its own across the identity card', AT_EVERY_SIZE, async ({ page, request }) => {
   const user = await signUpUser(request)
   const everyday = await createAccount(request, user, { name: 'Everyday' })

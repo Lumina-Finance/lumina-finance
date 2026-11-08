@@ -61,8 +61,8 @@ def test_a_half_deleted_folder_is_skipped_and_logged_while_the_rest_load(provide
 
     assert list(adapters) == ["good_bank"]
     assert [record.getMessage() for record in caplog.records] == [
-        "Skipped the bank provider in providers/half_gone, which couldn't be loaded",
-        "Skipped the bank provider in providers/no_adapter, which couldn't be loaded",
+        "Skipped the bank provider in providers/half_gone: it couldn't be loaded",
+        "Skipped the bank provider in providers/no_adapter: it couldn't be loaded",
     ]
 
 

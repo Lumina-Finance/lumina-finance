@@ -132,7 +132,7 @@ async def test_setup_token_for_a_server_not_added_names_its_host():
     with pytest.raises(ClaimRefused) as refusal:
         await simplefin_adapter(bridge.transport).claim_setup_token(_setup_token("https://intranet.example/simplefin/claim/DEMO-CLAIM"))
 
-    assert str(refusal.value) == "This setup token points to intranet.example, which this Lumina Finance server is not set up to contact"
+    assert str(refusal.value) == "This setup token points to intranet.example, and this Lumina Finance server is not set up to contact it"
     assert bridge.requests == []
 
 
@@ -146,7 +146,7 @@ async def test_setup_token_for_a_host_resolving_privately_is_refused_and_logged_
         await simplefin_adapter(bridge.transport, "10.0.4.2").claim_setup_token(_setup_token(claim_url))
 
     assert str(refusal.value) == (
-        "This setup token points to beta-bridge.simplefin.org, which this Lumina Finance server is not set up to contact"
+        "This setup token points to beta-bridge.simplefin.org, and this Lumina Finance server is not set up to contact it"
     )
     assert bridge.requests == []
     [warning] = [record for record in caplog.records if record.levelno == logging.WARNING]
@@ -202,7 +202,7 @@ async def test_access_url_for_a_server_not_added_is_refused():
     with pytest.raises(ClaimRefused) as refusal:
         await simplefin_adapter(bridge.transport).claim_setup_token(_setup_token(_CLAIM_URL))
 
-    assert str(refusal.value) == "This setup token points to intranet.example, which this Lumina Finance server is not set up to contact"
+    assert str(refusal.value) == "This setup token points to intranet.example, and this Lumina Finance server is not set up to contact it"
 
 
 @pytest.mark.usefixtures("frozen_now")

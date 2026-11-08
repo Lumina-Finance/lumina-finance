@@ -387,7 +387,7 @@ def _change_currency(currency):
         (
             _change_currency("https://bank.example/points"),
             422,
-            "That bank account uses a currency of its own, which Lumina Finance can't track",
+            "That bank account uses a currency of its own that Lumina Finance can't track",
         ),
     ],
     ids=["archived-account", "rejected-connection", "bank-account-no-longer-listed", "different-currency", "custom-currency"],

@@ -194,7 +194,7 @@ async def test_claim_when_the_bridge_answers_with_an_error_page_saves_nothing_an
         ("not a setup token", "That doesn't look like a SimpleFIN setup token. Copy the whole token from SimpleFIN Bridge and try again"),
         (
             base64.b64encode(b"https://bridge.evil.example/simplefin/claim/abc").decode(),
-            "This setup token points to bridge.evil.example, which this Lumina Finance server is not set up to contact",
+            "This setup token points to bridge.evil.example, and this Lumina Finance server is not set up to contact it",
         ),
     ],
     ids=["blank", "malformed", "origin-not-allowed"],

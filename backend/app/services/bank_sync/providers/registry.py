@@ -40,7 +40,7 @@ def load_adapters() -> dict[str, type[ProviderAdapter]]:
         try:
             adapter = importlib.import_module(f"{providers.__name__}.{module.name}").ADAPTER
         except ImportError, AttributeError:
-            logger.exception("Skipped the bank provider in providers/%s, which couldn't be loaded", module.name)
+            logger.exception("Skipped the bank provider in providers/%s: it couldn't be loaded", module.name)
             continue
         if not (isinstance(adapter, type) and issubclass(adapter, ProviderAdapter)):
             logger.error("Skipped the bank provider in providers/%s, whose ADAPTER isn't a provider adapter", module.name)

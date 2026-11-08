@@ -1,4 +1,4 @@
-"""Which bank providers a deployment offers, who may link bank accounts, and which accounts can take one
+"""The bank providers a deployment offers, the users who may link bank accounts, and the accounts that can take one
 
 Group-owned accounts are left out of bank linking here and nowhere else, through the own personal
 account condition, so grouped support can be added in one place later. Whether a user may link
@@ -228,8 +228,8 @@ async def read_linked_bank_accounts(db: AsyncSession, user_id: uuid.UUID) -> dic
 async def list_link_candidates(db: AsyncSession, user_id: uuid.UUID) -> list[Account]:
     """Return the accounts a bank account could be linked to, before matching the bank account itself
 
-    These are the user's own personal accounts, which they can always edit, that are neither
-    archived nor already linked to a bank
+    These are the user's own personal accounts, so the user can always edit them, leaving out
+    any that is archived or already linked to a bank
 
     Args:
         db: Active database session
@@ -269,7 +269,7 @@ def find_unavailability(
         The reason and its sentence, or None
     """
     if not is_iso_currency_code(bank_account.currency):
-        return Unavailability(UnavailableReason.CUSTOM_CURRENCY, "Uses a currency of its own, which Lumina Finance can't track")
+        return Unavailability(UnavailableReason.CUSTOM_CURRENCY, "Uses a currency of its own that Lumina Finance can't track")
     if bank_account.currency != account.currency:
         return Unavailability(
             UnavailableReason.CURRENCY_MISMATCH,

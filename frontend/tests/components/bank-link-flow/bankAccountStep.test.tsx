@@ -129,7 +129,7 @@ describe('the bank account step', () => {
           balance: 900,
           linkable: false,
           unavailable_reason: 'custom_currency',
-          unavailable_message: "Uses a currency of its own, which Lumina Finance can't track",
+          unavailable_message: "Uses a currency of its own that Lumina Finance can't track",
         }),
       ],
     })
@@ -140,7 +140,7 @@ describe('the bank account step', () => {
     const points = cardFor(markup, 'Points')
     expect(points).toMatch(/disabled=""/)
     expect(points).not.toContain('9.00')
-    expect(points).toContain('Uses a currency of its own, which Lumina Finance can&#x27;t track')
+    expect(points).toContain('Uses a currency of its own that Lumina Finance can&#x27;t track')
   })
 
   it('warns when the institution differs from the one on the account', () => {

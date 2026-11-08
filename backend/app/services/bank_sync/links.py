@@ -543,7 +543,7 @@ def _refuse_unavailable(unavailable: Unavailability, bank_account: BankExternalA
         case UnavailableReason.CUSTOM_CURRENCY:
             return HTTPException(
                 status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
-                detail="That bank account uses a currency of its own, which Lumina Finance can't track",
+                detail="That bank account uses a currency of its own that Lumina Finance can't track",
             )
         case UnavailableReason.ALREADY_LINKED:
             return HTTPException(status_code=status.HTTP_409_CONFLICT, detail=BANK_ACCOUNT_ALREADY_LINKED)

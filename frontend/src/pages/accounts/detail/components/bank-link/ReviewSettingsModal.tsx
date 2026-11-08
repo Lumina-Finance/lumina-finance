@@ -90,7 +90,7 @@ export function ReviewSettingsModal({ open, accountId, level = 'page', onClose }
         <ModalFormFooter
           submitLabel="Save"
           submitDisabled={update.isPending}
-          // Nothing to save until the settings have loaded, which a press can't fix
+          // Nothing to save until the settings have loaded. A press can't fix that
           submitReason={current ? null : readError ? 'The review settings did not load' : 'Still loading'}
           // As wide as Cancel beside it, since the short label would otherwise fall short of that
           submitWidthClassName="w-full sm:w-21"
@@ -110,7 +110,7 @@ export function ReviewSettingsModal({ open, accountId, level = 'page', onClose }
                   fold away with their space and nothing below jumps as they go */}
           <div className="min-h-32 pb-2">
             <p className="text-sm" style={{ color: 'var(--app-text-muted)' }}>
-              Reviewed changes wait above the transaction list. Auto-approved ones are applied as they arrive, which can
+              Reviewed changes wait above the transaction list. Auto-approved ones are applied as they arrive and can
               change ledger values without a review step.
             </p>
             <div className="pt-4">

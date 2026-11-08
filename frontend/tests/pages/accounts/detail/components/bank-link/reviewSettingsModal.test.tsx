@@ -33,7 +33,7 @@ vi.mock('@/api/bank-sync', async (importOriginal) => ({
 }))
 
 const INTRO =
-  'Reviewed changes wait above the transaction list. Auto-approved ones are applied as they arrive, which can change ledger values without a review step.'
+  'Reviewed changes wait above the transaction list. Auto-approved ones are applied as they arrive and can change ledger values without a review step.'
 const NOTE =
   'New transactions need a merchant and category before they can be added, so they wait for review whichever you choose.'
 const ROWS = [

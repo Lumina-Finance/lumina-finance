@@ -62,7 +62,7 @@ async def test_listing_marks_each_bank_account_linkable_or_unavailable_with_its_
     assert listed.status_code == 200, listed.text
     unavailable = {
         "ACT-1": ("already_linked", "Already linked to Savings"),
-        "ACT-PTS": ("custom_currency", "Uses a currency of its own, which Lumina Finance can't track"),
+        "ACT-PTS": ("custom_currency", "Uses a currency of its own that Lumina Finance can't track"),
         "ACT-USD": ("currency_mismatch", "In USD, but Everyday is in CAD"),
         "ACT-LAKE": ("institution_limit", "Would go over your limit of 1 institution for Fake Bank"),
     }

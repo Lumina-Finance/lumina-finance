@@ -62,7 +62,7 @@ _SETUP_BLANK_MESSAGE = "Paste the setup token from SimpleFIN Bridge"
 _SETUP_UNREADABLE_MESSAGE = "That doesn't look like a SimpleFIN setup token. Copy the whole token from SimpleFIN Bridge and try again"
 _SETUP_TOO_LONG_MESSAGE = "That setup token is too long. Copy only the token from SimpleFIN Bridge and try again"
 _CLAIM_UNREACHABLE_MESSAGE = "SimpleFIN Bridge couldn't be reached. Try again in a few minutes"
-_SETUP_HOST_NOT_ALLOWED_MESSAGE = "This setup token points to {host}, which this Lumina Finance server is not set up to contact"
+_SETUP_HOST_NOT_ALLOWED_MESSAGE = "This setup token points to {host}, and this Lumina Finance server is not set up to contact it"
 _SETUP_ALREADY_USED_MESSAGE = "This setup token has already been used. Create a new one in SimpleFIN Bridge"
 _UNREACHABLE_MESSAGE = "SimpleFIN Bridge couldn't be reached"
 _UNREADABLE_MESSAGE = "SimpleFIN Bridge sent a response Lumina Finance couldn't read"
@@ -133,7 +133,7 @@ class SimpleFinAdapter(ProviderAdapter):
         try:
             response = await self._guard.send("POST", claim_url, headers=_HEADERS, content=b"")
         except AddressRefused:
-            logger.warning("Refused to claim a SimpleFIN setup token from %s, which resolves to an address that isn't public", claim_url.host)
+            logger.warning("Refused to claim a SimpleFIN setup token from %s: it resolves to an address that isn't public", claim_url.host)
             raise ClaimRefused(_SETUP_HOST_NOT_ALLOWED_MESSAGE.format(host=claim_url.host)) from None
         except httpx.RequestError:
             raise ProviderUnreachable(_CLAIM_UNREACHABLE_MESSAGE) from None
@@ -250,7 +250,7 @@ class SimpleFinAdapter(ProviderAdapter):
         except OriginRefused:
             return _failed(ProviderErrorKind.UNKNOWN, _SERVER_NOT_ALLOWED_MESSAGE.format(host=base_url.host))
         except AddressRefused:
-            logger.warning("Refused to reach SimpleFIN at %s, which resolves to an address that isn't public", base_url.host)
+            logger.warning("Refused to reach SimpleFIN at %s: it resolves to an address that isn't public", base_url.host)
             return _failed(ProviderErrorKind.TEMPORARY, _UNREACHABLE_MESSAGE)
         except ResponseTooLargeError:
             return _failed(ProviderErrorKind.TEMPORARY, _UNREADABLE_MESSAGE)
