@@ -55,6 +55,16 @@ _CLAIM_RANK_OF_KIND = "CASE j.kind " + " ".join(f"WHEN '{kind}' THEN {rank}" for
 # age reaches a database only through a migration that recreates the helpers
 _FRESH_DISCOVERY_AGE = f"interval '{int(FRESH_DISCOVERY_AGE.total_seconds())} seconds'"
 
+# How long a claimed job holds its claim before another run may take it. The worker's job time limit is
+# set well inside it, so a job is stopped before a later attempt could claim it. Copied into the claim
+# function, so a change reaches a database only through a migration that recreates the helpers
+_JOB_LEASE = "interval '10 minutes'"
+
+# How long a finished job row is kept before the due scan's record function deletes it, the retention the
+# design sets for job rows. Copied into that function, so a change reaches a database only through a
+# migration that recreates the helpers
+_FINISHED_JOB_RETENTION = "interval '30 days'"
+
 # Signatures the app no longer creates, dropped wherever the helpers are applied or revoked.
 # bump_user_cache stamped whatever user id it was given, and the app role can execute every
 # function in the schema, so leaving it on an already-provisioned database would keep any
@@ -338,7 +348,7 @@ _HELPERS: tuple[_Helper, ...] = (
             FOR UPDATE OF j SKIP LOCKED
         )
         UPDATE public.bank_sync_jobs j
-        SET status = 'running', attempt = j.attempt + 1, lease_expires_at = now() + interval '10 minutes'
+        SET status = 'running', attempt = j.attempt + 1, lease_expires_at = now() + {_JOB_LEASE}
         FROM claimable c
         WHERE j.id = c.id
         RETURNING j.id, j.owner_id, j.connection_id, j.kind::text, j.discover, j.attempt;
@@ -389,7 +399,7 @@ _HELPERS: tuple[_Helper, ...] = (
 
         INSERT INTO public.bank_sync_heartbeat (id, last_scan_at) VALUES (1, p_now)
         ON CONFLICT (id) DO UPDATE SET last_scan_at = EXCLUDED.last_scan_at;
-        DELETE FROM public.bank_sync_jobs WHERE finished_at < p_now - interval '30 days';
+        DELETE FROM public.bank_sync_jobs WHERE finished_at < p_now - {_FINISHED_JOB_RETENTION};
     END
     $$
     """,
