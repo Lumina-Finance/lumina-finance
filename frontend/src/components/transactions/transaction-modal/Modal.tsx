@@ -646,6 +646,7 @@ export default function CreateTransactionModal({
               )
             }
             bodyRef={formBodyRef}
+            keepsToastClear={Boolean(reviewFooter)}
             footer={
               reviewFooter || (
                 <TransactionModalFooter

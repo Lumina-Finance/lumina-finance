@@ -442,6 +442,7 @@ export default function EditAccountIdentityModal({
             saveBlockedReason={refusal.blockedReason}
             onCancel={requestClose}
             onStartDelete={handleStartDeleteAccount}
+            keepsToastClear={showsBankLinkSection}
           />
         </form>
       </ModalShell>

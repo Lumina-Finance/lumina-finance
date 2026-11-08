@@ -122,6 +122,7 @@ export function BankComparisonModal({ open, item, currency, onClose }: BankCompa
       RailIcon={Landmark}
       railLabel="Review"
       closeDisabled={resolve.isPending}
+      keepsToastClear
       footer={
         // The action that changes the ledger sits on the left and the keeping one on the right, as in the
         // other confirmations, and each takes half the width on phones

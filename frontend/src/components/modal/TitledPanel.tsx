@@ -1,6 +1,6 @@
 import type { FormEvent, ReactNode, Ref } from 'react'
 import { X, type LucideIcon } from 'lucide-react'
-import { useFooterKeepClear } from '@/components/modal/footerClearance'
+import { ModalFooterSlot } from '@/components/modal/FooterSlot'
 import { MODAL_INSET_CLASS_NAME } from '@/components/modal/inset'
 import { MODAL_TITLE_CLASS_NAME, ModalRail } from '@/components/modal/Rail'
 import { ModalShell, type ModalLevel } from '@/components/modal/Shell'
@@ -57,6 +57,9 @@ interface ModalTitledPanelProps {
 
   /** The body between the header and the footer. It scrolls when the content is taller than it */
   bodyRef?: Ref<HTMLDivElement>
+
+  /** Marks the footer, while the panel fills the screen, as something a message keeps clear of. For a footer that does not mark itself */
+  keepsToastClear?: boolean
   children: ReactNode
 }
 
@@ -84,10 +87,10 @@ export function ModalTitledPanel({
   footer,
   aside,
   bodyRef,
+  keepsToastClear = false,
   children,
 }: ModalTitledPanelProps) {
   const chrome = CHROME[level]
-  const keepClear = useFooterKeepClear()
 
   const content = (
     <>
@@ -131,12 +134,7 @@ export function ModalTitledPanel({
         {children}
       </div>
 
-      {/* Marked so a message shown while the modal fills the screen can sit above the whole of it */}
-      {footer && (
-        <div className="shrink-0" {...keepClear}>
-          {footer}
-        </div>
-      )}
+      {footer && <ModalFooterSlot keepsToastClear={keepsToastClear}>{footer}</ModalFooterSlot>}
     </>
   )
 

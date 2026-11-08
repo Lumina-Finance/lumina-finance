@@ -15,9 +15,10 @@ function fillsScreen(): boolean {
 }
 
 /**
- * The attribute that makes a modal's footer something a message keeps clear of, given only while the
- * modal fills the screen. A centred modal's footer box reaches the corner by its padding alone. That
- * would lift a message that covers none of its buttons
+ * The attribute that makes a footer something a message keeps clear of, given only while the modal
+ * fills the screen. A footer using this hook is left unmarked in a centred modal, whose footer box
+ * reaches the corner by its padding alone, so a message there is not lifted when it covers none of the
+ * buttons. The modal form footer does not use it. It marks itself at every width, as it always has
  *
  * @returns Props to spread onto the footer
  */
