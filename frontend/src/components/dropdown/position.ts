@@ -231,8 +231,9 @@ const DROPDOWN_VIEWPORT_PADDING = 12
 
 // The least list a box kept inside its bounds may be left with: three option rows of 36px. A field
 // scrolled hard against the edge of a dialogue's body would otherwise open to a sliver, so there the
-// box takes the room its modal panel has instead, over the dialogue's title or buttons, or the
-// screen's where the panel leaves fewer than five rows
+// box takes the room the screen has instead, over the dialogue's title or buttons. A dropdown that
+// asks to be clamped to its modal panel (`clampToPanel`) has that room cut to the panel's, and takes
+// the screen's only where the panel leaves fewer than five rows
 const DROPDOWN_MIN_BOUNDED_LIST_HEIGHT = 108
 
 // The fewest option rows a list kept inside a modal panel shows before the box grows past the
