@@ -160,7 +160,6 @@ export function MobileFilterSheet({
             <div
               className={`${equalFooterButtons ? 'grid grid-cols-2' : 'flex items-center justify-between'} gap-3 border-t px-5 py-4`}
               style={{ borderColor: 'var(--app-border)' }}
-              data-toast-keep-clear
             >
               <DisabledReasonButton
                 className={`app-secondary-button${equalFooterButtons ? ' w-full' : ''}`}
