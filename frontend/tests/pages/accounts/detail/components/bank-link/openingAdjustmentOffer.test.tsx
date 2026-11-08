@@ -49,6 +49,7 @@ vi.mock('@/api/bank-sync', async (importOriginal) => ({
 }))
 
 import { OpeningAdjustmentOffer } from '@/pages/accounts/detail/components/bank-link/OpeningAdjustmentOffer'
+import { formatCurrencySymbol } from '@/utils/formatCurrency'
 import {
   holdsSign,
   readRecordedAmount,
@@ -150,19 +151,20 @@ describe('the opening adjustment offer', () => {
     {
       amount: 25000,
       currency: 'CAD',
-      shown: ['+$', '250.00'],
+      // The symbol the reader's own language writes, as the rest of the app shows it, not the table's
+      shown: [`+${formatCurrencySymbol('CAD')}`, '250.00'],
       described: 'Your ledger records this amount as positive.',
     },
     {
       amount: -2000,
       currency: 'CAD',
-      shown: [`${MINUS}$`, '20.00'],
+      shown: [`${MINUS}${formatCurrencySymbol('CAD')}`, '20.00'],
       described: 'Your ledger records this amount as negative.',
     },
     {
       amount: -3000,
       currency: 'JPY',
-      shown: [`${MINUS}¥`, '3000'],
+      shown: [`${MINUS}${formatCurrencySymbol('JPY')}`, '3000'],
       described: 'Your ledger records this amount as negative.',
     },
   ])(

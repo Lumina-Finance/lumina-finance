@@ -19,6 +19,7 @@ import {
 import { useMoveFocusOnFold } from '@/pages/accounts/detail/components/bank-link/useMoveFocusOnFold'
 import { AccountIdentityFieldLabelRow } from '@/pages/accounts/detail/components/edit-identity/controls/FieldLabelRow'
 import { formatDateLabel } from '@/utils/date'
+import { formatCurrencySymbol } from '@/utils/formatCurrency'
 import { getAmountSign, signMovedAmount } from '@/utils/negativeAmount'
 import { DEFAULT_MINOR_UNIT_EXPONENT, findCurrencyExponent, fromMinorUnits } from '@/utils/moneyInput'
 
@@ -76,7 +77,8 @@ export function OpeningAdjustmentOffer({
   const { buttonRef: skipRef, style: skipStyle, measure: skipMeasure } = useFittedButtonWidth(SKIP_LABEL)
   const { buttonRef: recordRef, style: recordStyle, measure: recordMeasure } = useFittedButtonWidth(RECORD_LABEL)
   const currencyState = useCurrencyListState()
-  const symbol = currencies.find((entry) => entry.id === currency)?.symbol ?? ''
+  // Written the way the rest of the app writes it, in the reader's own language
+  const symbol = currencies.some((entry) => entry.id === currency) ? formatCurrencySymbol(currency) : ''
 
   // Without the currency's decimal places the offered amount can be neither shown nor read back, so
   // the amount and Record adjustment lock until the currency list has them. Skip records nothing
