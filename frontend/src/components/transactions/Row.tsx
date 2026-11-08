@@ -267,7 +267,8 @@ function NoteAndTagIcons({
       {refundLink && (
         <span
           id={ids.refund}
-          className="inline-flex"
+          // Positioned so it sits above the title's layer and its hint can be hovered
+          className="relative inline-flex"
           role="img"
           aria-label={refundLink}
           title={refundLink}
