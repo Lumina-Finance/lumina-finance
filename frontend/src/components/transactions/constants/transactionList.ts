@@ -55,10 +55,5 @@ export const TRANSACTION_ROW_SCROLL_MARGIN_VARIABLE = '--transaction-row-scroll-
 // Falls back to zero for the import preview, which renders the same row outside this list
 export const TRANSACTION_ROW_SCROLL_MARGIN = `var(${TRANSACTION_ROW_SCROLL_MARGIN_VARIABLE}, 0px)`
 
-// Set to how much of the rows' sides an edge drawn over them takes, in whole pixels, such as the Upcoming
-// section's dashed one, so a focused row's ring sits just inside that edge rather than under it. The row's
-// ring reads it in a class. A class has to spell the name out
-export const TRANSACTION_ROW_FRAME_VARIABLE = '--transaction-row-frame' as const
-
 // The space left between the lowest pinned bar and a row the browser scrolls into view below it
 export const TRANSACTION_ROW_GAP_BELOW_PINNED_BARS_PX = 4

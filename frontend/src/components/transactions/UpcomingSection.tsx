@@ -8,7 +8,6 @@ import {
   REACHES_ACROSS_TRANSACTION_CHECKBOX_RAIL,
   TRANSACTION_CHECKBOX_RAIL,
   TRANSACTION_LIST_EASE,
-  TRANSACTION_ROW_FRAME_VARIABLE,
   TRANSACTION_ROW_GAP_BELOW_PINNED_BARS_PX,
   TRANSACTION_ROW_SCROLL_MARGIN_VARIABLE,
 } from '@/components/transactions/constants/transactionList'
@@ -51,13 +50,8 @@ const HEADER_FILLED_LIKE_THE_SHADING = {
 // rows end, so the box lines up with the search bar and the day headings around it. The shading sits behind the
 // rows and the edge in front of them, since the day headings' bars and the stuck header run the full width and
 // would otherwise cover its sides. The edge takes the subtle text colour, since the border colours were too
-// faint to show its dashes. Being in front, the edge covers the rows' sides, so the rows are told how much
-// of them it takes and a focused row keeps its ring inside it. That is the edge's width rounded up to whole
-// pixels, since the edge draws 1px wide at 1x and 1.5px at 2x, and a half pixel inset would round the gap
-// beside the ring one way on the left and the other on the right
-const BOX_EDGE_WIDTH_PX = 1.5
-const BOX_EDGE_LINE = `${BOX_EDGE_WIDTH_PX}px dashed color-mix(in srgb, var(--app-text-subtle) 60%, transparent)`
-const ROWS_INSIDE_THE_EDGE = { [TRANSACTION_ROW_FRAME_VARIABLE]: `${Math.ceil(BOX_EDGE_WIDTH_PX)}px` } as CSSProperties
+// faint to show its dashes
+const BOX_EDGE_LINE = '1.5px dashed color-mix(in srgb, var(--app-text-subtle) 60%, transparent)'
 const BOX_AROUND_THE_SECTION: CSSProperties = {
   left: `calc(-1 * ${TRANSACTION_CHECKBOX_RAIL})`,
   right: 0,
@@ -241,7 +235,6 @@ export function UpcomingSection({
               className={gridClassName}
               style={{
                 ...FADED_ROW_COLOURS,
-                ...ROWS_INSIDE_THE_EDGE,
                 // A row scrolled into view clears the toolbar and this section's header pinned below it, in
                 // place of the day heading the rows outside the section clear
                 ...(stickyTop === undefined

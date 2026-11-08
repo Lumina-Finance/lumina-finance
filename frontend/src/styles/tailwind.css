@@ -405,11 +405,6 @@
     :where(.app-focus-inset, .app-transaction-row, svg.recharts-surface) {
       outline-offset: calc(var(--app-focus-offset) * -1);
     }
-
-    /* A row inside an edge drawn over its sides rests where its ring is drawn, so the ring doesn't move as it fades */
-    .app-transaction-row {
-      outline-offset: calc(var(--app-focus-offset) * -1 - var(--transaction-row-frame, 0px));
-    }
   }
 
   @media (prefers-reduced-motion: reduce) {
@@ -3101,7 +3096,7 @@
 
   .app-transaction-row:has([data-row-title]:focus-visible, button[role="checkbox"]:focus-visible) {
     outline: var(--app-focus-outline);
-    outline-offset: calc(var(--app-focus-offset) * -1 - var(--transaction-row-frame, 0px));
+    outline-offset: calc(var(--app-focus-offset) * -1);
   }
 
   .app-transaction-row:has(button:focus-visible) {

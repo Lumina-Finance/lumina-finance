@@ -4,7 +4,6 @@ import { asUser, createAccount, createTransaction, daysFromTodayInTestTimezone, 
 import { openPage, chooseFromDropdown, filterTransactions, loadEveryTransaction, logInViaApi, openModal } from '../support/app'
 import {
   expectPendingAction,
-  expectStretchedFocusRing,
   expectTransactionRow,
   getTransactionRowButton,
   MINUS,
@@ -13,7 +12,7 @@ import {
 import { AT_EVERY_SIZE } from '../support/sizes'
 import { API_BASE_URL } from '../support/target'
 
-// Runs on desktop only, apart from the category filter, Upcoming row focus and Upcoming header tests. These
+// Runs on desktop only, apart from the category filter, row description and Upcoming header tests. These
 // run at every size: filters show as a sheet on a phone, a row's text sits differently at each width, and the
 // header pins differently by layout. The row layout test resizes the desktop window itself, to widths no
 // project has
@@ -215,25 +214,6 @@ test('ticks the range between on a shift-press without selecting the text it run
   for (const tick of await ticks.all()) await expect(tick).toBeChecked()
   expect(await page.evaluate(() => window.getSelection()?.toString())).toBe('')
   await expect(page.getByRole('dialog')).toHaveCount(0)
-})
-
-test('rings an upcoming transaction row inside the Upcoming section\'s dashed edge', AT_EVERY_SIZE, async ({ page, request }) => {
-  const { upcomingId, upcoming } = await openListWithUpcomingAndToday(page, request)
-  await upcoming.click()
-  await expectTransactionRow(page, upcomingId, `${MINUS}$45.00`)
-
-  // The section draws its edge over the sides of the rows inside it. The ring has to stay clear of them
-  await expectStretchedFocusRing(
-    getTransactionRowButton(page.getByTestId(`transaction-row-${upcomingId}`)),
-    page.getByTestId(`transaction-box-${upcomingId}`),
-  )
-
-  // Once focus leaves, the row rests at the gap its ring was drawn at, so the ring fades out in place
-  // rather than jumping outward as it goes
-  const box = page.getByTestId(`transaction-box-${upcomingId}`)
-  const drawnAt = await box.evaluate((node) => getComputedStyle(node).outlineOffset)
-  await page.evaluate(() => (document.activeElement as HTMLElement).blur())
-  await expect(box).toHaveCSS('outline-offset', drawnAt)
 })
 
 test('keeps the open Upcoming header on screen through a long run of upcoming transactions', AT_EVERY_SIZE, async ({ page, request }) => {
