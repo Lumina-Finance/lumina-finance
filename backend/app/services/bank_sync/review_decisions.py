@@ -124,9 +124,14 @@ async def add_review_item_to_ledger(db: AsyncSession, user: User, item_id: uuid.
     await lift_review_pauses(db, user.id, links)
     await offer_opening_adjustments(db, links, tz=user.tz)
     await mark_user_cache_changed(db, user.id)
-    await db.commit()
+
+    # Build the response before committing, since a delete of the account may take the row the moment
+    # this commits
+    await db.flush()
     await db.refresh(txn)
-    return await get_transaction_response(db, txn)
+    response = await get_transaction_response(db, txn)
+    await db.commit()
+    return response
 
 
 async def dismiss_review_item(db: AsyncSession, user: User, item_id: uuid.UUID) -> None:
@@ -199,9 +204,14 @@ async def accept_bank_change(db: AsyncSession, user: User, item_id: uuid.UUID) -
 
     txn = await write_bank_change(db, user, record, account)
     await mark_user_cache_changed(db, user.id)
-    await db.commit()
+
+    # Build the response before committing, since a delete of the account may take the row the moment
+    # this commits
+    await db.flush()
     await db.refresh(txn)
-    return await get_transaction_response(db, txn)
+    response = await get_transaction_response(db, txn)
+    await db.commit()
+    return response
 
 
 async def write_bank_change(db: AsyncSession, user: User, record: BankTransaction, account: Account) -> Transaction:
@@ -287,7 +297,12 @@ async def keep_current_value(db: AsyncSession, user: User, item_id: uuid.UUID) -
         # Keeping the current value changes none of the ledger, so the data mark an import's undo
         # compares with stays where it was
         await mark_user_status_changed(db, user.id)
+
+        # Build the response before committing, since a delete of the account may take the row the
+        # moment this commits
+        response = await get_transaction_response(db, await db.get_one(Transaction, record.transaction_id))
         await db.commit()
+        return response
     return await get_transaction_response(db, await db.get_one(Transaction, record.transaction_id))
 
 
@@ -363,7 +378,12 @@ async def keep_transaction(db: AsyncSession, user: User, item_id: uuid.UUID) -> 
         # Keeping the transaction changes none of the ledger, so the data mark an import's undo
         # compares with stays where it was
         await mark_user_status_changed(db, user.id)
+
+        # Build the response before committing, since a delete of the account may take the row the
+        # moment this commits
+        response = await get_transaction_response(db, await db.get_one(Transaction, record.transaction_id))
         await db.commit()
+        return response
     return await get_transaction_response(db, await db.get_one(Transaction, record.transaction_id))
 
 
@@ -418,9 +438,14 @@ async def restore_bank_value(db: AsyncSession, user: User, transaction_id: uuid.
     await db.flush()
 
     await mark_user_cache_changed(db, user.id)
-    await db.commit()
+
+    # Build the response before committing, since a delete of the account may take the row the moment
+    # this commits
+    await db.flush()
     await db.refresh(txn)
-    return await get_transaction_response(db, txn)
+    response = await get_transaction_response(db, txn)
+    await db.commit()
+    return response
 
 
 def _refuse_unless_in_ledger(record: BankTransaction) -> None:
