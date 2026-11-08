@@ -293,6 +293,24 @@ test('opens the reason for a gap below the difference where the dialog leaves no
   expect(opened.y).toBeGreaterThanOrEqual(explained.y + explained.height)
 })
 
+test('bounds the edit modal\'s tooltips only for an account linked to a bank, leaving those of any other as they were', async ({ page, request }) => {
+  // A linked account's body is the surface its Sync details and balance reasons keep inside
+  const linked = await openBalancesThatDiffer(page, request, { width: 1280, height: 800 })
+  await expect(linked.locator('[data-dropdown-bounds]')).toHaveAttribute('data-tooltip-bounds', /.*/)
+
+  // An account with no link leaves the body unmarked, so a tooltip such as the Credit limit hint rises
+  // over the header as on main
+  const user = await signUpUser(request)
+  const account = await createAccount(request, user, { name: 'Unlinked' })
+  await logInViaApi(page, user)
+  await openPage(page, `/accounts/${account.id}`)
+  await page.getByRole('button', { name: 'Edit account', exact: true }).click()
+  const dialog = page.getByRole('dialog', { name: 'Edit account', exact: true })
+  const body = dialog.locator('[data-dropdown-bounds]')
+  await expect(body).toBeVisible()
+  await expect(body).not.toHaveAttribute('data-tooltip-bounds')
+})
+
 // Shown by a press or by the keyboard reaching its icon, the reason moves alike
 for (const { shown, show } of [
   { shown: 'opened with a press', show: (icon: Locator) => icon.click() },

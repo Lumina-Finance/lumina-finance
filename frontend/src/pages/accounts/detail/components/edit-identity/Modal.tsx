@@ -355,11 +355,13 @@ export default function EditAccountIdentityModal({
         <form onSubmit={handleSubmit} className="flex min-h-0 w-full flex-col" noValidate>
           <EditModalHeader accountType={account.account_type} isBusy={isBusy} onClose={requestClose} />
 
-          {/* A tooltip in a section flips and shifts to stay within what this area shows */}
+          {/* The tooltips of a linked account flip and shift to stay within what this area shows, since the
+              Sync details and balance reasons need the room. Any other account's tooltips rise over the
+              header, as they always have */}
           <div
             ref={scrollAreaRef}
             className="min-h-0 flex-1 overflow-y-auto pb-3 pl-4 pr-5 pt-4 min-[1050px]:px-7"
-            data-tooltip-bounds
+            data-tooltip-bounds={bankLink ? true : undefined}
             data-dropdown-bounds
           >
             <div className="space-y-5">

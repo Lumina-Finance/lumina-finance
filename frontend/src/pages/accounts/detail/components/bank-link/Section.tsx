@@ -440,7 +440,7 @@ export function BankLinkSection({ account, sectionNumber, autoFocus = false }: B
                 </p>
               )}
               {/* The reason a pause gives for Link bank account keeps to the section's sides. The Sync
-                    details in the linked view take the room the modal has. A short section lacks it */}
+                    details in the linked view keep to the area the modal marks for a linked account. A short section lacks the room */}
               {viewKey === 'unlinked' && (
                 <div className="space-y-3" data-tooltip-bounds>
                   <p className="text-sm" style={{ color: 'var(--app-text-muted)' }}>
