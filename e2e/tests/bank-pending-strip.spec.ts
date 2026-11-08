@@ -3,7 +3,8 @@ import { expect, test, type APIRequestContext, type Locator, type Page, type Res
 import { createAccount, createGroup, createTransaction, signUpUser, todayInTestTimezone, type SeededAccount } from '../support/api'
 import { filterTransactions, logInViaApi, openPage, watchServerRequests } from '../support/app'
 import { answerLinksWith, isRead, pageOf, reviewItem, SEP_21 } from '../support/bankSync'
-import { contrastOf, MIN_TEXT_CONTRAST, MINUS, readBoxes } from '../support/selectors'
+import { faintestText } from '../support/contrast'
+import { MINUS, readBoxes } from '../support/selectors'
 import { AT_EVERY_SIZE } from '../support/sizes'
 
 // Runs on desktop only, apart from the closed strip test and the light theme's readable text test.
@@ -384,7 +385,7 @@ for (const colorScheme of ['light', 'dark'] as const) {
       strip.getByText('Not in your balance until the bank settles them').filter({ visible: true }),
     ]
     for (const text of toggleTexts) {
-      expect(await contrastOf(text), await text.textContent() ?? '').toBeGreaterThanOrEqual(MIN_TEXT_CONTRAST)
+      expect((await faintestText(text)).contrast, await text.textContent() ?? '').toBeGreaterThanOrEqual(4.5)
     }
     await toggle.hover()
     const texts = [
@@ -395,7 +396,7 @@ for (const colorScheme of ['light', 'dark'] as const) {
       rows.filter({ hasText: 'HARBOUR REFUND' }).getByText('+$42.50'),
     ]
     for (const text of texts) {
-      expect(await contrastOf(text), await text.textContent() ?? '').toBeGreaterThanOrEqual(MIN_TEXT_CONTRAST)
+      expect((await faintestText(text)).contrast, await text.textContent() ?? '').toBeGreaterThanOrEqual(4.5)
     }
   })
 }

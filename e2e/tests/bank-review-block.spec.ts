@@ -29,7 +29,8 @@ import {
   waitForReviewItems,
   WORKER_RESULT_TIMEOUT_MS,
 } from '../support/bankSync'
-import { contrastOf, MIN_TEXT_CONTRAST, MINUS, readBoxes } from '../support/selectors'
+import { faintestText } from '../support/contrast'
+import { MINUS, readBoxes } from '../support/selectors'
 import { AT_EVERY_SIZE } from '../support/sizes'
 import { API_BASE_URL } from '../support/target'
 
@@ -296,8 +297,8 @@ test('says in the block that the waiting items could not load, sends Needs revie
   const retry = failure.getByRole('button', { name: 'Try again' })
   await expect(failure).toBeVisible()
   await expect(block.getByRole('listitem')).toHaveCount(0)
-  expect(await contrastOf(failure.getByText('Bank items to review could not load.'))).toBeGreaterThanOrEqual(MIN_TEXT_CONTRAST)
-  expect(await contrastOf(retry)).toBeGreaterThanOrEqual(MIN_TEXT_CONTRAST)
+  expect((await faintestText(failure.getByText('Bank items to review could not load.'))).contrast).toBeGreaterThanOrEqual(4.5)
+  expect((await faintestText(retry)).contrast).toBeGreaterThanOrEqual(4.5)
 
   // A Needs review marker goes to the failure rather than nowhere, ready to try again
   await page.evaluate(() => window.scrollTo(0, document.documentElement.scrollHeight))
@@ -759,7 +760,7 @@ for (const colorScheme of ['light', 'dark'] as const) {
       rows.nth(2).getByText(`${MINUS}$18.00`),
     ]
     for (const text of texts) {
-      expect(await contrastOf(text), await text.textContent() ?? '').toBeGreaterThanOrEqual(MIN_TEXT_CONTRAST)
+      expect((await faintestText(text)).contrast, await text.textContent() ?? '').toBeGreaterThanOrEqual(4.5)
     }
   })
 }

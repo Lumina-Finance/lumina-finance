@@ -12,7 +12,8 @@ import {
   WORKER_RESULT_TIMEOUT_MS,
   type ReviewPage,
 } from '../support/bankSync'
-import { contrastOf, MIN_TEXT_CONTRAST, readBoxes } from '../support/selectors'
+import { faintestText } from '../support/contrast'
+import { readBoxes } from '../support/selectors'
 import { AT_EVERY_SIZE } from '../support/sizes'
 import { API_BASE_URL } from '../support/target'
 
@@ -244,7 +245,7 @@ for (const colorScheme of ['light', 'dark'] as const) {
     const note = reminderNote(dialog, NO_HISTORY)
     for (const text of [note.getByText(NO_HISTORY, { exact: true }), note.getByText(/No posted transactions from/)]) {
       await expect(text).toBeVisible()
-      expect(await contrastOf(text)).toBeGreaterThanOrEqual(MIN_TEXT_CONTRAST)
+      expect((await faintestText(text)).contrast).toBeGreaterThanOrEqual(4.5)
     }
   })
 }

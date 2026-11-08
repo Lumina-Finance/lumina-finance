@@ -13,7 +13,7 @@ import {
 } from '../support/api'
 import { chooseFromDropdown, logInViaApi, openModal, openPage, typeDate } from '../support/app'
 import { addImportedItem, answerLinksWith, linkToSampleBankAccount } from '../support/bankSync'
-import { contrastOf, MIN_TEXT_CONTRAST } from '../support/selectors'
+import { faintestText } from '../support/contrast'
 import { AT_EVERY_SIZE } from '../support/sizes'
 import { API_BASE_URL } from '../support/target'
 
@@ -153,9 +153,9 @@ test('refuses a new manual entry on the days a linked account’s bank supplies'
 
   // Today is the chosen day as well as a refused one, and its number stays readable, pointed at or not
   await expect(todayCell).toHaveAttribute('aria-pressed', 'true')
-  await expect.poll(() => contrastOf(todayCell)).toBeGreaterThanOrEqual(MIN_TEXT_CONTRAST)
+  expect((await faintestText(todayCell)).contrast).toBeGreaterThanOrEqual(4.5)
   await todayCell.hover()
-  await expect.poll(() => contrastOf(todayCell)).toBeGreaterThanOrEqual(MIN_TEXT_CONTRAST)
+  expect((await faintestText(todayCell)).contrast).toBeGreaterThanOrEqual(4.5)
   await tomorrowCell.click()
   await expect(message).toBeHidden()
   await expect(year).toHaveAttribute('aria-invalid', 'false')

@@ -24,7 +24,7 @@ import {
   waitForReviewItems,
   WORKER_RESULT_TIMEOUT_MS,
 } from '../support/bankSync'
-import { contrastOf, MIN_TEXT_CONTRAST, MINUS, readBoxes } from '../support/selectors'
+import { MINUS, readBoxes } from '../support/selectors'
 import { AT_EVERY_SIZE } from '../support/sizes'
 import { API_BASE_URL } from '../support/target'
 
@@ -466,14 +466,14 @@ for (const colorScheme of ['light', 'dark'] as const) {
     await offer.record.click()
     for (const text of [offerText(offer.dialog, setup.adjustmentDate), offer.dialog.getByText('Adjustment amount', { exact: true }), offer.zeroMessage]) {
       await expect(text).toBeVisible()
-      expect(await contrastOf(text)).toBeGreaterThanOrEqual(MIN_TEXT_CONTRAST)
+      expect((await faintestText(text)).contrast).toBeGreaterThanOrEqual(4.5)
     }
 
     // So can the signed currency symbol before the amount, read against the tint the field takes for its
     // error. The tint is drawn behind the symbol rather than around it
     await expect(offer.amount).toHaveClass(/app-input-error/)
     const symbol = await faintestText(offer.amount.locator('..').getByText(/^[+−]?\$$/))
-    expect(symbol.contrast, `"${symbol.text}" before the amount`).toBeGreaterThanOrEqual(MIN_TEXT_CONTRAST)
+    expect(symbol.contrast, `"${symbol.text}" before the amount`).toBeGreaterThanOrEqual(4.5)
 
     // The layout is the same in either theme, so it is measured in the light one only
     if (colorScheme === 'light') {

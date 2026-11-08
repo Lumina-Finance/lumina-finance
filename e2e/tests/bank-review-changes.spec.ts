@@ -21,7 +21,8 @@ import {
   waitForReviewItems,
   type BankSource,
 } from '../support/bankSync'
-import { contrastOf, expectTransactionRow, getAccountRow, MIN_TEXT_CONTRAST, MINUS } from '../support/selectors'
+import { faintestText } from '../support/contrast'
+import { expectTransactionRow, getAccountRow, MINUS } from '../support/selectors'
 import { AT_EVERY_SIZE } from '../support/sizes'
 import { API_BASE_URL } from '../support/target'
 
@@ -341,7 +342,7 @@ for (const colorScheme of ['light', 'dark'] as const) {
       ...await dialog.getByRole('cell').all(),
     ]
     for (const text of texts) {
-      expect(await contrastOf(text), `${await text.textContent()} in the ${colorScheme} theme`).toBeGreaterThanOrEqual(MIN_TEXT_CONTRAST)
+      expect((await faintestText(text)).contrast, `${await text.textContent()} in the ${colorScheme} theme`).toBeGreaterThanOrEqual(4.5)
     }
   })
 }
