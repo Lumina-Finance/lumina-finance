@@ -24,7 +24,7 @@ type CollapsibleSectionProps = {
   // Sizing and placement for the header, so a list with a gutter beside its rows, such as a checkbox
   // rail, can run the header across it the way its row backgrounds run, and can stick it below its bar.
   // A header that needs a solid fill, such as one rows scroll under, sets --collapsible-header-fill and
-  // --collapsible-header-hover-fill here rather than a background, which would hide the hover look
+  // --collapsible-header-hover-fill here. A background set here would hide the hover look
   headerStyle?: CSSProperties
 
   // How wide the slot the icon sits at the start of is, so a list can start the label level with its
