@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { AnimatePresence, motion, useReducedMotion } from 'motion/react'
 import { useLocation, useNavigate, useParams } from 'react-router'
 import { useAccount, useAccounts, useForgetDeletedAccount, type Account } from '@/api/accounts'
+import { useBankProviders } from '@/api/bank-sync'
 import { useImportSources } from '@/api/transaction-imports'
 import { useTaxAdvantagedCategory } from '@/api/tax-advantaged-categories'
 import type { Transaction } from '@/api/transactions'
@@ -46,6 +47,13 @@ export default function AccountDetailPage() {
   // pressed, which spares a first visit the loading animation. It costs one small request on every
   // visit to an account, whether or not the user goes on to import
   useImportSources(true)
+
+  // Read with the account, since the identity card can say an account has no institution only once
+  // the providers show bank sync isn't offered. The page waits for that first answer, so the line is
+  // never blank before it reads No institution. The saved cache holds it for later visits, and a failed
+  // read stops the wait
+  const { isPending: providersPending, failureCount: providersFailures } = useBankProviders()
+  const awaitsProviders = providersPending && providersFailures === 0
 
   // The whole list, not just the account in view, so a transfer's row can name its counterparty
   // account. The transaction modal on this page loads it anyway, so it costs no extra request
@@ -100,7 +108,7 @@ export default function AccountDetailPage() {
 
   // A deletion holds a copy of the account, so this stays false throughout one and the page keeps
   // rendering the copy rather than dropping into the loading branch mid-exit
-  const isAccountLoading = !visibleAccount && !error
+  const isAccountLoading = (!visibleAccount || awaitsProviders) && !error
   const showSkeleton = useSkeletonVisibility(isAccountLoading)
   const prefersReducedMotion = useReducedMotion() ?? false
 

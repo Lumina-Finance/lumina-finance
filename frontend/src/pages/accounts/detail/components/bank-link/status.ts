@@ -26,6 +26,26 @@ export function showsBankSync(
   return offered || Boolean(status?.link)
 }
 
+/**
+ * Whether an account's link, still unread, could change the institution line: only for the user's own
+ * personal account whose link has neither been read nor failed to be, and not once the providers have
+ * said bank sync isn't offered. Such an account reads as it always has, with no institution named
+ * until a link says otherwise. Before the providers are read the link may still matter
+ *
+ * @param providers - The deployment's providers and whether the user may link, undefined until read
+ * @param status - The account's link, undefined until read and for any account but the user's own personal ones
+ * @param hasStatusFailed - Whether reading the link failed
+ */
+export function isLinkStillUnread(
+  ownPersonal: boolean,
+  providers: BankProvidersResponse | undefined,
+  status: AccountBankStatus | undefined,
+  hasStatusFailed: boolean,
+): boolean {
+  if (!ownPersonal || status !== undefined || hasStatusFailed) return false
+  return providers === undefined || (providers.may_link && providers.providers.length > 0)
+}
+
 export type BankSyncLabel = {
   label: string
   tone: SyncStatusTone

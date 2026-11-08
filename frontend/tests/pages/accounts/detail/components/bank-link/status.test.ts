@@ -14,6 +14,7 @@ import type { BankLink } from '@/api/bank-sync'
 import {
   describeBankSync,
   describeImportHeading,
+  isLinkStillUnread,
   showsBankSync,
   type BankSyncLabel,
 } from '@/pages/accounts/detail/components/bank-link/status'
@@ -45,6 +46,28 @@ function describeLink(link: BankLink): BankSyncLabel {
   const sync = describeBankSync(true, createStatus({ link }), false, TIME_ZONE)
   return { ...sync, label: plain(sync.label), details: sync.details.map(plain) }
 }
+
+describe('isLinkStillUnread', () => {
+  it.each([
+    ['before the providers are read', undefined],
+    ['while the user may link through a provider', createProviders()],
+  ])('holds the institution line %s, since the link could still name a bank', (_, providers) => {
+    expect(isLinkStillUnread(true, providers, undefined, false)).toBe(true)
+  })
+
+  it.each([
+    ['the user may link nothing', createProviders({ may_link: false })],
+    ['the deployment has no provider', createProviders({ providers: [] })],
+  ])('lets an account read as it always has once %s', (_, providers) => {
+    expect(isLinkStillUnread(true, providers, undefined, false)).toBe(false)
+  })
+
+  it('stops holding once the link is read or failed to be, and for an account the link is never read for', () => {
+    expect(isLinkStillUnread(true, createProviders(), createStatus(), false)).toBe(false)
+    expect(isLinkStillUnread(true, createProviders(), undefined, true)).toBe(false)
+    expect(isLinkStillUnread(false, undefined, undefined, false)).toBe(false)
+  })
+})
 
 describe('showsBankSync', () => {
   it('shows while the user may link through a provider', () => {
