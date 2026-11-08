@@ -71,7 +71,7 @@ export function BankMarker({ providerName, isEdited, needsReview, onShowReview }
           type="button"
           aria-label="Needs review. Show the waiting item"
           onClick={onShowReview}
-          className="relative inline-flex cursor-pointer items-center rounded-full border bg-[var(--app-warning-soft)] px-1.5 py-0.5 text-xs font-medium leading-none before:absolute before:inset-x-0 before:-inset-y-1.5 before:content-[''] hover:bg-[image:linear-gradient(var(--app-accent-soft),var(--app-accent-soft))] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--app-focus-ring)]"
+          className="relative inline-flex cursor-pointer items-center rounded-full border bg-[var(--app-warning-soft)] px-1.5 py-0.5 text-xs font-medium leading-none before:absolute before:inset-x-0 before:-inset-y-1.5 before:content-[''] hover:bg-[image:linear-gradient(var(--app-accent-soft),var(--app-accent-soft))]"
           style={{ borderColor: 'var(--app-warning-border)', color: 'var(--app-warning-text)' }}
         >
           Needs review

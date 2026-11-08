@@ -27,7 +27,7 @@ type SyncFactProps = {
  * The label, with a new one sliding in over the old as it leaves. Both share one cell. It eases to
  * the new label's width, so whatever follows glides rather than jumps
  */
-function SlidingLabel({ label, underlinesOnHover }: { label: string; underlinesOnHover: boolean }) {
+function SlidingLabel({ label }: { label: string }) {
   const prefersReducedMotion = useReducedMotion()
   const measureRef = useRef<HTMLSpanElement>(null)
   const [width, setWidth] = useState<number | null>(null)
@@ -53,7 +53,7 @@ function SlidingLabel({ label, underlinesOnHover }: { label: string; underlinesO
         <AnimatePresence initial={false}>
           <motion.span
             key={label}
-            className={`min-w-0 truncate whitespace-nowrap ${underlinesOnHover ? 'underline decoration-transparent underline-offset-2 transition-[text-decoration-color] group-hover:decoration-current' : ''}`}
+            className="min-w-0 truncate whitespace-nowrap"
             style={{ gridArea: '1 / 1' }}
             initial={{ opacity: 0, y: rise }}
             animate={{ opacity: 1, y: 0 }}
@@ -78,7 +78,7 @@ export function SyncFact({ name, sync, showsDetails = false, onOpen }: SyncFactP
   const value = (
     <>
       <SyncStatusDot tone={sync.tone} pulse={sync.pulse} />
-      <SlidingLabel label={sync.label} underlinesOnHover={Boolean(onOpen)} />
+      <SlidingLabel label={sync.label} />
     </>
   )
 
@@ -93,7 +93,7 @@ export function SyncFact({ name, sync, showsDetails = false, onOpen }: SyncFactP
             type="button"
             onClick={onOpen}
             aria-label={`${name}: ${sentence} Open bank link`}
-            className="group flex max-w-full items-center gap-2 rounded-sm text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--app-focus-ring)]"
+            className="underline flex max-w-full items-center gap-2 rounded-sm text-left [--link-underline-start:16px]"
           >
             {value}
             {/* Shows at rest that the status opens the bank link, as the hover underline only shows it to a pointer */}

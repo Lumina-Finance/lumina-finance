@@ -426,7 +426,10 @@ test('draws keyboard focus on the bank screens in the focus colour', async ({ pa
   }
 
   await openPage(page, '/transactions')
-  await expectFocusColour(page.getByTestId(`transaction-row-${id}`).getByRole('button', { name: 'Needs review. Show the waiting item' }))
+  // The pill has a border, so it shows its hover look on keyboard focus and draws no ring
+  const pill = page.getByTestId(`transaction-row-${id}`).getByRole('button', { name: 'Needs review. Show the waiting item' })
+  const { rest, focused } = await expectHoverLook(page, pill)
+  expect(focused).not.toEqual(rest)
   await expectFocusColour(reviewBlock(page).getByRole('button').filter({ hasText: 'GROCER item-1' }))
 
   await openPage(page, `/accounts/${account.id}`)
