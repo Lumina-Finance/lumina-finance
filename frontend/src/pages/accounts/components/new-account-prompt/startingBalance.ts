@@ -34,7 +34,7 @@ export function getStartingBalanceProblems(
  * A blank or zero balance is the balance the account already has. The amount goes as the user states
  * it, so a liability's is the amount owed, positive, and the backend saves it negated
  *
- * @param account - The new account, which the balance is recorded in
+ * @param account - The new account to record the balance in
  * @param text - What the starting balance field holds
  * @param exponent - The account currency's minor-unit exponent
  */
