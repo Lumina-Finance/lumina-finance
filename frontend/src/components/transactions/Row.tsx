@@ -508,6 +508,8 @@ export function TransactionRowView({
     <button
       type="button"
       data-row-title=""
+      // A reason shown on keyboard focus sits beside the whole row, as it did while the row was the button
+      data-reason-beside="[data-row-content]"
       // In selection mode the checkbox is the row's single stop, so the same row does not offer two
       // controls doing the same thing
       tabIndex={selection ? -1 : undefined}
