@@ -281,6 +281,7 @@ export function ConnectModal({
             <CreateModalFieldLabelRow htmlFor={FIELD_IDS.provider} label="Provider" />
             <Dropdown
               id={FIELD_IDS.provider}
+              clampToPanel
               options={providers.map((entry) => ({
                 value: entry.id,
                 label: entry.name,

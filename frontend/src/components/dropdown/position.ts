@@ -80,6 +80,18 @@ export type DropdownPanelEdges = {
 }
 
 /**
+ * The modal panel the box keeps to, or null for a dropdown that did not ask to be clamped, which uses
+ * the screen's room wherever it sits
+ */
+export function findDropdownPanel(
+  slot: { closest: (selector: string) => { getBoundingClientRect: () => DropdownPanelEdges } | null },
+  clampToPanel: boolean,
+): DropdownPanelEdges | null {
+  if (!clampToPanel) return null
+  return slot.closest('[role="dialog"]')?.getBoundingClientRect() ?? null
+}
+
+/**
  * Narrows the room the box may grow into to the modal panel its field sits in
  *
  * Inside a modal the room is the panel's own wherever it sits within the screen, so a box opened from

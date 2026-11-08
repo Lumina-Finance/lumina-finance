@@ -73,6 +73,9 @@ interface DropdownProps {
   /** Keeps the open list exactly as wide as the field, for one inside a panel whose edge it must not pass */
   matchFieldWidth?: boolean
 
+  /** Keeps the open list within the sides of the modal panel the field sits in, and within its height while that leaves five rows */
+  clampToPanel?: boolean
+
   /** Draws the control in the error state, for a field the form has rejected */
   hasError?: boolean
 
@@ -146,6 +149,7 @@ const Dropdown = ({
   className,
   size = 'field',
   matchFieldWidth = false,
+  clampToPanel = false,
   hasError = false,
   labelledBy,
   describedBy,
@@ -197,6 +201,7 @@ const Dropdown = ({
       ? DROPDOWN_RISE_TRANSITION
       : DROPDOWN_SINK_TRANSITION
   const { boxPosition, updateBoxPosition } = useDropdownPosition({
+    clampToPanel,
     matchFieldWidth,
     placed,
     searchable,

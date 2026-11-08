@@ -105,6 +105,7 @@ export function BankAccountStep({
           </span>
           <Dropdown
             labelledBy={CONNECTION_LABEL_ID}
+            clampToPanel
             options={connections.map((entry) => describeConnection(entry, user?.tz))}
             value={connection.id}
             disabled={disabled}

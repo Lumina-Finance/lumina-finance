@@ -7,6 +7,7 @@
 import { describe, expect, it } from 'vitest'
 import {
   clampDropdownViewportToPanel,
+  findDropdownPanel,
   getDropdownBoxPosition,
   isSameDropdownBoxPosition,
 } from '@/components/dropdown/position'
@@ -648,5 +649,29 @@ describe('dropdown box placement', () => {
         expect(isSameDropdownBoxPosition(base, { ...base, ...change })).toBe(false)
       }
     })
+  })
+})
+
+describe('a dropdown that did not ask to keep to its modal', () => {
+  const wide = { height: 800, layoutHeight: 800, layoutWidth: 1200, offsetLeft: 0, offsetTop: 0, width: 1200 }
+  const panelEdges = { bottom: 500, left: 300, right: 900, top: 100 }
+  const slot = { closest: () => ({ getBoundingClientRect: () => panelEdges }) }
+  const anchorRect = { bottom: 440, left: 700, top: 400, width: 150 }
+
+  const place = (clampToPanel: boolean) =>
+    getDropdownBoxPosition({ ...head, anchorRect, panel: findDropdownPanel(slot, clampToPanel), viewport: wide })
+
+  it("finds no panel unless asked, so the screen's room is used as outside a modal", () => {
+    expect(findDropdownPanel(slot, false)).toBeNull()
+    expect(findDropdownPanel(slot, true)).toEqual(panelEdges)
+  })
+
+  it("opens rightward over the backdrop from a field near the panel's right edge", () => {
+    expect(place(false).openLeftward).toBe(false)
+    expect(place(true).openLeftward).toBe(true)
+  })
+
+  it("lists its rows over the backdrop from a field near the panel's foot", () => {
+    expect(place(false).listMaxHeight).toBeGreaterThan(place(true).listMaxHeight)
   })
 })
