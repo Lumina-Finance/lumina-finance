@@ -8,23 +8,19 @@ const LABEL_SLACK_PX = 4
 const BUTTON_CHROME_PROPERTIES = ['padding-left', 'padding-right', 'border-left-width', 'border-right-width']
 
 /**
- * Sizes a button to its label, as a width it can animate from when it shrinks into its loading
- * spinner. An automatic width cannot animate, and a fixed one guessed per label leaves room to spare
+ * Measures a button's one label, so the button can keep that width while a spinner or a check replaces
+ * the label. An automatic width would shrink to the replacement, and a fixed width guessed per label
+ * leaves room to spare
  *
- * Given every label the button can show, such as Sync now and Syncing, it takes the widest of them,
- * so it keeps one width while its label changes and nothing beside it shifts. Given one label, a new
- * label animates the width to the new one
+ * It fits the one label it is given and reserves no room for any other. A button whose label changes
+ * takes an automatic width and crossfades its labels instead, such as through `PendingLabel`'s
+ * `contentKey`
  *
  * The button takes `buttonRef` and `style`, uses `sm:w-(--fit-width)` wherever it would otherwise
- * have a fixed width, and renders `measure` inside itself so each label is measured in its own font.
- * `renderLabel` draws a label as the button does, for one that sets an icon beside its text
+ * have a fixed width, and renders `measure` inside itself so the label is measured in its own font.
+ * `renderLabel` draws the label as the button does, for one that sets an icon beside its text
  */
-export function useFittedButtonWidth(
-  labels: string | readonly string[],
-  renderLabel: (label: string) => ReactNode = (label) => label,
-) {
-  const labelList = typeof labels === 'string' ? [labels] : labels
-  const labelsKey = labelList.join('\n')
+export function useFittedButtonWidth(label: string, renderLabel: (label: string) => ReactNode = (text) => text) {
   const buttonRef = useRef<HTMLButtonElement>(null)
   const measureRef = useRef<HTMLSpanElement>(null)
   const [width, setWidth] = useState<number | null>(null)
@@ -41,8 +37,7 @@ export function useFittedButtonWidth(
         (total, property) => total + (Number.parseFloat(style.getPropertyValue(property)) || 0),
         0,
       )
-      const widest = Math.max(0, ...Array.from(measured.children, (label) => label.getBoundingClientRect().width))
-      setWidth(Math.ceil(widest + chrome) + LABEL_SLACK_PX)
+      setWidth(Math.ceil(measured.getBoundingClientRect().width + chrome) + LABEL_SLACK_PX)
     }
     measure()
 
@@ -51,18 +46,14 @@ export function useFittedButtonWidth(
     return () => {
       cancelled = true
     }
-  }, [labelsKey])
+  }, [label])
 
   return {
     buttonRef,
     style: (width === null ? undefined : { '--fit-width': `${width}px` }) as CSSProperties | undefined,
     measure: (
       <span ref={measureRef} className="pointer-events-none invisible absolute left-0 top-0" aria-hidden>
-        {labelList.map((label) => (
-          <span key={label} className="flex w-max items-center gap-2 whitespace-nowrap">
-            {renderLabel(label)}
-          </span>
-        ))}
+        <span className="flex w-max items-center gap-2 whitespace-nowrap">{renderLabel(label)}</span>
       </span>
     ),
   }
