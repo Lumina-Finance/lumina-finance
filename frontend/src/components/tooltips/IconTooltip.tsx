@@ -152,14 +152,14 @@ function getTooltipPosition(
  *
  * The panel opens above or below the trigger, whichever has room within the viewport or the nearest
  * ancestor marked with `data-tooltip-bounds`, and shifts sideways to stay within them. A trigger that
- * asks for it also keeps clear of any bar above it marked with `data-tooltip-cover`. While it shows it keeps that side until
- * a press on the trigger opens it and picks the side afresh, and it is placed again with the trigger
- * on any scroll or resize, and whenever the trigger moves on its own, as it does during a dialogue's
- * entrance. It hides while its trigger is scrolled out of view, and it closes on any pointer down
- * outside the trigger. A trigger inside an element marked with
- * `data-tooltip-subject`, such as a fact whose value sits under its label, opens the panel above or
- * below that whole element, so the panel never covers what it explains, and picks its side again as
- * anything around it scrolls while it shows
+ * asks for it also keeps clear of any bar above it marked with `data-tooltip-cover`. While it shows it
+ * keeps that side, and only a trigger with `picksSideOnPress` picks the side afresh each time a press
+ * opens it. The panel is placed again with the trigger on any scroll or resize, and whenever the
+ * trigger moves on its own, as it does during a dialogue's entrance. It hides while its trigger is
+ * scrolled out of view, and it closes on any pointer down outside the trigger. A trigger inside an
+ * element marked with `data-tooltip-subject`, such as a fact whose value sits under its label, opens
+ * the panel above or below that whole element, so the panel never covers what it explains, and picks
+ * its side again as anything around it scrolls while it shows
  *
  * The panel is 13rem wide unless the caller passes its own width
  */
