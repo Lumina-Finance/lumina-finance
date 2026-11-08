@@ -39,8 +39,7 @@ import { API_BASE_URL, BASE_URL } from '../support/target'
 const SAMPLE_BANK = 'Harbour Bank'
 const SAMPLE_CHEQUING = 'Everyday Chequing'
 const SAMPLE_VISA = 'Rewards Visa'
-const ADDING_PAUSED = "Bank sync isn't running right now. You can add one once it's back."
-const LINKING_PAUSED = "Bank sync isn't running right now. You can link accounts once it's back."
+const NOT_SET_UP = "Bank sync isn't set up on this server yet."
 const PROVIDER_GONE =
   "This provider is no longer available on this server, so this connection doesn't sync. You can disconnect it to remove it, and its accounts keep everything already imported."
 
@@ -1108,7 +1107,7 @@ test('counts institutions against a limit and stops linking a new one once it is
   await expect(harbour.getByText('No account can take it')).toHaveCount(0)
 })
 
-test("holds adding and linking back with the reason while bank sync isn't running, leaving the other actions", async ({ page, request }) => {
+test("holds adding and linking back with the reason while bank sync isn't set up, leaving the other actions", async ({ page, request }) => {
   const user = await signUpUser(request)
   const [, scenario] = await Promise.all([
     createAccount(request, user, { name: 'Household' }),
@@ -1122,7 +1121,7 @@ test("holds adding and linking back with the reason while bank sync isn't runnin
   const add = section.getByRole('button', { name: 'Add a connection' })
 
   await expect(add).toHaveAttribute('aria-disabled', 'true')
-  await expect(add).toHaveAccessibleDescription(ADDING_PAUSED)
+  await expect(add).toHaveAccessibleDescription(NOT_SET_UP)
   // Forced, since Playwright waits for a control marked unavailable to become available before pressing it
   await add.click({ force: true })
   await expect(page.getByRole('dialog', { name: 'Add a connection' })).toHaveCount(0)
@@ -1130,9 +1129,11 @@ test("holds adding and linking back with the reason while bank sync isn't runnin
   const dialog = await openConnection(page, section, 'SimpleFIN')
   const chequing = dialog.getByRole('combobox', { name: SAMPLE_CHEQUING })
   await expect(chequing).toHaveAttribute('aria-disabled', 'true')
-  await expect(chequing).toHaveAccessibleDescription(LINKING_PAUSED)
+  await expect(chequing).toHaveAccessibleDescription(NOT_SET_UP)
   await chequing.click({ force: true })
   await expect(chequing).toHaveAttribute('aria-expanded', 'false')
+  // Inside Settings the reason is all it gives, with no link back to where it already is
+  await expect(page.getByRole('link', { name: 'Open bank connections' })).toHaveCount(0)
   await expect(dialog.getByRole('button', { name: 'Rename' })).toBeEnabled()
   await expect(dialog.getByRole('button', { name: 'Disconnect' })).toBeEnabled()
 })
@@ -1168,7 +1169,8 @@ test('holds Link and import back with the reason when bank sync stops as the lin
   await flow.getByRole('radio', { name: /^3 months/ }).click()
   const submit = flow.getByRole('button', { name: 'Link and import' })
   await expect(submit).toHaveAttribute('aria-disabled', 'true')
-  await expect(submit).toHaveAccessibleDescription(LINKING_PAUSED)
+  await expect(submit).toHaveAccessibleDescription(NOT_SET_UP)
+  await expect(flow.getByRole('link', { name: 'Open bank connections' })).toHaveCount(0)
 
   // A press that got through would send the link before the page takes the next press, so the links
   // sent are counted once Cancel has closed the flow

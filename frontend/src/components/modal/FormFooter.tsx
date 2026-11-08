@@ -30,6 +30,9 @@ interface ModalFormFooterProps {
    * button shows its own, and taking the place of submitUnavailable while it is set
    */
   submitReason?: string | null
+
+  /** The id of an element in the modal that already prints the submit reason, which then describes the button */
+  submitReasonShownById?: string
   /** Width classes for the submit button, so a short label does not stretch the whole way across */
   submitWidthClassName: string
   /** Shown beside the actions when the submission failed, rather than against any one field */
@@ -75,6 +78,7 @@ export function ModalFormFooter({
   cancelDisabled = submitDisabled,
   submitUnavailable = false,
   submitReason = null,
+  submitReasonShownById,
   submitWidthClassName,
   error,
   errorId,
@@ -139,6 +143,7 @@ export function ModalFormFooter({
       // A reason keeps the button focusable so it can be read, refusing presses itself
       disabled={submitDisabled || (submitUnavailable && !submitReason)}
       disabledReason={submitDisabled ? undefined : (submitReason ?? submitBlockedReason)}
+      reasonShownById={submitReason ? submitReasonShownById : undefined}
       aria-busy={submitDisabled}
       className={`${tone === 'danger' ? 'app-danger-button' : 'app-primary-button'} shrink-0${submitLabels ? ' relative' : ''}${submitDisabled ? ' app-primary-button-loading justify-self-center sm:justify-self-auto' : ` ${submitLabels ? 'w-full sm:w-(--fit-width)' : submitWidthClassName}`}`}
     >

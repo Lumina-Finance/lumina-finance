@@ -38,7 +38,9 @@ import { API_BASE_URL } from '../support/target'
 const SAMPLE_BANK = 'Harbour Bank'
 const SAMPLE_CHEQUING = 'Everyday Chequing'
 const SAMPLE_VISA = 'Rewards Visa'
-const LINKING_PAUSED = "Bank sync isn't running right now. You can link accounts once it's back."
+const NOT_SET_UP = "Bank sync isn't set up on this server yet."
+const BANK_CONNECTIONS_LINK = 'Open bank connections'
+const BANK_CONNECTIONS_PATH = '/settings#bank-connections'
 const ARCHIVED = 'Archived accounts are read-only'
 
 // How far the page's clock moves at a time while the import test waits on what takes seconds of it,
@@ -583,7 +585,7 @@ test('opens at the bank link with Review settings focused while Sync now is held
     startDate: todayInTestTimezone(),
   })
 
-  // The page reads bank sync as stopped, so it holds Sync now back whatever the import has reached.
+  // The page reads bank sync as not set up, so it holds Sync now back whatever the import has reached.
   // The read lands before the modal opens, so the modal knows which action is held as it focuses one
   await changeProviders(page, (body) => {
     body.sync_running = false
@@ -597,7 +599,16 @@ test('opens at the bank link with Review settings focused while Sync now is held
 
   // Focus passes over Sync now, since it would open the reason over the section
   await expect(dialog.getByRole('button', { name: 'Review settings' })).toBeFocused()
-  await expect(dialog.getByRole('button', { name: 'Sync now' })).toHaveAttribute('aria-disabled', 'true')
+  const syncNow = dialog.getByRole('button', { name: 'Sync now' })
+  await expect(syncNow).toHaveAttribute('aria-disabled', 'true')
+
+  // The reason is printed under the actions with a link to Settings, and Sync now points at it
+  await expect(syncNow).toHaveAccessibleDescription(`${NOT_SET_UP} ${BANK_CONNECTIONS_LINK}`)
+  await expect(dialog.getByText(NOT_SET_UP)).toBeVisible()
+  const settings = dialog.getByRole('link', { name: BANK_CONNECTIONS_LINK })
+  await expect(settings).toHaveAttribute('href', BANK_CONNECTIONS_PATH)
+  await settings.click()
+  await expect(page).toHaveURL(new RegExp(`${BANK_CONNECTIONS_PATH}$`))
 })
 
 /**
@@ -753,7 +764,7 @@ test('opens the link flow on the new account’s page when the new-account promp
   await expect(page.getByRole('dialog')).toHaveCount(0)
 })
 
-test.describe('the reason on Link bank account while bank sync is not running', () => {
+test.describe("the reason on Link bank account while bank sync isn't set up", () => {
   test.beforeEach(async ({ page, request }) => {
     const user = await signUpUser(request)
     const everyday = await createAccount(request, user, { name: 'Everyday' })
@@ -764,23 +775,70 @@ test.describe('the reason on Link bank account while bank sync is not running', 
     await openBankLink(page, everyday.id, 'Not linked')
   })
 
+  test('prints under the button with a link to Settings, Bank connections', AT_EVERY_SIZE, async ({ page }) => {
+    const dialog = page.getByRole('dialog', { name: 'Edit account', exact: true })
+    const link = dialog.getByRole('button', { name: 'Link bank account' })
+    await expect(link).toHaveAccessibleDescription(`${NOT_SET_UP} ${BANK_CONNECTIONS_LINK}`)
+    await expect(dialog.getByText(NOT_SET_UP)).toBeVisible()
+
+    const settings = dialog.getByRole('link', { name: BANK_CONNECTIONS_LINK })
+    await expect(settings).toHaveAttribute('href', BANK_CONNECTIONS_PATH)
+    await settings.click()
+    await expect(page).toHaveURL(new RegExp(`${BANK_CONNECTIONS_PATH}$`))
+
+    // Settings opens with Bank connections at the top of the window, and the sections above it loading
+    // afterwards don't push it down. Beside the side list it sits 32px from the top. At smaller sizes it
+    // sits below the pinned section menu, whose height varies, so only a band is checked there
+    const section = page.locator('#bank-connections')
+    await expect(section.getByRole('status', { name: 'Loading bank connections' })).toHaveCount(0)
+    await expect(page.getByRole('status', { name: /^Loading/ })).toHaveCount(0)
+    const sectionTop = async () => Math.round((await section.boundingBox())?.y ?? -1)
+    if (test.info().project.name === 'desktop') {
+      await expect.poll(sectionTop).toBe(32)
+    } else {
+      await expect.poll(sectionTop).toBeGreaterThanOrEqual(0)
+      await expect.poll(sectionTop).toBeLessThanOrEqual(160)
+    }
+  })
+
   test('shows on hover, and Escape puts it away while the modal stays open', async ({ page }) => {
     const dialog = page.getByRole('dialog', { name: 'Edit account', exact: true })
     const link = dialog.getByRole('button', { name: 'Link bank account' })
     await expect(link).toHaveAttribute('aria-disabled', 'true')
-    await expect(link).toHaveAccessibleDescription(LINKING_PAUSED)
 
     await link.hover()
-    await expect(shownReason(page, LINKING_PAUSED)).toHaveCSS('opacity', '1')
+    await expect(shownReason(page, NOT_SET_UP)).toHaveCSS('opacity', '1')
     await page.keyboard.press('Escape')
     // Faded out, or gone from the page once its fade has ended
-    await expect.poll(() => shownReason(page, LINKING_PAUSED).evaluateAll((nodes) => nodes.every((node) => getComputedStyle(node).opacity === '0'))).toBe(true)
+    await expect.poll(() => shownReason(page, NOT_SET_UP).evaluateAll((nodes) => nodes.every((node) => getComputedStyle(node).opacity === '0'))).toBe(true)
 
     // Pressing it anyway opens nothing, in the modal Escape left open
     await link.click({ force: true })
     await expect(page.getByRole('dialog', { name: 'Link bank account' })).toHaveCount(0)
     await expect(dialog).toBeVisible()
   })
+})
+
+test("keeps the new account's prompt manual while bank sync isn't set up, linking to Settings, Bank connections", async ({ page, request }) => {
+  const user = await signUpUser(request)
+  await changeProviders(page, (body) => {
+    body.sync_running = false
+  })
+  await logInViaApi(page, user)
+  await openPage(page, '/accounts')
+
+  const create = await openModal(page, ['Add account'], 'Add account')
+  await chooseFromDropdown(create, 'Account type', 'Checking')
+  await create.getByLabel('Account name').fill('Everyday')
+  await create.getByRole('button', { name: 'Create account' }).click()
+
+  const prompt = page.getByRole('dialog', { name: 'Keep it up to date' })
+  await expect(prompt.getByRole('radio', { name: /^Link a bank account/ })).toBeDisabled()
+  await expect(prompt.getByRole('radio', { name: /^Link a bank account/ })).toContainText(NOT_SET_UP)
+  const settings = prompt.getByRole('link', { name: BANK_CONNECTIONS_LINK })
+  await expect(settings).toHaveAttribute('href', BANK_CONNECTIONS_PATH)
+  await settings.click()
+  await expect(page).toHaveURL(new RegExp(`${BANK_CONNECTIONS_PATH}$`))
 })
 
 test('holds linking back on an archived account with the reason beside it, listing no bank accounts', async ({ page, request }) => {

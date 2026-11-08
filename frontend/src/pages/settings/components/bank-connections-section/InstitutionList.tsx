@@ -3,7 +3,7 @@ import { AnimatePresence, motion, useReducedMotion } from 'motion/react'
 import { ArrowRight, ChevronRight, CircleHelp, CornerDownRight } from 'lucide-react'
 import { Link } from 'react-router'
 import type { BankConnection, ConnectionBankAccount } from '@/api/bank-sync'
-import { LINKING_PAUSED_REASON } from '@/components/bank-link-flow/constants'
+import { BANK_SYNC_NOT_SET_UP_REASON } from '@/components/bank-link-flow/constants'
 import MarqueeText from '@/components/display/MarqueeText'
 import { SyncStatusDot } from '@/components/display/SyncStatusDot'
 import Dropdown, { type DropdownOption } from '@/components/dropdown/Dropdown'
@@ -68,7 +68,7 @@ interface BankAccountRowProps {
    */
   overLimit: boolean
 
-  /** Holds the dropdown with the reason while bank sync is down */
+  /** Holds the dropdown with the reason while bank sync isn't set up */
   linkingPaused: boolean
 
   /** Set once the link flow has linked it, until its account settles in */
@@ -167,7 +167,7 @@ function BankAccountRow({
                     size="field"
                     labelledBy={nameId}
                     disabled={!canLink || linkingPaused}
-                    disabledReason={linkingPaused ? LINKING_PAUSED_REASON : undefined}
+                    disabledReason={linkingPaused ? BANK_SYNC_NOT_SET_UP_REASON : undefined}
                     onChange={(accountId) => onLink(bankAccount, accountId)}
                   />
                 )}
@@ -333,7 +333,7 @@ interface InstitutionListProps {
   query: string
   accountNameFor: AccountNameLookup
 
-  /** True while bank sync is down. That holds every dropdown with the reason */
+  /** True while bank sync isn't set up. That holds every dropdown with the reason */
   linkingPaused: boolean
 
   /** The bank account just linked through the flow, shown as linking until its account settles in */
@@ -349,7 +349,7 @@ interface InstitutionListProps {
  * detected
  *
  * Nothing can be linked through a rejected connection, nor at an institution the user hasn't linked yet
- * once the institution limit is used up, nor anywhere while bank sync is down
+ * once the institution limit is used up, nor anywhere while bank sync isn't set up
  */
 export function InstitutionList({
   connection,

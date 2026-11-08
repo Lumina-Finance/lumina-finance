@@ -23,6 +23,9 @@ interface ActionFeedbackButtonProps extends Omit<HTMLMotionProps<'button'>, 'chi
   /** Why the button is unavailable, shown in a tooltip beside the cursor, on keyboard focus and on a tap */
   disabledReason?: string | null
 
+  /** The id of an element on the page that already prints the reason, which then describes the button */
+  reasonShownById?: string
+
   /**
    * The hidden labels `useFittedButtonWidth` measures, kept in whatever the status, so a button that
    * first shows its spinner still takes its label's width
@@ -45,6 +48,7 @@ const ActionFeedbackButton = forwardRef<HTMLButtonElement, ActionFeedbackButtonP
     onMouseEnter,
     onMouseLeave,
     onMouseMove,
+    reasonShownById,
     status,
     style,
     successLabel = 'Saved',
@@ -53,7 +57,7 @@ const ActionFeedbackButton = forwardRef<HTMLButtonElement, ActionFeedbackButtonP
   },
   ref,
 ) {
-  const reason = useDisabledReason(disabledReason)
+  const reason = useDisabledReason(disabledReason, reasonShownById)
   const reasonProps = getDisabledReasonProps<HTMLButtonElement>(reason, {
     'aria-describedby': describedBy,
     onClick,

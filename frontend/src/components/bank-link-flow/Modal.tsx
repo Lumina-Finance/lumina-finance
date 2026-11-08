@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useId, useState } from 'react'
 import { Landmark } from 'lucide-react'
 import { useNavigate } from 'react-router'
 import type { AccountsOverview } from '@/api/accounts'
@@ -14,7 +14,8 @@ import {
   type ConnectionBankAccount,
 } from '@/api/bank-sync'
 import { BankAccountStep } from '@/components/bank-link-flow/BankAccountStep'
-import { BANK_CONNECTIONS_SETTINGS_PATH, LINKING_PAUSED_REASON } from '@/components/bank-link-flow/constants'
+import { BankSyncNotSetUp } from '@/components/bank-link-flow/BankSyncNotSetUp'
+import { BANK_CONNECTIONS_SETTINGS_PATH, BANK_SYNC_NOT_SET_UP_REASON } from '@/components/bank-link-flow/constants'
 import { StartStep } from '@/components/bank-link-flow/StartStep'
 import { useStartChoice } from '@/components/bank-link-flow/useStartChoice'
 import {
@@ -127,8 +128,11 @@ export function BankLinkFlowModal({
 
   const busy = link.isPending
 
-  // Linking waits for the worker that imports the history, so it pauses while the worker is down
+  // Linking waits for the worker that imports the history, so it is held back while bank sync isn't
+  // set up. Opened from Settings it gives the reason alone. Anywhere else it also links to Settings
   const linkingPaused = providers !== undefined && !providers.sync_running
+  const notSetUpReasonId = useId()
+  const showsNotSetUp = step === 'start' && linkingPaused
 
   const goTo = (next: LinkFlowStep) => {
     setError(null)
@@ -199,7 +203,8 @@ export function BankLinkFlowModal({
           submitLabels={[...new Set(['Continue', 'Open settings', 'Close', primary.label])]}
           submitDisabled={busy}
           submitUnavailable={primary.unavailable}
-          submitReason={step === 'start' && linkingPaused ? LINKING_PAUSED_REASON : null}
+          submitReason={showsNotSetUp ? BANK_SYNC_NOT_SET_UP_REASON : null}
+          submitReasonShownById={notSetUpReasonId}
           submitWidthClassName="w-full sm:w-40"
           error={error}
           level="stacked"
@@ -271,6 +276,14 @@ export function BankLinkFlowModal({
                   </LoadingRegion>
                 ))}
             </StepTransition>
+            {showsNotSetUp &&
+              (chosen ? (
+                <p id={notSetUpReasonId} className="pt-3 text-sm" style={{ color: 'var(--app-text-muted)' }}>
+                  {BANK_SYNC_NOT_SET_UP_REASON}
+                </p>
+              ) : (
+                <BankSyncNotSetUp id={notSetUpReasonId} className="pt-3" onNavigate={onClose} />
+              ))}
           </div>
         </LoadingRegion>
       )}

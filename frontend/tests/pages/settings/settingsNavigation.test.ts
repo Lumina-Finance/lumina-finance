@@ -3,7 +3,15 @@
  * bank-linking check refuses, or held back from everyone while the check loads
  */
 import { describe, expect, it } from 'vitest'
-import { listSettingsSections, SETTINGS_SECTIONS } from '@/pages/settings/settingsNavigation'
+import { isHeldWhenLinked, listSettingsSections, SETTINGS_SECTIONS } from '@/pages/settings/settingsNavigation'
+
+describe('sections held when linked', () => {
+  it('holds only Bank connections, so a link to any other section scrolls once as it always has', () => {
+    expect(SETTINGS_SECTIONS.filter((section) => isHeldWhenLinked(section.id)).map((section) => section.id)).toEqual([
+      'bank-connections',
+    ])
+  })
+})
 
 describe('settings sections', () => {
   it('leaves out Bank connections when the bank-linking check refuses the user', () => {

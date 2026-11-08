@@ -3,6 +3,7 @@ import { AnimatePresence, motion, useReducedMotion } from 'motion/react'
 import { Plus } from 'lucide-react'
 import { useAccounts } from '@/api/accounts'
 import { useBankConnections, useBankProviders, type BankConnection } from '@/api/bank-sync'
+import { BANK_SYNC_NOT_SET_UP_REASON } from '@/components/bank-link-flow/constants'
 import LoadFailure from '@/components/errors/LoadFailure'
 import { GlassSearchField } from '@/components/list-controls/GlassSearchField'
 import LoadingRegion from '@/components/loading/Region'
@@ -27,8 +28,8 @@ import { useMeasuredHeight } from '@/pages/settings/components/shared/hooks/useM
  *
  * Only providers the server offers for new connections can be added, and only those connected here
  * rather than from an account's own link flow. A provider no longer offered stays listed for users who
- * already connected it. While the sync worker is down, adding a connection and linking a bank account
- * wait for it, since nothing would import or sync what they set up, and existing connections can still
+ * already connected it. While bank sync isn't set up, adding a connection and linking a bank account
+ * are held back with the reason, since nothing would import or sync what they set up, and existing connections can still
  * be renamed, reconnected and disconnected
  */
 export function BankConnectionsSection() {
@@ -46,9 +47,9 @@ export function BankConnectionsSection() {
     ? providers.providers.filter((provider) => provider.offered && provider.connects_from === 'settings')
     : []
   const noneOffered = providers !== undefined && offeredProviders.length === 0
-  const workerDown = providers !== undefined && offeredProviders.length > 0 && !providers.sync_running
-  const addReason = workerDown
-    ? "Bank sync isn't running right now. You can add one once it's back."
+  const notSetUp = providers !== undefined && offeredProviders.length > 0 && !providers.sync_running
+  const addReason = notSetUp
+    ? BANK_SYNC_NOT_SET_UP_REASON
     : !providers && providersError
       ? 'Bank providers could not load. Reload the page to try again.'
       : null

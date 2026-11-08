@@ -5,10 +5,11 @@ import { useNavigate } from 'react-router'
 import { StartingBalanceNotSavedError, useRecordStartingBalance, type AccountsOverview } from '@/api/accounts'
 import { ApiError } from '@/api/auth'
 import { useBankConnections, useBankProviders } from '@/api/bank-sync'
+import { BankConnectionsLink } from '@/components/bank-link-flow/BankSyncNotSetUp'
 import { ChoiceCard } from '@/components/bank-link-flow/ChoiceCard'
 import {
+  BANK_SYNC_NOT_SET_UP_REASON,
   GROUP_ACCOUNT_LINK_REASON,
-  LINKING_PAUSED_REASON,
   NOTHING_TO_LINK_REASON,
 } from '@/components/bank-link-flow/constants'
 import CreateModalFieldLabelRow from '@/components/create-modal/FieldLabelRow'
@@ -86,7 +87,7 @@ export default function NewAccountPromptModal({ open, account, onClose, onExitCo
   const balanceError = typedMinus ? 'Must be zero or higher' : undefined
 
   // Linking is offered to a user the bank-linking check allows, on a deployment with a provider. It is
-  // refused, saying why, for a group account, while bank sync isn't running, as the account page's
+  // refused, saying why, for a group account, while bank sync isn't set up, as the account page's
   // Link bank account is, and when there is no working connection to link through and no provider
   // open to a new one. A failed read leaves the account manual rather than holding the prompt back
   const offersLink = providers !== undefined && providers.may_link && providers.providers.length > 0
@@ -94,7 +95,7 @@ export default function NewAccountPromptModal({ open, account, onClose, onExitCo
   const linkReason = !(user !== null && isOwnPersonalAccount(account, user.id))
     ? GROUP_ACCOUNT_LINK_REASON
     : providers?.sync_running === false
-      ? LINKING_PAUSED_REASON
+      ? BANK_SYNC_NOT_SET_UP_REASON
       : !hasWorkingConnection && !providers?.providers.some((provider) => provider.offered)
         ? NOTHING_TO_LINK_REASON
         : null
@@ -192,19 +193,28 @@ export default function NewAccountPromptModal({ open, account, onClose, onExitCo
       {offersLink ? (
         <div className="pb-2">
           <div className="space-y-3" role="radiogroup" aria-label="How this account stays up to date">
-            <ChoiceCard
-              selected={choice === 'bank'}
-              disabled={linkReason !== null || recordStartingBalance.isPending}
-              onSelect={() => setChosen('bank')}
-            >
-              <span className="block text-sm font-medium" style={{ color: 'var(--app-text)' }}>
-                Link a bank account
-              </span>
-              <span className="block text-xs" style={{ color: 'var(--app-text-muted)' }}>
-                {linkReason ??
-                  'Choose one of the bank accounts on your connections. Transactions arrive from the bank and wait for your review, and once the import is reviewed the app offers to line up the opening balance.'}
-              </span>
-            </ChoiceCard>
+            <div>
+              <ChoiceCard
+                selected={choice === 'bank'}
+                disabled={linkReason !== null || recordStartingBalance.isPending}
+                onSelect={() => setChosen('bank')}
+              >
+                <span className="block text-sm font-medium" style={{ color: 'var(--app-text)' }}>
+                  Link a bank account
+                </span>
+                <span className="block text-xs" style={{ color: 'var(--app-text-muted)' }}>
+                  {linkReason ??
+                    'Choose one of the bank accounts on your connections. Transactions arrive from the bank and wait for your review, and once the import is reviewed the app offers to line up the opening balance.'}
+                </span>
+              </ChoiceCard>
+              {/* Outside the card, since a link can't sit inside its button. The card prints the reason,
+                  and the link starts where the card's text does, under the radio mark */}
+              {linkReason === BANK_SYNC_NOT_SET_UP_REASON && (
+                <p className="mt-1.5 pl-[2.625rem] text-xs">
+                  <BankConnectionsLink onNavigate={onClose} />
+                </p>
+              )}
+            </div>
             <ChoiceCard
               selected={choice === 'manual'}
               disabled={recordStartingBalance.isPending}

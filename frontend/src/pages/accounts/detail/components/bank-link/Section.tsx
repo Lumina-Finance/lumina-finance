@@ -14,10 +14,11 @@ import {
   type BankSyncState,
   type OpeningAdjustment,
 } from '@/api/bank-sync'
+import { BankSyncNotSetUp } from '@/components/bank-link-flow/BankSyncNotSetUp'
 import {
   BANK_CONNECTIONS_SETTINGS_PATH,
+  BANK_SYNC_NOT_SET_UP_REASON,
   GROUP_ACCOUNT_LINK_REASON,
-  LINKING_PAUSED_REASON,
 } from '@/components/bank-link-flow/constants'
 import { BankLinkFlowModal } from '@/components/bank-link-flow/Modal'
 import { Unfold } from '@/components/display/Unfold'
@@ -45,6 +46,7 @@ import { useAccountBankLink } from '@/pages/accounts/detail/components/bank-link
 import { useLingeringImport } from '@/pages/accounts/detail/components/bank-link/useLingeringImport'
 import { EditModalSection } from '@/pages/accounts/detail/components/edit-identity/layout/Section'
 import { IdentityFacts } from '@/pages/accounts/detail/components/identity/Facts'
+import { describeSyncNowBlock, isBankSyncNotSetUp } from '@/pages/accounts/detail/components/bank-link/syncNow'
 import { PROVIDER_UNAVAILABLE_DETAIL, providerSiteName } from '@/utils/bankSync'
 import { DATE_FORMATS, formatDate, formatDateLabel } from '@/utils/date'
 
@@ -111,6 +113,8 @@ function LinkedView({
   const navigate = useNavigate()
   const viewRef = useRef<HTMLDivElement>(null)
   const actionsRef = useRef<HTMLDivElement>(null)
+  const notSetUpReasonId = useId()
+  const syncNotSetUp = describeSyncNowBlock(link, connection, providers) === BANK_SYNC_NOT_SET_UP_REASON
   const shownImport = useLingeringImport(link.import, link.state)
   const { state, paused, review_warning: warned } = link.sync
   const waiting = link.sync.waiting_new_count.toLocaleString()
@@ -275,6 +279,7 @@ function LinkedView({
           connection={connection}
           providers={providers}
           focusProps={{ ...ACTION_PROPS, ...initialFocus }}
+          notSetUpReasonId={notSetUpReasonId}
         />
         <button
           type="button"
@@ -291,6 +296,13 @@ function LinkedView({
           Unlink
         </button>
       </div>
+      <AnimatePresence initial={false}>
+        {syncNotSetUp && (
+          <Unfold key="not-set-up">
+            <BankSyncNotSetUp id={notSetUpReasonId} className="pt-3" />
+          </Unfold>
+        )}
+      </AnimatePresence>
     </div>
   )
 }
@@ -339,10 +351,15 @@ export function BankLinkSection({ account, sectionNumber, autoFocus = false }: B
 
   const link = status?.link ?? null
   const previous = status?.previous_link ?? null
-  const linkingPaused = providers !== undefined && !providers.sync_running
-  // Archiving lasts, so its reason sits beside the button. A pause passes, so it waits in a tooltip
-  const archivedReasonId = useId()
-  const linkBlockReason = account.is_archived ? ARCHIVED_REASON : linkingPaused ? LINKING_PAUSED_REASON : undefined
+  const linkingPaused = isBankSyncNotSetUp(providers)
+  // Both reasons last, so the one that holds the button back is printed under it, with the tooltip
+  // and the button's description pointing at that text
+  const blockReasonId = useId()
+  const linkBlockReason = account.is_archived
+    ? ARCHIVED_REASON
+    : linkingPaused
+      ? BANK_SYNC_NOT_SET_UP_REASON
+      : undefined
 
   const openLinkFlow = () => {
     setLinkFlowKey((key) => key + 1)
@@ -429,16 +446,18 @@ export function BankLinkSection({ account, sectionNumber, autoFocus = false }: B
                     {...ACTION_PROPS}
                     {...initialFocus}
                     disabledReason={linkBlockReason}
-                    reasonShownById={account.is_archived ? archivedReasonId : undefined}
+                    reasonShownById={linkBlockReason ? blockReasonId : undefined}
                     onClick={openLinkFlow}
                   >
                     <Link2 size={16} aria-hidden />
                     {previous ? 'Reconnect bank account' : 'Link bank account'}
                   </DisabledReasonButton>
-                  {account.is_archived && (
-                    <p id={archivedReasonId} className="text-sm" style={{ color: 'var(--app-text-muted)' }}>
+                  {account.is_archived ? (
+                    <p id={blockReasonId} className="text-sm" style={{ color: 'var(--app-text-muted)' }}>
                       {ARCHIVED_REASON}
                     </p>
+                  ) : (
+                    linkingPaused && <BankSyncNotSetUp id={blockReasonId} />
                   )}
                 </div>
               )}

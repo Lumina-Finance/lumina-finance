@@ -5,7 +5,7 @@
  *
  * These tests catch a group account offered a link, the previous link's bank account, provider or
  * date dropped from the relink text, the relink button worded as a first link, an archived account
- * or a paused worker leaving the button live, a failed read offering a link as if there were none,
+ * or bank sync not being set up leaving the button live or its reason without the link to Settings, a failed read offering a link as if there were none,
  * a linked view missing a fact, its status, Review settings or the running import, Review settings
  * offered on an account with no link, an import shown while a retry or a
  * stop holds it or dropped before it shows as done, a notice missing, worded unlike the issue, or shown for a link it doesn't apply to,
@@ -16,7 +16,7 @@
  * Sync now left live for something the server refuses or without the reason, a spent budget blamed
  * on the wrong request limit, a reason of two
  * sentences ending without the full stop the others of two have, held back by a bank
- * sign-in, left greyed once its requests free up, spinning while the worker is down, even for this
+ * sign-in, left greyed once its requests free up, spinning while bank sync isn't set up, even for this
  * window's press, held back by the sync its own press started rather than reading Sync started, or
  * dropping the focus it holds or the width it measures while the sync starts. Opening the flow, the tooltip,
  * the review settings, unlinking, pressing Sync now and dismissing a reminder run in the browser
@@ -29,11 +29,15 @@ import type { Account } from '@/api/accounts'
 import type { AccountBankStatus, BankConnection, BankProvidersResponse } from '@/api/bank-sync'
 import { bankSyncKeys, currencyKeys } from '@/api/cache/queryKeys'
 import type { Currency } from '@/api/currency'
-import { GROUP_ACCOUNT_LINK_REASON, LINKING_PAUSED_REASON } from '@/components/bank-link-flow/constants'
+import {
+  BANK_CONNECTIONS_SETTINGS_PATH,
+  BANK_SYNC_NOT_SET_UP_REASON,
+  GROUP_ACCOUNT_LINK_REASON,
+} from '@/components/bank-link-flow/constants'
 import { AuthContext, type AuthContextValue } from '@/contexts/AuthContext'
 import { ToastContext, type ToastValue } from '@/contexts/ToastContext'
 import { BankLinkSection } from '@/pages/accounts/detail/components/bank-link/Section'
-import { describeSyncNow, SYNC_PAUSED_REASON } from '@/pages/accounts/detail/components/bank-link/syncNow'
+import { describeSyncNow } from '@/pages/accounts/detail/components/bank-link/syncNow'
 import { PROVIDER_UNAVAILABLE_DETAIL } from '@/utils/bankSync'
 import {
   createAccount,
@@ -109,6 +113,16 @@ const NOTICES = [RECONNECT_NOTICE, CHOOSE_NOTICE, SIGN_IN_NOTICE, PAUSED_NOTICE,
 // Static rendering escapes apostrophes, so text is matched against the escaped form
 function escaped(text: string): string {
   return text.replaceAll("'", '&#x27;')
+}
+
+// The paragraph a held-back button names as its description: the reason, then a link to where
+// bank sync is set up
+function expectNotSetUpNote(markup: string, button: string): void {
+  const reasonId = button.match(/aria-describedby="([^"]+)"/)?.[1]
+  const note = markup.split(`<p id="${reasonId}"`)[1]?.split('</p>')[0] ?? ''
+  expect(note).toContain(escaped(BANK_SYNC_NOT_SET_UP_REASON))
+  expect(note).toContain(`href="${BANK_CONNECTIONS_SETTINGS_PATH}"`)
+  expect(note).toContain('Open bank connections')
 }
 
 // Writes a date as the reminders do, with non-breaking spaces, so a phone never wraps it between its
@@ -217,8 +231,8 @@ describe('BankLinkSection', () => {
     expect(markup).not.toContain('Link bank account')
   })
 
-  it('refuses a link on an archived account, and while the sync worker is down, saying why', () => {
-    // Archiving lasts, so its reason sits beside the button as the button's description
+  it("refuses a link on an archived account, and while bank sync isn't set up, saying why under the button", () => {
+    // Both reasons last, so each sits under the button as the button's description
     const archived = renderSection(createAccount({ is_archived: true }))
     const archivedButton = getButton(archived, 'Link bank account')
     expect(archivedButton).toContain('aria-disabled="true"')
@@ -229,8 +243,10 @@ describe('BankLinkSection', () => {
 
     read.providers = createProviders({ sync_running: false })
     const paused = renderSection()
-    expect(getButton(paused, 'Link bank account')).toContain('aria-disabled="true"')
-    expect(paused).toContain(escaped(LINKING_PAUSED_REASON))
+    const pausedButton = getButton(paused, 'Link bank account')
+    expect(pausedButton).toContain('aria-disabled="true"')
+    expectNotSetUpNote(paused, pausedButton)
+    expect(archived).not.toContain('Open bank connections')
   })
 
   it('marks its control for the modal to focus only when the modal opens at the bank link', () => {
@@ -591,13 +607,19 @@ describe('BankLinkSection', () => {
       'a sync asked for in any window, which nothing starts until the worker is back',
       createSync({ sync_requested: true }),
     ],
-  ])('disables Sync now while the sync worker is down, with %s, saying why', (_, sync) => {
+  ])("disables Sync now while bank sync isn't set up, with %s, saying why under the actions", (_, sync) => {
     read.status = linkSynced(sync)
     read.providers = createProviders({ sync_running: false })
     const markup = renderSection()
     expect(getSyncNowButton(markup)).toContain('aria-disabled="true"')
     expect(getSyncNowButton(markup)).not.toContain('aria-label="Starting sync"')
-    expect(markup).toContain(escaped(SYNC_PAUSED_REASON))
+    expectNotSetUpNote(markup, getSyncNowButton(markup))
+  })
+
+  it('prints no reason under the actions while another reason holds Sync now back first', () => {
+    read.status = linkSynced(createSync({ state: 'syncing', sync_running: true }))
+    read.providers = createProviders({ sync_running: false })
+    expect(renderSection()).not.toContain('Open bank connections')
   })
 
   it.each([
@@ -643,12 +665,12 @@ describe('describeSyncNow', () => {
     })
   })
 
-  it("stops reading as starting this window's sync once the worker is down, saying why instead", () => {
+  it("stops reading as starting this window's sync once bank sync isn't set up, saying why instead", () => {
     const link = createLink({ sync: createSync({ sync_requested: true }) })
     const providers = createProviders({ sync_running: false })
     expect(describeSyncNow('loading', link, createConnection(), providers)).toEqual({
       status: 'idle',
-      block: SYNC_PAUSED_REASON,
+      block: BANK_SYNC_NOT_SET_UP_REASON,
     })
   })
 })

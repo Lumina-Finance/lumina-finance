@@ -2,6 +2,7 @@ import { useEffect, useReducer } from 'react'
 import { RefreshCw } from 'lucide-react'
 import { ApiError } from '@/api/auth'
 import { useSyncBankAccount, type BankConnection, type BankLink, type BankProvidersResponse } from '@/api/bank-sync'
+import { BANK_SYNC_NOT_SET_UP_REASON } from '@/components/bank-link-flow/constants'
 import ActionFeedbackButton from '@/components/feedback/ActionButton'
 import { useActionFeedback } from '@/hooks/useActionFeedback'
 import { useFittedButtonWidth } from '@/hooks/useFittedButtonWidth'
@@ -36,6 +37,9 @@ type SyncNowButtonProps = {
    * the button to the next action, as it passes over a field held with its reason
    */
   focusProps: Record<string, string>
+
+  /** The id of the line under the actions that prints the reason bank sync isn't set up */
+  notSetUpReasonId: string
 }
 
 /**
@@ -46,9 +50,10 @@ type SyncNowButtonProps = {
  * modal. Whatever holds the sync back disables it without the attribute too, with its reason in a
  * tooltip, and a press the server refuses says why in a toast. A spent request budget lets it go
  * once a request frees up, whether or not the connection has been read again since, and its reason is
- * worded again each minute until then, so when more requests are available stays current
+ * worded again each minute until then, so when more requests are available stays current. When bank
+ * sync isn't set up the reason is printed under the actions, so the button points at that line
  */
-export function SyncNowButton({ link, connection, providers, focusProps }: SyncNowButtonProps) {
+export function SyncNowButton({ link, connection, providers, focusProps, notSetUpReasonId }: SyncNowButtonProps) {
   const sync = useSyncBankAccount()
   const feedback = useActionFeedback()
   const { showToast } = useToast()
@@ -84,6 +89,7 @@ export function SyncNowButton({ link, connection, providers, focusProps }: SyncN
       {...actionProps}
       data-modal-initial-focus={block === null ? initialFocus : undefined}
       disabledReason={block}
+      reasonShownById={block === BANK_SYNC_NOT_SET_UP_REASON ? notSetUpReasonId : undefined}
       onClick={busy ? undefined : syncNow}
     >
       <span className="inline-flex items-center gap-2">{renderLabel(SYNC_NOW_LABEL)}</span>

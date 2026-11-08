@@ -1,5 +1,8 @@
-/** Why a bank account can't be linked while the bank sync worker is down, wherever linking is offered */
-export const LINKING_PAUSED_REASON = "Bank sync isn't running right now. You can link accounts once it's back."
+/**
+ * Why bank actions that need the sync worker are held back, wherever they are offered. The app reads
+ * the worker as missing when none has checked in lately, which on a server with none stays so
+ */
+export const BANK_SYNC_NOT_SET_UP_REASON = "Bank sync isn't set up on this server yet."
 
 /** Why a group account can't be linked, wherever linking it would be offered */
 export const GROUP_ACCOUNT_LINK_REASON = "Accounts shared with a group can't be linked to a bank yet."

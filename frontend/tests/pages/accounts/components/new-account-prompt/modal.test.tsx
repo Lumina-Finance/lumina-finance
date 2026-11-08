@@ -5,8 +5,8 @@
  *
  * These tests catch linking offered to a user who fails the bank-linking check or on a deployment with
  * no provider, a group account, one with nothing to link to or one asked while bank sync isn't
- * running left able to choose linking or without the reason, a group account told it can link once
- * bank sync is back, a rejected connection counted as one
+ * set up left able to choose linking or without the reason, bank sync's reason without the link to
+ * Settings, a group account sent to Settings for what it can't do there, a rejected connection counted as one
  * that can link, Keep it manual chosen by default
  * when linking is available, its starting balance shown before it is chosen, a liability's field not
  * asking for the amount owed, and the prompt opening before the bank reads settle. Choosing,
@@ -14,12 +14,14 @@
  */
 import type { ReactNode } from 'react'
 import { renderToStaticMarkup } from 'react-dom/server'
+import { MemoryRouter } from 'react-router'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { AccountsOverview } from '@/api/accounts'
 import type { BankConnection, BankProvidersResponse } from '@/api/bank-sync'
 import {
+  BANK_CONNECTIONS_SETTINGS_PATH,
+  BANK_SYNC_NOT_SET_UP_REASON,
   GROUP_ACCOUNT_LINK_REASON,
-  LINKING_PAUSED_REASON,
   NOTHING_TO_LINK_REASON,
 } from '@/components/bank-link-flow/constants'
 import NewAccountPromptModal from '@/pages/accounts/components/new-account-prompt/Modal'
@@ -69,7 +71,9 @@ function escaped(text: string): string {
 
 function renderPrompt(account: AccountsOverview = createAccount()): string {
   return renderToStaticMarkup(
-    <NewAccountPromptModal open account={account} onClose={() => {}} onExitComplete={() => {}} />,
+    <MemoryRouter>
+      <NewAccountPromptModal open account={account} onClose={() => {}} onExitComplete={() => {}} />
+    </MemoryRouter>,
   )
 }
 
@@ -121,21 +125,23 @@ describe('NewAccountPromptModal', () => {
     expect(link).toContain(NOTHING_TO_LINK_REASON)
   })
 
-  it('refuses linking while bank sync is not running, keeping it manual with its starting balance', () => {
+  it("refuses linking while bank sync isn't set up, linking to Settings and keeping it manual with its starting balance", () => {
     reads.providers = { ...createProviders(), sync_running: false }
     const markup = renderPrompt()
     const link = getRadio(markup, 'Link a bank account')
     expect(link).toContain('disabled=""')
-    expect(link).toContain(escaped(LINKING_PAUSED_REASON))
+    expect(link).toContain(escaped(BANK_SYNC_NOT_SET_UP_REASON))
+    expect(markup).toContain(`href="${BANK_CONNECTIONS_SETTINGS_PATH}"`)
+    expect(markup).toContain('Open bank connections')
     expect(getRadio(markup, 'Keep it manual')).toContain('aria-checked="true"')
     expect(markup).toContain('Starting balance')
   })
 
-  it('refuses linking a group account for being one while bank sync is not running too', () => {
+  it("refuses linking a group account for being one while bank sync isn't set up too, with no link to Settings", () => {
     reads.providers = { ...createProviders(), sync_running: false }
-    expect(getRadio(renderPrompt(createAccount({ group_id: 'group-1' })), 'Link a bank account')).toContain(
-      escaped(GROUP_ACCOUNT_LINK_REASON),
-    )
+    const markup = renderPrompt(createAccount({ group_id: 'group-1' }))
+    expect(getRadio(markup, 'Link a bank account')).toContain(escaped(GROUP_ACCOUNT_LINK_REASON))
+    expect(markup).not.toContain('Open bank connections')
   })
 
   it('offers linking through a working connection after its provider stops taking new ones', () => {
