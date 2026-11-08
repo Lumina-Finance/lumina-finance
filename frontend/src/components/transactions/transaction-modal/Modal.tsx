@@ -682,6 +682,7 @@ export default function CreateTransactionModal({
                 accountError={topAccountField.error}
                 accountPlaceholder={accounts.length === 0 ? 'No accounts yet' : 'Select account...'}
                 isAccountLocked={Boolean(reviewItem)}
+                isAccountErrorLong={Boolean(bankMoveRefusal)}
                 runningBalance={topAccountField.runningBalance}
                 kind={form.kind}
 

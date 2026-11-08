@@ -35,6 +35,9 @@ interface TransactionReferencesSectionProps {
 
   // Holds the account where it is, for a bank item. The item belongs to the account whose feed it came from
   isAccountLocked: boolean
+
+  // Set while the account's problem is the long refusal to move a bank item, which wraps beside the whole label
+  isAccountErrorLong: boolean
   runningBalance?: { amount: number; currency: string }
 
   // Set instead of the one above when a paired transfer puts the recorded account in the second slot
@@ -154,6 +157,7 @@ export default function TransactionReferencesSection({
   accountError,
   accountPlaceholder,
   isAccountLocked,
+  isAccountErrorLong,
   runningBalance,
   counterpartyAccountRunningBalance,
   kind,
@@ -247,6 +251,7 @@ export default function TransactionReferencesSection({
           }
           error={accountError}
           errorId={TRANSACTION_MODAL_ERROR_IDS.account_id}
+          keepsLabelWhole={isAccountErrorLong}
         />
         <Dropdown
           id={TRANSACTION_MODAL_FIELD_IDS.account}

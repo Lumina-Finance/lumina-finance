@@ -22,6 +22,9 @@ interface CreateModalFieldLabelRowProps {
   // Id of a segmented control the label stands over in place of htmlFor, whose chosen option a click
   // on the label brings into focus
   optionGroupId?: string
+
+  /** Never narrower than the label, so a long error wraps beside it with the row's gap between */
+  keepsLabelWhole?: boolean
 }
 
 /**
@@ -36,6 +39,7 @@ export default function CreateModalFieldLabelRow({
   htmlFor,
   label,
   optionGroupId,
+  keepsLabelWhole = false,
 }: CreateModalFieldLabelRowProps) {
   const stacksOnNarrowLayouts = Boolean(action) && !error
 
@@ -46,8 +50,7 @@ export default function CreateModalFieldLabelRow({
         stacksOnNarrowLayouts && 'flex-col gap-1.5 sm:flex-row sm:items-end sm:gap-3',
       )}
     >
-      {/* Never narrower than the label, so a long error wraps beside it with the row's gap between */}
-      <div className="relative flex shrink-0 items-center gap-1.5">
+      <div className={joinClassNames('relative flex items-center gap-1.5', keepsLabelWhole ? 'shrink-0' : 'min-w-0')}>
         <label
           id={htmlFor && getFieldLabelId(htmlFor)}
           htmlFor={htmlFor}
