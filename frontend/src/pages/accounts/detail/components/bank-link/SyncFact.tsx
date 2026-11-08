@@ -4,6 +4,7 @@ import { AnimatePresence, motion, useReducedMotion } from 'motion/react'
 import { SyncStatusDot } from '@/components/display/SyncStatusDot'
 import IconTooltip from '@/components/tooltips/IconTooltip'
 import type { BankSyncLabel } from '@/pages/accounts/detail/components/bank-link/status'
+import { CONTENT_EASE_CURVE, CONTENT_EASE_MS } from '@/utils/widthEase'
 
 const LABEL_EASE = [0.22, 1, 0.36, 1] as const
 const LABEL_DURATION_S = 0.2
@@ -21,6 +22,9 @@ type SyncFactProps = {
 
   /** Makes the value a way into the bank link section */
   onOpen?: () => void
+
+  /** Fades the fact in and out as it comes and goes. Give it a key inside an `AnimatePresence` */
+  fades?: boolean
 }
 
 /**
@@ -72,7 +76,17 @@ function SlidingLabel({ label }: { label: string }) {
  * The account's bank sync as one of its facts, across the full width, set out like the facts beside
  * it apart from the dot
  */
-export function SyncFact({ name, sync, showsDetails = false, onOpen }: SyncFactProps) {
+export function SyncFact({ name, sync, showsDetails = false, onOpen, fades = false }: SyncFactProps) {
+  const prefersReducedMotion = useReducedMotion()
+  // Played by the fact's own element, so a list of facts holds only the fact's own div
+  const fadeProps = fades
+    ? {
+        initial: { opacity: 0 },
+        animate: { opacity: 1 },
+        exit: { opacity: 0 },
+        transition: { duration: prefersReducedMotion ? 0 : CONTENT_EASE_MS / 1000, ease: CONTENT_EASE_CURVE },
+      }
+    : {}
   // A label ending in an abbreviation, such as a retry at 10:12 p.m., already ends its sentence
   const sentence = sync.label.endsWith('.') ? sync.label : `${sync.label}.`
   const value = (
@@ -83,7 +97,7 @@ export function SyncFact({ name, sync, showsDetails = false, onOpen }: SyncFactP
   )
 
   return (
-    <div className="col-span-2 min-w-0">
+    <motion.div className="col-span-2 min-w-0" {...fadeProps}>
       <dt className="text-xs font-medium uppercase" style={{ color: 'var(--app-text-subtle)' }}>
         {name}
       </dt>
@@ -120,6 +134,6 @@ export function SyncFact({ name, sync, showsDetails = false, onOpen }: SyncFactP
           </IconTooltip>
         )}
       </dd>
-    </div>
+    </motion.div>
   )
 }
