@@ -17,13 +17,18 @@ const ACCOUNT_NAME = 'Everyday'
 
 // On a tablet the dialog has room for the panel under the Identity, Details and Archive sections, and
 // on a phone those sections fill it, so the panel opens below what it shows. The last size is the one
-// the typed-name step is checked at
+// the typed-name step is checked at. Bank sync offered adds the bank link section, which takes the room
+// a 1024px tablet had, so that size is checked with bank sync not offered and a taller tablet with it.
+// Each phone size is checked without bank sync, and the shorter one with it too
 const DIALOG_SIZES = [
-  // Taller than a 1024px tablet, since the dialogue's bank link section takes the room the panel had there
-  { width: 768, height: 1180, hasRoom: true },
-  { width: 390, height: 844, hasRoom: false },
-  { width: 390, height: 667, hasRoom: false },
+  { width: 768, height: 1024, hasRoom: true, bankSync: false },
+  { width: 768, height: 1180, hasRoom: true, bankSync: true },
+  { width: 390, height: 844, hasRoom: false, bankSync: false },
+  { width: 390, height: 667, hasRoom: false, bankSync: true },
+  { width: 390, height: 667, hasRoom: false, bankSync: false },
 ]
+
+const PROVIDERS_URL = `${API_BASE_URL}/bank-sync/providers`
 
 /** Open the account's edit dialog */
 async function openEditDialog(page: Page, accountId: string) {
@@ -57,10 +62,13 @@ test('brings the delete confirmation into view and moves focus through its steps
   await createTransaction(request, user, { accountId: account.id, categoryName: 'Groceries', amount: -5000 })
   await logInViaApi(page, user)
 
-  for (const { hasRoom, ...size } of DIALOG_SIZES) {
+  for (const { hasRoom, bankSync, ...size } of DIALOG_SIZES) {
     const at = `${size.width}×${size.height}`
     await page.setViewportSize(size)
+    if (bankSync) await page.unroute(PROVIDERS_URL)
+    else await page.route(PROVIDERS_URL, (route) => route.fulfill({ json: { may_link: false, providers: [] } }))
     const dialog = await openEditDialog(page, account.id)
+    await expect.soft(dialog.getByText('Bank link', { exact: true }), `bank link section at ${at}`).toHaveCount(bankSync ? 1 : 0)
     const firstField = dialog.getByLabel('Account name', { exact: true })
     const before = await readScrollingBox(firstField)
     await pressTrash(dialog)
