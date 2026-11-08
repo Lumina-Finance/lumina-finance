@@ -204,6 +204,18 @@ test('opens a new item as the bank sent it beside its filing card, and adds noth
   expect(await readWaiting(request, user, everyday.id)).toEqual([COUNTDOWN.description])
 })
 
+test('opens a bank description over 500 characters whole in Notes, and takes typing after it', async ({ page, request }) => {
+  const long = { ...HARBOUR, description: `HARBOUR COFFEE ${'REF '.repeat(130)}`.trim() }
+  await start(page, request, [long])
+  await openPage(page, '/transactions')
+
+  const { notes } = formOf(await openReview(page, 'HARBOUR COFFEE'))
+  await expect(notes).toHaveValue(long.description)
+  await notes.press('End')
+  await notes.pressSequentially(' paid')
+  await expect(notes).toHaveValue(`${long.description} paid`)
+})
+
 test('adds an item with its date and amount changed, and with the window kept open goes on through the new items until none are left', async ({ page, request }) => {
   const { user, everyday } = await start(page, request, [COUNTDOWN, HARBOUR])
   await openPage(page, '/transactions')
