@@ -109,7 +109,7 @@ export default function AccountRow({
     `${descriptionId}-metadata`,
     `${descriptionId}-balance`,
     showConvertedBalance && `${descriptionId}-converted`,
-    showCreditLimit && account.credit_limit !== null && `${descriptionId}-credit`,
+    availableCreditText && `${descriptionId}-credit`,
   ]
     .filter(Boolean)
     .join(' ')
@@ -187,13 +187,14 @@ export default function AccountRow({
               <EyeOff size={13} className="shrink-0" style={{ color: 'var(--app-text-muted)' }} aria-hidden />
             )}
             <p
+              id={`${descriptionId}-metadata`}
               ref={setMetaLine}
               className="min-w-0 flex-1 text-sm [overflow-wrap:anywhere] min-[750px]:flex-none min-[750px]:truncate"
               style={{ color: 'var(--app-text-muted)' }}
             >
-              {/* Only the type and bank describe the link from here. The credit available is read from its
-                  own line below, which keeps its full text whatever form a phone shows here */}
-              <span id={`${descriptionId}-metadata`}>{metadataLabel}</span>
+              {/* The link is described by this whole line, so on a phone it reads the form of the credit
+                  available the line draws, or none, and the line under the balance reads it on wider screens */}
+              <span>{metadataLabel}</span>
               {/* On a phone the credit still available follows the type, shortened to the longest form
                   that keeps the line from wrapping, and left out when none does */}
               {availableCreditForms && (
@@ -237,13 +238,16 @@ export default function AccountRow({
           )}
           {/* Wider screens keep the credit still available under the balance. A phone puts it beside the type */}
           {availableCreditText && (
-            <p
-              id={`${descriptionId}-credit`}
-              className="hidden font-financial text-xs min-[750px]:mt-0.5 min-[750px]:block"
-              style={{ color: 'var(--app-text-muted)' }}
-            >
-              {availableCreditText}
-            </p>
+            // The description names this wrapper, which is always drawn, since a screen reader reads a
+            // named element that is hidden itself but leaves out a hidden element inside it
+            <div id={`${descriptionId}-credit`} className="contents">
+              <p
+                className="hidden font-financial text-xs min-[750px]:mt-0.5 min-[750px]:block"
+                style={{ color: 'var(--app-text-muted)' }}
+              >
+                {availableCreditText}
+              </p>
+            </div>
           )}
         </div>
       </div>

@@ -830,6 +830,46 @@ test('on a phone, a credit card’s available amount follows its type, shortenin
   expect(Math.abs(travelAvailable.x + travelAvailable.width - (travelBalance.x + travelBalance.width))).toBeLessThan(1)
 })
 
+test('on a phone, a credit card’s link is described by the available amount its line draws, and by none once the line leaves it out', async ({
+  page,
+  request,
+}) => {
+  const { user } = await seedAccounts(page, request)
+  await createAccount(request, user, {
+    name: 'Travel card',
+    accountType: 'credit_card',
+    accountKind: 'revolving',
+    startingBalance: -2_000_000,
+    creditLimit: 2_782_966,
+  })
+  await page.setViewportSize({ width: 390, height: 844 })
+  await openPage(page, '/accounts')
+
+  const travel = accountRow(page, /Travel card/)
+  const link = travel.getByRole('link', { name: 'Travel card', exact: true })
+  const shown = travel.locator('p.text-sm').locator('[data-credit-available]')
+  const seen = new Set<string>()
+  for (const width of [390, 340, 320, 300, 280, 260]) {
+    await page.setViewportSize({ width, height: 844 })
+    // The fitting runs after the resize lays the row out
+    await page.evaluate(() => new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve))))
+    if (await shown.isVisible()) {
+      const text = (await shown.textContent())!.trim()
+      await expect(link, `${width}px`).toHaveAccessibleDescription(new RegExp(`${text.replace(/[.$]/g, '\\$&')}`))
+      seen.add('form')
+    } else {
+      // No form fits, so nothing is drawn for the link to read
+      await expect(link, `${width}px`).not.toHaveAccessibleDescription(/avail\./)
+      seen.add('none')
+    }
+  }
+  expect([...seen].sort()).toEqual(['form', 'none'])
+
+  // Wider screens draw it under the balance
+  await page.setViewportSize({ width: 1280, height: 800 })
+  await expect(link).toHaveAccessibleDescription(/\$7,829\.66 avail\.$/)
+})
+
 test('an open top-level group’s header sticks under the toolbar while its rows scroll past, and closing it from there keeps it in view', async ({
   page,
   request,
