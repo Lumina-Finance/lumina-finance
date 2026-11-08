@@ -21,6 +21,7 @@ import { useMoneyFormatters } from '@/hooks/useMoneyFormatters'
 import { useMoneyInput } from '@/hooks/useMoneyInput'
 import { useRefusedSubmit } from '@/hooks/useRefusedSubmit'
 import {
+  buildStartingBalanceRequest,
   getStartingBalanceProblems,
   MUST_BE_ZERO_OR_HIGHER_MESSAGE,
   STARTING_BALANCE_CONTROL_IDS,
@@ -31,7 +32,7 @@ import {
 import type { AccountDetailArrivalState } from '@/pages/accounts/detail/constants/accountDetail'
 import { isOwnPersonalAccount } from '@/utils/bankSync'
 import { formatCurrencySymbol, getSymbolInputStyle } from '@/utils/formatCurrency'
-import { getCurrencyExponent, holdsMinus, toMinorUnits } from '@/utils/moneyInput'
+import { getCurrencyExponent, holdsMinus } from '@/utils/moneyInput'
 
 type KeepUpToDate = 'bank' | 'manual'
 
@@ -137,22 +138,19 @@ export default function NewAccountPromptModal({ open, account, onClose, onExitCo
     }
 
     // A blank or zero balance is the balance the account already has, so there is nothing to record
-    const amount = toMinorUnits(startingBalance, exponent)
-    if (!amount) {
+    const request = buildStartingBalanceRequest(account, startingBalance, exponent)
+    if (!request) {
       onClose()
       return
     }
 
-    recordStartingBalance.mutate(
-      { accountId: account.id, payload: { amount } },
-      {
-        onSuccess: onClose,
-        onError: (error) => {
-          if (error instanceof StartingBalanceNotSavedError) setSubmitError(NOT_SAVED_MESSAGE)
-          else setSubmitError(error instanceof ApiError ? error.message : UNSETTLED_SAVE_MESSAGE)
-        },
+    recordStartingBalance.mutate(request, {
+      onSuccess: onClose,
+      onError: (error) => {
+        if (error instanceof StartingBalanceNotSavedError) setSubmitError(NOT_SAVED_MESSAGE)
+        else setSubmitError(error instanceof ApiError ? error.message : UNSETTLED_SAVE_MESSAGE)
       },
-    )
+    })
   }
 
   const startingBalanceField = (

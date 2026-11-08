@@ -1,3 +1,5 @@
+import type { AccountsOverview } from '@/api/accounts'
+import { toMinorUnits } from '@/utils/moneyInput'
 import type { FieldProblems } from '@/utils/refusedSubmit'
 
 export const STARTING_BALANCE_INPUT_ID = 'new-account-starting-balance'
@@ -24,4 +26,20 @@ export function getStartingBalanceProblems(
   typedMinus: boolean,
 ): FieldProblems<(typeof STARTING_BALANCE_FIELDS)[number]> {
   return keepsManual && typedMinus ? { starting_balance: MUST_BE_ZERO_OR_HIGHER_MESSAGE } : {}
+}
+
+/**
+ * The request that records what the field holds, or null when it holds nothing to record
+ *
+ * A blank or zero balance is the balance the account already has. The amount goes as the user states
+ * it, so a liability's is the amount owed, positive, and the backend saves it negated
+ *
+ * @param account - The new account, which the balance is recorded in
+ * @param text - What the starting balance field holds
+ * @param exponent - The account currency's minor-unit exponent
+ */
+export function buildStartingBalanceRequest(account: Pick<AccountsOverview, 'id'>, text: string, exponent: number) {
+  const amount = toMinorUnits(text, exponent)
+
+  return amount ? { accountId: account.id, payload: { amount } } : null
 }
