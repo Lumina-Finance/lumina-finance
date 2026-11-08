@@ -400,21 +400,29 @@ for (const colorScheme of ['light', 'dark'] as const) {
 const HEADER_SIDE_ROOM = 12
 
 /**
- * Signs up a user with an archived account and an archived budget beside one of each in use, and opens a
- * page, so its Archived section shows
+ * Signs up a user with archived accounts and archived budgets, one of each unless asked for more, beside one
+ * of each in use, and opens a page, so its Archived section shows
  */
-async function openWithArchived(page: Page, request: Parameters<typeof signUpUser>[0], colorScheme: 'light' | 'dark', url: string) {
+async function openWithArchived(
+  page: Page,
+  request: Parameters<typeof signUpUser>[0],
+  colorScheme: 'light' | 'dark',
+  url: string,
+  archivedCount = 1,
+) {
   await page.emulateMedia({ colorScheme })
   const user = await signUpUser(request)
   await createAccount(request, user, { name: 'Everyday' })
-  const old = await createAccount(request, user, { name: 'Old savings' })
-  const account = await request.patch(`${API_BASE_URL}/accounts/${old.id}`, { headers: asUser(user), data: { is_archived: true } })
-  expect(account.status()).toBe(200)
   const budget = { categoryNames: ['Groceries'], overallLimit: 50_000, periodStart: budgetPeriodStart() }
   await createMonthlyBudget(request, user, { name: 'Groceries budget', ...budget })
-  const oldBudget = await createMonthlyBudget(request, user, { name: 'Old budget', ...budget })
-  const archived = await request.patch(`${API_BASE_URL}/base-budgets/${oldBudget}`, { headers: asUser(user), data: { is_archived: true } })
-  expect(archived.status()).toBe(200)
+  for (let index = 1; index <= archivedCount; index += 1) {
+    const old = await createAccount(request, user, { name: `Old savings ${index}` })
+    const account = await request.patch(`${API_BASE_URL}/accounts/${old.id}`, { headers: asUser(user), data: { is_archived: true } })
+    expect(account.status()).toBe(200)
+    const oldBudget = await createMonthlyBudget(request, user, { name: `Old budget ${index}`, ...budget })
+    const archived = await request.patch(`${API_BASE_URL}/base-budgets/${oldBudget}`, { headers: asUser(user), data: { is_archived: true } })
+    expect(archived.status()).toBe(200)
+  }
   await logInViaApi(page, user)
   await page.addInitScript((key) => localStorage.setItem(key, 'true'), NAV_EXPANDED_KEY)
   await openPage(page, url)
@@ -556,6 +564,36 @@ test('eases the Archived accounts list open and closed, without overshooting', a
   expect(closing.some((height) => height > 1 && height < open - 1), `partway heights in ${closing.join(', ')}`).toBe(true)
   expect(closing.every((height, index) => index === 0 || height <= closing[index - 1] + 0.5), `falling heights in ${closing.join(', ')}`).toBe(true)
 })
+
+for (const { url, name } of [
+  { url: '/accounts', name: 'Archived accounts' },
+  { url: '/budgets', name: 'Archived budgets' },
+]) {
+  test(`eases the page up as the ${name} list closes at the page bottom`, async ({ page, request }) => {
+    // Enough archived items that the open list runs below the window, so opening it scrolls the page down
+    await page.setViewportSize({ width: 1280, height: 800 })
+    await openWithArchived(page, request, 'light', url, 4)
+    const header = page.getByRole('button', { name: new RegExp(name) })
+    await header.click()
+    await expect.poll(() => page.evaluate(() => window.scrollY)).toBeGreaterThan(0)
+    await page.waitForTimeout(1000)
+
+    // Each frame the page may only scroll up as far as its shrinking height forces it to
+    const frames = await header.evaluate((node) => new Promise<number[][]>((resolve) => {
+      const frames = [[window.scrollY, document.documentElement.scrollHeight - window.innerHeight]]
+      const start = performance.now()
+      ;(node as HTMLButtonElement).click()
+      const tick = () => {
+        frames.push([window.scrollY, document.documentElement.scrollHeight - window.innerHeight])
+        if (performance.now() - start < 800) requestAnimationFrame(tick)
+        else resolve(frames)
+      }
+      requestAnimationFrame(tick)
+    }))
+    const jumps = frames.filter(([scrollY, maxScroll], index) => index > 0 && scrollY < Math.min(frames[index - 1][0], maxScroll) - 1)
+    expect(jumps, `scroll and its limit each frame: ${JSON.stringify(frames)}`).toEqual([])
+  })
+}
 
 test('shows the whole focus ring around the Archived budgets header', async ({ page, request }) => {
   await openWithArchived(page, request, 'light', '/budgets')

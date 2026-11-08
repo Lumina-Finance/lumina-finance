@@ -1,4 +1,4 @@
-import { useId, useState, type CSSProperties, type ReactNode, type Ref } from 'react'
+import { useId, useRef, useState, type CSSProperties, type ReactNode, type Ref } from 'react'
 import { ChevronDown, type LucideIcon } from 'lucide-react'
 import { motion, useReducedMotion } from 'motion/react'
 import { AppSlotMachineText } from '@/components/display/SlotMachineText'
@@ -79,9 +79,16 @@ export function CollapsibleSection({
   const prefersReducedMotion = useReducedMotion()
   const [bodyMounted, setBodyMounted] = useState(expanded)
   const [isAnimating, setIsAnimating] = useState(false)
+  const bodyRef = useRef<HTMLDivElement>(null)
+
+  // The height in pixels the body closes from. Closing from auto makes motion measure the body by drawing it
+  // closed for a moment, and the page shortened by that measurement loses its scroll position, so a section
+  // closed at the page bottom would jump the page up instead of easing it
+  const [closingFromHeight, setClosingFromHeight] = useState<number | null>(null)
 
   function handleToggle() {
-    if (!expanded) setBodyMounted(true)
+    if (expanded) setClosingFromHeight(bodyRef.current?.getBoundingClientRect().height ?? 0)
+    else setBodyMounted(true)
     onToggle()
   }
 
@@ -125,10 +132,14 @@ export function CollapsibleSection({
       </button>
 
       <motion.div
+        ref={bodyRef}
         id={bodyId}
         className={bodyClassName}
         initial={false}
-        animate={{ height: expanded ? 'auto' : 0, opacity: expanded ? 1 : 0 }}
+        animate={{
+          height: expanded ? 'auto' : closingFromHeight === null ? 0 : [closingFromHeight, 0],
+          opacity: expanded ? 1 : 0,
+        }}
         transition={{
           duration: prefersReducedMotion ? 0 : COLLAPSIBLE_SECTION_TRANSITION_SECONDS,
           ease: COLLAPSIBLE_SECTION_EASE,
