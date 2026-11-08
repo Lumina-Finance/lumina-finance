@@ -151,6 +151,31 @@ test('shows a server without bank sync no bank choice, link section or blank ins
   await expect(editDialog.getByText('Bank link', { exact: true })).toHaveCount(0)
 })
 
+test('opens the starting balance prompt when the bank providers fail to load, without waiting on their retry', async ({ page, request }) => {
+  const user = await signUpUser(request)
+  // The first read fails and the retry is never answered, so a prompt waiting on the retry never opens
+  let providerReads = 0
+  await page.route(`${API_BASE_URL}/bank-sync/providers`, async (route) => {
+    providerReads += 1
+    if (providerReads === 1) await route.fulfill({ status: 500, json: { detail: 'Bank providers failed' } })
+  })
+  await logInViaApi(page, user)
+  await openPage(page, '/accounts')
+
+  const createDialog = await openModal(page, ['Add account'], 'Add account')
+  await chooseFromDropdown(createDialog, 'Account type', 'Checking')
+  await createDialog.getByLabel('Account name').fill(ACCOUNT_NAME)
+  await expect.poll(() => providerReads).toBe(2)
+  await createDialog.getByRole('button', { name: 'Create account' }).click()
+  await expect(createDialog).toBeHidden()
+
+  // The account stays manual, as it does on a server without bank sync
+  const prompt = page.getByRole('dialog', { name: 'Add a starting balance' })
+  await expect(prompt).toBeVisible()
+  await expect(prompt.getByRole('radio')).toHaveCount(0)
+  await page.unrouteAll({ behavior: 'ignoreErrors' })
+})
+
 test('names no institution as the account page first shows on a server without bank sync, though the providers answer last', async ({ page, request }) => {
   const user = await signUpUser(request)
   const account = await createAccount(request, user, { name: ACCOUNT_NAME })
