@@ -51,6 +51,7 @@ vi.mock('@/api/bank-sync', async (importOriginal) => ({
 import { OpeningAdjustmentOffer } from '@/pages/accounts/detail/components/bank-link/OpeningAdjustmentOffer'
 import { formatCurrencySymbol } from '@/utils/formatCurrency'
 import {
+  getRecordingProblem,
   holdsSign,
   readRecordedAmount,
   readRecording,
@@ -218,6 +219,18 @@ describe('the amount an answer records', () => {
 
   it.each(['', '0', '0.00'])('records nothing for %j', (typed) => {
     expect(readRecordedAmount(typed, 2, 25000)).toBeNull()
+  })
+})
+
+describe('the problem a refused press of Record adjustment keeps marked', () => {
+  it('is the same for a blank amount and a typed zero, so typing a zero does not clear the mark', () => {
+    expect(getRecordingProblem(null, '', 2, 25000)).toBe(ZERO_AMOUNT_MESSAGE)
+    expect(getRecordingProblem(null, '0', 2, 25000)).toBe(ZERO_AMOUNT_MESSAGE)
+  })
+
+  it('names the sign while its message shows, and nothing once the amount is whole', () => {
+    expect(getRecordingProblem(SIGNED_AMOUNT_MESSAGE, '250.00', 2, 25000)).toBe(SIGNED_AMOUNT_MESSAGE)
+    expect(getRecordingProblem(null, '5', 2, 25000)).toBeUndefined()
   })
 })
 

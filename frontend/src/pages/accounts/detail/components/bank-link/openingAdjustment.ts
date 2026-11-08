@@ -57,6 +57,25 @@ export function readRecording(
 }
 
 /**
+ * What is wrong with the amount right now, or undefined when Record adjustment may go ahead. It is the
+ * form's one source of problems for a refused press, so it stays until the amount is fixed
+ *
+ * @param shownMessage - The message beside the amount now, or null when it shows none
+ * @param value - The field's money value
+ * @param exponent - Decimal places of the account's currency
+ * @param offered - The offered amount in minor units, signed as the ledger keeps them
+ */
+export function getRecordingProblem(
+  shownMessage: string | null,
+  value: string,
+  exponent: number,
+  offered: number,
+): string | undefined {
+  const reading = readRecording(shownMessage, value, exponent, offered)
+  return 'refusal' in reading ? reading.refusal : undefined
+}
+
+/**
  * The amount an answer records, signed as the offer is, or null for one that is blank or zero
  *
  * The field holds only the amount's size, with the offer's sign shown beside it, so an amount typed

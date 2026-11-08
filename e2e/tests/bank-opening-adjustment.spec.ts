@@ -220,7 +220,7 @@ test('keeps the amount and the answers in place on a phone when a message shows 
   expect(await placed()).toEqual(before)
 })
 
-test('records nothing for Enter in the amount, or for a blank or zero amount, saying why until the amount changes', async ({ page, request }) => {
+test('records nothing for Enter in the amount, or for a blank or zero amount, saying why until the amount is fixed', async ({ page, request }) => {
   const answers = watchAnswers(page)
   const { offer } = await openOffer(page, request)
 
@@ -234,13 +234,18 @@ test('records nothing for Enter in the amount, or for a blank or zero amount, sa
   await offer.record.click()
   await expect(offer.zeroMessage).toBeVisible()
 
-  // The message describes the field, and the button fades with it as its reason until the amount changes
+  // The message describes the field, and the button fades with it as its reason until the amount is fixed
   await expect(offer.amount).toHaveAccessibleDescription(`${ZERO_AMOUNT_MESSAGE} Your ledger records this amount as positive.`)
   await expect(offer.record).toHaveAttribute('aria-disabled', 'true')
   await expect(offer.record).toHaveAccessibleDescription(ZERO_AMOUNT_MESSAGE)
+  // Typing a zero is no fix, so the mark and the fade stay
   await offer.amount.fill('0')
+  await expect(offer.zeroMessage).toBeVisible()
+  await expect(offer.record).toHaveAttribute('aria-disabled', 'true')
+  await offer.amount.fill('5')
   await expect(offer.zeroMessage).toBeHidden()
   await expect(offer.record).not.toHaveAttribute('aria-disabled', 'true')
+  await offer.amount.fill('0')
   await offer.record.click()
   await expect(offer.zeroMessage).toBeVisible()
   await expect(offer.record).toHaveAttribute('aria-disabled', 'true')
