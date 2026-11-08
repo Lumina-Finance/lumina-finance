@@ -51,5 +51,5 @@ export function getBankValueCaptions(
 
 /** Why the bank's amount can't be restored, in the words the server refuses that restore with */
 function getUnstorableAmountReason(currency: string): string {
-  return `The bank's amount has more decimal places than ${currency} allows, so it can't be restored.`
+  return `The bank's amount has more decimal places than ${currency} allows, so it can't be restored`
 }
