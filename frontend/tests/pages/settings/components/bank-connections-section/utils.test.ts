@@ -18,6 +18,7 @@ import {
   describeConnected,
   describeConnectionStatus,
   describeInstitutionAllowance,
+  describeLinkingHeld,
   describeMismatch,
   describeReconnected,
   describeRequestBudget,
@@ -451,6 +452,44 @@ describe('a connection whose provider was removed from the server', () => {
   it('says no requests go out rather than counting a cap', () => {
     expect(describeRequestBudget(gone)).toBe(
       'Lumina Finance sends this connection no requests while its provider is unavailable.',
+    )
+  })
+})
+
+describe('describeLinkingHeld', () => {
+  const group = (overLimit: boolean) => ({
+    name: 'Harbour Bank',
+    signInNeeded: false,
+    overLimit,
+    linked: 0,
+    bankAccounts: [],
+  })
+  const held = (
+    overrides: Partial<BankConnection> = {},
+    { linkingPaused = false, overLimit = false, institutionLimit = null as number | null } = {},
+  ) =>
+    describeLinkingHeld({
+      linkingPaused,
+      connection: connection(overrides),
+      group: group(overLimit),
+      institutionLimit,
+    })
+
+  it('gives no reason where linking can be used', () => {
+    expect(held()).toBeUndefined()
+  })
+
+  it('gives each faded dropdown the reason its state calls for', () => {
+    expect(held({}, { linkingPaused: true })).toBe("Bank sync isn't set up on this server yet.")
+    expect(held({ status: 'credential_rejected' })).toBe('Reconnect this connection to link an account.')
+    expect(held({}, { overLimit: true, institutionLimit: 2 })).toBe(
+      'Linking here would go over your limit of 2 institutions.',
+    )
+  })
+
+  it('names bank sync first when the connection is rejected too', () => {
+    expect(held({ status: 'credential_rejected' }, { linkingPaused: true })).toBe(
+      "Bank sync isn't set up on this server yet.",
     )
   })
 })

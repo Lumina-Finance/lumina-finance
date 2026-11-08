@@ -3,13 +3,13 @@ import { AnimatePresence, motion, useReducedMotion } from 'motion/react'
 import { ArrowRight, ChevronRight, CircleHelp, CornerDownRight } from 'lucide-react'
 import { Link } from 'react-router'
 import type { BankConnection, ConnectionBankAccount } from '@/api/bank-sync'
-import { BANK_SYNC_NOT_SET_UP_REASON } from '@/components/bank-link-flow/constants'
 import MarqueeText from '@/components/display/MarqueeText'
 import { SyncStatusDot } from '@/components/display/SyncStatusDot'
 import Dropdown, { type DropdownOption } from '@/components/dropdown/Dropdown'
 import IconTooltip from '@/components/tooltips/IconTooltip'
 import { EASE } from '@/pages/settings/components/bank-connections-section/constants'
 import {
+  describeLinkingHeld,
   describeMismatch,
   groupInstitutions,
   matchesInstitutionSearch,
@@ -59,17 +59,15 @@ function LinkedAccountTile({ accountId, name }: { accountId: string; name: strin
 
 interface BankAccountRowProps {
   bankAccount: ConnectionBankAccount
-  canLink: boolean
 
   /**
    * Set when its institution would go over the limit. The server then offers no account for it, so the
-   * row keeps its disabled dropdown, and the institution's note explains why, rather than saying no
-   * account could take it
+   * row keeps its disabled dropdown, rather than saying no account could take it
    */
   overLimit: boolean
 
-  /** Holds the dropdown with the reason while bank sync isn't set up */
-  linkingPaused: boolean
+  /** Why linking is held, which fades the dropdown and gives it this reason. Undefined when it can be used */
+  heldReason: string | undefined
 
   /** Set once the link flow has linked it, until its account settles in */
   linking: boolean
@@ -83,15 +81,7 @@ interface BankAccountRowProps {
  * where it goes, or offers the accounts the server says could take it in a dropdown. Choosing one
  * opens the link flow at its start step
  */
-function BankAccountRow({
-  bankAccount,
-  canLink,
-  overLimit,
-  linkingPaused,
-  linking,
-  accountNameFor,
-  onLink,
-}: BankAccountRowProps) {
+function BankAccountRow({ bankAccount, overLimit, heldReason, linking, accountNameFor, onLink }: BankAccountRowProps) {
   const prefersReducedMotion = useReducedMotion()
   const nameId = useId()
   const linkedId = bankAccount.linked_account_id
@@ -166,8 +156,8 @@ function BankAccountRow({
                     placeholder="Link an account"
                     size="field"
                     labelledBy={nameId}
-                    disabled={!canLink || linkingPaused}
-                    disabledReason={linkingPaused ? BANK_SYNC_NOT_SET_UP_REASON : undefined}
+                    disabled={heldReason !== undefined}
+                    disabledReason={heldReason}
                     onChange={(accountId) => onLink(bankAccount, accountId)}
                   />
                 )}
@@ -369,7 +359,6 @@ export function InstitutionList({
   onLink,
   prefersReducedMotion,
 }: InstitutionListProps) {
-  const isActive = connection.status === 'active'
   const groups = groupInstitutions(connection, { institutionLimit, institutionsInUse }).filter((group) =>
     matchesInstitutionSearch(group, query),
   )
@@ -390,9 +379,8 @@ export function InstitutionList({
           <li key={bankAccount.external_id}>
             <BankAccountRow
               bankAccount={bankAccount}
-              canLink={isActive && !group.overLimit}
               overLimit={group.overLimit}
-              linkingPaused={linkingPaused}
+              heldReason={describeLinkingHeld({ linkingPaused, connection, group, institutionLimit })}
               linking={linkingExternalId === bankAccount.external_id}
               accountNameFor={accountNameFor}
               onLink={onLink}

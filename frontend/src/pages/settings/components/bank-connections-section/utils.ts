@@ -7,6 +7,7 @@ import {
   type CredentialField,
   type ReconnectConnectionResult,
 } from '@/api/bank-sync'
+import { BANK_SYNC_NOT_SET_UP_REASON } from '@/components/bank-link-flow/constants'
 import type { SyncStatusTone } from '@/components/display/SyncStatusDot'
 import { connectionName, countNoun, credentialNoun, providerSiteName } from '@/utils/bankSync'
 import { formatRelativeFutureTime } from '@/utils/relativeTime'
@@ -274,6 +275,33 @@ export function groupInstitutions(
       bankAccounts,
     }
   })
+}
+
+/** Why a rejected connection takes no link, shown on its faded Link an account dropdown */
+export const RECONNECT_TO_LINK_REASON = 'Reconnect this connection to link an account.'
+
+/**
+ * Why a bank account's Link an account dropdown is faded, or undefined when it can be used. Every faded
+ * control gives its reason, the first that applies: bank sync not set up, a rejected connection, or an
+ * institution that would go over the limit
+ */
+export function describeLinkingHeld({
+  linkingPaused,
+  connection,
+  group,
+  institutionLimit,
+}: {
+  linkingPaused: boolean
+  connection: BankConnection
+  group: InstitutionGroup
+  institutionLimit: number | null
+}): string | undefined {
+  if (linkingPaused) return BANK_SYNC_NOT_SET_UP_REASON
+  if (connection.status !== 'active') return RECONNECT_TO_LINK_REASON
+  if (group.overLimit && institutionLimit !== null) {
+    return `Linking here would go over your limit of ${countNoun(institutionLimit, 'institution')}.`
+  }
+  return undefined
 }
 
 /**
