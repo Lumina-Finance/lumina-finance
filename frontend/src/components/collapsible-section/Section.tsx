@@ -22,7 +22,9 @@ type CollapsibleSectionProps = {
   bodyClassName?: string
 
   // Sizing and placement for the header, so a list with a gutter beside its rows, such as a checkbox
-  // rail, can run the header across it the way its row backgrounds run, and can stick it below its bar
+  // rail, can run the header across it the way its row backgrounds run, and can stick it below its bar.
+  // A header that needs a solid fill, such as one rows scroll under, sets --collapsible-header-fill and
+  // --collapsible-header-hover-fill here rather than a background, which would hide the hover look
   headerStyle?: CSSProperties
 
   // How wide the slot the icon sits at the start of is, so a list can start the label level with its
@@ -102,7 +104,7 @@ export function CollapsibleSection({
       <button
         ref={headerRef}
         type="button"
-        className="sticky left-0 z-10 col-span-full flex w-full max-w-[100cqw] items-start gap-3 px-3 py-2 text-left transition-control hover:bg-[var(--app-accent-soft)] hover:text-[var(--app-text)]"
+        className="sticky left-0 z-10 col-span-full flex w-full max-w-[100cqw] items-start gap-3 px-3 py-2 text-left transition-control bg-[var(--collapsible-header-fill,transparent)] hover:bg-[var(--collapsible-header-hover-fill,var(--app-accent-soft))] hover:text-[var(--app-text)]"
         style={{
           borderTop: '1px solid var(--app-border)',
           color: 'var(--app-text-muted)',
