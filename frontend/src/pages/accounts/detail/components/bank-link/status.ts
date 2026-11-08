@@ -43,7 +43,7 @@ export function isLinkStillUnread(
   hasStatusFailed: boolean,
 ): boolean {
   if (!ownPersonal || status !== undefined || hasStatusFailed) return false
-  return providers === undefined || (providers.may_link && providers.providers.length > 0)
+  return providers === undefined || offersBankSync(providers)
 }
 
 export type BankSyncLabel = {

@@ -4,7 +4,7 @@ import { Landmark } from 'lucide-react'
 import { useNavigate } from 'react-router'
 import { StartingBalanceNotSavedError, useRecordStartingBalance, type AccountsOverview } from '@/api/accounts'
 import { ApiError } from '@/api/auth'
-import { useBankConnections, useBankProviders } from '@/api/bank-sync'
+import { offersBankSync, useBankConnections, useBankProviders } from '@/api/bank-sync'
 import { BankConnectionsLink } from '@/components/bank-link-flow/BankSyncNotSetUp'
 import { ChoiceCard } from '@/components/bank-link-flow/ChoiceCard'
 import {
@@ -68,10 +68,16 @@ export default function NewAccountPromptModal({ open, account, onClose, onExitCo
   const { user } = useAuth()
   const { currencies } = useMoneyFormatters()
   const recordStartingBalance = useRecordStartingBalance()
-  const { data: providers, isPending: providersPending } = useBankProviders()
+  const { data: providers, isPending: providersPending, failureCount: providersFailures } = useBankProviders()
+
+  // A failed first read opens the prompt at once without the link choice, rather than wait for the
+  // retry. It stays so, even if the retry answers, so the choices never change under the user
+  const [providersGaveUp, setProvidersGaveUp] = useState(false)
+  if (!providersGaveUp && providers === undefined && providersFailures > 0) setProvidersGaveUp(true)
+
   // Linking is offered to a user the bank-linking check allows, on a deployment with a provider. The
   // connections are read only then, so a user without bank sync makes no read of them
-  const offersLink = providers !== undefined && providers.may_link && providers.providers.length > 0
+  const offersLink = !providersGaveUp && offersBankSync(providers)
   const { data: connections, isPending: connectionsPending } = useBankConnections({ enabled: offersLink })
   const [chosen, setChosen] = useState<KeepUpToDate | null>(null)
   const [startingBalance, setStartingBalance] = useState('')
@@ -110,7 +116,7 @@ export default function NewAccountPromptModal({ open, account, onClose, onExitCo
         ? NOTHING_TO_LINK_REASON
         : null
   const choice: KeepUpToDate = !offersLink ? 'manual' : (chosen ?? (linkReason ? 'manual' : 'bank'))
-  const ready = !providersPending && (!offersLink || !connectionsPending)
+  const ready = (!providersPending || providersGaveUp) && (!offersLink || !connectionsPending)
 
   // The message shows as soon as the minus is refused, so this only holds Continue and brings the field into view
   const refusal = useRefusedSubmit(
