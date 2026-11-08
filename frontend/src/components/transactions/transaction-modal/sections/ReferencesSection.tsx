@@ -238,7 +238,8 @@ export default function TransactionReferencesSection({
 
   return (
     <CreateModalSectionFrame step="02" title="Source/Destination">
-      <div>
+      {/* A bank item's account is held with its reason, which focus would open over the form */}
+      <div data-modal-skip-initial-focus={isAccountLocked || undefined}>
         <CreateModalFieldLabelRow
           htmlFor={TRANSACTION_MODAL_FIELD_IDS.account}
           label={accountLabel}
