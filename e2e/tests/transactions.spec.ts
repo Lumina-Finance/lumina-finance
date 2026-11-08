@@ -289,6 +289,57 @@ test('keeps the open Upcoming header on screen through a long run of upcoming tr
   expect(await isShowingOnTop(upcoming)).toBe(true)
 })
 
+test('slides selection ticks under the stuck Upcoming header and never ticks a row through it', AT_EVERY_SIZE, async ({ page, request }) => {
+  const user = await signUpUser(request)
+  const account = await createAccount(request, user, { name: 'Everyday Chequing' })
+  const ids: string[] = []
+  for (let day = 20; day >= 1; day -= 1) {
+    ids.push(await createTransaction(request, user, { accountId: account.id, categoryName: 'Groceries', amount: -1000, date: daysFromTodayInTestTimezone(day) }))
+  }
+  // Past rows keep the page taller than the window, so the run of upcoming rows can scroll under the header
+  const pastIds: string[] = []
+  for (let day = 0; day >= -14; day -= 1) {
+    pastIds.push(await createTransaction(request, user, { accountId: account.id, categoryName: 'Groceries', amount: -1000, date: daysFromTodayInTestTimezone(day) }))
+  }
+
+  await page.setViewportSize({ ...page.viewportSize()!, height: 600 })
+  await logInViaApi(page, user)
+  await openPage(page, '/transactions')
+  await loadEveryTransaction(page)
+  await expect(page.getByTestId(`transaction-row-${pastIds[pastIds.length - 1]}`)).toBeAttached()
+  const upcoming = page.getByRole('button', { name: /Upcoming/ })
+  await upcoming.click()
+  const body = page.locator(`[id="${await upcoming.getAttribute('aria-controls')}"]`)
+  await expect(body).toHaveCSS('opacity', '1')
+  await expect(body).toHaveCSS('overflow', 'visible')
+
+  await page.getByRole('button', { name: 'Select transactions', exact: true }).click()
+  const tick = page.getByTestId(`transaction-row-${ids[8]}`).locator('..').getByRole('checkbox')
+  await expect(tick).toBeVisible()
+
+  // Scrolled so the middle row's tick sits level with the middle of the stuck header
+  await page.getByTestId(`transaction-row-${ids[8]}`).evaluate((row) => row.scrollIntoView({ block: 'start' }))
+  await expect.poll(() => isShowingOnTop(upcoming)).toBe(true)
+  const header = (await upcoming.boundingBox())!
+  const tickBox = (await tick.boundingBox())!
+  await page.evaluate((by) => window.scrollBy(0, by), tickBox.y + tickBox.height / 2 - (header.y + header.height / 2))
+  await expect
+    .poll(async () => {
+      const box = (await tick.boundingBox())!
+      const stuck = (await upcoming.boundingBox())!
+      return Math.abs(box.y + box.height / 2 - (stuck.y + stuck.height / 2))
+    })
+    .toBeLessThan(2)
+
+  // The header is what the page shows over the tick, so the tick slid under it, and a press there lands on the header
+  const stuck = (await upcoming.boundingBox())!
+  const point = { x: (await tick.boundingBox())!.x + 4, y: stuck.y + stuck.height / 2 }
+  const shownOverTick = await page.evaluate(({ x, y }) => document.elementFromPoint(x, y)?.closest('button')?.getAttribute('aria-expanded'), point)
+  expect(shownOverTick).toBe('true')
+  await page.mouse.click(point.x, point.y)
+  await expect(upcoming).toHaveAttribute('aria-expanded', 'false')
+})
+
 /**
  * Returns whether the element is what the page shows at its own centre, so one scrolled off the screen or
  * covered by the sticky toolbar both count as not showing

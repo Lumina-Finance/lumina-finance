@@ -28,6 +28,10 @@ const MAX_VISIBLE_TAGS = 1
 const DEFAULT_CATEGORY_ICON = '🏷️'
 const ROW_EXIT_EASE = [0.25, 0.1, 0.25, 1] as const
 
+// The selection box sits one level above the title's layer and no higher, so the Upcoming section's
+// stuck header, laid at 10, still covers a box that scrolls under it
+const CHECKBOX_OVER_TITLE_LAYER = 1
+
 export type TransactionRowMetadata = Pick<
   Transaction,
   'id' | 'dt' | 'merchant_name' | 'notes' | 'tags' | 'counterparty_account_scope'
@@ -573,10 +577,10 @@ export function TransactionRowView({
             // Laid over the rail rather than placed in the row, because a cell of the row would take
             // one of the list's columns, and the content beside it asks for all five of them. The rail
             // is the row's own left padding, so the box sits still at the list's edge while the rail
-            // opens and closes underneath the rest of the row. Raised above the title's layer. That layer
-            // spans the rail too, so a press on the box ticks it rather than landing on the row
-            className="absolute inset-y-0 left-0 z-10 flex items-center justify-center"
-            style={{ width: TRANSACTION_CHECKBOX_RAIL_WIDTH }}
+            // opens and closes underneath the rest of the row. Raised above the title's layer, which spans
+            // the rail too, so a press on the box ticks it rather than landing on the row
+            className="absolute inset-y-0 left-0 flex items-center justify-center"
+            style={{ width: TRANSACTION_CHECKBOX_RAIL_WIDTH, zIndex: CHECKBOX_OVER_TITLE_LAYER }}
             title={tickTitle}
             initial={prefersReducedMotion ? { opacity: 0 } : { opacity: 0, scale: 0.72 }}
             animate={{ opacity: 1, scale: 1 }}
