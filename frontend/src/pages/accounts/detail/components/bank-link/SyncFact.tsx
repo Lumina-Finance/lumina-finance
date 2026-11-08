@@ -103,7 +103,13 @@ export function SyncFact({ name, sync, showsDetails = false, onOpen }: SyncFactP
           <span className="flex min-w-0 max-w-full items-center gap-2">{value}</span>
         )}
         {showsDetails && sync.details.length > 0 && (
-          <IconTooltip label="Sync details" placement="bottom" widthClassName="w-max max-w-52">
+          <IconTooltip
+            label="Sync details"
+            placement="bottom"
+            widthClassName="w-max max-w-52"
+            avoidsLoneWord
+            picksSideOnPress
+          >
             <span className="block space-y-1">
               {sync.details.map((line) => (
                 <span key={line} className="block">

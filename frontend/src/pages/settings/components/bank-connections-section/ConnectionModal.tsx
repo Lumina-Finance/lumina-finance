@@ -240,7 +240,14 @@ export function ConnectionModal({
           <SyncStatusDot tone={status.tone} />
           {status.label}
           {statusDetail && (
-            <IconTooltip label="Status details" placement="bottom" size={12} widthClassName="w-max max-w-52">
+            <IconTooltip
+              label="Status details"
+              placement="bottom"
+              size={12}
+              widthClassName="w-max max-w-52"
+              avoidsLoneWord
+              picksSideOnPress
+            >
               {statusDetail}
             </IconTooltip>
           )}

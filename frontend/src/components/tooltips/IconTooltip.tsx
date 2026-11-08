@@ -51,6 +51,14 @@ interface IconTooltipProps {
   // Keeps a screen reader from reading the panel until it shows, for a trigger whose label already says
   // what the panel says, such as a row's bank icon. Every other panel is read where it sits, closed or not
   hidesClosedPanel?: boolean
+
+  // Keeps a wrapped note from leaving one word alone on its last line, where the browser supports it
+  avoidsLoneWord?: boolean
+
+  // Picks the side afresh when a press opens the panel, for a trigger whose closed panel keeps its
+  // place, shown where the screen has hover, and so could open cut off. Every other panel keeps the
+  // side it had until it hides
+  picksSideOnPress?: boolean
 }
 
 type IconTooltipSideBoundary = 'bounds' | 'viewport'
@@ -166,8 +174,7 @@ function getTooltipPosition(trigger: HTMLElement, tooltip: HTMLElement, side: To
  * below that whole element, so the panel never covers what it explains, and picks its side again as
  * anything around it scrolls while it shows
  *
- * The panel is 13rem wide unless the caller passes its own width. A note that wraps avoids leaving one
- * word alone on its last line, where the browser supports it
+ * The panel is 13rem wide unless the caller passes its own width
  */
 export default function IconTooltip({
   label,
@@ -187,6 +194,8 @@ export default function IconTooltip({
   widensHitArea = false,
   focusRing = false,
   hidesClosedPanel = false,
+  avoidsLoneWord = false,
+  picksSideOnPress = false,
 }: IconTooltipProps) {
   const { Icon: DefaultIcon, color } = levelConfig[level]
   const isFxIcon = IconOverride === 'fx'
@@ -201,8 +210,8 @@ export default function IconTooltip({
   const tooltipRef = useRef<HTMLSpanElement>(null)
 
   // The side is picked once as the panel shows and kept until it hides, so a panel that opened above its
-  // trigger never swaps over what the trigger labels as the page moves. A press that opens the panel
-  // picks it afresh, since a pointer left on the trigger keeps a closed panel in place, shown where the
+  // trigger never swaps over what the trigger labels as the page moves. A trigger that asks for it picks
+  // afresh when a press opens the panel, since a pointer left on the trigger keeps a closed panel in place, shown where the
   // screen has hover, and keyboard focus on it keeps the panel showing, each with the side it had. A
   // panel beside what it explains covers it on neither side, so it picks again each time, and one that
   // showed above a fact goes below it once scrolling leaves no room above
@@ -323,7 +332,7 @@ export default function IconTooltip({
         className={triggerClassName}
         style={isFxIcon ? undefined : { color: iconColor ?? color }}
         onClick={() => {
-          if (!isOpen) sideRef.current = null
+          if (picksSideOnPress && !isOpen) sideRef.current = null
           updatePlacement()
           setIsOpen((open) => !open)
         }}
@@ -348,7 +357,11 @@ export default function IconTooltip({
         }}
       >
         <span
-          className={`app-tooltip-panel block rounded-md px-2.5 py-1.5 text-left text-sm font-medium text-pretty shadow-sm ${widthClassName}`}
+          className={joinClassNames(
+            'app-tooltip-panel block rounded-md px-2.5 py-1.5 text-left text-sm font-medium shadow-sm',
+            avoidsLoneWord && 'text-pretty',
+            widthClassName,
+          )}
           style={{ border: '1px solid var(--app-border-strong)' }}
         >
           {children}

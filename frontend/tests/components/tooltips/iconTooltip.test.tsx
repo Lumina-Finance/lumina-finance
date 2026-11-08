@@ -21,6 +21,21 @@ describe('icon tooltip', () => {
     expect(plain).not.toMatch(/<span [^>]*role="tooltip"[^>]*aria-hidden/)
   })
 
+  it('wraps its note as any tooltip does unless the caller asks to avoid a lone last word', () => {
+    const panelClasses = (markup: string) => markup.match(/class="app-tooltip-panel ([^"]*)"/)?.[1].split(' ') ?? []
+    const plain = panelClasses(renderToStaticMarkup(<IconTooltip label="About this">Note</IconTooltip>))
+    const asked = panelClasses(
+      renderToStaticMarkup(
+        <IconTooltip label="About this" avoidsLoneWord>
+          Note
+        </IconTooltip>,
+      ),
+    )
+
+    expect(plain).not.toContain('text-pretty')
+    expect(asked).toContain('text-pretty')
+  })
+
   it('is 13rem wide unless the caller sets a width', () => {
     const panelClasses = (markup: string) => markup.match(/class="app-tooltip-panel ([^"]*)"/)?.[1].split(' ') ?? []
     const plain = panelClasses(renderToStaticMarkup(<IconTooltip label="About this">Note</IconTooltip>))

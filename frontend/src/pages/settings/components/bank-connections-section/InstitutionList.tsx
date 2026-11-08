@@ -279,6 +279,8 @@ export function InstitutionRow({
               icon={CircleHelp}
               size={13}
               widthClassName="w-max max-w-52"
+              avoidsLoneWord
+              picksSideOnPress
             >
               <span className="font-normal normal-case">{entry.hint}</span>
             </IconTooltip>

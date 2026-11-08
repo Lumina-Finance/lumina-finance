@@ -27,7 +27,14 @@ export function LabelWithHint({
     <>
       {label}
       {hint && (
-        <IconTooltip label={hintLabel} placement={hintPlacement} size={12} widthClassName="w-max max-w-52">
+        <IconTooltip
+          label={hintLabel}
+          placement={hintPlacement}
+          size={12}
+          widthClassName="w-max max-w-52"
+          avoidsLoneWord
+          picksSideOnPress
+        >
           <span className="font-normal normal-case">{hint}</span>
         </IconTooltip>
       )}
