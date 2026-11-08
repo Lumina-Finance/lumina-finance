@@ -19,6 +19,7 @@ import type { ModalLevel } from '@/components/modal/Shell'
 import { ModalTitledPanel } from '@/components/modal/TitledPanel'
 import { WarningCallout } from '@/components/WarningCallout'
 import { useAuth } from '@/hooks/useAuth'
+import { useRefusedSubmit } from '@/hooks/useRefusedSubmit'
 import { useToast } from '@/hooks/useToast'
 import {
   describeConnected,
@@ -147,17 +148,20 @@ export function ConnectModal({
   // The messages that speak of the credential as one thing name the provider's first field
   const noun = credentialNoun(fields[0].label)
   const trimmed = Object.fromEntries(fields.map((field) => [field.key, (values[field.key] ?? '').trim()]))
-  const allFilled = fields.every((field) => trimmed[field.key])
 
-  // Why Connect can't be pressed yet, shown on the button the way any held-back button says it
-  const heldBackReason =
-    !reconnecting && !providerId
-      ? 'Choose a provider first'
-      : allFilled
-        ? null
-        : fields.length === 1
-          ? `Paste the ${noun} first`
-          : 'Fill in every field first'
+  // Without a provider there is nothing to fill in, so Connect says so before any press, the way any
+  // held-back button does. An empty field is only marked once a press finds it
+  const heldBackReason = !reconnecting && !providerId ? 'Choose a provider first' : null
+  const refusal = useRefusedSubmit(
+    Object.fromEntries(
+      fields.map((field) => [
+        field.key,
+        trimmed[field.key] ? undefined : fields.length === 1 ? `Paste the ${noun}` : 'Fill this in',
+      ]),
+    ),
+    fields.map((field) => field.key),
+    Object.fromEntries(fields.map((field) => [field.key, credentialFieldId(field.key)])),
+  )
 
   const reportAnswered = (cause: ApiError) => {
     if (cause.status === 422) {
@@ -169,7 +173,7 @@ export function ConnectModal({
 
   const submit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
-    if (busy || !allFilled) return
+    if (busy || !refusal.guard()) return
     for (const field of fields) {
       const lengthProblem = describeCredentialLength(field, site, trimmed[field.key])
       if (lengthProblem) {
@@ -263,6 +267,7 @@ export function ConnectModal({
           submitDisabled={busy}
           cancelDisabled={sending}
           submitReason={heldBackReason}
+          submitBlockedReason={refusal.blockedReason}
           submitWidthClassName="w-full sm:w-32"
           error={error}
           level={level}
@@ -287,6 +292,7 @@ export function ConnectModal({
               onChange={(value) => {
                 setError(null)
                 setFieldError(null)
+                refusal.reset()
                 setProviderId(value as BankProviderId)
               }}
             />
@@ -333,16 +339,22 @@ export function ConnectModal({
           </ol>
         )}
         {fields.map((field) => {
-          const invalid = fieldError?.keys.includes(field.key) ?? false
-          const message =
-            invalid && fieldError?.keys[fieldError.keys.length - 1] === field.key ? fieldError.message : null
+          const refusedMessage = refusal.errors[field.key]
+          const refused = Boolean(refusedMessage)
+          const refusedErrorId = `${credentialFieldId(field.key)}-error`
+          const refusedByServer = fieldError?.keys.includes(field.key) ?? false
+          const serverMessage =
+            refusedByServer && fieldError?.keys[fieldError.keys.length - 1] === field.key ? fieldError.message : null
+          const invalid = refused || refusedByServer
+          const message = refusedMessage ?? serverMessage
+          const messageId = refused ? refusedErrorId : CREDENTIAL_ERROR_ID
           return (
             <div key={field.key}>
               <CreateModalFieldLabelRow
                 htmlFor={credentialFieldId(field.key)}
                 label={field.label}
                 error={message ?? undefined}
-                errorId={message ? CREDENTIAL_ERROR_ID : undefined}
+                errorId={message ? messageId : undefined}
               />
               <textarea
                 id={credentialFieldId(field.key)}
@@ -352,7 +364,7 @@ export function ConnectModal({
                 spellCheck={false}
                 autoComplete="off"
                 aria-invalid={invalid ? true : undefined}
-                aria-describedby={invalid ? CREDENTIAL_ERROR_ID : undefined}
+                aria-describedby={invalid ? (refused ? refusedErrorId : CREDENTIAL_ERROR_ID) : undefined}
                 disabled={busy}
                 onChange={(event) => {
                   setFieldError(null)

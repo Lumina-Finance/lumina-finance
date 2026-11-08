@@ -19,13 +19,15 @@ import {
 import { useMoveFocusOnFold } from '@/pages/accounts/detail/components/bank-link/useMoveFocusOnFold'
 import { AccountIdentityFieldLabelRow } from '@/pages/accounts/detail/components/edit-identity/controls/FieldLabelRow'
 import { formatDateLabel } from '@/utils/date'
-import { formatCurrencySymbol } from '@/utils/formatCurrency'
+import { formatCurrencySymbol, getSymbolInputStyle } from '@/utils/formatCurrency'
 import { getAmountSign, signMovedAmount } from '@/utils/negativeAmount'
 import { DEFAULT_MINOR_UNIT_EXPONENT, findCurrencyExponent, fromMinorUnits } from '@/utils/moneyInput'
 
 const SKIP_LABEL = 'Skip'
 const RECORD_LABEL = 'Record adjustment'
-const BUTTON_CLASS = 'relative w-full shrink-0 whitespace-nowrap sm:w-(--fit-width)'
+// The sign and symbol are drawn 1rem in from the field's edge in 1rem text
+const PREFIX_PLACEMENT = { insetRem: 1, fontRem: 1 }
+const BUTTON_CLASS ='relative w-full shrink-0 whitespace-nowrap sm:w-(--fit-width)'
 
 type OpeningAdjustmentOfferProps = {
   accountId: string
@@ -50,7 +52,8 @@ type OpeningAdjustmentOfferProps = {
  * amount moves the ledger's balance, and while items waiting for review would move it, by how much,
  * since the offer leaves them out and so differs from the difference shown above it
  *
- * Record adjustment refuses a blank or zero amount with a message beside the field, and the field
+ * Record adjustment refuses a blank or zero amount with a message beside the field, and then fades,
+ * staying focusable and giving the same message as its reason until the amount changes. The field
  * says why it refuses a typed or pasted sign, recording the amount it keeps if pressed. A press while
  * either answer runs does nothing, and the buttons keep the focus they hold, as Sync now does, until
  * an answer goes through, or a read of the link leaves the offer out first, and focus inside the offer
@@ -70,6 +73,7 @@ export function OpeningAdjustmentOffer({
   const rootRef = useRef<HTMLDivElement>(null)
   const amountId = useId()
   const signId = useId()
+  const errorId = useId()
   const { currencies, formatCurrency } = useMoneyFormatters()
   const { showToast } = useToast()
   const record = useRecordOpeningAdjustment()
@@ -89,6 +93,10 @@ export function OpeningAdjustmentOffer({
   // The offered amount until the field is typed in, so an offer read again with another amount shows it
   const [typed, setTyped] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
+
+  // Set once a press of Record adjustment found nothing to record. The button fades with the reason
+  // until the amount changes, and stays focusable to say why
+  const [refusedReason, setRefusedReason] = useState<string | null>(null)
   const amountInput = useMoneyInput({
     value: typed ?? (locked ? '' : fromMinorUnits(Math.abs(offer.amount), exponent)),
     exponent,
@@ -97,7 +105,10 @@ export function OpeningAdjustmentOffer({
 
       // The field refuses text holding a sign and keeps its value, so the refused text is read to say
       // why. Settling on blur reports no text, so the message is left as it was
-      if (text !== undefined) setError(holdsSign(text) ? SIGNED_AMOUNT_MESSAGE : null)
+      if (text !== undefined) {
+        setError(holdsSign(text) ? SIGNED_AMOUNT_MESSAGE : null)
+        setRefusedReason(null)
+      }
     },
   })
   const busy = record.isPending || skip.isPending
@@ -125,14 +136,17 @@ export function OpeningAdjustmentOffer({
     const amount = readRecordedAmount(amountInput.value, exponent, offer.amount)
     if (amount === null) {
       setError(ZERO_AMOUNT_MESSAGE)
+      setRefusedReason(ZERO_AMOUNT_MESSAGE)
       return
     }
     setError(null)
+    setRefusedReason(null)
     answer(() => record.mutateAsync({ accountId, amount }))
   }
 
   const skipOffer = () => {
     setError(null)
+    setRefusedReason(null)
     answer(() => skip.mutateAsync(accountId))
   }
 
@@ -168,6 +182,7 @@ export function OpeningAdjustmentOffer({
           }
           htmlFor={amountId}
           error={error ?? undefined}
+          errorId={errorId}
         />
         <div className="flex flex-col gap-3 sm:flex-row">
           <div className="relative min-w-0 sm:flex-1">
@@ -181,10 +196,10 @@ export function OpeningAdjustmentOffer({
             )}
             <input
               id={amountId}
-              className={`app-input disabled:cursor-not-allowed disabled:opacity-60 ${error ? 'app-input-error' : ''}`}
+              className={`app-input disabled:cursor-not-allowed disabled:opacity-60 ${prefix ? 'pl-8' : ''} ${error ? 'app-input-error' : ''}`}
               // Clear of the sign and symbol, however many characters they take
-              style={prefix ? { paddingLeft: `calc(1.5rem + ${prefix.length}ch)` } : undefined}
-              aria-describedby={signId}
+              style={getSymbolInputStyle(prefix, PREFIX_PLACEMENT)}
+              aria-describedby={error ? `${errorId} ${signId}` : signId}
               aria-invalid={error ? true : undefined}
               disabled={locked}
               readOnly={busy}
@@ -218,6 +233,7 @@ export function OpeningAdjustmentOffer({
               className={`app-primary-button ${BUTTON_CLASS}`}
               style={recordStyle}
               measure={recordMeasure}
+              disabledReason={refusedReason}
               aria-disabled={skip.isPending || locked || undefined}
               onClick={busy || locked ? undefined : recordOffer}
             >

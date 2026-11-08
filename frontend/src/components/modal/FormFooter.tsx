@@ -22,12 +22,9 @@ interface ModalFormFooterProps {
   submitBlockedReason?: string
   /** Blocks cancelling, following submitDisabled unless set. False leaves Cancel open for a form waiting on a submission it can leave */
   cancelDisabled?: boolean
-  /** Holds the submit button disabled, keeping its label and leaving Cancel open, until the form has what it needs */
-  submitUnavailable?: boolean
-
   /**
    * Holds the submit button with a reason the form can't fix, shown on it the way any unavailable
-   * button shows its own, and taking the place of submitUnavailable while it is set
+   * button shows its own, and taking the place of submitBlockedReason while it is set
    */
   submitReason?: string | null
 
@@ -76,7 +73,6 @@ export function ModalFormFooter({
   submitDisabled,
   submitBlockedReason,
   cancelDisabled = submitDisabled,
-  submitUnavailable = false,
   submitReason = null,
   submitReasonShownById,
   submitWidthClassName,
@@ -141,7 +137,7 @@ export function ModalFormFooter({
         onPrimary?.()
       }}
       // A reason keeps the button focusable so it can be read, refusing presses itself
-      disabled={submitDisabled || (submitUnavailable && !submitReason)}
+      disabled={submitDisabled}
       disabledReason={submitDisabled ? undefined : (submitReason ?? submitBlockedReason)}
       reasonShownById={submitReason ? submitReasonShownById : undefined}
       aria-busy={submitDisabled}

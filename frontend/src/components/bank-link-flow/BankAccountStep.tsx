@@ -1,9 +1,11 @@
 import type { AccountsOverview } from '@/api/accounts'
 import type { BankConnection, DiscoveredBankAccount, DiscoveredBankAccounts } from '@/api/bank-sync'
 import { ChoiceCard } from '@/components/bank-link-flow/ChoiceCard'
+import { LINK_FLOW_FIELD_IDS } from '@/components/bank-link-flow/constants'
 import type { LinkFlowMode, PreviousBankAccount } from '@/components/bank-link-flow/wording'
 import Dropdown, { type DropdownOption } from '@/components/dropdown/Dropdown'
 import LoadFailure from '@/components/errors/LoadFailure'
+import { FieldError } from '@/components/forms/FieldError'
 import { InfoCallout } from '@/components/InfoCallout'
 import LoadingRegion from '@/components/loading/Region'
 import { useAuth } from '@/hooks/useAuth'
@@ -27,6 +29,9 @@ type BankAccountStepProps = {
   discoveredError: Error | null
   chosenId: string | null
   onChoose: (externalId: string) => void
+
+  /** What a refused press found wrong with the choice, shown under the list */
+  error?: string
   disabled: boolean
   onOpenSettings: () => void
 }
@@ -70,11 +75,15 @@ export function BankAccountStep({
   discoveredError,
   chosenId,
   onChoose,
+  error,
   disabled,
   onOpenSettings,
 }: BankAccountStepProps) {
   const { user } = useAuth()
   const { formatCurrency } = useMoneyFormatters()
+
+  // A refused press brings focus to the first bank account that can be chosen
+  const firstLinkableId = discovered?.accounts.find((entry) => entry.linkable)?.external_id
 
   return (
     <div className="space-y-3">
@@ -123,10 +132,17 @@ export function BankAccountStep({
           animateLoadingHeight
           overlayClassName={LOADING_OVERLAY_CLASS}
         >
-          <div className={`space-y-3 ${discovered ? '' : 'min-h-32'}`} role="radiogroup" aria-label="Bank account">
+          <div
+            className={`space-y-3 ${discovered ? '' : 'min-h-32'}`}
+            role="radiogroup"
+            aria-label="Bank account"
+            aria-invalid={error ? true : undefined}
+            aria-describedby={error ? LINK_FLOW_FIELD_IDS.bankAccountError : undefined}
+          >
             {discovered?.accounts.map((entry) => (
               <ChoiceCard
                 key={entry.external_id}
+                id={entry.external_id === firstLinkableId ? LINK_FLOW_FIELD_IDS.bankAccount : undefined}
                 selected={chosenId === entry.external_id}
                 disabled={disabled || !entry.linkable}
                 onSelect={() => onChoose(entry.external_id)}
@@ -163,6 +179,7 @@ export function BankAccountStep({
           </div>
         </LoadingRegion>
       )}
+      <FieldError message={error} id={LINK_FLOW_FIELD_IDS.bankAccountError} />
       <p className="text-xs" style={{ color: 'var(--app-text-muted)' }}>
         Missing a bank account? Add it in {providerSiteName(connection)}, or add another connection in{' '}
         <button

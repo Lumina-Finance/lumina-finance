@@ -42,7 +42,11 @@ function renderStep({
   previous = null,
   listing = false,
   listingError = null,
+  error,
 }: {
+  /** What a refused press found wrong with the choice */
+  error?: string
+
   accounts?: DiscoveredBankAccount[]
   connections?: ReturnType<typeof createConnection>[]
   mode?: LinkFlowMode
@@ -66,6 +70,7 @@ function renderStep({
       discoveredError={listingError}
       chosenId={null}
       onChoose={() => {}}
+      error={error}
       disabled={false}
       onOpenSettings={() => {}}
     />,
@@ -91,6 +96,17 @@ describe('the bank account step', () => {
     expect(card).toContain('Harbour Bank')
     expect(markup).not.toContain('aria-checked="true"')
     expect(markup).toContain('Missing a bank account? Add it in SimpleFIN Bridge, or add another connection in')
+  })
+
+  it('marks the list only once a press found no bank account chosen, pointing the first one that can be chosen to the message', () => {
+    expect(renderStep()).not.toContain('role="alert"')
+    expect(renderStep()).not.toContain('aria-invalid')
+
+    const markup = renderStep({ error: 'Choose a bank account' })
+
+    expect(markup).toMatch(/<p id="bank-link-bank-account-error" role="alert"[^>]*>Choose a bank account<\/p>/)
+    expect(markup).toMatch(/role="radiogroup"[^>]*aria-invalid="true"[^>]*aria-describedby="bank-link-bank-account-error"/)
+    expect(markup).toMatch(/<button id="bank-link-bank-account"/)
   })
 
   it("lists a bank account that can't be linked as unavailable, with the server's reason", () => {

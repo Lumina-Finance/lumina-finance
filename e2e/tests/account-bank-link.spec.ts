@@ -249,6 +249,28 @@ function readReviewSettingsOpacity(dialog: Locator): Promise<number> {
   })
 }
 
+// How far a button's width may differ from its label's and its own padding and border, in pixels. The label's
+// width is fractional and the button's rounds to whole pixels
+const LABEL_FIT_TOLERANCE_PX = 1.5
+
+/**
+ * Asserts the button is exactly as wide as the label it shows needs, with its own padding and border and no
+ * room kept for any other label. It waits for the width to stop easing, which a changed label does
+ */
+async function expectFitsLabel(button: Locator): Promise<void> {
+  await expect.poll(() => button.evaluate((element) => {
+    // Still easing, or a label still fading out beside the one that stays
+    if (element.getAnimations({ subtree: true }).length > 0) return Number.NaN
+
+    const range = document.createRange()
+    range.selectNodeContents(element)
+    const style = getComputedStyle(element)
+    const chrome = [style.paddingLeft, style.paddingRight, style.borderLeftWidth, style.borderRightWidth]
+      .reduce((total, side) => total + parseFloat(side), 0)
+    return Math.abs(element.getBoundingClientRect().width - range.getBoundingClientRect().width - chrome)
+  })).toBeLessThanOrEqual(LABEL_FIT_TOLERANCE_PX)
+}
+
 // A read the page sends as a test ends can still be on its way through a changed answer when the page
 // closes. That would fail a test whose checks all passed
 test.afterEach(async ({ page }) => {
@@ -281,15 +303,25 @@ test('links an account from its page, from choosing the bank account to its impo
   await expect(flow.getByText('Choose the bank account')).toBeVisible()
   await expect(flow.getByRole('radio', { name: new RegExp(`^${SAMPLE_VISA}`) })).toContainText(SAMPLE_BANK)
   const continueButton = flow.getByRole('button', { name: 'Continue' })
-  await expect(continueButton).toBeDisabled()
+  // Whole until a press finds no bank account chosen, then faded with the reason until one is
+  await expect(continueButton).not.toHaveAttribute('aria-disabled', 'true')
+  await continueButton.click()
+  await expect(flow.getByRole('alert')).toHaveText('Choose a bank account')
+  await expect(continueButton).toHaveAttribute('aria-disabled', 'true')
+  await expect(flow.getByRole('radiogroup', { name: 'Bank account' })).toHaveAttribute('aria-invalid', 'true')
   await flow.getByRole('radio', { name: new RegExp(`^${SAMPLE_CHEQUING}`) }).click()
+  await expect(flow.getByRole('alert')).toHaveCount(0)
+  await expect(continueButton).not.toHaveAttribute('aria-disabled', 'true')
   await continueButton.click()
 
   await expect(flow.getByText('Choose where history starts')).toBeVisible()
   await expect(flow.getByText(`${SAMPLE_CHEQUING} brings in transactions from the start you choose through today.`)).toBeVisible()
   await expect(flow.getByRole('radio', { checked: true })).toHaveCount(0)
   const submit = flow.getByRole('button', { name: 'Link and import' })
-  await expect(submit).toBeDisabled()
+  await expect(submit).not.toHaveAttribute('aria-disabled', 'true')
+  await submit.click()
+  await expect(flow.getByRole('alert')).toHaveText('Choose where to start')
+  await expect(submit).toHaveAttribute('aria-disabled', 'true')
 
   // Back keeps the bank account chosen
   await flow.getByRole('button', { name: 'Back' }).click()
@@ -452,7 +484,12 @@ test("lists the bank accounts that can't be linked with the reason for each", as
     await expect(card).toBeDisabled()
     await expect(card).toContainText(reason)
   }
-  await expect(flow.getByRole('button', { name: 'Continue' })).toBeDisabled()
+  // Nothing can be chosen, yet Continue is whole until a press says so
+  const continueButton = flow.getByRole('button', { name: 'Continue' })
+  await expect(continueButton).not.toHaveAttribute('aria-disabled', 'true')
+  await continueButton.click()
+  await expect(flow.getByRole('alert')).toHaveText('Choose a bank account')
+  await expect(continueButton).toHaveAttribute('aria-disabled', 'true')
 })
 
 test('sends an account with no connection to settings first', async ({ page, request }) => {
@@ -465,10 +502,41 @@ test('sends an account with no connection to settings first', async ({ page, req
 
   await expect(flow.getByText('Connect a provider first')).toBeVisible()
   await expect(flow.getByText('Add a bank connection in Settings first.')).toBeVisible()
+  await expectFitsLabel(flow.getByRole('button', { name: 'Open settings' }))
   await flow.getByRole('button', { name: 'Open settings' }).click()
 
   await expect(page).toHaveURL(/\/settings#bank-connections$/)
   await expect(page.getByRole('dialog')).toHaveCount(0)
+})
+
+test('fits the link flow button to the label it shows, easing its width as the label changes', async ({ page, request }) => {
+  const user = await signUpUser(request)
+  const [everyday, scenario] = await Promise.all([
+    createAccount(request, user, { name: 'Everyday' }),
+    createSampleBridgeScenario(request),
+  ])
+  await claimSetupToken(request, user, scenario.setupToken)
+  await logInViaApi(page, user)
+  const dialog = await openBankLink(page, everyday.id, 'Not linked')
+  await dialog.getByRole('button', { name: 'Link bank account' }).click()
+  const flow = page.getByRole('dialog', { name: 'Link bank account' })
+
+  // Continue is as wide as its own label, not as wide as the longer labels the button shows on other steps
+  const continueButton = flow.getByRole('button', { name: 'Continue', exact: true })
+  await expectFitsLabel(continueButton)
+  const continueWidth = (await continueButton.boundingBox())!.width
+
+  await flow.getByRole('radio', { name: new RegExp(`^${SAMPLE_CHEQUING}`) }).click()
+  await continueButton.click()
+  const submit = flow.getByRole('button', { name: 'Link and import', exact: true })
+  await expectFitsLabel(submit)
+  const submitWidth = (await submit.boundingBox())!.width
+  expect(submitWidth).toBeGreaterThan(continueWidth)
+
+  // Back on the first step the button eases back to fit Continue, the shorter label
+  await flow.getByRole('button', { name: 'Back' }).click()
+  await expectFitsLabel(continueButton)
+  expect((await continueButton.boundingBox())!.width).toBeLessThan(submitWidth)
 })
 
 test('keeps the start within the range and never chooses Custom date on its own', async ({ page, request }) => {
@@ -494,15 +562,27 @@ test('keeps the start within the range and never chooses Custom date on its own'
   const submit = flow.getByRole('button', { name: 'Link and import' })
   await custom.click()
   await expect(custom).toBeChecked()
-  await expect(submit).toBeDisabled()
+  await expect(submit).not.toHaveAttribute('aria-disabled', 'true')
 
+  // A date that is wrong is not called out while it is typed, only once focus leaves it
+  // The field's own message, not the faded button's tooltip, which gives the same reason
+  const rangeMessage = flow.getByRole('alert').filter({ hasText: 'Outside the allowed range.' })
   await typeDate(page, 'Start date', '2020-01-01')
-  await expect(flow.getByText('Outside the allowed range.')).toBeVisible()
-  await expect(submit).toBeDisabled()
+  await expect(rangeMessage).toBeHidden()
+  await expect(submit).not.toHaveAttribute('aria-disabled', 'true')
+  await flow.getByText('Choose where history starts').click()
+  await expect(rangeMessage).toBeVisible()
+  await expect(submit).not.toHaveAttribute('aria-disabled', 'true')
+
+  // A press then fades the button until the date is fixed
+  await submit.click()
+  await expect(submit).toHaveAttribute('aria-disabled', 'true')
+  await expect(rangeMessage).toBeVisible()
 
   await typeDate(page, 'Start date', firstOfMonthsAgo(2))
-  await expect(flow.getByText('Outside the allowed range.')).toBeHidden()
+  await expect(rangeMessage).toBeHidden()
   await expect(submit).toBeEnabled()
+  await expect(submit).not.toHaveAttribute('aria-disabled', 'true')
 })
 
 test('unlinks the account alone, then reconnects it with the relink wording', async ({ page, request }) => {
@@ -545,8 +625,10 @@ test('unlinks the account alone, then reconnects it with the relink wording', as
   await expect(unlink.getByRole('radio', { name: /^Disconnect SimpleFIN/ })).not.toBeChecked()
 
   // Disconnect is offered too, and changes the button to match
+  await expectFitsLabel(unlink.getByRole('button', { name: 'Unlink', exact: true }))
   await unlink.getByRole('radio', { name: /^Disconnect SimpleFIN/ }).click()
   await expect(unlink.getByRole('button', { name: 'Disconnect', exact: true })).toBeVisible()
+  await expectFitsLabel(unlink.getByRole('button', { name: 'Disconnect', exact: true }))
   await unlink.getByRole('radio', { name: /^Unlink this account/ }).click()
   await unlink.getByRole('button', { name: 'Unlink', exact: true }).click()
 
@@ -913,7 +995,11 @@ test('lists the bank accounts of the connection switched to, dropping the one ch
   await expect(flow.getByRole('radio', { name: /^Joint Savings/ })).toBeVisible()
   await expect(flow.getByRole('radio', { name: new RegExp(`^${SAMPLE_CHEQUING}`) })).toHaveCount(0)
   await expect(flow.getByRole('radio', { checked: true })).toHaveCount(0)
-  await expect(flow.getByRole('button', { name: 'Continue' })).toBeDisabled()
+  const continueButton = flow.getByRole('button', { name: 'Continue' })
+  await expect(continueButton).not.toHaveAttribute('aria-disabled', 'true')
+  await continueButton.click()
+  await expect(flow.getByRole('alert')).toHaveText('Choose a bank account')
+  await expect(continueButton).toHaveAttribute('aria-disabled', 'true')
 })
 
 /** The account page's identity card. It names the account and its institution */

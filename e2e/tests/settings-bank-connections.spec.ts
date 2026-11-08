@@ -198,7 +198,7 @@ test('adds a connection with a nickname and lists it with its bank accounts', as
 
   await section.getByRole('button', { name: 'Add a connection' }).click()
   const dialog = page.getByRole('dialog', { name: 'Add a connection' })
-  await expect(dialog.getByRole('button', { name: 'Connect' })).toBeDisabled()
+  await expect(dialog.getByRole('button', { name: 'Connect' })).not.toHaveAttribute('aria-disabled', 'true')
   await chooseFromDropdown(dialog, 'Provider', /^SimpleFIN/)
   await dialog.getByRole('textbox', { name: 'Nickname' }).fill('Joint banks')
   await dialog.getByRole('textbox', { name: 'Setup token' }).fill(scenario.setupToken)
@@ -212,7 +212,7 @@ test('adds a connection with a nickname and lists it with its bank accounts', as
   await expect(row).toContainText('OK')
 })
 
-test("draws the setup token field's hint like the nickname's and says why Connect is held back", async ({ page, request }) => {
+test("draws the setup token field's hint like the nickname's and marks the empty token once Connect is pressed", async ({ page, request }) => {
   const user = await signUpUser(request)
   const scenario = await createSampleBridgeScenario(request)
   const section = await openBankConnections(page, user)
@@ -227,9 +227,18 @@ test("draws the setup token field's hint like the nickname's and says why Connec
   expect(await hint(token)).toBe(await hint(dialog.getByRole('textbox', { name: 'Nickname' })))
 
   const connect = dialog.getByRole('button', { name: 'Connect' })
-  await expect(connect).toBeDisabled()
-  await expect(connect).toHaveAccessibleDescription('Paste the setup token first')
+  // Whole and unmarked until a press finds the token missing
+  await expect(connect).not.toHaveAttribute('aria-disabled', 'true')
+  await expect(token).not.toHaveAttribute('aria-invalid', 'true')
+  await connect.click()
+  await expect(dialog.getByRole('alert')).toHaveText('Paste the setup token')
+  await expect(token).toHaveAttribute('aria-invalid', 'true')
+  await expect(token).toHaveAccessibleDescription('Paste the setup token')
+  await expect(connect).toHaveAttribute('aria-disabled', 'true')
+  await expect(connect).toHaveAccessibleDescription('Paste the setup token')
   await token.fill(scenario.setupToken)
+  await expect(dialog.getByRole('alert')).toHaveCount(0)
+  await expect(connect).not.toHaveAttribute('aria-disabled', 'true')
   await expect(connect).toBeEnabled()
 })
 
@@ -274,7 +283,10 @@ test('draws each field a provider lists, checks each against its own limit and s
   const userToken = dialog.getByRole('textbox', { name: 'User access token' })
   await expect(dialog.getByRole('textbox', { name: 'Setup token' })).toHaveCount(0)
   await appToken.fill('app-token-too-long')
-  await expect(dialog.getByRole('button', { name: 'Connect' })).toBeDisabled()
+  // The press finds the user token empty and marks it, leaving the app token to be judged once it is whole
+  await dialog.getByRole('button', { name: 'Connect' }).click()
+  await expect(userToken).toHaveAttribute('aria-invalid', 'true')
+  await expect(dialog.getByRole('button', { name: 'Connect' })).toHaveAttribute('aria-disabled', 'true')
   await userToken.fill('user-1')
   await dialog.getByRole('button', { name: 'Connect' }).click()
 
@@ -742,8 +754,13 @@ test('links a bank account from the connection, importing from the start chosen'
   await expect(flow.getByRole('button', { name: 'Cancel' })).toBeVisible()
   await expect(flow.getByRole('button', { name: 'Back' })).toHaveCount(0)
   await expect(flow.getByRole('radio', { checked: true })).toHaveCount(0)
-  await expect(flow.getByRole('button', { name: 'Link and import' })).toBeDisabled()
+  const submit = flow.getByRole('button', { name: 'Link and import' })
+  await expect(submit).not.toHaveAttribute('aria-disabled', 'true')
+  await submit.click()
+  await expect(flow.getByRole('alert')).toHaveText('Choose where to start')
+  await expect(submit).toHaveAttribute('aria-disabled', 'true')
   await flow.getByRole('radio', { name: /^3 months/ }).click()
+  await expect(submit).not.toHaveAttribute('aria-disabled', 'true')
   const linked = page.waitForRequest((sent) =>
     sent.url() === `${API_BASE_URL}/accounts/${household.id}/bank-link` && sent.method() === 'POST')
   await flow.getByRole('button', { name: 'Link and import' }).click()

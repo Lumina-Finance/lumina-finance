@@ -15,9 +15,18 @@ import {
 } from '@/api/bank-sync'
 import { BankAccountStep } from '@/components/bank-link-flow/BankAccountStep'
 import { BankSyncNotSetUp } from '@/components/bank-link-flow/BankSyncNotSetUp'
-import { BANK_CONNECTIONS_SETTINGS_PATH, BANK_SYNC_NOT_SET_UP_REASON } from '@/components/bank-link-flow/constants'
+import {
+  BANK_ACCOUNT_REQUIRED_MESSAGE,
+  BANK_CONNECTIONS_SETTINGS_PATH,
+  BANK_SYNC_NOT_SET_UP_REASON,
+  LINK_FLOW_FIELD_IDS,
+  LINK_FLOW_FIELDS,
+  START_CHOICE_REQUIRED_MESSAGE,
+  START_DATE_OUT_OF_RANGE_MESSAGE,
+  START_DATE_REQUIRED_MESSAGE,
+} from '@/components/bank-link-flow/constants'
 import { StartStep } from '@/components/bank-link-flow/StartStep'
-import { useStartChoice } from '@/components/bank-link-flow/useStartChoice'
+import { CUSTOM_START, useStartChoice } from '@/components/bank-link-flow/useStartChoice'
 import {
   LINK_FLOW_STEP_NAMES,
   LINK_FLOW_WORDING,
@@ -32,9 +41,12 @@ import LoadingRegion from '@/components/loading/Region'
 import { ModalFormFooter } from '@/components/modal/FormFooter'
 import { ModalTitledPanel } from '@/components/modal/TitledPanel'
 import { StepTransition } from '@/components/two-factor/StepTransition'
+import { useRefusedSubmit } from '@/hooks/useRefusedSubmit'
 import { useToast } from '@/hooks/useToast'
 
-const LOADING_OVERLAY_CLASS = 'absolute inset-0 z-10 flex items-center justify-center bg-[var(--app-bg)]'
+type LinkFlowField = (typeof LINK_FLOW_FIELDS)[number]
+
+const LOADING_OVERLAY_CLASS ='absolute inset-0 z-10 flex items-center justify-center bg-[var(--app-bg)]'
 
 /** A bank account chosen in settings, and the account chosen there to take it */
 export type BankLinkTarget = {
@@ -126,6 +138,29 @@ export function BankLinkFlowModal({
   )
   const startChoice = useStartChoice(range, account.name)
 
+  // What a press of the action button would find missing on the step showing. Each step fixes its own
+  // problems, so the button stays whole until a press finds one
+  const startDateProblem =
+    startChoice.choice !== CUSTOM_START
+      ? undefined
+      : !startChoice.customStart
+        ? START_DATE_REQUIRED_MESSAGE
+        : startChoice.outOfRange
+          ? START_DATE_OUT_OF_RANGE_MESSAGE
+          : undefined
+  const refusal = useRefusedSubmit<LinkFlowField>(
+    step === 'account'
+      ? { bankAccount: chosenBankAccount?.linkable ? undefined : BANK_ACCOUNT_REQUIRED_MESSAGE }
+      : step === 'start'
+        ? {
+            startChoice: startChoice.choice === null ? START_CHOICE_REQUIRED_MESSAGE : undefined,
+            startDate: startDateProblem,
+          }
+        : {},
+    LINK_FLOW_FIELDS,
+    LINK_FLOW_FIELD_IDS,
+  )
+
   const busy = link.isPending
 
   // Linking waits for the worker that imports the history, so it is held back while bank sync isn't
@@ -146,7 +181,7 @@ export function BankLinkFlowModal({
 
   const confirmLink = () => {
     const externalAccountId = chosen?.bankAccount.external_id ?? externalId
-    if (!connection || !externalAccountId || !startChoice.start || startChoice.outOfRange || linkingPaused) return
+    if (!connection || !externalAccountId || linkingPaused || !refusal.guard()) return
     setError(null)
     link.mutate(
       {
@@ -173,16 +208,21 @@ export function BankLinkFlowModal({
     step === 'connect-first'
       ? {
           label: connectFirst?.canOpenSettings ? 'Open settings' : 'Close',
-          unavailable: false,
           onPrimary: connectFirst?.canOpenSettings ? openSettings : onClose,
         }
       : step === 'account'
-        ? { label: 'Continue', unavailable: !chosenBankAccount?.linkable, onPrimary: () => goTo('start') }
-        : {
-            label: wording.submitLabel,
-            unavailable: step === null || !range || !startChoice.start || startChoice.outOfRange,
-            onPrimary: confirmLink,
+        ? {
+            label: 'Continue',
+            onPrimary: () => {
+              if (refusal.guard()) goTo('start')
+            },
           }
+        : { label: wording.submitLabel, onPrimary: confirmLink }
+
+  // Held back before any press only for a reason a press can't fix: bank sync isn't set up, or the step
+  // is still loading what it needs
+  const stillLoading = step === null || (step === 'start' && !range)
+  const heldBackReason = showsNotSetUp ? BANK_SYNC_NOT_SET_UP_REASON : stillLoading ? 'Still loading' : null
   const backsToAccount = step === 'start' && !chosen
 
   return (
@@ -202,9 +242,9 @@ export function BankLinkFlowModal({
           submitLabel={primary.label}
           submitLabels={[...new Set(['Continue', 'Open settings', 'Close', primary.label])]}
           submitDisabled={busy}
-          submitUnavailable={primary.unavailable}
-          submitReason={showsNotSetUp ? BANK_SYNC_NOT_SET_UP_REASON : null}
-          submitReasonShownById={notSetUpReasonId}
+          submitReason={heldBackReason}
+          submitBlockedReason={refusal.blockedReason}
+          submitReasonShownById={showsNotSetUp ? notSetUpReasonId : undefined}
           submitWidthClassName="w-full sm:w-40"
           error={error}
           level="stacked"
@@ -247,6 +287,7 @@ export function BankLinkFlowModal({
                   discoveredError={discoveredError}
                   chosenId={externalId}
                   onChoose={setExternalId}
+                  error={refusal.errors.bankAccount}
                   disabled={busy}
                   onOpenSettings={openSettings}
                 />
@@ -268,6 +309,8 @@ export function BankLinkFlowModal({
                         providerName={connection?.provider_name ?? ''}
                         advertisesHistory={provider?.advertises_history ?? true}
                         startChoice={startChoice}
+                        errors={refusal.errors}
+                        onDateBlur={() => refusal.touch('startDate')}
                         disabled={busy}
                       />
                     ) : (

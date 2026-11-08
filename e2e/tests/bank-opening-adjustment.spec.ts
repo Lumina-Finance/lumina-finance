@@ -82,7 +82,8 @@ async function openOffer(page: Page, request: APIRequestContext): Promise<{ setu
     amount: dialog.getByRole('textbox', { name: 'Adjustment amount' }),
     skip: dialog.getByRole('button', { name: 'Skip', exact: true }),
     record: dialog.getByRole('button', { name: 'Record adjustment' }),
-    zeroMessage: dialog.getByText(ZERO_AMOUNT_MESSAGE),
+    // The field's own message, not the faded Record adjustment's tooltip, which gives the same reason
+    zeroMessage: dialog.getByRole('alert').filter({ hasText: ZERO_AMOUNT_MESSAGE }),
   }
   await expect(offer.sentence).toBeVisible()
   return { setup, offer }
@@ -227,13 +228,22 @@ test('records nothing for Enter in the amount, or for a blank or zero amount, sa
   await offer.amount.press('Enter')
   await expect(offer.dialog).toBeVisible()
 
+  // Whole until a press finds nothing to record
+  await expect(offer.record).not.toHaveAttribute('aria-disabled', 'true')
   await offer.amount.fill('')
   await offer.record.click()
   await expect(offer.zeroMessage).toBeVisible()
+
+  // The message describes the field, and the button fades with it as its reason until the amount changes
+  await expect(offer.amount).toHaveAccessibleDescription(`${ZERO_AMOUNT_MESSAGE} Your ledger records this amount as positive.`)
+  await expect(offer.record).toHaveAttribute('aria-disabled', 'true')
+  await expect(offer.record).toHaveAccessibleDescription(ZERO_AMOUNT_MESSAGE)
   await offer.amount.fill('0')
   await expect(offer.zeroMessage).toBeHidden()
+  await expect(offer.record).not.toHaveAttribute('aria-disabled', 'true')
   await offer.record.click()
   await expect(offer.zeroMessage).toBeVisible()
+  await expect(offer.record).toHaveAttribute('aria-disabled', 'true')
   await expect(offer.sentence).toBeVisible()
   expect(answers).toEqual([])
 })

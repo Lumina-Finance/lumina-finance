@@ -1,11 +1,11 @@
 import type { BankImportRange } from '@/api/bank-sync'
 import { ChoiceCard } from '@/components/bank-link-flow/ChoiceCard'
+import { LINK_FLOW_FIELD_IDS } from '@/components/bank-link-flow/constants'
 import { CUSTOM_START, type StartChoiceState } from '@/components/bank-link-flow/useStartChoice'
 import DateField from '@/components/date-field/DateField'
+import { FieldError } from '@/components/forms/FieldError'
 import { InfoCallout } from '@/components/InfoCallout'
 import { formatDateLabel } from '@/utils/date'
-
-const START_ERROR_ID = 'bank-link-start-error'
 
 type StartStepProps = {
   range: BankImportRange
@@ -15,6 +15,12 @@ type StartStepProps = {
   /** Whether the provider says how much history it holds for each bank, and that makes its limit a promise */
   advertisesHistory: boolean
   startChoice: StartChoiceState
+
+  /** What a refused press, or leaving the date, found wrong with the choice or the custom date */
+  errors: { startChoice?: string; startDate?: string }
+
+  /** Told when focus leaves the custom date, so a date left wrong is marked before any press */
+  onDateBlur: () => void
   disabled: boolean
 }
 
@@ -28,10 +34,11 @@ export function StartStep({
   providerName,
   advertisesHistory,
   startChoice,
+  errors,
+  onDateBlur,
   disabled,
 }: StartStepProps) {
-  const { choice, choose, customStart, setCustomStart, choices, outOfRange, isDateDisabled, uncoveredUntil } =
-    startChoice
+  const { choice, choose, customStart, setCustomStart, choices, isDateDisabled, uncoveredUntil } = startChoice
 
   return (
     <div className="space-y-4">
@@ -39,10 +46,17 @@ export function StartStep({
         {bankAccountName} brings in transactions from the start you choose through today. Each one waits for your review
         first.
       </p>
-      <div className="space-y-3" role="radiogroup" aria-label="Start">
-        {choices.map((preset) => (
+      <div
+        className="space-y-3"
+        role="radiogroup"
+        aria-label="Start"
+        aria-invalid={errors.startChoice ? true : undefined}
+        aria-describedby={errors.startChoice ? LINK_FLOW_FIELD_IDS.startChoiceError : undefined}
+      >
+        {choices.map((preset, index) => (
           <ChoiceCard
             key={preset.key}
+            id={index === 0 ? LINK_FLOW_FIELD_IDS.startChoice : undefined}
             selected={choice === preset.key}
             disabled={disabled}
             onSelect={() => choose(preset.key)}
@@ -63,6 +77,7 @@ export function StartStep({
           </ChoiceCard>
         ))}
         <ChoiceCard
+          id={choices.length === 0 ? LINK_FLOW_FIELD_IDS.startChoice : undefined}
           selected={choice === CUSTOM_START}
           disabled={disabled}
           onSelect={() => choose(CUSTOM_START)}
@@ -82,19 +97,17 @@ export function StartStep({
                 {/* Indented to the choice's label, past the radio and its gap, on phones */}
                 <div className="pb-3.5 pl-[2.625rem] pr-3.5 sm:py-3.5 sm:pl-0">
                   <DateField
+                    id={LINK_FLOW_FIELD_IDS.startDate}
                     value={customStart}
                     ariaLabel="Start date"
                     disabled={disabled}
-                    error={outOfRange}
-                    describedById={outOfRange ? START_ERROR_ID : undefined}
+                    error={Boolean(errors.startDate)}
+                    describedById={errors.startDate ? LINK_FLOW_FIELD_IDS.startDateError : undefined}
                     isDateDisabled={isDateDisabled}
                     onChange={setCustomStart}
+                    onBlur={onDateBlur}
                   />
-                  {outOfRange && (
-                    <span id={START_ERROR_ID} className="mt-1.5 block text-xs" style={{ color: 'var(--app-negative)' }}>
-                      Outside the allowed range.
-                    </span>
-                  )}
+                  <FieldError message={errors.startDate} id={LINK_FLOW_FIELD_IDS.startDateError} className="mt-1.5" />
                 </div>
               </div>
             </div>
@@ -108,6 +121,7 @@ export function StartStep({
           </span>
         </ChoiceCard>
       </div>
+      <FieldError message={errors.startChoice} id={LINK_FLOW_FIELD_IDS.startChoiceError} />
       {!advertisesHistory && (
         <InfoCallout>
           You can import up to {range.provider_history_months} months from {providerName}, but it doesn't say how much

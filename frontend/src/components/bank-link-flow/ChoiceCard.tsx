@@ -33,6 +33,9 @@ interface ChoiceCardProps {
 
   /** Takes focus as its dialogue opens, in place of the dialogue's first field */
   initialFocus?: boolean
+
+  /** Lets a refused press bring focus to the choice */
+  id?: string
 }
 
 /**
@@ -40,17 +43,25 @@ interface ChoiceCardProps {
  *
  * Anything passed as extra sits beneath the choice on phones and beside it from sm up
  */
-export function ChoiceCard({ selected, disabled, onSelect, children, extra, initialFocus = false }: ChoiceCardProps) {
+export function ChoiceCard({ selected, disabled, onSelect, children,
+  extra,
+  initialFocus = false,
+  id,
+}: ChoiceCardProps) {
   // An unavailable card is marked by its plain fill and faded radio rather than by fading the whole
   // card. Fading the card would take its text below readable contrast
   const frameStyle = {
     borderColor: selected ? 'var(--app-accent)' : 'var(--app-border)',
     background: selected ? 'var(--app-accent-soft)' : disabled ? 'var(--app-surface-soft)' : 'transparent',
   }
-  const frameClass = 'rounded-xl border transition-colors'
+  // An unselected card that can be chosen fills on hover, and on keyboard focus through the hover variant
+  // The fill is important because the frame's resting fill is set inline
+  const hoverClass = selected || disabled ? '' : 'hover:bg-[var(--app-hover-soft)]!'
+  const frameClass = `rounded-xl border transition-control motion-reduce:transition-none ${hoverClass}`
 
   const choice = (
     <button
+      id={id}
       type="button"
       role="radio"
       aria-checked={selected}
@@ -59,7 +70,7 @@ export function ChoiceCard({ selected, disabled, onSelect, children, extra, init
       data-modal-initial-focus={initialFocus ? 'true' : undefined}
       onClick={onSelect}
       onKeyDown={moveWithArrows}
-      className={`flex w-full items-start gap-3 p-3.5 text-left disabled:cursor-not-allowed focus-visible:outline-none focus-visible:shadow-[inset_0_0_0_2px_var(--app-focus-ring)] ${extra === undefined ? frameClass : 'rounded-xl sm:min-w-0 sm:flex-1'}`}
+      className={`flex w-full items-start gap-3 p-3.5 text-left disabled:cursor-not-allowed ${extra === undefined ? frameClass : 'rounded-xl sm:min-w-0 sm:flex-1'}`}
       style={extra === undefined ? frameStyle : undefined}
     >
       <span

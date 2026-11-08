@@ -90,7 +90,8 @@ export function ReviewSettingsModal({ open, accountId, level = 'page', onClose }
         <ModalFormFooter
           submitLabel="Save"
           submitDisabled={update.isPending}
-          submitUnavailable={!current}
+          // Nothing to save until the settings have loaded, which a press can't fix
+          submitReason={current ? null : readError ? 'The review settings did not load' : 'Still loading'}
           // As wide as Cancel beside it, since the short label would otherwise fall short of that
           submitWidthClassName="w-full sm:w-21"
           error={error}

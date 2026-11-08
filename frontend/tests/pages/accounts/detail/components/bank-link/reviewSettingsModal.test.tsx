@@ -117,7 +117,9 @@ describe('ReviewSettingsModal', () => {
     read.saved = undefined
     const markup = renderDialog()
     expect(markup).toMatch(/>Cancel<\/button>.*>Save<\/button>/s)
-    expect(getButton(markup, 'Save')).toContain('disabled=""')
+    // Held back with a reason it can be read from, so it stays focusable rather than disabled
+    expect(getButton(markup, 'Save')).toContain('aria-disabled="true"')
+    expect(getButton(markup, 'Save')).not.toContain(' disabled=""')
     const presets = getTabs(getTablist(markup, 'Review preset'))
     expect(presets).toHaveLength(3)
     expect(presets.filter((tab) => !tab.includes('disabled=""'))).toEqual([])
@@ -143,6 +145,6 @@ describe('ReviewSettingsModal', () => {
     const markup = renderDialog()
     expect(markup).toContain('Review settings could not load')
     expect(markup).not.toContain('role="tablist"')
-    expect(getButton(markup, 'Save')).toContain('disabled=""')
+    expect(getButton(markup, 'Save')).toContain('aria-disabled="true"')
   })
 })
