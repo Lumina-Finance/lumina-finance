@@ -79,6 +79,23 @@ async function readTooltipOpacity(text: Locator): Promise<string> {
   })
 }
 
+/**
+ * Reads the Archive row's look: the pointer over it, how opaque the whole row is, and how opaque the text
+ * inside it is. A row faded as a whole fades its focus ring with it, so a held switch that stays focusable
+ * fades its text alone
+ */
+async function readArchiveRow(archive: Locator): Promise<{ cursor: string; row: string; text: string }> {
+  return archive.evaluate((input) => {
+    const label = input.closest('label')
+    if (!label?.firstElementChild) throw new Error('the switch is not inside the Archive row')
+    return {
+      cursor: getComputedStyle(label).cursor,
+      row: getComputedStyle(label).opacity,
+      text: getComputedStyle(label.firstElementChild).opacity,
+    }
+  })
+}
+
 /** Opens the account's Edit modal from its page */
 async function openEditAccount(page: Page): Promise<Locator> {
   await page.getByRole('button', { name: 'Edit account', exact: true }).click()
@@ -379,6 +396,9 @@ test('greys out Archive with its reason while the account is linked, and offers 
   await expect(archive).toBeDisabled()
   await expect(archive).toHaveAccessibleDescription(ARCHIVE_LINKED_REASON)
 
+  // The link's reason fades the row's text alone, so the focus ring on the switch stays at full strength
+  await expect.poll(() => readArchiveRow(archive)).toEqual({ cursor: 'not-allowed', row: '1', text: '0.6' })
+
   // A later-dated transaction would block archiving too, but the switch gives one reason at a time
   await expect(dialog.getByText(/future dated transactions/)).toHaveCount(0)
 
@@ -456,9 +476,33 @@ test('holds Archive back until the link has been read, so a linked account is ne
   await expect(archive).toBeDisabled()
   await expect(archiveInstead).toBeDisabled()
 
+  // The switch is held with no reason yet, so its row is not faded, but it refuses a press as it will with one
+  await expect.poll(() => readArchiveRow(archive)).toEqual({ cursor: 'not-allowed', row: '1', text: '1' })
+
   releaseRead()
   await expect(archive).toHaveAccessibleDescription(ARCHIVE_LINKED_REASON)
   await expect(archiveInstead).toHaveAccessibleDescription(ARCHIVE_LINKED_REASON)
+})
+
+// With no link to hold it, only the later-dated transactions block archiving, and the switch is disabled
+// outright, so its whole row fades
+test('fades the whole Archive row when later-dated transactions block it', async ({ page, request }) => {
+  const user = await signUpUser(request)
+  const account = await createAccount(request, user, { name: 'Everyday' })
+  await createTransaction(request, user, {
+    accountId: account.id,
+    categoryName: 'Groceries',
+    amount: -4250,
+    date: daysFromTodayInTestTimezone(3),
+  })
+  await logInViaApi(page, user)
+  await openPage(page, `/accounts/${account.id}`)
+  await page.getByRole('button', { name: 'Edit account', exact: true }).click()
+  const dialog = page.getByRole('dialog', { name: 'Edit account', exact: true })
+  const archive = dialog.getByRole('switch', { name: /^Archive account/ })
+
+  await expect(archive).toBeDisabled()
+  await expect.poll(() => readArchiveRow(archive)).toEqual({ cursor: 'not-allowed', row: '0.6', text: '1' })
 })
 
 // Held back through aria-disabled, Archive instead still takes focus, as it does for an account with
