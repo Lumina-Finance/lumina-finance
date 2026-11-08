@@ -16,10 +16,6 @@ type CollapsibleSectionProps = {
   // Runs once the body has finished opening, which is the first moment the page height reflects it
   onExpandComplete?: () => void
 
-  // Opens at once and animates only the close, for an owner that scrolls the opened body into view
-  // and would otherwise wait for the height to settle first
-  opensInstantly?: boolean
-
   // Placement for the section and its body, so a list laid out on a CSS grid can keep the body's rows
   // on its own column tracks
   className?: string
@@ -70,7 +66,6 @@ export function CollapsibleSection({
   expanded,
   onToggle,
   onExpandComplete,
-  opensInstantly = false,
   className,
   bodyClassName = '',
   headerStyle,
@@ -133,7 +128,7 @@ export function CollapsibleSection({
         initial={false}
         animate={{ height: expanded ? 'auto' : 0, opacity: expanded ? 1 : 0 }}
         transition={{
-          duration: prefersReducedMotion || (opensInstantly && expanded) ? 0 : COLLAPSIBLE_SECTION_TRANSITION_SECONDS,
+          duration: prefersReducedMotion ? 0 : COLLAPSIBLE_SECTION_TRANSITION_SECONDS,
           ease: COLLAPSIBLE_SECTION_EASE,
         }}
         style={{ overflow: isAnimating || !expanded ? 'hidden' : 'visible' }}
