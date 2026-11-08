@@ -1,6 +1,14 @@
 import { expect, test, type Locator, type Page } from '@playwright/test'
 
-import { asUser, budgetPeriodStart, createAccount, createMonthlyBudget, createTransaction, signUpUser } from '../support/api'
+import {
+  asUser,
+  budgetPeriodStart,
+  createAccount,
+  createMonthlyBudget,
+  createTransaction,
+  daysFromTodayInTestTimezone,
+  signUpUser,
+} from '../support/api'
 import { logInViaApi, openModal, openPage } from '../support/app'
 import { contrastRatio, shownFill, type Rgb } from '../support/paint'
 import { API_BASE_URL } from '../support/target'
@@ -385,5 +393,188 @@ for (const colorScheme of ['light', 'dark'] as const) {
     await expect(row).toHaveAttribute('aria-checked', 'false')
     await row.blur()
     expect(await hoverStep(page, row)).toBeGreaterThanOrEqual(MINIMUM_HOVER_STEP)
+  })
+}
+
+// The room the collapsible headers keep between their hover tint's edges and their icon and arrow
+const HEADER_SIDE_ROOM = 12
+
+/**
+ * Signs up a user with an archived account and an archived budget beside one of each in use, and opens a
+ * page, so its Archived section shows
+ */
+async function openWithArchived(page: Page, request: Parameters<typeof signUpUser>[0], colorScheme: 'light' | 'dark', url: string) {
+  await page.emulateMedia({ colorScheme })
+  const user = await signUpUser(request)
+  await createAccount(request, user, { name: 'Everyday' })
+  const old = await createAccount(request, user, { name: 'Old savings' })
+  const account = await request.patch(`${API_BASE_URL}/accounts/${old.id}`, { headers: asUser(user), data: { is_archived: true } })
+  expect(account.status()).toBe(200)
+  const budget = { categoryNames: ['Groceries'], overallLimit: 50_000, periodStart: budgetPeriodStart() }
+  await createMonthlyBudget(request, user, { name: 'Groceries budget', ...budget })
+  const oldBudget = await createMonthlyBudget(request, user, { name: 'Old budget', ...budget })
+  const archived = await request.patch(`${API_BASE_URL}/base-budgets/${oldBudget}`, { headers: asUser(user), data: { is_archived: true } })
+  expect(archived.status()).toBe(200)
+  await logInViaApi(page, user)
+  await page.addInitScript((key) => localStorage.setItem(key, 'true'), NAV_EXPANDED_KEY)
+  await openPage(page, url)
+  await expect(page.locator('html')).toHaveClass(colorScheme === 'dark' ? /\bdark\b/ : /^(?!.*\bdark\b)/)
+}
+
+/** Signs up a user with a transaction three days ahead and opens Transactions, so the Upcoming section shows */
+async function openWithUpcoming(page: Page, request: Parameters<typeof signUpUser>[0], colorScheme: 'light' | 'dark') {
+  await page.emulateMedia({ colorScheme })
+  const user = await signUpUser(request)
+  const account = await createAccount(request, user, { name: 'Everyday' })
+  await createTransaction(request, user, { accountId: account.id, categoryName: 'Groceries', amount: -100, date: daysFromTodayInTestTimezone(3) })
+  await logInViaApi(page, user)
+  await page.addInitScript((key) => localStorage.setItem(key, 'true'), NAV_EXPANDED_KEY)
+  await openPage(page, '/transactions')
+  await expect(page.locator('html')).toHaveClass(colorScheme === 'dark' ? /\bdark\b/ : /^(?!.*\bdark\b)/)
+}
+
+/** Focuses a header from the keyboard and waits for its ring to finish fading in */
+async function focusFromKeyboard(header: Locator) {
+  await header.page().keyboard.press('Tab')
+  await header.focus()
+  await expect.poll(() => header.evaluate((node) => {
+    const probe = document.createElement('i')
+    probe.style.color = 'var(--app-focus-ring)'
+    document.body.append(probe)
+    const ring = getComputedStyle(probe).color
+    probe.remove()
+    return getComputedStyle(node).outlineColor === ring
+  })).toBe(true)
+}
+
+/**
+ * The sides of an element's focus ring that show on screen. It reads a screenshot across the middle of
+ * each side, so a ring a parent clips or a strip above covers counts as missing there. Polled, since the
+ * page can still be settling when the ring's colour arrives
+ */
+async function ringSidesShown(page: Page, element: Locator): Promise<string[]> {
+  const { ring, sides } = await element.evaluate((node) => {
+    const probe = document.createElement('i')
+    probe.style.color = 'var(--app-focus-ring)'
+    document.body.append(probe)
+    const canvas = document.createElement('canvas').getContext('2d', { willReadFrequently: true })!
+    canvas.fillStyle = getComputedStyle(probe).color
+    probe.remove()
+    canvas.fillRect(0, 0, 1, 1)
+    const ring = [...canvas.getImageData(0, 0, 1, 1).data].slice(0, 3)
+
+    // Each side's run of pixels from the ring's outer edge to its inner edge, through the middle of the side
+    const style = getComputedStyle(node)
+    const outer = parseFloat(style.outlineOffset) + parseFloat(style.outlineWidth)
+    const inner = parseFloat(style.outlineOffset)
+    const box = node.getBoundingClientRect()
+    const x = Math.round((box.left + box.right) / 2)
+    const y = Math.round((box.top + box.bottom) / 2)
+    return {
+      ring,
+      sides: {
+        top: { x, y, from: [x, box.top - outer], to: [x, box.top - inner] },
+        bottom: { x, y, from: [x, box.bottom + inner], to: [x, box.bottom + outer] },
+        left: { x, y, from: [box.left - outer, y], to: [box.left - inner, y] },
+        right: { x, y, from: [box.right + inner, y], to: [box.right + outer, y] },
+      },
+    }
+  })
+  const shot = (await page.screenshot({ scale: 'css' })).toString('base64')
+  return page.evaluate(async ({ shot, ring, sides }) => {
+    const image = new Image()
+    image.src = `data:image/png;base64,${shot}`
+    await image.decode()
+    const canvas = document.createElement('canvas')
+    canvas.width = image.width
+    canvas.height = image.height
+    const context = canvas.getContext('2d', { willReadFrequently: true })!
+    context.drawImage(image, 0, 0)
+    const near = (x: number, y: number) => {
+      const pixel = context.getImageData(Math.floor(x), Math.floor(y), 1, 1).data
+      return ring.every((channel, index) => Math.abs(channel - pixel[index]) <= 24)
+    }
+    return Object.entries(sides).filter(([, { from, to }]) => {
+      for (let step = 0; step <= 4; step += 1) {
+        if (near(from[0] + ((to[0] - from[0]) * step) / 4, from[1] + ((to[1] - from[1]) * step) / 4)) return true
+      }
+      return false
+    }).map(([side]) => side)
+  }, { shot, ring, sides })
+}
+
+/** Clicks a header and records its body's height every frame until well after the motion should end */
+async function heightsAfterClick(header: Locator): Promise<number[]> {
+  return header.evaluate((node) => new Promise<number[]>((resolve) => {
+    const body = document.getElementById(node.getAttribute('aria-controls')!)!
+    const heights: number[] = []
+    const start = performance.now()
+    ;(node as HTMLButtonElement).click()
+    const tick = () => {
+      heights.push(body.getBoundingClientRect().height)
+      if (performance.now() - start < 800) requestAnimationFrame(tick)
+      else resolve(heights)
+    }
+    requestAnimationFrame(tick)
+  }))
+}
+
+for (const { url, name } of [
+  { url: '/accounts', name: 'Archived accounts' },
+  { url: '/budgets', name: 'Archived budgets' },
+]) {
+  test(`keeps the ${name} hover tint clear of the header's icon and arrow`, async ({ page, request }) => {
+    await openWithArchived(page, request, 'light', url)
+    const header = page.getByRole('button', { name: new RegExp(name) })
+    expect(await hoverStep(page, header)).toBeGreaterThanOrEqual(MINIMUM_HOVER_STEP)
+
+    // The tint fills the header's box, so the room is from the box's edges to the first and last icons
+    const room = await header.evaluate((node) => {
+      const box = node.getBoundingClientRect()
+      const icons = node.querySelectorAll('svg')
+      return { start: icons[0].getBoundingClientRect().left - box.left, end: box.right - icons[icons.length - 1].getBoundingClientRect().right }
+    })
+    expect(room.start, 'before the icon').toBeGreaterThanOrEqual(HEADER_SIDE_ROOM)
+    expect(room.end, 'after the arrow').toBeGreaterThanOrEqual(HEADER_SIDE_ROOM)
+  })
+}
+
+test('eases the Archived accounts list open and closed, without overshooting', async ({ page, request }) => {
+  await openWithArchived(page, request, 'light', '/accounts')
+  const header = page.getByRole('button', { name: /Archived accounts/ })
+  const body = page.locator(`[id="${await header.getAttribute('aria-controls')}"]`)
+
+  const opening = await heightsAfterClick(header)
+  const open = opening.at(-1)!
+  expect(open).toBeGreaterThan(0)
+  expect(opening.some((height) => height > 1 && height < open - 1), `partway heights in ${opening.join(', ')}`).toBe(true)
+  expect(opening.every((height, index) => index === 0 || height >= opening[index - 1] - 0.5), `rising heights in ${opening.join(', ')}`).toBe(true)
+  await expect(body).toHaveCSS('opacity', '1')
+
+  const closing = await heightsAfterClick(header)
+  expect(closing.at(-1)).toBe(0)
+  expect(closing.some((height) => height > 1 && height < open - 1), `partway heights in ${closing.join(', ')}`).toBe(true)
+  expect(closing.every((height, index) => index === 0 || height <= closing[index - 1] + 0.5), `falling heights in ${closing.join(', ')}`).toBe(true)
+})
+
+test('shows the whole focus ring around the Archived budgets header', async ({ page, request }) => {
+  await openWithArchived(page, request, 'light', '/budgets')
+  const header = page.getByRole('button', { name: /Archived budgets/ })
+  await focusFromKeyboard(header)
+  await expect.poll(() => ringSidesShown(page, header)).toEqual(['top', 'bottom', 'left', 'right'])
+})
+
+for (const colorScheme of ['light', 'dark'] as const) {
+  test(`shows a hover on the Upcoming header in the ${colorScheme} theme`, async ({ page, request }) => {
+    await openWithUpcoming(page, request, colorScheme)
+    const header = page.getByRole('button', { name: /Upcoming/ })
+    expect(await hoverStep(page, header)).toBeGreaterThanOrEqual(MINIMUM_HOVER_STEP)
+  })
+
+  test(`shows the whole focus ring around the Upcoming header in the ${colorScheme} theme`, async ({ page, request }) => {
+    await openWithUpcoming(page, request, colorScheme)
+    const header = page.getByRole('button', { name: /Upcoming/ })
+    await focusFromKeyboard(header)
+    await expect.poll(() => ringSidesShown(page, header)).toEqual(['top', 'bottom', 'left', 'right'])
   })
 }
