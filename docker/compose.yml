@@ -12,28 +12,8 @@ services:
     volumes:
       - lumina_data:/data
 
-  # Bank sync worker
-  worker:
-    image: "luminahq/lumina-finance:${APP_IMAGE_TAG:-latest}"
-    restart: unless-stopped
-    command: worker
-    init: true
-
-    # Time to finish the job it is running
+    # Time for the bank sync worker inside it to finish the job it is running
     stop_grace_period: 6m
-    depends_on:
-      postgres:
-        condition: service_healthy
-    env_file:
-      - .env
-    volumes:
-      - lumina_data:/data
-    healthcheck:
-      test: ["CMD", "python", "-m", "app.worker", "check-health"]
-      interval: 1m
-      timeout: 10s
-      start_period: 5m
-      retries: 3
 
   postgres:
     image: postgres:17

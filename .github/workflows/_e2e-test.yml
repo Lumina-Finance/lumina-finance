@@ -32,7 +32,8 @@ jobs:
         exclude: ${{ fromJSON(format('[{0}{1}]', '{"project":"tablet","shard":2},{"project":"tablet","shard":3},{"project":"tablet","shard":4},{"project":"phone","shard":2},{"project":"phone","shard":3},{"project":"phone","shard":4}', inputs.every-size-on-arm64 && '' || ',{"target":{"platform":"arm64","runner":"ubuntu-24.04-arm"},"project":"tablet"},{"target":{"platform":"arm64","runner":"ubuntu-24.04-arm"},"project":"phone"}')) }}
 
     # Every matrix job starts its own application and database on its runner, with the bank sync
-    # worker and the fake SimpleFIN Bridge the tests connect bank accounts through
+    # worker running inside the app as it does by default, and the fake SimpleFIN Bridge the tests
+    # connect bank accounts through
     env:
       APP_IMAGE_TAG: ci
       DB_HOST: postgres
@@ -75,7 +76,7 @@ jobs:
         run: |
           compose="docker compose -f docker/compose.yml -f e2e/compose.mail.yaml -f e2e/fake-simplefin-bridge.compose.yaml"
           for attempt in $(seq 1 30); do
-            if ${compose} exec -T worker python -m app.worker check-health \
+            if ${compose} exec -T app python -m app.worker check-health \
               && curl -fsS -o /dev/null http://localhost:8790/docs; then
               echo "The bank sync worker and the fake SimpleFIN Bridge are running"
               exit 0
@@ -84,7 +85,7 @@ jobs:
             sleep 5
           done
           echo "Bank sync never became ready, dumping logs"
-          ${compose} logs worker fake-simplefin-bridge
+          ${compose} logs app fake-simplefin-bridge
           exit 1
 
       - name: Run E2E tests

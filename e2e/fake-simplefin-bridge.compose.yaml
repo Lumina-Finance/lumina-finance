@@ -1,16 +1,12 @@
 # Added to docker/compose.yml for the browser tests: a fake SimpleFIN Bridge beside the app, and the
-# testing-only setting that lets the app and the bank sync worker reach it over plain HTTP on the
-# Compose network, and nothing else. Compose reads relative paths in every file it merges from the first file's
+# testing-only setting that lets the app and the bank sync worker inside it reach the fake over plain
+# HTTP on the Compose network, and nothing else. Compose reads relative paths in every file it merges from the first file's
 # directory, docker/, so the mount below is written from there
 
 x-fake-simplefin-bridge-origin: &fake-simplefin-bridge-origin http://fake-simplefin-bridge:8790
 
 services:
   app:
-    environment:
-      BANK_SYNC_SIMPLEFIN_TEST_ORIGIN: *fake-simplefin-bridge-origin
-
-  worker:
     environment:
       BANK_SYNC_SIMPLEFIN_TEST_ORIGIN: *fake-simplefin-bridge-origin
 

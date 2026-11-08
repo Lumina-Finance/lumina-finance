@@ -6,8 +6,8 @@ export JWT_ACCESS_PRIVATE_KEY_PATH="${JWT_ACCESS_PRIVATE_KEY_PATH:-/data/keys/ac
 export JWT_REFRESH_PRIVATE_KEY_PATH="${JWT_REFRESH_PRIVATE_KEY_PATH:-/data/keys/refresh_private.pem}"
 
 # Maintenance commands an operator runs against a stopped stack, as
-# `docker compose run --rm app <command>`, and the bank sync worker. Compose runs the worker as its
-# own service. Matched against a fixed list rather than run as given, since this container holds
+# `docker compose run --rm app <command>`, and the bank sync worker for a deployment that runs it in
+# its own container. Matched against a fixed list rather than run as given, since this container holds
 # the admin database credentials and the data volume, and passing arbitrary arguments through
 # would make it a shell on both
 if [ "$#" -gt 0 ]; then
@@ -91,14 +91,37 @@ ensure_private_key() {
 }
 
 cleanup() {
-	# Stop both child processes when the container receives a shutdown signal
+	# Stop every child process when the container receives a shutdown signal
 	if [ -n "${backend_pid:-}" ]; then
 		kill "$backend_pid" 2>/dev/null || true
 	fi
 	if [ -n "${caddy_pid:-}" ]; then
 		kill "$caddy_pid" 2>/dev/null || true
 	fi
+	if [ -n "${worker_pid:-}" ]; then
+		# The worker finishes the job it is running before it stops, within the stop grace period
+		kill "$worker_pid" 2>/dev/null || true
+		wait "$worker_pid" 2>/dev/null || true
+	fi
 }
+
+# The bank sync worker runs in this container unless RUN_BANK_SYNC_WORKER is false. A deployment
+# that runs it as its own container sets false here and starts that container with the worker
+# command. Read like the app's other switches: case-insensitive, spaces around it ignored, with a
+# blank value keeping the default. Refused when neither true nor false, so a typo never leaves
+# bank sync silently off
+RUN_BANK_SYNC_WORKER="${RUN_BANK_SYNC_WORKER:-}"
+RUN_BANK_SYNC_WORKER="${RUN_BANK_SYNC_WORKER,,}"
+RUN_BANK_SYNC_WORKER="${RUN_BANK_SYNC_WORKER#"${RUN_BANK_SYNC_WORKER%%[![:space:]]*}"}"
+RUN_BANK_SYNC_WORKER="${RUN_BANK_SYNC_WORKER%"${RUN_BANK_SYNC_WORKER##*[![:space:]]}"}"
+RUN_BANK_SYNC_WORKER="${RUN_BANK_SYNC_WORKER:-true}"
+case "$RUN_BANK_SYNC_WORKER" in
+true | false) ;;
+*)
+	echo "RUN_BANK_SYNC_WORKER must be true or false, not '$RUN_BANK_SYNC_WORKER'" >&2
+	exit 64
+	;;
+esac
 
 trap cleanup INT TERM EXIT
 
@@ -149,5 +172,13 @@ backend_pid="$!"
 caddy run --config /etc/caddy/Caddyfile --adapter caddyfile &
 caddy_pid="$!"
 
-wait -n "$backend_pid" "$caddy_pid"
+# Started after the migrations, so it claims no job before the schema is current. A job cut short
+# when the container stops is claimed again once its lease runs out
+if [ "$RUN_BANK_SYNC_WORKER" = true ]; then
+	python -m app.worker &
+	worker_pid="$!"
+	wait -n "$backend_pid" "$caddy_pid" "$worker_pid"
+else
+	wait -n "$backend_pid" "$caddy_pid"
+fi
 exit $?
