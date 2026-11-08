@@ -222,6 +222,7 @@ export const BankReviewSection = memo(function BankReviewSection({
     fetchNextPage: () => {
       void fetchNextPage()
     },
+    rechecksSentinel: true,
   })
   const skipAppendedEnter = useSkipAppendedEnter(isFetchingNextPage)
 
