@@ -12,9 +12,8 @@ import {
   ANSWER_FAILED_MESSAGE,
   describeSign,
   holdsSign,
-  readRecordedAmount,
+  readRecording,
   SIGNED_AMOUNT_MESSAGE,
-  ZERO_AMOUNT_MESSAGE,
 } from '@/pages/accounts/detail/components/bank-link/openingAdjustment'
 import { useMoveFocusOnFold } from '@/pages/accounts/detail/components/bank-link/useMoveFocusOnFold'
 import { AccountIdentityFieldLabelRow } from '@/pages/accounts/detail/components/edit-identity/controls/FieldLabelRow'
@@ -54,7 +53,8 @@ type OpeningAdjustmentOfferProps = {
  *
  * Record adjustment refuses a blank or zero amount with a message beside the field, and then fades,
  * staying focusable and giving the same message as its reason until the amount changes. The field
- * says why it refuses a typed or pasted sign, recording the amount it keeps if pressed. A press while
+ * says why it refuses a typed or pasted sign, and Record adjustment refuses the same way while that
+ * message shows. Either refusal moves focus to the field. A press while
  * either answer runs does nothing, and the buttons keep the focus they hold, as Sync now does, until
  * an answer goes through, or a read of the link leaves the offer out first, and focus inside the offer
  * moves on. A refused answer says why in a toast, and the account's bank link is read again. That
@@ -133,15 +133,16 @@ export function OpeningAdjustmentOffer({
   }
 
   const recordOffer = () => {
-    const amount = readRecordedAmount(amountInput.value, exponent, offer.amount)
-    if (amount === null) {
-      setError(ZERO_AMOUNT_MESSAGE)
-      setRefusedReason(ZERO_AMOUNT_MESSAGE)
+    const reading = readRecording(error, amountInput.value, exponent, offer.amount)
+    if ('refusal' in reading) {
+      setError(reading.refusal)
+      setRefusedReason(reading.refusal)
+      document.getElementById(amountId)?.focus({ focusVisible: true })
       return
     }
     setError(null)
     setRefusedReason(null)
-    answer(() => record.mutateAsync({ accountId, amount }))
+    answer(() => record.mutateAsync({ accountId, amount: reading.amount }))
   }
 
   const skipOffer = () => {
@@ -154,7 +155,10 @@ export function OpeningAdjustmentOffer({
   // the message, yet it is still the person taking the sign back
   const handleKeyDown = (event: KeyboardEvent<HTMLInputElement>) => {
     if (event.key === 'Enter') event.preventDefault()
-    if ((event.key === 'Backspace' || event.key === 'Delete') && error === SIGNED_AMOUNT_MESSAGE) setError(null)
+    if ((event.key === 'Backspace' || event.key === 'Delete') && error === SIGNED_AMOUNT_MESSAGE) {
+      setError(null)
+      setRefusedReason(null)
+    }
   }
 
   return (

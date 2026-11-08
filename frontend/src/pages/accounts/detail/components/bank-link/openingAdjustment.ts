@@ -1,4 +1,4 @@
-import { toMinorUnits } from '@/utils/moneyInput'
+import { holdsMinus, toMinorUnits } from '@/utils/moneyInput'
 
 // The messages share the label's line, as the new-account prompt's does, so they stay short enough to
 // fit beside it on a phone and the field never moves when one shows
@@ -11,9 +11,6 @@ export const SIGNED_AMOUNT_MESSAGE = 'Leave out the sign'
 
 /** What an answer the server didn't give says, while one it refused gives the server's reason */
 export const ANSWER_FAILED_MESSAGE = 'Oops, something went wrong. Please try again.'
-
-// A hyphen, a true minus or a plus, none of which the amount takes
-const SIGN = /[-−+]/
 
 /**
  * The offer's sign in words, for the amount's description, since the sign beside the field is drawn
@@ -31,7 +28,32 @@ export function describeSign(offered: number): string {
  * @param text - The field's text as typed, before the field refuses it
  */
 export function holdsSign(text: string): boolean {
-  return SIGN.test(text)
+  return holdsMinus(text) || text.includes('+')
+}
+
+/** What a press of Record adjustment finds: a reason to refuse, or the amount to record */
+export type RecordingReading = { refusal: string } | { amount: number }
+
+/**
+ * Reads what a press of Record adjustment does. It refuses while the amount shows its message for a
+ * sign, since the field still holds the amount it kept and recording that would go ahead on a field
+ * marked as wrong, and refuses a blank or zero amount
+ *
+ * @param shownMessage - The message beside the amount now, or null when it shows none
+ * @param value - The field's money value
+ * @param exponent - Decimal places of the account's currency
+ * @param offered - The offered amount in minor units, signed as the ledger keeps them
+ */
+export function readRecording(
+  shownMessage: string | null,
+  value: string,
+  exponent: number,
+  offered: number,
+): RecordingReading {
+  if (shownMessage === SIGNED_AMOUNT_MESSAGE) return { refusal: SIGNED_AMOUNT_MESSAGE }
+
+  const amount = readRecordedAmount(value, exponent, offered)
+  return amount === null ? { refusal: ZERO_AMOUNT_MESSAGE } : { amount }
 }
 
 /**

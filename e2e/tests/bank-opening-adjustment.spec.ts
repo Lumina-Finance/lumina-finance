@@ -275,6 +275,25 @@ test('says why the amount refuses a sign typed into it, keeping the amount it ho
   await expect(offer.amount).toHaveValue('240.00')
 })
 
+test('records nothing while the sign message shows, fading Record adjustment with it and focusing the amount', async ({ page, request }) => {
+  const answers = watchAnswers(page)
+  const { offer } = await openOffer(page, request)
+
+  await offer.amount.fill('-240.00')
+  await expect(offer.dialog.getByText(SIGNED_AMOUNT_MESSAGE)).toBeVisible()
+  await expect(offer.record).not.toHaveAttribute('aria-disabled', 'true')
+  await offer.record.click()
+  await expect(offer.record).toHaveAttribute('aria-disabled', 'true')
+  await expect(offer.record).toHaveAccessibleDescription(SIGNED_AMOUNT_MESSAGE)
+  await expect(offer.amount).toBeFocused()
+  expect(answers).toEqual([])
+
+  // Taking the sign back makes it whole again
+  await offer.amount.press('Home')
+  await offer.amount.press('Backspace')
+  await expect(offer.record).not.toHaveAttribute('aria-disabled', 'true')
+})
+
 test('records the amount typed over the offer as one adjustment the day before the import start, and offers it no more', async ({ page, request }) => {
   const answers = watchAnswers(page)
   const { setup, offer } = await openOffer(page, request)

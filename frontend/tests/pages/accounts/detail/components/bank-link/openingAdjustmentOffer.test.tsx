@@ -53,6 +53,8 @@ import { formatCurrencySymbol } from '@/utils/formatCurrency'
 import {
   holdsSign,
   readRecordedAmount,
+  readRecording,
+  SIGNED_AMOUNT_MESSAGE,
   ZERO_AMOUNT_MESSAGE,
 } from '@/pages/accounts/detail/components/bank-link/openingAdjustment'
 
@@ -216,6 +218,21 @@ describe('the amount an answer records', () => {
 
   it.each(['', '0', '0.00'])('records nothing for %j', (typed) => {
     expect(readRecordedAmount(typed, 2, 25000)).toBeNull()
+  })
+})
+
+describe('what a press of Record adjustment reads', () => {
+  it('refuses while the sign message shows, instead of recording the amount the field kept', () => {
+    expect(readRecording(SIGNED_AMOUNT_MESSAGE, '250.00', 2, 25000)).toEqual({ refusal: SIGNED_AMOUNT_MESSAGE })
+  })
+
+  it('refuses a blank or zero amount with its own message', () => {
+    expect(readRecording(null, '', 2, 25000)).toEqual({ refusal: ZERO_AMOUNT_MESSAGE })
+    expect(readRecording(null, '0.00', 2, 25000)).toEqual({ refusal: ZERO_AMOUNT_MESSAGE })
+  })
+
+  it("records the amount with the offer's sign once no message shows", () => {
+    expect(readRecording(null, '20.00', 2, -2000)).toEqual({ amount: -2000 })
   })
 })
 
