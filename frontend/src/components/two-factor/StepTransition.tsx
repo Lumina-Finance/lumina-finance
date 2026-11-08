@@ -1,12 +1,7 @@
 import { useLayoutEffect, useRef, useState, type ReactNode } from 'react'
 import { AnimatePresence, motion, useReducedMotion } from 'motion/react'
 
-const EASE = [0.25, 0.1, 0.25, 1] as const
-const HEIGHT_TRANSITION = { duration: 0.26, ease: EASE }
-// The outgoing step is gone before the incoming one shows, so the two never sit over each other
-const FADE_OUT_TRANSITION = { duration: 0.1, ease: EASE }
-const FADE_IN_TRANSITION = { duration: 0.2, ease: EASE }
-const INSTANT = { duration: 0 }
+import { getStepTransitions } from '@/components/two-factor/stepMotion'
 
 interface StepTransitionProps {
   /** Identity of the visible step, so a change fades the old body out, then the new one in, and eases the panel height */
@@ -23,6 +18,8 @@ interface StepTransitionProps {
   easeContentChanges?: boolean
   /** Runs once an outgoing step has faded and left */
   onExitComplete?: () => void
+  /** Swaps steps at once, with no fade or easing, for a reader who asks for less motion. Other steps keep their motion */
+  respectsReducedMotion?: boolean
   children: ReactNode
 }
 
@@ -40,6 +37,7 @@ export function StepTransition({
   fillPhone = false,
   easeContentChanges = true,
   onExitComplete,
+  respectsReducedMotion = false,
   children,
 }: StepTransitionProps) {
   const prefersReducedMotion = useReducedMotion()
@@ -64,13 +62,17 @@ export function StepTransition({
     return () => observer.disconnect()
   }, [])
 
-  const easesHeight = !prefersReducedMotion && (easeContentChanges || isSwapping)
+  const transitions = getStepTransitions({
+    respectsReducedMotion,
+    prefersReducedMotion: Boolean(prefersReducedMotion),
+    easesHeight: easeContentChanges || isSwapping,
+  })
 
   return (
     <motion.div
       className={fillPhone ? 'max-[1049px]:flex max-[1049px]:min-h-full max-[1049px]:flex-col' : undefined}
       animate={{ height }}
-      transition={easesHeight ? HEIGHT_TRANSITION : INSTANT}
+      transition={transitions.height}
       // Clip only while the height eases, so focus rings on the edge controls are not cut off at rest. Clip
       // rather than hide, and only top to bottom, so a dialog footer inside keeps sticking to the panel's
       // bottom and reaching its side edges while it eases
@@ -88,13 +90,8 @@ export function StepTransition({
             key={stepKey}
             className={fillPhone ? 'max-[1049px]:flex max-[1049px]:flex-1 max-[1049px]:flex-col' : undefined}
             initial={{ opacity: 0 }}
-            animate={{
-              opacity: 1,
-              transition: prefersReducedMotion
-                ? INSTANT
-                : { ...FADE_IN_TRANSITION, delay: FADE_OUT_TRANSITION.duration },
-            }}
-            exit={{ opacity: 0, transition: prefersReducedMotion ? INSTANT : FADE_OUT_TRANSITION }}
+            animate={{ opacity: 1, transition: transitions.fadeIn }}
+            exit={{ opacity: 0, transition: transitions.fadeOut }}
           >
             {children}
           </motion.div>

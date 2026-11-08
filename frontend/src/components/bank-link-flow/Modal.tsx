@@ -266,7 +266,7 @@ export function BankLinkFlowModal({
         >
           {/* Room for the spinner only while loading, so a short step is not padded out below */}
           <div className={step === null ? 'min-h-32 pb-2' : 'pb-2'}>
-            <StepTransition stepKey={step ?? 'loading'}>
+            <StepTransition stepKey={step ?? 'loading'} respectsReducedMotion>
               {connectFirst && (
                 <p className="text-sm" style={{ color: 'var(--app-text-muted)' }}>
                   {connectFirst.message}

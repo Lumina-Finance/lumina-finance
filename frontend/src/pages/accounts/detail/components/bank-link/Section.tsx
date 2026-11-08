@@ -426,7 +426,12 @@ export function BankLinkSection({ account, sectionNumber, autoFocus = false }: B
             clipsOnlyWhileChanging
             overlayClassName={LOADING_OVERLAY_CLASS}
           >
-            <StepTransition stepKey={viewKey} easeContentChanges={false} onExitComplete={restoreLostFocus}>
+            <StepTransition
+              stepKey={viewKey}
+              easeContentChanges={false}
+              onExitComplete={restoreLostFocus}
+              respectsReducedMotion
+            >
               {viewKey === 'loading' && <div className="min-h-16" />}
               {viewKey === 'group' && (
                 <p className="text-sm" style={{ color: 'var(--app-text-muted)' }}>
