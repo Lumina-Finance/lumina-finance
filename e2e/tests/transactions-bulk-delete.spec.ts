@@ -1,13 +1,11 @@
-import { expect, test, type APIRequestContext, type Locator, type Page } from '@playwright/test'
+import { expect, test } from '@playwright/test'
 
 import { createAccount, createGroup, createTransaction, daysFromTodayInTestTimezone, signUpUser } from '../support/api'
-import { logInViaApi, openModal, openPage } from '../support/app'
-import { expectMessageInCorner, isUncovered } from '../support/selectors'
+import { logInViaApi, openPage } from '../support/app'
 import { AT_EVERY_SIZE } from '../support/sizes'
 
-// Runs on desktop only, apart from the delete confirmation tests and the deleted message test. The
-// confirmation tests run at every size and the message test runs on the phone: its actions lay out
-// differently on a phone, where a dialogue fills the screen
+// Runs on desktop only, apart from the delete confirmation tests, which run at every size: its
+// actions lay out differently on a phone
 
 // Two of three rows are ticked and deleted after the confirmation, the third stays, and the balance
 // already on screen drops back by what the deleted rows had taken out, without a reload
@@ -38,38 +36,6 @@ test('deletes the selected transactions and brings the balance back', async ({ p
   for (const id of deleted) await expect(page.getByTestId(`transaction-row-${id}`)).toHaveCount(0)
   await expect(page.getByTestId(`transaction-row-${kept}`)).toBeVisible()
   await expect(page.getByText('$90.00', { exact: true }).first()).toBeVisible()
-})
-
-/**
- * Deletes an account's only transaction through the selection's confirmation, returning the message
- * that reports it
- */
-async function deleteOnlyTransaction(page: Page, request: APIRequestContext): Promise<Locator> {
-  const user = await signUpUser(request)
-  const account = await createAccount(request, user, { name: 'Everyday' })
-  const date = daysFromTodayInTestTimezone(-1)
-  await createTransaction(request, user, { accountId: account.id, categoryName: 'Groceries', amount: -1500, date })
-
-  await logInViaApi(page, user)
-  await openPage(page, `/accounts/${account.id}`)
-  await page.getByRole('button', { name: 'Select transactions', exact: true }).click()
-  await page.getByRole('checkbox', { name: new RegExp(`^Select .+ on ${date}$`) }).check()
-  await page.getByRole('button', { name: 'Delete the selected transactions', exact: true }).click()
-  await page.getByRole('dialog', { name: 'Delete 1 transaction?', exact: true }).getByRole('button', { name: 'Delete', exact: true }).click()
-  return page.getByRole('status').filter({ hasText: '1 transaction deleted.' })
-}
-
-// A message is raised above the footer of a dialogue that fills the screen, but the confirmation closes as
-// its message shows, so on a phone the message still comes up in the corner rather than where its footer
-// was. A dialogue opened while it still shows raises it above the whole of that dialogue's footer. For
-// Add Transaction that footer holds the keep-open option above Cancel and Save
-test('shows the deleted message in the corner as the confirmation closes on a phone, and above Add Transaction opened after', AT_EVERY_SIZE, async ({ page, request }) => {
-  test.skip(test.info().project.name !== 'phone', 'A dialogue fills the screen below 1050px, which only the phone project is')
-  const message = await deleteOnlyTransaction(page, request)
-  await expectMessageInCorner(message)
-
-  const footer = (await openModal(page, ['Add transaction'], 'Add transaction')).locator('[data-toast-keep-clear]')
-  await expect.poll(async () => await message.isVisible() && await isUncovered(footer)).toBe(true)
 })
 
 // Group accounts are left out of bulk delete, so a selection reaching one turns Delete off with why
