@@ -242,12 +242,12 @@ async function seedOneTransaction(page: Page, request: Parameters<typeof signUpU
   })
   await logInViaApi(page, user)
   await openPage(page, '/transactions')
-  return getTransactionRowButton(page.getByTestId(`transaction-row-${id}`))
+  return { rowButton: getTransactionRowButton(page.getByTestId(`transaction-row-${id}`)), box: transactionBox(page, id) }
 }
 
 /** The row's own box. It carries its padding and separator and is what a focused row's ring goes round */
-function rowFrameOf(rowButton: Locator): Locator {
-  return rowButton.locator('xpath=ancestor::*[contains(concat(" ", normalize-space(@class), " "), " app-transaction-row ")][1]')
+function transactionBox(page: Page, id: string): Locator {
+  return page.getByTestId(`transaction-box-${id}`)
 }
 
 /**
@@ -351,8 +351,7 @@ for (const colorScheme of ['light', 'dark'] as const) {
   // turns its own border the focus colour
   test(`shows a transaction row's ring and hover look on keyboard focus in the ${colorScheme} theme`, async ({ page, request }) => {
     await page.emulateMedia({ colorScheme, reducedMotion: 'reduce' })
-    const rowButton = await seedOneTransaction(page, request)
-    const row = rowFrameOf(rowButton)
+    const { rowButton, box: row } = await seedOneTransaction(page, request)
 
     const { rest, focused } = await expectHoverLook(page, rowButton, null)
     expect(focused.frame.backgroundColor).not.toBe(rest.frame.backgroundColor)
@@ -391,6 +390,7 @@ test(
     const icon = row.getByRole('button', { name: 'From SimpleFIN', exact: true })
 
     await focusFromKeyboard(page, getTransactionRowButton(row))
+    expect(await drawsFocusColour(icon)).toBe(false)
     await page.keyboard.press('Tab')
     await expect(icon).toBeFocused()
     await expectSharedRing(icon, 'outline', '2px')
@@ -423,6 +423,7 @@ test('draws keyboard focus on the bank screens in the focus colour', async ({ pa
   await logInViaApi(page, user)
 
   const expectFocusColour = async (control: Locator) => {
+    expect(await drawsFocusColour(control), `${control} before focus`).toBe(false)
     await focusFromKeyboard(page, control)
     await expect(control).toBeFocused()
     await expect.configure({ soft: true }).poll(() => drawsFocusColour(control), { message: `focus on ${control}` }).toBe(true)
@@ -506,7 +507,7 @@ test('toggles an info tooltip with the mouse', async ({ page, request }) => {
 // A row opened with the mouse gets focus back when its dialog closes, and draws no ring for it
 test('leaves no focus ring on a transaction row opened with the mouse', async ({ page, request }) => {
   await page.emulateMedia({ reducedMotion: 'reduce' })
-  const rowButton = await seedOneTransaction(page, request)
+  const { rowButton } = await seedOneTransaction(page, request)
 
   await rowButton.click()
   const dialog = page.getByRole('dialog')
@@ -634,9 +635,9 @@ for (const colorScheme of ['light', 'dark'] as const) {
     // sizes for the issue's two row examples
     for (const id of rows) {
       const rowButton = getTransactionRowButton(page.getByTestId(`transaction-row-${id}`))
-      await expectStretchedFocusRing(rowButton, page.getByTestId(`transaction-box-${id}`))
+      await expectStretchedFocusRing(rowButton, transactionBox(page, id))
       // The ring is the row's own, so it is the row that has to keep it whole and at 3:1 against the page
-      await expectWholeRing(rowFrameOf(rowButton))
+      await expectWholeRing(transactionBox(page, id))
     }
     await expectEveryChart()
 
@@ -1146,7 +1147,7 @@ test('lists the outline colour in the transition of every control that draws the
 // it with a 200ms curve, such as Tailwind's duration-200, has it about 0.77 drawn, so it fails both the length and the midpoint
 test('fades the keyboard focus ring in and out', async ({ page, request }) => {
   await page.emulateMedia({ reducedMotion: 'no-preference' })
-  const rowButton = await seedOneTransaction(page, request)
+  const { rowButton, box } = await seedOneTransaction(page, request)
 
   const expectFades = async (name: string, target: Locator, frame: Locator, offset: string) => {
     const fades = await readRingFades(page, target, frame)
@@ -1164,7 +1165,7 @@ test('fades the keyboard focus ring in and out', async ({ page, request }) => {
     await expectSharedRing(frame, 'outline', offset)
   }
 
-  await expectFades('transaction row', rowButton, rowFrameOf(rowButton), '-2px')
+  await expectFades('transaction row', rowButton, box, '-2px')
   const chart = page.locator('svg.recharts-surface[tabindex="0"]').filter({ visible: true }).first()
   await expect(chart).toBeVisible()
   await expectFades('chart', chart, chart, '-2px')
@@ -1180,16 +1181,16 @@ test('fades the keyboard focus ring in and out', async ({ page, request }) => {
 // appears and goes at once. Removing the reduced-motion override of the rest outline fails this
 test('shows the keyboard focus ring at once with reduced motion', async ({ page, request }) => {
   await page.emulateMedia({ reducedMotion: 'reduce' })
-  const rowButton = await seedOneTransaction(page, request)
-  expect(await readRingFades(page, rowButton, rowFrameOf(rowButton))).toEqual({ atOnce: 1, fadeIn: null, fadeOut: null })
+  const { rowButton, box } = await seedOneTransaction(page, request)
+  expect(await readRingFades(page, rowButton, box)).toEqual({ atOnce: 1, fadeIn: null, fadeOut: null })
 })
 
 // Forced colours would draw the clear outline a control holds at rest, so none is held there
 test('holds no outline at rest in forced colours', async ({ page, request }) => {
   await page.emulateMedia({ forcedColors: 'active' })
-  const rowButton = await seedOneTransaction(page, request)
+  const { box } = await seedOneTransaction(page, request)
   // A row holds no outline at rest, since it draws the ring only while something inside it has focus
-  expect(await rowFrameOf(rowButton).evaluate((node) => getComputedStyle(node).outlineStyle)).toBe('none')
+  expect(await box.evaluate((node) => getComputedStyle(node).outlineStyle)).toBe('none')
   await openPage(page, '/settings')
   const security = page.getByRole('navigation', { name: 'Settings sections' }).getByRole('button', { name: 'Security', exact: true })
   expect(await security.evaluate((node) => getComputedStyle(node).outlineStyle)).toBe('none')
@@ -1302,9 +1303,9 @@ test('draws one ring when the keyboard moves from a bank row title to its bank i
   const icon = row.getByRole('button', { name: 'From SimpleFIN', exact: true })
 
   await focusFromKeyboard(page, getTransactionRowButton(row))
-  await expectSharedRing(rowFrameOf(getTransactionRowButton(row)), 'outline', '-2px')
+  await expectSharedRing(transactionBox(page, id), 'outline', '-2px')
   await page.keyboard.press('Tab')
   await expect(icon).toBeFocused()
   await expectSharedRing(icon, 'outline', '2px')
-  await expect.poll(() => rowFrameOf(icon).evaluate((node) => getComputedStyle(node).outlineStyle)).toBe('none')
+  await expect.poll(() => transactionBox(page, id).evaluate((node) => getComputedStyle(node).outlineStyle)).toBe('none')
 })
