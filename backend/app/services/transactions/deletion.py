@@ -90,29 +90,17 @@ async def delete_transaction(db: AsyncSession, txn: Transaction) -> Account:
 
     account_id = txn.account_id
     deleted_dt = txn.dt
-    await delete_transaction_row(db, txn)
 
-    # Rebuild balance snapshots from the deleted transaction's day forward
-    await recompute_account_snapshots(db, {account_id: deleted_dt})
-    return account
-
-
-async def delete_transaction_row(db: AsyncSession, txn: Transaction) -> None:
-    """Delete a transaction with its tag assignments, leaving its account's balances for the caller to rebuild
-
-    A save that changes ledger rows in several accounts rebuilds them all in one step. That step takes
-    their balance locks in one order, so two such saves can't each hold a lock the other waits for
-
-    Args:
-        db: Active database session
-        txn: The transaction, locked by the caller
-    """
     # Remove tag assignments before deleting the transaction row in the same commit
     await delete_transaction_tag_assignments(db, txn.id)
 
     # Delete the transaction row and flush before rebuilding dependent snapshots
     await db.delete(txn)
     await db.flush()
+
+    # Rebuild balance snapshots from the deleted transaction's day forward
+    await recompute_account_snapshots(db, {account_id: deleted_dt})
+    return account
 
 
 async def bulk_delete_transactions(
@@ -203,9 +191,6 @@ async def mark_accounts_changed(db: AsyncSession, accounts: list[Account]) -> No
     Args:
         db: Active database session
         accounts: The accounts a write changed
-
-    Returns:
-        None
     """
     # One mark per scope rather than one per account, since every account in a scope shares it
     for owner_id, group_id in {(account.owner_id, account.group_id) for account in accounts}:

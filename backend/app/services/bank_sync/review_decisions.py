@@ -175,33 +175,7 @@ async def accept_bank_change(db: AsyncSession, user: User, item_id: uuid.UUID) -
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=_REMOVAL_WAITING_DETAIL)
     if record.open_kind != OpenReviewKind.CORRECTION:
         return await _ledger_response(db, record)
-
-    txn = await _write_bank_change(db, user, record, account)
-    await mark_user_cache_changed(db, user.id)
-    return await _commit_with_response(db, txn)
-
-
-async def _write_bank_change(db: AsyncSession, user: User, record: BankTransaction, account: Account) -> Transaction:
-    """Write the bank's values for the fields an open correction changes to its ledger transaction and close it, without committing
-
-    The caller locked the bank transaction, after its account's links, then marks the cache and
-    commits
-
-    Args:
-        db: Active database session
-        user: The user reviewing
-        record: The bank transaction, locked, with a correction open
-        account: The account it belongs to
-
-    Returns:
-        The ledger transaction, written
-
-    Raises:
-        HTTPException 409: Another change held the transaction too long
-        HTTPException 422: The bank's amount can't be stored exactly, or a value fails the checks an
-            edit passes
-    """
-    if not _is_bank_change_storable(record):
+    if "amount" in record.previous_values and record.observed_amount is None:
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail=_UNSTORABLE_AMOUNT_DETAIL.format(currency=account.currency)
         )
@@ -214,12 +188,8 @@ async def _write_bank_change(db: AsyncSession, user: User, record: BankTransacti
     record.open_kind = None
     record.previous_values = None
     await db.flush()
-    return txn
-
-
-def _is_bank_change_storable(record: BankTransaction) -> bool:
-    """Return whether the ledger can take every value an open correction changes, unless it's an amount the currency can't hold"""
-    return "amount" not in record.previous_values or record.observed_amount is not None
+    await mark_user_cache_changed(db, user.id)
+    return await _commit_with_response(db, txn)
 
 
 async def keep_current_value(db: AsyncSession, user: User, item_id: uuid.UUID) -> TransactionResponse:
@@ -290,23 +260,10 @@ async def remove_from_ledger(db: AsyncSession, user: User, item_id: uuid.UUID) -
     if record.open_kind != OpenReviewKind.REMOVAL:
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=_NO_REMOVAL_DETAIL)
 
-    await _delete_removed_transaction(db, user, record)
-    await mark_user_cache_changed(db, user.id)
-    await db.commit()
-
-
-async def _delete_removed_transaction(db: AsyncSession, user: User, record: BankTransaction) -> None:
-    """Delete the ledger transaction an open removal names, its bank transaction with it, and rebuild its balances, without committing
-
-    The caller locked the bank transaction, after its account's links, then marks the cache and
-    commits. The bank transaction is gone once this returns, so the caller reads nothing more from it
-
-    Raises:
-        HTTPException 409: Another change held the transaction too long
-        HTTPException 422: The account is archived
-    """
     txn = await check_transaction_access(db, record.transaction_id, user.id, PermissionLevel.WRITE, lock_for_update=True)
     await delete_transaction(db, txn)
+    await mark_user_cache_changed(db, user.id)
+    await db.commit()
 
 
 async def keep_transaction(db: AsyncSession, user: User, item_id: uuid.UUID) -> TransactionResponse:
