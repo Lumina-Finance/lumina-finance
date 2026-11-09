@@ -15,7 +15,7 @@ import { createAccount } from './fixtures'
 
 describe('what holds Continue in the new account prompt', () => {
   it('holds it with the message while a refused minus shows and the account is kept manual', () => {
-    const problems = getStartingBalanceProblems(true, true)
+    const problems = getStartingBalanceProblems(true, true, '')
 
     expect(getFirstProblem(problems, STARTING_BALANCE_FIELDS)).toEqual({
       field: 'starting_balance',
@@ -24,12 +24,21 @@ describe('what holds Continue in the new account prompt', () => {
     expect(getShownProblems(problems, true, new Set())).toEqual(problems)
   })
 
-  it('lets Continue go ahead once the minus is taken back', () => {
-    expect(getFirstProblem(getStartingBalanceProblems(true, false), STARTING_BALANCE_FIELDS)).toBeNull()
+  it('holds it with the message for a point alone, as the Add account dialogue did', () => {
+    expect(getFirstProblem(getStartingBalanceProblems(true, false, '.'), STARTING_BALANCE_FIELDS)).toEqual({
+      field: 'starting_balance',
+      message: MUST_BE_ZERO_OR_HIGHER_MESSAGE,
+    })
   })
 
-  it('lets Continue link the bank account although the hidden field once refused a minus', () => {
-    expect(getFirstProblem(getStartingBalanceProblems(false, true), STARTING_BALANCE_FIELDS)).toBeNull()
+  it('lets Continue go ahead once the minus is taken back, and for a blank or whole amount', () => {
+    for (const text of ['', '1250.00']) {
+      expect(getFirstProblem(getStartingBalanceProblems(true, false, text), STARTING_BALANCE_FIELDS)).toBeNull()
+    }
+  })
+
+  it('lets Continue link the bank account although the hidden field holds something refused', () => {
+    expect(getFirstProblem(getStartingBalanceProblems(false, true, '.'), STARTING_BALANCE_FIELDS)).toBeNull()
   })
 })
 

@@ -90,18 +90,6 @@ export default function NewAccountPromptModal({ open, account, onClose, onExitCo
     ? formatCurrencySymbol(account.currency)
     : ''
   const isLiability = account.account_kind !== 'asset'
-  const balanceInput = useMoneyInput({
-    value: startingBalance,
-    exponent,
-    onChange: (value, typed) => {
-      // Settling on blur reports no typed text and leaves the message as it was
-      if (typed !== undefined) setTypedMinus(holdsMinus(typed))
-      setStartingBalance(value)
-      setSubmitError(null)
-    },
-  })
-  const balanceError = typedMinus ? MUST_BE_ZERO_OR_HIGHER_MESSAGE : undefined
-
   // Linking is refused, saying why, for a group account, while bank sync isn't set up, as the account
   // page's Link bank account is, and when there is no working connection to link through and no
   // provider open to a new one. A failed read leaves the account manual rather than holding the
@@ -117,12 +105,27 @@ export default function NewAccountPromptModal({ open, account, onClose, onExitCo
   const choice: KeepUpToDate = !offersLink ? 'manual' : (chosen ?? (linkReason ? 'manual' : 'bank'))
   const ready = (!providersPending || providersGaveUp) && (!offersLink || !connectionsPending)
 
-  // The message shows as soon as the minus is refused, so this only holds Continue and brings the field into view
+  // A refused minus shows its message at once, so for it this only holds Continue and brings the field
+  // into view. Text that isn't an amount is marked once a press finds it, as any refused field is
   const refusal = useRefusedSubmit(
-    getStartingBalanceProblems(choice === 'manual', typedMinus),
+    getStartingBalanceProblems(choice === 'manual', typedMinus, startingBalance),
     STARTING_BALANCE_FIELDS,
     STARTING_BALANCE_CONTROL_IDS,
   )
+  const balanceError = typedMinus ? MUST_BE_ZERO_OR_HIGHER_MESSAGE : refusal.errors.starting_balance
+
+  // Leaving the field marks it, as the Add account dialogue did, so a later edit shows its message at once
+  const balanceInput = useMoneyInput({
+    value: startingBalance,
+    exponent,
+    onChange: (value, typed) => {
+      // Settling on blur reports no typed text and leaves the message as it was
+      if (typed !== undefined) setTypedMinus(holdsMinus(typed))
+      setStartingBalance(value)
+      setSubmitError(null)
+    },
+    onBlur: () => refusal.touch('starting_balance'),
+  })
 
   // Deleting in a field the refused text left empty changes no text, so no change arrives to clear
   // the message, yet it is still the person taking the minus back

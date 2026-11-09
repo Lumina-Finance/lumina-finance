@@ -376,6 +376,44 @@ test('lets a refused minus in an empty field be cleared, and refuses Continue wh
   expect(startingBalanceRequests).toEqual([])
 })
 
+test('refuses Continue for a point alone in the starting balance, as the Add account dialogue did', async ({
+  page,
+  request,
+}) => {
+  const user = await signUpUser(request)
+  await logInViaApi(page, user)
+  await openPage(page, '/accounts')
+  const startingBalanceRequests = watchStartingBalanceRequests(page)
+
+  const prompt = await createAccountThroughModal(page)
+  const balance = prompt.getByLabel('Starting balance', { exact: true })
+  const error = prompt.getByRole('alert').filter({ hasText: 'Must be zero or higher' })
+  const continueButton = prompt.getByRole('button', { name: 'Continue' })
+
+  // The point stays in the field and is marked only once a press finds it
+  await balance.fill('.')
+  await expect(balance).toHaveValue('.')
+  await expect(error).toBeHidden()
+  await balance.press('Enter')
+  await expect(prompt).toBeVisible()
+  await expect(error).toBeVisible()
+  await expect(balance).toHaveAttribute('aria-invalid', 'true')
+  await expect(continueButton).toHaveAttribute('aria-disabled', 'true')
+  await expect(continueButton).toHaveAccessibleDescription('Must be zero or higher')
+
+  await balance.fill('12.50')
+  await expect(error).toBeHidden()
+  await expect(continueButton).not.toHaveAttribute('aria-disabled', 'true')
+
+  // Once the field has been left, a point alone typed again is marked at once, and Continue stays whole
+  await balance.blur()
+  await balance.fill('.')
+  await expect(error).toBeVisible()
+  await expect(continueButton).not.toHaveAttribute('aria-disabled', 'true')
+  await waitForRequestsSoFar(page)
+  expect(startingBalanceRequests).toEqual([])
+})
+
 test('closes the prompt as saved when the save lands but its answer is lost', async ({ page, request }) => {
   const user = await signUpUser(request)
   await logInViaApi(page, user)

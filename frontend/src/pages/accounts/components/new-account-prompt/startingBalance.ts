@@ -1,5 +1,5 @@
 import type { AccountsOverview } from '@/api/accounts'
-import { toMinorUnits } from '@/utils/moneyInput'
+import { isValidMoneyInput, toMinorUnits } from '@/utils/moneyInput'
 import type { FieldProblems } from '@/utils/refusedSubmit'
 
 export const STARTING_BALANCE_INPUT_ID = 'new-account-starting-balance'
@@ -18,14 +18,20 @@ export const STARTING_BALANCE_CONTROL_IDS = { starting_balance: STARTING_BALANCE
  * typed. Only a prompt keeping the account manual shows the field, so choosing a bank link leaves it
  * out
  *
+ * Text that isn't an amount, such as a point alone, is refused with the same message, as the Add
+ * account dialogue refused it before the field moved here
+ *
  * @param keepsManual - Whether the prompt is keeping the account manual, the only case that shows the field
  * @param typedMinus - Whether the field's last refused text held a minus
+ * @param text - What the starting balance field holds
  */
 export function getStartingBalanceProblems(
   keepsManual: boolean,
   typedMinus: boolean,
+  text: string,
 ): FieldProblems<(typeof STARTING_BALANCE_FIELDS)[number]> {
-  return keepsManual && typedMinus ? { starting_balance: MUST_BE_ZERO_OR_HIGHER_MESSAGE } : {}
+  const refused = typedMinus || !isValidMoneyInput(text)
+  return keepsManual && refused ? { starting_balance: MUST_BE_ZERO_OR_HIGHER_MESSAGE } : {}
 }
 
 /**
