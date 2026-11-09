@@ -7,104 +7,16 @@ on:
 permissions:
   contents: read
 
-env:
-  IMAGE_NAME: ${{ vars.DOCKERHUB_USERNAME }}/lumina-finance
-
 jobs:
-  build:
-    name: Build Docker image (${{ matrix.platform }})
-    runs-on: ${{ matrix.runner }}
-
-    # Build natively and publish tags only after both architectures succeed
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - platform: amd64
-            runner: ubuntu-latest
-          - platform: arm64
-            runner: ubuntu-24.04-arm
-
-    steps:
-      - name: Check out repository
-        uses: actions/checkout@v7
-
-      - name: Set up Docker build
-        uses: ./.github/actions/docker-build-setup
-        with:
-          registry-username: ${{ vars.DOCKERHUB_USERNAME }}
-          registry-token: ${{ secrets.DOCKERHUB_TOKEN }}
-
-      # Apply labels to each image and tags to the combined manifest
-      - name: Extract Docker metadata
-        id: meta
-        uses: docker/metadata-action@v6
-        with:
-          images: ${{ env.IMAGE_NAME }}
-
-      - name: Build and push image by digest
-        id: build
-        uses: docker/build-push-action@v7
-        with:
-          context: .
-          file: ./docker/Dockerfile
-          labels: ${{ steps.meta.outputs.labels }}
-          outputs: type=image,name=${{ env.IMAGE_NAME }},push-by-digest=true,name-canonical=true,push=true
-          build-args: |
-            APP_VERSION=${{ github.event.release.tag_name }}
-
-      # Artifact filenames carry the digests consumed by manifest assembly
-      - name: Record the digest
-        env:
-          DIGEST: ${{ steps.build.outputs.digest }}
-        run: |
-          mkdir -p /tmp/digests
-          touch "/tmp/digests/${DIGEST#sha256:}"
-
-      - name: Upload the digest
-        uses: actions/upload-artifact@v7
-        with:
-          name: digest-${{ matrix.platform }}
-          path: /tmp/digests/*
-          if-no-files-found: error
-          retention-days: 1
-
-  merge:
-    name: Publish the multi-architecture image
-    needs: build
-    runs-on: ubuntu-latest
-
-    steps:
-      - name: Check out repository
-        uses: actions/checkout@v7
-
-      - name: Download the digests
-        uses: actions/download-artifact@v8
-        with:
-          path: /tmp/digests
-          pattern: digest-*
-          merge-multiple: true
-
-      - name: Set up Docker build
-        uses: ./.github/actions/docker-build-setup
-        with:
-          registry-username: ${{ vars.DOCKERHUB_USERNAME }}
-          registry-token: ${{ secrets.DOCKERHUB_TOKEN }}
-
-      - name: Extract Docker metadata
-        id: meta
-        uses: docker/metadata-action@v6
-        with:
-          images: ${{ env.IMAGE_NAME }}
-          tags: |
-            type=semver,pattern={{version}},value=${{ github.event.release.tag_name }}
-            type=semver,pattern={{major}}.{{minor}},value=${{ github.event.release.tag_name }}
-            type=semver,pattern={{major}},value=${{ github.event.release.tag_name }}
-
-      # All release tags reference both architecture digests
-      - name: Assemble the manifest list
-        working-directory: /tmp/digests
-        run: |
-          docker buildx imagetools create \
-            $(jq -cr '.tags | map("-t " + .) | join(" ")' <<< "$DOCKER_METADATA_OUTPUT_JSON") \
-            $(printf "${IMAGE_NAME}@sha256:%s " *)
+  publish:
+    name: Publish the release image
+    uses: ./.github/workflows/_docker-publish.yml
+    with:
+      app-version: ${{ github.event.release.tag_name }}
+      tags: |
+        type=semver,pattern={{version}},value=${{ github.event.release.tag_name }}
+        type=semver,pattern={{major}}.{{minor}},value=${{ github.event.release.tag_name }}
+        type=semver,pattern={{major}},value=${{ github.event.release.tag_name }}
+      flavor: latest=auto
+    secrets:
+      DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
