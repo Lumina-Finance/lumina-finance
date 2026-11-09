@@ -26,6 +26,7 @@ from types import SimpleNamespace
 import pytest
 from sqlalchemy import select, text, update
 
+from app.config.bank_sync import provider_setting_key
 from app.models.account import Account
 from app.models.bank_connection import BankAccountLink, BankConnection, BankLinkState
 from app.models.bank_pending_transaction import BankPendingTransaction
@@ -36,6 +37,7 @@ from app.services.bank_sync import worker
 from app.services.bank_sync.jobs import ClaimedJob, finish_job, lock_covered_links, lock_held_job
 from app.services.bank_sync.links import disconnect_connection, unlink_account
 from app.services.bank_sync.pending import replace_pending_transactions
+from app.services.bank_sync.providers.registry import load_adapters
 from app.services.bank_sync.schedule import queue_scheduled_sync
 from app.services.bank_sync.sync import run_sync_job
 from app.services.bank_sync.worker import MAX_JOB_ATTEMPTS, enqueue_due_work, run_jobs
@@ -53,6 +55,7 @@ from tests.routes.support.bank_sync_helpers import (
     _seed_job,
 )
 from tests.routes.support.identity_helpers import _act_as
+from tests.services.bank_sync.fake_provider import remove_provider
 
 # Long enough for any step here to finish, so a missing protection fails the test rather than hanging it
 _WAIT_SECONDS = 10
@@ -329,6 +332,71 @@ async def test_worker_stops_on_sigterm_once_its_runners_have_finished(monkeypatc
         await scanned.wait()
         handlers[signal.SIGTERM]()
         await running
+
+
+async def test_worker_with_no_provider_enabled_keeps_its_heartbeat_and_claims_nothing(monkeypatch, frozen_now):
+    """A worker container on a server offering no bank provider stays healthy without scanning or claiming"""
+    handlers = {}
+    stamped = asyncio.Event()
+    stamp = worker._stamp_heartbeat
+
+    async def stamp_and_note(now: datetime) -> None:
+        """Stamp the heartbeat, then note it happened"""
+        await stamp(now)
+        stamped.set()
+
+    async def refuse(*_) -> int:
+        """Stand in for scanning and claiming, which an idle worker never does"""
+        raise AssertionError("an idle worker scanned or claimed")
+
+    async def nothing(*_) -> None:
+        """Stand in for a start-up check"""
+
+    @contextlib.asynccontextmanager
+    async def connect():
+        """Stand in for a database connection"""
+        yield None
+
+    remove_provider(monkeypatch, "fake")
+    loop = asyncio.get_running_loop()
+    monkeypatch.setattr(loop, "add_signal_handler", lambda sig, callback, *args: handlers.__setitem__(sig, callback))
+    monkeypatch.setattr(worker, "_stamp_heartbeat", stamp_and_note)
+    monkeypatch.setattr(worker, "enqueue_due_work", refuse)
+    monkeypatch.setattr(worker, "run_jobs", refuse)
+    monkeypatch.setattr(worker, "_wait_for_database", nothing)
+    monkeypatch.setattr(worker, "verify_app_role_is_unprivileged", nothing)
+    monkeypatch.setattr(worker, "verify_key_matches_data", nothing)
+    monkeypatch.setattr(worker, "engine", SimpleNamespace(connect=connect, dispose=nothing))
+
+    async with asyncio.timeout(_WAIT_SECONDS):
+        running = asyncio.create_task(worker.run_worker())
+        await stamped.wait()
+        handlers[signal.SIGTERM]()
+        await running
+
+    async with TestSession() as session:
+        assert await session.scalar(select(BankSyncHeartbeat.last_scan_at)) == frozen_now
+
+
+@pytest.mark.parametrize(
+    ("enabled", "status"),
+    [("false", os.EX_UNAVAILABLE), ("true", 0)],
+    ids=["none_enabled", "one_enabled"],
+)
+def test_check_providers_says_whether_the_app_container_should_start_a_worker(enabled, status):
+    """The app's container starts its worker only when the check passes, so a server with no provider runs none"""
+    switches = {provider_setting_key(provider_id, "ENABLED"): "false" for provider_id in load_adapters()}
+    first = min(load_adapters())
+    completed = subprocess.run(
+        [sys.executable, "-m", "app.worker", "check-providers"],
+        cwd=_BACKEND_DIR,
+        env={**os.environ, **switches, provider_setting_key(first, "ENABLED"): enabled},
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+
+    assert completed.returncode == status, completed.stderr
 
 
 @pytest.mark.parametrize(
