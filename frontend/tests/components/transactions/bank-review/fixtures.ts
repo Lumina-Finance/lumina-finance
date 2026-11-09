@@ -133,6 +133,11 @@ function countOf(items: BankReviewItem[]): BankReviewPage['counts'] {
   }
 }
 
+/** The text a reader sees, without the markup that keeps parts of it together */
+export function textOf(markup: string): string {
+  return markup.replace(/<[^>]+>/g, '')
+}
+
 /** How many item rows a rendered block holds */
 export function rowCount(markup: string): number {
   return markup.split('role="listitem"').length - 1

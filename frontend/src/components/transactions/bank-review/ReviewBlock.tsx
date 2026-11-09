@@ -6,6 +6,7 @@ import { useMoneyFormatters } from '@/hooks/useMoneyFormatters'
 import { Checkbox } from '@/components/forms/Checkbox'
 import { describeTickLimit } from '@/components/transactions/bulk-edit/reviewSelection'
 import type { RowSelectionMark } from '@/components/transactions/bulk-edit/selection'
+import { DetailPhrases } from '@/components/transactions/bank-review/DetailPhrases'
 import { ReadFailureNotice, type BankReadFailure } from '@/components/transactions/bank-review/ReadFailureNotice'
 import { REVIEW_MOTION } from '@/components/transactions/constants/bankReview'
 import { useFocusAfterRetry } from '@/components/transactions/hooks/useFocusAfterRetry'
@@ -309,7 +310,7 @@ export function BankReviewBlock({
                     </span>
                   </p>
                   <p className="mt-0.5 text-xs" style={{ color: 'var(--app-text-muted)' }}>
-                    {details.filter(Boolean).join(' · ')}
+                    <DetailPhrases phrases={details} />
                   </p>
                 </div>
                 <span

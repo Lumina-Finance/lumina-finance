@@ -13,7 +13,7 @@ import { renderToStaticMarkup } from 'react-dom/server'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { PendingBankTransaction } from '@/api/bank-sync/types'
 import { formatCurrency, formatMovedCurrency } from '@/utils/formatCurrency'
-import { createPendingTransaction, MINUS, TEST_CURRENCIES } from './fixtures'
+import { createPendingTransaction, MINUS, TEST_CURRENCIES, textOf } from './fixtures'
 
 vi.mock('@/hooks/useMoneyFormatters', () => ({
   useMoneyFormatters: () => ({
@@ -76,11 +76,6 @@ function rowWith(markup: string, text: string): string {
     .filter((row) => row.includes(text))
   expect(rows).toHaveLength(1)
   return rows[0]
-}
-
-/** The text a reader sees, without the markup that keeps parts of it together */
-function textOf(markup: string): string {
-  return markup.replace(/<[^>]+>/g, '')
 }
 
 describe('the closed strip', () => {

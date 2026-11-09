@@ -124,6 +124,37 @@ async function expectPhoneBarFits(page: Page): Promise<void> {
   }
 }
 
+// The last phrase under a new item's description, and the longest
+const NEEDS_PHRASE = 'Needs merchant and category'
+
+/**
+ * Reads how a review row's detail line sits: how many lines the line takes, how many its needs phrase
+ * takes, and whether the row is wide enough to hold that phrase on one line at all
+ */
+async function readNeedsPhraseLines(page: Page, description: string) {
+  const text = page.getByTestId('review-item-text').filter({ hasText: description })
+  return text.evaluate((column, phrase) => {
+    const line = [...column.querySelectorAll('p')].find((part) => part.textContent?.includes(phrase))!
+    const walker = document.createTreeWalker(line, NodeFilter.SHOW_TEXT)
+    let node = walker.nextNode()
+    while (node && !node.textContent?.includes(phrase)) node = walker.nextNode()
+    const range = document.createRange()
+    const start = node!.textContent!.indexOf(phrase)
+    range.setStart(node!, start)
+    range.setEnd(node!, start + phrase.length)
+    const topsOf = (rects: DOMRectList) => new Set([...rects].map((rect) => Math.round(rect.top))).size
+    const lineRange = document.createRange()
+    lineRange.selectNodeContents(line)
+    const context = document.createElement('canvas').getContext('2d')!
+    context.font = window.getComputedStyle(line).font
+    return {
+      lineLines: topsOf(lineRange.getClientRects()),
+      phraseLines: topsOf(range.getClientRects()),
+      phraseFits: context.measureText(phrase).width <= line.clientWidth,
+    }
+  }, NEEDS_PHRASE)
+}
+
 /** The account's ledger transactions as the server holds them, newest first */
 async function readLedger(request: APIRequestContext, user: TestUser, accountId: string) {
   const response = await request.get(`${API_BASE_URL}/transactions`, {
@@ -248,6 +279,23 @@ test('keeps every action inside the phone selection bar while Dismiss is offered
   await expect(page.getByRole('button', { name: 'Dismiss the selected items', exact: true })).toBeAttached()
 
   await expectPhoneBarFits(page)
+})
+
+test("wraps a review row's detail line between whole phrases on a phone while selecting", NEEDS_BANK_SYNC, async ({ page, request }) => {
+  await start(page, request, [COUNTDOWN])
+  const wrapped: number[] = []
+
+  // Read until it holds, since the row takes a moment to settle into a new width
+  for (const width of PHONE_WIDTHS) {
+    await page.setViewportSize({ width, height: 844 })
+    await expect.poll(async () => {
+      const { lineLines, phraseLines, phraseFits } = await readNeedsPhraseLines(page, COUNTDOWN.description)
+      if (lineLines > 1 && !wrapped.includes(width)) wrapped.push(width)
+      return phraseFits ? phraseLines : 1
+    }, { message: `the needs phrase at ${width}px` }).toBe(1)
+  }
+  // The check means something only where the line had to wrap
+  expect(wrapped).toContain(390)
 })
 
 test('keeps every action inside the phone selection bar with no item waiting for review', async ({ page, request }) => {

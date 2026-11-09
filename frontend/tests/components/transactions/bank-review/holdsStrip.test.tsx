@@ -12,6 +12,7 @@ import { renderToStaticMarkup } from 'react-dom/server'
 import { describe, expect, it, vi } from 'vitest'
 import type { BankHold } from '@/api/bank-sync/types'
 import { BankHoldsStrip } from '@/components/transactions/bank-review/HoldsStrip'
+import { textOf } from './fixtures'
 
 // The crossfade needs a browser to mount, so the button's content is drawn without its animated layers
 vi.mock('@/components/loading/Crossfade', () => ({ Crossfade: ({ children }: { children: unknown }) => children }))
@@ -69,8 +70,8 @@ describe('the holds strip', () => {
     const markup = renderStrip(HOLDS, { open: true })
 
     expect(markup).toContain('CARD CHECK gas')
-    expect(markup).toContain('Oct 3 · Everyday')
-    expect(markup).toMatch(/Dec 30, 2025 · Everyday/)
+    expect(textOf(markup)).toContain('Oct 3 · Everyday')
+    expect(textOf(markup)).toContain('Dec 30, 2025 · Everyday')
     expect(markup).not.toMatch(/\$|tabular-nums/)
   })
 

@@ -3,6 +3,7 @@ import { AnimatePresence, motion } from 'motion/react'
 import { ChevronDown, CircleSlash } from 'lucide-react'
 import type { BankHold } from '@/api/bank-sync'
 import { ReviewDecisionButton } from '@/components/transactions/bank-review/DecisionButton'
+import { DetailPhrases } from '@/components/transactions/bank-review/DetailPhrases'
 import type { ReviewItemAccount } from '@/components/transactions/bank-review/ReviewBlock'
 import { REVIEW_MOTION } from '@/components/transactions/constants/bankReview'
 import { formatReviewDate } from '@/components/transactions/utils/bankReview'
@@ -119,7 +120,7 @@ export function BankHoldsStrip({
                             {hold.description}
                           </p>
                           <p className="mt-0.5 text-xs" style={{ color: 'var(--app-text-muted)' }}>
-                            {details.filter(Boolean).join(' · ')}
+                            <DetailPhrases phrases={details} />
                           </p>
                         </div>
                         <ReviewDecisionButton

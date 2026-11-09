@@ -20,7 +20,16 @@ import { ApiError } from '@/api/auth/errors'
 import type { BankReviewBacklog } from '@/api/bank-sync/types'
 import { accountKeys, bankSyncKeys } from '@/api/cache/queryKeys'
 import { formatCurrency, formatMovedCurrency } from '@/utils/formatCurrency'
-import { createAccount, createLinks, createReviewItem, MINUS, rowCount, TEST_CURRENCIES, toPages } from './fixtures'
+import {
+  createAccount,
+  createLinks,
+  createReviewItem,
+  MINUS,
+  rowCount,
+  TEST_CURRENCIES,
+  textOf,
+  toPages,
+} from './fixtures'
 
 vi.mock('@/hooks/useMoneyFormatters', () => ({
   useMoneyFormatters: () => ({
@@ -95,8 +104,8 @@ describe('the block for every account', () => {
     expect(markup).toMatch(/>3<\/span>/)
     expect(markup).toContain('From your bank, and left out of every balance until you act on them.')
     expect(markup).toMatch(/COUNTDOWN 123<span[^>]*>Correction<\/span>/)
-    expect(markup).toContain('Sep 21 · Visa · The bank changed the amount')
-    expect(markup).toContain('Sep 21 · Everyday · Needs merchant and category')
+    expect(textOf(markup)).toContain('Sep 21 · Visa · The bank changed the amount')
+    expect(textOf(markup)).toContain('Sep 21 · Everyday · Needs merchant and category')
     expect(markup).toContain(`${MINUS}$23.10`)
   })
 
@@ -191,7 +200,7 @@ describe('the block for a filtered list or an account page', () => {
   })
 
   it("leaves the account's name off each row on its own page", () => {
-    expect(renderSection(['visa'], true)).toContain('Sep 21 · The bank changed the amount')
+    expect(textOf(renderSection(['visa'], true))).toContain('Sep 21 · The bank changed the amount')
   })
 })
 

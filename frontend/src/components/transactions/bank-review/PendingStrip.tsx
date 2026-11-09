@@ -4,6 +4,7 @@ import { ChevronDown, Clock } from 'lucide-react'
 import type { PendingBankTransaction } from '@/api/bank-sync'
 import { useMoneyFormatters } from '@/hooks/useMoneyFormatters'
 import { useRelativeTimeRefresh } from '@/hooks/useRelativeTimeRefresh'
+import { DetailPhrases } from '@/components/transactions/bank-review/DetailPhrases'
 import { ReadFailureNotice, type BankReadFailure } from '@/components/transactions/bank-review/ReadFailureNotice'
 import type { ReviewItemAccount } from '@/components/transactions/bank-review/ReviewBlock'
 import { REVIEW_MOTION } from '@/components/transactions/constants/bankReview'
@@ -134,6 +135,7 @@ export function BankPendingStrip({
                         formatReviewDate(transaction.date, today),
                         showAccountNames && account.name,
                         'Pending',
+                        `Checked ${formatRelativeTime(transaction.observed_at)}`,
                       ]
                       return (
                         <li key={transaction.id} className="px-4 sm:px-5">
@@ -147,12 +149,7 @@ export function BankPendingStrip({
                                 {transaction.description}
                               </p>
                               <p className="mt-0.5 text-xs" style={{ color: 'var(--app-text-muted)' }}>
-                                {details.filter(Boolean).join(' · ')}
-                                {' · '}
-                                {/* The relative time stays whole, so a narrow row wraps before it rather than inside it */}
-                                <span className="whitespace-nowrap">
-                                  Checked {formatRelativeTime(transaction.observed_at)}
-                                </span>
+                                <DetailPhrases phrases={details} />
                               </p>
                             </div>
                             <span
