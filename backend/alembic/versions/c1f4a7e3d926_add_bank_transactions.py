@@ -1,7 +1,7 @@
 """add booked bank transactions and their review state
 
 Revision ID: c1f4a7e3d926
-Revises: 9d2c6e1a4b58
+Revises: 5b8e2d4f7a13
 Create Date: 2026-10-04
 """
 
@@ -15,7 +15,7 @@ from app.db.downgrade_guard import refuse_while_tables_hold_rows
 from app.db.rls import secure_registered_table
 
 revision: str = "c1f4a7e3d926"
-down_revision: str | Sequence[str] | None = "9d2c6e1a4b58"
+down_revision: str | Sequence[str] | None = "5b8e2d4f7a13"
 branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
 

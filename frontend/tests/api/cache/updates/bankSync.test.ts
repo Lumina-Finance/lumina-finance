@@ -549,13 +549,13 @@ describe('a deleted account', () => {
       bankSyncKeys.pending(['account-1']),
     ]
     for (const key of shown) observeWithHeldRead(key, {})
-    queryClient.setQueryData(bankSyncKeys.reviewPreferences('account-1'), {})
+    queryClient.setQueryData(bankSyncKeys.importRange('account-1', 'simplefin'), {})
     queryClient.setQueryData(bankSyncKeys.pending(['account-2']), {})
 
     clearDeletedAccountBankData(queryClient, 'account-1')
 
     expectInvalidated(shown, false)
-    expect(queryClient.getQueryState(bankSyncKeys.reviewPreferences('account-1'))).toBeUndefined()
+    expect(queryClient.getQueryState(bankSyncKeys.importRange('account-1', 'simplefin'))).toBeUndefined()
     expectInvalidated([bankSyncKeys.pending(['account-2'])], true)
   })
 

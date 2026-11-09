@@ -496,14 +496,6 @@ export type AccountBankStatus = {
   opening_adjustment: OpeningAdjustment | null
 }
 
-export type ReviewDecision = 'review' | 'trust'
-
-export type ReviewPreferences = {
-  new_transactions: ReviewDecision
-  corrections: ReviewDecision
-  removals: ReviewDecision
-}
-
 export type BankField = 'date' | 'amount' | 'description'
 
 /**
@@ -701,7 +693,7 @@ export type TransactionBankSource = {
   /** When the app received the bank's record of the transaction */
   received_at: string
 
-  /** The fields whose ledger value differs from the bank's. A trusted correction leaves them alone */
+  /** The fields whose ledger value differs from the bank's */
   edited_fields: EditableBankField[]
 
   /** The waiting correction or removal about this transaction, if any */

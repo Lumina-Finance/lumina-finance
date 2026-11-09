@@ -69,11 +69,6 @@ SECURED_TABLES = (
         f"owner_id = {CURRENT_USER_ID}() AND {CAN_ACCESS_ACCOUNT}(account_id) AND (connection_id IS NULL OR {_SEES_CONNECTION})",
     ),
     (
-        "account_review_preferences",
-        f"owner_id = {CURRENT_USER_ID}() AND {CAN_ACCESS_ACCOUNT}(account_id)",
-        f"owner_id = {CURRENT_USER_ID}() AND {CAN_ACCESS_ACCOUNT}(account_id)",
-    ),
-    (
         "bank_transactions",
         f"owner_id = {CURRENT_USER_ID}() AND {CAN_ACCESS_ACCOUNT}(account_id)",
         f"owner_id = {CURRENT_USER_ID}() AND {CAN_ACCESS_ACCOUNT}(account_id) AND (transaction_id IS NULL OR {_SEES_LEDGER_ROW})",

@@ -22,7 +22,6 @@ import type {
   BankHold,
   PendingBankTransaction,
   ReconnectConnectionResult,
-  ReviewPreferences,
   UnlinkResult,
 } from '@/api/bank-sync/types'
 import type { Transaction } from '@/api/transactions/types'
@@ -206,28 +205,6 @@ export function recordOpeningAdjustment({ accountId, amount }: { accountId: stri
  */
 export function skipOpeningAdjustment(accountId: string) {
   return post<AccountBankStatus>(`/accounts/${accountId}/bank-link/opening-adjustment/skip`)
-}
-
-/**
- * Fetches whether each kind of bank data arriving for the account waits for review
- *
- * @param signal - Aborts the request when the load that asked for it is abandoned
- */
-export function fetchReviewPreferences(accountId: string, signal?: AbortSignal) {
-  return authenticatedFetch<ReviewPreferences>(`/accounts/${accountId}/review-preferences`, { signal })
-}
-
-export function updateReviewPreferences({
-  accountId,
-  preferences,
-}: {
-  accountId: string
-  preferences: ReviewPreferences
-}) {
-  return authenticatedFetch<ReviewPreferences>(`/accounts/${accountId}/review-preferences`, {
-    method: 'PUT',
-    body: JSON.stringify(preferences),
-  })
 }
 
 /**

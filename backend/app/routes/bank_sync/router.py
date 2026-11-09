@@ -37,10 +37,8 @@ from app.schemas.bank_sync import (
     ReconnectBankConnectionResponse,
     RecordOpeningAdjustmentRequest,
     RestoreBankValueRequest,
-    ReviewPreferencesResponse,
     UnlinkResponse,
     UpdateBankConnectionRequest,
-    UpdateReviewPreferencesRequest,
 )
 from app.schemas.transaction import TransactionResponse
 from app.services.bank_sync.account_link import list_bank_links, read_account_bank_status
@@ -69,7 +67,6 @@ from app.services.bank_sync.review_decisions import (
     restore_bank_value,
 )
 from app.services.bank_sync.review_items import REVIEW_PAGE_SIZE, list_review_backlogs, list_review_items
-from app.services.bank_sync.review_preferences import get_review_preferences, update_review_preferences
 from app.services.bank_sync.sync_now import sync_account_now
 
 router = APIRouter(prefix="/bank-sync", tags=["bank-sync"])
@@ -79,9 +76,6 @@ bank_link_router = APIRouter(prefix="/accounts/{account_id}/bank-link", tags=["b
 
 # The bank items waiting for the user to add, dismiss or decide
 review_router = APIRouter(prefix="/bank-review", tags=["bank-sync"])
-
-# An account's own choices for bank data stay with it whatever bank account it follows
-review_preferences_router = APIRouter(prefix="/accounts/{account_id}/review-preferences", tags=["bank-sync"])
 
 
 @router.get("/providers", response_model=BankProvidersResponse)
@@ -490,46 +484,6 @@ async def get_bank_import_range(
         The allowed range, its suggestions and the facts the start step shows beside them
     """
     return await get_import_range(db, user, account_id, provider)
-
-
-@review_preferences_router.get("", response_model=ReviewPreferencesResponse)
-async def get_account_review_preferences(
-    account_id: uuid.UUID,
-    user: Annotated[User, Depends(get_current_user)],
-    db: Annotated[AsyncSession, Depends(get_db)],
-):
-    """Return whether each kind of bank data arriving for one of the user's own accounts waits for review
-
-    Args:
-        account_id: The account
-        user: Authenticated owner of the account
-        db: Active database session
-
-    Returns:
-        The account's choices, Review for each until the user changes them
-    """
-    return await get_review_preferences(db, user.id, account_id)
-
-
-@review_preferences_router.put("", response_model=ReviewPreferencesResponse)
-async def update_account_review_preferences(
-    account_id: uuid.UUID,
-    request: UpdateReviewPreferencesRequest,
-    user: Annotated[User, Depends(get_current_user)],
-    db: Annotated[AsyncSession, Depends(get_db)],
-):
-    """Replace one of the user's own accounts' review choices, for bank data arriving from now on
-
-    Args:
-        account_id: The account
-        request: The three choices
-        user: Authenticated owner of the account
-        db: Active database session
-
-    Returns:
-        The account's choices as saved
-    """
-    return await update_review_preferences(db, user.id, account_id, request)
 
 
 @review_router.get("/items", response_model=BankReviewPageResponse)

@@ -15,7 +15,6 @@ from collections.abc import AsyncIterator, Collection
 from datetime import UTC, date, datetime, timedelta
 from zoneinfo import ZoneInfo
 
-import httpx
 from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -423,18 +422,6 @@ async def _review_page(client, headers, **params) -> dict:
     page = await client.get("/bank-review/items", params=params, headers=headers)
     assert page.status_code == 200, page.text
     return page.json()
-
-
-async def _save_review_preferences(client, headers, account_id, choices: dict) -> httpx.Response:
-    """Save the account's three review choices through the route, returning its answer"""
-    return await client.put(f"/accounts/{account_id}/review-preferences", json=choices, headers=headers)
-
-
-async def _read_review_preferences(client, headers, account_id) -> dict:
-    """Return the account's review choices, read through the route"""
-    response = await client.get(f"/accounts/{account_id}/review-preferences", headers=headers)
-    assert response.status_code == 200, response.text
-    return response.json()
 
 
 async def _stored_item(item_id: uuid.UUID) -> BankTransaction:

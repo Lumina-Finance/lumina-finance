@@ -259,13 +259,11 @@ async def keep_current_value(db: AsyncSession, user: User, item_id: uuid.UUID) -
     """Close a correction leaving the ledger transaction as it is, so the bank's values it proposed don't come back
 
     The bank's values stay stored as its latest, and the changed date and amount are aligned with
-    them, so the ledger's own count as edited and a trusted correction later leaves them alone. The
-    ledger has no description, so the one it was decided with is kept in its place while the bank's
-    differs, and a trusted correction leaves that alone too. The values declined are remembered, so
-    the bank sending them again opens nothing until accepting a change, a trusted correction
-    applying one, or the bank matching the ledger or the description kept aligns a field and
-    replaces them. A correction already decided answers with the transaction as it stands, so a
-    double submission keeps it once
+    them, so the ledger's own count as edited. The ledger has no description, so the one it was
+    decided with is kept in its place while the bank's differs. The values declined are remembered,
+    so the bank sending them again opens nothing until accepting a change, or the bank matching the
+    ledger or the description kept, aligns a field and replaces them. A correction already decided
+    answers with the transaction as it stands, so a double submission keeps it once
 
     Args:
         db: Active database session
@@ -393,7 +391,7 @@ async def restore_bank_value(db: AsyncSession, user: User, transaction_id: uuid.
     The transaction keeps its id and bank source and passes the checks an edit does, and its
     balances are rebuilt from the earlier of its old and new dates. An amount brings the bank's sign
     with it, so the direction follows the bank. The field is aligned with the bank, so it no longer
-    counts as edited and a trusted correction applies to it again, and the values the user declined
+    counts as edited, and the values the user declined
     before no longer stand. A correction waiting on the field is settled, since the ledger now holds
     the bank's value, and closes once it has no field left. A field that isn't edited answers with
     the transaction as it stands, so a double submission restores it once, and a correction waiting

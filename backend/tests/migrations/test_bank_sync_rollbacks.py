@@ -104,14 +104,6 @@ _ROLLBACKS = [
         id="link_without_connection",
     ),
     pytest.param(
-        "9d2c6e1a4b58",
-        ("INSERT INTO account_review_preferences (account_id, owner_id) VALUES (:account_id, :user_id)",),
-        ("account_review_preferences",),
-        "the review preferences",
-        (),
-        id="review_preferences",
-    ),
-    pytest.param(
         "c1f4a7e3d926",
         (
             "INSERT INTO bank_transactions "

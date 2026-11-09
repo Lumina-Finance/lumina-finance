@@ -301,7 +301,7 @@ async def test_removing_waiting_on_a_sync_that_brings_the_transaction_back_is_re
 
 
 async def test_removing_locks_the_bank_transaction_before_the_ledger_transaction(client):
-    """A sync holds the groceries' bank transaction while removing waits for it, then locks their ledger row, as a trusted correction does
+    """A sync holds the groceries' bank transaction while removing waits for it, then locks their ledger row, as storing a correction does
 
     Removing hasn't taken the ledger row while it waits, so the sync gets it at once rather than
     deadlocking, and removing goes ahead once the sync commits

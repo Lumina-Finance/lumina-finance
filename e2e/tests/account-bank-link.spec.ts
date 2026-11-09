@@ -239,10 +239,10 @@ async function releaseRenders(page: Page): Promise<number> {
   return page.evaluate(() => (window as Window & { releaseRenders?: () => number }).releaseRenders!())
 }
 
-/** How strongly Review settings shows through the views around it, none once it has gone */
-function readReviewSettingsOpacity(dialog: Locator): Promise<number> {
+/** How strongly Unlink shows through the views around it, none once it has gone */
+function readUnlinkOpacity(dialog: Locator): Promise<number> {
   return dialog.evaluate((panel) => {
-    const button = Array.from(panel.querySelectorAll('button')).find((control) => control.textContent?.trim() === 'Review settings')
+    const button = Array.from(panel.querySelectorAll('button')).find((control) => control.textContent?.trim() === 'Unlink')
     let opacity = 1
     for (let box: Element | null = button ?? null; box; box = box.parentElement) opacity *= Number(getComputedStyle(box).opacity)
     return button ? opacity : 0
@@ -351,14 +351,14 @@ test('links an account from its page, from choosing the bank account to its impo
     await expect(fact(dialog, 'Status')).toHaveText(/^Importing · \d+ of \d+/)
 
     // The Link button the flow opened from has gone, so focus moves to the linked view's first live
-    // action. Sync now is greyed for the running import, so focus passes over it to Review settings
-    const reviewSettings = dialog.getByRole('button', { name: 'Review settings' })
-    await expect(reviewSettings).toBeFocused()
+    // action. Sync now is greyed for the running import, so focus passes over it to Unlink
+    const unlink = dialog.getByRole('button', { name: 'Unlink' })
+    await expect(unlink).toBeFocused()
     await expect(dialog.getByRole('button', { name: 'Sync now' })).toHaveAttribute('aria-disabled', 'true')
 
     // The linked view is taller than the one it replaced, so on a phone it pushes the action below
     // what the modal shows. The modal's own area scrolls to show it whole, leaving the page where it was
-    await expect(reviewSettings).toBeInViewport({ ratio: 1 })
+    await expect(unlink).toBeInViewport({ ratio: 1 })
     expect(await page.evaluate(() => window.scrollY)).toBe(pageScroll)
   } finally {
     // Frees the worker the held request keeps waiting. It would otherwise hold up other tests' syncs
@@ -375,8 +375,8 @@ test('links an account from its page, from choosing the bank account to its impo
 test('moves focus to Link bank account once the link it sat by is undone elsewhere, however late the old view leaves', NEEDS_BANK_SYNC, async ({ page, request }) => {
   await page.clock.install()
   const { dialog, accountId } = await openImportingLink(page, request)
-  const reviewSettings = dialog.getByRole('button', { name: 'Review settings' })
-  await expect(reviewSettings).toBeFocused()
+  const unlink = dialog.getByRole('button', { name: 'Unlink' })
+  await expect(unlink).toBeFocused()
 
   // Undone in another tab. The app shell's next read of the links finds none, and reads the account's
   // again. Every other read the page sends from then waits until focus has moved, since an answer
@@ -397,16 +397,16 @@ test('moves focus to Link bank account once the link it sat by is undone elsewhe
   await runClockUntil(page, async () => (await linkButton.count()) === 1, LINK_READ_CLOCK_STEP_MS)
 
   // The old view has faded out once nothing of it shows through, and says so on the frame after, so a
-  // look at focus a frame later would still find it on Review settings
-  await runClockUntil(page, async () => (await readReviewSettingsOpacity(dialog)) === 0)
+  // look at focus a frame later would still find it on Unlink
+  await runClockUntil(page, async () => (await readUnlinkOpacity(dialog)) === 0)
   await page.clock.runFor(FRAMES_PAST_FADE_MS)
 
   // The hold has kept the old view on the page through those frames, and held what takes it off
-  expect(await reviewSettings.count()).toBe(1)
+  expect(await unlink.count()).toBe(1)
   expect(await releaseRenders(page)).toBeGreaterThan(0)
 
-  await runClockUntil(page, async () => (await reviewSettings.count()) === 0 && await linkButton.evaluate((button) => button === document.activeElement))
-  await expect(reviewSettings).not.toBeAttached()
+  await runClockUntil(page, async () => (await unlink.count()) === 0 && await linkButton.evaluate((button) => button === document.activeElement))
+  await expect(unlink).not.toBeAttached()
   await expect(linkButton).toBeFocused()
   releaseReads()
 })
@@ -603,7 +603,7 @@ test('unlinks the account alone, then reconnects it with the relink wording', NE
   await openPage(page, `/accounts/${everyday.id}`)
 
   // Opened once today's import is over, so Sync now is live and takes the focus. The import
-  // would have it pass to Review settings. The opening adjustment offered for the gap from the empty ledger
+  // would have it pass to Unlink. The opening adjustment offered for the gap from the empty ledger
   // doesn't take it either
   const bankSync = page.getByRole('button', { name: 'Bank sync: Opening balance to confirm. Open bank link' })
   await expect(bankSync).toBeVisible({ timeout: WORKER_RESULT_TIMEOUT_MS })
@@ -653,7 +653,7 @@ test('unlinks the account alone, then reconnects it with the relink wording', NE
   await expect(fact(dialog, 'Bank account')).toHaveText(SAMPLE_CHEQUING)
 })
 
-test('opens at the bank link with Review settings focused while Sync now is held back with its reason', NEEDS_BANK_SYNC, async ({ page, request }) => {
+test('opens at the bank link with Unlink focused while Sync now is held back with its reason', NEEDS_BANK_SYNC, async ({ page, request }) => {
   const user = await signUpUser(request)
   const [everyday, scenario] = await Promise.all([
     createAccount(request, user, { name: 'Everyday' }),
@@ -680,7 +680,7 @@ test('opens at the bank link with Review settings focused while Sync now is held
   const dialog = page.getByRole('dialog', { name: 'Edit account', exact: true })
 
   // Focus passes over Sync now, since it would open the reason over the section
-  await expect(dialog.getByRole('button', { name: 'Review settings' })).toBeFocused()
+  await expect(dialog.getByRole('button', { name: 'Unlink' })).toBeFocused()
   const syncNow = dialog.getByRole('button', { name: 'Sync now' })
   await expect(syncNow).toHaveAttribute('aria-disabled', 'true')
 

@@ -17,7 +17,6 @@ from sqlalchemy.exc import ProgrammingError
 from app.models.account import Account, AccountPermission
 from app.models.account_import_layout import AccountImportLayout
 from app.models.account_import_source import AccountImportSource
-from app.models.account_review_preference import AccountReviewPreference
 from app.models.bank_connection import (
     BankAccountLink,
     BankConnection,
@@ -499,7 +498,6 @@ _BANK_MODELS = [
     BankProviderRequest,
     BankExternalAccount,
     BankAccountLink,
-    AccountReviewPreference,
     BankTransaction,
     BankPendingTransaction,
     BankHold,
@@ -523,7 +521,6 @@ async def _create_bank_records(session, owner_id) -> tuple[Account, BankConnecti
             BankProviderRequest(owner_id=owner_id, connection_id=connection.id, purpose=ProviderRequestPurpose.SYNC),
             _build_external_account(connection),
             _build_bank_link(account, connection),
-            AccountReviewPreference(account_id=account.id, owner_id=owner_id),
             _build_bank_transaction(account),
             _build_pending_transaction(account, "P-1"),
             BankHold(
@@ -619,7 +616,6 @@ async def test_bank_record_naming_another_users_connection_is_refused(users, ban
     "build",
     [
         lambda account, connection, owner_id: _owned_by(_build_bank_link(account, connection, "ACT-B"), owner_id),
-        lambda account, _, owner_id: AccountReviewPreference(account_id=account.id, owner_id=owner_id),
         lambda account, _, owner_id: _owned_by(_build_bank_transaction(account, "TRN-B"), owner_id),
         lambda account, _, owner_id: _owned_by(_build_pending_transaction(account, "P-B"), owner_id),
         lambda account, _, owner_id: BankHold(
@@ -633,7 +629,7 @@ async def test_bank_record_naming_another_users_connection_is_refused(users, ban
             observed_at=datetime(2026, 10, 4, 9, 0, tzinfo=UTC),
         ),
     ],
-    ids=["account_link", "review_preferences", "bank_transaction", "pending_transaction", "bank_hold"],
+    ids=["account_link", "bank_transaction", "pending_transaction", "bank_hold"],
 )
 async def test_bank_record_on_another_users_account_is_refused(users, bank_records, build):
     """A user can't put bank records on someone else's account, even as the row's owner"""
@@ -700,7 +696,6 @@ def _unlinked(link: BankAccountLink) -> BankAccountLink:
 # account check and the owner condition are all their policies weigh
 _GROUP_ACCOUNT_ROWS = [
     pytest.param(lambda account, owner_id: _owned_by(_unlinked(_build_bank_link(account, None)), owner_id), id="account_link"),
-    pytest.param(lambda account, owner_id: AccountReviewPreference(account_id=account.id, owner_id=owner_id), id="review_preferences"),
     pytest.param(lambda account, owner_id: _owned_by(_build_bank_transaction(account), owner_id), id="bank_transaction"),
     pytest.param(lambda account, owner_id: _owned_by(_build_pending_transaction(account, "P-1"), owner_id), id="pending_transaction"),
 ]

@@ -3,15 +3,14 @@
 A booked record is identified by its account, provider, bank account and the provider's
 transaction ID, so the same ID from another provider or bank account, or sent into another
 account, is another transaction. An unknown identity becomes an item awaiting review,
-outside the ledger and every calculation, whatever the account's preference for new transactions
-says, since nothing can fill in its merchant and category yet. An item still waiting has its bank
-values refreshed in place, a dismissed one stays dismissed whatever the bank now says, and one
-already in the ledger has its bank values stored and any correction they make opened or applied
-(corrections.py).
+outside the ledger and every calculation, since nothing can fill in its merchant and category yet.
+An item still waiting has its bank values refreshed in place, a dismissed one stays dismissed
+whatever the bank now says, and one already in the ledger has its bank values stored and any
+correction they make opened (corrections.py).
 
 A record the provider explicitly reports removed takes out an item still waiting, with no review
-task and nothing kept, so the same transaction sent later is a new import, and opens or applies a
-removal on one in the ledger (corrections.py). It changes nothing for a transaction never brought in
+task and nothing kept, so the same transaction sent later is a new import, and opens a removal on
+one in the ledger (corrections.py). It changes nothing for a transaction never brought in
 or dismissed. A transaction merely missing from a response is never treated as removed, since a
 provider that reports no removals says nothing about what it leaves out.
 
@@ -20,14 +19,13 @@ window that brought it back, since a provider can date a record the day before t
 back in, and the window before it ended at that midnight and didn't include it. The import start
 decides only which records come in, so one already stored that the bank now dates before it is
 stored like any other change: an item waiting keeps waiting with the new date, and one in the
-ledger has its correction opened or applied.
+ledger has its correction opened.
 
 An amount that can't be stored exactly in the account's currency is kept as the bank sent it, with
 no amount, so its item waits for the user to enter one rather than being rounded or dropped
 """
 
 from collections.abc import Sequence
-from dataclasses import dataclass
 from datetime import datetime
 from typing import Any
 
@@ -42,30 +40,18 @@ from app.services.bank_sync.providers.contract import ProviderRecord
 from app.services.bank_sync.transaction_hash import hash_bank_transaction_id
 
 
-@dataclass(frozen=True)
-class StoredRecords:
-    """What storing a sync's booked records changed"""
-
-    # Anything stored, so the caller tells the owner's open pages
-    changed: bool = False
-
-    # A trusted correction or removal reached the ledger. The caller marks that as a change to the
-    # owner's data rather than only to what their pages show
-    ledger_changed: bool = False
-
-
 async def store_booked_records(
     db: AsyncSession,
     deliveries: Sequence[tuple[BankAccountLink, Sequence[ProviderRecord]]],
     *,
     observed_at: datetime,
-) -> StoredRecords:
+) -> bool:
     """Store the booked records each link's bank account came back with as review items, or as what the bank now says about ones in the ledger
 
     The caller locked the links and commits. The stored bank transactions these records name are
     locked in id order, after the links, so a review decision committed while the sync fetched is
-    seen here and kept. The ledger rows and balances a correction or removal reaches are locked
-    after them, and the owner's cache row is left for last
+    seen here and kept. The ledger rows a correction compares with are locked after them, and the
+    owner's cache row is left for last
 
     Args:
         db: The link owner's session
@@ -73,12 +59,12 @@ async def store_booked_records(
         observed_at: When the request that brought the records was sent
 
     Returns:
-        Whether anything stored changed, and whether that reached the ledger
+        Whether anything stored changed, so the caller tells the owner's open pages
     """
     wanted = [(link, _booked_records(link, records)) for link, records in deliveries]
     wanted = [(link, booked) for link, booked in wanted if booked]
     if not wanted:
-        return StoredRecords()
+        return False
 
     stored = await db.scalars(
         select(BankTransaction)
@@ -151,11 +137,10 @@ async def store_booked_records(
                     setattr(row, column, value)
                 row.observed_at = observed_at
                 changed = True
-    ledger_changed = False
     if accepted or removed:
-        ledger_changed = await store_accepted_observations(db, accepted, removed, observed_at=observed_at)
+        await store_accepted_observations(db, accepted, removed, observed_at=observed_at)
     await db.flush()
-    return StoredRecords(changed=changed, ledger_changed=ledger_changed)
+    return changed
 
 
 def _differs(row: BankTransaction, observation: dict[str, Any]) -> bool:

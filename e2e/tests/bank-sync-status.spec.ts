@@ -526,7 +526,7 @@ test('stops on a rejected connection, with a notice that leads to Settings to re
   const openSettings = dialog.getByRole('button', { name: 'Open settings' })
   await expect(notice).toBeVisible()
 
-  // The notice's action is what resumes the sync, so the modal opens on it rather than on Review settings
+  // The notice's action is what resumes the sync, so the modal opens on it rather than on the link's own actions
   await expect(openSettings).toBeFocused()
 
   // Beside the text from 640px, and on its own row under it on a phone

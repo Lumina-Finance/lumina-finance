@@ -6,8 +6,8 @@
  * These tests catch a group account offered a link, the previous link's bank account, provider or
  * date dropped from the relink text, the relink button worded as a first link, an archived account
  * or bank sync not being set up leaving the button live or its reason without the link to Settings, a failed read offering a link as if there were none,
- * a linked view missing a fact, its status, Review settings or the running import, Review settings
- * offered on an account with no link, an import shown while a retry or a
+ * a linked view missing a fact, its status or the running import, or offering review settings that
+ * no longer exist, an import shown while a retry or a
  * stop holds it or dropped before it shows as done, a notice missing, worded unlike the issue, or shown for a link it doesn't apply to,
  * a notice's action losing focus to the link's own actions when the modal opens at the bank link,
  * the opening adjustment offer missing from the balance panel's foot or shown with nothing offered,
@@ -19,7 +19,7 @@
  * sign-in, left greyed once its requests free up, spinning while bank sync isn't set up, even for this
  * window's press, held back by the sync its own press started rather than reading Sync started, or
  * dropping the focus it holds or the width it measures while the sync starts. Opening the flow, the tooltip,
- * the review settings, unlinking, pressing Sync now and dismissing a reminder run in the browser
+ * unlinking, pressing Sync now and dismissing a reminder run in the browser
  */
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { renderToStaticMarkup } from 'react-dom/server'
@@ -62,7 +62,6 @@ vi.mock('@/api/client', async (importOriginal) => ({
 // Closed throughout, and their shell reads the open modals through a store that has no server
 // snapshot, so a static render can't read them
 vi.mock('@/components/bank-link-flow/Modal', () => ({ BankLinkFlowModal: () => null }))
-vi.mock('@/pages/accounts/detail/components/bank-link/ReviewSettingsModal', () => ({ ReviewSettingsModal: () => null }))
 
 // User-1, with its own personal account built by the fixtures
 const AUTH: AuthContextValue = {
@@ -218,7 +217,6 @@ describe('BankLinkSection', () => {
       'Link this account to one of the bank accounts on your connections to bring in its transactions automatically.',
     )
     expect(getButton(markup, 'Link bank account')).not.toContain('aria-disabled')
-    expect(markup).not.toContain('Review settings')
   })
 
   it('names the previous link and offers to reconnect it', () => {
@@ -255,7 +253,7 @@ describe('BankLinkSection', () => {
     expect(getButton(renderSection(), 'Link bank account')).not.toContain('data-modal-initial-focus')
   })
 
-  it('shows a live link with its facts, its status, the running import, its review settings and a way to unlink', () => {
+  it('shows a live link with its facts, its status, the running import and a way to unlink, with no review settings', () => {
     read.status = createStatus({
       link: createLink({ import: createImport(), sync: createSync({ state: 'importing', last_success_at: null }) }),
     })
@@ -277,8 +275,8 @@ describe('BankLinkSection', () => {
     expect(markup).toContain('Importing from Jun 1, 2026')
     expect(markup).toContain('12 found · 1 of 2')
     expect(markup).toMatch(/role="progressbar"[^>]*aria-valuemax="2"[^>]*aria-valuenow="1"/)
-    expect(getButton(markup, 'Review settings')).not.toBe('')
     expect(getButton(markup, 'Unlink')).not.toBe('')
+    expect(markup).not.toContain('Review settings')
     expect(markup).not.toContain('Link bank account')
   })
 
@@ -486,19 +484,15 @@ describe('BankLinkSection', () => {
     [
       "a notice's action ahead of the link's own actions, passing over Sync now while the notice holds it",
       createStatus({ link: createLink({ state: 'choose_account', sync: createSync({ state: 'choose_account' }) }) }),
-      ['Choose bank account', 'Review settings', 'Unlink'],
+      ['Choose bank account', 'Unlink'],
     ],
+    ['Sync now ahead of Unlink while a sync can run', linkSynced(), ['Sync now', 'Unlink']],
     [
-      'Sync now ahead of Review settings and Unlink while a sync can run',
-      linkSynced(),
-      ['Sync now', 'Review settings', 'Unlink'],
-    ],
-    [
-      'Review settings first while the import holds Sync now, since focus would open the reason over the section',
+      'Unlink first while the import holds Sync now, since focus would open the reason over the section',
       createStatus({
         link: createLink({ import: createImport(), sync: createSync({ state: 'importing', last_success_at: null }) }),
       }),
-      ['Review settings', 'Unlink'],
+      ['Unlink'],
     ],
   ])('marks for the modal to focus %s', (_, status, expected) => {
     read.status = status

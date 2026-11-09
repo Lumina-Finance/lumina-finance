@@ -1,7 +1,7 @@
 """The edited-field rule
 
-A field wrongly read as unedited would let a trusted correction overwrite what the user typed, and
-one wrongly read as edited would keep the bank's corrections from ever reaching it
+A field wrongly read as unedited would pass off what the user typed as the bank's value, and one
+wrongly read as edited would show the bank's own value as the user's
 """
 
 import uuid

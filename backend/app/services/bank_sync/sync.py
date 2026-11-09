@@ -30,7 +30,7 @@ ending today brings back, its checkpoints, discoveries and its own end, is store
 holds itself, so a runner that lost its lease stores nothing and a link that changed while the job
 fetched gets none of its results. Each such step locks the connection first, then the job, then any
 bank accounts it stores a listing or balances for, then the links, then any bank transactions it
-stores, then the ledger rows and balances a correction or removal reaches, then any pending items it
+stores, then the ledger rows a correction compares with, then any pending items it
 replaces, then the owner's cache row. The request
 counts and the budget-spent mark lock only the connection and are written outside the job's fence,
 since they record requests already sent, whoever holds the job. An answer to a request sent with a
@@ -96,7 +96,7 @@ from app.services.bank_sync.retries import is_waiting_to_retry, queue_next_retry
 from app.services.bank_sync.review_pause import apply_review_pauses
 from app.services.bank_sync.schedule import next_daily_sync, schedule_next_sync
 from app.services.bank_sync.windows import LinkNeed, SyncWindow, find_due_links, first_missing_day, plan_window
-from app.services.cache_state.updates import mark_user_cache_changed, mark_user_status_changed
+from app.services.cache_state.updates import mark_user_status_changed
 from app.services.fx.currency_exponent_helpers import get_all_currency_exponents
 from app.utils.dates import resolve_timezone
 
@@ -544,7 +544,7 @@ class _JobRun:
             held = await lock_covered_links(db, [need.link for need in part.needs])
             whole = [link for link in held if link.external_account_id in synced]
             deliveries = [(link, synced[link.external_account_id].records) for link in whole]
-            stored = await store_booked_records(db, deliveries, observed_at=sent_at)
+            stored_changed = await store_booked_records(db, deliveries, observed_at=sent_at)
             holds_changed = await store_holds(db, deliveries, first_day=part.first_day, last_day=part.last_day, observed_at=sent_at)
 
             # A part ending today is the job's last write, so the job's end tells the owner's pages of it
@@ -575,11 +575,9 @@ class _JobRun:
             paused_or_imported = await apply_review_pauses(db, whole, today=self.today)
             offered = await offer_opening_adjustments(db, whole, tz=self.timezone.key)
 
-            # Only a trusted correction or removal changes the owner's ledger. That makes an import
-            # saved before it permanent. Anything else here changes only what their pages show
-            if stored.ledger_changed:
-                await mark_user_cache_changed(db, self.job.owner_id)
-            elif stored.changed or holds_changed or balances_changed or succeeded or failed or reminded or paused_or_imported or offered:
+            # A sync never changes the owner's ledger, only what their pages show, so an import saved
+            # before it can still be undone
+            if stored_changed or holds_changed or balances_changed or succeeded or failed or reminded or paused_or_imported or offered:
                 await mark_user_status_changed(db, self.job.owner_id)
             await db.commit()
             self.outbox += emails

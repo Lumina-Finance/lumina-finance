@@ -47,8 +47,6 @@ export type {
   PendingBankTransaction,
   PreviousBankLink,
   ReconnectConnectionResult,
-  ReviewDecision,
-  ReviewPreferences,
   TransactionBankSource,
   UnavailableBankAccountReason,
   UnlinkResult,
@@ -85,11 +83,9 @@ export {
   useRestoreBankValue,
   useReviewBacklogs,
   useReviewItems,
-  useReviewPreferences,
   useSkipOpeningAdjustment,
   useSyncBankAccount,
   useUnlinkBankAccount,
-  useUpdateReviewPreferences,
 } from '@/api/bank-sync/hooks'
 
 export {

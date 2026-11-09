@@ -169,8 +169,8 @@ async def detach_moved_bank_imports(db: AsyncSession, edits: Sequence[LedgerEdit
 async def refuse_deleting_bank_imports(db: AsyncSession, transactions: Sequence[Transaction], *, in_bulk: bool = False) -> None:
     """Refuse to delete a bank-imported transaction while its account is linked
 
-    Bank sync's own removals don't come through here, so a bank removal the user approves, or one
-    the account trusts, still deletes the transaction while the account stays linked
+    Bank sync's own removals don't come through here, so a bank removal the user approves still
+    deletes the transaction while the account stays linked
 
     Args:
         db: Active database session

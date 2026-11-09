@@ -50,7 +50,6 @@ import {
   usePendingBankTransactions,
   useReviewBacklogs,
   useReviewItems,
-  useReviewPreferences,
 } from '@/api/bank-sync/hooks'
 import { getBankLinksPollInterval } from '@/api/bank-sync/polling'
 import type { BankLink } from '@/api/bank-sync/types'
@@ -119,7 +118,6 @@ describe('a bank sync read a screen starts', () => {
     ['a connection’s bank accounts', () => useDiscoveredBankAccounts('connection-1', 'account-1')],
     ['an account’s link', () => useAccountBankStatus('account-1', true)],
     ['the import range', () => useImportRange('account-1', 'simplefin', true)],
-    ['the review settings', () => useReviewPreferences('account-1', true)],
     ['the review items', () => useReviewItems(undefined)],
     ['the review backlogs', () => useReviewBacklogs(undefined)],
     ['the pending transactions', () => usePendingBankTransactions(undefined)],

@@ -6,7 +6,6 @@ from typing import Literal
 
 from pydantic import BaseModel, Field, SecretStr, field_validator, model_validator
 
-from app.models.account_review_preference import ReviewDecision
 from app.models.bank_connection import PROVIDER_ID_MAX_LENGTH, BankImportKind, BankLinkState, ConnectsFrom, UnavailableReason
 from app.models.bank_transaction import EditableBankField
 from app.schemas.names import TrimmedName
@@ -607,17 +606,3 @@ class RestoreBankValueRequest(BaseModel):
     """The edited field of a bank-imported transaction to put the bank's latest value back on"""
 
     field: EditableBankField
-
-
-class ReviewPreferencesResponse(BaseModel):
-    """Whether each kind of bank data arriving for an account waits for review or is applied as it arrives"""
-
-    # In this release new bank items wait for review whatever this says, since nothing fills in their
-    # merchant and category until the classifier ships
-    new_transactions: ReviewDecision
-    corrections: ReviewDecision
-    removals: ReviewDecision
-
-
-class UpdateReviewPreferencesRequest(ReviewPreferencesResponse):
-    """All three choices, replacing the account's, so a save never leaves a mix of two saves"""

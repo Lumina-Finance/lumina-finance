@@ -19,7 +19,6 @@ from sqlalchemy.pool import NullPool
 from app.config.database import APP_DB_USER
 from app.db.credentials import resolve_role_password
 from app.models.account import Account
-from app.models.account_review_preference import AccountReviewPreference
 from app.models.bank_connection import (
     BankAccountLink,
     BankConnection,
@@ -241,18 +240,6 @@ async def test_bank_external_account_is_listed_once_per_connection(session):
 
     await _refused(session, _build_external_account(connection_a), "uq_bank_external_accounts_connection_external_id")
     await _add(session, _build_external_account(connection_b))
-
-
-async def test_account_review_preferences_go_with_the_account(session):
-    """Deleting an account deletes its stored choices"""
-    user = await _owner(session)
-    everyday = _build_account(user.id)
-    await _add(session, everyday)
-    await _add(session, AccountReviewPreference(account_id=everyday.id, owner_id=user.id, corrections="trust"))
-
-    await session.execute(delete(Account).where(Account.id == everyday.id))
-
-    assert await session.scalar(select(func.count()).select_from(AccountReviewPreference)) == 0
 
 
 def _dismissed(record: BankTransaction) -> BankTransaction:
@@ -539,7 +526,6 @@ _SECURED_BANK_TABLES = (
     "bank_provider_requests",
     "bank_external_accounts",
     "bank_account_links",
-    "account_review_preferences",
     "bank_transactions",
     "bank_pending_transactions",
     "bank_holds",

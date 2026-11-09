@@ -21,7 +21,6 @@ import type {
   BankReviewItem,
   BankReviewPage,
   EditableBankField,
-  ReviewPreferences,
 } from '@/api/bank-sync/types'
 import type { Transaction } from '@/api/transactions/types'
 
@@ -110,20 +109,9 @@ export function replaceCachedBankConnection(queryClient: QueryClient, connection
 }
 
 /**
- * Puts an account's review preferences the server answered with in place of the cached ones
- */
-export function putCachedReviewPreferences(
-  queryClient: QueryClient,
-  accountId: string,
-  preferences: ReviewPreferences,
-): void {
-  queryClient.setQueryData<ReviewPreferences>(bankSyncKeys.reviewPreferences(accountId), preferences)
-}
-
-/**
  * Whether a link brought in data since it was last read: a sync that succeeded, or an import that
- * finished another part. Either can add review items, pending rows and, for a kind of change that is
- * trusted, ledger transactions
+ * finished another part. Either can add review items and pending rows, and open a correction or
+ * removal that ledger transactions show
  */
 function hasNewBankData(previous: BankLink, link: BankLink): boolean {
   return (

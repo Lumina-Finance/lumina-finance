@@ -1,8 +1,8 @@
 """Restoring the bank's date or amount on a bank-imported transaction the user edited
 
 Restoring writes the bank's latest value to the same ledger transaction, sign included, rebuilds its
-balances and aligns the field with the bank, so it no longer counts as edited and trusted corrections
-apply to it again. A restore that wrote a stale bank value, skipped the alignment, bypassed a waiting
+balances and aligns the field with the bank, so it no longer counts as edited and the bank's next
+change is compared with it. A restore that wrote a stale bank value, skipped the alignment, bypassed a waiting
 correction on a field the user left alone, or reached another user's ledger would leave the ledger
 quietly differing from the bank or change money the user never asked to
 """
@@ -35,7 +35,6 @@ from tests.routes.support.bank_sync_helpers import (
     _ledger_rows,
     _owner_session,
     _review_page,
-    _save_review_preferences,
     _stored_item,
 )
 from tests.routes.support.lock_helpers import _wait_until_waiting_on
@@ -107,13 +106,6 @@ def _bank_sends(amount: int) -> ProviderRecord:
     )
 
 
-async def _trust_corrections(client, imported: _Imported) -> None:
-    """Save Everyday's choice to apply bank corrections without review, through the route"""
-    choices = {"new_transactions": "review", "corrections": "trust", "removals": "review"}
-    saved = await _save_review_preferences(client, imported.headers, imported.account_id, choices)
-    assert saved.status_code == 200, saved.text
-
-
 async def test_restoring_the_amount_writes_the_banks_amount_and_its_sign_to_the_same_transaction(client):
     """The bank sent -42.10, and the user turned it into +42.10 and moved it to 2 October
 
@@ -154,16 +146,14 @@ async def test_restoring_the_date_moves_the_transaction_and_its_balance_to_the_b
     assert await _balances(imported.account_id) == [(BANK_DATE, _BANK_AMOUNT)]
 
 
-async def test_a_restored_amount_takes_the_banks_latest_and_follows_trusted_corrections_again(client):
-    """The user saved -40.00 before a trusted change to -45.10 left it alone, on an account that trusts corrections
+async def test_a_restored_amount_takes_the_banks_latest_and_the_next_bank_change_is_compared_with_it(client):
+    """The user saved -40.00, and the bank has since sent -45.10 with nothing waiting on it
 
     Restoring sets the bank's latest -45.10 rather than the -42.10 the user first edited, so when the
-    bank next changes the coffee to -46.00 the ledger takes it. The user's own amount would have
-    stayed
+    bank next changes the coffee to -46.00 a correction opens against -45.10 and the ledger keeps it
     """
     imported = await _bank_imported(client, observed_amount=-4510)
     await _commit_link(imported.ledger, imported.account_id)
-    await _trust_corrections(client, imported)
 
     restored = await _restore(client, imported, "amount")
     async with _owner_session(imported.ledger.user_id) as syncing:
@@ -173,7 +163,9 @@ async def test_a_restored_amount_takes_the_banks_latest_and_follows_trusted_corr
 
     assert restored.status_code == 200, restored.text
     assert (restored.json()["amount"], restored.json()["bank_source"]["edited_fields"]) == (-4510, [])
-    assert await _ledger_rows(imported.account_id) == [(BANK_DATE, -4600)]
+    assert await _ledger_rows(imported.account_id) == [(BANK_DATE, -4510)]
+    stored = await _stored_item(imported.record_id)
+    assert (stored.open_kind, stored.previous_values) == (OpenReviewKind.CORRECTION, {"amount": -4510})
 
 
 @pytest.mark.parametrize(
@@ -191,7 +183,7 @@ async def test_a_restored_amount_takes_the_banks_latest_and_follows_trusted_corr
     ids=["correction to the amount", "correction to the amount and description", "removal over a correction to the amount"],
 )
 async def test_restoring_an_amount_a_correction_waits_on_settles_that_field(client, open_kind, previous_values, waiting, kept_for_later):
-    """The user saved -40.00 over the bank's -42.10, and the bank has since changed it to -45.10 while corrections are set to review
+    """The user saved -40.00 over the bank's -42.10, and the bank has since changed it to -45.10
 
     Restoring writes -45.10, so nothing is left to decide about the amount: a correction to it alone
     leaves the review list, one that also changed the description waits for that alone, and a
@@ -320,7 +312,7 @@ async def test_restoring_writes_nothing_when_the_save_fails_after_the_ledger_row
 
 
 async def test_a_restore_waiting_on_a_sync_restores_the_value_the_sync_stored(client):
-    """A sync on an account trusting corrections stores the bank's change from -42.10 to -46.00, leaving the user's -40.00 alone as edited
+    """A sync stores the bank's change from -42.10 to -46.00, opening a correction and leaving the user's -40.00 as edited
 
     The restore waits for the sync to commit, then puts the bank's newest -46.00 on the ledger rather
     than the -42.10 it would have read before the sync finished. That would leave the ledger
@@ -328,7 +320,6 @@ async def test_a_restore_waiting_on_a_sync_restores_the_value_the_sync_stored(cl
     """
     imported = await _bank_imported(client)
     await _commit_link(imported.ledger, imported.account_id)
-    await _trust_corrections(client, imported)
 
     async with asyncio.timeout(10), _owner_session(imported.ledger.user_id) as syncing:
         link = await syncing.scalar(

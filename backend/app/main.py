@@ -23,7 +23,7 @@ from app.request_validation import handle_request_validation_error
 from app.routes.accounts import router as account_router
 from app.routes.app_version import router as app_version_router
 from app.routes.auth import router as auth_router
-from app.routes.bank_sync import bank_link_router, review_preferences_router, review_router
+from app.routes.bank_sync import bank_link_router, review_router
 from app.routes.bank_sync import router as bank_sync_router
 from app.routes.base_budgets import router as base_budget_router
 from app.routes.budgets import router as budget_router
@@ -151,7 +151,6 @@ app.include_router(tag_router)
 app.include_router(transaction_router)
 app.include_router(bank_sync_router)
 app.include_router(bank_link_router)
-app.include_router(review_preferences_router)
 app.include_router(review_router)
 app.include_router(group_router)
 app.include_router(base_budget_router)

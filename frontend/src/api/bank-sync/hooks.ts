@@ -38,7 +38,6 @@ import {
   fetchPendingBankTransactions,
   fetchReviewBacklogs,
   fetchReviewPage,
-  fetchReviewPreferences,
   reconnectBankConnection,
   recordOpeningAdjustment,
   resolveReviewItem,
@@ -46,7 +45,6 @@ import {
   skipOpeningAdjustment,
   syncBankLink,
   updateBankConnection,
-  updateReviewPreferences,
   type ReviewResolution,
 } from '@/api/bank-sync/requests'
 import type { AccountBankStatus, BankHold, BankLink, BankProviderId, BankReviewItem } from '@/api/bank-sync/types'
@@ -62,7 +60,6 @@ import {
   applyRestoredBankValue,
   applyReviewDecision,
   putCachedBankLink,
-  putCachedReviewPreferences,
   refreshBankLinkState,
   replaceCachedBankConnection,
 } from '@/api/cache/updates/bankSync'
@@ -237,20 +234,6 @@ export function useImportRange(accountId: string, provider: BankProviderId | nul
     queryFn: provider ? ({ signal }) => fetchImportRange(accountId, provider, signal) : skipToken,
     enabled: !!accessToken && enabled,
     staleTime: BANK_DATA_STALE_TIME_MS,
-  })
-}
-
-/**
- * Reads whether each kind of bank data arriving for one of the user's own personal accounts waits for
- * review. Pass `enabled` false while nothing shows the choices, and for any other account. The
- * server refuses those
- */
-export function useReviewPreferences(accountId: string, enabled: boolean) {
-  const { accessToken } = useAuth()
-  return useQuery({
-    queryKey: bankSyncKeys.reviewPreferences(accountId),
-    queryFn: ({ signal }) => fetchReviewPreferences(accountId, signal),
-    enabled: enabled && !!accessToken,
   })
 }
 
@@ -543,17 +526,6 @@ export function skipOpeningAdjustmentMutationOptions(queryClient: QueryClient) {
 export function useSkipOpeningAdjustment() {
   const queryClient = useQueryClient()
   return useMutation(skipOpeningAdjustmentMutationOptions(queryClient))
-}
-
-export function useUpdateReviewPreferences() {
-  const queryClient = useQueryClient()
-  return useMutation({
-    mutationFn: (payload: Parameters<typeof updateReviewPreferences>[0]) =>
-      runWithMinimumPendingTime(ACTION_LOADING_MIN_MS, () => updateReviewPreferences(payload)),
-    onSuccess: (preferences, { accountId }) => {
-      putCachedReviewPreferences(queryClient, accountId, preferences)
-    },
-  })
 }
 
 /**

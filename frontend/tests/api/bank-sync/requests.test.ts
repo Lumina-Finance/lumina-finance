@@ -29,7 +29,6 @@ import {
   fetchPendingBankTransactions,
   fetchReviewBacklogs,
   fetchReviewPage,
-  fetchReviewPreferences,
   reconnectBankConnection,
 } from '@/api/bank-sync/requests'
 import { REQUEST_TIMEOUT_MS } from '@/api/server'
@@ -59,7 +58,6 @@ describe('bank sync reads', () => {
     ['the links', (signal: AbortSignal) => fetchBankLinks(signal)],
     ['an account’s link', (signal: AbortSignal) => fetchAccountBankStatus('account-1', signal)],
     ['the import range', (signal: AbortSignal) => fetchImportRange('account-1', 'simplefin', signal)],
-    ['the review settings', (signal: AbortSignal) => fetchReviewPreferences('account-1', signal)],
     ['a review page', (signal: AbortSignal) => fetchReviewPage({ cursor: null }, signal)],
     ['the review backlogs', (signal: AbortSignal) => fetchReviewBacklogs(undefined, signal)],
     ['the pending transactions', (signal: AbortSignal) => fetchPendingBankTransactions(undefined, signal)],
