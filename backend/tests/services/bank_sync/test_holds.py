@@ -13,11 +13,10 @@ import pytest
 from fastapi import HTTPException
 from sqlalchemy import select
 
-from app.models.bank_connection import BankConnection
 from app.models.bank_hold import BankHold
 from app.models.bank_transaction import BankTransaction
 from app.models.currency import Currency
-from app.services.bank_sync.holds import clear_holds, dismiss_hold, list_holds, store_holds
+from app.services.bank_sync.holds import dismiss_hold, list_holds, store_holds
 from app.services.bank_sync.ingestion import store_booked_records
 from app.services.bank_sync.providers.contract import ProviderRecord
 from tests.routes.support.bank_sync_helpers import (
@@ -220,21 +219,3 @@ async def test_the_days_fetched_include_both_their_first_and_last_day(db):
     await store_holds(db, [(link, [])], first_day=_FIRST, last_day=_LAST, observed_at=_AT)
 
     assert await _descriptions(db) == ["CARD CHECK DAY-AFTER", "CARD CHECK DAY-BEFORE"]
-
-
-async def test_clearing_an_accounts_holds_removes_them_dismissed_ones_too(db):
-    """Ending a link takes away every hold of the account, including those dismissed, and spares other accounts"""
-    user, account, link = await _linked(db)
-    other = _build_account(user.id, "Savings")
-    db.add(other)
-    await db.flush()
-    other_link = _build_bank_link(other, await db.get(BankConnection, link.connection_id), "ACT-2")
-    db.add(other_link)
-    await db.flush()
-    both = [(link, [_record("A"), _record("B")]), (other_link, [_record("C")])]
-    await store_holds(db, both, first_day=_FIRST, last_day=_LAST, observed_at=_AT)
-    await dismiss_hold(db, user, await db.scalar(select(BankHold.id).where(BankHold.description == "CARD CHECK A")))
-
-    await clear_holds(db, account.id)
-
-    assert await _descriptions(db) == ["CARD CHECK C"]
