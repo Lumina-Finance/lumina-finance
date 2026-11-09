@@ -20,7 +20,8 @@ sees the link
 """
 
 import uuid
-from collections.abc import Iterable, Mapping, Sequence
+from collections import defaultdict
+from collections.abc import Iterable, Sequence
 from datetime import date, datetime
 from typing import NamedTuple
 
@@ -58,7 +59,7 @@ class _LiveLink(NamedTuple):
 async def refuse_days_a_bank_supplies(
     db: AsyncSession,
     user: User,
-    dates_by_account: Mapping[uuid.UUID, Iterable[date]],
+    entries: Iterable[tuple[uuid.UUID, date]],
     *,
     name_accounts: bool = False,
 ) -> None:
@@ -67,7 +68,7 @@ async def refuse_days_a_bank_supplies(
     Args:
         db: Active database session
         user: The user writing. Their profile timezone sets today
-        dates_by_account: The dates of the transactions to be written, by the account each lands in
+        entries: The account each transaction to be written lands in, with its date
         name_accounts: Whether a refusal names the account, for a write that can cover more than
             one, since "this account" wouldn't say which
 
@@ -76,6 +77,9 @@ async def refuse_days_a_bank_supplies(
             today, saying which provider supplies those days, or the user's timezone isn't
             recognized when one of the accounts is linked
     """
+    dates_by_account: dict[uuid.UUID, list[date]] = defaultdict(list)
+    for account_id, day in entries:
+        dates_by_account[account_id].append(day)
     if not dates_by_account:
         return
     links = await _read_live_links(db, dates_by_account.keys())

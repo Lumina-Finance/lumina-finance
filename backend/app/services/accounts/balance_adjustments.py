@@ -67,7 +67,7 @@ async def record_account_starting_balance(
         )
 
     # Taken after the row lock above, since that lock already holds back a link request
-    await refuse_days_a_bank_supplies(db, user, {account.id: [adjustment_date]})
+    await refuse_days_a_bank_supplies(db, user, [(account.id, adjustment_date)])
 
     await add_account_starting_balance_adjustment(
         db,

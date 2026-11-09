@@ -54,7 +54,7 @@ async def create_transaction_and_get_response(
         PermissionLevel.WRITE,
         lock_against_delete=True,
     )
-    await refuse_days_a_bank_supplies(db, user, {account.id: [data.dt]})
+    await refuse_days_a_bank_supplies(db, user, [(account.id, data.dt)])
     txn = await insert_transaction(db, user, account, data)
 
     # Mark the affected user or group cache after all transaction writes are flushed

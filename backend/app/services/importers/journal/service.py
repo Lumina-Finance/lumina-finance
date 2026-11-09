@@ -95,10 +95,7 @@ async def write_journal_transactions(
     legs = [leg for row_legs in legs_by_row for leg in row_legs]
 
     # Each leg is a transaction in its own account, so both legs of a transfer are checked
-    dates_by_account: dict[uuid.UUID, list[date]] = {}
-    for leg in legs:
-        dates_by_account.setdefault(leg.account.id, []).append(leg.dt)
-    await refuse_days_a_bank_supplies(db, user, dates_by_account, name_accounts=True)
+    await refuse_days_a_bank_supplies(db, user, [(leg.account.id, leg.dt) for leg in legs], name_accounts=True)
 
     # The journal flow has no step asking about a merchant, so every value keeps what the importer does
     # unasked: matching an existing merchant by name, and creating one where nothing matches
