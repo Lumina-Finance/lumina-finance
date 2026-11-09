@@ -17,9 +17,10 @@ async def test_update_checks_skip_when_disabled(monkeypatch):
     assert await app_version.get_available_update() is None
 
 
-async def test_update_checks_skip_when_installed_version_is_missing(monkeypatch):
-    """Missing installed versions skip release checks"""
-    monkeypatch.setattr(app_version, "APP_VERSION", "")
+@pytest.mark.parametrize("installed_version", ["", "0.15.0-nightly.42"])
+async def test_update_checks_skip_without_a_stable_installed_version(monkeypatch, installed_version):
+    """Missing and nightly installed versions skip release checks"""
+    monkeypatch.setattr(app_version, "APP_VERSION", installed_version)
     monkeypatch.setattr(app_version, "UPDATE_CHECKS_ENABLED", True)
     monkeypatch.setattr(app_version, "_update_check_cache", None)
 
