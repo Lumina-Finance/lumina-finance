@@ -415,7 +415,7 @@ export function BulkEditModal({
   const itemsWord = reviewCount === 1 ? 'item' : 'items'
   let title = `Edit ${rows.length} ${transactionsWord}`
   if (addsReviewItemsOnly) title = `Add ${reviewCount} ${itemsWord} to your ledger`
-  else if (addsReviewItems) title = `Add ${reviewCount} ${itemsWord} and edit ${rows.length} ${transactionsWord}`
+  else if (addsReviewItems) title = `Add ${reviewCount} ${itemsWord} and update ${rows.length} ${transactionsWord}`
 
   // Steps are numbered as they show, and Account & Direction shows only for ledger transactions alone
   const steps = addsReviewItems ? { details: '01', changes: '02' } : { details: '02', changes: '03' }

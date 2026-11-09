@@ -82,7 +82,7 @@ describe('the fields the bulk edit offers', () => {
   it('offers the fields both take, still able to change the ledger tags and note, for both kinds', () => {
     const markup = render([groceries, oldImport, groceries], 2)
 
-    expect(markup).toContain('<h2>Add 2 items and edit 3 transactions</h2>')
+    expect(markup).toContain('<h2>Add 2 items and update 3 transactions</h2>')
     expect(markup).not.toContain('Account &amp; Direction')
     expect(markup).toContain('Override existing tags')
     expect(markup).toContain('Take the note off instead')

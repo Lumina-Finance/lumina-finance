@@ -200,7 +200,7 @@ test('adds a ticked item and updates a ticked ledger transaction in one edit', N
   await expect(dismiss).toHaveAccessibleDescription('Only items waiting for review can be dismissed')
 
   await page.getByRole('button', { name: 'Edit the selected transactions', exact: true }).click()
-  const edit = page.getByRole('dialog', { name: 'Add 1 item and edit 1 transaction', exact: true })
+  const edit = page.getByRole('dialog', { name: 'Add 1 item and update 1 transaction', exact: true })
   await chooseFromDropdown(edit, 'Merchant', 'Unknown')
   await chooseFromDropdown(edit, 'Category', 'Dining')
   await edit.getByRole('button', { name: 'Add 1 and update 1', exact: true }).click()
