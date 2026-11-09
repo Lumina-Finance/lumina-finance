@@ -105,10 +105,10 @@ async def recompute_account_snapshots(
         return
 
     await db.flush()
+    lock_keys = sorted({_snapshot_lock_key(account_id) for account_id in snapshot_starts})
 
-    # Serialize every affected account before any anchor read so a rebuild sees earlier commits. Accounts
-    # whose keys collide share one lock, taken once
-    for lock_key in dict.fromkeys(_snapshot_lock_key(account_id) for account_id in sort_by_snapshot_lock(snapshot_starts)):
+    # Serialize every affected account before any anchor read so a rebuild sees earlier commits
+    for lock_key in lock_keys:
         await db.execute(select(func.pg_advisory_xact_lock(lock_key)))
 
     for account_id, from_dt in snapshot_starts.items():
