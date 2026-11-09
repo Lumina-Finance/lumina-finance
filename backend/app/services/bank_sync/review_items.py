@@ -28,7 +28,7 @@ from app.schemas.bank_review import (
     BankReviewItemResponse,
     BankReviewPageResponse,
 )
-from app.services.accounts.access import check_own_personal_accounts, own_personal_account_condition
+from app.services.accounts.access import check_own_personal_accounts, own_personal_account_condition, own_personal_accounts_scope
 from app.services.bank_sync.availability import read_provider_labels
 from app.services.bank_sync.review_pause import read_review_backlogs
 from app.services.bank_sync.review_state import AWAITING_REVIEW, IS_REVIEW_ITEM, approved_description, edited_fields
@@ -72,10 +72,10 @@ async def list_review_items(
         HTTPException 404: An account isn't visible to the user
         HTTPException 422: The cursor isn't one a page returned
     """
-    scope = [IS_REVIEW_ITEM, own_personal_account_condition(user.id)]
-    if account_ids is not None:
-        await check_own_personal_accounts(db, account_ids, user.id, not_own_detail=REVIEW_NOT_OWN_DETAIL)
-        scope.append(BankTransaction.account_id.in_(account_ids))
+    scope = [
+        IS_REVIEW_ITEM,
+        *await own_personal_accounts_scope(db, user.id, account_ids, BankTransaction.account_id, not_own_detail=REVIEW_NOT_OWN_DETAIL),
+    ]
 
     # One row past the page says whether another page follows
     page_query = (

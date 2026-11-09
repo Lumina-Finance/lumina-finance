@@ -20,7 +20,7 @@ from app.models.bank_hold import BankHold
 from app.models.bank_transaction import BankTransaction
 from app.models.user import User
 from app.schemas.bank_sync import BankHoldResponse
-from app.services.accounts.access import check_own_personal_accounts, own_personal_account_condition
+from app.services.accounts.access import own_personal_account_condition, own_personal_accounts_scope
 from app.services.bank_sync.providers.contract import ProviderRecord
 from app.services.bank_sync.transaction_hash import hash_bank_transaction_id
 
@@ -156,10 +156,10 @@ async def list_holds(
         HTTPException 403: An account is visible but isn't the user's own personal account
         HTTPException 404: An account isn't visible to the user
     """
-    scope = [own_personal_account_condition(user.id), BankHold.dismissed_at.is_(None)]
-    if account_ids is not None:
-        await check_own_personal_accounts(db, account_ids, user.id, not_own_detail=_NOT_OWN_DETAIL)
-        scope.append(BankHold.account_id.in_(account_ids))
+    scope = [
+        BankHold.dismissed_at.is_(None),
+        *await own_personal_accounts_scope(db, user.id, account_ids, BankHold.account_id, not_own_detail=_NOT_OWN_DETAIL),
+    ]
 
     holds = await db.scalars(
         select(BankHold).join(Account, Account.id == BankHold.account_id).where(*scope).order_by(BankHold.hold_date.desc(), BankHold.id.desc())

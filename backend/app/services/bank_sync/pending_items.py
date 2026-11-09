@@ -15,7 +15,7 @@ from app.models.account import Account
 from app.models.bank_pending_transaction import BankPendingTransaction
 from app.models.user import User
 from app.schemas.bank_sync import BankPendingTransactionResponse
-from app.services.accounts.access import check_own_personal_accounts, own_personal_account_condition
+from app.services.accounts.access import own_personal_accounts_scope
 
 # Why the list refuses an account the user can see but doesn't own alone
 _NOT_OWN_DETAIL = "Pending bank transactions aren't listed for accounts shared with a group"
@@ -41,10 +41,7 @@ async def list_pending_transactions(
         HTTPException 403: An account is visible but isn't the user's own personal account
         HTTPException 404: An account isn't visible to the user
     """
-    scope = [own_personal_account_condition(user.id)]
-    if account_ids is not None:
-        await check_own_personal_accounts(db, account_ids, user.id, not_own_detail=_NOT_OWN_DETAIL)
-        scope.append(BankPendingTransaction.account_id.in_(account_ids))
+    scope = await own_personal_accounts_scope(db, user.id, account_ids, BankPendingTransaction.account_id, not_own_detail=_NOT_OWN_DETAIL)
 
     items = await db.scalars(
         select(BankPendingTransaction)

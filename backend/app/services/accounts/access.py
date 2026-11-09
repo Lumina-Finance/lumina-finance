@@ -131,6 +131,34 @@ async def check_own_personal_accounts(
             await get_own_personal_account(db, account_id, user_id, not_own_detail=not_own_detail)
 
 
+async def own_personal_accounts_scope(
+    db: AsyncSession,
+    user_id: uuid.UUID,
+    account_ids: Sequence[uuid.UUID] | None,
+    account_column: ColumnElement[uuid.UUID],
+    *,
+    not_own_detail: str,
+) -> list[ColumnElement[bool]]:
+    """Return the conditions limiting a read joined to its accounts to the user's own personal accounts, or to those named
+
+    Args:
+        db: Active database session
+        user_id: User reading
+        account_ids: The accounts named in the request, or None for all of the user's own
+        account_column: The column holding the account each row belongs to
+        not_own_detail: Why the read refuses a named account that is visible but not the user's alone
+
+    Raises:
+        HTTPException: A named account isn't visible to the user, or is visible but isn't their own
+            personal account
+    """
+    scope = [own_personal_account_condition(user_id)]
+    if account_ids is not None:
+        await check_own_personal_accounts(db, account_ids, user_id, not_own_detail=not_own_detail)
+        scope.append(account_column.in_(account_ids))
+    return scope
+
+
 async def get_accessible_accounts(
     db: AsyncSession,
     user: User,
