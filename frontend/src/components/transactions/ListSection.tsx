@@ -18,6 +18,8 @@ import {
 import { useToast } from '@/hooks/useToast'
 import { LOADING_ANIMATION_MIN_MS } from '@/utils/timing'
 import { saveBlobAsFile } from '@/utils/downloadFile'
+import { countNoun } from '@/utils/bankSync'
+import { getSaveFailureMessage } from '@/utils/createFailure'
 import {
   getExportBlockReason,
   getExportFailureMessage,
@@ -434,7 +436,7 @@ export default function TransactionListSection({
         onError: (error) => {
           showToast({
             status: 'error',
-            text: error instanceof ApiError ? error.message : 'Something went wrong. Please try again.',
+            text: getSaveFailureMessage(error),
           })
         },
       },
@@ -475,11 +477,11 @@ export default function TransactionListSection({
             status: 'success',
             text: added
               ? describeBulkAdd(added.count, added.skipped, updated)
-              : `${updated} ${updated === 1 ? 'transaction' : 'transactions'} updated.`,
+              : `${countNoun(updated, 'transaction')} updated.`,
           })
         },
         onError: (error) => {
-          const reason = error instanceof ApiError ? error.message : 'Something went wrong. Please try again.'
+          const reason = getSaveFailureMessage(error)
           if (!added) {
             setApplyError(reason)
             return
@@ -548,7 +550,7 @@ export default function TransactionListSection({
           })
         },
         onError: (error) => {
-          setDismissError(error instanceof ApiError ? error.message : 'Something went wrong. Please try again.')
+          setDismissError(getSaveFailureMessage(error))
         },
       },
     )

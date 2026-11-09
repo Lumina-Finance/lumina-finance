@@ -1,4 +1,4 @@
-import { useSyncExternalStore } from 'react'
+import { useMediaQuery } from '@/hooks/useMediaQuery'
 
 // Where an aside has room beside the panel. The panel stays centred, so the aside needs its own width
 // and gap free on both sides: 18rem and 1.5rem either side of the widest titled panel, 42rem, comes to
@@ -7,21 +7,11 @@ import { useSyncExternalStore } from 'react'
 // short of the room the aside needs, so this one is the aside's own
 const ASIDE_ROOM_QUERY = '(min-width: 1320px)'
 
-function subscribeToAsideRoom(onChange: () => void): () => void {
-  const query = window.matchMedia(ASIDE_ROOM_QUERY)
-  query.addEventListener('change', onChange)
-  return () => query.removeEventListener('change', onChange)
-}
-
-function hasAsideRoom(): boolean {
-  return window.matchMedia(ASIDE_ROOM_QUERY).matches
-}
-
 /**
  * Whether the screen has room for an aside beside a centred modal panel, kept current as the window
  * resizes. A modal shows its aside there only while this holds, so what the aside carries has to go
  * somewhere inside the panel otherwise
  */
 export function useAsideRoom(): boolean {
-  return useSyncExternalStore(subscribeToAsideRoom, hasAsideRoom)
+  return useMediaQuery(ASIDE_ROOM_QUERY)
 }

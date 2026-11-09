@@ -1,4 +1,10 @@
-import { REVIEW_RESUME_COUNT, type BankConnection, type BankLink, type BankProvidersResponse } from '@/api/bank-sync'
+import {
+  REVIEW_RESUME_COUNT,
+  isBankSyncNotSetUp,
+  type BankConnection,
+  type BankLink,
+  type BankProvidersResponse,
+} from '@/api/bank-sync'
 import { BANK_SYNC_NOT_SET_UP_REASON } from '@/components/bank-link-flow/constants'
 import type { ActionFeedbackStatus } from '@/components/feedback/ActionButton'
 import { PROVIDER_UNAVAILABLE_DETAIL } from '@/utils/bankSync'
@@ -6,16 +12,6 @@ import { formatRelativeFutureTime } from '@/utils/relativeTime'
 
 /** What a Sync now the server didn't answer says, while one it refused gives the server's reason */
 export const SYNC_FAILED_MESSAGE = 'Sync could not start. Please try again.'
-
-/**
- * Whether no bank sync worker has checked in lately, so nothing would start a sync. On a server with
- * none this stays so until bank sync is set up
- *
- * @param providers - Whether a bank sync worker has checked in, undefined until read
- */
-export function isBankSyncNotSetUp(providers: BankProvidersResponse | undefined): boolean {
-  return providers !== undefined && !providers.sync_running
-}
 
 /**
  * Why Sync now can't run on a live link, or null while it can

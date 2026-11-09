@@ -5,16 +5,14 @@ import type {
   TransactionModalKind,
 } from '@/components/transactions/transaction-modal/types'
 import { LOADING_ANIMATION_MIN_MS } from '@/utils/timing'
+import { CONTENT_EASE_CURVE } from '@/utils/widthEase'
 
 export const EASE = [0.25, 0.1, 0.25, 1] as const
 export const SELECTOR_SPRING = { type: 'spring', stiffness: 420, damping: 36, mass: 0.8 } as const
 
-// The app's ease-out, shared by the modal's bank item motions
-export const APP_EASE_OUT = [0.22, 1, 0.36, 1] as const
-
 // For a line under a details field opening and closing: the message under the date row and the bank's
 // value under the date or the amount
-export const DETAILS_LINE_TRANSITION = { duration: 0.18, ease: APP_EASE_OUT } as const
+export const DETAILS_LINE_TRANSITION = { duration: 0.18, ease: CONTENT_EASE_CURVE } as const
 export const DEFAULT_CATEGORY_ICON = '🏷️'
 export const MIN_ADD_TRANSACTION_LOADING_MS = LOADING_ANIMATION_MIN_MS
 export const MIN_BATCH_ADD_TRANSACTION_LOADING_MS = LOADING_ANIMATION_MIN_MS

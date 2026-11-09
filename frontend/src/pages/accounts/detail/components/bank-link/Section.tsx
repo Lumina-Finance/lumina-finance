@@ -6,6 +6,7 @@ import type { Account } from '@/api/accounts'
 import {
   REVIEW_PAUSE_COUNT,
   REVIEW_RESUME_COUNT,
+  isBankSyncNotSetUp,
   useBankConnections,
   type BankBalance,
   type BankConnection,
@@ -45,12 +46,11 @@ import { useAccountBankLink } from '@/pages/accounts/detail/components/bank-link
 import { useLingeringImport } from '@/pages/accounts/detail/components/bank-link/useLingeringImport'
 import { EditModalSection } from '@/pages/accounts/detail/components/edit-identity/layout/Section'
 import { IdentityFacts } from '@/pages/accounts/detail/components/identity/Facts'
-import { describeSyncNowBlock, isBankSyncNotSetUp } from '@/pages/accounts/detail/components/bank-link/syncNow'
+import { describeSyncNowBlock } from '@/pages/accounts/detail/components/bank-link/syncNow'
 import { PROVIDER_UNAVAILABLE_DETAIL, providerSiteName } from '@/utils/bankSync'
 import { DATE_FORMATS, formatDate, formatDateLabel } from '@/utils/date'
 
 const ARCHIVED_REASON = 'Archived accounts are read-only'
-const LOADING_OVERLAY_CLASS = 'absolute inset-0 z-10 flex items-center justify-center bg-[var(--app-bg)]'
 const NOTICE_ACTION_CLASS = 'app-primary-button h-9 w-full justify-center whitespace-nowrap px-4 text-sm sm:w-auto'
 const LINK_ACTION_CLASS = 'app-secondary-button h-9 w-full justify-center whitespace-nowrap px-3.5 text-sm sm:w-auto'
 
@@ -407,7 +407,6 @@ export function BankLinkSection({ account, sectionNumber, autoFocus = false }: B
             animateLoadingHeight
             readsLayoutHeight
             clipsOnlyWhileChanging
-            overlayClassName={LOADING_OVERLAY_CLASS}
           >
             <StepTransition
               stepKey={viewKey}

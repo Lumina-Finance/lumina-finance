@@ -1,10 +1,11 @@
 import { motion, useReducedMotion } from 'motion/react'
 import type { BankImportProgress } from '@/api/bank-sync'
 import { describeImportHeading } from '@/pages/accounts/detail/components/bank-link/status'
+import { CONTENT_EASE_CURVE } from '@/utils/widthEase'
 
 // The bar never draws empty, so an import that has only started still shows where it will fill
 const MIN_FILL_PERCENT = 4
-const FILL_TRANSITION = { duration: 0.45, ease: [0.22, 1, 0.36, 1] } as const
+const FILL_TRANSITION = { duration: 0.45, ease: CONTENT_EASE_CURVE } as const
 
 /**
  * How far an import has got: what it has found and how many of its windows are stored, as a bar that

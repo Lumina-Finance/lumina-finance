@@ -1,6 +1,6 @@
 import { useId, useState } from 'react'
 import { Landmark, Lock } from 'lucide-react'
-import { ApiError } from '@/api/auth'
+import { getSaveFailureMessage } from '@/utils/createFailure'
 import {
   useResolveReviewItem,
   type BankReviewItem,
@@ -45,8 +45,6 @@ const DECISIONS: Record<'correction' | 'removal', { keep: Decision; apply: Decis
     },
   },
 }
-
-const DECISION_FAILED_MESSAGE = 'Something went wrong. Please try again.'
 
 // Cell padding that keeps the table's outer cells clear of its border and the columns apart
 const CELL_CLASS_NAME = 'px-1.5 text-left align-top first:pl-4 last:pr-4'
@@ -107,7 +105,7 @@ export function BankComparisonModal({ open, item, currency, onClose }: BankCompa
           showToast({ status: 'success', text: toast })
           onClose()
         },
-        onError: (cause) => setError(cause instanceof ApiError ? cause.message : DECISION_FAILED_MESSAGE),
+        onError: (cause) => setError(getSaveFailureMessage(cause)),
       },
     )
   }

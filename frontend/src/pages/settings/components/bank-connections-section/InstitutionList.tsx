@@ -7,15 +7,17 @@ import MarqueeText from '@/components/display/MarqueeText'
 import { SyncStatusDot } from '@/components/display/SyncStatusDot'
 import Dropdown, { type DropdownOption } from '@/components/dropdown/Dropdown'
 import IconTooltip from '@/components/tooltips/IconTooltip'
-import { EASE } from '@/pages/settings/components/bank-connections-section/constants'
+import { CONTENT_EASE_CURVE } from '@/utils/widthEase'
 import {
   describeLinkingHeld,
   describeMismatch,
+  describeOverLimit,
   groupInstitutions,
   matchesInstitutionSearch,
+  matchesSearch,
   type AccountNameLookup,
 } from '@/pages/settings/components/bank-connections-section/utils'
-import { countNoun, providerSiteName } from '@/utils/bankSync'
+import { providerSiteName } from '@/utils/bankSync'
 
 // On phones the bank account spans the row, with the arrow and the account under it. From tablets up
 // the three sit side by side
@@ -293,7 +295,7 @@ export function InstitutionRow({
             initial={{ height: 0, opacity: 0 }}
             animate={{ height: 'auto', opacity: 1 }}
             exit={{ height: 0, opacity: 0 }}
-            transition={{ duration: prefersReducedMotion ? 0 : 0.2, ease: EASE }}
+            transition={{ duration: prefersReducedMotion ? 0 : 0.2, ease: CONTENT_EASE_CURVE }}
           >
             <div className="pb-3 pl-7 pr-1">
               {entry.note && (
@@ -367,10 +369,7 @@ export function InstitutionList({
     key: `institution:${group.name}`,
     name: group.name,
     problem: group.signInNeeded ? `Sign in again in ${providerSiteName(connection)}` : undefined,
-    note:
-      group.overLimit && institutionLimit !== null
-        ? `Linking here would go over your limit of ${countNoun(institutionLimit, 'institution')}.`
-        : undefined,
+    note: group.overLimit && institutionLimit !== null ? describeOverLimit(institutionLimit) : undefined,
     linked: group.linked,
     total: group.bankAccounts.length,
     body: (
@@ -393,12 +392,10 @@ export function InstitutionList({
 
   // First, since nothing on these syncs until each account gets its bank account back
   const chooseAgain = connection.choose_again_links
-  const needle = query.trim().toLowerCase()
-  const mismatchMatches =
-    !needle ||
-    ['mismatch detected', ...chooseAgain.map((link) => link.external_account_name)].some((text) =>
-      text.toLowerCase().includes(needle),
-    )
+  const mismatchMatches = matchesSearch(
+    ['Mismatch detected', ...chooseAgain.map((link) => link.external_account_name)],
+    query,
+  )
   if (chooseAgain.length > 0 && mismatchMatches) {
     entries.unshift({
       key: 'mismatch',
@@ -436,7 +433,8 @@ export function InstitutionList({
   const rest = entries.filter((entry) => !entry.problem)
   // Labels only help when they separate two kinds, so a list of one kind goes without
   const labelled = attention.length > 0 && rest.length > 0
-  const onlyOne = entries.length === 1 && !needle
+  const isSearching = query.trim() !== ''
+  const onlyOne = entries.length === 1 && !isSearching
 
   const renderGroup = (group: InstitutionEntry[]) => (
     <div className="divide-y divide-[var(--app-border)] border-y border-[var(--app-border)]">
@@ -467,7 +465,7 @@ export function InstitutionList({
 
   return (
     <div className="space-y-5">
-      {entries.length === 0 && needle && (
+      {entries.length === 0 && isSearching && (
         <p className="py-6 text-center text-sm" style={{ color: 'var(--app-text-muted)' }}>
           No institutions match &ldquo;{query.trim()}&rdquo;.
         </p>

@@ -13,7 +13,6 @@ import { useMoneyFormatters } from '@/hooks/useMoneyFormatters'
 import { connectionName, countNoun, providerSiteName } from '@/utils/bankSync'
 import { DATE_FORMATS, formatDate } from '@/utils/date'
 
-const LOADING_OVERLAY_CLASS = 'absolute inset-0 z-10 flex items-center justify-center bg-[var(--app-bg)]'
 const CONNECTION_LABEL_ID = 'bank-link-connection-label'
 
 type BankAccountStepProps = {
@@ -127,13 +126,7 @@ export function BankAccountStep({
             : `${providerSiteName(connection)} returned no bank accounts for this connection.`}
         </p>
       ) : (
-        <LoadingRegion
-          loading={!discovered}
-          label="Loading bank accounts"
-          animateLoadingHeight
-          readsLayoutHeight
-          overlayClassName={LOADING_OVERLAY_CLASS}
-        >
+        <LoadingRegion loading={!discovered} label="Loading bank accounts" animateLoadingHeight readsLayoutHeight>
           <div
             className={`space-y-3 ${discovered ? '' : 'min-h-32'}`}
             role="radiogroup"

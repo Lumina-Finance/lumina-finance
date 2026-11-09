@@ -1,5 +1,6 @@
 import { useEffect } from 'react'
 import { useAnimate, useReducedMotion } from 'motion/react'
+import { CONTENT_EASE_CURVE } from '@/utils/widthEase'
 
 /**
  * The colour family of a bank sync state: the app is working on it, it is up to date, it needs the
@@ -19,7 +20,7 @@ const TONE_COLORS: Record<SyncStatusTone, string> = {
 // column the way a spreading ring would
 const BLINK_ANIMATE = { opacity: [1, 0.25, 1] }
 const BLINK_TRANSITION = { duration: 1.4, repeat: Infinity, ease: 'easeInOut' } as const
-const SETTLE_TRANSITION = { duration: 0.2, ease: [0.22, 1, 0.36, 1] } as const
+const SETTLE_TRANSITION = { duration: 0.2, ease: CONTENT_EASE_CURVE } as const
 
 type SyncStatusDotProps = {
   tone: SyncStatusTone

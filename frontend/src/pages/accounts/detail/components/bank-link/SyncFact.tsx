@@ -6,7 +6,6 @@ import IconTooltip from '@/components/tooltips/IconTooltip'
 import type { BankSyncLabel } from '@/pages/accounts/detail/components/bank-link/status'
 import { CONTENT_EASE_CURVE, CONTENT_EASE_MS } from '@/utils/widthEase'
 
-const LABEL_EASE = [0.22, 1, 0.36, 1] as const
 const LABEL_DURATION_S = 0.2
 
 // How far a new label rises into place, and the old one rises away
@@ -42,7 +41,7 @@ function SlidingLabel({ label }: { label: string }) {
   }, [label])
 
   const rise = prefersReducedMotion ? 0 : LABEL_RISE_PX
-  const transition = { duration: prefersReducedMotion ? 0 : LABEL_DURATION_S, ease: LABEL_EASE }
+  const transition = { duration: prefersReducedMotion ? 0 : LABEL_DURATION_S, ease: CONTENT_EASE_CURVE }
   return (
     <>
       <span ref={measureRef} aria-hidden className="pointer-events-none invisible absolute whitespace-nowrap">

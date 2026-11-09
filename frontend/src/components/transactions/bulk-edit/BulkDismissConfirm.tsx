@@ -1,5 +1,6 @@
 import { CircleX } from 'lucide-react'
 import { ModalDeleteConfirm } from '@/components/modal/DeleteConfirm'
+import { countNoun } from '@/utils/bankSync'
 
 type BulkDismissConfirmProps = {
   open: boolean
@@ -21,7 +22,7 @@ export function BulkDismissConfirm({ open, count, error, isDismissing, onConfirm
     <ModalDeleteConfirm
       open={open}
       label="Bulk dismiss"
-      title={`Dismiss ${count} ${count === 1 ? 'item' : 'items'}?`}
+      title={`Dismiss ${countNoun(count, 'item')}?`}
       RailIcon={CircleX}
       confirmLabel="Dismiss"
       error={error}

@@ -1,7 +1,6 @@
 import { useState, type ReactNode } from 'react'
 import { motion, useReducedMotion } from 'motion/react'
-
-const UNFOLD_EASE = [0.22, 1, 0.36, 1] as const
+import { CONTENT_EASE_CURVE } from '@/utils/widthEase'
 
 type UnfoldProps = {
   children: ReactNode
@@ -32,7 +31,7 @@ export function Unfold({ children, flush = false, clipsOnlyWhileChanging = false
       initial={{ height: 0, opacity: 0 }}
       animate={{ height: 'auto', opacity: 1 }}
       exit={{ height: 0, opacity: 0 }}
-      transition={{ duration: prefersReducedMotion ? 0 : 0.24, ease: UNFOLD_EASE }}
+      transition={{ duration: prefersReducedMotion ? 0 : 0.24, ease: CONTENT_EASE_CURVE }}
       onAnimationStart={clipsOnlyWhileChanging ? () => setChanging(true) : undefined}
       onAnimationComplete={clipsOnlyWhileChanging ? () => setChanging(false) : undefined}
     >

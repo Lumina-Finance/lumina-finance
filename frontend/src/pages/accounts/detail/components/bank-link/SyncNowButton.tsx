@@ -1,6 +1,6 @@
 import { useEffect, useReducer } from 'react'
 import { RefreshCw } from 'lucide-react'
-import { ApiError } from '@/api/auth'
+import { getSaveFailureMessage } from '@/utils/createFailure'
 import { useSyncBankAccount, type BankConnection, type BankLink, type BankProvidersResponse } from '@/api/bank-sync'
 import { BANK_SYNC_NOT_SET_UP_REASON } from '@/components/bank-link-flow/constants'
 import ActionFeedbackButton from '@/components/feedback/ActionButton'
@@ -72,7 +72,7 @@ export function SyncNowButton({ link, connection, providers, focusProps, notSetU
     void feedback
       .run(() => sync.mutateAsync(link.account_id))
       .catch((cause: unknown) => {
-        showToast({ status: 'error', text: cause instanceof ApiError ? cause.message : SYNC_FAILED_MESSAGE })
+        showToast({ status: 'error', text: getSaveFailureMessage(cause, SYNC_FAILED_MESSAGE) })
       })
   }
 

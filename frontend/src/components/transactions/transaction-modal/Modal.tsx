@@ -14,8 +14,8 @@ import { useAuth } from '@/hooks/useAuth'
 import { getTodayYmd } from '@/utils/date'
 import { getSaveFailureMessage } from '@/utils/createFailure'
 import { isOwnPersonalAccount } from '@/utils/bankSync'
+import { CONTENT_EASE_CURVE } from '@/utils/widthEase'
 import {
-  APP_EASE_OUT,
   BANK_ITEM_NOTES_MAX_LENGTH,
   KIND_LABELS,
   REVIEW_SWAP_DURATION_S,
@@ -572,7 +572,7 @@ export default function CreateTransactionModal({
   const reviewSwap = {
     initial: isItemSwapped ? { opacity: 0, x: prefersReducedMotion ? 0 : REVIEW_SWAP_OFFSET_PX } : false,
     animate: { opacity: 1, x: 0 },
-    transition: { duration: prefersReducedMotion ? 0 : REVIEW_SWAP_DURATION_S, ease: APP_EASE_OUT },
+    transition: { duration: prefersReducedMotion ? 0 : REVIEW_SWAP_DURATION_S, ease: CONTENT_EASE_CURVE },
   } as const
   const reviewFooter = reviewItem && (
     <TransactionReviewFooter

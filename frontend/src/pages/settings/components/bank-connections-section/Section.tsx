@@ -2,7 +2,7 @@ import { useRef, useState } from 'react'
 import { AnimatePresence, motion, useReducedMotion } from 'motion/react'
 import { Plus } from 'lucide-react'
 import { useAccounts } from '@/api/accounts'
-import { useBankConnections, useBankProviders, type BankConnection } from '@/api/bank-sync'
+import { isBankSyncNotSetUp, useBankConnections, useBankProviders, type BankConnection } from '@/api/bank-sync'
 import { BANK_SYNC_NOT_SET_UP_REASON } from '@/components/bank-link-flow/constants'
 import LoadFailure from '@/components/errors/LoadFailure'
 import { GlassSearchField } from '@/components/list-controls/GlassSearchField'
@@ -47,7 +47,7 @@ export function BankConnectionsSection() {
     ? providers.providers.filter((provider) => provider.offered && provider.connects_from === 'settings')
     : []
   const noneOffered = providers !== undefined && offeredProviders.length === 0
-  const notSetUp = providers !== undefined && offeredProviders.length > 0 && !providers.sync_running
+  const notSetUp = offeredProviders.length > 0 && isBankSyncNotSetUp(providers)
   // The page shows this section only once the providers have loaded
   const addReason = notSetUp ? BANK_SYNC_NOT_SET_UP_REASON : null
 

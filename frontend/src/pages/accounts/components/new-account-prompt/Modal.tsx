@@ -3,8 +3,8 @@ import { AnimatePresence } from 'motion/react'
 import { Landmark } from 'lucide-react'
 import { useNavigate } from 'react-router'
 import { StartingBalanceNotSavedError, useRecordStartingBalance, type AccountsOverview } from '@/api/accounts'
-import { ApiError } from '@/api/auth'
-import { offersBankSync, useBankConnections, useBankProviders } from '@/api/bank-sync'
+import { getSaveFailureMessage } from '@/utils/createFailure'
+import { isBankSyncNotSetUp, offersBankSync, useBankConnections, useBankProviders } from '@/api/bank-sync'
 import { BankConnectionsLink } from '@/components/bank-link-flow/BankSyncNotSetUp'
 import { ChoiceCard } from '@/components/bank-link-flow/ChoiceCard'
 import {
@@ -97,7 +97,7 @@ export default function NewAccountPromptModal({ open, account, onClose, onExitCo
   const hasWorkingConnection = connections?.some((connection) => connection.status === 'active') ?? false
   const linkReason = !(user !== null && isOwnPersonalAccount(account, user.id))
     ? GROUP_ACCOUNT_LINK_REASON
-    : providers?.sync_running === false
+    : isBankSyncNotSetUp(providers)
       ? BANK_SYNC_NOT_SET_UP_REASON
       : !hasWorkingConnection && !providers?.providers.some((provider) => provider.offered)
         ? NOTHING_TO_LINK_REASON
@@ -156,7 +156,7 @@ export default function NewAccountPromptModal({ open, account, onClose, onExitCo
       onSuccess: onClose,
       onError: (error) => {
         if (error instanceof StartingBalanceNotSavedError) setSubmitError(NOT_SAVED_MESSAGE)
-        else setSubmitError(error instanceof ApiError ? error.message : UNSETTLED_SAVE_MESSAGE)
+        else setSubmitError(getSaveFailureMessage(error, UNSETTLED_SAVE_MESSAGE))
       },
     })
   }

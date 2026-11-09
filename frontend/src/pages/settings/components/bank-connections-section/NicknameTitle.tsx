@@ -1,19 +1,19 @@
 import { useId, useRef, useState } from 'react'
 import { AnimatePresence, motion, useIsPresent } from 'motion/react'
 import { Check, X } from 'lucide-react'
-import { ApiError } from '@/api/auth'
+import { getSaveFailureMessage } from '@/utils/createFailure'
 import type { BankConnection, useRenameBankConnection } from '@/api/bank-sync'
 import { FieldLabelRow } from '@/components/forms/FieldLabelRow'
 import { PendingLabel } from '@/components/loading/PendingLabel'
 import { DisabledReasonButton } from '@/components/tooltips/DisabledReasonButton'
 import { useRefusedSubmit } from '@/hooks/useRefusedSubmit'
 import { useToast } from '@/hooks/useToast'
-import { EASE } from '@/pages/settings/components/bank-connections-section/constants'
+import { CONTENT_EASE_CURVE } from '@/utils/widthEase'
 import { getNicknameProblem } from '@/pages/settings/components/bank-connections-section/utils'
 import { connectionName } from '@/utils/bankSync'
 
 // Crossfades the title and its field so neither snaps in, as a passkey's rename does
-const FIELD_TRANSITION = { duration: 0.18, ease: EASE }
+const FIELD_TRANSITION = { duration: 0.18, ease: CONTENT_EASE_CURVE }
 
 const NICKNAME_FIELDS = ['nickname'] as const
 
@@ -69,7 +69,7 @@ function NicknameField({
         onError: (cause) => {
           showToast({
             status: 'error',
-            text: cause instanceof ApiError ? cause.message : 'Could not rename this connection. Please try again.',
+            text: getSaveFailureMessage(cause, 'Could not rename this connection. Please try again.'),
           })
         },
         onSettled: () => {

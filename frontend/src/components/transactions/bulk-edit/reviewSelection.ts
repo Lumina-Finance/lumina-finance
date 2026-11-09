@@ -8,6 +8,7 @@
  */
 import type { BulkAddReviewValues } from '@/api/bank-sync'
 import type { BulkEditFields } from '@/components/transactions/bulk-edit/selection'
+import { countNoun } from '@/utils/bankSync'
 
 /** What an empty selection says on a list that offers items waiting for review too */
 export const NOTHING_TICKED_WITH_REVIEW = 'Tick a transaction or review item first'
@@ -23,10 +24,6 @@ export const REVIEW_ITEMS_NOT_EXPORTED = "Items waiting for review aren't in you
 
 /** Why the bulk edit can't be applied while items waiting for review are ticked and a merchant or category isn't chosen */
 export const REVIEW_ITEMS_NEED_MERCHANT_AND_CATEGORY = 'Choose a merchant and a category to add items to your ledger'
-
-function countOf(count: number, one: string, many: string): string {
-  return `${count} ${count === 1 ? one : many}`
-}
 
 /**
  * Says why Dismiss is off, or nothing while it can run
@@ -73,7 +70,7 @@ export function toBulkAddValues(fields: BulkEditFields): BulkAddReviewValues {
  */
 function describeSkipped(skipped: number, verb: string): string {
   if (skipped === 0) return ''
-  return ` ${countOf(skipped, 'item', 'items')} couldn't be ${verb} and ${skipped === 1 ? 'still waits' : 'still wait'} for review.`
+  return ` ${countNoun(skipped, 'item')} couldn't be ${verb} and ${skipped === 1 ? 'still waits' : 'still wait'} for review.`
 }
 
 /**
@@ -85,8 +82,8 @@ function describeSkipped(skipped: number, verb: string): string {
  * @param updated - How many ledger transactions were updated, or null when none were ticked
  */
 export function describeBulkAdd(added: number, skipped: number, updated: number | null): string {
-  const addedText = `${countOf(added, 'item', 'items')} added to your ledger`
-  const updatedText = updated === null ? '' : ` and ${countOf(updated, 'transaction', 'transactions')} updated`
+  const addedText = `${countNoun(added, 'item')} added to your ledger`
+  const updatedText = updated === null ? '' : ` and ${countNoun(updated, 'transaction')} updated`
   return `${addedText}${updatedText}.${describeSkipped(skipped, 'added')}`
 }
 
@@ -98,7 +95,7 @@ export function describeBulkAdd(added: number, skipped: number, updated: number 
  * @param reason - What the server said about the update
  */
 export function describeAddedButNotUpdated(added: number, reason: string): string {
-  return `${countOf(added, 'item', 'items')} added to your ledger, but the ticked transactions weren't updated. ${reason}`
+  return `${countNoun(added, 'item')} added to your ledger, but the ticked transactions weren't updated. ${reason}`
 }
 
 /**
@@ -108,5 +105,5 @@ export function describeAddedButNotUpdated(added: number, reason: string): strin
  * @param skipped - How many items sent were skipped
  */
 export function describeBulkDismiss(dismissed: number, skipped: number): string {
-  return `${countOf(dismissed, 'item', 'items')} dismissed.${describeSkipped(skipped, 'dismissed')}`
+  return `${countNoun(dismissed, 'item')} dismissed.${describeSkipped(skipped, 'dismissed')}`
 }

@@ -9,3 +9,13 @@ import type { BankProvidersResponse } from '@/api/bank-sync/types'
 export function offersBankSync(providers: BankProvidersResponse | undefined): boolean {
   return providers !== undefined && providers.may_link && providers.providers.length > 0
 }
+
+/**
+ * Whether no bank sync worker has checked in lately, so nothing would start a sync. On a server with
+ * none this stays so until bank sync is set up
+ *
+ * @param providers - Whether a bank sync worker has checked in, undefined until read
+ */
+export function isBankSyncNotSetUp(providers: BankProvidersResponse | undefined): boolean {
+  return providers !== undefined && !providers.sync_running
+}

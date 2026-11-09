@@ -3,6 +3,7 @@ import { Landmark } from 'lucide-react'
 import { useNavigate } from 'react-router'
 import type { AccountsOverview } from '@/api/accounts'
 import {
+  isBankSyncNotSetUp,
   useAccountBankStatus,
   useBankConnections,
   useBankProviders,
@@ -45,8 +46,6 @@ import { useToast } from '@/hooks/useToast'
 import { getSaveFailureMessage } from '@/utils/createFailure'
 
 type LinkFlowField = (typeof LINK_FLOW_FIELDS)[number]
-
-const LOADING_OVERLAY_CLASS = 'absolute inset-0 z-10 flex items-center justify-center bg-[var(--app-bg)]'
 
 /** A bank account chosen in settings, and the account chosen there to take it */
 export type BankLinkTarget = {
@@ -165,7 +164,7 @@ export function BankLinkFlowModal({
 
   // Linking waits for the worker that imports the history, so it is held back while bank sync isn't
   // set up. Opened from Settings it gives the reason alone. Anywhere else it also links to Settings
-  const linkingPaused = providers !== undefined && !providers.sync_running
+  const linkingPaused = isBankSyncNotSetUp(providers)
   const notSetUpReasonId = useId()
   const showsNotSetUp = step === 'start' && linkingPaused
 
@@ -257,13 +256,7 @@ export function BankLinkFlowModal({
       {loadError && !ready ? (
         <LoadFailure error={loadError} subject="Bank link" />
       ) : (
-        <LoadingRegion
-          loading={step === null}
-          label="Loading bank link"
-          animateLoadingHeight
-          readsLayoutHeight
-          overlayClassName={LOADING_OVERLAY_CLASS}
-        >
+        <LoadingRegion loading={step === null} label="Loading bank link" animateLoadingHeight readsLayoutHeight>
           {/* Room for the spinner only while loading, so a short step is not padded out below */}
           <div className={step === null ? 'min-h-32 pb-2' : 'pb-2'}>
             <StepTransition stepKey={step ?? 'loading'} respectsReducedMotion>
@@ -302,7 +295,6 @@ export function BankLinkFlowModal({
                     label="Loading the import range"
                     animateLoadingHeight
                     readsLayoutHeight
-                    overlayClassName={LOADING_OVERLAY_CLASS}
                   >
                     {range ? (
                       <StartStep

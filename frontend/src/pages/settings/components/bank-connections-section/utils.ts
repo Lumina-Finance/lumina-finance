@@ -143,19 +143,19 @@ export function matchesConnectionSearch(
   query: string,
   accountNameFor: AccountNameLookup,
 ): boolean {
-  const needle = query.trim().toLowerCase()
-  if (!needle) return true
-
-  return [
-    connection.nickname ?? '',
-    connection.provider_name,
-    connection.server_label,
-    ...connection.accounts.flatMap((account) => [
-      account.name,
-      account.institution_name,
-      account.linked_account_id ? (accountNameFor(account.linked_account_id) ?? '') : '',
-    ]),
-  ].some((text) => text.toLowerCase().includes(needle))
+  return matchesSearch(
+    [
+      connection.nickname ?? '',
+      connection.provider_name,
+      connection.server_label,
+      ...connection.accounts.flatMap((account) => [
+        account.name,
+        account.institution_name,
+        account.linked_account_id ? (accountNameFor(account.linked_account_id) ?? '') : '',
+      ]),
+    ],
+    query,
+  )
 }
 
 /**
@@ -298,10 +298,22 @@ export function describeLinkingHeld({
 }): string | undefined {
   if (linkingPaused) return BANK_SYNC_NOT_SET_UP_REASON
   if (connection.status !== 'active') return RECONNECT_TO_LINK_REASON
-  if (group.overLimit && institutionLimit !== null) {
-    return `Linking here would go over your limit of ${countNoun(institutionLimit, 'institution')}.`
-  }
+  if (group.overLimit && institutionLimit !== null) return describeOverLimit(institutionLimit)
   return undefined
+}
+
+/** Why an institution not yet in use takes no link once the institution limit is reached */
+export function describeOverLimit(institutionLimit: number): string {
+  return `Linking here would go over your limit of ${countNoun(institutionLimit, 'institution')}.`
+}
+
+/**
+ * Whether any of the texts holds the search, matched without regard to case or surrounding spaces.
+ * An empty search matches everything
+ */
+export function matchesSearch(texts: string[], query: string): boolean {
+  const needle = query.trim().toLowerCase()
+  return !needle || texts.some((text) => text.toLowerCase().includes(needle))
 }
 
 /**
@@ -309,13 +321,7 @@ export function describeLinkingHeld({
  * of its bank accounts'
  */
 export function matchesInstitutionSearch(group: InstitutionGroup, query: string): boolean {
-  const needle = query.trim().toLowerCase()
-  return (
-    !needle ||
-    [group.name, ...group.bankAccounts.map((account) => account.name)].some((text) =>
-      text.toLowerCase().includes(needle),
-    )
-  )
+  return matchesSearch([group.name, ...group.bankAccounts.map((account) => account.name)], query)
 }
 
 /**

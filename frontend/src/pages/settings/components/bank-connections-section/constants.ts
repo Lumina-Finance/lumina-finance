@@ -1,11 +1,11 @@
-export const EASE = [0.22, 1, 0.36, 1] as const
+import { CONTENT_EASE_CURVE } from '@/utils/widthEase'
 
 // Rows enter, leave and expand the way the tag, merchant and category lists' rows do
-export const CONNECTION_LIST_HEIGHT_TRANSITION = { duration: 0.24, ease: EASE }
+export const CONNECTION_LIST_HEIGHT_TRANSITION = { duration: 0.24, ease: CONTENT_EASE_CURVE }
 export const CONNECTION_ROW_INITIAL = { opacity: 0, y: -4 }
 export const CONNECTION_ROW_ANIMATE = { opacity: 1, y: 0 }
 export const CONNECTION_ROW_EXIT = { opacity: 0, y: -4 }
-export const CONNECTION_ROW_TRANSITION = { duration: 0.18, ease: EASE }
+export const CONNECTION_ROW_TRANSITION = { duration: 0.18, ease: CONTENT_EASE_CURVE }
 
 // The list's columns from 750px: the connection, its bank accounts, when it was added, its status and
 // the row's chevron. The header and every row share it so the columns line up. Narrower screens drop

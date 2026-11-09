@@ -30,9 +30,12 @@ export function getCreateFailureMessage(error: unknown, kind: CreatedKind) {
   return getSaveFailureMessage(error)
 }
 
-/** Reads what a failed save shows the user: the server's own reason where it gave one, else the friendly sentence */
-export function getSaveFailureMessage(error: unknown) {
-  return error instanceof ApiError ? error.message : GENERIC_FAILURE
+/**
+ * Reads what a failed save shows the user: the server's own reason where it gave one, else the
+ * fallback, the friendly sentence unless the caller names what failed
+ */
+export function getSaveFailureMessage(error: unknown, fallback = GENERIC_FAILURE) {
+  return error instanceof ApiError ? error.message : fallback
 }
 
 /**

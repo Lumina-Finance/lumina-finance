@@ -1,5 +1,5 @@
 import { useId, useRef, useState, type KeyboardEvent } from 'react'
-import { ApiError } from '@/api/auth'
+import { getSaveFailureMessage } from '@/utils/createFailure'
 import { useRecordBalanceMatch, type BalanceMatch } from '@/api/bank-sync'
 import { CurrencyUnavailableTooltip } from '@/components/currency/CurrencyUnavailableTooltip'
 import ActionFeedbackButton from '@/components/feedback/ActionButton'
@@ -128,9 +128,7 @@ export function BalanceMatchOffer({ accountId, offer, currency, providerName, on
     setError(null)
     void record
       .mutateAsync({ accountId, amount: reading.amount, offeredAmount: offer.amount })
-      .catch((cause) =>
-        showToast({ status: 'error', text: cause instanceof ApiError ? cause.message : RECORDING_FAILED_MESSAGE }),
-      )
+      .catch((cause) => showToast({ status: 'error', text: getSaveFailureMessage(cause, RECORDING_FAILED_MESSAGE) }))
   }
 
   // Deleting in a field the refused text left blank changes no text, so no change arrives to clear

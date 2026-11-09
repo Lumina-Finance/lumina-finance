@@ -1,6 +1,6 @@
 import { useRef } from 'react'
 import { History } from 'lucide-react'
-import { ApiError } from '@/api/auth'
+import { getSaveFailureMessage } from '@/utils/createFailure'
 import { useDismissCutOffDay, useDismissHistoryReminder, type BankHistoryReminder } from '@/api/bank-sync'
 import { InfoCallout } from '@/components/InfoCallout'
 import { useToast } from '@/hooks/useToast'
@@ -54,8 +54,7 @@ function DismissibleReminder({ copy, dismissing, dismiss, onDismissed }: Dismiss
       () => {
         if (rootRef.current?.contains(document.activeElement)) onDismissed(rootRef.current)
       },
-      (cause: unknown) =>
-        showToast({ status: 'error', text: cause instanceof ApiError ? cause.message : DISMISS_FAILED_MESSAGE }),
+      (cause: unknown) => showToast({ status: 'error', text: getSaveFailureMessage(cause, DISMISS_FAILED_MESSAGE) }),
     )
   }
 

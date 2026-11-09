@@ -2,8 +2,9 @@ import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { AnimatePresence, motion, useReducedMotion } from 'motion/react'
 import { AlertTriangle, Check, PencilLine, RefreshCw, Unplug } from 'lucide-react'
 import { useAccounts } from '@/api/accounts'
-import { ApiError } from '@/api/auth'
+import { getSaveFailureMessage } from '@/utils/createFailure'
 import {
+  isBankSyncNotSetUp,
   useBankProviders,
   useDisconnectBankConnection,
   useRenameBankConnection,
@@ -20,8 +21,8 @@ import { LabelWithHint } from '@/components/tooltips/LabelWithHint'
 import { useAuth } from '@/hooks/useAuth'
 import { useRelativeTimeRefresh } from '@/hooks/useRelativeTimeRefresh'
 import { useToast } from '@/hooks/useToast'
+import { CONTENT_EASE_CURVE } from '@/utils/widthEase'
 import {
-  EASE,
   INSTITUTION_SEARCH_AFTER,
   LINKING_HOLD_MS,
 } from '@/pages/settings/components/bank-connections-section/constants'
@@ -95,7 +96,7 @@ function RequestBudgetMeter({
         style={{ background: exhausted ? 'var(--app-negative)' : 'var(--app-text-muted)' }}
         initial={false}
         animate={{ width: `${Math.min(used / limit, 1) * 100}%` }}
-        transition={{ duration: prefersReducedMotion ? 0 : 0.5, ease: EASE }}
+        transition={{ duration: prefersReducedMotion ? 0 : 0.5, ease: CONTENT_EASE_CURVE }}
       />
     </span>
   )
@@ -206,7 +207,7 @@ export function ConnectionModal({
 
   // Linking waits for the worker that imports the history, while renaming, reconnecting and
   // disconnecting carry on without it
-  const linkingPaused = providers !== undefined && !providers.sync_running
+  const linkingPaused = isBankSyncNotSetUp(providers)
 
   const handleDisconnect = () => {
     if (disconnect.isPending) return
@@ -224,7 +225,7 @@ export function ConnectionModal({
         setConfirmingDisconnect(false)
         showToast({
           status: 'error',
-          text: cause instanceof ApiError ? cause.message : 'Could not disconnect. Please try again.',
+          text: getSaveFailureMessage(cause, 'Could not disconnect. Please try again.'),
         })
       },
     })

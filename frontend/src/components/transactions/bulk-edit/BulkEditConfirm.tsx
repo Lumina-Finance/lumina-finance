@@ -3,6 +3,7 @@ import { PencilLine } from 'lucide-react'
 import { ModalFormFooter } from '@/components/modal/FormFooter'
 import { ModalTitledPanel } from '@/components/modal/TitledPanel'
 import { WarningCallout } from '@/components/WarningCallout'
+import { countNoun } from '@/utils/bankSync'
 
 interface BulkEditConfirmProps {
   open: boolean
@@ -35,11 +36,9 @@ export function BulkEditConfirm({
 }: BulkEditConfirmProps) {
   const titleId = useId()
   const descriptionId = useId()
-  const transactions = `${count} ${count === 1 ? 'transaction' : 'transactions'}`
+  const transactions = countNoun(count, 'transaction')
   const title =
-    reviewCount === 0
-      ? `Change ${transactions}?`
-      : `Add ${reviewCount} ${reviewCount === 1 ? 'item' : 'items'} and change ${transactions}?`
+    reviewCount === 0 ? `Change ${transactions}?` : `Add ${countNoun(reviewCount, 'item')} and change ${transactions}?`
 
   return (
     <ModalTitledPanel
