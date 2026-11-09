@@ -191,49 +191,62 @@ export async function applyLedgerReviewOutcome(
   await refetchLedgerAndWaitingCounts(queryClient, accountIds)
   removeReviewItemsFromPages(queryClient, isDecided)
   invalidateBankSyncStatus(queryClient)
-  invalidateTargets(queryClient, [{ queryKey: bankSyncKeys.bulkPreviews }])
 }
 
 /**
- * Brings the ledger views and the inbox up to date after bulk approval
+ * Brings the inbox, and the ledger views when the items were added, up to date after a bulk add or
+ * dismissal
  *
- * The applied items leave the inbox once the transaction lists have refetched, as a single
- * decision's item does, so the block and the ledger show the approval in the same render. The scope
- * the preview covered lowers its counts by every applied item, loaded or not, and any other scope
- * cached from before takes out the items it holds. The inbox is then read again behind the scenes,
- * since an item the approval left waiting may have changed since the preview, and the returned
- * promise settles without waiting for it
+ * The decided items leave the inbox once what they change has refetched, as a single decision's item
+ * does, so the block and the ledger show the decision in the same render. The scope the block reads
+ * lowers its counts by every decided item, loaded or not, and any other scope cached from before
+ * takes out the items it holds. The inbox is then read again behind the scenes, since an item the
+ * decision skipped may have changed since the list showed it, and the returned promise settles
+ * without waiting for it
  *
- * @param scope - The accounts the preview covered, as the block's list is read for them
- * @param applied - The previewed items the server applied
+ * @param scope - The accounts the block's list is read for
+ * @param decided - The items sent that the server decided
+ * @param wroteLedger - Whether the items were added, so the transaction lists and balances refetch too
  */
-export async function applyBulkApprovalOutcome(
+export async function applyBulkReviewOutcome(
   queryClient: QueryClient,
   scope: string[] | undefined,
-  applied: BankReviewItem[],
+  decided: BankReviewItem[],
+  { wroteLedger }: { wroteLedger: boolean },
 ): Promise<void> {
-  const appliedIds = new Set(applied.map((item) => item.id))
-  const isApplied = (item: BankReviewItem) => appliedIds.has(item.id)
-  await refetchLedgerAndWaitingCounts(queryClient, [...new Set(applied.map((item) => item.account_id))])
+  const decidedIds = new Set(decided.map((item) => item.id))
+  const isDecided = (item: BankReviewItem) => decidedIds.has(item.id)
+  if (wroteLedger)
+    await refetchLedgerAndWaitingCounts(queryClient, [...new Set(decided.map((item) => item.account_id))])
+  else await refetchWaitingCounts(queryClient)
   queryClient.setQueryData<CachedReviewPages>(
     bankSyncKeys.reviewItems(scope),
-    (data) => data && withoutReviewItems(data, isApplied, countByKind(applied)),
+    (data) => data && withoutReviewItems(data, isDecided, countByKind(decided)),
   )
-  removeReviewItemsFromPages(queryClient, isApplied)
+  removeReviewItemsFromPages(queryClient, isDecided)
   invalidateBankSyncStatus(queryClient)
-  invalidateTargets(queryClient, [{ queryKey: bankSyncKeys.reviewItemsAll }, { queryKey: bankSyncKeys.bulkPreviews }])
+  invalidateTargets(queryClient, [{ queryKey: bankSyncKeys.reviewItemsAll }])
 }
 
 /**
  * Refreshes the ledger views of the accounts a review decision wrote to, settling once the
- * transaction lists, the links and the backlogs have refetched. The links and the backlogs carry the
- * waiting counts the sync status and the backlog notice read, so they refetch alongside, keeping the
- * notice in step with the block's count
+ * transaction lists and the waiting counts have refetched
  */
 async function refetchLedgerAndWaitingCounts(queryClient: QueryClient, accountIds: string[]): Promise<void> {
   invalidateFinancialTransactionData(queryClient, accountIds)
   await Promise.all([
     queryClient.invalidateQueries({ queryKey: transactionKeys.all, refetchType: 'active' }),
+    refetchWaitingCounts(queryClient),
+  ])
+}
+
+/**
+ * Refreshes the links and the backlogs, settling once both have refetched. They carry the waiting
+ * counts the sync status and the backlog notice read, so the notice keeps in step with the block's
+ * count
+ */
+async function refetchWaitingCounts(queryClient: QueryClient): Promise<void> {
+  await Promise.all([
     queryClient.invalidateQueries({ queryKey: bankSyncKeys.links(), exact: true, refetchType: 'active' }),
     queryClient.invalidateQueries({ queryKey: bankSyncKeys.reviewBacklogsAll, refetchType: 'active' }),
   ])
@@ -266,14 +279,13 @@ export async function applyReviewDecision(
   if (transaction) replaceCachedTransaction(queryClient, transaction)
   removeReviewItemsFromPages(queryClient, (item) => isDecided(item) && item.id !== stillWaitingId)
   invalidateBankSyncStatus(queryClient)
-  invalidateTargets(queryClient, [{ queryKey: bankSyncKeys.bulkPreviews }])
 }
 
 /**
  * Brings the inbox up to date after a review decision the server refused. That most often means
  * the item changed since it was read: decided in another tab or on another device, or withdrawn by
- * the bank. The inbox, any bulk approval preview, and the backlogs and the link list that carry the
- * waiting counts are read again, so an item that no longer waits leaves the block
+ * the bank. The inbox, and the backlogs and the link list that carry the waiting counts, are read
+ * again, so an item that no longer waits leaves the block
  */
 export function applyRefusedReviewDecision(queryClient: QueryClient): void {
   invalidateBankReviewItems(queryClient)
@@ -347,8 +359,7 @@ function mayNameAccount(query: Query, accountId: string): boolean {
 
 /**
  * Drops bank data that belonged to a deleted account. The server deleted the account's link, waiting
- * items and pending rows with it. A cached bulk preview is dropped rather than refetched, since it would
- * list the deleted account's items until it did
+ * items and pending rows with it
  *
  * The rest of bank sync is read again only when some of it names the account. A link going can
  * change what no view names it in, such as the institutions in use, while an account bank sync never
@@ -359,7 +370,6 @@ function mayNameAccount(query: Query, accountId: string): boolean {
  * forgets the rest as it leaves (forgetDeletedAccountBankData)
  */
 export function clearDeletedAccountBankData(queryClient: QueryClient, accountId: string): void {
-  queryClient.removeQueries({ queryKey: bankSyncKeys.bulkPreviews })
   const cached = queryClient.getQueryCache().findAll({ queryKey: bankSyncKeys.all })
   if (!cached.some((query) => mayNameAccount(query, accountId))) return
   queryClient.removeQueries({

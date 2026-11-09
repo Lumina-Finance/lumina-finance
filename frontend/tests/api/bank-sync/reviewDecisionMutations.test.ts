@@ -2,8 +2,9 @@
  * Covers a review decision the server refuses, through the query cache the app runs on
  *
  * These tests catch an item decided in another tab or on another device, or withdrawn by the bank,
- * staying in the review block after a decision on it fails here, whether that was Add to ledger or
- * any other decision, and the waiting counts beside the block staying as they were
+ * staying in the review block after a decision on it fails here, whether that was Add to ledger, a
+ * bulk add or dismissal or any other decision, and the waiting counts beside the block staying as
+ * they were
  */
 import { MutationObserver, QueryClient, type QueryKey } from '@tanstack/react-query'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -17,15 +18,20 @@ vi.mock('@/api/client', () => ({
 }))
 
 import { ApiError } from '@/api/auth'
-import { addReviewItemMutationOptions, resolveReviewItemMutationOptions } from '@/api/bank-sync/hooks'
+import {
+  addReviewItemMutationOptions,
+  bulkAddReviewItemsMutationOptions,
+  bulkDismissReviewItemsMutationOptions,
+  resolveReviewItemMutationOptions,
+} from '@/api/bank-sync/hooks'
 import { accountKeys, bankSyncKeys, transactionKeys } from '@/api/cache/queryKeys'
+import { createReviewItem } from '@tests/api/cache/updates/fixtures'
 
 let queryClient: QueryClient
 
 const reviewKeys: QueryKey[] = [
   bankSyncKeys.reviewItems(undefined),
   bankSyncKeys.reviewBacklogs(undefined),
-  bankSyncKeys.bulkPreview(undefined),
   bankSyncKeys.links(),
 ]
 const untouchedKeys: QueryKey[] = [transactionKeys.list({}), accountKeys.detail('account-1')]
@@ -55,6 +61,25 @@ const refusals = [
         accountId: 'account-1',
       }),
     new ApiError("This item is already in the ledger, so it can't be dismissed", 409),
+  ],
+  [
+    'a bulk add with a category refused for the items',
+    () =>
+      new MutationObserver(queryClient, bulkAddReviewItemsMutationOptions(queryClient)).mutate({
+        scope: undefined,
+        items: [createReviewItem('item-1', 'new')],
+        values: { merchant_id: 'merchant-1', category_id: 'transfer' },
+      }),
+    new ApiError('Choose the account on the other side of this transfer', 422),
+  ],
+  [
+    'a bulk dismissal the server could not take',
+    () =>
+      new MutationObserver(queryClient, bulkDismissReviewItemsMutationOptions(queryClient)).mutate({
+        scope: undefined,
+        items: [createReviewItem('item-1', 'new')],
+      }),
+    new ApiError('Something went wrong', 500),
   ],
 ] as const
 

@@ -12,9 +12,9 @@ import type {
   BankProvidersResponse,
   BankReviewBacklog,
   BankReviewPage,
-  BulkApprovalPayload,
-  BulkApprovalPreview,
-  BulkApprovalResult,
+  BankReviewItem,
+  BulkAddReviewValues,
+  BulkReviewResult,
   ClaimCredentialPayload,
   DiscoveredBankAccounts,
   EditableBankField,
@@ -266,20 +266,24 @@ export function resolveReviewItem({ itemId, resolution }: { itemId: string; reso
   return post<Transaction | undefined>(`/bank-review/items/${itemId}/${resolution}`)
 }
 
-/**
- * Lists what bulk approval would apply, for some accounts or for all of them
- *
- * @param signal - Aborts the request when the load that asked for it is abandoned
- */
-export function fetchBulkApprovalPreview(accountIds?: string[], signal?: AbortSignal) {
-  return post<BulkApprovalPreview>('/bank-review/bulk-approve/preview', { account_ids: accountIds ?? null }, { signal })
+/** The items a bulk decision sends, each at the version the list showed */
+function toSentItems(items: BankReviewItem[]) {
+  return items.map(({ id, version }) => ({ id, version }))
 }
 
 /**
- * Applies the previewed items, each only if the bank has not changed it since the preview
+ * Adds new items to the ledger with one set of values, each at its own bank amount, skipping any
+ * that changed since the list showed them
  */
-export function applyBulkApproval(payload: BulkApprovalPayload) {
-  return post<BulkApprovalResult>('/bank-review/bulk-approve', payload)
+export function bulkAddReviewItems({ items, values }: { items: BankReviewItem[]; values: BulkAddReviewValues }) {
+  return post<BulkReviewResult>('/bank-review/items/bulk-add', { items: toSentItems(items), ...values })
+}
+
+/**
+ * Dismisses new items, skipping any that changed since the list showed them
+ */
+export function bulkDismissReviewItems({ items }: { items: BankReviewItem[] }) {
+  return post<BulkReviewResult>('/bank-review/items/bulk-dismiss', { items: toSentItems(items) })
 }
 
 /**

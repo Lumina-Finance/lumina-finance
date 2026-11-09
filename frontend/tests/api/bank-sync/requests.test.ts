@@ -16,14 +16,16 @@ vi.mock('@/api/client', () => ({
   authenticatedFetch: authenticatedFetchMock,
 }))
 
+import { createReviewItem } from '@tests/api/cache/updates/fixtures'
 import {
+  bulkAddReviewItems,
+  bulkDismissReviewItems,
   claimCredential,
   createBankLink,
   fetchAccountBankStatus,
   fetchBankConnections,
   fetchBankLinks,
   fetchBankProviders,
-  fetchBulkApprovalPreview,
   fetchDiscoveredBankAccounts,
   fetchImportRange,
   fetchPendingBankTransactions,
@@ -61,7 +63,6 @@ describe('bank sync reads', () => {
     ['a review page', (signal: AbortSignal) => fetchReviewPage({ cursor: null }, signal)],
     ['the review backlogs', (signal: AbortSignal) => fetchReviewBacklogs(undefined, signal)],
     ['the pending transactions', (signal: AbortSignal) => fetchPendingBankTransactions(undefined, signal)],
-    ['the bulk approval preview', (signal: AbortSignal) => fetchBulkApprovalPreview(undefined, signal)],
   ])('passes the abort signal on to the request reading %s', async (_label, read) => {
     const { signal } = new AbortController()
 
@@ -102,13 +103,25 @@ describe('bank sync writes', () => {
     )
   })
 
-  it('previews bulk approval for every account with a null account list', async () => {
-    await fetchBulkApprovalPreview()
-    await fetchBulkApprovalPreview(['account-1'])
+  it('sends each item a bulk decision takes as its id and the version the list showed', async () => {
+    const items = [createReviewItem('item-1', 'new'), { ...createReviewItem('item-2', 'new'), version: 3 }]
 
-    expect(authenticatedFetchMock.mock.calls.map(([, options]) => options.body)).toEqual([
-      JSON.stringify({ account_ids: null }),
-      JSON.stringify({ account_ids: ['account-1'] }),
+    await bulkAddReviewItems({
+      items,
+      values: { merchant_id: 'merchant-1', category_id: 'groceries', dt: '2026-10-01' },
+    })
+    await bulkDismissReviewItems({ items })
+
+    const sentItems = [
+      { id: 'item-1', version: 1 },
+      { id: 'item-2', version: 3 },
+    ]
+    expect(authenticatedFetchMock.mock.calls.map(([path, options]) => [path, options.body])).toEqual([
+      [
+        '/bank-review/items/bulk-add',
+        JSON.stringify({ items: sentItems, merchant_id: 'merchant-1', category_id: 'groceries', dt: '2026-10-01' }),
+      ],
+      ['/bank-review/items/bulk-dismiss', JSON.stringify({ items: sentItems })],
     ])
   })
 })

@@ -44,7 +44,6 @@ import {
   useAccountBankStatus,
   useBankConnections,
   useBankProviders,
-  useBulkApprovalPreview,
   useDiscoveredBankAccounts,
   useImportRange,
   usePendingBankTransactions,
@@ -121,7 +120,6 @@ describe('a bank sync read a screen starts', () => {
     ['the review items', () => useReviewItems(undefined)],
     ['the review backlogs', () => useReviewBacklogs(undefined)],
     ['the pending transactions', () => usePendingBankTransactions(undefined)],
-    ['the bulk approval preview', () => useBulkApprovalPreview(undefined, true)],
   ])('hands the request for %s the signal that stops it once the screen is gone', async (_label, read) => {
     authenticatedFetchMock.mockResolvedValue([])
 

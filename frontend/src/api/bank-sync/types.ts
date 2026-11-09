@@ -537,7 +537,7 @@ export type BankReviewItem = {
   provider_name: string
   received_at: string
 
-  /** Moves on whenever the bank changes the item, so bulk approval applies only what was previewed */
+  /** Moves on whenever the item changes, so a bulk add or dismiss takes only what the list showed */
   version: number
 
   /** The bank's values: the whole item for a new one, the proposal for a correction */
@@ -591,54 +591,25 @@ export type AddReviewItemPayload = {
 }
 
 /**
- * The kinds of item bulk approval applies. New items stay waiting, since each needs a merchant and
- * category before it is added
+ * The values a bulk add gives every new item it takes. Each keeps its own bank amount, and its own
+ * bank date unless one is sent
  */
-export type BulkApprovalKind = Exclude<BankReviewItemKind, 'new'>
-
-export type BulkApprovalGroup = {
-  kind: BulkApprovalKind
-  count: number
-
-  /** Signed change to account balances in minor units, summed per currency, leaving out any currency it doesn't move */
-  net_effect: { currency: string; amount: number }[]
-  items: BankReviewItem[]
+export type BulkAddReviewValues = {
+  merchant_id: string
+  category_id: string
+  tag_ids?: string[]
+  notes?: string
+  dt?: string
 }
 
 /**
- * What bulk approval would apply, with a group for each kind that has items, corrections first
+ * Which items a bulk add or dismiss took and which it skipped, each in the order sent. A skipped
+ * item changed since the list showed it, was decided elsewhere, or has a bank amount its account's
+ * currency can't hold, and still waits
  */
-export type BulkApprovalPreview = {
-  groups: BulkApprovalGroup[]
-
-  /** New items in scope. They stay waiting */
-  excluded_count: number
-}
-
-/**
- * One previewed item to apply, at the version the preview showed
- */
-export type BulkApprovalItem = {
-  id: string
-  version: number
-}
-
-export type BulkApprovalPayload = {
-  items: BulkApprovalItem[]
-}
-
-export type BulkApprovalResult = {
-  corrected: number
-  removed: number
-
-  /**
-   * Items sent that still wait for review, because the bank changed them since the preview or a check
-   * refused them. One decided elsewhere since isn't counted
-   */
-  failed: number
-
-  /** The items applied. They no longer wait */
-  applied_ids: string[]
+export type BulkReviewResult = {
+  decided_ids: string[]
+  skipped_ids: string[]
 }
 
 /**

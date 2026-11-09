@@ -2,11 +2,8 @@ import type { QueryClient } from '@tanstack/react-query'
 import { bankSyncKeys } from '@/api/cache/queryKeys'
 import { invalidateTargets, type InvalidationTarget } from '@/api/cache/invalidation/types'
 
-// The review inbox with its backlogs, and any bulk approval preview listing its items
-const reviewItemTargets: InvalidationTarget[] = [
-  { queryKey: bankSyncKeys.reviewAll },
-  { queryKey: bankSyncKeys.bulkPreviews },
-]
+// The review inbox with its backlogs
+const reviewItemTargets: InvalidationTarget[] = [{ queryKey: bankSyncKeys.reviewAll }]
 
 // What waits outside the ledger: the review items, the pending strip and the holds
 const reviewTargets: InvalidationTarget[] = [
@@ -21,7 +18,7 @@ const connectionsTarget: InvalidationTarget = { queryKey: bankSyncKeys.connectio
 
 /**
  * What bank sync shows of the user's data besides each account's bank link: the review inbox with its
- * backlogs, any bulk approval preview, the pending rows, the link list and the connections. A review
+ * backlogs, the pending rows, the link list and the connections. A review
  * decision, sync, link or connection made in another tab or on another device changes them
  */
 export const bankSyncTargets: InvalidationTarget[] = [...reviewTargets, linkListTarget, connectionsTarget]
@@ -39,16 +36,14 @@ export function invalidateBankSyncStatus(queryClient: QueryClient) {
 }
 
 /**
- * Invalidates what waits outside the ledger: the review inbox, any bulk approval preview and the
- * pending strip
+ * Invalidates what waits outside the ledger: the review inbox and the pending strip
  */
 export function invalidateBankReview(queryClient: QueryClient) {
   invalidateTargets(queryClient, reviewTargets)
 }
 
 /**
- * Invalidates the review inbox and any bulk approval preview listing its items, leaving the pending
- * strip, since only a sync changes it
+ * Invalidates the review inbox, leaving the pending strip, since only a sync changes it
  */
 export function invalidateBankReviewItems(queryClient: QueryClient) {
   invalidateTargets(queryClient, reviewItemTargets)

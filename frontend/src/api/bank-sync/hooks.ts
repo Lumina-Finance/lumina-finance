@@ -19,7 +19,8 @@ import {
 } from '@/api/bank-sync/polling'
 import {
   addReviewItem,
-  applyBulkApproval,
+  bulkAddReviewItems,
+  bulkDismissReviewItems,
   claimCredential,
   createBankLink,
   deleteBankConnection,
@@ -32,7 +33,6 @@ import {
   fetchBankConnections,
   fetchBankLinks,
   fetchBankProviders,
-  fetchBulkApprovalPreview,
   fetchDiscoveredBankAccounts,
   fetchImportRange,
   fetchPendingBankTransactions,
@@ -52,7 +52,7 @@ import { bankSyncKeys } from '@/api/cache/queryKeys'
 import {
   applyAccountBankStatus,
   applyBankLinkChanges,
-  applyBulkApprovalOutcome,
+  applyBulkReviewOutcome,
   applyLedgerReviewOutcome,
   applyRecordedBalanceMatch,
   applyRefusedReviewDecision,
@@ -310,21 +310,6 @@ export function useDismissBankHold() {
 }
 
 /**
- * Reads what bulk approval would apply anew each time a view showing it mounts, so it never starts
- * from a preview listing items decided since
- */
-export function useBulkApprovalPreview(accountIds: string[] | undefined, enabled: boolean) {
-  const { accessToken } = useAuth()
-  return useQuery({
-    queryKey: bankSyncKeys.bulkPreview(accountIds),
-    queryFn: ({ signal }) => fetchBulkApprovalPreview(accountIds, signal),
-    enabled: !!accessToken && enabled,
-    staleTime: BANK_DATA_STALE_TIME_MS,
-    refetchOnMount: 'always',
-  })
-}
-
-/**
  * Sends a credential even while the browser reports being offline, so a request that cannot go
  * fails at once with a message rather than waiting, with its Cancel held, for a connection
  *
@@ -555,26 +540,50 @@ export function useResolveReviewItem() {
   return useMutation(resolveReviewItemMutationOptions(queryClient))
 }
 
+/** The items a bulk decision took, out of those it sent */
+function decidedOf(items: BankReviewItem[], decidedIds: string[]): BankReviewItem[] {
+  const decided = new Set(decidedIds)
+  return items.filter((item) => decided.has(item.id))
+}
+
 /**
- * Applies the items a preview listed, each at the version it showed, leaving waiting any the bank
- * changed since. Settles once the ledger and the review block show the outcome
+ * How a bulk add runs. It settles once the ledger and the review block both show the items added,
+ * and a refusal reads the inbox again, as one of Add to ledger does
+ *
+ * The scope is the accounts the review block reads its items for, so its counts drop by every item
+ * taken
  */
-export function useApplyBulkApproval() {
-  const queryClient = useQueryClient()
-  return useMutation({
-    mutationFn: ({ items }: { scope: string[] | undefined; items: BankReviewItem[] }) =>
-      runWithMinimumPendingTime(ACTION_LOADING_MIN_MS, () =>
-        applyBulkApproval({ items: items.map(({ id, version }) => ({ id, version })) }),
-      ),
-    onSuccess: (result, { scope, items }) => {
-      const appliedIds = new Set(result.applied_ids)
-      return applyBulkApprovalOutcome(
-        queryClient,
-        scope,
-        items.filter((item) => appliedIds.has(item.id)),
-      )
-    },
+export function bulkAddReviewItemsMutationOptions(queryClient: QueryClient) {
+  return mutationOptions({
+    mutationFn: (payload: Parameters<typeof bulkAddReviewItems>[0] & { scope: string[] | undefined }) =>
+      runWithMinimumPendingTime(ACTION_LOADING_MIN_MS, () => bulkAddReviewItems(payload)),
+    onSuccess: (result, { scope, items }) =>
+      applyBulkReviewOutcome(queryClient, scope, decidedOf(items, result.decided_ids), { wroteLedger: true }),
+    onError: () => applyRefusedReviewDecision(queryClient),
   })
+}
+
+export function useBulkAddReviewItems() {
+  const queryClient = useQueryClient()
+  return useMutation(bulkAddReviewItemsMutationOptions(queryClient))
+}
+
+/**
+ * How a bulk dismissal runs. The ledger keeps its data, and a refusal reads the inbox again
+ */
+export function bulkDismissReviewItemsMutationOptions(queryClient: QueryClient) {
+  return mutationOptions({
+    mutationFn: (payload: Parameters<typeof bulkDismissReviewItems>[0] & { scope: string[] | undefined }) =>
+      runWithMinimumPendingTime(ACTION_LOADING_MIN_MS, () => bulkDismissReviewItems(payload)),
+    onSuccess: (result, { scope, items }) =>
+      applyBulkReviewOutcome(queryClient, scope, decidedOf(items, result.decided_ids), { wroteLedger: false }),
+    onError: () => applyRefusedReviewDecision(queryClient),
+  })
+}
+
+export function useBulkDismissReviewItems() {
+  const queryClient = useQueryClient()
+  return useMutation(bulkDismissReviewItemsMutationOptions(queryClient))
 }
 
 export function useRestoreBankValue() {

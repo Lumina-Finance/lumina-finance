@@ -21,12 +21,11 @@ afterEach(() => {
 })
 
 describe('data changed elsewhere', () => {
-  it('reads bank sync again: the review inbox and its backlogs, any bulk approval preview, the pending rows, the links and the connections', () => {
+  it('reads bank sync again: the review inbox and its backlogs, the pending rows, the links and the connections', () => {
     const keys: QueryKey[] = [
       bankSyncKeys.reviewItems(undefined),
       bankSyncKeys.reviewItems(['account-1']),
       bankSyncKeys.reviewBacklogs(undefined),
-      bankSyncKeys.bulkPreview(undefined),
       bankSyncKeys.pending(['account-1']),
       bankSyncKeys.links(),
       bankSyncKeys.connections(),
