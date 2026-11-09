@@ -1,4 +1,4 @@
-import { useId, useState, type CSSProperties, type ReactNode, type Ref } from 'react'
+import { useId, useRef, useState, type CSSProperties, type ReactNode, type Ref } from 'react'
 import { ChevronDown, type LucideIcon } from 'lucide-react'
 import { motion, useReducedMotion } from 'motion/react'
 import { AppSlotMachineText } from '@/components/display/SlotMachineText'
@@ -16,17 +16,15 @@ type CollapsibleSectionProps = {
   // Runs once the body has finished opening, which is the first moment the page height reflects it
   onExpandComplete?: () => void
 
-  // Opens at once and animates only the close, for an owner that scrolls the opened body into view
-  // and would otherwise wait for the height to settle first
-  opensInstantly?: boolean
-
   // Placement for the section and its body, so a list laid out on a CSS grid can keep the body's rows
   // on its own column tracks
   className?: string
   bodyClassName?: string
 
   // Sizing and placement for the header, so a list with a gutter beside its rows, such as a checkbox
-  // rail, can run the header across it the way its row backgrounds run, and can stick it below its bar
+  // rail, can run the header across it the way its row backgrounds run, and can stick it below its bar.
+  // A header that needs a solid fill, such as one rows scroll under, sets --collapsible-header-fill and
+  // --collapsible-header-hover-fill here. A background set here would hide the hover look
   headerStyle?: CSSProperties
 
   // How wide the slot the icon sits at the start of is, so a list can start the label level with its
@@ -70,7 +68,6 @@ export function CollapsibleSection({
   expanded,
   onToggle,
   onExpandComplete,
-  opensInstantly = false,
   className,
   bodyClassName = '',
   headerStyle,
@@ -82,9 +79,16 @@ export function CollapsibleSection({
   const prefersReducedMotion = useReducedMotion()
   const [bodyMounted, setBodyMounted] = useState(expanded)
   const [isAnimating, setIsAnimating] = useState(false)
+  const bodyRef = useRef<HTMLDivElement>(null)
+
+  // The height in pixels the body closes from. Closing from auto makes motion measure the body by drawing it
+  // closed for a moment, and the page shortened by that measurement loses its scroll position, so a section
+  // closed at the page bottom would jump the page up instead of easing it
+  const [closingFromHeight, setClosingFromHeight] = useState<number | null>(null)
 
   function handleToggle() {
-    if (!expanded) setBodyMounted(true)
+    if (expanded) setClosingFromHeight(bodyRef.current?.getBoundingClientRect().height ?? 0)
+    else setBodyMounted(true)
     onToggle()
   }
 
@@ -102,11 +106,12 @@ export function CollapsibleSection({
     <div className={className}>
       {/* Inside a list that scrolls sideways, the header fits the visible width and stays in view. Each
           part sits on the first line, so a summary that wraps keeps the label and chevron level with its
-          first line rather than centred between its lines */}
+          first line rather than centred between its lines. The side padding keeps the hover tint clear
+          of the icon and chevron */}
       <button
         ref={headerRef}
         type="button"
-        className="sticky left-0 z-10 col-span-full flex w-full max-w-[100cqw] items-start gap-3 py-2 text-left transition-control hover:bg-[var(--app-accent-soft)] hover:text-[var(--app-text)]"
+        className="sticky left-0 z-10 col-span-full flex w-full max-w-[100cqw] items-start gap-3 px-3 py-2 text-left transition-control bg-[var(--collapsible-header-fill,transparent)] hover:bg-[var(--collapsible-header-hover-fill,var(--app-accent-soft))] hover:text-[var(--app-text)]"
         style={{
           borderTop: '1px solid var(--app-border)',
           color: 'var(--app-text-muted)',
@@ -127,12 +132,16 @@ export function CollapsibleSection({
       </button>
 
       <motion.div
+        ref={bodyRef}
         id={bodyId}
         className={bodyClassName}
         initial={false}
-        animate={{ height: expanded ? 'auto' : 0, opacity: expanded ? 1 : 0 }}
+        animate={{
+          height: expanded ? 'auto' : closingFromHeight === null ? 0 : [closingFromHeight, 0],
+          opacity: expanded ? 1 : 0,
+        }}
         transition={{
-          duration: prefersReducedMotion || (opensInstantly && expanded) ? 0 : COLLAPSIBLE_SECTION_TRANSITION_SECONDS,
+          duration: prefersReducedMotion ? 0 : COLLAPSIBLE_SECTION_TRANSITION_SECONDS,
           ease: COLLAPSIBLE_SECTION_EASE,
         }}
         style={{ overflow: isAnimating || !expanded ? 'hidden' : 'visible' }}

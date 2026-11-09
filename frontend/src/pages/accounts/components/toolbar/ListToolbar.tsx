@@ -4,6 +4,7 @@ import { MobileToolbarActions } from '@/components/list-controls/MobileToolbarAc
 import { ToolbarStickyShell } from '@/components/list-controls/ToolbarStickyShell'
 import { getSearchFieldWrapperClassName } from '@/components/list-controls/toolbarStyles'
 import { useToolbarShellState } from '@/components/list-controls/useToolbarShellState'
+import { useToolbarStickyOffset } from '@/components/transactions/toolbar/hooks/useStickyOffset'
 import { GroupingPanel } from '@/pages/accounts/components/toolbar/GroupingPanel'
 import { MobileGroupingPanel } from '@/pages/accounts/components/toolbar/MobileGroupingPanel'
 import { AccountFilterPanel } from '@/pages/accounts/components/toolbar/FilterPanel'
@@ -24,8 +25,10 @@ export default function AccountListToolbar({
   typeOptions,
   grouping,
   onAddAccount,
+  onStickyOffsetChange,
 }: AccountListToolbarProps) {
   const shell = useToolbarShellState()
+  useToolbarStickyOffset(shell.toolbarRef, onStickyOffsetChange)
 
   return (
     <>

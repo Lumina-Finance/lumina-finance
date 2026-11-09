@@ -7,10 +7,10 @@ import { resolveInstitutionLogoUrl } from '@/utils/institutionLogo'
 const FALLBACK_TOKENS = ['--app-accent', '--app-positive', '--app-negative', '--app-fx-blue'] as const
 
 const SIZE_CLASS_NAME = {
-  large: 'h-9 w-9 text-sm',
+  large: 'h-7 w-7 text-xs min-[750px]:h-9 min-[750px]:w-9 min-[750px]:text-sm',
   small: 'h-5 w-5 text-xs',
   stack: 'h-[21px] w-[21px] text-xs',
-  xlarge: 'h-[38px] w-[38px] text-base',
+  xlarge: 'h-8 w-8 text-sm min-[750px]:h-[38px] min-[750px]:w-[38px] min-[750px]:text-base',
   row: 'h-5 w-5 text-xs',
 } as const
 
