@@ -60,6 +60,8 @@ const CURRENCIES: Currency[] = [
   { id: 'CAD', name: 'Canadian Dollar', symbol: '$', minor_unit_exponent: 2 },
   { id: 'IQD', name: 'Iraqi Dinar', symbol: 'IQD', minor_unit_exponent: 3 },
 ]
+const LIMIT_REASON = 'Up to 1000 transactions and review items can be ticked at once'
+
 const CATEGORY: Category = {
   id: 'category',
   owner_id: null,
@@ -250,7 +252,13 @@ describe('exact generic import presentation', () => {
         currency: 'CAD',
         category: CATEGORY,
         onOpen,
-        selection: { mark: 'selected', isSelectable: true, onToggle, onPointerEnter: () => {} },
+        selection: {
+          mark: 'selected',
+          isSelectable: true,
+          limitReason: LIMIT_REASON,
+          onToggle,
+          onPointerEnter: () => {},
+        },
       }),
     )
     const selected = captured.rows.at(-1)!
@@ -277,7 +285,7 @@ describe('exact generic import presentation', () => {
         currency: 'CAD',
         category: CATEGORY,
         onOpen: () => {},
-        selection: { mark: 'none', isSelectable: false, onToggle, onPointerEnter: () => {} },
+        selection: { mark: 'none', isSelectable: false, limitReason: LIMIT_REASON, onToggle, onPointerEnter: () => {} },
       }),
     )
     const row = captured.rows.at(-1)!

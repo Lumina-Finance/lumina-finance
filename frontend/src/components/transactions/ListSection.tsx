@@ -39,6 +39,7 @@ import {
   describeAddedButNotUpdated,
   describeBulkAdd,
   describeBulkDismiss,
+  describeTickLimit,
   getDismissBlockReason,
   toBulkAddValues,
 } from '@/components/transactions/bulk-edit/reviewSelection'
@@ -283,6 +284,10 @@ export default function TransactionListSection({
   const ledgerCount = selection.selectedIds.length
   const totalSelected = ledgerCount + reviewCount
 
+  // Dismiss is offered only while a new item waits in the list's accounts, or one is still ticked
+  const offersDismiss = reviewSelection.newItemCount > 0 || reviewCount > 0
+  const limitReason = describeTickLimit(offersDismiss)
+
   // A Set rather than the array useBulkSelection returns, since isRowSelectable does a membership
   // check per row and a fresh array scan for each one would be quadratic in the list's length
   const selectedIdsSet = useMemo(() => new Set(selection.selectedIds), [selection.selectedIds])
@@ -295,10 +300,11 @@ export default function TransactionListSection({
     (transactionId: string, isReadOnly: boolean) => ({
       mark: selection.markFor(transactionId),
       isSelectable: isRowSelectable(transactionId, selectedIdsSet, isReadOnly, ledgerLimit),
+      limitReason,
       onToggle: (withShift: boolean) => selection.toggle(transactionId, withShift),
       onPointerEnter: () => selection.handlePointerEnter(transactionId),
     }),
-    [selection, selectedIdsSet, ledgerLimit],
+    [selection, selectedIdsSet, ledgerLimit, limitReason],
   )
 
   // Takes the transactions one day heading shows, which is what its tick covers. Whether any of them
@@ -555,9 +561,6 @@ export default function TransactionListSection({
       },
     )
   }
-
-  // Dismiss is offered only while a new item waits in the list's accounts, or one is still ticked
-  const offersDismiss = reviewSelection.newItemCount > 0 || reviewCount > 0
 
   const linksByAccount = useBankLinksByAccount()
   const deleteDisabledReason = useMemo(() => {

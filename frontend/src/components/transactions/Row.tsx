@@ -8,7 +8,6 @@ import type { useDisabledReason } from '@/hooks/useDisabledReason'
 import { getDisabledReasonProps } from '@/utils/disabledReasonControl'
 import { Checkbox } from '@/components/forms/Checkbox'
 import { BankMarker, type TransactionRowBankMarker } from '@/components/transactions/BankMarker'
-import { MAX_BULK_EDIT_TRANSACTIONS } from '@/components/transactions/bulk-edit/constants'
 import type { RowSelectionMark } from '@/components/transactions/bulk-edit/selection'
 import {
   REACHES_ACROSS_TRANSACTION_CHECKBOX_RAIL,
@@ -81,6 +80,9 @@ export interface TransactionRowSelection {
 
   /** False for a row the app does not allow editing, such as one on an archived account */
   isSelectable: boolean
+
+  /** Why the row can't be ticked once the selection holds as many as one bulk edit takes */
+  limitReason: string
 
   onToggle: (withShift: boolean) => void
   onPointerEnter: () => void
@@ -432,10 +434,7 @@ export function TransactionRowView({
 
   // Only the limit gets a title here, since a read-only row already explains itself through the
   // pill beside its account name
-  const tickTitle =
-    selection && !selection.isSelectable && !readOnly
-      ? `Up to ${MAX_BULK_EDIT_TRANSACTIONS} transactions can be ticked at once`
-      : undefined
+  const tickTitle = selection && !selection.isSelectable && !readOnly ? selection.limitReason : undefined
 
   // A ticked row is marked with a background, which leaves every text on it at full strength
   const selectionBackground =

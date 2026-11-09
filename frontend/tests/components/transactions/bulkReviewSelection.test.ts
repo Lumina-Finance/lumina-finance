@@ -15,6 +15,7 @@ import {
   describeAddedButNotUpdated,
   describeBulkAdd,
   describeBulkDismiss,
+  describeTickLimit,
   getBulkEditApplyLabel,
   getDismissBlockReason,
   toBulkAddValues,
@@ -51,6 +52,15 @@ describe('the bulk edit button', () => {
     expect(getBulkEditSelectionBlockReason(half, MAX_BULK_EDIT_TRANSACTIONS / 2 + 1)).toBe(
       `Up to ${MAX_BULK_EDIT_TRANSACTIONS} transactions and review items can be edited at once`,
     )
+  })
+})
+
+describe('why a row past the cap cannot be ticked', () => {
+  it('names review items wherever the list offers them, since both kinds share the cap', () => {
+    expect(describeTickLimit(true)).toBe(
+      `Up to ${MAX_BULK_EDIT_TRANSACTIONS} transactions and review items can be ticked at once`,
+    )
+    expect(describeTickLimit(false)).toBe(`Up to ${MAX_BULK_EDIT_TRANSACTIONS} transactions can be ticked at once`)
   })
 })
 

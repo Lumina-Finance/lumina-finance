@@ -1,11 +1,13 @@
 /**
  * Guards the bank marker a transaction row builds from the bank source it carries: the provider it
  * names, the edited note when a bank value was changed, and the Needs review marker for a waiting
- * correction or removal only where the list can go to its item
+ * correction or removal only where the list can go to its item. Also guards why a row past the
+ * shared tick cap can't be ticked, in the wording its list gives
  *
  * These tests catch the marker missing from a row whose source names a waiting item, showing on a
- * row with nothing waiting, showing where nothing could follow it, such as the import preview, and a
- * row with an edited bank value not saying so. That pressing the marker goes to its item runs in the
+ * row with nothing waiting, showing where nothing could follow it, such as the import preview, a
+ * row with an edited bank value not saying so, and a row past the cap naming only transactions
+ * while review items share the cap. That pressing the marker goes to its item runs in the
  * browser, since it needs a click
  */
 import { renderToStaticMarkup } from 'react-dom/server'
@@ -101,5 +103,22 @@ describe('the bank marker a row builds', () => {
 
   it('names no provider on a row entered by hand', () => {
     expect(renderRow(null, () => {})).not.toContain('From SimpleFIN')
+  })
+})
+
+describe('the tick on a row past the cap', () => {
+  it('says why in the wording its list gives, so it matches the review rows beside it', () => {
+    const limitReason = 'Up to 1000 transactions and review items can be ticked at once'
+    const markup = renderToStaticMarkup(
+      <TransactionRow
+        category={undefined}
+        currency="USD"
+        transaction={createTransaction(null)}
+        onOpen={() => {}}
+        selection={{ mark: 'none', isSelectable: false, limitReason, onToggle: () => {}, onPointerEnter: () => {} }}
+      />,
+    )
+
+    expect(markup).toContain(`title="${limitReason}"`)
   })
 })

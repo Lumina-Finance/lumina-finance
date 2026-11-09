@@ -7,11 +7,23 @@
  * bank amount. It isn't in the ledger, so it can be dismissed but not deleted or exported
  */
 import type { BulkAddReviewValues } from '@/api/bank-sync'
+import { MAX_BULK_EDIT_TRANSACTIONS } from '@/components/transactions/bulk-edit/constants'
 import type { BulkEditFields } from '@/components/transactions/bulk-edit/selection'
 import { countNoun } from '@/utils/bankSync'
 
 /** What an empty selection says on a list that offers items waiting for review too */
 export const NOTHING_TICKED_WITH_REVIEW = 'Tick a transaction or review item first'
+
+/**
+ * Why a row can't be ticked once the selection holds as many as one bulk edit takes. A list that
+ * offers items waiting for review names them too, since its transactions and items share the limit
+ *
+ * @param offersReview - Whether the list offers items waiting for review beside its transactions
+ */
+export function describeTickLimit(offersReview: boolean): string {
+  const ticked = offersReview ? 'transactions and review items' : 'transactions'
+  return `Up to ${MAX_BULK_EDIT_TRANSACTIONS} ${ticked} can be ticked at once`
+}
 
 /** Why Delete is off while an item waiting for review is ticked */
 export const REVIEW_ITEMS_NOT_DELETED = 'Items waiting for review are dismissed, not deleted'

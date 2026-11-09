@@ -4,7 +4,7 @@ import { ChevronDown, Landmark, PauseCircle, TriangleAlert } from 'lucide-react'
 import type { BankReviewItem } from '@/api/bank-sync'
 import { useMoneyFormatters } from '@/hooks/useMoneyFormatters'
 import { Checkbox } from '@/components/forms/Checkbox'
-import { MAX_BULK_EDIT_TRANSACTIONS } from '@/components/transactions/bulk-edit/constants'
+import { describeTickLimit } from '@/components/transactions/bulk-edit/reviewSelection'
 import type { RowSelectionMark } from '@/components/transactions/bulk-edit/selection'
 import { ReadFailureNotice, type BankReadFailure } from '@/components/transactions/bank-review/ReadFailureNotice'
 import { REVIEW_MOTION } from '@/components/transactions/constants/bankReview'
@@ -375,11 +375,7 @@ export function BankReviewBlock({
                 {tick && (
                   <span
                     className="absolute inset-y-0 left-4 z-10 flex items-center sm:left-5"
-                    title={
-                      isSelectable
-                        ? undefined
-                        : `Up to ${MAX_BULK_EDIT_TRANSACTIONS} transactions and review items can be ticked at once`
-                    }
+                    title={isSelectable ? undefined : describeTickLimit(true)}
                   >
                     <Checkbox
                       checked={mark === 'selected'}
