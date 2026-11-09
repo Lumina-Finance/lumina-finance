@@ -28,6 +28,7 @@ from app.models.bank_connection import (
     BankProviderRequest,
     ProviderRequestPurpose,
 )
+from app.models.bank_hold import BankHold
 from app.models.bank_pending_transaction import BankPendingTransaction
 from app.models.bank_sync_job import BankSyncJob, BankSyncJobKind, BankSyncJobStatus
 from app.models.bank_transaction import OBSERVATION_COLUMNS, BankTransaction, BankTransactionDisposition, OpenReviewKind
@@ -343,6 +344,18 @@ async def _update_connection(connection: BankConnection, **values) -> None:
     async with TestSession() as session:
         await session.execute(update(BankConnection).where(BankConnection.id == connection.id).values(**values))
         await session.commit()
+
+
+async def _stored_connections() -> list[BankConnection]:
+    """Return every stored connection"""
+    async with TestSession() as session:
+        return list(await session.scalars(select(BankConnection)))
+
+
+async def _hold_descriptions() -> list[str]:
+    """Return the description of every stored hold, dismissed or not"""
+    async with TestSession() as session:
+        return sorted((await session.scalars(select(BankHold.description))).all())
 
 
 async def _commit_paused_link(account_id: str | uuid.UUID, now: datetime) -> BankAccountLink:

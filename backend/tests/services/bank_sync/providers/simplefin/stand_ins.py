@@ -17,6 +17,9 @@ from tests.services.bank_sync.stand_ins import PUBLIC_ADDRESS, FixedResolver
 
 SIMPLEFIN_BRIDGE_ORIGIN = "https://beta-bridge.simplefin.org"
 
+# An access URL as a claim returns it, for tests that fetch without claiming first
+ACCESS_URL = "https://demo-user:demo-password@beta-bridge.simplefin.org/simplefin"
+
 
 def simplefin_adapter(transport: httpx.AsyncBaseTransport, *addresses: str) -> SimpleFinAdapter:
     """Return a SimpleFIN adapter allowed to reach SimpleFIN Bridge. Its requests reach only the transport

@@ -43,6 +43,7 @@ from tests.routes.support.lock_helpers import _wait_until_waiting_on
 from tests.routes.support.mailbox import mailbox
 from tests.services.bank_sync.fake_provider import use_adapter
 from tests.services.bank_sync.providers.simplefin.stand_ins import AccountsTimeOut, FakeBridgeScenario, PausedBridge, simplefin_adapter
+from tests.services.bank_sync.support import _jobs
 
 _WORKING = "This connection is working, so it doesn't need reconnecting"
 _ALREADY_USED = "This setup token has already been used. Create a new one in SimpleFIN Bridge"
@@ -120,12 +121,6 @@ async def _links() -> dict[str, tuple]:
             )
         )
         return {str(account_id): tuple(values) for account_id, *values in rows}
-
-
-async def _jobs() -> list[tuple]:
-    """Return every job's kind, discovery flag and status"""
-    async with TestSession() as session:
-        return [tuple(row) for row in await session.execute(select(BankSyncJob.kind, BankSyncJob.discover, BankSyncJob.status))]
 
 
 async def _request_purposes() -> list[str]:

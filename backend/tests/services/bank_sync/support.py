@@ -7,6 +7,7 @@ import pytest
 from sqlalchemy import select
 
 from app.models.bank_connection import BankAccountLink, BankConnection, BankProviderRequest, ProviderRequestPurpose
+from app.models.bank_sync_job import BankSyncJob
 from app.models.bank_transaction import BankTransaction
 from app.models.currency import Currency
 from app.models.user import User
@@ -100,6 +101,12 @@ async def _run_jobs_until_none_is_due() -> None:
         if not await run_jobs(1):
             return
     pytest.fail(f"Jobs were still queued after {_MOST_JOBS} ran")
+
+
+async def _jobs() -> list[tuple]:
+    """Return every job's kind, discovery flag and status"""
+    async with TestSession() as session:
+        return [tuple(row) for row in await session.execute(select(BankSyncJob.kind, BankSyncJob.discover, BankSyncJob.status))]
 
 
 async def _checkpoints(*links: BankAccountLink) -> list[date]:

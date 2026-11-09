@@ -19,13 +19,12 @@ from app.services.bank_sync import outbound
 from app.services.bank_sync.providers.contract import ClaimRefused, FetchResult, ProviderUnreachable
 from app.services.bank_sync.providers.simplefin.adapter import SimpleFinAdapter
 from tests.fake_simplefin_bridge import FakeBridgeTransport
-from tests.services.bank_sync.providers.simplefin.stand_ins import FakeBridgeScenario, simplefin_adapter
+from tests.services.bank_sync.providers.simplefin.stand_ins import ACCESS_URL, FakeBridgeScenario, simplefin_adapter
 from tests.services.bank_sync.stand_ins import RecordingBridge, answer_with, fail_with
 
 _EXPONENTS = {"USD": 2}
 
 _CLAIM_URL = "https://beta-bridge.simplefin.org/simplefin/claim/DEMO-CLAIM"
-_ACCESS_URL = "https://demo-user:demo-password@beta-bridge.simplefin.org/simplefin"
 
 _LOS_ANGELES = ZoneInfo("America/Los_Angeles")
 _TORONTO = ZoneInfo("America/Toronto")
@@ -53,7 +52,7 @@ async def _fetch(
     start: datetime,
     end: datetime,
     *,
-    access_url: str = _ACCESS_URL,
+    access_url: str = ACCESS_URL,
     include_pending: bool = True,
 ) -> FetchResult:
     """Fetch Everyday Chequing and Rewards Visa over a window for a user in Los Angeles"""
@@ -315,11 +314,11 @@ async def test_window_the_bridge_would_refuse_is_refused_before_sending(start, e
 
 async def test_claim_is_an_empty_post_naming_lumina_finance():
     """The claim is an empty POST to the decoded URL under the Bridge's own host name"""
-    bridge = RecordingBridge(answer_with(200, f"{_ACCESS_URL}\n".encode()))
+    bridge = RecordingBridge(answer_with(200, f"{ACCESS_URL}\n".encode()))
 
     access_url = await simplefin_adapter(bridge.transport).claim_setup_token(_setup_token(_CLAIM_URL))
 
-    assert access_url == _ACCESS_URL
+    assert access_url == ACCESS_URL
     [request] = bridge.requests
     assert request.method == "POST"
     assert request.url.path == "/simplefin/claim/DEMO-CLAIM"
@@ -333,7 +332,7 @@ async def test_every_accounts_request_carries_the_version_a_user_agent_and_basic
     bridge = RecordingBridge()
     adapter = simplefin_adapter(bridge.transport)
 
-    await adapter.discover(_ACCESS_URL, currency_exponents=_EXPONENTS)
+    await adapter.discover(ACCESS_URL, currency_exponents=_EXPONENTS)
     await _fetch(adapter, _WINDOW_START, _WINDOW_END)
 
     assert len(bridge.requests) == 2
@@ -351,7 +350,7 @@ async def test_requests_ask_for_balances_only_or_for_the_window_in_epoch_seconds
     bridge = RecordingBridge()
     adapter = simplefin_adapter(bridge.transport)
 
-    await adapter.discover(_ACCESS_URL, currency_exponents=_EXPONENTS)
+    await adapter.discover(ACCESS_URL, currency_exponents=_EXPONENTS)
     await _fetch(adapter, _WINDOW_START, _WINDOW_END, include_pending=False)
 
     discovery, fetch = bridge.requests

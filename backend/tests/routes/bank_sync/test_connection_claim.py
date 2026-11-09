@@ -10,14 +10,11 @@ from typing import override
 
 import httpx
 import pytest
-from sqlalchemy import select
 
-from app.models.bank_connection import BankConnection
 from app.schemas.bank_sync import CreateBankConnectionRequest
 from app.services.bank_sync import availability
 from app.services.bank_sync.providers.contract import CredentialField
-from tests.conftest import TestSession
-from tests.routes.support.bank_sync_helpers import _sign_up
+from tests.routes.support.bank_sync_helpers import _sign_up, _stored_connections
 from tests.services.bank_sync.fake_provider import ACCESS_KEY, FakeProviderAdapter, _returned, remove_provider, use_adapter
 
 # A credential the fake provider claims, and the access it hands over for it
@@ -51,12 +48,6 @@ def _claimable(fake_provider: FakeProviderAdapter) -> None:
     """Let the fake provider claim the credential once, listing one bank account straight after"""
     fake_provider.claimable[_CREDENTIAL] = _STORED
     fake_provider.outcomes = [_returned("ACT-1")]
-
-
-async def _stored_connections() -> list[BankConnection]:
-    """Return every stored connection"""
-    async with TestSession() as session:
-        return list(await session.scalars(select(BankConnection)))
 
 
 @pytest.mark.parametrize(

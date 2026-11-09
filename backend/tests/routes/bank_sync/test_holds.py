@@ -7,8 +7,6 @@ a group account's holds read, and a dismissal reaching another user's hold
 import uuid
 from datetime import UTC, date, datetime
 
-from sqlalchemy import select
-
 from app.models.account import Account
 from app.models.bank_connection import BankConnection
 from app.models.bank_hold import BankHold
@@ -16,6 +14,7 @@ from tests.conftest import TestSession
 from tests.routes.support.bank_sync_helpers import (
     _commit_listed_connection,
     _commit_other_users_account,
+    _hold_descriptions,
     _link,
     _new_account,
     _new_group_account,
@@ -69,12 +68,6 @@ async def test_another_users_holds_are_not_listed_or_dismissable(client):
 
     assert listed.json() == []
     assert dismissed.status_code == 404
-
-
-async def _hold_descriptions() -> list[str]:
-    """Return the description of every stored hold, dismissed or not"""
-    async with TestSession() as session:
-        return sorted((await session.scalars(select(BankHold.description))).all())
 
 
 async def _linked_with_holds(client) -> tuple[dict, str, str, BankConnection]:

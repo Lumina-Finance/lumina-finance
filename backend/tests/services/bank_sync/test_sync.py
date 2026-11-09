@@ -109,12 +109,14 @@ from tests.routes.support.bank_sync_helpers import (
     _commit_waiting_items,
     _dismiss_items,
     _expire_lease,
+    _hold_descriptions,
     _job_states,
     _ledger_rows,
     _owner_session,
     _queued_jobs,
     _seed_job,
     _spend_requests,
+    _update_connection,
 )
 from tests.routes.support.lock_helpers import _wait_until_waiting_on
 from tests.services.bank_sync.fake_provider import FAKE_PROVIDER, FakeProviderAdapter, _bank_account, _returned, remove_provider, use_adapter
@@ -261,13 +263,6 @@ async def _link_states(*links: BankAccountLink) -> list[str]:
         return [await session.scalar(select(BankAccountLink.state).where(BankAccountLink.id == link.id)) for link in links]
 
 
-async def _set_discovered_at(connection: BankConnection, discovered_at: datetime) -> None:
-    """Commit when the connection's bank accounts were last listed"""
-    async with TestSession() as session:
-        await session.execute(update(BankConnection).where(BankConnection.id == connection.id).values(discovered_at=discovered_at))
-        await session.commit()
-
-
 async def _bring_next_syncs_round(connection: BankConnection, at: datetime) -> None:
     """Commit each of the connection's links as next syncing at this time, as a day passing would, though the clock is frozen"""
     async with TestSession() as session:
@@ -279,13 +274,6 @@ async def _next_sync(connection: BankConnection) -> datetime | None:
     """Return the connection's committed next scheduled sync"""
     async with TestSession() as session:
         return await session.scalar(select(BankConnection.next_sync_at).where(BankConnection.id == connection.id))
-
-
-async def _set_next_sync(connection: BankConnection, at: datetime) -> None:
-    """Commit the connection's next scheduled sync, as the job before set it"""
-    async with TestSession() as session:
-        await session.execute(update(BankConnection).where(BankConnection.id == connection.id).values(next_sync_at=at))
-        await session.commit()
 
 
 async def _schedule_next_sync(connection: BankConnection, now: datetime) -> None:
@@ -318,13 +306,6 @@ async def _free_oldest_request(connection: BankConnection) -> None:
         await session.execute(
             update(BankSyncJob).where(BankSyncJob.status == "queued").values(run_after=datetime.now(UTC) - timedelta(minutes=1))
         )
-        await session.commit()
-
-
-async def _replace_credential(connection: BankConnection) -> None:
-    """Commit a new credential for the connection, as reconnecting it does"""
-    async with TestSession() as session:
-        await session.execute(update(BankConnection).where(BankConnection.id == connection.id).values(credential_encrypted=encrypt(_RENEWED)))
         await session.commit()
 
 
@@ -1110,7 +1091,7 @@ async def test_job_whose_listing_was_refused_marks_nothing_once_a_reconnect_repl
     end_job = sync._end_job
 
     async def reconnect_first(*args, **kwargs):
-        await _replace_credential(connection)
+        await _update_connection(connection, credential_encrypted=encrypt(_RENEWED))
         return await end_job(*args, **kwargs)
 
     monkeypatch.setattr(sync, "_end_job", reconnect_first)
@@ -1539,7 +1520,7 @@ async def test_job_whose_save_starting_a_state_fails_emails_nothing_and_the_next
     goes out, and the job fails on the error. The connection's next job 30 minutes on meets the
     same answer. That starts the state from when that job's request went out and emails once
     """
-    await _set_discovered_at(connection, frozen_now - timedelta(hours=listed_hours_ago))
+    await _update_connection(connection, discovered_at=frozen_now - timedelta(hours=listed_hours_ago))
     await _list_under(connection, "CON-harbour", "Harbour Bank", "ACT-everyday")
     everyday = await _link(connection, "ACT-everyday", **_synced_through_yesterday())
     provider.outcomes = [answer, answer]
@@ -2071,7 +2052,7 @@ async def test_job_relisting_a_stale_listing_waits_for_a_request_without_showing
     async with TestSession() as session:
         session.add(_build_external_account(connection, "ACT-1"))
         await session.commit()
-    await _set_discovered_at(connection, frozen_now - timedelta(days=2))
+    await _update_connection(connection, discovered_at=frozen_now - timedelta(days=2))
     oldest = frozen_now - timedelta(hours=20)
     await _spend_requests(connection, _DAILY_REQUESTS if cause == "budget_spent" else 1, oldest)
     provider.outcomes = [FetchResult(request_error=ProviderError(ProviderErrorKind.RATE_LIMITED, "Fake Bank Online asked for fewer requests"))]
@@ -2102,7 +2083,7 @@ async def test_job_lists_the_bank_accounts_first_once_the_last_listing_is_over_2
     syncs in the same job. A connection whose only link was unlinked has nothing a listing could change
     """
     await _link(connection, "ACT-1", **_synced_through_yesterday(**values))
-    await _set_discovered_at(connection, frozen_now - listed_ago)
+    await _update_connection(connection, discovered_at=frozen_now - listed_ago)
     provider.outcomes = [_returned("ACT-1"), _returned("ACT-1")]
     await _seed_job(connection, BankSyncJobKind.SCHEDULED)
 
@@ -2118,7 +2099,7 @@ async def test_job_fetches_nothing_for_a_linked_bank_account_its_listing_no_long
     async with TestSession() as session:
         session.add_all([_build_external_account(connection, "ACT-everyday"), _build_external_account(connection, "ACT-savings")])
         await session.commit()
-    await _set_discovered_at(connection, frozen_now - timedelta(days=2))
+    await _update_connection(connection, discovered_at=frozen_now - timedelta(days=2))
     provider.outcomes = [_returned("ACT-savings"), _returned("ACT-savings")]
     await _seed_job(connection, BankSyncJobKind.SCHEDULED)
 
@@ -2179,7 +2160,7 @@ async def test_job_that_listed_a_bank_account_in_its_accounts_currency_queues_no
     is queued, and it doesn't list first
     """
     link = await _link(connection, "ACT-everyday", **_synced_through_yesterday())
-    await _set_discovered_at(connection, frozen_now - timedelta(days=2))
+    await _update_connection(connection, discovered_at=frozen_now - timedelta(days=2))
     provider.outcomes = [
         _returned("ACT-everyday"),
         FetchResult(accounts=(_bank_account("ACT-everyday", records=[_ramen_in_yen()], currency="JPY"),)),
@@ -2215,7 +2196,7 @@ async def test_job_whose_listing_fails_records_it_and_fetches_nothing(connection
             next_attempt_at=frozen_now + timedelta(minutes=20),
         ),
     )
-    await _set_discovered_at(connection, frozen_now - timedelta(days=2))
+    await _update_connection(connection, discovered_at=frozen_now - timedelta(days=2))
     provider.outcomes = [FetchResult(request_error=ProviderError(ProviderErrorKind.TEMPORARY, "Fake Bank Online couldn't be reached"))]
     await _seed_job(connection, BankSyncJobKind.SCHEDULED)
 
@@ -2278,7 +2259,7 @@ async def test_job_sends_each_request_with_the_credential_stored_when_it_is_coun
     async def reconnect_before_the_window_is_counted(db, counted, *, purpose, now) -> None:
         """Commit the reconnect just before the window's request is counted"""
         if purpose == ProviderRequestPurpose.SYNC:
-            await _replace_credential(connection)
+            await _update_connection(connection, credential_encrypted=encrypt(_RENEWED))
         await reserve_provider_request(db, counted, purpose=purpose, now=now)
 
     monkeypatch.setattr(sync, "reserve_provider_request", reconnect_before_the_window_is_counted)
@@ -2317,7 +2298,7 @@ async def test_job_stores_nothing_from_a_window_sent_with_a_credential_replaced_
     async with asyncio.timeout(_WAIT_SECONDS):
         running = asyncio.create_task(run_jobs(1))
         await provider.sending[1].wait()
-        await _replace_credential(connection)
+        await _update_connection(connection, credential_encrypted=encrypt(_RENEWED))
         provider.release[1].set()
         assert await running == 1
 
@@ -2345,7 +2326,7 @@ async def test_job_stores_nothing_from_a_listing_sent_with_a_credential_replaced
     async with asyncio.timeout(_WAIT_SECONDS):
         running = asyncio.create_task(run_jobs(1))
         await provider.sending[1].wait()
-        await _replace_credential(connection)
+        await _update_connection(connection, credential_encrypted=encrypt(_RENEWED))
         provider.release[1].set()
         assert await running == 1
 
@@ -2398,7 +2379,7 @@ async def test_job_tells_the_owners_pages_as_it_stores_its_listing(connection, p
     async with TestSession() as session:
         session.add(_build_external_account(connection, "ACT-everyday"))
         await session.commit()
-    await _set_discovered_at(connection, frozen_now - timedelta(days=2))
+    await _update_connection(connection, discovered_at=frozen_now - timedelta(days=2))
     provider.outcomes = [_returned("ACT-savings")]
     await _seed_job(connection, BankSyncJobKind.SCHEDULED)
     told = []
@@ -2757,12 +2738,6 @@ async def test_job_puts_no_pending_or_removed_record_in_the_review_inbox(connect
     await _run_jobs_until_none_is_due()
 
     assert await _bank_transactions(_BANK_ID) == [("TRN-coffee",)]
-
-
-async def _hold_descriptions() -> list[str]:
-    """Return the description of every stored hold"""
-    async with TestSession() as session:
-        return sorted((await session.scalars(select(BankHold.description))).all())
 
 
 async def test_job_keeps_a_zero_amount_record_as_a_hold_and_not_a_review_item(connection, provider):
@@ -3579,7 +3554,7 @@ async def test_job_reminds_once_the_catch_up_after_the_worker_stopped_gets_no_tr
         "ACT-1",
         **_synced_through_yesterday(checkpoint=date(2026, 9, 24), last_success_at=stopped_at, next_attempt_at=stopped_at + day_later),
     )
-    await _set_next_sync(connection, stopped_at + day_later)
+    await _update_connection(connection, next_sync_at=stopped_at + day_later)
     provider.outcomes = [_returned("ACT-1")]
 
     await enqueue_due_work()
@@ -4018,7 +3993,7 @@ async def test_scan_listing_a_connection_never_listed_leaves_the_last_import_und
     The scan queues the listing and the job lists them. That changes none of the owner's data, so
     the import can still be undone
     """
-    await _set_discovered_at(connection, None)
+    await _update_connection(connection, discovered_at=None)
     everyday = _build_account(connection.owner_id, name="Everyday")
     async with TestSession() as session:
         (await session.get(BankConnection, connection.id)).created_at = frozen_now - timedelta(hours=2)
@@ -4775,7 +4750,7 @@ async def test_scan_queues_a_scheduled_sync_due_while_no_request_is_free_for_whe
     The scan queues the sync for 5 pm, so nothing runs before then to find the budget spent
     """
     await _link(connection, "ACT-everyday", **_synced_through_yesterday(next_attempt_at=frozen_now))
-    await _set_next_sync(connection, frozen_now)
+    await _update_connection(connection, next_sync_at=frozen_now)
     if cause == "budget_spent":
         await _spend_requests(connection, _DAILY_REQUESTS, frozen_now - timedelta(hours=20))
     else:
@@ -4799,7 +4774,7 @@ async def test_scan_queues_nothing_while_the_provider_is_turned_off_and_queues_t
     Once the provider is allowed again the next scan queues the sync still due
     """
     await _link(connection, "ACT-everyday", **_synced_through_yesterday(next_attempt_at=frozen_now))
-    await _set_next_sync(connection, frozen_now)
+    await _update_connection(connection, next_sync_at=frozen_now)
     use_adapter(monkeypatch, provider, enabled=False)
 
     await enqueue_due_work()
@@ -4814,7 +4789,7 @@ async def test_scan_queues_nothing_while_the_provider_is_turned_off_and_queues_t
 async def test_scan_queues_nothing_for_a_provider_no_longer_installed(connection, frozen_now, monkeypatch):
     """Everyday's daily sync is due, but the provider's folder was deleted, so no sync is queued to fail"""
     await _link(connection, "ACT-everyday", **_synced_through_yesterday(next_attempt_at=frozen_now))
-    await _set_next_sync(connection, frozen_now)
+    await _update_connection(connection, next_sync_at=frozen_now)
     remove_provider(monkeypatch, FAKE_PROVIDER)
 
     await enqueue_due_work()
@@ -4851,7 +4826,7 @@ async def test_daily_sync_leaves_out_an_account_paused_for_review_and_none_is_qu
     paused = {"paused": True, "next_attempt_at": frozen_now}
     await _link(connection, "ACT-everyday", **_synced_through_yesterday(**paused))
     await _link(connection, "ACT-savings", **_synced_through_yesterday(**(paused if savings_paused else {"next_attempt_at": frozen_now})))
-    await _set_next_sync(connection, frozen_now)
+    await _update_connection(connection, next_sync_at=frozen_now)
     provider.outcomes = [_returned("ACT-savings")]
 
     await enqueue_due_work()
@@ -4895,7 +4870,7 @@ async def test_scan_after_the_worker_stopped_for_three_days_queues_one_job_that_
         "ACT-everyday",
         **_synced_through_yesterday(checkpoint=date(2026, 10, 1), last_success_at=stopped_at, next_attempt_at=stopped_at + day_later),
     )
-    await _set_next_sync(connection, stopped_at + day_later)
+    await _update_connection(connection, next_sync_at=stopped_at + day_later)
     provider.outcomes = [_returned("ACT-everyday")]
 
     await enqueue_due_work()
@@ -4926,7 +4901,7 @@ async def test_scan_lists_the_bank_accounts_of_a_connection_whose_claim_stopped_
     The scan queues a sync that lists them, telling the owner's open pages the listing is pending,
     and once they are listed the connection, with nothing linked yet, isn't due again
     """
-    await _set_discovered_at(connection, None)
+    await _update_connection(connection, discovered_at=None)
     async with TestSession() as session:
         (await session.get(BankConnection, connection.id)).created_at = frozen_now - timedelta(hours=2)
         await session.commit()

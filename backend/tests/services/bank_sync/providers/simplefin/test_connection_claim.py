@@ -15,11 +15,11 @@ import pytest
 from sqlalchemy import select
 
 from app.encryption import decrypt
-from app.models.bank_connection import BankConnection, BankProviderRequest
+from app.models.bank_connection import BankProviderRequest
 from app.models.bank_sync_job import BankSyncJob
 from tests.conftest import TestSession
 from tests.routes.support import _create_account
-from tests.routes.support.bank_sync_helpers import _changed_at, _sign_up
+from tests.routes.support.bank_sync_helpers import _changed_at, _sign_up, _stored_connections
 from tests.services.bank_sync.fake_provider import use_adapter
 from tests.services.bank_sync.providers.simplefin.stand_ins import AccountsTimeOut, FakeBridgeScenario, PausedBridge, simplefin_adapter
 
@@ -35,12 +35,6 @@ async def _claim(client, headers, setup_token: str, nickname: str | None = None)
         json={"provider": "simplefin", "credentials": {"setup_token": setup_token}, "nickname": nickname},
         headers=headers,
     )
-
-
-async def _stored_connections() -> list[BankConnection]:
-    """Return every stored connection"""
-    async with TestSession() as session:
-        return list(await session.scalars(select(BankConnection)))
 
 
 async def test_claim_with_a_fresh_token_saves_the_connection_and_lists_its_bank_accounts(client, scenario: FakeBridgeScenario):

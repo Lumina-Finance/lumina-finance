@@ -12,11 +12,11 @@ from datetime import date, timedelta
 
 import pytest
 from fastapi import HTTPException
-from sqlalchemy import select, text, update
+from sqlalchemy import select, text
 
 from app.models.account import Account
 from app.models.bank_connection import BankAccountLink, BankConnection, BankLinkState
-from app.models.bank_sync_job import BankSyncJob, BankSyncJobKind, BankSyncJobStatus, ProviderErrorKind
+from app.models.bank_sync_job import BankSyncJobKind, BankSyncJobStatus, ProviderErrorKind
 from app.models.currency import Currency
 from app.models.user import User
 from app.schemas.bank_sync import BankAccountLinkResponse, LinkBankAccountRequest
@@ -25,9 +25,17 @@ from app.services.bank_sync.discovery import apply_discovery
 from app.services.bank_sync.links import ACCOUNT_ALREADY_LINKED, link_bank_account, list_bank_accounts_for_account, unlink_account
 from app.services.bank_sync.providers.contract import ExternalAccount, FetchResult, ProviderError
 from tests.conftest import TestSession
-from tests.routes.support.bank_sync_helpers import _build_account, _build_bank_link, _build_user, _commit_listed_connection, _seed_job
+from tests.routes.support.bank_sync_helpers import (
+    _build_account,
+    _build_bank_link,
+    _build_user,
+    _commit_listed_connection,
+    _seed_job,
+    _update_connection,
+)
 from tests.routes.support.identity_helpers import _act_as
 from tests.routes.support.lock_helpers import _wait_until_waiting_on
+from tests.services.bank_sync.support import _jobs
 
 # A month before the frozen clock's 3 October in Toronto, well inside the import range
 _START = date(2026, 9, 3)
@@ -45,19 +53,6 @@ async def linkable() -> tuple[User, Account, BankConnection]:
         session.add(account)
         await session.commit()
     return user, account, await _commit_listed_connection(user.id, "ACT-1", "ACT-2")
-
-
-async def _update_connection(connection: BankConnection, **values) -> None:
-    """Commit new values on a connection"""
-    async with TestSession() as session:
-        await session.execute(update(BankConnection).where(BankConnection.id == connection.id).values(**values))
-        await session.commit()
-
-
-async def _jobs() -> list[tuple]:
-    """Return every job's kind, discovery flag and status"""
-    async with TestSession() as session:
-        return [tuple(row) for row in await session.execute(select(BankSyncJob.kind, BankSyncJob.discover, BankSyncJob.status))]
 
 
 async def _list_as(user: User, account: Account, connection: BankConnection):

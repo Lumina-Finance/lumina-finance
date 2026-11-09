@@ -23,10 +23,9 @@ from app.services.bank_sync.provider_requests import is_quota_spent
 from app.services.bank_sync.providers.contract import FetchResult, ProviderError, ProviderErrorKind
 from app.services.bank_sync.providers.simplefin.adapter import SimpleFinAdapter
 from tests.fake_simplefin_bridge import FakeBridgeTransport
-from tests.services.bank_sync.providers.simplefin.stand_ins import SIMPLEFIN_BRIDGE_ORIGIN, FakeBridgeScenario, simplefin_adapter
+from tests.services.bank_sync.providers.simplefin.stand_ins import ACCESS_URL, SIMPLEFIN_BRIDGE_ORIGIN, FakeBridgeScenario, simplefin_adapter
 from tests.services.bank_sync.stand_ins import RecordingBridge, Responder, answer_with, fail_with
 
-_ACCESS_URL = "https://demo-user:demo-password@beta-bridge.simplefin.org/simplefin"
 _ALL_ACCOUNTS = ("ACT-chequing", "ACT-savings", "ACT-visa")
 
 _CREDENTIAL_REJECTED = ProviderErrorKind.CREDENTIAL_REJECTED
@@ -42,7 +41,7 @@ _UNREADABLE = "SimpleFIN Bridge sent a response Lumina Finance couldn't read"
 _FAKE_QUOTA_WARNING = "You are making too many requests. Make fewer requests or this access token may be disabled"
 
 
-async def _fetch(adapter: SimpleFinAdapter, access_url: str = _ACCESS_URL) -> FetchResult:
+async def _fetch(adapter: SimpleFinAdapter, access_url: str = ACCESS_URL) -> FetchResult:
     """Fetch every Harbour account once through the adapter"""
     return await adapter.fetch(
         access_url,
@@ -112,6 +111,11 @@ def _account_set_answer(*, conn_id: str = "CON-harbour", balance_date: int = 179
         "balance-date": balance_date,
     }
     body = {"errlist": [], "connections": [{"conn_id": "CON-harbour", "name": "Harbour Bank", "org_id": "ORG-harbour"}], "accounts": [account]}
+    return _json_answer(body)
+
+
+def _json_answer(body: dict[str, Any]) -> Responder:
+    """Return a responder answering every request with the body as JSON"""
     return answer_with(200, json.dumps(body).encode(), "application/json")
 
 
@@ -369,7 +373,7 @@ async def test_message_only_in_the_older_errors_list_is_a_warning_beside_the_dat
         ],
     }
 
-    result = await _fetch(simplefin_adapter(RecordingBridge(answer_with(200, json.dumps(body).encode(), "application/json")).transport))
+    result = await _fetch(simplefin_adapter(RecordingBridge(_json_answer(body)).transport))
 
     assert result.warnings == (ProviderError(kind, message),)
     assert [account.external_id for account in result.accounts] == ["ACT-chequing"]
@@ -397,7 +401,7 @@ async def test_quota_warning_in_the_older_errors_list_beside_errlist_is_still_re
         ],
     }
 
-    result = await _fetch(simplefin_adapter(RecordingBridge(answer_with(200, json.dumps(body).encode(), "application/json")).transport))
+    result = await _fetch(simplefin_adapter(RecordingBridge(_json_answer(body)).transport))
 
     assert result.warnings == (ProviderError(_RATE_LIMITED, message),)
     assert is_quota_spent(result)
@@ -414,7 +418,7 @@ async def test_message_only_in_the_older_errors_list_without_data_fails_the_requ
     """A plain message that comes back alone keeps nothing, and a quota one counts the day's requests as spent"""
     body = {"errors": [message], "connections": [], "accounts": []}
 
-    result = await _fetch(simplefin_adapter(RecordingBridge(answer_with(200, json.dumps(body).encode(), "application/json")).transport))
+    result = await _fetch(simplefin_adapter(RecordingBridge(_json_answer(body)).transport))
 
     assert result.request_error == ProviderError(kind, message)
     assert result.warnings == ()
@@ -442,7 +446,7 @@ async def test_account_left_out_of_the_response_fails(scenario: FakeBridgeScenar
 )
 async def test_message_longer_than_the_reason_cap_is_cut_short_in_the_failure(body):
     """A bank's 100,000-character message is kept as a reason of 500 characters ending in an ellipsis."""
-    result = await _fetch(simplefin_adapter(RecordingBridge(answer_with(200, json.dumps(body).encode(), "application/json")).transport))
+    result = await _fetch(simplefin_adapter(RecordingBridge(_json_answer(body)).transport))
 
     assert result.request_error is not None
     assert len(result.request_error.reason) == 500
