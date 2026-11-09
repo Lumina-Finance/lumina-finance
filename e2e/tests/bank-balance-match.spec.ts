@@ -41,8 +41,9 @@ import { API_BASE_URL } from '../support/target'
 // the amount left out reaches the page
 const SAMPLE_CHEQUING = 'Everyday Chequing'
 const SYNCED_STATUS = /Synced (just now|\d+ minutes? ago)\./
-const ZERO_AMOUNT_MESSAGE = 'Enter more than zero'
-const SIGNED_AMOUNT_MESSAGE = 'Leave out the sign'
+const BLANK_AMOUNT_MESSAGE = 'Enter an amount'
+const ZERO_AMOUNT_MESSAGE = "Can't be zero"
+const SIGNED_AMOUNT_MESSAGE = 'The sign is fixed'
 const NOTHING_TO_MATCH = 'There is no difference to match'
 
 // The width from which the amount and the button share a row
@@ -247,16 +248,19 @@ test('records nothing for Enter in the amount, or for a blank or zero amount, sa
   await expect(offer.record).not.toHaveAttribute('aria-disabled', 'true')
   await offer.amount.fill('')
   await offer.record.click()
-  await expect(offer.zeroMessage).toBeVisible()
+  const blankMessage = offer.dialog.getByRole('alert').filter({ hasText: BLANK_AMOUNT_MESSAGE })
+  await expect(blankMessage).toBeVisible()
 
   // The message describes the field, and the button fades with it as its reason until the amount is fixed
-  await expect(offer.amount).toHaveAccessibleDescription(`${ZERO_AMOUNT_MESSAGE} Your ledger records this amount as positive.`)
+  await expect(offer.amount).toHaveAccessibleDescription(`${BLANK_AMOUNT_MESSAGE} Your ledger records this amount as positive.`)
   await expect(offer.record).toHaveAttribute('aria-disabled', 'true')
-  await expect(offer.record).toHaveAccessibleDescription(ZERO_AMOUNT_MESSAGE)
-  // Typing a zero is no fix, so the mark and the fade stay
+  await expect(offer.record).toHaveAccessibleDescription(BLANK_AMOUNT_MESSAGE)
+  // Typing a zero is no fix, so the mark and the fade stay, now saying the amount is zero
   await offer.amount.fill('0')
   await expect(offer.zeroMessage).toBeVisible()
+  await expect(blankMessage).toBeHidden()
   await expect(offer.record).toHaveAttribute('aria-disabled', 'true')
+  await expect(offer.record).toHaveAccessibleDescription(ZERO_AMOUNT_MESSAGE)
   await offer.amount.fill('5')
   await expect(offer.zeroMessage).toBeHidden()
   await expect(offer.record).not.toHaveAttribute('aria-disabled', 'true')
@@ -480,7 +484,7 @@ for (const colorScheme of ['light', 'dark'] as const) {
     else await expect(page.locator('html')).not.toHaveClass(/\bdark\b/)
 
     // The message shows beside the label, so every line of the offer can be read at once
-    await offer.amount.fill('')
+    await offer.amount.fill('0')
     await offer.record.click()
     for (const text of [
       offer.dialog.getByText("Match SimpleFIN's balance", { exact: true }),

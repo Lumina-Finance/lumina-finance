@@ -51,6 +51,7 @@ vi.mock('@/api/bank-sync', async (importOriginal) => ({
 import { BalanceMatchOffer } from '@/pages/accounts/detail/components/bank-link/BalanceMatchOffer'
 import { formatCurrencySymbol } from '@/utils/formatCurrency'
 import {
+  BLANK_AMOUNT_MESSAGE,
   getRecordingProblem,
   holdsSign,
   readRecordedAmount,
@@ -119,7 +120,7 @@ describe('the balance match offer', () => {
     expect(markup.match(/<button/g)).toHaveLength(1)
     expect(markup).toContain('>Record adjustment<')
     expect(markup).not.toContain('Skip')
-    expect(markup).not.toContain(ZERO_AMOUNT_MESSAGE)
+    expect(markup).not.toContain(BLANK_AMOUNT_MESSAGE)
   })
 
   it.each([
@@ -243,8 +244,9 @@ describe('the amount a recording sends', () => {
 })
 
 describe('the problem a refused press of Record adjustment keeps marked', () => {
-  it('is the same for a blank amount and a typed zero, so typing a zero does not clear the mark', () => {
-    expect(getRecordingProblem(null, '', 2, 25000)).toBe(ZERO_AMOUNT_MESSAGE)
+  it('says a blank amount is missing and a typed zero is zero, so typing a zero keeps the mark', () => {
+    expect(getRecordingProblem(null, '', 2, 25000)).toBe(BLANK_AMOUNT_MESSAGE)
+    expect(getRecordingProblem(null, ' ', 2, 25000)).toBe(BLANK_AMOUNT_MESSAGE)
     expect(getRecordingProblem(null, '0', 2, 25000)).toBe(ZERO_AMOUNT_MESSAGE)
   })
 
@@ -259,8 +261,8 @@ describe('what a press of Record adjustment reads', () => {
     expect(readRecording(SIGNED_AMOUNT_MESSAGE, '250.00', 2, 25000)).toEqual({ refusal: SIGNED_AMOUNT_MESSAGE })
   })
 
-  it('refuses a blank or zero amount with its own message', () => {
-    expect(readRecording(null, '', 2, 25000)).toEqual({ refusal: ZERO_AMOUNT_MESSAGE })
+  it('refuses a blank or zero amount, each with its own message', () => {
+    expect(readRecording(null, '', 2, 25000)).toEqual({ refusal: BLANK_AMOUNT_MESSAGE })
     expect(readRecording(null, '0.00', 2, 25000)).toEqual({ refusal: ZERO_AMOUNT_MESSAGE })
   })
 

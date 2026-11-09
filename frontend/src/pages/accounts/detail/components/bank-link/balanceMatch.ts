@@ -1,13 +1,16 @@
 import { holdsMinus, toMinorUnits } from '@/utils/moneyInput'
 
 // The messages share the label's line, as the new-account prompt's does, so they stay short enough to
-// fit beside it on a phone and the field never moves when one shows
+// fit beside it on a 390px phone, about 130px, and the field never moves when one shows
 
-/** What Record adjustment says for a blank or zero amount, since such an amount records nothing */
-export const ZERO_AMOUNT_MESSAGE = 'Enter more than zero'
+/** What Record adjustment says for a blank amount */
+export const BLANK_AMOUNT_MESSAGE = 'Enter an amount'
+
+/** What Record adjustment says for a zero amount, since it records nothing */
+export const ZERO_AMOUNT_MESSAGE = "Can't be zero"
 
 /** What the amount says when a sign is typed or pasted into it. It refuses the sign, since the offer's sign stands beside it */
-export const SIGNED_AMOUNT_MESSAGE = 'Leave out the sign'
+export const SIGNED_AMOUNT_MESSAGE = 'The sign is fixed'
 
 /** What a recording the server didn't answer says, while one it refused gives the server's reason */
 export const RECORDING_FAILED_MESSAGE = 'Oops, something went wrong. Please try again.'
@@ -52,7 +55,7 @@ type RecordingReading = { refusal: string } | { amount: number }
 /**
  * Reads what a press of Record adjustment does. It refuses while the amount shows its message for a
  * sign, since the field still holds the amount it kept and recording that would go ahead on a field
- * marked as wrong, and refuses a blank or zero amount
+ * marked as wrong, and refuses a blank or zero amount, each with its own message
  *
  * @param shownMessage - The message beside the amount now, or null when it shows none
  * @param value - The field's money value
@@ -66,6 +69,7 @@ export function readRecording(
   offered: number,
 ): RecordingReading {
   if (shownMessage === SIGNED_AMOUNT_MESSAGE) return { refusal: SIGNED_AMOUNT_MESSAGE }
+  if (value.trim() === '') return { refusal: BLANK_AMOUNT_MESSAGE }
 
   const amount = readRecordedAmount(value, exponent, offered)
   return amount === null ? { refusal: ZERO_AMOUNT_MESSAGE } : { amount }
