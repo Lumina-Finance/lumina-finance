@@ -61,7 +61,7 @@ from app.services.bank_sync.availability import (
     read_linked_bank_accounts,
     require_bank_linking,
 )
-from app.services.bank_sync.connections import get_own_connection, read_discovering_connections
+from app.services.bank_sync.connections import get_own_connection, read_discovering_connections, read_listed_bank_accounts
 from app.services.bank_sync.holds import clear_holds
 from app.services.bank_sync.import_range import read_import_range
 from app.services.bank_sync.jobs import enqueue_bank_sync_job
@@ -113,11 +113,7 @@ async def list_bank_accounts_for_account(
         await mark_user_status_changed(db, user.id)
         await db.commit()
 
-    bank_accounts = await db.scalars(
-        select(BankExternalAccount)
-        .where(BankExternalAccount.connection_id == connection.id, BankExternalAccount.listed.is_(True))
-        .order_by(BankExternalAccount.institution_name, BankExternalAccount.name, BankExternalAccount.external_id)
-    )
+    bank_accounts = (await read_listed_bank_accounts(db, [connection.id]))[connection.id]
     linked_to = await read_linked_bank_accounts(db, user.id)
     allowance = await get_institution_allowance(db, user.id, connection.provider)
     account_institution = await _read_institution_name(db, account)

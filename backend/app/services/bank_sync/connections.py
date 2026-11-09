@@ -72,6 +72,19 @@ async def read_discovering_connections(db: AsyncSession, connection_ids: Sequenc
     return set(discovering)
 
 
+async def read_listed_bank_accounts(db: AsyncSession, connection_ids: Sequence[uuid.UUID]) -> dict[uuid.UUID, list[BankExternalAccount]]:
+    """Return the bank accounts each connection's provider last listed, by connection, in the order the user picks from"""
+    bank_accounts: dict[uuid.UUID, list[BankExternalAccount]] = defaultdict(list)
+    listed = await db.scalars(
+        select(BankExternalAccount)
+        .where(BankExternalAccount.connection_id.in_(connection_ids), BankExternalAccount.listed.is_(True))
+        .order_by(BankExternalAccount.institution_name, BankExternalAccount.name, BankExternalAccount.external_id)
+    )
+    for bank_account in listed:
+        bank_accounts[bank_account.connection_id].append(bank_account)
+    return bank_accounts
+
+
 async def build_connection_responses(
     db: AsyncSession,
     user_id: uuid.UUID,
@@ -93,15 +106,7 @@ async def build_connection_responses(
     now = datetime.now(UTC)
     connection_ids = [connection.id for connection in connections]
 
-    bank_accounts: dict[uuid.UUID, list[BankExternalAccount]] = defaultdict(list)
-    listed = await db.scalars(
-        select(BankExternalAccount)
-        .where(BankExternalAccount.connection_id.in_(connection_ids), BankExternalAccount.listed.is_(True))
-        .order_by(BankExternalAccount.institution_name, BankExternalAccount.name, BankExternalAccount.external_id)
-    )
-    for bank_account in listed:
-        bank_accounts[bank_account.connection_id].append(bank_account)
-
+    bank_accounts = await read_listed_bank_accounts(db, connection_ids)
     linked_to = await read_linked_bank_accounts(db, user_id)
     discovering = await read_discovering_connections(db, connection_ids)
 
