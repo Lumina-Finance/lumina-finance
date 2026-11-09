@@ -357,19 +357,22 @@ test('on a phone, Group by sits beside Filters and Add and opens a full-screen s
   request,
 }) => {
   await seedAccounts(page, request)
-  await page.setViewportSize({ width: 390, height: 844 })
-  await openPage(page, '/accounts')
-
   const grouping = groupingPill(page)
   const filters = page.getByRole('button', { name: 'Filters', exact: true }).filter({ visible: true })
   const add = page.getByRole('button', { name: 'Add account' }).filter({ visible: true })
-  const [groupingBox, filtersBox, addBox] = await Promise.all([grouping, filters, add].map((l) => l.boundingBox()))
-  // One row, in the order Filters, Group by, Add, with Group by only as wide as its content
-  expect(Math.abs(groupingBox!.y - filtersBox!.y)).toBeLessThan(1)
-  expect(Math.abs(groupingBox!.y - addBox!.y)).toBeLessThan(6)
-  expect(filtersBox!.x).toBeLessThan(groupingBox!.x)
-  expect(groupingBox!.x).toBeLessThan(addBox!.x)
-  expect(groupingBox!.width).toBeLessThan(filtersBox!.width)
+
+  // One row, in the order Filters, Group by, Add, with Filters and Group by sharing the free width equally
+  for (const height of [667, 844]) {
+    await page.setViewportSize({ width: 390, height })
+    await openPage(page, '/accounts')
+    const [groupingBox, filtersBox, addBox] = await Promise.all([grouping, filters, add].map((l) => l.boundingBox()))
+    expect(Math.abs(groupingBox!.y - filtersBox!.y)).toBeLessThan(1)
+    expect(Math.abs(groupingBox!.y - addBox!.y)).toBeLessThan(6)
+    expect(filtersBox!.x).toBeLessThan(groupingBox!.x)
+    expect(groupingBox!.x).toBeLessThan(addBox!.x)
+    expect(Math.abs(groupingBox!.width - filtersBox!.width)).toBeLessThan(1)
+    expect(addBox!.width).toBeCloseTo(addBox!.height, 0)
+  }
 
   await grouping.click()
   const sheet = page.getByRole('dialog', { name: 'Account grouping' })
