@@ -9,23 +9,18 @@ import { describeStartRefusal, findUncoveredUntil, listStartChoices } from '@/co
 
 // Today is Oct 5, 2026, with a provider reaching 12 months back to Oct 1, 2025 and an empty account
 const EMPTY_ACCOUNT: BankImportRange = {
-  suggested_start: '2026-07-01',
-  default_suggestion: '2026-07-01',
   earliest_allowed: '2025-10-01',
   latest_allowed: '2026-10-05',
   ledger_floor: null,
   provider_limit_date: '2025-10-01',
   provider_history_months: 12,
-  latest_ledger_date: null,
 }
 
 // The account's latest transaction is May 14, so the import may start no earlier than May 15
 const ACCOUNT_WITH_HISTORY: BankImportRange = {
   ...EMPTY_ACCOUNT,
-  suggested_start: '2026-07-01',
   earliest_allowed: '2026-05-15',
   ledger_floor: '2026-05-15',
-  latest_ledger_date: '2026-05-14',
 }
 
 describe('bank link start choices', () => {

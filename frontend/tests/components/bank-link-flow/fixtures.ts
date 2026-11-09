@@ -100,7 +100,6 @@ export function createProviders(offered = true): BankProvidersResponse {
         connect_steps: [],
         connects_from: 'settings',
         offered,
-        history_limit_months: 12,
         advertises_history: false,
         institution_limit: null,
         institutions_in_use: [],

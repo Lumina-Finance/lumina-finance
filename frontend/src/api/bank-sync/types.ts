@@ -55,9 +55,6 @@ export type BankProvider = {
    */
   offered: boolean
 
-  /** How many calendar months back an import may start, set per deployment */
-  history_limit_months: number
-
   /** False when the provider cannot say how much history it holds */
   advertises_history: boolean
 
@@ -248,10 +245,6 @@ export type ReconnectConnectionResult = {
  * Every date is a calendar date in YYYY-MM-DD form, computed in the user's profile timezone
  */
 export type BankImportRange = {
-  suggested_start: string
-
-  /** The suggestion before the range raised it, shown so a moved start is never silent */
-  default_suggestion: string
   earliest_allowed: string
   latest_allowed: string
 
@@ -259,7 +252,6 @@ export type BankImportRange = {
   ledger_floor: string | null
   provider_limit_date: string
   provider_history_months: number
-  latest_ledger_date: string | null
 }
 
 export type LinkBankAccountPayload = {

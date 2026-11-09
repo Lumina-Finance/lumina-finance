@@ -83,7 +83,6 @@ function provider(overrides: Partial<BankProvider> = {}): BankProvider {
     connect_steps: [],
     connects_from: 'settings',
     offered: true,
-    history_limit_months: 12,
     advertises_history: false,
     institution_limit: null,
     institutions_in_use: [],

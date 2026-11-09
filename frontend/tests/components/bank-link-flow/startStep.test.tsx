@@ -19,14 +19,11 @@ vi.mock('@/components/date-field/DateField', () => ({
 }))
 
 const RANGE: BankImportRange = {
-  suggested_start: '2026-07-01',
-  default_suggestion: '2026-07-01',
   earliest_allowed: '2025-10-01',
   latest_allowed: '2026-10-05',
   ledger_floor: null,
   provider_limit_date: '2025-10-01',
   provider_history_months: 12,
-  latest_ledger_date: null,
 }
 
 function renderStep(errors: { startChoice?: string; startDate?: string }, choice: string | null = CUSTOM_START) {
