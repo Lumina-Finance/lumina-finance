@@ -351,9 +351,25 @@ function asksAboutAccount(query: Query, accountId: string): boolean {
 }
 
 /**
+ * Whether a bank sync query asks about the account, holds data naming it, or is being read and may
+ * come back naming it
+ */
+function mayNameAccount(query: Query, accountId: string): boolean {
+  return (
+    asksAboutAccount(query, accountId) ||
+    query.state.fetchStatus === 'fetching' ||
+    (JSON.stringify(query.state.data) ?? '').includes(`"${accountId}"`)
+  )
+}
+
+/**
  * Drops bank data that belonged to a deleted account. The server deleted the account's link, waiting
  * items and pending rows with it. A cached bulk preview is dropped rather than refetched, since it would
  * list the deleted account's items until it did
+ *
+ * The rest of bank sync is read again only when some of it names the account. A link going can
+ * change what no view names it in, such as the institutions in use, while an account bank sync never
+ * knew of, as every account is for a user without bank sync, changes nothing there
  *
  * The account's own bank views go now only if nothing shows them. Its page keeps showing them while
  * it animates out, and asking about the account again would be answered not found, so the page
@@ -361,6 +377,8 @@ function asksAboutAccount(query: Query, accountId: string): boolean {
  */
 export function clearDeletedAccountBankData(queryClient: QueryClient, accountId: string): void {
   queryClient.removeQueries({ queryKey: bankSyncKeys.bulkPreviews })
+  const cached = queryClient.getQueryCache().findAll({ queryKey: bankSyncKeys.all })
+  if (!cached.some((query) => mayNameAccount(query, accountId))) return
   queryClient.removeQueries({
     queryKey: bankSyncKeys.all,
     type: 'inactive',
