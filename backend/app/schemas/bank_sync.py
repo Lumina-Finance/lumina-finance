@@ -223,9 +223,6 @@ class BankProviderResponse(BaseModel):
     # Whether new connections may be made. Existing connections keep working when it is withdrawn
     offered: bool
 
-    # How many calendar months back an import may start
-    history_limit_months: int
-
     # False when the provider can't say how much history it holds for an account
     advertises_history: bool
 
@@ -250,10 +247,6 @@ class BankProvidersResponse(BaseModel):
 class BankImportRangeResponse(BaseModel):
     """Where an import into one account may start, every date a calendar day in the user's profile timezone"""
 
-    # What a default start would have been, raised to the earliest allowed date. The start step
-    # preselects neither, and shows default_suggestion so a raised start is never silent
-    suggested_start: date
-    default_suggestion: date
     earliest_allowed: date
     latest_allowed: date
 
@@ -263,7 +256,6 @@ class BankImportRangeResponse(BaseModel):
     # The first day the provider's history limit allows
     provider_limit_date: date
     provider_history_months: int
-    latest_ledger_date: date | None
 
 
 class DiscoveredBankAccountResponse(BaseModel):

@@ -461,7 +461,7 @@ async def get_bank_import_range(
         db: Active database session
 
     Returns:
-        The allowed range, its suggestions and the facts the start step shows beside them
+        The allowed range and the facts the start step shows beside it
     """
     return await get_import_range(db, user, account_id, provider)
 

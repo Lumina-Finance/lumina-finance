@@ -320,7 +320,6 @@ async def list_providers(db: AsyncSession, user: User) -> BankProvidersResponse:
                 connect_steps=list(adapter.connect_steps),
                 connects_from=adapter.connects_from,
                 offered=is_offered(provider),
-                history_limit_months=adapter.history_limit_months,
                 advertises_history=adapter.advertises_history,
                 institution_limit=allowance.limit,
                 institutions_in_use=sorted(allowance.in_use.values()),

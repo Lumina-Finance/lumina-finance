@@ -35,7 +35,6 @@ _FAKE = {
     "connect_steps": ["Sign in to Fake Bank Online.", "Create an access key and paste it here."],
     "connects_from": "settings",
     "offered": True,
-    "history_limit_months": 12,
     "advertises_history": False,
     "institution_limit": None,
     "institutions_in_use": [],

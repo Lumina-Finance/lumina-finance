@@ -196,7 +196,7 @@ async def test_choose_again_moves_the_link_to_the_new_bank_account_from_after_th
     chosen = await _link(client, headers, account_id, connection.id, "ACT-2", start_date=floor)
 
     assert ranged.status_code == 200, ranged.text
-    assert (ranged.json()["earliest_allowed"], ranged.json()["suggested_start"]) == (floor.isoformat(), floor.isoformat())
+    assert ranged.json()["earliest_allowed"] == floor.isoformat()
     assert too_early.status_code == 422, too_early.text
     assert too_early.json()["detail"] == f"Choose a start date from {format_day(floor)} to {format_day(_TODAY)}"
     assert chosen.status_code == 201, chosen.text
