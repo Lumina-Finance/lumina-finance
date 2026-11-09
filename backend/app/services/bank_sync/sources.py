@@ -19,6 +19,16 @@ from app.services.bank_sync.availability import read_provider_labels
 from app.services.bank_sync.review_state import edited_fields
 
 
+def read_bank_values(record: BankTransaction) -> BankValues:
+    """Return the bank's latest values of a bank transaction as a response carries them"""
+    return BankValues(
+        date=record.observed_date,
+        amount=record.observed_amount,
+        raw_amount=record.raw_amount,
+        description=record.description,
+    )
+
+
 def build_bank_source(record: BankTransaction, txn: Transaction, provider_name: str) -> TransactionBankSource:
     """Return the bank source of a ledger transaction from the accepted record pointing at it
 
@@ -34,12 +44,7 @@ def build_bank_source(record: BankTransaction, txn: Transaction, provider_name: 
     return TransactionBankSource(
         provider=record.provider,
         provider_name=provider_name,
-        bank_values=BankValues(
-            date=record.observed_date,
-            amount=record.observed_amount,
-            raw_amount=record.raw_amount,
-            description=record.description,
-        ),
+        bank_values=read_bank_values(record),
         received_at=record.received_at,
         edited_fields=edited_fields(record, txn.dt, txn.amount),
         # A record's open correction or removal is reviewed under the record's own id

@@ -28,11 +28,11 @@ from app.schemas.bank_review import (
     BankReviewItemResponse,
     BankReviewPageResponse,
 )
-from app.schemas.bank_sync import BankValues
 from app.services.accounts.access import check_own_personal_accounts, own_personal_account_condition
 from app.services.bank_sync.availability import read_provider_labels
 from app.services.bank_sync.review_pause import read_review_backlogs
 from app.services.bank_sync.review_state import AWAITING_REVIEW, IS_REVIEW_ITEM, approved_description, edited_fields
+from app.services.bank_sync.sources import read_bank_values
 
 # The most items one page holds, so an import that leaves hundreds waiting loads a page at a time
 REVIEW_PAGE_SIZE = 50
@@ -150,12 +150,7 @@ def build_review_item(
     record: BankTransaction, ledger_date: date | None, ledger_amount: int | None, provider_name: str
 ) -> BankReviewItemResponse:
     """Return a bank transaction as a review item, given its ledger row's date and amount when it has one and its provider's name"""
-    bank = BankValues(
-        date=record.observed_date,
-        amount=record.observed_amount,
-        raw_amount=record.raw_amount,
-        description=record.description,
-    )
+    bank = read_bank_values(record)
     item = {
         "id": record.id,
         "account_id": record.account_id,
