@@ -21,7 +21,8 @@ import {
 import { NEEDS_BANK_SYNC } from '../support/bankSyncServer'
 import { API_BASE_URL } from '../support/target'
 
-// Runs on desktop only: what a bulk decision saved is read back through the API, the same at every size
+// Runs on desktop only: what a bulk decision saved is read back through the API, the same at every size,
+// and the phone bar's tests set each phone width they check themselves
 
 // New bank items are ticked in the review block beside ledger rows, then added to the ledger in one
 // bulk edit, alone or with ledger transactions, or dismissed together.
@@ -39,6 +40,12 @@ const CAFE = { posted: daysFromTodayInTestTimezone(-6), amount: '-8.75', descrip
 
 // The day of the one ledger transaction. Its checkbox is named by it
 const LEDGER_DATE = daysFromTodayInTestTimezone(-20)
+
+// The phone widths the selection bar has to hold every action at, the narrowest phones included
+const PHONE_WIDTHS = [390, 375, 360, 320]
+
+// The words the phone bar shows, in the order they drop as the bar narrows: the last one first
+const BAR_WORDS = ['Edit', 'Done', 'Filters']
 
 /**
  * Signs up with Everyday, linked to a bank that sends the items given, and Savings, holding one
@@ -79,6 +86,42 @@ async function tickLedger(page: Page): Promise<void> {
 /** The bank's descriptions of the items still waiting in the account, newest first */
 async function readWaiting(request: APIRequestContext, user: TestUser, accountId: string): Promise<string[]> {
   return (await readReviewItems(request, user, accountId)).map((item) => item.bank.description)
+}
+
+/**
+ * Checks the phone's selection bar at each phone width: every action sits inside the bar with its own
+ * contents inside it, and the words it shows are the ones that drop last
+ */
+async function expectPhoneBarFits(page: Page): Promise<void> {
+  const done = page.getByRole('button', { name: 'Stop selecting transactions', exact: true })
+  const readBar = () =>
+    done.evaluate((button, dropOrder) => {
+      const bar = button.parentElement!
+      const edges = bar.getBoundingClientRect()
+      const controls = [...bar.children].filter((control) => control.getBoundingClientRect().width > 0)
+      const words = controls
+        .flatMap((control) => [...control.querySelectorAll('span')])
+        .filter((word) => word.children.length === 0 && word.getClientRects().length > 0)
+        .map((word) => word.textContent?.trim() ?? '')
+        .filter(Boolean)
+      const inDropOrder = [...words].sort((a, b) => dropOrder.indexOf(a) - dropOrder.indexOf(b))
+      return {
+        overflowing: controls
+          .filter((control) => {
+            const box = control.getBoundingClientRect()
+            return box.left < edges.left - 0.5 || box.right > edges.right + 0.5 || control.scrollWidth > control.clientWidth
+          })
+          .map((control) => control.getAttribute('aria-label')),
+        wordsDropLastFirst: inDropOrder.every((word, index) => word === dropOrder[index]),
+      }
+    }, BAR_WORDS)
+
+  // Read until it holds, since the bar takes a moment to settle into a new width
+  for (const width of PHONE_WIDTHS) {
+    await page.setViewportSize({ width, height: 844 })
+    await expect(done).toBeVisible()
+    await expect.poll(readBar, { message: `the bar at ${width}px` }).toEqual({ overflowing: [], wordsDropLastFirst: true })
+  }
 }
 
 /** The account's ledger transactions as the server holds them, newest first */
@@ -189,4 +232,23 @@ test('dismisses the ticked items together and leaves the ledger as it was', NEED
   await expect(page.getByText('2 items dismissed.', { exact: true })).toBeVisible()
   expect(await readWaiting(request, user, everyday.id)).toEqual([HARBOUR.description])
   expect(await readLedger(request, user, everyday.id)).toEqual([])
+})
+
+test('keeps every action inside the phone selection bar while Dismiss is offered', NEEDS_BANK_SYNC, async ({ page, request }) => {
+  await start(page, request, [COUNTDOWN, HARBOUR, CAFE])
+  await expect(page.getByRole('button', { name: 'Dismiss the selected items', exact: true })).toBeAttached()
+
+  await expectPhoneBarFits(page)
+})
+
+test('keeps every action inside the phone selection bar with no item waiting for review', async ({ page, request }) => {
+  const user = await signUpUser(request)
+  const savings = await createAccount(request, user, { name: 'Savings', accountType: 'savings' })
+  await createTransaction(request, user, { accountId: savings.id, categoryName: 'Groceries', amount: -1000, date: LEDGER_DATE })
+  await logInViaApi(page, user)
+  await openPage(page, '/transactions')
+  await page.getByRole('button', { name: 'Select transactions', exact: true }).click()
+  await expect(page.getByRole('button', { name: 'Dismiss the selected items', exact: true })).toHaveCount(0)
+
+  await expectPhoneBarFits(page)
 })
