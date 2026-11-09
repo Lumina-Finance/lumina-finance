@@ -112,7 +112,7 @@ async def test_account_bank_link_shows_its_imports_progress(client):
         },
         "previous_link": None,
         "balance": None,
-        "opening_adjustment": None,
+        "balance_match": None,
     }
 
 
@@ -216,7 +216,7 @@ async def test_account_bank_link_after_an_unlink_shows_what_it_was_linked_to(cli
     after_unlink = await _read_status(client, headers, account_id)
 
     assert never_linked.status_code == 200, never_linked.text
-    assert never_linked.json() == {"account_id": account_id, "link": None, "previous_link": None, "balance": None, "opening_adjustment": None}
+    assert never_linked.json() == {"account_id": account_id, "link": None, "previous_link": None, "balance": None, "balance_match": None}
     async with TestSession() as session:
         unlinked_at = await session.scalar(select(BankAccountLink.unlinked_at).where(BankAccountLink.account_id == uuid.UUID(account_id)))
     assert after_unlink.status_code == 200, after_unlink.text
@@ -232,7 +232,7 @@ async def test_account_bank_link_after_an_unlink_shows_what_it_was_linked_to(cli
             "institution_name": "Harbour Bank",
         },
         "balance": None,
-        "opening_adjustment": None,
+        "balance_match": None,
     }
 
 

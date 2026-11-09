@@ -82,7 +82,6 @@ from app.services.bank_sync.history_reminder import (
 from app.services.bank_sync.holds import store_holds
 from app.services.bank_sync.ingestion import store_booked_records
 from app.services.bank_sync.jobs import ClaimedJob, JobNotHeld, enqueue_bank_sync_job, finish_job, lock_covered_links, lock_held_job
-from app.services.bank_sync.opening_adjustment import offer_opening_adjustments
 from app.services.bank_sync.pending import store_pending_records
 from app.services.bank_sync.provider_requests import (
     RequestBudgetSpent,
@@ -519,8 +518,7 @@ class _JobRun:
         the reminder if it fell short, as a single day that may have been cut short does on each link
         it brought back whole. Last, an import the part brought through today ends, and each link no
         import is running on pauses or resumes by its account's review backlog, the whole part
-        counted, then offers its opening adjustment once it is ready for it, or ends an offer whose
-        gap has closed, on the balance the part stored. A link that failed wasn't brought back whole,
+        counted. A link that failed wasn't brought back whole,
         so its import keeps running and the pause leaves it as it was
 
         Args:
@@ -573,11 +571,10 @@ class _JobRun:
             if cut_off:
                 reminded = flag_cut_off_day(whole, part.first_day) or reminded
             paused_or_imported = await apply_review_pauses(db, whole, today=self.today)
-            offered = await offer_opening_adjustments(db, whole, tz=self.timezone.key)
 
             # A sync never changes the owner's ledger, only what their pages show, so an import saved
             # before it can still be undone
-            if stored_changed or holds_changed or balances_changed or succeeded or failed or reminded or paused_or_imported or offered:
+            if stored_changed or holds_changed or balances_changed or succeeded or failed or reminded or paused_or_imported:
                 await mark_user_status_changed(db, self.job.owner_id)
             await db.commit()
             self.outbox += emails

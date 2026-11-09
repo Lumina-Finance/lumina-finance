@@ -36,7 +36,6 @@ from app.models.bank_connection import (
     BankExternalAccount,
     BankImportKind,
     BankLinkState,
-    OpeningAdjustmentState,
     UnavailableReason,
 )
 from app.models.bank_sync_job import BankSyncJob, BankSyncJobKind
@@ -161,9 +160,8 @@ async def link_bank_account(
 
     The import starts on the chosen day. That day has to be inside the account's import range. The import
     runs as a job, so the request returns at once. An account linked before gets a relink import,
-    keeping the answer to an opening adjustment an earlier link to the same bank account recorded or
-    skipped, and one whose link waits in Choose bank account keeps its link, moved to the chosen
-    bank account with a choose-again import
+    and one whose link waits in Choose bank account keeps its link, moved to the chosen bank account
+    with a choose-again import
 
     Args:
         db: Active database session
@@ -237,7 +235,6 @@ async def link_bank_account(
             owner_id=user.id,
             account_id=account.id,
             import_kind=BankImportKind.RELINK if was_linked_before else BankImportKind.INITIAL,
-            opening_adjustment_state=await _read_answered_opening_adjustment(db, account, connection.provider, bank_account.external_id),
         )
         db.add(link)
     elif link.state == BankLinkState.CHOOSE_ACCOUNT:
@@ -325,7 +322,7 @@ async def lock_live_link(db: AsyncSession, user: User, account_id: uuid.UUID) ->
     """Lock the links of one of the user's own personal accounts, and return the account with its live link
 
     The links are locked after their connections, as every writer takes them, so a sync or a review
-    decision writing the link finishes first, and a second answer waits for the first and finds it
+    decision writing the link finishes first, and a second write waits for the first and finds what it left
 
     Raises:
         HTTPException 403: The account is visible but isn't the user's own personal account
@@ -446,43 +443,17 @@ async def _request_fresh_discovery(db: AsyncSession, connection: BankConnection,
     return True
 
 
-async def _read_answered_opening_adjustment(db: AsyncSession, account: Account, provider: str, external_account_id: str) -> str:
-    """Return how the account's latest earlier link to the same bank account answered its opening adjustment. A new link keeps it
-
-    The adjustment is offered once for an account and its bank account, so one recorded or skipped
-    isn't offered again on relinking, and a new link waits for its own import otherwise
-    """
-    answered = await db.scalar(
-        select(BankAccountLink.opening_adjustment_state)
-        .where(
-            BankAccountLink.account_id == account.id,
-            BankAccountLink.provider == provider,
-            BankAccountLink.external_account_id == external_account_id,
-            BankAccountLink.opening_adjustment_state.in_([OpeningAdjustmentState.RECORDED, OpeningAdjustmentState.SKIPPED]),
-        )
-        .order_by(BankAccountLink.linked_at.desc())
-        .limit(1)
-    )
-    return answered or OpeningAdjustmentState.NOT_READY
-
-
 def _restart_for_new_bank_account(link: BankAccountLink) -> None:
     """Make a link waiting in Choose bank account active again as a choose-again import
 
     Its sync record belonged to the bank account as the provider listed it before, so none of it
     carries over, its reminders about history that bank account may not have returned included,
     since the new import raises its own. The review pause counts the account's waiting items, so it
-    stays, and the new import runs to today whatever the pause says. An opening adjustment recorded
-    or skipped stays answered, while one not answered waits again until the new import ends and its
-    items are reviewed, since the balance it closes is the chosen bank account's. The earlier
-    import's end is forgotten, so the new import's end is the one its items are judged by
+    stays, and the new import runs to today whatever the pause says
     """
-    if link.opening_adjustment_state not in (OpeningAdjustmentState.RECORDED, OpeningAdjustmentState.SKIPPED):
-        link.opening_adjustment_state = OpeningAdjustmentState.NOT_READY
     link.state = BankLinkState.ACTIVE
     link.import_kind = BankImportKind.CHOOSE_AGAIN
     link.importing = True
-    link.import_ended_at = None
     link.linked_at = func.now()
     link.last_success_at = None
     link.last_attempt_at = None

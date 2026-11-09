@@ -1,23 +1,24 @@
 /**
- * Covers the opening adjustment offer at the foot of the balance panel: its sentences, the offered
- * amount it starts from with the offer's sign beside it, its two answers, the amount an answer
- * records, and the signs the amount refuses
+ * Covers the balance match offer at the foot of the balance panel: its title and sentences, the offered
+ * amount it starts from with the offer's sign beside it, Record adjustment as its only button, the
+ * amount a recording sends, the typing an offer of another amount replaces, and the signs the amount
+ * refuses
  *
- * These tests catch the sentence asking for the adjustment with its date given as the server sends
- * it or with the wrong provider, the ledger's balance said to move the wrong way, the items waiting
+ * These tests catch a Skip coming back, the sentence asking for the adjustment with its date given as
+ * the server sends it or with the wrong provider, the ledger's balance said to move the wrong way, the items waiting
  * for review left unmentioned, said to move it the wrong way, by the wrong amount, with a doubled
  * sign or in the wrong currency, or mentioned while they move nothing, the field starting blank,
  * signed in the field, or with no sign beside it, a sign a screen reader never hears or hears the
  * wrong way round, a card's negative offer shown as positive, a currency without cents shown in
  * cents, an amount shown or recordable while the currency's decimal places are unknown, a message
  * shown before anything is recorded, an amount typed over the offer recorded with the wrong sign, a
- * blank or zero amount sent rather than refused, and a hyphen, true minus or plus taken without
- * saying why. Recording, skipping, the messages for a zero amount and a typed sign, and a refused
- * answer run in the browser
+ * blank or zero amount sent rather than refused, typing kept over the remainder a recording leaves,
+ * and a hyphen, true minus or plus taken without saying why. Recording, the messages for a zero amount
+ * and a typed sign, and a refused recording run in the browser
  */
 import { renderToStaticMarkup } from 'react-dom/server'
 import { describe, expect, it, vi } from 'vitest'
-import type { OpeningAdjustment } from '@/api/bank-sync'
+import type { BalanceMatch } from '@/api/bank-sync'
 import type { Currency } from '@/api/currency'
 
 const CURRENCIES: Currency[] = [
@@ -44,41 +45,46 @@ vi.mock('@/components/currency/CurrencyUnavailableTooltip', () => ({
 vi.mock('@/hooks/useToast', () => ({ useToast: () => ({ showToast: vi.fn() }) }))
 vi.mock('@/api/bank-sync', async (importOriginal) => ({
   ...(await importOriginal<typeof import('@/api/bank-sync')>()),
-  useRecordOpeningAdjustment: () => ({ isPending: false, mutate: vi.fn() }),
-  useSkipOpeningAdjustment: () => ({ isPending: false, mutate: vi.fn() }),
+  useRecordBalanceMatch: () => ({ isPending: false, mutateAsync: vi.fn() }),
 }))
 
-import { OpeningAdjustmentOffer } from '@/pages/accounts/detail/components/bank-link/OpeningAdjustmentOffer'
+import { BalanceMatchOffer } from '@/pages/accounts/detail/components/bank-link/BalanceMatchOffer'
 import { formatCurrencySymbol } from '@/utils/formatCurrency'
 import {
   getRecordingProblem,
   holdsSign,
   readRecordedAmount,
   readRecording,
+  readTypedAmount,
   SIGNED_AMOUNT_MESSAGE,
   ZERO_AMOUNT_MESSAGE,
-} from '@/pages/accounts/detail/components/bank-link/openingAdjustment'
+} from '@/pages/accounts/detail/components/bank-link/balanceMatch'
 
 const MINUS = String.fromCodePoint(0x2212)
 
 /** Static rendering marks where one text node meets the next and escapes apostrophes */
-function renderOffer(offer: OpeningAdjustment, currency = 'CAD'): string {
+function renderOffer(offer: BalanceMatch, currency = 'CAD'): string {
   return renderToStaticMarkup(
-    <OpeningAdjustmentOffer
+    <BalanceMatchOffer
       accountId="account-1"
       offer={offer}
       currency={currency}
       providerName="SimpleFIN"
-      onAnswered={vi.fn()}
+      onFolded={vi.fn()}
     />,
   )
     .replaceAll('<!-- -->', '')
     .replaceAll('&#x27;', "'")
 }
 
-/** The text of the offer's paragraph, above the amount */
+/** The text of the offer's paragraphs above the amount: its title, then its sentences */
+function readParagraphs(markup: string): string[] {
+  return [...markup.matchAll(/<p[^>]*>([^<]*)<\/p>/g)].map((match) => match[1])
+}
+
+/** The text of the offer's sentences, under its title */
 function readSentences(markup: string): string {
-  return markup.match(/<p[^>]*>([^<]*)<\/p>/)?.[1] ?? ''
+  return readParagraphs(markup)[1] ?? ''
 }
 
 /** The sign and symbol shown beside the field, and the field's value */
@@ -101,14 +107,18 @@ function readAttributes(markup: string, label?: string): string {
   return markup.match(pattern)?.[1] ?? ''
 }
 
-describe('the opening adjustment offer', () => {
-  it('asks to record an opening adjustment on the day before the import start, with its amount and two answers', () => {
+describe('the balance match offer', () => {
+  it("offers to match SimpleFIN's balance with an adjustment on the day before the import start, with Record adjustment and no Skip", () => {
     const markup = renderOffer({ amount: 25000, waiting_amount: 0, adjustment_date: '2026-05-31' })
 
-    expect(readSentences(markup)).toMatch(/^Record an opening adjustment on May 31, 2026, [^.]*SimpleFIN's\./)
+    expect(readParagraphs(markup)[0]).toBe("Match SimpleFIN's balance")
+    expect(readSentences(markup)).toMatch(
+      /^Record the difference as a balance adjustment on May 31, 2026, so your ledger matches SimpleFIN's balance\./,
+    )
     expect(markup).toMatch(/<label[^>]*><span[^>]*>Adjustment amount<\/span><\/label>/)
-    expect(markup).toContain('>Skip<')
+    expect(markup.match(/<button/g)).toHaveLength(1)
     expect(markup).toContain('>Record adjustment<')
+    expect(markup).not.toContain('Skip')
     expect(markup).not.toContain(ZERO_AMOUNT_MESSAGE)
   })
 
@@ -198,12 +208,22 @@ describe('the opening adjustment offer', () => {
     expect(readField(markup)).toEqual([MINUS, ''])
     expect(readAttributes(markup)).toContain('disabled=""')
     expect(readAttributes(markup, 'Record adjustment')).toContain('aria-disabled="true"')
-    expect(readAttributes(markup, 'Skip')).not.toContain('aria-disabled')
     expect(markup).toContain('Adjustment amount unavailable')
   })
 })
 
-describe('the amount an answer records', () => {
+describe('what the amount shows of what was typed', () => {
+  it('keeps 240.00 typed over an offer of 250.00 while that offer stands', () => {
+    expect(readTypedAmount({ offered: 25000, value: '240.00' }, 25000)).toBe('240.00')
+  })
+
+  it('shows the offered amount once the offer moves, such as to the 10.00 a recording of 240.00 leaves', () => {
+    expect(readTypedAmount({ offered: 25000, value: '240.00' }, 1000)).toBeNull()
+    expect(readTypedAmount(null, 1000)).toBeNull()
+  })
+})
+
+describe('the amount a recording sends', () => {
   it.each([
     { typed: '250.00', exponent: 2, offered: 25000, recorded: 25000 },
     { typed: '240', exponent: 2, offered: 25000, recorded: 24000 },

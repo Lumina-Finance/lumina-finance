@@ -35,7 +35,7 @@ from app.schemas.bank_sync import (
     LinkBankAccountRequest,
     ReconnectBankConnectionRequest,
     ReconnectBankConnectionResponse,
-    RecordOpeningAdjustmentRequest,
+    RecordBalanceMatchRequest,
     RestoreBankValueRequest,
     UnlinkResponse,
     UpdateBankConnectionRequest,
@@ -43,6 +43,7 @@ from app.schemas.bank_sync import (
 from app.schemas.transaction import TransactionResponse
 from app.services.bank_sync.account_link import list_bank_links, read_account_bank_status
 from app.services.bank_sync.availability import list_providers
+from app.services.bank_sync.balance_match import record_balance_match
 from app.services.bank_sync.bulk_approval import apply_bulk_approval, preview_bulk_approval
 from app.services.bank_sync.claim import claim_connection, reconnect_connection
 from app.services.bank_sync.connections import list_connections, rename_connection
@@ -55,7 +56,6 @@ from app.services.bank_sync.links import (
     list_bank_accounts_for_account,
     unlink_account,
 )
-from app.services.bank_sync.opening_adjustment import record_opening_adjustment, skip_opening_adjustment
 from app.services.bank_sync.pending_items import list_pending_transactions
 from app.services.bank_sync.review_decisions import (
     accept_bank_change,
@@ -383,44 +383,25 @@ async def sync_bank_link_now(
     return await sync_account_now(db, user, account_id)
 
 
-@bank_link_router.post("/opening-adjustment/record", response_model=AccountBankStatusResponse)
-async def record_offered_opening_adjustment(
+@bank_link_router.post("/balance-match", response_model=AccountBankStatusResponse)
+async def record_offered_balance_match(
     account_id: uuid.UUID,
-    request: RecordOpeningAdjustmentRequest,
+    request: RecordBalanceMatchRequest,
     user: Annotated[User, Depends(get_current_user)],
     db: Annotated[AsyncSession, Depends(get_db)],
 ):
-    """Record the opening adjustment one of the user's linked accounts offers, for the amount given
+    """Record the balance match one of the user's linked accounts offers, for the amount given
 
     Args:
         account_id: The linked account
-        request: The amount to record, the one offered or the user's own
+        request: The amount to record, the one offered or the user's own, and the offer it answers
         user: Authenticated owner of the account
         db: Active database session
 
     Returns:
-        The account's bank link, with the balances taking in the adjustment and no offer left
+        The account's bank link, with the balances taking in the adjustment and any difference left offered
     """
-    return await record_opening_adjustment(db, user, account_id, request.amount)
-
-
-@bank_link_router.post("/opening-adjustment/skip", response_model=AccountBankStatusResponse)
-async def skip_offered_opening_adjustment(
-    account_id: uuid.UUID,
-    user: Annotated[User, Depends(get_current_user)],
-    db: Annotated[AsyncSession, Depends(get_db)],
-):
-    """Skip the opening adjustment one of the user's linked accounts offers, recording nothing
-
-    Args:
-        account_id: The linked account
-        user: Authenticated owner of the account
-        db: Active database session
-
-    Returns:
-        The account's bank link, with no offer left
-    """
-    return await skip_opening_adjustment(db, user, account_id)
+    return await record_balance_match(db, user, account_id, amount=request.amount, offered_amount=request.offered_amount)
 
 
 @bank_link_router.post("/history-reminder/dismiss", response_model=AccountBankStatusResponse)

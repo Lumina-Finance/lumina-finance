@@ -1,4 +1,4 @@
-"""Shared builders for the opening adjustment route tests"""
+"""Shared builders for the balance match route tests"""
 
 from dataclasses import dataclass
 from datetime import date, datetime, timedelta
@@ -6,7 +6,7 @@ from zoneinfo import ZoneInfo
 
 from sqlalchemy import update
 
-from app.models.bank_connection import BankAccountLink, OpeningAdjustmentState
+from app.models.bank_connection import BankAccountLink
 from tests.conftest import TestSession
 from tests.routes.support.bank_sync_helpers import (
     _commit_bank_balance,
@@ -25,7 +25,7 @@ _NOW = datetime(2026, 10, 5, 12, 0, tzinfo=_TORONTO)
 # 6:00 PM on October 3 in Toronto
 _BALANCE_AT = datetime(2026, 10, 3, 18, 0, tzinfo=_TORONTO)
 
-# Everyday's import starts on 1 June, so its opening adjustment is dated 31 May
+# Everyday's import starts on 1 June, so its balance match is dated 31 May
 _IMPORT_START = date(2026, 6, 1)
 
 
@@ -69,8 +69,3 @@ async def _linked_everyday(
         )
         await session.commit()
     return _Everyday(headers, account_id, link, ledger_ids)
-
-
-async def _offering_everyday(client, *ledger: tuple[str, int], **values) -> _Everyday:
-    """Everyday as _linked_everyday leaves it, its link offering the opening adjustment"""
-    return await _linked_everyday(client, *ledger, opening_adjustment_state=OpeningAdjustmentState.OFFERED, **values)

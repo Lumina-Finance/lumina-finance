@@ -15,7 +15,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.bank_transaction import BankTransactionDisposition, OpenReviewKind
 from app.routes.accounts import deletion_helpers as account_deletion_module
-from app.services.bank_sync import account_link, history_reminder, import_range, links, opening_adjustment, review_decisions
+from app.services.bank_sync import account_link, balance_match, history_reminder, import_range, links, review_decisions
+from tests.routes.support.balance_match_helpers import _linked_everyday as _matching_everyday
 from tests.routes.support.bank_sync_helpers import BANK_DATE, _commit_review_item
 from tests.routes.support.history_reminder_helpers import _CUT_SHORT, _FELL_SHORT, _SHOWN
 from tests.routes.support.history_reminder_helpers import _linked_everyday as _history_everyday
@@ -23,7 +24,6 @@ from tests.routes.support.link_helpers import _linkable
 from tests.routes.support.lock_helpers import _held_request, _overlap, _pid, _record_pid
 from tests.routes.support.manual_entry_helpers import _Ledger, _ledger
 from tests.routes.support.merchant_helpers import _get_system_merchant_id
-from tests.routes.support.opening_adjustment_helpers import _offering_everyday
 from tests.routes.support.transaction_helpers import _create_transaction
 
 # Noon UTC on October 5, a morning in Toronto, the zone the tests sign up in
@@ -127,7 +127,7 @@ async def test_an_account_delete_waits_for_a_review_decision_saving_to_the_accou
     )
 
 
-@pytest.mark.parametrize("change", ["link", "dismiss-history-reminder", "dismiss-cut-off-day", "record-opening-adjustment"])
+@pytest.mark.parametrize("change", ["link", "dismiss-history-reminder", "dismiss-cut-off-day", "record-balance-match"])
 async def test_an_account_delete_waits_for_a_bank_link_change_saving_to_the_account_and_the_change_still_answers(client, monkeypatch, change):
     """The link change commits and answers with the link, then the delete takes the account."""
     if change == "link":
@@ -135,11 +135,11 @@ async def test_an_account_delete_waits_for_a_bank_link_change_saving_to_the_acco
         module, step, status = links, "mark_user_cache_changed", 201
         path = f"/accounts/{account_id}/bank-link"
         body = {"connection_id": str(connection.id), "external_account_id": "ACT-1", "start_date": "2026-09-05"}
-    elif change == "record-opening-adjustment":
-        everyday = await _offering_everyday(client, ("2026-09-15", 100000))
+    elif change == "record-balance-match":
+        everyday = await _matching_everyday(client, ("2026-09-15", 100000))
         headers, account_id = everyday.headers, everyday.account_id
-        module, step, status = opening_adjustment, "mark_user_cache_changed", 200
-        path, body = f"/accounts/{account_id}/bank-link/opening-adjustment/record", {"amount": 25000}
+        module, step, status = balance_match, "mark_user_cache_changed", 200
+        path, body = f"/accounts/{account_id}/bank-link/balance-match", {"amount": 25000, "offered_amount": 25000}
     else:
         history = change == "dismiss-history-reminder"
         headers, account_id, _ = await _history_everyday(client, **(_FELL_SHORT if history else _CUT_SHORT))

@@ -1,6 +1,6 @@
 import { useId, useRef, useState, type KeyboardEvent } from 'react'
 import { ApiError } from '@/api/auth'
-import { useRecordOpeningAdjustment, useSkipOpeningAdjustment, type OpeningAdjustment } from '@/api/bank-sync'
+import { useRecordBalanceMatch, type BalanceMatch } from '@/api/bank-sync'
 import { CurrencyUnavailableTooltip } from '@/components/currency/CurrencyUnavailableTooltip'
 import ActionFeedbackButton from '@/components/feedback/ActionButton'
 import { useCurrencyListState } from '@/hooks/useCurrencyListState'
@@ -10,13 +10,15 @@ import { useMoneyInput } from '@/hooks/useMoneyInput'
 import { useRefusedSubmit } from '@/hooks/useRefusedSubmit'
 import { useToast } from '@/hooks/useToast'
 import {
-  ANSWER_FAILED_MESSAGE,
   describeSign,
   getRecordingProblem,
   holdsSign,
   readRecording,
+  readTypedAmount,
+  RECORDING_FAILED_MESSAGE,
   SIGNED_AMOUNT_MESSAGE,
-} from '@/pages/accounts/detail/components/bank-link/openingAdjustment'
+  type TypedAmount,
+} from '@/pages/accounts/detail/components/bank-link/balanceMatch'
 import { useMoveFocusOnFold } from '@/pages/accounts/detail/components/bank-link/useMoveFocusOnFold'
 import { AccountIdentityFieldLabelRow } from '@/pages/accounts/detail/components/edit-identity/controls/FieldLabelRow'
 import { formatDateLabel } from '@/utils/date'
@@ -25,83 +27,73 @@ import { getAmountSign, signMovedAmount } from '@/utils/negativeAmount'
 import { DEFAULT_MINOR_UNIT_EXPONENT, findCurrencyExponent, fromMinorUnits } from '@/utils/moneyInput'
 
 const AMOUNT_FIELDS = ['amount'] as const
-const SKIP_LABEL = 'Skip'
 const RECORD_LABEL = 'Record adjustment'
 // The sign and symbol are drawn 1rem in from the field's edge in 1rem text
 const PREFIX_PLACEMENT = { insetRem: 1, fontRem: 1 }
 const BUTTON_CLASS = 'relative w-full shrink-0 whitespace-nowrap sm:w-(--fit-width)'
 
-type OpeningAdjustmentOfferProps = {
+type BalanceMatchOfferProps = {
   accountId: string
-  offer: OpeningAdjustment
+  offer: BalanceMatch
 
   /** The account's currency, shared by a live link's bank account */
   currency: string
   providerName: string
 
-  /**
-   * Moves focus on once an answer goes through, or a read of the link leaves the offer out first, since
-   * the offer folds away with the button holding it
-   */
-  onAnswered: () => void
+  /** Moves focus on once the offer starts to fold away with focus still in it */
+  onFolded: () => void
 }
 
 /**
- * The one-time offer, once the initial import is reviewed, to record the gap between the bank's
- * balance and the ledger's as an opening adjustment dated the day before the import start. It sits at
- * the foot of the balance panel under the balances and their difference, with the offered amount to
- * keep or type over, and folds away once answered, leaving the balances. It says which way the offered
- * amount moves the ledger's balance, and while items waiting for review would move it, by how much,
- * since the offer leaves them out and so differs from the difference shown above it
+ * The offer to record the gap between the bank's balance and the ledger's as a balance adjustment
+ * dated the day before the import start. It sits at the foot of the balance panel under the balances
+ * and their difference whenever there is a gap to close, with the offered amount to keep or type over.
+ * It says which way the offered amount moves the ledger's balance, and while items waiting for review
+ * would move it, by how much, since the offer leaves them out and so differs from the difference shown
+ * above it
+ *
+ * Recording shows the difference left. The offer folds away when none is, and otherwise stays with
+ * the amount left, replacing whatever was typed, as it does whenever a read of the link brings
+ * another amount. Focus stays on Record adjustment while the offer stays, and moves on once it folds
  *
  * Record adjustment refuses a blank or zero amount with a message beside the field, and then fades,
  * staying focusable and giving the same message as its reason until the amount is fixed. The field
  * says why it refuses a typed or pasted sign, and Record adjustment refuses the same way while that
- * message shows. Either refusal moves focus to the field. A press while
- * either answer runs does nothing, and the buttons keep the focus they hold, as Sync now does, until
- * an answer goes through, or a read of the link leaves the offer out first, and focus inside the offer
- * moves on. A refused answer says why in a toast, and the account's bank link is read again. That
- * folds the offer away if it was answered elsewhere. Enter in the field records nothing, since the
- * offer sits inside the account's edit form and Enter would otherwise press its Save. While the
- * currency list lacks the account's currency, the amount and Record adjustment lock, with the reason
- * beside the label, as other stored amounts do
+ * message shows. Either refusal moves focus to the field. A press while recording runs does nothing.
+ * A refused recording says why in a toast, and the account's bank link is read again, so an offer that
+ * moved meanwhile shows its new amount. Enter in the field records nothing, since the offer sits inside
+ * the account's edit form and Enter would otherwise press its Save. While the currency list lacks the
+ * account's currency, the amount and Record adjustment lock, with the reason beside the label, as
+ * other stored amounts do
  */
-export function OpeningAdjustmentOffer({
-  accountId,
-  offer,
-  currency,
-  providerName,
-  onAnswered,
-}: OpeningAdjustmentOfferProps) {
+export function BalanceMatchOffer({ accountId, offer, currency, providerName, onFolded }: BalanceMatchOfferProps) {
   const rootRef = useRef<HTMLDivElement>(null)
   const amountId = useId()
   const signId = useId()
   const errorId = useId()
   const { currencies, formatCurrency } = useMoneyFormatters()
   const { showToast } = useToast()
-  const record = useRecordOpeningAdjustment()
-  const skip = useSkipOpeningAdjustment()
-  const { buttonRef: skipRef, style: skipStyle, measure: skipMeasure } = useFittedButtonWidth(SKIP_LABEL)
+  const record = useRecordBalanceMatch()
   const { buttonRef: recordRef, style: recordStyle, measure: recordMeasure } = useFittedButtonWidth(RECORD_LABEL)
   const currencyState = useCurrencyListState()
   // Written the way the rest of the app writes it, in the reader's own language
   const symbol = currencies.some((entry) => entry.id === currency) ? formatCurrencySymbol(currency) : ''
 
   // Without the currency's decimal places the offered amount can be neither shown nor read back, so
-  // the amount and Record adjustment lock until the currency list has them. Skip records nothing
+  // the amount and Record adjustment lock until the currency list has them
   const knownExponent = findCurrencyExponent(currencies, currency)
   const locked = knownExponent === null
   const exponent = knownExponent ?? DEFAULT_MINOR_UNIT_EXPONENT
 
-  // The offered amount until the field is typed in, so an offer read again with another amount shows it
-  const [typed, setTyped] = useState<string | null>(null)
+  const [typed, setTyped] = useState<TypedAmount | null>(null)
   const [error, setError] = useState<string | null>(null)
+  const typedValue = readTypedAmount(typed, offer.amount)
 
   const amountInput = useMoneyInput({
-    value: typed ?? (locked ? '' : fromMinorUnits(Math.abs(offer.amount), exponent)),
+    value: typedValue ?? (locked ? '' : fromMinorUnits(Math.abs(offer.amount), exponent)),
     exponent,
     onChange: (value, text) => {
-      setTyped(value)
+      setTyped({ offered: offer.amount, value })
 
       // The field refuses text holding a sign and keeps its value, so the refused text is read to say
       // why. Settling on blur reports no text, so the message is left as it was
@@ -119,39 +111,26 @@ export function OpeningAdjustmentOffer({
     { amount: amountId },
   )
   const shownError = error ?? refusal.errors.amount
-  const busy = record.isPending || skip.isPending
   const prefix = signMovedAmount(getAmountSign(offer.amount), symbol)
 
   // How approving the items waiting for review would move the ledger's balance, as a direction in words
   // and an unsigned amount. The offer leaves that movement out
   const waitingDirection = offer.waiting_amount < 0 ? 'lower' : 'raise'
   const waitingSize = formatCurrency(Math.abs(offer.waiting_amount), currency)
-  useMoveFocusOnFold(rootRef, onAnswered)
+  useMoveFocusOnFold(rootRef, onFolded)
 
-  const reportError = (cause: unknown) =>
-    showToast({ status: 'error', text: cause instanceof ApiError ? cause.message : ANSWER_FAILED_MESSAGE })
-
-  // The answer is awaited here rather than through the mutation's own callbacks. Those are dropped once
-  // the offer has gone, so a refusal still says why after a read of the link has left it out. Focus
-  // elsewhere stays where the person put it while the answer ran
-  const answer = (send: () => Promise<unknown>) => {
-    void send().then(() => {
-      if (rootRef.current?.contains(document.activeElement)) onAnswered()
-    }, reportError)
-  }
-
+  // The recording is awaited here rather than through the mutation's own callbacks. Those are dropped
+  // once the offer has gone, so a refusal still says why after a read of the link has left it out
   const recordOffer = () => {
     if (!refusal.guard()) return
     const reading = readRecording(error, amountInput.value, exponent, offer.amount)
     if ('refusal' in reading) return
     setError(null)
-    answer(() => record.mutateAsync({ accountId, amount: reading.amount }))
-  }
-
-  const skipOffer = () => {
-    setError(null)
-    refusal.reset()
-    answer(() => skip.mutateAsync(accountId))
+    void record
+      .mutateAsync({ accountId, amount: reading.amount, offeredAmount: offer.amount })
+      .catch((cause) =>
+        showToast({ status: 'error', text: cause instanceof ApiError ? cause.message : RECORDING_FAILED_MESSAGE }),
+      )
   }
 
   // Deleting in a field the refused text left blank changes no text, so no change arrives to clear
@@ -165,15 +144,20 @@ export function OpeningAdjustmentOffer({
 
   return (
     <div ref={rootRef} className="space-y-3">
-      <p className="text-sm" style={{ color: 'var(--app-text-muted)' }}>
-        Record an opening adjustment on {formatDateLabel(offer.adjustment_date)}, to bring your ledger&apos;s balance in
-        line with {providerName}&apos;s.{' '}
-        {offer.amount < 0 ? "This lowers your ledger's balance." : "This raises your ledger's balance."}
-        {offer.waiting_amount !== 0 &&
-          ` Approving the items waiting for review would ${waitingDirection} your ledger's balance by ${waitingSize}, so this leaves them out. Review them first if you entered any of them by hand.`}
-      </p>
-      {/* The label row spans the answers too, so the message beside the label keeps to one line
-          wherever the amount and the answers share a row */}
+      <div className="space-y-1">
+        <p className="text-sm font-medium" style={{ color: 'var(--app-text)' }}>
+          Match {providerName}&apos;s balance
+        </p>
+        <p className="text-sm" style={{ color: 'var(--app-text-muted)' }}>
+          Record the difference as a balance adjustment on {formatDateLabel(offer.adjustment_date)}, so your ledger
+          matches {providerName}&apos;s balance.{' '}
+          {offer.amount < 0 ? "This lowers your ledger's balance." : "This raises your ledger's balance."}
+          {offer.waiting_amount !== 0 &&
+            ` Approving the items waiting for review would ${waitingDirection} your ledger's balance by ${waitingSize}, so this leaves them out. Review them first if you entered any of them by hand.`}
+        </p>
+      </div>
+      {/* The label row spans the button too, so the message beside the label keeps to one line
+          wherever the amount and the button share a row */}
       <div>
         <AccountIdentityFieldLabelRow
           label={
@@ -209,7 +193,7 @@ export function OpeningAdjustmentOffer({
               aria-describedby={shownError ? `${errorId} ${signId}` : signId}
               aria-invalid={shownError ? true : undefined}
               disabled={locked}
-              readOnly={busy}
+              readOnly={record.isPending}
               {...amountInput}
               onKeyDown={handleKeyDown}
             />
@@ -218,35 +202,20 @@ export function OpeningAdjustmentOffer({
               {describeSign(offer.amount)}
             </span>
           </div>
-          <div className="flex flex-col gap-2 sm:flex-row">
-            <ActionFeedbackButton
-              ref={skipRef}
-              type="button"
-              status={skip.isPending ? 'loading' : 'idle'}
-              loadingLabel="Skipping"
-              className={`app-secondary-button ${BUTTON_CLASS}`}
-              style={skipStyle}
-              measure={skipMeasure}
-              aria-disabled={record.isPending || undefined}
-              onClick={busy ? undefined : skipOffer}
-            >
-              {SKIP_LABEL}
-            </ActionFeedbackButton>
-            <ActionFeedbackButton
-              ref={recordRef}
-              type="button"
-              status={record.isPending ? 'loading' : 'idle'}
-              loadingLabel="Recording adjustment"
-              className={`app-primary-button ${BUTTON_CLASS}`}
-              style={recordStyle}
-              measure={recordMeasure}
-              disabledReason={refusal.blockedReason ?? null}
-              aria-disabled={skip.isPending || locked || undefined}
-              onClick={busy || locked ? undefined : recordOffer}
-            >
-              {RECORD_LABEL}
-            </ActionFeedbackButton>
-          </div>
+          <ActionFeedbackButton
+            ref={recordRef}
+            type="button"
+            status={record.isPending ? 'loading' : 'idle'}
+            loadingLabel="Recording adjustment"
+            className={`app-primary-button ${BUTTON_CLASS}`}
+            style={recordStyle}
+            measure={recordMeasure}
+            disabledReason={refusal.blockedReason ?? null}
+            aria-disabled={locked || undefined}
+            onClick={record.isPending || locked ? undefined : recordOffer}
+          >
+            {RECORD_LABEL}
+          </ActionFeedbackButton>
         </div>
       </div>
     </div>

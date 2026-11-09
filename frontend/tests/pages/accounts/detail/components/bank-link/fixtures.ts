@@ -114,7 +114,7 @@ export function createStatus(overrides: Partial<AccountBankStatus> = {}): Accoun
     link: null,
     previous_link: null,
     balance: null,
-    opening_adjustment: null,
+    balance_match: null,
     ...overrides,
   }
 }

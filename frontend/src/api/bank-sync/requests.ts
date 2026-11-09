@@ -192,19 +192,23 @@ export function dismissCutOffDay({ accountId, day }: { accountId: string; day: s
 }
 
 /**
- * Records the offered opening adjustment for the amount given, in minor units signed as the ledger
- * keeps them, and returns the account's bank link with no offer left
+ * Records the offered balance match for the amount given, in minor units signed as the ledger keeps
+ * them, and returns the account's bank link with any difference left offered. The offered amount names
+ * the offer the person was shown, so the server refuses once that offer has moved
  */
-export function recordOpeningAdjustment({ accountId, amount }: { accountId: string; amount: number }) {
-  return post<AccountBankStatus>(`/accounts/${accountId}/bank-link/opening-adjustment/record`, { amount })
-}
-
-/**
- * Skips the offered opening adjustment, recording nothing, and returns the account's bank link with
- * no offer left
- */
-export function skipOpeningAdjustment(accountId: string) {
-  return post<AccountBankStatus>(`/accounts/${accountId}/bank-link/opening-adjustment/skip`)
+export function recordBalanceMatch({
+  accountId,
+  amount,
+  offeredAmount,
+}: {
+  accountId: string
+  amount: number
+  offeredAmount: number
+}) {
+  return post<AccountBankStatus>(`/accounts/${accountId}/bank-link/balance-match`, {
+    amount,
+    offered_amount: offeredAmount,
+  })
 }
 
 /**

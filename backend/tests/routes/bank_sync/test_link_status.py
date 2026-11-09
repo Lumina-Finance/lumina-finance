@@ -11,7 +11,7 @@ from zoneinfo import ZoneInfo
 import pytest
 from sqlalchemy import update
 
-from app.models.bank_connection import BankLinkState, BankProviderRequest, OpeningAdjustmentState
+from app.models.bank_connection import BankLinkState, BankProviderRequest
 from app.models.bank_sync_job import BankSyncJob, BankSyncJobKind, BankSyncJobStatus
 from app.services.bank_sync import account_link
 from tests.conftest import TestSession
@@ -88,24 +88,7 @@ async def _read_sync(client, headers, account_id) -> dict:
             id="choose-bank-account-over-pause",
         ),
         pytest.param(_SYNCED | {"paused": True}, {}, 0, True, "paused", False, id="pause-over-sync"),
-        pytest.param(
-            _SYNCED | {"opening_adjustment_state": OpeningAdjustmentState.OFFERED},
-            {},
-            0,
-            True,
-            "syncing",
-            False,
-            id="sync-over-opening-balance",
-        ),
-        pytest.param(
-            _SYNCED | {"opening_adjustment_state": OpeningAdjustmentState.OFFERED},
-            {},
-            80,
-            False,
-            "opening_balance",
-            True,
-            id="opening-balance-over-review-warning",
-        ),
+        pytest.param(_SYNCED, {}, 80, True, "syncing", True, id="sync-over-review-warning"),
         pytest.param(_SYNCED | _RETRY, {}, 80, False, "review_warning", True, id="review-warning-over-retry"),
         pytest.param(_SYNCED | _RETRY, {}, 0, False, "retrying", False, id="retry-over-synced"),
         pytest.param(_RETRY, {}, 0, False, "retrying", False, id="import-held-by-a-retry-shows-the-retry"),

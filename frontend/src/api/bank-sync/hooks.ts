@@ -39,10 +39,9 @@ import {
   fetchReviewBacklogs,
   fetchReviewPage,
   reconnectBankConnection,
-  recordOpeningAdjustment,
+  recordBalanceMatch,
   resolveReviewItem,
   restoreBankValue,
-  skipOpeningAdjustment,
   syncBankLink,
   updateBankConnection,
   type ReviewResolution,
@@ -55,7 +54,7 @@ import {
   applyBankLinkChanges,
   applyBulkApprovalOutcome,
   applyLedgerReviewOutcome,
-  applyOpeningAdjustmentAnswer,
+  applyRecordedBalanceMatch,
   applyRefusedReviewDecision,
   applyRestoredBankValue,
   applyReviewDecision,
@@ -493,39 +492,22 @@ export function useDismissCutOffDay() {
 }
 
 /**
- * How Record adjustment runs. The account's bank link the server answers with folds the offer away.
- * A refusal means the offer shown is out of date, answered elsewhere or no longer offered, so the
+ * How Record adjustment runs. The account's bank link the server answers with shows the difference
+ * left, folding the offer away when none is. A refusal means the offer shown is out of date, so the
  * account's bank link and the link list are read again
  */
-export function recordOpeningAdjustmentMutationOptions(queryClient: QueryClient) {
+export function recordBalanceMatchMutationOptions(queryClient: QueryClient) {
   return mutationOptions({
-    mutationFn: (payload: Parameters<typeof recordOpeningAdjustment>[0]) =>
-      runWithMinimumPendingTime(ACTION_LOADING_MIN_MS, () => recordOpeningAdjustment(payload)),
-    onSuccess: (status) => applyOpeningAdjustmentAnswer(queryClient, status, true),
+    mutationFn: (payload: Parameters<typeof recordBalanceMatch>[0]) =>
+      runWithMinimumPendingTime(ACTION_LOADING_MIN_MS, () => recordBalanceMatch(payload)),
+    onSuccess: (status) => applyRecordedBalanceMatch(queryClient, status),
     onError: (_error, { accountId }) => invalidateAccountBankLink(queryClient, accountId),
   })
 }
 
-export function useRecordOpeningAdjustment() {
+export function useRecordBalanceMatch() {
   const queryClient = useQueryClient()
-  return useMutation(recordOpeningAdjustmentMutationOptions(queryClient))
-}
-
-/**
- * How Skip runs, as Record adjustment does without recording anything
- */
-export function skipOpeningAdjustmentMutationOptions(queryClient: QueryClient) {
-  return mutationOptions({
-    mutationFn: (accountId: string) =>
-      runWithMinimumPendingTime(ACTION_LOADING_MIN_MS, () => skipOpeningAdjustment(accountId)),
-    onSuccess: (status) => applyOpeningAdjustmentAnswer(queryClient, status, false),
-    onError: (_error, accountId) => invalidateAccountBankLink(queryClient, accountId),
-  })
-}
-
-export function useSkipOpeningAdjustment() {
-  const queryClient = useQueryClient()
-  return useMutation(skipOpeningAdjustmentMutationOptions(queryClient))
+  return useMutation(recordBalanceMatchMutationOptions(queryClient))
 }
 
 /**

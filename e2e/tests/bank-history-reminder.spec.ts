@@ -23,10 +23,11 @@ import { API_BASE_URL } from '../support/target'
 // The reminder a linked account's Bank link section shows once its import returned less history than
 // it asked for, or none, run by the worker against the fake SimpleFIN Bridge. Everyday imports the
 // sample chequing account from 45 days ago, with its earliest transaction 33 days old, or an empty
-// bank account from 30 days ago, leaving the opening adjustment to confirm too. Which imports and
+// bank account from 30 days ago, leaving a difference to match too. Which imports and
 // catch-ups fall short, the reminder's words for each and the cache writes behind a dismissal are
 // covered by backend and unit tests
 const SAMPLE_CHEQUING = 'Everyday Chequing'
+const SYNCED_STATUS = /Synced (just now|\d+ minutes? ago)\./
 const LESS_HISTORY = 'Less history than requested'
 const NO_HISTORY = 'No history returned yet'
 const LIMIT_NOTE = 'This is likely a limit on how much history the bank keeps.'
@@ -211,13 +212,13 @@ test('says why the server refused a dismissal whose reminder a read of the link 
   expect(unlinkStatus).toBe(200)
 })
 
-test('shows the reminder of an import that got nothing above the opening adjustment offer, each whole on a phone', AT_EVERY_SIZE_NEEDS_BANK_SYNC, async ({ page, request }) => {
+test('shows the reminder of an import that got nothing above the balance match offer, each whole on a phone', AT_EVERY_SIZE_NEEDS_BANK_SYNC, async ({ page, request }) => {
   test.skip(test.info().project.name !== 'phone', 'It checks the layout a phone gets')
   await page.setViewportSize({ width: 390, height: 844 })
   const setup = await linkGettingNothing(request)
   await logInViaApi(page, setup.user)
 
-  const dialog = await openBankLink(page, setup.accountId, 'Opening balance to confirm')
+  const dialog = await openBankLink(page, setup.accountId, SYNCED_STATUS)
 
   const note = reminderNote(dialog, NO_HISTORY)
   await expect(note).toContainText(formatDateLabel(daysFromTodayInTestTimezone(-30)))
@@ -238,7 +239,7 @@ for (const colorScheme of ['light', 'dark'] as const) {
     await page.emulateMedia({ colorScheme, reducedMotion: 'reduce' })
     const setup = await linkGettingNothing(request)
     await logInViaApi(page, setup.user)
-    const dialog = await openBankLink(page, setup.accountId, 'Opening balance to confirm')
+    const dialog = await openBankLink(page, setup.accountId, SYNCED_STATUS)
     if (colorScheme === 'dark') await expect(page.locator('html')).toHaveClass(/\bdark\b/)
     else await expect(page.locator('html')).not.toHaveClass(/\bdark\b/)
 

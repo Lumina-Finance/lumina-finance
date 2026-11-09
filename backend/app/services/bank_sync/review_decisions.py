@@ -13,8 +13,7 @@ write left it. A repeated action answers as the first did without writing again,
 removal. That one finds nothing left and answers that the item wasn't found. Adding or dismissing can
 leave 50 or fewer new items waiting. That lifts the account's review pause and queues its sync, so
 every action first locks the connection that sync would need, then the account's links, the order
-every writer takes connections, links, bank transactions and their ledger transactions in. Either
-can also leave none of the import's items waiting. That offers the account's opening adjustment
+every writer takes connections, links, bank transactions and their ledger transactions in
 """
 
 import uuid
@@ -39,7 +38,6 @@ from app.permissions import check_transaction_access
 from app.schemas.bank_review import AddReviewItemRequest
 from app.schemas.transaction import CreateTransactionRequest, TransactionResponse, UpdateTransactionRequest
 from app.services.accounts.access import get_own_personal_account, own_personal_account_condition
-from app.services.bank_sync.opening_adjustment import offer_opening_adjustments
 from app.services.bank_sync.review_pause import lift_review_pauses, lock_account_links
 from app.services.bank_sync.review_state import EDITABLE_COLUMNS, align_with_bank, approved_description, bank_values, edited_fields
 from app.services.cache_state import mark_user_cache_changed, mark_user_status_changed
@@ -122,7 +120,6 @@ async def add_review_item_to_ledger(db: AsyncSession, user: User, item_id: uuid.
     await db.flush()
 
     await lift_review_pauses(db, user.id, links)
-    await offer_opening_adjustments(db, links, tz=user.tz)
     await mark_user_cache_changed(db, user.id)
 
     # Build the response before committing, since a delete of the account may take the row the moment
@@ -160,7 +157,6 @@ async def dismiss_review_item(db: AsyncSession, user: User, item_id: uuid.UUID) 
     await db.flush()
 
     await lift_review_pauses(db, user.id, links)
-    await offer_opening_adjustments(db, links, tz=user.tz)
 
     # A dismissal changes none of the ledger, so the data mark an import's undo compares with stays
     # where it was

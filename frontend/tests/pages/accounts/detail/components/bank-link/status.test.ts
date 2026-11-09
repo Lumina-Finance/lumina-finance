@@ -213,16 +213,6 @@ describe('describeBankSync for a live link', () => {
       { label: 'Syncing', tone: 'working', pulse: true, details: ['Last synced 1 hour ago'] },
     ],
     [
-      'an opening balance to confirm',
-      { sync: createSync({ state: 'opening_balance' }) },
-      {
-        label: 'Opening balance to confirm',
-        tone: 'review',
-        pulse: false,
-        details: ['Synced 1 hour ago', 'Next sync in 3 hours'],
-      },
-    ],
-    [
       'a review backlog nearing the pause',
       { sync: createSync({ state: 'review_warning', review_warning: true, waiting_new_count: 85 }) },
       {

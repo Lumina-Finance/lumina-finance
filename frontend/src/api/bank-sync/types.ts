@@ -273,8 +273,7 @@ export type LinkBankAccountPayload = {
  * The one state every surface shows for a live link, chosen by the server as the first that applies,
  * in this order: what only the user can fix (reconnect in settings, sign in to the bank at the
  * provider, choose the bank account again), an import fetching or waiting on the request budget, the
- * review pause, a sync fetching, an opening balance to confirm, the review warning, a retry, and
- * otherwise synced
+ * review pause, a sync fetching, the review warning, a retry, and otherwise synced
  */
 export type BankSyncState =
   | 'reconnect_needed'
@@ -284,7 +283,6 @@ export type BankSyncState =
   | 'import_waiting_on_budget'
   | 'paused'
   | 'syncing'
-  | 'opening_balance'
   | 'review_warning'
   | 'retrying'
   | 'synced'
@@ -492,8 +490,8 @@ export type AccountBankStatus = {
   /** Only for a live link that has synced and follows its bank account as the provider lists it */
   balance: BankBalance | null
 
-  /** Only while the opening adjustment is offered and the balances compare */
-  opening_adjustment: OpeningAdjustment | null
+  /** Only while the balances compare and differ once the items waiting are approved, and no import runs */
+  balance_match: BalanceMatch | null
 }
 
 export type BankField = 'date' | 'amount' | 'description'
@@ -701,11 +699,10 @@ export type TransactionBankSource = {
 }
 
 /**
- * The one-time offer, once the import is reviewed, to record the gap between the bank's balance and
- * the ledger's as an opening adjustment, leaving out the items still waiting for review, since the
- * bank's balance already holds them
+ * The offer to record the gap between the bank's balance and the ledger's as a balance adjustment,
+ * leaving out the items still waiting for review, since the bank's balance already holds them
  */
-export type OpeningAdjustment = {
+export type BalanceMatch = {
   /**
    * The bank's balance minus the ledger's on the balance date, less waiting_amount, in minor units
    * signed as the ledger keeps them

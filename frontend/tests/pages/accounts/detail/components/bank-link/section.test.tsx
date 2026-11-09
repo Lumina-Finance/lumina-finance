@@ -10,7 +10,7 @@
  * no longer exist, an import shown while a retry or a
  * stop holds it or dropped before it shows as done, a notice missing, worded unlike the issue, or shown for a link it doesn't apply to,
  * a notice's action losing focus to the link's own actions when the modal opens at the bank link,
- * the opening adjustment offer missing from the balance panel's foot or shown with nothing offered,
+ * the balance match offer missing from the balance panel's foot or shown with nothing offered,
  * a history or cut-off day reminder missing, worded wrongly for what came back, holding the offer back, or
  * taking the focus the modal gives the link's actions,
  * Sync now left live for something the server refuses or without the reason, a spent budget blamed
@@ -280,7 +280,7 @@ describe('BankLinkSection', () => {
     expect(markup).not.toContain('Link bank account')
   })
 
-  it('offers the opening adjustment at the foot of the balance panel only while there is one', () => {
+  it('offers the balance match at the foot of the balance panel only while there is one, with the status still synced', () => {
     const balance = {
       amount: 125000,
       available: null,
@@ -289,24 +289,26 @@ describe('BankLinkSection', () => {
       ledger_balance: 100000,
       difference: -25000,
     }
-    const link = createLink({ sync: createSync({ state: 'opening_balance' }) })
+    const link = createLink({ sync: createSync({ state: 'synced' }) })
     read.status = createStatus({
       link,
       balance,
-      opening_adjustment: { amount: 25000, waiting_amount: 0, adjustment_date: '2026-05-31' },
+      balance_match: { amount: 25000, waiting_amount: 0, adjustment_date: '2026-05-31' },
     })
     const markup = renderSection(createAccount({ current_balance: 100000 }))
 
-    expect(markup).toContain('Opening balance to confirm')
-    expect(markup).toMatch(/As of .*Record an opening adjustment on May 31, 2026/s)
+    expect(markup).toMatch(
+      /As of .*Match SimpleFIN&#x27;s balance.*Record the difference as a balance adjustment on May 31, 2026/s,
+    )
+    expect(markup).not.toContain('Opening balance to confirm')
 
-    // Skipped, the gap stays and the status no longer asks for the opening balance
+    // Matched, with no difference left
     read.status = createStatus({
-      link: createLink({ sync: createSync({ state: 'synced' }) }),
-      balance,
-      opening_adjustment: null,
+      link,
+      balance: { ...balance, ledger_balance: 125000, difference: 0 },
+      balance_match: null,
     })
-    expect(renderSection()).not.toContain('Record an opening adjustment')
+    expect(renderSection()).not.toContain('Record the difference')
   })
 
   it.each([
@@ -345,10 +347,9 @@ describe('BankLinkSection', () => {
     expect(markup).not.toContain('history the bank keeps')
   })
 
-  it('shows both reminders ahead of the balances, with the opening adjustment offer still at their foot', () => {
+  it('shows both reminders ahead of the balances, with the balance match offer still at their foot', () => {
     read.status = createStatus({
       link: createLink({
-        sync: createSync({ state: 'opening_balance' }),
         history_reminder: { requested_start: '2026-06-01', earliest_returned: null },
         cut_off_day: '2026-10-03',
       }),
@@ -360,14 +361,14 @@ describe('BankLinkSection', () => {
         ledger_balance: 100000,
         difference: -25000,
       },
-      opening_adjustment: { amount: 25000, waiting_amount: 0, adjustment_date: '2026-05-31' },
+      balance_match: { amount: 25000, waiting_amount: 0, adjustment_date: '2026-05-31' },
     })
     const markup = renderSection(createAccount({ current_balance: 100000 }))
     const order = [
       'No history returned yet',
       'Some transactions may be missing',
       'As of ',
-      'Record an opening adjustment',
+      'Record the difference as a balance adjustment',
     ].map((text) => markup.indexOf(text))
     expect(order.every((index) => index >= 0)).toBe(true)
     expect(order).toEqual([...order].sort((a, b) => a - b))

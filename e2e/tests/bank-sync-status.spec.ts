@@ -46,9 +46,8 @@ import { API_BASE_URL } from '../support/target'
 const SAMPLE_BANK = 'Harbour Bank'
 const SAMPLE_CHEQUING = 'Everyday Chequing'
 
-// What a link reads as once its import is reviewed with a gap between the balances, until the
-// opening adjustment offered for it is answered
-const OPENING_BALANCE_STATUS = 'Opening balance to confirm'
+// What a link reads as once its import is in, whatever the gap between the balances
+const SYNCED_STATUS = /Synced (just now|\d+ minutes? ago)\./
 
 // How long the page stays open after the link synced, long enough for its label to move past just now
 const SYNC_AGE_MS = 5 * 60 * 1000
@@ -143,7 +142,7 @@ async function openBalancesThatDiffer(page: Page, request: APIRequestContext, si
   await page.setViewportSize(size)
   await page.emulateMedia({ reducedMotion: 'reduce' })
   await logInViaApi(page, user)
-  const dialog = await openBankLink(page, account.id, OPENING_BALANCE_STATUS)
+  const dialog = await openBankLink(page, account.id, SYNCED_STATUS)
   const difference = fact(dialog, /^Difference/)
   await expect(difference).toHaveText(`${MINUS}$2,418.36`)
   await expect(dialog.getByRole('button', { name: 'Sync now' })).toBeFocused()
@@ -201,11 +200,11 @@ test('reads as synced once the import finishes', NEEDS_BANK_SYNC, async ({ page,
   const user = await signUpUser(request)
   const account = await createAccount(request, user, { name: 'Everyday' })
 
-  // The bank's balance matches the empty ledger, so there is no opening balance to confirm
+  // The bank's balance matches the empty ledger, so there is no difference to match
   await linkWithBalances(request, user, account.id, { balance: '0.00' })
 
   await logInViaApi(page, user)
-  const dialog = await openBankLink(page, account.id, /Synced (just now|\d+ minutes? ago)\./)
+  const dialog = await openBankLink(page, account.id, SYNCED_STATUS)
   await expect(fact(dialog, 'Status')).toHaveText(/^Synced/)
   await expect(fact(dialog, /^Difference/)).toHaveText('None')
   await expect(dialog.getByRole('button', { name: 'Record adjustment' })).toHaveCount(0)
@@ -223,9 +222,9 @@ test('compares the bank balance with the ledger at the end of its balance date',
   await linkToSampleBankAccount(request, user, { accountId: account.id, bankAccountName: SAMPLE_CHEQUING })
 
   // SimpleFIN gives the balance as of now, so the ledger keeps yesterday's transaction and leaves out
-  // tomorrow's, and so does the opening adjustment offered for the gap
+  // tomorrow's, and so does the balance match offered for the gap
   await logInViaApi(page, user)
-  const dialog = await openBankLink(page, account.id, OPENING_BALANCE_STATUS)
+  const dialog = await openBankLink(page, account.id, SYNCED_STATUS)
   await expect(fact(dialog, 'SimpleFIN')).toHaveText('$2,418.36')
   await expect(fact(dialog, 'Ledger')).toHaveText('($50.00)')
   await expect(fact(dialog, /^Difference/)).toHaveText(`${MINUS}$2,468.36`)
@@ -266,7 +265,7 @@ test('shows a bank balance that can\'t be read exactly as unavailable, its reaso
   await linkWithBalances(request, user, account.id, { balance: '2418.365' })
 
   await logInViaApi(page, user)
-  const dialog = await openBankLink(page, account.id, /Synced (just now|\d+ minutes? ago)\./)
+  const dialog = await openBankLink(page, account.id, SYNCED_STATUS)
   const bankBalance = fact(dialog, /^SimpleFIN/)
   await expect(bankBalance).toHaveText('Unavailable')
   await dialog.getByRole('button', { name: 'Why the balance is unavailable' }).click()

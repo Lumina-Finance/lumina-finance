@@ -315,18 +315,13 @@ export function applyAccountBankStatus(queryClient: QueryClient, status: Account
 }
 
 /**
- * Updates the views an answer to the opening adjustment offer changes
+ * Updates the views a recorded balance match changes
  *
- * The offer folds away as any answer's does. A recorded adjustment is a new ledger transaction. The
- * transaction lists and the account's figures take it in, and Difference with them
+ * The account's bank link shows the difference left, with the offer only while one is. The adjustment
+ * is a new ledger transaction, so the transaction lists and the account's figures take it in
  */
-export function applyOpeningAdjustmentAnswer(
-  queryClient: QueryClient,
-  status: AccountBankStatus,
-  recorded: boolean,
-): void {
+export function applyRecordedBalanceMatch(queryClient: QueryClient, status: AccountBankStatus): void {
   applyAccountBankStatus(queryClient, status)
-  if (!recorded) return
   invalidateTransactions(queryClient)
   invalidateFinancialTransactionData(queryClient, [status.account_id])
 }

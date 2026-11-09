@@ -603,9 +603,9 @@ test('unlinks the account alone, then reconnects it with the relink wording', NE
   await openPage(page, `/accounts/${everyday.id}`)
 
   // Opened once today's import is over, so Sync now is live and takes the focus. The import
-  // would have it pass to Unlink. The opening adjustment offered for the gap from the empty ledger
+  // would have it pass to Unlink. The balance match offered for the gap from the empty ledger
   // doesn't take it either
-  const bankSync = page.getByRole('button', { name: 'Bank sync: Opening balance to confirm. Open bank link' })
+  const bankSync = page.getByRole('button', { name: /^Bank sync: Synced (just now|\d+ minutes? ago)\. Open bank link$/ })
   await expect(bankSync).toBeVisible({ timeout: WORKER_RESULT_TIMEOUT_MS })
   await bankSync.click()
   const dialog = page.getByRole('dialog', { name: 'Edit account', exact: true })

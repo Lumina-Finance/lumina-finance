@@ -117,7 +117,6 @@ def upgrade() -> None:
         sa.Column("catchup_requested_start", sa.Date(), nullable=True),
         sa.Column("earliest_booked_date", sa.Date(), nullable=True),
         sa.Column("history_reminder_dismissed", sa.Boolean(), server_default="false", nullable=False),
-        sa.Column("opening_adjustment_state", sa.VARCHAR(length=16), server_default="not_ready", nullable=False),
         sa.ForeignKeyConstraint(["owner_id"], ["users.id"], ondelete="CASCADE"),
         sa.ForeignKeyConstraint(["account_id"], ["accounts.id"], ondelete="CASCADE"),
         sa.ForeignKeyConstraint(["connection_id"], ["bank_connections.id"], ondelete="SET NULL"),
@@ -127,10 +126,6 @@ def upgrade() -> None:
         sa.CheckConstraint(
             "import_kind IN ('initial', 'relink', 'choose_again', 'reconnect')",
             name="ck_bank_account_links_import_kind",
-        ),
-        sa.CheckConstraint(
-            "opening_adjustment_state IN ('not_ready', 'offered', 'recorded', 'skipped', 'none')",
-            name="ck_bank_account_links_opening_adjustment_state",
         ),
         sa.CheckConstraint("(state = 'unlinked') = (unlinked_at IS NOT NULL)", name="ck_bank_account_links_unlinked_at"),
         sa.CheckConstraint("state = 'unlinked' OR connection_id IS NOT NULL", name="ck_bank_account_links_connection"),

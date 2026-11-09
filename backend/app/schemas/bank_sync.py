@@ -18,7 +18,7 @@ BankImportState = Literal["running", "waiting", "waiting_on_budget"]
 
 # The one state every surface shows for a live link, in the order the first that applies wins: what
 # only the user can fix, an import fetching or waiting on the request budget, the review pause, a sync
-# fetching, an opening balance to confirm, the review warning, a retry, and otherwise synced
+# fetching, the review warning, a retry, and otherwise synced
 BankSyncState = Literal[
     "reconnect_needed",
     "bank_signin_needed",
@@ -27,7 +27,6 @@ BankSyncState = Literal[
     "import_waiting_on_budget",
     "paused",
     "syncing",
-    "opening_balance",
     "review_warning",
     "retrying",
     "synced",
@@ -486,8 +485,8 @@ class BankBalanceResponse(BaseModel):
     difference: int | None
 
 
-class OpeningAdjustmentResponse(BaseModel):
-    """The one-time offer to record the gap between the bank's balance and the ledger's once the import is reviewed
+class BalanceMatchResponse(BaseModel):
+    """The offer to record the gap between the bank's balance and the ledger's as a balance adjustment
 
     It leaves out what the items still waiting for review would change. The bank's balance
     already holds that
@@ -505,16 +504,20 @@ class OpeningAdjustmentResponse(BaseModel):
     adjustment_date: date
 
 
-class RecordOpeningAdjustmentRequest(BaseModel):
-    """The opening adjustment to record, the amount offered or one the user entered in its place"""
+class RecordBalanceMatchRequest(BaseModel):
+    """The balance match to record, the amount offered or one the user entered in its place"""
 
     # Signed minor units, as the ledger keeps them
     amount: int = Field(ge=MIN_MINOR_UNITS, le=MAX_MINOR_UNITS)
 
+    # The amount of the offer the user was shown, so a second submission or a tab showing an older
+    # offer is refused once the offer has moved
+    offered_amount: int
+
     @field_validator("amount")
     @classmethod
     def _refuse_zero(cls, amount: int) -> int:
-        """Refuse an adjustment of nothing, since skipping stands for it"""
+        """Refuse an adjustment of nothing, since it records nothing"""
         if amount == 0:
             raise ValueError("Enter an amount other than zero")
         return amount
@@ -530,8 +533,8 @@ class AccountBankStatusResponse(BaseModel):
     # Only for a live link that has synced and follows its bank account as the provider lists it
     balance: BankBalanceResponse | None
 
-    # Only while the opening adjustment is offered and the balances compare
-    opening_adjustment: OpeningAdjustmentResponse | None
+    # Only while the balances compare and differ once the items waiting are approved, and no import runs
+    balance_match: BalanceMatchResponse | None
 
 
 class UnlinkResponse(BaseModel):

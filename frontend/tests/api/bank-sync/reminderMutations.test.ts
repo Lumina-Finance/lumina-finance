@@ -44,7 +44,7 @@ function createStatus(overrides: Parameters<typeof createBankLink>[0] = {}): Acc
     link: createBankLink({ history_reminder: REMINDER, cut_off_day: '2026-10-03', ...overrides }),
     previous_link: null,
     balance: null,
-    opening_adjustment: null,
+    balance_match: null,
   }
 }
 

@@ -95,18 +95,6 @@ class UnavailableReason(enum.StrEnum):
     INSTITUTION_LIMIT = "institution_limit"
 
 
-class OpeningAdjustmentState(enum.StrEnum):
-    """Where a link's one-time opening adjustment offer stands"""
-
-    NOT_READY = "not_ready"
-    OFFERED = "offered"
-    RECORDED = "recorded"
-    SKIPPED = "skipped"
-
-    # Nothing to offer: the balances matched once the import was reviewed
-    NONE = "none"
-
-
 # Only rows that aren't unlinked count towards the one-link rules, so an unlinked row keeps its
 # "Previously linked to" details without blocking a new link
 _LIVE_LINK = "state <> 'unlinked'"
@@ -247,10 +235,6 @@ class BankAccountLink(Base):
         provider_id_check("bank_account_links"),
         CheckConstraint(f"state IN ({check_values(BankLinkState)})", name="ck_bank_account_links_state"),
         CheckConstraint(f"import_kind IN ({check_values(BankImportKind)})", name="ck_bank_account_links_import_kind"),
-        CheckConstraint(
-            f"opening_adjustment_state IN ({check_values(OpeningAdjustmentState)})",
-            name="ck_bank_account_links_opening_adjustment_state",
-        ),
         CheckConstraint("(state = 'unlinked') = (unlinked_at IS NOT NULL)", name="ck_bank_account_links_unlinked_at"),
         # A connection can only be deleted once its links are unlinked, so deleting one that
         # still feeds a ledger is refused rather than leaving a link with nothing to sync from
@@ -324,12 +308,6 @@ class BankAccountLink(Base):
     # While the link's latest import is under way. Syncs take an import to today whatever the review
     # backlog, and the pause applies once it ends. Every link starts with one
     importing: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True, server_default="true")
-
-    # When the latest import ended, on the database's clock. That clock stamps each bank transaction it
-    # receives, so the items an import brought are those received by then. None until it ends.
-    # Choosing the bank account again starts a new import, so it clears this, while a reconnect's
-    # catch-up after the import ended leaves it
-    import_ended_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     signin_needed_since: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
     # The first day the running import or catch-up asked from: an import's start, or the first day a
@@ -361,9 +339,3 @@ class BankAccountLink(Base):
     # its reminder. Only a later day raises it again
     cut_off_day: Mapped[date | None] = mapped_column(Date)
     cut_off_day_dismissed: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False, server_default="false")
-    opening_adjustment_state: Mapped[str] = mapped_column(
-        VARCHAR(16),
-        nullable=False,
-        default=OpeningAdjustmentState.NOT_READY,
-        server_default=OpeningAdjustmentState.NOT_READY.value,
-    )

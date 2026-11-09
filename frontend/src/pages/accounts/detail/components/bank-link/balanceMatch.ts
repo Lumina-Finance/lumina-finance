@@ -9,8 +9,8 @@ export const ZERO_AMOUNT_MESSAGE = 'Enter more than zero'
 /** What the amount says when a sign is typed or pasted into it. It refuses the sign, since the offer's sign stands beside it */
 export const SIGNED_AMOUNT_MESSAGE = 'Leave out the sign'
 
-/** What an answer the server didn't give says, while one it refused gives the server's reason */
-export const ANSWER_FAILED_MESSAGE = 'Oops, something went wrong. Please try again.'
+/** What a recording the server didn't answer says, while one it refused gives the server's reason */
+export const RECORDING_FAILED_MESSAGE = 'Oops, something went wrong. Please try again.'
 
 /**
  * The offer's sign in words, for the amount's description, since the sign beside the field is drawn
@@ -29,6 +29,21 @@ export function describeSign(offered: number): string {
  */
 export function holdsSign(text: string): boolean {
   return holdsMinus(text) || text.includes('+')
+}
+
+/** What the person typed in the amount, and the offered amount it was typed over */
+export type TypedAmount = { offered: number; value: string }
+
+/**
+ * What the amount shows of what was typed, or null to show the offered amount. Typing holds only over
+ * the offer it was typed over, so an offer read again with another amount, such as the remainder a
+ * recording leaves, shows that amount
+ *
+ * @param typed - What was typed, or null when nothing was
+ * @param offered - The offered amount now, in minor units signed as the ledger keeps them
+ */
+export function readTypedAmount(typed: TypedAmount | null, offered: number): string | null {
+  return typed?.offered === offered ? typed.value : null
 }
 
 /** What a press of Record adjustment finds: a reason to refuse, or the amount to record */

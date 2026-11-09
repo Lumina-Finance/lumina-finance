@@ -11,8 +11,8 @@ import {
   type BankConnection,
   type BankLink,
   type BankProvidersResponse,
+  type BalanceMatch,
   type BankSyncState,
-  type OpeningAdjustment,
 } from '@/api/bank-sync'
 import { BankSyncNotSetUp } from '@/components/bank-link-flow/BankSyncNotSetUp'
 import {
@@ -29,9 +29,9 @@ import { revealInScrollArea } from '@/components/modal/scrollArea'
 import { StepTransition } from '@/components/two-factor/StepTransition'
 import { useAuth } from '@/hooks/useAuth'
 import { DisabledReasonButton } from '@/components/tooltips/DisabledReasonButton'
+import { BalanceMatchOffer } from '@/pages/accounts/detail/components/bank-link/BalanceMatchOffer'
 import { BalancePanel } from '@/pages/accounts/detail/components/bank-link/BalancePanel'
 import { ImportProgress } from '@/pages/accounts/detail/components/bank-link/ImportProgress'
-import { OpeningAdjustmentOffer } from '@/pages/accounts/detail/components/bank-link/OpeningAdjustmentOffer'
 import {
   CutOffDayReminder,
   HistoryReminder,
@@ -72,7 +72,7 @@ const IMPORT_STATES: ReadonlySet<BankSyncState> = new Set(['importing', 'import_
 type LinkedViewProps = {
   link: BankLink
   balance: BankBalance | null
-  openingAdjustment: OpeningAdjustment | null
+  balanceMatch: BalanceMatch | null
 
   /** The account's currency. A live link's bank account shares it */
   currency: string
@@ -87,18 +87,18 @@ type LinkedViewProps = {
 /**
  * A live link: its facts and status, the import while it is the status, a notice for anything holding
  * its sync back, the reminders that history may be missing, the bank's balance beside the ledger's
- * once it has synced, with the opening adjustment offer at its foot while there is one, and the
- * actions on the link. A notice's own action comes first, since it is what resumes the sync. The
- * server leaves the review notices out while only the user can restart the sync, so a stop's notice
- * shows alone. A reminder holds nothing back, so the offer shows beside it. Neither the offer's
- * buttons nor a reminder's ✕ are among the view's actions, so the modal opening at the bank link never
- * starts on Skip or Dismiss, and an answer or a dismissal moves focus on to the link's actions, Sync
- * now first, as what held it folds away, or from one reminder to the next
+ * once it has synced, with the balance match offer at its foot while there is a difference to match,
+ * and the actions on the link. A notice's own action comes first, since it is what resumes the sync.
+ * The server leaves the review notices out while only the user can restart the sync, so a stop's
+ * notice shows alone. A reminder holds nothing back, so the offer shows beside it. Neither the offer's
+ * button nor a reminder's ✕ are among the view's actions, so the modal opening at the bank link never
+ * starts on Record adjustment or Dismiss, and focus moves on to the link's actions, Sync now first, as
+ * the offer or a reminder holding it folds away, or from one reminder to the next
  */
 function LinkedView({
   link,
   balance,
-  openingAdjustment,
+  balanceMatch,
   currency,
   sync,
   connection,
@@ -255,13 +255,13 @@ function LinkedView({
               currency={currency}
               providerName={link.provider_name}
               footer={
-                openingAdjustment && (
-                  <OpeningAdjustmentOffer
+                balanceMatch && (
+                  <BalanceMatchOffer
                     accountId={link.account_id}
-                    offer={openingAdjustment}
+                    offer={balanceMatch}
                     currency={currency}
                     providerName={link.provider_name}
-                    onAnswered={() => focusFirstAction(actionsRef.current)}
+                    onFolded={() => focusFirstAction(actionsRef.current)}
                   />
                 )
               }
@@ -454,7 +454,7 @@ export function BankLinkSection({ account, sectionNumber, autoFocus = false }: B
                 <LinkedView
                   link={link}
                   balance={status?.balance ?? null}
-                  openingAdjustment={status?.opening_adjustment ?? null}
+                  balanceMatch={status?.balance_match ?? null}
                   currency={account.currency}
                   sync={syncLabel}
                   connection={connections?.find((connection) => connection.id === link.connection_id)}

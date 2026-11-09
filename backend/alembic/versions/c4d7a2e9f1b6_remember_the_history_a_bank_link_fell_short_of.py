@@ -1,7 +1,7 @@
 """remember the history a bank link's import or catch-up fell short of
 
 Revision ID: c4d7a2e9f1b6
-Revises: e5a8c1f7b3d9
+Revises: b3f1c9a7d2e4
 Create Date: 2026-10-08
 """
 
@@ -12,7 +12,7 @@ import sqlalchemy as sa
 from alembic import op
 
 revision: str = "c4d7a2e9f1b6"
-down_revision: str | Sequence[str] | None = "e5a8c1f7b3d9"
+down_revision: str | Sequence[str] | None = "b3f1c9a7d2e4"
 branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
 

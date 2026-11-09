@@ -19,7 +19,6 @@ from app.models.bank_connection import (
     BankConnection,
     BankExternalAccount,
     BankLinkState,
-    OpeningAdjustmentState,
 )
 from app.models.bank_pending_transaction import BankPendingTransaction
 from app.models.bank_sync_job import BankSyncJob
@@ -141,46 +140,6 @@ async def test_link_of_an_account_unlinked_before_is_a_relink(client):
     assert [(state, kind) for *_, state, kind, _, _ in await _stored_links()] == [("unlinked", "initial"), ("active", "relink")]
     assert await _importing(account_id) is True
     assert await _queued_jobs() == [(connection.id, "initial", False, "queued")]
-
-
-@pytest.mark.parametrize(
-    ("earlier_answer", "earlier_bank_account", "relinked_state"),
-    [
-        pytest.param(OpeningAdjustmentState.RECORDED, BANK_ACCOUNT_ID, "recorded", id="recorded"),
-        pytest.param(OpeningAdjustmentState.SKIPPED, BANK_ACCOUNT_ID, "skipped", id="skipped"),
-        pytest.param(OpeningAdjustmentState.OFFERED, BANK_ACCOUNT_ID, "not_ready", id="offered-unanswered"),
-        pytest.param(OpeningAdjustmentState.NONE, BANK_ACCOUNT_ID, "not_ready", id="nothing-offered"),
-        pytest.param(OpeningAdjustmentState.SKIPPED, "ACT-other", "not_ready", id="another-bank-account"),
-    ],
-)
-async def test_relink_keeps_an_opening_adjustment_recorded_or_skipped_for_the_same_bank_account(
-    client, earlier_answer, earlier_bank_account, relinked_state
-):
-    """Everyday was linked before, its opening adjustment answered or not, and links again to ACT-1
-
-    One recorded or skipped for ACT-1 is never offered again. One never answered, one with nothing
-    to offer or one for another bank account leaves the new link to offer its own once its import is
-    reviewed
-    """
-    headers, _, account_id, connection = await _linkable(client)
-    async with TestSession() as session:
-        account = await session.get_one(Account, uuid.UUID(account_id))
-        earlier = _build_bank_link(
-            account, None, earlier_bank_account, state=BankLinkState.UNLINKED, unlinked_at=_NOW, opening_adjustment_state=earlier_answer
-        )
-        session.add(earlier)
-        await session.commit()
-
-    linked = await _link(client, headers, account_id, connection.id, start_date=_TODAY - timedelta(days=10))
-
-    assert linked.status_code == 201, linked.text
-    async with TestSession() as session:
-        relinked = await session.scalar(
-            select(BankAccountLink.opening_adjustment_state).where(
-                BankAccountLink.account_id == uuid.UUID(account_id), BankAccountLink.state == BankLinkState.ACTIVE
-            )
-        )
-    assert relinked == relinked_state
 
 
 async def _waiting_to_choose_again(client) -> tuple[dict, str, BankConnection, uuid.UUID, date]:

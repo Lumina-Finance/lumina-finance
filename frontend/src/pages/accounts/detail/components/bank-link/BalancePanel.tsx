@@ -76,8 +76,8 @@ type BalancePanelProps = {
  * a row, label on the left and amount on the right. On wider screens the balances share a row in
  * equal columns, and those too long to fit side by side move to another row. An explanation beside a
  * balance is about the comparison, so it opens above all the balances, or below them where there is
- * no room above, and covers none of them. A footer, such as the opening adjustment offer, sits under
- * the caption with no box or heading of its own
+ * no room above, and covers none of them. A footer, such as the balance match offer, sits under
+ * the caption with no box of its own
  */
 export function BalancePanel({ balance, currency, providerName, footer }: BalancePanelProps) {
   const { formatCurrency, formatMovedCurrency } = useMoneyFormatters()

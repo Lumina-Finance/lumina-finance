@@ -137,8 +137,6 @@ function describeLinkSync(link: BankLink, timeZone: string | undefined): BankSyn
         [sync.last_success_at ? `Last synced ${formatRelativeTime(sync.last_success_at)}` : 'Not synced yet'],
         true,
       )
-    case 'opening_balance':
-      return label('review', 'Opening balance to confirm', [synced, failure, next])
     case 'review_warning':
       return label('review', `${waiting} new to review`, [`Sync pauses at ${REVIEW_PAUSE_COUNT}`, failure, next])
     case 'retrying':

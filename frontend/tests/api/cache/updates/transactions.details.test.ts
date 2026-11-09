@@ -85,7 +85,7 @@ function seedAccountViews(client: QueryClient): void {
       link: null,
       previous_link: null,
       balance: null,
-      opening_adjustment: null,
+      balance_match: null,
     })
   }
 }
