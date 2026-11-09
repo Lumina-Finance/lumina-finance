@@ -14,7 +14,7 @@ import {
 } from '../support/bankSync'
 import { faintestText } from '../support/contrast'
 import { readBoxes } from '../support/selectors'
-import { AT_EVERY_SIZE } from '../support/sizes'
+import { AT_EVERY_SIZE_NEEDS_BANK_SYNC, NEEDS_BANK_SYNC } from '../support/bankSyncServer'
 import { API_BASE_URL } from '../support/target'
 
 // Runs on desktop only, apart from the test of an import that got nothing (run on the phone):
@@ -97,7 +97,7 @@ test.afterEach(async ({ page }) => {
   await page.unrouteAll({ behavior: 'ignoreErrors' })
 })
 
-test('reminds that the import returned less history than it asked for, naming the day its history starts', async ({ page, request }) => {
+test('reminds that the import returned less history than it asked for, naming the day its history starts', NEEDS_BANK_SYNC, async ({ page, request }) => {
   const setup = await linkGettingLess(request)
   const earliest = await readEarliestItem(request, setup)
   await logInViaApi(page, setup.user)
@@ -111,7 +111,7 @@ test('reminds that the import returned less history than it asked for, naming th
   await expect(note.getByRole('button', { name: 'Dismiss' })).toBeVisible()
 })
 
-test('opens the bank link on Sync now rather than on the reminder\'s ✕ above it', async ({ page, request }) => {
+test('opens the bank link on Sync now rather than on the reminder\'s ✕ above it', NEEDS_BANK_SYNC, async ({ page, request }) => {
   const setup = await linkGettingLess(request)
   await logInViaApi(page, setup.user)
 
@@ -120,7 +120,7 @@ test('opens the bank link on Sync now rather than on the reminder\'s ✕ above i
   await expect(dialog.getByRole('button', { name: 'Sync now' })).toBeFocused()
 })
 
-test('dismisses the reminder it showed for good, moving focus on to Sync now', async ({ page, request }) => {
+test('dismisses the reminder it showed for good, moving focus on to Sync now', NEEDS_BANK_SYNC, async ({ page, request }) => {
   const setup = await linkGettingLess(request)
   const sent = watchDismissals(page)
   await logInViaApi(page, setup.user)
@@ -145,7 +145,7 @@ test('dismisses the reminder it showed for good, moving focus on to Sync now', a
   await expect(again.getByText(LESS_HISTORY)).toHaveCount(0)
 })
 
-test('keeps the reminder when a dismissal never reaches the server, saying something went wrong', async ({ page, request }) => {
+test('keeps the reminder when a dismissal never reaches the server, saying something went wrong', NEEDS_BANK_SYNC, async ({ page, request }) => {
   const setup = await linkGettingLess(request)
   await logInViaApi(page, setup.user)
   const dialog = await openBankLink(page, setup.accountId, ANY_STATUS)
@@ -159,7 +159,7 @@ test('keeps the reminder when a dismissal never reaches the server, saying somet
   expect(await readReminder(request, setup.user, setup.accountId)).toEqual(setup.reminder)
 })
 
-test('says why the server refuses a dismissal once the account was unlinked in another window, showing it unlinked', async ({ page, request }) => {
+test('says why the server refuses a dismissal once the account was unlinked in another window, showing it unlinked', NEEDS_BANK_SYNC, async ({ page, request }) => {
   const setup = await linkGettingLess(request)
   await logInViaApi(page, setup.user)
   const dialog = await openBankLink(page, setup.accountId, ANY_STATUS)
@@ -181,7 +181,7 @@ test('says why the server refuses a dismissal once the account was unlinked in a
 // answered once the account was unlinked in another window does. The modal reads the link again as it
 // opens, and that read is held until the account has been unlinked, while the dismissal's refusal is
 // held until the reminder has gone
-test('says why the server refused a dismissal whose reminder a read of the link had already folded away', async ({ page, request }) => {
+test('says why the server refused a dismissal whose reminder a read of the link had already folded away', NEEDS_BANK_SYNC, async ({ page, request }) => {
   const setup = await linkGettingLess(request)
   const linkUrl = `${API_BASE_URL}/accounts/${setup.accountId}/bank-link`
   const dismissUrl = `${linkUrl}/history-reminder/dismiss`
@@ -211,7 +211,7 @@ test('says why the server refused a dismissal whose reminder a read of the link 
   expect(unlinkStatus).toBe(200)
 })
 
-test('shows the reminder of an import that got nothing above the opening adjustment offer, each whole on a phone', AT_EVERY_SIZE, async ({ page, request }) => {
+test('shows the reminder of an import that got nothing above the opening adjustment offer, each whole on a phone', AT_EVERY_SIZE_NEEDS_BANK_SYNC, async ({ page, request }) => {
   test.skip(test.info().project.name !== 'phone', 'It checks the layout a phone gets')
   await page.setViewportSize({ width: 390, height: 844 })
   const setup = await linkGettingNothing(request)
@@ -234,7 +234,7 @@ test('shows the reminder of an import that got nothing above the opening adjustm
 })
 
 for (const colorScheme of ['light', 'dark'] as const) {
-  test(`keeps the reminder readable in the ${colorScheme} theme`, async ({ page, request }) => {
+  test(`keeps the reminder readable in the ${colorScheme} theme`, NEEDS_BANK_SYNC, async ({ page, request }) => {
     await page.emulateMedia({ colorScheme, reducedMotion: 'reduce' })
     const setup = await linkGettingNothing(request)
     await logInViaApi(page, setup.user)

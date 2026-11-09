@@ -24,7 +24,7 @@ import {
 } from '../support/bankSync'
 import { faintestText } from '../support/contrast'
 import { expectTransactionRow, getTransactionRowButton, MINUS } from '../support/selectors'
-import { AT_EVERY_SIZE } from '../support/sizes'
+import { AT_EVERY_SIZE_NEEDS_BANK_SYNC, NEEDS_BANK_SYNC } from '../support/bankSyncServer'
 import { API_BASE_URL } from '../support/target'
 
 // Runs on desktop only, apart from the light theme's filing card test and the footer and short phone
@@ -150,7 +150,7 @@ async function readWaiting(request: APIRequestContext, user: TestUser, accountId
   return (await readReviewItems(request, user, accountId)).map((item) => item.bank.description)
 }
 
-test('opens a new item as the bank sent it beside its filing card, and adds nothing until a merchant and category are chosen', async ({ page, request }) => {
+test('opens a new item as the bank sent it beside its filing card, and adds nothing until a merchant and category are chosen', NEEDS_BANK_SYNC, async ({ page, request }) => {
   const { user, everyday } = await start(page, request, [COUNTDOWN])
   await openPage(page, '/transactions')
 
@@ -204,7 +204,7 @@ test('opens a new item as the bank sent it beside its filing card, and adds noth
   expect(await readWaiting(request, user, everyday.id)).toEqual([COUNTDOWN.description])
 })
 
-test('opens a bank description over 500 characters whole in Notes, and takes typing after it in review and once in the ledger', async ({ page, request }) => {
+test('opens a bank description over 500 characters whole in Notes, and takes typing after it in review and once in the ledger', NEEDS_BANK_SYNC, async ({ page, request }) => {
   const long = { ...HARBOUR, description: `HARBOUR COFFEE ${'REF '.repeat(130)}`.trim() }
   await start(page, request, [long])
   await openPage(page, '/transactions')
@@ -239,7 +239,7 @@ test('opens a bank description over 500 characters whole in Notes, and takes typ
   await expect(addNotes).toHaveValue('x'.repeat(500))
 })
 
-test('adds an item with its date and amount changed, and with the window kept open goes on through the new items until none are left', async ({ page, request }) => {
+test('adds an item with its date and amount changed, and with the window kept open goes on through the new items until none are left', NEEDS_BANK_SYNC, async ({ page, request }) => {
   const { user, everyday } = await start(page, request, [COUNTDOWN, HARBOUR])
   await openPage(page, '/transactions')
 
@@ -284,7 +284,7 @@ test('adds an item with its date and amount changed, and with the window kept op
   expect(await readWaiting(request, user, everyday.id)).toEqual([])
 })
 
-test('records money in from Savings as one transfer that names Savings, kept as money in, and closes with the window not kept open', async ({ page, request }) => {
+test('records money in from Savings as one transfer that names Savings, kept as money in, and closes with the window not kept open', NEEDS_BANK_SYNC, async ({ page, request }) => {
   const { user, everyday, savings } = await start(page, request, [
     { posted: daysFromTodayInTestTimezone(-2), amount: '500.00', description: 'TFR FROM SAVINGS' },
     HARBOUR,
@@ -334,7 +334,7 @@ test('records money in from Savings as one transfer that names Savings, kept as 
   expect(await readWaiting(request, user, everyday.id)).toEqual([HARBOUR.description])
 })
 
-test('dismisses only on a second press, by mouse or keyboard, and takes the first back when the user moves on', async ({ page, request }) => {
+test('dismisses only on a second press, by mouse or keyboard, and takes the first back when the user moves on', NEEDS_BANK_SYNC, async ({ page, request }) => {
   const { user, everyday } = await start(page, request, [COUNTDOWN, HARBOUR])
   await openPage(page, '/transactions')
 
@@ -371,7 +371,7 @@ test('dismisses only on a second press, by mouse or keyboard, and takes the firs
   expect(await readWaiting(request, user, everyday.id)).toEqual([HARBOUR.description])
 })
 
-test('dismisses items without reading the ledger again, going on to the next while the window is kept open', async ({ page, request }) => {
+test('dismisses items without reading the ledger again, going on to the next while the window is kept open', NEEDS_BANK_SYNC, async ({ page, request }) => {
   const { user, everyday } = await start(page, request, [COUNTDOWN, HARBOUR, CAFE])
   await openPage(page, '/transactions')
 
@@ -400,7 +400,7 @@ test('dismisses items without reading the ledger again, going on to the next whi
   expect(await countLedgerTransactions(request, user)).toBe(0)
 })
 
-test('goes on from the last new item loaded to the first on the next page', async ({ page, request }) => {
+test('goes on from the last new item loaded to the first on the next page', NEEDS_BANK_SYNC, async ({ page, request }) => {
   const { user, everyday } = await start(page, request, [COUNTDOWN, HARBOUR, CAFE])
 
   // Two items to a page, and every page after the first held until a decision is sent, so the next
@@ -425,7 +425,7 @@ test('goes on from the last new item loaded to the first on the next page', asyn
   expect(await readWaiting(request, user, everyday.id)).toEqual([COUNTDOWN.description, CAFE.description])
 })
 
-test('keeps the item open and says what went wrong when a decision fails', async ({ page, request }) => {
+test('keeps the item open and says what went wrong when a decision fails', NEEDS_BANK_SYNC, async ({ page, request }) => {
   const { user, everyday } = await start(page, request, [COUNTDOWN])
 
   // Decisions fail as the server never would, with an error or with no answer at all, until a test
@@ -470,7 +470,7 @@ test('keeps the item open and says what went wrong when a decision fails', async
   expect(await countLedgerTransactions(request, user)).toBe(0)
 })
 
-test('opens an amount its currency cannot hold empty, and adds the item once one is entered', async ({ page, request }) => {
+test('opens an amount its currency cannot hold empty, and adds the item once one is entered', NEEDS_BANK_SYNC, async ({ page, request }) => {
   const { user, everyday } = await start(page, request, [{ ...COUNTDOWN, amount: '-42.105' }])
   await openPage(page, '/transactions')
 
@@ -505,7 +505,7 @@ test('opens an amount its currency cannot hold empty, and adds the item once one
 
 for (const colorScheme of ['light', 'dark'] as const) {
   // Only the light run places the card, so only it runs at every size
-  test(`${colorScheme === 'light' ? 'hangs the filing card beside the form or heads it, readable' : 'keeps the filing card readable'} in the ${colorScheme} theme`, colorScheme === 'light' ? AT_EVERY_SIZE : {}, async ({ page, request }) => {
+  test(`${colorScheme === 'light' ? 'hangs the filing card beside the form or heads it, readable' : 'keeps the filing card readable'} in the ${colorScheme} theme`, colorScheme === 'light' ? AT_EVERY_SIZE_NEEDS_BANK_SYNC : NEEDS_BANK_SYNC, async ({ page, request }) => {
     await start(page, request, [COUNTDOWN])
     await page.emulateMedia({ colorScheme, reducedMotion: 'reduce' })
     await openPage(page, '/transactions')
@@ -561,7 +561,7 @@ for (const colorScheme of ['light', 'dark'] as const) {
 // them in a row from there, so each layout is checked once: stacked on the phone, and in a row at the
 // widest screen the dialogue fills
 for (const { project, width } of [{ project: 'phone', width: null }, { project: 'desktop', width: 1049 }] as const) {
-  test(`lines the footer up with the form above it on the ${project}`, AT_EVERY_SIZE, async ({ page, request }) => {
+  test(`lines the footer up with the form above it on the ${project}`, AT_EVERY_SIZE_NEEDS_BANK_SYNC, async ({ page, request }) => {
     test.skip(test.info().project.name !== project, 'Each layout of the footer is checked at one width')
     await start(page, request, [COUNTDOWN])
     if (width) await page.setViewportSize({ width, height: page.viewportSize()!.height })
@@ -590,13 +590,13 @@ for (const { project, width } of [{ project: 'phone', width: null }, { project: 
 }
 
 // A short phone screen. The card heading the form leaves most of the form below the fold
-test.describe('on a short phone screen', AT_EVERY_SIZE, () => {
+test.describe('on a short phone screen', AT_EVERY_SIZE_NEEDS_BANK_SYNC, () => {
   test.beforeEach(async ({ page }) => {
     test.skip(test.info().project.name !== 'phone', 'Only a phone screen is short enough')
     await page.setViewportSize({ width: 390, height: 667 })
   })
 
-  test('starts on the first field to fill in, the amount where the bank’s can’t be used', async ({ page, request }) => {
+  test('starts on the first field to fill in, the amount where the bank’s can’t be used', NEEDS_BANK_SYNC, async ({ page, request }) => {
     await start(page, request, [COUNTDOWN, { ...HARBOUR, amount: '-12.505' }])
     await openPage(page, '/transactions')
 
@@ -609,7 +609,7 @@ test.describe('on a short phone screen', AT_EVERY_SIZE, () => {
     await expect(formOf(dialog).amount).toBeFocused()
   })
 
-  test('shows the next item from the top of its form, wherever the last one was scrolled to', async ({ page, request }) => {
+  test('shows the next item from the top of its form, wherever the last one was scrolled to', NEEDS_BANK_SYNC, async ({ page, request }) => {
     await start(page, request, [COUNTDOWN, HARBOUR])
     await openPage(page, '/transactions')
 
@@ -624,7 +624,7 @@ test.describe('on a short phone screen', AT_EVERY_SIZE, () => {
     await expect(filingCard(page)).toBeInViewport()
   })
 
-  test('brings the first field Add still needs into view, and focuses it', async ({ page, request }) => {
+  test('brings the first field Add still needs into view, and focuses it', NEEDS_BANK_SYNC, async ({ page, request }) => {
     await start(page, request, [COUNTDOWN])
     await openPage(page, '/transactions')
 
@@ -636,7 +636,7 @@ test.describe('on a short phone screen', AT_EVERY_SIZE, () => {
     await expect(form.merchant).toBeInViewport({ ratio: 1 })
   })
 
-  test('brings a failed decision’s message into view', async ({ page, request }) => {
+  test('brings a failed decision’s message into view', NEEDS_BANK_SYNC, async ({ page, request }) => {
     await start(page, request, [COUNTDOWN])
 
     // The dismissal fails as the server never would
@@ -654,7 +654,7 @@ test.describe('on a short phone screen', AT_EVERY_SIZE, () => {
 // Dismiss widens to Yes, dismiss and back over the app's ease rather than jumping. Its width is read on every
 // frame the page draws until it has held still a while after changing, so a width that jumps shows its new
 // width on the first frame it moves
-test('eases Dismiss to Yes, dismiss and back rather than jumping between their widths', async ({ page, request }) => {
+test('eases Dismiss to Yes, dismiss and back rather than jumping between their widths', NEEDS_BANK_SYNC, async ({ page, request }) => {
   await start(page, request, [COUNTDOWN])
   await openPage(page, '/transactions')
   const dialog = await openReview(page, COUNTDOWN.description)

@@ -24,7 +24,7 @@ import {
   type SeededConnection,
 } from '../support/bankSync'
 import { isUncovered, MESSAGE_IN_CORNER, readMessageInset } from '../support/selectors'
-import { AT_EVERY_SIZE } from '../support/sizes'
+import { AT_EVERY_SIZE_NEEDS_BANK_SYNC, NEEDS_BANK_SYNC } from '../support/bankSyncServer'
 import { API_BASE_URL } from '../support/target'
 
 // Runs on desktop only, apart from the test linking an account from its page. That one runs at every size
@@ -277,7 +277,7 @@ test.afterEach(async ({ page }) => {
   await page.unrouteAll({ behavior: 'ignoreErrors' })
 })
 
-test('links an account from its page, from choosing the bank account to its import', AT_EVERY_SIZE, async ({ page, request }) => {
+test('links an account from its page, from choosing the bank account to its import', AT_EVERY_SIZE_NEEDS_BANK_SYNC, async ({ page, request }) => {
   const user = await signUpUser(request)
   const [everyday, scenario] = await Promise.all([
     createAccount(request, user, { name: 'Everyday' }),
@@ -372,7 +372,7 @@ test('links an account from its page, from choosing the bank account to its impo
 // and the page's clock stopped, so frames pass only as the test moves it on, and they pass with the old
 // view still on the page. Motion isn't reduced, as it is for other tests on the page's clock, since the
 // fade is what the report of the old view's exit waits for
-test('moves focus to Link bank account once the link it sat by is undone elsewhere, however late the old view leaves', async ({ page, request }) => {
+test('moves focus to Link bank account once the link it sat by is undone elsewhere, however late the old view leaves', NEEDS_BANK_SYNC, async ({ page, request }) => {
   await page.clock.install()
   const { dialog, accountId } = await openImportingLink(page, request)
   const reviewSettings = dialog.getByRole('button', { name: 'Review settings' })
@@ -411,7 +411,7 @@ test('moves focus to Link bank account once the link it sat by is undone elsewhe
   releaseReads()
 })
 
-test("keeps the link's message clear of Cancel and Save changes where the edit modal fills the screen, and back in the corner once it closes", async ({ page, request }) => {
+test("keeps the link's message clear of Cancel and Save changes where the edit modal fills the screen, and back in the corner once it closes", NEEDS_BANK_SYNC, async ({ page, request }) => {
   // The widest screen the modal still fills. It stands for every screen the modal fills
   await page.setViewportSize(WIDEST_FULL_SCREEN_MODAL_SIZE)
   const { dialog, message } = await linkFromEditAccount(page, request)
@@ -438,7 +438,7 @@ async function isInCorner(message: Locator): Promise<boolean> {
   return right === MESSAGE_IN_CORNER.right && bottom === MESSAGE_IN_CORNER.bottom
 }
 
-test("leaves the link's message in the corner, clear of Cancel and Save changes, with the edit modal in the middle", async ({ page, request }) => {
+test("leaves the link's message in the corner, clear of Cancel and Save changes, with the edit modal in the middle", NEEDS_BANK_SYNC, async ({ page, request }) => {
   // The narrowest screen the modal sits in the middle of. The message in the corner comes closest there
   // to its buttons. The footer's padding reaches the corner there without any button doing so, and the
   // message stays down as it does on main
@@ -451,7 +451,7 @@ test("leaves the link's message in the corner, clear of Cancel and Save changes,
   expect(await isUncovered(dialog.getByRole('button', { name: 'Save changes', exact: true }))).toBe(true)
 })
 
-test("lists the bank accounts that can't be linked with the reason for each", async ({ page, request }) => {
+test("lists the bank accounts that can't be linked with the reason for each", NEEDS_BANK_SYNC, async ({ page, request }) => {
   const user = await signUpUser(request)
   const [everyday, household, scenario] = await Promise.all([
     createAccount(request, user, { name: 'Everyday' }),
@@ -492,7 +492,7 @@ test("lists the bank accounts that can't be linked with the reason for each", as
   await expect(continueButton).toHaveAttribute('aria-disabled', 'true')
 })
 
-test('sends an account with no connection to settings first', async ({ page, request }) => {
+test('sends an account with no connection to settings first', NEEDS_BANK_SYNC, async ({ page, request }) => {
   const user = await signUpUser(request)
   const everyday = await createAccount(request, user, { name: 'Everyday' })
   await logInViaApi(page, user)
@@ -509,7 +509,7 @@ test('sends an account with no connection to settings first', async ({ page, req
   await expect(page.getByRole('dialog')).toHaveCount(0)
 })
 
-test('fits the link flow button to the label it shows, easing its width as the label changes', async ({ page, request }) => {
+test('fits the link flow button to the label it shows, easing its width as the label changes', NEEDS_BANK_SYNC, async ({ page, request }) => {
   const user = await signUpUser(request)
   const [everyday, scenario] = await Promise.all([
     createAccount(request, user, { name: 'Everyday' }),
@@ -539,7 +539,7 @@ test('fits the link flow button to the label it shows, easing its width as the l
   expect((await continueButton.boundingBox())!.width).toBeLessThan(submitWidth)
 })
 
-test('keeps the start within the range and never chooses Custom date on its own', async ({ page, request }) => {
+test('keeps the start within the range and never chooses Custom date on its own', NEEDS_BANK_SYNC, async ({ page, request }) => {
   const user = await signUpUser(request)
   const [everyday, scenario] = await Promise.all([
     createAccount(request, user, { name: 'Everyday' }),
@@ -585,7 +585,7 @@ test('keeps the start within the range and never chooses Custom date on its own'
   await expect(submit).not.toHaveAttribute('aria-disabled', 'true')
 })
 
-test('unlinks the account alone, then reconnects it with the relink wording', async ({ page, request }) => {
+test('unlinks the account alone, then reconnects it with the relink wording', NEEDS_BANK_SYNC, async ({ page, request }) => {
   const user = await signUpUser(request)
   const [everyday, scenario] = await Promise.all([
     createAccount(request, user, { name: 'Everyday' }),
@@ -653,7 +653,7 @@ test('unlinks the account alone, then reconnects it with the relink wording', as
   await expect(fact(dialog, 'Bank account')).toHaveText(SAMPLE_CHEQUING)
 })
 
-test('opens at the bank link with Review settings focused while Sync now is held back with its reason', async ({ page, request }) => {
+test('opens at the bank link with Review settings focused while Sync now is held back with its reason', NEEDS_BANK_SYNC, async ({ page, request }) => {
   const user = await signUpUser(request)
   const [everyday, scenario] = await Promise.all([
     createAccount(request, user, { name: 'Everyday' }),
@@ -729,7 +729,7 @@ async function openBeforeLinkLoads(page: Page, request: APIRequestContext): Prom
   return { dialog, showSection }
 }
 
-test('leaves focus in Account Name when typing starts there before the Bank link section loads', async ({ page, request }) => {
+test('leaves focus in Account Name when typing starts there before the Bank link section loads', NEEDS_BANK_SYNC, async ({ page, request }) => {
   const { dialog, showSection } = await openBeforeLinkLoads(page, request)
   const name = dialog.getByLabel('Account name')
   await page.keyboard.press('End')
@@ -741,7 +741,7 @@ test('leaves focus in Account Name when typing starts there before the Bank link
   await expect(name).toBeFocused()
 })
 
-test('leaves focus in Account Name when a press lands there before the Bank link section loads', async ({ page, request }) => {
+test('leaves focus in Account Name when a press lands there before the Bank link section loads', NEEDS_BANK_SYNC, async ({ page, request }) => {
   const { dialog, showSection } = await openBeforeLinkLoads(page, request)
   const name = dialog.getByLabel('Account name')
   await name.click()
@@ -759,7 +759,7 @@ test('leaves focus in Account Name when a press lands there before the Bank link
 // time, so the recording starts however long the click takes to land and holds every frame of the
 // entrance however rarely a busy machine draws one. Motion isn't reduced, as it is for other tests on the
 // page's clock, since the height is held only to ease the section's move and reduced motion leaves that out
-test('holds the loading Bank link section at its real height while the dialog scales in', async ({ page, request }) => {
+test('holds the loading Bank link section at its real height while the dialog scales in', NEEDS_BANK_SYNC, async ({ page, request }) => {
   const user = await signUpUser(request)
   const everyday = await createAccount(request, user, { name: 'Everyday' })
   await page.route(`${API_BASE_URL}/accounts/${everyday.id}/bank-link`, () => {})
@@ -787,7 +787,7 @@ test('holds the loading Bank link section at its real height while the dialog sc
 // to lose track of the bank account while one runs. The finished import shows for a moment of the page's
 // own time, so the page's clock stops before the import finishes and moves on only until it shows, keeping
 // it up however long a busy machine takes over the checks on it, and then on until it folds away
-test('shows an import that finishes as imported and done before folding it away', async ({ page, request }) => {
+test('shows an import that finishes as imported and done before folding it away', NEEDS_BANK_SYNC, async ({ page, request }) => {
   await page.emulateMedia({ reducedMotion: 'reduce' })
   await page.clock.install()
   const { dialog, accountId, answer } = await openImportingLink(page, request)
@@ -803,7 +803,7 @@ test('shows an import that finishes as imported and done before folding it away'
   await expect(progress).toHaveCount(0)
 })
 
-test('drops an import cut short by its bank account needing to be chosen again without reading as done', async ({ page, request }) => {
+test('drops an import cut short by its bank account needing to be chosen again without reading as done', NEEDS_BANK_SYNC, async ({ page, request }) => {
   const { dialog, accountId, answer } = await openImportingLink(page, request)
   const link = buildLinkAnswer(accountId)
   answer.link = { ...link, state: 'choose_account', sync: { ...link.sync, state: 'choose_account' } }
@@ -815,7 +815,7 @@ test('drops an import cut short by its bank account needing to be chosen again w
   await expect(dialog.getByRole('progressbar', { name: 'Import' })).toHaveCount(0)
 })
 
-test('opens the link flow on the new account’s page when the new-account prompt chooses linking', async ({ page, request }) => {
+test('opens the link flow on the new account’s page when the new-account prompt chooses linking', NEEDS_BANK_SYNC, async ({ page, request }) => {
   const user = await signUpUser(request)
   const scenario = await createSampleBridgeScenario(request)
   await claimSetupToken(request, user, scenario.setupToken)
@@ -857,7 +857,7 @@ test.describe("the reason on Link bank account while bank sync isn't set up", ()
     await openBankLink(page, everyday.id, 'Not linked')
   })
 
-  test('prints under the button with a link to Settings, Bank connections', AT_EVERY_SIZE, async ({ page }) => {
+  test('prints under the button with a link to Settings, Bank connections', AT_EVERY_SIZE_NEEDS_BANK_SYNC, async ({ page }) => {
     const dialog = page.getByRole('dialog', { name: 'Edit account', exact: true })
     const link = dialog.getByRole('button', { name: 'Link bank account' })
     await expect(link).toHaveAccessibleDescription(`${NOT_SET_UP} ${BANK_CONNECTIONS_LINK}`)
@@ -883,7 +883,7 @@ test.describe("the reason on Link bank account while bank sync isn't set up", ()
     }
   })
 
-  test('shows on hover, and Escape puts it away while the modal stays open', async ({ page }) => {
+  test('shows on hover, and Escape puts it away while the modal stays open', NEEDS_BANK_SYNC, async ({ page }) => {
     const dialog = page.getByRole('dialog', { name: 'Edit account', exact: true })
     const link = dialog.getByRole('button', { name: 'Link bank account' })
     await expect(link).toHaveAttribute('aria-disabled', 'true')
@@ -901,7 +901,7 @@ test.describe("the reason on Link bank account while bank sync isn't set up", ()
   })
 })
 
-test("keeps the new account's prompt manual while bank sync isn't set up, linking to Settings, Bank connections", async ({ page, request }) => {
+test("keeps the new account's prompt manual while bank sync isn't set up, linking to Settings, Bank connections", NEEDS_BANK_SYNC, async ({ page, request }) => {
   const user = await signUpUser(request)
   await changeProviders(page, (body) => {
     body.sync_running = false
@@ -923,7 +923,7 @@ test("keeps the new account's prompt manual while bank sync isn't set up, linkin
   await expect(page).toHaveURL(new RegExp(`${BANK_CONNECTIONS_PATH}$`))
 })
 
-test('holds linking back on an archived account with the reason beside it, listing no bank accounts', async ({ page, request }) => {
+test('holds linking back on an archived account with the reason beside it, listing no bank accounts', NEEDS_BANK_SYNC, async ({ page, request }) => {
   const user = await signUpUser(request)
   const [everyday, scenario] = await Promise.all([
     createAccount(request, user, { name: 'Everyday' }),
@@ -944,7 +944,7 @@ test('holds linking back on an archived account with the reason beside it, listi
   expect(listings).toEqual([])
 })
 
-test('disconnects the whole connection from the Unlink dialog, unlinking the account with it', async ({ page, request }) => {
+test('disconnects the whole connection from the Unlink dialog, unlinking the account with it', NEEDS_BANK_SYNC, async ({ page, request }) => {
   const user = await signUpUser(request)
   const [everyday, scenario] = await Promise.all([
     createAccount(request, user, { name: 'Everyday' }),
@@ -973,7 +973,7 @@ test('disconnects the whole connection from the Unlink dialog, unlinking the acc
   expect(await readConnection(request, user, connection.id)).toBeUndefined()
 })
 
-test('lists the bank accounts of the connection switched to, dropping the one chosen before', async ({ page, request }) => {
+test('lists the bank accounts of the connection switched to, dropping the one chosen before', NEEDS_BANK_SYNC, async ({ page, request }) => {
   const user = await signUpUser(request)
   const [everyday, sample, lakeside] = await Promise.all([
     createAccount(request, user, { name: 'Everyday' }),
@@ -1009,7 +1009,7 @@ function identityCard(page: Page): Locator {
 
 // The identity card names the account's own institution, so the bank's shows there only where the
 // account has none. Each look waits for the page to have read the link, since the bank's name comes in
-test("names the linked bank's institution on the identity card until the account has one of its own", async ({ page, request }) => {
+test("names the linked bank's institution on the identity card until the account has one of its own", NEEDS_BANK_SYNC, async ({ page, request }) => {
   const user = await signUpUser(request)
   const everyday = await createAccount(request, user, { name: 'Everyday' })
   await linkToSampleBankAccount(request, user, { accountId: everyday.id, bankAccountName: SAMPLE_CHEQUING })
@@ -1032,7 +1032,7 @@ test("names the linked bank's institution on the identity card until the account
 
 // The bank's name comes in with the account's bank link, so until that read lands the card can't tell
 // whether the account has an institution, and names none. The read is held until both have been looked for
-test('names no institution on the identity card while its bank link is being read', async ({ page, request }) => {
+test('names no institution on the identity card while its bank link is being read', NEEDS_BANK_SYNC, async ({ page, request }) => {
   const user = await signUpUser(request)
   const everyday = await createAccount(request, user, { name: 'Everyday' })
   await linkToSampleBankAccount(request, user, { accountId: everyday.id, bankAccountName: SAMPLE_CHEQUING })
@@ -1059,7 +1059,7 @@ test('names no institution on the identity card while its bank link is being rea
 
 // An account of the user's own says so once its bank link is read and found to be none, and a group
 // account straight away, since the page never reads a group account's link
-test("says an account with no institution and no bank link has none, whether it's the user's own or a group's", async ({ page, request }) => {
+test("says an account with no institution and no bank link has none, whether it's the user's own or a group's", NEEDS_BANK_SYNC, async ({ page, request }) => {
   const user = await signUpUser(request)
   const groupId = await createGroup(request, user, 'Household')
   const accounts = await Promise.all([
@@ -1078,7 +1078,7 @@ test("says an account with no institution and no bank link has none, whether it'
 
 // The Bank sync fact takes a row of its own under the account's other facts, so its status has the card's
 // whole width rather than half of it, since a status such as "Synced just now" was cut short
-test('sets the Bank sync fact on a row of its own across the identity card', AT_EVERY_SIZE, async ({ page, request }) => {
+test('sets the Bank sync fact on a row of its own across the identity card', AT_EVERY_SIZE_NEEDS_BANK_SYNC, async ({ page, request }) => {
   const user = await signUpUser(request)
   const everyday = await createAccount(request, user, { name: 'Everyday' })
   await logInViaApi(page, user)

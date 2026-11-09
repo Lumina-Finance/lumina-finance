@@ -5,7 +5,7 @@ import { logInViaApi, openPage } from '../support/app'
 import { addImportedItem, editTransaction, linkToEmptyBankAccount } from '../support/bankSync'
 import { colourContrast, fillContrast } from '../support/contrast'
 import { getTransactionRowButton } from '../support/selectors'
-import { AT_EVERY_SIZE } from '../support/sizes'
+import { AT_EVERY_SIZE_NEEDS_BANK_SYNC } from '../support/bankSyncServer'
 
 // Runs at every size: a touch screen opens the bank icon's tooltip by a tap rather than a hover, and
 // transaction rows take their own layout below 750px
@@ -151,7 +151,7 @@ async function startWithImported(
   return { user, account, id }
 }
 
-test('marks a bank-imported row with its provider on hover, focus or a press, leaving the row closed and a manual row unmarked', AT_EVERY_SIZE, async ({ page, request }) => {
+test('marks a bank-imported row with its provider on hover, focus or a press, leaving the row closed and a manual row unmarked', AT_EVERY_SIZE_NEEDS_BANK_SYNC, async ({ page, request }) => {
   const { user, account, id: importedId } = await startWithImported(request)
   const manualId = await createTransaction(request, user, {
     accountId: account.id,
@@ -212,7 +212,7 @@ test('marks a bank-imported row with its provider on hover, focus or a press, le
   await expectTooltipClosed(imported, 'From SimpleFIN')
 })
 
-test('opens the tooltip from a press just off the bank icon, leaving the row closed', AT_EVERY_SIZE, async ({ page, request }) => {
+test('opens the tooltip from a press just off the bank icon, leaving the row closed', AT_EVERY_SIZE_NEEDS_BANK_SYNC, async ({ page, request }) => {
   const { user, id } = await startWithImported(request)
   await logInViaApi(page, user)
   await openPage(page, '/transactions')
@@ -300,7 +300,7 @@ async function readSideOfIcon(row: Locator, marker: Locator): Promise<'above' | 
   return firstLine.y > markerBox.y + markerBox.height ? 'below' : 'above'
 }
 
-test('opens the tooltip below the bank icon when the icon sits just under the sticky bars', AT_EVERY_SIZE, async ({ page, request }) => {
+test('opens the tooltip below the bank icon when the icon sits just under the sticky bars', AT_EVERY_SIZE_NEEDS_BANK_SYNC, async ({ page, request }) => {
   const { row, marker } = await scrollBankIconUnderBars(page, request)
 
   // There is no room above the icon below the bars, so the panel opens under it, every line readable
@@ -309,7 +309,7 @@ test('opens the tooltip below the bank icon when the icon sits just under the st
   expect(await readSideOfIcon(row, marker)).toBe('below')
 })
 
-test('picks the side of the bank icon tooltip afresh when a press opens it, rather than keeping where it showed',AT_EVERY_SIZE, async ({ page, request }) => {
+test('picks the side of the bank icon tooltip afresh when a press opens it, rather than keeping where it showed', AT_EVERY_SIZE_NEEDS_BANK_SYNC, async ({ page, request }) => {
   const { row, marker } = await scrollBankIconUnderBars(page, request)
   await focusBankIconByKeyboard(page, row)
   await expectTooltipOpen(page, marker, row, ['From SimpleFIN', EDITED_NOTE])
@@ -331,7 +331,7 @@ test('picks the side of the bank icon tooltip afresh when a press opens it, rath
   await expectTooltipOpen(page, marker, row, ['From SimpleFIN', EDITED_NOTE])
 })
 
-test('adds a dot and the edited note to a bank-imported row whose bank value the user changed', AT_EVERY_SIZE, async ({ page, request }) => {
+test('adds a dot and the edited note to a bank-imported row whose bank value the user changed', AT_EVERY_SIZE_NEEDS_BANK_SYNC, async ({ page, request }) => {
   const { user, id } = await startWithImported(request, -4000)
   await logInViaApi(page, user)
   await openPage(page, '/transactions')

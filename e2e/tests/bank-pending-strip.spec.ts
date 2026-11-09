@@ -5,7 +5,7 @@ import { filterTransactions, logInViaApi, openPage, watchServerRequests } from '
 import { answerLinksWith, isRead, pageOf, reviewItem, SEP_21 } from '../support/bankSync'
 import { faintestText } from '../support/contrast'
 import { MINUS, readBoxes } from '../support/selectors'
-import { AT_EVERY_SIZE } from '../support/sizes'
+import { AT_EVERY_SIZE_NEEDS_BANK_SYNC, NEEDS_BANK_SYNC } from '../support/bankSyncServer'
 
 // Runs on desktop only, apart from the closed strip test and the light theme's readable text test.
 // Those run at every size: a phone moves the explanation inside the opened strip, and the strip has to fit every
@@ -126,7 +126,7 @@ async function answerThreePending(page: Page, { everyday, visa, savings }: Accou
   return asked
 }
 
-test('shows the pending count closed, and each pending transaction newest first once opened', AT_EVERY_SIZE, async ({ page, request }) => {
+test('shows the pending count closed, and each pending transaction newest first once opened', AT_EVERY_SIZE_NEEDS_BANK_SYNC, async ({ page, request }) => {
   await answerThreePending(page, await start(page, request))
 
   await openPage(page, '/transactions')
@@ -153,7 +153,7 @@ test('shows the pending count closed, and each pending transaction newest first 
   await expect(rows.nth(2)).toContainText(`${MINUS}$240.00`)
 })
 
-test('opens nothing from a pending row', async ({ page, request }) => {
+test('opens nothing from a pending row', NEEDS_BANK_SYNC, async ({ page, request }) => {
   await answerThreePending(page, await start(page, request))
   await openPage(page, '/transactions')
   const strip = pendingStrip(page)
@@ -166,7 +166,7 @@ test('opens nothing from a pending row', async ({ page, request }) => {
   await expect(row).not.toBeFocused()
 })
 
-test('counts only the accounts the list is filtered to, hiding for those with nothing pending', async ({ page, request }) => {
+test('counts only the accounts the list is filtered to, hiding for those with nothing pending', NEEDS_BANK_SYNC, async ({ page, request }) => {
   const accounts = await start(page, request)
   const asked = await answerThreePending(page, accounts)
   await openPage(page, '/transactions')
@@ -185,7 +185,7 @@ test('counts only the accounts the list is filtered to, hiding for those with no
   expect(asked.at(-1)).toEqual([accounts.savings.id])
 })
 
-test("shows only an account's own pending transactions on its page, leaving out its name", async ({ page, request }) => {
+test("shows only an account's own pending transactions on its page, leaving out its name", NEEDS_BANK_SYNC, async ({ page, request }) => {
   const accounts = await start(page, request)
   await answerThreePending(page, accounts)
 
@@ -200,7 +200,7 @@ test("shows only an account's own pending transactions on its page, leaving out 
 })
 
 // Asked as the page's clock starts, since a real sync can't be timed to it
-test('words when the bank was last asked anew as minutes pass with the strip open', async ({ page, request }) => {
+test('words when the bank was last asked anew as minutes pass with the strip open', NEEDS_BANK_SYNC, async ({ page, request }) => {
   const { everyday } = await start(page, request)
   const checkedAt = new Date()
   await answerPending(page, () => [pendingTransaction('uber', everyday.id, { observed_at: checkedAt.toISOString() })])
@@ -218,7 +218,7 @@ test('words when the bank was last asked anew as minutes pass with the strip ope
   await expect(row).toContainText('Checked 5 minutes ago')
 })
 
-test('reads neither pending transactions nor review items for a list filtered to group accounts alone', async ({ page, request }) => {
+test('reads neither pending transactions nor review items for a list filtered to group accounts alone', NEEDS_BANK_SYNC, async ({ page, request }) => {
   const user = await signUpUser(request)
   const everyday = await createAccount(request, user, { name: 'Everyday' })
   const joint = await createAccount(request, user, { name: 'Joint', groupId: await createGroup(request, user, 'Household') })
@@ -249,7 +249,7 @@ test('reads neither pending transactions nor review items for a list filtered to
   expect(bankReads).toEqual([])
 })
 
-test('refreshes when a linked account finishes a sync, a posted transaction moving to the review block', async ({ page, request }) => {
+test('refreshes when a linked account finishes a sync, a posted transaction moving to the review block', NEEDS_BANK_SYNC, async ({ page, request }) => {
   const { everyday } = await start(page, request)
 
   // Read every couple of seconds while it syncs, the sync ending with a later success that posted the Uber trip
@@ -279,7 +279,7 @@ test('refreshes when a linked account finishes a sync, a posted transaction movi
   await expect(reviewRows.first()).toContainText('UBER TRIPNew')
 })
 
-test('says in the strip that pending transactions could not load, and reads only them again', async ({ page, request }) => {
+test('says in the strip that pending transactions could not load, and reads only them again', NEEDS_BANK_SYNC, async ({ page, request }) => {
   const { everyday } = await start(page, request)
   const reads = { pending: 0, review: 0 }
   let pendingFails = true
@@ -314,7 +314,7 @@ test('says in the strip that pending transactions could not load, and reads only
   expect(reads.review).toBe(reviewReads)
 })
 
-test("reads the server's pending transactions for every account and for several filtered to, showing no strip when none are pending", async ({ page, request }) => {
+test("reads the server's pending transactions for every account and for several filtered to, showing no strip when none are pending", NEEDS_BANK_SYNC, async ({ page, request }) => {
   const { visa } = await start(page, request)
 
   const everyAccount = page.waitForResponse(isPendingRead(0))
@@ -334,7 +334,7 @@ test("reads the server's pending transactions for every account and for several 
 
 for (const colorScheme of ['light', 'dark'] as const) {
   // Only the light run places the strip, so only it runs at every size
-  test(`${colorScheme === 'light' ? 'sits under the review block and above the list, its' : 'keeps its'} text readable in the ${colorScheme} theme`, colorScheme === 'light' ? AT_EVERY_SIZE : {}, async ({ page, request }) => {
+  test(`${colorScheme === 'light' ? 'sits under the review block and above the list, its' : 'keeps its'} text readable in the ${colorScheme} theme`, colorScheme === 'light' ? AT_EVERY_SIZE_NEEDS_BANK_SYNC : NEEDS_BANK_SYNC, async ({ page, request }) => {
     const { everyday, visa } = await start(page, request)
     await page.route(isRead('/bank-review/items'), (route) => route.fulfill({ json: pageOf([reviewItem('everyday-1', 'new', everyday.id)], { new: 1 }) }))
     await answerPending(page, () => [

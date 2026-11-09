@@ -4,7 +4,7 @@ import { createAccount, daysFromTodayInTestTimezone, formatDateLabel, signUpUser
 import { logInViaApi, openPage } from '../support/app'
 import { addImportedItem, editTransaction, linkToEmptyBankAccount, readTransaction } from '../support/bankSync'
 import { expectPendingAction, expectTransactionRow, MINUS, readBoxes } from '../support/selectors'
-import { AT_EVERY_SIZE } from '../support/sizes'
+import { AT_EVERY_SIZE_NEEDS_BANK_SYNC, NEEDS_BANK_SYNC } from '../support/bankSyncServer'
 import { API_BASE_URL } from '../support/target'
 
 // Runs on desktop only, apart from the restore placement, failed restore and greyed restore tests
@@ -132,7 +132,7 @@ test.afterEach(async ({ page }) => {
   await page.unrouteAll({ behavior: 'ignoreErrors' })
 })
 
-test('restores the bank amount under an edited amount, bringing back its sign and direction', AT_EVERY_SIZE, async ({ page, request }) => {
+test('restores the bank amount under an edited amount, bringing back its sign and direction', AT_EVERY_SIZE_NEEDS_BANK_SYNC, async ({ page, request }) => {
   // The bank sent money out and the user turned it into money in
   const { user, id } = await startWithImported(page, request, '-42.10', { amount: 4210 })
   const release = await holdRestores(page, id)
@@ -200,7 +200,7 @@ test('restores the bank amount under an edited amount, bringing back its sign an
   expect(await readTransaction(request, user, id)).toMatchObject({ amount: -4210, bank_source: { edited_fields: [] } })
 })
 
-test('restores money coming in, bringing back the Credit direction', async ({ page, request }) => {
+test('restores money coming in, bringing back the Credit direction', NEEDS_BANK_SYNC, async ({ page, request }) => {
   // The bank sent money in and the user turned it into money out
   const { user, id } = await startWithImported(page, request, '50.00', { amount: -5000 })
   await openPage(page, '/transactions')
@@ -216,7 +216,7 @@ test('restores money coming in, bringing back the Credit direction', async ({ pa
   expect(await readTransaction(request, user, id)).toMatchObject({ amount: 5000, bank_source: { edited_fields: [] } })
 })
 
-test('restores one of two edited fields, holding the other back while it restores', async ({ page, request }) => {
+test('restores one of two edited fields, holding the other back while it restores', NEEDS_BANK_SYNC, async ({ page, request }) => {
   const { user, id } = await startWithImported(page, request, '-42.10', { dt: EDITED_DATE, amount: -4000 })
   const release = await holdRestores(page, id)
   await openPage(page, '/transactions')
@@ -244,7 +244,7 @@ test('restores one of two edited fields, holding the other back while it restore
   expect(await readTransaction(request, user, id)).toMatchObject({ dt: EDITED_DATE, amount: -4210, bank_source: { edited_fields: ['date'] } })
 })
 
-test('saves an edit made after a restore in the same modal, compared with the restored value', async ({ page, request }) => {
+test('saves an edit made after a restore in the same modal, compared with the restored value', NEEDS_BANK_SYNC, async ({ page, request }) => {
   const { user, id } = await startWithImported(page, request, '-42.10', { amount: 4210 })
   await openPage(page, '/transactions')
 
@@ -261,7 +261,7 @@ test('saves an edit made after a restore in the same modal, compared with the re
   expect(await readTransaction(request, user, id)).toMatchObject({ amount: 4210, bank_source: { edited_fields: ['amount'] } })
 })
 
-test('restores the bank date under an edited date, staying restored once the modal reopens', AT_EVERY_SIZE, async ({ page, request }) => {
+test('restores the bank date under an edited date, staying restored once the modal reopens', AT_EVERY_SIZE_NEEDS_BANK_SYNC, async ({ page, request }) => {
   const { user, id } = await startWithImported(page, request, '-42.50', { dt: EDITED_DATE })
   await openPage(page, '/transactions')
 
@@ -289,7 +289,7 @@ test('restores the bank date under an edited date, staying restored once the mod
   expect(await readTransaction(request, user, id)).toMatchObject({ dt: BANK_DATE, bank_source: { edited_fields: [] } })
 })
 
-test('says a restore failed, leaving the field and its bank value to try again', AT_EVERY_SIZE, async ({ page, request }) => {
+test('says a restore failed, leaving the field and its bank value to try again', AT_EVERY_SIZE_NEEDS_BANK_SYNC, async ({ page, request }) => {
   const { id } = await startWithImported(page, request, '-42.10', { amount: -4000 })
   await failRestores(page, id)
   await openPage(page, '/transactions')
@@ -313,7 +313,7 @@ test('says a restore failed, leaving the field and its bank value to try again',
   await expect(restore).toBeEnabled()
 })
 
-test('brings a failed restore into view above the footer, from an action at the foot of a short screen', AT_EVERY_SIZE, async ({ page, request }) => {
+test('brings a failed restore into view above the footer, from an action at the foot of a short screen', AT_EVERY_SIZE_NEEDS_BANK_SYNC, async ({ page, request }) => {
   test.skip(test.info().project.name !== 'phone', 'Only a phone screen is short enough')
   const { id } = await startWithImported(page, request, '-42.10', { amount: -4000 })
   await failRestores(page, id)
@@ -347,7 +347,7 @@ test('brings a failed restore into view above the footer, from an action at the 
   await expect(restore).toBeFocused()
 })
 
-test('greys out Restore bank value on an amount the currency can\'t hold, saying why', AT_EVERY_SIZE, async ({ page, request }) => {
+test('greys out Restore bank value on an amount the currency can\'t hold, saying why', AT_EVERY_SIZE_NEEDS_BANK_SYNC, async ({ page, request }) => {
   // Added with an amount of the user's own. That counts as their edit
   const { id } = await startWithImported(page, request, '-42.505', {}, -4250)
   let restores = 0

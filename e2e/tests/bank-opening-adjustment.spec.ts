@@ -25,7 +25,7 @@ import {
   WORKER_RESULT_TIMEOUT_MS,
 } from '../support/bankSync'
 import { MINUS, readBoxes } from '../support/selectors'
-import { AT_EVERY_SIZE } from '../support/sizes'
+import { AT_EVERY_SIZE_NEEDS_BANK_SYNC, NEEDS_BANK_SYNC } from '../support/bankSyncServer'
 import { API_BASE_URL } from '../support/target'
 
 // Runs on desktop only, apart from the answers' layout test, the light theme's readable offer test and the
@@ -119,7 +119,7 @@ test.afterEach(async ({ page }) => {
   await page.unrouteAll({ behavior: 'ignoreErrors' })
 })
 
-test('offers the gap under the balances, starting from the offered amount', async ({ page, request }) => {
+test('offers the gap under the balances, starting from the offered amount', NEEDS_BANK_SYNC, async ({ page, request }) => {
   const { offer } = await openOffer(page, request)
 
   await expect(fact(offer.dialog, 'Status')).toHaveText(new RegExp(`^${OPENING_BALANCE_STATUS}`))
@@ -131,7 +131,7 @@ test('offers the gap under the balances, starting from the offered amount', asyn
   expect(sentence.y).toBeGreaterThan(caption.y + caption.height)
 })
 
-test('keeps the offer when a sync brings an item to review, naming the amount of the item it leaves out', async ({ page, request }) => {
+test('keeps the offer when a sync brings an item to review, naming the amount of the item it leaves out', NEEDS_BANK_SYNC, async ({ page, request }) => {
   const { setup, offer } = await openOffer(page, request)
   await expect(offer.amount).toHaveValue('250.00')
 
@@ -150,7 +150,7 @@ test('keeps the offer when a sync brings an item to review, naming the amount of
   await expect(dialog.getByText(/items waiting for review .*\$4\.50/)).toBeVisible()
 })
 
-test('shows the answers whole, beside the amount from the width they fit there and a row each under it on a phone', AT_EVERY_SIZE, async ({ page, request }) => {
+test('shows the answers whole, beside the amount from the width they fit there and a row each under it on a phone', AT_EVERY_SIZE_NEEDS_BANK_SYNC, async ({ page, request }) => {
   const { offer } = await openOffer(page, request)
 
   const [field, skipBox, recordBox] = await readBoxes(page, [offer.amount, offer.skip, offer.record])
@@ -165,7 +165,7 @@ test('shows the answers whole, beside the amount from the width they fit there a
   }
 })
 
-test('keeps the amount and the answers in place on a phone when a message shows beside the label', AT_EVERY_SIZE, async ({ page, request }) => {
+test('keeps the amount and the answers in place on a phone when a message shows beside the label', AT_EVERY_SIZE_NEEDS_BANK_SYNC, async ({ page, request }) => {
   test.skip(test.info().project.name !== 'phone', 'It checks the layout a phone gets')
   await page.setViewportSize({ width: 390, height: 844 })
   const { offer } = await openOffer(page, request)
@@ -220,7 +220,7 @@ test('keeps the amount and the answers in place on a phone when a message shows 
   expect(await placed()).toEqual(before)
 })
 
-test('records nothing for Enter in the amount, or for a blank or zero amount, saying why until the amount is fixed', async ({ page, request }) => {
+test('records nothing for Enter in the amount, or for a blank or zero amount, saying why until the amount is fixed', NEEDS_BANK_SYNC, async ({ page, request }) => {
   const answers = watchAnswers(page)
   const { offer } = await openOffer(page, request)
 
@@ -253,7 +253,7 @@ test('records nothing for Enter in the amount, or for a blank or zero amount, sa
   expect(answers).toEqual([])
 })
 
-test('says why the amount refuses a sign typed into it, keeping the amount it holds until the sign is taken back', async ({ page, request }) => {
+test('says why the amount refuses a sign typed into it, keeping the amount it holds until the sign is taken back', NEEDS_BANK_SYNC, async ({ page, request }) => {
   const { offer } = await openOffer(page, request)
   const signMessage = offer.dialog.getByText(SIGNED_AMOUNT_MESSAGE)
 
@@ -280,7 +280,7 @@ test('says why the amount refuses a sign typed into it, keeping the amount it ho
   await expect(offer.amount).toHaveValue('240.00')
 })
 
-test('records nothing while the sign message shows, fading Record adjustment with it and focusing the amount', async ({ page, request }) => {
+test('records nothing while the sign message shows, fading Record adjustment with it and focusing the amount', NEEDS_BANK_SYNC, async ({ page, request }) => {
   const answers = watchAnswers(page)
   const { offer } = await openOffer(page, request)
 
@@ -299,7 +299,7 @@ test('records nothing while the sign message shows, fading Record adjustment wit
   await expect(offer.record).not.toHaveAttribute('aria-disabled', 'true')
 })
 
-test('records the amount typed over the offer as one adjustment the day before the import start, and offers it no more', async ({ page, request }) => {
+test('records the amount typed over the offer as one adjustment the day before the import start, and offers it no more', NEEDS_BANK_SYNC, async ({ page, request }) => {
   const answers = watchAnswers(page)
   const { setup, offer } = await openOffer(page, request)
 
@@ -323,7 +323,7 @@ test('records the amount typed over the offer as one adjustment the day before t
   await expect(again.getByRole('button', { name: 'Record adjustment' })).toHaveCount(0)
 })
 
-test('skips the offer without recording anything, and offers it no more', async ({ page, request }) => {
+test('skips the offer without recording anything, and offers it no more', NEEDS_BANK_SYNC, async ({ page, request }) => {
   const answers = watchAnswers(page)
   const { setup, offer } = await openOffer(page, request)
 
@@ -340,7 +340,7 @@ test('skips the offer without recording anything, and offers it no more', async 
   await expect(again.getByRole('button', { name: 'Record adjustment' })).toHaveCount(0)
 })
 
-test('keeps the offer when an answer never reaches the server, saying something went wrong', async ({ page, request }) => {
+test('keeps the offer when an answer never reaches the server, saying something went wrong', NEEDS_BANK_SYNC, async ({ page, request }) => {
   const { setup, offer } = await openOffer(page, request)
   await page.route(`${API_BASE_URL}/accounts/${setup.accountId}/bank-link/opening-adjustment/record`, (route) => route.abort('failed'), { times: 1 })
 
@@ -351,7 +351,7 @@ test('keeps the offer when an answer never reaches the server, saying something 
   expect(await countLedgerTransactions(request, setup.user)).toBe(1)
 })
 
-test('folds the offer away when an answer finds it skipped in another window, saying why', async ({ page, request }) => {
+test('folds the offer away when an answer finds it skipped in another window, saying why', NEEDS_BANK_SYNC, async ({ page, request }) => {
   const { setup, offer } = await openOffer(page, request)
   let skippedElsewhere = 0
   await page.route(`${API_BASE_URL}/accounts/${setup.accountId}/bank-link/opening-adjustment/record`, async (route) => {
@@ -373,7 +373,7 @@ test('folds the offer away when an answer finds it skipped in another window, sa
 // answered once the offer was skipped in another window does. The modal reads the link again as it
 // opens, and that read is held until the offer has been skipped, while the answer's refusal is held
 // until the offer has gone
-test('says why the server refused an answer whose offer a read of the link had already folded away', async ({ page, request }) => {
+test('says why the server refused an answer whose offer a read of the link had already folded away', NEEDS_BANK_SYNC, async ({ page, request }) => {
   const setup = await linkWithGap(request)
   const linkUrl = `${API_BASE_URL}/accounts/${setup.accountId}/bank-link`
   const recordUrl = `${linkUrl}/opening-adjustment/record`
@@ -407,7 +407,7 @@ test('says why the server refused an answer whose offer a read of the link had a
 // link the server answered once the answer had reached it leaves the offer out. The modal reads the link
 // again as it opens, and that read is held until Skip has reached the server, while Skip's own answer is
 // held until the offer has gone
-test('moves focus on from an answer whose offer folds away before it answers', async ({ page, request }) => {
+test('moves focus on from an answer whose offer folds away before it answers', NEEDS_BANK_SYNC, async ({ page, request }) => {
   const setup = await linkWithGap(request)
   const skipUrl = `${API_BASE_URL}/accounts/${setup.accountId}/bank-link/opening-adjustment/skip`
   let skipReached = () => {}
@@ -441,7 +441,7 @@ test('moves focus on from an answer whose offer folds away before it answers', a
 // A read of the link can fold the offer away while focus is elsewhere in the modal, as one the server
 // answered once the offer was skipped in another window does. The modal reads the link again as it
 // opens, and that read is held until the offer has been skipped
-test('leaves focus where the person put it when a read of the link folds the offer away', async ({ page, request }) => {
+test('leaves focus where the person put it when a read of the link folds the offer away', NEEDS_BANK_SYNC, async ({ page, request }) => {
   const setup = await linkWithGap(request)
   let skipped = () => {}
   const skippedElsewhere = new Promise<void>((resolve) => { skipped = resolve })
@@ -460,7 +460,7 @@ test('leaves focus where the person put it when a read of the link folds the off
 
 for (const colorScheme of ['light', 'dark'] as const) {
   // Only the light run measures the offer's width, so only it runs at every size
-  test(`keeps the offer readable in the ${colorScheme} theme${colorScheme === 'light' ? ', with no sideways scroll' : ''}`, colorScheme === 'light' ? AT_EVERY_SIZE : {}, async ({ page, request }) => {
+  test(`keeps the offer readable in the ${colorScheme} theme${colorScheme === 'light' ? ', with no sideways scroll' : ''}`, colorScheme === 'light' ? AT_EVERY_SIZE_NEEDS_BANK_SYNC : NEEDS_BANK_SYNC, async ({ page, request }) => {
     await page.emulateMedia({ colorScheme, reducedMotion: 'reduce' })
     const { setup, offer } = await openOffer(page, request)
     if (colorScheme === 'dark') await expect(page.locator('html')).toHaveClass(/\bdark\b/)

@@ -12,6 +12,7 @@ import {
   syncBankLinkNow,
   WORKER_RESULT_TIMEOUT_MS,
 } from '../support/bankSync'
+import { NEEDS_BANK_SYNC } from '../support/bankSyncServer'
 import { API_BASE_URL } from '../support/target'
 
 // Runs on desktop only: the running balance and the refreshes Add Transaction holds back while open
@@ -81,7 +82,7 @@ test('keeps the running balance in Add transaction right after switching windows
 // The tab stays in view while the page's clock moves past the link list's next read. That read finds the
 // sync over. Coming back to the tab instead would also run the check for changes made elsewhere.
 // That check refreshes the review inbox by itself once the dialogue closes
-test('keeps the running balance in Add transaction when a bank sync ends behind it, then shows what the sync brought in', async ({ page, request }) => {
+test('keeps the running balance in Add transaction when a bank sync ends behind it, then shows what the sync brought in', NEEDS_BANK_SYNC, async ({ page, request }) => {
   const user = await signUpUser(request)
   await createAccount(request, user, { name: 'Wallet', startingBalance: 100000 })
   const everyday = await createAccount(request, user, { name: 'Everyday' })

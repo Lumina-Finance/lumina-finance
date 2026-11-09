@@ -23,6 +23,7 @@ import {
   reviewBlock,
   reviewItem,
 } from '../support/bankSync'
+import { NEEDS_BANK_SYNC } from '../support/bankSyncServer'
 import { expectStretchedFocusRing, getTransactionRowButton } from '../support/selectors'
 import { AT_EVERY_SIZE } from '../support/sizes'
 import { API_BASE_URL, BASE_URL } from '../support/target'
@@ -404,7 +405,7 @@ test(
 // one focus colour, so this samples one control for each way rather than every control the bank screens
 // draw focus on, and the bank icon's ring has its own test above. Read for each control, so a run that
 // fails names every control that misses it, and until it holds, since some ease their focus in
-test('draws keyboard focus on the bank screens in the focus colour', async ({ page, request }) => {
+test('draws keyboard focus on the bank screens in the focus colour', NEEDS_BANK_SYNC, async ({ page, request }) => {
   await page.emulateMedia({ reducedMotion: 'reduce' })
   const user = await signUpUser(request)
   const account = await createAccount(request, user, { name: 'Everyday' })

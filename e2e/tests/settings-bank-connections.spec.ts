@@ -22,7 +22,7 @@ import {
   type SeededConnection,
 } from '../support/bankSync'
 import { expectMessageInCorner, readBoxes } from '../support/selectors'
-import { AT_EVERY_SIZE } from '../support/sizes'
+import { AT_EVERY_SIZE_NEEDS_BANK_SYNC, NEEDS_BANK_SYNC } from '../support/bankSyncServer'
 import { API_BASE_URL, BASE_URL } from '../support/target'
 
 // Runs on desktop only, apart from the linked account tile test (on the phone) and the linking
@@ -190,7 +190,7 @@ test.afterEach(async ({ page }) => {
   await page.unrouteAll({ behavior: 'ignoreErrors' })
 })
 
-test('adds a connection with a nickname and lists it with its bank accounts', async ({ page, request }) => {
+test('adds a connection with a nickname and lists it with its bank accounts', NEEDS_BANK_SYNC, async ({ page, request }) => {
   const user = await signUpUser(request)
   const scenario = await createSampleBridgeScenario(request)
   const section = await openBankConnections(page, user)
@@ -212,7 +212,7 @@ test('adds a connection with a nickname and lists it with its bank accounts', as
   await expect(row).toContainText('OK')
 })
 
-test("draws the setup token field's hint like the nickname's and marks the empty token once Connect is pressed", async ({ page, request }) => {
+test("draws the setup token field's hint like the nickname's and marks the empty token once Connect is pressed", NEEDS_BANK_SYNC, async ({ page, request }) => {
   const user = await signUpUser(request)
   const scenario = await createSampleBridgeScenario(request)
   const section = await openBankConnections(page, user)
@@ -242,7 +242,7 @@ test("draws the setup token field's hint like the nickname's and marks the empty
   await expect(connect).toBeEnabled()
 })
 
-test("shows a used setup token's refusal on the token field and adds no connection", async ({ page, request }) => {
+test("shows a used setup token's refusal on the token field and adds no connection", NEEDS_BANK_SYNC, async ({ page, request }) => {
   const [user, earlierUser] = await Promise.all([signUpUser(request), signUpUser(request)])
   const scenario = await createSampleBridgeScenario(request)
   await claimSetupToken(request, earlierUser, scenario.setupToken)
@@ -260,7 +260,7 @@ test("shows a used setup token's refusal on the token field and adds no connecti
   await expect(section.getByText('No connections yet.')).toBeVisible()
 })
 
-test('draws each field a provider lists, checks each against its own limit and sends them under their keys', async ({ page, request }) => {
+test('draws each field a provider lists, checks each against its own limit and sends them under their keys', NEEDS_BANK_SYNC, async ({ page, request }) => {
   const user = await signUpUser(request)
   await changeProviders(page, (body) => {
     body.providers[0].credential_fields = [
@@ -312,7 +312,7 @@ test('draws each field a provider lists, checks each against its own limit and s
   expect(sent).toEqual([expect.objectContaining({ provider: 'simplefin', credentials: { app_token: 'app-1', user_token: 'user-1' } })])
 })
 
-test("shows that SimpleFIN Bridge couldn't be reached beside the form's actions", async ({ page, request }) => {
+test("shows that SimpleFIN Bridge couldn't be reached beside the form's actions", NEEDS_BANK_SYNC, async ({ page, request }) => {
   const user = await signUpUser(request)
   const scenario = await createSampleBridgeScenario(request)
   await breakBridge(request, scenario.id)
@@ -328,7 +328,7 @@ test("shows that SimpleFIN Bridge couldn't be reached beside the form's actions"
   await expect(token).not.toHaveAttribute('aria-invalid')
 })
 
-test('says to check the connections once a claim whose answer was lost must have finished with none shown', async ({ page, request }) => {
+test('says to check the connections once a claim whose answer was lost must have finished with none shown', NEEDS_BANK_SYNC, async ({ page, request }) => {
   const user = await signUpUser(request)
   const scenario = await createSampleBridgeScenario(request)
 
@@ -356,7 +356,7 @@ test('says to check the connections once a claim whose answer was lost must have
   await expect(dialog.getByRole('button', { name: 'Connect' })).not.toHaveAttribute('aria-busy', 'true')
 })
 
-test('waits on after a gateway timeout, and closes as connected once the server saves the connection', async ({ page, request }) => {
+test('waits on after a gateway timeout, and closes as connected once the server saves the connection', NEEDS_BANK_SYNC, async ({ page, request }) => {
   const user = await signUpUser(request)
   const scenario = await createSampleBridgeScenario(request)
   const section = await openBankConnections(page, user)
@@ -424,7 +424,7 @@ test('waits on after a gateway timeout, and closes as connected once the server 
   expect(failedClaims).toEqual([])
 })
 
-test("renames a connection, and a blank nickname brings back the provider's name", async ({ page, request }) => {
+test("renames a connection, and a blank nickname brings back the provider's name", NEEDS_BANK_SYNC, async ({ page, request }) => {
   const user = await signUpUser(request)
   const scenario = await createSampleBridgeScenario(request)
   await claimSetupToken(request, user, scenario.setupToken)
@@ -452,7 +452,7 @@ test("renames a connection, and a blank nickname brings back the provider's name
   await expect(fact(dialog, 'Provider')).toHaveCount(0)
 })
 
-test('takes a nickname of any length typed and refuses one over the limit once Connect or Save is pressed', async ({ page, request }) => {
+test('takes a nickname of any length typed and refuses one over the limit once Connect or Save is pressed', NEEDS_BANK_SYNC, async ({ page, request }) => {
   const user = await signUpUser(request)
   const scenario = await createSampleBridgeScenario(request)
   const tooLong = 'Nickname must be 64 characters or less.'
@@ -488,7 +488,7 @@ test('takes a nickname of any length typed and refuses one over the limit once C
 
 // Rename is pressed the moment a saved rename gives it back. That brings back the field that saved while
 // it is still fading out, rather than a new one
-test('renames a connection again straight after a rename, from the field still fading out', async ({ page, request }) => {
+test('renames a connection again straight after a rename, from the field still fading out', NEEDS_BANK_SYNC, async ({ page, request }) => {
   const user = await signUpUser(request)
   const scenario = await createSampleBridgeScenario(request)
   await claimSetupToken(request, user, scenario.setupToken)
@@ -516,7 +516,7 @@ test('renames a connection again straight after a rename, from the field still f
 
 // A rename on its way holds the modal open, as a disconnect does, so word that it failed comes beside the
 // connection it was for. The rename is held here until the modal has been asked to close, then fails
-test('keeps the modal open while a rename is on its way, saying there if it fails', async ({ page, request }) => {
+test('keeps the modal open while a rename is on its way, saying there if it fails', NEEDS_BANK_SYNC, async ({ page, request }) => {
   const user = await signUpUser(request)
   const scenario = await createSampleBridgeScenario(request)
   await claimSetupToken(request, user, scenario.setupToken)
@@ -541,7 +541,7 @@ test('keeps the modal open while a rename is on its way, saying there if it fail
 // Escape pressed straight after Enter reaches the field before it has rendered as saving. A later
 // press no longer does, since the field is held back by then. Both keys go to the field in one task, so
 // it can't render in between, and the rename is held until both are in, then fails
-test('keeps the nickname typed when Escape follows Enter straight away, so a failed rename can be tried again', async ({ page, request }) => {
+test('keeps the nickname typed when Escape follows Enter straight away, so a failed rename can be tried again', NEEDS_BANK_SYNC, async ({ page, request }) => {
   const user = await signUpUser(request)
   const scenario = await createSampleBridgeScenario(request)
   await claimSetupToken(request, user, scenario.setupToken)
@@ -564,7 +564,7 @@ test('keeps the nickname typed when Escape follows Enter straight away, so a fai
 
 // The field fades out once its rename is saved. That is too short a while to catch by polling, so the
 // dialogue's look is read after every change to it, from the save going out until the field has gone
-test('stops Save spinning as soon as a rename is saved and the modal can close again', async ({ page, request }) => {
+test('stops Save spinning as soon as a rename is saved and the modal can close again', NEEDS_BANK_SYNC, async ({ page, request }) => {
   const user = await signUpUser(request)
   const scenario = await createSampleBridgeScenario(request)
   await claimSetupToken(request, user, scenario.setupToken)
@@ -603,7 +603,7 @@ test('stops Save spinning as soon as a rename is saved and the modal can close a
   expect(looks).not.toContain('close enabled, save spinning')
 })
 
-test("draws a connection's status as a round dot, never a dash", AT_EVERY_SIZE, async ({ page, request }) => {
+test("draws a connection's status as a round dot, never a dash", AT_EVERY_SIZE_NEEDS_BANK_SYNC, async ({ page, request }) => {
   const user = await signUpUser(request)
   const scenario = await createSampleBridgeScenario(request)
   await claimSetupToken(request, user, scenario.setupToken)
@@ -618,7 +618,7 @@ test("draws a connection's status as a round dot, never a dash", AT_EVERY_SIZE, 
   expect(factDot.height).toBeCloseTo(factDot.width, 0)
 })
 
-test("gives Rename and Disconnect one width and clips neither label", AT_EVERY_SIZE, async ({ page, request }) => {
+test("gives Rename and Disconnect one width and clips neither label", AT_EVERY_SIZE_NEEDS_BANK_SYNC, async ({ page, request }) => {
   const user = await signUpUser(request)
   const scenario = await createSampleBridgeScenario(request)
   await claimSetupToken(request, user, scenario.setupToken)
@@ -634,7 +634,7 @@ test("gives Rename and Disconnect one width and clips neither label", AT_EVERY_S
   }
 })
 
-test("shows a connection's facts", async ({ page, request }) => {
+test("shows a connection's facts", NEEDS_BANK_SYNC, async ({ page, request }) => {
   const user = await signUpUser(request)
   const [household, scenario] = await Promise.all([
     createAccount(request, user, { name: 'Household' }),
@@ -661,7 +661,7 @@ test("shows a connection's facts", async ({ page, request }) => {
   await expect(dialog.getByRole('region', { name: 'Institutions · 1 of 2 bank accounts linked' })).toBeVisible()
 })
 
-test("says a connection's provider is gone from the server, holding Reconnect back with the reason", AT_EVERY_SIZE, async ({ page, request }) => {
+test("says a connection's provider is gone from the server, holding Reconnect back with the reason", AT_EVERY_SIZE_NEEDS_BANK_SYNC, async ({ page, request }) => {
   const user = await signUpUser(request)
   const [household, scenario] = await Promise.all([
     createAccount(request, user, { name: 'Household' }),
@@ -739,7 +739,7 @@ test("says a connection's provider is gone from the server, holding Reconnect ba
   expect(await dotBorder(connectionRow(section, 'SimpleFIN').getByTestId('sync-status-dot').filter({ visible: true }))).toBe(warningDot)
 })
 
-test('words when a spent request budget frees up anew as minutes pass with the connection open', async ({ page, request }) => {
+test('words when a spent request budget frees up anew as minutes pass with the connection open', NEEDS_BANK_SYNC, async ({ page, request }) => {
   const user = await signUpUser(request)
   const scenario = await createSampleBridgeScenario(request)
   await claimSetupToken(request, user, scenario.setupToken, 'Joint banks')
@@ -775,7 +775,7 @@ test('words when a spent request budget frees up anew as minutes pass with the c
   await expect(note).toContainText(/frees up in 5 minutes/)
 })
 
-test('links a bank account from the connection, importing from the start chosen', AT_EVERY_SIZE, async ({ page, request }) => {
+test('links a bank account from the connection, importing from the start chosen', AT_EVERY_SIZE_NEEDS_BANK_SYNC, async ({ page, request }) => {
   const user = await signUpUser(request)
   const [household, scenario] = await Promise.all([
     createAccount(request, user, { name: 'Household' }),
@@ -820,7 +820,7 @@ test('links a bank account from the connection, importing from the start chosen'
   await expect(dialog.getByText('No account can take it')).toBeVisible()
 })
 
-test("says which bank accounts can't be linked", async ({ page, request }) => {
+test("says which bank accounts can't be linked", NEEDS_BANK_SYNC, async ({ page, request }) => {
   const user = await signUpUser(request)
   const [, scenario] = await Promise.all([
     createAccount(request, user, { name: 'Household' }),
@@ -841,7 +841,7 @@ test("says which bank accounts can't be linked", async ({ page, request }) => {
   await expect(miles).toContainText("Can't be linked")
 })
 
-test('finds a connection by its linked account or nickname, and disconnects it after asking again, then focuses the next connection', async ({ page, request }) => {
+test('finds a connection by its linked account or nickname, and disconnects it after asking again, then focuses the next connection', NEEDS_BANK_SYNC, async ({ page, request }) => {
   const user = await signUpUser(request)
   const [household, joint, travel] = await Promise.all([
     createAccount(request, user, { name: 'Household' }),
@@ -880,7 +880,7 @@ test('finds a connection by its linked account or nickname, and disconnects it a
   await expect(connectionRow(section, 'Travel cards')).toBeFocused()
 })
 
-test('focuses the connection before a disconnected last one', async ({ page, request }) => {
+test('focuses the connection before a disconnected last one', NEEDS_BANK_SYNC, async ({ page, request }) => {
   const user = await signUpUser(request)
   const [joint, travel] = await Promise.all([createSampleBridgeScenario(request), createSampleBridgeScenario(request)])
   await claimSetupToken(request, user, joint.setupToken, 'Joint banks')
@@ -895,7 +895,7 @@ test('focuses the connection before a disconnected last one', async ({ page, req
   await expect(connectionRow(section, 'Joint banks')).toBeFocused()
 })
 
-test('focuses the search once the only connection is disconnected', async ({ page, request }) => {
+test('focuses the search once the only connection is disconnected', NEEDS_BANK_SYNC, async ({ page, request }) => {
   const user = await signUpUser(request)
   const scenario = await createSampleBridgeScenario(request)
   await claimSetupToken(request, user, scenario.setupToken)
@@ -910,7 +910,7 @@ test('focuses the search once the only connection is disconnected', async ({ pag
   await expect(section.getByPlaceholder('Find a connection or institution…')).toBeFocused()
 })
 
-test('reconnects a rejected connection, and shows the account to choose again under Mismatch detected', AT_EVERY_SIZE, async ({ page, request }) => {
+test('reconnects a rejected connection, and shows the account to choose again under Mismatch detected', AT_EVERY_SIZE_NEEDS_BANK_SYNC, async ({ page, request }) => {
   const user = await signUpUser(request)
   const [household, travelVisa, scenario] = await Promise.all([
     createAccount(request, user, { name: 'Household' }),
@@ -972,7 +972,7 @@ test('reconnects a rejected connection, and shows the account to choose again un
   await expect(mismatch.getByText(`SimpleFIN now lists ${SAMPLE_VISA} differently`)).toBeVisible()
 })
 
-test('says to try again when Reconnect loses its answer, and shows the connection working once the server has it', async ({ page, request }) => {
+test('says to try again when Reconnect loses its answer, and shows the connection working once the server has it', NEEDS_BANK_SYNC, async ({ page, request }) => {
   const user = await signUpUser(request)
   const scenario = await createSampleBridgeScenario(request)
   const connection = await claimSetupToken(request, user, scenario.setupToken)
@@ -1009,7 +1009,7 @@ test('says to try again when Reconnect loses its answer, and shows the connectio
   await expect(row).not.toContainText('Reconnect needed')
 })
 
-test('shows a bank that needs signing in to on the connection and its institution', async ({ page, request }) => {
+test('shows a bank that needs signing in to on the connection and its institution', NEEDS_BANK_SYNC, async ({ page, request }) => {
   const user = await signUpUser(request)
   await claimConnectionNeedingSignIn(request, user)
   const section = await openBankConnections(page, user)
@@ -1022,7 +1022,7 @@ test('shows a bank that needs signing in to on the connection and its institutio
   await expect(dialog.getByRole('region', { name: SAMPLE_BANK })).toContainText('Sign in again in SimpleFIN Bridge')
 })
 
-test("keeps a connection's facts column from scrolling sideways, so the status note's icon stays under the pointer", async ({ page, request }) => {
+test("keeps a connection's facts column from scrolling sideways, so the status note's icon stays under the pointer", NEEDS_BANK_SYNC, async ({ page, request }) => {
   const user = await signUpUser(request)
 
   // Only the status's note, opening from after the longest status, reaches past the column's edge while closed
@@ -1050,7 +1050,7 @@ test("keeps a connection's facts column from scrolling sideways, so the status n
   expect(await page.screenshot({ clip: atRest })).toEqual(drawnAtRest)
 })
 
-test("opens a fact's note below its value where the dialog leaves no room above the fact", async ({ page, request }) => {
+test("opens a fact's note below its value where the dialog leaves no room above the fact", NEEDS_BANK_SYNC, async ({ page, request }) => {
   const user = await signUpUser(request)
   const scenario = await createSampleBridgeScenario(request)
   await claimSetupToken(request, user, scenario.setupToken)
@@ -1078,7 +1078,7 @@ test("opens a fact's note below its value where the dialog leaves no room above 
 
 // The linked account's tile draws its edge with its fill, Disconnect with its border and the institution's
 // count with its text, each on the edge of its own box, so comparing the boxes compares what is drawn
-test("ends a linked account's tile and its institution's count on the edge the connection's actions end on, on a phone", AT_EVERY_SIZE, async ({ page, request }) => {
+test("ends a linked account's tile and its institution's count on the edge the connection's actions end on, on a phone", AT_EVERY_SIZE_NEEDS_BANK_SYNC, async ({ page, request }) => {
   test.skip(test.info().project.name !== 'phone', 'The institutions sit below the connection and its actions under 1050px, and only the phone project is that narrow')
   const user = await signUpUser(request)
   const [household, scenario] = await Promise.all([
@@ -1105,7 +1105,7 @@ test("ends a linked account's tile and its institution's count on the edge the c
   expect(count.x + count.width).toBeCloseTo(disconnect.x + disconnect.width, 0)
 })
 
-test('searches the institutions of a connection with more than 5, and Escape clears the search first', async ({ page, request }) => {
+test('searches the institutions of a connection with more than 5, and Escape clears the search first', NEEDS_BANK_SYNC, async ({ page, request }) => {
   const user = await signUpUser(request)
   const scenario = await createEmptyBridgeScenario(request)
   const banks = ['Alder Bank', 'Birch Credit Union', 'Cedar Trust', 'Douglas Savings', 'Elm Bank', 'Fir Financial']
@@ -1137,7 +1137,7 @@ test('searches the institutions of a connection with more than 5, and Escape cle
   await expect(dialog).toBeHidden()
 })
 
-test('counts institutions against a limit and stops linking a new one once it is reached', async ({ page, request }) => {
+test('counts institutions against a limit and stops linking a new one once it is reached', NEEDS_BANK_SYNC, async ({ page, request }) => {
   const user = await signUpUser(request)
   const [, scenario] = await Promise.all([
     createAccount(request, user, { name: 'Household' }),
@@ -1162,7 +1162,7 @@ test('counts institutions against a limit and stops linking a new one once it is
   await expect(harbour.getByText('No account can take it')).toHaveCount(0)
 })
 
-test("holds adding and linking back with the reason while bank sync isn't set up, leaving the other actions", async ({ page, request }) => {
+test("holds adding and linking back with the reason while bank sync isn't set up, leaving the other actions", NEEDS_BANK_SYNC, async ({ page, request }) => {
   const user = await signUpUser(request)
   const [, scenario] = await Promise.all([
     createAccount(request, user, { name: 'Household' }),
@@ -1193,7 +1193,7 @@ test("holds adding and linking back with the reason while bank sync isn't set up
   await expect(dialog.getByRole('button', { name: 'Disconnect' })).toBeEnabled()
 })
 
-test('holds Link and import back with the reason when bank sync stops as the link flow opens', async ({ page, request }) => {
+test('holds Link and import back with the reason when bank sync stops as the link flow opens', NEEDS_BANK_SYNC, async ({ page, request }) => {
   const user = await signUpUser(request)
   const [household, scenario] = await Promise.all([
     createAccount(request, user, { name: 'Household' }),
@@ -1240,7 +1240,7 @@ test('holds Link and import back with the reason when bank sync stops as the lin
   expect(linksSent).toBe(0)
 })
 
-test('disables Add a connection when no provider is open to new connections', async ({ page, request }) => {
+test('disables Add a connection when no provider is open to new connections', NEEDS_BANK_SYNC, async ({ page, request }) => {
   const user = await signUpUser(request)
   await changeProviders(page, (body) => {
     for (const provider of body.providers) provider.offered = false
@@ -1251,7 +1251,7 @@ test('disables Add a connection when no provider is open to new connections', as
   await expect(section.getByText('No bank provider is open to new connections right now. Existing connections keep working.')).toBeVisible()
 })
 
-test('opens a link to the section with it at the top, though it shows only once the providers answer', async ({ page, request }) => {
+test('opens a link to the section with it at the top, though it shows only once the providers answer', NEEDS_BANK_SYNC, async ({ page, request }) => {
   const user = await signUpUser(request)
   // The providers' answer is held until the rest of settings shows, so the section appears after the link is followed
   let releaseProviders = () => {}
@@ -1280,7 +1280,7 @@ for (const [when, answer] of [
   ['no provider is enabled', (route: Route) => route.fulfill({ json: { may_link: true, sync_running: true, providers: [] } })],
   ["the bank providers can't load", (route: Route) => route.fulfill({ status: 500, body: '' })],
 ] as const) {
-  test(`leaves the section out when ${when}`, async ({ page, request }) => {
+  test(`leaves the section out when ${when}`, NEEDS_BANK_SYNC, async ({ page, request }) => {
     const user = await signUpUser(request)
     await page.route(`${API_BASE_URL}/bank-sync/providers`, answer)
     const providersAnswered = page.waitForResponse(`${API_BASE_URL}/bank-sync/providers`)
@@ -1293,7 +1293,7 @@ for (const [when, answer] of [
   })
 }
 
-test("shows the failure when the connections can't load, rather than an empty list", async ({ page, request }) => {
+test("shows the failure when the connections can't load, rather than an empty list", NEEDS_BANK_SYNC, async ({ page, request }) => {
   const user = await signUpUser(request)
   await page.route(`${API_BASE_URL}/bank-sync/connections`, (route) => route.fulfill({ status: 500, body: '' }))
   await logInViaApi(page, user)
@@ -1304,7 +1304,7 @@ test("shows the failure when the connections can't load, rather than an empty li
   await expect(section.getByText('No connections yet.')).toHaveCount(0)
 })
 
-test('leaves the section out for a user who may not link bank accounts', async ({ page, request }) => {
+test('leaves the section out for a user who may not link bank accounts', NEEDS_BANK_SYNC, async ({ page, request }) => {
   const user = await signUpUser(request)
   await changeProviders(page, (body) => {
     body.may_link = false

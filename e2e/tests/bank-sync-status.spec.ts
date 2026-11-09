@@ -30,7 +30,7 @@ import {
   type SeededConnection,
 } from '../support/bankSync'
 import { MINUS, readBoxes } from '../support/selectors'
-import { AT_EVERY_SIZE } from '../support/sizes'
+import { AT_EVERY_SIZE_NEEDS_BANK_SYNC, NEEDS_BANK_SYNC } from '../support/bankSyncServer'
 import { API_BASE_URL } from '../support/target'
 
 // Runs on desktop only, apart from the balance comparison, unavailable balance, retry and rejected
@@ -197,7 +197,7 @@ test.afterEach(async ({ page }) => {
   await page.unrouteAll({ behavior: 'ignoreErrors' })
 })
 
-test('reads as synced once the import finishes', async ({ page, request }) => {
+test('reads as synced once the import finishes', NEEDS_BANK_SYNC, async ({ page, request }) => {
   const user = await signUpUser(request)
   const account = await createAccount(request, user, { name: 'Everyday' })
 
@@ -215,7 +215,7 @@ test('reads as synced once the import finishes', async ({ page, request }) => {
   await expect(dialog.getByRole('button', { name: 'Choose bank account' })).toHaveCount(0)
 })
 
-test('compares the bank balance with the ledger at the end of its balance date', AT_EVERY_SIZE, async ({ page, request }) => {
+test('compares the bank balance with the ledger at the end of its balance date', AT_EVERY_SIZE_NEEDS_BANK_SYNC, async ({ page, request }) => {
   const user = await signUpUser(request)
   const account = await createAccount(request, user, { name: 'Everyday' })
   await createTransaction(request, user, { accountId: account.id, categoryName: 'Groceries', amount: -5000, date: daysFromTodayInTestTimezone(-1) })
@@ -260,7 +260,7 @@ test('compares the bank balance with the ledger at the end of its balance date',
   await expect.poll(() => readClippingBoxes(reason)).toEqual([])
 })
 
-test('shows a bank balance that can\'t be read exactly as unavailable, its reason opening clear of it', AT_EVERY_SIZE, async ({ page, request }) => {
+test('shows a bank balance that can\'t be read exactly as unavailable, its reason opening clear of it', AT_EVERY_SIZE_NEEDS_BANK_SYNC, async ({ page, request }) => {
   const user = await signUpUser(request)
   const account = await createAccount(request, user, { name: 'Everyday' })
   await linkWithBalances(request, user, account.id, { balance: '2418.365' })
@@ -275,7 +275,7 @@ test('shows a bank balance that can\'t be read exactly as unavailable, its reaso
   expect(await isCovering(reason, bankBalance)).toBe(false)
 })
 
-test('opens the reason for a gap below the difference where the dialog leaves no room above it', async ({ page, request }) => {
+test('opens the reason for a gap below the difference where the dialog leaves no room above it', NEEDS_BANK_SYNC, async ({ page, request }) => {
   // A short window. Each balance's value sits under its label and the dialogue's body scrolls
   const dialog = await openBalancesThatDiffer(page, request, { width: 1280, height: 480 })
   const difference = fact(dialog, /^Difference/)
@@ -293,7 +293,7 @@ test('opens the reason for a gap below the difference where the dialog leaves no
   expect(opened.y).toBeGreaterThanOrEqual(explained.y + explained.height)
 })
 
-test('bounds the edit modal\'s tooltips only for an account linked to a bank, leaving those of any other as they were', async ({ page, request }) => {
+test('bounds the edit modal\'s tooltips only for an account linked to a bank, leaving those of any other as they were', NEEDS_BANK_SYNC, async ({ page, request }) => {
   // A linked account's body is the surface its Sync details and balance reasons keep inside
   const linked = await openBalancesThatDiffer(page, request, { width: 1280, height: 800 })
   await expect(linked.locator('[data-dropdown-bounds]')).toHaveAttribute('data-tooltip-bounds', /.*/)
@@ -322,7 +322,7 @@ for (const { shown, show } of [
     },
   },
 ]) {
-  test(`moves the reason for a gap below the balances as the dialog body scrolls them to its top, ${shown}`, async ({ page, request }) => {
+  test(`moves the reason for a gap below the balances as the dialog body scrolls them to its top, ${shown}`, NEEDS_BANK_SYNC, async ({ page, request }) => {
     // A small phone. Each balance takes a row. The reason shows above the three while they have
     // room above them
     const dialog = await openBalancesThatDiffer(page, request, { width: 390, height: 667 })
@@ -406,7 +406,7 @@ async function scrollShownDetailsToFoot(page: Page, dialog: Locator, showDetails
   return shownAt
 }
 
-test('reads as retrying at the time of the retry when the Bridge fails', AT_EVERY_SIZE, async ({ page, request }) => {
+test('reads as retrying at the time of the retry when the Bridge fails', AT_EVERY_SIZE_NEEDS_BANK_SYNC, async ({ page, request }) => {
   const { dialog, showDetails, details } = await openRetryingLink(page, request)
   await expect(fact(dialog, 'Status')).toHaveText(/^Retrying at /)
 
@@ -417,7 +417,7 @@ test('reads as retrying at the time of the retry when the Bridge fails', AT_EVER
   expect(await readClippingBoxes(dialog.getByRole('button', { name: 'Unlink', exact: true }), FOCUS_RING_PX)).toEqual([])
 })
 
-test('opens Sync details again clear of the foot of the modal after closing them under the pointer', async ({ page, request }) => {
+test('opens Sync details again clear of the foot of the modal after closing them under the pointer', NEEDS_BANK_SYNC, async ({ page, request }) => {
   await page.setViewportSize(FOOT_LEAVES_NO_ROOM_BELOW)
   const { dialog, showDetails, details } = await openRetryingLink(page, request)
   await showDetails.click()
@@ -431,7 +431,7 @@ test('opens Sync details again clear of the foot of the modal after closing them
   await expect.poll(() => readClippingBoxes(details)).toEqual([])
 })
 
-test('opens Sync details clear of the foot of the modal from the keyboard', async ({ page, request }) => {
+test('opens Sync details clear of the foot of the modal from the keyboard', NEEDS_BANK_SYNC, async ({ page, request }) => {
   await page.setViewportSize(FOOT_LEAVES_NO_ROOM_BELOW)
   const { dialog, showDetails, details } = await openRetryingLink(page, request)
 
@@ -449,7 +449,7 @@ test('opens Sync details clear of the foot of the modal from the keyboard', asyn
   await expect.poll(() => readClippingBoxes(details)).toEqual([])
 })
 
-test('blinks the status dot while a sync fetches, in the modal as on the card', async ({ page, request }) => {
+test('blinks the status dot while a sync fetches, in the modal as on the card', NEEDS_BANK_SYNC, async ({ page, request }) => {
   await page.emulateMedia({ reducedMotion: 'no-preference' })
   const user = await signUpUser(request)
   const account = await createAccount(request, user, { name: 'Everyday' })
@@ -470,7 +470,7 @@ test('blinks the status dot while a sync fetches, in the modal as on the card', 
 // anything after it, and a blink starts by the frame after. So each dot is checked once a later press
 // has rendered, the card's once the modal has opened and the modal's once Sync details has, a press
 // landing only once the page has drawn twice without moving
-test('holds the status dot still while a sync fetches for anyone who asks for reduced motion, in the modal as on the card', async ({ page, request }) => {
+test('holds the status dot still while a sync fetches for anyone who asks for reduced motion, in the modal as on the card', NEEDS_BANK_SYNC, async ({ page, request }) => {
   await page.emulateMedia({ reducedMotion: 'reduce' })
   const user = await signUpUser(request)
   const account = await createAccount(request, user, { name: 'Everyday' })
@@ -494,7 +494,7 @@ test('holds the status dot still while a sync fetches for anyone who asks for re
 })
 
 // Answered here, synced as the page's clock starts, since a real sync can't be timed to it
-test('words how long ago the link synced anew as minutes pass with the page open', async ({ page, request }) => {
+test('words how long ago the link synced anew as minutes pass with the page open', NEEDS_BANK_SYNC, async ({ page, request }) => {
   const user = await signUpUser(request)
   const account = await createAccount(request, user, { name: 'Everyday' })
   const syncedAt = new Date()
@@ -513,7 +513,7 @@ test('words how long ago the link synced anew as minutes pass with the page open
   await expect(page.getByRole('button', { name: 'Bank sync: Synced 5 minutes ago. Open bank link' })).toBeVisible()
 })
 
-test('stops on a rejected connection, with a notice that leads to Settings to reconnect it', AT_EVERY_SIZE, async ({ page, request }) => {
+test('stops on a rejected connection, with a notice that leads to Settings to reconnect it', AT_EVERY_SIZE_NEEDS_BANK_SYNC, async ({ page, request }) => {
   const user = await signUpUser(request)
   const account = await createAccount(request, user, { name: 'Everyday' })
   const { connection } = await linkIntoFault(request, user, account.id, (scenarioId) => revokeBridgeAccess(request, scenarioId))
@@ -541,7 +541,7 @@ test('stops on a rejected connection, with a notice that leads to Settings to re
   await expect(page).toHaveURL(/\/settings#bank-connections$/)
 })
 
-test('stops on a bank asking for its sign-in, saying where to sign in again', async ({ page, request }) => {
+test('stops on a bank asking for its sign-in, saying where to sign in again', NEEDS_BANK_SYNC, async ({ page, request }) => {
   const user = await signUpUser(request)
   const [account, scenario] = await Promise.all([createAccount(request, user, { name: 'Everyday' }), createEmptyBridgeScenario(request)])
   const login = await addBridgeBankLogin(request, scenario.id, SAMPLE_BANK)
@@ -563,7 +563,7 @@ test('stops on a bank asking for its sign-in, saying where to sign in again', as
   await expect(dialog.getByText('Sign in to your bank again in SimpleFIN Bridge.', { exact: true })).toBeVisible()
 })
 
-test('asks for the bank account again once SimpleFIN lists it differently, opening the choice from the notice', async ({ page, request }) => {
+test('asks for the bank account again once SimpleFIN lists it differently, opening the choice from the notice', NEEDS_BANK_SYNC, async ({ page, request }) => {
   const user = await signUpUser(request)
   const account = await createAccount(request, user, { name: 'Everyday' })
   const { scenario, connection } = await linkIntoFault(request, user, account.id, (scenarioId) => revokeBridgeAccess(request, scenarioId))

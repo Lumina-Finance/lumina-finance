@@ -103,6 +103,9 @@ for (const colorScheme of ['light', 'dark'] as const) {
 
     test('draws a new account\'s starting balance in error at full contrast', async ({ page, request }) => {
       const user = await signUpUser(request)
+      // Offering no bank provider, whichever server the test runs against, opens the starting balance at once
+      await page.route(`${API_BASE_URL}/bank-sync/providers`, (route) =>
+        route.fulfill({ json: { may_link: false, sync_running: false, providers: [] } }))
       await logInViaApi(page, user)
       await openPage(page, '/accounts')
       await expectTheme(page)
@@ -110,8 +113,7 @@ for (const colorScheme of ['light', 'dark'] as const) {
       await chooseFromDropdown(dialog, 'Account type', 'Checking')
       await dialog.getByLabel('Account name').fill('Everyday')
       await dialog.getByRole('button', { name: 'Create account' }).click()
-      const prompt = page.getByRole('dialog', { name: 'Keep it up to date' })
-      await prompt.getByRole('radio', { name: /^Keep it manual/ }).click()
+      const prompt = page.getByRole('dialog', { name: 'Add a starting balance' })
 
       // A minus marks the field, since a starting balance is zero or more
       const balance = prompt.getByLabel('Starting balance', { exact: true })

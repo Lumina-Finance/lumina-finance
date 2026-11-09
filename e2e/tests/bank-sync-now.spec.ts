@@ -14,6 +14,7 @@ import {
   WORKER_RESULT_TIMEOUT_MS,
   type SeededConnection,
 } from '../support/bankSync'
+import { NEEDS_BANK_SYNC } from '../support/bankSyncServer'
 import { API_BASE_URL } from '../support/target'
 
 // Runs on desktop only: what a sync asks of the bank and how its wording ages are the same at every size
@@ -33,7 +34,7 @@ const BANK_LINK_OPEN_MS = 5 * 60 * 1000
 // reason's own refresh can change what the button says
 const SYNCED_BEFORE_MS = 3 * 60 * 60 * 1000
 
-test('checks nothing in a background tab while the sync runs, and shows it Synced on coming back, spending one request', async ({ page, request }) => {
+test('checks nothing in a background tab while the sync runs, and shows it Synced on coming back, spending one request', NEEDS_BANK_SYNC, async ({ page, request }) => {
   const user = await signUpUser(request)
   const account = await createAccount(request, user, { name: 'Everyday' })
 
@@ -93,7 +94,7 @@ test('checks nothing in a background tab while the sync runs, and shows it Synce
 // The link and its connection's spent budget are answered here, spent as the page's clock starts,
 // since the server's requests can't be timed to it. The worker is answered as running, so the spent
 // budget is what holds Sync now back
-test('words when more requests are available anew as minutes pass with the bank link open', async ({ page, request }) => {
+test('words when more requests are available anew as minutes pass with the bank link open', NEEDS_BANK_SYNC, async ({ page, request }) => {
   const user = await signUpUser(request)
   const scenario = await createSampleBridgeScenario(request)
   const [account, connection] = await Promise.all([

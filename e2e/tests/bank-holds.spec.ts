@@ -3,6 +3,7 @@ import { expect, test, type APIRequestContext, type Page } from '@playwright/tes
 import { asUser, createAccount, daysFromTodayInTestTimezone, signUpUser, type TestUser } from '../support/api'
 import { logInViaApi, openPage } from '../support/app'
 import { linkToEmptyBankAccount, reviewBlock, waitForReviewItems, WORKER_RESULT_TIMEOUT_MS } from '../support/bankSync'
+import { NEEDS_BANK_SYNC } from '../support/bankSyncServer'
 import { API_BASE_URL } from '../support/target'
 
 // Runs on desktop only: what the strip lists, how it opens and when a hold is dismissed are the same at every width
@@ -48,7 +49,7 @@ function holdsStrip(page: Page) {
   return page.getByRole('region', { name: 'Bank holds' })
 }
 
-test('lists a $0 record as a hold, closed to start, and keeps it out of review', async ({ page, request }) => {
+test('lists a $0 record as a hold, closed to start, and keeps it out of review', NEEDS_BANK_SYNC, async ({ page, request }) => {
   await start(page, request)
   await openPage(page, '/transactions')
 
@@ -65,7 +66,7 @@ test('lists a $0 record as a hold, closed to start, and keeps it out of review',
   await expect(holdsStrip(page).getByText(CHECK)).toBeVisible()
 })
 
-test('dismisses a hold on the second press and it stays gone after a reload', async ({ page, request }) => {
+test('dismisses a hold on the second press and it stays gone after a reload', NEEDS_BANK_SYNC, async ({ page, request }) => {
   const user = await start(page, request)
   await openPage(page, '/transactions')
   await holdsStrip(page).getByRole('button', { name: /1 hold/ }).click()

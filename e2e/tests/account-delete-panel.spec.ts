@@ -2,6 +2,7 @@ import { expect, test, type Locator, type Page } from '@playwright/test'
 
 import { asUser, createAccount, createTransaction, signUpUser } from '../support/api'
 import { logInViaApi, openPage, readScrollingBox, readSettledScrollingBox, roomBelow } from '../support/app'
+import { NEEDS_BANK_SYNC } from '../support/bankSyncServer'
 import { API_BASE_URL } from '../support/target'
 
 // Runs on desktop only: the test that depends on the screen sets each size it checks itself
@@ -56,7 +57,9 @@ async function waitForFadeIn(control: Locator) {
   })).toBe(true)
 }
 
-test('brings the delete confirmation into view and moves focus through its steps', async ({ page, request }) => {
+// The sizes with bank sync read the server's own providers, so the test runs against one offering bank
+// sync, and the sizes without it answer the providers with none
+test('brings the delete confirmation into view and moves focus through its steps', NEEDS_BANK_SYNC, async ({ page, request }) => {
   const user = await signUpUser(request)
   const account = await createAccount(request, user, { name: ACCOUNT_NAME })
   await createTransaction(request, user, { accountId: account.id, categoryName: 'Groceries', amount: -5000 })

@@ -10,6 +10,7 @@ import {
   WORKER_RESULT_TIMEOUT_MS,
   type BridgeTransaction,
 } from '../support/bankSync'
+import { NEEDS_BANK_SYNC } from '../support/bankSyncServer'
 import { API_BASE_URL } from '../support/target'
 
 // Runs on desktop only: which days the reminder names and how it is dismissed are the same at every size
@@ -67,7 +68,7 @@ function watchDismissals(page: Page): string[] {
   return sent
 }
 
-test('reminds that some of today\'s transactions may be missing once today alone brings back as many as SimpleFIN sends at once', async ({ page, request }) => {
+test('reminds that some of today\'s transactions may be missing once today alone brings back as many as SimpleFIN sends at once', NEEDS_BANK_SYNC, async ({ page, request }) => {
   const setup = await linkCutShort(request)
   await logInViaApi(page, setup.user)
 
@@ -81,7 +82,7 @@ test('reminds that some of today\'s transactions may be missing once today alone
   expect((await readReminders(request, setup.user, setup.accountId)).cut_off_day).toBe(todayInTestTimezone())
 })
 
-test('dismisses each reminder for good, focus moving from one ✕ to the next and then on to Sync now', async ({ page, request }) => {
+test('dismisses each reminder for good, focus moving from one ✕ to the next and then on to Sync now', NEEDS_BANK_SYNC, async ({ page, request }) => {
   const setup = await linkCutShort(request)
   const sent = watchDismissals(page)
   await logInViaApi(page, setup.user)
@@ -108,7 +109,7 @@ test('dismisses each reminder for good, focus moving from one ✕ to the next an
 // the dismissal has gone through comes back without it. The modal reads the link again as it opens, and
 // that read is held until the dismissal has reached the server, while the dismissal itself is held on
 // its way there until the ✕s have been looked at, and its answer until the reminder has gone
-test('spins only the dismissed reminder’s ✕, and moves focus on from it once its reminder folds away before its dismissal answers', async ({ page, request }) => {
+test('spins only the dismissed reminder’s ✕, and moves focus on from it once its reminder folds away before its dismissal answers', NEEDS_BANK_SYNC, async ({ page, request }) => {
   const setup = await linkCutShort(request)
   const dismissUrl = `${API_BASE_URL}/accounts/${setup.accountId}/bank-link/history-reminder/dismiss`
   let sendDismissal = () => {}

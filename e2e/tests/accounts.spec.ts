@@ -10,6 +10,7 @@ import {
   MINUS,
   whileApiRequestHeld,
 } from '../support/selectors'
+import { AT_EVERY_SIZE_NEEDS_BANK_SYNC, NEEDS_BANK_SYNC } from '../support/bankSyncServer'
 import { AT_EVERY_SIZE } from '../support/sizes'
 import { API_BASE_URL } from '../support/target'
 
@@ -19,14 +20,22 @@ import { API_BASE_URL } from '../support/target'
 
 const ACCOUNT_NAME = 'Everyday Chequing'
 
+const PROVIDERS_URL = `${API_BASE_URL}/bank-sync/providers`
+
+// Each test sees a server offering no bank provider, whichever server it runs against, so saving a
+// new account opens the starting balance prompt. A test routing the providers itself takes over from
+// this, and the one test about a server offering bank sync removes it
+test.beforeEach(async ({ page }) => {
+  await page.route(PROVIDERS_URL, (route) => route.fulfill({ json: { may_link: false, sync_running: false, providers: [] } }))
+})
+
 /**
  * Create an account through the modal on the accounts page.
  *
  * @param page - Page already showing the accounts page
  * @param accountType - Label of the type to choose, a chequing account unless given
  * @param name - Name to give the account
- * @returns The prompt that saving the account opens, with the account kept manual so its starting
- * balance shows
+ * @returns The starting balance prompt that saving the account opens
  */
 async function createAccountThroughModal(page: Page, accountType = 'Checking', name = ACCOUNT_NAME): Promise<Locator> {
   const dialog = await openModal(page, ['Add account'], 'Add account')
@@ -37,8 +46,26 @@ async function createAccountThroughModal(page: Page, accountType = 'Checking', n
   await dialog.getByRole('button', { name: 'Create account' }).click()
 
   await expect(dialog).toBeHidden()
-  const prompt = page.getByRole('dialog', { name: 'Keep it up to date' })
+  const prompt = page.getByRole('dialog', { name: 'Add a starting balance' })
   await expect(prompt).toBeVisible()
+  return prompt
+}
+
+/**
+ * Create an account through the modal on the accounts page of a server offering bank sync, and keep
+ * it manual in the prompt that saving it opens.
+ *
+ * @param page - Page already showing the accounts page, with the providers answered by the server
+ * @returns The prompt, showing the starting balance
+ */
+async function createManualAccountWithBankSyncOffered(page: Page): Promise<Locator> {
+  const dialog = await openModal(page, ['Add account'], 'Add account')
+  await chooseFromDropdown(dialog, 'Account type', 'Checking')
+  await dialog.getByLabel('Account name').fill(ACCOUNT_NAME)
+  await dialog.getByRole('button', { name: 'Create account' }).click()
+
+  await expect(dialog).toBeHidden()
+  const prompt = page.getByRole('dialog', { name: 'Keep it up to date' })
   await prompt.getByRole('radio', { name: /^Keep it manual/ }).click()
   return prompt
 }
@@ -49,13 +76,9 @@ async function createAccountThroughModal(page: Page, accountType = 'Checking', n
  * @param page - Page whose prompt has just opened
  */
 async function skipStartingBalancePrompt(page: Page): Promise<void> {
-  // With a bank provider on offer the prompt asks how the account stays up to date first, and it
-  // holds the starting balance once the account is kept manual
-  const prompt = page.getByRole('dialog', { name: /^(Keep it up to date|Add a starting balance)$/ })
+  const prompt = page.getByRole('dialog', { name: 'Add a starting balance' })
   await expect(prompt).toBeVisible()
-  const manual = prompt.getByRole('radio', { name: /^Keep it manual/ })
-  if (await manual.count()) await manual.click()
-  await prompt.getByRole('button', { name: /^(Skip|Decide later)$/ }).click()
+  await prompt.getByRole('button', { name: 'Skip' }).click()
   await expect(prompt).toBeHidden()
 }
 
@@ -120,7 +143,6 @@ test('records a new credit card\'s amount owed as a balance below zero', async (
 
 test('shows a server without bank sync no bank choice, link section or blank institution line', async ({ page, request }) => {
   const user = await signUpUser(request)
-  await page.route(`${API_BASE_URL}/bank-sync/providers`, (route) => route.fulfill({ json: { may_link: false, providers: [] } }))
   await logInViaApi(page, user)
   await openPage(page, '/accounts')
 
@@ -135,7 +157,7 @@ test('shows a server without bank sync no bank choice, link section or blank ins
   await expect(prompt).toBeVisible()
   await expect(page.getByRole('dialog', { name: 'Keep it up to date' })).toHaveCount(0)
   await expect(prompt.getByRole('radio')).toHaveCount(0)
-  await prompt.getByRole('button', { name: /^(Skip|Decide later)$/ }).click()
+  await prompt.getByRole('button', { name: 'Skip' }).click()
   await expect(prompt).toBeHidden()
 
   await page.getByRole('link', { name: new RegExp(ACCOUNT_NAME) }).click()
@@ -238,13 +260,32 @@ test('leaves a new account at zero when its starting balance is left blank', asy
   expect(startingBalanceRequests).toEqual([])
 })
 
-test('leaves a new account at zero when its starting balance is left for later', async ({ page, request }) => {
+test('leaves a new account at zero when its starting balance is skipped', async ({ page, request }) => {
   const user = await signUpUser(request)
   await logInViaApi(page, user)
   await openPage(page, '/accounts')
   const startingBalanceRequests = watchStartingBalanceRequests(page)
 
   const prompt = await createAccountThroughModal(page)
+  await prompt.getByLabel('Starting balance', { exact: true }).fill('300.00')
+  await prompt.getByRole('button', { name: 'Skip' }).click()
+
+  await expect(prompt).toBeHidden()
+  await expect(getAccountRow(page, ACCOUNT_NAME)).toContainText('$0.00')
+  await waitForRequestsSoFar(page)
+  expect(startingBalanceRequests).toEqual([])
+})
+
+// With a provider on offer the prompt asks how the account stays up to date first, and keeping it
+// manual shows the same starting balance under a button that leaves the choice for later
+test('leaves a new account kept manual at zero when its starting balance is left for later', NEEDS_BANK_SYNC, async ({ page, request }) => {
+  await page.unroute(PROVIDERS_URL)
+  const user = await signUpUser(request)
+  await logInViaApi(page, user)
+  await openPage(page, '/accounts')
+  const startingBalanceRequests = watchStartingBalanceRequests(page)
+
+  const prompt = await createManualAccountWithBankSyncOffered(page)
   await prompt.getByLabel('Starting balance', { exact: true }).fill('300.00')
   await prompt.getByRole('button', { name: 'Decide later' }).click()
 
@@ -434,12 +475,15 @@ test('closes the prompt as saved when the save lands but its answer is lost', as
   await expect(getAccountRow(page, ACCOUNT_NAME)).toContainText('$1,250.00')
 })
 
-test('keeps the prompt and the typed balance when a save is lost before it lands', AT_EVERY_SIZE, async ({ page, request }) => {
+// The buttons hold their width beside a message only in the prompt offering a bank link, and every
+// other modal's buttons give way to it, so the test runs against a server offering bank sync
+test('keeps the prompt and the typed balance when a save is lost before it lands', AT_EVERY_SIZE_NEEDS_BANK_SYNC, async ({ page, request }) => {
+  await page.unroute(PROVIDERS_URL)
   const user = await signUpUser(request)
   await logInViaApi(page, user)
   await openPage(page, '/accounts')
 
-  const prompt = await createAccountThroughModal(page)
+  const prompt = await createManualAccountWithBankSyncOffered(page)
   const balance = prompt.getByLabel('Starting balance', { exact: true })
   const buttons = [prompt.getByRole('button', { name: 'Decide later' }), prompt.getByRole('button', { name: 'Continue' })]
   const buttonWidths = () => Promise.all(buttons.map(async (button) => (await button.boundingBox())?.width))

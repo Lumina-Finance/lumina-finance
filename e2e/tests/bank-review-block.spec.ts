@@ -31,7 +31,7 @@ import {
 } from '../support/bankSync'
 import { faintestText } from '../support/contrast'
 import { MINUS, readBoxes } from '../support/selectors'
-import { AT_EVERY_SIZE } from '../support/sizes'
+import { AT_EVERY_SIZE_NEEDS_BANK_SYNC, NEEDS_BANK_SYNC } from '../support/bankSyncServer'
 import { API_BASE_URL } from '../support/target'
 
 // Runs on desktop only, apart from the Needs review marker test and the light theme's readable text test.
@@ -222,7 +222,7 @@ async function showWaitingItem(page: Page, transactionId: string): Promise<void>
   await page.getByTestId(`transaction-row-${transactionId}`).getByRole('button', { name: 'Needs review. Show the waiting item' }).click()
 }
 
-test('shows each kind of item for the accounts the list shows, and only its own on an account page', async ({ page, request }) => {
+test('shows each kind of item for the accounts the list shows, and only its own on an account page', NEEDS_BANK_SYNC, async ({ page, request }) => {
   const { everyday, visa, savings } = await start(page, request)
   const correction = reviewItem('visa-1', 'correction', visa.id, { description: 'COUNTDOWN 123', amount: -2310 })
   const answers = new Map([
@@ -271,7 +271,7 @@ test('shows each kind of item for the accounts the list shows, and only its own 
   await expect(block).not.toContainText('Visa')
 })
 
-test('says in the block that the waiting items could not load, sends Needs review there, and reads only them again', async ({ page, request }) => {
+test('says in the block that the waiting items could not load, sends Needs review there, and reads only them again', NEEDS_BANK_SYNC, async ({ page, request }) => {
   const accounts = await start(page, request)
   const uberId = await addUberTripAwaiting(page, request, accounts, 'item-0')
   const reads = { items: 0, backlogs: 0 }
@@ -331,7 +331,7 @@ test('says in the block that the waiting items could not load, sends Needs revie
   expect(await page.evaluate(() => 'notReloaded' in window)).toBe(true)
 })
 
-test('says the pause status could not load while still showing the items, and reads only it again', async ({ page, request }) => {
+test('says the pause status could not load while still showing the items, and reads only it again', NEEDS_BANK_SYNC, async ({ page, request }) => {
   const { everyday } = await start(page, request)
   const reads = { items: 0, backlogs: 0 }
   let backlogsFail = true
@@ -370,7 +370,7 @@ test('says the pause status could not load while still showing the items, and re
   expect(reads.items).toBe(itemReads)
 })
 
-test('moves focus on from a retry that succeeds only while the retry has it, to the title when the pause status has nothing to say', async ({ page, request }) => {
+test('moves focus on from a retry that succeeds only while the retry has it, to the title when the pause status has nothing to say', NEEDS_BANK_SYNC, async ({ page, request }) => {
   const { everyday } = await start(page, request)
   let readsFail = true
   const gate = readGate()
@@ -416,7 +416,7 @@ test('moves focus on from a retry that succeeds only while the retry has it, to 
   expect(await page.evaluate(() => document.activeElement?.hasAttribute('data-focus-went-here') ?? false)).toBe(true)
 })
 
-test('shows the first 4 of a 1,500 item backlog, and loads the rest a page at a time once opened', async ({ page, request }) => {
+test('shows the first 4 of a 1,500 item backlog, and loads the rest a page at a time once opened', NEEDS_BANK_SYNC, async ({ page, request }) => {
   const { everyday } = await start(page, request)
   await answerLongBacklog(page, everyday.id)
 
@@ -471,7 +471,7 @@ test('shows the first 4 of a 1,500 item backlog, and loads the rest a page at a 
 // started the wait hears of it. Motion isn't reduced, as it is for other tests on the page's clock,
 // since reduced motion shows the rows at full height at once and leaves the end of the list nowhere
 // near, and nothing here has to fade out. A fade is what the page's clock would hold up
-test('loads no more of a 1,500 item backlog when the end of the list has moved away by the end of the wait, however late word of it comes', async ({ page, request }) => {
+test('loads no more of a 1,500 item backlog when the end of the list has moved away by the end of the wait, however late word of it comes', NEEDS_BANK_SYNC, async ({ page, request }) => {
   const { everyday } = await start(page, request)
   await answerLongBacklog(page, everyday.id)
   const cursors: (string | null)[] = []
@@ -506,7 +506,7 @@ test('loads no more of a 1,500 item backlog when the end of the list has moved a
   expect(cursors).toEqual([null])
 })
 
-test('closes once four or fewer items wait, so it shows only the first four when more come back', async ({ page, request }) => {
+test('closes once four or fewer items wait, so it shows only the first four when more come back', NEEDS_BANK_SYNC, async ({ page, request }) => {
   // Six new items from the bank, a day apart, imported by the worker
   const user = await signUpUser(request)
   const everyday = await createAccount(request, user, { name: 'Everyday' })
@@ -541,7 +541,7 @@ test('closes once four or fewer items wait, so it shows only the first four when
   await expect(rows).toHaveCount(4)
 })
 
-test("goes from a ledger row's Needs review marker to its item, loading the page it's on", AT_EVERY_SIZE, async ({ page, request }) => {
+test("goes from a ledger row's Needs review marker to its item, loading the page it's on", AT_EVERY_SIZE_NEEDS_BANK_SYNC, async ({ page, request }) => {
   const accounts = await start(page, request)
   const { everyday } = accounts
   const uberId = await addUberTripAwaiting(page, request, accounts, 'item-59')
@@ -586,7 +586,7 @@ test("goes from a ledger row's Needs review marker to its item, loading the page
   await expect(ring).toHaveCSS('box-shadow', 'none')
 })
 
-test('opens the block for a marker whose item is the fifth, the first one it hides, from Needs review and not from the bank icon before it', async ({ page, request }) => {
+test('opens the block for a marker whose item is the fifth, the first one it hides, from Needs review and not from the bank icon before it', NEEDS_BANK_SYNC, async ({ page, request }) => {
   const accounts = await start(page, request)
   const uberId = await addUberTripAwaiting(page, request, accounts, 'item-4')
   await answerReviewItems(page, () => pageOf(Array.from({ length: 6 }, (_, index) => index === 4
@@ -617,7 +617,7 @@ test('opens the block for a marker whose item is the fifth, the first one it hid
   await expect(block.getByRole('button', { name: 'Show fewer' })).toHaveAttribute('aria-expanded', 'true')
 })
 
-test("lets the block close after a marker whose item no page holds, once every page has loaded", async ({ page, request }) => {
+test("lets the block close after a marker whose item no page holds, once every page has loaded", NEEDS_BANK_SYNC, async ({ page, request }) => {
   const accounts = await start(page, request)
 
   // Decided on another device since the ledger was read, so the complete list lacks it
@@ -637,7 +637,7 @@ test("lets the block close after a marker whose item no page holds, once every p
   await expect(block.getByRole('listitem')).toHaveCount(4)
 })
 
-test("stops going to a marker's item once the page it would be on fails to load", async ({ page, request }) => {
+test("stops going to a marker's item once the page it would be on fails to load", NEEDS_BANK_SYNC, async ({ page, request }) => {
   const accounts = await start(page, request)
   const uberId = await addUberTripAwaiting(page, request, accounts, 'item-6')
 
@@ -669,7 +669,7 @@ test("stops going to a marker's item once the page it would be on fails to load"
   await expect(block.getByRole('listitem')).toHaveCount(4)
 })
 
-test('says an account is paused for its backlog, or close to pausing', async ({ page, request }) => {
+test('says an account is paused for its backlog, or close to pausing', NEEDS_BANK_SYNC, async ({ page, request }) => {
   const { everyday, savings, visa } = await start(page, request)
   const savingsItem = reviewItem('savings-1', 'new', savings.id)
   const items = new Map([
@@ -701,7 +701,7 @@ test('says an account is paused for its backlog, or close to pausing', async ({ 
 
 for (const colorScheme of ['light', 'dark'] as const) {
   // Only the light run places the block, so only it runs at every size
-  test(`${colorScheme === 'light' ? 'sits above the list and keeps' : 'keeps'} its text readable in the ${colorScheme} theme`, colorScheme === 'light' ? AT_EVERY_SIZE : {}, async ({ page, request }) => {
+  test(`${colorScheme === 'light' ? 'sits above the list and keeps' : 'keeps'} its text readable in the ${colorScheme} theme`, colorScheme === 'light' ? AT_EVERY_SIZE_NEEDS_BANK_SYNC : NEEDS_BANK_SYNC, async ({ page, request }) => {
     const { everyday, visa } = await start(page, request)
     const items = [
       reviewItem('visa-1', 'correction', visa.id, { description: 'COUNTDOWN 123 WITH A LONGER BANK DESCRIPTION THAN MOST', amount: -2310 }),

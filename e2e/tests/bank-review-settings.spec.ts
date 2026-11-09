@@ -12,7 +12,7 @@ import {
   waitForReviewItems,
   WORKER_RESULT_TIMEOUT_MS,
 } from '../support/bankSync'
-import { AT_EVERY_SIZE } from '../support/sizes'
+import { AT_EVERY_SIZE_NEEDS_BANK_SYNC, NEEDS_BANK_SYNC } from '../support/bankSyncServer'
 import { API_BASE_URL } from '../support/target'
 
 // Runs on desktop only, apart from the one-line and failed save tests (these run at every size): the
@@ -102,7 +102,7 @@ async function expectBesideSave(page: Page, dialog: Locator, message: Locator): 
   expect(messageBox!.y + messageBox!.height).toBeGreaterThan(saveBox!.y)
 }
 
-test('opens a newly linked account on Review all, each preset on one line', AT_EVERY_SIZE, async ({ page, request }) => {
+test('opens a newly linked account on Review all, each preset on one line', AT_EVERY_SIZE_NEEDS_BANK_SYNC, async ({ page, request }) => {
   const { section } = await start(page, request)
   const dialog = await openReviewSettings(page, section)
 
@@ -114,7 +114,7 @@ test('opens a newly linked account on Review all, each preset on one line', AT_E
   for (const name of ['Review all', 'Auto-approve all', 'Custom'] as const) await expectOneLine(preset(dialog, name).getByText(name, { exact: true }))
 })
 
-test('saves Custom with only corrections auto-approved, each choice on one line, and reopens on Custom with its three rows', AT_EVERY_SIZE, async ({ page, request }) => {
+test('saves Custom with only corrections auto-approved, each choice on one line, and reopens on Custom with its three rows', AT_EVERY_SIZE_NEEDS_BANK_SYNC, async ({ page, request }) => {
   const { user, accountId, section } = await start(page, request)
   let dialog = await openReviewSettings(page, section)
 
@@ -142,7 +142,7 @@ test('saves Custom with only corrections auto-approved, each choice on one line,
   await expect(decision(dialog, 'Removals', 'Review')).toHaveAttribute('aria-selected', 'true')
 })
 
-test('reopens on Auto-approve all once Custom sets all three to Auto-approve, keeping the rows open until then', async ({ page, request }) => {
+test('reopens on Auto-approve all once Custom sets all three to Auto-approve, keeping the rows open until then', NEEDS_BANK_SYNC, async ({ page, request }) => {
   const { user, accountId, section } = await start(page, request)
   let dialog = await openReviewSettings(page, section)
 
@@ -163,7 +163,7 @@ test('reopens on Auto-approve all once Custom sets all three to Auto-approve, ke
   await expect(dialog.getByText(ROWS[2][1])).toBeHidden()
 })
 
-test('keeps Custom and its rows open when a row change leaves a saved mix all alike', async ({ page, request }) => {
+test('keeps Custom and its rows open when a row change leaves a saved mix all alike', NEEDS_BANK_SYNC, async ({ page, request }) => {
   const { user, accountId, section } = await start(page, request)
   const stored = await request.put(`${API_BASE_URL}/accounts/${accountId}/review-preferences`, {
     headers: asUser(user),
@@ -180,7 +180,7 @@ test('keeps Custom and its rows open when a row change leaves a saved mix all al
   for (const [, description] of ROWS) await expect(dialog.getByText(description)).toBeVisible()
 })
 
-test('discards the choice on Cancel, saving nothing, with focus back on Review settings', async ({ page, request }) => {
+test('discards the choice on Cancel, saving nothing, with focus back on Review settings', NEEDS_BANK_SYNC, async ({ page, request }) => {
   const { user, accountId, section } = await start(page, request)
   const sent: string[] = []
   page.on('request', (sentRequest) => {
@@ -200,7 +200,7 @@ test('discards the choice on Cancel, saving nothing, with focus back on Review s
   expect(await readChoices(request, user, accountId)).toEqual({ new_transactions: 'review', corrections: 'review', removals: 'review' })
 })
 
-test('keeps the dialog and the choice when the save fails, saying so beside the actions', AT_EVERY_SIZE, async ({ page, request }) => {
+test('keeps the dialog and the choice when the save fails, saying so beside the actions', AT_EVERY_SIZE_NEEDS_BANK_SYNC, async ({ page, request }) => {
   const { user, accountId, section } = await start(page, request)
   const dialog = await openReviewSettings(page, section)
   await page.route(`${API_BASE_URL}/accounts/${accountId}/review-preferences`, (route) =>
@@ -217,7 +217,7 @@ test('keeps the dialog and the choice when the save fails, saying so beside the 
   expect(await readChoices(request, user, accountId)).toEqual({ new_transactions: 'review', corrections: 'review', removals: 'review' })
 })
 
-test('says why the server refused the save, beside the actions, keeping the dialog and the choice', AT_EVERY_SIZE, async ({ page, request }) => {
+test('says why the server refused the save, beside the actions, keeping the dialog and the choice', AT_EVERY_SIZE_NEEDS_BANK_SYNC, async ({ page, request }) => {
   const { accountId, section } = await start(page, request)
   const dialog = await openReviewSettings(page, section)
   await page.route(`${API_BASE_URL}/accounts/${accountId}/review-preferences`, (route) =>
@@ -234,7 +234,7 @@ test('says why the server refused the save, beside the actions, keeping the dial
   await expect(preset(dialog, 'Auto-approve all')).toHaveAttribute('aria-selected', 'true')
 })
 
-test('applies a bank correction under Auto-approve all without a review item, while a new bank transaction still waits', async ({ page, request }) => {
+test('applies a bank correction under Auto-approve all without a review item, while a new bank transaction still waits', NEEDS_BANK_SYNC, async ({ page, request }) => {
   const user = await signUpUser(request)
   const account = await createAccount(request, user, { name: 'Everyday' })
   const { scenario, externalAccountId } = await linkToEmptyBankAccount(request, user, {

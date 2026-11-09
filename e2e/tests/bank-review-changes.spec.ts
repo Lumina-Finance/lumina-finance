@@ -23,7 +23,7 @@ import {
 } from '../support/bankSync'
 import { faintestText } from '../support/contrast'
 import { expectTransactionRow, getAccountRow, MINUS } from '../support/selectors'
-import { AT_EVERY_SIZE } from '../support/sizes'
+import { AT_EVERY_SIZE_NEEDS_BANK_SYNC, NEEDS_BANK_SYNC } from '../support/bankSyncServer'
 import { API_BASE_URL } from '../support/target'
 
 // Runs on desktop only, apart from the removal, failed decision and action alignment tests and the light
@@ -136,7 +136,7 @@ function needsReview(row: Locator): Locator {
   return row.getByRole('button', { name: 'Needs review. Show the waiting item' })
 }
 
-test("accepts a bank change over an amount the user edited, writing the bank's amount and clearing the marker", async ({ page, request }) => {
+test("accepts a bank change over an amount the user edited, writing the bank's amount and clearing the marker", NEEDS_BANK_SYNC, async ({ page, request }) => {
   const { user, everyday, id } = await startWithCorrection(page, request, -4000)
   await openPage(page, '/transactions')
   const row = page.getByTestId(`transaction-row-${id}`)
@@ -157,7 +157,7 @@ test("accepts a bank change over an amount the user edited, writing the bank's a
   expect(await readReviewItems(request, user, everyday.id)).toEqual([])
 })
 
-test("keeps the current value, counting it as edited, clearing the marker and keeping the day's total without reading the ledger again", async ({ page, request }) => {
+test("keeps the current value, counting it as edited, clearing the marker and keeping the day's total without reading the ledger again", NEEDS_BANK_SYNC, async ({ page, request }) => {
   const { user, everyday, id } = await startWithCorrection(page, request)
   await openPage(page, '/transactions')
   const row = page.getByTestId(`transaction-row-${id}`)
@@ -184,7 +184,7 @@ test("keeps the current value, counting it as edited, clearing the marker and ke
   expect(await readReviewItems(request, user, everyday.id)).toEqual([])
 })
 
-test('removes a transaction the bank no longer reports, reading the ledger again', AT_EVERY_SIZE, async ({ page, request }) => {
+test('removes a transaction the bank no longer reports, reading the ledger again', AT_EVERY_SIZE_NEEDS_BANK_SYNC, async ({ page, request }) => {
   const { decisions } = await startWithRemoval(page, request)
   await openPage(page, '/transactions')
 
@@ -207,7 +207,7 @@ test('removes a transaction the bank no longer reports, reading the ledger again
   await expect.poll(() => ledgerReads).not.toEqual([])
 })
 
-test('keeps a transaction the bank no longer reports, clearing the marker without reading the ledger again', async ({ page, request }) => {
+test('keeps a transaction the bank no longer reports, clearing the marker without reading the ledger again', NEEDS_BANK_SYNC, async ({ page, request }) => {
   const { id, decisions } = await startWithRemoval(page, request)
   await openPage(page, '/transactions')
   const row = page.getByTestId(`transaction-row-${id}`)
@@ -227,7 +227,7 @@ test('keeps a transaction the bank no longer reports, clearing the marker withou
   expect(ledgerReads).toEqual([])
 })
 
-test('says why a decision failed in the comparison, leaving the item waiting', AT_EVERY_SIZE, async ({ page, request }) => {
+test('says why a decision failed in the comparison, leaving the item waiting', AT_EVERY_SIZE_NEEDS_BANK_SYNC, async ({ page, request }) => {
   const { id } = await startWithCorrection(page, request)
 
   // Decisions fail in ways the server can't be made to here: refused over a removal SimpleFIN never
@@ -257,7 +257,7 @@ test('says why a decision failed in the comparison, leaving the item waiting', A
   await expect(needsReview(page.getByTestId(`transaction-row-${id}`))).toBeVisible()
 })
 
-test('goes on to the accounts once the account whose item was reviewed on its page is deleted', async ({ page, request }) => {
+test('goes on to the accounts once the account whose item was reviewed on its page is deleted', NEEDS_BANK_SYNC, async ({ page, request }) => {
   const { everyday } = await startWithCorrection(page, request)
   await openPage(page, `/accounts/${everyday.id}`)
   const comparison = await openComparison(page, COUNTDOWN, 'Review bank change')
@@ -277,7 +277,7 @@ test('goes on to the accounts once the account whose item was reviewed on its pa
   await expect(getAccountRow(page, 'Everyday')).toHaveCount(0)
 })
 
-test('starts focus on keeping the current value when the comparison opens from the keyboard', async ({ page, request }) => {
+test('starts focus on keeping the current value when the comparison opens from the keyboard', NEEDS_BANK_SYNC, async ({ page, request }) => {
   await startWithCorrection(page, request)
   await openPage(page, '/transactions')
 
@@ -289,7 +289,7 @@ test('starts focus on keeping the current value when the comparison opens from t
 
 // The ledger-changing action starts where the title starts and the keeping one ends where the close
 // button above it ends, at every width, as the other confirmations' do
-test('lines the comparison actions up with its header', AT_EVERY_SIZE, async ({ page, request }) => {
+test('lines the comparison actions up with its header', AT_EVERY_SIZE_NEEDS_BANK_SYNC, async ({ page, request }) => {
   await startWithCorrection(page, request)
   await openPage(page, '/transactions')
 
@@ -312,7 +312,7 @@ test('lines the comparison actions up with its header', AT_EVERY_SIZE, async ({ 
   await expect.poll(readEdgeOffsets).toEqual({ left: 0, right: 0 })
 })
 
-test('gives each value column room for a bank description on one line at 1440 wide', async ({ page, request }) => {
+test('gives each value column room for a bank description on one line at 1440 wide', NEEDS_BANK_SYNC, async ({ page, request }) => {
   await startWithCorrection(page, request)
   await page.setViewportSize({ width: 1440, height: 900 })
   await openPage(page, '/transactions')
@@ -325,7 +325,7 @@ test('gives each value column room for a bank description on one line at 1440 wi
 
 for (const colorScheme of ['light', 'dark'] as const) {
   // Only the light run measures the comparison's width, so only it runs at every size
-  test(`compares an edited correction readably in the ${colorScheme} theme${colorScheme === 'light' ? ', without scrolling sideways' : ''}`, colorScheme === 'light' ? AT_EVERY_SIZE : {}, async ({ page, request }) => {
+  test(`compares an edited correction readably in the ${colorScheme} theme${colorScheme === 'light' ? ', without scrolling sideways' : ''}`, colorScheme === 'light' ? AT_EVERY_SIZE_NEEDS_BANK_SYNC : NEEDS_BANK_SYNC, async ({ page, request }) => {
     await startWithCorrection(page, request, -4000)
     await page.emulateMedia({ colorScheme, reducedMotion: 'reduce' })
     await openPage(page, '/transactions')

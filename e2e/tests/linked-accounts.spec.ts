@@ -14,7 +14,7 @@ import {
 import { chooseFromDropdown, logInViaApi, openModal, openPage, readSettledBox, typeDate } from '../support/app'
 import { addImportedItem, answerLinksWith, linkToSampleBankAccount } from '../support/bankSync'
 import { faintestText } from '../support/contrast'
-import { AT_EVERY_SIZE } from '../support/sizes'
+import { AT_EVERY_SIZE_NEEDS_BANK_SYNC, NEEDS_BANK_SYNC } from '../support/bankSyncServer'
 import { API_BASE_URL } from '../support/target'
 
 // Runs on desktop only. The refused day, refused move and greyed Delete tests run at
@@ -119,7 +119,7 @@ test.afterEach(async ({ page }) => {
   await page.unrouteAll({ behavior: 'ignoreErrors' })
 })
 
-test('refuses a new manual entry on the days a linked account’s bank supplies', AT_EVERY_SIZE, async ({ page, request }) => {
+test('refuses a new manual entry on the days a linked account’s bank supplies', AT_EVERY_SIZE_NEEDS_BANK_SYNC, async ({ page, request }) => {
   const user = await signUpUser(request)
   const account = await createAccount(request, user, { name: 'Everyday' })
   await linkToSampleBankAccount(request, user, { accountId: account.id, bankAccountName: SAMPLE_CHEQUING })
@@ -185,7 +185,7 @@ test('refuses a new manual entry on the days a linked account’s bank supplies'
   expect(sentDates).toEqual([daysFromTodayInTestTimezone(1)])
 })
 
-test('says why a struck calendar day is refused when it is pressed', async ({ page, request }) => {
+test('says why a struck calendar day is refused when it is pressed', NEEDS_BANK_SYNC, async ({ page, request }) => {
   const user = await signUpUser(request)
   const account = await createAccount(request, user, { name: 'Everyday' })
   await linkToSampleBankAccount(request, user, { accountId: account.id, bankAccountName: SAMPLE_CHEQUING })
@@ -224,7 +224,7 @@ test('says why a struck calendar day is refused when it is pressed', async ({ pa
   await expect(calendar).toBeVisible()
 })
 
-test('refuses the days the other account’s bank supplies once a new transfer is recorded in both, naming it', async ({ page, request }) => {
+test('refuses the days the other account’s bank supplies once a new transfer is recorded in both, naming it', NEEDS_BANK_SYNC, async ({ page, request }) => {
   const user = await signUpUser(request)
   const account = await createAccount(request, user, { name: 'Everyday' })
   const visa = await createAccount(request, user, { name: 'Visa' })
@@ -254,7 +254,7 @@ test('refuses the days the other account’s bank supplies once a new transfer i
 test.describe('with the browser in Tokyo and the profile in Toronto', () => {
   test.use({ timezoneId: 'Asia/Tokyo' })
 
-  test('ends the days the bank supplies on today in the profile’s timezone', async ({ page, request }) => {
+  test('ends the days the bank supplies on today in the profile’s timezone', NEEDS_BANK_SYNC, async ({ page, request }) => {
     const user = await signUpUser(request)
     const account = await createAccount(request, user, { name: 'Everyday' })
     const today = todayInTestTimezone()
@@ -279,7 +279,7 @@ test.describe('with the browser in Tokyo and the profile in Toronto', () => {
 // the account's latest transaction and every write onto those days is refused, so this test answers the
 // list of links with one importing from Jan 1, 2026 instead. The server then accepts every save, so a
 // refusal seen here is the browser's own
-test('lets an edit keep a date the linked account’s bank supplies, and refuses moving it to another such day', async ({ page, request }) => {
+test('lets an edit keep a date the linked account’s bank supplies, and refuses moving it to another such day', NEEDS_BANK_SYNC, async ({ page, request }) => {
   const user = await signUpUser(request)
   const account = await createAccount(request, user, { name: 'Everyday' })
   const id = await createTransaction(request, user, {
@@ -327,7 +327,7 @@ test('lets an edit keep a date the linked account’s bank supplies, and refuses
   expect(sentDates).toEqual(['2025-12-31'])
 })
 
-test('keeps a bank transaction in its linked account, refusing the move on the account field', AT_EVERY_SIZE, async ({ page, request }) => {
+test('keeps a bank transaction in its linked account, refusing the move on the account field', AT_EVERY_SIZE_NEEDS_BANK_SYNC, async ({ page, request }) => {
   const user = await signUpUser(request)
   const account = await createAccount(request, user, { name: 'Everyday' })
   await createAccount(request, user, { name: 'Savings' })
@@ -376,7 +376,7 @@ test('keeps a bank transaction in its linked account, refusing the move on the a
   expect(sentDates).toEqual([correctedDate])
 })
 
-test('greys out Archive with its reason while the account is linked, and offers it again once unlinked', async ({ page, request }) => {
+test('greys out Archive with its reason while the account is linked, and offers it again once unlinked', NEEDS_BANK_SYNC, async ({ page, request }) => {
   const user = await signUpUser(request)
   const account = await createAccount(request, user, { name: 'Everyday' })
   const laterId = await createTransaction(request, user, {
@@ -454,7 +454,7 @@ test('greys out Archive with its reason while the account is linked, and offers 
   await expect(archiveInstead).not.toHaveAttribute('aria-disabled')
 })
 
-test('holds Archive back until the link has been read, so a linked account is never offered it', async ({ page, request }) => {
+test('holds Archive back until the link has been read, so a linked account is never offered it', NEEDS_BANK_SYNC, async ({ page, request }) => {
   const user = await signUpUser(request)
   const account = await createAccount(request, user, { name: 'Everyday' })
   await linkToSampleBankAccount(request, user, { accountId: account.id, bankAccountName: SAMPLE_CHEQUING })
@@ -486,7 +486,7 @@ test('holds Archive back until the link has been read, so a linked account is ne
 
 // With no link to hold it, only the later-dated transactions block archiving, and the switch is disabled
 // outright, so its whole row fades
-test('fades the whole Archive row when later-dated transactions block it', async ({ page, request }) => {
+test('fades the whole Archive row when later-dated transactions block it', NEEDS_BANK_SYNC, async ({ page, request }) => {
   const user = await signUpUser(request)
   const account = await createAccount(request, user, { name: 'Everyday' })
   await createTransaction(request, user, {
@@ -507,7 +507,7 @@ test('fades the whole Archive row when later-dated transactions block it', async
 
 // Held back through aria-disabled, Archive instead still takes focus, as it does for an account with
 // later-dated transactions, so its reason can be read from the keyboard
-test('focuses the held Archive instead, as with later-dated transactions, when the delete panel opens on a linked account', async ({ page, request }) => {
+test('focuses the held Archive instead, as with later-dated transactions, when the delete panel opens on a linked account', NEEDS_BANK_SYNC, async ({ page, request }) => {
   const user = await signUpUser(request)
   const account = await createAccount(request, user, { name: 'Everyday' })
   await linkToSampleBankAccount(request, user, { accountId: account.id, bankAccountName: SAMPLE_CHEQUING })
@@ -528,7 +528,7 @@ test('focuses the held Archive instead, as with later-dated transactions, when t
 })
 
 // The link is read only for the user's own personal accounts, so archiving one in a group never waits on it
-test('offers Archive on a group account, whose link is never read', async ({ page, request }) => {
+test('offers Archive on a group account, whose link is never read', NEEDS_BANK_SYNC, async ({ page, request }) => {
   const user = await signUpUser(request)
   const groupId = await createGroup(request, user, 'Household')
   const account = await createAccount(request, user, { name: 'Shared', groupId })
@@ -542,7 +542,7 @@ test('offers Archive on a group account, whose link is never read', async ({ pag
 })
 
 // The server refuses to archive a linked account with its reason, so a link that can't be read leaves it to
-test('offers Archive once the link fails to load', async ({ page, request }) => {
+test('offers Archive once the link fails to load', NEEDS_BANK_SYNC, async ({ page, request }) => {
   const user = await signUpUser(request)
   const account = await createAccount(request, user, { name: 'Everyday' })
   await page.route(`${API_BASE_URL}/accounts/${account.id}/bank-link`, (route) =>
@@ -558,7 +558,7 @@ test('offers Archive once the link fails to load', async ({ page, request }) => 
 })
 
 // An archived account can't be linked, so bringing it back never waits on its link
-test('offers to bring an archived account back while its link is still being read', async ({ page, request }) => {
+test('offers to bring an archived account back while its link is still being read', NEEDS_BANK_SYNC, async ({ page, request }) => {
   const user = await signUpUser(request)
   const account = await createAccount(request, user, { name: 'Everyday' })
   const archived = await request.patch(`${API_BASE_URL}/accounts/${account.id}`, { headers: asUser(user), data: { is_archived: true } })
@@ -574,7 +574,7 @@ test('offers to bring an archived account back while its link is still being rea
   await expect(dialog.getByRole('switch', { name: /^Archive account/ })).toBeEnabled()
 })
 
-test('greys out Delete on a bank transaction with its reason while the account is linked, and deletes it once unlinked', AT_EVERY_SIZE, async ({ page, request }) => {
+test('greys out Delete on a bank transaction with its reason while the account is linked, and deletes it once unlinked', AT_EVERY_SIZE_NEEDS_BANK_SYNC, async ({ page, request }) => {
   const user = await signUpUser(request)
   const account = await createAccount(request, user, { name: 'Everyday' })
   await linkToSampleBankAccount(request, user, {
@@ -634,7 +634,7 @@ test('greys out Delete on a bank transaction with its reason while the account i
   await expect(page.getByTestId(`transaction-row-${id}`)).toBeHidden()
 })
 
-test('greys out bulk Delete with its reason while a ticked bank transaction is in a linked account', async ({ page, request }) => {
+test('greys out bulk Delete with its reason while a ticked bank transaction is in a linked account', NEEDS_BANK_SYNC, async ({ page, request }) => {
   const user = await signUpUser(request)
   const account = await createAccount(request, user, { name: 'Everyday' })
   const manualDate = daysFromTodayInTestTimezone(-(IMPORT_START_DAYS_AGO + 2))
