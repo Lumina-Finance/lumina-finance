@@ -63,7 +63,7 @@ async def create_transaction_and_get_response(
     # this commits
     await db.flush()
     await db.refresh(txn)
-    response = await get_transaction_response(db, txn)
+    response = await get_transaction_response(db, txn, just_created=True)
     await db.commit()
     return response
 

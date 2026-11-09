@@ -14,7 +14,7 @@ from app.models.tag import Tag, TransactionTag
 from app.models.transaction import Transaction
 from app.schemas.bank_sync import TransactionBankSource
 from app.schemas.transaction import TransactionResponse, TransactionTagSummary
-from app.services.bank_sync.sources import get_bank_sources_batch
+from app.services.bank_sync.sources import get_bank_source
 from app.services.transactions.links import get_transaction_links_batch
 
 
@@ -160,7 +160,7 @@ def build_transaction_response(
     return data
 
 
-async def get_transaction_response(db: AsyncSession, txn: Transaction) -> TransactionResponse:
+async def get_transaction_response(db: AsyncSession, txn: Transaction, *, just_created: bool = False) -> TransactionResponse:
     """Return one transaction response with related display data
 
     This helper loads tag identifiers, tag summaries, the optional merchant
@@ -170,6 +170,8 @@ async def get_transaction_response(db: AsyncSession, txn: Transaction) -> Transa
     Args:
         db: Active database session
         txn: Transaction row being returned by the route
+        just_created: Whether the row was inserted by this request, so no bank record points at it
+            yet and its bank source isn't read
 
     Returns:
         Transaction response enriched with tag, merchant and bank source display data
@@ -178,7 +180,7 @@ async def get_transaction_response(db: AsyncSession, txn: Transaction) -> Transa
     tag_summary_map = await get_tags_batch(db, [txn.id])
     merchant_names = await get_merchant_names_batch(db, [txn.merchant_id])
     original_by_refund, refunds_by_original = await get_transaction_links_batch(db, [txn.id])
-    bank_sources = await get_bank_sources_batch(db, [txn])
+    bank_source = None if just_created else await get_bank_source(db, txn)
     return build_transaction_response(
         txn,
         tag_ids,
@@ -186,5 +188,5 @@ async def get_transaction_response(db: AsyncSession, txn: Transaction) -> Transa
         tag_summary_map[txn.id],
         refund_of_transaction_id=original_by_refund.get(txn.id),
         refund_transaction_ids=refunds_by_original.get(txn.id),
-        bank_source=bank_sources.get(txn.id),
+        bank_source=bank_source,
     )

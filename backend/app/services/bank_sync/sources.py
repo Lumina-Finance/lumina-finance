@@ -7,8 +7,9 @@ disconnected
 """
 
 import uuid
+from collections.abc import Iterable
 
-from sqlalchemy import select
+from sqlalchemy import Select, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.bank_transaction import BankTransaction
@@ -46,24 +47,43 @@ def build_bank_source(record: BankTransaction, txn: Transaction, provider_name: 
     )
 
 
-async def get_bank_sources_batch(
+def with_bank_records(query: Select[tuple[Transaction]]) -> Select[tuple[Transaction, BankTransaction | None]]:
+    """Return a ledger read with each row's accepted bank record joined in, None on a manual row
+
+    Only an accepted record has a ledger row, and at most one points at each, so the join keeps the
+    read's rows as they were and the sources come with them rather than in a query of their own
+    """
+    return query.outerjoin(BankTransaction, BankTransaction.transaction_id == Transaction.id).add_columns(BankTransaction)
+
+
+async def build_bank_sources(
     db: AsyncSession,
-    transactions: list[Transaction],
+    rows: Iterable[tuple[Transaction, BankTransaction | None]],
 ) -> dict[uuid.UUID, TransactionBankSource]:
-    """Return the bank sources of the bank-sourced transactions among a page, in one query
+    """Return the bank sources of the bank-sourced rows among a read made through with_bank_records
 
     Args:
-        db: Active database session
-        transactions: Ledger rows being returned
+        db: Active database session, read only for a provider no longer installed
+        rows: Each ledger row with its accepted bank record, None on a manual row
 
     Returns:
         Bank sources keyed by transaction id, with no entry for a manual transaction
     """
-    if not transactions:
-        return {}
-    by_id = {txn.id: txn for txn in transactions}
+    sourced = [(txn, record) for txn, record in rows if record is not None]
+    names = await read_provider_labels(db, (record.provider for _, record in sourced))
+    return {txn.id: build_bank_source(record, txn, names[record.provider]) for txn, record in sourced}
 
-    # Only an accepted record has a ledger row, so matching on it finds exactly the sources
-    records = (await db.scalars(select(BankTransaction).where(BankTransaction.transaction_id.in_(by_id)))).all()
-    names = await read_provider_labels(db, (record.provider for record in records))
-    return {record.transaction_id: build_bank_source(record, by_id[record.transaction_id], names[record.provider]) for record in records}
+
+async def get_bank_source(db: AsyncSession, txn: Transaction) -> TransactionBankSource | None:
+    """Return one ledger row's bank source, None on a manual transaction
+
+    Args:
+        db: Active database session
+        txn: The ledger row being returned
+
+    Returns:
+        The bank source, or None when no accepted record points at the row
+    """
+    # Only an accepted record has a ledger row, so matching on it finds exactly the source
+    record = await db.scalar(select(BankTransaction).where(BankTransaction.transaction_id == txn.id))
+    return (await build_bank_sources(db, [(txn, record)])).get(txn.id)

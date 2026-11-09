@@ -9,7 +9,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.config.dashboard import DASHBOARD_RECENT_TRANSACTIONS_LIMIT
 from app.models.transaction import Transaction
 from app.schemas.transaction import TransactionResponse
-from app.services.bank_sync.sources import get_bank_sources_batch
+from app.services.bank_sync.sources import build_bank_sources, with_bank_records
 from app.services.transactions.links import get_transaction_links_batch
 from app.services.transactions.response_helpers import (
     build_transaction_response,
@@ -42,16 +42,20 @@ async def get_recent_transactions(
     window_start = now.date() - timedelta(days=window_days)
 
     # Fetch newest transactions in the readable-account scope for the dashboard activity list
-    transaction_result = await db.execute(
-        select(Transaction)
-        .where(
-            Transaction.account_id.in_(account_ids),
-            Transaction.dt >= window_start,
+    rows = (
+        await db.execute(
+            with_bank_records(
+                select(Transaction)
+                .where(
+                    Transaction.account_id.in_(account_ids),
+                    Transaction.dt >= window_start,
+                )
+                .order_by(Transaction.dt.desc(), Transaction.id)
+                .limit(DASHBOARD_RECENT_TRANSACTIONS_LIMIT)
+            ),
         )
-        .order_by(Transaction.dt.desc(), Transaction.id)
-        .limit(DASHBOARD_RECENT_TRANSACTIONS_LIMIT),
-    )
-    transactions = list(transaction_result.scalars().all())
+    ).all()
+    transactions = [transaction for transaction, _ in rows]
 
     # Batch-load related response data so recent activity does not issue per-row queries
     tag_ids_by_transaction_id = await get_tag_ids_batch(db, [transaction.id for transaction in transactions])
@@ -61,7 +65,7 @@ async def get_recent_transactions(
         db,
         [transaction.id for transaction in transactions],
     )
-    bank_sources_by_transaction_id = await get_bank_sources_batch(db, transactions)
+    bank_sources_by_transaction_id = await build_bank_sources(db, rows)
     return [
         build_transaction_response(
             transaction,
