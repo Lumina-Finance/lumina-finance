@@ -47,6 +47,7 @@ const WAITING_LINK = {
     held_by_provider: false,
     sync_running: false,
     sync_requested: false,
+    import_starts_at: null,
     waiting_new_count: 0,
     paused: false,
     review_warning: false,
@@ -64,9 +65,9 @@ describe('the link flow wording', () => {
     ].map((status) => LINK_FLOW_WORDING[getLinkFlowMode(status)])
 
     expect(wording).toEqual([
-      { title: 'Link bank account', submitLabel: 'Link and import', confirmation: 'Linked. Importing history now.' },
-      { title: 'Reconnect bank account', submitLabel: 'Relink', confirmation: 'Relinked. Catching up now.' },
-      { title: 'Choose bank account again', submitLabel: 'Relink', confirmation: 'Relinked. Catching up now.' },
+      { title: 'Link bank account', submitLabel: 'Link and import', confirmation: 'Linked' },
+      { title: 'Reconnect bank account', submitLabel: 'Relink', confirmation: 'Relinked' },
+      { title: 'Choose bank account again', submitLabel: 'Relink', confirmation: 'Relinked' },
     ])
   })
 

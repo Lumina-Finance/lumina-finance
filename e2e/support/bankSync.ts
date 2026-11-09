@@ -604,6 +604,18 @@ export async function linkBankAccount(
   if (response.status() !== 201) {
     throw new Error(`linking account ${options.accountId} answered ${response.status()}: ${await response.text()}`)
   }
+  await startBankImport(request, user, options.accountId)
+}
+
+/**
+ * Press Start now for an account's waiting import through the API, as the reminder's button does, so a
+ * spec need not wait out the 2 minutes the server holds the import back for more links
+ */
+export async function startBankImport(request: APIRequestContext, user: TestUser, accountId: string): Promise<void> {
+  const response = await request.post(`${API_BASE_URL}/accounts/${accountId}/bank-link/start-import`, { headers: asUser(user) })
+  if (response.status() !== 200) {
+    throw new Error(`starting the import of account ${accountId} answered ${response.status()}: ${await response.text()}`)
+  }
 }
 
 /**

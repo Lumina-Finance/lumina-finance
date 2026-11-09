@@ -16,7 +16,7 @@ from sqlalchemy import and_, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.bank_connection import BankAccountLink, BankConnection, BankImportKind, BankLinkState
-from app.models.bank_sync_job import BankSyncJob, BankSyncJobStatus
+from app.models.bank_sync_job import BankSyncJob, BankSyncJobKind, BankSyncJobStatus
 from app.schemas.bank_sync import BankImportState, BankSyncFailureResponse, BankSyncState, BankSyncStatusResponse
 from app.services.bank_sync.action_needed import ActionNeededKind, read_actions_needed
 from app.services.bank_sync.provider_requests import RequestBudget, read_request_budgets
@@ -64,6 +64,7 @@ async def read_link_statuses(db: AsyncSession, links: Sequence[BankAccountLink],
     connections = list(await db.scalars(select(BankConnection).where(BankConnection.id.in_({link.connection_id for link in links}))))
     budgets = await read_request_budgets(db, connections, now=now)
     syncing, requested = await _read_job_links(db, now=now)
+    import_starts = await _read_import_starts(db, {link.connection_id for link in links})
     account_ids = [link.account_id for link in links]
     needed = await read_actions_needed(db, account_ids)
     backlogs = await read_review_backlogs(db, account_ids, actions_needed=needed)
@@ -74,7 +75,15 @@ async def read_link_statuses(db: AsyncSession, links: Sequence[BankAccountLink],
         action = needed.get(link.account_id)
         import_state = _read_import_state(link, action, budget, syncing=link.id in syncing) if shows_import_progress(link) else None
         state = _choose_state(link, action, import_state, backlogs[link.account_id], syncing=link.id in syncing)
-        sync = _describe_sync(link, state, budget, backlogs[link.account_id], running=link.id in syncing, requested=link.id in requested)
+        sync = _describe_sync(
+            link,
+            state,
+            budget,
+            backlogs[link.account_id],
+            running=link.id in syncing,
+            requested=link.id in requested,
+            import_starts_at=import_starts.get(link.connection_id) if import_state == "running" and link.id not in syncing else None,
+        )
         statuses[link.id] = LinkStatus(sync=sync, import_state=import_state)
     return statuses
 
@@ -125,7 +134,14 @@ def _choose_state(
 
 
 def _describe_sync(
-    link: BankAccountLink, state: BankSyncState, budget: RequestBudget, backlog: ReviewBacklog, *, running: bool, requested: bool
+    link: BankAccountLink,
+    state: BankSyncState,
+    budget: RequestBudget,
+    backlog: ReviewBacklog,
+    *,
+    running: bool,
+    requested: bool,
+    import_starts_at: datetime | None,
 ) -> BankSyncStatusResponse:
     """Return a link's state with the facts its Sync details and notices word"""
     available_again_at = budget.available_again_at
@@ -141,10 +157,29 @@ def _describe_sync(
         held_by_provider=budget.held_by_provider,
         sync_running=running,
         sync_requested=requested,
+        import_starts_at=import_starts_at,
         waiting_new_count=backlog.waiting_new,
         paused=backlog.paused,
         review_warning=backlog.warning,
     )
+
+
+async def _read_import_starts(db: AsyncSession, connection_ids: set[uuid.UUID]) -> dict[uuid.UUID, datetime]:
+    """Return when each connection's queued import starts, for those still to start later
+
+    An import is queued ahead for the user's other accounts to join it, and the job keeps its kind
+    when it waits for the request budget or a retry instead. The caller leaves those out by the
+    link's import state. Read by the database's clock, as the claim reads it
+    """
+    rows = await db.execute(
+        select(BankSyncJob.connection_id, BankSyncJob.run_after).where(
+            BankSyncJob.connection_id.in_(connection_ids),
+            BankSyncJob.status == BankSyncJobStatus.QUEUED,
+            BankSyncJob.kind == BankSyncJobKind.INITIAL,
+            BankSyncJob.run_after > func.now(),
+        )
+    )
+    return {connection_id: run_after for connection_id, run_after in rows}
 
 
 async def _read_job_links(db: AsyncSession, *, now: datetime) -> tuple[set[uuid.UUID], set[uuid.UUID]]:

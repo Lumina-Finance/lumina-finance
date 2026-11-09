@@ -23,7 +23,6 @@ import {
   WORKER_RESULT_TIMEOUT_MS,
   type SeededConnection,
 } from '../support/bankSync'
-import { isUncovered, MESSAGE_IN_CORNER, readMessageInset } from '../support/selectors'
 import { AT_EVERY_SIZE_NEEDS_BANK_SYNC, NEEDS_BANK_SYNC } from '../support/bankSyncServer'
 import { API_BASE_URL } from '../support/target'
 
@@ -57,9 +56,9 @@ const FRAMES_PAST_FADE_MS = 48
 // links. That read comes every 2 seconds while a link imports
 const LINK_READ_CLOCK_STEP_MS = 100
 
-// Either side of where a modal stops filling the screen and sits in the middle of it, at a laptop's height
-const WIDEST_FULL_SCREEN_MODAL_SIZE = { width: 1049, height: 800 }
-const NARROWEST_CENTRED_MODAL_SIZE = { width: 1050, height: 800 }
+// What the link flow and the Bank link section say while the import waits for more links
+const IMPORT_REMINDER =
+  'History import starts in about 2 minutes. Link your other accounts first so one import brings them all in.'
 
 /**
  * The first day of the month a number of months before this one, as YYYY-MM-DD
@@ -104,13 +103,10 @@ async function chooseFirstStart(flow: Locator): Promise<void> {
 }
 
 /**
- * Links Everyday to the sample chequing account from its edit modal. The modal stays open behind the
- * message confirming the link once the link flow closes. The page's clock stops as the link is made and,
- * once the server has answered it, moves on only until the flow has gone and the message has come in, so
- * the message stays up however long a busy machine takes over the checks on it. Modals still come and go
- * on the clock as it moves
+ * Links Everyday to the sample chequing account from its edit modal, leaving the link flow on its last
+ * step, where the import start reminder shows
  */
-async function linkFromEditAccount(page: Page, request: APIRequestContext): Promise<{ dialog: Locator; message: Locator }> {
+async function linkFromEditAccount(page: Page, request: APIRequestContext): Promise<{ dialog: Locator; flow: Locator }> {
   const user = await signUpUser(request)
   const [everyday, scenario] = await Promise.all([
     createAccount(request, user, { name: 'Everyday' }),
@@ -118,7 +114,6 @@ async function linkFromEditAccount(page: Page, request: APIRequestContext): Prom
   ])
   await claimSetupToken(request, user, scenario.setupToken)
   await page.emulateMedia({ reducedMotion: 'reduce' })
-  await page.clock.install()
   await logInViaApi(page, user)
   const dialog = await openBankLink(page, everyday.id, 'Not linked')
   await dialog.getByRole('button', { name: 'Link bank account' }).click()
@@ -127,15 +122,12 @@ async function linkFromEditAccount(page: Page, request: APIRequestContext): Prom
   await flow.getByRole('radio', { name: new RegExp(`^${SAMPLE_CHEQUING}`) }).click()
   await flow.getByRole('button', { name: 'Continue' }).click()
   await chooseFirstStart(flow)
-  await stopClock(page)
   const linked = page.waitForResponse((answer) =>
     answer.url() === `${API_BASE_URL}/accounts/${everyday.id}/bank-link` && answer.request().method() === 'POST')
   await flow.getByRole('button', { name: 'Link and import' }).click()
   expect((await linked).ok()).toBe(true)
-  const message = toast(page, 'Linked. Importing history now.')
-  await runClockUntil(page, async () => await flow.isHidden() && await message.isVisible()
-    && await message.evaluate((element) => getComputedStyle(element).opacity) === '1')
-  return { dialog, message }
+  await expect(flow.getByText(IMPORT_REMINDER)).toBeVisible()
+  return { dialog, flow }
 }
 
 /** One frame of a dialogue's entrance, with the heights on screen of the Bank link section's loading cover and of what it covers */
@@ -343,7 +335,8 @@ test('links an account from its page, from choosing the bank account to its impo
       external_account_id: externalIdOf(connection, SAMPLE_CHEQUING),
       start_date: firstOfMonthsAgo(3),
     })
-    await expect(toast(page, 'Linked. Importing history now.')).toBeVisible()
+    await expect(flow.getByText(IMPORT_REMINDER)).toBeVisible()
+    await flow.getByRole('button', { name: 'Start now' }).click()
     await expect(flow).toBeHidden()
     await expect(fact(dialog, 'Bank account')).toHaveText(SAMPLE_CHEQUING)
     await expect(fact(dialog, 'Institution')).toHaveText(SAMPLE_BANK)
@@ -411,44 +404,19 @@ test('moves focus to Link bank account once the link it sat by is undone elsewhe
   releaseReads()
 })
 
-test("keeps the link's message clear of Cancel and Save changes where the edit modal fills the screen, and back in the corner once it closes", NEEDS_BANK_SYNC, async ({ page, request }) => {
-  // The widest screen the modal still fills. It stands for every screen the modal fills
-  await page.setViewportSize(WIDEST_FULL_SCREEN_MODAL_SIZE)
-  const { dialog, message } = await linkFromEditAccount(page, request)
-  const cancel = dialog.getByRole('button', { name: 'Cancel', exact: true })
-  const save = dialog.getByRole('button', { name: 'Save changes', exact: true })
+test('reminds the user the import waits for more links, and starts it at once from Start now by keyboard', NEEDS_BANK_SYNC, async ({ page, request }) => {
+  const { dialog, flow } = await linkFromEditAccount(page, request)
+  const start = flow.getByRole('button', { name: 'Start now' })
+  const importStarted = page.waitForResponse((answer) =>
+    answer.url().endsWith('/bank-link/start-import') && answer.request().method() === 'POST')
 
-  // Read while the message still shows, since both come out from under it once it goes
-  await expect(message).toBeInViewport({ ratio: 1 })
-  await expect.poll(async () => await message.isVisible() && await isUncovered(cancel) && await isUncovered(save)).toBe(true)
+  await start.focus()
+  await page.keyboard.press('Enter')
+  expect((await importStarted).ok()).toBe(true)
+  await expect(flow).toBeHidden()
 
-  // With the modal gone from under it, the message goes back down to the corner while it still shows
-  await cancel.click()
-  await runClockUntil(page, () => dialog.isHidden())
-  await runClockUntil(page, () => isInCorner(message))
-  expect(await readMessageInset(message)).toEqual(MESSAGE_IN_CORNER)
-})
-
-/**
- * Whether the message has come down to the corner. The message works out its place on every animation
- * frame, and the page's clock is held here, so a test waits for it by moving the clock on
- */
-async function isInCorner(message: Locator): Promise<boolean> {
-  const { right, bottom } = await readMessageInset(message)
-  return right === MESSAGE_IN_CORNER.right && bottom === MESSAGE_IN_CORNER.bottom
-}
-
-test("leaves the link's message in the corner, clear of Cancel and Save changes, with the edit modal in the middle", NEEDS_BANK_SYNC, async ({ page, request }) => {
-  // The narrowest screen the modal sits in the middle of. The message in the corner comes closest there
-  // to its buttons. The footer's padding reaches the corner there without any button doing so, and the
-  // message stays down as it does on main
-  await page.setViewportSize(NARROWEST_CENTRED_MODAL_SIZE)
-  const { dialog, message } = await linkFromEditAccount(page, request)
-
-  await runClockUntil(page, () => isInCorner(message))
-  expect(await readMessageInset(message)).toEqual(MESSAGE_IN_CORNER)
-  expect(await isUncovered(dialog.getByRole('button', { name: 'Cancel', exact: true }))).toBe(true)
-  expect(await isUncovered(dialog.getByRole('button', { name: 'Save changes', exact: true }))).toBe(true)
+  // The edit modal's Bank link section has no reminder left once the import has started
+  await expect(dialog.getByText(IMPORT_REMINDER)).toHaveCount(0)
 })
 
 test("lists the bank accounts that can't be linked with the reason for each", NEEDS_BANK_SYNC, async ({ page, request }) => {
@@ -649,7 +617,10 @@ test('unlinks the account alone, then reconnects it with the relink wording', NE
   await chooseFirstStart(flow)
   await flow.getByRole('button', { name: 'Relink' }).click()
 
-  await expect(toast(page, 'Relinked. Catching up now.')).toBeVisible()
+  await expect(flow.getByText('Relinked', { exact: true })).toBeVisible()
+  await expect(flow.getByText(IMPORT_REMINDER)).toBeVisible()
+  await flow.getByText('Close', { exact: true }).click()
+  await expect(flow).toBeHidden()
   await expect(fact(dialog, 'Bank account')).toHaveText(SAMPLE_CHEQUING)
 })
 

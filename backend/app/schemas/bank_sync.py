@@ -384,6 +384,11 @@ class BankSyncStatusResponse(BaseModel):
     # request frees up
     sync_requested: bool
 
+    # When the link's queued import starts, while it waits for the user's other accounts to be linked
+    # and join it. The user can start it sooner. None once a worker may start it, and while the
+    # import waits on the request budget or a failed attempt instead
+    import_starts_at: datetime | None
+
     # New items awaiting their first review, and whether they hold the sync or warn that they soon
     # will, as the review block says too. Neither while only the user can restart the sync
     waiting_new_count: int

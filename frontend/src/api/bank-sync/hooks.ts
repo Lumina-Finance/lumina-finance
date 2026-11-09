@@ -42,6 +42,7 @@ import {
   recordBalanceMatch,
   resolveReviewItem,
   restoreBankValue,
+  startBankImport,
   syncBankLink,
   updateBankConnection,
   type ReviewResolution,
@@ -444,6 +445,29 @@ export function syncBankAccountMutationOptions(queryClient: QueryClient) {
 export function useSyncBankAccount() {
   const queryClient = useQueryClient()
   return useMutation(syncBankAccountMutationOptions(queryClient))
+}
+
+/**
+ * How Start now runs. The server makes the queued import due and answers with the link, which no
+ * longer waits to start. The answer goes straight into the cached list, so the reminder goes away
+ * without waiting for the next poll, and the status reads the import as running from then on. A
+ * refusal means the reminder shown is out of date, so the list is read again instead
+ */
+export function startBankImportMutationOptions(queryClient: QueryClient) {
+  return mutationOptions({
+    mutationFn: async (accountId: string) => {
+      const link = await runWithMinimumPendingTime(ACTION_LOADING_MIN_MS, () => startBankImport(accountId))
+      putCachedBankLink(queryClient, link)
+      return link
+    },
+    onError: () => invalidateBankLinks(queryClient),
+    onSettled: () => invalidateBankSyncStatus(queryClient),
+  })
+}
+
+export function useStartBankImport() {
+  const queryClient = useQueryClient()
+  return useMutation(startBankImportMutationOptions(queryClient))
 }
 
 /**

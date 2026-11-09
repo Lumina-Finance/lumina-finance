@@ -5,7 +5,8 @@ unavailable with its reason from the one eligibility check, and links one of the
 start. Opening the flow asks for a fresh discovery when the last one is over an hour old, so a bank
 added at the provider a few minutes ago appears without waiting for the daily sync. The link
 request checks again everything the list showed, since the list can be stale, and queues the
-link's first import. A job runs it.
+link's first import for 2 minutes on, moving a queued one back to 2 minutes after this link, so
+the accounts linked in a row share one import. A job runs it, or the user starts it sooner.
 
 A link waiting in Choose bank account, because the provider now lists its bank account differently,
 goes through the same flow. Choosing moves the link to the new bank account with an import of its
@@ -71,6 +72,12 @@ from app.services.bank_sync.providers.contract import ProviderAdapter
 from app.services.bank_sync.review_pause import lock_account_links
 from app.services.cache_state.updates import mark_user_cache_changed, mark_user_status_changed
 from app.utils.dates import format_day, resolve_timezone
+
+# How long a link's import waits for the user's other accounts on the connection to be linked. Each
+# link made meanwhile moves the start to this long after it, and joins the same import, since one
+# request fetches any number of bank accounts and the provider allows only so many requests a day.
+# The user can start it sooner
+IMPORT_START_DELAY = timedelta(minutes=2)
 
 ACCOUNT_ALREADY_LINKED = "This account is already linked to a bank"
 ACCOUNT_NOT_LINKED = "This account is not linked to a bank"
@@ -258,7 +265,14 @@ async def link_bank_account(
         await db.rollback()
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=BANK_ACCOUNT_ALREADY_LINKED) from error
 
-    await enqueue_bank_sync_job(db, owner_id=user.id, connection_id=connection.id, kind=BankSyncJobKind.INITIAL)
+    await enqueue_bank_sync_job(
+        db,
+        owner_id=user.id,
+        connection_id=connection.id,
+        kind=BankSyncJobKind.INITIAL,
+        run_after=datetime.now(UTC) + IMPORT_START_DELAY,
+        moves_queued_import_later=True,
+    )
     await mark_user_cache_changed(db, user.id)
 
     # Build the response before committing, since a delete of the account may take the link the moment

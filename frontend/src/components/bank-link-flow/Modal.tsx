@@ -1,5 +1,6 @@
 import { useId, useState } from 'react'
-import { Landmark } from 'lucide-react'
+import { Clock, Landmark } from 'lucide-react'
+import { InfoCallout } from '@/components/InfoCallout'
 import { useNavigate } from 'react-router'
 import type { AccountsOverview } from '@/api/accounts'
 import {
@@ -10,6 +11,7 @@ import {
   useDiscoveredBankAccounts,
   useImportRange,
   useLinkBankAccount,
+  useStartBankImport,
   type BankConnection,
   type ConnectionBankAccount,
 } from '@/api/bank-sync'
@@ -20,8 +22,10 @@ import {
   BANK_CONNECTIONS_SETTINGS_PATH,
   BANK_SYNC_NOT_SET_UP_REASON,
   LINK_FLOW_FIELD_IDS,
+  IMPORT_START_REMINDER,
   LINK_FLOW_FIELDS,
   START_CHOICE_REQUIRED_MESSAGE,
+  START_IMPORT_FAILED_MESSAGE,
   START_DATE_OUT_OF_RANGE_MESSAGE,
   START_DATE_REQUIRED_MESSAGE,
 } from '@/components/bank-link-flow/constants'
@@ -34,6 +38,7 @@ import {
   findPreviousBankAccount,
   getLinkFlowMode,
   pickListedConnection,
+  type LinkFlowMode,
   type LinkFlowStep,
 } from '@/components/bank-link-flow/wording'
 import LoadFailure from '@/components/errors/LoadFailure'
@@ -42,7 +47,6 @@ import { ModalFormFooter } from '@/components/modal/FormFooter'
 import { ModalTitledPanel } from '@/components/modal/TitledPanel'
 import { StepTransition } from '@/components/two-factor/StepTransition'
 import { useRefusedSubmit } from '@/hooks/useRefusedSubmit'
-import { useToast } from '@/hooks/useToast'
 import { getSaveFailureMessage } from '@/utils/createFailure'
 
 type LinkFlowField = (typeof LINK_FLOW_FIELDS)[number]
@@ -92,11 +96,11 @@ export function BankLinkFlowModal({
   onExitComplete,
 }: BankLinkFlowModalProps) {
   const navigate = useNavigate()
-  const { showToast } = useToast()
   const { data: status, error: statusError } = useAccountBankStatus(account.id, open)
   const { data: providers, error: providersError } = useBankProviders()
   const { data: connections, error: connectionsError } = useBankConnections()
   const link = useLinkBankAccount()
+  const startImport = useStartBankImport()
 
   const [chosenStep, setChosenStep] = useState<LinkFlowStep | null>(null)
   const [chosenConnectionId, setChosenConnectionId] = useState<string | null>(null)
@@ -104,7 +108,9 @@ export function BankLinkFlowModal({
   const [error, setError] = useState<string | null>(null)
 
   const workingConnections = (connections ?? []).filter((connection) => connection.status === 'active')
-  const mode = status ? getLinkFlowMode(status) : 'link'
+  // Held once the link is saved, since the account's link then reads as made and would reword the step
+  const [linkedMode, setLinkedMode] = useState<LinkFlowMode | null>(null)
+  const mode = linkedMode ?? (status ? getLinkFlowMode(status) : 'link')
   const previous = status ? findPreviousBankAccount(status) : null
   const wording = LINK_FLOW_WORDING[mode]
 
@@ -159,7 +165,7 @@ export function BankLinkFlowModal({
     LINK_FLOW_FIELD_IDS,
   )
 
-  const busy = link.isPending
+  const busy = link.isPending || startImport.isPending
 
   // Linking waits for the worker that imports the history, so it is held back while bank sync isn't
   // set up. Opened from Settings it gives the reason alone. Anywhere else it also links to Settings
@@ -190,9 +196,9 @@ export function BankLinkFlowModal({
       },
       {
         onSuccess: () => {
-          showToast({ status: 'success', text: wording.confirmation })
+          setLinkedMode(mode)
           onLinked?.()
-          onClose()
+          goTo('linked')
         },
         onError: (cause) => setError(getSaveFailureMessage(cause)),
       },
@@ -201,8 +207,18 @@ export function BankLinkFlowModal({
 
   const connectFirst =
     step === 'connect-first' && connections && providers ? describeConnectFirst(connections, providers) : null
+  const startImportNow = () => {
+    setError(null)
+    startImport.mutate(account.id, {
+      onSuccess: onClose,
+      onError: (cause) => setError(getSaveFailureMessage(cause, START_IMPORT_FAILED_MESSAGE)),
+    })
+  }
+
   const primary =
-    step === 'connect-first'
+    step === 'linked'
+      ? { label: 'Start now', onPrimary: startImportNow }
+      : step === 'connect-first'
       ? {
           label: connectFirst?.canOpenSettings ? 'Open settings' : 'Close',
           onPrimary: connectFirst?.canOpenSettings ? openSettings : onClose,
@@ -247,7 +263,7 @@ export function BankLinkFlowModal({
           holdsButtonWidth
           level="stacked"
           onCancel={backsToAccount ? () => goTo('account') : onClose}
-          cancelLabel={backsToAccount ? 'Back' : 'Cancel'}
+          cancelLabel={backsToAccount ? 'Back' : step === 'linked' ? 'Close' : 'Cancel'}
           onPrimary={primary.onPrimary}
         />
       }
@@ -263,6 +279,11 @@ export function BankLinkFlowModal({
                 <p className="text-sm" style={{ color: 'var(--app-text-muted)' }}>
                   {connectFirst.message}
                 </p>
+              )}
+              {step === 'linked' && (
+                <InfoCallout tone="info" icon={Clock} title={wording.confirmation}>
+                  {IMPORT_START_REMINDER}
+                </InfoCallout>
               )}
               {step === 'account' && connection && (
                 <BankAccountStep

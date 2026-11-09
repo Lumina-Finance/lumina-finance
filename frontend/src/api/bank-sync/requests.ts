@@ -176,6 +176,14 @@ export function syncBankLink(accountId: string) {
 }
 
 /**
+ * Starts the import queued for the account's link at once, instead of waiting for the user's other
+ * accounts to join it. The server refuses it once no import waits to start
+ */
+export function startBankImport(accountId: string) {
+  return post<BankLink>(`/accounts/${accountId}/bank-link/start-import`)
+}
+
+/**
  * Dismisses the history reminder as it showed, and returns the account's bank link without it. A
  * newer reminder raised meanwhile stays, and the answer carries it
  */

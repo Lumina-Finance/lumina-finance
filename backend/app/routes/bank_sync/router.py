@@ -49,6 +49,7 @@ from app.services.bank_sync.connections import list_connections, rename_connecti
 from app.services.bank_sync.history_reminder import dismiss_cut_off_day, dismiss_history_reminder
 from app.services.bank_sync.holds import dismiss_hold, list_holds
 from app.services.bank_sync.import_range import get_import_range
+from app.services.bank_sync.import_start import start_import_now
 from app.services.bank_sync.links import (
     disconnect_connection,
     link_bank_account,
@@ -380,6 +381,25 @@ async def sync_bank_link_now(
         The link, with a status that says the sync is requested until a worker starts it
     """
     return await sync_account_now(db, user, account_id)
+
+
+@bank_link_router.post("/start-import", response_model=BankLinkResponse)
+async def start_bank_link_import_now(
+    account_id: uuid.UUID,
+    user: Annotated[User, Depends(get_current_user)],
+    db: Annotated[AsyncSession, Depends(get_db)],
+):
+    """Start the import queued for one of the user's linked accounts at once, rather than waiting for other accounts to join it
+
+    Args:
+        account_id: The linked account
+        user: Authenticated owner of the account
+        db: Active database session
+
+    Returns:
+        The link, whose status no longer says the import waits to start
+    """
+    return await start_import_now(db, user, account_id)
 
 
 @bank_link_router.post("/balance-match", response_model=AccountBankStatusResponse)

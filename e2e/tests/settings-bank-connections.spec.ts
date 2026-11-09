@@ -21,7 +21,7 @@ import {
   WORKER_RESULT_TIMEOUT_MS,
   type SeededConnection,
 } from '../support/bankSync'
-import { expectMessageInCorner, readBoxes } from '../support/selectors'
+import { readBoxes } from '../support/selectors'
 import { AT_EVERY_SIZE_NEEDS_BANK_SYNC, NEEDS_BANK_SYNC } from '../support/bankSyncServer'
 import { API_BASE_URL, BASE_URL } from '../support/target'
 
@@ -809,10 +809,9 @@ test('links a bank account from the connection, importing from the start chosen'
     start_date: firstOfMonthsAgo(3),
   })
   await expect(dialog.getByRole('status').filter({ hasText: 'Linking…' })).toBeVisible()
-  await expect(toast(page, 'Linked. Importing history now.')).toBeVisible()
+  await expect(flow.getByText('History import starts in about 2 minutes.')).toBeVisible()
+  await flow.getByText('Close', { exact: true }).click()
   await expect(flow).toBeHidden()
-  // The connection fills the screen on a phone but has no footer, so the message stays in the corner
-  await expectMessageInCorner(toast(page, 'Linked. Importing history now.'))
   await expect(dialog.getByRole('link', { name: 'Household' })).toBeVisible()
   await expect(dialog.getByRole('region', { name: SAMPLE_BANK })).toContainText('1 of 2 linked')
 

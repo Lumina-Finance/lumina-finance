@@ -27,6 +27,17 @@ export const LINK_FLOW_FIELD_IDS = {
   startDateError: 'bank-link-start-date-error',
 } as const
 
+/**
+ * What a linked account's reminder says while its import waits for the user's other accounts to be
+ * linked and join it. The server holds the import back for 2 minutes after the latest link, and the
+ * reminder shows in the account's Bank link section and in the link flow once the link is saved
+ */
+export const IMPORT_START_REMINDER =
+  'History import starts in about 2 minutes. Link your other accounts first so one import brings them all in.'
+
+/** What a Start now the server didn't answer says, while one it refused gives the server's reason */
+export const START_IMPORT_FAILED_MESSAGE = 'Import could not start. Please try again.'
+
 export const BANK_ACCOUNT_REQUIRED_MESSAGE = 'Choose a bank account'
 export const START_CHOICE_REQUIRED_MESSAGE = 'Choose where to start'
 export const START_DATE_REQUIRED_MESSAGE = 'Enter a start date'

@@ -240,6 +240,33 @@ async def test_enqueue_runs_a_merged_job_at_the_earlier_time(connections, schedu
 
 
 @pytest.mark.parametrize(
+    ("first", "second", "minutes"),
+    [
+        ((BankSyncJobKind.INITIAL, 2), (BankSyncJobKind.INITIAL, 3), 3),
+        ((BankSyncJobKind.INITIAL, 3), (BankSyncJobKind.INITIAL, 2), 3),
+        ((BankSyncJobKind.SCHEDULED, 600), (BankSyncJobKind.INITIAL, 2), 2),
+        ((BankSyncJobKind.RETRY, 1), (BankSyncJobKind.INITIAL, 2), 1),
+    ],
+    ids=["a_later_link_moves_the_import_on", "an_earlier_time_leaves_it", "a_daily_sync_is_pulled_forward", "a_retry_is_not_pushed_back"],
+)
+async def test_enqueue_moves_a_queued_import_to_the_later_time_only_for_an_import_waiting_for_more_links(connections, first, second, minutes):
+    """Each account linked in a row moves the connection's queued import to 2 minutes after it, so they share one import
+
+    Only an import waits like that. A scheduled sync or a retry already queued runs at the earlier time
+    """
+    now = datetime.now(UTC)
+    requests = [
+        {"kind": kind, "run_after": now + timedelta(minutes=wait), "moves_queued_import_later": True} for kind, wait in (first, second)
+    ]
+
+    _, run_after = await _enqueue_as_owner(connections[0], *requests)
+
+    async with TestSession() as session:
+        database_now = await session.scalar(select(func.now()))
+    assert timedelta(minutes=minutes - 1) < run_after - database_now <= timedelta(minutes=minutes)
+
+
+@pytest.mark.parametrize(
     "kinds",
     [(BankSyncJobKind.INITIAL, BankSyncJobKind.MANUAL), (BankSyncJobKind.MANUAL, BankSyncJobKind.INITIAL)],
     ids=["initial_then_manual", "manual_then_initial"],

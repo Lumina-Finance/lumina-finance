@@ -67,6 +67,7 @@ export {
   useRestoreBankValue,
   useReviewBacklogs,
   useReviewItems,
+  useStartBankImport,
   useSyncBankAccount,
   useUnlinkBankAccount,
 } from '@/api/bank-sync/hooks'

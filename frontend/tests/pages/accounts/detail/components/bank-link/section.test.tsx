@@ -669,3 +669,22 @@ describe('describeSyncNow', () => {
     })
   })
 })
+
+describe('the import start reminder', () => {
+  const REMINDER =
+    'History import starts in about 2 minutes. Link your other accounts first so one import brings them all in.'
+
+  it('shows the reminder with a Start now button while the import waits for more links', () => {
+    read.status = linkSynced(createSync({ import_starts_at: '2026-10-05T16:02:00Z' }))
+    const markup = renderSection()
+    expect(markup).toContain(REMINDER)
+    expect(getButton(markup, 'Start now')).toContain('type="button"')
+  })
+
+  it('shows no reminder once the import has started', () => {
+    read.status = linkSynced(createSync({ import_starts_at: null }))
+    const markup = renderSection()
+    expect(markup).not.toContain(REMINDER)
+    expect(markup).not.toContain('Start now')
+  })
+})

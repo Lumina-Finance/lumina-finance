@@ -326,6 +326,13 @@ export type BankSyncStatus = {
    */
   sync_requested: boolean
 
+  /**
+   * When the link's queued import starts, while it waits for the user's other accounts to be linked
+   * and join it. The user can start it sooner. Null once a worker may start it, and while the import
+   * waits on the request budget or a failed attempt instead
+   */
+  import_starts_at: string | null
+
   /** New posted items awaiting their first review, the count the warning and the pause read */
   waiting_new_count: number
 

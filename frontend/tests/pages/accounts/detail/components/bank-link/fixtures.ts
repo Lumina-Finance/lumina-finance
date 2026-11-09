@@ -65,6 +65,7 @@ export function createSync(overrides: Partial<BankSyncStatus> = {}): BankSyncSta
     held_by_provider: false,
     sync_running: false,
     sync_requested: false,
+    import_starts_at: null,
     waiting_new_count: 0,
     paused: false,
     review_warning: false,

@@ -103,6 +103,7 @@ async def test_account_bank_link_shows_its_imports_progress(client):
                 "held_by_provider": False,
                 "sync_running": False,
                 "sync_requested": False,
+                "import_starts_at": None,
                 "waiting_new_count": 3,
                 "paused": False,
                 "review_warning": False,

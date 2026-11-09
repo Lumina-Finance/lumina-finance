@@ -33,6 +33,7 @@ import { DisabledReasonButton } from '@/components/tooltips/DisabledReasonButton
 import { BalanceMatchOffer } from '@/pages/accounts/detail/components/bank-link/BalanceMatchOffer'
 import { BalancePanel } from '@/pages/accounts/detail/components/bank-link/BalancePanel'
 import { ImportProgress } from '@/pages/accounts/detail/components/bank-link/ImportProgress'
+import { ImportStartNotice } from '@/pages/accounts/detail/components/bank-link/ImportStartNotice'
 import {
   CutOffDayReminder,
   HistoryReminder,
@@ -90,7 +91,8 @@ type LinkedViewProps = {
  * once it has synced, with the balance match offer at its foot while there is a difference to match,
  * and the actions on the link. A notice's own action comes first, since it is what resumes the sync.
  * The server leaves the review notices out while only the user can restart the sync, so a stop's
- * notice shows alone. A reminder holds nothing back, so the offer shows beside it. Neither the offer's
+ * notice shows alone. While the import waits for the user's other accounts to join it, its notice
+ * and Start now come first among the actions. A reminder holds nothing back, so the offer shows beside it. Neither the offer's
  * button nor a reminder's ✕ are among the view's actions, so the modal opening at the bank link never
  * starts on Record adjustment or Dismiss, and focus moves on to the link's actions, Sync now first, as
  * the offer or a reminder holding it folds away, or from one reminder to the next
@@ -153,6 +155,16 @@ function LinkedView({
         {showsImport && (
           <Unfold key="import">
             <ImportProgress progress={shownImport} />
+          </Unfold>
+        )}
+        {link.sync.import_starts_at !== null && (
+          <Unfold key="import-start">
+            <ImportStartNotice
+              accountId={link.account_id}
+              actionClassName={NOTICE_ACTION_CLASS}
+              actionProps={ACTION_PROPS}
+              onFolded={() => focusFirstAction(actionsRef.current)}
+            />
           </Unfold>
         )}
         {!link.provider_available && (

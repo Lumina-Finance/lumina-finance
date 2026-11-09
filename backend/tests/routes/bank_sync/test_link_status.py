@@ -219,6 +219,7 @@ async def test_sync_status_of_a_synced_link_says_when_it_next_syncs(client):
         "held_by_provider": False,
         "sync_running": False,
         "sync_requested": False,
+        "import_starts_at": None,
         "waiting_new_count": 0,
         "paused": False,
         "review_warning": False,

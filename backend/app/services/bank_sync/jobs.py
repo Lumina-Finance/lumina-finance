@@ -67,6 +67,7 @@ async def enqueue_bank_sync_job(
     run_after: datetime | None = None,
     deferred_link_ids: Collection[uuid.UUID] = (),
     requested_link_ids: Collection[uuid.UUID] = (),
+    moves_queued_import_later: bool = False,
 ) -> None:
     """Queue a sync of a connection, merging into the job already queued for it
 
@@ -75,6 +76,11 @@ async def enqueue_bank_sync_job(
     last stays last, a link either was asked to sync now stays asked, and the job runs at the
     earlier of the two times. A running job is left alone, so the queued one runs after it. The
     caller commits
+
+    An import that waits for more links to join it is the exception to the earlier time: with
+    moves_queued_import_later, a queued import runs at the later of the two times instead, so each
+    link made meanwhile moves its start on. A job of another kind keeps the earlier time, since a
+    daily sync or a retry has nothing to wait for
 
     A time is kept as the same wait from the database's clock, and the claim compares it with that
     clock, so a database clock running ahead of the app's can't have a job claimed before the app
@@ -91,6 +97,7 @@ async def enqueue_bank_sync_job(
         deferred_link_ids: The links to sync only once no other link is due, since a job just
             failed to bring them back whole
         requested_link_ids: The links the user asked to sync now, whatever their next daily time
+        moves_queued_import_later: Whether a queued import is moved to this job's time when that is later
     """
     when = func.now()
     if run_after is not None:
@@ -105,6 +112,12 @@ async def enqueue_bank_sync_job(
         deferred_link_ids=list(deferred_link_ids),
         requested_link_ids=list(requested_link_ids),
     )
+    run_after_merged = func.least(BankSyncJob.run_after, queued.excluded.run_after)
+    if moves_queued_import_later:
+        run_after_merged = case(
+            (BankSyncJob.kind == BankSyncJobKind.INITIAL, func.greatest(BankSyncJob.run_after, queued.excluded.run_after)),
+            else_=run_after_merged,
+        )
     await db.execute(
         queued.on_conflict_do_update(
             index_elements=[BankSyncJob.connection_id],
@@ -116,7 +129,7 @@ async def enqueue_bank_sync_job(
                     else_=BankSyncJob.kind,
                 ),
                 "discover": BankSyncJob.discover | queued.excluded.discover,
-                "run_after": func.least(BankSyncJob.run_after, queued.excluded.run_after),
+                "run_after": run_after_merged,
                 # Each link once, whichever job deferred it
                 "deferred_link_ids": literal_column(
                     "ARRAY(SELECT DISTINCT unnest(bank_sync_jobs.deferred_link_ids || excluded.deferred_link_ids))"
