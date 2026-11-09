@@ -522,11 +522,24 @@ describe('a deleted account', () => {
   it('drops any cached bulk approval preview and refreshes the rest of bank sync', () => {
     queryClient.setQueryData(bankSyncKeys.bulkPreview(undefined), {})
     queryClient.setQueryData(bankSyncKeys.links(), [createBankLink()])
+    // The institutions in use count the deleted link's bank, though the providers read never names the account
+    queryClient.setQueryData(bankSyncKeys.providers(), { may_link: true, providers: [] })
 
     clearDeletedAccountBankData(queryClient, 'account-1')
 
     expect(queryClient.getQueryState(bankSyncKeys.bulkPreview(undefined))).toBeUndefined()
-    expectInvalidated([bankSyncKeys.links()], true)
+    expectInvalidated([bankSyncKeys.links(), bankSyncKeys.providers()], true)
+  })
+
+  it('reads nothing of bank sync again for an account no bank data names', () => {
+    queryClient.setQueryData(bankSyncKeys.providers(), { may_link: true, providers: [] })
+    queryClient.setQueryData(bankSyncKeys.links(), [createBankLink({ account_id: 'account-2' })])
+    queryClient.setQueryData(bankSyncKeys.connections(), [])
+    expectInvalidated([bankSyncKeys.providers(), bankSyncKeys.links(), bankSyncKeys.connections()], false)
+
+    clearDeletedAccountBankData(queryClient, 'account-1')
+
+    expectInvalidated([bankSyncKeys.providers(), bankSyncKeys.links(), bankSyncKeys.connections()], false)
   })
 
   it('asks nothing more about it for the views its page still shows and drops the ones nothing shows', () => {
