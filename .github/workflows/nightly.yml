@@ -1,0 +1,83 @@
+name: Build and publish the nightly Docker image
+
+# Publishes main for beta testers under the moving nightly tag and a fixed tag per build, so a
+# tester can follow main or stay on one build. Stable tags and update notices never see it
+on:
+  schedule:
+    # Midnight in Toronto during standard time, 01:00 during daylight time
+    - cron: "0 5 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+# A second nightly waits for the first so the nightly tag always ends on the newer build
+concurrency:
+  group: ${{ github.workflow }}
+  cancel-in-progress: false
+
+jobs:
+  version:
+    name: Decide the nightly version
+    runs-on: ubuntu-latest
+
+    # Only main is published as a nightly, whichever branch a manual run was started from
+    if: github.ref == 'refs/heads/main'
+
+    permissions:
+      contents: read
+      actions: read
+
+    outputs:
+      app-version: ${{ steps.version.outputs.app-version }}
+      is-new: ${{ steps.last.outputs.is-new }}
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      # A scheduled run skips a main that the last published nightly already built. A manual run
+      # always publishes
+      - name: Compare with the last published nightly
+        id: last
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          last_sha=$(gh run list --workflow nightly.yml --branch main --status success --limit 1 \
+            --json headSha --jq '.[0].headSha // ""')
+          if [ "$GITHUB_EVENT_NAME" = "schedule" ] && [ "$last_sha" = "$GITHUB_SHA" ]; then
+            echo "main is unchanged since the last nightly" >&2
+            echo "is-new=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "is-new=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      # Main leads to the next minor release, since patches ship from release branches. The run
+      # number keeps each build's version unique and in order, and the prerelease suffix keeps
+      # update checks off because they accept only stable x.x.x versions
+      - name: Work out the version
+        id: version
+        run: |
+          latest_tag=$(git tag --list 'v*' --sort=-v:refname | grep -E '^v[0-9]+\.[0-9]+\.[0-9]+$' | head -n 1 || true)
+          if [ -z "$latest_tag" ]; then
+            echo "No release tag of the form vX.Y.Z to base the nightly version on" >&2
+            exit 1
+          fi
+          IFS=. read -r major minor _ <<< "${latest_tag#v}"
+          echo "app-version=${major}.$((minor + 1)).0-nightly.${GITHUB_RUN_NUMBER}" >> "$GITHUB_OUTPUT"
+
+  publish:
+    name: Publish the nightly image
+    needs: version
+    if: needs.version.outputs.is-new == 'true'
+    uses: ./.github/workflows/_docker-publish.yml
+    with:
+      app-version: ${{ needs.version.outputs.app-version }}
+      tags: |
+        type=raw,value=nightly
+        type=raw,value=${{ needs.version.outputs.app-version }}
+      flavor: latest=false
+    secrets:
+      DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
