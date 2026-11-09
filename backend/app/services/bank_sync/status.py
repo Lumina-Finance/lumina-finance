@@ -18,7 +18,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.models.bank_connection import BankAccountLink, BankConnection, BankImportKind, BankLinkState
 from app.models.bank_sync_job import BankSyncJob, BankSyncJobStatus
 from app.schemas.bank_sync import BankImportState, BankSyncFailureResponse, BankSyncState, BankSyncStatusResponse
-from app.services.bank_sync.action_needed import ActionNeeded, ActionNeededKind, read_actions_needed
+from app.services.bank_sync.action_needed import ActionNeededKind, read_actions_needed
 from app.services.bank_sync.provider_requests import RequestBudget, read_request_budgets
 from app.services.bank_sync.retries import is_waiting_to_retry
 from app.services.bank_sync.review_pause import ReviewBacklog, read_review_backlogs
@@ -79,7 +79,7 @@ async def read_link_statuses(db: AsyncSession, links: Sequence[BankAccountLink],
     return statuses
 
 
-def _read_import_state(link: BankAccountLink, action: ActionNeeded | None, budget: RequestBudget, *, syncing: bool) -> BankImportState:
+def _read_import_state(link: BankAccountLink, action: ActionNeededKind | None, budget: RequestBudget, *, syncing: bool) -> BankImportState:
     """Return whether a link's import is fetching its next part or can now, or what holds it back
 
     A sync fetching it, a retry included, runs it. Otherwise a failed attempt waiting to retry and
@@ -95,7 +95,7 @@ def _read_import_state(link: BankAccountLink, action: ActionNeeded | None, budge
 
 def _choose_state(
     link: BankAccountLink,
-    action: ActionNeeded | None,
+    action: ActionNeededKind | None,
     import_state: BankImportState | None,
     backlog: ReviewBacklog,
     *,
@@ -106,7 +106,7 @@ def _choose_state(
     An import held by a retry shows the retry. The retry says when the import goes on
     """
     if action is not None:
-        return _ACTION_STATES[action.kind]
+        return _ACTION_STATES[action]
     if link.state == BankLinkState.CHOOSE_ACCOUNT:
         return "choose_account"
     if import_state == "running":

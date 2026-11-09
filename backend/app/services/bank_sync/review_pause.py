@@ -32,7 +32,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.models.bank_connection import BankAccountLink, BankConnection, BankLinkState
 from app.models.bank_sync_job import BankSyncJobKind
 from app.models.bank_transaction import BankTransaction
-from app.services.bank_sync.action_needed import ActionNeeded, read_actions_needed
+from app.services.bank_sync.action_needed import ActionNeededKind, read_actions_needed
 from app.services.bank_sync.availability import LIVE_LINK
 from app.services.bank_sync.jobs import enqueue_bank_sync_job
 from app.services.bank_sync.review_state import AWAITING_REVIEW
@@ -157,7 +157,7 @@ async def read_review_backlogs(
     db: AsyncSession,
     account_ids: Collection[uuid.UUID],
     *,
-    actions_needed: Mapping[uuid.UUID, ActionNeeded] | None = None,
+    actions_needed: Mapping[uuid.UUID, ActionNeededKind] | None = None,
 ) -> dict[uuid.UUID, ReviewBacklog]:
     """Return each account's review backlog: how many new items wait, and whether it shows the pause or the warning
 

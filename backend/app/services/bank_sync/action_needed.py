@@ -92,21 +92,12 @@ class ActionNeededKind(enum.StrEnum):
     BANK_LOGIN = "bank_login"
 
 
-@dataclass(frozen=True)
-class ActionNeeded:
-    """What the user has to do for an account's sync to resume, and when that began"""
-
-    kind: ActionNeededKind
-    since: datetime
-
-
-async def read_actions_needed(db: AsyncSession, account_ids: Collection[uuid.UUID]) -> dict[uuid.UUID, ActionNeeded]:
+async def read_actions_needed(db: AsyncSession, account_ids: Collection[uuid.UUID]) -> dict[uuid.UUID, ActionNeededKind]:
     """Return what the user has to do for each account's sync to resume, for the accounts that need something
 
     Every account still linked through a connection whose credential was rejected needs a
-    reconnect, from when the credential was rejected. That comes before any bank sign-in, since
-    reconnecting comes first. Otherwise a link marked as waiting on a bank sign-in needs one, from
-    when it was marked. An account no longer linked needs nothing
+    reconnect. That comes before any bank sign-in, since reconnecting comes first. Otherwise a link
+    marked as waiting on a bank sign-in needs one. An account no longer linked needs nothing
 
     Args:
         db: The owner's session
@@ -123,9 +114,9 @@ async def read_actions_needed(db: AsyncSession, account_ids: Collection[uuid.UUI
     needed = {}
     for account_id, signin_needed_since, credential_rejected_at in links:
         if credential_rejected_at is not None:
-            needed[account_id] = ActionNeeded(ActionNeededKind.RECONNECT, credential_rejected_at)
+            needed[account_id] = ActionNeededKind.RECONNECT
         elif signin_needed_since is not None:
-            needed[account_id] = ActionNeeded(ActionNeededKind.BANK_LOGIN, signin_needed_since)
+            needed[account_id] = ActionNeededKind.BANK_LOGIN
     return needed
 
 

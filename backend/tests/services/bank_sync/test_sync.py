@@ -1096,7 +1096,7 @@ async def test_job_ending_on_a_rejected_credential_marks_and_emails_only_for_tha
     assert _emailed(sent_action_emails, "ACT-everyday", "ACT-joint") == [_email(_RECONNECT_SUBJECT, "ACT-everyday")]
     async with _owner_session(connection.owner_id) as session:
         needed = await action_needed.read_actions_needed(session, [everyday.account_id, joint.account_id])
-    assert needed == {everyday.account_id: action_needed.ActionNeeded(action_needed.ActionNeededKind.RECONNECT, frozen_now)}
+    assert needed == {everyday.account_id: action_needed.ActionNeededKind.RECONNECT}
 
 
 async def test_job_whose_listing_was_refused_marks_nothing_once_a_reconnect_replaced_the_credential(

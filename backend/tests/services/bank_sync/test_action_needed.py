@@ -15,7 +15,6 @@ from sqlalchemy import select, update
 
 from app.models.bank_connection import BankAccountLink, BankConnection, BankLinkState
 from app.services.bank_sync.action_needed import (
-    ActionNeeded,
     ActionNeededKind,
     choose_account_emails,
     flag_rejected_credential,
@@ -77,13 +76,13 @@ async def test_read_actions_needed_shows_reconnect_needed_for_every_account_stil
     await _reject(connection)
 
     assert await _read_as_owner(connection, ids.values()) == {
-        ids["everyday"]: ActionNeeded(ActionNeededKind.RECONNECT, _REJECTED_AT),
-        ids["card"]: ActionNeeded(ActionNeededKind.RECONNECT, _REJECTED_AT),
+        ids["everyday"]: ActionNeededKind.RECONNECT,
+        ids["card"]: ActionNeededKind.RECONNECT,
     }
 
 
 async def test_read_actions_needed_shows_bank_sign_in_needed_only_for_a_linked_account_waiting_on_one(connections):
-    """On a working connection, Everyday waits on a bank sign-in from when it was marked, and nothing else needs one
+    """On a working connection, Everyday waits on a bank sign-in, and nothing else needs one
 
     Savings syncs, and Old was unlinked, still carrying a sign-in mark from before
     """
@@ -95,7 +94,7 @@ async def test_read_actions_needed_shows_bank_sign_in_needed_only_for_a_linked_a
         old={"state": BankLinkState.UNLINKED, "unlinked_at": _UNLINKED_AT, "signin_needed_since": _SIGNIN_SINCE},
     )
 
-    assert await _read_as_owner(connection, ids.values()) == {ids["everyday"]: ActionNeeded(ActionNeededKind.BANK_LOGIN, _SIGNIN_SINCE)}
+    assert await _read_as_owner(connection, ids.values()) == {ids["everyday"]: ActionNeededKind.BANK_LOGIN}
 
 
 async def test_action_emails_say_what_stopped_syncing_and_how_to_resume_it(connections):

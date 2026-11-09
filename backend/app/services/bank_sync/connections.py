@@ -124,8 +124,7 @@ async def build_connection_responses(
     ).all()
     needed = await read_actions_needed(db, [link.account_id for link in links])
     for link in links:
-        action = needed.get(link.account_id)
-        if action is not None and action.kind is ActionNeededKind.BANK_LOGIN:
+        if needed.get(link.account_id) is ActionNeededKind.BANK_LOGIN:
             signin_needed.add((link.connection_id, link.external_account_id))
         if link.state == BankLinkState.CHOOSE_ACCOUNT:
             choose_again[link.connection_id].append(
