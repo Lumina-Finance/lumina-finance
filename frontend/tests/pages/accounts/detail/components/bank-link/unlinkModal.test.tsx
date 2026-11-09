@@ -4,15 +4,16 @@
  *
  * These tests catch the other accounts on the connection miscounted, including one waiting for its
  * bank account to be chosen again, the connection named by its provider rather than its nickname,
- * Disconnect offered before the connection has loaded or held back without a reason, and the confirm button losing its danger
+ * Disconnect offered before the connection has loaded or held back without a reason, the credential
+ * connecting again needs named for another provider than the connection's, and the confirm button losing its danger
  * colour or its place before Cancel. Choosing and confirming run in the browser
  */
 import type { ReactNode } from 'react'
 import { renderToStaticMarkup } from 'react-dom/server'
 import { describe, expect, it, vi } from 'vitest'
-import type { BankConnection, ConnectionBankAccount } from '@/api/bank-sync'
+import type { BankConnection, BankProvidersResponse, ConnectionBankAccount } from '@/api/bank-sync'
 import { UnlinkModal } from '@/pages/accounts/detail/components/bank-link/UnlinkModal'
-import { createAccount, createConnection, createLink } from './fixtures'
+import { createAccount, createConnection, createLink, createProviders } from './fixtures'
 
 // The crossfade needs a browser to mount, so a button's content is drawn without its animated layers
 vi.mock('@/components/loading/Crossfade', () => ({ Crossfade: ({ children }: { children: unknown }) => children }))
@@ -20,8 +21,10 @@ vi.mock('@/components/modal/Shell', async (importOriginal) => ({
   ...(await importOriginal<typeof import('@/components/modal/Shell')>()),
   ModalShell: ({ children }: { children: ReactNode }) => <div>{children}</div>,
 }))
+const providers = vi.hoisted(() => ({ current: undefined as BankProvidersResponse | undefined }))
 vi.mock('@/api/bank-sync', async (importOriginal) => ({
   ...(await importOriginal<typeof import('@/api/bank-sync')>()),
+  useBankProviders: () => ({ data: providers.current }),
   useUnlinkBankAccount: () => ({ isPending: false, mutate: () => {} }),
   useDisconnectBankConnection: () => ({ isPending: false, mutate: () => {} }),
 }))
@@ -104,6 +107,43 @@ describe('UnlinkModal', () => {
     const disconnect = getRadio(renderDialog(undefined, true), 'Disconnect SimpleFIN')
     expect(disconnect).toContain('disabled=""')
     expect(disconnect).toContain('Couldn&#x27;t load this connection, so it can&#x27;t be disconnected right now.')
+  })
+
+  it("names the connection's own provider credential as what connecting again needs", () => {
+    const simplefin = createProviders().providers[0]
+    const keyed = {
+      ...simplefin,
+      id: 'keyed',
+      name: 'Keyed',
+      credential_fields: [{ key: 'api_key', label: 'API key', placeholder: 'Paste the key', max_length: 256 }],
+    }
+    providers.current = createProviders({ providers: [simplefin, keyed] })
+    const markup = renderToStaticMarkup(
+      <UnlinkModal
+        open
+        account={createAccount()}
+        link={createLink({ provider: 'keyed', provider_name: 'Keyed', provider_site: 'Keyed' })}
+        connection={createConnection({ provider: 'keyed', provider_name: 'Keyed', provider_site: 'Keyed' })}
+        connectionFailed={false}
+        onClose={() => {}}
+        onExitComplete={() => {}}
+      />,
+    )
+    providers.current = undefined
+
+    expect(getRadio(markup, 'Disconnect Keyed')).toContain(
+      'Unlinks every account on this connection and deletes the stored access. Connecting again needs a new API key.',
+    )
+    expect(markup).not.toContain('setup token')
+  })
+
+  it("says nothing of connecting again once the connection's provider is gone from the server", () => {
+    providers.current = createProviders({ providers: [] })
+    const disconnect = getRadio(renderDialog(createConnection()), 'Disconnect SimpleFIN')
+    providers.current = undefined
+
+    expect(disconnect).toContain('Unlinks every account on this connection and deletes the stored access.')
+    expect(disconnect).not.toContain('Connecting again')
   })
 
   it('puts Unlink before Cancel, as every confirmation that changes records does', () => {
