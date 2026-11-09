@@ -101,7 +101,7 @@ async def add_review_item_to_ledger(db: AsyncSession, user: User, item_id: uuid.
     """
     record, account, links = await _lock_review_item(db, user, item_id)
     if record.disposition == BankTransactionDisposition.ACCEPTED:
-        return await get_transaction_response(db, await db.get_one(Transaction, record.transaction_id))
+        return await _ledger_response(db, record)
     if record.disposition == BankTransactionDisposition.DISMISSED:
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="This item was dismissed, so it can't be added to the ledger")
     if request.counterparty_account_id is not None:
@@ -110,14 +110,7 @@ async def add_review_item_to_ledger(db: AsyncSession, user: User, item_id: uuid.
     txn = await write_new_item(db, user, record, account, request)
     await lift_review_pauses(db, user.id, links)
     await mark_user_cache_changed(db, user.id)
-
-    # Build the response before committing, since a delete of the account may take the row the moment
-    # this commits
-    await db.flush()
-    await db.refresh(txn)
-    response = await get_transaction_response(db, txn)
-    await db.commit()
-    return response
+    return await _commit_with_response(db, txn)
 
 
 async def dismiss_review_item(db: AsyncSession, user: User, item_id: uuid.UUID) -> None:
@@ -181,18 +174,11 @@ async def accept_bank_change(db: AsyncSession, user: User, item_id: uuid.UUID) -
     if record.open_kind == OpenReviewKind.REMOVAL:
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=_REMOVAL_WAITING_DETAIL)
     if record.open_kind != OpenReviewKind.CORRECTION:
-        return await get_transaction_response(db, await db.get_one(Transaction, record.transaction_id))
+        return await _ledger_response(db, record)
 
     txn = await _write_bank_change(db, user, record, account)
     await mark_user_cache_changed(db, user.id)
-
-    # Build the response before committing, since a delete of the account may take the row the moment
-    # this commits
-    await db.flush()
-    await db.refresh(txn)
-    response = await get_transaction_response(db, txn)
-    await db.commit()
-    return response
+    return await _commit_with_response(db, txn)
 
 
 async def _write_bank_change(db: AsyncSession, user: User, record: BankTransaction, account: Account) -> Transaction:
@@ -262,27 +248,22 @@ async def keep_current_value(db: AsyncSession, user: User, item_id: uuid.UUID) -
     _refuse_unless_in_ledger(record)
     if record.open_kind == OpenReviewKind.REMOVAL:
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=_REMOVAL_WAITING_DETAIL)
-    if record.open_kind == OpenReviewKind.CORRECTION:
-        kept = approved_description(record)
-        align_with_bank(record, record.previous_values)
+    if record.open_kind != OpenReviewKind.CORRECTION:
+        return await _ledger_response(db, record)
 
-        # The ledger keeps the description it was decided with, as it keeps its date and amount
-        record.kept_description = kept if kept != record.description else None
-        record.declined_observation = bank_values(record)
-        record.open_kind = None
-        record.previous_values = None
-        await db.flush()
+    kept = approved_description(record)
+    align_with_bank(record, record.previous_values)
 
-        # Keeping the current value changes none of the ledger, so the data mark an import's undo
-        # compares with stays where it was
-        await mark_user_status_changed(db, user.id)
+    # The ledger keeps the description it was decided with, as it keeps its date and amount
+    record.kept_description = kept if kept != record.description else None
+    record.declined_observation = bank_values(record)
+    record.open_kind = None
+    record.previous_values = None
 
-        # Build the response before committing, since a delete of the account may take the row the
-        # moment this commits
-        response = await get_transaction_response(db, await db.get_one(Transaction, record.transaction_id))
-        await db.commit()
-        return response
-    return await get_transaction_response(db, await db.get_one(Transaction, record.transaction_id))
+    # Keeping the current value changes none of the ledger, so the data mark an import's undo
+    # compares with stays where it was
+    await mark_user_status_changed(db, user.id)
+    return await _commit_with_response(db, await db.get_one(Transaction, record.transaction_id))
 
 
 async def remove_from_ledger(db: AsyncSession, user: User, item_id: uuid.UUID) -> None:
@@ -349,20 +330,15 @@ async def keep_transaction(db: AsyncSession, user: User, item_id: uuid.UUID) -> 
     """
     record, _, _ = await _lock_review_item(db, user, item_id)
     _refuse_unless_in_ledger(record)
-    if record.open_kind == OpenReviewKind.REMOVAL:
-        record.open_kind = OpenReviewKind.CORRECTION if record.previous_values else None
-        await db.flush()
+    if record.open_kind != OpenReviewKind.REMOVAL:
+        return await _ledger_response(db, record)
 
-        # Keeping the transaction changes none of the ledger, so the data mark an import's undo
-        # compares with stays where it was
-        await mark_user_status_changed(db, user.id)
+    record.open_kind = OpenReviewKind.CORRECTION if record.previous_values else None
 
-        # Build the response before committing, since a delete of the account may take the row the
-        # moment this commits
-        response = await get_transaction_response(db, await db.get_one(Transaction, record.transaction_id))
-        await db.commit()
-        return response
-    return await get_transaction_response(db, await db.get_one(Transaction, record.transaction_id))
+    # Keeping the transaction changes none of the ledger, so the data mark an import's undo compares
+    # with stays where it was
+    await mark_user_status_changed(db, user.id)
+    return await _commit_with_response(db, await db.get_one(Transaction, record.transaction_id))
 
 
 async def restore_bank_value(db: AsyncSession, user: User, transaction_id: uuid.UUID, field: EditableBankField) -> TransactionResponse:
@@ -413,17 +389,8 @@ async def restore_bank_value(db: AsyncSession, user: User, transaction_id: uuid.
     # A removal stays open, keeping what is left of a correction it took the place of
     if record.open_kind == OpenReviewKind.CORRECTION and record.previous_values is None:
         record.open_kind = None
-    await db.flush()
-
     await mark_user_cache_changed(db, user.id)
-
-    # Build the response before committing, since a delete of the account may take the row the moment
-    # this commits
-    await db.flush()
-    await db.refresh(txn)
-    response = await get_transaction_response(db, txn)
-    await db.commit()
-    return response
+    return await _commit_with_response(db, txn)
 
 
 async def write_new_item(db: AsyncSession, user: User, record: BankTransaction, account: Account, entry: TransactionEntry) -> Transaction:
@@ -461,6 +428,24 @@ async def write_dismissal(db: AsyncSession, record: BankTransaction) -> None:
     for column in OBSERVATION_COLUMNS:
         setattr(record, column, None)
     await db.flush()
+
+
+async def _ledger_response(db: AsyncSession, record: BankTransaction) -> TransactionResponse:
+    """Return the ledger transaction an item already decided names, as it stands"""
+    return await get_transaction_response(db, await db.get_one(Transaction, record.transaction_id))
+
+
+async def _commit_with_response(db: AsyncSession, txn: Transaction) -> TransactionResponse:
+    """Commit the decision and return the ledger transaction it leaves
+
+    The response is built before committing, since a delete of the account may take the row the
+    moment this commits
+    """
+    await db.flush()
+    await db.refresh(txn)
+    response = await get_transaction_response(db, txn)
+    await db.commit()
+    return response
 
 
 def _refuse_unless_in_ledger(record: BankTransaction) -> None:
