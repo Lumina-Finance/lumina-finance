@@ -3,6 +3,7 @@ from datetime import UTC, datetime
 from tests.routes.dashboard._helpers import _create_category, _create_transaction, _FixedClock
 from tests.routes.support import _create_account, _create_user, _get_auth_header
 from tests.routes.support.bank_sync_helpers import BANK_DATE, _record_bank_source
+from tests.routes.support.query_helpers import _get_with_selects
 
 
 async def test_recent_activity_carries_each_transactions_bank_source(client, monkeypatch):
@@ -17,10 +18,11 @@ async def test_recent_activity_carries_each_transactions_bank_source(client, mon
     imported = await _create_transaction(client, headers, account_id, category_id, dt=BANK_DATE.isoformat(), amount=-1000)
     await _record_bank_source(imported.json()["id"], bank_amount=-1250)
 
-    response = await client.get("/dashboard/recent-activity", headers=headers)
+    body, selects = await _get_with_selects(client, "/dashboard/recent-activity", headers)
 
-    assert response.status_code == 200, response.text
-    sources = {row["id"]: row["bank_source"] for row in response.json()["recent_transactions"]}
+    sources = {row["id"]: row["bank_source"] for row in body["recent_transactions"]}
+    # The sources come in the read of the recent transactions themselves
+    assert [statement.startswith("SELECT transactions.") for statement in selects if "bank_transactions" in statement] == [True]
     assert sources[manual.json()["id"]] is None
     assert sources[imported.json()["id"]]["provider_name"] == "Fake Bank"
     assert sources[imported.json()["id"]]["bank_values"]["amount"] == -1250

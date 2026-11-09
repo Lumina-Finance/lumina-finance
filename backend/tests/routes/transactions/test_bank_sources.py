@@ -1,8 +1,8 @@
 """Every transaction response carries a bank-imported transaction's bank source
 
 The list markers and the transaction modal read the source from the response itself, so each
-route returning a transaction carries it, a page loads its sources in one query, and the source
-outlives the link and connection it came through
+route returning a transaction carries it, a page reads its sources in the page's own query, a new
+transaction reads none, and the source outlives the link and connection it came through
 """
 
 from datetime import UTC, datetime
@@ -22,7 +22,7 @@ from tests.routes.support.bank_sync_helpers import (
     _build_ledger_transaction,
     _record_bank_source,
 )
-from tests.routes.support.query_helpers import _get_with_selects
+from tests.routes.support.query_helpers import _get_with_selects, _recorded_statements
 from tests.routes.transactions._helpers import _create_transaction, _setup_user_with_deps
 
 
@@ -180,8 +180,11 @@ async def _seed_bank_sourced(account_id: str, category_id: str, count: int, firs
         await session.commit()
 
 
-async def test_listing_loads_a_pages_bank_sources_in_a_fixed_number_of_queries(client):
-    """A page of 50 bank-sourced transactions runs the same SELECTs as a page of one"""
+async def test_listing_loads_a_pages_bank_sources_in_its_own_query(client):
+    """A page of 50 bank-sourced transactions runs as many SELECTs as a page of one
+
+    The bank transactions are read only in the page's own query
+    """
     headers, account_id, category_id = await _setup_user_with_deps(client)
     await _seed_bank_sourced(account_id, category_id, 1, first=0)
     one_page, one_selects = await _get_with_selects(client, "/transactions", headers, limit=50)
@@ -193,4 +196,22 @@ async def test_listing_loads_a_pages_bank_sources_in_a_fixed_number_of_queries(c
     assert len(full_page) == 50
     assert all(row["bank_source"] == _bank_source() for row in full_page)
     assert len(full_selects) == len(one_selects)
-    assert sum("FROM bank_transactions" in statement for statement in full_selects) == 1
+    assert [_reads_bank_transactions(statement) for statement in full_selects].count(True) == 1
+    assert next(statement for statement in full_selects if _reads_bank_transactions(statement)).startswith("SELECT transactions.")
+
+
+def _reads_bank_transactions(statement: str) -> bool:
+    """Whether a statement reads the bank transactions table, on its own or joined in"""
+    return "bank_transactions" in statement
+
+
+async def test_creating_a_transaction_reads_no_bank_transaction(client):
+    """A hand-entered $30.00 lunch is new, so no bank transaction can point at it yet"""
+    headers, account_id, category_id = await _setup_user_with_deps(client)
+
+    with _recorded_statements() as statements:
+        created = await _create_transaction(client, headers, account_id, category_id, amount=-3000)
+
+    assert created.status_code == 201, created.text
+    assert created.json()["bank_source"] is None
+    assert not any(_reads_bank_transactions(statement) for statement in statements)
