@@ -90,7 +90,7 @@ async def read_provider_labels(db: AsyncSession, provider_ids: Iterable[str]) ->
             .where(BankConnection.provider.in_(gone))
             .order_by(BankConnection.created_at)
         )
-        stored = dict(rows.tuples().all())
+        stored = dict(rows.all())
     return {provider_id: provider_label(provider_id, stored.get(provider_id)) for provider_id in ids}
 
 
