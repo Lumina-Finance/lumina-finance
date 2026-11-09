@@ -208,6 +208,7 @@ function transferEndValueLabel(choice: TransferEndChoice, accountLabelById: (acc
  * @param labels Display text the modal has already resolved for the chosen ids
  * @param chosenCategoryRecordsTransferTarget Whether the category the edit sets records the other
  *     side, or undefined while the edit sets no category and each row keeps its own
+ * @param reviewCount How many items waiting for review the edit adds to the ledger beside the rows
  */
 export function describeBulkEdit(
   choice: BulkEditChoice,
@@ -215,11 +216,12 @@ export function describeBulkEdit(
   blockers: BulkEditBlockers,
   labels: BulkEditSummaryLabels,
   chosenCategoryRecordsTransferTarget: boolean | undefined,
+  reviewCount = 0,
 ): BulkEditSummary {
   // An empty selection has nothing for a row to describe and nothing for a warning to refuse, so
   // this returns before reading choice at all rather than letting a control still holding a value
   // from before the selection emptied produce a row for a transaction that is no longer there
-  if (rows.length === 0) return { rows: [], notes: [], warnings: [] }
+  if (rows.length === 0 && reviewCount === 0) return { rows: [], notes: [], warnings: [] }
 
   const fields = buildBulkEditFields(choice)
   const effects = countTransferEndEffects(rows, choice, chosenCategoryRecordsTransferTarget)
@@ -314,6 +316,19 @@ export function describeBulkEdit(
   }
 
   const notes: BulkEditSummaryMessage[] = []
+
+  // A new item is added at the bank's amount, and on the bank's date unless one is chosen
+  if (reviewCount > 0) {
+    const kept = fields.dt === undefined ? 'bank amount and date' : 'bank amount'
+    notes.push({
+      key: 'review-bank-values',
+      text:
+        reviewCount === 1
+          ? `The item waiting for review keeps its ${kept}.`
+          : `The ${reviewCount} items waiting for review keep their ${kept === 'bank amount' ? 'bank amounts' : 'bank amounts and dates'}.`,
+    })
+  }
+
   const sendsAnEnd = choice.endsAreOffered && (choice.transferFrom !== null || choice.transferTo !== null)
   if ((sendsAnEnd || directionValue !== undefined) && transferRowCount > 0) {
     notes.push({

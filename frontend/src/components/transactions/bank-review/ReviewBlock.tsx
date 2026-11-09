@@ -3,6 +3,9 @@ import { AnimatePresence, motion } from 'motion/react'
 import { ChevronDown, Landmark, PauseCircle, TriangleAlert } from 'lucide-react'
 import type { BankReviewItem } from '@/api/bank-sync'
 import { useMoneyFormatters } from '@/hooks/useMoneyFormatters'
+import { Checkbox } from '@/components/forms/Checkbox'
+import { MAX_BULK_EDIT_TRANSACTIONS } from '@/components/transactions/bulk-edit/constants'
+import type { RowSelectionMark } from '@/components/transactions/bulk-edit/selection'
 import { ReadFailureNotice, type BankReadFailure } from '@/components/transactions/bank-review/ReadFailureNotice'
 import { REVIEW_MOTION } from '@/components/transactions/constants/bankReview'
 import { useFocusAfterRetry } from '@/components/transactions/hooks/useFocusAfterRetry'
@@ -28,6 +31,21 @@ const LEAVE_AT_ONCE = { opacity: 0, transition: { duration: 0 } }
 export type ReviewItemAccount = {
   name: string
   currency: string
+}
+
+/**
+ * What the block needs while the transaction list is in selection mode. Only new items can be
+ * ticked, since a correction or a removal is decided beside its ledger transaction
+ */
+export type ReviewRowSelection = {
+  /** How a new item's row is marked once any pending shift-click is taken into account */
+  markFor: (itemId: string) => RowSelectionMark
+
+  /** False once the selection is full and the item isn't in it */
+  isSelectable: (itemId: string) => boolean
+  onToggle: (itemId: string, withShift: boolean) => void
+  onPointerEnter: (itemId: string) => void
+  onPointerLeaveList: () => void
 }
 
 type BankReviewBlockProps = {
@@ -82,6 +100,9 @@ type BankReviewBlockProps = {
   /** Opens an item for review */
   onOpenItem: (item: BankReviewItem) => void
 
+  /** Set while the transaction list is in selection mode. A new item's row then ticks it rather than opening it */
+  selection?: ReviewRowSelection
+
   prefersReducedMotion: boolean | null
 }
 
@@ -115,6 +136,7 @@ export function BankReviewBlock({
   isGoingToItem,
   registerRow,
   onOpenItem,
+  selection,
   prefersReducedMotion,
 }: BankReviewBlockProps) {
   const { formatMovedCurrency } = useMoneyFormatters()
@@ -256,7 +278,7 @@ export function BankReviewBlock({
 
       {/* One list, so a screen reader counts every loaded item, with each row past the first few
           growing in as the block opens */}
-      <div ref={listRef} id={listId} role="list">
+      <div ref={listRef} id={listId} role="list" onMouseLeave={selection?.onPointerLeaveList}>
         {/* A leaving row reads which rows were on screen from here rather than from its own props,
             since those stop updating once it has left the list */}
         <AnimatePresence initial={false} custom={rowsInViewAtClose} onExitComplete={onRowsLeft}>
@@ -303,6 +325,14 @@ export function BankReviewBlock({
               </div>
             )
 
+            // In selection mode a new item's row ticks it, and every row makes room for the box so
+            // the text of corrections and removals lines up with the rest
+            const tick = selection && item.kind === 'new' ? selection : null
+            const mark = tick ? tick.markFor(item.id) : 'none'
+            const isSelectable = tick ? tick.isSelectable(item.id) : false
+            const selectionBackground =
+              mark === 'selected' ? 'var(--app-accent-soft)' : mark === 'pending' ? 'var(--app-hover-soft)' : undefined
+
             return (
               <motion.div
                 key={item.id}
@@ -340,10 +370,40 @@ export function BankReviewBlock({
                 {/* Ringed on hover and keyboard focus like the highlight above, so the two read alike,
                     with a ring of its own so neither waits on the other's fade. The hover variant also
                     matches a focused button, so the focus ring is marked important to win over it */}
+                {/* Beside the row's button rather than inside it, since a checkbox can't sit inside
+                    another button. Raised above it, so a press on the box lands on the box */}
+                {tick && (
+                  <span
+                    className="absolute inset-y-0 left-4 z-10 flex items-center sm:left-5"
+                    title={
+                      isSelectable
+                        ? undefined
+                        : `Up to ${MAX_BULK_EDIT_TRANSACTIONS} transactions and review items can be ticked at once`
+                    }
+                  >
+                    <Checkbox
+                      checked={mark === 'selected'}
+                      disabled={!isSelectable}
+                      label={`Select ${item.bank.description}, waiting for review`}
+                      onChange={(event) => tick.onToggle(item.id, event.shiftKey)}
+                    />
+                  </span>
+                )}
                 <button
                   type="button"
-                  onClick={() => onOpenItem(item)}
-                  className="group relative block w-full px-4 text-left focus-visible:outline-none sm:px-5"
+
+                  // A ticked row's button takes the tick rather than opening the item. A shift-click
+                  // runs even on a row past the limit, since the range it takes steps over that row
+                  onClick={(event) => {
+                    if (!tick) onOpenItem(item)
+                    else if (isSelectable || event.shiftKey) tick.onToggle(item.id, event.shiftKey)
+                  }}
+                  onMouseEnter={tick ? () => tick.onPointerEnter(item.id) : undefined}
+                  tabIndex={tick ? -1 : undefined}
+                  className={`group relative block w-full text-left focus-visible:outline-none ${
+                    selection ? 'pl-12 pr-4 sm:pl-13 sm:pr-5' : 'px-4 sm:px-5'
+                  } ${tick ? 'select-none' : ''}`}
+                  style={{ background: selectionBackground }}
                 >
                   <span
                     aria-hidden

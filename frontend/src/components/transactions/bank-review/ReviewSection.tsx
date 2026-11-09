@@ -5,7 +5,11 @@ import { useAuth } from '@/hooks/useAuth'
 import { useTodayYmd } from '@/hooks/useTodayYmd'
 import { BankComparisonModal } from '@/components/transactions/bank-review/ComparisonModal'
 import type { BankReadFailure } from '@/components/transactions/bank-review/ReadFailureNotice'
-import { BankReviewBlock, COLLAPSED_ITEM_COUNT } from '@/components/transactions/bank-review/ReviewBlock'
+import {
+  BankReviewBlock,
+  COLLAPSED_ITEM_COUNT,
+  type ReviewRowSelection,
+} from '@/components/transactions/bank-review/ReviewBlock'
 import CreateTransactionModal from '@/components/transactions/transaction-modal/Modal'
 import { REVIEW_MOTION } from '@/components/transactions/constants/bankReview'
 import { useBankItemScope } from '@/components/transactions/hooks/useBankItemScope'
@@ -38,6 +42,9 @@ type BankReviewSectionProps = {
   /** Set on an account's own page. Every item there is that account's, so rows leave its name out */
   isFixedAccount: boolean
   focusRequest: ReviewFocusRequest | null
+
+  /** Set while the transaction list is in selection mode, so new items can be ticked beside its rows */
+  selection?: ReviewRowSelection
   prefersReducedMotion: boolean | null
 }
 
@@ -99,6 +106,7 @@ export const BankReviewSection = memo(function BankReviewSection({
   listAccountIds,
   isFixedAccount,
   focusRequest,
+  selection,
   prefersReducedMotion,
 }: BankReviewSectionProps) {
   const { user } = useAuth()
@@ -302,6 +310,7 @@ export const BankReviewSection = memo(function BankReviewSection({
                 isGoingToItem={jump !== null}
                 registerRow={registerRow}
                 onOpenItem={openItem}
+                selection={selection}
                 prefersReducedMotion={prefersReducedMotion}
               />
             </div>

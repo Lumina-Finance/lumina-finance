@@ -31,7 +31,7 @@ const ITEMS = Array.from({ length: 6 }, (_, index) => createReviewItem(`item-${i
 function renderBlock(
   items: BankReviewItem[],
   expanded: boolean,
-  overrides: Partial<Pick<Parameters<typeof BankReviewBlock>[0], 'itemsFailure' | 'backlogFailure'>> = {},
+  overrides: Partial<Pick<Parameters<typeof BankReviewBlock>[0], 'itemsFailure' | 'backlogFailure' | 'selection'>> = {},
 ): string {
   return renderToStaticMarkup(
     createElement(BankReviewBlock, {
@@ -122,6 +122,66 @@ describe('the rows the block shows', () => {
     expect(rows[0]).toMatch(/<button type="button"[^>]*>.*GROCER fresh/)
     expect(rows[1]).toMatch(/<button type="button"[^>]*>.*GROCER changed/)
     expect(rows[2]).toMatch(/<button type="button"[^>]*>.*GROCER gone/)
+  })
+})
+
+describe('the block while the list is in selection mode', () => {
+  const MIXED = [
+    createReviewItem('fresh', 'new', 'everyday'),
+    createReviewItem('ticked', 'new', 'everyday'),
+    createReviewItem('changed', 'correction', 'everyday'),
+    createReviewItem('gone', 'removal', 'everyday'),
+  ]
+
+  /** A selection holding the ticked item, full so nothing else can be ticked */
+  function selection(full: boolean) {
+    return {
+      markFor: (itemId: string) => (itemId === 'ticked' ? ('selected' as const) : ('none' as const)),
+      isSelectable: (itemId: string) => itemId === 'ticked' || !full,
+      onToggle: () => {},
+      onPointerEnter: () => {},
+      onPointerLeaveList: () => {},
+    }
+  }
+
+  it('gives new items a checkbox of their own and leaves corrections and removals without one', () => {
+    const rows = renderBlock(MIXED, false, { selection: selection(false) })
+      .split('role="listitem"')
+      .slice(1)
+
+    expect(rows[0]).toMatch(
+      /role="checkbox" aria-checked="false"[^>]*aria-label="Select GROCER fresh, waiting for review"/,
+    )
+    expect(rows[1]).toMatch(
+      /role="checkbox" aria-checked="true"[^>]*aria-label="Select GROCER ticked, waiting for review"/,
+    )
+    expect(rows[2]).not.toContain('role="checkbox"')
+    expect(rows[3]).not.toContain('role="checkbox"')
+  })
+
+  it('keeps the checkbox as the only tab stop of a new item, and the button of a correction', () => {
+    const rows = renderBlock(MIXED, false, { selection: selection(false) })
+      .split('role="listitem"')
+      .slice(1)
+
+    expect(rows[0]).toMatch(/<button type="button" tabindex="-1"[^>]*>.*GROCER fresh/)
+    expect(rows[2]).toMatch(/<button type="button"(?! tabindex)[^>]*>.*GROCER changed/)
+  })
+
+  it('marks a ticked row, and holds back the box of an unticked one once the selection is full', () => {
+    const rows = renderBlock(MIXED, false, { selection: selection(true) })
+      .split('role="listitem"')
+      .slice(1)
+
+    expect(rows[1]).toContain('background:var(--app-accent-soft)')
+    expect(rows[0]).not.toContain('background:var(--app-accent-soft)')
+    expect(rows[0]).toMatch(/title="Up to 1000 transactions and review items can be ticked at once"/)
+    expect(rows[0]).toMatch(/role="checkbox"[^>]*disabled=""/)
+    expect(rows[1]).not.toMatch(/role="checkbox"[^>]*disabled=""/)
+  })
+
+  it('shows no checkbox outside selection mode', () => {
+    expect(renderBlock(MIXED, false)).not.toContain('role="checkbox"')
   })
 })
 

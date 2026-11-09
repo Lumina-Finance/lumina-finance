@@ -1,6 +1,16 @@
 import { useMemo, useRef, useState } from 'react'
 import { AnimatePresence, motion, useReducedMotion } from 'motion/react'
-import { Check, Download, ListChecks, LoaderCircle, PencilLine, SlidersHorizontal, Trash2, Upload } from 'lucide-react'
+import {
+  Check,
+  CircleX,
+  Download,
+  ListChecks,
+  LoaderCircle,
+  PencilLine,
+  SlidersHorizontal,
+  Trash2,
+  Upload,
+} from 'lucide-react'
 import { DesktopToolbarControls } from '@/components/list-controls/DesktopToolbarControls'
 import { GlassSearchField } from '@/components/list-controls/GlassSearchField'
 import { MobileToolbarActions } from '@/components/list-controls/MobileToolbarActions'
@@ -15,6 +25,7 @@ import { TransactionFilterPanel } from '@/components/transactions/toolbar/Filter
 import { MobileFilterPanel } from '@/components/transactions/toolbar/MobileFilterPanel'
 import { useToolbarStickyOffset } from '@/components/transactions/toolbar/hooks/useStickyOffset'
 import { EXPORT_LABELS } from '@/components/transactions/utils/exportFile'
+import { NOTHING_TICKED_WITH_REVIEW } from '@/components/transactions/bulk-edit/reviewSelection'
 import { useMediaQuery } from '@/hooks/useMediaQuery'
 import { joinClassNames } from '@/utils/classNames'
 import {
@@ -53,9 +64,14 @@ export default function TransactionListToolbar({
   onEditSelection,
   deleteDisabledReason,
   onDeleteSelection,
+  onDismissSelection,
+  dismissDisabledReason,
   onToggleSelecting,
 }: TransactionListToolbarProps) {
   const prefersReducedMotion = useReducedMotion()
+
+  // A list that offers items waiting for review names them too, since either can be ticked
+  const nothingTicked = onDismissSelection ? NOTHING_TICKED_WITH_REVIEW : 'Tick a transaction first'
 
   // Set from the desktop edit button's own onAnimationStart and onAnimationComplete, so the wrap
   // layout hook holds its measurement still for exactly the span its width is changing
@@ -189,7 +205,7 @@ export default function TransactionListToolbar({
   // Edit takes the remaining mobile space, retaining its word longer than Done and Filters.
   function renderEditAction(className: string, labelClassName = 'hidden min-[750px]:inline') {
     if (!onEditSelection) return undefined
-    const reason = editDisabledReason ?? (selectedCount === 0 ? 'Tick a transaction first' : undefined)
+    const reason = editDisabledReason ?? (selectedCount === 0 ? nothingTicked : undefined)
     return (
       <DisabledReasonButton
         className={className}
@@ -209,7 +225,7 @@ export default function TransactionListToolbar({
   // same reason
   function renderDeleteAction(className: string) {
     if (!onDeleteSelection) return undefined
-    const reason = selectedCount === 0 ? 'Tick a transaction first' : deleteDisabledReason
+    const reason = selectedCount === 0 ? nothingTicked : deleteDisabledReason
     return (
       <DisabledReasonButton
         className={className}
@@ -219,6 +235,22 @@ export default function TransactionListToolbar({
       >
         <Trash2 size={18} aria-hidden />
         <span className="hidden min-[1050px]:inline">Delete</span>
+      </DisabledReasonButton>
+    )
+  }
+
+  // Beside Delete and shaped like it, offered only while new items wait for review
+  function renderDismissAction(className: string) {
+    if (!onDismissSelection) return undefined
+    return (
+      <DisabledReasonButton
+        className={className}
+        onClick={onDismissSelection}
+        disabledReason={dismissDisabledReason}
+        aria-label="Dismiss the selected items"
+      >
+        <CircleX size={18} aria-hidden />
+        <span className="hidden min-[1050px]:inline">Dismiss</span>
       </DisabledReasonButton>
     )
   }
@@ -245,6 +277,7 @@ export default function TransactionListToolbar({
           <div className="flex w-max items-center">
             {renderEditAction('app-glass-button h-11 w-11 shrink-0 px-0 mr-3 min-[750px]:w-auto min-[750px]:px-4')}
             {renderDeleteAction('app-glass-button h-11 w-11 shrink-0 px-0 mr-3 min-[1050px]:w-auto min-[1050px]:px-4')}
+            {renderDismissAction('app-glass-button h-11 w-11 shrink-0 px-0 mr-3 min-[1050px]:w-auto min-[1050px]:px-4')}
           </div>
         </motion.div>
       )}
@@ -301,6 +334,7 @@ export default function TransactionListToolbar({
               'hidden @min-[16rem]/bulk-actions:inline',
             )}
             {renderDeleteAction('app-glass-button h-11 w-11 shrink-0 px-0')}
+            {renderDismissAction('app-glass-button h-11 w-11 shrink-0 px-0')}
             {exportAction}
             {selectAction}
           </div>

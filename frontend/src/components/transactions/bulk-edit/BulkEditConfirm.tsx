@@ -7,6 +7,9 @@ import { WarningCallout } from '@/components/WarningCallout'
 interface BulkEditConfirmProps {
   open: boolean
   count: number
+
+  /** How many items waiting for review the same edit adds to the ledger, named in the title beside the transactions */
+  reviewCount?: number
   error: string | null
   isApplying: boolean
   onConfirm: () => void
@@ -24,6 +27,7 @@ interface BulkEditConfirmProps {
 export function BulkEditConfirm({
   open,
   count,
+  reviewCount = 0,
   error,
   isApplying,
   onConfirm,
@@ -31,6 +35,11 @@ export function BulkEditConfirm({
 }: BulkEditConfirmProps) {
   const titleId = useId()
   const descriptionId = useId()
+  const transactions = `${count} ${count === 1 ? 'transaction' : 'transactions'}`
+  const title =
+    reviewCount === 0
+      ? `Change ${transactions}?`
+      : `Add ${reviewCount} ${reviewCount === 1 ? 'item' : 'items'} and change ${transactions}?`
 
   return (
     <ModalTitledPanel
@@ -39,12 +48,12 @@ export function BulkEditConfirm({
       titleId={titleId}
       descriptionId={descriptionId}
       eyebrow="Bulk edit"
-      title={`Change ${count} ${count === 1 ? 'transaction' : 'transactions'}?`}
+      title={title}
       RailIcon={PencilLine}
       railLabel="Bulk edit"
       level="stacked"
       closeDisabled={isApplying}
-      footer={(
+      footer={
         <ModalFormFooter
           submitLabel="Confirm"
           submitDisabled={isApplying}
@@ -55,7 +64,7 @@ export function BulkEditConfirm({
           onPrimary={onConfirm}
           primaryOnLeft
         />
-      )}
+      }
     >
       <div id={descriptionId}>
         <WarningCallout>This cannot be undone.</WarningCallout>

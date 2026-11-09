@@ -40,6 +40,10 @@ import {
   type SelectedTransactionFacts,
   type TransferEndChoice,
 } from '@/components/transactions/bulk-edit/selection'
+import {
+  getBulkEditApplyLabel,
+  REVIEW_ITEMS_NEED_MERCHANT_AND_CATEGORY,
+} from '@/components/transactions/bulk-edit/reviewSelection'
 import { describeBulkEdit, type BulkEditSummaryLabels } from '@/components/transactions/bulk-edit/summary'
 import type { BulkDirectionChange } from '@/api/transactions'
 import type { TransactionListAccount } from '@/components/transactions/types/transactionList'
@@ -103,6 +107,9 @@ interface BulkEditModalProps {
   selectedCurrencies: string[]
 
   accounts: TransactionListAccount[]
+
+  /** How many items waiting for review are ticked beside the rows, each added to the ledger with the details chosen */
+  reviewCount?: number
   onApply: (payload: BulkEditFields) => void
 }
 
@@ -112,6 +119,11 @@ interface BulkEditModalProps {
  * Every control starts empty, meaning leave that field alone, and only the ones filled in are sent. The
  * server writes the batch whole or not at all, so the refusals it would answer with are counted here and
  * hold the button until they are settled.
+ *
+ * Items waiting for review ticked beside them are added to the ledger with the same details, so the
+ * edit offers only what an item takes: Merchant and Category, both required, Tags, Note and Date.
+ * Account, Direction and the categories that record a transfer's other side stay out, since each item
+ * keeps its own account and bank amount
  */
 export function BulkEditModal({
   open,
@@ -120,8 +132,11 @@ export function BulkEditModal({
   rows,
   selectedCurrencies,
   accounts,
+  reviewCount = 0,
   onApply,
 }: BulkEditModalProps) {
+  const addsReviewItems = reviewCount > 0
+  const addsReviewItemsOnly = addsReviewItems && rows.length === 0
   const titleId = useId()
   const [categoryId, setCategoryId] = useState('')
   const [accountId, setAccountId] = useState('')
@@ -149,12 +164,22 @@ export function BulkEditModal({
   const tagIds = chosenTags.map((tag) => tag.value)
 
   const { data: categories } = useCategories()
-  const categoryOptions = useMemo(() => buildCategoryOptions(categories ?? []), [categories])
 
-  // Leading blank entry lets a pick be undone without closing the modal, ahead of every kind group
+  // A new item added in bulk has no account on a transfer's other side, so the categories that ask
+  // for one stay out while items waiting for review are ticked
+  const categoryOptions = useMemo(
+    () =>
+      buildCategoryOptions(
+        (categories ?? []).filter((category) => !addsReviewItems || !doesChosenCategoryRecordTransferTarget(category)),
+      ),
+    [categories, addsReviewItems],
+  )
+
+  // Leading blank entry lets a pick be undone without closing the modal, ahead of every kind group.
+  // Left out while items waiting for review are ticked, since they need a category
   const categoryDropdownOptions = useMemo(
-    () => [{ value: '', label: 'Leave as is' }, ...categoryOptions],
-    [categoryOptions],
+    () => (addsReviewItems ? categoryOptions : [{ value: '', label: 'Leave as is' }, ...categoryOptions]),
+    [categoryOptions, addsReviewItems],
   )
 
   const chosenCategory = categories?.find((category) => category.id === categoryId)
@@ -312,8 +337,11 @@ export function BulkEditModal({
   const merchantOptions = merchants.map((record) => ({ value: record.id, label: record.name }))
 
   // Leading blank entry lets a pick be undone without closing the modal, ahead of the search
-  // results whatever the search text holds
-  const merchantDropdownOptions = [{ value: '', label: 'Leave as is' }, ...merchantOptions]
+  // results whatever the search text holds. Left out while items waiting for review are ticked,
+  // since they need a merchant
+  const merchantDropdownOptions = addsReviewItems
+    ? merchantOptions
+    : [{ value: '', label: 'Leave as is' }, ...merchantOptions]
 
   const tagSearch = useDebouncedReferenceSearch(REFERENCE_SEARCH_DEBOUNCE_MS)
   const tagQuery = useInfiniteTags({ q: tagSearch.activeSearchText || undefined }, REFERENCE_PAGE_SIZE)
@@ -322,7 +350,7 @@ export function BulkEditModal({
   // Keep chosen tags before search results so they can be unticked regardless of the search text
   // Remove all tags remains available even when the search returns no tags
   const tagOptions = [
-    { value: REMOVE_ALL_TAGS_VALUE, label: REMOVE_ALL_TAGS_LABEL },
+    ...(addsReviewItemsOnly ? [] : [{ value: REMOVE_ALL_TAGS_VALUE, label: REMOVE_ALL_TAGS_LABEL }]),
     ...chosenTags,
     ...tags.filter((tag) => !tagIds.includes(tag.id)).map((tag) => ({ value: tag.id, label: tag.name })),
   ]
@@ -360,14 +388,26 @@ export function BulkEditModal({
   const blockers = getBulkEditBlockers(rows, choice, chosenCategoryRecordsTransferTarget, accounts)
   // Nothing chosen and the warnings are problems of the edit, marked on the What changes heading once Apply
   // is pressed. A missing or oversized selection is a state of the page, so it keeps Apply faded throughout
-  const selectionBlockReason = getBulkEditSelectionBlockReason(rows)
+  const selectionBlockReason = getBulkEditSelectionBlockReason(rows, reviewCount)
+  const lacksWhatAnItemNeeds = addsReviewItems && (!merchantId || !categoryId)
   const refusal = useRefusedSubmit(
-    { changes: getBulkEditChangeProblem(choice, blockers) },
+    {
+      changes: lacksWhatAnItemNeeds
+        ? REVIEW_ITEMS_NEED_MERCHANT_AND_CATEGORY
+        : getBulkEditChangeProblem(choice, blockers),
+    },
     BULK_EDIT_FIELDS,
     BULK_EDIT_FIELD_IDS,
   )
 
   const transactionsWord = rows.length === 1 ? 'transaction' : 'transactions'
+  const itemsWord = reviewCount === 1 ? 'item' : 'items'
+  let title = `Edit ${rows.length} ${transactionsWord}`
+  if (addsReviewItemsOnly) title = `Add ${reviewCount} ${itemsWord} to your ledger`
+  else if (addsReviewItems) title = `Add ${reviewCount} ${itemsWord} and edit ${rows.length} ${transactionsWord}`
+
+  // Steps are numbered as they show, and Account & Direction shows only for ledger transactions alone
+  const steps = addsReviewItems ? { details: '01', changes: '02' } : { details: '02', changes: '03' }
 
   // Display text the panel resolves ids against, read off the same state the dropdowns already
   // hold rather than looked up again, so the summary can never name an account, category, merchant
@@ -378,7 +418,14 @@ export function BulkEditModal({
     merchantLabel: merchant?.label ?? '',
     tagLabels: chosenTags.map((tag) => tag.label),
   }
-  const summary = describeBulkEdit(choice, rows, blockers, summaryLabels, chosenCategoryRecordsTransferTarget)
+  const summary = describeBulkEdit(
+    choice,
+    rows,
+    blockers,
+    summaryLabels,
+    chosenCategoryRecordsTransferTarget,
+    reviewCount,
+  )
 
   const spansMultipleCurrencies = selectedCurrencies.length > 1
   const hasNoAccountForCurrency = selectedCurrencies.length === 1 && accountOptions.length === 0
@@ -408,7 +455,7 @@ export function BulkEditModal({
       onExitComplete={onExitComplete}
       titleId={titleId}
       eyebrow="Bulk edit"
-      title={`Edit ${rows.length} ${transactionsWord}`}
+      title={title}
       RailIcon={PencilLine}
       railLabel="Bulk edit"
       footer={
@@ -427,7 +474,7 @@ export function BulkEditModal({
               onApply(buildBulkEditFields(choice))
             }}
           >
-            Apply
+            {getBulkEditApplyLabel(rows.length, reviewCount)}
           </DisabledReasonButton>
         </div>
       }
@@ -440,93 +487,95 @@ export function BulkEditModal({
           </InfoCallout>
         )}
 
-        <CreateModalSectionFrame step="01" title="Account & Direction">
-          <div className="grid gap-3 sm:grid-cols-2">
-            <div className="sm:col-span-2">
-              <CreateModalFieldLabelRow htmlFor="bulk-account" label="Move to account" />
-              <Dropdown
-                id="bulk-account"
-                options={moveAccountOptions}
-                value={accountId}
-                onChange={changeMoveAccount}
-                placeholder={accountOptions.length === 0 ? 'No account to move to' : 'Leave as is'}
-                blankOptionIsPlaceholder
-                searchable
-                disabled={accountOptions.length === 0 || sendsAnEnd}
-                disabledReason={moveAccountReason}
-              />
-            </div>
-
-            <div className="sm:col-span-2">
-              <CreateModalFieldLabelRow label="Direction" optionGroupId="bulk-direction" />
-              <div className="relative rounded-lg">
-                <AnimatePresence initial={false}>
-                  {directionHighlightKey > 0 && (
-                    <motion.span
-                      key={directionHighlightKey}
-                      className="pointer-events-none absolute inset-0 rounded-lg"
-                      initial={{ boxShadow: '0 0 0 0 var(--app-accent-soft)' }}
-                      animate={{
-                        boxShadow: [
-                          '0 0 0 0 var(--app-accent-soft)',
-                          '0 0 0 3px var(--app-accent-soft)',
-                          '0 0 0 0 var(--app-accent-soft)',
-                        ],
-                      }}
-                      exit={{ opacity: 0 }}
-                      transition={{ duration: 0.45, ease: EASE }}
-                      aria-hidden
-                    />
-                  )}
-                </AnimatePresence>
-                <TransactionModalPillSelector
-                  id="bulk-direction"
-                  value={effectiveDirection ?? 'unchanged'}
-                  options={BULK_DIRECTION_OPTIONS}
-                  ariaLabel="Transaction direction"
-                  compactOnMobile
-                  onChange={changeDirection}
+        {!addsReviewItems && (
+          <CreateModalSectionFrame step="01" title="Account & Direction">
+            <div className="grid gap-3 sm:grid-cols-2">
+              <div className="sm:col-span-2">
+                <CreateModalFieldLabelRow htmlFor="bulk-account" label="Move to account" />
+                <Dropdown
+                  id="bulk-account"
+                  options={moveAccountOptions}
+                  value={accountId}
+                  onChange={changeMoveAccount}
+                  placeholder={accountOptions.length === 0 ? 'No account to move to' : 'Leave as is'}
+                  blankOptionIsPlaceholder
+                  searchable
+                  disabled={accountOptions.length === 0 || sendsAnEnd}
+                  disabledReason={moveAccountReason}
                 />
               </div>
+
+              <div className="sm:col-span-2">
+                <CreateModalFieldLabelRow label="Direction" optionGroupId="bulk-direction" />
+                <div className="relative rounded-lg">
+                  <AnimatePresence initial={false}>
+                    {directionHighlightKey > 0 && (
+                      <motion.span
+                        key={directionHighlightKey}
+                        className="pointer-events-none absolute inset-0 rounded-lg"
+                        initial={{ boxShadow: '0 0 0 0 var(--app-accent-soft)' }}
+                        animate={{
+                          boxShadow: [
+                            '0 0 0 0 var(--app-accent-soft)',
+                            '0 0 0 3px var(--app-accent-soft)',
+                            '0 0 0 0 var(--app-accent-soft)',
+                          ],
+                        }}
+                        exit={{ opacity: 0 }}
+                        transition={{ duration: 0.45, ease: EASE }}
+                        aria-hidden
+                      />
+                    )}
+                  </AnimatePresence>
+                  <TransactionModalPillSelector
+                    id="bulk-direction"
+                    value={effectiveDirection ?? 'unchanged'}
+                    options={BULK_DIRECTION_OPTIONS}
+                    ariaLabel="Transaction direction"
+                    compactOnMobile
+                    onChange={changeDirection}
+                  />
+                </div>
+              </div>
+
+              {endsAreOffered && (
+                <>
+                  <div>
+                    <CreateModalFieldLabelRow htmlFor="bulk-transfer-from" label="From" />
+                    <Dropdown
+                      id="bulk-transfer-from"
+                      options={endOptions}
+                      value={transferEndValue(transferFrom)}
+                      onChange={(value) => changeTransferEnd('from', value)}
+                      placeholder="Leave as is"
+                      blankOptionIsPlaceholder
+                      searchable
+                      disabled={Boolean(accountId)}
+                      disabledReason={clearedByMoveAccountReason}
+                    />
+                  </div>
+
+                  <div>
+                    <CreateModalFieldLabelRow htmlFor="bulk-transfer-to" label="To" />
+                    <Dropdown
+                      id="bulk-transfer-to"
+                      options={endOptions}
+                      value={transferEndValue(transferTo)}
+                      onChange={(value) => changeTransferEnd('to', value)}
+                      placeholder="Leave as is"
+                      blankOptionIsPlaceholder
+                      searchable
+                      disabled={Boolean(accountId)}
+                      disabledReason={clearedByMoveAccountReason}
+                    />
+                  </div>
+                </>
+              )}
             </div>
+          </CreateModalSectionFrame>
+        )}
 
-            {endsAreOffered && (
-              <>
-                <div>
-                  <CreateModalFieldLabelRow htmlFor="bulk-transfer-from" label="From" />
-                  <Dropdown
-                    id="bulk-transfer-from"
-                    options={endOptions}
-                    value={transferEndValue(transferFrom)}
-                    onChange={(value) => changeTransferEnd('from', value)}
-                    placeholder="Leave as is"
-                    blankOptionIsPlaceholder
-                    searchable
-                    disabled={Boolean(accountId)}
-                    disabledReason={clearedByMoveAccountReason}
-                  />
-                </div>
-
-                <div>
-                  <CreateModalFieldLabelRow htmlFor="bulk-transfer-to" label="To" />
-                  <Dropdown
-                    id="bulk-transfer-to"
-                    options={endOptions}
-                    value={transferEndValue(transferTo)}
-                    onChange={(value) => changeTransferEnd('to', value)}
-                    placeholder="Leave as is"
-                    blankOptionIsPlaceholder
-                    searchable
-                    disabled={Boolean(accountId)}
-                    disabledReason={clearedByMoveAccountReason}
-                  />
-                </div>
-              </>
-            )}
-          </div>
-        </CreateModalSectionFrame>
-
-        <CreateModalSectionFrame step="02" title="Details">
+        <CreateModalSectionFrame step={steps.details} title="Details">
           <div className="grid gap-3 sm:grid-cols-2">
             <div>
               <CreateModalFieldLabelRow htmlFor="bulk-date" label="Date" />
@@ -543,7 +592,7 @@ export function BulkEditModal({
                 onChange={(value) =>
                   setMerchant(value === '' ? null : (merchantOptions.find((option) => option.value === value) ?? null))
                 }
-                placeholder="Leave as is"
+                placeholder={addsReviewItems ? 'Choose a merchant' : 'Leave as is'}
                 blankOptionIsPlaceholder
                 searchable
                 filterOptions={false}
@@ -562,7 +611,7 @@ export function BulkEditModal({
                 options={categoryDropdownOptions}
                 value={categoryId}
                 onChange={setCategoryId}
-                placeholder="Leave as is"
+                placeholder={addsReviewItems ? 'Choose a category' : 'Leave as is'}
                 blankOptionIsPlaceholder
                 searchable
               />
@@ -572,17 +621,21 @@ export function BulkEditModal({
               <CreateModalFieldLabelRow
                 htmlFor="bulk-tags"
                 label="Add a tag"
+
+                // An item waiting for review has no tags to override
                 action={
-                  <div className="flex items-center gap-1.5 text-xs">
-                    <Checkbox
-                      checked={overrideTags}
-                      label="Override existing tags"
-                      onChange={() => setOverrideTags((current) => !current)}
-                    />
-                    <span aria-hidden onClick={() => setOverrideTags((current) => !current)}>
-                      Override existing tags
-                    </span>
-                  </div>
+                  addsReviewItemsOnly ? undefined : (
+                    <div className="flex items-center gap-1.5 text-xs">
+                      <Checkbox
+                        checked={overrideTags}
+                        label="Override existing tags"
+                        onChange={() => setOverrideTags((current) => !current)}
+                      />
+                      <span aria-hidden onClick={() => setOverrideTags((current) => !current)}>
+                        Override existing tags
+                      </span>
+                    </div>
+                  )
                 }
               />
               <Dropdown
@@ -616,13 +669,17 @@ export function BulkEditModal({
               <CreateModalFieldLabelRow
                 htmlFor="bulk-note"
                 label="Note"
+
+                // An item waiting for review has no note to take off
                 action={
-                  <div className="flex items-center gap-1.5 text-xs">
-                    <Checkbox checked={clearsNote} label="Take the note off instead" onChange={toggleClearsNote} />
-                    <span aria-hidden onClick={toggleClearsNote}>
-                      Take the note off instead
-                    </span>
-                  </div>
+                  addsReviewItemsOnly ? undefined : (
+                    <div className="flex items-center gap-1.5 text-xs">
+                      <Checkbox checked={clearsNote} label="Take the note off instead" onChange={toggleClearsNote} />
+                      <span aria-hidden onClick={toggleClearsNote}>
+                        Take the note off instead
+                      </span>
+                    </div>
+                  )
                 }
               />
               <input
@@ -639,7 +696,7 @@ export function BulkEditModal({
           </div>
         </CreateModalSectionFrame>
 
-        <CreateModalSectionFrame step="03">
+        <CreateModalSectionFrame step={steps.changes}>
           <div className="min-w-0 space-y-3">
             {/* Takes focus when Apply is refused, so the message is read and scrolled to rather than left off screen */}
             <div

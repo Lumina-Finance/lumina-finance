@@ -668,11 +668,18 @@ export function getBulkEditBlockers(
  *
  * This is a state of the page, not something the user typed, so Apply stays faded with this reason
  * from the moment the window opens
+ *
+ * @param rows - The ticked ledger transactions
+ * @param reviewCount - How many items waiting for review are ticked beside them, counted toward the cap
  */
-export function getBulkEditSelectionBlockReason(rows: SelectedTransactionFacts[]): string | undefined {
-  if (rows.length === 0) return 'Tick a transaction first'
-  if (rows.length > MAX_BULK_EDIT_TRANSACTIONS)
-    return `Up to ${MAX_BULK_EDIT_TRANSACTIONS} transactions can be edited at once`
+export function getBulkEditSelectionBlockReason(rows: SelectedTransactionFacts[], reviewCount = 0): string | undefined {
+  const count = rows.length + reviewCount
+  if (count === 0) return 'Tick a transaction first'
+  if (count > MAX_BULK_EDIT_TRANSACTIONS) {
+    return reviewCount === 0
+      ? `Up to ${MAX_BULK_EDIT_TRANSACTIONS} transactions can be edited at once`
+      : `Up to ${MAX_BULK_EDIT_TRANSACTIONS} transactions and review items can be edited at once`
+  }
   return undefined
 }
 
