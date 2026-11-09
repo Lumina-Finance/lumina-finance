@@ -131,6 +131,38 @@ export function findCachedTransaction(queryClient: QueryClient, transactionId: s
 }
 
 /**
+ * Finds several cached transactions in one pass over the cache, as `findCachedTransaction` finds
+ * one, so a bulk action over many rows doesn't scan every cached list once for each
+ *
+ * @param queryClient - The client holding the cached transactions
+ * @param transactionIds - The transactions to find
+ * @returns Each transaction in the order asked, or undefined where none is cached
+ */
+export function findCachedTransactions(
+  queryClient: QueryClient,
+  transactionIds: readonly string[],
+): (Transaction | undefined)[] {
+  const wanted = new Set(transactionIds)
+  const found = new Map<string, Transaction>()
+  const transactionQueries = queryClient.getQueriesData<Transaction | Transaction[] | InfiniteData<Transaction[]>>({
+    queryKey: transactionKeys.all,
+    exact: false,
+  })
+
+  // The first copy found wins, the one findCachedTransaction would return
+  const keep = (transaction: Transaction) => {
+    if (wanted.has(transaction.id) && !found.has(transaction.id)) found.set(transaction.id, transaction)
+  }
+  for (const [, data] of transactionQueries) {
+    if (!data) continue
+    if (isInfiniteTransactionsData(data)) data.pages.forEach((page) => page.forEach(keep))
+    else if (Array.isArray(data)) data.forEach(keep)
+    else keep(data)
+  }
+  return transactionIds.map((id) => found.get(id))
+}
+
+/**
  * Drops a transaction from every cached list right away so a deletion clears from the screen at once
  * instead of lingering until the refetch that invalidation schedules
  */

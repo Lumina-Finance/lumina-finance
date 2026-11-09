@@ -19,6 +19,7 @@ import { runWithMinimumPendingTime } from '@/api/utils/mutationFeedback'
 import { transactionKeys, transactionOverviewKeys } from '@/api/cache/queryKeys'
 import {
   findCachedTransaction,
+  findCachedTransactions,
   invalidateBulkUpdatedTransactionData,
   invalidateFinancialTransactionData,
   invalidatePatchedTransactionData,
@@ -270,7 +271,7 @@ export function useBulkUpdateTransactions({ minimumPendingMs = 0 }: { minimumPen
     mutationFn: (payload: Parameters<typeof bulkUpdateTransactions>[0]) =>
       runWithMinimumPendingTime(minimumPendingMs, () => bulkUpdateTransactions(payload)),
     onMutate: (payload: Parameters<typeof bulkUpdateTransactions>[0]) => ({
-      editedTransactions: payload.transaction_ids.map((id) => findCachedTransaction(queryClient, id)),
+      editedTransactions: findCachedTransactions(queryClient, payload.transaction_ids),
     }),
     onSuccess: (result, payload, context) => {
       invalidateBulkUpdatedTransactionData(queryClient, payload, result.affected_account_ids)
@@ -303,10 +304,7 @@ export function applyTransactionDeletion(
  */
 function applyTransactionsDeletion(queryClient: QueryClient, transactionIds: string[], accountIds: string[]) {
   // Read from the cache before the rows are removed from it
-  invalidateReviewIfFromBank(
-    queryClient,
-    transactionIds.map((transactionId) => findCachedTransaction(queryClient, transactionId)),
-  )
+  invalidateReviewIfFromBank(queryClient, findCachedTransactions(queryClient, transactionIds))
   removeTransactionsFromLists(queryClient, transactionIds)
   invalidateTransactions(queryClient)
   invalidateFinancialTransactionData(queryClient, accountIds)
