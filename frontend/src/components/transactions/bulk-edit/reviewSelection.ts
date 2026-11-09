@@ -37,6 +37,12 @@ export const REVIEW_ITEMS_NOT_EXPORTED = "Items waiting for review aren't in you
 /** Why the bulk edit can't be applied while items waiting for review are ticked and a merchant or category isn't chosen */
 export const REVIEW_ITEMS_NEED_MERCHANT_AND_CATEGORY = 'Choose a merchant and a category to add items to your ledger'
 
+/** What Merchant says on its label row once the edit is refused for want of one, as the transaction dialogue's does */
+export const MERCHANT_NEEDED = 'Select a merchant'
+
+/** What Category says on its label row once the edit is refused for want of one, as the transaction dialogue's does */
+export const CATEGORY_NEEDED = 'Select a category'
+
 /**
  * Says why Dismiss is off, or nothing while it can run
  *

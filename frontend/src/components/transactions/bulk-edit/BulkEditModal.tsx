@@ -41,7 +41,9 @@ import {
   type TransferEndChoice,
 } from '@/components/transactions/bulk-edit/selection'
 import {
+  CATEGORY_NEEDED,
   getBulkEditApplyLabel,
+  MERCHANT_NEEDED,
   REVIEW_ITEMS_NEED_MERCHANT_AND_CATEGORY,
 } from '@/components/transactions/bulk-edit/reviewSelection'
 import { describeBulkEdit, type BulkEditSummaryLabels } from '@/components/transactions/bulk-edit/summary'
@@ -57,9 +59,12 @@ import { formatValueList } from '@/utils/formatList'
 const REMOVE_ALL_TAGS_VALUE = 'remove-all-tags'
 const REMOVE_ALL_TAGS_LABEL = 'Remove all tags'
 
-// What the edit changes is the one place Apply can be refused, since every control starts as leave as is
-const BULK_EDIT_FIELDS = ['changes'] as const
-const BULK_EDIT_FIELD_IDS = { changes: 'bulk-changes' } as const
+// What the edit changes is where Apply is refused, since every control starts as leave as is, apart
+// from Merchant and Category while items waiting for review are ticked, since each item needs both
+const BULK_EDIT_FIELDS = ['merchant', 'category', 'changes'] as const
+const BULK_EDIT_FIELD_IDS = { merchant: 'bulk-merchant', category: 'bulk-category', changes: 'bulk-changes' } as const
+const MERCHANT_ERROR_ID = 'bulk-merchant-error'
+const CATEGORY_ERROR_ID = 'bulk-category-error'
 const CHANGES_ERROR_ID = 'bulk-changes-error'
 
 const REFERENCE_SEARCH_DEBOUNCE_MS = 250
@@ -387,18 +392,24 @@ export function BulkEditModal({
   }
   const blockers = getBulkEditBlockers(rows, choice, chosenCategoryRecordsTransferTarget, accounts)
   // Nothing chosen and the warnings are problems of the edit, marked on the What changes heading once Apply
-  // is pressed. A missing or oversized selection is a state of the page, so it keeps Apply faded throughout
+  // is pressed. A merchant or category an item waiting for review still needs is marked on its own field
+  // instead, as any form marks a missing required field. A missing or oversized selection is a state of
+  // the page, so it keeps Apply faded throughout
   const selectionBlockReason = getBulkEditSelectionBlockReason(rows, reviewCount)
   const lacksWhatAnItemNeeds = addsReviewItems && (!merchantId || !categoryId)
   const refusal = useRefusedSubmit(
     {
-      changes: lacksWhatAnItemNeeds
-        ? REVIEW_ITEMS_NEED_MERCHANT_AND_CATEGORY
-        : getBulkEditChangeProblem(choice, blockers),
+      merchant: addsReviewItems && !merchantId ? MERCHANT_NEEDED : undefined,
+      category: addsReviewItems && !categoryId ? CATEGORY_NEEDED : undefined,
+      changes: lacksWhatAnItemNeeds ? undefined : getBulkEditChangeProblem(choice, blockers),
     },
     BULK_EDIT_FIELDS,
     BULK_EDIT_FIELD_IDS,
   )
+
+  // The button's tooltip names both fields an item needs, whichever of them is still empty
+  const applyBlockedReason =
+    lacksWhatAnItemNeeds && refusal.blockedReason ? REVIEW_ITEMS_NEED_MERCHANT_AND_CATEGORY : refusal.blockedReason
 
   const transactionsWord = rows.length === 1 ? 'transaction' : 'transactions'
   const itemsWord = reviewCount === 1 ? 'item' : 'items'
@@ -468,7 +479,7 @@ export function BulkEditModal({
           </button>
           <DisabledReasonButton
             className="app-primary-button h-9 px-4 text-sm"
-            disabledReason={selectionBlockReason ?? refusal.blockedReason}
+            disabledReason={selectionBlockReason ?? applyBlockedReason}
             onClick={() => {
               if (!refusal.guard()) return
               onApply(buildBulkEditFields(choice))
@@ -583,9 +594,16 @@ export function BulkEditModal({
             </div>
 
             <div>
-              <CreateModalFieldLabelRow htmlFor="bulk-merchant" label="Merchant" />
+              <CreateModalFieldLabelRow
+                htmlFor={BULK_EDIT_FIELD_IDS.merchant}
+                label="Merchant"
+                error={refusal.errors.merchant}
+                errorId={MERCHANT_ERROR_ID}
+              />
               <Dropdown
-                id="bulk-merchant"
+                id={BULK_EDIT_FIELD_IDS.merchant}
+                hasError={Boolean(refusal.errors.merchant)}
+                describedBy={refusal.errors.merchant ? MERCHANT_ERROR_ID : undefined}
                 options={merchantDropdownOptions}
                 value={merchantId}
                 selectedOption={merchant ?? undefined}
@@ -605,9 +623,16 @@ export function BulkEditModal({
             </div>
 
             <div>
-              <CreateModalFieldLabelRow htmlFor="bulk-category" label="Category" />
+              <CreateModalFieldLabelRow
+                htmlFor={BULK_EDIT_FIELD_IDS.category}
+                label="Category"
+                error={refusal.errors.category}
+                errorId={CATEGORY_ERROR_ID}
+              />
               <Dropdown
-                id="bulk-category"
+                id={BULK_EDIT_FIELD_IDS.category}
+                hasError={Boolean(refusal.errors.category)}
+                describedBy={refusal.errors.category ? CATEGORY_ERROR_ID : undefined}
                 options={categoryDropdownOptions}
                 value={categoryId}
                 onChange={setCategoryId}

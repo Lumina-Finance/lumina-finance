@@ -158,12 +158,21 @@ test('adds the ticked items to the ledger at their bank amounts once a merchant 
   })
   const add = edit.getByRole('button', { name: 'Add 2 to ledger', exact: true })
   await add.click()
-  await expect(
-    edit.getByRole('alert').filter({ hasText: 'Choose a merchant and a category to add items to your ledger' }),
-  ).toBeVisible()
+
+  // Each field marks itself as missing, as any form's required field does, and the button keeps the reason
+  const merchant = edit.getByRole('combobox', { name: 'Merchant' })
+  const category = edit.getByRole('combobox', { name: 'Category' })
+  await expect(edit.getByRole('alert').filter({ hasText: 'Select a merchant' })).toBeVisible()
+  await expect(edit.getByRole('alert').filter({ hasText: 'Select a category' })).toBeVisible()
+  await expect(merchant).toHaveAttribute('aria-invalid', 'true')
+  await expect(category).toHaveAttribute('aria-invalid', 'true')
+  await expect(merchant).toBeFocused()
+  await expect(add).toHaveAccessibleDescription('Choose a merchant and a category to add items to your ledger')
   expect(writes).toEqual([])
 
   await chooseFromDropdown(edit, 'Merchant', 'Unknown')
+  await expect(merchant).not.toHaveAttribute('aria-invalid', 'true')
+  await expect(category).toHaveAttribute('aria-invalid', 'true')
   await chooseFromDropdown(edit, 'Category', 'Groceries')
   const saved = page.waitForResponse((response) => response.url() === `${API_BASE_URL}/bank-review/items/bulk-add`)
   await add.click()
