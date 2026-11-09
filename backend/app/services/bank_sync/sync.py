@@ -612,9 +612,9 @@ class _JobRun:
         error: ProviderError,
         *,
         sent_with: str,
+        attempted: Sequence[BankAccountLink],
+        sent_at: datetime,
         discover: bool = False,
-        attempted: Sequence[BankAccountLink] = (),
-        sent_at: datetime | None = None,
     ) -> None:
         """End the job on a request that failed, queueing it again for when the budget frees if the provider asked to slow down
 
@@ -626,9 +626,9 @@ class _JobRun:
         Args:
             error: Why the request failed
             sent_with: The credential the request went out with
-            discover: Whether the job queued again lists the bank accounts first
             attempted: The links the request was for. They failed with it
             sent_at: When the request was sent
+            discover: Whether the job queued again lists the bank accounts first
         """
         if error.kind != ProviderErrorKind.RATE_LIMITED:
             await self._end(error, sent_with=sent_with, failed=attempted, attempted_at=sent_at)
