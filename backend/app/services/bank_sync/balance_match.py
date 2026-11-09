@@ -20,7 +20,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.models.user import User
 from app.schemas.bank_sync import AccountBankStatusResponse
 from app.services.accounts.balance_adjustments import add_balance_adjustment
-from app.services.bank_sync.account_link import read_account_bank_status
+from app.services.bank_sync.account_link import commit_with_account_bank_status
 from app.services.bank_sync.availability import read_provider_labels
 from app.services.bank_sync.balance_comparison import compare_bank_balance, describe_balance_match, match_adjustment_date
 from app.services.bank_sync.links import lock_live_link
@@ -75,10 +75,4 @@ async def record_balance_match(
         note=f"Matched to {provider_name}'s balance",
     )
     await mark_user_cache_changed(db, user.id)
-
-    # Build the response before committing, since a delete of the account may take the link the
-    # moment this commits
-    await db.flush()
-    response = await read_account_bank_status(db, user, account.id)
-    await db.commit()
-    return response
+    return await commit_with_account_bank_status(db, user, account.id)

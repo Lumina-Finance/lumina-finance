@@ -29,7 +29,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.models.bank_connection import BankAccountLink
 from app.models.user import User
 from app.schemas.bank_sync import AccountBankStatusResponse, DismissCutOffDayRequest, DismissHistoryReminderRequest
-from app.services.bank_sync.account_link import read_account_bank_status
+from app.services.bank_sync.account_link import commit_with_account_bank_status, read_account_bank_status
 from app.services.bank_sync.links import lock_live_link
 from app.services.bank_sync.providers.contract import ProviderRecord
 from app.services.bank_sync.windows import first_missing_day
@@ -173,13 +173,7 @@ async def dismiss_history_reminder(
     if not link.history_reminder_dismissed and shown == (request.requested_start, request.earliest_returned):
         link.history_reminder_dismissed = True
         await mark_user_status_changed(db, user.id)
-
-        # Build the response before committing, since a delete of the account may take the link the
-        # moment this commits
-        await db.flush()
-        response = await read_account_bank_status(db, user, account.id)
-        await db.commit()
-        return response
+        return await commit_with_account_bank_status(db, user, account.id)
     return await read_account_bank_status(db, user, account.id)
 
 
@@ -210,11 +204,5 @@ async def dismiss_cut_off_day(
     if not link.cut_off_day_dismissed and link.cut_off_day == request.day:
         link.cut_off_day_dismissed = True
         await mark_user_status_changed(db, user.id)
-
-        # Build the response before committing, since a delete of the account may take the link the
-        # moment this commits
-        await db.flush()
-        response = await read_account_bank_status(db, user, account.id)
-        await db.commit()
-        return response
+        return await commit_with_account_bank_status(db, user, account.id)
     return await read_account_bank_status(db, user, account.id)

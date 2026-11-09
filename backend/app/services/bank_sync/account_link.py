@@ -84,6 +84,18 @@ async def read_account_bank_status(db: AsyncSession, user: User, account_id: uui
     )
 
 
+async def commit_with_account_bank_status(db: AsyncSession, user: User, account_id: uuid.UUID) -> AccountBankStatusResponse:
+    """Commit a change to an account's link and return the account's bank status as it leaves it
+
+    The status is read before committing, since a delete of the account may take the link the
+    moment this commits
+    """
+    await db.flush()
+    response = await read_account_bank_status(db, user, account_id)
+    await db.commit()
+    return response
+
+
 async def list_bank_links(db: AsyncSession, user: User) -> list[BankLinkResponse]:
     """Return the user's live links on their own personal accounts, oldest first, with each import's progress and sync status
 
