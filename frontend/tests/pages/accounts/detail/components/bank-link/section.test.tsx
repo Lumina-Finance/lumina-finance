@@ -681,6 +681,24 @@ describe('the import start reminder', () => {
     expect(getButton(markup, 'Start now')).toContain('type="button"')
   })
 
+  it('says the import starts soon and hides its progress while it waits, with Start now an outline button the width of its label', () => {
+    read.status = createStatus({
+      link: createLink({
+        import: createImport({ windows_done: 0, items_found: 0 }),
+        sync: createSync({ state: 'importing', last_success_at: null, import_starts_at: '2026-10-05T16:02:00Z' }),
+      }),
+    })
+    const markup = renderSection()
+    expect(markup).toContain('Starts soon')
+    expect(markup).not.toContain('Importing')
+    expect(markup).not.toContain('role="progressbar"')
+    expect(markup).not.toContain('0 found')
+    const button = getButton(markup, 'Start now')
+    expect(button).toContain('app-secondary-button')
+    expect(button).not.toContain('app-primary-button')
+    expect(button).not.toContain('w-full')
+  })
+
   it('shows no reminder once the import has started', () => {
     read.status = linkSynced(createSync({ import_starts_at: null }))
     const markup = renderSection()

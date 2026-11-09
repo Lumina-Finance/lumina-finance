@@ -55,6 +55,10 @@ const ARCHIVED_REASON = 'Archived accounts are read-only'
 const NOTICE_ACTION_CLASS = 'app-primary-button h-9 w-full justify-center whitespace-nowrap px-4 text-sm sm:w-auto'
 const LINK_ACTION_CLASS = 'app-secondary-button h-9 w-full justify-center whitespace-nowrap px-3.5 text-sm sm:w-auto'
 
+// Start now is a secondary action like Sync now and Unlink, so the dialogue has one primary, and it
+// takes the width of its label on a phone as it does beside a wider notice
+const START_NOW_CLASS = 'app-secondary-button h-9 justify-center whitespace-nowrap px-3.5 text-sm'
+
 // Long enough for the modal to have opened and put focus in its first field
 const OPENING_FOCUS_DELAY_MS = 260
 
@@ -119,7 +123,12 @@ function LinkedView({
   const waiting = link.sync.waiting_new_count.toLocaleString()
 
   // An import that has just finished stays a moment as done, whatever the status has moved on to
-  const showsImport = shownImport !== null && (shownImport.state === 'complete' || IMPORT_STATES.has(state))
+  // While the import waits for more links, the notice is the only word about it. Its progress shows
+  // once it starts
+  const showsImport =
+    shownImport !== null &&
+    link.sync.import_starts_at === null &&
+    (shownImport.state === 'complete' || IMPORT_STATES.has(state))
 
   // A dismissed reminder folds away with the ✕ holding focus. Focus moves on to the next reminder's ✕,
   // or with none left, to the link's actions
@@ -161,7 +170,7 @@ function LinkedView({
           <Unfold key="import-start">
             <ImportStartNotice
               accountId={link.account_id}
-              actionClassName={NOTICE_ACTION_CLASS}
+              actionClassName={START_NOW_CLASS}
               actionProps={ACTION_PROPS}
               onFolded={() => focusFirstAction(actionsRef.current)}
             />

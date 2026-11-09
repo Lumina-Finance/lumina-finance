@@ -120,6 +120,10 @@ function describeLinkSync(link: BankLink, timeZone: string | undefined): BankSyn
     case 'choose_account':
       return label('stopped', 'Choose bank account', [`${link.provider_name} now lists it differently`, failure])
     case 'importing':
+      // Held back for the user's other links to join it, so nothing has been imported yet
+      if (sync.import_starts_at !== null) {
+        return label('working', 'Starts soon', [`Since ${formatDateLabel(link.import!.requested_start)}`])
+      }
       return label('working', importing(link.import!), [`Since ${formatDateLabel(link.import!.requested_start)}`], true)
     case 'import_waiting_on_budget':
       return label('working', importing(link.import!), [

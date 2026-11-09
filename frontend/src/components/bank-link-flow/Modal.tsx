@@ -244,7 +244,7 @@ export function BankLinkFlowModal({
       onClose={onClose}
       titleId="bank-link-title"
       title={wording.title}
-      eyebrow={LINK_FLOW_STEP_NAMES[step ?? (chosen ? 'start' : 'account')]}
+      eyebrow={LINK_FLOW_STEP_NAMES[step === 'linked' ? 'start' : (step ?? (chosen ? 'start' : 'account'))]}
       RailIcon={Landmark}
       railLabel="Bank"
       level="stacked"
