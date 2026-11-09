@@ -11,7 +11,7 @@ import {
   type SeededAccount,
   type TestUser,
 } from '../support/api'
-import { chooseFromDropdown, logInViaApi, openPage, waitForRequestsSoFar } from '../support/app'
+import { chooseFromDropdown, logInViaApi, openModal, openPage, waitForRequestsSoFar } from '../support/app'
 import {
   fetchOnOwnConnection,
   isRead,
@@ -228,6 +228,15 @@ test('opens a bank description over 500 characters whole in Notes, and takes typ
   await editNotes.press('End')
   await editNotes.pressSequentially(' twice')
   await expect(editNotes).toHaveValue(`${long.description} paid twice`)
+
+  // A transaction the user adds keeps Notes at 500 characters, as every manual entry does
+  await openPage(page, '/transactions')
+  const add = await openModal(page, ['Add transaction'], 'Add transaction')
+  const addNotes = add.getByRole('textbox', { name: 'Notes', exact: true })
+  await addNotes.fill('x'.repeat(500))
+  await addNotes.press('End')
+  await addNotes.pressSequentially('y')
+  await expect(addNotes).toHaveValue('x'.repeat(500))
 })
 
 test('adds an item with its date and amount changed, and with the window kept open goes on through the new items until none are left', async ({ page, request }) => {
