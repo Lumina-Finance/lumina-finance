@@ -3,7 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { API_BASE } from '@/api/config'
 import { registerAuthBindings } from '@/api/client'
 import { accountKeys, bankSyncKeys, transactionKeys } from '@/api/cache/queryKeys'
-import { findCachedTransaction } from '@/api/cache/updates/transactions'
+import { findCachedTransaction, findCachedTransactions } from '@/api/cache/updates/transactions'
 import {
   applyTransactionDeletion,
   useBulkDeleteTransactions,
@@ -139,6 +139,34 @@ describe('transaction lookup across cached response shapes', () => {
     client.setQueryData(transactionKeys.list({}), [target])
     client.setQueryData(transactionKeys.detail(target.id), { ...target, notes: 'Later cached detail' })
     expect(findCachedTransaction(client, target.id)).toEqual(target)
+  })
+})
+
+describe('looking up several transactions at once', () => {
+  it('finds each across a detail, a plain list and an infinite list, in the order asked, with none for an uncached one', () => {
+    const client = hookContext.client!
+    const third = { ...target, id: 'transaction-3' }
+    client.setQueryData(transactionKeys.detail(other.id), other)
+    client.setQueryData(transactionKeys.list({}), [target])
+    client.setQueryData<InfiniteData<Transaction[]>>(transactionKeys.infinite({}, 1), {
+      pages: [[], [third]],
+      pageParams: [0, 1],
+    })
+
+    expect(findCachedTransactions(client, [third.id, 'uncached', other.id, target.id])).toEqual([
+      third,
+      undefined,
+      other,
+      target,
+    ])
+  })
+
+  it('returns the copy the single lookup returns when several responses hold a transaction', () => {
+    const client = hookContext.client!
+    client.setQueryData(transactionKeys.list({}), [target])
+    client.setQueryData(transactionKeys.detail(target.id), { ...target, notes: 'Later cached detail' })
+
+    expect(findCachedTransactions(client, [target.id])).toEqual([findCachedTransaction(client, target.id)])
   })
 })
 
