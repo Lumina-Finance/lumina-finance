@@ -3,8 +3,8 @@
 Each item sent carries the version the review list showed. A bank transaction's version moves on
 every write to it, so an item a sync changed since, one decided elsewhere and one a repeated request
 already decided are skipped and reported, as are items that are gone or aren't the user's. Adding
-also skips an item whose bank amount the account's currency can't hold, since its amount has to be
-entered one item at a time. Any other refusal undoes the whole request.
+refuses the whole request when an item's bank amount is more than the account's currency can hold,
+since that amount has to be entered one item at a time. Any other refusal undoes the whole request too.
 
 The locks come in the single decisions' order, connections and links, then bank transactions in id
 order. Items are then added account by account, in the order a rebuild of several accounts'
@@ -14,6 +14,7 @@ another's that such a rebuild holds
 
 import uuid
 
+from fastapi import HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.account import Account
@@ -40,12 +41,16 @@ async def bulk_add_review_items(db: AsyncSession, user: User, request: BulkAddRe
         The items added and the items skipped
 
     Raises:
-        HTTPException: A value fails the checks a new transaction passes, so nothing was added
+        HTTPException 422: An item has no bank amount the currency can hold, or a value fails the
+            checks a new transaction passes, so nothing was added
     """
     rows, links = await _lock_unchanged_new_items(db, user, request)
-    addable = [(record, account) for record, account in rows if record.observed_amount is not None]
-    account_order = {account_id: place for place, account_id in enumerate(sort_by_snapshot_lock(account.id for _, account in addable))}
-    for record, account in sorted(addable, key=lambda row: (account_order[row[1].id], row[0].id)):
+    without_amount = sum(record.observed_amount is None for record, _ in rows)
+    if without_amount:
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail=_describe_missing_amounts(without_amount))
+
+    account_order = {account_id: place for place, account_id in enumerate(sort_by_snapshot_lock(account.id for _, account in rows))}
+    for record, account in sorted(rows, key=lambda row: (account_order[row[1].id], row[0].id)):
         entry = TransactionEntry(
             dt=request.dt or record.observed_date,
             amount=record.observed_amount,
@@ -56,7 +61,7 @@ async def bulk_add_review_items(db: AsyncSession, user: User, request: BulkAddRe
         )
         await write_new_item(db, user, record, account, entry)
 
-    decided = {record.id for record, _ in addable}
+    decided = {record.id for record, _ in rows}
     if decided:
         await lift_review_pauses(db, user.id, links)
         await mark_user_cache_changed(db, user.id)
@@ -107,6 +112,13 @@ async def _lock_unchanged_new_items(
         if record.disposition == BankTransactionDisposition.AWAITING_REVIEW and record.version == versions[record.id]
     ]
     return unchanged, links
+
+
+def _describe_missing_amounts(count: int) -> str:
+    """Say why a bulk add was refused over items whose amount has to be entered one at a time"""
+    if count == 1:
+        return "An item needs its amount entered on its own, so nothing was saved. Add it by itself or untick it"
+    return f"{count} items need their amounts entered on their own, so nothing was saved. Add them one at a time or untick them"
 
 
 def _result(request: BulkDismissReviewItemsRequest, decided: set[uuid.UUID]) -> BulkReviewResultResponse:

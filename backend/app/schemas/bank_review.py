@@ -112,7 +112,7 @@ class BulkReviewResultResponse(BaseModel):
     decided_ids: list[uuid.UUID]
 
     # Items that changed since the list showed them, were decided elsewhere, are gone or aren't the
-    # user's, or whose bank amount the account's currency can't hold. Each stays as it was
+    # user's. Each stays as it was
     skipped_ids: list[uuid.UUID]
 
 

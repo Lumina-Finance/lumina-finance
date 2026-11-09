@@ -6,7 +6,7 @@
  * A new item has no merchant or category yet, so adding it in bulk needs both, and it keeps its own
  * bank amount. It isn't in the ledger, so it can be dismissed but not deleted or exported
  */
-import type { BulkAddReviewValues } from '@/api/bank-sync'
+import type { BankReviewItem, BulkAddReviewValues } from '@/api/bank-sync'
 import { MAX_BULK_EDIT_TRANSACTIONS } from '@/components/transactions/bulk-edit/constants'
 import type { BulkEditFields } from '@/components/transactions/bulk-edit/selection'
 import { countNoun } from '@/utils/bankSync'
@@ -31,6 +31,9 @@ export const REVIEW_ITEMS_NOT_DELETED = 'Items waiting for review are dismissed,
 /** Why Dismiss is off while a ledger transaction is ticked */
 export const ONLY_REVIEW_ITEMS_DISMISSED = 'Only items waiting for review can be dismissed'
 
+/** Why Edit is off while a ticked item waiting for review has a bank amount its currency can't hold */
+export const REVIEW_ITEMS_NEED_THEIR_OWN_AMOUNT = 'Items missing an amount are added one at a time'
+
 /** Why Export selected is off while only items waiting for review are ticked */
 export const REVIEW_ITEMS_NOT_EXPORTED = "Items waiting for review aren't in your ledger yet"
 
@@ -53,6 +56,17 @@ export function getDismissBlockReason(ledgerCount: number, reviewCount: number):
   if (ledgerCount > 0) return ONLY_REVIEW_ITEMS_DISMISSED
   if (reviewCount === 0) return NOTHING_TICKED_WITH_REVIEW
   return undefined
+}
+
+/**
+ * Says why Edit is off for the ticked items waiting for review, or nothing while they can be added
+ * in bulk. One whose bank amount its currency can't hold needs that amount typed in, so a bulk add
+ * would refuse the whole selection over it
+ *
+ * @param items - The ticked items waiting for review
+ */
+export function getReviewEditBlockReason(items: BankReviewItem[]): string | undefined {
+  return items.some((item) => item.bank.amount === null) ? REVIEW_ITEMS_NEED_THEIR_OWN_AMOUNT : undefined
 }
 
 /**
@@ -84,7 +98,7 @@ export function toBulkAddValues(fields: BulkEditFields): BulkAddReviewValues {
 
 /**
  * What skipped items add to a toast, or nothing when none was skipped. An item is skipped when it
- * changed since it was ticked, or when its bank amount has to be entered on its own
+ * changed since it was ticked
  */
 function describeSkipped(skipped: number, verb: string): string {
   if (skipped === 0) return ''

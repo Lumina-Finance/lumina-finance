@@ -254,6 +254,27 @@ test('adds a ticked item and updates a ticked ledger transaction in one edit', N
   ])
 })
 
+test('keeps Edit off while a ticked item is missing its amount', NEEDS_BANK_SYNC, async ({ page, request }) => {
+  // The bank sends a tenth of a cent, which the account's currency can't hold, so its amount has to be typed in
+  const UNPRICED = { posted: daysFromTodayInTestTimezone(-3), amount: '-3.333', description: 'PARKING METER' } as const
+  const { user, everyday } = await start(page, request, [COUNTDOWN, UNPRICED])
+  await tickItem(page, COUNTDOWN.description)
+  await tickItem(page, UNPRICED.description)
+  await tickLedger(page)
+
+  const editAction = page.getByRole('button', { name: 'Edit the selected transactions', exact: true })
+  await expect(editAction).toHaveAccessibleDescription('Items missing an amount are added one at a time')
+  await editAction.click({ force: true })
+  await expect(page.getByRole('dialog')).toHaveCount(0)
+
+  // Unticking it lets the rest be edited together
+  await page.getByRole('checkbox', { name: `Select ${UNPRICED.description}, waiting for review`, exact: true }).uncheck()
+  await expect(editAction).not.toHaveAccessibleDescription('Items missing an amount are added one at a time')
+  await editAction.click()
+  await expect(page.getByRole('dialog', { name: 'Add 1 item and update 1 transaction', exact: true })).toBeVisible()
+  expect(await readWaiting(request, user, everyday.id)).toEqual([COUNTDOWN.description, UNPRICED.description])
+})
+
 test('dismisses the ticked items together and leaves the ledger as it was', NEEDS_BANK_SYNC, async ({ page, request }) => {
   const { user, everyday } = await start(page, request, [COUNTDOWN, HARBOUR, CAFE])
   const dismiss = page.getByRole('button', { name: 'Dismiss the selected items', exact: true })

@@ -596,8 +596,7 @@ export type BulkAddReviewValues = {
 
 /**
  * Which items a bulk add or dismiss took and which it skipped, each in the order sent. A skipped
- * item changed since the list showed it, was decided elsewhere, or has a bank amount its account's
- * currency can't hold, and still waits
+ * item changed since the list showed it or was decided elsewhere, and still waits
  */
 export type BulkReviewResult = {
   decided_ids: string[]

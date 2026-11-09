@@ -2,9 +2,9 @@
 
 A bulk add writes every item it takes with the merchant, category, tags and note sent, each at its
 own bank amount and, unless a date is sent, its own bank date, in one save. An item that changed
-since the list showed it, was decided elsewhere, is gone or isn't the user's is skipped and reported,
-and so is one whose bank amount the account's currency can't hold. Any other refusal undoes the
-whole request. A double submission decides each item once, and a decision that leaves 50 or fewer
+since the list showed it, was decided elsewhere, is gone or isn't the user's is skipped and reported.
+One whose bank amount the account's currency can't hold refuses the whole add, as does any other
+refusal. A double submission decides each item once, and a decision that leaves 50 or fewer
 new items waiting resumes the account's paused sync at once
 """
 
@@ -130,22 +130,34 @@ async def test_adding_with_a_date_writes_every_item_on_that_date_and_marks_it_ed
     assert (await _stored_item(item_ids[0])).aligned_date == BANK_DATE
 
 
-async def test_adding_skips_an_item_that_changed_and_one_the_currency_cant_hold(client):
-    """The -4.50 moved to version 2 since the list showed it, and the bank's -12.345 can't be stored in cents. Only the -23.40 is added"""
+async def test_adding_skips_an_item_that_changed(client):
+    """The -4.50 moved to version 2 since the list showed it, so only the -23.40 is added"""
     ledger, merchant_id, (tesco_id, coffee_id, _) = await _three_waiting(client)
-    unstorable_id = await _commit_review_item(ledger.everyday_id, "TRN-1004", observed_amount=None, raw_amount="-12.345")
     async with TestSession() as session:
         changed = await session.get_one(BankTransaction, coffee_id)
         changed.observed_amount = -500
         await session.commit()
 
-    added = await _bulk_add(client, ledger, merchant_id, _sent(tesco_id, coffee_id, unstorable_id))
+    added = await _bulk_add(client, ledger, merchant_id, _sent(tesco_id, coffee_id))
 
     assert added.status_code == 200, added.text
-    assert added.json() == {"decided_ids": [str(tesco_id)], "skipped_ids": [str(coffee_id), str(unstorable_id)]}
+    assert added.json() == {"decided_ids": [str(tesco_id)], "skipped_ids": [str(coffee_id)]}
     assert await _ledger_rows(ledger.everyday_id) == [(BANK_DATE, -2340)]
     assert (await _stored_item(coffee_id)).disposition == BankTransactionDisposition.AWAITING_REVIEW
-    assert (await _stored_item(unstorable_id)).disposition == BankTransactionDisposition.AWAITING_REVIEW
+
+
+async def test_adding_an_item_the_currency_cant_hold_adds_none(client):
+    """The bank's -12.345 can't be stored in cents, so its amount has to be typed in, and the -23.40 sent with it waits too"""
+    ledger, merchant_id, (tesco_id, _, _) = await _three_waiting(client)
+    unstorable_id = await _commit_review_item(ledger.everyday_id, "TRN-1004", observed_amount=None, raw_amount="-12.345")
+
+    added = await _bulk_add(client, ledger, merchant_id, _sent(tesco_id, unstorable_id))
+
+    assert added.status_code == 422, added.text
+    assert added.json()["detail"] == "An item needs its amount entered on its own, so nothing was saved. Add it by itself or untick it"
+    assert await _ledger_rows(ledger.everyday_id) == []
+    for item_id in (tesco_id, unstorable_id):
+        assert (await _stored_item(item_id)).disposition == BankTransactionDisposition.AWAITING_REVIEW
 
 
 async def test_a_refusal_after_the_first_add_undoes_every_item(client, monkeypatch):

@@ -41,6 +41,7 @@ import {
   describeBulkDismiss,
   describeTickLimit,
   getDismissBlockReason,
+  getReviewEditBlockReason,
   toBulkAddValues,
 } from '@/components/transactions/bulk-edit/reviewSelection'
 import { useReviewSelection } from '@/components/transactions/bank-review/useReviewSelection'
@@ -681,7 +682,9 @@ export default function TransactionListSection({
         onStickyOffsetChange={setDateHeaderStickyTop}
         isSelecting={isSelecting}
         selectedCount={totalSelected}
-        editDisabledReason={categories ? undefined : 'Categories have not loaded yet'}
+        editDisabledReason={
+          categories ? getReviewEditBlockReason(selectedReviewItems) : 'Categories have not loaded yet'
+        }
         onEditSelection={() => {
           setEditOpenings((count) => count + 1)
           setIsEditMounted(true)
