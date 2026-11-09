@@ -125,7 +125,7 @@ async def store_booked_records(
                 changed = True
 
             # Writing only what changed leaves a record's version alone when the bank resends it as
-            # it was, so a bulk approval previewed before a routine re-read still applies to it. One
+            # it was, so a bulk add or dismiss of items selected before a routine re-read still takes them. One
             # the bank had reported removed is back, however unchanged
             elif row.disposition == BankTransactionDisposition.DISMISSED or (row.removed_at is None and not _differs(row, observation)):
                 continue

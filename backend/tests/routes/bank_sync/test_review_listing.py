@@ -1,7 +1,7 @@
 """Listing the bank items waiting for review
 
 The review block reads this a page at a time, so an import that leaves hundreds of items never
-loads at once, and its header and bulk approval read the counts by kind. Each item carries what the
+loads at once, and its header reads the counts by kind. Each item carries what the
 review modal compares. A page continues after the last item it returned, so deciding items between
 pages neither repeats nor skips one, and only the user's own personal accounts have items
 """

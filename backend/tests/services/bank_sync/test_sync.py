@@ -2663,7 +2663,7 @@ async def test_job_keeps_an_amount_it_cant_store_exactly_as_the_bank_sent_it_and
 async def test_job_reading_the_same_records_again_keeps_one_unchanged_item_each(connection, provider, frozen_now):
     """The next daily sync re-reads the days the one before read, and the same coffee and the same unstorable -12.345 come back
 
-    Each stays one item, untouched, so a bulk approval previewed in between still applies to it
+    Each stays one item, untouched, so a bulk add or dismiss of items selected in between still takes it
     """
     await _link(connection, "ACT-1", **_synced_through_yesterday())
     response = _returned_with({"ACT-1": [_record("TRN-coffee"), _record("TRN-fx", amount=None, raw_amount="-12.345")]})

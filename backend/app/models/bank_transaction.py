@@ -158,7 +158,7 @@ class BankTransaction(Base):
 
     received_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, server_default=func.now())
 
-    # Moves on every ORM update, so a bulk approval can skip an item that changed after its preview.
+    # Moves on every ORM update, so a bulk add or dismiss can skip an item that changed after the list showed it.
     # A Core update has to move it itself
     version: Mapped[int] = mapped_column(Integer, nullable=False, server_default="1")
 

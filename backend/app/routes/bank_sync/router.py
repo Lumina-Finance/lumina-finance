@@ -12,12 +12,11 @@ from app.models.bank_connection import PROVIDER_ID_MAX_LENGTH
 from app.models.user import User
 from app.schemas.bank_review import (
     AddReviewItemRequest,
-    ApplyBulkApprovalRequest,
     BankReviewBacklogResponse,
     BankReviewPageResponse,
-    BulkApprovalPreviewResponse,
-    BulkApprovalResultResponse,
-    PreviewBulkApprovalRequest,
+    BulkAddReviewItemsRequest,
+    BulkDismissReviewItemsRequest,
+    BulkReviewResultResponse,
 )
 from app.schemas.bank_sync import (
     AccountBankStatusResponse,
@@ -44,7 +43,7 @@ from app.schemas.transaction import TransactionResponse
 from app.services.bank_sync.account_link import list_bank_links, read_account_bank_status
 from app.services.bank_sync.availability import list_providers
 from app.services.bank_sync.balance_match import record_balance_match
-from app.services.bank_sync.bulk_approval import apply_bulk_approval, preview_bulk_approval
+from app.services.bank_sync.bulk_review import bulk_add_review_items, bulk_dismiss_review_items
 from app.services.bank_sync.claim import claim_connection, reconnect_connection
 from app.services.bank_sync.connections import list_connections, rename_connection
 from app.services.bank_sync.history_reminder import dismiss_cut_off_day, dismiss_history_reminder
@@ -509,42 +508,42 @@ async def list_bank_review_backlogs(
     return await list_review_backlogs(db, user, account_ids=account_id)
 
 
-@review_router.post("/bulk-approve/preview", response_model=BulkApprovalPreviewResponse)
-async def preview_bank_review_bulk_approval(
-    data: PreviewBulkApprovalRequest,
+@review_router.post("/items/bulk-add", response_model=BulkReviewResultResponse)
+async def bulk_add_bank_review_items(
+    data: BulkAddReviewItemsRequest,
     user: Annotated[User, Depends(get_current_user)],
     db: Annotated[AsyncSession, Depends(get_db)],
 ):
-    """Return what bulk approval would apply, by kind with each kind's net effect on balances, and how many new items it leaves waiting
+    """Add new bank items to the ledger with one set of values and each item's bank amount, in one save
 
     Args:
-        data: The accounts whose items to preview, or every account
+        data: The items, each at the version the list showed, and the values to add them with
         user: Authenticated user reviewing
         db: Active database session
 
     Returns:
-        The groups to apply and the count of new items left waiting
+        The items added, and the items skipped since they changed or can't take their bank amount
     """
-    return await preview_bulk_approval(db, user, account_ids=data.account_ids)
+    return await bulk_add_review_items(db, user, data)
 
 
-@review_router.post("/bulk-approve", response_model=BulkApprovalResultResponse)
-async def apply_bank_review_bulk_approval(
-    data: ApplyBulkApprovalRequest,
+@review_router.post("/items/bulk-dismiss", response_model=BulkReviewResultResponse)
+async def bulk_dismiss_bank_review_items(
+    data: BulkDismissReviewItemsRequest,
     user: Annotated[User, Depends(get_current_user)],
     db: Annotated[AsyncSession, Depends(get_db)],
 ):
-    """Apply the corrections and removals a preview listed that haven't changed since, in one save
+    """Dismiss new bank items, in one save
 
     Args:
-        data: The items the preview listed, each at the version it showed
+        data: The items, each at the version the list showed
         user: Authenticated user reviewing
         db: Active database session
 
     Returns:
-        How many were corrected and removed, and how many still wait for review
+        The items dismissed, and the items skipped since they changed
     """
-    return await apply_bulk_approval(db, user, data)
+    return await bulk_dismiss_review_items(db, user, data)
 
 
 @review_router.post("/items/{item_id}/add", response_model=TransactionResponse, status_code=status.HTTP_201_CREATED)

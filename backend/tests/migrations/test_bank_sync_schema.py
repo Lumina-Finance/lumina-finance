@@ -380,7 +380,7 @@ async def test_bank_transaction_removal_is_opened_only_once_the_provider_reporte
 
 
 async def test_bank_transaction_version_moves_with_every_update(session):
-    """A bulk approval reads the version to skip an item that changed after its preview"""
+    """A bulk add or dismiss reads the version to skip an item that changed after the list showed it"""
     user = await _owner(session)
     everyday = _build_account(user.id)
     await _add(session, everyday)

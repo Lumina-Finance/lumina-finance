@@ -36,7 +36,7 @@ from app.models.transaction import Transaction
 from app.models.user import User
 from app.permissions import check_transaction_access
 from app.schemas.bank_review import AddReviewItemRequest
-from app.schemas.transaction import CreateTransactionRequest, TransactionResponse, UpdateTransactionRequest
+from app.schemas.transaction import CreateTransactionRequest, TransactionEntry, TransactionResponse, UpdateTransactionRequest
 from app.services.accounts.access import get_own_personal_account, own_personal_account_condition
 from app.services.bank_sync.review_pause import lift_review_pauses, lock_account_links
 from app.services.bank_sync.review_state import EDITABLE_COLUMNS, align_with_bank, approved_description, bank_values, edited_fields
@@ -107,18 +107,7 @@ async def add_review_item_to_ledger(db: AsyncSession, user: User, item_id: uuid.
     if request.counterparty_account_id is not None:
         await get_own_personal_account(db, request.counterparty_account_id, user.id, not_own_detail=_COUNTERPARTY_NOT_OWN_DETAIL)
 
-    txn = await insert_transaction(
-        db,
-        user,
-        account,
-        CreateTransactionRequest(account_id=account.id, currency=account.currency, **request.model_dump()),
-    )
-    record.disposition = BankTransactionDisposition.ACCEPTED
-    record.transaction_id = txn.id
-    record.aligned_date = record.observed_date
-    record.aligned_amount = record.observed_amount
-    await db.flush()
-
+    txn = await write_new_item(db, user, record, account, request)
     await lift_review_pauses(db, user.id, links)
     await mark_user_cache_changed(db, user.id)
 
@@ -151,11 +140,7 @@ async def dismiss_review_item(db: AsyncSession, user: User, item_id: uuid.UUID) 
     if record.disposition == BankTransactionDisposition.ACCEPTED:
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="This item is already in the ledger, so it can't be dismissed")
 
-    record.disposition = BankTransactionDisposition.DISMISSED
-    for column in OBSERVATION_COLUMNS:
-        setattr(record, column, None)
-    await db.flush()
-
+    await write_dismissal(db, record)
     await lift_review_pauses(db, user.id, links)
 
     # A dismissal changes none of the ledger, so the data mark an import's undo compares with stays
@@ -198,7 +183,7 @@ async def accept_bank_change(db: AsyncSession, user: User, item_id: uuid.UUID) -
     if record.open_kind != OpenReviewKind.CORRECTION:
         return await get_transaction_response(db, await db.get_one(Transaction, record.transaction_id))
 
-    txn = await write_bank_change(db, user, record, account)
+    txn = await _write_bank_change(db, user, record, account)
     await mark_user_cache_changed(db, user.id)
 
     # Build the response before committing, since a delete of the account may take the row the moment
@@ -210,11 +195,11 @@ async def accept_bank_change(db: AsyncSession, user: User, item_id: uuid.UUID) -
     return response
 
 
-async def write_bank_change(db: AsyncSession, user: User, record: BankTransaction, account: Account) -> Transaction:
+async def _write_bank_change(db: AsyncSession, user: User, record: BankTransaction, account: Account) -> Transaction:
     """Write the bank's values for the fields an open correction changes to its ledger transaction and close it, without committing
 
     The caller locked the bank transaction, after its account's links, then marks the cache and
-    commits, so accepting one correction and approving many write the same way
+    commits
 
     Args:
         db: Active database session
@@ -230,7 +215,7 @@ async def write_bank_change(db: AsyncSession, user: User, record: BankTransactio
         HTTPException 422: The bank's amount can't be stored exactly, or a value fails the checks an
             edit passes
     """
-    if not is_bank_change_storable(record):
+    if not _is_bank_change_storable(record):
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail=_UNSTORABLE_AMOUNT_DETAIL.format(currency=account.currency)
         )
@@ -246,7 +231,7 @@ async def write_bank_change(db: AsyncSession, user: User, record: BankTransactio
     return txn
 
 
-def is_bank_change_storable(record: BankTransaction) -> bool:
+def _is_bank_change_storable(record: BankTransaction) -> bool:
     """Return whether the ledger can take every value an open correction changes, unless it's an amount the currency can't hold"""
     return "amount" not in record.previous_values or record.observed_amount is not None
 
@@ -324,17 +309,16 @@ async def remove_from_ledger(db: AsyncSession, user: User, item_id: uuid.UUID) -
     if record.open_kind != OpenReviewKind.REMOVAL:
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=_NO_REMOVAL_DETAIL)
 
-    await delete_removed_transaction(db, user, record)
+    await _delete_removed_transaction(db, user, record)
     await mark_user_cache_changed(db, user.id)
     await db.commit()
 
 
-async def delete_removed_transaction(db: AsyncSession, user: User, record: BankTransaction) -> None:
+async def _delete_removed_transaction(db: AsyncSession, user: User, record: BankTransaction) -> None:
     """Delete the ledger transaction an open removal names, its bank transaction with it, and rebuild its balances, without committing
 
     The caller locked the bank transaction, after its account's links, then marks the cache and
-    commits, so removing one transaction and approving many removals write the same way. The bank
-    transaction is gone once this returns, so the caller reads nothing more from it
+    commits. The bank transaction is gone once this returns, so the caller reads nothing more from it
 
     Raises:
         HTTPException 409: Another change held the transaction too long
@@ -440,6 +424,43 @@ async def restore_bank_value(db: AsyncSession, user: User, transaction_id: uuid.
     response = await get_transaction_response(db, txn)
     await db.commit()
     return response
+
+
+async def write_new_item(db: AsyncSession, user: User, record: BankTransaction, account: Account, entry: TransactionEntry) -> Transaction:
+    """Write a locked new item's ledger transaction and accept the item, aligned with the bank's date and amount, without committing
+
+    The caller has checked the item still waits and holds the locks lock_bank_transactions takes
+
+    Returns:
+        The ledger transaction
+
+    Raises:
+        HTTPException 404: The transfer counterparty isn't visible to the user
+        HTTPException 422: A value fails the checks a new transaction passes
+    """
+    txn = await insert_transaction(
+        db,
+        user,
+        account,
+        CreateTransactionRequest(account_id=account.id, currency=account.currency, **entry.model_dump()),
+    )
+    record.disposition = BankTransactionDisposition.ACCEPTED
+    record.transaction_id = txn.id
+    record.aligned_date = record.observed_date
+    record.aligned_amount = record.observed_amount
+    await db.flush()
+    return txn
+
+
+async def write_dismissal(db: AsyncSession, record: BankTransaction) -> None:
+    """Dismiss a locked new item, keeping only its identity, without committing
+
+    The caller has checked the item still waits and holds the locks lock_bank_transactions takes
+    """
+    record.disposition = BankTransactionDisposition.DISMISSED
+    for column in OBSERVATION_COLUMNS:
+        setattr(record, column, None)
+    await db.flush()
 
 
 def _refuse_unless_in_ledger(record: BankTransaction) -> None:

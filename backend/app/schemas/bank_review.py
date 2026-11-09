@@ -1,24 +1,18 @@
 """Bank review schemas"""
 
 import uuid
-from datetime import datetime
+from datetime import date, datetime
 from typing import Literal
 
 from pydantic import BaseModel, Field
 
 from app.models.bank_transaction import CorrectableBankField, EditableBankField
 from app.schemas.bank_sync import BankValues
-from app.schemas.transaction import TransactionEntry
+from app.schemas.import_run import MAX_IMPORT_NOTES_LENGTH, MAX_IMPORT_TAGS_PER_ROW
+from app.schemas.transaction import MAX_BULK_UPDATE_TRANSACTIONS, TransactionEntry
 
 # A bank transaction to add or dismiss, or a change or removal the bank reports for one already in the ledger
 ReviewItemKind = Literal["new", "correction", "removal"]
-
-# The kinds bulk approval applies. New items wait, since none comes with a merchant and category yet
-BulkApprovalKind = Literal["correction", "removal"]
-
-# The most items one bulk approval applies, as many as a bulk edit of the ledger takes. Corrections and
-# removals open only when the bank changes a transaction already accepted, so a preview rarely nears it
-MAX_BULK_APPROVAL_ITEMS = 1_000
 
 
 class BankReviewItemResponse(BaseModel):
@@ -31,7 +25,7 @@ class BankReviewItemResponse(BaseModel):
     provider_name: str
     received_at: datetime
 
-    # Moves on whenever the item changes, so bulk approval applies only what it previewed
+    # Moves on whenever the item changes, so a bulk add or dismiss takes only what the list showed
     version: int
 
     # The bank's values: the whole item for a new one, the proposal for a correction, the last it
@@ -86,67 +80,44 @@ class BankReviewBacklogResponse(BaseModel):
     review_warning: bool
 
 
-class PreviewBulkApprovalRequest(BaseModel):
-    """The accounts whose waiting items bulk approval previews"""
-
-    # Null for every account, as the review list reads them
-    account_ids: list[uuid.UUID] | None = None
-
-
-class BulkApprovalNetEffectResponse(BaseModel):
-    """How much a group of items moves the balances of the accounts in one currency"""
-
-    currency: str
-
-    # Signed minor units of the currency, never zero
-    amount: int
-
-
-class BulkApprovalGroupResponse(BaseModel):
-    """The items of one kind bulk approval would apply, newest first by the bank's date"""
-
-    kind: BulkApprovalKind
-    count: int
-
-    # One entry per currency whose balances the group moves, in currency order, empty when it moves none
-    net_effect: list[BulkApprovalNetEffectResponse]
-    items: list[BankReviewItemResponse]
-
-
-class BulkApprovalPreviewResponse(BaseModel):
-    """What bulk approval would apply, a group for each kind it has items of, corrections first"""
-
-    groups: list[BulkApprovalGroupResponse]
-
-    # The new items in scope. They stay waiting since each needs a merchant and category
-    excluded_count: int
-
-
-class BulkApprovalItemRequest(BaseModel):
-    """One item a preview listed, at the version it showed"""
+class BulkReviewItemRequest(BaseModel):
+    """One new item the user selected, at the version the review list showed"""
 
     id: uuid.UUID
     version: int
 
 
-class ApplyBulkApprovalRequest(BaseModel):
-    """The items a preview listed. They are applied only while each is still at the version sent"""
+class BulkDismissReviewItemsRequest(BaseModel):
+    """The new items to dismiss, each only while it is still at the version sent
 
-    items: list[BulkApprovalItemRequest] = Field(min_length=1, max_length=MAX_BULK_APPROVAL_ITEMS)
+    As many as a bulk edit of the ledger takes, since one selection spans both
+    """
+
+    items: list[BulkReviewItemRequest] = Field(min_length=1, max_length=MAX_BULK_UPDATE_TRANSACTIONS)
 
 
-class BulkApprovalResultResponse(BaseModel):
-    """What a bulk approval applied, by kind, and which items"""
+class BulkAddReviewItemsRequest(BulkDismissReviewItemsRequest):
+    """The new items to add to the ledger with one set of values, each with its own bank amount
 
-    corrected: int
-    removed: int
+    Merchant and category are required, as for one item. Each item keeps its bank date unless a date
+    is sent for all of them
+    """
 
-    # The items sent that still wait for review, because they changed since the preview or a check
-    # refused them. One decided elsewhere since no longer waits and isn't counted
-    failed: int
+    merchant_id: uuid.UUID
+    category_id: uuid.UUID
+    tag_ids: list[uuid.UUID] = Field(default=[], max_length=MAX_IMPORT_TAGS_PER_ROW)
+    notes: str | None = Field(None, max_length=MAX_IMPORT_NOTES_LENGTH)
+    dt: date | None = None
 
-    # The items applied. The review list can take them out as the ledger shows them
-    applied_ids: list[uuid.UUID]
+
+class BulkReviewResultResponse(BaseModel):
+    """Which items sent a bulk decision took, and which it skipped, each in the order sent"""
+
+    decided_ids: list[uuid.UUID]
+
+    # Items that changed since the list showed them, were decided elsewhere, are gone or aren't the
+    # user's, or whose bank amount the account's currency can't hold. Each stays as it was
+    skipped_ids: list[uuid.UUID]
 
 
 class AddReviewItemRequest(TransactionEntry):
