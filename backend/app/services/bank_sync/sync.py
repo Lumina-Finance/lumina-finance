@@ -1,8 +1,9 @@
 """Running one claimed bank sync job: a discovery when one is due, then date windows of a connection's links
 
-A job lists the connection's bank accounts first when it was flagged to, or when the last listing
-is over 20 hours old, so a daily sync shows a bank added at the provider and stops a linked bank
-account that vanished before the window is planned. A window whose response may have been cut short
+A job lists the connection's bank accounts first only when it was flagged to, a link waits in Choose
+bank account, or the last listing is over 7 days old. A daily sync lists nothing otherwise, since
+its fetch brings back each linked bank account's balance, and one that vanished from the fetch
+queues the next job to list first. A window whose response may have been cut short
 is fetched again in halves. Each request is counted against the connection's budget in a
 transaction of its own before it is sent, and a job that finds the budget spent queues itself again
 for when a request frees. A link whose fetch failed is left out of the rest of the job, and the job
@@ -13,8 +14,9 @@ one a job ends without an attempt for, such as one an import's earlier window di
 to the job it queues next
 
 A bank account a fetch lists in a currency other than its account's isn't brought back whole, since
-its amounts would be read at the wrong precision, and the job queues the next one to list the bank
-accounts first. That moves its link to Choose bank account. A job that listed them itself queues no
+its amounts would be read at the wrong precision, and one it leaves out altogether isn't either.
+The job queues the next one to list the bank accounts first. That moves its link to Choose bank
+account when the listing agrees. A job that listed them itself queues no
 listing, so a provider whose listing and fetch disagree can't spend request after request, and nor
 does a job that ends on a rejected credential, since it can't list anything
 
@@ -101,13 +103,11 @@ from app.utils.dates import resolve_timezone
 
 logger = logging.getLogger(__name__)
 
-# A job lists the connection's bank accounts again once the last listing is older than this: a day
-# less a margin, since a listing is timed from when its request was sent and a daily sync can start
-# hours earlier than the day before, so each daily sync rediscovers, never twice within 20 hours
-DISCOVERY_MAX_AGE = timedelta(hours=20)
-
-# The link states a discovery moves between, so a connection with a link in one is kept listed
-_DISCOVERED_LINK_STATES = (BankLinkState.ACTIVE, BankLinkState.CHOOSE_ACCOUNT)
+# A job lists the connection's bank accounts again once the last listing is older than this. A fetch
+# already brings back every linked bank account's balance, so a listing only shows a bank added at
+# the provider, which the link flow asks for when it opens. A week keeps the listing from going
+# stale for good, at a request a week rather than one a day
+DISCOVERY_MAX_AGE = timedelta(days=7)
 
 # Why a link's attempt failed when a response listed its bank account in another currency than its
 # account's, as the account's sync status shows it
@@ -266,7 +266,7 @@ class _JobRun:
         self.bank_logins: dict[str, str | None] = {}
 
         # Whether this job listed the bank accounts, and whether the next one lists them, as a fetch
-        # found one in a currency other than its account's in a job that didn't
+        # found one in a currency other than its account's, or left one out, in a job that didn't
         self.listed = False
         self.relist = False
 
@@ -342,16 +342,17 @@ class _JobRun:
         return [link for link, *_ in links]
 
     def _needs_discovery(self, links: list[BankAccountLink]) -> bool:
-        """Return whether the job lists the bank accounts first: flagged to, or the last listing is over 20 hours old
+        """Return whether the job lists the bank accounts first: flagged to, a link waits in Choose bank account, or the listing is old
 
-        An old listing matters only while a link could sync or wait for its bank account to return,
-        and a connection without one gets a fresh listing when the user opens the link flow
+        The listing is old once it is over 7 days. A link waiting for its bank account to return can only move on when a listing shows it. An
+        old listing matters only while a link could sync, and a connection without one gets a fresh
+        listing when the user opens the link flow
         """
-        if self.job.discover:
+        if self.job.discover or any(link.state == BankLinkState.CHOOSE_ACCOUNT for link in links):
             return True
         discovered_at = self.connection.discovered_at
         stale = discovered_at is None or self.now - discovered_at > DISCOVERY_MAX_AGE
-        return stale and any(link.state in _DISCOVERED_LINK_STATES for link in links)
+        return stale and any(link.state == BankLinkState.ACTIVE for link in links)
 
     async def _discover(self, links: list[BankAccountLink]) -> bool:
         """List the connection's bank accounts and store what came back, if the job still holds itself
@@ -443,7 +444,16 @@ class _JobRun:
                     )
                     failure = ProviderError(ProviderErrorKind.TEMPORARY, reason)
                 elif bank_account is None:
-                    failure = _failure_of(result, link.external_account_id, self.bank_logins.get(link.external_account_id))
+                    login = self.bank_logins.get(link.external_account_id)
+                    failure = _failure_of(result, link.external_account_id, login)
+
+                    # A bank account the response leaves out, with no sign-in at its bank to explain
+                    # it, may have vanished at the provider, which only a listing shows. Only the
+                    # first miss after a success asks for one, so a bank account the provider keeps
+                    # failing for doesn't double the requests each retry spends
+                    left_out = all(listed.external_id != link.external_account_id for listed in result.accounts)
+                    if left_out and login not in result.login_errors and not is_waiting_to_retry(link):
+                        self.relist = not self.listed
                 if failure is None:
                     self.deferred.discard(link.id)
                 elif link.id not in self.failed:
@@ -653,7 +663,8 @@ class _JobRun:
         """Record the job as finished or failed, and queue the next one when asked, planning last the links this one found failing
 
         The next one is queued to list the bank accounts first, whatever was asked, once a fetch
-        found one in a currency other than its account's in a job that didn't list them, unless the
+        found one in a currency other than its account's, or left one out for the first time since
+        its link last succeeded, in a job that didn't list them, unless the
         provider has since rejected the credential: a listing would only spend a request on it.
         It syncs now each link the user asked for that this one ends without an attempt for, such as
         one an import's earlier window on the same connection didn't reach

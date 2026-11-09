@@ -418,7 +418,8 @@ async def test_job_fetches_a_new_links_import_alone_until_its_window_reaches_the
 async def test_job_keeps_records_and_moves_checkpoints_only_for_bank_accounts_the_response_brought_back_whole(connection, provider):
     """Savings has an error of its own, Card's bank login needs a sign-in and Travel didn't come back
 
-    Only Everyday's coffee is kept and only its checkpoint moves, so the others' next sync re-reads those days
+    Only Everyday's coffee is kept and only its checkpoint moves, so the others' next sync re-reads
+    those days. Travel's absence from the response queues a listing, the only request after the fetch
     """
     names = ("ACT-everyday", "ACT-savings", "ACT-card", "ACT-travel")
     links = [await _link(connection, name, **_synced_through_yesterday()) for name in names]
@@ -431,7 +432,8 @@ async def test_job_keeps_records_and_moves_checkpoints_only_for_bank_accounts_th
             ),
             account_errors={"ACT-savings": ProviderError(ProviderErrorKind.TEMPORARY, "Fake Bank Online reported a problem")},
             login_errors={"CON-card": ProviderError(ProviderErrorKind.BANK_LOGIN_NEEDED, "Sign in to your bank again")},
-        )
+        ),
+        _returned("ACT-everyday", "ACT-savings", "ACT-card"),
     ]
     await _seed_job(connection, BankSyncJobKind.SCHEDULED)
 
@@ -439,7 +441,8 @@ async def test_job_keeps_records_and_moves_checkpoints_only_for_bank_accounts_th
 
     assert await _bank_transactions(BankTransaction.external_account_id, _BANK_ID) == [("ACT-everyday", "TRN-coffee")]
     assert await _checkpoints(*links) == [_TODAY, date(2026, 10, 3), date(2026, 10, 3), date(2026, 10, 3)]
-    assert [(kind, status) for kind, status, *_ in await _jobs()] == [("scheduled", "succeeded"), ("retry", "queued")]
+    assert (len(provider.fetches), len(provider.discoveries)) == (1, 1)
+    assert [(kind, status) for kind, status, *_ in await _jobs()] == [("scheduled", "succeeded"), ("retry", "succeeded"), ("retry", "queued")]
 
 
 async def test_job_keeps_a_bank_transaction_by_the_keyed_hash_of_its_id_and_stores_a_resent_one_once(connection, provider):
@@ -1019,7 +1022,9 @@ async def test_job_ending_on_a_rejected_credential_marks_the_connection_reconnec
     await _link(connection, "ACT-everyday", **_synced_through_yesterday())
     await _link(connection, "ACT-card", **_synced_through_yesterday(state=BankLinkState.CHOOSE_ACCOUNT))
     await _link(connection, "ACT-old", state=BankLinkState.UNLINKED, unlinked_at=frozen_now - timedelta(days=30))
-    provider.outcomes = [FetchResult(request_error=_rejected())]
+
+    # Card waits for its bank account, so the sync lists first and the listing shows nothing new
+    provider.outcomes = [FetchResult(), FetchResult(request_error=_rejected())]
     await _seed_job(connection, BankSyncJobKind.SCHEDULED)
 
     await _run_jobs_until_none_is_due()
@@ -1506,7 +1511,7 @@ async def test_job_whose_listing_still_misses_a_bank_account_a_reconnect_left_to
             (False, True, "active"),
             _email(_SIGNIN_SUBJECT, "ACT-everyday"),
         ),
-        (21, FetchResult(), 1, (False, False, "choose_account"), _CHOOSE_EVERYDAY),
+        (24 * 7 + 1, FetchResult(), 1, (False, False, "choose_account"), _CHOOSE_EVERYDAY),
     ],
     ids=["reconnect_needed_as_the_job_ends", "bank_sign_in_needed_as_a_part_is_written", "choose_bank_account_as_the_listing_is_stored"],
 )
@@ -2052,7 +2057,7 @@ async def test_job_relisting_a_stale_listing_waits_for_a_request_without_showing
     async with TestSession() as session:
         session.add(_build_external_account(connection, "ACT-1"))
         await session.commit()
-    await _update_connection(connection, discovered_at=frozen_now - timedelta(days=2))
+    await _update_connection(connection, discovered_at=frozen_now - timedelta(days=8))
     oldest = frozen_now - timedelta(hours=20)
     await _spend_requests(connection, _DAILY_REQUESTS if cause == "budget_spent" else 1, oldest)
     provider.outcomes = [FetchResult(request_error=ProviderError(ProviderErrorKind.RATE_LIMITED, "Fake Bank Online asked for fewer requests"))]
@@ -2067,20 +2072,22 @@ async def test_job_relisting_a_stale_listing_waits_for_a_request_without_showing
 @pytest.mark.parametrize(
     ("listed_ago", "values", "requests"),
     [
-        (timedelta(hours=20), {}, (0, 1)),
-        (timedelta(hours=20, minutes=1), {}, (1, 1)),
-        (timedelta(hours=20, minutes=1), {"state": BankLinkState.CHOOSE_ACCOUNT}, (1, 1)),
-        (timedelta(hours=20, minutes=1), {"state": BankLinkState.UNLINKED, "unlinked_at": datetime(2026, 10, 1, tzinfo=UTC)}, (0, 0)),
+        (timedelta(hours=21), {}, (0, 1)),
+        (timedelta(days=7), {}, (0, 1)),
+        (timedelta(days=7, minutes=1), {}, (1, 1)),
+        (timedelta(hours=1), {"state": BankLinkState.CHOOSE_ACCOUNT}, (1, 1)),
+        (timedelta(days=7, minutes=1), {"state": BankLinkState.UNLINKED, "unlinked_at": datetime(2026, 10, 1, tzinfo=UTC)}, (0, 0)),
     ],
-    ids=["listed_20_hours_ago", "listed_over_20_hours_ago", "link_waiting_for_its_bank_account", "link_unlinked"],
+    ids=["listed_21_hours_ago", "listed_7_days_ago", "listed_over_7_days_ago", "link_waiting_for_its_bank_account", "link_unlinked"],
 )
-async def test_job_lists_the_bank_accounts_first_once_the_last_listing_is_over_20_hours_old(
+async def test_job_lists_the_bank_accounts_first_only_when_the_listing_is_over_7_days_old_or_a_link_waits_for_its_bank_account(
     connection, provider, frozen_now, listed_ago, values, requests
 ):
-    """A daily sync rediscovers its connection each day, even starting hours earlier than the day before, and never twice within 20 hours
+    """A daily sync sends one request, its fetch, unless the last listing is over 7 days old, so a scheduled sync costs 2 requests only then
 
-    A link waiting for its bank account to return goes back to active when the listing shows it, and
-    syncs in the same job. A connection whose only link was unlinked has nothing a listing could change
+    A link waiting for its bank account to return is listed for on every sync, and goes back to
+    active when the listing shows it, syncing in the same job. A connection whose only link was
+    unlinked has nothing a listing could change
     """
     await _link(connection, "ACT-1", **_synced_through_yesterday(**values))
     await _update_connection(connection, discovered_at=frozen_now - listed_ago)
@@ -2099,7 +2106,7 @@ async def test_job_fetches_nothing_for_a_linked_bank_account_its_listing_no_long
     async with TestSession() as session:
         session.add_all([_build_external_account(connection, "ACT-everyday"), _build_external_account(connection, "ACT-savings")])
         await session.commit()
-    await _update_connection(connection, discovered_at=frozen_now - timedelta(days=2))
+    await _update_connection(connection, discovered_at=frozen_now - timedelta(days=8))
     provider.outcomes = [_returned("ACT-savings"), _returned("ACT-savings")]
     await _seed_job(connection, BankSyncJobKind.SCHEDULED)
 
@@ -2108,6 +2115,42 @@ async def test_job_fetches_nothing_for_a_linked_bank_account_its_listing_no_long
     assert _fetched(provider) == [_window(date(2026, 9, 19), _TODAY, ["ACT-savings"], pending=True)]
     assert await _link_states(everyday, savings) == ["choose_account", "active"]
     assert await _checkpoints(everyday, savings) == [date(2026, 10, 3), _TODAY]
+
+
+async def test_job_whose_fetch_leaves_out_a_linked_bank_account_lists_the_bank_accounts_next(connection, provider):
+    """Everyday's bank account is missing from a daily fetch, with the listing a few hours old
+
+    No listing was due, so the fetch is the only sign it vanished. The next job lists the bank
+    accounts first, which leaves Everyday waiting for a bank account to be chosen, and Savings synced
+    """
+    everyday = await _link(connection, "ACT-everyday", **_synced_through_yesterday())
+    savings = await _link(connection, "ACT-savings", **_synced_through_yesterday())
+    async with TestSession() as session:
+        session.add_all([_build_external_account(connection, "ACT-everyday"), _build_external_account(connection, "ACT-savings")])
+        await session.commit()
+    provider.outcomes = [_returned("ACT-savings"), _returned("ACT-savings")]
+    await _seed_job(connection, BankSyncJobKind.SCHEDULED)
+
+    await _run_jobs_until_none_is_due()
+
+    assert (len(provider.fetches), len(provider.discoveries)) == (1, 1)
+    assert await _link_states(everyday, savings) == ["choose_account", "active"]
+
+
+async def test_job_retrying_a_bank_account_the_fetch_keeps_leaving_out_does_not_list_the_bank_accounts_again(connection, provider, frozen_now):
+    """Everyday's bank account was left out before, so its retry is due and it is left out again
+
+    The first miss queued a listing, so each retry of a series doesn't spend a second request on one
+    """
+    link = await _link(connection, "ACT-everyday", **_synced_through_yesterday(retry_count=1, next_attempt_at=frozen_now))
+    provider.outcomes = [FetchResult()]
+    await _seed_job(connection, BankSyncJobKind.RETRY)
+
+    assert await run_jobs(1) == 1
+
+    assert (len(provider.fetches), len(provider.discoveries)) == (1, 0)
+    assert [(kind, status) for kind, status, *_ in await _jobs()] == [("retry", "succeeded"), ("retry", "queued")]
+    assert [count for *_, count, _next in await _attempts(link)] == [2]
 
 
 def _ramen_in_yen() -> ProviderRecord:
@@ -2160,7 +2203,7 @@ async def test_job_that_listed_a_bank_account_in_its_accounts_currency_queues_no
     is queued, and it doesn't list first
     """
     link = await _link(connection, "ACT-everyday", **_synced_through_yesterday())
-    await _update_connection(connection, discovered_at=frozen_now - timedelta(days=2))
+    await _update_connection(connection, discovered_at=frozen_now - timedelta(days=8))
     provider.outcomes = [
         _returned("ACT-everyday"),
         FetchResult(accounts=(_bank_account("ACT-everyday", records=[_ramen_in_yen()], currency="JPY"),)),
@@ -2196,7 +2239,7 @@ async def test_job_whose_listing_fails_records_it_and_fetches_nothing(connection
             next_attempt_at=frozen_now + timedelta(minutes=20),
         ),
     )
-    await _update_connection(connection, discovered_at=frozen_now - timedelta(days=2))
+    await _update_connection(connection, discovered_at=frozen_now - timedelta(days=8))
     provider.outcomes = [FetchResult(request_error=ProviderError(ProviderErrorKind.TEMPORARY, "Fake Bank Online couldn't be reached"))]
     await _seed_job(connection, BankSyncJobKind.SCHEDULED)
 
@@ -2379,7 +2422,7 @@ async def test_job_tells_the_owners_pages_as_it_stores_its_listing(connection, p
     async with TestSession() as session:
         session.add(_build_external_account(connection, "ACT-everyday"))
         await session.commit()
-    await _update_connection(connection, discovered_at=frozen_now - timedelta(days=2))
+    await _update_connection(connection, discovered_at=frozen_now - timedelta(days=8))
     provider.outcomes = [_returned("ACT-savings")]
     await _seed_job(connection, BankSyncJobKind.SCHEDULED)
     told = []
@@ -4694,22 +4737,22 @@ async def test_connections_next_sync_lists_again_a_day_after_the_last_listing_wh
 async def test_scan_lists_a_connection_whose_every_link_waits_on_its_bank_account_and_resumes_the_link(
     connection, provider, frozen_now, day_later
 ):
-    """Everyday waits on Choose bank account, the only link on a connection listed at noon, and a sync ends at 1 pm
+    """Everyday waits on Choose bank account, the only link on a connection, and a sync at 1 pm lists the bank accounts without it
 
     A day after that listing the scan queues a sync that lists the bank accounts again. Fake Bank
     lists Everyday's as before, so Everyday resumes and syncs in the same job
     """
-    listed_at = frozen_now - timedelta(hours=1)
     everyday = await _link(connection, "ACT-everyday", **_synced_through_yesterday(state=BankLinkState.CHOOSE_ACCOUNT))
+    provider.outcomes = [FetchResult()]
     await _seed_job(connection, BankSyncJobKind.SCHEDULED)
     await _run_jobs_until_none_is_due()
     provider.outcomes = [_returned("ACT-everyday"), _returned("ACT-everyday")]
 
-    with freeze_time(listed_at + day_later, real_asyncio=True):
+    with freeze_time(frozen_now + day_later, real_asyncio=True):
         await enqueue_due_work()
         await _run_jobs_until_none_is_due()
 
-    assert (len(provider.discoveries), len(provider.fetches)) == (1, 1)
+    assert (len(provider.discoveries), len(provider.fetches)) == (2, 1)
     assert await _link_states(everyday) == ["active"]
 
 
