@@ -235,7 +235,7 @@ export function describeRequestBudget(connection: BankConnection): string {
   return `${cap} Automatic syncs wait until one frees up ${formatRelativeFutureTime(availableAgainAt)}.`
 }
 
-interface InstitutionGroup {
+type InstitutionGroup = {
   name: string
 
   /** Set when a bank login here needs signing in to again. The row shows it in red */

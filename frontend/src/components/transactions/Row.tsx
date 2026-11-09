@@ -135,7 +135,7 @@ interface TransactionRowViewProps extends Omit<
   transaction: TransactionRowMetadata
   amountPresentation: TransactionAmountPresentation
 
-  // Present on a bank-imported transaction only, so manual rows look exactly as they always have
+  // Present on a bank-imported transaction only, so a row entered by hand shows no bank marker
   bankMarker?: TransactionRowBankMarker
   onOpen: () => void
 }
@@ -507,7 +507,7 @@ export function TransactionRowView({
     <button
       type="button"
       data-row-title=""
-      // A reason shown on keyboard focus sits beside the whole row, as it did while the row was the button
+      // A reason shown on keyboard focus sits beside the whole row rather than the title alone
       data-reason-beside="[data-row-content]"
       // In selection mode the checkbox is the row's single stop, so the same row does not offer two
       // controls doing the same thing

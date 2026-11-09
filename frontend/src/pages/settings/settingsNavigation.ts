@@ -41,8 +41,8 @@ export function isHeldWhenLinked(id: SettingsSectionId): boolean {
 
 /**
  * The sections the settings page shows. Bank connections shows only while the deployment offers bank
- * sync to the user, as the account page's bank link section does. Wherever it offers none, settings is
- * as it was before bank sync
+ * sync to the user, as the account page's bank link section does. Wherever it offers none, settings
+ * leaves Bank connections out
  *
  * @param providers - The deployment's providers and whether the user may link, undefined until read
  */

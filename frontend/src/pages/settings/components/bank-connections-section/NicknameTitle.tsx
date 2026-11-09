@@ -156,7 +156,7 @@ function NicknameField({
   )
 }
 
-interface NicknameTitleProps {
+type NicknameTitleProps = {
   connection: BankConnection
   rename: RenameMutation
   titleId: string

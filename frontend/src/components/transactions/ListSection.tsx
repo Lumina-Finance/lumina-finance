@@ -373,10 +373,6 @@ export default function TransactionListSection({
     [fixedAccount, accounts],
   )
 
-  // Losing the last ticked row ends the edit, which a refetch that no longer carries those rows can do
-  // while it is open. It goes rather than animating out, since what it would animate out is a panel
-  // relabelling itself to nothing on the way. Closed here rather than derived from the count, since a
-  // count the user then puts back would reopen a dialog they never asked for a second time
   const bulkAdd = useBulkAddReviewItems()
   const isWriting = bulkUpdate.isPending || bulkAdd.isPending
 
@@ -394,6 +390,10 @@ export default function TransactionListSection({
     setApplyError(null)
   }, [])
 
+  // Losing the last ticked row ends the edit, which a refetch that no longer carries those rows can do
+  // while it is open. It goes rather than animating out, since what it would animate out is a panel
+  // relabelling itself to nothing on the way. Closed here rather than derived from the count, since a
+  // count the user then puts back would reopen a dialogue they never asked for a second time
   if (isEditMounted && totalSelected === 0) {
     setIsEditOpen(false)
     setIsEditMounted(false)

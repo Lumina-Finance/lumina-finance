@@ -18,7 +18,7 @@ import {
 import { connectionName } from '@/utils/bankSync'
 import { DATE_FORMATS, formatDate } from '@/utils/date'
 
-interface ConnectionRowProps {
+type ConnectionRowProps = {
   connection: BankConnection
 
   /**

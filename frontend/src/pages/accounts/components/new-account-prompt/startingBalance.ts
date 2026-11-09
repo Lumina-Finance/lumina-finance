@@ -18,8 +18,7 @@ export const STARTING_BALANCE_CONTROL_IDS = { starting_balance: STARTING_BALANCE
  * typed. Only a prompt keeping the account manual shows the field, so choosing a bank link leaves it
  * out
  *
- * Text that isn't an amount, such as a point alone, is refused with the same message, as the Add
- * account dialogue refused it before the field moved here
+ * Text that isn't an amount, such as a point alone, is refused with the same message
  *
  * @param keepsManual - Whether the prompt is keeping the account manual, the only case that shows the field
  * @param typedMinus - Whether the field's last refused text held a minus

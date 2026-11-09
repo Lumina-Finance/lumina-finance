@@ -323,7 +323,7 @@ export default function EditAccountIdentityModal({
 
   // A link holds archiving back, so archiving waits until the link has been read, but only where a
   // link could exist. With bank sync not offered, a link that is still unread can't be there, so
-  // archiving behaves as it always has. A read that failed leaves archiving to the server. It refuses
+  // archiving doesn't wait. A read that failed leaves archiving to the server. It refuses
   // a linked account with its reason
   const isLinkLoading =
     showsBankLinkSection && ownPersonal && !account.is_archived && bankStatus === undefined && bankStatusError === null
@@ -357,7 +357,7 @@ export default function EditAccountIdentityModal({
 
           {/* The tooltips of a linked account flip and shift to stay within what this area shows, since the
               Sync details and balance reasons need the room. Any other account's tooltips rise over the
-              header, as they always have */}
+              header */}
           <div
             ref={scrollAreaRef}
             className="min-h-0 flex-1 overflow-y-auto pb-3 pl-4 pr-5 pt-4 min-[1050px]:px-7"

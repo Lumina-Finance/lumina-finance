@@ -50,8 +50,8 @@ export type BankProvider = {
   /**
    * Whether new connections may be made. The server controls this per provider
    *
-   * Withdrawing an offer leaves existing connections working: they keep syncing, link further
-   * accounts, reconnect and disconnect as before
+   * Withdrawing an offer leaves existing connections working: they keep syncing and can still
+   * link further accounts, reconnect and disconnect
    */
   offered: boolean
 

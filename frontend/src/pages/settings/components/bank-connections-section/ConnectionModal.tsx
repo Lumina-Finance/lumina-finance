@@ -102,7 +102,7 @@ function RequestBudgetMeter({
   )
 }
 
-interface ConnectionModalProps {
+type ConnectionModalProps = {
   open: boolean
   connection: BankConnection
   accountNameFor: AccountNameLookup

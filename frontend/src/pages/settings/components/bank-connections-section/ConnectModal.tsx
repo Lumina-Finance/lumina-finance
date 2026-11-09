@@ -77,7 +77,7 @@ type UnansweredClaim = {
   endsAt: number
 }
 
-interface ConnectModalProps {
+type ConnectModalProps = {
   open: boolean
 
   /** Providers the server offers for new connections from settings, in the order it lists them */

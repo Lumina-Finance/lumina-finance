@@ -22,7 +22,7 @@ function moveWithArrows(event: KeyboardEvent<HTMLButtonElement>) {
   next.click()
 }
 
-interface ChoiceCardProps {
+type ChoiceCardProps = {
   selected: boolean
   disabled?: boolean
   onSelect: () => void

@@ -38,7 +38,7 @@ export default function AccountIdentityCard({
 
   // An account with no institution of its own names the bank it is linked to once its link is read. While
   // that read could still decide the line, it waits for it rather than naming no institution and then a
-  // bank. Where bank sync isn't offered, or the read fails, the line reads as it always has
+  // bank. Where bank sync isn't offered, or the read fails, the line names no linked bank
   const linkUnread = isLinkStillUnread(ownPersonal, providers, status, statusError !== null)
   const institutionName =
     account.institution?.name ?? status?.link?.institution_name ?? (linkUnread ? '' : 'No institution')

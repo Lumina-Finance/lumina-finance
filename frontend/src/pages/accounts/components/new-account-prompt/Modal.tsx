@@ -114,7 +114,7 @@ export default function NewAccountPromptModal({ open, account, onClose, onExitCo
   )
   const balanceError = typedMinus ? MUST_BE_ZERO_OR_HIGHER_MESSAGE : refusal.errors.starting_balance
 
-  // Leaving the field marks it, as the Add account dialogue did, so a later edit shows its message at once
+  // Leaving the field marks it, so a later edit shows its message at once
   const balanceInput = useMoneyInput({
     value: startingBalance,
     exponent,

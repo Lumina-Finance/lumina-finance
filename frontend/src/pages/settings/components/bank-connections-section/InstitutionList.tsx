@@ -59,7 +59,7 @@ function LinkedAccountTile({ accountId, name }: { accountId: string; name: strin
   )
 }
 
-interface BankAccountRowProps {
+type BankAccountRowProps = {
   bankAccount: ConnectionBankAccount
 
   /**
@@ -184,7 +184,7 @@ function ProblemLine({ children }: { children: ReactNode }) {
   )
 }
 
-interface InstitutionEntry {
+type InstitutionEntry = {
   key: string
   name: string
 
@@ -323,7 +323,7 @@ function GroupLabel({ tone, children }: { tone?: 'negative'; children: ReactNode
   )
 }
 
-interface InstitutionListProps {
+type InstitutionListProps = {
   connection: BankConnection
   institutionLimit: number | null
   institutionsInUse: string[]
