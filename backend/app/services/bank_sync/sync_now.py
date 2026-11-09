@@ -1,8 +1,8 @@
 """Syncing a linked account now, as the user asks from its Bank link section
 
 The request queues a sync of the account's connection for the worker. The worker syncs the account
-whatever its next daily time, a retry's included, and takes in any other account on the connection
-due within 12 hours, in the same request to the provider. A sync already queued for the connection
+whatever its next daily time, a retry's included, and takes in every other account on the connection
+that isn't waiting on a retry or on the user, in the same request to the provider. A sync already queued for the connection
 takes the request in rather than queueing another. The request is refused, saying why, while an
 import or a sync already runs on the account, while only the user can restart its sync, while the
 review pause holds it, and while the connection's request budget is spent. A bank sign-in doesn't

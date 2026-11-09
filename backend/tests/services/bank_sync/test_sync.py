@@ -701,6 +701,43 @@ async def test_job_syncing_a_link_asked_for_now_takes_in_one_due_within_12_hours
     assert (budget.used, budget.limit) == (7, _DAILY_REQUESTS)
 
 
+async def test_job_syncing_a_link_asked_for_now_takes_in_every_other_link_that_nothing_holds_back_in_the_same_request(
+    connection, provider, frozen_now, day_later
+):
+    """The user asks Everyday to sync now while Savings is due tomorrow, Card waits on a bank sign-in and Travel on a retry
+
+    One request brings Everyday and Savings up to date, though Savings isn't due for 20 hours. Card
+    needs the user at the bank and Travel its retry in 20 minutes, so neither is fetched
+    """
+    tomorrow = frozen_now + timedelta(hours=20)
+    everyday = await _link(connection, "ACT-everyday", **_synced_through_yesterday(next_attempt_at=tomorrow))
+    savings = await _link(connection, "ACT-savings", **_synced_through_yesterday(next_attempt_at=tomorrow))
+    card = await _link(
+        connection,
+        "ACT-card",
+        **_synced_through_yesterday(last_failure_reason="Sign in to your bank again", signin_needed_since=frozen_now, next_attempt_at=tomorrow),
+    )
+    travel = await _link(
+        connection,
+        "ACT-travel",
+        **_synced_through_yesterday(
+            retry_count=1, last_failure_reason="Fake Bank Online reported a problem", next_attempt_at=frozen_now + timedelta(minutes=20)
+        ),
+    )
+    provider.outcomes = [_returned("ACT-everyday", "ACT-savings")]
+    await _seed_job(connection, BankSyncJobKind.MANUAL, requested_link_ids=[everyday.id])
+
+    await _run_jobs_until_none_is_due()
+
+    assert _fetched(provider) == [_window(date(2026, 9, 19), _TODAY, ["ACT-everyday", "ACT-savings"], pending=True)]
+    assert [next_at for *_, next_at in await _attempts(everyday, savings, card, travel)] == [
+        frozen_now + day_later,
+        frozen_now + day_later,
+        tomorrow,
+        frozen_now + timedelta(minutes=20),
+    ]
+
+
 async def test_job_whose_request_fails_records_the_failure_and_moves_no_checkpoint(connection, monkeypatch, frozen_now):
     """Fake Bank Online can't be reached: the job records why, the owner's open pages are told again as it ends, and the checkpoint stays
 

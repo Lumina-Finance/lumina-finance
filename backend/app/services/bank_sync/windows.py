@@ -8,7 +8,8 @@ earliest need among the links due, at most as long as the provider allows, for e
 begins in it, so imports, routine syncs and catch-ups after any gap are one mechanism. Days are
 calendar days in the user's profile timezone. When each link is next due is worked out here for the
 schedule and the planner alike, so the two agree on it. A link the user asked to sync now is due at
-once, whatever its next attempt
+once, whatever its next attempt, and so is every other link that has nothing holding it back, since
+the request costs the same however many bank accounts it covers
 """
 
 import uuid
@@ -92,7 +93,9 @@ def find_due_links(
     started. A link waiting to retry joins only once its retry is due, so it isn't fetched ahead of
     it with links due later today. A link the user asked to sync now joins whatever its next attempt,
     a retry's included, since a link that synced this morning would otherwise be skipped, though
-    never while it can't sync
+    never while it can't sync. A request covers any number of bank accounts, so with a sync asked for
+    every other link joins whatever its next attempt too, unless it waits to retry or on the user: a
+    bank sign-in or a payment problem is fixed outside the app, and a fetch for it would only fail again
 
     Args:
         links: The connection's links
@@ -105,13 +108,25 @@ def find_due_links(
     due = []
     for link in links:
         due_at = next_due_at(link, now=now, timezone=timezone, overlap_days=overlap_days)
-        due_by = now if is_waiting_to_retry(link) else now + DUE_WITHIN
-        if due_at is None or (due_at > due_by and link.id not in requested):
+        if due_at is None or (link.id not in requested and due_at > _joins_until(link, now, sync_asked=bool(requested))):
             continue
         start = _need_start(link, timezone, overlap_days)
         if start <= today:
             due.append(LinkNeed(link, start))
     return due
+
+
+def _joins_until(link: BankAccountLink, now: datetime, *, sync_asked: bool) -> datetime:
+    """Return the latest time a link's next attempt may fall at and still join the sync
+
+    A link that waits to retry joins only once its retry is due. While the user asked for a sync,
+    any other link joins whenever it is next due, apart from one whose last attempt failed on
+    something only the user can fix, which a retry never repeats
+    """
+    if is_waiting_to_retry(link):
+        return now
+    waits_on_user = link.last_failure_reason is not None
+    return datetime.max.replace(tzinfo=UTC) if sync_asked and not waits_on_user else now + DUE_WITHIN
 
 
 def plan_window(needs: Iterable[LinkNeed], *, today: date, timezone: ZoneInfo, max_days: int) -> SyncWindow | None:

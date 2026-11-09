@@ -32,6 +32,7 @@ _TODAY = date(2026, 10, 4)
 def _link(**values) -> BankAccountLink:
     """Return an unsaved active link, not paused, never synced, not waiting to retry and with no import running, with the fields given"""
     link = _build_bank_link(_build_account(uuid.uuid4()), None)
+    link.id = uuid.uuid4()
     link.state = BankLinkState.ACTIVE
     link.paused = False
     link.retry_count = 0
@@ -86,6 +87,31 @@ def test_find_due_links_takes_in_active_links_due_within_12_hours_unless_paused(
     due = find_due_links([link], now=_NOW, timezone=_BRISBANE, overlap_days=14)
 
     assert [need.link for need in due] == ([link] if is_due else [])
+
+
+@pytest.mark.parametrize(
+    ("values", "is_due"),
+    [
+        ({"next_attempt_at": _NOW + timedelta(hours=20)}, True),
+        ({"next_attempt_at": _NOW + timedelta(days=3)}, True),
+        ({"paused": True, "next_attempt_at": _NOW + timedelta(hours=20)}, False),
+        ({"state": BankLinkState.CHOOSE_ACCOUNT, "next_attempt_at": _NOW + timedelta(hours=20)}, False),
+        ({"retry_count": 1, "next_attempt_at": _NOW + timedelta(minutes=1)}, False),
+        ({"last_failure_reason": "Sign in to your bank again", "next_attempt_at": _NOW + timedelta(hours=20)}, False),
+    ],
+    ids=["due_in_20_hours", "due_in_3_days", "paused_for_review", "waiting_to_choose_its_bank_account", "retry_not_due", "bank_sign_in_needed"],
+)
+def test_find_due_links_with_a_sync_asked_for_takes_in_every_other_link_nothing_holds_back(values, is_due):
+    """Sync now fetches Savings with Everyday whenever Savings is next due, since the request costs the same
+
+    A link waiting on a retry, on the user at the bank or on the review pause stays out
+    """
+    everyday = _link(import_start=date(2026, 9, 1), checkpoint=date(2026, 8, 31))
+    savings = _link(**{"import_start": date(2026, 9, 1), "checkpoint": date(2026, 8, 31)} | values)
+
+    due = find_due_links([everyday, savings], now=_NOW, timezone=_BRISBANE, overlap_days=14, requested=[everyday.id])
+
+    assert [need.link for need in due] == ([everyday, savings] if is_due else [everyday])
 
 
 def test_find_due_links_leaves_out_an_import_starting_tomorrow_in_the_profile_timezone():
