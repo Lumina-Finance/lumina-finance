@@ -37,7 +37,10 @@ export function useFittedButtonWidth(label: string, renderLabel: (label: string)
         (total, property) => total + (Number.parseFloat(style.getPropertyValue(property)) || 0),
         0,
       )
-      setWidth(Math.ceil(measured.getBoundingClientRect().width + chrome) + LABEL_SLACK_PX)
+      // The label's laid-out width rather than its drawn box, which a dialogue opening with a slight
+      // zoom draws smaller than it lays out, so a measure taken as it opens would clip the label
+      const labelWidth = Number.parseFloat(window.getComputedStyle(measured).width)
+      setWidth(Math.ceil(labelWidth + chrome) + LABEL_SLACK_PX)
     }
     measure()
 
