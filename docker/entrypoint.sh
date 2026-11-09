@@ -161,6 +161,22 @@ python -m scripts.seed_currencies
 python -m scripts.seed_categories
 python -m scripts.seed_merchants
 
+# With no bank provider enabled the worker has nothing to sync, so this container doesn't start it.
+# A provider whose settings are refused stops the container here, before it serves, as it would
+# stop the worker
+run_worker_here="$RUN_BANK_SYNC_WORKER"
+if [ "$run_worker_here" = true ]; then
+	if python -m app.worker check-providers; then
+		:
+	else
+		providers_status=$?
+		if [ "$providers_status" -ne 69 ]; then
+			exit "$providers_status"
+		fi
+		run_worker_here=false
+	fi
+fi
+
 # Caddy serves the frontend and proxies /api to this local Uvicorn process. Uvicorn keeps an idle
 # connection longer than Caddy's two minutes, so Caddy is always the side that closes it. The other
 # way round, a request Caddy sends just as Uvicorn closes the connection is reset, and Caddy answers
@@ -174,7 +190,7 @@ caddy_pid="$!"
 
 # Started after the migrations, so it claims no job before the schema is current. A job cut short
 # when the container stops is claimed again once its lease runs out
-if [ "$RUN_BANK_SYNC_WORKER" = true ]; then
+if [ "$run_worker_here" = true ]; then
 	python -m app.worker &
 	worker_pid="$!"
 	wait -n "$backend_pid" "$caddy_pid" "$worker_pid"

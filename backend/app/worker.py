@@ -1,7 +1,9 @@
 """Bank sync worker process, run as `python -m app.worker`
 
 With no arguments it runs the bank sync worker until stopped. With `check-health` it
-exits 0 while the worker's heartbeat is fresh and 1 otherwise, for the container health check
+exits 0 while the worker's heartbeat is fresh and 1 otherwise, for the container health check.
+With `check-providers` it exits 0 when a bank provider is enabled and 69 when none is, so the
+app's container starts no worker with nothing to sync
 """
 
 import asyncio
@@ -53,8 +55,12 @@ def main(arguments: list[str]) -> int:
         from app.services.bank_sync.worker import check_worker_health
 
         return 0 if asyncio.run(check_worker_health()) else 1
+    if arguments == ["check-providers"]:
+        from app.services.bank_sync.availability import enabled_adapters
+
+        return 0 if enabled_adapters() else os.EX_UNAVAILABLE
     if arguments:
-        logger.error("Usage: python -m app.worker [check-health]")
+        logger.error("Usage: python -m app.worker [check-health | check-providers]")
         return os.EX_USAGE
 
     _wait_for_app_role_password()

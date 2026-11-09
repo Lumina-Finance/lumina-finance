@@ -28,6 +28,7 @@ from app.db.encryption_key import verify_key_matches_data
 from app.db.rls.functions import LIST_DUE_BANK_CONNECTIONS, MIGRATION_REVISIONS, RECORD_BANK_SYNC_SCAN
 from app.models import import_all_models
 from app.models.bank_sync_job import ProviderErrorKind
+from app.services.bank_sync.availability import enabled_adapters
 from app.services.bank_sync.heartbeat import is_sync_worker_running
 from app.services.bank_sync.jobs import ClaimedJob, JobNotHeld, claim_bank_sync_job
 from app.services.bank_sync.providers.contract import ProviderError
@@ -97,6 +98,11 @@ async def enqueue_due_work() -> None:
             # scan, and stopping here would leave every later owner unsynced and the heartbeat stale
             logger.exception("Queueing a scheduled sync of bank connection %s failed", connection_id)
 
+    await _stamp_heartbeat(now)
+
+
+async def _stamp_heartbeat(now: datetime) -> None:
+    """Stamp the heartbeat the provider list and the worker's health check read"""
     async with async_session() as db:
         await db.execute(text(f"SELECT {RECORD_BANK_SYNC_SCAN}(:now)"), {"now": now})
         await db.commit()
@@ -207,12 +213,21 @@ async def run_worker() -> None:
     for stop_signal in (signal.SIGTERM, signal.SIGINT):
         loop.add_signal_handler(stop_signal, stopping.set)
 
-    logger.info("Bank sync worker started, running up to %d jobs at once", BANK_SYNC_WORKER_CONCURRENCY)
+    # With no provider enabled there is nothing to sync. A worker in a container of its own stays up
+    # and keeps its heartbeat, so its health check passes rather than the container restarting
+    syncing = bool(enabled_adapters())
+    if syncing:
+        logger.info("Bank sync worker started, running up to %d jobs at once", BANK_SYNC_WORKER_CONCURRENCY)
+    else:
+        logger.info("Bank sync worker idle: no bank provider is enabled, so it only keeps its heartbeat")
     try:
         async with asyncio.TaskGroup() as runners:
-            runners.create_task(_scan_for_due_work(stopping))
-            for _ in range(BANK_SYNC_WORKER_CONCURRENCY):
-                runners.create_task(_run_jobs_in_turn(stopping))
+            if not syncing:
+                runners.create_task(_keep_heartbeat(stopping))
+            else:
+                runners.create_task(_scan_for_due_work(stopping))
+                for _ in range(BANK_SYNC_WORKER_CONCURRENCY):
+                    runners.create_task(_run_jobs_in_turn(stopping))
     finally:
         await engine.dispose()
     logger.info("Bank sync worker stopped")
@@ -271,6 +286,17 @@ async def _scan_for_due_work(stopping: asyncio.Event) -> None:
             # Best effort: the next scan finds the same connections due, and a worker that keeps
             # failing shows as sync not running once the heartbeat goes stale
             logger.exception("Scanning for due bank syncs failed")
+        await _sleep_unless_stopping(stopping, _SCAN_INTERVAL)
+
+
+async def _keep_heartbeat(stopping: asyncio.Event) -> None:
+    """Stamp the heartbeat now and at each scan after, carrying on past a stamp that fails, until asked to stop"""
+    while not stopping.is_set():
+        try:
+            await _stamp_heartbeat(datetime.now(UTC))
+        except Exception:
+            # Best effort, as a scan is: the next stamp tries again
+            logger.exception("Stamping the bank sync heartbeat failed")
         await _sleep_unless_stopping(stopping, _SCAN_INTERVAL)
 
 
