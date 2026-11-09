@@ -46,19 +46,21 @@ import {
   updateBankConnection,
   type ReviewResolution,
 } from '@/api/bank-sync/requests'
-import type { AccountBankStatus, BankHold, BankLink, BankProviderId, BankReviewItem } from '@/api/bank-sync/types'
+import type { AccountBankStatus, BankLink, BankProviderId, BankReviewItem } from '@/api/bank-sync/types'
 import { invalidateAccountBankLink, invalidateBankLinks, invalidateBankSyncStatus } from '@/api/cache/invalidation'
 import { bankSyncKeys } from '@/api/cache/queryKeys'
 import {
   applyAccountBankStatus,
   applyBankLinkChanges,
   applyBulkReviewOutcome,
+  applyDismissedHold,
   applyLedgerReviewOutcome,
   applyRecordedBalanceMatch,
   applyRefusedReviewDecision,
   applyRestoredBankValue,
   applyReviewDecision,
   putCachedBankLink,
+  refetchHolds,
   refreshBankLinkState,
   replaceCachedBankConnection,
 } from '@/api/cache/updates/bankSync'
@@ -299,13 +301,8 @@ export function useDismissBankHold() {
   const queryClient = useQueryClient()
   return useMutation({
     mutationFn: (holdId: string) => runWithMinimumPendingTime(ACTION_LOADING_MIN_MS, () => dismissBankHold(holdId)),
-    onSuccess: (_result, holdId) => {
-      queryClient.setQueriesData<BankHold[]>({ queryKey: bankSyncKeys.holdsAll }, (holds) =>
-        holds?.filter((hold) => hold.id !== holdId),
-      )
-      return queryClient.invalidateQueries({ queryKey: bankSyncKeys.holdsAll, refetchType: 'active' })
-    },
-    onError: () => queryClient.invalidateQueries({ queryKey: bankSyncKeys.holdsAll, refetchType: 'active' }),
+    onSuccess: (_result, holdId) => applyDismissedHold(queryClient, holdId),
+    onError: () => refetchHolds(queryClient),
   })
 }
 
