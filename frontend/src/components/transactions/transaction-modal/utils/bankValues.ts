@@ -11,7 +11,7 @@ export type BankValueCaption = {
 }
 
 /** The caption under each editable field, or null where none shows */
-export type BankValueCaptions = Record<EditableBankField, BankValueCaption | null>
+type BankValueCaptions = Record<EditableBankField, BankValueCaption | null>
 
 /**
  * Reads the bank's latest value for each field the server counts as edited, so an unedited field shows

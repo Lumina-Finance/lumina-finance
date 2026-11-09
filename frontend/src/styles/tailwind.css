@@ -166,7 +166,6 @@
        since a yellow wash turns sickly on the cream background. Dark mode can carry a faint wash */
     --app-review-bg: #fbf8f0;
     --app-review-border: #a8840080;
-    --app-review-count-bg: #6f5700;
     --app-review-count-text: #fbf8f0;
     --app-review-divider: var(--app-border);
     /* The bank's filing card beside a review item: whiter stock than the app's cards, pale blue ruling
@@ -302,7 +301,6 @@
     --app-negative: #d8776a;
     --app-warning-border: #f5d54752;
     --app-review-bg: #f5d5470d;
-    --app-review-count-bg: #f8e28a;
     --app-review-count-text: #1f1800;
     --app-review-border: var(--app-warning-border);
     --app-review-divider: var(--app-warning-border);

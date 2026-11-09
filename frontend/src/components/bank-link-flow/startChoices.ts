@@ -4,7 +4,7 @@ import { addDays, addMonths, formatDateLabel, formatYmd, parseYmd } from '@/util
 // How many months back the shorter start choices reach, offered beside the provider's own limit
 const START_CHOICE_MONTHS = [3, 6]
 
-export interface StartChoice {
+interface StartChoice {
   key: string
   label: string
 

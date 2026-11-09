@@ -47,7 +47,7 @@ export function readTypedAmount(typed: TypedAmount | null, offered: number): str
 }
 
 /** What a press of Record adjustment finds: a reason to refuse, or the amount to record */
-export type RecordingReading = { refusal: string } | { amount: number }
+type RecordingReading = { refusal: string } | { amount: number }
 
 /**
  * Reads what a press of Record adjustment does. It refuses while the amount shows its message for a

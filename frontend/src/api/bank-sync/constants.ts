@@ -5,8 +5,7 @@ export const CONNECTION_NICKNAME_MAX_LENGTH = 64
 export const CONNECTION_NICKNAME_TOO_LONG_MESSAGE = `Nickname must be ${CONNECTION_NICKNAME_MAX_LENGTH} characters or less.`
 
 // Review backlog thresholds, counted in new posted items awaiting their first review. The server
-// pauses and resumes an account's sync at these counts, and the app words its warning from them
-export const REVIEW_WARNING_COUNT = 80
+// pauses and resumes an account's sync at these counts, and the app words its messages from them
 export const REVIEW_PAUSE_COUNT = 100
 export const REVIEW_RESUME_COUNT = 50
 

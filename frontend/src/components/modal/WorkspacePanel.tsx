@@ -1,6 +1,6 @@
 import type { ReactNode } from 'react'
 import { X } from 'lucide-react'
-import { ModalShell, type ModalLevel } from '@/components/modal/Shell'
+import { ModalShell } from '@/components/modal/Shell'
 
 type ModalWorkspacePanelProps = {
   open: boolean
@@ -19,7 +19,6 @@ type ModalWorkspacePanelProps = {
   partsLabel: ReactNode
   /** Controls beside the parts' heading, such as a search field */
   partsTools?: ReactNode
-  level?: ModalLevel
   /** Blocks dismissal while an action is in flight */
   closeDisabled?: boolean
   /** Runs once the exit animation has finished, for work that must wait until the modal is fully gone */
@@ -47,7 +46,6 @@ export function ModalWorkspacePanel({
   actions,
   partsLabel,
   partsTools,
-  level = 'page',
   closeDisabled = false,
   onExitComplete,
   children,
@@ -74,7 +72,6 @@ export function ModalWorkspacePanel({
       onClose={onClose}
       titleId={titleId}
       panelClassName="flex max-h-[86vh] w-full max-w-[60rem] overflow-hidden"
-      level={level}
       closeDisabled={closeDisabled}
       onExitComplete={onExitComplete}
     >

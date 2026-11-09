@@ -88,7 +88,7 @@ export function countLinkedBankAccounts(connection: BankConnection): { linked: n
  * account has stopped and shows under Mismatch detected, so a bank account it still points at, as one
  * whose currency changed does, shows as not linked rather than twice
  */
-export function listShownBankAccounts(connection: BankConnection): ConnectionBankAccount[] {
+function listShownBankAccounts(connection: BankConnection): ConnectionBankAccount[] {
   const waiting = new Set(connection.choose_again_links.map((link) => link.account_id))
   return connection.accounts.map((account) =>
     account.linked_account_id !== null && waiting.has(account.linked_account_id)
@@ -102,7 +102,7 @@ export function listShownBankAccounts(connection: BankConnection): ConnectionBan
  * provider, in the order the connection lists them. The server flags none on a rejected connection,
  * and its reconnect comes first
  */
-export function listSignInInstitutions(connection: BankConnection): string[] {
+function listSignInInstitutions(connection: BankConnection): string[] {
   return [
     ...new Set(
       connection.accounts.filter((account) => account.signin_needed).map((account) => account.institution_name),
@@ -235,7 +235,7 @@ export function describeRequestBudget(connection: BankConnection): string {
   return `${cap} Automatic syncs wait until one frees up ${formatRelativeFutureTime(availableAgainAt)}.`
 }
 
-export interface InstitutionGroup {
+interface InstitutionGroup {
   name: string
 
   /** Set when a bank login here needs signing in to again. The row shows it in red */
@@ -278,7 +278,7 @@ export function groupInstitutions(
 }
 
 /** Why a rejected connection takes no link, shown on its faded Link an account dropdown */
-export const RECONNECT_TO_LINK_REASON = 'Reconnect this connection to link an account.'
+const RECONNECT_TO_LINK_REASON = 'Reconnect this connection to link an account.'
 
 /**
  * Why a bank account's Link an account dropdown is faded, or undefined when it can be used. Every faded

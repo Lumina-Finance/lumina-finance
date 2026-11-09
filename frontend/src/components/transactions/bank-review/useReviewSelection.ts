@@ -1,7 +1,6 @@
 import { useCallback, useMemo } from 'react'
 import { useReviewItems, type BankReviewItem } from '@/api/bank-sync'
 import type { ReviewRowSelection } from '@/components/transactions/bank-review/ReviewBlock'
-import { MAX_BULK_EDIT_TRANSACTIONS } from '@/components/transactions/bulk-edit/constants'
 import { isRowSelectable } from '@/components/transactions/bulk-edit/selection'
 import { useBulkSelection } from '@/components/transactions/bulk-edit/useBulkSelection'
 import { useBankItemScope } from '@/components/transactions/hooks/useBankItemScope'
@@ -17,7 +16,7 @@ import { useBankItemScope } from '@/components/transactions/hooks/useBankItemSco
  * @param listAccountIds - The accounts the list is filtered or fixed to, empty or absent for every account
  * @param limit - How many items may be ticked. That is what the ledger ticks leave of one bulk edit
  */
-export function useReviewSelection(listAccountIds: string[] | undefined, limit: number = MAX_BULK_EDIT_TRANSACTIONS) {
+export function useReviewSelection(listAccountIds: string[] | undefined, limit: number) {
   const { accountIds, isInScope, accountById } = useBankItemScope(listAccountIds)
   const { data: pages, isFetching } = useReviewItems(accountIds, isInScope)
 

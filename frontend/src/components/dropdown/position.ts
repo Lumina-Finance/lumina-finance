@@ -72,7 +72,7 @@ export interface DropdownBoxPosition {
 }
 
 /** The edges of the modal panel a field sits in, as the screen measures them */
-export type DropdownPanelEdges = {
+type DropdownPanelEdges = {
   bottom: number
   left: number
   right: number

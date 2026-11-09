@@ -15,8 +15,6 @@ const TONE_COLORS: Record<SyncStatusTone, string> = {
   off: 'var(--app-text-subtle)',
 }
 
-const SIZE_CLASSES = { sm: 'h-2 w-2', md: 'h-2.5 w-2.5' } as const
-
 // A slow blink that stays inside the dot's own box, so a pulsing dot never reaches past the label's
 // column the way a spreading ring would
 const BLINK_ANIMATE = { opacity: [1, 0.25, 1] }
@@ -28,7 +26,6 @@ type SyncStatusDotProps = {
 
   // Blinks while the app is fetching, and holds still for anyone who asks for reduced motion
   pulse?: boolean
-  size?: keyof typeof SIZE_CLASSES
 }
 
 /**
@@ -36,7 +33,7 @@ type SyncStatusDotProps = {
  * label beside it stays in plain text. It blinks while the app is fetching and is hollow for an
  * account that does not sync
  */
-export function SyncStatusDot({ tone, pulse = false, size = 'sm' }: SyncStatusDotProps) {
+export function SyncStatusDot({ tone, pulse = false }: SyncStatusDotProps) {
   const prefersReducedMotion = useReducedMotion()
   const [dot, animate] = useAnimate<HTMLSpanElement>()
   const color = TONE_COLORS[tone]
@@ -55,7 +52,7 @@ export function SyncStatusDot({ tone, pulse = false, size = 'sm' }: SyncStatusDo
   return (
     <span
       ref={dot}
-      className={`inline-flex shrink-0 rounded-full transition-colors ${SIZE_CLASSES[size]}`}
+      className="inline-flex h-2 w-2 shrink-0 rounded-full transition-colors"
       style={{ background: tone === 'off' ? 'transparent' : color, border: `1.5px solid ${color}` }}
       data-testid="sync-status-dot"
       aria-hidden

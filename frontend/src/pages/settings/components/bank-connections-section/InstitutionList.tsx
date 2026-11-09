@@ -182,7 +182,7 @@ function ProblemLine({ children }: { children: ReactNode }) {
   )
 }
 
-export interface InstitutionEntry {
+interface InstitutionEntry {
   key: string
   name: string
 

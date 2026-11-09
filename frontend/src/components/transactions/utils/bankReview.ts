@@ -34,7 +34,7 @@ type ReviewAccount = Pick<AccountsOverview, 'id' | 'name'>
  * How a review row shows its amount: signed text, its direction for the colour, and whether it is
  * struck through as an amount a removal would take out of the ledger
  */
-export type ReviewItemAmount = {
+type ReviewItemAmount = {
   text: string
   sign: -1 | 0 | 1
   isStruckThrough: boolean

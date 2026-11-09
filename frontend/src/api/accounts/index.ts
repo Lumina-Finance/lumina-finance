@@ -38,4 +38,4 @@ export {
   useUpdateAccount,
 } from '@/api/accounts/hooks'
 
-export { StartingBalanceNotSavedError, StartingBalanceUnsettledError } from '@/api/accounts/startingBalance'
+export { StartingBalanceNotSavedError } from '@/api/accounts/startingBalance'

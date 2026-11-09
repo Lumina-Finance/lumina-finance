@@ -11,7 +11,6 @@ import {
 import { ChoiceCard } from '@/components/bank-link-flow/ChoiceCard'
 import { InfoCallout } from '@/components/InfoCallout'
 import { ModalFormFooter } from '@/components/modal/FormFooter'
-import type { ModalLevel } from '@/components/modal/Shell'
 import { ModalTitledPanel } from '@/components/modal/TitledPanel'
 import { useToast } from '@/hooks/useToast'
 import { connectionName, countNoun, credentialNoun, describeDisconnected, providerSiteName } from '@/utils/bankSync'
@@ -29,7 +28,6 @@ type UnlinkModalProps = {
 
   /** Whether reading the connections failed, leaving the connection unknown */
   connectionFailed: boolean
-  level?: ModalLevel
   onClose: () => void
   onExitComplete: () => void
 }
@@ -51,7 +49,8 @@ function countOtherAccounts(connection: BankConnection, accountId: string): numb
 
 /**
  * Stops one account syncing, keeping its connection for others, or disconnects the whole connection,
- * unlinking every account on it and deleting its stored access
+ * unlinking every account on it and deleting its stored access. It opens over the account's edit
+ * dialogue, so it takes the stacked level
  */
 export function UnlinkModal({
   open,
@@ -59,7 +58,6 @@ export function UnlinkModal({
   link,
   connection,
   connectionFailed,
-  level = 'page',
   onClose,
   onExitComplete,
 }: UnlinkModalProps) {
@@ -123,7 +121,7 @@ export function UnlinkModal({
       eyebrow={`${link.external_account_name} at ${link.institution_name}`}
       RailIcon={Unlink}
       railLabel="Bank"
-      level={level}
+      level="stacked"
       closeDisabled={busy}
       footer={
         <ModalFormFooter
@@ -134,7 +132,7 @@ export function UnlinkModal({
           tone="danger"
           error={error}
           holdsButtonWidth
-          level={level}
+          level="stacked"
           onCancel={onClose}
           onPrimary={confirm}
           primaryOnLeft

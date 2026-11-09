@@ -489,7 +489,6 @@ export function BankLinkSection({ account, sectionNumber, autoFocus = false }: B
           link={unlinking}
           connection={connections?.find((connection) => connection.id === unlinking.connection_id)}
           connectionFailed={connectionsError !== null && connections === undefined}
-          level="stacked"
           onClose={() => setUnlinkOpen(false)}
           onExitComplete={() => {
             setUnlinking(null)
