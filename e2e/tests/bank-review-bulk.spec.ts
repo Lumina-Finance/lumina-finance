@@ -236,7 +236,7 @@ test('adds a ticked item and updates a ticked ledger transaction in one edit', N
   await chooseFromDropdown(edit, 'Category', 'Dining')
   await edit.getByRole('button', { name: 'Add 1 and update 1', exact: true }).click()
 
-  const confirmation = page.getByRole('dialog', { name: 'Add 1 item and change 1 transaction?', exact: true })
+  const confirmation = page.getByRole('dialog', { name: 'Add 1 item and update 1 transaction?', exact: true })
   const added = page.waitForResponse((response) => response.url() === `${API_BASE_URL}/bank-review/items/bulk-add`)
   const updated = page.waitForResponse(
     (response) => response.request().method() === 'PATCH' && response.url() === `${API_BASE_URL}/transactions/bulk`,

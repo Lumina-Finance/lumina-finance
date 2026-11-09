@@ -38,7 +38,7 @@ export function BulkEditConfirm({
   const descriptionId = useId()
   const transactions = countNoun(count, 'transaction')
   const title =
-    reviewCount === 0 ? `Change ${transactions}?` : `Add ${countNoun(reviewCount, 'item')} and change ${transactions}?`
+    reviewCount === 0 ? `Change ${transactions}?` : `Add ${countNoun(reviewCount, 'item')} and update ${transactions}?`
 
   return (
     <ModalTitledPanel
