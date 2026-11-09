@@ -138,7 +138,7 @@ class BankSyncJob(Base):
     last_error_reason: Mapped[str | None] = mapped_column(Text)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, server_default=func.now())
 
-    # Finished jobs are deleted 30 days after this by the due scan
+    # Finished jobs are deleted 30 days after this by the expired-record cleanup
     finished_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
 

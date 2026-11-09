@@ -47,7 +47,7 @@ CONNECTION_NOT_FOUND = "Bank connection not found"
 
 
 def read_nickname(nickname: str | None) -> str | None:
-    """Return a trimmed nickname to store, or None when it is blank
+    """Return the nickname to store, or None when it is blank
 
     Raises:
         HTTPException 422: The nickname is longer than a connection can store
