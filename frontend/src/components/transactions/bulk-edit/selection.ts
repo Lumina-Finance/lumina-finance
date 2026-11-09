@@ -9,10 +9,7 @@ import type { Category } from '@/api/categories'
 import type { BulkDirectionChange, BulkTransferEnd, TransactionDirection } from '@/api/transactions'
 import type { TransactionListAccount } from '@/components/transactions/types/transactionList'
 import { MAX_BULK_EDIT_TRANSACTIONS, MAX_BULK_TAGS } from '@/components/transactions/bulk-edit/constants'
-import {
-  BALANCE_ADJUSTMENT_CATEGORY_NAME,
-  doesTransferRecordCounterpartyAccount,
-} from '@/utils/transfers'
+import { BALANCE_ADJUSTMENT_CATEGORY_NAME, doesTransferRecordCounterpartyAccount } from '@/utils/transfers'
 
 /**
  * Returns whether a chosen category records the account on the other side of a transfer.
@@ -25,10 +22,7 @@ import {
  */
 export function doesChosenCategoryRecordTransferTarget(category: Category | undefined): boolean {
   if (!category) return false
-  return doesTransferRecordCounterpartyAccount(
-    category.kind,
-    category.name === BALANCE_ADJUSTMENT_CATEGORY_NAME,
-  )
+  return doesTransferRecordCounterpartyAccount(category.kind, category.name === BALANCE_ADJUSTMENT_CATEGORY_NAME)
 }
 
 /**
@@ -47,9 +41,7 @@ export function getBulkMoveTargets<T extends { can_write?: boolean; is_archived?
 ): T[] {
   if (selectedCurrencies.length !== 1) return []
   return accounts.filter(
-    (account) => account.can_write === true
-      && !account.is_archived
-      && account.currency === selectedCurrencies[0],
+    (account) => account.can_write === true && !account.is_archived && account.currency === selectedCurrencies[0],
   )
 }
 
@@ -62,9 +54,7 @@ export function getBulkMoveTargets<T extends { can_write?: boolean; is_archived?
  *
  * @param accounts Every account the list knows about
  */
-export function getTransferEndTargets<T extends { is_archived?: boolean }>(
-  accounts: T[],
-): T[] {
+export function getTransferEndTargets<T extends { is_archived?: boolean }>(accounts: T[]): T[] {
   return accounts.filter((account) => !account.is_archived)
 }
 
@@ -73,9 +63,7 @@ export function getTransferEndTargets<T extends { is_archived?: boolean }>(
  * account so the blockers can compare it against each row without a separate account lookup;
  * buildBulkEditFields strips it before the request is sent
  */
-export type TransferEndChoice =
-  | { scope: 'tracked'; accountId: string; currency: string }
-  | { scope: 'outside' }
+export type TransferEndChoice = { scope: 'tracked'; accountId: string; currency: string } | { scope: 'outside' }
 
 /** What the panel holds, before it becomes a request */
 export interface BulkEditChoice {
@@ -136,9 +124,7 @@ export interface BulkEditFields {
 
 /** Turns a panel-held end choice into the shape the request sends, dropping the currency it carries */
 function toBulkTransferEnd(choice: TransferEndChoice): BulkTransferEnd {
-  return choice.scope === 'tracked'
-    ? { scope: 'tracked', account_id: choice.accountId }
-    : { scope: 'outside' }
+  return choice.scope === 'tracked' ? { scope: 'tracked', account_id: choice.accountId } : { scope: 'outside' }
 }
 
 /**
@@ -194,34 +180,34 @@ export function hasBulkEditChoice(choice: BulkEditChoice): boolean {
 
 /** One selected transaction, as the rules about what an edit may do to it see it */
 export interface SelectedTransactionFacts {
-  id: string;
+  id: string
 
   /** The account it sits in, which an own end or a move would carry it out of */
-  accountId: string;
+  accountId: string
 
   /** False for a row recorded before a merchant was required, which the server refuses to edit */
-  hasMerchant: boolean;
+  hasMerchant: boolean
 
   /** Whether its own category records the account on the other side of a transfer */
-  recordsFarSide: boolean;
+  recordsFarSide: boolean
 
   /**
    * Whether it has an answer for that other side. Read off the scope rather than off the account, the
    * way the server reads it, so one recorded as going outside the tracked accounts is answered
    */
-  hasFarSideRecorded: boolean;
+  hasFarSideRecorded: boolean
 
   /** The account recorded as the other side, absent where the money went outside the tracked accounts */
-  farSideAccountId: string | null;
+  farSideAccountId: string | null
 
   /** The currency the amount is denominated in */
-  currency: string;
+  currency: string
 
   /** Whether the stored amount is zero, whose canonical direction remains credit under every edit */
-  isZeroAmount: boolean;
+  isZeroAmount: boolean
 
   /** Money out when its amount is negative, money in otherwise, on the server and in the browser alike */
-  direction: TransactionDirection;
+  direction: TransactionDirection
 }
 
 /**
@@ -250,7 +236,7 @@ export function rowFactsKey(rows: SelectedTransactionFacts[]): string {
         row.direction,
       ].join('|'),
     )
-    .join(';');
+    .join(';')
 }
 
 /**
@@ -268,19 +254,19 @@ export function doesAnyResultingCategoryRecordTransferTarget(
   chosenCategory: Category | undefined,
   rows: SelectedTransactionFacts[],
 ): boolean {
-  if (chosenCategory) return doesChosenCategoryRecordTransferTarget(chosenCategory);
-  return rows.some((row) => row.recordsFarSide);
+  if (chosenCategory) return doesChosenCategoryRecordTransferTarget(chosenCategory)
+  return rows.some((row) => row.recordsFarSide)
 }
 
 /** Returns whether the selection holds at least one transfer and at least one other transaction */
 export function isMixedSelection(rows: SelectedTransactionFacts[]): boolean {
-  return rows.some((row) => row.recordsFarSide) && rows.some((row) => !row.recordsFarSide);
+  return rows.some((row) => row.recordsFarSide) && rows.some((row) => !row.recordsFarSide)
 }
 
 /** One tag choice as the bulk edit panel holds it, with the label it was picked under */
 export interface ChosenTagOption {
-  value: string;
-  label: string;
+  value: string
+  label: string
 }
 
 /**
@@ -292,30 +278,33 @@ export interface ChosenTagOption {
  */
 export function toggleChosenTag(chosen: ChosenTagOption[], option: ChosenTagOption): ChosenTagOption[] {
   if (chosen.some((tag) => tag.value === option.value)) {
-    return chosen.filter((tag) => tag.value !== option.value);
+    return chosen.filter((tag) => tag.value !== option.value)
   }
-  return [...chosen, option];
+  return [...chosen, option]
 }
 
 /** Returns the opposite of a transaction's own direction, for an edit that turns a row around */
 function flipDirection(direction: TransactionDirection): TransactionDirection {
-  return direction === 'debit' ? 'credit' : 'debit';
+  return direction === 'debit' ? 'credit' : 'debit'
 }
 
 /**
  * Returns what a row ends up pointing, mirroring the service's resolution: the direction given
  * where it sets one, the row's own flipped where it says reverse, the row's own otherwise
  */
-function resultingDirectionFor(row: SelectedTransactionFacts, direction: BulkDirectionChange | null): TransactionDirection {
-  if (row.isZeroAmount) return 'credit';
-  if (direction === 'reverse') return flipDirection(row.direction);
-  return direction ?? row.direction;
+function resultingDirectionFor(
+  row: SelectedTransactionFacts,
+  direction: BulkDirectionChange | null,
+): TransactionDirection {
+  if (row.isZeroAmount) return 'credit'
+  if (direction === 'reverse') return flipDirection(row.direction)
+  return direction ?? row.direction
 }
 
 /** What a row's own end and far end resolve to under an edit */
 export interface ResolvedTransferEnds {
-  ownEnd: TransferEndChoice | null;
-  farEnd: TransferEndChoice | null;
+  ownEnd: TransferEndChoice | null
+  farEnd: TransferEndChoice | null
 }
 
 /**
@@ -334,29 +323,29 @@ export function resolveTransferEnds(
   choice: BulkEditChoice,
   endsUpRecordingFarSide: boolean,
 ): ResolvedTransferEnds {
-  if (!endsUpRecordingFarSide) return { ownEnd: null, farEnd: null };
+  if (!endsUpRecordingFarSide) return { ownEnd: null, farEnd: null }
 
   return resultingDirectionFor(row, choice.direction) === 'debit'
     ? { ownEnd: choice.transferFrom, farEnd: choice.transferTo }
-    : { ownEnd: choice.transferTo, farEnd: choice.transferFrom };
+    : { ownEnd: choice.transferTo, farEnd: choice.transferFrom }
 }
 
 /** How many selected rows one end of a transfer edit moves into it, or only records it on */
 export interface TransferEndEffect {
   /** Rows whose own account this end sets, so the row itself moves */
-  moves: number;
+  moves: number
 
   /** Rows whose far side this end sets, without moving the row itself */
-  recordsOnly: number;
+  recordsOnly: number
 }
 
 /** What a transfer end edit would do to the rows it covers, for the notice under each control */
 export interface TransferEndEffects {
-  from: TransferEndEffect;
-  to: TransferEndEffect;
+  from: TransferEndEffect
+  to: TransferEndEffect
 
   /** Rows whose resulting category records no far side at all, which the ends cannot touch */
-  leftAlone: number;
+  leftAlone: number
 }
 
 /**
@@ -382,37 +371,37 @@ export function countTransferEndEffects(
     from: { moves: 0, recordsOnly: 0 },
     to: { moves: 0, recordsOnly: 0 },
     leftAlone: 0,
-  };
+  }
 
   for (const row of rows) {
-    const endsUpRecordingFarSide = chosenCategoryRecordsTransferTarget ?? row.recordsFarSide;
+    const endsUpRecordingFarSide = chosenCategoryRecordsTransferTarget ?? row.recordsFarSide
     if (!endsUpRecordingFarSide) {
-      effects.leftAlone += 1;
-      continue;
+      effects.leftAlone += 1
+      continue
     }
 
     // Money out puts From on the row's own account and To on the far side, money in the reverse
-    const fromIsOwn = resultingDirectionFor(row, choice.direction) === 'debit';
-    const ownChoice = fromIsOwn ? choice.transferFrom : choice.transferTo;
-    const farChoice = fromIsOwn ? choice.transferTo : choice.transferFrom;
-    const ownEffect = fromIsOwn ? effects.from : effects.to;
-    const farEffect = fromIsOwn ? effects.to : effects.from;
+    const fromIsOwn = resultingDirectionFor(row, choice.direction) === 'debit'
+    const ownChoice = fromIsOwn ? choice.transferFrom : choice.transferTo
+    const farChoice = fromIsOwn ? choice.transferTo : choice.transferFrom
+    const ownEffect = fromIsOwn ? effects.from : effects.to
+    const farEffect = fromIsOwn ? effects.to : effects.from
 
-    const ownEndStaysPut = ownChoice?.scope === 'tracked' && ownChoice.accountId === row.accountId;
-    if (ownChoice !== null && !ownEndStaysPut) ownEffect.moves += 1;
-    if (farChoice !== null) farEffect.recordsOnly += 1;
+    const ownEndStaysPut = ownChoice?.scope === 'tracked' && ownChoice.accountId === row.accountId
+    if (ownChoice !== null && !ownEndStaysPut) ownEffect.moves += 1
+    if (farChoice !== null) farEffect.recordsOnly += 1
   }
 
-  return effects;
+  return effects
 }
 
 /** Where the direction pills' value came from: a pill the user clicked, or the rule reading the ends */
-export type BulkDirectionSource = 'user' | 'implied';
+export type BulkDirectionSource = 'user' | 'implied'
 
 /** The direction the panel holds, together with what set it */
 export interface BulkDirectionChoice {
-  value: BulkDirectionChange | null;
-  source: BulkDirectionSource;
+  value: BulkDirectionChange | null
+  source: BulkDirectionSource
 }
 
 /**
@@ -441,24 +430,24 @@ export function impliedDirection(
   transferTo: TransferEndChoice | null,
   chosenCategoryRecordsTransferTarget: boolean | undefined,
 ): BulkDirectionChange | null {
-  const transferRows = rows.filter((row) => chosenCategoryRecordsTransferTarget ?? row.recordsFarSide);
-  if (transferRows.length === 0) return null;
+  const transferRows = rows.filter((row) => chosenCategoryRecordsTransferTarget ?? row.recordsFarSide)
+  if (transferRows.length === 0) return null
 
-  const fromIsOutside = transferFrom?.scope === 'outside';
-  const toIsOutside = transferTo?.scope === 'outside';
-  if (fromIsOutside && toIsOutside) return null;
-  if (fromIsOutside) return 'credit';
-  if (toIsOutside) return 'debit';
+  const fromIsOutside = transferFrom?.scope === 'outside'
+  const toIsOutside = transferTo?.scope === 'outside'
+  if (fromIsOutside && toIsOutside) return null
+  if (fromIsOutside) return 'credit'
+  if (toIsOutside) return 'debit'
 
-  const home = transferRows[0].accountId;
-  if (!transferRows.every((row) => row.accountId === home)) return null;
+  const home = transferRows[0].accountId
+  if (!transferRows.every((row) => row.accountId === home)) return null
 
-  const toIsHome = transferTo?.scope === 'tracked' && transferTo.accountId === home;
-  const fromIsHome = transferFrom?.scope === 'tracked' && transferFrom.accountId === home;
+  const toIsHome = transferTo?.scope === 'tracked' && transferTo.accountId === home
+  const fromIsHome = transferFrom?.scope === 'tracked' && transferFrom.accountId === home
 
-  if (toIsHome && !fromIsHome) return 'credit';
-  if (fromIsHome && !toIsHome) return 'debit';
-  return null;
+  if (toIsHome && !fromIsHome) return 'credit'
+  if (fromIsHome && !toIsHome) return 'debit'
+  return null
 }
 
 /**
@@ -475,10 +464,10 @@ export function endsAfterEndPick(
   to: TransferEndChoice | null,
   picked: 'from' | 'to',
 ): { from: TransferEndChoice | null; to: TransferEndChoice | null } {
-  const justPicked = picked === 'from' ? from : to;
-  const other = picked === 'from' ? to : from;
-  if (justPicked?.scope !== 'outside' || other?.scope !== 'outside') return { from, to };
-  return picked === 'from' ? { from, to: null } : { from: null, to };
+  const justPicked = picked === 'from' ? from : to
+  const other = picked === 'from' ? to : from
+  if (justPicked?.scope !== 'outside' || other?.scope !== 'outside') return { from, to }
+  return picked === 'from' ? { from, to: null } : { from: null, to }
 }
 
 /**
@@ -506,19 +495,19 @@ export function endsAfterDirectionClick(
   rows: SelectedTransactionFacts[],
   chosenCategoryRecordsTransferTarget: boolean | undefined,
 ): { from: TransferEndChoice | null; to: TransferEndChoice | null } {
-  let nextFrom = from;
-  let nextTo = to;
+  let nextFrom = from
+  let nextTo = to
 
   for (const row of rows) {
-    const endsUpRecordingFarSide = chosenCategoryRecordsTransferTarget ?? row.recordsFarSide;
-    if (!endsUpRecordingFarSide) continue;
+    const endsUpRecordingFarSide = chosenCategoryRecordsTransferTarget ?? row.recordsFarSide
+    if (!endsUpRecordingFarSide) continue
 
-    const ownSideIsFrom = resultingDirectionFor(row, direction) === 'debit';
-    if (ownSideIsFrom && nextFrom?.scope === 'outside') nextFrom = null;
-    if (!ownSideIsFrom && nextTo?.scope === 'outside') nextTo = null;
+    const ownSideIsFrom = resultingDirectionFor(row, direction) === 'debit'
+    if (ownSideIsFrom && nextFrom?.scope === 'outside') nextFrom = null
+    if (!ownSideIsFrom && nextTo?.scope === 'outside') nextTo = null
   }
 
-  return { from: nextFrom, to: nextTo };
+  return { from: nextFrom, to: nextTo }
 }
 
 /**
@@ -536,32 +525,32 @@ export function nextDirectionAfterEndChange(
   current: BulkDirectionChoice,
   implied: BulkDirectionChange | null,
 ): BulkDirectionChoice {
-  if (implied !== null) return { value: implied, source: 'implied' };
-  if (current.source === 'user') return current;
-  return { value: null, source: 'implied' };
+  if (implied !== null) return { value: implied, source: 'implied' }
+  if (current.source === 'user') return current
+  return { value: null, source: 'implied' }
 }
 
 /** The selected transactions an edit would have the server refuse the whole batch over */
 export interface BulkEditBlockers {
   /** True when selected tags exceed the request bound, with every choice retained for correction */
-  tooManyTags: boolean;
+  tooManyTags: boolean
   /** Rows with no merchant recorded, which the server refuses to edit at all until one is set */
-  withoutMerchant: string[];
+  withoutMerchant: string[]
 
   /** Transfers with no record of where the money went, which the edit has to answer */
-  unansweredFarSide: string[];
+  unansweredFarSide: string[]
 
   /** Rows that would end up recording the account they sit in as their own other side */
-  ownAccountFarSide: string[];
+  ownAccountFarSide: string[]
 
   /** Rows whose own end would resolve to outside the tracked accounts, where only a far end may sit */
-  sitsOutside: string[];
+  sitsOutside: string[]
 
   /** Rows whose own end would resolve to an account in another currency than the row's own */
-  ownSideInAnotherCurrency: string[];
+  ownSideInAnotherCurrency: string[]
 
   /** Rows whose source or resulting own account is no longer available for editing */
-  unavailableOwnAccount: string[];
+  unavailableOwnAccount: string[]
 }
 
 /**
@@ -584,23 +573,22 @@ export function getBulkEditBlockers(
   chosenCategoryRecordsTransferTarget: boolean | undefined,
   currentAccounts?: TransactionListAccount[],
 ): BulkEditBlockers {
-  const withoutMerchant: string[] = [];
-  const unansweredFarSide: string[] = [];
-  const ownAccountFarSide: string[] = [];
-  const sitsOutside: string[] = [];
-  const ownSideInAnotherCurrency: string[] = [];
-  const unavailableOwnAccount: string[] = [];
-  const accountMap = currentAccounts === undefined
-    ? null
-    : new Map(currentAccounts.map((account) => [account.id, account]))
+  const withoutMerchant: string[] = []
+  const unansweredFarSide: string[] = []
+  const ownAccountFarSide: string[] = []
+  const sitsOutside: string[] = []
+  const ownSideInAnotherCurrency: string[] = []
+  const unavailableOwnAccount: string[] = []
+  const accountMap =
+    currentAccounts === undefined ? null : new Map(currentAccounts.map((account) => [account.id, account]))
 
   // An end and a move both write account_id, on whichever rows resolve to be their own, so a stray
   // Move to account choice never actually reaches the request once an end is set, the same rule
   // buildBulkEditFields applies
-  const sendsAnEnd = choice.endsAreOffered && (choice.transferFrom !== null || choice.transferTo !== null);
+  const sendsAnEnd = choice.endsAreOffered && (choice.transferFrom !== null || choice.transferTo !== null)
 
   for (const row of rows) {
-    if (!row.hasMerchant && !choice.merchantId) withoutMerchant.push(row.id);
+    if (!row.hasMerchant && !choice.merchantId) withoutMerchant.push(row.id)
 
     const sourceAccount = accountMap?.get(row.accountId)
     if (accountMap && (sourceAccount?.can_write !== true || sourceAccount?.is_archived)) {
@@ -614,25 +602,25 @@ export function getBulkEditBlockers(
       }
     }
 
-    const endsUpRecordingFarSide = chosenCategoryRecordsTransferTarget ?? row.recordsFarSide;
-    if (!endsUpRecordingFarSide) continue;
+    const endsUpRecordingFarSide = chosenCategoryRecordsTransferTarget ?? row.recordsFarSide
+    if (!endsUpRecordingFarSide) continue
 
-    const { ownEnd, farEnd } = resolveTransferEnds(row, choice, endsUpRecordingFarSide);
+    const { ownEnd, farEnd } = resolveTransferEnds(row, choice, endsUpRecordingFarSide)
 
     // Read in the order the service refuses them: an own end outside the tracked accounts, then
     // one in the wrong currency, then a far side still unanswered. Checking unanswered first would
     // tell the user to answer a far side the server would refuse over the own end regardless
     if (ownEnd?.scope === 'outside') {
-      sitsOutside.push(row.id);
-      continue;
+      sitsOutside.push(row.id)
+      continue
     }
 
     // An own end that resolves to the row's own account moves nothing, so a currency mismatch here
     // is never actually written and would only tell the user to fix a move that was never happening
-    const ownEndStaysPut = ownEnd?.scope === 'tracked' && ownEnd.accountId === row.accountId;
+    const ownEndStaysPut = ownEnd?.scope === 'tracked' && ownEnd.accountId === row.accountId
     if (ownEnd?.scope === 'tracked' && ownEnd.currency !== row.currency && !ownEndStaysPut) {
-      ownSideInAnotherCurrency.push(row.id);
-      continue;
+      ownSideInAnotherCurrency.push(row.id)
+      continue
     }
 
     if (ownEnd?.scope === 'tracked' && accountMap) {
@@ -643,19 +631,21 @@ export function getBulkEditBlockers(
     }
 
     if (farEnd === null && !row.hasFarSideRecorded) {
-      unansweredFarSide.push(row.id);
-      continue;
+      unansweredFarSide.push(row.id)
+      continue
     }
 
-    const resultingOwnAccountId = ownEnd?.scope === 'tracked'
-      ? ownEnd.accountId
-      : (!sendsAnEnd && choice.accountId ? choice.accountId : row.accountId);
-    const resultingFarSideAccountId = farEnd === null
-      ? row.farSideAccountId
-      : farEnd.scope === 'tracked' ? farEnd.accountId : null;
+    const resultingOwnAccountId =
+      ownEnd?.scope === 'tracked'
+        ? ownEnd.accountId
+        : !sendsAnEnd && choice.accountId
+          ? choice.accountId
+          : row.accountId
+    const resultingFarSideAccountId =
+      farEnd === null ? row.farSideAccountId : farEnd.scope === 'tracked' ? farEnd.accountId : null
 
     if (resultingFarSideAccountId !== null && resultingFarSideAccountId === resultingOwnAccountId) {
-      ownAccountFarSide.push(row.id);
+      ownAccountFarSide.push(row.id)
     }
   }
 
@@ -667,7 +657,7 @@ export function getBulkEditBlockers(
     sitsOutside,
     ownSideInAnotherCurrency,
     unavailableOwnAccount,
-  };
+  }
 }
 
 /**
@@ -681,7 +671,8 @@ export function getBulkEditBlockers(
  */
 export function getBulkEditSelectionBlockReason(rows: SelectedTransactionFacts[]): string | undefined {
   if (rows.length === 0) return 'Tick a transaction first'
-  if (rows.length > MAX_BULK_EDIT_TRANSACTIONS) return `Up to ${MAX_BULK_EDIT_TRANSACTIONS} transactions can be edited at once`
+  if (rows.length > MAX_BULK_EDIT_TRANSACTIONS)
+    return `Up to ${MAX_BULK_EDIT_TRANSACTIONS} transactions can be edited at once`
   return undefined
 }
 
@@ -694,20 +685,21 @@ export function getBulkEditSelectionBlockReason(rows: SelectedTransactionFacts[]
 export function getBulkEditChangeProblem(choice: BulkEditChoice, blockers: BulkEditBlockers): string | undefined {
   if (!hasBulkEditChoice(choice)) return 'Choose a change to apply'
 
-  const isBlocked = blockers.withoutMerchant.length > 0
-    || blockers.tooManyTags
-    || blockers.unansweredFarSide.length > 0
-    || blockers.ownAccountFarSide.length > 0
-    || blockers.sitsOutside.length > 0
-    || blockers.ownSideInAnotherCurrency.length > 0
-    || blockers.unavailableOwnAccount.length > 0;
+  const isBlocked =
+    blockers.withoutMerchant.length > 0 ||
+    blockers.tooManyTags ||
+    blockers.unansweredFarSide.length > 0 ||
+    blockers.ownAccountFarSide.length > 0 ||
+    blockers.sitsOutside.length > 0 ||
+    blockers.ownSideInAnotherCurrency.length > 0 ||
+    blockers.unavailableOwnAccount.length > 0
   return isBlocked ? 'Fix the warnings under What changes first' : undefined
 }
 
 /** One row as the selection sees it: an identifier, and whether the app allows editing it */
 export interface SelectableRow {
-  id: string;
-  isReadOnly: boolean;
+  id: string
+  isReadOnly: boolean
 }
 
 /** Returns the row ids that may remain in a selection after current account data is applied. */
@@ -731,34 +723,34 @@ export function isRowSelectable(
   isReadOnly: boolean,
   limit: number = MAX_BULK_EDIT_TRANSACTIONS,
 ): boolean {
-  if (isReadOnly) return false;
-  if (!selectedIds.has(id) && selectedIds.size >= limit) return false;
-  return true;
+  if (isReadOnly) return false
+  if (!selectedIds.has(id) && selectedIds.size >= limit) return false
+  return true
 }
 
 export interface BulkSelectionState {
   /** Transactions the user has ticked */
-  selectedIds: Set<string>;
+  selectedIds: Set<string>
 
   /** The row a range runs from, set by the last click made without shift */
-  anchorId: string | null;
+  anchorId: string | null
 
   /**
    * The ticks as they stood when the anchor was set. A shift-click rebuilds from these, which is
    * what lets a second one re-aim the far end and drop the rows the first one took, while leaving
    * a tick made before the anchor in place
    */
-  baselineIds: Set<string>;
+  baselineIds: Set<string>
 
   /** The row the pointer is over while shift is held, or null when nothing is being previewed */
-  hoveredId: string | null;
+  hoveredId: string | null
 
   /**
    * The transactions shown under the day heading the pointer is over, or null when no heading is
    * being previewed. Held whether or not shift is down, since a day tick takes everything under one
    * heading rather than a range with a far end to aim
    */
-  hoveredGroupIds: string[] | null;
+  hoveredGroupIds: string[] | null
 }
 
 export type BulkSelectionAction =
@@ -772,7 +764,7 @@ export type BulkSelectionAction =
   | { type: 'hover'; id: string | null }
   | { type: 'hoverGroup'; ids: string[] | null }
   | { type: 'keepDisplayed'; ids: string[] }
-  | { type: 'clear' };
+  | { type: 'clear' }
 
 export const emptyBulkSelection: BulkSelectionState = {
   selectedIds: new Set(),
@@ -780,7 +772,7 @@ export const emptyBulkSelection: BulkSelectionState = {
   baselineIds: new Set(),
   hoveredId: null,
   hoveredGroupIds: null,
-};
+}
 
 /**
  * Returns the editable rows lying between two rows on screen, both ends included.
@@ -789,15 +781,15 @@ export const emptyBulkSelection: BulkSelectionState = {
  * what the user sees it mean. A row the app does not allow editing is stepped over.
  */
 function spanBetween(rows: SelectableRow[], anchorId: string, targetId: string): string[] {
-  const anchorIndex = rows.findIndex((row) => row.id === anchorId);
-  const targetIndex = rows.findIndex((row) => row.id === targetId);
-  if (anchorIndex === -1 || targetIndex === -1) return [];
+  const anchorIndex = rows.findIndex((row) => row.id === anchorId)
+  const targetIndex = rows.findIndex((row) => row.id === targetId)
+  if (anchorIndex === -1 || targetIndex === -1) return []
 
-  const [start, end] = anchorIndex <= targetIndex ? [anchorIndex, targetIndex] : [targetIndex, anchorIndex];
+  const [start, end] = anchorIndex <= targetIndex ? [anchorIndex, targetIndex] : [targetIndex, anchorIndex]
   return rows
     .slice(start, end + 1)
     .filter((row) => !row.isReadOnly)
-    .map((row) => row.id);
+    .map((row) => row.id)
 }
 
 /**
@@ -814,15 +806,15 @@ export function resultingSelection(
   rows: SelectableRow[],
   limit: number = MAX_BULK_EDIT_TRANSACTIONS,
 ): Set<string> | null {
-  if (state.anchorId === null) return null;
+  if (state.anchorId === null) return null
 
-  const resulting = new Set(state.baselineIds);
+  const resulting = new Set(state.baselineIds)
   for (const id of spanBetween(rows, state.anchorId, targetId)) {
-    if (resulting.has(id)) continue;
-    if (resulting.size >= limit) break;
-    resulting.add(id);
+    if (resulting.has(id)) continue
+    if (resulting.size >= limit) break
+    resulting.add(id)
   }
-  return resulting;
+  return resulting
 }
 
 /**
@@ -833,7 +825,7 @@ export function resultingSelection(
  * @param rows Every row on screen, which is what says whether one can be edited
  */
 function editableGroupIds(ids: string[], rows: SelectableRow[]): string[] {
-  return ids.filter((id) => rows.find((row) => row.id === id)?.isReadOnly === false);
+  return ids.filter((id) => rows.find((row) => row.id === id)?.isReadOnly === false)
 }
 
 /**
@@ -853,30 +845,30 @@ export function groupResultingSelection(
   rows: SelectableRow[],
   limit: number = MAX_BULK_EDIT_TRANSACTIONS,
 ): Set<string> | null {
-  const editable = editableGroupIds(ids, rows);
-  if (editable.length === 0) return null;
+  const editable = editableGroupIds(ids, rows)
+  if (editable.length === 0) return null
 
-  const unselected = editable.filter((id) => !selectedIds.has(id));
-  const atLimit = selectedIds.size >= limit;
-  const someOfTheDayIsIn = editable.some((id) => selectedIds.has(id));
+  const unselected = editable.filter((id) => !selectedIds.has(id))
+  const atLimit = selectedIds.size >= limit
+  const someOfTheDayIsIn = editable.some((id) => selectedIds.has(id))
 
   if (unselected.length === 0 || (atLimit && someOfTheDayIsIn)) {
-    const resulting = new Set(selectedIds);
-    for (const id of editable) resulting.delete(id);
-    return resulting;
+    const resulting = new Set(selectedIds)
+    for (const id of editable) resulting.delete(id)
+    return resulting
   }
-  if (atLimit) return null;
+  if (atLimit) return null
 
-  const resulting = new Set(selectedIds);
+  const resulting = new Set(selectedIds)
   for (const id of unselected) {
-    if (resulting.size >= limit) break;
-    resulting.add(id);
+    if (resulting.size >= limit) break
+    resulting.add(id)
   }
-  return resulting;
+  return resulting
 }
 
 /** How a day heading is marked, read against the rows it shows that the app allows editing */
-export type GroupSelectionMark = 'none' | 'some' | 'all' | 'unselectable';
+export type GroupSelectionMark = 'none' | 'some' | 'all' | 'unselectable'
 
 /**
  * Returns how a day heading's tick is marked.
@@ -898,12 +890,12 @@ export function groupSelectionMark(
   selectedIds: Set<string>,
   limit: number = MAX_BULK_EDIT_TRANSACTIONS,
 ): GroupSelectionMark {
-  const editable = editableGroupIds(ids, rows);
-  if (editable.length === 0) return 'unselectable';
-  if (editable.every((id) => selectedIds.has(id))) return 'all';
-  if (editable.some((id) => selectedIds.has(id))) return 'some';
-  if (selectedIds.size >= limit) return 'unselectable';
-  return 'none';
+  const editable = editableGroupIds(ids, rows)
+  if (editable.length === 0) return 'unselectable'
+  if (editable.every((id) => selectedIds.has(id))) return 'all'
+  if (editable.some((id) => selectedIds.has(id))) return 'some'
+  if (selectedIds.size >= limit) return 'unselectable'
+  return 'none'
 }
 
 /**
@@ -925,21 +917,21 @@ export function previewSelection(
 ): Set<string> | null {
   // The pointer is over a day heading or over a row, never both, so only one of these is ever set
   if (state.hoveredGroupIds !== null) {
-    return groupResultingSelection(state.selectedIds, state.hoveredGroupIds, rows, limit);
+    return groupResultingSelection(state.selectedIds, state.hoveredGroupIds, rows, limit)
   }
 
-  if (state.hoveredId === null) return null;
-  return resultingSelection(state, state.hoveredId, rows, limit);
+  if (state.hoveredId === null) return null
+  return resultingSelection(state, state.hoveredId, rows, limit)
 }
 
 /** Returns whether two hovered headings are the same one, so a repeated move changes no state */
 function isSameGroup(current: string[] | null, next: string[] | null): boolean {
-  if (current === null || next === null) return current === next;
-  return current.length === next.length && current.every((id, index) => id === next[index]);
+  if (current === null || next === null) return current === next
+  return current.length === next.length && current.every((id, index) => id === next[index])
 }
 
 /** How one row is marked, once any pending shift-click or day tick is taken into account */
-export type RowSelectionMark = 'none' | 'selected' | 'pending';
+export type RowSelectionMark = 'none' | 'selected' | 'pending'
 
 /**
  * Returns how a row is marked while a preview may be up.
@@ -949,14 +941,10 @@ export type RowSelectionMark = 'none' | 'selected' | 'pending';
  * rests nearby. The preview only lifts an unselected row to pending, for the one a pending click
  * would add.
  */
-export function rowSelectionMark(
-  id: string,
-  selectedIds: Set<string>,
-  preview: Set<string> | null,
-): RowSelectionMark {
-  if (selectedIds.has(id)) return 'selected';
-  if (preview !== null && preview.has(id)) return 'pending';
-  return 'none';
+export function rowSelectionMark(id: string, selectedIds: Set<string>, preview: Set<string> | null): RowSelectionMark {
+  if (selectedIds.has(id)) return 'selected'
+  if (preview !== null && preview.has(id)) return 'pending'
+  return 'none'
 }
 
 /**
@@ -973,15 +961,15 @@ export function bulkSelectionReducer(
     case 'toggle': {
       // Whether a row can be ticked is decided here rather than by each caller, so no route into
       // the state can put a row the app will not edit into the selection
-      if (action.rows.find((row) => row.id === action.id)?.isReadOnly !== false) return state;
+      if (action.rows.find((row) => row.id === action.id)?.isReadOnly !== false) return state
 
       // Ticking a row already selected always frees a slot, so only adding a new one is held at
       // the limit
-      if (!state.selectedIds.has(action.id) && state.selectedIds.size >= limit) return state;
+      if (!state.selectedIds.has(action.id) && state.selectedIds.size >= limit) return state
 
-      const selectedIds = new Set(state.selectedIds);
-      if (selectedIds.has(action.id)) selectedIds.delete(action.id);
-      else selectedIds.add(action.id);
+      const selectedIds = new Set(state.selectedIds)
+      if (selectedIds.has(action.id)) selectedIds.delete(action.id)
+      else selectedIds.add(action.id)
 
       // The clicked row becomes the anchor whichever way it went, and the ticks left behind become
       // the baseline the next range builds on
@@ -991,20 +979,20 @@ export function bulkSelectionReducer(
         baselineIds: new Set(selectedIds),
         hoveredId: null,
         hoveredGroupIds: null,
-      };
+      }
     }
 
     case 'extend': {
-      const resulting = resultingSelection(state, action.id, action.rows, limit);
+      const resulting = resultingSelection(state, action.id, action.rows, limit)
       if (resulting === null) {
-        return bulkSelectionReducer(state, { type: 'toggle', id: action.id, rows: action.rows }, limit);
+        return bulkSelectionReducer(state, { type: 'toggle', id: action.id, rows: action.rows }, limit)
       }
-      return { ...state, selectedIds: resulting, hoveredId: null, hoveredGroupIds: null };
+      return { ...state, selectedIds: resulting, hoveredId: null, hoveredGroupIds: null }
     }
 
     case 'toggleGroup': {
-      const resulting = groupResultingSelection(state.selectedIds, action.ids, action.rows, limit);
-      if (resulting === null) return state;
+      const resulting = groupResultingSelection(state.selectedIds, action.ids, action.rows, limit)
+      if (resulting === null) return state
 
       // No single row was clicked, so there is no anchor for a following shift-click to run from.
       // The baseline goes with it rather than being left behind pointing at ticks that have gone.
@@ -1019,49 +1007,50 @@ export function bulkSelectionReducer(
         baselineIds: new Set(resulting),
         hoveredId: null,
         hoveredGroupIds: action.clearsHover ? null : action.ids,
-      };
+      }
     }
 
     case 'hover': {
       // A row under the pointer means no day heading is under it, so a heading preview left behind
       // goes with it. Clearing the row hover leaves the heading preview alone, since releasing shift
       // clears the row hover and a day preview never depended on shift
-      const hoveredGroupIds = action.id === null ? state.hoveredGroupIds : null;
-      if (state.hoveredId === action.id && state.hoveredGroupIds === hoveredGroupIds) return state;
-      return { ...state, hoveredId: action.id, hoveredGroupIds };
+      const hoveredGroupIds = action.id === null ? state.hoveredGroupIds : null
+      if (state.hoveredId === action.id && state.hoveredGroupIds === hoveredGroupIds) return state
+      return { ...state, hoveredId: action.id, hoveredGroupIds }
     }
 
     case 'hoverGroup': {
       // A heading under the pointer means no row is under it, so a row preview left behind goes with
       // it. Without that, moving off the small tick onto the heading's own label would put the old
       // range back up over rows the pointer is nowhere near
-      const hoveredId = action.ids === null ? state.hoveredId : null;
-      if (isSameGroup(state.hoveredGroupIds, action.ids) && state.hoveredId === hoveredId) return state;
-      return { ...state, hoveredGroupIds: action.ids, hoveredId };
+      const hoveredId = action.ids === null ? state.hoveredId : null
+      if (isSameGroup(state.hoveredGroupIds, action.ids) && state.hoveredId === hoveredId) return state
+      return { ...state, hoveredGroupIds: action.ids, hoveredId }
     }
 
     case 'keepDisplayed': {
-      const displayed = new Set(action.ids);
-      const selectedIds = new Set([...state.selectedIds].filter((id) => displayed.has(id)));
+      const displayed = new Set(action.ids)
+      const selectedIds = new Set([...state.selectedIds].filter((id) => displayed.has(id)))
 
-      const baselineIds = new Set([...state.baselineIds].filter((id) => displayed.has(id)));
-      const anchorId = state.anchorId !== null && displayed.has(state.anchorId) ? state.anchorId : null;
+      const baselineIds = new Set([...state.baselineIds].filter((id) => displayed.has(id)))
+      const anchorId = state.anchorId !== null && displayed.has(state.anchorId) ? state.anchorId : null
 
       // Eligibility can remove an unselected anchor or baseline entry without changing the tick count
       if (
-        selectedIds.size === state.selectedIds.size
-        && baselineIds.size === state.baselineIds.size
-        && anchorId === state.anchorId
-      ) return state;
+        selectedIds.size === state.selectedIds.size &&
+        baselineIds.size === state.baselineIds.size &&
+        anchorId === state.anchorId
+      )
+        return state
       return {
         ...state,
         selectedIds,
         baselineIds,
         anchorId,
-      };
+      }
     }
 
     case 'clear':
-      return emptyBulkSelection;
+      return emptyBulkSelection
   }
 }

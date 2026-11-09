@@ -183,9 +183,18 @@ export function BulkEditModal({
     setLastCheckedRowsKey(rowsKey)
 
     const { from: correctedFrom, to: correctedTo } = endsAfterDirectionClick(
-      direction.value, transferFrom, transferTo, rows, chosenCategoryRecordsTransferTarget,
+      direction.value,
+      transferFrom,
+      transferTo,
+      rows,
+      chosenCategoryRecordsTransferTarget,
     )
-    const impliedByCorrectedEnds = impliedDirection(rows, correctedFrom, correctedTo, chosenCategoryRecordsTransferTarget)
+    const impliedByCorrectedEnds = impliedDirection(
+      rows,
+      correctedFrom,
+      correctedTo,
+      chosenCategoryRecordsTransferTarget,
+    )
     const nextDirection = nextDirectionAfterEndChange(direction, impliedByCorrectedEnds)
     if (nextDirection.value !== direction.value) setDirectionHighlightKey((key) => key + 1)
 
@@ -194,19 +203,14 @@ export function BulkEditModal({
     setDirection(nextDirection)
   }
 
-  const moveTargets = useMemo(
-    () => getBulkMoveTargets(accounts, selectedCurrencies),
-    [accounts, selectedCurrencies],
-  )
+  const moveTargets = useMemo(() => getBulkMoveTargets(accounts, selectedCurrencies), [accounts, selectedCurrencies])
   const accountOptions = moveTargets.map((account) => ({ value: account.id, label: account.name ?? 'Account' }))
 
   // Leading blank entry lets a pick be undone without closing the modal, matching From and To, but
   // only when there is an account to move to. Adding it unconditionally would give an empty
   // accountOptions a blank entry that matches the trigger's empty value, hiding the placeholder
   // computed below for a currency no unarchived account the user can write to holds
-  const moveAccountOptions = accountOptions.length > 0
-    ? [{ value: '', label: 'Leave as is' }, ...accountOptions]
-    : []
+  const moveAccountOptions = accountOptions.length > 0 ? [{ value: '', label: 'Leave as is' }, ...accountOptions] : []
 
   const endTargets = useMemo(() => getTransferEndTargets(accounts), [accounts])
   const endOptions = [
@@ -265,7 +269,11 @@ export function BulkEditModal({
 
     const nextValue = value === 'unchanged' ? null : value
     const { from: nextFrom, to: nextTo } = endsAfterDirectionClick(
-      nextValue, transferFrom, transferTo, rows, chosenCategoryRecordsTransferTarget,
+      nextValue,
+      transferFrom,
+      transferTo,
+      rows,
+      chosenCategoryRecordsTransferTarget,
     )
     setTransferFrom(nextFrom)
     setTransferTo(nextTo)
@@ -299,10 +307,7 @@ export function BulkEditModal({
   const accountName = (id: string) => accounts.find((account) => account.id === id)?.name ?? 'Account'
 
   const merchantSearch = useDebouncedReferenceSearch(REFERENCE_SEARCH_DEBOUNCE_MS)
-  const merchantQuery = useInfiniteMerchants(
-    { q: merchantSearch.activeSearchText || undefined },
-    REFERENCE_PAGE_SIZE,
-  )
+  const merchantQuery = useInfiniteMerchants({ q: merchantSearch.activeSearchText || undefined }, REFERENCE_PAGE_SIZE)
   const merchants = merchantQuery.data?.pages.flat() ?? []
   const merchantOptions = merchants.map((record) => ({ value: record.id, label: record.name }))
 
@@ -324,16 +329,18 @@ export function BulkEditModal({
 
   // The trigger uses the blank value required by the multi-select dropdown
   // An empty selection with Override enabled represents an intentional clear
-  const chosenTagsOption = chosenTags.length > 0
-    ? { value: '', label: formatValueList(chosenTags.map((tag) => tag.label)) }
-    : overrideTags ? { value: '', label: REMOVE_ALL_TAGS_LABEL } : undefined
+  const chosenTagsOption =
+    chosenTags.length > 0
+      ? { value: '', label: formatValueList(chosenTags.map((tag) => tag.label)) }
+      : overrideTags
+        ? { value: '', label: REMOVE_ALL_TAGS_LABEL }
+        : undefined
 
   // An implied direction is tied to the pairing of ends that produced it, so it drops out once
   // endsAreOffered goes false, as when a category change turns the controls off, rather than
   // outliving the controls it came from. A direction the user picked has no such tie and stays
-  const effectiveDirection: BulkDirectionChange | null = direction.source === 'implied' && !endsAreOffered
-    ? null
-    : direction.value
+  const effectiveDirection: BulkDirectionChange | null =
+    direction.source === 'implied' && !endsAreOffered ? null : direction.value
 
   const choice: BulkEditChoice = {
     categoryId,
@@ -382,7 +389,8 @@ export function BulkEditModal({
   // instead
   let moveAccountReason: string | undefined
   if (spansMultipleCurrencies) {
-    moveAccountReason = 'The selected transactions span more than one currency, so they cannot move to one account together'
+    moveAccountReason =
+      'The selected transactions span more than one currency, so they cannot move to one account together'
   } else if (hasNoAccountForCurrency) {
     moveAccountReason = 'No unarchived account holds this currency'
   } else if (sendsAnEnd) {
@@ -427,8 +435,8 @@ export function BulkEditModal({
       <div className="space-y-5">
         {isMixedSelection(rows) && (
           <InfoCallout>
-            You selected both transfers and other transactions. We recommend editing them separately
-            to avoid unintended changes to either kind.
+            You selected both transfers and other transactions. We recommend editing them separately to avoid unintended
+            changes to either kind.
           </InfoCallout>
         )}
 
@@ -458,7 +466,13 @@ export function BulkEditModal({
                       key={directionHighlightKey}
                       className="pointer-events-none absolute inset-0 rounded-lg"
                       initial={{ boxShadow: '0 0 0 0 var(--app-accent-soft)' }}
-                      animate={{ boxShadow: ['0 0 0 0 var(--app-accent-soft)', '0 0 0 3px var(--app-accent-soft)', '0 0 0 0 var(--app-accent-soft)'] }}
+                      animate={{
+                        boxShadow: [
+                          '0 0 0 0 var(--app-accent-soft)',
+                          '0 0 0 3px var(--app-accent-soft)',
+                          '0 0 0 0 var(--app-accent-soft)',
+                        ],
+                      }}
                       exit={{ opacity: 0 }}
                       transition={{ duration: 0.45, ease: EASE }}
                       aria-hidden
@@ -516,12 +530,7 @@ export function BulkEditModal({
           <div className="grid gap-3 sm:grid-cols-2">
             <div>
               <CreateModalFieldLabelRow htmlFor="bulk-date" label="Date" />
-              <DateField
-                id="bulk-date"
-                ariaLabel="Date"
-                value={date}
-                onChange={setDate}
-              />
+              <DateField id="bulk-date" ariaLabel="Date" value={date} onChange={setDate} />
             </div>
 
             <div>
@@ -531,9 +540,9 @@ export function BulkEditModal({
                 options={merchantDropdownOptions}
                 value={merchantId}
                 selectedOption={merchant ?? undefined}
-                onChange={(value) => setMerchant(
-                  value === '' ? null : merchantOptions.find((option) => option.value === value) ?? null,
-                )}
+                onChange={(value) =>
+                  setMerchant(value === '' ? null : (merchantOptions.find((option) => option.value === value) ?? null))
+                }
                 placeholder="Leave as is"
                 blankOptionIsPlaceholder
                 searchable
@@ -563,7 +572,7 @@ export function BulkEditModal({
               <CreateModalFieldLabelRow
                 htmlFor="bulk-tags"
                 label="Add a tag"
-                action={(
+                action={
                   <div className="flex items-center gap-1.5 text-xs">
                     <Checkbox
                       checked={overrideTags}
@@ -574,7 +583,7 @@ export function BulkEditModal({
                       Override existing tags
                     </span>
                   </div>
-                )}
+                }
               />
               <Dropdown
                 id="bulk-tags"
@@ -607,18 +616,14 @@ export function BulkEditModal({
               <CreateModalFieldLabelRow
                 htmlFor="bulk-note"
                 label="Note"
-                action={(
+                action={
                   <div className="flex items-center gap-1.5 text-xs">
-                    <Checkbox
-                      checked={clearsNote}
-                      label="Take the note off instead"
-                      onChange={toggleClearsNote}
-                    />
+                    <Checkbox checked={clearsNote} label="Take the note off instead" onChange={toggleClearsNote} />
                     <span aria-hidden onClick={toggleClearsNote}>
                       Take the note off instead
                     </span>
                   </div>
-                )}
+                }
               />
               <input
                 id="bulk-note"
@@ -643,7 +648,11 @@ export function BulkEditModal({
               className="outline-none"
               aria-describedby={refusal.errors.changes ? CHANGES_ERROR_ID : undefined}
             >
-              <CreateModalSectionHeadingRow label="What changes" error={refusal.errors.changes} errorId={CHANGES_ERROR_ID} />
+              <CreateModalSectionHeadingRow
+                label="What changes"
+                error={refusal.errors.changes}
+                errorId={CHANGES_ERROR_ID}
+              />
             </div>
             <BulkEditSummaryPanel summary={summary} />
           </div>

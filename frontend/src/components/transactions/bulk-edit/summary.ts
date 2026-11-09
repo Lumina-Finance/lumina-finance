@@ -170,12 +170,15 @@ function transferEndDetail(
     clauses.push(`${effect.moves} of the ${total} ${effect.moves === 1 ? 'moves' : 'move'} into ${accountLabel}`)
   }
   if (effect.recordsOnly > 0 && effect.recordsOnly < total) {
-    const verb = end === 'to'
-      ? (effect.recordsOnly === 1 ? 'goes' : 'go')
-      : (effect.recordsOnly === 1 ? 'comes' : 'come')
-    const target = end === 'to'
-      ? (choice?.scope === 'outside' ? 'outside this app' : `to ${accountLabel}`)
-      : (choice?.scope === 'outside' ? 'from outside this app' : `from ${accountLabel}`)
+    const verb = end === 'to' ? (effect.recordsOnly === 1 ? 'goes' : 'go') : effect.recordsOnly === 1 ? 'comes' : 'come'
+    const target =
+      end === 'to'
+        ? choice?.scope === 'outside'
+          ? 'outside this app'
+          : `to ${accountLabel}`
+        : choice?.scope === 'outside'
+          ? 'from outside this app'
+          : `from ${accountLabel}`
     clauses.push(`${effect.recordsOnly} of the ${total} now ${verb} ${target}`)
   }
 
@@ -183,10 +186,7 @@ function transferEndDetail(
 }
 
 /** Returns the account's label or "Outside this app" for a transfer end choice that is actually set */
-function transferEndValueLabel(
-  choice: TransferEndChoice,
-  accountLabelById: (accountId: string) => string,
-): string {
+function transferEndValueLabel(choice: TransferEndChoice, accountLabelById: (accountId: string) => string): string {
   return choice.scope === 'outside' ? OUTSIDE_ACCOUNT_LABEL : accountLabelById(choice.accountId)
 }
 
@@ -230,16 +230,17 @@ export function describeBulkEdit(
   const directionValue = fields.direction ?? fields.transfer_direction
   if (directionValue) {
     const directionIsImplied = fields.transfer_direction !== undefined
-    const directionRowCount = rows.filter((row) =>
-      !row.isZeroAmount
-        && (!directionIsImplied || (chosenCategoryRecordsTransferTarget ?? row.recordsFarSide)),
+    const directionRowCount = rows.filter(
+      (row) =>
+        !row.isZeroAmount && (!directionIsImplied || (chosenCategoryRecordsTransferTarget ?? row.recordsFarSide)),
     ).length
     summaryRows.push({
       label: 'Direction',
       value: directionRowCount === 0 ? 'Unchanged' : DIRECTION_ROW_VALUES[directionValue],
-      detail: directionRowCount < rows.length
-        ? `applies to ${directionRowCount} of the ${rows.length} selected transactions`
-        : undefined,
+      detail:
+        directionRowCount < rows.length
+          ? `applies to ${directionRowCount} of the ${rows.length} selected transactions`
+          : undefined,
     })
   }
   if (fields.account_id !== undefined) {
@@ -252,9 +253,10 @@ export function describeBulkEdit(
 
       // Hidden once every row moves or none does, the same rule the end details use below, since
       // only a partial move needs to say how many of the selection actually goes
-      detail: moveCount > 0 && moveCount < rows.length
-        ? `${moveCount} of the ${rows.length} ${moveCount === 1 ? 'moves' : 'move'} into ${moveAccountLabel}`
-        : undefined,
+      detail:
+        moveCount > 0 && moveCount < rows.length
+          ? `${moveCount} of the ${rows.length} ${moveCount === 1 ? 'moves' : 'move'} into ${moveAccountLabel}`
+          : undefined,
     })
   }
   if (fields.merchant_id !== undefined) {
@@ -264,9 +266,11 @@ export function describeBulkEdit(
     summaryRows.push({ label: 'Category', value: labels.categoryLabel })
   }
   if (fields.override_tags) {
-    summaryRows.push(fields.add_tag_ids?.length
-      ? { label: 'Tags replaced', value: formatValueList(labels.tagLabels) }
-      : { label: 'Tags removed', value: 'All tags' })
+    summaryRows.push(
+      fields.add_tag_ids?.length
+        ? { label: 'Tags replaced', value: formatValueList(labels.tagLabels) }
+        : { label: 'Tags removed', value: 'All tags' },
+    )
   } else if (fields.add_tag_ids !== undefined) {
     summaryRows.push({ label: 'Tags added', value: formatValueList(labels.tagLabels) })
   }
@@ -328,9 +332,7 @@ export function describeBulkEdit(
     if (zeroCount > 0) {
       notes.push({
         key: 'zero-direction',
-        text: zeroCount === 1
-          ? 'The zero amount remains Credit.'
-          : `${zeroCount} zero amounts remain Credit.`,
+        text: zeroCount === 1 ? 'The zero amount remains Credit.' : `${zeroCount} zero amounts remain Credit.`,
       })
     }
   }
@@ -375,8 +377,9 @@ export function describeBulkEdit(
     const noun = rows.length === 1 ? 'transaction' : 'transactions'
     warnings.push({
       key: `currency-${mismatch.rowCurrency}-${mismatch.targetCurrency}`,
-      text: `${shareOpening(mismatch.count, rows.length)} ${noun} in ${mismatch.rowCurrency} `
-        + `can't move to a ${mismatch.targetCurrency} account.`,
+      text:
+        `${shareOpening(mismatch.count, rows.length)} ${noun} in ${mismatch.rowCurrency} ` +
+        `can't move to a ${mismatch.targetCurrency} account.`,
     })
   }
   if (blockers.unavailableOwnAccount.length > 0) {
