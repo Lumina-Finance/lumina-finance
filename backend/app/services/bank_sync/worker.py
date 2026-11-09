@@ -125,9 +125,9 @@ async def run_jobs(max_jobs: int, deadline: datetime | None = None) -> int:
     """
     get_email_sender()
 
-    # A job that changes the ledger, as an auto-approved correction or removal does, flushes rows whose
-    # foreign keys name tables nothing the sync imports declares, such as the import runs a transaction
-    # points to. The app's routes load every model between them, and neither runner of jobs has any
+    # A job's flush resolves foreign keys to tables nothing the sync imports declares, such as the
+    # import runs a ledger transaction points to. The app's routes load every model between them, and
+    # neither runner of jobs has any
     import_all_models()
     claimed = 0
     while claimed < max_jobs and (deadline is None or datetime.now(UTC) + JOB_TIME_LIMIT <= deadline):

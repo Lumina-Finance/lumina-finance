@@ -639,10 +639,10 @@ asyncio.run(worker.run_jobs(1))
 
 
 def test_worker_registers_every_table_before_running_jobs():
-    """A job changing the ledger fails unless its runner has every model, since flushing needs them all
+    """A job fails unless its runner has every model, since flushing needs them all
 
-    An auto-approved correction changes a ledger transaction. Its flush resolves its foreign key to
-    the import runs, and nothing the sync imports declares them. The worker runs every job through
+    A job's flush resolves foreign keys such as a ledger transaction's to the import runs, and
+    nothing the sync imports declares them. The worker runs every job through
     run_jobs. A clean interpreter is what makes this meaningful, since this process registered every
     model long ago
     """
