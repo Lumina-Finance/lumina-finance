@@ -198,7 +198,7 @@ async def test_review_list_shows_each_kind_with_the_values_its_review_compares(c
 
     assert [datetime.fromisoformat(listed.pop("received_at")) for listed in page["items"]] == [_RECEIVED_AT] * 4
     item = {"provider": "fake", "provider_name": "Fake Bank", "version": 1}
-    new_item = {"transaction_id": None, "current": None, "changed_fields": [], "protected_fields": [], "needs_merchant_or_category": True}
+    new_item = {"transaction_id": None, "current": None, "changed_fields": [], "protected_fields": []}
     assert page == {
         "items": [
             {
@@ -227,7 +227,6 @@ async def test_review_list_shows_each_kind_with_the_values_its_review_compares(c
                 "current": _bank_values(date(2026, 10, 1), -400, "SQ *BLUE BOTTLE"),
                 "changed_fields": ["date", "amount", "description"],
                 "protected_fields": ["amount"],
-                "needs_merchant_or_category": False,
             },
             {
                 **item,
@@ -239,7 +238,6 @@ async def test_review_list_shows_each_kind_with_the_values_its_review_compares(c
                 "current": _bank_values(date(2026, 10, 1), -1250),
                 "changed_fields": [],
                 "protected_fields": [],
-                "needs_merchant_or_category": False,
             },
         ],
         "counts": {"new": 2, "correction": 1, "removal": 1},

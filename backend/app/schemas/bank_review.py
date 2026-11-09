@@ -40,10 +40,6 @@ class BankReviewItemResponse(BaseModel):
     # The fields the correction changes that the user had edited
     protected_fields: list[EditableBankField]
 
-    # Whether the item can't be added until the user chooses its merchant and category, true of
-    # every new item
-    needs_merchant_or_category: bool
-
 
 class BankReviewCountsResponse(BaseModel):
     """How many items wait of each kind, across every page"""

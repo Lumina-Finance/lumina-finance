@@ -173,7 +173,6 @@ def build_review_item(
             current=None,
             changed_fields=[],
             protected_fields=[],
-            needs_merchant_or_category=True,
         )
 
     # The ledger holds the approved date and amount, and the record the description they were
@@ -191,7 +190,6 @@ def build_review_item(
         current=current,
         changed_fields=changed,
         protected_fields=[field for field in edited_fields(record, ledger_date, ledger_amount) if field in changed],
-        needs_merchant_or_category=False,
     )
 
 
