@@ -158,11 +158,9 @@ pytestmark = pytest.mark.usefixtures("worker_sessions")
 
 
 @pytest.fixture
-def provider(monkeypatch) -> FakeProviderAdapter:
-    """Serve the connections' provider through a scripted fake"""
-    fake = FakeProviderAdapter()
-    use_adapter(monkeypatch, fake)
-    return fake
+def provider(fake_provider) -> FakeProviderAdapter:
+    """The scripted fake serving the connections' provider"""
+    return fake_provider
 
 
 def _synced_through_yesterday(**values) -> dict:
