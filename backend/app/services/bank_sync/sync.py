@@ -4,7 +4,12 @@ A job lists the connection's bank accounts first only when it was flagged to, a 
 bank account, or the last listing is over 7 days old. A daily sync lists nothing otherwise, since
 its fetch brings back each linked bank account's balance, and one that vanished from the fetch
 queues the next job to list first. A window whose response may have been cut short
-is fetched again in halves. Each request is counted against the connection's budget in a
+is fetched again in halves. So is a window the provider refused for a link, meaning it brought
+back no data for it, when it spans over 45 days, and only for the links refused. A refusal of a
+window of 45 days or less stops those links with a reason, with no retry series, until the next
+daily sync or a Sync now asks again at the full window, and never moves a checkpoint. The links
+the same request brought data for keep it. An outage, a rejected credential, a bank sign-in and
+a payment problem keep their own handling. Each request is counted against the connection's budget in a
 transaction of its own before it is sent, and a job that finds the budget spent queues itself again
 for when a request frees. A link whose fetch failed is left out of the rest of the job, and the job
 it queues plans it only once no other link is due, so a link failing on every request can't take
@@ -52,6 +57,7 @@ import asyncio
 import logging
 import uuid
 from collections.abc import Collection, Mapping, Sequence
+from dataclasses import replace
 from datetime import UTC, date, datetime, timedelta
 from zoneinfo import ZoneInfo
 
@@ -93,7 +99,13 @@ from app.services.bank_sync.provider_requests import (
     reserve_provider_request,
 )
 from app.services.bank_sync.providers.contract import ExternalAccount, FetchResult, ProviderAdapter, ProviderError
-from app.services.bank_sync.retries import is_waiting_to_retry, queue_next_retry, record_failed_attempt, record_successful_attempt
+from app.services.bank_sync.retries import (
+    is_waiting_to_retry,
+    queue_next_retry,
+    record_failed_attempt,
+    record_refused_attempt,
+    record_successful_attempt,
+)
 from app.services.bank_sync.review_pause import apply_review_pauses
 from app.services.bank_sync.schedule import next_daily_sync, schedule_next_sync
 from app.services.bank_sync.windows import LinkNeed, SyncWindow, find_due_links, first_missing_day, plan_window
@@ -112,6 +124,14 @@ DISCOVERY_MAX_AGE = timedelta(days=7)
 # Why a link's attempt failed when a response listed its bank account in another currency than its
 # account's, as the account's sync status shows it
 _CURRENCY_CHANGED_REASON = "{provider} now reports this bank account in {currency}, not {account_currency}"
+
+# A window longer than this that the provider refuses is asked for again in two halves. One this long
+# or shorter that it refuses stops the link, since asking again would meet the same refusal. The
+# provider notes any request over 45 days as past its recommended range
+REFUSED_WINDOW_RETRY_DAYS = 45
+
+# Why a link stopped when the provider refused even a short window for it, as the account's sync status shows it
+_REFUSED_REASON = "{provider} refused the dates asked for. Use Sync now to try again"
 
 
 class _CredentialReplaced(Exception):
@@ -246,6 +266,9 @@ class _JobRun:
 
         # The links a part of this job didn't bring back whole, left out of the rest of it
         self.failed: set[uuid.UUID] = set()
+
+        # Those among them the provider refused even a short window for, which no later part of the job asks for
+        self.stopped: set[uuid.UUID] = set()
 
         # The links the user asked to sync now, due whatever their next attempt. Those this job ends
         # without an attempt for pass to the job it queues next
@@ -419,6 +442,13 @@ class _JobRun:
         moved = False
         while parts:
             part = parts.pop()
+
+            # A link the provider refused even a short window for takes no later part of this one
+            live = tuple(need for need in part.needs if need.link.id not in self.stopped)
+            if not live:
+                continue
+            if len(live) != len(part.needs):
+                part = replace(part, needs=live)
             answered = await self._fetch_part(part)
             if answered is None:
                 return None
@@ -431,6 +461,8 @@ class _JobRun:
                 logger.warning("Bank sync job %s kept %s whole, though its response may have been cut short", self.job.id, part.first_day)
             synced = _synced_bank_accounts(result)
             failures: dict[uuid.UUID, ProviderError] = {}
+            refusals: dict[uuid.UUID, str] = {}
+            retry_needs: list[LinkNeed] = []
             for need in part.needs:
                 link = need.link
                 bank_account = synced.get(link.external_account_id)
@@ -452,14 +484,28 @@ class _JobRun:
                     # first miss after a success asks for one, so a bank account the provider keeps
                     # failing for doesn't double the requests each retry spends
                     left_out = all(listed.external_id != link.external_account_id for listed in result.accounts)
-                    if left_out and login not in result.login_errors and not is_waiting_to_retry(link):
+                    if left_out and login not in result.login_errors and link.last_failure_reason is None:
                         self.relist = not self.listed
+                    if _is_refusal(result, link.external_account_id, failure):
+                        # Asked again for a shorter window, first half then second, for the links
+                        # refused. Where the window is already short, the link stops with the reason
+                        if part.days > REFUSED_WINDOW_RETRY_DAYS:
+                            retry_needs.append(need)
+                            continue
+                        if link.id not in self.failed:
+                            self.failed.add(link.id)
+                            self.stopped.add(link.id)
+                            refusals[link.id] = _REFUSED_REASON.format(provider=self.adapter.provider_name)
+                        continue
                 if failure is None:
                     self.deferred.discard(link.id)
                 elif link.id not in self.failed:
                     self.failed.add(link.id)
                     failures[link.id] = failure
-            moved = await self._write(part, synced, failures, sent_with=credential, sent_at=sent_at, cut_off=result.possibly_cut_off)
+            moved = await self._write(part, synced, failures, refusals, sent_with=credential, sent_at=sent_at, cut_off=result.possibly_cut_off)
+            if retry_needs:
+                earlier, later = SyncWindow(part.first_day, part.last_day, tuple(retry_needs)).halves()
+                parts += [later, earlier]
         return moved
 
     async def _fetch_part(self, part: SyncWindow) -> tuple[FetchResult, str, datetime] | None:
@@ -498,6 +544,7 @@ class _JobRun:
         part: SyncWindow,
         synced: Mapping[str, ExternalAccount],
         failures: Mapping[uuid.UUID, ProviderError],
+        refusals: Mapping[uuid.UUID, str],
         *,
         sent_with: str,
         sent_at: datetime,
@@ -535,6 +582,7 @@ class _JobRun:
             part: The days fetched, and the links they were fetched for
             synced: The bank accounts the response brought back whole, by external id
             failures: Why the response failed each link it hadn't already failed in this job, by link id
+            refusals: The reason each link stops for that the provider refused even a short window for, by link id
             sent_with: The credential the request went out with
             sent_at: When the request went out, the time its records were observed at
             cut_off: The response may have been cut short, but only a single day's is when written
@@ -570,11 +618,14 @@ class _JobRun:
                     link.last_success_at = self.now
                     record_successful_attempt(link, at=sent_at, next_sync=self.next_sync if part.last_day == self.today else None)
                     succeeded.append(link)
-            failed = [link for link in held if link.id in failures]
+            failed = [link for link in held if link.id in failures or link.id in refusals]
             for link in failed:
-                record_failed_attempt(link, failures[link.id], at=sent_at, next_sync=self.next_sync)
+                if link.id in refusals:
+                    record_refused_attempt(link, refusals[link.id], at=sent_at, next_sync=self.next_sync)
+                else:
+                    record_failed_attempt(link, failures[link.id], at=sent_at, next_sync=self.next_sync)
             clear_signin_needed(whole)
-            signin_needed = [link for link in failed if failures[link.id].kind == ProviderErrorKind.BANK_LOGIN_NEEDED]
+            signin_needed = [link for link in failed if link.id in failures and failures[link.id].kind == ProviderErrorKind.BANK_LOGIN_NEEDED]
             emails = await flag_signin_needed(db, connection, signin_needed, at=sent_at)
             cleared = clear_no_history_reminders(deliveries)
             reminded = raise_history_reminders(whole, today=self.today) or cleared
@@ -769,6 +820,15 @@ def _synced_bank_accounts(result: FetchResult) -> dict[str, ExternalAccount]:
         for account in result.accounts
         if account.external_id not in result.account_errors and account.bank_login not in result.login_errors
     }
+
+
+def _is_refusal(result: FetchResult, external_id: str, failure: ProviderError) -> bool:
+    """Return whether a failure is the provider refusing the dates: an error of the account's own, or its being left out
+
+    A bank login's error comes first in the failure, so it is never one. An outage or a slow-down
+    fails the whole request instead and never reaches an account
+    """
+    return failure.kind in (ProviderErrorKind.TEMPORARY, ProviderErrorKind.UNKNOWN) and result.account_errors.get(external_id) is failure
 
 
 def _failure_of(result: FetchResult, external_id: str, stored_login: str | None) -> ProviderError:

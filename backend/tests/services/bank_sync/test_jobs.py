@@ -255,9 +255,7 @@ async def test_enqueue_moves_a_queued_import_to_the_later_time_only_for_an_impor
     Only an import waits like that. A scheduled sync or a retry already queued runs at the earlier time
     """
     now = datetime.now(UTC)
-    requests = [
-        {"kind": kind, "run_after": now + timedelta(minutes=wait), "moves_queued_import_later": True} for kind, wait in (first, second)
-    ]
+    requests = [{"kind": kind, "run_after": now + timedelta(minutes=wait), "moves_queued_import_later": True} for kind, wait in (first, second)]
 
     _, run_after = await _enqueue_as_owner(connections[0], *requests)
 

@@ -47,6 +47,11 @@ class SyncWindow:
     # Each link whose need begins on or before last_day
     needs: tuple[LinkNeed, ...]
 
+    @property
+    def days(self) -> int:
+        """Return how many calendar days the window spans"""
+        return (self.last_day - self.first_day).days + 1
+
     def bounds(self, timezone: ZoneInfo) -> tuple[datetime, datetime]:
         """Return the instant the window starts and the instant it ends before, each a midnight in the timezone"""
         return _midnight(self.first_day, timezone), _midnight(self.last_day + _ONE_DAY, timezone)

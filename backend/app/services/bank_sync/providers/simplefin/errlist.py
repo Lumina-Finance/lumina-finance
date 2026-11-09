@@ -98,7 +98,15 @@ def fetch_result(
         (warnings if has_data else request_errors).append(ProviderError(kind, text))
 
     if request_errors:
-        return FetchResult(request_error=min(request_errors, key=_seriousness), warnings=tuple(warnings))
+        error = min(request_errors, key=_seriousness)
+
+        # A fetch the Bridge answered with a problem of its own and no data refuses the dates for every
+        # account it asked for. That differs from a Bridge that couldn't be reached, which is no answer,
+        # so each account carries the refusal and the sync can try a shorter window
+        if requested_account_ids and error.kind in (ProviderErrorKind.TEMPORARY, ProviderErrorKind.UNKNOWN):
+            refused = {account_id: error for account_id in requested_account_ids}
+            return FetchResult(account_errors={**refused, **account_errors}, login_errors=login_errors, warnings=tuple(warnings))
+        return FetchResult(request_error=error, warnings=tuple(warnings))
 
     returned_ids = {account.external_id for account in accounts}
     for account_id in requested_account_ids:

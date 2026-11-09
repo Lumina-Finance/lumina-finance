@@ -10,7 +10,8 @@ before its retry is due, so it isn't fetched ahead of its schedule with the conn
 Retrying can't fix a rejected credential, a bank sign-in problem or a payment problem, so none
 starts a series: a rejected credential stops the connection's automatic sync until the user
 reconnects, and a link whose bank needs a sign-in, or whose provider needs a payment, stays on the
-connection's daily schedule. A retry, like any sync, waits
+connection's daily schedule. Nor does a refused date range, which the sync first tries again in halves and
+then stops on, as the sync module describes. A retry, like any sync, waits
 for a free request when the budget is spent or the provider has asked for fewer requests. That
 counts as no attempt
 """
@@ -84,6 +85,25 @@ def record_failed_attempt(link: BankAccountLink, error: ProviderError, *, at: da
     waits = (*RETRY_DELAYS, RETRY_SERIES_REST)
     link.retry_count = link.retry_count % len(waits) + 1
     link.next_attempt_at = at + waits[link.retry_count - 1]
+
+
+def record_refused_attempt(link: BankAccountLink, reason: str, *, at: datetime, next_sync: datetime) -> None:
+    """Record an attempt the provider refused even for a short window, which starts no retry series
+
+    Asking again for the same dates only meets the same refusal, so nothing retries the link. It
+    syncs again with the connection's next daily sync, at the full window, or when the user asks for
+    a sync. The refusal never moves the link's checkpoint, and it ends any retry series the link was in
+
+    Args:
+        link: The link, locked by the caller
+        reason: Why the attempt failed. The account's sync status shows it
+        at: When the attempt's request was sent
+        next_sync: When the link's next daily sync falls
+    """
+    link.last_attempt_at = at
+    link.last_failure_reason = reason
+    link.retry_count = 0
+    link.next_attempt_at = next_sync
 
 
 async def queue_next_retry(

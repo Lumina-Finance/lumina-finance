@@ -97,7 +97,7 @@ def _read_import_state(link: BankAccountLink, action: ActionNeededKind | None, b
     """
     if syncing:
         return "running"
-    if is_waiting_to_retry(link) or action is not None:
+    if is_waiting_to_retry(link) or action is not None or link.last_failure_reason is not None:
         return "waiting"
     return "running" if budget.available_again_at is None else "waiting_on_budget"
 
