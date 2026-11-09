@@ -142,7 +142,7 @@ async def flag_rejected_credential(db: AsyncSession, connection: BankConnection,
         await db.scalars(
             select(Account.name)
             .join(BankAccountLink, BankAccountLink.account_id == Account.id)
-            .where(BankAccountLink.connection_id == connection.id, BankAccountLink.state != BankLinkState.UNLINKED)
+            .where(BankAccountLink.connection_id == connection.id, LIVE_LINK)
             .order_by(Account.name)
         )
     ).all()
