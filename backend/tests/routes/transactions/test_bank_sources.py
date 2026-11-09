@@ -8,6 +8,8 @@ transaction reads none, and the source outlives the link and connection it came 
 from datetime import UTC, datetime
 from uuid import UUID
 
+import pytest
+
 from app.models.account import Account
 from app.models.bank_connection import BankAccountLink, BankConnection, BankLinkState
 from app.models.bank_transaction import BankTransaction, OpenReviewKind
@@ -24,6 +26,9 @@ from tests.routes.support.bank_sync_helpers import (
 )
 from tests.routes.support.query_helpers import _get_with_selects, _recorded_statements
 from tests.routes.transactions._helpers import _create_transaction, _setup_user_with_deps
+
+# The sources name the provider they came through, so the fake one is installed
+pytestmark = pytest.mark.usefixtures("fake_provider")
 
 
 def _bank_source(

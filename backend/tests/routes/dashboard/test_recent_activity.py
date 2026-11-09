@@ -1,9 +1,14 @@
 from datetime import UTC, datetime
 
+import pytest
+
 from tests.routes.dashboard._helpers import _create_category, _create_transaction, _FixedClock
 from tests.routes.support import _create_account, _create_user, _get_auth_header
 from tests.routes.support.bank_sync_helpers import BANK_DATE, _record_bank_source
 from tests.routes.support.query_helpers import _get_with_selects
+
+# The bank source names the provider it came through, so the fake one is installed
+pytestmark = pytest.mark.usefixtures("fake_provider")
 
 
 async def test_recent_activity_carries_each_transactions_bank_source(client, monkeypatch):

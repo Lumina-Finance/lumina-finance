@@ -216,14 +216,18 @@ def abuse_log_lines() -> Iterator[list[str]]:
 
 
 @pytest.fixture(autouse=True)
-def fake_provider(monkeypatch) -> FakeProviderAdapter:
-    """Install the scripted fake provider, enabled and offered, as the only provider. Every bank sync test's connections use it
+def no_bank_provider(monkeypatch) -> None:
+    """Leave every provider out, as a server offering no bank sync has none, so a test reads the same whichever provider folders the server has
 
-    Real providers are left out so a test reads the same whichever provider folders the server has.
-    A provider's own tests install it again
+    A bank test installs the fake provider over this, and a provider's own tests install it again
     """
     for provider_id in list(installed_providers()):
         remove_provider(monkeypatch, provider_id)
+
+
+@pytest.fixture
+def fake_provider(no_bank_provider, monkeypatch) -> FakeProviderAdapter:
+    """Install the scripted fake provider, enabled and offered, as the only provider. Every bank sync test's connections use it"""
     adapter = FakeProviderAdapter()
     use_adapter(monkeypatch, adapter)
     return adapter

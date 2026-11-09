@@ -12,8 +12,15 @@ from app.models.user import User
 from app.services.bank_sync import schedule, sync, worker
 from tests.conftest import ScopedSession, TestSession
 from tests.routes.support.bank_sync_helpers import _build_bank_connection, _build_user
+from tests.services.bank_sync.fake_provider import FakeProviderAdapter
 from tests.services.bank_sync.stand_ins import FROZEN_NOW
 from tests.services.bank_sync.support import _CREDENTIAL
+
+
+@pytest.fixture(autouse=True)
+def bank_provider(fake_provider) -> FakeProviderAdapter:
+    """Offer the fake provider to every bank sync service test, as a server with bank sync offers its providers"""
+    return fake_provider
 
 
 @pytest.fixture(autouse=True)
