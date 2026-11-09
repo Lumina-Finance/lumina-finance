@@ -167,7 +167,6 @@ def _observation(record: ProviderRecord) -> dict[str, Any]:
     return {
         "observed_date": record.date,
         "observed_amount": record.amount,
-        # Kept only when the amount can't be stored exactly, for the item to show as the bank sent it
-        "raw_amount": record.raw_amount if record.amount is None else None,
+        "raw_amount": record.stored_raw_amount,
         "description": record.description,
     }

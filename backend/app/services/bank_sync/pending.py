@@ -74,8 +74,7 @@ def _pending_transaction(link: BankAccountLink, record: ProviderRecord, observed
         account_id=link.account_id,
         transaction_date=record.date,
         amount=record.amount,
-        # Kept only when the amount can't be stored exactly, for the item to show as the bank sent it
-        raw_amount=record.raw_amount if record.amount is None else None,
+        raw_amount=record.stored_raw_amount,
         description=record.description,
         observed_at=observed_at,
     )

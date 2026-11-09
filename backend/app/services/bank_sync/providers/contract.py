@@ -85,6 +85,11 @@ class ProviderRecord:
     # The provider says this transaction no longer exists
     removed: bool = False
 
+    @property
+    def stored_raw_amount(self) -> str | None:
+        """The amount as sent, stored only when it can't be stored exactly, for the item to show as the bank sent it"""
+        return self.raw_amount if self.amount is None else None
+
 
 @dataclass(frozen=True)
 class ExternalAccount:
