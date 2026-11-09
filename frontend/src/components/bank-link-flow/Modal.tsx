@@ -126,9 +126,8 @@ export function BankLinkFlowModal({
     choosesBankAccount ? (connection?.id ?? null) : null,
     account.id,
   )
-  const bankAccountName =
-    chosen?.bankAccount.name ?? discovered?.accounts.find((entry) => entry.external_id === externalId)?.name ?? ''
   const chosenBankAccount = discovered?.accounts.find((entry) => entry.external_id === externalId)
+  const bankAccountName = chosen?.bankAccount.name ?? chosenBankAccount?.name ?? ''
   const provider = providers?.providers.find((entry) => entry.id === connection?.provider)
   const { data: range, error: rangeError } = useImportRange(
     account.id,

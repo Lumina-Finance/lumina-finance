@@ -26,6 +26,7 @@ import { MobileFilterPanel } from '@/components/transactions/toolbar/MobileFilte
 import { useToolbarStickyOffset } from '@/components/transactions/toolbar/hooks/useStickyOffset'
 import { EXPORT_LABELS } from '@/components/transactions/utils/exportFile'
 import { NOTHING_TICKED_WITH_REVIEW } from '@/components/transactions/bulk-edit/reviewSelection'
+import { NOTHING_TICKED } from '@/components/transactions/bulk-edit/selection'
 import { useMediaQuery } from '@/hooks/useMediaQuery'
 import { joinClassNames } from '@/utils/classNames'
 import {
@@ -71,7 +72,7 @@ export default function TransactionListToolbar({
   const prefersReducedMotion = useReducedMotion()
 
   // A list that offers items waiting for review names them too, since either can be ticked
-  const nothingTicked = onDismissSelection ? NOTHING_TICKED_WITH_REVIEW : 'Tick a transaction first'
+  const nothingTicked = onDismissSelection ? NOTHING_TICKED_WITH_REVIEW : NOTHING_TICKED
 
   // Set from the desktop edit button's own onAnimationStart and onAnimationComplete, so the wrap
   // layout hook holds its measurement still for exactly the span its width is changing

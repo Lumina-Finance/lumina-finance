@@ -14,7 +14,7 @@ import { useMoneyFormatters } from '@/hooks/useMoneyFormatters'
 import { useToast } from '@/hooks/useToast'
 import { ReviewDecisionButton } from '@/components/transactions/bank-review/DecisionButton'
 import { FormError } from '@/components/forms/FormError'
-import { formatRawAmount } from '@/components/transactions/utils/bankReview'
+import { formatBankAmount } from '@/components/transactions/utils/bankReview'
 import { formatDateLabel } from '@/utils/date'
 
 // The rows the comparison lists, in the order the transaction modal shows its fields
@@ -90,10 +90,7 @@ export function BankComparisonModal({ open, item, currency, onClose }: BankCompa
     if (field === 'date') return formatDateLabel(values.date)
     if (field === 'description') return values.description
 
-    // An amount the currency can't hold is shown exactly as the bank sent it, never rounded
-    return values.amount === null
-      ? formatRawAmount(values.raw_amount ?? '', currency).text
-      : formatMovedCurrency(values.amount, currency)
+    return formatBankAmount(values, currency, formatMovedCurrency)
   }
 
   const decide = ({ resolution, toast }: Decision) => {

@@ -11,6 +11,9 @@ import type { TransactionListAccount } from '@/components/transactions/types/tra
 import { MAX_BULK_EDIT_TRANSACTIONS, MAX_BULK_TAGS } from '@/components/transactions/bulk-edit/constants'
 import { BALANCE_ADJUSTMENT_CATEGORY_NAME, doesTransferRecordCounterpartyAccount } from '@/utils/transfers'
 
+/** What an empty selection says on a list that offers no items waiting for review */
+export const NOTHING_TICKED = 'Tick a transaction first'
+
 /**
  * Returns whether a chosen category records the account on the other side of a transfer.
  *
@@ -674,7 +677,7 @@ export function getBulkEditBlockers(
  */
 export function getBulkEditSelectionBlockReason(rows: SelectedTransactionFacts[], reviewCount = 0): string | undefined {
   const count = rows.length + reviewCount
-  if (count === 0) return 'Tick a transaction first'
+  if (count === 0) return NOTHING_TICKED
   if (count > MAX_BULK_EDIT_TRANSACTIONS) {
     return reviewCount === 0
       ? `Up to ${MAX_BULK_EDIT_TRANSACTIONS} transactions can be edited at once`

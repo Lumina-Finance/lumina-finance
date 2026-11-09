@@ -5,7 +5,7 @@ import type { BankValues } from '@/api/bank-sync'
 import { REVIEW_MOTION } from '@/components/transactions/constants/bankReview'
 import { FilingCardSheet } from '@/components/transactions/transaction-modal/controls/BankFilingCard'
 import { FILING_TAB_CLASS, FILING_TAB_STYLE } from '@/components/transactions/transaction-modal/controls/filingCardTab'
-import { formatRawAmount } from '@/components/transactions/utils/bankReview'
+import { formatBankAmount } from '@/components/transactions/utils/bankReview'
 import { useMoneyFormatters } from '@/hooks/useMoneyFormatters'
 import { DATE_FORMATS, formatDate } from '@/utils/date'
 
@@ -40,10 +40,7 @@ type BankSourcePanelProps = BankSourceCardProps & {
 function useSourceCardText({ bankValues, receivedAt, timeZone, currency }: BankSourceCardProps) {
   const { formatMovedCurrency } = useMoneyFormatters()
   return {
-    amountText:
-      bankValues.amount === null
-        ? formatRawAmount(bankValues.raw_amount ?? '', currency).text
-        : formatMovedCurrency(bankValues.amount, currency),
+    amountText: formatBankAmount(bankValues, currency, formatMovedCurrency),
     receivedText: formatDate(new Date(receivedAt), DATE_FORMATS.monthDayTime, timeZone),
   }
 }
@@ -70,7 +67,7 @@ export function TransactionBankSourceCard(props: BankSourceCardProps) {
 /**
  * Heads the form of a bank-imported transaction with the provider it came from, closed to that line
  * alone, since there is no room for the card beside the modal. Opened, it shows what the bank sent as
- * the provider's filing card, as the review step did, and always read-only, since the ledger has no
+ * the provider's filing card, always read-only, since the ledger has no
  * description field and only the bank changes it
  *
  * Closed, it is the filing card shrunk to its top edge: the card's own tab stretched across the card's

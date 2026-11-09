@@ -87,6 +87,22 @@ export function formatRawAmount(rawAmount: string, currency: string): Omit<Revie
 }
 
 /**
+ * Formats an amount the bank sent, or exactly as the bank sent it when its currency can't hold it,
+ * never rounded
+ *
+ * @param formatMovedCurrency - The app's formatter for an amount that moved, bound to the currency list
+ */
+export function formatBankAmount(
+  values: { amount: number | null; raw_amount: string | null },
+  currency: string,
+  formatMovedCurrency: (minorUnits: number, currency: string) => string,
+): string {
+  return values.amount === null
+    ? formatRawAmount(values.raw_amount ?? '', currency).text
+    : formatMovedCurrency(values.amount, currency)
+}
+
+/**
  * Returns the amount a review row shows, in the account's currency
  *
  * A removal shows the ledger amount it would take out, struck through, since the bank's last value

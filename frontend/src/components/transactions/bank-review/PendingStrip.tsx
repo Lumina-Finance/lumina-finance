@@ -8,7 +8,7 @@ import { ReadFailureNotice, type BankReadFailure } from '@/components/transactio
 import type { ReviewItemAccount } from '@/components/transactions/bank-review/ReviewBlock'
 import { REVIEW_MOTION } from '@/components/transactions/constants/bankReview'
 import { useFocusAfterRetry } from '@/components/transactions/hooks/useFocusAfterRetry'
-import { formatRawAmount, formatReviewDate } from '@/components/transactions/utils/bankReview'
+import { formatBankAmount, formatReviewDate } from '@/components/transactions/utils/bankReview'
 import { formatRelativeTime } from '@/utils/relativeTime'
 
 // Beside the count on the closed strip, and inside the opened one on phones. It doesn't fit beside the count there
@@ -129,10 +129,7 @@ export function BankPendingStrip({
                   <ul>
                     {transactions.map((transaction) => {
                       const account = accountFor(transaction.account_id)
-                      const amount =
-                        transaction.amount === null
-                          ? formatRawAmount(transaction.raw_amount ?? '', account.currency).text
-                          : formatMovedCurrency(transaction.amount, account.currency)
+                      const amount = formatBankAmount(transaction, account.currency, formatMovedCurrency)
                       const details = [
                         formatReviewDate(transaction.date, today),
                         showAccountNames && account.name,

@@ -18,6 +18,7 @@ import {
   describeBacklogNotice,
   describeReviewItem,
   findNextNewItem,
+  formatBankAmount,
   formatReviewDate,
   getReviewAccountIds,
   getReviewItemAmount,
@@ -143,6 +144,14 @@ describe('the amount an item shows', () => {
       sign: 0,
       isStruckThrough: false,
     })
+  })
+})
+
+describe('an amount the bank sent', () => {
+  it('formats one the currency holds, and shows one it cannot hold exactly as sent', () => {
+    expect(formatBankAmount({ amount: -1800, raw_amount: null }, 'USD', formatMoved)).toBe(`${MINUS}$18.00`)
+    expect(formatBankAmount({ amount: null, raw_amount: '-1234.567' }, 'USD', formatMoved)).toBe(`${MINUS}$1,234.567`)
+    expect(formatBankAmount({ amount: null, raw_amount: null }, 'USD', formatMoved)).toBe('')
   })
 })
 

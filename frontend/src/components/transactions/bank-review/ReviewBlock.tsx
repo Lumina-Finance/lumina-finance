@@ -23,9 +23,9 @@ export const COLLAPSED_ITEM_COUNT = 4
 // What a failed read of the items calls them in its notice
 const ITEMS_SUBJECT = 'Bank items to review'
 
-// How a row out of view leaves as the block closes, so closing on hundreds of loaded items animates
-// only the rows anyone can see
-const LEAVE_AT_ONCE = { opacity: 0, transition: { duration: 0 } }
+// How a row out of view leaves as the block closes, the way every row leaves for a reader who asks for
+// less motion, so closing on hundreds of loaded items animates only the rows anyone can see
+const LEAVE_AT_ONCE = REVIEW_MOTION.reduced.leave
 
 /** The account a bank item belongs to, as its row names it and writes its amount */
 export type ReviewItemAccount = {
@@ -367,9 +367,6 @@ export function BankReviewBlock({
                   }}
                 />
 
-                {/* Ringed on hover and keyboard focus like the highlight above, so the two read alike,
-                    with a ring of its own so neither waits on the other's fade. The hover variant also
-                    matches a focused button, so the focus ring is marked important to win over it */}
                 {/* Beside the row's button rather than inside it, since a checkbox can't sit inside
                     another button. Raised above it, so a press on the box lands on the box */}
                 {tick && (
@@ -401,6 +398,9 @@ export function BankReviewBlock({
                   } ${tick ? 'select-none' : ''}`}
                   style={{ background: selectionBackground }}
                 >
+                  {/* Ringed on hover and keyboard focus like the highlight above, so the two read alike,
+                      with a ring of its own so neither waits on the other's fade. The hover variant also
+                      matches a focused button, so the focus ring is marked important to win over it */}
                   <span
                     aria-hidden
                     className="pointer-events-none absolute inset-x-2 bottom-0 top-px rounded-lg transition-shadow motion-reduce:transition-none group-hover:ring-1 group-hover:ring-inset group-hover:ring-[var(--app-review-border)] group-focus-visible:ring-2! group-focus-visible:ring-inset group-focus-visible:ring-[var(--app-focus-ring)]! sm:inset-x-2.5"
