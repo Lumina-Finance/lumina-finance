@@ -22,7 +22,7 @@ export function MobileGroupingPanel({ settings }: { settings: AccountGroupingSet
     <>
       <button
         type="button"
-        className="app-glass-button h-11 shrink-0 justify-between"
+        className="app-glass-button h-11 min-w-0 flex-1 justify-between"
         aria-label="Account grouping"
         aria-haspopup="dialog"
         onClick={open}
