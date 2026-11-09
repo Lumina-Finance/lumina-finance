@@ -30,6 +30,8 @@ const AMOUNT_FIELDS = ['amount'] as const
 const RECORD_LABEL = 'Record adjustment'
 // The sign and symbol are drawn 1rem in from the field's edge in 1rem text
 const PREFIX_PLACEMENT = { insetRem: 1, fontRem: 1 }
+// Outlined like Sync now and Unlink below it, since the modal's footer holds its one filled primary,
+// Save changes. At the field's 40px height, so the two line up
 const BUTTON_CLASS = 'relative w-full shrink-0 whitespace-nowrap sm:w-(--fit-width)'
 
 type BalanceMatchOfferProps = {
@@ -142,8 +144,9 @@ export function BalanceMatchOffer({ accountId, offer, currency, providerName, on
 
   return (
     <div ref={rootRef} className="space-y-3">
+      {/* Titled as the Archive section's card is, so it reads as a heading over the field's label */}
       <div className="space-y-1">
-        <p className="text-sm font-medium" style={{ color: 'var(--app-text)' }}>
+        <p className="font-medium" style={{ color: 'var(--app-text)' }}>
           Match {providerName}&apos;s balance
         </p>
         <p className="text-sm" style={{ color: 'var(--app-text-muted)' }}>
@@ -205,7 +208,7 @@ export function BalanceMatchOffer({ accountId, offer, currency, providerName, on
             type="button"
             status={record.isPending ? 'loading' : 'idle'}
             loadingLabel="Recording adjustment"
-            className={`app-primary-button ${BUTTON_CLASS}`}
+            className={`app-secondary-button ${BUTTON_CLASS}`}
             style={recordStyle}
             measure={recordMeasure}
             disabledReason={refusal.blockedReason ?? null}
