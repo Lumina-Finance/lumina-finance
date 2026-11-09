@@ -43,9 +43,8 @@ const LINK_BANK_ARRIVAL: AccountDetailArrivalState = { linkBank: true }
 // landed. These answer the other two outcomes, keeping the prompt and the typed balance, since the
 // page behind is out of reach and nothing records a starting balance once the prompt is gone. A
 // save sent again after one that landed unseen also closes as saved
-const NOT_SAVED_MESSAGE = "Your starting balance wasn't saved. Continue again to save it."
-const UNSETTLED_SAVE_MESSAGE =
-  "The connection was lost. Continue again once you're back online, and your starting balance won't be saved twice."
+const NOT_SAVED_MESSAGE = "Oops, your starting balance wasn't saved. Please press Continue to try again."
+const UNSETTLED_SAVE_MESSAGE = "Oops, the connection was lost. Please press Continue once you're back online."
 
 type NewAccountPromptModalProps = {
   open: boolean
