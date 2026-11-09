@@ -399,7 +399,7 @@ export function countTransferEndEffects(
 }
 
 /** Where the direction pills' value came from: a pill the user clicked, or the rule reading the ends */
-export type BulkDirectionSource = 'user' | 'implied'
+type BulkDirectionSource = 'user' | 'implied'
 
 /** The direction the panel holds, together with what set it */
 export interface BulkDirectionChoice {
