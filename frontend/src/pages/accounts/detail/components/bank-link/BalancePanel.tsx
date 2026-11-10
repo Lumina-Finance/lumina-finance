@@ -86,7 +86,10 @@ export function BalancePanel({ balance, currency, providerName, footer }: Balanc
   const asOf = formatDate(new Date(balance.balance_date), DATE_FORMATS.monthDayTime, user?.tz)
 
   return (
-    <div className="rounded-xl p-4" style={{ background: 'var(--app-surface-soft)' }}>
+    <div
+      className="rounded-xl p-4"
+      style={{ background: 'var(--app-input-bg)', border: '1px solid var(--app-input-border)' }}
+    >
       <dl className="flex flex-col gap-y-2 sm:flex-row sm:flex-wrap sm:gap-x-5 sm:gap-y-3" data-tooltip-subject>
         {amount === null ? (
           <BalanceFact
