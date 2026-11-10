@@ -420,12 +420,14 @@ export function BankReviewBlock({
                   } ${tick ? 'select-none' : ''}`}
                   style={{ background: selectionBackground }}
                 >
-                  {/* Ringed on hover and keyboard focus like the highlight above, so the two read alike,
-                      with a ring of its own so neither waits on the other's fade. The hover variant also
-                      matches a focused button, so the focus ring is marked important to win over it */}
+                  {/* Fills on hover as a transaction row does, easing over the same time. The fill is the wash
+                      made for a shaded surface, since the flat hover colour is the review block's own. Keyboard
+                      focus keeps the ring in place of the fill, so the ring is measured against the block, as
+                      the Accounts rows do. The hover variant also matches a focused button, so the fill is
+                      cleared and the ring marked important to win over it */}
                   <span
                     aria-hidden
-                    className="pointer-events-none absolute inset-x-2 bottom-0 top-px rounded-lg transition-shadow motion-reduce:transition-none group-hover:ring-1 group-hover:ring-inset group-hover:ring-[var(--app-review-border)] group-focus-visible:ring-2! group-focus-visible:ring-inset group-focus-visible:ring-[var(--app-focus-ring)]! sm:inset-x-2.5"
+                    className="pointer-events-none absolute inset-x-2 bottom-0 top-px rounded-lg transition-[background-color,box-shadow] motion-reduce:transition-none group-hover:bg-[var(--app-hover-on-surface-soft)] group-focus-visible:bg-transparent! group-focus-visible:ring-2! group-focus-visible:ring-inset group-focus-visible:ring-[var(--app-focus-ring)]! sm:inset-x-2.5"
                   />
                   {content}
                 </button>
