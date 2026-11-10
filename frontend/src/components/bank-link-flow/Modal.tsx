@@ -14,10 +14,10 @@ import {
   type ConnectionBankAccount,
 } from '@/api/bank-sync'
 import { BankAccountStep } from '@/components/bank-link-flow/BankAccountStep'
+import { openBankConnections } from '@/components/bank-link-flow/bankConnectionsRequest'
 import { BankSyncNotSetUp } from '@/components/bank-link-flow/BankSyncNotSetUp'
 import {
   BANK_ACCOUNT_REQUIRED_MESSAGE,
-  BANK_CONNECTIONS_SETTINGS_PATH,
   BANK_SYNC_NOT_SET_UP_REASON,
   LINK_FLOW_FIELD_IDS,
   LINK_FLOW_FIELDS,
@@ -174,7 +174,7 @@ export function BankLinkFlowModal({
 
   const openSettings = () => {
     onClose()
-    navigate(BANK_CONNECTIONS_SETTINGS_PATH)
+    openBankConnections(navigate, { open: 'connect' })
   }
 
   const confirmLink = () => {

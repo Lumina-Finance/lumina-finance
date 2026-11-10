@@ -1,8 +1,10 @@
-import { useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { AnimatePresence, motion, useReducedMotion } from 'motion/react'
 import { Plus } from 'lucide-react'
+import { useLocation, useNavigate } from 'react-router'
 import { useAccounts } from '@/api/accounts'
 import { isBankSyncNotSetUp, useBankConnections, useBankProviders, type BankConnection } from '@/api/bank-sync'
+import { readBankConnectionsRequest } from '@/components/bank-link-flow/bankConnectionsRequest'
 import { BANK_SYNC_NOT_SET_UP_REASON } from '@/components/bank-link-flow/constants'
 import LoadFailure from '@/components/errors/LoadFailure'
 import { GlassSearchField } from '@/components/list-controls/GlassSearchField'
@@ -91,6 +93,44 @@ export function BankConnectionsSection() {
     target?.focus()
   }
 
+  // A link from elsewhere can ask for a modal over the section. The request is read once and cleared
+  // from the history entry, so Back, a refresh or a later visit never reopens it. Focus goes to the
+  // control the section's own button would have been pressed on, so the modal's close returns there
+  const location = useLocation()
+  const navigate = useNavigate()
+  const addButtonRef = useRef<HTMLButtonElement>(null)
+  const handledRequestKey = useRef<string | null>(null)
+  const request = readBankConnectionsRequest(location.state)
+  const requestReady = request?.open === 'connection' ? Boolean(connections) || Boolean(connectionsError) : true
+  // What the request opens, kept current for the effect below, which runs once per request
+  const applyRequest = useRef<() => void>(() => undefined)
+  useEffect(() => {
+    applyRequest.current = () => {
+      if (request?.open === 'connect') {
+        if (offeredProviders.length === 0 || addReason) return
+        addButtonRef.current?.focus()
+        openConnect(null)
+      } else if (request?.open === 'connection') {
+        const index = connections?.findIndex((connection) => connection.id === request.connectionId) ?? -1
+        const requested = connections?.[index]
+        if (!requested) return
+        sectionRef.current?.querySelector<HTMLElement>(`[data-connection-id="${requested.id}"] button`)?.focus()
+        openedIndex.current = index
+        disconnected.current = false
+        setOpenConnection(requested)
+        setConnectionModalOpen(true)
+      }
+    }
+  })
+  const { pathname, search: queryString, hash, key: locationKey } = location
+  const hasRequest = request !== null
+  useEffect(() => {
+    if (!hasRequest || !requestReady || handledRequestKey.current === locationKey) return
+    handledRequestKey.current = locationKey
+    navigate({ pathname, search: queryString, hash }, { replace: true, state: null })
+    applyRequest.current()
+  }, [hasRequest, requestReady, locationKey, pathname, queryString, hash, navigate])
+
   return (
     <section ref={sectionRef} id="bank-connections" className="scroll-mt-18">
       <SettingsSectionHeader
@@ -108,6 +148,7 @@ export function BankConnectionsSection() {
               wrapperClassName="flex-1"
             />
             <DisabledReasonButton
+              ref={addButtonRef}
               type="button"
               className="app-primary-button shrink-0"
               disabled={offeredProviders.length === 0}

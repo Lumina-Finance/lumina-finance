@@ -536,8 +536,25 @@ test('stops on a rejected connection, with a notice that leads to Settings to re
     expect(actionBox!.y).toBeGreaterThanOrEqual(noticeBox!.y + noticeBox!.height)
   }
 
+  // Settings opens with that connection's modal over it, where Reconnect lives
   await openSettings.click()
   await expect(page).toHaveURL(/\/settings#bank-connections$/)
+  const connectionModal = page.getByRole('dialog')
+  await expect(connectionModal).toHaveCount(1)
+  await expect(connectionModal.getByRole('button', { name: /^Reconnect/ })).toBeVisible()
+  // The request is cleared from the history entry once it is read
+  await expect.poll(() => page.evaluate(() => (history.state as { usr?: unknown } | null)?.usr ?? null)).toBeNull()
+
+  // Closing leaves the user on Settings with focus on that connection's row, and Back then forward
+  // never reopens it
+  await page.keyboard.press('Escape')
+  await expect(page.getByRole('dialog')).toHaveCount(0)
+  await expect(page.locator(`[data-connection-id="${connection.id}"] button`)).toBeFocused()
+  await page.goBack()
+  await expect(page).toHaveURL(/\/accounts\/[^/]+$/)
+  await page.goForward()
+  await expect(page.locator('#bank-connections')).toBeVisible()
+  await expect(page.getByRole('dialog')).toHaveCount(0)
 })
 
 test('stops on a bank asking for its sign-in, saying where to sign in again', NEEDS_BANK_SYNC, async ({ page, request }) => {

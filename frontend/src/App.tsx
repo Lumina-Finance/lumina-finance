@@ -339,7 +339,13 @@ function AnimatedRoutes() {
   // Keep rendering the previous protected route until its exit fade completes
   useEffect(() => {
     if (location.pathname === displayLocation.pathname) {
-      if (location.search !== displayLocation.search || location.hash !== displayLocation.hash) {
+      // A state change counts too, so a page that clears the request it was opened with, as Settings does
+      // for a link that opens a modal, isn't handed the old one again when the user comes back to it
+      if (
+        location.search !== displayLocation.search ||
+        location.hash !== displayLocation.hash ||
+        location.state !== displayLocation.state
+      ) {
         const syncTimer = window.setTimeout(() => {
           setDisplayLocation(location)
         }, 0)
@@ -381,7 +387,7 @@ function AnimatedRoutes() {
       window.clearTimeout(transitionTimer)
       if (exitTimer !== undefined) window.clearTimeout(exitTimer)
     }
-  }, [displayLocation.hash, displayLocation.pathname, displayLocation.search, location])
+  }, [displayLocation.hash, displayLocation.pathname, displayLocation.search, displayLocation.state, location])
 
   // Finish the enter phase after the content fade-in completes
   useEffect(() => {

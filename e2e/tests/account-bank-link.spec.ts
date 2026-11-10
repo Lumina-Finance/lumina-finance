@@ -550,7 +550,26 @@ test('sends an account with no connection to settings first', NEEDS_BANK_SYNC, a
   await expectFitsLabel(flow.getByRole('button', { name: 'Open settings' }))
   await flow.getByRole('button', { name: 'Open settings' }).click()
 
+  // Settings opens with the Connect modal over it, which is what the link is for
   await expect(page).toHaveURL(/\/settings#bank-connections$/)
+  const connect = page.getByRole('dialog', { name: 'Add a connection' })
+  await expect(connect).toBeVisible()
+  await expect(page.getByRole('dialog')).toHaveCount(1)
+  // The request is cleared from the history entry once it is read
+  await expect.poll(() => page.evaluate(() => (history.state as { usr?: unknown } | null)?.usr ?? null)).toBeNull()
+
+  // Closing leaves the user on Settings with focus on the section's own button
+  await page.keyboard.press('Escape')
+  await expect(page.getByRole('dialog')).toHaveCount(0)
+  await expect(page).toHaveURL(/\/settings#bank-connections$/)
+  await expect(page.getByRole('button', { name: 'Add a connection' })).toBeFocused()
+
+  // Back and forward to the page again never reopens it
+  await page.goBack()
+  await expect(page).toHaveURL(/\/accounts\/[^/]+$/)
+  await page.goForward()
+  await expect(page).toHaveURL(/\/settings#bank-connections$/)
+  await expect(page.locator('#bank-connections')).toBeVisible()
   await expect(page.getByRole('dialog')).toHaveCount(0)
 })
 

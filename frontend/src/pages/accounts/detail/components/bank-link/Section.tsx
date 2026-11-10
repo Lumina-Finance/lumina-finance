@@ -15,12 +15,9 @@ import {
   type BalanceMatch,
   type BankSyncState,
 } from '@/api/bank-sync'
+import { openBankConnections } from '@/components/bank-link-flow/bankConnectionsRequest'
 import { BankSyncNotSetUp } from '@/components/bank-link-flow/BankSyncNotSetUp'
-import {
-  BANK_CONNECTIONS_SETTINGS_PATH,
-  BANK_SYNC_NOT_SET_UP_REASON,
-  GROUP_ACCOUNT_LINK_REASON,
-} from '@/components/bank-link-flow/constants'
+import { BANK_SYNC_NOT_SET_UP_REASON, GROUP_ACCOUNT_LINK_REASON } from '@/components/bank-link-flow/constants'
 import { BankLinkFlowModal } from '@/components/bank-link-flow/Modal'
 import { Unfold } from '@/components/display/Unfold'
 import LoadFailure from '@/components/errors/LoadFailure'
@@ -185,7 +182,9 @@ function LinkedView({
                   className={NOTICE_ACTION_CLASS}
                   {...ACTION_PROPS}
                   {...initialFocus}
-                  onClick={() => navigate(BANK_CONNECTIONS_SETTINGS_PATH)}
+                  onClick={() =>
+                    openBankConnections(navigate, { open: 'connection', connectionId: link.connection_id })
+                  }
                 >
                   Open settings
                 </button>
