@@ -9,7 +9,7 @@ export type LinkFlowMode = 'link' | 'relink' | 'choose_again'
 
 export type LinkFlowStep = 'connect-first' | 'account' | 'start' | 'linked'
 
-/** Each step's name. The flow shows it as its eyebrow, and keeps the last choice's once the link is saved */
+/** Each step's name. The flow shows it as its eyebrow. Once the link is saved it shows the first step's, since no choice is left to name */
 export const LINK_FLOW_STEP_NAMES: Record<Exclude<LinkFlowStep, 'linked'>, string> = {
   'connect-first': 'Connect a provider first',
   account: 'Choose the bank account',

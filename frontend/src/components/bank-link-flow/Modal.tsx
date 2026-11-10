@@ -219,18 +219,18 @@ export function BankLinkFlowModal({
     step === 'linked'
       ? { label: 'Start now', onPrimary: startImportNow }
       : step === 'connect-first'
-      ? {
-          label: connectFirst?.canOpenSettings ? 'Open settings' : 'Close',
-          onPrimary: connectFirst?.canOpenSettings ? openSettings : onClose,
-        }
-      : step === 'account'
         ? {
-            label: 'Continue',
-            onPrimary: () => {
-              if (refusal.guard()) goTo('start')
-            },
+            label: connectFirst?.canOpenSettings ? 'Open settings' : 'Close',
+            onPrimary: connectFirst?.canOpenSettings ? openSettings : onClose,
           }
-        : { label: wording.submitLabel, onPrimary: confirmLink }
+        : step === 'account'
+          ? {
+              label: 'Continue',
+              onPrimary: () => {
+                if (refusal.guard()) goTo('start')
+              },
+            }
+          : { label: wording.submitLabel, onPrimary: confirmLink }
 
   // Held back before any press only for a reason a press can't fix: bank sync isn't set up, or the step
   // is still loading what it needs
@@ -244,7 +244,7 @@ export function BankLinkFlowModal({
       onClose={onClose}
       titleId="bank-link-title"
       title={wording.title}
-      eyebrow={LINK_FLOW_STEP_NAMES[step === 'linked' ? 'start' : (step ?? (chosen ? 'start' : 'account'))]}
+      eyebrow={LINK_FLOW_STEP_NAMES[step === 'linked' || step === null ? (chosen ? 'start' : 'account') : step]}
       RailIcon={Landmark}
       railLabel="Bank"
       level="stacked"
