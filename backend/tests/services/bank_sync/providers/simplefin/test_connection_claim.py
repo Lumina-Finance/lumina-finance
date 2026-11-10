@@ -80,12 +80,12 @@ async def test_claim_with_a_fresh_token_saves_the_connection_and_lists_its_bank_
         ],
         "choose_again_links": [],
         "discovery_pending": False,
-        "request_budget": {"limit": 20, "used": 2, "available_again_at": None, "held_by_provider": False},
+        "request_budget": {"limit": 20, "used": 1, "available_again_at": None, "held_by_provider": False},
     }
     assert stored[0].owner_id == user_id
     async with TestSession() as session:
         purposes = (await session.scalars(select(BankProviderRequest.purpose).order_by(BankProviderRequest.purpose))).all()
-    assert purposes == ["claim", "discovery"]
+    assert purposes == ["discovery"]
 
 
 async def test_claim_stores_the_access_url_encrypted_and_never_shows_a_secret(client, scenario: FakeBridgeScenario, caplog):
@@ -124,7 +124,7 @@ async def test_claim_whose_discovery_fails_keeps_the_connection_and_queues_disco
     assert response.status_code == 201, response.text
     assert response.json()["accounts"] == []
     assert response.json()["discovery_pending"] is True
-    assert response.json()["request_budget"] == {"limit": 20, "used": 2, "available_again_at": None, "held_by_provider": False}
+    assert response.json()["request_budget"] == {"limit": 20, "used": 1, "available_again_at": None, "held_by_provider": False}
     assert listed.status_code == 200, listed.text
     assert [(connection["nickname"], connection["discovery_pending"]) for connection in listed.json()] == [("Joint", True)]
     async with TestSession() as session:

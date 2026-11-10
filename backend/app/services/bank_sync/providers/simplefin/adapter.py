@@ -92,6 +92,9 @@ class SimpleFinAdapter(ProviderAdapter):
     # SimpleFIN Bridge refuses an accounts request spanning more
     max_window_days = 90
     daily_request_budget = SIMPLEFIN_DAILY_REQUESTS
+
+    # SimpleFIN Bridge's quota counts accounts requests. A claim spends a one-time setup token instead
+    claim_is_counted = False
     connects_from = ConnectsFrom.SETTINGS
 
     @override

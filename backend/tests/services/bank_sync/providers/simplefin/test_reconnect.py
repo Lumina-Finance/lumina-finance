@@ -178,7 +178,7 @@ async def test_reconnect_with_both_bank_accounts_unchanged_resumes_both_and_clea
             savings_id: (True, False),
         }
     assert await _jobs() == [("initial", False, "queued")]
-    assert await _request_purposes() == ["claim", "claim", "discovery", "discovery"]
+    assert await _request_purposes() == ["discovery", "discovery"]
 
 
 async def test_reconnect_with_a_bank_account_listed_under_a_new_id_waits_for_it_to_be_chosen_again(client, scenario: FakeBridgeScenario):
@@ -272,7 +272,7 @@ async def test_reconnect_with_nothing_linked_whose_listing_fails_queues_a_sync_t
 async def test_reconnect_whose_request_budget_is_spent_keeps_the_new_credential_and_lists_the_bank_accounts_later(
     client, scenario: FakeBridgeScenario
 ):
-    """The claim spends the token whatever the budget says, so it is kept and counted, while the listing waits for a request to free up"""
+    """The claim spends the token whatever the budget says, so it is kept, while the listing waits for a request to free up"""
     headers, _everyday_id, _savings_id, connection_id = await _rejected_with_two_links(client, scenario)
     async with TestSession() as session:
         await session.execute(
@@ -289,7 +289,7 @@ async def test_reconnect_whose_request_budget_is_spent_keeps_the_new_credential_
     body = response.json()
     assert (body["resumed_account_ids"], body["choose_again_account_ids"], body["accounts_pending"]) == ([], [], True)
     assert (await _stored_connection(connection_id)).credential_rejected_at is None
-    assert await _request_purposes() == sorted([*before, "claim"])
+    assert await _request_purposes() == before
     assert await _jobs() == [("initial", True, "queued")]
 
 
@@ -335,7 +335,7 @@ async def test_reconnect_of_a_working_connection_is_refused_before_the_token_is_
 
     assert refused.status_code == 409, refused.text
     assert refused.json()["detail"] == _WORKING
-    assert await _request_purposes() == ["claim", "discovery"]
+    assert await _request_purposes() == ["discovery"]
     reused = await client.post("/bank-sync/connections", json={"provider": "simplefin", "credentials": {"setup_token": token}}, headers=headers)
     assert reused.status_code == 201, reused.text
 

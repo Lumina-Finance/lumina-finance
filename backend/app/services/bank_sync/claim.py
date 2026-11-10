@@ -85,7 +85,8 @@ async def claim_connection(db: AsyncSession, user: User, request: CreateBankConn
     await db.flush()
 
     # The claim was sent before the connection existed to count it against, so it is counted now
-    await record_provider_request(db, owner_id=user.id, connection_id=connection.id, purpose=ProviderRequestPurpose.CLAIM, now=now)
+    if adapter.claim_is_counted:
+        await record_provider_request(db, owner_id=user.id, connection_id=connection.id, purpose=ProviderRequestPurpose.CLAIM, now=now)
     await mark_user_cache_changed(db, user.id)
 
     if not await run_discovery(db, connection, adapter, now=now):
@@ -151,7 +152,8 @@ async def reconnect_connection(
     _refuse_working(connection)
     _store_credential(connection, adapter, credential)
     connection.credential_rejected_at = None
-    await record_provider_request(db, owner_id=user.id, connection_id=connection.id, purpose=ProviderRequestPurpose.CLAIM, now=now)
+    if adapter.claim_is_counted:
+        await record_provider_request(db, owner_id=user.id, connection_id=connection.id, purpose=ProviderRequestPurpose.CLAIM, now=now)
     await mark_user_cache_changed(db, user.id)
 
     listed = await run_discovery(db, connection, adapter, now=now)

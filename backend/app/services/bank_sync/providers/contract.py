@@ -216,6 +216,9 @@ class ProviderAdapter(ABC):
 
     # The operations a connection may run in a rolling 24 hours, each counted once
     daily_request_budget: ClassVar[int]
+
+    # Whether a claim sends a request the provider counts toward its quota, and so counts toward the budget
+    claim_is_counted: ClassVar[bool] = True
     connects_from: ClassVar[ConnectsFrom]
 
     @classmethod
