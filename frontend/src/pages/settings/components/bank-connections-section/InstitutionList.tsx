@@ -33,8 +33,8 @@ const ACCOUNT_FALLBACK_NAME = 'Account'
  * Points from the bank account to its account: turning in from under the bank account on phones, and
  * across between the two from tablets up
  */
-function MappingArrow({ muted = false }: { muted?: boolean }) {
-  const style = { color: muted ? 'var(--app-border-strong)' : 'var(--app-text-subtle)' }
+function MappingArrow() {
+  const style = { color: 'var(--app-text-subtle)' }
   return (
     <>
       <CornerDownRight size={16} aria-hidden className="min-[750px]:hidden" style={style} />
@@ -50,8 +50,8 @@ function LinkedAccountTile({ accountId, name }: { accountId: string; name: strin
   return (
     <Link
       to={`/accounts/${accountId}`}
-      className={`${TILE_CLASS} font-medium transition-colors hover:bg-[var(--app-accent-soft)]`}
-      style={{ background: 'var(--app-surface-soft)', color: 'var(--app-text)' }}
+      className={`${TILE_CLASS} border font-medium transition-colors hover:bg-[var(--app-accent-soft)]`}
+      style={{ background: 'var(--app-input-bg)', borderColor: 'var(--app-input-border)', color: 'var(--app-text)' }}
     >
       <span className="min-w-0 flex-1 truncate">{name}</span>
       <ChevronRight size={15} aria-hidden className="shrink-0" style={{ color: 'var(--app-text-subtle)' }} />
@@ -116,7 +116,7 @@ function BankAccountRow({ bankAccount, overLimit, heldReason, linking, accountNa
         </>
       ) : (
         <>
-          <MappingArrow muted={!linkedId} />
+          <MappingArrow />
           {/* The slot's content changes in place: the dropdown gives way to a linking tile, then the
               linked account settles in on a spring, each fading through the other */}
           <span className="grid min-w-0">
