@@ -202,7 +202,25 @@ describe('describeBankSync for a live link', () => {
     [
       'an import fetching, blinking with its count',
       { import: createImport(), sync: createSync({ state: 'importing', last_success_at: null }) },
-      { label: 'Importing · 1 of 2', tone: 'working', pulse: true, details: ['Since Jun 1, 2026'] },
+      {
+        label: 'Importing · 1 of 2',
+        tone: 'working',
+        pulse: true,
+        details: ['Imports transactions from Jun 1, 2026 to today'],
+      },
+    ],
+    [
+      'an import waiting for linked accounts to join it, with its range and start time',
+      {
+        import: createImport(),
+        sync: createSync({ state: 'importing', last_success_at: null, import_starts_at: '2026-10-05T20:30:00Z' }),
+      },
+      {
+        label: 'Starts soon',
+        tone: 'working',
+        pulse: false,
+        details: ['Imports transactions from Jun 1, 2026 to today', 'Starts at 4:30 p.m.'],
+      },
     ],
     [
       "an import waiting on the request budget, steady, with its next part's time",
