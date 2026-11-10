@@ -661,6 +661,17 @@ test("shows a connection's facts", NEEDS_BANK_SYNC, async ({ page, request }) =>
   await expect(dialog.getByRole('region', { name: 'Institutions · 1 of 2 bank accounts linked' })).toBeVisible()
 })
 
+// Connecting sends the token claim and one listing, and only the listing counts toward the requests
+test("shows each connection's requests left in its row, counting a new connection's listing alone", NEEDS_BANK_SYNC, async ({ page, request }) => {
+  const user = await signUpUser(request)
+  const scenario = await createSampleBridgeScenario(request)
+  const connection = await claimSetupToken(request, user, scenario.setupToken, 'Joint banks')
+  const section = await openBankConnections(page, user)
+
+  await expect(section.getByText('Requests', { exact: true })).toBeVisible()
+  await expect(section.locator(`[data-connection-id="${connection.id}"]`)).toContainText('19 of 20 left')
+})
+
 test("says a connection's provider is gone from the server, holding Reconnect back with the reason", AT_EVERY_SIZE_NEEDS_BANK_SYNC, async ({ page, request }) => {
   const user = await signUpUser(request)
   const [household, scenario] = await Promise.all([

@@ -224,6 +224,16 @@ export function describeInstitutionAllowance(
 }
 
 /**
+ * How many of the connection's daily requests are left, as its settings row says it, or null when its
+ * provider is gone and nothing is sent. A provider holding requests back counts every one as used
+ */
+export function countRequestsLeft(connection: BankConnection): { left: number; limit: number } | null {
+  const { limit, used } = connection.request_budget
+  if (limit === null) return null
+  return { left: Math.max(limit - used, 0), limit }
+}
+
+/**
  * Explains the connection's request count beside it: the cap Lumina Finance keeps each connection
  * under (the deployment configures it), and once it's spent, when automatic syncs pick up
  */

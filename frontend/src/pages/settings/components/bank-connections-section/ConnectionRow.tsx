@@ -13,9 +13,10 @@ import {
 } from '@/pages/settings/components/bank-connections-section/constants'
 import {
   countLinkedBankAccounts,
+  countRequestsLeft,
   describeConnectionStatus,
 } from '@/pages/settings/components/bank-connections-section/utils'
-import { connectionName } from '@/utils/bankSync'
+import { connectionName, countNoun } from '@/utils/bankSync'
 import { DATE_FORMATS, formatDate } from '@/utils/date'
 
 type ConnectionRowProps = {
@@ -32,8 +33,8 @@ type ConnectionRowProps = {
 }
 
 /**
- * One connection in the settings list: its name, how many of its bank accounts are linked, when it was
- * added and whether it still works, as the same dot and label every bank sync status uses. Every row
+ * One connection in the settings list: its name, how many of its bank accounts are linked, how many of
+ * its daily requests are left, when it was added and whether it still works, as the same dot and label every bank sync status uses. Every row
  * has the same shape whether or not it has a nickname, so the provider and server are left to the
  * connection's modal. Each detail has its own column from 750px. Below that the row follows a
  * merchant's phone row: flush with the search field, the status beside the name and the details in
@@ -43,7 +44,11 @@ export function ConnectionRow({ connection, layoutKey, isLast, prefersReducedMot
   const { user } = useAuth()
   const status = describeConnectionStatus(connection)
   const { linked: linkedCount, total } = countLinkedBankAccounts(connection)
+  const requests = countRequestsLeft(connection)
   const name = connectionName(connection)
+
+  // Spent requests read in red, as the meter in the connection's modal does
+  const requestsColor = requests?.left === 0 ? 'var(--app-negative)' : undefined
 
   // The day it was added in the user's zone. Slicing the timestamp instead would give the UTC day, a
   // day out every evening west of UTC
@@ -85,7 +90,13 @@ export function ConnectionRow({ connection, layoutKey, isLast, prefersReducedMot
           </span>
           {/* Spans the row under both, so a long status beside the name never cuts the date short */}
           <span className="col-span-2 mt-0.5 block truncate text-xs" style={{ color: 'var(--app-text-muted)' }}>
-            {linkedCount} of {total} linked · Added {added}
+            {linkedCount} of {total} linked ·{' '}
+            {requests && (
+              <>
+                <span style={{ color: requestsColor }}>{countNoun(requests.left, 'request')} left</span> ·{' '}
+              </>
+            )}
+            Added {added}
           </span>
         </span>
         <span className={`hidden items-center gap-x-4 min-[750px]:grid ${CONNECTION_COLUMNS_CLASS}`}>
@@ -95,6 +106,18 @@ export function ConnectionRow({ connection, layoutKey, isLast, prefersReducedMot
           <span className="min-w-0 truncate text-sm">
             {linkedCount} of {total} <span style={{ color: 'var(--app-text-muted)' }}>linked</span>
           </span>
+          {requests ? (
+            <span className="min-w-0 truncate text-sm tabular-nums">
+              <span style={{ color: requestsColor }}>
+                {requests.left} of {requests.limit}
+              </span>{' '}
+              <span style={{ color: 'var(--app-text-muted)' }}>left</span>
+            </span>
+          ) : (
+            <span className="min-w-0 truncate text-sm" style={{ color: 'var(--app-text-muted)' }}>
+              None sent
+            </span>
+          )}
           <span className="min-w-0 truncate text-sm">{added}</span>
           {statusLabel}
           <ChevronRight size={16} aria-hidden className="shrink-0" style={{ color: 'var(--app-text-subtle)' }} />

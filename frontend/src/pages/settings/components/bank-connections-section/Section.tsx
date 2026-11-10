@@ -195,6 +195,7 @@ export function BankConnectionsSection() {
                     >
                       <span className="text-xs font-medium uppercase">Connection</span>
                       <span className="text-xs font-medium uppercase">Bank accounts</span>
+                      <span className="text-xs font-medium uppercase">Requests</span>
                       <span className="text-xs font-medium uppercase">Added</span>
                       <span className="text-xs font-medium uppercase">Status</span>
                     </div>

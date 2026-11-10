@@ -7,10 +7,11 @@ export const CONNECTION_ROW_ANIMATE = { opacity: 1, y: 0 }
 export const CONNECTION_ROW_EXIT = { opacity: 0, y: -4 }
 export const CONNECTION_ROW_TRANSITION = { duration: 0.18, ease: CONTENT_EASE_CURVE }
 
-// The list's columns from 750px: the connection, its bank accounts, when it was added, its status and
-// the row's chevron. The header and every row share it so the columns line up. Narrower screens drop
-// the header and stack each row instead
-export const CONNECTION_COLUMNS_CLASS = 'min-[750px]:grid-cols-[minmax(0,1fr)_9.5rem_7.5rem_11rem_1rem]'
+// The list's columns from 750px: the connection, its bank accounts, its requests left, when it was
+// added, its status and the row's chevron. The header and every row share it so the columns line up.
+// Narrower screens drop the header and stack each row instead. Each detail column fits its longest
+// value, such as "12 of 12 linked" and "Bank sign-in needed", so the name keeps what is left
+export const CONNECTION_COLUMNS_CLASS = 'min-[750px]:grid-cols-[minmax(0,1fr)_6.5rem_6rem_6.5rem_10rem_1rem]'
 
 // A connection with more institutions than this gets a search field over them
 export const INSTITUTION_SEARCH_AFTER = 5

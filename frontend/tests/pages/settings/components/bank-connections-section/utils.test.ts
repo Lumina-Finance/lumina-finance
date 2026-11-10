@@ -15,6 +15,7 @@ import type {
 } from '@/api/bank-sync'
 import {
   countLinkedBankAccounts,
+  countRequestsLeft,
   describeConnected,
   describeConnectionStatus,
   describeInstitutionAllowance,
@@ -211,6 +212,30 @@ describe('bank connection confirmations', () => {
 describe('bank connection requests', () => {
   afterEach(() => {
     vi.useRealTimers()
+  })
+
+  it('counts the requests left out of the cap', () => {
+    expect(
+      countRequestsLeft(
+        connection({ request_budget: { limit: 20, used: 3, available_again_at: null, held_by_provider: false } }),
+      ),
+    ).toEqual({ left: 17, limit: 20 })
+  })
+
+  it('counts none left, never below none, once the provider holds requests back', () => {
+    expect(
+      countRequestsLeft(
+        connection({ request_budget: { limit: 20, used: 21, available_again_at: null, held_by_provider: true } }),
+      ),
+    ).toEqual({ left: 0, limit: 20 })
+  })
+
+  it('counts nothing for a provider no longer available', () => {
+    expect(
+      countRequestsLeft(
+        connection({ request_budget: { limit: null, used: 0, available_again_at: null, held_by_provider: false } }),
+      ),
+    ).toBeNull()
   })
 
   it('names the cap Lumina Finance keeps each connection under', () => {
