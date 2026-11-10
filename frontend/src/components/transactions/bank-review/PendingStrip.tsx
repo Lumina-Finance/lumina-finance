@@ -94,7 +94,7 @@ export function BankPendingStrip({
               aria-expanded={open}
               aria-controls={open ? listId : undefined}
               onClick={onToggleOpen}
-              className={`flex w-full items-center gap-2.5 px-4 py-3 text-left text-[var(--app-text-muted)] transition-colors hover:bg-[var(--app-accent-soft)] hover:text-[var(--app-text)] focus-visible:bg-transparent! focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-[var(--app-focus-ring)] motion-reduce:transition-none sm:px-5 ${open ? 'rounded-t-2xl' : 'rounded-2xl'}`}
+              className={`flex w-full items-center gap-2.5 px-4 py-3 text-left text-[var(--app-text-muted)] transition-control hover:bg-[var(--app-accent-soft)] hover:text-[var(--app-text)] focus-visible:bg-transparent! focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-[var(--app-focus-ring)] motion-reduce:transition-none sm:px-5 ${open ? 'rounded-t-2xl' : 'rounded-2xl'}`}
             >
               <Clock size={15} aria-hidden className="shrink-0" />
               <span className="min-w-0 flex-1 text-sm">
@@ -103,14 +103,11 @@ export function BankPendingStrip({
                 </span>
                 <span className="hidden sm:inline"> · {EXPLANATION}</span>
               </span>
-              <motion.span
+              <ChevronDown
+                size={16}
                 aria-hidden
-                className="inline-flex shrink-0"
-                animate={{ rotate: open ? 180 : 0 }}
-                transition={enterTransition}
-              >
-                <ChevronDown size={16} />
-              </motion.span>
+                className={`shrink-0 transition-transform motion-reduce:transition-none ${open ? 'rotate-180' : ''}`}
+              />
             </button>
 
             <AnimatePresence initial={false}>

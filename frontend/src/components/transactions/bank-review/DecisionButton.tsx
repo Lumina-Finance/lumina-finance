@@ -34,6 +34,9 @@ type ReviewDecisionButtonProps = {
   /** Takes focus when its modal opens, for a modal with no field to start on */
   initialFocus?: boolean
   testId?: string
+
+  /** Whether a phone gives it the footer's whole row. A row in a list turns it off, so the button stays beside its text */
+  fullWidthOnPhone?: boolean
 }
 
 /**
@@ -51,6 +54,7 @@ export function ReviewDecisionButton({
   confirm,
   initialFocus,
   testId,
+  fullWidthOnPhone = true,
 }: ReviewDecisionButtonProps) {
   const pressRef = useRef<HTMLButtonElement | null>(null)
   const [confirming, setConfirming] = useConfirmingClick(pressRef, loading)
@@ -82,7 +86,7 @@ export function ReviewDecisionButton({
         onBlur={() => setConfirming(false)}
         disabled={disabled}
         disabledReason={disabled ? undefined : disabledReason}
-        className={`${TONE_CLASS_NAMES[tone]} relative shrink-0 overflow-hidden whitespace-nowrap ${loading ? 'app-primary-button-loading justify-self-center sm:justify-self-auto' : 'w-full sm:w-auto'}`}
+        className={`${TONE_CLASS_NAMES[tone]} relative shrink-0 overflow-hidden whitespace-nowrap ${loading ? 'app-primary-button-loading justify-self-center sm:justify-self-auto' : fullWidthOnPhone ? 'w-full sm:w-auto' : ''}`}
       >
         {/* One crossfade for the label and the spinner, so the width eases with whichever comes in. The
             button's name already says which label is on */}

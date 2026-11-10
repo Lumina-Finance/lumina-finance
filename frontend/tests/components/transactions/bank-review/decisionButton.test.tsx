@@ -38,6 +38,23 @@ describe('a two-press decision button', () => {
     expect(render(confirm)).toContain('aria-label="Dismiss"')
   })
 
+  it('takes a modal footer row on a phone, unless a list row asks to stay beside its text', () => {
+    const tag = (fullWidthOnPhone?: boolean) =>
+      renderToStaticMarkup(
+        createElement(ReviewDecisionButton, {
+          label: 'Dismiss',
+          tone: 'danger',
+          loading: false,
+          disabled: false,
+          onClick: () => {},
+          fullWidthOnPhone,
+        }),
+      ).match(/<button[^>]*>/)?.[0]
+
+    expect(tag()).toContain('w-full sm:w-auto')
+    expect(tag(false)).not.toContain('w-full')
+  })
+
   it('keeps a plain decision to its one label', () => {
     expect(render()).toMatch(/aria-label="Dismiss"[^>]*>(<[^>]*>)*Dismiss</)
   })

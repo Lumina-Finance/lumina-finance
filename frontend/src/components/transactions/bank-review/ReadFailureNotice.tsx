@@ -41,7 +41,7 @@ export function ReadFailureNotice({
         }}
         aria-disabled={failure.isRetrying}
         aria-busy={failure.isRetrying}
-        className="min-h-6 shrink-0 rounded-md px-1.5 font-medium underline underline-offset-2 transition-colors hover:bg-[var(--app-accent-soft)] focus-visible:bg-transparent! focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-[var(--app-accent-nav-focus-border)] aria-disabled:cursor-default motion-reduce:transition-none"
+        className="app-inline-link shrink-0 font-medium underline underline-offset-2 aria-disabled:cursor-default"
       >
         {failure.isRetrying ? 'Retrying…' : 'Try again'}
       </button>

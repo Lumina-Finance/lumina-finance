@@ -25,6 +25,14 @@ describe('a failed bank read', () => {
     )
   })
 
+  it('draws the retry as an inline link, hovered by its growing underline alone and ringed like one', () => {
+    const tag = renderNotice(false).match(/<button[^>]*>/)?.[0]
+
+    expect(tag).toContain('app-inline-link')
+    expect(tag).toContain('underline')
+    expect(tag).not.toContain('hover:bg-')
+  })
+
   it('says it is trying again, with the retry busy but still focusable', () => {
     const markup = renderNotice(true)
 
