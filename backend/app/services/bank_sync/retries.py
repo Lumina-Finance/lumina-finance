@@ -3,9 +3,13 @@
 Every attempt a sync makes for a link is recorded on it: when its request was sent and, when it
 failed, why. A failure never moves the time of the link's last successful sync. A failed attempt
 starts a retry series, or carries one on: a retry follows 30, 60 and 90 minutes after the attempt
-before it, so a series has four attempts, and once the fourth fails automatic sync rests for 12 hours
-before an attempt that starts a new series if it fails too. A link waiting to retry joins no sync
-before its retry is due, so it isn't fetched ahead of its schedule with the connection's other links.
+before it, so a series has four attempts. Only an outage retries without end: once its fourth
+attempt fails automatic sync rests for 12 hours before an attempt that starts a new series if it
+fails too. Any other failure that retrying may fix gets that one series and then stops the link as a
+refusal does, with no next attempt, until Sync now or a reconnect starts a fresh series. Failures of
+both kinds count in the same series, and the last one decides whether its end rests or stops. A link
+waiting to retry joins no sync before its retry is due, so it isn't fetched ahead of its schedule
+with the connection's other links.
 
 Retrying can't fix a rejected credential, a bank sign-in problem or a payment problem, so none
 starts a series: a rejected credential stops the connection's automatic sync until the user
@@ -64,9 +68,10 @@ def record_successful_attempt(link: BankAccountLink, *, at: datetime, next_sync:
 def record_failed_attempt(link: BankAccountLink, error: ProviderError, *, at: datetime, next_sync: datetime) -> None:
     """Record an attempt that failed for a link, and when it is tried again
 
-    A failure retrying may fix starts or carries on a retry series. A bank sign-in or a payment
-    problem waits for the link's next daily sync instead, and a rejected credential for nothing,
-    since automatic sync stops until the user reconnects
+    A failure retrying may fix starts or carries on a retry series, which only an outage follows with
+    a rest and a new series. Any other such failure stops the link when its fourth attempt fails. A
+    bank sign-in or a payment problem waits for the link's next daily sync instead, and a rejected
+    credential for nothing, since automatic sync stops until the user reconnects
 
     Args:
         link: The link, locked by the caller
@@ -83,8 +88,15 @@ def record_failed_attempt(link: BankAccountLink, error: ProviderError, *, at: da
 
     # The attempt after a series' rest counts as the first of a new series
     waits = (*RETRY_DELAYS, RETRY_SERIES_REST)
-    link.retry_count = link.retry_count % len(waits) + 1
-    link.next_attempt_at = at + waits[link.retry_count - 1]
+    count = link.retry_count % len(waits) + 1
+
+    # An unknown failure gets one series. Its fourth attempt stops the link, as a refusal does, and
+    # only an outage rests and starts another series
+    if count == len(waits) and error.kind is not ProviderErrorKind.TEMPORARY:
+        record_refused_attempt(link, error.reason, at=at)
+        return
+    link.retry_count = count
+    link.next_attempt_at = at + waits[count - 1]
 
 
 def record_refused_attempt(link: BankAccountLink, reason: str, *, at: datetime) -> None:

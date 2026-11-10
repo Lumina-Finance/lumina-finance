@@ -8,8 +8,10 @@ is fetched again in halves. So is a window the provider refused for a link, mean
 back no data for it, when it spans over 45 days, and only for the links refused. A refusal of a
 window of 45 days or less stops those links with a reason and no next attempt, until a Sync now
 or a reconnect asks again at the full window, and never moves a checkpoint. The links
-the same request brought data for keep it. An outage, a rejected credential, a bank sign-in and
-a payment problem keep their own handling. Each request is counted against the connection's budget in a
+the same request brought data for keep it. An outage retries without end, while any other failure
+retrying may fix, such as an unreadable response, gets one retry series and then stops its links as a
+refusal does. A rejected credential, a bank sign-in and a payment problem keep their own handling.
+Each request is counted against the connection's budget in a
 transaction of its own before it is sent, and a job that finds the budget spent queues itself again
 for when a request frees. A link whose fetch failed is left out of the rest of the job, and the job
 it queues plans it only once no other link is due, so a link failing on every request can't take
@@ -474,7 +476,7 @@ class _JobRun:
                     reason = _CURRENCY_CHANGED_REASON.format(
                         provider=self.adapter.provider_name, currency=bank_account.currency_raw, account_currency=account_currency
                     )
-                    failure = ProviderError(ProviderErrorKind.TEMPORARY, reason)
+                    failure = ProviderError(ProviderErrorKind.UNKNOWN, reason)
                 elif bank_account is None:
                     login = self.bank_logins.get(link.external_account_id)
                     failure = _failure_of(result, link.external_account_id, login)

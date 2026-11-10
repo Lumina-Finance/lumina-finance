@@ -124,12 +124,12 @@ def _json_answer(body: dict[str, Any]) -> Responder:
     [
         (answer_with(503, b"Service Unavailable"), ProviderError(_TEMPORARY, _UNREACHABLE)),
         (fail_with(httpx.ConnectError), ProviderError(_TEMPORARY, _UNREACHABLE)),
-        (answer_with(200, b"Service temporarily unavailable"), ProviderError(_TEMPORARY, _UNREADABLE)),
-        (answer_with(200, b"x" * (MAX_RESPONSE_BYTES + 1)), ProviderError(_TEMPORARY, _UNREADABLE)),
+        (answer_with(200, b"Service temporarily unavailable"), ProviderError(_UNKNOWN, _UNREADABLE)),
+        (answer_with(200, b"x" * (MAX_RESPONSE_BYTES + 1)), ProviderError(_UNKNOWN, _UNREADABLE)),
         (answer_with(404, b"Not Found"), ProviderError(_UNKNOWN, _UNREADABLE)),
         (answer_with(302, b""), ProviderError(_UNKNOWN, _UNREADABLE)),
-        (_account_set_answer(conn_id="CON-not-listed"), ProviderError(_TEMPORARY, _UNREADABLE)),
-        (_account_set_answer(balance_date=10**20), ProviderError(_TEMPORARY, _UNREADABLE)),
+        (_account_set_answer(conn_id="CON-not-listed"), ProviderError(_UNKNOWN, _UNREADABLE)),
+        (_account_set_answer(balance_date=10**20), ProviderError(_UNKNOWN, _UNREADABLE)),
     ],
     ids=["5xx", "connection-failed", "not-json", "too-large", "other-status", "redirect", "unlisted-login", "stamp-out-of-range"],
 )
@@ -220,7 +220,7 @@ async def test_problem_affecting_the_whole_request_fails_every_account(scenario:
 @pytest.mark.parametrize(
     ("problem", "error"),
     [
-        ({"code": "act.sync", "msg": "An account couldn't be updated."}, ProviderError(_TEMPORARY, "An account couldn't be updated.")),
+        ({"code": "act.sync", "msg": "An account couldn't be updated."}, ProviderError(_UNKNOWN, "An account couldn't be updated.")),
     ],
     ids=["act-naming-no-account"],
 )
@@ -312,7 +312,7 @@ async def test_account_problem_fails_only_that_account(scenario: FakeBridgeScena
     result = await _fetch_from(scenario, problem)
 
     assert result.request_error is None
-    assert result.account_errors == {"ACT-visa": ProviderError(_TEMPORARY, "Rewards Visa couldn't be updated.")}
+    assert result.account_errors == {"ACT-visa": ProviderError(_UNKNOWN, "Rewards Visa couldn't be updated.")}
     assert result.login_errors == {}
     assert len(result.accounts) == 3
 
@@ -328,7 +328,7 @@ async def test_unknown_subcode_takes_its_prefixs_meaning(scenario: FakeBridgeSce
     )
 
     assert result.login_errors == {"CON-harbour": ProviderError(_BANK_LOGIN_NEEDED, "Harbour Bank wants a security code.")}
-    assert result.account_errors == {"ACT-visa": ProviderError(_TEMPORARY, "Rewards Visa is being closed.")}
+    assert result.account_errors == {"ACT-visa": ProviderError(_UNKNOWN, "Rewards Visa is being closed.")}
 
 
 @pytest.mark.parametrize(
@@ -343,7 +343,7 @@ async def test_unknown_subcode_takes_its_prefixs_meaning(scenario: FakeBridgeSce
         (
             {"code": "gen.api", "msg": "Requested date range exceeds recommended range of 45 days. In the future, this may be capped."},
             None,
-            (ProviderError(_TEMPORARY, "Requested date range exceeds recommended range of 45 days. In the future, this may be capped."),),
+            (ProviderError(_UNKNOWN, "Requested date range exceeds recommended range of 45 days. In the future, this may be capped."),),
         ),
         # The quota warning is read from both lists, since the older one may be the only one that has it
         (
@@ -460,7 +460,7 @@ async def test_general_problem_with_no_data_refuses_the_accounts_only_when_it_na
 
     if refused:
         assert result.request_error is None
-        assert result.account_errors == dict.fromkeys(_ALL_ACCOUNTS, ProviderError(_TEMPORARY, msg))
+        assert result.account_errors == dict.fromkeys(_ALL_ACCOUNTS, ProviderError(_UNKNOWN, msg))
     else:
         assert result.request_error == ProviderError(_TEMPORARY, msg)
         assert result.account_errors == {}
@@ -474,7 +474,7 @@ async def test_account_left_out_of_the_response_fails(scenario: FakeBridgeScenar
     result = await _fetch_from(scenario)
 
     assert result.request_error is None
-    assert result.account_errors == {"ACT-visa": ProviderError(_TEMPORARY, "SimpleFIN Bridge didn't return this account")}
+    assert result.account_errors == {"ACT-visa": ProviderError(_UNKNOWN, "SimpleFIN Bridge didn't return this account")}
     assert [account.external_id for account in result.accounts] == ["ACT-chequing", "ACT-savings"]
 
 

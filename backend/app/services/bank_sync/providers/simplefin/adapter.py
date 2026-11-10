@@ -253,7 +253,7 @@ class SimpleFinAdapter(ProviderAdapter):
             logger.warning("Refused to reach SimpleFIN at %s: it resolves to an address that isn't public", base_url.host)
             return _failed(ProviderErrorKind.TEMPORARY, _UNREACHABLE_MESSAGE)
         except ResponseTooLargeError:
-            return _failed(ProviderErrorKind.TEMPORARY, _UNREADABLE_MESSAGE)
+            return _failed(ProviderErrorKind.UNKNOWN, _UNREADABLE_MESSAGE)
 
         # A lookup or connection that ran out of time never reached the Bridge
         except httpx.ConnectTimeout:
@@ -269,7 +269,7 @@ class SimpleFinAdapter(ProviderAdapter):
             account_set = read_account_set(response.content)
             accounts = read_external_accounts(account_set, currency_exponents=currency_exponents, dating=dating)
         except UnreadableAccountSet:
-            return _failed(ProviderErrorKind.TEMPORARY, _UNREADABLE_MESSAGE)
+            return _failed(ProviderErrorKind.UNKNOWN, _UNREADABLE_MESSAGE)
         return fetch_result(account_set, accounts, requested_account_ids=requested_account_ids)
 
 

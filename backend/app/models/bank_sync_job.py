@@ -38,7 +38,14 @@ class ProviderErrorKind(enum.StrEnum):
     # The provider refuses requests until the user settles a payment problem with it
     PAYMENT_REQUIRED = "payment_required"
     RATE_LIMITED = "rate_limited"
+
+    # An outage, and only an outage: the provider is down or unreachable, such as a connection error,
+    # a timeout, an HTTP 5xx, the job's own time limit or the provider reporting its own trouble.
+    # Automatic sync retries it without end
     TEMPORARY = "temporary"
+
+    # Any other failure retrying may or may not fix, such as an unreadable response or a problem of
+    # one bank account. It gets one retry series and then stops until Sync now or a reconnect
     UNKNOWN = "unknown"
 
 

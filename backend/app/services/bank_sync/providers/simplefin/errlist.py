@@ -74,7 +74,8 @@ def fetch_result(
     for problem in account_set.errlist:
         kind, is_warning = _classify(problem, has_data=has_data)
         error = ProviderError(kind, problem.msg.strip() or _FALLBACK_REASONS[kind])
-        if kind is ProviderErrorKind.TEMPORARY and (problem.code.startswith("act.") or _RANGE_NOTE.search(problem.msg)):
+        names_range = problem.code == "gen.api" and _RANGE_NOTE.search(problem.msg)
+        if kind is ProviderErrorKind.UNKNOWN and (problem.code.startswith("act.") or names_range):
             refusals.append(error)
         if is_warning:
             warnings.append(error)
@@ -117,7 +118,7 @@ def fetch_result(
     returned_ids = {account.external_id for account in accounts}
     for account_id in requested_account_ids:
         if account_id not in returned_ids and account_id not in account_errors:
-            account_errors[account_id] = ProviderError(ProviderErrorKind.TEMPORARY, _MISSING_ACCOUNT_MESSAGE)
+            account_errors[account_id] = ProviderError(ProviderErrorKind.UNKNOWN, _MISSING_ACCOUNT_MESSAGE)
 
     return FetchResult(
         accounts=accounts,
@@ -139,14 +140,18 @@ def _classify(problem: Problem, *, has_data: bool) -> tuple[ProviderErrorKind, b
         return ProviderErrorKind.CREDENTIAL_REJECTED, False
     if prefix == "gen" and _QUOTA_WARNING.search(problem.msg):
         return ProviderErrorKind.RATE_LIMITED, has_data
+
+    # The Bridge reporting its own trouble is an outage, unless it names the dates asked for
     if problem.code == "gen.api":
-        return ProviderErrorKind.TEMPORARY, has_data and bool(_RANGE_NOTE.search(problem.msg))
+        if _RANGE_NOTE.search(problem.msg):
+            return ProviderErrorKind.UNKNOWN, has_data
+        return ProviderErrorKind.TEMPORARY, False
     if prefix == "gen":
         return ProviderErrorKind.UNKNOWN, has_data
     if prefix == "con":
         return ProviderErrorKind.BANK_LOGIN_NEEDED, False
     if prefix == "act":
-        return ProviderErrorKind.TEMPORARY, False
+        return ProviderErrorKind.UNKNOWN, False
     return ProviderErrorKind.UNKNOWN, False
 
 

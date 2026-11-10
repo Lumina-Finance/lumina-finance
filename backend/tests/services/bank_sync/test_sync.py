@@ -430,7 +430,7 @@ async def test_job_keeps_records_and_moves_checkpoints_only_for_bank_accounts_th
                 _bank_account("ACT-savings", records=[_record("TRN-interest")]),
                 _bank_account("ACT-card", login_key="CON-card", records=[_record("TRN-fuel")]),
             ),
-            account_errors={"ACT-savings": ProviderError(ProviderErrorKind.TEMPORARY, "Fake Bank Online reported a problem")},
+            account_errors={"ACT-savings": ProviderError(ProviderErrorKind.UNKNOWN, "Fake Bank Online reported a problem")},
             login_errors={"CON-card": ProviderError(ProviderErrorKind.BANK_LOGIN_NEEDED, "Sign in to your bank again")},
         ),
         _returned("ACT-everyday", "ACT-savings", "ACT-card"),
@@ -791,7 +791,7 @@ async def test_job_without_a_request_to_spend_queues_itself_for_when_one_frees(c
 
 def _reported_a_problem() -> ProviderError:
     """Return an error of a bank account's own, which the provider gives when it refuses the dates asked for"""
-    return ProviderError(ProviderErrorKind.TEMPORARY, "Fake Bank Online reported a problem")
+    return ProviderError(ProviderErrorKind.UNKNOWN, "Fake Bank Online reported a problem")
 
 
 def _outage(**kwargs) -> FetchResult:
@@ -863,6 +863,67 @@ async def test_job_retries_a_failing_link_after_30_60_and_90_minutes_then_rests_
 
     assert [(count, next_at) for *_, count, next_at in await _attempts(link)] == [(failures, frozen_now + wait)]
     assert await _queued_jobs() == [("retry", wait, False)]
+
+
+_UNREADABLE = "SimpleFIN Bridge's answer couldn't be read"
+
+
+def _unreadable() -> FetchResult:
+    """Return a response failing the whole request because its answer couldn't be read, which isn't an outage"""
+    return FetchResult(request_error=ProviderError(ProviderErrorKind.UNKNOWN, _UNREADABLE))
+
+
+@pytest.mark.parametrize(
+    ("failures_so_far", "failures", "wait"),
+    [
+        (0, 1, timedelta(minutes=30)),
+        (1, 2, timedelta(minutes=60)),
+        (2, 3, timedelta(minutes=90)),
+    ],
+    ids=["first_failure", "first_retry", "second_retry"],
+)
+async def test_job_retries_an_unknown_failure_after_30_60_and_90_minutes(connection, provider, frozen_now, failures_so_far, failures, wait):
+    """An unreadable response is retried like an outage until the series' fourth attempt"""
+    link = await _link(
+        connection,
+        "ACT-1",
+        **_synced_through_yesterday(retry_count=failures_so_far, next_attempt_at=frozen_now if failures_so_far else None),
+    )
+    provider.outcomes = [_unreadable()]
+    await _seed_job(connection, BankSyncJobKind.RETRY if failures_so_far else BankSyncJobKind.SCHEDULED)
+
+    await _run_jobs_until_none_is_due()
+
+    assert [(count, next_at) for *_, count, next_at in await _attempts(link)] == [(failures, frozen_now + wait)]
+    assert await _queued_jobs() == [("retry", wait, False)]
+
+
+async def test_job_stops_a_link_whose_fourth_attempt_in_a_series_fails_unknown_with_no_next_attempt(connection, provider, frozen_now):
+    """The third retry meets an unreadable response, so the link stops with its reason, whatever kind of failure led up to it"""
+    link = await _link(connection, "ACT-1", **_synced_through_yesterday(retry_count=3, next_attempt_at=frozen_now))
+    provider.outcomes = [_unreadable()]
+    await _seed_job(connection, BankSyncJobKind.RETRY)
+
+    await _run_jobs_until_none_is_due()
+
+    assert [(reason, count, next_at) for _, _, reason, count, next_at in await _attempts(link)] == [(_UNREADABLE, 0, None)]
+    assert await _queued_jobs() == []
+
+
+async def test_job_sync_now_starts_a_fresh_series_for_a_link_an_unknown_failure_stopped(connection, provider, frozen_now):
+    """Sync now fetches the stopped link again, and a failure it meets is the first of a new series"""
+    link = await _link(
+        connection,
+        "ACT-1",
+        **_synced_through_yesterday(last_failure_reason=_UNREADABLE, last_attempt_at=_YESTERDAYS_SYNC, retry_count=0, next_attempt_at=None),
+    )
+    provider.outcomes = [_unreadable()]
+    await _seed_job(connection, BankSyncJobKind.MANUAL, requested_link_ids=[link.id])
+
+    await _run_jobs_until_none_is_due()
+
+    assert len(provider.fetches) == 1
+    assert [(count, next_at) for *_, count, next_at in await _attempts(link)] == [(1, frozen_now + timedelta(minutes=30))]
 
 
 async def test_job_counts_a_window_fetched_in_halves_as_one_attempt_for_a_link_failing_in_both(connection, provider, frozen_now):
@@ -2955,7 +3016,7 @@ async def test_job_leaves_the_pending_items_of_bank_accounts_the_response_didnt_
                 _bank_account("ACT-savings", records=[_pending_record("P-savings-now")]),
                 _bank_account("ACT-card", login_key="CON-card", records=[_pending_record("P-card-now")]),
             ),
-            account_errors={"ACT-savings": ProviderError(ProviderErrorKind.TEMPORARY, "Fake Bank Online reported a problem")},
+            account_errors={"ACT-savings": ProviderError(ProviderErrorKind.UNKNOWN, "Fake Bank Online reported a problem")},
             login_errors={"CON-card": ProviderError(ProviderErrorKind.BANK_LOGIN_NEEDED, "Sign in to your bank again")},
         )
     ]
