@@ -34,7 +34,8 @@ export function ImportStartNotice({ accountId, actionClassName, onFolded }: Impo
 
   const run = () => {
     start.mutate(accountId, {
-      onError: (cause) => showToast({ status: 'error', text: getSaveFailureMessage(cause, START_IMPORT_FAILED_MESSAGE) }),
+      onError: (cause) =>
+        showToast({ status: 'error', text: getSaveFailureMessage(cause, START_IMPORT_FAILED_MESSAGE) }),
     })
   }
 

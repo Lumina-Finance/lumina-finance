@@ -17,12 +17,14 @@ from app.utils.money import MAX_MINOR_UNITS, MIN_MINOR_UNITS
 BankImportState = Literal["running", "waiting", "waiting_on_budget"]
 
 # The one state every surface shows for a live link, in the order the first that applies wins: what
-# only the user can fix, an import fetching or waiting on the request budget, the review pause, a sync
-# fetching, the review warning, a retry, and otherwise synced
+# only the user can fix, a sync the provider refused that waits for Sync now, an import fetching or
+# waiting on the request budget, the review pause, a sync fetching, the review warning, a retry, and
+# otherwise synced
 BankSyncState = Literal[
     "reconnect_needed",
     "bank_signin_needed",
     "choose_account",
+    "sync_stopped",
     "importing",
     "import_waiting_on_budget",
     "paused",

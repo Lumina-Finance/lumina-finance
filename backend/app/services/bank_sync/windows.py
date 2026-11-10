@@ -66,6 +66,11 @@ class SyncWindow:
         return earlier, SyncWindow(middle + _ONE_DAY, self.last_day, self.needs)
 
 
+def is_stopped(link: BankAccountLink) -> bool:
+    """Return whether a link's last attempt failed for good and it has no next attempt: only Sync now or a reconnect starts it again"""
+    return link.last_failure_reason is not None and link.retry_count == 0 and link.next_attempt_at is None and link.signin_needed_since is None
+
+
 def next_due_at(link: BankAccountLink, *, now: datetime, timezone: ZoneInfo, overlap_days: int) -> datetime | None:
     """Return when a link is next due to sync, or None while it can't sync
 
@@ -79,7 +84,7 @@ def next_due_at(link: BankAccountLink, *, now: datetime, timezone: ZoneInfo, ove
         timezone: The profile timezone, the one days are counted in
         overlap_days: Days before its checkpoint that a routine sync re-reads
     """
-    if link.state != BankLinkState.ACTIVE or is_paused_for_review(link):
+    if link.state != BankLinkState.ACTIVE or is_paused_for_review(link) or is_stopped(link):
         return None
     return max(link.next_attempt_at or now, _midnight(_need_start(link, timezone, overlap_days), timezone))
 
@@ -113,6 +118,9 @@ def find_due_links(
     due = []
     for link in links:
         due_at = next_due_at(link, now=now, timezone=timezone, overlap_days=overlap_days)
+        if due_at is None and link.id in requested and link.state == BankLinkState.ACTIVE and not is_paused_for_review(link):
+            # A stopped link asked for starts again at once
+            due_at = now
         if due_at is None or (link.id not in requested and due_at > _joins_until(link, now, sync_asked=bool(requested))):
             continue
         start = _need_start(link, timezone, overlap_days)

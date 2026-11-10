@@ -47,6 +47,15 @@ _RETRY = {
     "next_attempt_at": _NOW + timedelta(minutes=20),
 }
 
+# An attempt the provider refused the dates of, which stopped the link with no next attempt
+_STOPPED_REASON = "Fake Bank Online refused the dates asked for. Use Sync now to try again"
+_STOPPED = {
+    "retry_count": 0,
+    "last_attempt_at": _NOW - timedelta(minutes=10),
+    "last_failure_reason": _STOPPED_REASON,
+    "next_attempt_at": None,
+}
+
 _SPENT_UNTIL = _NOW + timedelta(hours=2)
 
 
@@ -92,6 +101,10 @@ async def _read_sync(client, headers, account_id) -> dict:
         pytest.param(_SYNCED | _RETRY, {}, 80, False, "review_warning", True, id="review-warning-over-retry"),
         pytest.param(_SYNCED | _RETRY, {}, 0, False, "retrying", False, id="retry-over-synced"),
         pytest.param(_RETRY, {}, 0, False, "retrying", False, id="import-held-by-a-retry-shows-the-retry"),
+        pytest.param(_SYNCED | _STOPPED, {}, 0, False, "sync_stopped", False, id="stopped-over-synced"),
+        pytest.param(_STOPPED, {}, 0, False, "sync_stopped", False, id="import-held-by-a-stop-shows-the-stop"),
+        pytest.param(_SYNCED | _STOPPED, {}, 80, False, "sync_stopped", True, id="stopped-over-review-warning"),
+        pytest.param({"signin_needed_since": _NOW} | _STOPPED, {}, 0, False, "bank_signin_needed", False, id="bank-sign-in-over-stopped"),
     ],
 )
 async def test_sync_status_shows_the_first_state_that_applies(client, link_values, connection_values, waiting, syncing, state, warned):
@@ -240,6 +253,21 @@ async def test_sync_status_of_a_failed_attempt_keeps_the_last_success(client):
     assert datetime.fromisoformat(sync["last_failure"].pop("at")) == _NOW - timedelta(minutes=10)
     assert sync["last_failure"] == {"reason": _FAILED_REASON}
     assert datetime.fromisoformat(sync["next_attempt_at"]) == _NOW + timedelta(minutes=20)
+
+
+async def test_sync_status_of_a_stopped_link_gives_its_reason_and_no_next_attempt(client):
+    """A refused sync fails with its reason and nothing queued, so it never reads as waiting, starting soon or importing"""
+    headers, user_id = await _sign_up(client)
+    account_id = await _new_account(client, headers, "Everyday")
+    connection = await _commit_listed_connection(user_id, discovered_at=_NOW)
+    await _commit_link(account_id, connection, **_STOPPED)
+
+    sync = await _read_sync(client, headers, account_id)
+
+    assert sync["state"] == "sync_stopped"
+    assert sync["last_failure"]["reason"] == _STOPPED_REASON
+    assert sync["next_attempt_at"] is None
+    assert sync["import_starts_at"] is None
 
 
 @pytest.mark.parametrize(

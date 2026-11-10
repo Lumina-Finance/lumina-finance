@@ -176,6 +176,25 @@ describe('describeBankSync for a live link', () => {
       { label: 'Bank sign-in needed', tone: 'stopped', pulse: false, details: ['The app checks daily', FAILURE_LINE] },
     ],
     [
+      'a refused sync, as a failure with its reason and nothing waiting',
+      {
+        sync: createSync({
+          state: 'sync_stopped',
+          next_attempt_at: null,
+          last_failure: {
+            at: '2026-10-05T14:00:00Z',
+            reason: 'SimpleFIN refused the dates asked for. Use Sync now to try again',
+          },
+        }),
+      },
+      {
+        label: 'Sync failed',
+        tone: 'stopped',
+        pulse: false,
+        details: ['SimpleFIN refused the dates asked for. Use Sync now to try again', 'Synced 1 hour ago'],
+      },
+    ],
+    [
       'a bank account to choose again',
       { state: 'choose_account', sync: createSync({ state: 'choose_account', next_attempt_at: null }) },
       { label: 'Choose bank account', tone: 'stopped', pulse: false, details: ['SimpleFIN now lists it differently'] },

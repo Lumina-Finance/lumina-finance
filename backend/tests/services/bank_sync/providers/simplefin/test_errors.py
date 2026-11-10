@@ -196,8 +196,16 @@ async def test_bridge_resolving_privately_is_a_temporary_failure_logged_by_host(
             ProviderError(_CREDENTIAL_REJECTED, "Your access token is no longer valid. Create a new setup token to reconnect."),
         ),
         ({"code": "con.auth", "msg": ""}, ProviderError(_BANK_LOGIN_NEEDED, "SimpleFIN Bridge says your bank needs you to sign in again")),
+        (
+            {"code": "gen.api", "msg": "SimpleFIN Bridge is having trouble right now. Try again later."},
+            ProviderError(_TEMPORARY, "SimpleFIN Bridge is having trouble right now. Try again later."),
+        ),
+        (
+            {"code": "org.unsupported", "msg": "Harbour Bank is no longer supported."},
+            ProviderError(_UNKNOWN, "Harbour Bank is no longer supported."),
+        ),
     ],
-    ids=["gen-auth", "con-naming-no-login"],
+    ids=["gen-auth", "con-naming-no-login", "gen-api-trouble", "unknown-prefix"],
 )
 async def test_problem_affecting_the_whole_request_fails_every_account(scenario: FakeBridgeScenario, problem, error):
     """Bridge's own message becomes the reason, or a general one when it sends none"""
@@ -212,20 +220,15 @@ async def test_problem_affecting_the_whole_request_fails_every_account(scenario:
 @pytest.mark.parametrize(
     ("problem", "error"),
     [
-        (
-            {"code": "gen.api", "msg": "SimpleFIN Bridge is having trouble right now. Try again later."},
-            ProviderError(_TEMPORARY, "SimpleFIN Bridge is having trouble right now. Try again later."),
-        ),
         ({"code": "act.sync", "msg": "An account couldn't be updated."}, ProviderError(_TEMPORARY, "An account couldn't be updated.")),
-        (
-            {"code": "org.unsupported", "msg": "Harbour Bank is no longer supported."},
-            ProviderError(_UNKNOWN, "Harbour Bank is no longer supported."),
-        ),
     ],
-    ids=["gen-api", "act-naming-no-account", "unknown-prefix"],
+    ids=["act-naming-no-account"],
 )
 async def test_problem_answering_a_fetch_with_no_data_refuses_every_account_asked_for(scenario: FakeBridgeScenario, problem, error):
-    """The Bridge answered with a problem and no accounts, so each account asked for carries it, unlike a Bridge that can't be reached"""
+    """The Bridge answered with no accounts and a problem naming the dates or an account, so each account asked for carries it
+
+    Any other problem, such as maintenance, fails the whole request like a Bridge that can't be reached
+    """
     await scenario.add_harbour_accounts()
 
     result = await _fetch_from(scenario, problem)
@@ -251,11 +254,10 @@ async def test_most_serious_of_competing_problems_fails_the_request(scenario: Fa
 
 
 async def test_problem_without_account_data_fails_every_account(scenario: FakeBridgeScenario):
-    """An unknown general code with no accounts beside it is an unknown failure for each account asked for"""
+    """An unknown general code with no accounts beside it is an unknown failure"""
     result = await _fetch_from(scenario, {"code": "gen.maintenance", "msg": "SimpleFIN Bridge is down for maintenance until 02:00 UTC."})
 
-    error = ProviderError(_UNKNOWN, "SimpleFIN Bridge is down for maintenance until 02:00 UTC.")
-    assert result.account_errors == dict.fromkeys(_ALL_ACCOUNTS, error)
+    assert result.request_error == ProviderError(_UNKNOWN, "SimpleFIN Bridge is down for maintenance until 02:00 UTC.")
 
 
 async def test_quota_warning_without_account_data_is_rate_limited(scenario: FakeBridgeScenario):
@@ -433,20 +435,35 @@ async def test_quota_warning_in_the_older_errors_list_beside_errlist_is_still_re
     ids=["quota", "sign-in"],
 )
 async def test_message_only_in_the_older_errors_list_without_data_fails_the_request(message, kind):
-    """A plain message that comes back alone keeps nothing, and a quota one counts the day's requests as spent
-
-    Any other message refuses the dates for each account asked for
-    """
+    """A plain message that comes back alone keeps nothing, and a quota one counts the day's requests as spent"""
     body = {"errors": [message], "connections": [], "accounts": []}
 
     result = await _fetch(simplefin_adapter(RecordingBridge(_json_answer(body)).transport))
 
-    error = ProviderError(kind, message)
-    if kind is _RATE_LIMITED:
-        assert result.request_error == error
-    else:
-        assert result.account_errors == dict.fromkeys(_ALL_ACCOUNTS, error)
+    assert result.request_error == ProviderError(kind, message)
     assert result.warnings == ()
+
+
+@pytest.mark.parametrize(
+    ("msg", "refused"),
+    [
+        ("Requested date range exceeds recommended range of 45 days.", True),
+        ("SimpleFIN Bridge is having trouble right now. Try again later.", False),
+    ],
+    ids=["naming-the-range", "maintenance"],
+)
+async def test_general_problem_with_no_data_refuses_the_accounts_only_when_it_names_the_date_range(msg, refused):
+    """A range problem alone refuses every account asked for, and any other fails the request like an outage"""
+    body = {"errlist": [{"code": "gen.api", "msg": msg}], "connections": [], "accounts": []}
+
+    result = await _fetch(simplefin_adapter(RecordingBridge(_json_answer(body)).transport))
+
+    if refused:
+        assert result.request_error is None
+        assert result.account_errors == dict.fromkeys(_ALL_ACCOUNTS, ProviderError(_TEMPORARY, msg))
+    else:
+        assert result.request_error == ProviderError(_TEMPORARY, msg)
+        assert result.account_errors == {}
 
 
 async def test_account_left_out_of_the_response_fails(scenario: FakeBridgeScenario):

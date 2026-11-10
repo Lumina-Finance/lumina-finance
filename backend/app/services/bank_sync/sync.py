@@ -6,8 +6,8 @@ its fetch brings back each linked bank account's balance, and one that vanished 
 queues the next job to list first. A window whose response may have been cut short
 is fetched again in halves. So is a window the provider refused for a link, meaning it brought
 back no data for it, when it spans over 45 days, and only for the links refused. A refusal of a
-window of 45 days or less stops those links with a reason, with no retry series, until the next
-daily sync or a Sync now asks again at the full window, and never moves a checkpoint. The links
+window of 45 days or less stops those links with a reason and no next attempt, until a Sync now
+or a reconnect asks again at the full window, and never moves a checkpoint. The links
 the same request brought data for keep it. An outage, a rejected credential, a bank sign-in and
 a payment problem keep their own handling. Each request is counted against the connection's budget in a
 transaction of its own before it is sent, and a job that finds the budget spent queues itself again
@@ -621,7 +621,7 @@ class _JobRun:
             failed = [link for link in held if link.id in failures or link.id in refusals]
             for link in failed:
                 if link.id in refusals:
-                    record_refused_attempt(link, refusals[link.id], at=sent_at, next_sync=self.next_sync)
+                    record_refused_attempt(link, refusals[link.id], at=sent_at)
                 else:
                     record_failed_attempt(link, failures[link.id], at=sent_at, next_sync=self.next_sync)
             clear_signin_needed(whole)

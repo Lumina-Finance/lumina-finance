@@ -104,10 +104,17 @@ const RECONNECT_NOTICE =
 const CHOOSE_NOTICE =
   "SimpleFIN now lists Everyday Chequing differently, so Lumina Finance can't tell whether it's the same account. Choose its bank account again to resume syncing."
 const SIGN_IN_NOTICE = 'Sign in to your bank again in SimpleFIN Bridge.'
+const STOPPED_REASON = 'SimpleFIN refused the dates asked for. Use Sync now to try again'
+const STOPPED_NOTICE = `${STOPPED_REASON}.`
+const STOPPED_SYNC = createSync({
+  state: 'sync_stopped',
+  next_attempt_at: null,
+  last_failure: { at: '2026-10-05T15:50:00Z', reason: STOPPED_REASON },
+})
 const PAUSED_NOTICE =
   'Sync is paused with 105 new items waiting for review. It resumes on its own once 50 or fewer are left.'
 const WARNING_NOTICE = '85 new to review. Sync pauses at 100.'
-const NOTICES = [RECONNECT_NOTICE, CHOOSE_NOTICE, SIGN_IN_NOTICE, PAUSED_NOTICE, WARNING_NOTICE]
+const NOTICES = [RECONNECT_NOTICE, CHOOSE_NOTICE, SIGN_IN_NOTICE, STOPPED_NOTICE, PAUSED_NOTICE, WARNING_NOTICE]
 
 // Static rendering escapes apostrophes, so text is matched against the escaped form
 function escaped(text: string): string {
@@ -406,6 +413,7 @@ describe('BankLinkSection', () => {
       'Choose bank account',
     ],
     ['a bank asking for its sign-in again', createSync({ state: 'bank_signin_needed' }), SIGN_IN_NOTICE, null],
+    ['a sync the provider refused the dates of, with its reason', STOPPED_SYNC, STOPPED_NOTICE, null],
     [
       'a sync paused for review',
       createSync({ state: 'paused', paused: true, waiting_new_count: 105 }),
@@ -467,6 +475,7 @@ describe('BankLinkSection', () => {
     ],
     ['a rejected connection', createSync({ state: 'reconnect_needed', next_attempt_at: null })],
     ['a bank asking for its sign-in again', createSync({ state: 'bank_signin_needed' })],
+    ['a refused sync', STOPPED_SYNC],
   ])('leaves out an import that %s holds', (_, sync) => {
     read.status = createStatus({ link: createLink({ import: createImport({ state: 'waiting' }), sync }) })
     const markup = renderSection()

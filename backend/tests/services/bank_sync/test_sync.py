@@ -808,8 +808,8 @@ async def test_job_syncs_the_bank_accounts_it_brought_back_whole_and_stops_the_o
     """At 1 pm Everyday comes back whole, while Savings has an error of its own and Travel didn't come back
 
     Everyday reads as synced now and next syncs tomorrow. Savings and Travel keep yesterday's last
-    sync and show that the provider refused the dates, and no retry is queued for them. They sync
-    again with tomorrow's daily sync
+    sync and show that the provider refused the dates, and nothing is queued for them. They sync
+    again only when the user asks
     """
     everyday, savings, travel = [
         await _link(connection, name, **_synced_through_yesterday()) for name in ("ACT-everyday", "ACT-savings", "ACT-travel")
@@ -825,8 +825,8 @@ async def test_job_syncs_the_bank_accounts_it_brought_back_whole_and_stops_the_o
 
     assert await _attempts(everyday, savings, travel) == [
         (frozen_now, frozen_now, None, 0, frozen_now + day_later),
-        (_YESTERDAYS_SYNC, frozen_now, _REFUSED, 0, frozen_now + day_later),
-        (_YESTERDAYS_SYNC, frozen_now, _REFUSED, 0, frozen_now + day_later),
+        (_YESTERDAYS_SYNC, frozen_now, _REFUSED, 0, None),
+        (_YESTERDAYS_SYNC, frozen_now, _REFUSED, 0, None),
     ]
     assert [kind for kind, *_ in await _queued_jobs()] == []
     assert await _next_sync(connection) == frozen_now + day_later
@@ -892,7 +892,7 @@ async def test_job_asks_for_no_later_half_for_a_link_the_provider_refused_the_ea
     await _run_jobs_until_none_is_due()
 
     assert len(provider.fetches) == 2
-    assert [(reason, count, next_at) for _, _, reason, count, next_at in await _attempts(link)] == [(_REFUSED, 0, frozen_now + day_later)]
+    assert [(reason, count, next_at) for _, _, reason, count, next_at in await _attempts(link)] == [(_REFUSED, 0, None)]
 
 
 @pytest.mark.parametrize("cause", ["budget_spent", "provider_asked_to_slow_down"])
@@ -1777,7 +1777,7 @@ async def test_job_the_worker_stops_on_an_error_fails_each_link_once(connection,
 
     assert len(provider.fetches) == 3
     assert [attempt[2:] for attempt in await _attempts(card, everyday)] == [
-        (_REFUSED, 0, frozen_now + day_later),
+        (_REFUSED, 0, None),
         ("The sync stopped because of an unexpected error", 1, frozen_now + timedelta(minutes=30)),
     ]
 
@@ -3598,6 +3598,8 @@ async def test_job_reminds_only_when_the_catch_up_after_failed_syncs_asks_from_o
             checkpoint=checkpoint,
             last_success_at=datetime(checkpoint.year, checkpoint.month, checkpoint.day, 9, tzinfo=_PHOENIX),
             last_failure_reason="Fake Bank Online reported a problem",
+            retry_count=4,
+            next_attempt_at=datetime(2026, 10, 3, 1, tzinfo=_PHOENIX),
         ),
     )
     provider.outcomes = [_returned("ACT-1")]
@@ -5063,7 +5065,7 @@ async def test_job_fetching_three_accounts_over_a_year_keeps_what_came_back_and_
     assert await _checkpoints(a, b, c) == [_TODAY, date(2026, 1, 2), date(2025, 10, 4)]
     attempts = await _attempts(a, b, c)
     assert [(reason, retries) for _, _, reason, retries, _ in attempts] == [(None, 0), (_REFUSED, 0), (_REFUSED, 0)]
-    assert {next_at for *_, next_at in attempts} == {frozen_now + day_later}
+    assert [next_at for *_, next_at in attempts] == [frozen_now + day_later, None, None]
     assert await _queued_jobs() == []
     assert await _next_sync(connection) == frozen_now + day_later
 
@@ -5093,13 +5095,13 @@ async def test_job_asks_again_for_two_halves_of_a_90_day_window_the_provider_ref
     assert [(reason, retries) for _, _, reason, retries, _ in await _attempts(link)] == [(None, 0)]
 
 
-async def test_job_stops_a_link_the_provider_refused_a_window_of_45_days_or_less_without_a_retry_series(
+async def test_job_stops_a_link_the_provider_refused_a_window_of_45_days_or_less_until_sync_now_asks_again(
     connection, provider, frozen_now, day_later
 ):
     """The daily re-read is a 15-day window, refused for the bank account, so nothing narrower is tried
 
-    The attempt fails with the reason, the checkpoint stays and no retry is queued. The link syncs
-    again with the next daily sync, and Sync now asks again at once
+    The attempt fails with the reason, the checkpoint stays and no attempt is queued, so a daily
+    sync a day later leaves it alone. Sync now asks again at the full window
     """
     link = await _link(connection, "ACT-1", **_synced_through_yesterday(retry_count=2, next_attempt_at=frozen_now))
     provider.outcomes = [_refused_for("ACT-1")]
@@ -5108,9 +5110,34 @@ async def test_job_stops_a_link_the_provider_refused_a_window_of_45_days_or_less
     await _run_jobs_until_none_is_due()
 
     assert len(provider.fetches) == 1
-    assert await _attempts(link) == [(_YESTERDAYS_SYNC, frozen_now, _REFUSED, 0, frozen_now + day_later)]
+    assert await _attempts(link) == [(_YESTERDAYS_SYNC, frozen_now, _REFUSED, 0, None)]
     assert await _checkpoints(link) == [date(2026, 10, 3)]
     assert await _queued_jobs() == []
+
+    with freeze_time(frozen_now + day_later + timedelta(hours=1)):
+        await _seed_job(connection, BankSyncJobKind.SCHEDULED)
+        await _run_jobs_until_none_is_due()
+
+        assert len(provider.fetches) == 1
+
+        provider.outcomes = [_returned("ACT-1")]
+        await _seed_job(connection, BankSyncJobKind.MANUAL, requested_link_ids=[link.id])
+        await _run_jobs_until_none_is_due()
+
+    assert [fetch[0] for fetch in _fetched(provider)] == [("ACT-1",), ("ACT-1",)]
+    assert [(reason, count) for _, _, reason, count, _ in await _attempts(link)] == [(None, 0)]
+
+
+async def test_job_keeps_the_retry_series_of_a_maintenance_answer_with_no_data_over_a_window_of_45_days(connection, provider, frozen_now):
+    """A general problem refuses no dates, so the link isn't stopped and retries in 30 minutes"""
+    link = await _link(connection, "ACT-1", **_synced_through_yesterday())
+    provider.outcomes = [_outage()]
+    await _seed_job(connection, BankSyncJobKind.SCHEDULED)
+
+    await _run_jobs_until_none_is_due()
+
+    assert [(count, next_at) for *_, count, next_at in await _attempts(link)] == [(1, frozen_now + timedelta(minutes=30))]
+    assert await _queued_jobs() == [("retry", timedelta(minutes=30), False)]
 
 
 async def test_job_keeps_the_retry_series_of_an_outage_over_a_window_of_90_days(connection, provider, frozen_now):

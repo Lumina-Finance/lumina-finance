@@ -226,6 +226,13 @@ function LinkedView({
             </InfoCallout>
           </Unfold>
         )}
+        {state === 'sync_stopped' && link.sync.last_failure && (
+          <Unfold key="sync-stopped">
+            <InfoCallout tone="stopped" icon={TriangleAlert}>
+              {link.sync.last_failure.reason}.
+            </InfoCallout>
+          </Unfold>
+        )}
         {state === 'bank_signin_needed' && (
           <Unfold key="bank-sign-in">
             <InfoCallout tone="stopped" icon={TriangleAlert}>

@@ -22,6 +22,7 @@ from app.services.bank_sync.action_needed import ActionNeededKind, read_actions_
 from app.services.bank_sync.provider_requests import RequestBudget, read_request_budgets
 from app.services.bank_sync.retries import is_waiting_to_retry
 from app.services.bank_sync.review_pause import ReviewBacklog, read_review_backlogs
+from app.services.bank_sync.windows import is_stopped
 
 _ACTION_STATES: dict[ActionNeededKind, BankSyncState] = {
     ActionNeededKind.RECONNECT: "reconnect_needed",
@@ -97,7 +98,7 @@ def _read_import_state(link: BankAccountLink, action: ActionNeededKind | None, b
     """
     if syncing:
         return "running"
-    if is_waiting_to_retry(link) or action is not None or link.last_failure_reason is not None:
+    if is_waiting_to_retry(link) or action is not None or is_stopped(link):
         return "waiting"
     return "running" if budget.available_again_at is None else "waiting_on_budget"
 
@@ -118,6 +119,8 @@ def _choose_state(
         return _ACTION_STATES[action]
     if link.state == BankLinkState.CHOOSE_ACCOUNT:
         return "choose_account"
+    if is_stopped(link) and not syncing:
+        return "sync_stopped"
     if import_state == "running":
         return "importing"
     if import_state == "waiting_on_budget":

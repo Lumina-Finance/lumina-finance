@@ -42,7 +42,7 @@ _QUOTA_WARNING = re.compile(r"fewer requests|refresh limit|rate[ -]?limit|too ma
 # SimpleFIN's demo Bridge sends this as gen.api beside the whole history when a request spans more
 # than 45 days, so beside data it is a note and not a failure. A refusal that comes back without
 # accounts still fails
-_RANGE_NOTE = re.compile(r"exceeds recommended range", re.IGNORECASE)
+_RANGE_NOTE = re.compile(r"exceeds recommended range|range.{0,40}(?:days|dates?)|(?:days|dates?).{0,40}range", re.IGNORECASE)
 
 
 def fetch_result(
@@ -68,9 +68,14 @@ def fetch_result(
     account_errors: dict[str, ProviderError] = {}
     warnings: list[ProviderError] = []
 
+    # The request errors that refuse the dates asked for, rather than saying the Bridge is down
+    refusals: list[ProviderError] = []
+
     for problem in account_set.errlist:
         kind, is_warning = _classify(problem, has_data=has_data)
         error = ProviderError(kind, problem.msg.strip() or _FALLBACK_REASONS[kind])
+        if kind is ProviderErrorKind.TEMPORARY and (problem.code.startswith("act.") or _RANGE_NOTE.search(problem.msg)):
+            refusals.append(error)
         if is_warning:
             warnings.append(error)
         elif kind is ProviderErrorKind.CREDENTIAL_REJECTED:
@@ -100,10 +105,11 @@ def fetch_result(
     if request_errors:
         error = min(request_errors, key=_seriousness)
 
-        # A fetch the Bridge answered with a problem of its own and no data refuses the dates for every
-        # account it asked for. That differs from a Bridge that couldn't be reached, which is no answer,
-        # so each account carries the refusal and the sync can try a shorter window
-        if requested_account_ids and error.kind in (ProviderErrorKind.TEMPORARY, ProviderErrorKind.UNKNOWN):
+        # A fetch the Bridge answered with no data and a problem naming the dates, or an account's own,
+        # refuses the dates for every account it asked for, so each carries the refusal and the sync can
+        # try a shorter window. Any other answer, such as maintenance, is an outage like a Bridge that
+        # couldn't be reached
+        if requested_account_ids and error in refusals:
             refused = {account_id: error for account_id in requested_account_ids}
             return FetchResult(account_errors={**refused, **account_errors}, login_errors=login_errors, warnings=tuple(warnings))
         return FetchResult(request_error=error, warnings=tuple(warnings))

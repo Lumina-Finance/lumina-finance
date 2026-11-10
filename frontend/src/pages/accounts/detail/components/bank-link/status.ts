@@ -119,6 +119,8 @@ function describeLinkSync(link: BankLink, timeZone: string | undefined): BankSyn
       return label('stopped', 'Bank sign-in needed', ['The app checks daily', failure])
     case 'choose_account':
       return label('stopped', 'Choose bank account', [`${link.provider_name} now lists it differently`, failure])
+    case 'sync_stopped':
+      return label('stopped', 'Sync failed', [sync.last_failure!.reason, synced])
     case 'importing':
       // Held back for the user's other links to join it, so nothing has been imported yet
       if (sync.import_starts_at !== null) {

@@ -264,13 +264,14 @@ export type LinkBankAccountPayload = {
 /**
  * The one state every surface shows for a live link, chosen by the server as the first that applies,
  * in this order: what only the user can fix (reconnect in settings, sign in to the bank at the
- * provider, choose the bank account again), an import fetching or waiting on the request budget, the
+ * provider, choose the bank account again, a refused sync that only Sync now starts again), an import fetching or waiting on the request budget, the
  * review pause, a sync fetching, the review warning, a retry, and otherwise synced
  */
 export type BankSyncState =
   | 'reconnect_needed'
   | 'bank_signin_needed'
   | 'choose_account'
+  | 'sync_stopped'
   | 'importing'
   | 'import_waiting_on_budget'
   | 'paused'
