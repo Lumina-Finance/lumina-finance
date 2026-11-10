@@ -16,7 +16,9 @@ export const SYNC_FAILED_MESSAGE = 'Sync could not start. Please try again.'
 /**
  * Why Sync now can't run on a live link, or null while it can
  *
- * The server refuses the same states, a sync already running and a spent request budget, with the
+ * While the import waits for the user's other accounts to join it nothing holds Sync now back, since
+ * a press starts the import at once, ahead of every state below as it is on the server. Once the
+ * import runs it is held back. The server refuses the same states, a sync already running and a spent request budget, with the
  * same words, so the button says why before the user presses it. A reason of two sentences ends
  * with a full stop, as the one for bank sync not being set up does, while the server's messages end
  * without one. A bank sign-in doesn't hold it back, so the user can check straight after signing in
@@ -32,6 +34,7 @@ export function describeSyncNowBlock(
   connection: BankConnection | undefined,
   providers: BankProvidersResponse | undefined,
 ): string | null {
+  if (link.sync.import_starts_at !== null) return null
   if (!link.provider_available) return PROVIDER_UNAVAILABLE_DETAIL
   if (link.sync.state === 'importing') return 'The import is still running'
   if (link.sync.state === 'syncing' || link.sync.sync_running) return 'A sync is already running'

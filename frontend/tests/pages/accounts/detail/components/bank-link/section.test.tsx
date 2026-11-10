@@ -498,6 +498,16 @@ describe('BankLinkSection', () => {
     ],
     ['Sync now ahead of Unlink while a sync can run', linkSynced(), ['Sync now', 'Unlink']],
     [
+      'Sync now ahead of Unlink while the import waits to start, which a press starts at once',
+      createStatus({
+        link: createLink({
+          import: createImport(),
+          sync: createSync({ state: 'importing', last_success_at: null, import_starts_at: '2026-10-05T16:02:00Z' }),
+        }),
+      }),
+      ['Sync now', 'Unlink'],
+    ],
+    [
       'Unlink first while the import holds Sync now, since focus would open the reason over the section',
       createStatus({
         link: createLink({ import: createImport(), sync: createSync({ state: 'importing', last_success_at: null }) }),
@@ -683,35 +693,52 @@ describe('the import start reminder', () => {
   const REMINDER =
     "Syncing starts shortly. Link your other accounts now, and they'll import together using fewer of SimpleFIN's daily requests."
 
-  it('shows the reminder with a Start now button while the import waits for more links', () => {
-    read.status = linkSynced(createSync({ import_starts_at: '2026-10-05T16:02:00Z' }))
-    const markup = renderSection()
-    expect(markup).toContain(escaped(REMINDER))
-    expect(getButton(markup, 'Start now')).toContain('type="button"')
-  })
-
-  it('says the import starts soon and hides its progress while it waits, with Start now an outline button the width of its label', () => {
-    read.status = createStatus({
+  const waiting = () =>
+    createStatus({
       link: createLink({
         import: createImport({ windows_done: 0, items_found: 0 }),
         sync: createSync({ state: 'importing', last_success_at: null, import_starts_at: '2026-10-05T16:02:00Z' }),
       }),
     })
+
+  it('shows the reminder as plain text while the import waits for more links', () => {
+    read.status = waiting()
+    const markup = renderSection()
+    expect(markup).toContain(escaped(REMINDER))
+    expect(markup).not.toContain('Start now')
+  })
+
+  it('says the import starts soon and hides its progress while it waits', () => {
+    read.status = waiting()
     const markup = renderSection()
     expect(markup).toContain('Starts soon')
     expect(markup).not.toContain('Importing')
     expect(markup).not.toContain('role="progressbar"')
     expect(markup).not.toContain('0 found')
-    const button = getButton(markup, 'Start now')
-    expect(button).toContain('app-secondary-button')
-    expect(button).not.toContain('app-primary-button')
-    expect(button).not.toContain('w-full')
   })
 
-  it('shows no reminder once the import has started', () => {
-    read.status = linkSynced(createSync({ import_starts_at: null }))
+  it('offers Sync now while the import waits, though the connection has spent its requests', () => {
+    read.status = waiting()
+    read.connections = [
+      createConnection({
+        request_budget: { limit: 20, used: 20, available_again_at: '2026-10-05T19:00:00Z', held_by_provider: false },
+      }),
+    ]
+    const markup = renderSection()
+    expect(getSyncNowButton(markup)).not.toContain('aria-disabled')
+    expect(markup).not.toContain('More are available')
+  })
+
+  it('holds Sync now back as the import is running once it has started, and shows no reminder', () => {
+    read.status = createStatus({
+      link: createLink({
+        import: createImport(),
+        sync: createSync({ state: 'importing', last_success_at: null, import_starts_at: null }),
+      }),
+    })
     const markup = renderSection()
     expect(markup).not.toContain(escaped(REMINDER))
-    expect(markup).not.toContain('Start now')
+    expect(getSyncNowButton(markup)).toContain('aria-disabled="true"')
+    expect(markup).toContain('The import is still running')
   })
 })

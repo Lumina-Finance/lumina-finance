@@ -43,7 +43,8 @@ type SyncNowButtonProps = {
 }
 
 /**
- * Asks for a sync of the linked account straight away. It reads Starting sync until a worker starts
+ * Asks for a sync of the linked account straight away, or while the import waits for the user's other
+ * accounts to join it, starts the import at once. It reads Starting sync until a worker starts
  * the sync, then Sync started, after which the status shows the sync running. A sync asked for in
  * another window reads as starting too. Meanwhile a press does nothing, and the button keeps the
  * focus it holds, since a disabled one drops it to the page. That would stop Escape closing the

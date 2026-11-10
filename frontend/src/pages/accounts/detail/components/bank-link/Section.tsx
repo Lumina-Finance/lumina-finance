@@ -55,10 +55,6 @@ const ARCHIVED_REASON = 'Archived accounts are read-only'
 const NOTICE_ACTION_CLASS = 'app-primary-button h-9 w-full justify-center whitespace-nowrap px-4 text-sm sm:w-auto'
 const LINK_ACTION_CLASS = 'app-secondary-button h-9 w-full justify-center whitespace-nowrap px-3.5 text-sm sm:w-auto'
 
-// Start now is a secondary action like Sync now and Unlink, so the dialogue has one primary, and it
-// takes the width of its label on a phone as it does beside a wider notice
-const START_NOW_CLASS = 'app-secondary-button h-9 justify-center whitespace-nowrap px-3.5 text-sm'
-
 // Long enough for the modal to have opened and put focus in its first field
 const OPENING_FOCUS_DELAY_MS = 260
 
@@ -96,7 +92,7 @@ type LinkedViewProps = {
  * and the actions on the link. A notice's own action comes first, since it is what resumes the sync.
  * The server leaves the review notices out while only the user can restart the sync, so a stop's
  * notice shows alone. While the import waits for the user's other accounts to join it, its notice
- * and Start now come first among the actions. A reminder holds nothing back, so the offer shows beside it. Neither the offer's
+ * shows first, with Sync now among the actions starting the import at once. A reminder holds nothing back, so the offer shows beside it. Neither the offer's
  * button nor a reminder's ✕ are among the view's actions, so the modal opening at the bank link never
  * starts on Record adjustment or Dismiss, and focus moves on to the link's actions, Sync now first, as
  * the offer or a reminder holding it folds away, or from one reminder to the next
@@ -168,12 +164,7 @@ function LinkedView({
         )}
         {link.sync.import_starts_at !== null && (
           <Unfold key="import-start">
-            <ImportStartNotice
-              accountId={link.account_id}
-              providerName={link.provider_name}
-              actionClassName={START_NOW_CLASS}
-              onFolded={() => focusFirstAction(actionsRef.current)}
-            />
+            <ImportStartNotice providerName={link.provider_name} />
           </Unfold>
         )}
         {!link.provider_available && (

@@ -38,9 +38,6 @@ export function importStartReminder(providerName: string): string {
   return `Syncing starts shortly. Link your other accounts now, and they'll import together using fewer of ${providerName}'s daily requests.`
 }
 
-/** What a Start now the server didn't answer says, while one it refused gives the server's reason */
-export const START_IMPORT_FAILED_MESSAGE = 'Import could not start. Please try again.'
-
 export const BANK_ACCOUNT_REQUIRED_MESSAGE = 'Choose a bank account'
 export const START_CHOICE_REQUIRED_MESSAGE = 'Choose where to start'
 export const START_DATE_REQUIRED_MESSAGE = 'Enter a start date'

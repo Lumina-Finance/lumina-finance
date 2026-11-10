@@ -168,19 +168,12 @@ export function deleteBankLink(accountId: string) {
 }
 
 /**
- * Asks for a sync of the account's link now. The server refuses it while the request budget is
- * spent or a job covering the link is already running
+ * Asks for a sync of the account's link now, or while its import waits for the user's other accounts
+ * to join it, starts that import at once. The server refuses it while the request budget is spent or
+ * a job covering the link is already running
  */
 export function syncBankLink(accountId: string) {
   return post<BankLink>(`/accounts/${accountId}/bank-link/sync`)
-}
-
-/**
- * Starts the import queued for the account's link at once, instead of waiting for the user's other
- * accounts to join it. The server refuses it once no import waits to start
- */
-export function startBankImport(accountId: string) {
-  return post<BankLink>(`/accounts/${accountId}/bank-link/start-import`)
 }
 
 /**

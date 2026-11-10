@@ -355,14 +355,14 @@ test('links an account from its page, from choosing the bank account to its impo
     await expect(fact(dialog, 'Status')).toHaveText(/^Starts soon/)
 
     // The Link button the flow opened from has gone, so focus moves to the linked view's first live
-    // action. Sync now is greyed for the running import, so focus passes over it to Unlink
-    const unlink = dialog.getByRole('button', { name: 'Unlink' })
-    await expect(unlink).toBeFocused()
-    await expect(dialog.getByRole('button', { name: 'Sync now' })).toHaveAttribute('aria-disabled', 'true')
+    // action. The import waits to start, which Sync now starts at once, so Sync now is live and takes it
+    const syncNow = dialog.getByRole('button', { name: 'Sync now' })
+    await expect(syncNow).toBeFocused()
+    await expect(syncNow).not.toHaveAttribute('aria-disabled', 'true')
 
     // The linked view is taller than the one it replaced, so on a phone it pushes the action below
     // what the modal shows. The modal's own area scrolls to show it whole, leaving the page where it was
-    await expect(unlink).toBeInViewport({ ratio: 1 })
+    await expect(syncNow).toBeInViewport({ ratio: 1 })
     expect(await page.evaluate(() => window.scrollY)).toBe(pageScroll)
   } finally {
     // Frees the worker the held request keeps waiting. It would otherwise hold up other tests' syncs
@@ -455,7 +455,7 @@ test("leaves the link's message in the corner, clear of Cancel and Save changes,
   expect(await isUncovered(dialog.getByRole('button', { name: 'Save changes', exact: true }))).toBe(true)
 })
 
-test('reminds the user the import waits for more links in the Bank link section, and starts it at once from Start now by keyboard', NEEDS_BANK_SYNC, async ({ page, request }) => {
+test('reminds the user the import waits for more links in the Bank link section, and starts it at once from Sync now by keyboard', NEEDS_BANK_SYNC, async ({ page, request }) => {
   const user = await signUpUser(request)
   const [everyday, scenario] = await Promise.all([
     createAccount(request, user, { name: 'Everyday' }),
@@ -475,11 +475,13 @@ test('reminds the user the import waits for more links in the Bank link section,
   await expect(toast(page, 'Linked. Syncing starts shortly.')).toBeVisible()
   await expect(flow).toBeHidden()
   await expect(dialog.getByText(IMPORT_REMINDER)).toBeVisible()
-  const start = dialog.getByRole('button', { name: 'Start now' })
+  await expect(dialog.getByRole('button', { name: 'Start now' })).toHaveCount(0)
+  const syncNow = dialog.getByRole('button', { name: 'Sync now' })
+  await expect(syncNow).not.toHaveAttribute('aria-disabled', 'true')
   const importStarted = page.waitForResponse((answer) =>
-    answer.url().endsWith('/bank-link/start-import') && answer.request().method() === 'POST')
+    answer.url().endsWith('/bank-link/sync') && answer.request().method() === 'POST')
 
-  await start.focus()
+  await syncNow.focus()
   await page.keyboard.press('Enter')
   expect((await importStarted).ok()).toBe(true)
   await expect(dialog.getByText(IMPORT_REMINDER)).toHaveCount(0)

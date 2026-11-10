@@ -1,6 +1,9 @@
 """Syncing a linked account now, as the user asks from its Bank link section
 
-The request queues a sync of the account's connection for the worker. The worker syncs the account
+While the account's import waits for the user's other accounts to join it, as the links module
+describes, the request makes that import due at once instead. It is the connection's queued import,
+so it starts for every account waiting on it, and nothing below holds it back, the request budget
+included. Otherwise the request queues a sync of the account's connection for the worker. The worker syncs the account
 whatever its next daily time, a retry's included, and takes in every other account on the connection
 that isn't waiting on a retry or on the user, in the same request to the provider. A sync already queued for the connection
 takes the request in rather than queueing another. The request is refused, saying why, while an
@@ -15,11 +18,11 @@ import uuid
 from datetime import UTC, datetime
 
 from fastapi import HTTPException, status
-from sqlalchemy import select
+from sqlalchemy import func, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.bank_connection import BankAccountLink
-from app.models.bank_sync_job import BankSyncJobKind
+from app.models.bank_sync_job import BankSyncJob, BankSyncJobKind, BankSyncJobStatus
 from app.models.user import User
 from app.schemas.bank_sync import BankLinkResponse, BankSyncState, BankSyncStatusResponse
 from app.services.accounts.access import get_own_personal_account
@@ -66,7 +69,8 @@ async def sync_account_now(db: AsyncSession, user: User, account_id: uuid.UUID) 
         account_id: The linked account
 
     Returns:
-        The link. Its status says the sync is requested until a worker starts it
+        The link. Its status says the sync is requested until a worker starts it, or no longer says
+        its import waits to start when that is what the request did
 
     Raises:
         HTTPException 403: The account is visible but isn't the user's own personal account
@@ -83,12 +87,28 @@ async def sync_account_now(db: AsyncSession, user: User, account_id: uuid.UUID) 
 
     # Shared, so a disconnect waits until the sync is queued and then deletes it with the connection
     connection = await get_own_connection(db, user.id, link.connection_id, lock={"read": True, "key_share": True})
+    now = datetime.now(UTC)
+    [link_status] = (await read_link_statuses(db, [link], now=now)).values()
+    if link_status.sync.import_starts_at is not None:
+        await db.execute(
+            update(BankSyncJob)
+            .where(
+                BankSyncJob.connection_id == connection.id,
+                BankSyncJob.status == BankSyncJobStatus.QUEUED,
+                BankSyncJob.kind == BankSyncJobKind.INITIAL,
+            )
+            .values(run_after=func.now())
+        )
+        # The link now reads as importing with nothing waiting. That changes none of the user's data
+        await mark_user_status_changed(db, user.id)
+        await db.commit()
+        [described] = await describe_links(db, user, [link], now=datetime.now(UTC))
+        return described
+
     adapter = adapter_for(connection.provider)
     if adapter is None:
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=PROVIDER_GONE_DETAIL)
     provider = adapter.provider_name
-    now = datetime.now(UTC)
-    [link_status] = (await read_link_statuses(db, [link], now=now)).values()
     refusal = _find_refusal(link_status.sync)
     if refusal is not None:
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=refusal.format(provider=provider))

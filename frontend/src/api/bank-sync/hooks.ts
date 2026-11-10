@@ -42,7 +42,6 @@ import {
   recordBalanceMatch,
   resolveReviewItem,
   restoreBankValue,
-  startBankImport,
   syncBankLink,
   updateBankConnection,
   type ReviewResolution,
@@ -426,7 +425,9 @@ function waitForSyncStart(queryClient: QueryClient, accountId: string): Promise<
  * straight into the cached list, even one read before the link was made. That takes the poll to its
  * fast pace without waiting to read the list again, and the request settles once a read of the list
  * shows a worker started the sync: the poll's, or in a tab in the background the read made on coming
- * back to it, so a button pending on it says the sync is starting until then. A refusal means the
+ * back to it, so a button pending on it says the sync is starting until then. While the import waits
+ * for the user's other accounts to join it, the same press starts the import at once, and the answer,
+ * which no longer waits to start, takes the reminder away without waiting for the next poll. A refusal means the
  * status shown is out of date, so the list is read again instead
  */
 export function syncBankAccountMutationOptions(queryClient: QueryClient) {
@@ -445,29 +446,6 @@ export function syncBankAccountMutationOptions(queryClient: QueryClient) {
 export function useSyncBankAccount() {
   const queryClient = useQueryClient()
   return useMutation(syncBankAccountMutationOptions(queryClient))
-}
-
-/**
- * How Start now runs. The server makes the queued import due and answers with the link, which no
- * longer waits to start. The answer goes straight into the cached list, so the reminder goes away
- * without waiting for the next poll, and the status reads the import as running from then on. A
- * refusal means the reminder shown is out of date, so the list is read again instead
- */
-export function startBankImportMutationOptions(queryClient: QueryClient) {
-  return mutationOptions({
-    mutationFn: async (accountId: string) => {
-      const link = await runWithMinimumPendingTime(ACTION_LOADING_MIN_MS, () => startBankImport(accountId))
-      putCachedBankLink(queryClient, link)
-      return link
-    },
-    onError: () => invalidateBankLinks(queryClient),
-    onSettled: () => invalidateBankSyncStatus(queryClient),
-  })
-}
-
-export function useStartBankImport() {
-  const queryClient = useQueryClient()
-  return useMutation(startBankImportMutationOptions(queryClient))
 }
 
 /**

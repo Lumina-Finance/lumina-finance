@@ -1,5 +1,8 @@
 """Sync now on a linked account: it queues a sync of the account straight away, or says why it can't
 
+While the account's import waits for the user's other accounts to join it, Sync now starts that
+import at once instead, and the wait itself is tested here too.
+
 A sync already queued for the connection takes the request in. The request is refused with the
 reason the button shows while an import or a sync runs on the account, only the user can restart its
 sync, or the review pause holds it, and while the budget is spent, saying whether the connection's
@@ -13,12 +16,12 @@ from datetime import UTC, datetime, timedelta
 from zoneinfo import ZoneInfo
 
 import pytest
-from sqlalchemy import select
+from sqlalchemy import func, select, update
 
 from app.models.bank_connection import BankAccountLink, BankConnection, BankLinkState
 from app.models.bank_sync_job import BankSyncJob, BankSyncJobKind, BankSyncJobStatus
 from app.models.cache_state import UserCacheState
-from app.services.bank_sync import account_link, sync_now
+from app.services.bank_sync import account_link, import_range, jobs, links, sync_now
 from tests.conftest import TestSession
 from tests.routes.support.bank_sync_helpers import (
     _changed_at,
@@ -26,6 +29,7 @@ from tests.routes.support.bank_sync_helpers import (
     _commit_listed_connection,
     _commit_other_users_account,
     _commit_running_job,
+    _link,
     _new_account,
     _new_group_account,
     _seed_job,
@@ -33,9 +37,15 @@ from tests.routes.support.bank_sync_helpers import (
     _spend_requests,
     _update_connection,
 )
+from tests.routes.support.link_helpers import _NOW as _LINKED_AT
 
 # Noon on October 5 in Toronto, the zone _sign_up stores
 _NOW = datetime(2026, 10, 5, 12, 0, tzinfo=ZoneInfo("America/Toronto"))
+
+_TWO_MINUTES = timedelta(minutes=2)
+
+# What the app allows for the time a request takes between queueing a job and reading its wait
+_ALLOWANCE = timedelta(seconds=10)
 
 # A link whose import is long over. It last synced five hours ago and next syncs in 19 hours
 _SYNCED = {
@@ -275,3 +285,139 @@ async def test_sync_now_on_a_group_account_is_refused_to_its_admin(client):
 
     assert response.status_code == 403, response.text
     assert response.json()["detail"] == "Accounts shared with a group can't be linked to a bank yet"
+
+
+@pytest.fixture
+def _import_wait_clock(pin_clock, monkeypatch):
+    """Let accounts be linked at a pinned time while the status and the queue read the real clock
+
+    The wait before an import starts is read by the database's clock, so Sync now's own reads can't
+    be pinned to another day as the other tests here pin them
+    """
+    monkeypatch.setattr(sync_now, "datetime", datetime)
+    monkeypatch.setattr(account_link, "datetime", datetime)
+    pin_clock(_LINKED_AT, links, import_range, jobs)
+
+
+async def _linkable_pair(client) -> tuple[dict, str, str, BankConnection]:
+    """Sign up with Everyday and Savings and a connection listing a bank account for each"""
+    headers, user_id = await _sign_up(client)
+    everyday = await _new_account(client, headers, "Everyday")
+    savings = await _new_account(client, headers, "Savings")
+    connection = await _commit_listed_connection(user_id, "ACT-1", "ACT-2", discovered_at=_LINKED_AT)
+    return headers, everyday, savings, connection
+
+
+async def _waits() -> list[timedelta]:
+    """Return how long from now by the database's clock each queued job waits to run"""
+    async with TestSession() as session:
+        return list(await session.scalars(select(BankSyncJob.run_after - func.now()).where(BankSyncJob.status == BankSyncJobStatus.QUEUED)))
+
+
+async def _starts_at(client, headers, account_id: str) -> str | None:
+    """Return when the account's import starts, as its bank link says"""
+    status = await client.get(f"/accounts/{account_id}/bank-link", headers=headers)
+    assert status.status_code == 200, status.text
+    return status.json()["link"]["sync"]["import_starts_at"]
+
+
+@pytest.mark.usefixtures("_import_wait_clock")
+async def test_link_queues_the_import_two_minutes_on_and_the_status_says_when_it_starts(client):
+    """Linking Everyday queues its first import 2 minutes out rather than at once, and its bank link shows when"""
+    headers, everyday, _, connection = await _linkable_pair(client)
+
+    assert (await _link(client, headers, everyday, connection.id, "ACT-1")).status_code == 201
+
+    [wait] = await _waits()
+    assert _TWO_MINUTES - _ALLOWANCE < wait <= _TWO_MINUTES
+    assert await _starts_at(client, headers, everyday) is not None
+
+
+@pytest.mark.usefixtures("_import_wait_clock")
+async def test_a_second_link_on_the_connection_joins_the_queued_import_and_moves_its_start_on(client):
+    """Savings, linked after Everyday, shares Everyday's import and delays it, so one import brings both in
+
+    The first link's time is brought forward by hand to 1 minute from now, as a minute passing would
+    leave it, so the second link's move to 2 minutes from now is told apart from leaving it
+    """
+    headers, everyday, savings, connection = await _linkable_pair(client)
+    assert (await _link(client, headers, everyday, connection.id, "ACT-1")).status_code == 201
+    async with TestSession() as session:
+        await session.execute(update(BankSyncJob).values(run_after=func.now() + timedelta(minutes=1)))
+        await session.commit()
+    assert [wait <= timedelta(minutes=1) for wait in await _waits()] == [True]
+
+    assert (await _link(client, headers, savings, connection.id, "ACT-2")).status_code == 201
+
+    [wait] = await _waits()
+    assert _TWO_MINUTES - _ALLOWANCE < wait <= _TWO_MINUTES
+    assert [await _starts_at(client, headers, everyday) is not None, await _starts_at(client, headers, savings) is not None] == [True, True]
+
+
+@pytest.mark.usefixtures("_import_wait_clock")
+async def test_sync_now_makes_the_queued_import_due_at_once_and_the_reminder_goes(client):
+    """Pressing Sync now on Everyday while its import waits runs the import for every account waiting on it, then nothing waits"""
+    headers, everyday, savings, connection = await _linkable_pair(client)
+    assert (await _link(client, headers, everyday, connection.id, "ACT-1")).status_code == 201
+    assert (await _link(client, headers, savings, connection.id, "ACT-2")).status_code == 201
+
+    started = await _sync_now(client, headers, everyday)
+
+    assert started.status_code == 200, started.text
+    assert started.json()["sync"]["import_starts_at"] is None
+    [wait] = await _waits()
+    assert wait <= timedelta(0)
+    assert [await _starts_at(client, headers, everyday), await _starts_at(client, headers, savings)] == [None, None]
+
+
+@pytest.mark.usefixtures("_import_wait_clock")
+async def test_sync_now_queues_no_sync_of_its_own_while_it_starts_the_waiting_import(client):
+    """Starting the waiting import is the whole of the press, so no manual sync joins the queue beside it"""
+    headers, everyday, _, connection = await _linkable_pair(client)
+    assert (await _link(client, headers, everyday, connection.id, "ACT-1")).status_code == 201
+
+    assert (await _sync_now(client, headers, everyday)).status_code == 200
+
+    assert [kind for kind, _ in await _queued_requests()] == ["initial"]
+
+
+@pytest.mark.usefixtures("_import_wait_clock")
+async def test_sync_now_is_refused_once_the_import_has_started(client):
+    """A second press, or one from another window, finds the import running and is told so"""
+    headers, everyday, _, connection = await _linkable_pair(client)
+    assert (await _link(client, headers, everyday, connection.id, "ACT-1")).status_code == 201
+    assert (await _sync_now(client, headers, everyday)).status_code == 200
+
+    refused = await _sync_now(client, headers, everyday)
+
+    assert refused.status_code == 409, refused.text
+    assert refused.json()["detail"] == "The import is still running"
+
+
+@pytest.mark.usefixtures("_import_wait_clock")
+async def test_sync_now_leaves_an_import_waiting_on_the_request_budget_alone(client):
+    """Everyday's import is queued for when a request frees up, not for its first links, so Sync now neither shows nor moves it"""
+    headers, everyday, _, connection = await _linkable_pair(client)
+    assert (await _link(client, headers, everyday, connection.id, "ACT-1")).status_code == 201
+    await _spend_requests(connection, 20, datetime.now(_LINKED_AT.tzinfo) - timedelta(hours=1))
+    [before] = await _waits()
+
+    refused = await _sync_now(client, headers, everyday)
+
+    assert refused.status_code == 429, refused.text
+    assert await _starts_at(client, headers, everyday) is None
+    [after] = await _waits()
+    assert after >= before - _ALLOWANCE
+
+
+@pytest.mark.usefixtures("_import_wait_clock")
+async def test_sync_now_on_another_users_account_does_not_start_their_waiting_import(client):
+    """Another user's account can't be told to start, or even found, and their import keeps waiting"""
+    headers, everyday, _, connection = await _linkable_pair(client)
+    assert (await _link(client, headers, everyday, connection.id, "ACT-1")).status_code == 201
+    theirs = await _commit_other_users_account()
+
+    refused = await _sync_now(client, headers, theirs.id)
+
+    assert (refused.status_code, refused.json()["detail"]) == (404, "Account not found")
+    assert [wait > timedelta(0) for wait in await _waits()] == [True]
