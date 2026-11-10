@@ -120,7 +120,14 @@ export function ModalFormFooter({
       disabled={cancelDisabled}
       data-modal-initial-focus={primaryOnLeft ? 'true' : undefined}
     >
-      {cancelLabel}
+      {/* Crossfades a changed label and eases the width, as the primary beside it does */}
+      {fadesLabelChanges ? (
+        <PendingLabel pending={false} name={cancelLabel} contentKey={cancelLabel}>
+          {cancelLabel}
+        </PendingLabel>
+      ) : (
+        cancelLabel
+      )}
     </button>
   )
   const primaryButton = (

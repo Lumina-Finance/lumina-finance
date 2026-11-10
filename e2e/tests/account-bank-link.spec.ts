@@ -334,6 +334,17 @@ test('links an account from its page, from choosing the bank account to its impo
 
   await flow.getByRole('radio', { name: /^3 months/ }).click()
 
+  // The group is one tab stop, the chosen card, and Home and End move to its ends as between native radios
+  const startCards = flow.getByRole('radiogroup', { name: 'Start' }).getByRole('radio')
+  await expect(flow.getByRole('radio', { name: /^3 months/ })).toHaveAttribute('tabindex', '0')
+  await expect(startCards.last()).toHaveAttribute('tabindex', '-1')
+  await flow.getByRole('radio', { name: /^3 months/ }).focus()
+  await page.keyboard.press('End')
+  await expect(startCards.last()).toBeChecked()
+  await page.keyboard.press('Home')
+  await expect(startCards.first()).toBeChecked()
+  await flow.getByRole('radio', { name: /^3 months/ }).click()
+
   // The import waits for more links, so it hasn't started when the linked view shows. The Bridge is
   // held anyway, in case a worker picks it up. Linking itself sends nothing to the Bridge
   await stallBridge(request, scenario.id)

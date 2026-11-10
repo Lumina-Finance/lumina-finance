@@ -1,4 +1,4 @@
-import type { KeyboardEvent, ReactNode } from 'react'
+import { useLayoutEffect, useRef, type KeyboardEvent, type ReactNode } from 'react'
 import { Check, Lock } from 'lucide-react'
 import { DisabledReasonButton } from '@/components/tooltips/DisabledReasonButton'
 
@@ -8,24 +8,43 @@ const LOCKED_OPACITY = 0.55
 // Arrow keys that move to the next choice in the group, and those that move back
 const NEXT_KEYS = new Set(['ArrowDown', 'ArrowRight'])
 const PREVIOUS_KEYS = new Set(['ArrowUp', 'ArrowLeft'])
+const CHOOSABLE_RADIOS = '[role="radio"]:not(:disabled):not([aria-disabled="true"])'
 
 /**
- * Moves to the group's next or previous choice and chooses it, as arrow keys do between native radio
- * buttons, wrapping round at either end and stepping over choices that can't be taken
+ * Moves to the group's next or previous choice, or its first or last on Home and End, and chooses it,
+ * as the keys do between native radio buttons, wrapping round at either end with the arrows and
+ * stepping over choices that can't be taken
  */
 function moveWithArrows(event: KeyboardEvent<HTMLButtonElement>) {
   const step = NEXT_KEYS.has(event.key) ? 1 : PREVIOUS_KEYS.has(event.key) ? -1 : 0
+  const isEnd = event.key === 'Home' || event.key === 'End'
   const group = event.currentTarget.closest('[role="radiogroup"]')
-  if (step === 0 || !group) return
+  if ((step === 0 && !isEnd) || !group) return
 
-  const radios = [
-    ...group.querySelectorAll<HTMLButtonElement>('[role="radio"]:not(:disabled):not([aria-disabled="true"])'),
-  ]
+  const radios = [...group.querySelectorAll<HTMLButtonElement>(CHOOSABLE_RADIOS)]
   const index = radios.indexOf(event.currentTarget)
-  const next = radios[(index + step + radios.length) % radios.length]
+  const next = isEnd
+    ? radios[event.key === 'Home' ? 0 : radios.length - 1]
+    : radios[(index + step + radios.length) % radios.length]
   event.preventDefault()
   next.focus()
   next.click()
+}
+
+/**
+ * Leaves the cards that can be chosen one stop in the tab order, as native radio buttons do: the chosen
+ * card, or the first while none is, with the arrow keys moving between the rest. A locked card stays a
+ * stop of its own, since the keyboard reaches its reason only by landing on it
+ */
+function holdOneTabStop(button: HTMLButtonElement | null) {
+  const group = button?.closest('[role="radiogroup"]')
+  if (!group) return
+  const choosable = [...group.querySelectorAll<HTMLButtonElement>(CHOOSABLE_RADIOS)]
+  const stop = choosable.find((radio) => radio.getAttribute('aria-checked') === 'true') ?? choosable[0]
+  for (const radio of group.querySelectorAll<HTMLButtonElement>('[role="radio"]')) {
+    if (!choosable.includes(radio)) radio.removeAttribute('tabindex')
+    else radio.tabIndex = radio === stop ? 0 : -1
+  }
 }
 
 type ChoiceCardProps = {
@@ -87,8 +106,13 @@ export function ChoiceCard({
       : 'hover:bg-[var(--app-hover-soft)]!'
   const frameClass = `rounded-xl border transition-control motion-reduce:transition-none ${hoverClass}`
 
+  // After every render, since a choice made elsewhere or a card locking or freeing moves the stop
+  const buttonRef = useRef<HTMLButtonElement>(null)
+  useLayoutEffect(() => holdOneTabStop(buttonRef.current))
+
   const choice = (
     <DisabledReasonButton
+      ref={buttonRef}
       id={id}
       type="button"
       role="radio"

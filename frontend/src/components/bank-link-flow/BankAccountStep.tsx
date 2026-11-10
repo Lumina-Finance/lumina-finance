@@ -178,7 +178,7 @@ export function BankAccountStep({
         Missing a bank account? Add it in {providerSiteName(connection)}, or add another connection in{' '}
         <button
           type="button"
-          className="font-medium underline underline-offset-2"
+          className="app-inline-link font-medium underline underline-offset-2 transition-control"
           style={{ color: 'var(--app-text)' }}
           onClick={onOpenSettings}
         >

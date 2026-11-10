@@ -36,7 +36,8 @@ describe('modal form footer', () => {
           onCancel={() => {}}
         />,
       )
-      return { markup, swapKey: swapKeys[0] }
+      // The cancel button comes first and the submit button last
+      return { markup, swapKey: swapKeys.at(-1) }
     }
 
     const unlink = draw('Unlink')
@@ -49,6 +50,27 @@ describe('modal form footer', () => {
     expect(unlink.markup).not.toContain('Disconnect')
     expect(unlink.markup).toContain('sm:w-auto')
     expect(unlink.markup).not.toContain('--fit-width')
+  })
+
+  it('crossfades a Cancel that becomes Back as it does the submit label, and leaves a plain one alone', () => {
+    const cancelKey = (cancelLabel: string, fadesLabelChanges: boolean) => {
+      swapKeys.length = 0
+      renderToStaticMarkup(
+        <ModalFormFooter
+          submitLabel="Next"
+          cancelLabel={cancelLabel}
+          fadesLabelChanges={fadesLabelChanges}
+          submitDisabled={false}
+          submitWidthClassName="w-full sm:w-auto"
+          onCancel={() => {}}
+        />,
+      )
+      return swapKeys[0]
+    }
+
+    expect(cancelKey('Cancel', true)).not.toBe(cancelKey('Back', true))
+    // Without the option the first fade is the submit label's, which a changed cancel label never moves
+    expect(cancelKey('Cancel', false)).toBe(cancelKey('Back', false))
   })
 
   it('keeps a button with one label to its plain label and width', () => {
