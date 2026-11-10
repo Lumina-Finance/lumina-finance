@@ -6,6 +6,7 @@ import type { BankConnection, useRenameBankConnection } from '@/api/bank-sync'
 import { FieldLabelRow } from '@/components/forms/FieldLabelRow'
 import { PendingLabel } from '@/components/loading/PendingLabel'
 import { DisabledReasonButton } from '@/components/tooltips/DisabledReasonButton'
+import { HintButton } from '@/components/tooltips/HintButton'
 import { useRefusedSubmit } from '@/hooks/useRefusedSubmit'
 import { useToast } from '@/hooks/useToast'
 import { CONTENT_EASE_CURVE } from '@/utils/widthEase'
@@ -133,6 +134,7 @@ function NicknameField({
           type="button"
           className="app-icon-button shrink-0"
           aria-label="Save nickname"
+          hint={isSaving ? null : 'Save nickname'}
           aria-busy={isSaving}
           disabled={rename.isPending}
           disabledReason={rename.isPending ? undefined : refusal.blockedReason}
@@ -142,15 +144,15 @@ function NicknameField({
             <Check size={16} aria-hidden />
           </PendingLabel>
         </DisabledReasonButton>
-        <button
-          type="button"
+        <HintButton
           className="app-icon-button shrink-0"
           aria-label="Cancel renaming"
+          hint="Cancel"
           disabled={rename.isPending}
           onClick={cancel}
         >
           <X size={16} aria-hidden />
-        </button>
+        </HintButton>
       </div>
     </div>
   )

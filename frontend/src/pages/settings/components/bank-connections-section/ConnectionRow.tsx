@@ -71,7 +71,7 @@ export function ConnectionRow({ connection, layoutKey, isLast, prefersReducedMot
           this list is laid out like. Moving every list onto a named tier is a separate standards change */}
       <button
         type="button"
-        className="w-full py-3 text-left text-[0.9375rem] transition-[background-color,box-shadow] focus-visible:outline-none focus-visible:shadow-[inset_0_0_0_2px_var(--app-focus-ring)] min-[750px]:py-3.5 min-[750px]:pl-4 min-[750px]:pr-3 min-[750px]:hover:bg-[var(--app-accent-soft)]"
+        className="app-focus-inset w-full py-3 text-left text-[0.9375rem] focus-visible:bg-transparent! min-[750px]:py-3.5 min-[750px]:pl-4 min-[750px]:pr-3 min-[750px]:hover:bg-[var(--app-accent-soft)]"
         aria-haspopup="dialog"
         onClick={onOpen}
       >

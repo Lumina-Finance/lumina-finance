@@ -872,6 +872,12 @@ test('finds a connection by its linked account or nickname, and disconnects it a
 
   await dialog.getByRole('button', { name: 'Disconnect' }).click()
   await expect(dialog.getByRole('button', { name: 'Yes, disconnect' })).toBeVisible()
+
+  // A press on a part of the dialogue that takes no focus takes the first press back, in any browser
+  await dialog.getByRole('heading').first().click()
+  await expect(dialog.getByRole('button', { name: 'Disconnect', exact: true })).toBeVisible()
+  await dialog.getByRole('button', { name: 'Disconnect' }).click()
+  await expect(dialog.getByRole('button', { name: 'Yes, disconnect' })).toBeVisible()
   await dialog.getByRole('button', { name: 'Yes, disconnect' }).click()
 
   await expect(toast(page, 'Joint banks disconnected. 1 account unlinked.')).toBeVisible()

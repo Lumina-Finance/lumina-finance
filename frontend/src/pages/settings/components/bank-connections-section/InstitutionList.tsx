@@ -241,7 +241,7 @@ export function InstitutionRow({
       <div className="group/row relative -mr-1 flex items-start px-1">
         <button
           type="button"
-          className="app-marquee-trigger flex min-w-0 items-center gap-2.5 py-3.5 text-left after:absolute after:inset-0 after:rounded-lg after:content-[''] focus-visible:outline-none focus-visible:after:shadow-[inset_0_0_0_2px_var(--app-focus-ring)]"
+          className="app-marquee-trigger flex min-w-0 items-center gap-2.5 py-3.5 text-left after:absolute after:inset-0 after:rounded-lg after:shadow-[inset_0_0_0_2px_transparent] after:content-[''] after:[transition:box-shadow_var(--app-focus-fade-duration)_var(--app-ease-curve)] focus-visible:outline-none focus-visible:after:shadow-[inset_0_0_0_2px_var(--app-focus-ring)] motion-reduce:after:transition-none"
           aria-expanded={open}
           aria-controls={bodyId}
           onClick={() => setToggled(!open)}
@@ -249,7 +249,7 @@ export function InstitutionRow({
           <ChevronRight
             size={15}
             aria-hidden
-            className={`shrink-0 transition-transform ${open ? 'rotate-90' : ''}`}
+            className={`shrink-0 transition-transform motion-reduce:transition-none ${open ? 'rotate-90' : ''}`}
             style={{ color: 'var(--app-text-subtle)' }}
           />
           <span className="min-w-0 flex-1">
@@ -295,7 +295,7 @@ export function InstitutionRow({
             initial={{ height: 0, opacity: 0 }}
             animate={{ height: 'auto', opacity: 1 }}
             exit={{ height: 0, opacity: 0 }}
-            transition={{ duration: prefersReducedMotion ? 0 : 0.2, ease: CONTENT_EASE_CURVE }}
+            transition={{ duration: prefersReducedMotion ? 0 : 0.24, ease: CONTENT_EASE_CURVE }}
           >
             <div className="pb-3 pl-7 pr-1">
               {entry.note && (

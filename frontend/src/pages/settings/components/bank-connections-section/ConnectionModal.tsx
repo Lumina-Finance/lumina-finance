@@ -19,9 +19,10 @@ import { ModalWorkspacePanel } from '@/components/modal/WorkspacePanel'
 import IconTooltip from '@/components/tooltips/IconTooltip'
 import { LabelWithHint } from '@/components/tooltips/LabelWithHint'
 import { useAuth } from '@/hooks/useAuth'
+import { useConfirmingClick } from '@/hooks/useConfirmingClick'
 import { useRelativeTimeRefresh } from '@/hooks/useRelativeTimeRefresh'
 import { useToast } from '@/hooks/useToast'
-import { CONTENT_EASE_CURVE } from '@/utils/widthEase'
+import { CONTENT_EASE_CURVE, QUICK_EASE_S } from '@/utils/widthEase'
 import {
   INSTITUTION_SEARCH_AFTER,
   LINKING_HOLD_MS,
@@ -142,7 +143,11 @@ export function ConnectionModal({
   const { data: providers } = useBankProviders()
   const { data: accounts } = useAccounts()
   const provider = providers?.providers.find((entry) => entry.id === connection.provider)
-  const [confirmingDisconnect, setConfirmingDisconnect] = useState(false)
+  const disconnectButtonRef = useRef<HTMLButtonElement>(null)
+
+  // A press anywhere else disarms it, as the delete button of a transaction does, since a press on a
+  // part of the page that takes no focus doesn't blur the button in every browser
+  const [confirmingDisconnect, setConfirmingDisconnect] = useConfirmingClick(disconnectButtonRef, disconnect.isPending)
   const [renaming, setRenaming] = useState(false)
   const [query, setQuery] = useState('')
 
@@ -193,7 +198,7 @@ export function ConnectionModal({
     initial: { opacity: 0 },
     animate: { opacity: 1 },
     exit: { opacity: 0 },
-    transition: { duration: prefersReducedMotion ? 0 : 0.15 },
+    transition: { duration: prefersReducedMotion ? 0 : QUICK_EASE_S, ease: CONTENT_EASE_CURVE },
   }
   const status = describeConnectionStatus(connection)
   const statusDetail = describeSignInDetail(connection)
@@ -311,6 +316,7 @@ export function ConnectionModal({
         </span>
       </button>
       <button
+        ref={disconnectButtonRef}
         type="button"
         aria-label={confirmingDisconnect ? 'Yes, disconnect' : 'Disconnect'}
         aria-busy={disconnect.isPending}
@@ -324,20 +330,14 @@ export function ConnectionModal({
         onClick={handleDisconnect}
         onBlur={() => !disconnect.isPending && setConfirmingDisconnect(false)}
       >
-        <PendingLabel pending={disconnect.isPending} name="Disconnect">
-          <AnimatePresence initial={false} mode="wait">
-            <motion.span
-              key={confirmingDisconnect ? 'confirm' : 'idle'}
-              className="inline-flex items-center gap-2"
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              transition={{ duration: prefersReducedMotion ? 0 : 0.15 }}
-            >
-              {confirmingDisconnect ? <Check size={15} aria-hidden /> : <Unplug size={15} aria-hidden />}
-              {confirmingDisconnect ? 'Yes, disconnect' : 'Disconnect'}
-            </motion.span>
-          </AnimatePresence>
+        <PendingLabel
+          pending={disconnect.isPending}
+          name="Disconnect"
+          className="inline-flex items-center gap-2"
+          contentKey={confirmingDisconnect ? 'confirm' : 'idle'}
+        >
+          {confirmingDisconnect ? <Check size={15} aria-hidden /> : <Unplug size={15} aria-hidden />}
+          {confirmingDisconnect ? 'Yes, disconnect' : 'Disconnect'}
         </PendingLabel>
       </button>
     </>
