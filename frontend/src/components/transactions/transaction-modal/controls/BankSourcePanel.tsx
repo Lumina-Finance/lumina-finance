@@ -84,7 +84,10 @@ export default function TransactionBankSourcePanel({ defaultOpen = false, ...car
 
   // The strip's corners wait for the fold, and its filter does not
   const foldSeconds = leave.transition.duration
-  const closeDelay = `${foldSeconds}s, 0s`
+  const closeDelay = `${foldSeconds}s, 0s, 0s`
+
+  // The ring fades over the shorter focus time, as it does on every control that draws one
+  const tabDurations = 'var(--app-ease-duration), var(--app-ease-duration), var(--app-focus-fade-duration)'
 
   return (
     <div>
@@ -93,22 +96,23 @@ export default function TransactionBankSourcePanel({ defaultOpen = false, ...car
         aria-expanded={open}
         aria-controls={open ? cardId : undefined}
         onClick={() => setOpen(!open)}
-        className={`${FILING_TAB_CLASS} flex w-full items-center gap-2 pb-1 text-left transition-[border-radius,filter] hover:brightness-95 focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-[var(--app-focus-ring)] motion-reduce:transition-none ${open ? '' : 'rounded-b-md'}`}
+        className={`${FILING_TAB_CLASS} flex w-full items-center gap-2 pb-1 text-left transition-[border-radius,filter,outline-color] hover:brightness-95 focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-[var(--app-focus-ring)] motion-reduce:transition-none ${open ? '' : 'rounded-b-md'}`}
         // Closing, the strip keeps its square bottom until the card has folded away beneath it, so no notch shows
-        style={{ ...FILING_TAB_STYLE, transitionDelay: open ? undefined : closeDelay }}
+        style={{
+          ...FILING_TAB_STYLE,
+          transitionDuration: tabDurations,
+          transitionDelay: open ? undefined : closeDelay,
+        }}
       >
         <Landmark size={13} aria-hidden className="shrink-0" />
         <span className="min-w-0 flex-1">
           From <span className="normal-case">{providerName}</span>
         </span>
-        <motion.span
+        <ChevronDown
+          size={16}
           aria-hidden
-          className="inline-flex shrink-0"
-          animate={{ rotate: open ? 180 : 0 }}
-          transition={enterTransition}
-        >
-          <ChevronDown size={16} />
-        </motion.span>
+          className={`shrink-0 transition-transform motion-reduce:transition-none ${open ? 'rotate-180' : ''}`}
+        />
       </button>
 
       <AnimatePresence initial={false}>
