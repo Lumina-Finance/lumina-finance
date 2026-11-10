@@ -292,6 +292,19 @@ export function BankReviewBlock({
               describeReviewItem(item),
             ]
 
+            // In selection mode a new item's row ticks it, and every row makes room for the box so
+            // the text of corrections and removals lines up with the rest. A range being picked takes the
+            // hover wash made for a shaded surface, since the plain hover fill matches this card in light
+            const tick = selection && item.kind === 'new' ? selection : null
+            const mark = tick ? tick.markFor(item.id) : 'none'
+            const isSelectable = tick ? tick.isSelectable(item.id) : false
+            const selectionBackground =
+              mark === 'selected'
+                ? 'var(--app-accent-soft)'
+                : mark === 'pending'
+                  ? 'var(--app-hover-on-surface-soft)'
+                  : undefined
+
             // The divider sits on the content rather than the row, so it stops short of the card's edges
             const content = (
               <div
@@ -317,7 +330,12 @@ export function BankReviewBlock({
                   data-testid="review-item-amount"
                   className="shrink-0 font-financial text-sm font-medium tabular-nums"
                   style={{
-                    color: amount.sign > 0 ? 'var(--app-positive)' : 'var(--app-text)',
+                    color:
+                      amount.sign > 0
+                        ? mark === 'selected'
+                          ? 'var(--app-positive-on-accent-tint)'
+                          : 'var(--app-positive)'
+                        : 'var(--app-text)',
                     textDecoration: amount.isStruckThrough ? 'line-through' : undefined,
                   }}
                 >
@@ -325,14 +343,6 @@ export function BankReviewBlock({
                 </span>
               </div>
             )
-
-            // In selection mode a new item's row ticks it, and every row makes room for the box so
-            // the text of corrections and removals lines up with the rest
-            const tick = selection && item.kind === 'new' ? selection : null
-            const mark = tick ? tick.markFor(item.id) : 'none'
-            const isSelectable = tick ? tick.isSelectable(item.id) : false
-            const selectionBackground =
-              mark === 'selected' ? 'var(--app-accent-soft)' : mark === 'pending' ? 'var(--app-hover-soft)' : undefined
 
             return (
               <motion.div
