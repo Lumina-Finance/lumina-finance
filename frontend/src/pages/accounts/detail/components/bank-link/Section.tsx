@@ -171,7 +171,6 @@ function LinkedView({
             <ImportStartNotice
               accountId={link.account_id}
               actionClassName={START_NOW_CLASS}
-              actionProps={ACTION_PROPS}
               onFolded={() => focusFirstAction(actionsRef.current)}
             />
           </Unfold>

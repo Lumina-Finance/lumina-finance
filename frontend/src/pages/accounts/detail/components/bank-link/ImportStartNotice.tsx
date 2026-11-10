@@ -14,9 +14,6 @@ type ImportStartNoticeProps = {
   /** The classes of the notice's button, the section's other notice actions' */
   actionClassName: string
 
-  /** Marks the button as one of the view's actions */
-  actionProps: Record<string, string>
-
   /** Moves focus on once the notice folds away with its button holding it */
   onFolded: () => void
 }
@@ -29,7 +26,7 @@ type ImportStartNoticeProps = {
  * import starts and the notice folds away, when focus moves on. A refusal says why in a toast and the
  * link list is read again
  */
-export function ImportStartNotice({ accountId, actionClassName, actionProps, onFolded }: ImportStartNoticeProps) {
+export function ImportStartNotice({ accountId, actionClassName, onFolded }: ImportStartNoticeProps) {
   const rootRef = useRef<HTMLDivElement>(null)
   const start = useStartBankImport()
   const { showToast } = useToast()
@@ -51,7 +48,6 @@ export function ImportStartNotice({ accountId, actionClassName, actionProps, onF
             type="button"
             className={actionClassName}
             aria-busy={start.isPending}
-            {...actionProps}
             onClick={start.isPending ? undefined : run}
           >
             <PendingLabel pending={start.isPending} name="Start now">

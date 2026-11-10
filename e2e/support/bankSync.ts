@@ -217,6 +217,7 @@ export function buildLinkAnswer(accountId: string, status: Partial<BankLinkSyncS
       held_by_provider: false,
       sync_running: false,
       sync_requested: false,
+      import_starts_at: null,
       waiting_new_count,
       paused: false,
       review_warning: false,
