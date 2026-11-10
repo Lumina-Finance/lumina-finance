@@ -106,11 +106,19 @@ export function SyncFact({ name, sync, showsDetails = false, onOpen, fades = fal
             type="button"
             onClick={onOpen}
             aria-label={`${name}: ${sentence} Open bank link`}
-            className="underline flex max-w-full items-center gap-2 rounded-sm text-left [--link-underline-start:16px]"
+            className="group underline flex max-w-full items-center gap-2 rounded-sm text-left [--link-underline-start:16px] [--link-underline-end:14.67px]"
           >
             {value}
-            {/* Shows at rest that the status opens the bank link, as the hover underline only shows it to a pointer */}
-            <ChevronRight aria-hidden className="size-4 shrink-0" style={{ color: 'var(--app-text-subtle)' }} />
+            {/* Shows at rest that the status opens the bank link, as the hover underline only shows it to a pointer.
+                The icon draws 5.33px in from its box, so pulling the box back 9.33px from the row's 8px gap puts the
+                drawn chevron 4px from the label's end. The underline's end offset is the box's 16px less the 1.33px
+                it then overlaps the label's box. Drawn 1px low, so it centres on the label's lowercase letters
+                and not its capitals. Nudges right under the pointer or keyboard focus, and holds still under reduced motion */}
+            <ChevronRight
+              aria-hidden
+              className="relative top-px -ml-[9.33px] size-4 shrink-0 transition-transform group-hover:translate-x-0.5 group-focus-visible:translate-x-0.5 motion-reduce:transition-none motion-reduce:group-hover:translate-x-0 motion-reduce:group-focus-visible:translate-x-0"
+              style={{ color: 'var(--app-text-subtle)' }}
+            />
           </button>
         ) : (
           <span className="flex min-w-0 max-w-full items-center gap-2">{value}</span>

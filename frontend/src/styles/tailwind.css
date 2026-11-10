@@ -3698,7 +3698,8 @@
   Sans, whose ascent is 0.99em and descent 0.31em: a button or a link with its own box centres the font's
   1.3em in its line box, and an inline link's background covers just the font's own 1.3em. The top is
   rounded to a whole pixel so the line stays crisp. A link with an icon sets --link-underline-start to the
-  icon's width and gap, so the line runs under the label only. A link that wraps draws a line under each of
+  icon's width and gap, so the line runs under the label only, or --link-underline-end for an icon after the
+  label. A link that wraps draws a line under each of
   its lines, while a link with its own box draws one line, so it is for a label that stays on one line.
   These rules live in the utilities layer because the links carry transition utilities, which Tailwind
   orders after components, and a components-layer rule would lose to them
@@ -3709,8 +3710,10 @@
     background-image: linear-gradient(currentColor, currentColor);
     background-repeat: no-repeat;
     background-size: 0px 1px;
-    background-position: calc(50% + var(--link-underline-start, 0px) / 2) calc(0.99em + 2px);
-    background-position: calc(50% + var(--link-underline-start, 0px) / 2) round(calc(0.99em + 2px), 1px);
+    background-position: calc(50% + (var(--link-underline-start, 0px) - var(--link-underline-end, 0px)) / 2)
+      calc(0.99em + 2px);
+    background-position: calc(50% + (var(--link-underline-start, 0px) - var(--link-underline-end, 0px)) / 2)
+      round(calc(0.99em + 2px), 1px);
     box-decoration-break: clone;
     -webkit-box-decoration-break: clone;
   }
@@ -3748,7 +3751,7 @@
   }
 
   :is(a, button).underline:focus-visible {
-    background-size: calc(100% - var(--link-underline-start, 0px)) 1px;
+    background-size: calc(100% - var(--link-underline-start, 0px) - var(--link-underline-end, 0px)) 1px;
   }
 
   /* A shared button eases every change over the app's duration and curve, while its focus ring still fades
@@ -3791,7 +3794,7 @@
 
   @media (hover: hover) {
     :is(a, button).underline:hover {
-      background-size: calc(100% - var(--link-underline-start, 0px)) 1px;
+      background-size: calc(100% - var(--link-underline-start, 0px) - var(--link-underline-end, 0px)) 1px;
     }
   }
 

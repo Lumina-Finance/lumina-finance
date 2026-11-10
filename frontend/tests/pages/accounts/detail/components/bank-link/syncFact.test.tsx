@@ -23,4 +23,40 @@ describe('the bank sync fact', () => {
     )
     expect(renderToStaticMarkup(<SyncFact name="Status" sync={SYNC} />)).toMatch(/^<div class="col-span-2 min-w-0">/)
   })
+
+  describe('its chevron', () => {
+    const chevronClasses = (markup: string) =>
+      markup.match(/<svg[^>]*class="([^"]*lucide-chevron-right[^"]*)"/)?.[1] ?? ''
+
+    it('nudges 2px right under the pointer or keyboard focus, on the app ease, and holds still under reduced motion', () => {
+      const classes = chevronClasses(renderToStaticMarkup(<SyncFact name="Bank sync" sync={SYNC} onOpen={() => {}} />))
+
+      expect(classes).toContain('group-hover:translate-x-0.5')
+      expect(classes).toContain('group-focus-visible:translate-x-0.5')
+      expect(classes).toContain('transition-transform')
+      // The duration and curve are the app's defaults for a transition, set once in the stylesheet
+      expect(classes).not.toMatch(/\b(duration|ease)-/)
+      expect(classes).toContain('motion-reduce:transition-none')
+      expect(classes).toContain('motion-reduce:group-hover:translate-x-0')
+      expect(classes).toContain('motion-reduce:group-focus-visible:translate-x-0')
+    })
+
+    it('sits 4px from the label and centres on its lowercase letters', () => {
+      const classes = chevronClasses(renderToStaticMarkup(<SyncFact name="Bank sync" sync={SYNC} onOpen={() => {}} />))
+
+      expect(classes).toContain('-ml-[9.33px]')
+      expect(classes).toContain('top-px')
+    })
+
+    it('leaves the hover underline to the label by ending it where the chevron begins', () => {
+      const markup = renderToStaticMarkup(<SyncFact name="Bank sync" sync={SYNC} onOpen={() => {}} />)
+
+      expect(markup).toContain('[--link-underline-start:16px]')
+      expect(markup).toContain('[--link-underline-end:14.67px]')
+    })
+
+    it('is absent where the fact opens nothing', () => {
+      expect(renderToStaticMarkup(<SyncFact name="Status" sync={SYNC} />)).not.toContain('lucide-chevron-right')
+    })
+  })
 })
