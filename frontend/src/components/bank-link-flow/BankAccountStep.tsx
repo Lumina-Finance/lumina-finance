@@ -13,6 +13,9 @@ import { useMoneyFormatters } from '@/hooks/useMoneyFormatters'
 import { connectionName, countNoun, providerSiteName } from '@/utils/bankSync'
 import { DATE_FORMATS, formatDate } from '@/utils/date'
 
+// For a bank account the server leaves unavailable without saying why
+const UNAVAILABLE_FALLBACK = "This bank account can't be linked"
+
 const CONNECTION_LABEL_ID = 'bank-link-connection-label'
 
 type BankAccountStepProps = {
@@ -139,7 +142,8 @@ export function BankAccountStep({
                 key={entry.external_id}
                 id={entry.external_id === firstLinkableId ? LINK_FLOW_FIELD_IDS.bankAccount : undefined}
                 selected={chosenId === entry.external_id}
-                disabled={disabled || !entry.linkable}
+                disabled={disabled}
+                unavailableReason={entry.linkable ? null : (entry.unavailable_message ?? UNAVAILABLE_FALLBACK)}
                 onSelect={() => onChoose(entry.external_id)}
               >
                 <span className="flex flex-wrap items-baseline justify-between gap-x-3">
@@ -158,11 +162,6 @@ export function BankAccountStep({
                   {entry.institution_name}
                   {describeLikeBefore(entry, previous)}
                 </span>
-                {entry.unavailable_message && (
-                  <span className="mt-1 block text-xs" style={{ color: 'var(--app-negative)' }}>
-                    {entry.unavailable_message}
-                  </span>
-                )}
                 {entry.linkable && entry.institution_differs && (
                   <span className="mt-1 block text-xs" style={{ color: 'var(--app-warning-text)' }}>
                     The institution differs from the one on {account.name}. That can be normal for a card issued through

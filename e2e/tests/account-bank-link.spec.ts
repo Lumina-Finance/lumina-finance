@@ -517,8 +517,17 @@ test("lists the bank accounts that can't be linked with the reason for each", NE
   ]
   for (const [name, reason] of reasons) {
     const card = flow.getByRole('radio', { name: new RegExp(`^${name}`) })
-    await expect(card).toBeDisabled()
-    await expect(card).toContainText(reason)
+    // Locked and reachable: the reason is in the tooltip on focus, not printed on the card
+    await expect(card).toHaveAttribute('aria-disabled', 'true')
+    await expect(card).not.toContainText(reason)
+    // Reached by Tab, so the focus is the keyboard's and shows the reason
+    await card.focus()
+    await page.keyboard.press('Shift+Tab')
+    await page.keyboard.press('Tab')
+    await expect(card).toBeFocused()
+    await expect(page.getByText(reason).filter({ visible: true })).toHaveCount(1)
+    await page.keyboard.press('Enter')
+    await expect(card).toHaveAttribute('aria-checked', 'false')
   }
   // Nothing can be chosen, yet Continue is whole until a press says so
   const continueButton = flow.getByRole('button', { name: 'Continue' })

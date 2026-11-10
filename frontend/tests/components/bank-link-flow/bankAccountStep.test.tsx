@@ -134,13 +134,27 @@ describe('the bank account step', () => {
       ],
     })
 
+    // Locked, not disabled, so the card stays reachable for its reason. The reason is no line on the
+    // card, and reaches a screen reader as the card's description and everyone else in the tooltip
     const travel = cardFor(markup, 'Travel Card')
-    expect(travel).toMatch(/disabled=""/)
-    expect(travel).toContain('>In USD, but Everyday is in CAD<')
+    expect(travel).toContain('aria-disabled="true"')
+    expect(travel).not.toMatch(/ disabled=""/)
+    expect(travel).not.toContain('var(--app-negative)')
+    expect(travel).toContain('lucide-lock')
+    expect(travel).toContain('opacity:0.55')
+    expect(travel).toContain('In USD, but Everyday is in CAD')
     const points = cardFor(markup, 'Points')
-    expect(points).toMatch(/disabled=""/)
+    expect(points).toContain('aria-disabled="true"')
     expect(points).not.toContain('9.00')
     expect(points).toContain('Uses a currency of its own that Lumina Finance can&#x27;t track')
+  })
+
+  it('leaves a bank account that can be linked as a plain card with a radio and no lock', () => {
+    const card = cardFor(renderStep(), 'Everyday Chequing')
+
+    expect(card).not.toContain('aria-disabled="true"')
+    expect(card).not.toContain('lucide-lock')
+    expect(card).not.toContain('opacity:0.55')
   })
 
   it('warns when the institution differs from the one on the account', () => {
