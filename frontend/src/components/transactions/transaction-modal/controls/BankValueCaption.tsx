@@ -93,7 +93,7 @@ export default function TransactionBankValueCaption({
                 // for its ring. The edge of the modal's body would otherwise cut that off. The ring
                 // sits against the action's edge, with no gap, since the clip around the line keeps
                 // only 2px above and below it
-                className={`ml-1 inline-flex size-6 shrink-0 scroll-my-1 cursor-pointer items-center justify-center rounded-md border-0 bg-transparent transition-colors hover:text-[var(--app-text)] focus-visible:outline-offset-0 disabled:cursor-not-allowed aria-disabled:cursor-not-allowed ${restoring ? '' : 'disabled:opacity-60'}`}
+                className={`relative ml-1 inline-flex size-6 shrink-0 scroll-my-1 cursor-pointer items-center justify-center rounded-md border-0 bg-transparent transition-control before:absolute before:-inset-1 before:content-[''] hover:text-[var(--app-text)] focus-visible:outline-offset-0 disabled:cursor-not-allowed aria-disabled:cursor-not-allowed ${restoring ? '' : 'disabled:opacity-60'}`}
               >
                 {restoring ? (
                   <LoaderCircle

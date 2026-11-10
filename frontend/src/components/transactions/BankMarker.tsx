@@ -2,6 +2,7 @@ import type { ReactNode } from 'react'
 import { AnimatePresence, motion, useReducedMotion } from 'motion/react'
 import { Landmark } from 'lucide-react'
 import IconTooltip from '@/components/tooltips/IconTooltip'
+import { CONTENT_EASE_CURVE, QUICK_EASE_S } from '@/utils/widthEase'
 
 // As wide as its longest line, with room for the edited note on one line rather than a last line
 // of two words, while staying narrower than a phone's page
@@ -75,7 +76,7 @@ export function BankMarker({ providerName, isEdited, needsReview, onShowReview }
           type="button"
           aria-label="Needs review. Show the waiting item"
           onClick={onShowReview}
-          className="relative inline-flex cursor-pointer items-center rounded-full border bg-[var(--app-warning-soft)] px-1.5 py-0.5 text-xs font-medium leading-none before:absolute before:inset-x-0 before:-inset-y-1.5 before:content-[''] hover:bg-[image:linear-gradient(var(--app-accent-soft),var(--app-accent-soft))]"
+          className="relative inline-flex cursor-pointer items-center rounded-full border bg-[var(--app-warning-soft)] px-1.5 py-0.5 text-xs font-medium leading-none transition-control before:absolute before:inset-x-0 before:-inset-y-1.5 before:content-[''] after:pointer-events-none after:absolute after:inset-0 after:rounded-full after:bg-[var(--app-accent-soft)] after:opacity-0 after:transition-opacity after:content-[''] hover:after:opacity-100 motion-reduce:transition-none motion-reduce:after:transition-none"
           style={{ borderColor: 'var(--app-warning-border)', color: 'var(--app-warning-text)' }}
         >
           Needs review
@@ -100,7 +101,7 @@ function Grows({ show, className, children }: { show: boolean; className: string
           initial={{ opacity: 0, scale: 0.8 }}
           animate={{ opacity: 1, scale: 1 }}
           exit={{ opacity: 0, scale: 0.8 }}
-          transition={{ duration: prefersReducedMotion ? 0 : 0.15 }}
+          transition={{ duration: prefersReducedMotion ? 0 : QUICK_EASE_S, ease: CONTENT_EASE_CURVE }}
         >
           {children}
         </motion.span>

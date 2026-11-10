@@ -4,6 +4,8 @@ import { ChevronDown, Landmark, PauseCircle, TriangleAlert } from 'lucide-react'
 import type { BankReviewItem } from '@/api/bank-sync'
 import { useMoneyFormatters } from '@/hooks/useMoneyFormatters'
 import { Checkbox } from '@/components/forms/Checkbox'
+import { HintButton } from '@/components/tooltips/HintButton'
+import { CONTENT_EASE_CURVE, QUICK_EASE_S } from '@/utils/widthEase'
 import { describeTickLimit } from '@/components/transactions/bulk-edit/reviewSelection'
 import type { RowSelectionMark } from '@/components/transactions/bulk-edit/selection'
 import { DetailPhrases } from '@/components/transactions/bank-review/DetailPhrases'
@@ -144,6 +146,7 @@ export function BankReviewBlock({
   const titleId = useId()
   const listId = useId()
   const visibleItems = expanded ? items : items.slice(0, COLLAPSED_ITEM_COUNT)
+  const toggleLabel = expanded ? 'Show fewer' : `Show all ${total.toLocaleString()}`
   const { collapsed, enterTransition, leave } = REVIEW_MOTION[prefersReducedMotion ? 'reduced' : 'full']
 
   // Items that load on a retry take focus on their first row, as a Needs review marker's item does,
@@ -208,21 +211,29 @@ export function BankReviewBlock({
         {/* Grows in when the backlog passes the rows shown, and shrinks away when it falls back under */}
         <AnimatePresence initial={false}>
           {total > COLLAPSED_ITEM_COUNT && (
-            <motion.button
+            <motion.span
               key="toggle"
+              className="ml-auto inline-flex shrink-0"
               initial={{ opacity: 0, scale: 0.8 }}
               animate={{ opacity: 1, scale: 1 }}
               exit={{ opacity: 0, scale: 0.8 }}
-              transition={{ duration: prefersReducedMotion ? 0 : 0.15 }}
-              type="button"
-              aria-expanded={expanded}
-              aria-controls={listId}
-              aria-label={expanded ? 'Show fewer' : `Show all ${total.toLocaleString()}`}
-              onClick={onToggleExpanded}
-              className="ml-auto flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-[var(--app-text-muted)] transition-colors hover:bg-[var(--app-accent-soft)] hover:text-[var(--app-text)] focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-[var(--app-focus-ring)] motion-reduce:transition-none"
+              transition={{ duration: prefersReducedMotion ? 0 : QUICK_EASE_S, ease: CONTENT_EASE_CURVE }}
             >
-              <ChevronDown size={16} aria-hidden className={`transition-transform ${expanded ? 'rotate-180' : ''}`} />
-            </motion.button>
+              <HintButton
+                aria-expanded={expanded}
+                aria-controls={listId}
+                aria-label={toggleLabel}
+                hint={toggleLabel}
+                onClick={onToggleExpanded}
+                className="app-icon-button"
+              >
+                <ChevronDown
+                  size={16}
+                  aria-hidden
+                  className={`transition-transform motion-reduce:transition-none ${expanded ? 'rotate-180' : ''}`}
+                />
+              </HintButton>
+            </motion.span>
           )}
         </AnimatePresence>
         <p className="basis-full pb-3 pt-1 text-xs" style={{ color: 'var(--app-text-muted)' }}>

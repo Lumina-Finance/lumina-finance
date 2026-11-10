@@ -119,6 +119,17 @@ describe('bank marker', () => {
     expect(stopPropagation).toHaveBeenCalledOnce()
   })
 
+  it('lays the Needs review hover tint as a fading layer, since a background image cannot ease', () => {
+    const markup = renderToStaticMarkup(BankMarker({ providerName: 'SimpleFIN', isEdited: false, needsReview: true }))
+    const tag = markup.match(/<button[^>]*aria-label="Needs review[^>]*>/)?.[0]
+
+    expect(tag).not.toContain('bg-[image:')
+    expect(tag).toContain('after:opacity-0')
+    expect(tag).toContain('hover:after:opacity-100')
+    expect(tag).toContain('after:transition-opacity')
+    expect(tag).toContain('transition-control')
+  })
+
   it('leaves a manual row without any marker', () => {
     const markup = renderRow()
 

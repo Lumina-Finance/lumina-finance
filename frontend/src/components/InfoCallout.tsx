@@ -1,6 +1,7 @@
 import { Info, X, type LucideIcon } from 'lucide-react'
 import { useId, type ReactNode } from 'react'
 import { PendingLabel } from '@/components/loading/PendingLabel'
+import { HintButton } from '@/components/tooltips/HintButton'
 
 /**
  * Guidance that is not a warning or an error, something stopped until the user fixes it, or
@@ -77,10 +78,10 @@ export function InfoCallout({
               {title}
             </p>
             {onDismiss && (
-              <button
-                type="button"
-                className="app-icon-button -mr-1 -mt-0.5 h-6 w-6 shrink-0"
+              <HintButton
+                className="app-icon-button relative -mr-1 -mt-0.5 h-6 w-6 shrink-0 before:absolute before:-inset-1 before:content-['']"
                 aria-label="Dismiss"
+                hint={dismissing ? null : 'Dismiss'}
                 aria-describedby={titleId}
                 aria-busy={dismissing}
                 onClick={dismissing ? undefined : onDismiss}
@@ -88,7 +89,7 @@ export function InfoCallout({
                 <PendingLabel pending={dismissing} name="Dismiss">
                   <X size={14} aria-hidden />
                 </PendingLabel>
-              </button>
+              </HintButton>
             )}
           </div>
           <p className="mt-0.5">{children}</p>
