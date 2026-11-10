@@ -1,7 +1,7 @@
 import { useRef } from 'react'
 import { Clock } from 'lucide-react'
 import { useStartBankImport } from '@/api/bank-sync'
-import { IMPORT_START_REMINDER, START_IMPORT_FAILED_MESSAGE } from '@/components/bank-link-flow/constants'
+import { importStartReminder, START_IMPORT_FAILED_MESSAGE } from '@/components/bank-link-flow/constants'
 import { InfoCallout } from '@/components/InfoCallout'
 import { PendingLabel } from '@/components/loading/PendingLabel'
 import { useToast } from '@/hooks/useToast'
@@ -10,6 +10,9 @@ import { getSaveFailureMessage } from '@/utils/createFailure'
 
 type ImportStartNoticeProps = {
   accountId: string
+
+  /** The link's provider, named in the reminder */
+  providerName: string
 
   /** The classes of the notice's button, the section's other notice actions' */
   actionClassName: string
@@ -26,7 +29,7 @@ type ImportStartNoticeProps = {
  * import starts and the notice folds away, when focus moves on. A refusal says why in a toast and the
  * link list is read again
  */
-export function ImportStartNotice({ accountId, actionClassName, onFolded }: ImportStartNoticeProps) {
+export function ImportStartNotice({ accountId, providerName, actionClassName, onFolded }: ImportStartNoticeProps) {
   const rootRef = useRef<HTMLDivElement>(null)
   const start = useStartBankImport()
   const { showToast } = useToast()
@@ -57,7 +60,7 @@ export function ImportStartNotice({ accountId, actionClassName, onFolded }: Impo
           </button>
         }
       >
-        {IMPORT_START_REMINDER}
+        {importStartReminder(providerName)}
       </InfoCallout>
     </div>
   )

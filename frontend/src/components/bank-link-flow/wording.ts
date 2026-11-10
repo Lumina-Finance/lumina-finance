@@ -7,23 +7,23 @@ import { NOTHING_TO_LINK_REASON } from '@/components/bank-link-flow/constants'
  */
 export type LinkFlowMode = 'link' | 'relink' | 'choose_again'
 
-export type LinkFlowStep = 'connect-first' | 'account' | 'start' | 'linked'
+export type LinkFlowStep = 'connect-first' | 'account' | 'start'
 
-/** Each step's name. The flow shows it as its eyebrow. Once the link is saved it shows the first step's, since no choice is left to name */
-export const LINK_FLOW_STEP_NAMES: Record<Exclude<LinkFlowStep, 'linked'>, string> = {
+/** Each step's name. The flow shows it as its eyebrow */
+export const LINK_FLOW_STEP_NAMES: Record<LinkFlowStep, string> = {
   'connect-first': 'Connect a provider first',
   account: 'Choose the bank account',
   start: 'Choose where history starts',
 }
 
-/** The flow's title, its last button and the heading of the step that follows the link, by why it links */
+/** The flow's title, its last button and the confirmation once it links, by why it links */
 export const LINK_FLOW_WORDING: Record<LinkFlowMode, { title: string; submitLabel: string; confirmation: string }> = {
-  link: { title: 'Link bank account', submitLabel: 'Link and import', confirmation: 'Linked' },
-  relink: { title: 'Reconnect bank account', submitLabel: 'Relink', confirmation: 'Relinked' },
+  link: { title: 'Link bank account', submitLabel: 'Link and import', confirmation: 'Linked. Syncing starts shortly.' },
+  relink: { title: 'Reconnect bank account', submitLabel: 'Relink', confirmation: 'Relinked. Syncing starts shortly.' },
   choose_again: {
     title: 'Choose bank account again',
     submitLabel: 'Relink',
-    confirmation: 'Relinked',
+    confirmation: 'Relinked. Syncing starts shortly.',
   },
 }
 

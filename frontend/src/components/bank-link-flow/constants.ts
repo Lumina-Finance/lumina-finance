@@ -30,10 +30,13 @@ export const LINK_FLOW_FIELD_IDS = {
 /**
  * What a linked account's reminder says while its import waits for the user's other accounts to be
  * linked and join it. The server holds the import back for 2 minutes after the latest link, and the
- * reminder shows in the account's Bank link section and in the link flow once the link is saved
+ * reminder shows in the account's Bank link section while it waits
+ *
+ * @param providerName - The connection's provider, whose daily request limit the joined import saves
  */
-export const IMPORT_START_REMINDER =
-  'History import starts in about 2 minutes. Link your other accounts first so one import brings them all in.'
+export function importStartReminder(providerName: string): string {
+  return `Syncing starts shortly. Link your other accounts now, and they'll import together using fewer of ${providerName}'s daily requests.`
+}
 
 /** What a Start now the server didn't answer says, while one it refused gives the server's reason */
 export const START_IMPORT_FAILED_MESSAGE = 'Import could not start. Please try again.'

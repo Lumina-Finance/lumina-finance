@@ -170,6 +170,7 @@ function LinkedView({
           <Unfold key="import-start">
             <ImportStartNotice
               accountId={link.account_id}
+              providerName={link.provider_name}
               actionClassName={START_NOW_CLASS}
               onFolded={() => focusFirstAction(actionsRef.current)}
             />
