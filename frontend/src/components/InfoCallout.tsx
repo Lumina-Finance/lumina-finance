@@ -8,11 +8,20 @@ import { PendingLabel } from '@/components/loading/PendingLabel'
  */
 type InfoCalloutTone = 'info' | 'stopped' | 'review'
 
-const TONE_COLORS: Record<InfoCalloutTone, { background: string; icon: string }> = {
+const TONE_COLORS: Record<InfoCalloutTone, { background: string; icon: string; border?: string }> = {
   info: { background: 'var(--app-accent-soft)', icon: 'var(--app-accent)' },
   stopped: { background: 'var(--app-negative-soft)', icon: 'var(--app-negative)' },
-  review: { background: 'var(--app-warning-soft)', icon: 'var(--app-warning-text)' },
+  // The warning tint is only 1.1:1 against the page and a modal, so the callout takes the warning edge
+  review: {
+    background: 'var(--app-warning-soft)',
+    icon: 'var(--app-warning-text)',
+    border: '1px solid var(--app-warning-border)',
+  },
 }
+
+// The focus ring is 3:1 on the page but under it on a tint, so a control inside a callout draws its ring in
+// the selected navigation item's focus colour, which clears 3:1 on every tone in both themes
+const RING_ON_TINT_CLASS = '[&_:focus-visible]:outline-[var(--app-accent-nav-focus-border)]'
 
 type InfoCalloutProps = {
   children: ReactNode
@@ -56,8 +65,8 @@ export function InfoCallout({
   if (title !== undefined) {
     return (
       <div
-        className="flex items-start gap-2 rounded-lg p-3 text-sm"
-        style={{ backgroundColor: colors.background, color: 'var(--app-text)' }}
+        className={`flex items-start gap-2 rounded-lg p-3 text-sm ${RING_ON_TINT_CLASS}`}
+        style={{ backgroundColor: colors.background, border: colors.border, color: 'var(--app-text)' }}
         role="note"
         aria-labelledby={titleId}
       >
@@ -97,8 +106,8 @@ export function InfoCallout({
 
   return (
     <div
-      className={`flex rounded-lg p-3 text-sm ${action ? 'flex-col gap-3 sm:flex-row sm:items-center' : 'items-start gap-2'}`}
-      style={{ backgroundColor: colors.background, color: 'var(--app-text)' }}
+      className={`flex rounded-lg p-3 text-sm ${RING_ON_TINT_CLASS} ${action ? 'flex-col gap-3 sm:flex-row sm:items-center' : 'items-start gap-2'}`}
+      style={{ backgroundColor: colors.background, border: colors.border, color: 'var(--app-text)' }}
       role="note"
     >
       {action ? (
