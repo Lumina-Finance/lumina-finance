@@ -31,17 +31,14 @@ NOTHING_TO_MATCH = "There is no difference to match"
 MATCH_MOVED = "The difference has changed. Check the new amount and try again"
 
 
-async def record_balance_match(
-    db: AsyncSession, user: User, account_id: uuid.UUID, *, amount: int, offered_amount: int
-) -> AccountBankStatusResponse:
-    """Record the offered balance match for the amount given in one save
+async def record_balance_match(db: AsyncSession, user: User, account_id: uuid.UUID, *, offered_amount: int) -> AccountBankStatusResponse:
+    """Record the offered balance match for the amount offered in one save
 
     Args:
         db: Active database session
         user: The account's owner
         account_id: The linked account
-        amount: Signed minor units as the ledger keeps them, other than zero
-        offered_amount: The amount of the offer the user was shown
+        offered_amount: The amount of the offer the user was shown, signed minor units as the ledger keeps them
 
     Returns:
         The account's bank link, with the balances taking in the adjustment and any difference left offered
@@ -70,7 +67,7 @@ async def record_balance_match(
         db,
         account,
         user=user,
-        amount=amount,
+        amount=offer.amount,
         adjustment_date=match_adjustment_date(link),
         note=f"Matched to {provider_name}'s balance",
     )

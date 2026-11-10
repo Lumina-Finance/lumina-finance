@@ -20,7 +20,6 @@ import {
   openBankLink,
   openBankLinkHoldingRead,
   syncBankLinkNow,
-  waitForEntrance,
   waitForReviewItems,
   WORKER_RESULT_TIMEOUT_MS,
 } from '../support/bankSync'
@@ -28,9 +27,9 @@ import { MINUS, readBoxes } from '../support/selectors'
 import { AT_EVERY_SIZE_NEEDS_BANK_SYNC, NEEDS_BANK_SYNC } from '../support/bankSyncServer'
 import { API_BASE_URL } from '../support/target'
 
-// Runs on desktop only, apart from the button's layout test, the light theme's readable offer test and
-// the message test. The first two run at every size and the message test runs on the phone: the button
-// takes a row of its own under the amount on a phone, and the offer may not scroll sideways at any width
+// Runs on desktop only, apart from the button's layout test and the light theme's readable offer test,
+// which run at every size: the button takes a row of its own under the amount on a phone, and the
+// offer may not scroll sideways at any width
 
 // The balance match a linked account offers whenever its ledger and the bank's balance differ, at the
 // foot of the Bank link section's balance panel, run by the worker against the fake SimpleFIN Bridge.
@@ -38,25 +37,18 @@ import { API_BASE_URL } from '../support/target'
 // from today, nothing comes in to review, and 250.00 is offered, dated yesterday. The offer's words,
 // its sign and the cache writes behind a recording are covered by unit tests, and the amount it leaves
 // out for each kind of item waiting for review by the server's tests, so the browser checks only that
-// the amount left out reaches the page
+// an item left out keeps the amount and asks for a review first
 const SAMPLE_CHEQUING = 'Everyday Chequing'
 const SYNCED_STATUS = /Synced (just now|\d+ minutes? ago)\./
-const BLANK_AMOUNT_MESSAGE = 'Enter an amount'
-const ZERO_AMOUNT_MESSAGE = "Can't be zero"
-const SIGNED_AMOUNT_MESSAGE = 'The sign is fixed'
 const NOTHING_TO_MATCH = 'There is no difference to match'
 
 // The width from which the amount and the button share a row
 const OFFER_ROW_MIN_WIDTH = 640
 
-// Far more frames than one message giving way to another takes, a fraction of a second, so a swap
-// that never settles fails rather than holding the test to its timeout
-const MESSAGE_SWAP_FRAME_LIMIT = 600
-
 type Setup = { user: TestUser; accountId: string; adjustmentDate: string; scenarioId: string; bankAccountId: string }
 
-/** The offer's controls in the account's edit modal */
-type Offer = { dialog: Locator; sentence: Locator; amount: Locator; record: Locator; zeroMessage: Locator }
+/** The offer's parts in the account's edit modal */
+type Offer = { dialog: Locator; sentence: Locator; amount: Locator; record: Locator }
 
 /** Signs up with Everyday holding 1,000.00 from yesterday, linked to the sample chequing account reading 1,250.00 */
 async function linkWithGap(request: APIRequestContext): Promise<Setup> {
@@ -81,18 +73,16 @@ async function openOffer(page: Page, request: APIRequestContext): Promise<{ setu
   const offer = {
     dialog,
     sentence: offerText(dialog, setup.adjustmentDate),
-    amount: dialog.getByRole('textbox', { name: 'Adjustment amount' }),
+    amount: fact(dialog, /^Adjustment/),
     record: dialog.getByRole('button', { name: 'Record adjustment' }),
-    // The field's own message, not the faded Record adjustment's tooltip that gives the same reason
-    zeroMessage: dialog.getByRole('alert').filter({ hasText: ZERO_AMOUNT_MESSAGE }),
   }
   await expect(offer.sentence).toBeVisible({ timeout: WORKER_RESULT_TIMEOUT_MS })
   return { setup, offer }
 }
 
-/** The offer's sentences, naming the day before the import start as the app writes a day with its year */
+/** The offer's sentence, naming the day before the import start as the app writes a day with its year */
 function offerText(dialog: Locator, adjustmentDate: string): Locator {
-  return dialog.getByText(`Record the difference as a balance adjustment on ${formatDateLabel(adjustmentDate)}`)
+  return dialog.getByText(`Adds a balance adjustment on ${formatDateLabel(adjustmentDate)}.`)
 }
 
 /** The bodies of the recordings the page sends */
@@ -108,7 +98,7 @@ function watchRecordings(page: Page): string[] {
 async function recordElsewhere(request: APIRequestContext, { user, accountId }: Setup, amount: number): Promise<number> {
   const response = await request.post(`${API_BASE_URL}/accounts/${accountId}/bank-link/balance-match`, {
     headers: asUser(user),
-    data: { amount, offered_amount: amount },
+    data: { offered_amount: amount },
   })
   return response.status()
 }
@@ -127,23 +117,33 @@ test.afterEach(async ({ page }) => {
   await page.unrouteAll({ behavior: 'ignoreErrors' })
 })
 
-test("offers to match SimpleFIN's balance under the balances, starting from the offered amount, with the status still synced", NEEDS_BANK_SYNC, async ({ page, request }) => {
+test("offers to match SimpleFIN's balance under the balances, showing the offered amount with no field to change it, with the status still synced", NEEDS_BANK_SYNC, async ({ page, request }) => {
   const { offer } = await openOffer(page, request)
 
   await expect(fact(offer.dialog, 'Status')).toHaveText(/^Synced/)
   await expect(offer.dialog.getByText("Match SimpleFIN's balance", { exact: true })).toBeVisible()
   await expect(fact(offer.dialog, /^Difference/)).toHaveText(`${MINUS}$250.00`)
-  await expect(offer.amount).toHaveValue('250.00')
-  await expect(offer.amount).toHaveAccessibleDescription('Your ledger records this amount as positive.')
+  await expect(offer.amount).toHaveText('+$250.00')
+  await expect(offer.dialog.getByRole('textbox', { name: /adjustment/i })).toHaveCount(0)
+
+  // How the figure is worked out opens as the keyboard reaches its icon, as it does on hover
+  const how = offer.dialog.getByRole('button', { name: 'How the adjustment is worked out' })
+  await how.focus()
+  await page.keyboard.press('Shift+Tab')
+  await page.keyboard.press('Tab')
+  await expect(how).toBeFocused()
+  const hint = offer.dialog.locator('.app-tooltip-panel').filter({ hasText: "SimpleFIN's balance minus your ledger's" })
+  await expect(hint.locator('..')).toHaveCSS('opacity', '1')
+  await how.blur()
+  await expect(hint.locator('..')).toHaveCSS('opacity', '0')
   await expect(offer.dialog.getByRole('button', { name: 'Skip', exact: true })).toHaveCount(0)
-  await expect(offer.zeroMessage).toBeHidden()
   const [caption, sentence] = await readBoxes(page, [offer.dialog.getByText(/^As of /), offer.sentence])
   expect(sentence.y).toBeGreaterThan(caption.y + caption.height)
 })
 
-test('keeps the offer when a sync brings an item to review, naming the amount of the item it leaves out', NEEDS_BANK_SYNC, async ({ page, request }) => {
+test('keeps the offer when a sync brings an item to review, leaving the item out and asking for it to be reviewed first',NEEDS_BANK_SYNC, async ({ page, request }) => {
   const { setup, offer } = await openOffer(page, request)
-  await expect(offer.amount).toHaveValue('250.00')
+  await expect(offer.amount).toHaveText('+$250.00')
 
   // SimpleFIN's balance takes in a 4.50 coffee from today. That coffee waits for review
   await addBridgeTransactions(request, setup.scenarioId, setup.bankAccountId, [
@@ -156,14 +156,15 @@ test('keeps the offer when a sync brings an item to review, naming the amount of
   await page.reload()
   const dialog = await openBankLink(page, setup.accountId, SYNCED_STATUS)
   await expect(fact(dialog, /^Difference/)).toHaveText(`${MINUS}$245.50`)
-  await expect(dialog.getByRole('textbox', { name: 'Adjustment amount' })).toHaveValue('250.00')
-  await expect(dialog.getByText(/items waiting for review .*\$4\.50/)).toBeVisible()
+  await expect(fact(dialog, /^Adjustment/)).toHaveText('+$250.00')
+  await expect(dialog.getByText('Review the waiting items first if you entered any by hand.')).toBeVisible()
 })
 
 test('shows Record adjustment whole, beside the amount from the width it fits there and on a row of its own on a phone', AT_EVERY_SIZE_NEEDS_BANK_SYNC, async ({ page, request }) => {
   const { offer } = await openOffer(page, request)
 
-  const [field, recordBox] = await readBoxes(page, [offer.amount, offer.record])
+  // The amount's row, its label and figure, against the button
+  const [field, recordBox] = await readBoxes(page, [offer.amount.locator('..'), offer.record])
 
   // The label sits in a box of its own inside the button, which clips it rather than the button
   const clipped = await offer.record.evaluate((button) =>
@@ -181,169 +182,21 @@ test('shows Record adjustment whole, beside the amount from the width it fits th
   }
 })
 
-test('keeps the amount and Record adjustment in place on a phone when a message shows beside the label', AT_EVERY_SIZE_NEEDS_BANK_SYNC, async ({ page, request }) => {
-  test.skip(test.info().project.name !== 'phone', 'It checks the layout a phone gets')
-  await page.setViewportSize({ width: 390, height: 844 })
-  const { offer } = await openOffer(page, request)
-
-  // Each control's place below the sentence. Scrolling the modal moves them alike
-  const placed = async () => {
-    const [sentence, ...controls] = await readBoxes(page, [offer.sentence, offer.amount, offer.record])
-    return controls.map(({ y }) => Math.round(y - sentence.y))
-  }
-  await waitForEntrance(offer.dialog)
-  const before = await placed()
-
-  await offer.amount.fill('0')
-  await offer.record.click()
-  await expect(offer.zeroMessage).toBeVisible()
-  expect(await placed()).toEqual(before)
-
-  // Every frame from the change until the new message shows on its own, whole and still: the field's
-  // place (a click on the button would otherwise land off) and whether two messages still showing
-  // cross. Neither could then be read through
-  type Frame = { place: number; crossing: boolean }
-  const sampling = offer.sentence.evaluate((sentence, { field, message, frameLimit }) => new Promise<{ frames: Frame[]; settled: boolean }>((resolve) => {
-    const row = document.querySelector(`label[for="${field!.id}"]`)!.parentElement!
-    const frames: Frame[] = []
-    const sample = () => {
-      const messages = [...row.querySelectorAll('p')]
-      const shown = messages
-        .filter((shownMessage) => Number(getComputedStyle(shownMessage).opacity) > 0)
-        .map((shownMessage) => shownMessage.getBoundingClientRect())
-      const crossing = shown.some((a, i) => shown.slice(i + 1).some((b) =>
-        a.left < b.right && b.left < a.right && a.top < b.bottom && b.top < a.bottom))
-      frames.push({ place: Math.round(field!.getBoundingClientRect().top - sentence.getBoundingClientRect().top), crossing })
-
-      // Motion moves a message from script as well as through the browser, so a message counts as still
-      // once it reads at full strength and unmoved, with nothing the browser runs on the row
-      const [only] = messages
-      const style = only && getComputedStyle(only)
-      const settled = messages.length === 1 && only.textContent?.trim() === message && style.opacity === '1'
-        && ['none', 'matrix(1, 0, 0, 1, 0, 0)'].includes(style.transform)
-        && row.getAnimations({ subtree: true }).every((animation) => animation.playState !== 'running')
-      if (settled || frames.length >= frameLimit) resolve({ frames, settled })
-      else requestAnimationFrame(sample)
-    }
-    requestAnimationFrame(sample)
-  }), { field: await offer.amount.elementHandle(), message: SIGNED_AMOUNT_MESSAGE, frameLimit: MESSAGE_SWAP_FRAME_LIMIT })
-  await offer.amount.fill('-1')
-  const { frames, settled } = await sampling
-  expect(settled, `the new message settled within ${MESSAGE_SWAP_FRAME_LIMIT} frames`).toBe(true)
-  await expect(offer.zeroMessage).toBeHidden()
-  expect([...new Set(frames.map(({ place }) => place))]).toEqual([before[0]])
-  expect(frames.filter(({ crossing }) => crossing)).toEqual([])
-  expect(await placed()).toEqual(before)
-})
-
-test('records nothing for Enter in the amount, or for a blank or zero amount, saying why until the amount is fixed', NEEDS_BANK_SYNC, async ({ page, request }) => {
-  const recordings = watchRecordings(page)
-  const { offer } = await openOffer(page, request)
-
-  // Enter presses neither Record adjustment nor the account's Save
-  await offer.amount.press('Enter')
-  await expect(offer.dialog).toBeVisible()
-
-  // Whole until a press finds nothing to record
-  await expect(offer.record).not.toHaveAttribute('aria-disabled', 'true')
-  await offer.amount.fill('')
-  await offer.record.click()
-  const blankMessage = offer.dialog.getByRole('alert').filter({ hasText: BLANK_AMOUNT_MESSAGE })
-  await expect(blankMessage).toBeVisible()
-
-  // The message describes the field, and the button fades with it as its reason until the amount is fixed
-  await expect(offer.amount).toHaveAccessibleDescription(`${BLANK_AMOUNT_MESSAGE} Your ledger records this amount as positive.`)
-  await expect(offer.record).toHaveAttribute('aria-disabled', 'true')
-  await expect(offer.record).toHaveAccessibleDescription(BLANK_AMOUNT_MESSAGE)
-  // Typing a zero is no fix, so the mark and the fade stay, now saying the amount is zero
-  await offer.amount.fill('0')
-  await expect(offer.zeroMessage).toBeVisible()
-  await expect(blankMessage).toBeHidden()
-  await expect(offer.record).toHaveAttribute('aria-disabled', 'true')
-  await expect(offer.record).toHaveAccessibleDescription(ZERO_AMOUNT_MESSAGE)
-  await offer.amount.fill('5')
-  await expect(offer.zeroMessage).toBeHidden()
-  await expect(offer.record).not.toHaveAttribute('aria-disabled', 'true')
-  await offer.amount.fill('0')
-  await offer.record.click()
-  await expect(offer.zeroMessage).toBeVisible()
-  await expect(offer.record).toHaveAttribute('aria-disabled', 'true')
-  await expect(offer.sentence).toBeVisible()
-  expect(recordings).toEqual([])
-})
-
-test('says why the amount refuses a sign typed into it, keeping the amount it holds until the sign is taken back', NEEDS_BANK_SYNC, async ({ page, request }) => {
-  const { offer } = await openOffer(page, request)
-  const signMessage = offer.dialog.getByText(SIGNED_AMOUNT_MESSAGE)
-
-  await offer.amount.fill('-240.00')
-  await expect(signMessage).toBeVisible()
-  await expect(offer.amount).toHaveValue('250.00')
-  await expect(offer.amount).toHaveAttribute('aria-invalid', 'true')
-
-  // Deleting where there is nothing to delete changes no text, yet takes the refused sign back
-  await offer.amount.press('Home')
-  await offer.amount.press('Backspace')
-  await expect(signMessage).toBeHidden()
-  await offer.amount.fill('+240.00')
-  await expect(signMessage).toBeVisible()
-  await offer.amount.press('End')
-  await offer.amount.press('Delete')
-  await expect(signMessage).toBeHidden()
-  await expect(offer.amount).toHaveValue('250.00')
-
-  await offer.amount.fill('-240.00')
-  await expect(signMessage).toBeVisible()
-  await offer.amount.fill('240.00')
-  await expect(signMessage).toBeHidden()
-  await expect(offer.amount).toHaveValue('240.00')
-})
-
-test('records nothing while the sign message shows, fading Record adjustment with it and focusing the amount', NEEDS_BANK_SYNC, async ({ page, request }) => {
-  const recordings = watchRecordings(page)
-  const { offer } = await openOffer(page, request)
-
-  await offer.amount.fill('-240.00')
-  await expect(offer.dialog.getByText(SIGNED_AMOUNT_MESSAGE)).toBeVisible()
-  await expect(offer.record).not.toHaveAttribute('aria-disabled', 'true')
-  await offer.record.click()
-  await expect(offer.record).toHaveAttribute('aria-disabled', 'true')
-  await expect(offer.record).toHaveAccessibleDescription(SIGNED_AMOUNT_MESSAGE)
-  await expect(offer.amount).toBeFocused()
-  expect(recordings).toEqual([])
-
-  // Taking the sign back makes it whole again
-  await offer.amount.press('Home')
-  await offer.amount.press('Backspace')
-  await expect(offer.record).not.toHaveAttribute('aria-disabled', 'true')
-})
-
-test('records an amount typed over the offer, then offers the rest prefilled, and folds away once that is recorded', NEEDS_BANK_SYNC, async ({ page, request }) => {
+test('records the offered amount and closes the modal, leaving nothing to match', NEEDS_BANK_SYNC, async ({ page, request }) => {
   const recordings = watchRecordings(page)
   const { setup, offer } = await openOffer(page, request)
 
-  // What the amount typed leaves of the gap stays as the difference and is offered in its place, with
-  // focus kept on Record adjustment
-  await offer.amount.fill('240.00')
   await offer.record.click()
-  await expect(fact(offer.dialog, 'Ledger')).toHaveText('$1,240.00')
-  await expect(fact(offer.dialog, /^Difference/)).toHaveText(`${MINUS}$10.00`)
-  await expect(offer.amount).toHaveValue('10.00')
-  await expect(offer.record).toBeFocused()
-  await expect(fact(offer.dialog, 'Status')).toHaveText(/^Synced/)
-
-  // Recording the rest leaves nothing to match, so the offer folds away and focus moves on to Sync now
-  await offer.record.click()
-  await expect(offer.sentence).toBeHidden()
-  await expect(offer.dialog.getByRole('button', { name: 'Sync now' })).toBeFocused()
-  await expect(fact(offer.dialog, 'Ledger')).toHaveText('$1,250.00')
-  expect(recordings).toEqual(['{"amount":24000,"offered_amount":25000}', '{"amount":1000,"offered_amount":1000}'])
+  await expect(offer.dialog).toBeHidden()
+  expect(recordings).toEqual(['{"offered_amount":25000}'])
   const ledger = await readLedger(request, setup)
-  expect(ledger.rows).toEqual([[setup.adjustmentDate, 1000], [setup.adjustmentDate, 24000], [setup.adjustmentDate, 100000]])
-  expect(ledger.notes.slice(0, 2)).toEqual(["Matched to SimpleFIN's balance", "Matched to SimpleFIN's balance"])
+  expect(ledger.rows).toEqual([[setup.adjustmentDate, 25000], [setup.adjustmentDate, 100000]])
+  expect(ledger.notes[0]).toBe("Matched to SimpleFIN's balance")
 
-  await page.reload()
+  // Opened again, the balances match and nothing is offered
   const again = await openBankLink(page, setup.accountId, SYNCED_STATUS)
+  await expect(fact(again, 'Ledger')).toHaveText('$1,250.00')
+  await expect(fact(again, /^Difference/)).toHaveText('None')
   await expect(again.getByRole('button', { name: 'Record adjustment' })).toHaveCount(0)
 })
 
@@ -359,7 +212,7 @@ test('offers the match again once a new gap opens after an earlier one was recor
   await page.reload()
   const again = await openBankLink(page, setup.accountId, SYNCED_STATUS)
   await expect(fact(again, /^Difference/)).toHaveText(`${MINUS}$20.00`, { timeout: WORKER_RESULT_TIMEOUT_MS })
-  await expect(again.getByRole('textbox', { name: 'Adjustment amount' })).toHaveValue('20.00')
+  await expect(fact(again, /^Adjustment/)).toHaveText('+$20.00')
 })
 
 test('keeps the offer when a recording never reaches the server, saying something went wrong', NEEDS_BANK_SYNC, async ({ page, request }) => {
@@ -451,9 +304,11 @@ test('moves focus on from a recording whose offer folds away before it answers',
   await expect(offerText(dialog, setup.adjustmentDate)).toHaveCount(0)
   await expect(syncNow).toBeFocused()
 
+  // The modal closes once the recording answers
   const answered = page.waitForResponse(matchUrl)
   releaseAnswer()
   expect((await answered).status()).toBe(200)
+  await expect(dialog).toBeHidden()
 })
 
 // A read of the link can fold the offer away while focus is elsewhere in the modal, as one the server
@@ -483,24 +338,15 @@ for (const colorScheme of ['light', 'dark'] as const) {
     if (colorScheme === 'dark') await expect(page.locator('html')).toHaveClass(/\bdark\b/)
     else await expect(page.locator('html')).not.toHaveClass(/\bdark\b/)
 
-    // The message shows beside the label, so every line of the offer can be read at once
-    await offer.amount.fill('0')
-    await offer.record.click()
     for (const text of [
       offer.dialog.getByText("Match SimpleFIN's balance", { exact: true }),
       offerText(offer.dialog, setup.adjustmentDate),
-      offer.dialog.getByText('Adjustment amount', { exact: true }),
-      offer.zeroMessage,
+      offer.dialog.getByRole('term').filter({ hasText: /^Adjustment/ }),
+      offer.amount,
     ]) {
       await expect(text).toBeVisible()
       expect((await faintestText(text)).contrast).toBeGreaterThanOrEqual(4.5)
     }
-
-    // So can the signed currency symbol before the amount, read against the tint the field takes for its
-    // error. The tint is drawn behind the symbol rather than around it
-    await expect(offer.amount).toHaveClass(/app-input-error/)
-    const symbol = await faintestText(offer.amount.locator('..').getByText(/^[+−]?\$$/))
-    expect(symbol.contrast, `"${symbol.text}" before the amount`).toBeGreaterThanOrEqual(4.5)
 
     // The layout is the same in either theme, so it is measured in the light one only
     if (colorScheme === 'light') {

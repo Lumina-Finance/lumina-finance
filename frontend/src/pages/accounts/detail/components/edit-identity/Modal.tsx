@@ -393,7 +393,12 @@ export default function EditAccountIdentityModal({
 
               {showsBankLinkSection && (
                 <div ref={bankLinkSectionRef}>
-                  <BankLinkSection account={account} sectionNumber={bankLinkSectionNumber} autoFocus={showBankLink} />
+                  <BankLinkSection
+                    account={account}
+                    sectionNumber={bankLinkSectionNumber}
+                    autoFocus={showBankLink}
+                    onFinished={requestClose}
+                  />
                 </div>
               )}
 

@@ -79,6 +79,7 @@ type LinkedViewProps = {
   providers: BankProvidersResponse | undefined
   initialFocus: InitialFocusProps
   onChooseBankAccount: () => void
+  onAdjustmentRecorded?: () => void
   onUnlink: () => void
 }
 
@@ -104,6 +105,7 @@ function LinkedView({
   providers,
   initialFocus,
   onChooseBankAccount,
+  onAdjustmentRecorded,
   onUnlink,
 }: LinkedViewProps) {
   const navigate = useNavigate()
@@ -280,6 +282,7 @@ function LinkedView({
                     currency={currency}
                     providerName={link.provider_name}
                     onFolded={() => focusFirstAction(actionsRef.current)}
+                    onRecorded={onAdjustmentRecorded}
                   />
                 )
               }
@@ -319,6 +322,9 @@ type BankLinkSectionProps = {
 
   /** Focuses the section's first control once it shows, for a modal opened at the bank link */
   autoFocus?: boolean
+
+  /** Runs once the balance match is recorded, for the modal to close */
+  onFinished?: () => void
 }
 
 /**
@@ -339,7 +345,7 @@ function focusFirstAction(container: HTMLElement | null) {
  * The account's bank link in its edit modal: linking it, relinking it after an unlink, its import and
  * status while linked, and unlinking it. Every change here applies at once, not on saving the modal
  */
-export function BankLinkSection({ account, sectionNumber, autoFocus = false }: BankLinkSectionProps) {
+export function BankLinkSection({ account, sectionNumber, autoFocus = false, onFinished }: BankLinkSectionProps) {
   const { user } = useAuth()
   const { ownPersonal, status, statusError, providers, syncLabel } = useAccountBankLink(account)
   const { data: connections, error: connectionsError } = useBankConnections()
@@ -478,6 +484,7 @@ export function BankLinkSection({ account, sectionNumber, autoFocus = false }: B
                   providers={providers}
                   initialFocus={initialFocus}
                   onChooseBankAccount={openLinkFlow}
+                  onAdjustmentRecorded={onFinished}
                   onUnlink={() => {
                     setUnlinking(link)
                     setUnlinkOpen(true)

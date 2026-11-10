@@ -228,7 +228,7 @@ test('compares the bank balance with the ledger at the end of its balance date',
   await expect(fact(dialog, 'SimpleFIN')).toHaveText('$2,418.36')
   await expect(fact(dialog, 'Ledger')).toHaveText('($50.00)')
   await expect(fact(dialog, /^Difference/)).toHaveText(`${MINUS}$2,468.36`)
-  await expect(dialog.getByRole('textbox', { name: 'Adjustment amount' })).toHaveValue('2468.36')
+  await expect(fact(dialog, /^Adjustment/)).toHaveText('+$2,468.36')
   const caption = dialog.getByText(/^As of /)
   await expect(caption).toBeVisible()
   await expect(caption).not.toContainText('available')

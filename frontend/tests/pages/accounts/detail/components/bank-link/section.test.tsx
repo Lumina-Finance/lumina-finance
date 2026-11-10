@@ -304,9 +304,7 @@ describe('BankLinkSection', () => {
     })
     const markup = renderSection(createAccount({ current_balance: 100000 }))
 
-    expect(markup).toMatch(
-      /As of .*Match SimpleFIN&#x27;s balance.*Record the difference as a balance adjustment on May 31, 2026/s,
-    )
+    expect(markup).toMatch(/As of .*Match SimpleFIN&#x27;s balance.*Adds a balance adjustment on May 31, 2026/s)
     expect(markup).not.toContain('Opening balance to confirm')
 
     // Matched, with no difference left
@@ -315,7 +313,7 @@ describe('BankLinkSection', () => {
       balance: { ...balance, ledger_balance: 125000, difference: 0 },
       balance_match: null,
     })
-    expect(renderSection()).not.toContain('Record the difference')
+    expect(renderSection()).not.toContain('Adds a balance adjustment')
   })
 
   it.each([
@@ -375,7 +373,7 @@ describe('BankLinkSection', () => {
       'No history returned yet',
       'Some transactions may be missing',
       'As of ',
-      'Record the difference as a balance adjustment',
+      'Adds a balance adjustment',
     ].map((text) => markup.indexOf(text))
     expect(order.every((index) => index >= 0)).toBe(true)
     expect(order).toEqual([...order].sort((a, b) => a - b))

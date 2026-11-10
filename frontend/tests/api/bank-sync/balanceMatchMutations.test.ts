@@ -1,8 +1,8 @@
 /**
  * Covers how recording the balance match behaves through the query cache the app runs on
  *
- * These tests catch a recording sent to the wrong path, without the amount typed or without the
- * offered amount the server checks it against, the offer or the remainder it leaves waiting on
+ * These tests catch a recording sent to the wrong path, without the offered amount the server checks
+ * and records, or with an amount of its own, the offer or the remainder it leaves waiting on
  * screen until the account's bank link is read again, a recorded adjustment missing from the
  * transaction lists or the account's figures, another account's figures refreshed, and a refused
  * recording leaving an offer that moved meanwhile on screen
@@ -48,11 +48,10 @@ function expectInvalidated(keys: QueryKey[], invalidated: boolean): void {
   }
 }
 
-/** Record the match through the mutation the app runs, for the amount typed against the offered 250.00 */
-function record(amount: number) {
+/** Record the offered 250.00 through the mutation the app runs */
+function record() {
   return new MutationObserver(queryClient, recordBalanceMatchMutationOptions(queryClient)).mutate({
     accountId: 'account-1',
-    amount,
     offeredAmount: 25000,
   })
 }
@@ -71,17 +70,17 @@ afterEach(() => {
 })
 
 describe('recording the balance match', () => {
-  it('sends the amount typed with the offered amount and puts the remainder offered in place of the offer, refreshing the status and the ledger', async () => {
+  it('sends the offered amount alone and puts the offer the server answers with in its place, refreshing the status and the ledger', async () => {
     const answer = createStatus({ balance_match: { amount: 1000, waiting_amount: 0, adjustment_date: '2026-05-31' } })
     authenticatedFetchMock.mockResolvedValue(answer)
 
-    const recorded = record(24000)
+    const recorded = record()
     await vi.runAllTimersAsync()
     await recorded
 
     expect(authenticatedFetchMock).toHaveBeenCalledWith('/accounts/account-1/bank-link/balance-match', {
       method: 'POST',
-      body: '{"amount":24000,"offered_amount":25000}',
+      body: '{"offered_amount":25000}',
     })
     expect(queryClient.getQueryData(statusKey)).toEqual(answer)
     expectInvalidated([linksKey, ...ledgerKeys], true)
@@ -93,7 +92,7 @@ describe('recording the balance match', () => {
       new ApiError('The difference has changed. Check the new amount and try again', 409),
     )
 
-    const sent = record(25000).catch((error: unknown) => error)
+    const sent = record().catch((error: unknown) => error)
     await vi.runAllTimersAsync()
 
     expect(await sent).toBeInstanceOf(ApiError)

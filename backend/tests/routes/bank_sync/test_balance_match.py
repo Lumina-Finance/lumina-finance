@@ -64,9 +64,9 @@ async def _read_status(client, everyday: _Everyday) -> dict:
     return response.json()
 
 
-async def _record(client, headers: dict, account_id: str, amount: int, offered_amount: int | None = None):
-    """Record the balance match through the route, answering the offer of the amount given unless told otherwise"""
-    body = {"amount": amount, "offered_amount": amount if offered_amount is None else offered_amount}
+async def _record(client, headers: dict, account_id: str, offered_amount: int, **extra):
+    """Record the balance match through the route, answering the offer of the amount given"""
+    body = {"offered_amount": offered_amount, **extra}
     return await client.post(f"/accounts/{account_id}/bank-link/balance-match", json=body, headers=headers)
 
 
@@ -153,20 +153,19 @@ async def test_recording_the_offered_match_adds_one_balance_adjustment_and_leave
     assert "user_cache_states" in _writes(statements)[-1]
 
 
-async def test_an_overwritten_amount_leaves_the_rest_of_the_difference_offered(client):
-    """Everyday offers 250.00, and the user records 240.00 in its place
+async def test_an_amount_sent_beside_the_offer_is_ignored(client):
+    """Everyday offers 250.00, and a request also asks for 240.00, as an older app sent
 
-    Difference reads -10.00, and the offer comes back with the 10.00 left
+    The offered 250.00 is recorded, so the ledger matches the bank and nothing is offered after
     """
     everyday = await _linked_everyday(client, ("2026-09-15", 100000))
 
-    recorded = await _record(client, everyday.headers, everyday.account_id, 24000, offered_amount=25000)
+    recorded = await _record(client, everyday.headers, everyday.account_id, 25000, amount=24000)
 
     assert recorded.status_code == 200, recorded.text
     body = recorded.json()
-    assert body["balance"]["difference"] == -1000
-    assert body["balance_match"] == {"amount": 1000, "waiting_amount": 0, "adjustment_date": _ADJUSTMENT_DATE}
-    assert [amount for _, amount, *_ in await _adjustments(everyday.account_id)] == [24000]
+    assert (body["balance"]["difference"], body["balance_match"]) == (0, None)
+    assert [amount for _, amount, *_ in await _adjustments(everyday.account_id)] == [25000]
 
 
 async def test_a_gap_opening_after_an_earlier_match_is_offered_again(client):
@@ -222,7 +221,7 @@ async def test_a_request_answering_an_offer_that_has_moved_is_refused(client):
     everyday = await _linked_everyday(client, ("2026-09-15", 95000))
     await _record_ledger(client, everyday.headers, everyday.account_id, ("2026-05-20", 5000))
 
-    refused = await _record(client, everyday.headers, everyday.account_id, 30000, offered_amount=30000)
+    refused = await _record(client, everyday.headers, everyday.account_id, 30000)
 
     assert (refused.status_code, refused.json()["detail"]) == (409, _MATCH_MOVED)
     assert await _adjustments(everyday.account_id) == []
@@ -450,18 +449,11 @@ async def test_recording_ends_the_undo_of_the_last_import(client):
     assert await _undoable_import(client, everyday.headers) is None
 
 
-@pytest.mark.parametrize(
-    ("amount", "second_detail", "recorded"),
-    [
-        pytest.param(25000, _NOTHING_TO_MATCH, [25000], id="as-offered"),
-        pytest.param(24000, _MATCH_MOVED, [24000], id="edited"),
-    ],
-)
-async def test_a_second_submission_arriving_mid_flight_records_nothing_more(client, amount, second_detail, recorded):
+async def test_a_second_submission_arriving_mid_flight_records_nothing_more(client):
     """A sync holds Everyday's link while two submissions of the 250.00 offer arrive, the second queued behind the first
 
-    The first records as it would alone. The second finds the offer moved, to nothing or to the
-    10.00 an edited 240.00 left, so it is refused and the adjustment is recorded once
+    The first records as it would alone. The second finds nothing left to match, so it is refused
+    and the adjustment is recorded once
     """
     everyday = await _linked_everyday(client, ("2026-09-15", 100000))
 
@@ -470,9 +462,9 @@ async def test_a_second_submission_arriving_mid_flight_records_nothing_more(clie
         async with asyncio.timeout(10), TestSession() as holder:
             await holder.execute(select(BankAccountLink.id).where(BankAccountLink.id == everyday.link.id).with_for_update())
             holder_pid = await holder.scalar(select(func.pg_backend_pid()))
-            requests.append(asyncio.create_task(_record(client, everyday.headers, everyday.account_id, amount, offered_amount=25000)))
+            requests.append(asyncio.create_task(_record(client, everyday.headers, everyday.account_id, 25000)))
             await _wait_until_waiting_on(holder_pid, requests[0])
-            requests.append(asyncio.create_task(_record(client, everyday.headers, everyday.account_id, amount, offered_amount=25000)))
+            requests.append(asyncio.create_task(_record(client, everyday.headers, everyday.account_id, 25000)))
             await _wait_until_waiting_on(holder_pid, asyncio.gather(*requests), waiters=2)
             await holder.commit()
             first, second = await asyncio.gather(*requests)
@@ -480,8 +472,8 @@ async def test_a_second_submission_arriving_mid_flight_records_nothing_more(clie
         await _cancel_unfinished(requests)
 
     assert first.status_code == 200, first.text
-    assert (second.status_code, second.json()["detail"]) == (409, second_detail)
-    assert [stored for _, stored, *_ in await _adjustments(everyday.account_id)] == recorded
+    assert (second.status_code, second.json()["detail"]) == (409, _NOTHING_TO_MATCH)
+    assert [stored for _, stored, *_ in await _adjustments(everyday.account_id)] == [25000]
 
 
 async def test_recording_locks_the_connection_before_the_account(client):
@@ -529,18 +521,3 @@ async def test_recording_for_an_unlinked_account_a_group_account_or_another_user
         (403, "Accounts shared with a group can't be linked to a bank yet"),
         (404, "Account not found"),
     ]
-
-
-async def test_recording_nothing_is_refused(client):
-    """An adjustment of 0.00 records nothing, so it's refused and the offer stays"""
-    everyday = await _linked_everyday(client, ("2026-09-15", 100000))
-
-    refused = await _record(client, everyday.headers, everyday.account_id, 0, offered_amount=25000)
-
-    assert refused.status_code == 422, refused.text
-    assert (await _read_status(client, everyday))["balance_match"] == {
-        "amount": 25000,
-        "waiting_amount": 0,
-        "adjustment_date": _ADJUSTMENT_DATE,
-    }
-    assert await _adjustments(everyday.account_id) == []

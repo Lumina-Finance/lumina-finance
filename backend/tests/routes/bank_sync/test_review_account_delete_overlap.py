@@ -139,7 +139,7 @@ async def test_an_account_delete_waits_for_a_bank_link_change_saving_to_the_acco
         everyday = await _matching_everyday(client, ("2026-09-15", 100000))
         headers, account_id = everyday.headers, everyday.account_id
         module, step, status = balance_match, "mark_user_cache_changed", 200
-        path, body = f"/accounts/{account_id}/bank-link/balance-match", {"amount": 25000, "offered_amount": 25000}
+        path, body = f"/accounts/{account_id}/bank-link/balance-match", {"offered_amount": 25000}
     else:
         history = change == "dismiss-history-reminder"
         headers, account_id, _ = await _history_everyday(client, **(_FELL_SHORT if history else _CUT_SHORT))

@@ -389,18 +389,18 @@ async def record_offered_balance_match(
     user: Annotated[User, Depends(get_current_user)],
     db: Annotated[AsyncSession, Depends(get_db)],
 ):
-    """Record the balance match one of the user's linked accounts offers, for the amount given
+    """Record the balance match one of the user's linked accounts offers, for the amount offered
 
     Args:
         account_id: The linked account
-        request: The amount to record, the one offered or the user's own, and the offer it answers
+        request: The offered amount the user was shown
         user: Authenticated owner of the account
         db: Active database session
 
     Returns:
         The account's bank link, with the balances taking in the adjustment and any difference left offered
     """
-    return await record_balance_match(db, user, account_id, amount=request.amount, offered_amount=request.offered_amount)
+    return await record_balance_match(db, user, account_id, offered_amount=request.offered_amount)
 
 
 @bank_link_router.post("/history-reminder/dismiss", response_model=AccountBankStatusResponse)

@@ -4,12 +4,11 @@ import uuid
 from datetime import date, datetime
 from typing import Literal
 
-from pydantic import BaseModel, Field, SecretStr, field_validator, model_validator
+from pydantic import BaseModel, Field, SecretStr, model_validator
 
 from app.models.bank_connection import PROVIDER_ID_MAX_LENGTH, BankImportKind, BankLinkState, ConnectsFrom, UnavailableReason
 from app.models.bank_transaction import EditableBankField
 from app.schemas.names import TrimmedName
-from app.utils.money import MAX_MINOR_UNITS, MIN_MINOR_UNITS
 
 # Running while a sync is fetching the import's next part or could fetch it now. Waiting while a
 # failed attempt waits to retry, the bank needs a sign-in, or the provider refused the connection's
@@ -504,22 +503,11 @@ class BalanceMatchResponse(BaseModel):
 
 
 class RecordBalanceMatchRequest(BaseModel):
-    """The balance match to record, the amount offered or one the user entered in its place"""
+    """The balance match to record, named by the amount the user was shown, which is the amount recorded"""
 
-    # Signed minor units, as the ledger keeps them
-    amount: int = Field(ge=MIN_MINOR_UNITS, le=MAX_MINOR_UNITS)
-
-    # The amount of the offer the user was shown, so a second submission or a tab showing an older
+    # Signed minor units, as the ledger keeps them, so a second submission or a tab showing an older
     # offer is refused once the offer has moved
     offered_amount: int
-
-    @field_validator("amount")
-    @classmethod
-    def _refuse_zero(cls, amount: int) -> int:
-        """Refuse an adjustment of nothing, since it records nothing"""
-        if amount == 0:
-            raise ValueError("Enter an amount other than zero")
-        return amount
 
 
 class AccountBankStatusResponse(BaseModel):

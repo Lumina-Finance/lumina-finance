@@ -193,21 +193,12 @@ export function dismissCutOffDay({ accountId, day }: { accountId: string; day: s
 }
 
 /**
- * Records the offered balance match for the amount given, in minor units signed as the ledger keeps
- * them, and returns the account's bank link with any difference left offered. The offered amount names
- * the offer the person was shown, so the server refuses once that offer has moved
+ * Records the offered balance match and returns the account's bank link with any difference left
+ * offered. The offered amount, in minor units signed as the ledger keeps them, names the offer the
+ * person was shown and is the amount recorded, so the server refuses once that offer has moved
  */
-export function recordBalanceMatch({
-  accountId,
-  amount,
-  offeredAmount,
-}: {
-  accountId: string
-  amount: number
-  offeredAmount: number
-}) {
+export function recordBalanceMatch({ accountId, offeredAmount }: { accountId: string; offeredAmount: number }) {
   return post<AccountBankStatus>(`/accounts/${accountId}/bank-link/balance-match`, {
-    amount,
     offered_amount: offeredAmount,
   })
 }
