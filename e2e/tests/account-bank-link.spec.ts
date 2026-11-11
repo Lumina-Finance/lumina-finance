@@ -688,11 +688,10 @@ test('opens custom dates at today and keeps From within the range', NEEDS_BANK_S
   await expect(flow.getByRole('radio', { checked: true })).toHaveCount(0)
   await expect(customDates).toHaveCount(0)
 
-  // Choosing them unfolds From, empty, and To, at today, with the days allowed beneath
+  // Choosing them unfolds From, empty, and To, at today
   const submit = flow.getByRole('button', { name: 'Link and import' })
   await custom.click()
   await expect(custom).toBeChecked()
-  await expect(customDates).toContainText(`Any days from ${formatDateLabel(firstOfMonthsAgo(12))} to today`)
   const [year, month, day] = todayInTestTimezone().split('-')
   const to = customDates.getByRole('group', { name: 'To', exact: true })
   await expect(to.getByRole('textbox', { name: 'Year', exact: true })).toHaveValue(year)
@@ -702,8 +701,8 @@ test('opens custom dates at today and keeps From within the range', NEEDS_BANK_S
   await expect(submit).not.toHaveAttribute('aria-disabled', 'true')
 
   // A date that is wrong is not called out while it is typed, only once focus leaves it
-  // The field's own message, not the faded button's tooltip that gives the same reason
-  const rangeMessage = flow.getByRole('alert').filter({ hasText: 'Outside the allowed range.' })
+  // The field's own message, naming the earliest day, not the faded button's tooltip that gives the same reason
+  const rangeMessage = flow.getByRole('alert').filter({ hasText: `The earliest start is ${formatDateLabel(firstOfMonthsAgo(12))}` })
   await typeDate(page, 'From', '2020-01-01')
   await expect(rangeMessage).toBeHidden()
   await expect(submit).not.toHaveAttribute('aria-disabled', 'true')

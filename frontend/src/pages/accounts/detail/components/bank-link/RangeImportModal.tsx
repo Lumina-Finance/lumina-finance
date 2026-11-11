@@ -28,7 +28,7 @@ import { useRefusedSubmit } from '@/hooks/useRefusedSubmit'
 import { useToast } from '@/hooks/useToast'
 import { describeRangeImportBlock } from '@/pages/accounts/detail/components/bank-link/syncNow'
 import { getSaveFailureMessage } from '@/utils/createFailure'
-import { formatDateLabel, formatDateRangeLabel } from '@/utils/date'
+import { formatDateRangeLabel } from '@/utils/date'
 
 const RESTORE_LABEL = 'Bring back dismissed items'
 
@@ -186,18 +186,13 @@ export function RangeImportModal({
           <LoadingRegion loading={!range} label="Loading the import range" animateLoadingHeight readsLayoutHeight>
             {range ? (
               <div className="space-y-4">
-                <div className="space-y-1">
-                  <BankDateRangeFields
-                    dateRange={dateRange}
-                    ids={{ from: RANGE_IMPORT_FIELD_IDS.rangeFrom, to: RANGE_IMPORT_FIELD_IDS.rangeTo }}
-                    errors={{ from: refusal.errors.rangeFrom, to: refusal.errors.rangeTo }}
-                    onBlur={(end) => refusal.touch(end === 'from' ? 'rangeFrom' : 'rangeTo')}
-                    disabled={busy}
-                  />
-                  <p className="text-xs" style={{ color: 'var(--app-text-muted)' }}>
-                    Any days from {formatDateLabel(range.earliest_allowed)} to today
-                  </p>
-                </div>
+                <BankDateRangeFields
+                  dateRange={dateRange}
+                  ids={{ from: RANGE_IMPORT_FIELD_IDS.rangeFrom, to: RANGE_IMPORT_FIELD_IDS.rangeTo }}
+                  errors={{ from: refusal.errors.rangeFrom, to: refusal.errors.rangeTo }}
+                  onBlur={(end) => refusal.touch(end === 'from' ? 'rangeFrom' : 'rangeTo')}
+                  disabled={busy}
+                />
                 <RestoreDismissedOption checked={restoresDismissed} disabled={busy} onToggle={toggleRestore} />
               </div>
             ) : (

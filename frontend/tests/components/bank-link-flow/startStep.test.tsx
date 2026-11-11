@@ -78,7 +78,7 @@ describe('the start step', () => {
     expect(markup).toMatch(/<button id="bank-link-start-choice"[^>]*role="radio"/)
   })
 
-  it('offers custom dates whose From and To show only once they are chosen, with the days allowed', () => {
+  it('offers custom dates whose From and To show only once they are chosen', () => {
     const unchosen = renderStep({}, null)
     const chosen = renderStep({})
 
@@ -86,7 +86,6 @@ describe('the start step', () => {
     expect(unchosen).not.toContain('id="bank-link-range-from"')
     expect(chosen).toMatch(/role="group" aria-label="Custom dates"/)
     expect(chosen).toContain('id="bank-link-range-to"')
-    expect(chosen).toContain('Any days from Oct 1, 2025 to today')
   })
 
   it('stays unmarked while nothing has been refused', () => {

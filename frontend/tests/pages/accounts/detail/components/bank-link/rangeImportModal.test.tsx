@@ -70,7 +70,6 @@ describe('RangeImportModal', () => {
     expect(markup).toContain('id="bank-range-import-to"')
     expect(markup).toMatch(/role="checkbox" aria-checked="false" aria-label="Bring back dismissed items"/)
     expect(markup).not.toContain(RESTORE_DISMISSED_WARNING)
-    expect(markup).toContain('Any days from Oct 1, 2025 to today')
   })
 
   it('holds Import back with the review pause as its reason, printed in the dialogue', () => {

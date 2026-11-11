@@ -48,7 +48,6 @@ export function importStartReminder(): string {
 export const BANK_ACCOUNT_REQUIRED_MESSAGE = 'Choose a bank account'
 export const START_CHOICE_REQUIRED_MESSAGE = 'Choose where to start'
 export const START_DATE_REQUIRED_MESSAGE = 'Enter a start date'
-export const START_DATE_OUT_OF_RANGE_MESSAGE = 'Outside the allowed range.'
 export const RANGE_END_REQUIRED_MESSAGE = 'Enter an end date'
 export const RANGE_CROSSED_MESSAGE = 'Must be on or before the end date'
 

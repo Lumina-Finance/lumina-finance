@@ -102,13 +102,10 @@ export function StartStep({
                         onBlur={(end) => onRangeBlur(end === 'from' ? 'rangeFrom' : 'rangeTo')}
                         disabled={disabled}
                       />
-                      <p className="pt-2 text-xs" style={{ color: 'var(--app-text-muted)' }}>
-                        Any days from {formatDateLabel(range.earliest_allowed)} to today
-                      </p>
                       <AnimatePresence initial={false}>
                         {endsBeforeToday && (
                           <Unfold key="ends-before-today" flush>
-                            <p className="pt-1 text-xs" style={{ color: 'var(--app-text-muted)' }}>
+                            <p className="pt-2 text-xs" style={{ color: 'var(--app-text-muted)' }}>
                               {rangeEndsBeforeTodayNote(formatDateLabel(dateRange.to))}
                             </p>
                           </Unfold>

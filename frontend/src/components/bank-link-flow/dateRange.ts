@@ -3,7 +3,6 @@ import type { BankImportRange } from '@/api/bank-sync'
 import {
   RANGE_CROSSED_MESSAGE,
   RANGE_END_REQUIRED_MESSAGE,
-  START_DATE_OUT_OF_RANGE_MESSAGE,
   START_DATE_REQUIRED_MESSAGE,
 } from '@/components/bank-link-flow/constants'
 import { describeEndRefusal, describeStartRefusal } from '@/components/bank-link-flow/startChoices'
@@ -33,21 +32,13 @@ export function useBankDateRange(range: BankImportRange | undefined) {
     isFromDisabled: (iso: string) => getFromDisabledReason(iso) !== null,
     isToDisabled: (iso: string) => getToDisabledReason(iso) !== null,
 
-    /** What a press would find wrong with From: missing, outside the range, or after To */
+    /** What a press would find wrong with From: missing, outside the range, naming the bound it passed, or after To */
     fromProblem: !from
       ? START_DATE_REQUIRED_MESSAGE
-      : getFromDisabledReason(from) !== null
-        ? START_DATE_OUT_OF_RANGE_MESSAGE
-        : crossed
-          ? RANGE_CROSSED_MESSAGE
-          : undefined,
+      : (getFromDisabledReason(from) ?? (crossed ? RANGE_CROSSED_MESSAGE : undefined)),
 
-    /** What a press would find wrong with To: missing or outside the range */
-    toProblem: !to
-      ? RANGE_END_REQUIRED_MESSAGE
-      : getToDisabledReason(to) !== null
-        ? START_DATE_OUT_OF_RANGE_MESSAGE
-        : undefined,
+    /** What a press would find wrong with To: missing, or outside the range, naming the bound it passed */
+    toProblem: !to ? RANGE_END_REQUIRED_MESSAGE : (getToDisabledReason(to) ?? undefined),
 
     /** Whether From comes after To, said at once rather than on a press */
     crossed,
