@@ -168,14 +168,18 @@ export function isClaimSettled(connection: BankConnection): boolean {
 
 /**
  * The confirmation once a connection is added. A claim whose listing of bank accounts failed keeps
- * the connection and lists them in the background, so it says they are on the way rather than none
+ * the connection and lists them in the background, so it says they are on the way rather than none.
+ * Going back to an account's link flow, it leaves out where to link them and where they appear
  */
-export function describeConnected(connection: BankConnection): string {
+export function describeConnected(connection: BankConnection, backToLinkFlow = false): string {
   const name = connectionName(connection)
   if (connection.discovery_pending && connection.accounts.length === 0) {
-    return `${name} connected. Its bank accounts will appear here shortly.`
+    return backToLinkFlow
+      ? `${name} connected. Its bank accounts will appear shortly.`
+      : `${name} connected. Its bank accounts will appear here shortly.`
   }
-  return `${name} connected with ${countNoun(connection.accounts.length, 'bank account')}. Link each one from the account it belongs to.`
+  const connected = `${name} connected with ${countNoun(connection.accounts.length, 'bank account')}.`
+  return backToLinkFlow ? connected : `${connected} Link each one from the account it belongs to.`
 }
 
 /**

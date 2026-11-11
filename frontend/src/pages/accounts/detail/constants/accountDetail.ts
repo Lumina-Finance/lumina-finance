@@ -11,11 +11,12 @@ export const EASE = [0.25, 0.1, 0.25, 1] as const
 
 /**
  * What another page asks the account page to open on arrival, through router state: the edit modal,
- * or the bank link flow over the page
+ * or the bank link flow over the page, chosen on a connection just made in Settings when one is named
  */
 export type AccountDetailArrivalState = {
   editAccount?: boolean
   linkBank?: boolean
+  linkConnectionId?: string
 }
 
 // An account already in the cache resolves in a few milliseconds, so the loading skeleton waits

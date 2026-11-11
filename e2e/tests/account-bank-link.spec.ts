@@ -548,6 +548,59 @@ test("lists the bank accounts that can't be linked with the reason for each", NE
   await expect(continueButton).toHaveAttribute('aria-disabled', 'true')
 })
 
+test("brings an account sent to settings for its first connection back to its link flow once it connects", NEEDS_BANK_SYNC, async ({ page, request }) => {
+  const user = await signUpUser(request)
+  const [everyday, scenario] = await Promise.all([
+    createAccount(request, user, { name: 'Everyday' }),
+    createSampleBridgeScenario(request),
+  ])
+  await logInViaApi(page, user)
+  const dialog = await openBankLink(page, everyday.id, 'Not linked')
+  await dialog.getByRole('button', { name: 'Link bank account' }).click()
+  await page.getByRole('dialog', { name: 'Link bank account' }).getByRole('button', { name: 'Open settings' }).click()
+
+  const connect = page.getByRole('dialog', { name: 'Add a connection' })
+  await connect.getByRole('textbox', { name: 'Setup token' }).fill(scenario.setupToken)
+  await connect.getByRole('button', { name: 'Connect' }).click()
+
+  // The account's page opens with its link flow over it, listing the new connection's bank accounts,
+  // and the confirmation leaves out where to link them
+  await expect(page).toHaveURL(new RegExp(`/accounts/${everyday.id}$`))
+  await expect(toast(page, 'SimpleFIN connected with 2 bank accounts.')).toBeVisible()
+  await expect(toast(page, 'SimpleFIN connected')).not.toContainText('Link each one')
+  const flow = page.getByRole('dialog', { name: 'Link bank account' })
+  await expect(flow.getByRole('radio', { name: new RegExp(`^${SAMPLE_CHEQUING}`) })).toBeVisible({ timeout: WORKER_RESULT_TIMEOUT_MS })
+  await expect(page.getByRole('dialog')).toHaveCount(1)
+})
+
+test('brings an account sent to settings for another connection back to its link flow on that connection', NEEDS_BANK_SYNC, async ({ page, request }) => {
+  const user = await signUpUser(request)
+  const [everyday, sample, lakeside] = await Promise.all([
+    createAccount(request, user, { name: 'Everyday' }),
+    createSampleBridgeScenario(request),
+    createEmptyBridgeScenario(request),
+  ])
+  const login = await addBridgeBankLogin(request, lakeside.id, 'Lakeside Credit Union')
+  await addBridgeBankAccount(request, lakeside.id, { connId: login, name: 'Joint Savings', currency: 'CAD' })
+  await claimSetupToken(request, user, sample.setupToken)
+  await logInViaApi(page, user)
+  const dialog = await openBankLink(page, everyday.id, 'Not linked')
+  await dialog.getByRole('button', { name: 'Link bank account' }).click()
+
+  // With a connection already there, the flow still offers adding another one in Settings
+  const flow = page.getByRole('dialog', { name: 'Link bank account' })
+  await expect(flow.getByRole('radio', { name: new RegExp(`^${SAMPLE_CHEQUING}`) })).toBeVisible({ timeout: WORKER_RESULT_TIMEOUT_MS })
+  await flow.getByRole('button', { name: 'Settings', exact: true }).click()
+  const connect = page.getByRole('dialog', { name: 'Add a connection' })
+  await connect.getByRole('textbox', { name: 'Setup token' }).fill(lakeside.setupToken)
+  await connect.getByRole('button', { name: 'Connect' }).click()
+
+  // Back on the account, the flow starts on the connection just made
+  await expect(page).toHaveURL(new RegExp(`/accounts/${everyday.id}$`))
+  await expect(flow.getByRole('radio', { name: /^Joint Savings/ })).toBeVisible({ timeout: WORKER_RESULT_TIMEOUT_MS })
+  await expect(flow.getByRole('radio', { name: new RegExp(`^${SAMPLE_CHEQUING}`) })).toHaveCount(0)
+})
+
 test('sends an account with no connection to settings first', NEEDS_BANK_SYNC, async ({ page, request }) => {
   const user = await signUpUser(request)
   const everyday = await createAccount(request, user, { name: 'Everyday' })

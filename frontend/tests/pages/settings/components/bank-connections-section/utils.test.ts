@@ -175,6 +175,15 @@ describe('bank connection confirmations', () => {
     )
   })
 
+  it('leaves out where to link the bank accounts when going back to the link flow', () => {
+    expect(describeConnected(connection({ nickname: 'Joint banks', accounts: [...HARBOUR, ...TIDEWATER] }), true)).toBe(
+      'Joint banks connected with 4 bank accounts.',
+    )
+    expect(describeConnected(connection({ discovery_pending: true }), true)).toBe(
+      'SimpleFIN connected. Its bank accounts will appear shortly.',
+    )
+  })
+
   it('takes a connection as added once its bank accounts are listed or a listing is due, never partway', () => {
     expect(isClaimSettled(connection({ accounts: [bankAccount({})] }))).toBe(true)
     expect(isClaimSettled(connection({ discovery_pending: true }))).toBe(true)

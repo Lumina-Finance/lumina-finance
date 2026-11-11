@@ -4,7 +4,7 @@ import { Plus } from 'lucide-react'
 import { useLocation, useNavigate } from 'react-router'
 import { useAccounts } from '@/api/accounts'
 import { isBankSyncNotSetUp, useBankConnections, useBankProviders, type BankConnection } from '@/api/bank-sync'
-import { readBankConnectionsRequest } from '@/components/bank-link-flow/bankConnectionsRequest'
+import { readBankConnectionsRequest, returnToBankLink } from '@/components/bank-link-flow/bankConnectionsRequest'
 import { BANK_SYNC_NOT_SET_UP_REASON } from '@/components/bank-link-flow/constants'
 import LoadFailure from '@/components/errors/LoadFailure'
 import { GlassSearchField } from '@/components/list-controls/GlassSearchField'
@@ -68,7 +68,11 @@ export function BankConnectionsSection() {
   // Held past the reconnect itself, so the form keeps its wording while it closes
   const [reconnecting, setReconnecting] = useState<BankConnection | null>(null)
 
-  const openConnect = (connection: BankConnection | null) => {
+  // The account whose bank link flow asked for this opening of the Connect dialogue. A connection made
+  // in it returns there, and an opening from this section returns nowhere
+  const [returnToAccountId, setReturnToAccountId] = useState<string | null>(null)
+  const openConnect = (connection: BankConnection | null, returnTo: string | null = null) => {
+    setReturnToAccountId(returnTo)
     setReconnecting(connection)
     setConnectKey((key) => key + 1)
     setConnectOpen(true)
@@ -109,7 +113,7 @@ export function BankConnectionsSection() {
       if (request?.open === 'connect') {
         if (offeredProviders.length === 0 || addReason) return
         addButtonRef.current?.focus()
-        openConnect(null)
+        openConnect(null, request.returnToAccountId ?? null)
       } else if (request?.open === 'connection') {
         const index = connections?.findIndex((connection) => connection.id === request.connectionId) ?? -1
         const requested = connections?.[index]
@@ -253,6 +257,9 @@ export function BankConnectionsSection() {
         connections={connections}
         level={reconnecting ? 'stacked' : 'page'}
         onClose={() => setConnectOpen(false)}
+        onConnected={
+          returnToAccountId ? (connectionId) => returnToBankLink(navigate, returnToAccountId, connectionId) : undefined
+        }
         onClaimUnanswered={() => setClaimUnansweredAt(Date.now())}
       />
     </section>

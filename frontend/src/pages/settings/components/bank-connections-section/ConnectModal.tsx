@@ -99,6 +99,12 @@ type ConnectModalProps = {
   level?: ModalLevel
   onClose: () => void
 
+  /**
+   * Takes the user back to the account's link flow once a connection is added or reconnected, as the
+   * dialogue closes on it. Its confirmation then leaves out where to link the bank accounts
+   */
+  onConnected?: (connectionId: string) => void
+
   /** Told when a claim ends without the app's answer, while the server may still be saving its connection */
   onClaimUnanswered: () => void
 }
@@ -122,6 +128,7 @@ export function ConnectModal({
   connections,
   level = 'page',
   onClose,
+  onConnected,
   onClaimUnanswered,
 }: ConnectModalProps) {
   const { showToast } = useToast()
@@ -193,6 +200,7 @@ export function ConnectModal({
           onSuccess: (result) => {
             showToast({ status: 'success', text: describeReconnected(result) })
             onClose()
+            onConnected?.(result.connection.id)
           },
           onError: (cause) => (isAnsweredByApp(cause) ? reportAnswered(cause) : setError(UNANSWERED_RECONNECT_MESSAGE)),
         },
@@ -209,8 +217,9 @@ export function ConnectModal({
       { provider: providerId, credentials: trimmed, nickname },
       {
         onSuccess: (connection) => {
-          showToast({ status: 'success', text: describeConnected(connection) })
+          showToast({ status: 'success', text: describeConnected(connection, onConnected !== undefined) })
           onClose()
+          onConnected?.(connection.id)
         },
         onError: (cause) => {
           if (isAnsweredByApp(cause)) {
@@ -232,8 +241,9 @@ export function ConnectModal({
   useEffect(() => {
     if (!open || !unanswered) return
     const connected = (connection: BankConnection) => {
-      showToast({ status: 'success', text: describeConnected(connection) })
+      showToast({ status: 'success', text: describeConnected(connection, onConnected !== undefined) })
       onClose()
+      onConnected?.(connection.id)
     }
     if (saved && settled) {
       connected(saved)
@@ -245,7 +255,7 @@ export function ConnectModal({
       else setError(describeUnansweredClaim(noun))
     }, unanswered.endsAt - Date.now())
     return () => window.clearTimeout(timer)
-  }, [open, unanswered, saved, settled, showToast, onClose, noun])
+  }, [open, unanswered, saved, settled, showToast, onClose, onConnected, noun])
 
   return (
     <ModalTitledPanel

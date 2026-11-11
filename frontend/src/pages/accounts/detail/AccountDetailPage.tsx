@@ -69,10 +69,12 @@ export default function AccountDetailPage() {
   const wantsAccountEditModal = arrival?.editAccount === true
   const [showAccountEditModal, setShowAccountEditModal] = useState(wantsAccountEditModal)
 
-  // Choosing to link a bank right after creating the account arrives here with the link flow to open.
-  // The flow stays mounted once the arrival is taken off the history entry, so it can close as usual
+  // Choosing to link a bank right after creating the account arrives here with the link flow to open,
+  // as does a connection made in Settings from this account's flow, which the flow then starts on. The
+  // flow stays mounted once the arrival is taken off the history entry, so it can close as usual
   const wantsBankLink = arrival?.linkBank === true
   const [arrivedToLinkBank] = useState(wantsBankLink)
+  const [arrivalConnectionId] = useState(arrival?.linkConnectionId)
   const [showArrivalLinkFlow, setShowArrivalLinkFlow] = useState(wantsBankLink)
 
   // Set when the identity card's Bank sync fact opened the edit modal. The modal then shows its Bank link
@@ -299,6 +301,7 @@ export default function AccountDetailPage() {
             <BankLinkFlowModal
               open={showArrivalLinkFlow}
               account={visibleAccount}
+              initialConnectionId={arrivalConnectionId}
               onClose={() => setShowArrivalLinkFlow(false)}
             />
           )}

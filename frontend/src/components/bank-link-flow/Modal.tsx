@@ -62,6 +62,9 @@ type BankLinkFlowModalProps = {
 
   /** A bank account already chosen in settings. It starts the flow at where history starts */
   chosen?: Omit<BankLinkTarget, 'account'>
+
+  /** The connection the flow starts on, such as one just made in Settings from this flow */
+  initialConnectionId?: string
   onClose: () => void
 
   /** Runs when the link is made, before the flow closes */
@@ -87,6 +90,7 @@ export function BankLinkFlowModal({
   open,
   account,
   chosen,
+  initialConnectionId,
   onClose,
   onLinked,
   onExitComplete,
@@ -99,7 +103,7 @@ export function BankLinkFlowModal({
   const link = useLinkBankAccount()
 
   const [chosenStep, setChosenStep] = useState<LinkFlowStep | null>(null)
-  const [chosenConnectionId, setChosenConnectionId] = useState<string | null>(null)
+  const [chosenConnectionId, setChosenConnectionId] = useState<string | null>(initialConnectionId ?? null)
   const [externalId, setExternalId] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
 
@@ -172,9 +176,10 @@ export function BankLinkFlowModal({
     setChosenStep(next)
   }
 
+  // A connection made there brings the user back to this account's flow
   const openSettings = () => {
     onClose()
-    openBankConnections(navigate, { open: 'connect' })
+    openBankConnections(navigate, { open: 'connect', returnToAccountId: account.id })
   }
 
   const confirmLink = () => {
