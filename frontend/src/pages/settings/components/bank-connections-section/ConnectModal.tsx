@@ -325,6 +325,7 @@ export function ConnectModal({
               }
               error={refusal.errors[NICKNAME_FIELD]}
               errorId={refusal.errors[NICKNAME_FIELD] ? NICKNAME_ERROR_ID : undefined}
+              keepsLabelWhole
             />
             <input
               id={FIELD_IDS.nickname}
@@ -372,6 +373,8 @@ export function ConnectModal({
                 label={field.label}
                 error={message ?? undefined}
                 errorId={message ? messageId : undefined}
+                // A refusal runs to two lines, so it wraps beside the whole label rather than over it
+                keepsLabelWhole
               />
               <textarea
                 id={credentialFieldId(field.key)}

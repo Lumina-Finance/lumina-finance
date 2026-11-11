@@ -254,8 +254,14 @@ test("shows a used setup token's refusal on the token field and adds no connecti
   await token.fill(scenario.setupToken)
   await dialog.getByRole('button', { name: 'Connect' }).click()
 
-  await expect(dialog.getByRole('alert')).toHaveText('This setup token has already been used. Please create a new one in SimpleFIN Bridge')
+  const refusal = dialog.getByRole('alert')
+  await expect(refusal).toHaveText('This setup token has already been used. Please create a new one in SimpleFIN Bridge')
   await expect(token).toHaveAttribute('aria-invalid', 'true')
+
+  // The refusal wraps beside the whole label, keeping the row's 12px gap rather than running into it
+  const label = dialog.locator('label', { hasText: 'Setup token' })
+  const [labelBox, refusalBox] = await Promise.all([label.boundingBox(), refusal.boundingBox()])
+  expect(refusalBox!.x - (labelBox!.x + labelBox!.width)).toBeGreaterThanOrEqual(11.5)
   await dialog.getByRole('button', { name: 'Cancel' }).click()
   await expect(section.getByText('No connections yet.')).toBeVisible()
 })
