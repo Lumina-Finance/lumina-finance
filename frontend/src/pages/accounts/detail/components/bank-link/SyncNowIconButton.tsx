@@ -27,8 +27,12 @@ export function SyncNowIconButton({ link, connection, providers }: SyncNowIconBu
 
   return (
     <DisabledReasonButton
-      // 24px to press, pulled in above and below so the label's row keeps its height
-      className="group -my-1 inline-flex size-6 shrink-0 cursor-pointer items-center justify-center rounded-md text-[var(--app-text-muted)] transition-control hover:text-[var(--app-text)] focus-visible:text-[var(--app-text)] motion-reduce:transition-none aria-disabled:cursor-not-allowed aria-disabled:text-[color-mix(in_srgb,var(--app-text-muted)_50%,transparent)]"
+      // The box hugs the 12px icon, so the focus ring, drawn against it, stays clear of the label. A layer
+      // reaching 6px past it on every side makes the press 24px square. The drawn arrows sit 1.5px inside
+      // the icon, so pulling the box back 1.5px over the row's 4px gap leaves them 4px after the label, as
+      // the chevron after the sync status sits. The label's line centres the box 0.5px below its
+      // capitals, so it rises that much to centre the arrows on them
+      className="group relative -ml-[1.5px] -translate-y-[0.5px] inline-flex size-3 shrink-0 cursor-pointer items-center justify-center rounded-sm text-[var(--app-text-muted)] transition-control before:absolute before:-inset-1.5 before:content-[''] hover:text-[var(--app-text)] focus-visible:text-[var(--app-text)] focus-visible:outline-offset-0 motion-reduce:transition-none aria-disabled:cursor-not-allowed aria-disabled:text-[color-mix(in_srgb,var(--app-text-muted)_50%,transparent)]"
       aria-label={hint}
       hint={hint}
       disabledReason={block}
