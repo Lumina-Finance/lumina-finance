@@ -76,6 +76,9 @@ type TransactionDetailsSectionProps = {
   // column, so a caption under one leaves the other field where it was
   dateCaption?: ReactNode
   amountCaption?: ReactNode
+
+  // Why a bank item's amount starts empty, under the field and read with it
+  amountNote?: string | null
 }
 
 /**
@@ -107,8 +110,11 @@ export default function TransactionDetailsSection({
   onNotesChange,
   dateCaption,
   amountCaption,
+  amountNote = null,
 }: TransactionDetailsSectionProps) {
   const ids = useTransactionModalIds()
+  const amountNoteId = `${ids.amount}-note`
+  const amountDescribedBy = [amountError && ids.errors.amount, amountNote && amountNoteId].filter(Boolean).join(' ')
   const stepHighlight = useContext(DateStepHighlightContext)
   const { user } = useAuth()
   const prefersReducedMotion = useReducedMotion()
@@ -280,13 +286,18 @@ export default function TransactionDetailsSection({
               style={getSymbolInputStyle(selectedCurrencySymbol)}
               aria-keyshortcuts={getAriaFieldShortcut('amount')}
               aria-invalid={amountError ? true : undefined}
-              aria-describedby={amountError ? ids.errors.amount : undefined}
+              aria-describedby={amountDescribedBy || undefined}
               placeholder={isAmountLocked ? undefined : getMoneyPlaceholder(currencyExponent)}
               disabled={readOnly || isAmountLocked}
               data-modal-initial-focus={startsOnAmount || undefined}
               {...amountInput}
             />
           </div>
+          {amountNote && (
+            <p id={amountNoteId} className="py-0.5 text-xs leading-4" style={{ color: 'var(--app-text-muted)' }}>
+              {amountNote}
+            </p>
+          )}
           {amountCaption}
         </div>
       </div>

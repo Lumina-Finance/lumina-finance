@@ -42,7 +42,7 @@ import { useRefundRoom } from '@/components/transactions/transaction-modal/hooks
 import { revealIfHidden } from '@/components/transactions/transaction-modal/utils/reveal'
 import { getBankDeleteRefusal } from '@/components/transactions/transaction-modal/utils/bankDelete'
 import { getBankMoveRefusal } from '@/components/transactions/transaction-modal/utils/bankMove'
-import { getBankValueCaptions } from '@/components/transactions/transaction-modal/utils/bankValues'
+import { getBankValueCaptions, getReviewAmountNote } from '@/components/transactions/transaction-modal/utils/bankValues'
 import { amountToInputString } from '@/components/transactions/transaction-modal/utils/money'
 import { NO_SUPPLIED_DAYS, getSuppliedDays } from '@/components/transactions/transaction-modal/utils/suppliedDays'
 import type {
@@ -781,6 +781,7 @@ export default function CreateTransactionModal({
                 onNotesChange={(value) => handleField('notes', value)}
                 dateCaption={renderBankValueCaption('date')}
                 amountCaption={renderBankValueCaption('amount')}
+                amountNote={reviewItem && reviewCurrency ? getReviewAmountNote(reviewItem.bank, reviewCurrency) : null}
               />
 
               {liveTransaction && (

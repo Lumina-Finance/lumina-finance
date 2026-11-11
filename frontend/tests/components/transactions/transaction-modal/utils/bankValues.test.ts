@@ -5,7 +5,7 @@
  * it can't be restored, and nothing for a transaction entered by hand
  */
 import { describe, expect, it } from 'vitest'
-import { getBankValueCaptions } from '@/components/transactions/transaction-modal/utils/bankValues'
+import { getBankValueCaptions, getReviewAmountNote } from '@/components/transactions/transaction-modal/utils/bankValues'
 import { BANK_SOURCE, currencies } from './fixtures'
 
 const MINUS = String.fromCodePoint(0x2212)
@@ -64,5 +64,17 @@ describe('bank value captions', () => {
 
   it('show nothing on a transaction entered by hand', () => {
     expect(getBankValueCaptions(null, 'CAD', currencies)).toEqual({ date: null, amount: null })
+  })
+})
+
+describe('review amount note', () => {
+  it('says why a bank item opens with its amount empty', () => {
+    expect(getReviewAmountNote({ amount: null }, 'CAD')).toBe(
+      "The bank's amount has more decimal places than CAD allows, so please enter the amount to add",
+    )
+  })
+
+  it('says nothing when the bank amount fills the field', () => {
+    expect(getReviewAmountNote({ amount: -4250 }, 'CAD')).toBeNull()
   })
 })

@@ -49,6 +49,18 @@ export function getBankValueCaptions(
   }
 }
 
+/**
+ * Why a bank item opens with its amount empty, said under the field: the bank sent more decimal places
+ * than the currency holds, which the item's card shows exactly as sent, so the user enters the amount
+ *
+ * @param bank - The item's bank values, its amount null when the currency can't hold it
+ * @param currency - The account's currency, which the bank's amount is in
+ */
+export function getReviewAmountNote(bank: { amount: number | null }, currency: string): string | null {
+  if (bank.amount !== null) return null
+  return `The bank's amount has more decimal places than ${currency} allows, so please enter the amount to add`
+}
+
 /** Why the bank's amount can't be restored, in the words the server refuses that restore with */
 function getUnstorableAmountReason(currency: string): string {
   return `The bank's amount has more decimal places than ${currency} allows, so the amount can't be restored`
