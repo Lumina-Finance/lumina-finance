@@ -10,22 +10,29 @@ account can record one
 """
 
 import asyncio
+import contextvars
+import dataclasses
 import uuid
-from datetime import UTC, date, datetime
+from datetime import UTC, date, datetime, timedelta
 
 import pytest
+from freezegun import freeze_time
 from sqlalchemy import func, select, text, update
 
+from app.encryption import encrypt
 from app.models.account import Account
 from app.models.bank_connection import BankAccountLink, BankConnection, BankExternalAccount, BankLinkState
+from app.models.bank_sync_job import BankSyncJob
 from app.models.bank_transaction import BankTransactionDisposition, OpenReviewKind
 from app.models.category import Category
 from app.models.merchant import Merchant
 from app.models.transaction import Transaction
-from app.services.bank_sync import account_link
-from tests.conftest import TestSession
-from tests.routes.support.balance_match_helpers import _NOW, _Everyday, _linked_everyday
+from app.services.bank_sync import account_link, range_import, sync, worker
+from app.services.bank_sync.providers.contract import FetchResult, ProviderRecord
+from tests.conftest import ScopedSession, TestSession
+from tests.routes.support.balance_match_helpers import _BALANCE_AT, _NOW, _Everyday, _linked_everyday
 from tests.routes.support.bank_sync_helpers import (
+    BANK_ACCOUNT_ID,
     _changed_at,
     _commit_other_users_account,
     _commit_review_item,
@@ -40,6 +47,7 @@ from tests.routes.support.lock_helpers import _cancel_unfinished, _wait_until_wa
 from tests.routes.support.merchant_helpers import _get_system_merchant_id
 from tests.routes.support.query_helpers import _recorded_statements, _writes
 from tests.routes.support.transaction_helpers import _get_system_category_id
+from tests.services.bank_sync.fake_provider import _bank_account
 
 # Everyday's import starts on 1 June, so its balance match is dated 31 May
 _ADJUSTMENT_DATE = "2026-05-31"
@@ -448,6 +456,95 @@ async def test_offer_holds_still_as_the_items_waiting_are_approved(client, sourc
     assert after["balance"]["ledger_balance"] == ledger_balance
     assert after["balance_match"]["amount"] == before["balance_match"]["amount"]
     assert after["balance_match"]["waiting_amount"] == 0
+
+
+def _may_coffee(external_id: str, day: int, amount: int) -> ProviderRecord:
+    """Return a booked coffee from a day in May as Fake Bank sends it, of the amount given in cents"""
+    return ProviderRecord(
+        external_id=external_id,
+        date=date(2026, 5, day),
+        amount=amount,
+        raw_amount=f"{amount / 100:.2f}",
+        description="POS 4411 COFFEE",
+        pending=False,
+        removed=False,
+    )
+
+
+async def _run_jobs_until_none_is_due() -> None:
+    """Run the worker's jobs one at a time until none is due, failing rather than looping if jobs keep coming
+
+    Each runs in a context of its own, as the worker's process has no request identity, rather than
+    under the one the test's requests left behind
+    """
+    for _ in range(5):
+        if not await asyncio.get_running_loop().create_task(worker.run_jobs(1), context=contextvars.Context()):
+            return
+    pytest.fail("Jobs were still queued after 5 ran")
+
+
+async def test_a_date_range_bringing_in_items_after_a_match_offers_minus_their_sum_and_holds_as_they_are_approved(
+    client, fake_provider, monkeypatch, pin_clock
+):
+    """Everyday matched Fake Bank's 1,250.00. A date range import of May then brings in a 30.00 and a 15.00 coffee from before the import start
+
+    Fake Bank's balance already held the coffees, so the ledger falls 45.00 short of it once they are
+    approved. 45.00 is offered as soon as the range ends, minus the coffees' sum, and approving them
+    moves the ledger and leaves the offer as it was. The range's fetch reads the same balance, so only
+    the coffees move the offer. The worker runs on the database as the app role, its clock frozen at
+    noon, the time the range request reads too
+    """
+    monkeypatch.setattr(worker, "async_session", ScopedSession)
+    monkeypatch.setattr(sync, "async_session", ScopedSession)
+    pin_clock(_NOW, range_import)
+    everyday = await _linked_everyday(client, ("2026-09-15", 100000), next_attempt_at=_NOW + timedelta(hours=19))
+    matched = await _record(client, everyday.headers, everyday.account_id, 25000)
+    assert matched.status_code == 200, matched.text
+    assert matched.json()["balance_match"] is None
+
+    bank_account = _bank_account(BANK_ACCOUNT_ID, records=(_may_coffee("TRN-may-10", 10, -3000), _may_coffee("TRN-may-20", 20, -1500)))
+    fake_provider.outcomes = [FetchResult(accounts=(dataclasses.replace(bank_account, balance=125000, balance_at=_BALANCE_AT),))]
+    requested = await client.post(
+        f"/accounts/{everyday.account_id}/bank-link/range-import",
+        json={"first_day": "2026-05-01", "last_day": "2026-05-31", "restores_dismissed": False},
+        headers=everyday.headers,
+    )
+    assert requested.status_code == 200, requested.text
+
+    # The job reads the connection's credential, and runs once due at the frozen noon
+    async with TestSession() as session:
+        await session.execute(
+            update(BankConnection)
+            .where(BankConnection.id == everyday.link.connection_id)
+            .values(credential_encrypted=encrypt("https://user:secret@bridge.example/simplefin"))
+        )
+        await session.execute(
+            update(BankSyncJob).where(BankSyncJob.connection_id == everyday.link.connection_id).values(run_after=_NOW - timedelta(minutes=1))
+        )
+        await session.commit()
+    with freeze_time(_NOW, real_asyncio=True):
+        await _run_jobs_until_none_is_due()
+
+    ranged = await _read_status(client, everyday)
+    listed = await client.get(f"/bank-review/items?account_id={everyday.account_id}", headers=everyday.headers)
+    assert listed.status_code == 200, listed.text
+    groceries = await _get_system_category_id(client, everyday.headers, "Groceries")
+    myself = await _get_system_merchant_id(client, everyday.headers)
+    for item in listed.json()["items"]:
+        entry = {"dt": item["bank"]["date"], "amount": item["bank"]["amount"], "category_id": groceries, "merchant_id": myself}
+        added = await client.post(f"/bank-review/items/{item['id']}/add", json=entry, headers=everyday.headers)
+        assert added.status_code == 201, added.text
+    approved = await _read_status(client, everyday)
+
+    assert len(fake_provider.fetches) == 1
+    assert (ranged["link"]["range_import"], ranged["link"]["range_outcome"]) == (None, None)
+    assert sorted((item["bank"]["date"], item["bank"]["amount"]) for item in listed.json()["items"]) == [
+        ("2026-05-10", -3000),
+        ("2026-05-20", -1500),
+    ]
+    assert ranged["balance_match"] == {"amount": 4500, "waiting_amount": -4500, "adjustment_date": _ADJUSTMENT_DATE}
+    assert approved["balance_match"] == {"amount": 4500, "waiting_amount": 0, "adjustment_date": _ADJUSTMENT_DATE}
+    assert (approved["balance"]["ledger_balance"], approved["balance"]["difference"]) == (120500, -4500)
 
 
 async def test_recording_ends_the_undo_of_the_last_import(client):
