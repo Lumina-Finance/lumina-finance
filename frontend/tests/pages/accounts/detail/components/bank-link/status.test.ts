@@ -138,9 +138,15 @@ describe('describeBankSync for a live link', () => {
       { label: 'Not synced yet', tone: 'ok', pulse: false, details: [] },
     ],
     [
-      'a synced link whose last attempt failed',
+      // Such as a payment problem the user settles with the provider, which only the daily sync tries again
+      'a synced link whose last attempt failed, waiting on its daily sync',
       { sync: createSync({ last_failure: FAILURE }) },
-      { label: 'Synced 1 hour ago', tone: 'ok', pulse: false, details: [FAILURE_LINE, 'Next sync in 3 hours'] },
+      {
+        label: 'Last sync failed',
+        tone: 'review',
+        pulse: false,
+        details: [FAILURE.reason, 'Synced 1 hour ago', 'Next sync in 3 hours'],
+      },
     ],
     [
       "a synced link whose next sync waits on the connection's own request limit",

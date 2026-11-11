@@ -161,8 +161,11 @@ function describeLinkSync(link: BankLink, timeZone: string | undefined): BankSyn
         `Last attempt failed: ${sync.last_failure!.reason}`,
         synced,
       ])
+    // A failure no retry follows, such as a payment problem the user settles with the provider, waits
+    // for the daily sync. A success clears the failure, so the link is behind until then and says so
     case 'synced':
-      return label('ok', synced, [failure, next])
+      if (sync.last_failure) return label('review', 'Last sync failed', [sync.last_failure.reason, synced, next])
+      return label('ok', synced, [next])
   }
 }
 
