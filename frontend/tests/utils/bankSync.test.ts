@@ -5,7 +5,7 @@
  */
 import { describe, expect, it } from 'vitest'
 import type { BankConnection } from '@/api/bank-sync'
-import { credentialNoun, describeDisconnected, isOwnPersonalAccount } from '@/utils/bankSync'
+import { credentialNoun, describeDisconnected, describeDisconnectEffect, isOwnPersonalAccount } from '@/utils/bankSync'
 
 function connection(overrides: Partial<BankConnection> = {}): BankConnection {
   return {
@@ -38,6 +38,21 @@ describe('credentialNoun', () => {
   it('lowers a label written as a heading for use mid-sentence, and keeps one in capitals', () => {
     expect(credentialNoun('Setup token')).toBe('setup token')
     expect(credentialNoun('API key')).toBe('API key')
+  })
+})
+
+describe('describeDisconnectEffect', () => {
+  it('says before a disconnect which accounts it unlinks and what they keep', () => {
+    expect(describeDisconnectEffect(2)).toBe(
+      'Disconnecting unlinks 2 accounts. Their transactions and waiting items are kept.',
+    )
+    expect(describeDisconnectEffect(1)).toBe(
+      'Disconnecting unlinks 1 account. Its transactions and waiting items are kept.',
+    )
+  })
+
+  it('says nothing when nothing is linked through the connection', () => {
+    expect(describeDisconnectEffect(0)).toBeNull()
   })
 })
 

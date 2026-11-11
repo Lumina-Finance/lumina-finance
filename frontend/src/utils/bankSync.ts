@@ -49,6 +49,16 @@ export function countNoun(count: number, singular: string, plural = `${singular}
 }
 
 /**
+ * What disconnecting does to the accounts linked through a connection, said under Disconnect before
+ * it is pressed, or null when none is linked
+ */
+export function describeDisconnectEffect(linkedCount: number): string | null {
+  if (linkedCount === 0) return null
+  const theirs = linkedCount === 1 ? 'Its' : 'Their'
+  return `Disconnecting unlinks ${countNoun(linkedCount, 'account')}. ${theirs} transactions and waiting items are kept.`
+}
+
+/**
  * The confirmation once a connection is disconnected, counting the accounts it unlinked when there
  * were any, and saying the provider keeps sharing until its access is revoked there too
  */

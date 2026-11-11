@@ -15,6 +15,8 @@ type ModalWorkspacePanelProps = {
   facts: ReactNode
   /** Actions on the thing as a whole, at the foot of its pane */
   actions: ReactNode
+  /** What the actions do, under them. Always shown rather than when one is armed, so the buttons never move under the pointer */
+  actionsNote?: ReactNode
   /** Heading over the parts, such as their name and count */
   partsLabel: ReactNode
   /** Controls beside the parts' heading, such as a search field */
@@ -44,6 +46,7 @@ export function ModalWorkspacePanel({
   title,
   facts,
   actions,
+  actionsNote,
   partsLabel,
   partsTools,
   closeDisabled = false,
@@ -99,6 +102,7 @@ export function ModalWorkspacePanel({
           </div>
 
           <div className="mt-6 flex shrink-0 gap-2 min-[1050px]:mt-auto min-[1050px]:pt-6">{actions}</div>
+          {actionsNote && <div className="mt-2.5 shrink-0">{actionsNote}</div>}
         </aside>
 
         <section className="flex min-w-0 flex-1 flex-col min-[1050px]:min-h-0" aria-labelledby={partsHeadingId}>

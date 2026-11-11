@@ -38,8 +38,16 @@ import {
   type AccountNameLookup,
 } from '@/pages/settings/components/bank-connections-section/utils'
 import { DisabledReasonButton } from '@/components/tooltips/DisabledReasonButton'
-import { countNoun, describeDisconnected, PROVIDER_UNAVAILABLE_DETAIL } from '@/utils/bankSync'
+import {
+  countNoun,
+  describeDisconnected,
+  describeDisconnectEffect,
+  PROVIDER_UNAVAILABLE_DETAIL,
+} from '@/utils/bankSync'
 import { DATE_FORMATS, formatDate } from '@/utils/date'
+
+// The note under Disconnect that describes what it does to the linked accounts
+const DISCONNECT_EFFECT_ID = 'bank-connection-disconnect-effect'
 
 /**
  * One fact about the connection, labelled like the facts in an account's Bank link section, with an
@@ -208,6 +216,7 @@ export function ConnectionModal({
   const institutionLimit = provider?.institution_limit ?? null
   const institutionsInUse = provider?.institutions_in_use ?? []
   const allowance = describeInstitutionAllowance(provider, connection.provider_name)
+  const disconnectEffect = describeDisconnectEffect(linkedCount)
   useRelativeTimeRefresh(() => describeRequestBudget(connection))
 
   // Linking waits for the worker that imports the history, while renaming, reconnecting and
@@ -320,6 +329,7 @@ export function ConnectionModal({
         type="button"
         aria-label={confirmingDisconnect ? 'Yes, disconnect' : 'Disconnect'}
         aria-busy={disconnect.isPending}
+        aria-describedby={disconnectEffect ? DISCONNECT_EFFECT_ID : undefined}
         className={`${confirmingDisconnect || disconnect.isPending ? 'app-danger-button' : 'app-secondary-button hover:bg-[var(--app-negative-soft)]'} relative h-9 flex-1 justify-center overflow-hidden whitespace-nowrap px-3 text-sm min-[1050px]:px-1.5 ${disconnect.isPending ? 'app-primary-button-loading' : ''}`}
         style={
           confirmingDisconnect || disconnect.isPending
@@ -393,6 +403,13 @@ export function ConnectionModal({
       }
       facts={facts}
       actions={actions}
+      actionsNote={
+        disconnectEffect && (
+          <p id={DISCONNECT_EFFECT_ID} className="text-xs leading-4" style={{ color: 'var(--app-text-muted)' }}>
+            {disconnectEffect}
+          </p>
+        )
+      }
       partsLabel={`Institutions · ${linkedCount} of ${countNoun(bankAccountCount, 'bank account')} linked`}
       partsTools={search || undefined}
     >
