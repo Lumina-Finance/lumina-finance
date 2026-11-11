@@ -46,6 +46,17 @@ export function importStartReminder(): string {
 }
 
 export const BANK_ACCOUNT_REQUIRED_MESSAGE = 'Choose a bank account'
+
+/**
+ * What a press of Continue says when every bank account listed is locked. Asking for a choice when
+ * none can be made leaves the user looking for one
+ *
+ * @param accountName - The account being linked
+ */
+export function nothingLinkableMessage(accountName: string): string {
+  return `None of these bank accounts can be linked to ${accountName}. Hover over or tap one to see why`
+}
+
 export const START_CHOICE_REQUIRED_MESSAGE = 'Choose where to start'
 export const START_DATE_REQUIRED_MESSAGE = 'Enter a start date'
 export const RANGE_END_REQUIRED_MESSAGE = 'Enter an end date'

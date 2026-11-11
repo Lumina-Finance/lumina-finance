@@ -18,6 +18,7 @@ import { openBankConnections } from '@/components/bank-link-flow/bankConnections
 import { BankSyncNotSetUp } from '@/components/bank-link-flow/BankSyncNotSetUp'
 import {
   BANK_ACCOUNT_REQUIRED_MESSAGE,
+  nothingLinkableMessage,
   BANK_SYNC_NOT_SET_UP_REASON,
   LINK_FLOW_FIELD_IDS,
   LINK_FLOW_FIELDS,
@@ -129,6 +130,7 @@ export function BankLinkFlowModal({
     account.id,
   )
   const chosenBankAccount = discovered?.accounts.find((entry) => entry.external_id === externalId)
+  const nothingLinkable = Boolean(discovered?.accounts.length) && !discovered?.accounts.some((entry) => entry.linkable)
   const bankAccountName = chosen?.bankAccount.name ?? chosenBankAccount?.name ?? ''
   const provider = providers?.providers.find((entry) => entry.id === connection?.provider)
   const { data: range, error: rangeError } = useImportRange(
@@ -143,7 +145,13 @@ export function BankLinkFlowModal({
   const custom = startChoice.choice === CUSTOM_START
   const refusal = useRefusedSubmit<LinkFlowField>(
     step === 'account'
-      ? { bankAccount: chosenBankAccount?.linkable ? undefined : BANK_ACCOUNT_REQUIRED_MESSAGE }
+      ? {
+          bankAccount: chosenBankAccount?.linkable
+            ? undefined
+            : nothingLinkable
+              ? nothingLinkableMessage(account.name)
+              : BANK_ACCOUNT_REQUIRED_MESSAGE,
+        }
       : step === 'start'
         ? {
             startChoice: startChoice.choice === null ? START_CHOICE_REQUIRED_MESSAGE : undefined,

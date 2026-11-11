@@ -544,7 +544,10 @@ test("lists the bank accounts that can't be linked with the reason for each", NE
   const continueButton = flow.getByRole('button', { name: 'Continue' })
   await expect(continueButton).not.toHaveAttribute('aria-disabled', 'true')
   await continueButton.click()
-  await expect(flow.getByRole('alert')).toHaveText('Choose a bank account')
+  // Says why, since asking for a choice when none can be made leaves the user looking for one
+  await expect(flow.getByRole('alert')).toHaveText(
+    'None of these bank accounts can be linked to Everyday. Hover over or tap one to see why',
+  )
   await expect(continueButton).toHaveAttribute('aria-disabled', 'true')
 })
 
