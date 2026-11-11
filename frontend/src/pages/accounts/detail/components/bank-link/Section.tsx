@@ -1,6 +1,6 @@
 import { useEffect, useId, useRef, useState } from 'react'
 import { AnimatePresence } from 'motion/react'
-import { Link2, PauseCircle, TriangleAlert, Unlink } from 'lucide-react'
+import { CalendarRange, Link2, PauseCircle, TriangleAlert, Unlink } from 'lucide-react'
 import { useNavigate } from 'react-router'
 import type { Account } from '@/api/accounts'
 import {
@@ -44,7 +44,8 @@ import { useAccountBankLink } from '@/pages/accounts/detail/components/bank-link
 import { useLingeringImport } from '@/pages/accounts/detail/components/bank-link/useLingeringImport'
 import { EditModalSection } from '@/pages/accounts/detail/components/edit-identity/layout/Section'
 import { IdentityFacts } from '@/pages/accounts/detail/components/identity/Facts'
-import { describeSyncNowBlock } from '@/pages/accounts/detail/components/bank-link/syncNow'
+import { RangeImportModal } from '@/pages/accounts/detail/components/bank-link/RangeImportModal'
+import { describeRangeImportBlock, describeSyncNowBlock } from '@/pages/accounts/detail/components/bank-link/syncNow'
 import { PROVIDER_UNAVAILABLE_DETAIL, providerSiteName } from '@/utils/bankSync'
 import { DATE_FORMATS, formatDate, formatDateLabel } from '@/utils/date'
 
@@ -80,6 +81,7 @@ type LinkedViewProps = {
   initialFocus: InitialFocusProps
   onChooseBankAccount: () => void
   onAdjustmentRecorded?: () => void
+  onImportRange: () => void
   onUnlink: () => void
 }
 
@@ -106,6 +108,7 @@ function LinkedView({
   initialFocus,
   onChooseBankAccount,
   onAdjustmentRecorded,
+  onImportRange,
   onUnlink,
 }: LinkedViewProps) {
   const navigate = useNavigate()
@@ -113,6 +116,7 @@ function LinkedView({
   const actionsRef = useRef<HTMLDivElement>(null)
   const notSetUpReasonId = useId()
   const syncNotSetUp = describeSyncNowBlock(link, connection, providers) === BANK_SYNC_NOT_SET_UP_REASON
+  const rangeImportBlock = describeRangeImportBlock(link, connection, providers)
   const shownImport = useLingeringImport(link.import, link.state)
   const { state, paused, review_warning: warned } = link.sync
   const waiting = link.sync.waiting_new_count.toLocaleString()
@@ -158,7 +162,7 @@ function LinkedView({
       <AnimatePresence initial={false}>
         {showsImport && (
           <Unfold key="import">
-            <ImportProgress progress={shownImport} />
+            <ImportProgress progress={shownImport} range={link.range_import} />
           </Unfold>
         )}
         {link.sync.import_starts_at !== null && (
@@ -248,6 +252,13 @@ function LinkedView({
             </InfoCallout>
           </Unfold>
         )}
+        {link.range_outcome && (
+          <Unfold key="range-outcome">
+            <InfoCallout tone="review" icon={TriangleAlert}>
+              {link.range_outcome}.
+            </InfoCallout>
+          </Unfold>
+        )}
         {link.history_reminder && (
           <Unfold key="history-reminder">
             <HistoryReminder
@@ -300,6 +311,18 @@ function LinkedView({
           focusProps={{ ...ACTION_PROPS, ...initialFocus }}
           notSetUpReasonId={notSetUpReasonId}
         />
+        {/* Held back, it takes no initial focus, since focus would open its reason over the section */}
+        <DisabledReasonButton
+          className={LINK_ACTION_CLASS}
+          {...ACTION_PROPS}
+          {...(rangeImportBlock === null ? initialFocus : {})}
+          disabledReason={rangeImportBlock}
+          reasonShownById={rangeImportBlock === BANK_SYNC_NOT_SET_UP_REASON ? notSetUpReasonId : undefined}
+          onClick={onImportRange}
+        >
+          <CalendarRange size={14} aria-hidden />
+          Import a date range
+        </DisabledReasonButton>
         <button type="button" className={LINK_ACTION_CLASS} {...ACTION_PROPS} {...initialFocus} onClick={onUnlink}>
           <Unlink size={14} aria-hidden />
           Unlink
@@ -355,6 +378,10 @@ export function BankLinkSection({ account, sectionNumber, autoFocus = false, onF
   // Held past the unlink itself, so the dialogue can finish closing once the link is gone
   const [unlinking, setUnlinking] = useState<BankLink | null>(null)
   const [unlinkOpen, setUnlinkOpen] = useState(false)
+
+  // Held past the dialogue's own close in the same way, and remounted for each opening by the link it opened on
+  const [rangeImporting, setRangeImporting] = useState<BankLink | null>(null)
+  const [rangeImportOpen, setRangeImportOpen] = useState(false)
 
   const link = status?.link ?? null
   const previous = status?.previous_link ?? null
@@ -485,6 +512,10 @@ export function BankLinkSection({ account, sectionNumber, autoFocus = false, onF
                   initialFocus={initialFocus}
                   onChooseBankAccount={openLinkFlow}
                   onAdjustmentRecorded={onFinished}
+                  onImportRange={() => {
+                    setRangeImporting(link)
+                    setRangeImportOpen(true)
+                  }}
                   onUnlink={() => {
                     setUnlinking(link)
                     setUnlinkOpen(true)
@@ -503,6 +534,21 @@ export function BankLinkSection({ account, sectionNumber, autoFocus = false, onF
           account={account}
           onClose={() => setLinkFlowOpen(false)}
           onExitComplete={restoreLostFocus}
+        />
+      )}
+
+      {rangeImporting && (
+        <RangeImportModal
+          open={rangeImportOpen}
+          account={account}
+          link={rangeImporting}
+          connection={connections?.find((connection) => connection.id === rangeImporting.connection_id)}
+          providers={providers}
+          onClose={() => setRangeImportOpen(false)}
+          onExitComplete={() => {
+            setRangeImporting(null)
+            restoreLostFocus()
+          }}
         />
       )}
 

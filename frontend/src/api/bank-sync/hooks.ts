@@ -36,6 +36,7 @@ import {
   fetchDiscoveredBankAccounts,
   fetchImportRange,
   fetchPendingBankTransactions,
+  importBankRange,
   fetchReviewBacklogs,
   fetchReviewPage,
   reconnectBankConnection,
@@ -46,7 +47,13 @@ import {
   updateBankConnection,
   type ReviewResolution,
 } from '@/api/bank-sync/requests'
-import type { AccountBankStatus, BankLink, BankProviderId, BankReviewItem } from '@/api/bank-sync/types'
+import type {
+  AccountBankStatus,
+  BankLink,
+  BankProviderId,
+  BankReviewItem,
+  ImportBankRangePayload,
+} from '@/api/bank-sync/types'
 import { invalidateAccountBankLink, invalidateBankLinks, invalidateBankSyncStatus } from '@/api/cache/invalidation'
 import { bankSyncKeys } from '@/api/cache/queryKeys'
 import {
@@ -446,6 +453,29 @@ export function syncBankAccountMutationOptions(queryClient: QueryClient) {
 export function useSyncBankAccount() {
   const queryClient = useQueryClient()
   return useMutation(syncBankAccountMutationOptions(queryClient))
+}
+
+/**
+ * How a date range import starts. The server answers with the link importing the range. The answer
+ * goes straight into the cached list so the poll takes its fast pace, and the account's own link is
+ * read again for its section. A refusal means the status shown is out of date, so both are read again
+ */
+export function importBankRangeMutationOptions(queryClient: QueryClient) {
+  return mutationOptions({
+    mutationFn: (payload: ImportBankRangePayload) =>
+      runWithMinimumPendingTime(ACTION_LOADING_MIN_MS, () => importBankRange(payload)),
+    onSuccess: (link) => {
+      putCachedBankLink(queryClient, link)
+      invalidateAccountBankLink(queryClient, link.account_id)
+    },
+    onError: (_error, { accountId }) => invalidateAccountBankLink(queryClient, accountId),
+    onSettled: () => invalidateBankSyncStatus(queryClient),
+  })
+}
+
+export function useImportBankRange() {
+  const queryClient = useQueryClient()
+  return useMutation(importBankRangeMutationOptions(queryClient))
 }
 
 /**

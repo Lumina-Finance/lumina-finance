@@ -6,9 +6,10 @@ import {
   type BankImportProgress,
   type BankLink,
   type BankProvidersResponse,
+  type BankRangeImport,
 } from '@/api/bank-sync'
 import type { SyncStatusTone } from '@/components/display/SyncStatusDot'
-import { DATE_FORMATS, formatDate, formatDateLabel, getTodayYmd } from '@/utils/date'
+import { DATE_FORMATS, formatDate, formatDateLabel, formatDateRangeLabel, getTodayYmd } from '@/utils/date'
 import { formatRelativeFutureTime, formatRelativeTime } from '@/utils/relativeTime'
 
 /**
@@ -122,7 +123,9 @@ function describeLinkSync(link: BankLink, timeZone: string | undefined): BankSyn
     case 'sync_stopped':
       return label('stopped', 'Sync failed', [sync.last_failure!.reason, synced])
     case 'importing': {
-      const range = `Imports transactions from ${formatDateLabel(link.import!.requested_start)} to today`
+      const range = link.range_import
+        ? `Imports transactions from ${formatDateLabel(link.range_import.first_day)} to ${formatDateLabel(link.range_import.last_day)}`
+        : `Imports transactions from ${formatDateLabel(link.import!.requested_start)} to today`
 
       // Held back for the user's other links to join it, so nothing has been imported yet
       if (sync.import_starts_at !== null) {
@@ -184,12 +187,16 @@ export function describeBankSync(
 }
 
 /**
- * What an import is doing, by why it runs: a first link imports from its start, a relink catches up
- * on what the bank reported since the unlink, and a bank account chosen again catches up from its
- * new start. A finished one says so in the past tense
+ * What an import is doing, by why it runs: a date range import names its days, a first link imports
+ * from its start, a relink catches up on what the bank reported since the unlink, and a bank account
+ * chosen again catches up from its new start. A finished one says so in the past tense
+ *
+ * @param progress - How far the import has got
+ * @param range - The date range import running on the link, null while none runs
  */
-export function describeImportHeading(progress: BankImportProgress): string {
+export function describeImportHeading(progress: BankImportProgress, range: BankRangeImport | null = null): string {
   const done = progress.state === 'complete'
+  if (range) return `${done ? 'Imported' : 'Importing'} ${formatDateRangeLabel(range.first_day, range.last_day)}`
   const from = formatDateLabel(progress.requested_start)
   if (progress.kind === 'initial') return `${done ? 'Imported' : 'Importing'} from ${from}`
   if (progress.kind === 'relink') return `${done ? 'Caught up' : 'Catching up'} since the account was unlinked`

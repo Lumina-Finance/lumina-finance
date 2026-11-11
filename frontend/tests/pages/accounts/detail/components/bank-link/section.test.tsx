@@ -494,7 +494,11 @@ describe('BankLinkSection', () => {
       createStatus({ link: createLink({ state: 'choose_account', sync: createSync({ state: 'choose_account' }) }) }),
       ['Choose bank account', 'Unlink'],
     ],
-    ['Sync now ahead of Unlink while a sync can run', linkSynced(), ['Sync now', 'Unlink']],
+    [
+      'Sync now, then Import a date range, ahead of Unlink while a sync can run',
+      linkSynced(),
+      ['Sync now', 'Import a date range', 'Unlink'],
+    ],
     [
       'Sync now ahead of Unlink while the import waits to start, which a press starts at once',
       createStatus({
@@ -656,6 +660,68 @@ describe('BankLinkSection', () => {
 
     // The hidden label the width is measured from, kept for a button the modal opens while the sync starts
     expect(button).toMatch(/<span[^>]* aria-hidden="true"[^>]*>(?:(?!<\/button>).)*Sync now/s)
+  })
+
+  it('offers Import a date range on a synced link, live', () => {
+    read.status = linkSynced()
+    const button = getButton(renderSection(), 'Import a date range')
+    expect(button).not.toBe('')
+    expect(button).not.toContain('aria-disabled')
+  })
+
+  it.each([
+    [
+      'a date range import running',
+      createLink({
+        sync: createSync({ state: 'importing' }),
+        import: createImport(),
+        range_import: {
+          first_day: '2026-03-01',
+          last_day: '2026-05-31',
+          next_day: '2026-03-01',
+          restores_dismissed: false,
+        },
+      }),
+    ],
+    ['the import still running', createLink({ sync: createSync({ state: 'importing' }), import: createImport() })],
+    [
+      'the import waiting for the other accounts',
+      createLink({
+        import: createImport(),
+        sync: createSync({ state: 'importing', import_starts_at: '2026-10-05T16:02:00Z' }),
+      }),
+    ],
+    ['the review pause', createLink({ sync: createSync({ state: 'paused', paused: true, waiting_new_count: 120 }) })],
+  ])('holds Import a date range back with its reason for %s', (_, link) => {
+    read.status = createStatus({ link })
+    expect(getButton(renderSection(), 'Import a date range')).toContain('aria-disabled="true"')
+  })
+
+  it('names the date range in the running import and its status', () => {
+    read.status = createStatus({
+      link: createLink({
+        sync: createSync({ state: 'importing' }),
+        import: createImport({ requested_start: '2026-03-01' }),
+        range_import: {
+          first_day: '2026-03-01',
+          last_day: '2026-05-31',
+          next_day: '2026-04-01',
+          restores_dismissed: true,
+        },
+      }),
+    })
+    const markup = renderSection()
+    expect(markup).toContain('Importing Mar 1 – May 31, 2026')
+    expect(markup).not.toContain('Importing from Mar 1, 2026')
+  })
+
+  it('says why the last date range import stopped or left days out', () => {
+    read.status = linkSynced()
+    read.status.link!.range_outcome =
+      "Transactions before Oct 1, 2025 weren't imported: SimpleFIN reaches back 12 months"
+    expect(renderSection()).toContain(
+      escaped("Transactions before Oct 1, 2025 weren't imported: SimpleFIN reaches back 12 months."),
+    )
   })
 })
 

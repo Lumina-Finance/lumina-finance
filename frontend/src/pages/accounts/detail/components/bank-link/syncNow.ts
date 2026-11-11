@@ -60,6 +60,30 @@ export function describeSyncNowBlock(
   return null
 }
 
+/** Why a date range can't be imported while another runs on the account, as the server says it */
+export const RANGE_IMPORT_RUNNING_REASON = 'A date range import is already running'
+
+/**
+ * Why Import a date range can't start on a live link, or null while it can
+ *
+ * The server refuses it while a range already runs and for every reason it refuses Sync now, the
+ * request budget included, since each of its windows is a request. Unlike Sync now it never starts an
+ * import waiting for the user's other accounts, so that wait holds it back as the import running does
+ *
+ * @param link - The live link
+ * @param connection - Its connection, the owner of the request budget a sync spends, undefined until read
+ * @param providers - Whether the bank sync worker is running, undefined until read
+ */
+export function describeRangeImportBlock(
+  link: BankLink,
+  connection: BankConnection | undefined,
+  providers: BankProvidersResponse | undefined,
+): string | null {
+  if (link.range_import) return RANGE_IMPORT_RUNNING_REASON
+  if (link.provider_available && link.sync.import_starts_at !== null) return 'The import is still running'
+  return describeSyncNowBlock(link, connection, providers)
+}
+
 /**
  * What Sync now shows, and why it is held back while it shows nothing under way. It reads Starting
  * sync while this press or another window's waits for a worker to start the sync. While bank sync

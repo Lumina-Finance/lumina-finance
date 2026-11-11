@@ -210,6 +210,25 @@ describe('describeBankSync for a live link', () => {
       },
     ],
     [
+      'a date range import fetching, naming its last day rather than today',
+      {
+        import: createImport({ requested_start: '2026-03-01' }),
+        sync: createSync({ state: 'importing' }),
+        range_import: {
+          first_day: '2026-03-01',
+          last_day: '2026-05-31',
+          next_day: '2026-03-01',
+          restores_dismissed: false,
+        },
+      },
+      {
+        label: 'Importing · 1 of 2',
+        tone: 'working',
+        pulse: true,
+        details: ['Imports transactions from Mar 1, 2026 to May 31, 2026'],
+      },
+    ],
+    [
       'an import waiting for linked accounts to join it, with its range and start time',
       {
         import: createImport(),

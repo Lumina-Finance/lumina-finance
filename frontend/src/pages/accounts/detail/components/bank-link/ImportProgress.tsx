@@ -1,5 +1,5 @@
 import { motion, useReducedMotion } from 'motion/react'
-import type { BankImportProgress } from '@/api/bank-sync'
+import type { BankImportProgress, BankRangeImport } from '@/api/bank-sync'
 import { describeImportHeading } from '@/pages/accounts/detail/components/bank-link/status'
 import { CONTENT_EASE_CURVE } from '@/utils/widthEase'
 
@@ -11,7 +11,15 @@ const FILL_TRANSITION = { duration: 0.45, ease: CONTENT_EASE_CURVE } as const
  * How far an import has got: what it has found and how many of its windows are stored, as a bar that
  * eases out as it fills. A finished import reads as done
  */
-export function ImportProgress({ progress }: { progress: BankImportProgress }) {
+export function ImportProgress({
+  progress,
+  range = null,
+}: {
+  progress: BankImportProgress
+
+  /** The date range import running on the link, for the heading to name, null while none runs */
+  range?: BankRangeImport | null
+}) {
   const prefersReducedMotion = useReducedMotion()
   const done = progress.state === 'complete'
   const fraction = progress.windows_total === 0 ? 0 : progress.windows_done / progress.windows_total
@@ -19,7 +27,7 @@ export function ImportProgress({ progress }: { progress: BankImportProgress }) {
   return (
     <div className="space-y-2">
       <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1 text-sm">
-        <span style={{ color: 'var(--app-text)' }}>{describeImportHeading(progress)}</span>
+        <span style={{ color: 'var(--app-text)' }}>{describeImportHeading(progress, range)}</span>
         <span className="text-xs tabular-nums" style={{ color: 'var(--app-text-muted)' }}>
           {progress.items_found} found · {done ? 'Done' : `${progress.windows_done} of ${progress.windows_total}`}
         </span>
