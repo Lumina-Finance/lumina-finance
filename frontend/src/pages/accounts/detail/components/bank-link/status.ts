@@ -118,8 +118,10 @@ function describeLinkSync(link: BankLink, timeZone: string | undefined): BankSyn
       return label('stopped', 'Reconnect needed', [`Please reconnect ${link.provider_name} in Settings`, failure])
     case 'bank_signin_needed':
       return label('stopped', 'Bank sign-in needed', ['The app checks again each day', failure])
+    // The attempt that found the bank account missing can only read its absence as an error of its
+    // own, such as refused dates, which the change of listing explains instead, so it isn't repeated
     case 'choose_account':
-      return label('stopped', 'Choose bank account', [`${link.provider_name} now lists it differently`, failure])
+      return label('stopped', 'Choose bank account', [`${link.provider_name} now lists it differently`])
     case 'sync_stopped':
       return label('stopped', 'Sync failed', [sync.last_failure!.reason, synced])
     case 'importing': {

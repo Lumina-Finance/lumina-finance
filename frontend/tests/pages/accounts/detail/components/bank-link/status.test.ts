@@ -205,6 +205,23 @@ describe('describeBankSync for a live link', () => {
       { label: 'Choose bank account', tone: 'stopped', pulse: false, details: ['SimpleFIN now lists it differently'] },
     ],
     [
+      // The attempt that found the bank account missing reads its absence as refused dates, a cause
+      // the change of listing replaces, so it isn't shown beside it
+      'a bank account to choose again, without the reason the attempt that found it gave',
+      {
+        state: 'choose_account',
+        sync: createSync({
+          state: 'choose_account',
+          next_attempt_at: null,
+          last_failure: {
+            at: '2026-10-05T14:00:00Z',
+            reason: 'SimpleFIN refused the dates asked for. Use Sync now to try again',
+          },
+        }),
+      },
+      { label: 'Choose bank account', tone: 'stopped', pulse: false, details: ['SimpleFIN now lists it differently'] },
+    ],
+    [
       'an import fetching, blinking with its count',
       { import: createImport(), sync: createSync({ state: 'importing', last_success_at: null }) },
       {
