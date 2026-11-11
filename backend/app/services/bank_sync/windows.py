@@ -176,9 +176,14 @@ def _need_start(link: BankAccountLink, timezone: ZoneInfo, overlap_days: int) ->
     link never synced, means the link is importing or catching up, so it carries on from the first
     day it lacks. Otherwise the link re-reads the overlap before its checkpoint
     """
-    if link.last_success_at is None or link.checkpoint < link.last_success_at.astimezone(timezone).date():
+    if not is_caught_up(link, timezone):
         return first_missing_day(link)
     return max(link.checkpoint - timedelta(days=overlap_days), link.import_start)
+
+
+def is_caught_up(link: BankAccountLink, timezone: ZoneInfo) -> bool:
+    """Return whether a link's checkpoint has reached the day its last successful sync fell on, so no import or catch-up is under way"""
+    return link.last_success_at is not None and link.checkpoint >= link.last_success_at.astimezone(timezone).date()
 
 
 def first_missing_day(link: BankAccountLink) -> date:

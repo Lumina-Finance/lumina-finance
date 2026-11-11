@@ -20,6 +20,11 @@ it waits on the provider. A link the user asked to sync now is due whatever its 
 one a job ends without an attempt for, such as one an import's earlier window didn't reach, passes
 to the job it queues next
 
+Once no routine window is left, a job fetches one window of a date range import the user asked for,
+as the range_days module describes, and queues the next job while the range has days left. Its
+requests count against the budget like any other, so a spent budget queues the job again and the
+range carries on from its next day
+
 A bank account a fetch lists in a currency other than its account's isn't brought back whole, since
 its amounts would be read at the wrong precision, and one it leaves out altogether isn't either.
 The job queues the next one to list the bank accounts first. That moves its link to Choose bank
@@ -101,6 +106,15 @@ from app.services.bank_sync.provider_requests import (
     reserve_provider_request,
 )
 from app.services.bank_sync.providers.contract import ExternalAccount, FetchResult, ProviderAdapter, ProviderError
+from app.services.bank_sync.range_days import (
+    RangeImport,
+    end_range,
+    note_left_out,
+    plan_range_window,
+    range_start,
+    read_range,
+    refuse_range,
+)
 from app.services.bank_sync.retries import (
     is_waiting_to_retry,
     queue_next_retry,
@@ -110,10 +124,10 @@ from app.services.bank_sync.retries import (
 )
 from app.services.bank_sync.review_pause import apply_review_pauses
 from app.services.bank_sync.schedule import next_daily_sync, schedule_next_sync
-from app.services.bank_sync.windows import LinkNeed, SyncWindow, find_due_links, first_missing_day, plan_window
+from app.services.bank_sync.windows import LinkNeed, SyncWindow, find_due_links, first_missing_day, is_caught_up, plan_window
 from app.services.cache_state.updates import mark_user_status_changed
 from app.services.fx.currency_exponent_helpers import get_all_currency_exponents
-from app.utils.dates import resolve_timezone
+from app.utils.dates import get_shifted_month_start_date, resolve_timezone
 
 logger = logging.getLogger(__name__)
 
@@ -266,6 +280,12 @@ class _JobRun:
         # When the links this job brings up to date through today next sync
         self.next_sync = next_daily_sync(now)
 
+        # The first day the provider's history reaches today. A date range import fetches nothing before it
+        self.provider_limit = get_shifted_month_start_date(self.today, -adapter.history_limit_months)
+
+        # Whether the date range import this job fetched a window of still has days left
+        self.range_left = False
+
         # The links a part of this job didn't bring back whole, left out of the rest of it
         self.failed: set[uuid.UUID] = set()
 
@@ -319,7 +339,7 @@ class _JobRun:
             due = self._due(links)
             window = self._plan([need for need in due if need.link.id not in self.deferred]) or self._plan(due)
             if window is None:
-                await self._end()
+                await self._import_range(covered, links)
                 return
             covered |= {need.link.id for need in window.needs}
             await self._record_covered_links(covered)
@@ -330,9 +350,92 @@ class _JobRun:
             if window.last_day == self.today or moved:
                 # The last part written ends where the window does, so a link it moved is synced through the window
                 overdue = any(is_waiting_to_retry(need.link) and need.link.id not in covered for need in due)
-                await self._end(again=window.last_day < self.today, retry_overdue=overdue)
+                if window.last_day < self.today:
+                    await self._end(again=True, retry_overdue=overdue)
+                else:
+                    await self._import_range(covered, retry_overdue=overdue)
                 return
             links = await self._read_links()
+
+    async def _import_range(self, covered: set[uuid.UUID], links: list[BankAccountLink] | None = None, *, retry_overdue: bool = False) -> None:
+        """Fetch the next window of a date range import once the routine windows are done, and end the job
+
+        One window a job, as an import fetches one, so a long range can't run the job past its time
+        limit, and the job queues the next while a range has days left. A link whose last attempt
+        failed, in this job or before, waits until a sync brings it back whole, so a range never
+        fetches for a link a retry or the user has to restart first. A range whose every day left
+        fell behind the provider's limit ends without a request
+
+        Args:
+            covered: The links the job has synced so far
+            links: The connection's links as just read, or None to read them again after a write
+            retry_overdue: Whether the job left a link whose retry was due
+        """
+        while True:
+            if links is None:
+                links = await self._read_links()
+            pending = [
+                link
+                for link in links
+                if link.state == BankLinkState.ACTIVE
+                and link.range_next_day is not None
+                and link.id not in self.failed
+                and link.last_failure_reason is None
+            ]
+            if not pending:
+                await self._end(retry_overdue=retry_overdue)
+                return
+            link = min(pending, key=lambda pending_link: (pending_link.range_next_day, pending_link.id))
+            running = read_range(link)
+            window = plan_range_window(
+                link, running, provider_limit=self.provider_limit, timezone=self.timezone, max_days=self.adapter.max_window_days
+            )
+            if window is not None:
+                break
+            await self._close_range(link, running)
+            links = None
+
+        covered.add(link.id)
+        await self._record_covered_links(covered)
+        if await self._fetch(window, running) is None:
+            return
+        await self._end(again=self.range_left or len(pending) > 1, retry_overdue=retry_overdue)
+
+    async def _close_range(self, link: BankAccountLink, running: RangeImport) -> None:
+        """End a date range import whose every day left fell behind the provider's limit, saying so, if the job still holds it"""
+        async with async_session() as db:
+            await _hold_job(db, self.job)
+            for held in await lock_covered_links(db, [link]):
+                if running.same_request(read_range(held)):
+                    note_left_out(
+                        held,
+                        read_range(held),
+                        provider_limit=self.provider_limit,
+                        provider_name=self.adapter.provider_name,
+                        history_months=self.adapter.history_limit_months,
+                    )
+                    await self._settle_range(db, held)
+            await mark_user_status_changed(db, self.job.owner_id)
+            await db.commit()
+
+    async def _settle_range(self, db: AsyncSession, link: BankAccountLink) -> None:
+        """Clear a locked link's date range import, ending its import once its routine sync has caught up
+
+        It then pauses or resumes by its review backlog, as any import does as it ends
+        """
+        end_range(link)
+        if is_caught_up(link, self.timezone):
+            link.importing = False
+        await apply_review_pauses(db, [link], today=self.today)
+
+    def _holds_range_window(self, link: BankAccountLink, running: RangeImport, part: SyncWindow) -> bool:
+        """Return whether a locked link still runs the range a window was fetched for, with the window starting on its next day
+
+        A range ended, replaced or already stored past the window's first day while the job fetched
+        takes nothing from it, so no day is skipped or stored for the wrong request
+        """
+        fresh = read_range(link)
+        return running.same_request(fresh) and range_start(fresh, self.provider_limit) == part.first_day
 
     def _due(self, links: list[BankAccountLink]) -> list[LinkNeed]:
         """Return the links due to sync now, each with the first day it needs, leaving out those this job found failing"""
@@ -345,12 +448,13 @@ class _JobRun:
         """Return the window to fetch next for these links, or None when none of them is due"""
         return plan_window(needs, today=self.today, timezone=self.timezone, max_days=self.adapter.max_window_days)
 
-    def _asks_for_pending(self, part: SyncWindow) -> bool:
+    def _asks_for_pending(self, part: SyncWindow, running: RangeImport | None) -> bool:
         """Return whether a part asks for pending records, and so replaces the pending items of the accounts it brings back whole
 
-        Only a part ending today does, so an import's earlier windows leave the pending items alone
+        Only a routine part ending today does, so an import's earlier windows and a date range
+        import's every window leave the pending items alone
         """
-        return part.last_day == self.today
+        return running is None and part.last_day == self.today
 
     async def _read_links(self) -> list[BankAccountLink]:
         """Return every link on the connection, as committed now, noting each linked account's currency and its bank login"""
@@ -427,7 +531,7 @@ class _JobRun:
             await mark_user_status_changed(db, self.job.owner_id)
             await db.commit()
 
-    async def _fetch(self, window: SyncWindow) -> bool | None:
+    async def _fetch(self, window: SyncWindow, running: RangeImport | None = None) -> bool | None:
         """Fetch the window and write what it found, noting each link a part didn't bring back whole
 
         The contract has no paging, so a response that may have been cut short is set aside and its days
@@ -435,6 +539,11 @@ class _JobRun:
         brought back whole remind the user that some of that day's transactions may be missing.
         Parts are written as they come back, earliest first, so those fetched before the budget ran
         out or a request failed keep their progress
+
+        Args:
+            window: The days to fetch, and the links they are fetched for
+            running: The date range import of the one link a range's window is fetched for, as
+                planned, or None for a routine window
 
         Returns:
             Whether the last part written (it ends where the window does) moved a checkpoint, or
@@ -451,7 +560,7 @@ class _JobRun:
                 continue
             if len(live) != len(part.needs):
                 part = replace(part, needs=live)
-            answered = await self._fetch_part(part)
+            answered = await self._fetch_part(part, running)
             if answered is None:
                 return None
             result, credential, sent_at = answered
@@ -504,13 +613,15 @@ class _JobRun:
                 elif link.id not in self.failed:
                     self.failed.add(link.id)
                     failures[link.id] = failure
-            moved = await self._write(part, synced, failures, refusals, sent_with=credential, sent_at=sent_at, cut_off=result.possibly_cut_off)
+            moved = await self._write(
+                part, synced, failures, refusals, sent_with=credential, sent_at=sent_at, cut_off=result.possibly_cut_off, running=running
+            )
             if retry_needs:
                 earlier, later = SyncWindow(part.first_day, part.last_day, tuple(retry_needs)).halves()
                 parts += [later, earlier]
         return moved
 
-    async def _fetch_part(self, part: SyncWindow) -> tuple[FetchResult, str, datetime] | None:
+    async def _fetch_part(self, part: SyncWindow, running: RangeImport | None) -> tuple[FetchResult, str, datetime] | None:
         """Count and send one request for a part of the window
 
         Returns:
@@ -529,7 +640,7 @@ class _JobRun:
             account_ids=[need.link.external_account_id for need in part.needs],
             start=start,
             end=end,
-            include_pending=self._asks_for_pending(part),
+            include_pending=self._asks_for_pending(part, running),
             timezone=self.timezone,
             currency_exponents=self.currency_exponents,
         )
@@ -551,6 +662,7 @@ class _JobRun:
         sent_with: str,
         sent_at: datetime,
         cut_off: bool,
+        running: RangeImport | None,
     ) -> bool:
         """Store the records and pending items of each link brought back whole, move checkpoints and record attempts, if the job still holds it
 
@@ -580,6 +692,14 @@ class _JobRun:
         counted. A link that failed wasn't brought back whole,
         so its import keeps running and the pause leaves it as it was
 
+        A date range import's window stores only the records and holds dated inside the range, and
+        brings dismissed items back when the range asks to. It leaves the checkpoint, the last
+        successful sync, the pending items and the history reminders alone, and records only a failed
+        attempt, since the routine sync records the link's own. It moves the range's next day on
+        instead, or ends the range at its last day, and a refusal of even a short window ends the
+        range saying so rather than stopping the link. A link no longer running the range the window
+        was fetched for, or whose next day the window no longer starts on, takes nothing from it
+
         Args:
             part: The days fetched, and the links they were fetched for
             synced: The bank accounts the response brought back whole, by external id
@@ -588,56 +708,84 @@ class _JobRun:
             sent_with: The credential the request went out with
             sent_at: When the request went out, the time its records were observed at
             cut_off: The response may have been cut short, but only a single day's is when written
+            running: The date range import the window was fetched for, as planned, or None for a
+                routine window
 
         Returns:
             Whether a checkpoint moved
         """
         moved = False
         succeeded = []
+        ranged = []
         async with async_session() as db:
             connection = await _hold_job(db, self.job, sent_with=sent_with)
 
             # Between the job and the links, the order a listing writes bank accounts in
             balances_changed = await store_fetched_balances(db, connection, synced.values())
             held = await lock_covered_links(db, [need.link for need in part.needs])
+            if running is not None:
+                held = [link for link in held if self._holds_range_window(link, running, part)]
             whole = [link for link in held if link.external_account_id in synced]
             deliveries = [(link, synced[link.external_account_id].records) for link in whole]
-            stored_changed = await store_booked_records(db, deliveries, observed_at=sent_at)
-            holds_changed = await store_holds(db, deliveries, first_day=part.first_day, last_day=part.last_day, observed_at=sent_at)
-
-            # A part ending today is the job's last write, so the job's end tells the owner's pages of it
-            if self._asks_for_pending(part):
-                await store_pending_records(db, deliveries, observed_at=sent_at)
-            note_history_returned(deliveries, today=self.today)
-            for link in whole:
-                if first_missing_day(link) < part.first_day:
-                    continue
-                advanced = part.last_day > link.checkpoint
-                if advanced:
-                    link.checkpoint = part.last_day
-                    moved = True
-                if advanced or part.last_day == self.today:
-                    link.last_success_at = self.now
-                    record_successful_attempt(link, at=sent_at, next_sync=self.next_sync if part.last_day == self.today else None)
-                    succeeded.append(link)
+            stored_changed = await store_booked_records(db, deliveries, observed_at=sent_at, running=running)
+            holds_changed = await store_holds(
+                db, deliveries, first_day=part.first_day, last_day=part.last_day, observed_at=sent_at, running=running
+            )
+            if running is None:
+                # A part ending today is the job's last write, so the job's end tells the owner's pages of it
+                if self._asks_for_pending(part, running):
+                    await store_pending_records(db, deliveries, observed_at=sent_at)
+                note_history_returned(deliveries, today=self.today)
+                for link in whole:
+                    if first_missing_day(link) < part.first_day:
+                        continue
+                    advanced = part.last_day > link.checkpoint
+                    if advanced:
+                        link.checkpoint = part.last_day
+                        moved = True
+                    if advanced or part.last_day == self.today:
+                        link.last_success_at = self.now
+                        record_successful_attempt(link, at=sent_at, next_sync=self.next_sync if part.last_day == self.today else None)
+                        succeeded.append(link)
+            else:
+                for link in whole:
+                    note_left_out(
+                        link,
+                        read_range(link),
+                        provider_limit=self.provider_limit,
+                        provider_name=self.adapter.provider_name,
+                        history_months=self.adapter.history_limit_months,
+                    )
+                    if part.last_day < link.range_last_day:
+                        link.range_next_day = part.last_day + timedelta(days=1)
+                    else:
+                        await self._settle_range(db, link)
+                    self.range_left = link.range_next_day is not None
+                    ranged.append(link)
             failed = [link for link in held if link.id in failures or link.id in refusals]
             for link in failed:
-                if link.id in refusals:
+                if link.id in refusals and running is not None:
+                    refuse_range(link, self.adapter.provider_name)
+                    await self._settle_range(db, link)
+                    self.range_left = False
+                elif link.id in refusals:
                     record_refused_attempt(link, refusals[link.id], at=sent_at)
                 else:
                     record_failed_attempt(link, failures[link.id], at=sent_at, next_sync=self.next_sync)
             clear_signin_needed(whole)
             signin_needed = [link for link in failed if link.id in failures and failures[link.id].kind == ProviderErrorKind.BANK_LOGIN_NEEDED]
             emails = await flag_signin_needed(db, connection, signin_needed, at=sent_at)
-            cleared = clear_no_history_reminders(deliveries)
-            reminded = raise_history_reminders(whole, today=self.today) or cleared
+            reminded = False
+            if running is None:
+                cleared = clear_no_history_reminders(deliveries)
+                reminded = raise_history_reminders(whole, today=self.today) or cleared
             if cut_off:
                 reminded = flag_cut_off_day(whole, part.first_day) or reminded
             paused_or_imported = await apply_review_pauses(db, whole, today=self.today)
 
             # A sync never changes the owner's ledger, only what their pages show, so an import saved
             # before it can still be undone
-            if stored_changed or holds_changed or balances_changed or succeeded or failed or reminded or paused_or_imported:
+            if stored_changed or holds_changed or balances_changed or succeeded or failed or ranged or reminded or paused_or_imported:
                 await mark_user_status_changed(db, self.job.owner_id)
             await db.commit()
             self.outbox += emails

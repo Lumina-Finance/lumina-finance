@@ -6,7 +6,9 @@ account, is another transaction. An unknown identity becomes an item awaiting re
 outside the ledger and every calculation, since nothing can fill in its merchant and category yet.
 An item still waiting has its bank values refreshed in place, a dismissed one stays dismissed
 whatever the bank now says, and one already in the ledger has its bank values stored and any
-correction they make opened (corrections.py).
+correction they make opened (corrections.py). The exception is a date range import the user asked
+to bring dismissed items back: a dismissed one it reports, dated inside the range and with an
+amount, waits for review again with the bank's values, as a new item would.
 
 A record the provider explicitly reports removed takes out an item still waiting, with no review
 task and nothing kept, so the same transaction sent later is a new import, and opens a removal on
@@ -16,7 +18,8 @@ provider that reports no removals says nothing about what it leaves out.
 
 A new record dated before the link's import start is left out, but never one dated before the
 window that brought it back, since a provider can date a record the day before the window it came
-back in, and the window before it ended at that midnight and didn't include it. The import start
+back in, and the window before it ended at that midnight and didn't include it. A date range
+import's window brings in only new records dated inside the range. The import start
 decides only which records come in, so one already stored that the bank now dates before it is
 stored like any other change: an item waiting keeps waiting with the new date, and one in the
 ledger has its correction opened.
@@ -37,6 +40,7 @@ from app.models.bank_transaction import BankTransaction, BankTransactionDisposit
 from app.services.bank_sync.corrections import store_accepted_observations
 from app.services.bank_sync.holds import is_hold
 from app.services.bank_sync.providers.contract import ProviderRecord
+from app.services.bank_sync.range_days import RangeImport, brings_in
 from app.services.bank_sync.transaction_hash import hash_bank_transaction_id
 
 
@@ -45,6 +49,7 @@ async def store_booked_records(
     deliveries: Sequence[tuple[BankAccountLink, Sequence[ProviderRecord]]],
     *,
     observed_at: datetime,
+    running: RangeImport | None = None,
 ) -> bool:
     """Store the booked records each link's bank account came back with as review items, or as what the bank now says about ones in the ledger
 
@@ -57,6 +62,8 @@ async def store_booked_records(
         db: The link owner's session
         deliveries: Each link to store for, with the records its bank account came back with whole
         observed_at: When the request that brought the records was sent
+        running: The date range import of the one link a range's window was fetched for, or None
+            for a routine window
 
     Returns:
         Whether anything stored changed, so the caller tells the owner's open pages
@@ -108,7 +115,7 @@ async def store_booked_records(
             observation = _observation(record)
             if row is None:
                 # A zero amount can't be approved or put in the ledger, so it is a hold (holds.py)
-                if record.date < link.import_start or is_hold(record):
+                if not brings_in(link, record.date, running) or is_hold(record):
                     continue
                 db.add(
                     BankTransaction(
@@ -124,10 +131,20 @@ async def store_booked_records(
                 )
                 changed = True
 
+            elif row.disposition == BankTransactionDisposition.DISMISSED:
+                # Only a range asked to bring dismissed items back does, and only those dated inside it
+                if running is None or not running.restores_dismissed or not brings_in(link, record.date, running) or is_hold(record):
+                    continue
+                row.disposition = BankTransactionDisposition.AWAITING_REVIEW
+                for column, value in observation.items():
+                    setattr(row, column, value)
+                row.observed_at = observed_at
+                changed = True
+
             # Writing only what changed leaves a record's version alone when the bank resends it as
             # it was, so a bulk add or dismiss of items selected before a routine re-read still takes them. One
             # the bank had reported removed is back, however unchanged
-            elif row.disposition == BankTransactionDisposition.DISMISSED or (row.removed_at is None and not _differs(row, observation)):
+            elif row.removed_at is None and not _differs(row, observation):
                 continue
             elif row.disposition == BankTransactionDisposition.ACCEPTED:
                 accepted.append((row, observation))

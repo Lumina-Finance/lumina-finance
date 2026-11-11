@@ -10,9 +10,9 @@ withdrew no longer waits.
 A sync stores everything its request brought back before the pause applies, so the count can pass
 100.
 
-An import, the first one after linking, relinking or choosing the bank account again, or the
-catch-up after a reconnect, runs to today whatever the count, since stopping one part way would
-leave a gap in the history. The thresholds apply once it ends.
+An import, the first one after linking, relinking or choosing the bank account again, the catch-up
+after a reconnect, or a date range import, runs to its end whatever the count, since stopping one
+part way would leave a gap in the history. The thresholds apply once it ends.
 
 A review decision that leaves 50 or fewer lifts the pause at once and queues the connection's sync,
 so the account catches up from where it stopped rather than at the next daily sync. From 80 waiting,
@@ -82,7 +82,8 @@ async def apply_review_pauses(db: AsyncSession, links: Sequence[BankAccountLink]
     """
     changed = False
     for link in links:
-        if link.importing and link.checkpoint >= today:
+        # A date range import ends the link's import as it ends instead
+        if link.importing and link.checkpoint >= today and link.range_next_day is None:
             link.importing = False
             changed = True
 

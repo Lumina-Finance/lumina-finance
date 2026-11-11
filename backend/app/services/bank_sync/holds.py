@@ -22,6 +22,7 @@ from app.models.user import User
 from app.schemas.bank_sync import BankHoldResponse
 from app.services.accounts.access import own_personal_account_condition, own_personal_accounts_scope
 from app.services.bank_sync.providers.contract import ProviderRecord
+from app.services.bank_sync.range_days import RangeImport, brings_in
 from app.services.bank_sync.transaction_hash import hash_bank_transaction_id
 
 # Why the list refuses an account the user can see but doesn't own alone
@@ -43,13 +44,14 @@ async def store_holds(
     first_day: date,
     last_day: date,
     observed_at: datetime,
+    running: RangeImport | None = None,
 ) -> bool:
     """Make each link's account's holds, within the days fetched, the zero-amount records its bank account came back with
 
     A hold the response doesn't list for a day it fetched goes, as does one the bank reports removed
     or with an amount. The record then takes the booked path. A dismissed hold the bank still reports
-    stays dismissed. A record dated before the link's import start is left out, as a booked one is.
-    The caller locked the links and commits
+    stays dismissed. A record a booked one would be left out for, dated before the link's import
+    start or outside a date range import's days, is left out. The caller locked the links and commits
 
     Args:
         db: The link owner's session
@@ -57,6 +59,8 @@ async def store_holds(
         first_day: The first day the response covers
         last_day: The last day the response covers
         observed_at: When the request that brought the records was sent
+        running: The date range import of the one link a range's window was fetched for, or None
+            for a routine window
 
     Returns:
         Whether any hold was added or removed
@@ -66,7 +70,7 @@ async def store_holds(
         reported = {
             hash_bank_transaction_id(link.provider, link.external_account_id, record.external_id): record
             for record in records
-            if is_hold(record) and record.date >= link.import_start
+            if is_hold(record) and brings_in(link, record.date, running)
         }
         # A record that already has a bank transaction (waiting in review, or in the ledger) stays there
         # and is no hold, so it never shows in two places
