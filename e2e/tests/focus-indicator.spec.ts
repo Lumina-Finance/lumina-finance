@@ -792,7 +792,9 @@ test('shows a visible hover look on keyboard focus on the buttons that had none'
   await dialog.getByRole('group', { name: 'Date', exact: true }).getByRole('button', { name: 'Open calendar', exact: true }).click()
   const calendar = page.getByRole('dialog', { name: 'Choose date', exact: true })
   await expect(calendar).toBeVisible()
-  await expectVisibleHoverLook(page, calendar.locator('[data-iso]').nth(16), { offset: '2px' })
+  // A day other than the chosen one, since the calendar opens with focus on the chosen day, and on a day
+  // when that sits 17th its look at rest would already be its focused one
+  await expectVisibleHoverLook(page, calendar.locator('[data-iso]:not([data-selected])').nth(16), { offset: '2px' })
   await expectVisibleHoverLook(page, calendar.locator('[data-iso][data-selected]'), { offset: '2px' })
 })
 
