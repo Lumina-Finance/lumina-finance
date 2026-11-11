@@ -62,8 +62,10 @@ export default function TransactionBankValueCaption({
         <motion.div
           key="bank-value"
           // Reaches 4px past the field on each side, given back by the spacer inside, so the clip the
-          // height animation needs leaves the action's focus ring room wherever the action sits
-          className="-mx-1 overflow-hidden"
+          // height animation needs leaves the action's focus ring room wherever the action sits. Clipped
+          // rather than hidden, since focus scrolls a hidden box to make the action's scroll margin, and
+          // that 2px scroll would put the action flush against the clip's top edge
+          className="-mx-1 overflow-clip"
           initial={prefersReducedMotion ? { opacity: 0 } : { opacity: 0, height: 0 }}
           animate={{ opacity: 1, height: 'auto' }}
           exit={prefersReducedMotion ? { opacity: 0 } : { opacity: 0, height: 0 }}
