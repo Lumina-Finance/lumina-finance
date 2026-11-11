@@ -154,7 +154,9 @@ async def test_adding_an_item_the_currency_cant_hold_adds_none(client):
     added = await _bulk_add(client, ledger, merchant_id, _sent(tesco_id, unstorable_id))
 
     assert added.status_code == 422, added.text
-    assert added.json()["detail"] == "An item needs its amount entered on its own, so nothing was saved. Add it by itself or untick it"
+    assert added.json()["detail"] == (
+        "Nothing was saved: an item without an amount has to be added on its own. Please add that item by itself or untick the item"
+    )
     assert await _ledger_rows(ledger.everyday_id) == []
     for item_id in (tesco_id, unstorable_id):
         assert (await _stored_item(item_id)).disposition == BankTransactionDisposition.AWAITING_REVIEW

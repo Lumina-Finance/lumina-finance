@@ -110,11 +110,11 @@ async def test_claim_hands_the_adapter_each_field_it_lists_by_key_and_nothing_el
 @pytest.mark.parametrize(
     ("credentials", "detail"),
     [
-        ({"app_token": "app-1"}, "Paste the user access token from Fake Bank Online"),
-        ({"app_token": "app-1", "user_token": "   "}, "Paste the user access token from Fake Bank Online"),
+        ({"app_token": "app-1"}, "Please paste the user access token from Fake Bank Online"),
+        ({"app_token": "app-1", "user_token": "   "}, "Please paste the user access token from Fake Bank Online"),
         (
             {"app_token": "a" * 65, "user_token": "user-1"},
-            "That app ID token is too long. Copy only the app ID token from Fake Bank Online and try again",
+            "That app ID token is too long. Please copy only the app ID token from Fake Bank Online and try again",
         ),
     ],
     ids=["missing", "blank", "too-long"],

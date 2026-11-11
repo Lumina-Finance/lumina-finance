@@ -189,10 +189,10 @@ def read_credentials(adapter: ProviderAdapter, supplied: Mapping[str, SecretStr]
         noun = credential_noun(field.label)
         value = supplied[field.key].get_secret_value() if field.key in supplied else ""
         if not value.strip():
-            detail = f"Paste the {noun} from {adapter.provider_site}"
+            detail = f"Please paste the {noun} from {adapter.provider_site}"
             raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail=detail)
         if len(value) > field.max_length:
-            detail = f"That {noun} is too long. Copy only the {noun} from {adapter.provider_site} and try again"
+            detail = f"That {noun} is too long. Please copy only the {noun} from {adapter.provider_site} and try again"
             raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail=detail)
         credentials[field.key] = value
     return credentials

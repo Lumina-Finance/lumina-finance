@@ -49,24 +49,21 @@ logger = logging.getLogger(__name__)
 # A connection with no linked accounts gets the opening and closing without the list
 _RECONNECT_SUBJECT = "Reconnect {provider} to resume syncing"
 _RECONNECT_LEAD = "{provider} rejected your {connection}, so syncing has stopped for:"
-_RECONNECT_CLOSING = "Reconnect it in Settings to pick up where it left off."
+_RECONNECT_CLOSING = "Please reconnect in Settings to resume syncing."
 _RECONNECT_LEAD_UNLINKED = "{provider} rejected your {connection}."
-_RECONNECT_CLOSING_UNLINKED = "Reconnect it in Settings before linking accounts to it."
+_RECONNECT_CLOSING_UNLINKED = "Please reconnect in Settings before linking accounts."
 
 # The Bank sign-in needed email, one per bank login, naming that login's accounts. The subject
 # leaves out the institution's name, since it comes from the provider
 _SIGNIN_SUBJECT = "Sign in to your bank again in {site}"
-_SIGNIN_LEAD = "Sign in to {institution} again in {site}. Until you do, syncing has stopped for:"
-_SIGNIN_CLOSING = "Lumina Finance checks daily and picks up where it left off once you have."
+_SIGNIN_LEAD = "Please sign in to {institution} again in {site}. Syncing has stopped for:"
+_SIGNIN_CLOSING = "Lumina Finance checks each day and resumes syncing once you have."
 
 # The Choose bank account email, one per account a sync's listing moved there, worded as the
 # settings section explains it. The subject leaves out the names, since they come from the user and the provider
 _CHOOSE_SUBJECT = "Choose a bank account again to resume syncing"
-_CHOOSE_LEAD = (
-    "{provider} now lists {bank_account} differently, so Lumina Finance can't tell whether it's the same account. "
-    "{account} won't sync until you choose its bank account again."
-)
-_CHOOSE_CLOSING = "If {provider} goes back to listing it as before, {account} resumes syncing by itself."
+_CHOOSE_LEAD = "{provider} now lists {bank_account} differently. Please choose {account}'s bank account again to resume syncing."
+_CHOOSE_CLOSING = "If {provider} lists the bank account as before again, {account} resumes syncing by itself."
 
 
 @dataclass(frozen=True)

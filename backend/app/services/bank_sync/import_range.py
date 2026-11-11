@@ -50,11 +50,11 @@ def check_import_days(import_range: ImportRange, first_day: date, last_day: date
     """
     allowed = f"{format_day(import_range.earliest_allowed)} to {format_day(import_range.latest_allowed)}"
     if not import_range.allows(first_day):
-        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail=f"Choose a start date from {allowed}")
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail=f"Please choose a start date from {allowed}")
     if not import_range.allows(last_day):
-        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail=f"Choose an end date from {allowed}")
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail=f"Please choose an end date from {allowed}")
     if first_day > last_day:
-        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail="Choose a start date on or before the end date")
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail="Please choose a start date on or before the end date")
 
 
 def calculate_import_range(*, today: date, latest_ledger_date: date | None, history_months: int) -> ImportRange:

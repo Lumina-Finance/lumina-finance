@@ -235,7 +235,7 @@ async def test_restoring_an_amount_the_currency_cant_hold_is_refused(client):
     refused = await _restore(client, imported, "amount")
 
     assert refused.status_code == 422, refused.text
-    assert refused.json()["detail"] == "The bank's amount has more decimal places than CAD allows, so it can't be restored"
+    assert refused.json()["detail"] == "The bank's amount has more decimal places than CAD allows, so the amount can't be restored"
     assert await _ledger_rows(imported.account_id) == [(BANK_DATE, -1251)]
 
 

@@ -130,7 +130,7 @@ async def refuse_edits_a_bank_supplies(db: AsyncSession, user: User, edits: Sequ
             if moved and source_link is not None:
                 raise HTTPException(
                     status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
-                    detail=f"Transactions from {source_link.provider_name} can't move out of {source_link.account_name} while it's linked",
+                    detail=f"Transactions from {source_link.provider_name} stay in {source_link.account_name} while the account is linked",
                 )
             if not moved:
                 continue
@@ -201,9 +201,9 @@ async def refuse_deleting_bank_imports(db: AsyncSession, transactions: Sequence[
         if txn.id in providers and link is not None:
             provider_name = names[providers[txn.id]]
             detail = (
-                f"Transactions from {provider_name} can't be deleted from {link.account_name} while it's linked"
+                f"Transactions from {provider_name} can't be deleted while {link.account_name} is linked"
                 if in_bulk
-                else f"Imported from {provider_name}. While {link.account_name} is linked, edit it rather than deleting it"
+                else f"Imported from {provider_name}. Please edit this transaction instead while {link.account_name} is linked"
             )
             raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail=detail)
 
@@ -232,7 +232,7 @@ async def refuse_archiving_a_linked_account(db: AsyncSession, account: Account) 
     if linked is not None:
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
-            detail=f"This account can't be archived while it's linked to {provider_label(*linked)}. Unlink it first",
+            detail=f"This account is linked to {provider_label(*linked)}. Please unlink the account before archiving",
         )
 
 

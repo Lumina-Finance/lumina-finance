@@ -143,7 +143,7 @@ async def test_dismissing_an_item_already_in_the_ledger_is_refused(client):
     refused = await _dismiss(client, headers, item_id)
 
     assert refused.status_code == 409, refused.text
-    assert refused.json()["detail"] == "This item is already in the ledger, so it can't be dismissed"
+    assert refused.json()["detail"] == "This item is already in your ledger, so the item can't be dismissed"
     assert (await _stored_item(item_id)).disposition == BankTransactionDisposition.ACCEPTED
 
 

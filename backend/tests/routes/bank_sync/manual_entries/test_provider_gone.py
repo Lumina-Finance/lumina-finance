@@ -40,7 +40,7 @@ async def test_archiving_is_refused_naming_the_stored_name(client):
     refused = await client.patch(f"/accounts/{ledger.everyday_id}", json={"is_archived": True}, headers=ledger.headers)
 
     assert refused.status_code == 422, refused.text
-    assert refused.json()["detail"] == "This account can't be archived while it's linked to Lunar Bank. Unlink it first"
+    assert refused.json()["detail"] == "This account is linked to Lunar Bank. Please unlink the account before archiving"
 
 
 async def test_an_imported_transaction_names_the_stored_name_in_its_source_and_its_delete_refusal(client):
@@ -59,4 +59,4 @@ async def test_an_imported_transaction_names_the_stored_name_in_its_source_and_i
     assert read.status_code == 200, read.text
     assert (read.json()["bank_source"]["provider"], read.json()["bank_source"]["provider_name"]) == (_GONE, _GONE_NAME)
     assert refused.status_code == 422, refused.text
-    assert refused.json()["detail"] == "Imported from Lunar Bank. While Everyday is linked, edit it rather than deleting it"
+    assert refused.json()["detail"] == "Imported from Lunar Bank. Please edit this transaction instead while Everyday is linked"

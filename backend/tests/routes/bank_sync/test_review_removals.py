@@ -54,9 +54,9 @@ _GROCERIES = "FRESHCO GROCERIES"
 # Both decisions, by the path each posts to
 _DECISIONS = ["remove-from-ledger", "keep-transaction"]
 
-_NOT_IN_LEDGER = "This item isn't in the ledger, so it has no bank change to decide"
-_NO_REMOVAL = "This transaction has no bank removal waiting, so it stays in your ledger"
-_REMOVAL_WAITING = "This transaction has a bank removal waiting, so decide that first"
+_NOT_IN_LEDGER = "This item isn't in your ledger, so there's no bank change to decide"
+_NO_REMOVAL = "This transaction has no bank removal waiting, so the transaction stays in your ledger"
+_REMOVAL_WAITING = "This transaction has a bank removal waiting. Please decide the removal first"
 
 # When the sync stored the bank's removal of the groceries
 _REPORTED_AT = datetime(2026, 10, 4, 9, tzinfo=UTC)

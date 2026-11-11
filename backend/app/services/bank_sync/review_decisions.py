@@ -53,23 +53,23 @@ REVIEW_ITEM_NOT_FOUND = "Review item not found"
 BANK_SOURCE_NOT_FOUND = "Bank source not found"
 
 # Why restoring refuses a bank amount the account's currency can't hold without rounding
-_UNSTORABLE_RESTORE_DETAIL = "The bank's amount has more decimal places than {currency} allows, so it can't be restored"
+_UNSTORABLE_RESTORE_DETAIL = "The bank's amount has more decimal places than {currency} allows, so the amount can't be restored"
 
 # Why an added item refuses a transfer counterparty the user can see but doesn't own alone
 _COUNTERPARTY_NOT_OWN_DETAIL = "Transfers from a bank item can't go to an account shared with a group"
 
 # Why the decisions on a correction or removal refuse an item that never reached the ledger
-_NOT_IN_LEDGER_DETAIL = "This item isn't in the ledger, so it has no bank change to decide"
+_NOT_IN_LEDGER_DETAIL = "This item isn't in your ledger, so there's no bank change to decide"
 
 # Why removing refuses a transaction the bank hasn't asked to remove, or whose removal the user kept
-_NO_REMOVAL_DETAIL = "This transaction has no bank removal waiting, so it stays in your ledger"
+_NO_REMOVAL_DETAIL = "This transaction has no bank removal waiting, so the transaction stays in your ledger"
 
 # Why a correction's decisions refuse a correction a removal has since taken the place of
-_REMOVAL_WAITING_DETAIL = "This transaction has a bank removal waiting, so decide that first"
+_REMOVAL_WAITING_DETAIL = "This transaction has a bank removal waiting. Please decide the removal first"
 
 # Why accepting refuses a bank amount the account's currency can't hold without rounding
 _UNSTORABLE_AMOUNT_DETAIL = (
-    "The bank's amount has more decimal places than {currency} allows. Keep your current value and edit the amount instead"
+    "The bank's amount has more decimal places than {currency} allows. Please keep your current value and edit the amount instead"
 )
 
 
@@ -103,7 +103,7 @@ async def add_review_item_to_ledger(db: AsyncSession, user: User, item_id: uuid.
     if record.disposition == BankTransactionDisposition.ACCEPTED:
         return await _ledger_response(db, record)
     if record.disposition == BankTransactionDisposition.DISMISSED:
-        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="This item was dismissed, so it can't be added to the ledger")
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="This item was dismissed, so the item can't be added to your ledger")
     if request.counterparty_account_id is not None:
         await get_own_personal_account(db, request.counterparty_account_id, user.id, not_own_detail=_COUNTERPARTY_NOT_OWN_DETAIL)
 
@@ -131,7 +131,7 @@ async def dismiss_review_item(db: AsyncSession, user: User, item_id: uuid.UUID) 
     if record.disposition == BankTransactionDisposition.DISMISSED:
         return
     if record.disposition == BankTransactionDisposition.ACCEPTED:
-        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="This item is already in the ledger, so it can't be dismissed")
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="This item is already in your ledger, so the item can't be dismissed")
 
     await write_dismissal(db, record)
     await lift_review_pauses(db, user.id, links)

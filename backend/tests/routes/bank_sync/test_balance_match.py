@@ -53,7 +53,7 @@ from tests.services.bank_sync.fake_provider import _bank_account
 _ADJUSTMENT_DATE = "2026-05-31"
 
 _NOTHING_TO_MATCH = "There is no difference to match"
-_MATCH_MOVED = "The difference has changed. Check the new amount and try again"
+_MATCH_MOVED = "The difference has changed. Please check the new amount and try again"
 
 # When Fake Bank reported a transaction removed, the morning after the balance
 _REMOVED_AT = datetime(2026, 10, 4, 9, 0, tzinfo=UTC)

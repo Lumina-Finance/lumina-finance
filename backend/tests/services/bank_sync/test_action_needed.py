@@ -133,27 +133,26 @@ async def test_action_emails_say_what_stopped_syncing_and_how_to_resume_it(conne
             "Fake Bank rejected your Family banks connection, so syncing has stopped for:\n\n"
             "- Card\n"
             "- Everyday\n\n"
-            "Reconnect it in Settings to pick up where it left off.",
+            "Please reconnect in Settings to resume syncing.",
         ),
         (
             "owner0@example.com",
             "Sign in to your bank again in Fake Bank Online",
-            "Sign in to Chase again in Fake Bank Online. Until you do, syncing has stopped for:\n\n"
+            "Please sign in to Chase again in Fake Bank Online. Syncing has stopped for:\n\n"
             "- Card\n"
             "- Everyday\n\n"
-            "Lumina Finance checks daily and picks up where it left off once you have.",
+            "Lumina Finance checks each day and resumes syncing once you have.",
         ),
         (
             "owner0@example.com",
             "Choose a bank account again to resume syncing",
-            "Fake Bank now lists Everyday Chequing differently, so Lumina Finance can't tell whether it's the same account. "
-            "Everyday won't sync until you choose its bank account again.\n\n"
-            "If Fake Bank goes back to listing it as before, Everyday resumes syncing by itself.",
+            "Fake Bank now lists Everyday Chequing differently. Please choose Everyday's bank account again to resume syncing.\n\n"
+            "If Fake Bank lists the bank account as before again, Everyday resumes syncing by itself.",
         ),
         (
             "owner1@example.com",
             "Reconnect Fake Bank to resume syncing",
-            "Fake Bank rejected your connection.\n\nReconnect it in Settings before linking accounts to it.",
+            "Fake Bank rejected your connection.\n\nPlease reconnect in Settings before linking accounts.",
         ),
     ]
 

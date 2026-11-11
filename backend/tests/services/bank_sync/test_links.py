@@ -139,7 +139,7 @@ async def test_link_start_has_to_be_inside_the_import_range(linkable, frozen_now
     else:
         with pytest.raises(HTTPException) as refused:
             await _link_as(user, account, connection, "ACT-1", start)
-        assert (refused.value.status_code, refused.value.detail) == (422, "Choose a start date from Oct 1, 2025 to Oct 3, 2026")
+        assert (refused.value.status_code, refused.value.detail) == (422, "Please choose a start date from Oct 1, 2025 to Oct 3, 2026")
         assert await _link_states() == []
 
 

@@ -30,13 +30,13 @@ SUPPLIED = "Fake Bank supplies this account's transactions from Jun 1, 2026 to t
 SUPPLIED_IN_EVERYDAY = "Fake Bank supplies the transactions in Everyday from Jun 1, 2026 to today"
 
 # A move is refused naming the account it would leave, for one transaction or several
-MOVE_REFUSED = "Transactions from Fake Bank can't move out of Everyday while it's linked"
+MOVE_REFUSED = "Transactions from Fake Bank stay in Everyday while the account is linked"
 
 # A delete of a bank-imported transaction is refused naming its account, for one transaction alone
-DELETE_REFUSED = "Imported from Fake Bank. While Everyday is linked, edit it rather than deleting it"
+DELETE_REFUSED = "Imported from Fake Bank. Please edit this transaction instead while Everyday is linked"
 
 # And for a selection deleted together. It may hold several
-BULK_DELETE_REFUSED = "Transactions from Fake Bank can't be deleted from Everyday while it's linked"
+BULK_DELETE_REFUSED = "Transactions from Fake Bank can't be deleted while Everyday is linked"
 
 # A day the bank supplies. A manual transaction on it can only have been entered before the link
 COFFEE_DAY = date(2026, 7, 12)

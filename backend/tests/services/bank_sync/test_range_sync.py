@@ -337,7 +337,7 @@ async def test_range_the_provider_refuses_even_in_halves_ends_saying_so_and_leav
     await _run_jobs_until_none_is_due()
 
     assert _fetched(provider) == [_window(date(2026, 1, 1), date(2026, 3, 31)), _window(date(2026, 1, 1), date(2026, 2, 14))]
-    assert await _range_state(link) == (None, None, None, "The date range import stopped: Fake Bank refused the dates asked for", False)
+    assert await _range_state(link) == (None, None, None, "The date range import stopped: Fake Bank refused those dates", False)
     stored = await _stored_link(link)
     assert (stored.last_failure_reason, stored.retry_count, stored.state) == (None, 0, BankLinkState.ACTIVE)
 

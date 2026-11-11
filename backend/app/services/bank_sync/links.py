@@ -436,7 +436,7 @@ async def _get_working_connection(
     if connection.credential_rejected_at is not None:
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
-            detail=f"{adapter.provider_name} rejected this connection. Reconnect it in Settings",
+            detail=f"{adapter.provider_name} rejected this connection. Please reconnect in Settings",
         )
     return connection, adapter
 

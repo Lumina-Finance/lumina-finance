@@ -22,7 +22,7 @@ from app.utils.dates import format_day
 _LEFT_OUT = "Transactions before {day} weren't imported: {provider} reaches back {months} months"
 
 # Why a range stopped when the provider refused even a short window of it
-_REFUSED = "The date range import stopped: {provider} refused the dates asked for"
+_REFUSED = "The date range import stopped: {provider} refused those dates"
 
 
 @dataclass(frozen=True)

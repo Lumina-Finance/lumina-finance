@@ -39,9 +39,9 @@ from app.services.cache_state import mark_user_status_changed
 # Why a sync can't start now in each state that holds it back, as the Sync now button says it
 _REFUSALS: dict[BankSyncState, str] = {
     "importing": "The import is still running",
-    "reconnect_needed": "Reconnect {provider} in Settings before syncing",
-    "choose_account": "Choose the bank account again before syncing",
-    "paused": f"Syncing is paused until {RESUME_AT} or fewer new items are waiting for review",
+    "reconnect_needed": "Please reconnect {provider} in Settings first",
+    "choose_account": "Please choose the bank account again first",
+    "paused": f"Paused until {RESUME_AT} or fewer items wait for review",
 }
 
 # Why a sync can't start while a worker already syncs the account, whatever its state shows

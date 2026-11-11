@@ -376,7 +376,7 @@ async def test_adding_a_dismissed_item_is_refused(client):
     refused = await _add(client, inbox)
 
     assert refused.status_code == 409, refused.text
-    assert refused.json()["detail"] == "This item was dismissed, so it can't be added to the ledger"
+    assert refused.json()["detail"] == "This item was dismissed, so the item can't be added to your ledger"
     assert await _ledger_rows(inbox.account_id) == []
 
 

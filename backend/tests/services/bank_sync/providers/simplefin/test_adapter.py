@@ -33,8 +33,8 @@ _TORONTO = ZoneInfo("America/Toronto")
 _WINDOW_START = datetime(2026, 7, 1, tzinfo=UTC)
 _WINDOW_END = datetime(2026, 9, 29, tzinfo=UTC)
 
-_SETUP_UNREADABLE_MESSAGE = "That doesn't look like a SimpleFIN setup token. Copy the whole token from SimpleFIN Bridge and try again"
-_SETUP_ALREADY_USED_MESSAGE = "This setup token has already been used. Create a new one in SimpleFIN Bridge"
+_SETUP_UNREADABLE_MESSAGE = "That doesn't look like a SimpleFIN setup token. Please copy the whole token from SimpleFIN Bridge and try again"
+_SETUP_ALREADY_USED_MESSAGE = "This setup token has already been used. Please create a new one in SimpleFIN Bridge"
 
 
 def _setup_token(claim_url: str) -> str:
@@ -131,7 +131,9 @@ async def test_setup_token_for_a_server_not_added_names_its_host():
     with pytest.raises(ClaimRefused) as refusal:
         await simplefin_adapter(bridge.transport).claim_setup_token(_setup_token("https://intranet.example/simplefin/claim/DEMO-CLAIM"))
 
-    assert str(refusal.value) == "This setup token points to intranet.example, and this Lumina Finance server is not set up to contact it"
+    assert str(refusal.value) == (
+        "This setup token points to intranet.example. This Lumina Finance server isn't set up to contact intranet.example"
+    )
     assert bridge.requests == []
 
 
@@ -145,7 +147,7 @@ async def test_setup_token_for_a_host_resolving_privately_is_refused_and_logged_
         await simplefin_adapter(bridge.transport, "10.0.4.2").claim_setup_token(_setup_token(claim_url))
 
     assert str(refusal.value) == (
-        "This setup token points to beta-bridge.simplefin.org, and this Lumina Finance server is not set up to contact it"
+        "This setup token points to beta-bridge.simplefin.org. This Lumina Finance server isn't set up to contact beta-bridge.simplefin.org"
     )
     assert bridge.requests == []
     [warning] = [record for record in caplog.records if record.levelno == logging.WARNING]
@@ -201,7 +203,9 @@ async def test_access_url_for_a_server_not_added_is_refused():
     with pytest.raises(ClaimRefused) as refusal:
         await simplefin_adapter(bridge.transport).claim_setup_token(_setup_token(_CLAIM_URL))
 
-    assert str(refusal.value) == "This setup token points to intranet.example, and this Lumina Finance server is not set up to contact it"
+    assert str(refusal.value) == (
+        "This setup token points to intranet.example. This Lumina Finance server isn't set up to contact intranet.example"
+    )
 
 
 @pytest.mark.usefixtures("frozen_now")

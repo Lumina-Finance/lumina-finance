@@ -162,19 +162,19 @@ async def test_range_import_leaves_a_queued_import_starting_when_it_was_due(clie
         pytest.param(_SYNCED | _RUNNING | {"importing": True}, {}, False, "A date range import is already running", id="range-running"),
         pytest.param({}, {}, False, "The import is still running", id="importing"),
         pytest.param(_SYNCED, {}, True, "A sync is already running", id="syncing"),
-        pytest.param(_SYNCED, {"credential_rejected_at": _NOW}, False, "Reconnect Fake Bank in Settings before syncing", id="reconnect-needed"),
+        pytest.param(_SYNCED, {"credential_rejected_at": _NOW}, False, "Please reconnect Fake Bank in Settings first", id="reconnect-needed"),
         pytest.param(
             {"state": BankLinkState.CHOOSE_ACCOUNT, "importing": False},
             {},
             False,
-            "Choose the bank account again before syncing",
+            "Please choose the bank account again first",
             id="choose-bank-account",
         ),
         pytest.param(
             _SYNCED | {"paused": True},
             {},
             False,
-            "Syncing is paused until 50 or fewer new items are waiting for review",
+            "Paused until 50 or fewer items wait for review",
             id="paused-for-review",
         ),
     ],
@@ -212,9 +212,9 @@ async def test_range_import_with_the_connections_requests_spent_says_when_one_fr
 @pytest.mark.parametrize(
     ("first_day", "last_day", "detail"),
     [
-        ("2025-09-30", "2026-03-31", "Choose a start date from Oct 1, 2025 to Oct 5, 2026"),
-        ("2026-03-01", "2026-10-06", "Choose an end date from Oct 1, 2025 to Oct 5, 2026"),
-        ("2026-03-31", "2026-03-01", "Choose a start date on or before the end date"),
+        ("2025-09-30", "2026-03-31", "Please choose a start date from Oct 1, 2025 to Oct 5, 2026"),
+        ("2026-03-01", "2026-10-06", "Please choose an end date from Oct 1, 2025 to Oct 5, 2026"),
+        ("2026-03-31", "2026-03-01", "Please choose a start date on or before the end date"),
     ],
     ids=["start-before-the-providers-limit", "end-after-today", "start-after-end"],
 )

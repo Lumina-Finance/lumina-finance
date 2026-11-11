@@ -28,7 +28,7 @@ from app.services.cache_state import mark_user_cache_changed
 
 # Why recording is refused while nothing is offered, or once the offer the user was shown has moved
 NOTHING_TO_MATCH = "There is no difference to match"
-MATCH_MOVED = "The difference has changed. Check the new amount and try again"
+MATCH_MOVED = "The difference has changed. Please check the new amount and try again"
 
 
 async def record_balance_match(db: AsyncSession, user: User, account_id: uuid.UUID, *, offered_amount: int) -> AccountBankStatusResponse:

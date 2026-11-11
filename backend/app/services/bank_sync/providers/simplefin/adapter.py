@@ -58,12 +58,12 @@ MAX_SETUP_TOKEN_LENGTH = 2048
 # The one credential field. The claim sends the setup token under that name
 SETUP_TOKEN_KEY = "setup_token"  # noqa: S105 - a field name, not a secret
 
-_SETUP_BLANK_MESSAGE = "Paste the setup token from SimpleFIN Bridge"
-_SETUP_UNREADABLE_MESSAGE = "That doesn't look like a SimpleFIN setup token. Copy the whole token from SimpleFIN Bridge and try again"
-_SETUP_TOO_LONG_MESSAGE = "That setup token is too long. Copy only the token from SimpleFIN Bridge and try again"
-_CLAIM_UNREACHABLE_MESSAGE = "SimpleFIN Bridge couldn't be reached. Try again in a few minutes"
-_SETUP_HOST_NOT_ALLOWED_MESSAGE = "This setup token points to {host}, and this Lumina Finance server is not set up to contact it"
-_SETUP_ALREADY_USED_MESSAGE = "This setup token has already been used. Create a new one in SimpleFIN Bridge"
+_SETUP_BLANK_MESSAGE = "Please paste the setup token from SimpleFIN Bridge"
+_SETUP_UNREADABLE_MESSAGE = "That doesn't look like a SimpleFIN setup token. Please copy the whole token from SimpleFIN Bridge and try again"
+_SETUP_TOO_LONG_MESSAGE = "That setup token is too long. Please copy only the token from SimpleFIN Bridge and try again"
+_CLAIM_UNREACHABLE_MESSAGE = "SimpleFIN Bridge couldn't be reached. Please try again in a few minutes"
+_SETUP_HOST_NOT_ALLOWED_MESSAGE = "This setup token points to {host}. This Lumina Finance server isn't set up to contact {host}"
+_SETUP_ALREADY_USED_MESSAGE = "This setup token has already been used. Please create a new one in SimpleFIN Bridge"
 _UNREACHABLE_MESSAGE = "SimpleFIN Bridge couldn't be reached"
 _UNREADABLE_MESSAGE = "SimpleFIN Bridge sent a response Lumina Finance couldn't read"
 _TIMED_OUT_MESSAGE = "SimpleFIN Bridge did not respond in time"
@@ -82,8 +82,8 @@ class SimpleFinAdapter(ProviderAdapter):
     credential_fields = (CredentialField(SETUP_TOKEN_KEY, "Setup token", "Paste the token", MAX_SETUP_TOKEN_LENGTH),)
     connect_steps = (
         "Open SimpleFIN Bridge and connect your banks there.",
-        "Create a setup token. It works once and expires if unused.",
-        "Paste it here. Lumina Finance exchanges it for access and never sees your bank login.",
+        "Create a setup token. Each token works once and expires if unused.",
+        "Paste the token here. Lumina Finance never sees your bank login.",
     )
     history_limit_months = SIMPLEFIN_HISTORY_MONTHS
     advertises_history = False

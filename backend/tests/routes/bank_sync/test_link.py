@@ -224,9 +224,9 @@ async def test_link_may_start_before_the_latest_ledger_transaction(client):
 @pytest.mark.parametrize(
     ("start_date", "end_date", "detail"),
     [
-        (date(2025, 9, 30), date(2026, 8, 31), "Choose a start date from Oct 1, 2025 to Oct 4, 2026"),
-        (date(2026, 8, 1), date(2026, 10, 5), "Choose an end date from Oct 1, 2025 to Oct 4, 2026"),
-        (date(2026, 8, 31), date(2026, 8, 1), "Choose a start date on or before the end date"),
+        (date(2025, 9, 30), date(2026, 8, 31), "Please choose a start date from Oct 1, 2025 to Oct 4, 2026"),
+        (date(2026, 8, 1), date(2026, 10, 5), "Please choose an end date from Oct 1, 2025 to Oct 4, 2026"),
+        (date(2026, 8, 31), date(2026, 8, 1), "Please choose a start date on or before the end date"),
     ],
     ids=["start-before-the-providers-limit", "end-after-today", "start-after-end"],
 )
@@ -427,7 +427,7 @@ def _change_currency(currency):
     ("change", "status_code", "detail"),
     [
         (_archive_account, 422, "Archived accounts can't be linked to a bank"),
-        (_reject_connection, 409, "Fake Bank rejected this connection. Reconnect it in Settings"),
+        (_reject_connection, 409, "Fake Bank rejected this connection. Please reconnect in Settings"),
         (_unlist_bank_account, 404, "Fake Bank no longer returns that bank account"),
         (_change_currency("USD"), 422, "That bank account is in USD, but Everyday is in CAD"),
         (

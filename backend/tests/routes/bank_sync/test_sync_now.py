@@ -171,19 +171,19 @@ async def test_sync_now_joins_the_sync_already_queued_for_the_connection(client)
         pytest.param(_SYNCED, {}, True, "A sync is already running", id="syncing"),
         # The bank sign-in shows over the sync, but a second sync would only spend another request
         pytest.param(_SYNCED | _SIGNIN_NEEDED, {}, True, "A sync is already running", id="syncing-while-the-bank-needs-a-sign-in"),
-        pytest.param(_SYNCED, {"credential_rejected_at": _NOW}, False, "Reconnect Fake Bank in Settings before syncing", id="reconnect-needed"),
+        pytest.param(_SYNCED, {"credential_rejected_at": _NOW}, False, "Please reconnect Fake Bank in Settings first", id="reconnect-needed"),
         pytest.param(
             {"state": BankLinkState.CHOOSE_ACCOUNT, "importing": False},
             {},
             False,
-            "Choose the bank account again before syncing",
+            "Please choose the bank account again first",
             id="choose-bank-account",
         ),
         pytest.param(
             _SYNCED | {"paused": True},
             {},
             False,
-            "Syncing is paused until 50 or fewer new items are waiting for review",
+            "Paused until 50 or fewer items wait for review",
             id="paused-for-review",
         ),
     ],

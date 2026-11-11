@@ -117,7 +117,7 @@ async def _lock_unchanged_new_items(
 def _describe_missing_amounts(count: int) -> str:
     """Say why a bulk add was refused over items whose amount has to be entered one at a time"""
     if count == 1:
-        return "An item needs its amount entered on its own, so nothing was saved. Add it by itself or untick it"
+        return "Nothing was saved: an item without an amount has to be added on its own. Please add that item by itself or untick the item"
     return f"{count} items need their amounts entered on their own, so nothing was saved. Add them one at a time or untick them"
 
 

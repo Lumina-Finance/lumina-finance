@@ -23,9 +23,9 @@ from tests.routes.support.bank_sync_helpers import _changed_at, _sign_up, _store
 from tests.services.bank_sync.fake_provider import use_adapter
 from tests.services.bank_sync.providers.simplefin.stand_ins import AccountsTimeOut, FakeBridgeScenario, PausedBridge, simplefin_adapter
 
-_ALREADY_USED = "This setup token has already been used. Create a new one in SimpleFIN Bridge"
-_TOO_LONG = "That setup token is too long. Copy only the setup token from SimpleFIN Bridge and try again"
-_UNREACHABLE = "SimpleFIN Bridge couldn't be reached. Try again in a few minutes"
+_ALREADY_USED = "This setup token has already been used. Please create a new one in SimpleFIN Bridge"
+_TOO_LONG = "That setup token is too long. Please copy only the setup token from SimpleFIN Bridge and try again"
+_UNREACHABLE = "SimpleFIN Bridge couldn't be reached. Please try again in a few minutes"
 
 
 async def _claim(client, headers, setup_token: str, nickname: str | None = None) -> httpx.Response:
@@ -184,11 +184,14 @@ async def test_claim_when_the_bridge_answers_with_an_error_page_saves_nothing_an
 @pytest.mark.parametrize(
     ("setup_token", "detail"),
     [
-        ("   ", "Paste the setup token from SimpleFIN Bridge"),
-        ("not a setup token", "That doesn't look like a SimpleFIN setup token. Copy the whole token from SimpleFIN Bridge and try again"),
+        ("   ", "Please paste the setup token from SimpleFIN Bridge"),
+        (
+            "not a setup token",
+            "That doesn't look like a SimpleFIN setup token. Please copy the whole token from SimpleFIN Bridge and try again",
+        ),
         (
             base64.b64encode(b"https://bridge.evil.example/simplefin/claim/abc").decode(),
-            "This setup token points to bridge.evil.example, and this Lumina Finance server is not set up to contact it",
+            "This setup token points to bridge.evil.example. This Lumina Finance server isn't set up to contact bridge.evil.example",
         ),
     ],
     ids=["blank", "malformed", "origin-not-allowed"],

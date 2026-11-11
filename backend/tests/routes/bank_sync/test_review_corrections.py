@@ -50,7 +50,7 @@ _BLUE_BOTTLE = "SQ *BLUE BOTTLE"
 # Both decisions, by the path each posts to
 _DECISIONS = ["accept-change", "keep-current"]
 
-_NOT_IN_LEDGER = "This item isn't in the ledger, so it has no bank change to decide"
+_NOT_IN_LEDGER = "This item isn't in your ledger, so there's no bank change to decide"
 
 
 @dataclass(frozen=True)
@@ -436,7 +436,7 @@ async def test_accepting_an_amount_that_cant_be_stored_is_refused_and_keeping_th
 
     assert (refused.status_code, refused.json()["detail"]) == (
         422,
-        "The bank's amount has more decimal places than CAD allows. Keep your current value and edit the amount instead",
+        "The bank's amount has more decimal places than CAD allows. Please keep your current value and edit the amount instead",
     )
     assert still_open == OpenReviewKind.CORRECTION
     assert kept.status_code == 200, kept.text
