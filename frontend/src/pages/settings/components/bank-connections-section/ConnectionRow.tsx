@@ -36,7 +36,7 @@ type ConnectionRowProps = {
  * One connection in the settings list: its name, how many of its bank accounts are linked, how many of
  * its daily requests are left, when it was added and whether it still works, as the same dot and label every bank sync status uses. Every row
  * has the same shape whether or not it has a nickname, so the provider and server are left to the
- * connection's modal. Each detail has its own column from 750px. Below that the row follows a
+ * connection's modal. Each detail has its own column once the list is 47rem wide. Below that the row follows a
  * merchant's phone row: flush with the search field, the status beside the name and the details in
  * one quiet line under it. The whole row opens the connection's modal
  */
@@ -76,11 +76,11 @@ export function ConnectionRow({ connection, layoutKey, isLast, prefersReducedMot
           this list is laid out like. Moving every list onto a named tier is a separate standards change */}
       <button
         type="button"
-        className="app-focus-inset w-full py-3 text-left text-[0.9375rem] focus-visible:bg-transparent! min-[750px]:py-3.5 min-[750px]:pl-4 min-[750px]:pr-3 min-[750px]:hover:bg-[var(--app-accent-soft)]"
+        className="app-focus-inset w-full py-3 text-left text-[0.9375rem] focus-visible:bg-transparent! @min-[47rem]/connections:py-3.5 @min-[47rem]/connections:pl-4 @min-[47rem]/connections:pr-3 @min-[47rem]/connections:hover:bg-[var(--app-accent-soft)]"
         aria-haspopup="dialog"
         onClick={onOpen}
       >
-        <span className="grid grid-cols-[minmax(0,1fr)_auto] items-start gap-x-3 min-[750px]:hidden">
+        <span className="grid grid-cols-[minmax(0,1fr)_auto] items-start gap-x-3 @min-[47rem]/connections:hidden">
           <MarqueeText active className="min-w-0 font-medium">
             {name}
           </MarqueeText>
@@ -99,7 +99,7 @@ export function ConnectionRow({ connection, layoutKey, isLast, prefersReducedMot
             Added {added}
           </span>
         </span>
-        <span className={`hidden items-center gap-x-4 min-[750px]:grid ${CONNECTION_COLUMNS_CLASS}`}>
+        <span className={`hidden items-center gap-x-4 @min-[47rem]/connections:grid ${CONNECTION_COLUMNS_CLASS}`}>
           <MarqueeText active className="min-w-0 font-medium">
             {name}
           </MarqueeText>

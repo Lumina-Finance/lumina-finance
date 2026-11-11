@@ -182,7 +182,12 @@ export function BankConnectionsSection() {
               transition={CONNECTION_LIST_HEIGHT_TRANSITION}
               style={prefersReducedMotion ? undefined : { overflow: 'hidden' }}
             >
-              <div ref={contentRef} className={connectionsError && !connections ? undefined : 'min-h-12'}>
+              <div
+                ref={contentRef}
+                className={
+                  connectionsError && !connections ? '@container/connections' : '@container/connections min-h-12'
+                }
+              >
                 {!shownConnections ? null : shownConnections.length === 0 ? (
                   <p className="py-3 text-center text-sm italic" style={{ color: 'var(--app-text-muted)' }}>
                     {search.trim() ? 'No connections match your search.' : 'No connections yet.'}
@@ -190,7 +195,7 @@ export function BankConnectionsSection() {
                 ) : (
                   <>
                     <div
-                      className={`hidden gap-x-4 py-3 pl-4 pr-3 min-[750px]:grid ${CONNECTION_COLUMNS_CLASS}`}
+                      className={`hidden gap-x-4 py-3 pl-4 pr-3 @min-[47rem]/connections:grid ${CONNECTION_COLUMNS_CLASS}`}
                       style={{
                         color: 'var(--app-text-muted)',
                         borderBottom: '1px solid var(--app-border)',

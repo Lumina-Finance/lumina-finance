@@ -603,6 +603,20 @@ test('stops Save spinning as soon as a rename is saved and the modal can close a
   expect(looks).not.toContain('close enabled, save spinning')
 })
 
+test("fits a connection's name in the list at every size, so the columns never squeeze it", AT_EVERY_SIZE_NEEDS_BANK_SYNC, async ({ page, request }) => {
+  const user = await signUpUser(request)
+  const scenario = await createSampleBridgeScenario(request)
+  await claimSetupToken(request, user, scenario.setupToken)
+  const section = await openBankConnections(page, user)
+
+  // The list takes its columns from its own width, which the sidebar and settings menu narrow, so at
+  // 1280 wide a screen-wide switch left the name 50px for its 70
+  // The name scrolls in place only when it overflows, which its data-overflow says
+  const name = connectionRow(section, 'SimpleFIN').locator('[data-overflow]').filter({ visible: true })
+  await expect(name).toHaveCount(1)
+  await expect(name).toHaveAttribute('data-overflow', 'false')
+})
+
 test("draws a connection's status as a round dot, never a dash", AT_EVERY_SIZE_NEEDS_BANK_SYNC, async ({ page, request }) => {
   const user = await signUpUser(request)
   const scenario = await createSampleBridgeScenario(request)
