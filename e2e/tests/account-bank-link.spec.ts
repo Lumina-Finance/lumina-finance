@@ -691,24 +691,19 @@ test('unlinks the account alone, then reconnects it with the relink wording', NE
   expect(listings).toEqual([])
   await dialog.getByRole('button', { name: 'Unlink' }).click()
 
+  // Unlinking offers no choice to disconnect the connection, only a line pointing to Settings for it
   const unlink = page.getByRole('dialog', { name: 'Unlink bank account' })
-  await expect(unlink.getByRole('radio', { name: /^Unlink this account/ })).toBeFocused()
   await expect(unlink.getByText(`${SAMPLE_CHEQUING} at ${SAMPLE_BANK}`)).toBeVisible()
-  await expect(unlink.getByRole('radio', { name: /^Unlink this account/ })).toBeChecked()
-  await expect(unlink.getByRole('radio', { name: /^Unlink this account/ }))
-    .toContainText('The connection stays in Settings, ready for this or another account to link again.')
-  await expect(unlink.getByRole('radio', { name: /^Disconnect SimpleFIN/ })).not.toBeChecked()
-
-  // Disconnect is offered too, and changes the button to match
+  await expect(unlink.getByText('To disconnect SimpleFIN from every account, open it in Settings.')).toBeVisible()
+  await expect(unlink.getByRole('radio')).toHaveCount(0)
   await expectFitsLabel(unlink.getByRole('button', { name: 'Unlink', exact: true }))
-  await unlink.getByRole('radio', { name: /^Disconnect SimpleFIN/ }).click()
-  await expect(unlink.getByRole('button', { name: 'Disconnect', exact: true })).toBeVisible()
-  await expectFitsLabel(unlink.getByRole('button', { name: 'Disconnect', exact: true }))
-  await unlink.getByRole('radio', { name: /^Unlink this account/ }).click()
   await unlink.getByRole('button', { name: 'Unlink', exact: true }).click()
 
+  // Both dialogues close once the account is unlinked
   await expect(toast(page, 'Everyday unlinked.')).toBeVisible()
   await expect(unlink).toBeHidden()
+  await expect(dialog).toBeHidden()
+  await page.getByRole('button', { name: /^Bank sync: / }).click()
   await expect(dialog.getByText(
     `Previously linked to ${SAMPLE_CHEQUING} at ${SAMPLE_BANK} through SimpleFIN, until ${formatToday()}. Reconnecting fetches what the bank reported since then.`,
   )).toBeVisible()
@@ -1019,7 +1014,7 @@ test('holds linking back on an archived account with the reason beside it, listi
   expect(listings).toEqual([])
 })
 
-test('disconnects the whole connection from the Unlink dialog, unlinking the account with it', NEEDS_BANK_SYNC, async ({ page, request }) => {
+test('points from the Unlink dialogue to the connection in Settings, where it is disconnected', NEEDS_BANK_SYNC, async ({ page, request }) => {
   const user = await signUpUser(request)
   const [everyday, scenario] = await Promise.all([
     createAccount(request, user, { name: 'Everyday' }),
@@ -1039,13 +1034,17 @@ test('disconnects the whole connection from the Unlink dialog, unlinking the acc
   await dialog.getByRole('button', { name: 'Unlink' }).click()
 
   const unlink = page.getByRole('dialog', { name: 'Unlink bank account' })
-  await unlink.getByRole('radio', { name: /^Disconnect SimpleFIN/ }).click()
-  await unlink.getByRole('button', { name: 'Disconnect', exact: true }).click()
+  await unlink.getByRole('button', { name: 'Settings', exact: true }).click()
+
+  // Settings opens with the connection's modal over it, where Disconnect lives
+  await expect(page).toHaveURL(/\/settings#bank-connections$/)
+  const connectionModal = page.getByRole('dialog')
+  await expect(connectionModal).toHaveCount(1)
+  await connectionModal.getByRole('button', { name: 'Disconnect' }).click()
+  await connectionModal.getByRole('button', { name: 'Yes, disconnect' }).click()
 
   await expect(toast(page, 'SimpleFIN disconnected. 1 account unlinked.')).toBeVisible()
-  await expect(unlink).toBeHidden()
-  await expect(dialog.getByRole('button', { name: 'Reconnect bank account' })).toBeFocused()
-  expect(await readConnection(request, user, connection.id)).toBeUndefined()
+  await expect.poll(() => readConnection(request, user, connection.id)).toBeUndefined()
 })
 
 test('lists the bank accounts of the connection switched to, dropping the one chosen before', NEEDS_BANK_SYNC, async ({ page, request }) => {

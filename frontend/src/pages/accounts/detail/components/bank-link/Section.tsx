@@ -323,7 +323,7 @@ type BankLinkSectionProps = {
   /** Focuses the section's first control once it shows, for a modal opened at the bank link */
   autoFocus?: boolean
 
-  /** Runs once the balance match is recorded, for the modal to close */
+  /** Runs once the balance match is recorded or the account unlinked, for the modal to close */
   onFinished?: () => void
 }
 
@@ -348,7 +348,7 @@ function focusFirstAction(container: HTMLElement | null) {
 export function BankLinkSection({ account, sectionNumber, autoFocus = false, onFinished }: BankLinkSectionProps) {
   const { user } = useAuth()
   const { ownPersonal, status, statusError, providers, syncLabel } = useAccountBankLink(account)
-  const { data: connections, error: connectionsError } = useBankConnections()
+  const { data: connections } = useBankConnections()
   const [linkFlowOpen, setLinkFlowOpen] = useState(false)
   const [linkFlowKey, setLinkFlowKey] = useState(0)
 
@@ -512,8 +512,8 @@ export function BankLinkSection({ account, sectionNumber, autoFocus = false, onF
           account={account}
           link={unlinking}
           connection={connections?.find((connection) => connection.id === unlinking.connection_id)}
-          connectionFailed={connectionsError !== null && connections === undefined}
           onClose={() => setUnlinkOpen(false)}
+          onUnlinked={onFinished}
           onExitComplete={() => {
             setUnlinking(null)
             restoreLostFocus()
