@@ -246,12 +246,13 @@ test('shows each kind of item for the accounts the list shows, and only its own 
   const rows = block.getByRole('listitem')
   await expect(block.getByText('3', { exact: true })).toBeVisible()
   await expect(block).toContainText('Bank items stay out of every balance until you add them to your ledger.')
-  await expect(rows.nth(0)).toContainText('COUNTDOWN 123Correction')
+  // The label follows a space, so a label wrapped onto its own line starts at the text's edge
+  await expect(rows.nth(0)).toContainText('COUNTDOWN 123 Correction')
   await expect(rows.nth(0)).toContainText('Sep 21 · Visa · The bank changed the amount')
   await expect(rows.nth(0)).toContainText(`${MINUS}$23.10`)
-  await expect(rows.nth(1)).toContainText('HARBOUR COFFEENew')
+  await expect(rows.nth(1)).toContainText('HARBOUR COFFEE New')
   await expect(rows.nth(1)).toContainText('Sep 21 · Everyday · Needs merchant and category')
-  await expect(rows.nth(2)).toContainText('UBER TRIPRemoval')
+  await expect(rows.nth(2)).toContainText('UBER TRIP Removal')
   await expect(rows.nth(2)).toContainText('Sep 21 · Everyday · The bank no longer reports this transaction')
   await expect(rows.nth(2).getByText(`${MINUS}$18.00`)).toHaveCSS('text-decoration-line', 'line-through')
 

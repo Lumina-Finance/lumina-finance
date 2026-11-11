@@ -276,7 +276,7 @@ test('refreshes when a linked account finishes a sync, a posted transaction movi
   await expect(rows.first()).toContainText('HARBOUR COFFEE')
   const reviewRows = page.getByRole('region', { name: 'Waiting for review' }).getByRole('listitem')
   await expect(reviewRows).toHaveCount(1)
-  await expect(reviewRows.first()).toContainText('UBER TRIPNew')
+  await expect(reviewRows.first()).toContainText('UBER TRIP New')
 })
 
 test('says in the strip that pending transactions could not load, and reads only them again', NEEDS_BANK_SYNC, async ({ page, request }) => {
