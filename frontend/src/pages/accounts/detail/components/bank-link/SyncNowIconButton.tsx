@@ -39,7 +39,7 @@ export function SyncNowIconButton({ link, connection, providers }: SyncNowIconBu
       onClick={busy ? undefined : syncNow}
     >
       {/* The turn sits on a wrapper, so the spin while starting runs on the icon without the two fighting */}
-      <span className="inline-flex transition-transform duration-500 ease-(--app-ease-curve) group-hover:rotate-180 group-focus-visible:rotate-180 group-aria-disabled:rotate-0 motion-reduce:transition-none motion-reduce:group-hover:rotate-0 motion-reduce:group-focus-visible:rotate-0">
+      <span className="inline-flex transition-transform group-hover:rotate-180 group-focus-visible:rotate-180 group-aria-disabled:rotate-0 motion-reduce:transition-none motion-reduce:group-hover:rotate-0 motion-reduce:group-focus-visible:rotate-0">
         <RefreshCw size={12} aria-hidden className={busy ? 'animate-spin motion-reduce:animate-none' : undefined} />
       </span>
     </DisabledReasonButton>
