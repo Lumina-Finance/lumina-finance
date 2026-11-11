@@ -1,4 +1,4 @@
-import { useLayoutEffect, useRef, useState } from 'react'
+import { useLayoutEffect, useRef, useState, type ReactNode } from 'react'
 import { ChevronRight } from 'lucide-react'
 import { AnimatePresence, motion, useReducedMotion } from 'motion/react'
 import { SyncStatusDot } from '@/components/display/SyncStatusDot'
@@ -24,6 +24,9 @@ type SyncFactProps = {
 
   /** Fades the fact in and out as it comes and goes. Give it a key inside an `AnimatePresence` */
   fades?: boolean
+
+  /** A control beside the name, such as Sync now's icon */
+  action?: ReactNode
 }
 
 /**
@@ -75,7 +78,7 @@ function SlidingLabel({ label }: { label: string }) {
  * The account's bank sync as one of its facts, across the full width, set out like the facts beside
  * it apart from the dot
  */
-export function SyncFact({ name, sync, showsDetails = false, onOpen, fades = false }: SyncFactProps) {
+export function SyncFact({ name, sync, showsDetails = false, onOpen, fades = false, action }: SyncFactProps) {
   const prefersReducedMotion = useReducedMotion()
   // Played by the fact's own element, so a list of facts holds only the fact's own div
   const fadeProps = fades
@@ -97,8 +100,10 @@ export function SyncFact({ name, sync, showsDetails = false, onOpen, fades = fal
 
   return (
     <motion.div className="col-span-2 min-w-0" {...fadeProps}>
-      <dt className="text-xs font-medium uppercase" style={{ color: 'var(--app-text-subtle)' }}>
+      {/* The action's box is pulled in above and below, so it sits beside the name without making the row taller */}
+      <dt className="flex items-center gap-1 text-xs font-medium uppercase" style={{ color: 'var(--app-text-subtle)' }}>
         {name}
+        {action}
       </dt>
       <dd className="relative mt-0.5 flex min-w-0 items-center gap-2 text-sm font-medium">
         {onOpen ? (

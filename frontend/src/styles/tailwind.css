@@ -2735,6 +2735,19 @@
     transform: translateY(1px);
   }
 
+  /* Unavailable for a reason, faded as the outlined buttons are and with no hover or press, so only the
+     shared focus ring and the reason's tooltip answer the pointer and the keyboard */
+  .app-icon-button[aria-disabled="true"],
+  .app-icon-button[aria-disabled="true"]:hover,
+  .app-icon-button[aria-disabled="true"]:focus-visible,
+  .app-icon-button[aria-disabled="true"]:active {
+    cursor: not-allowed;
+    color: color-mix(in srgb, var(--app-text-muted) 50%, transparent);
+    background: transparent;
+    border-color: transparent;
+    transform: none;
+  }
+
   /* The spending comparison's average toggle, the word AVG in the time selector's type with no frame of its own.
      It answers the pointer as a time period does, lights its text while on, and takes the chosen period's look
      once kept. A fill grows inside it while it is held: letting go early sends the fill back quickly, and a

@@ -1,11 +1,13 @@
 import { Pencil } from 'lucide-react'
 import { AnimatePresence } from 'motion/react'
 import type { Account } from '@/api/accounts'
+import { useBankConnections } from '@/api/bank-sync'
 import type { TaxAdvantagedCategory } from '@/api/tax-advantaged-categories'
 import { useMoneyFormatters } from '@/hooks/useMoneyFormatters'
 import { InstitutionLogo } from '@/pages/accounts/components/InstitutionLogo'
 import { isLinkStillUnread } from '@/pages/accounts/detail/components/bank-link/status'
 import { SyncFact } from '@/pages/accounts/detail/components/bank-link/SyncFact'
+import { SyncNowIconButton } from '@/pages/accounts/detail/components/bank-link/SyncNowIconButton'
 import { useAccountBankLink } from '@/pages/accounts/detail/components/bank-link/useAccountBankLink'
 import { ACCOUNT_KIND_LABEL } from '@/pages/accounts/detail/constants/accountDetail'
 import { humanizeAccountType } from '@/utils/formatAccountType'
@@ -35,6 +37,11 @@ export default function AccountIdentityCard({
   const { formatCurrency } = useMoneyFormatters()
   const { status, statusError, providers, shown: showsBankSync, syncLabel, ownPersonal } = useAccountBankLink(account)
   const linkedTaxAdvantagedCategoryId = account.group_id === null ? account.tax_advantaged_category_id : null
+
+  // A live link offers Sync now beside its label. Its connection owns the request budget a sync spends
+  const link = status?.link ?? null
+  const { data: connections } = useBankConnections({ enabled: link !== null })
+  const linkConnection = connections?.find((connection) => connection.id === link?.connection_id)
 
   // An account with no institution of its own names the bank it is linked to once its link is read. While
   // that read could still decide the line, it waits for it rather than naming no institution and then a
@@ -75,7 +82,14 @@ export default function AccountIdentityCard({
         {/* A way into the edit modal's Bank link section. Everything about the link is managed there */}
         <AnimatePresence initial={false}>
           {showsBankSync && (
-            <SyncFact key="bank-sync" name="Bank sync" sync={syncLabel} onOpen={onOpenBankSync} fades />
+            <SyncFact
+              key="bank-sync"
+              name="Bank sync"
+              sync={syncLabel}
+              onOpen={onOpenBankSync}
+              fades
+              action={link && <SyncNowIconButton link={link} connection={linkConnection} providers={providers} />}
+            />
           )}
         </AnimatePresence>
       </IdentityFacts>

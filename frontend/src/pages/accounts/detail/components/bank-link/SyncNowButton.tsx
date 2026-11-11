@@ -1,19 +1,9 @@
-import { useEffect, useReducer } from 'react'
 import { RefreshCw } from 'lucide-react'
-import { getSaveFailureMessage } from '@/utils/createFailure'
-import { useSyncBankAccount, type BankConnection, type BankLink, type BankProvidersResponse } from '@/api/bank-sync'
+import type { BankConnection, BankLink, BankProvidersResponse } from '@/api/bank-sync'
 import { BANK_SYNC_NOT_SET_UP_REASON } from '@/components/bank-link-flow/constants'
 import ActionFeedbackButton from '@/components/feedback/ActionButton'
-import { useActionFeedback } from '@/hooks/useActionFeedback'
 import { useFittedButtonWidth } from '@/hooks/useFittedButtonWidth'
-import { useRelativeTimeRefresh } from '@/hooks/useRelativeTimeRefresh'
-import { useToast } from '@/hooks/useToast'
-import {
-  describeSyncNow,
-  describeSyncNowBlock,
-  SYNC_FAILED_MESSAGE,
-} from '@/pages/accounts/detail/components/bank-link/syncNow'
-import { callWhenPassed } from '@/utils/timing'
+import { useSyncNow } from '@/pages/accounts/detail/components/bank-link/useSyncNow'
 
 const SYNC_NOW_LABEL = 'Sync now'
 
@@ -55,27 +45,9 @@ type SyncNowButtonProps = {
  * sync isn't set up the reason is printed under the actions, so the button points at that line
  */
 export function SyncNowButton({ link, connection, providers, focusProps, notSetUpReasonId }: SyncNowButtonProps) {
-  const sync = useSyncBankAccount()
-  const feedback = useActionFeedback()
-  const { showToast } = useToast()
   const { buttonRef, style, measure } = useFittedButtonWidth(SYNC_NOW_LABEL, renderLabel)
-
-  const [, renderAgain] = useReducer((count: number) => count + 1, 0)
-  const budgetFreesAt = connection?.request_budget.available_again_at ?? null
-  useEffect(() => callWhenPassed(budgetFreesAt, renderAgain), [budgetFreesAt])
-  useRelativeTimeRefresh(() => describeSyncNowBlock(link, connection, providers) ?? '')
-
-  const { status, block } = describeSyncNow(feedback.status, link, connection, providers)
-  const busy = status !== 'idle'
+  const { status, block, busy, syncNow } = useSyncNow(link, connection, providers)
   const { 'data-modal-initial-focus': initialFocus, ...actionProps } = focusProps
-
-  const syncNow = () => {
-    void feedback
-      .run(() => sync.mutateAsync(link.account_id))
-      .catch((cause: unknown) => {
-        showToast({ status: 'error', text: getSaveFailureMessage(cause, SYNC_FAILED_MESSAGE) })
-      })
-  }
 
   return (
     <ActionFeedbackButton

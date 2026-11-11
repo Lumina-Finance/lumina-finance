@@ -19,9 +19,10 @@ import { API_BASE_URL } from '../support/target'
 
 // Runs on desktop only: what a sync asks of the bank and how its wording ages are the same at every size
 
-// Sync now on a linked account, run by the worker against the fake SimpleFIN Bridge. What disables
-// the button and how it reads while the sync starts are covered by the Bank link section's unit tests,
-// apart from its reason keeping up with the time while the page stays open
+// Sync now on a linked account, as the Bank link section's button and as the icon beside the account
+// card's Bank sync label, run by the worker against the fake SimpleFIN Bridge. What disables the
+// button and how it reads while the sync starts are covered by the Bank link section's unit tests,
+// apart from its reason keeping up with the time while the page stays open and the icon's spent budget
 const SAMPLE_CHEQUING = 'Everyday Chequing'
 
 // When the connection's spent requests free up after the page opens, and how long it then stays open.
@@ -89,6 +90,54 @@ test('checks nothing in a background tab while the sync runs, and shows it Synce
   // Escape still closes the modal, since the button kept the focus throughout
   await page.keyboard.press('Escape')
   await expect(dialog).toBeHidden()
+})
+
+test('syncs from the icon beside the Bank sync label, saying what it does under the pointer', NEEDS_BANK_SYNC, async ({ page, request }) => {
+  const user = await signUpUser(request)
+  const account = await createAccount(request, user, { name: 'Everyday' })
+  const { connection } = await linkToSampleBankAccount(request, user, {
+    accountId: account.id,
+    bankAccountName: SAMPLE_CHEQUING,
+    balances: { balance: '0.00' },
+  })
+  await logInViaApi(page, user)
+  await openPage(page, `/accounts/${account.id}`)
+  await expect(page.getByRole('button', { name: /^Bank sync: Synced/ })).toBeVisible({ timeout: WORKER_RESULT_TIMEOUT_MS })
+  const syncedBefore = await readLastSuccess(request, user, account.id)
+  const usedBefore = (await readConnection(request, user, connection.id))!.request_budget.used
+
+  const icon = page.getByRole('button', { name: /^(Sync now|Starting sync|Sync started)$/ })
+  await expect(icon).toHaveAccessibleName('Sync now')
+  await icon.hover()
+  await expect(page.getByTestId('control-hint-tooltip').filter({ hasText: 'Sync now' })).toHaveCSS('opacity', '1')
+
+  await icon.click()
+  await expect.poll(() => readLastSuccess(request, user, account.id), { timeout: WORKER_RESULT_TIMEOUT_MS }).not.toBe(syncedBefore)
+  expect((await readConnection(request, user, connection.id))!.request_budget.used).toBe(usedBefore + 1)
+})
+
+test("greys the icon beside the Bank sync label once the connection's requests are spent, saying why", NEEDS_BANK_SYNC, async ({ page, request }) => {
+  const user = await signUpUser(request)
+  const account = await createAccount(request, user, { name: 'Everyday' })
+  await linkToSampleBankAccount(request, user, { accountId: account.id, bankAccountName: SAMPLE_CHEQUING, balances: { balance: '0.00' } })
+  const availableAgainAt = new Date(Date.now() + REQUEST_FREES_UP_AFTER_MS).toISOString()
+  await page.route(isRead('/bank-sync/connections'), async (route) => {
+    const response = await route.fetch()
+    const connections = (await response.json() as SeededConnection[]).map((listed) => ({
+      ...listed,
+      request_budget: { ...listed.request_budget, used: listed.request_budget.limit, available_again_at: availableAgainAt },
+    }))
+    await route.fulfill({ response, json: connections })
+  })
+  await logInViaApi(page, user)
+  await openPage(page, `/accounts/${account.id}`)
+  await expect(page.getByRole('button', { name: /^Bank sync: Synced/ })).toBeVisible({ timeout: WORKER_RESULT_TIMEOUT_MS })
+
+  const icon = page.getByRole('button', { name: 'Sync now', exact: true })
+  await expect(icon).toHaveAttribute('aria-disabled', 'true')
+  await expect(icon).toHaveAccessibleDescription(
+    'This connection has used its 20 SimpleFIN requests in the last 24 hours. More are available in 10 minutes.',
+  )
 })
 
 // The link and its connection's spent budget are answered here, spent as the page's clock starts,
