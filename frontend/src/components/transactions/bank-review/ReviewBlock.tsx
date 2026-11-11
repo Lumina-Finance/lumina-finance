@@ -316,12 +316,8 @@ export function BankReviewBlock({
                   ? 'var(--app-hover-on-surface-soft)'
                   : undefined
 
-            // The divider sits on the content rather than the row, so it stops short of the card's edges
             const content = (
-              <div
-                className="flex items-center gap-3 py-2.5"
-                style={{ borderTop: '1px solid var(--app-review-divider)' }}
-              >
+              <div className="flex items-center gap-3 py-2.5">
                 <div data-testid="review-item-text" className="min-w-0 flex-1">
                   {/* The label runs inline after the text, so a wrapped description keeps it beside its last word */}
                   <p className="break-words text-sm font-medium" style={{ color: 'var(--app-text)' }}>
@@ -374,9 +370,17 @@ export function BankReviewBlock({
                 exit="leave"
                 transition={enterTransition}
               >
+                {/* The divider spans the same width as the hover fill and the ring below it, short of the
+                    card's edges, so the fill never reaches past the line above it */}
+                <span
+                  aria-hidden
+                  className="pointer-events-none absolute inset-x-2 top-0 h-px sm:inset-x-2.5"
+                  style={{ background: 'var(--app-review-divider)' }}
+                />
+
                 {/* A ring rather than a fill, since the warning tint would take the muted line below
                     4.5:1 in the dark theme. It frames the content, halfway into
-                    the margin the dividers and text keep from the card's edges, so it touches neither */}
+                    the margin the text keeps from the card's edges, in line with the divider above it */}
                 <span
                   data-testid="review-item-ring"
                   aria-hidden
