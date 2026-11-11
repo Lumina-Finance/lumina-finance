@@ -625,7 +625,12 @@ for (const colorScheme of ['light', 'dark'] as const) {
         return settled
       }).toBe(true)
       for (let index = 0; index < await charts.count(); index++) {
-        await focusFromKeyboard(page, charts.nth(index))
+        // A chart under its summary's loading overlay takes no focus, and on a tablet the rows above can
+        // be done before the summary has loaded, so focus is tried until the chart holds it
+        await expect(async () => {
+          await focusFromKeyboard(page, charts.nth(index))
+          await expect(charts.nth(index)).toBeFocused({ timeout: 1000 })
+        }).toPass({ timeout: 15000 })
         await expectWholeRing(charts.nth(index))
       }
     }
