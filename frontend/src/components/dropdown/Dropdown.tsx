@@ -383,17 +383,25 @@ const Dropdown = ({
   const createQuery = searchText.trim()
   const resolvedCreateNewLabel = getCreateNewLabel(createNewLabel, createQuery)
 
+  // Closing unmounts the action pressed, so focus goes back to the trigger before the stacked modal
+  // opens. The modal takes the trigger as its opener and returns focus there once it closes, where
+  // it would otherwise fall to the page
+  const closeForStackedModal = () => {
+    close()
+    triggerRef.current?.focus({ preventScroll: true })
+  }
+
   const handleCreateNew = () => {
     if (!onCreateNew) return
+    closeForStackedModal()
     onCreateNew(createQuery)
-    close()
   }
 
   // Closing is what lets the correction be seen: the open box sits above the stacked modal it
   // opens, and left open it would cover that modal until the first press anywhere inside it
   const handleEditOption = (optionValue: string) => {
     if (!onEditOption) return
-    close()
+    closeForStackedModal()
     onEditOption(optionValue)
   }
 

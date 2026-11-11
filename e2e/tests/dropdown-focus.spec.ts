@@ -49,3 +49,30 @@ test('draws the focus ring on the search row of a searchable dropdown opened wit
     )
     .toEqual({ color: 'rgb(161, 126, 79)', width: '2px' })
 })
+
+// The create action closes with its list, so the dialogue it opened used to hand focus back to the page
+test('returns focus to the dropdown once the dialogue its create action opened closes', async ({ page, request }) => {
+  const user = await signUpUser(request)
+  await createAccount(request, user, { name: 'Everyday' })
+  await logInViaApi(page, user)
+  await openPage(page, '/transactions')
+  const dialog = await openModal(page, ['Add transaction'], 'Add transaction')
+  const merchant = dialog.getByRole('combobox', { name: 'Merchant', exact: true })
+  const addMerchant = page.getByRole('dialog', { name: 'Add merchant' })
+
+  await merchant.click()
+  await page.keyboard.type('Corner Bakery')
+  await page.getByRole('button', { name: 'Create merchant "Corner Bakery"', exact: true }).click()
+  await addMerchant.getByRole('button', { name: 'Create', exact: true }).click()
+  await expect(addMerchant).toBeHidden()
+  await expect(merchant).toBeFocused()
+  await expect(merchant).toContainText('Corner Bakery')
+
+  await merchant.click()
+  await page.keyboard.type('Second Shop')
+  await page.getByRole('button', { name: 'Create merchant "Second Shop"', exact: true }).click()
+  await expect(addMerchant).toBeVisible()
+  await page.keyboard.press('Escape')
+  await expect(addMerchant).toBeHidden()
+  await expect(merchant).toBeFocused()
+})
