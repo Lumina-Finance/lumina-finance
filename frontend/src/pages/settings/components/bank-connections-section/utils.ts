@@ -58,6 +58,23 @@ export function getNicknameProblem(nickname: string): string | undefined {
   return nickname.trim().length > CONNECTION_NICKNAME_MAX_LENGTH ? CONNECTION_NICKNAME_TOO_LONG_MESSAGE : undefined
 }
 
+/**
+ * Tells whether a key pressed in a credential field connects, which a plain Enter does since no
+ * provider's token or key spans lines. Enter with a modifier, or while an input method is composing,
+ * stays with the field
+ */
+export function submitsCredential(event: {
+  key: string
+  shiftKey: boolean
+  altKey: boolean
+  ctrlKey: boolean
+  metaKey: boolean
+  isComposing: boolean
+}): boolean {
+  if (event.key !== 'Enter' || event.isComposing) return false
+  return !(event.shiftKey || event.altKey || event.ctrlKey || event.metaKey)
+}
+
 /** Looks up an account's name by its id, or undefined while the accounts are loading */
 export type AccountNameLookup = (accountId: string) => string | undefined
 

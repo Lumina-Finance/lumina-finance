@@ -26,6 +26,7 @@ import {
   getCredentialProblems,
   getNicknameProblem,
   isClaimSettled,
+  submitsCredential,
 } from '@/pages/settings/components/bank-connections-section/utils'
 import { connectionName, credentialNoun } from '@/utils/bankSync'
 import { DATE_FORMATS, formatDate } from '@/utils/date'
@@ -382,6 +383,11 @@ export function ConnectModal({
                 aria-invalid={invalid ? true : undefined}
                 aria-describedby={invalid ? (refused ? refusedErrorId : CREDENTIAL_ERROR_ID) : undefined}
                 disabled={busy}
+                onKeyDown={(event) => {
+                  if (!submitsCredential({ ...event, isComposing: event.nativeEvent.isComposing })) return
+                  event.preventDefault()
+                  event.currentTarget.form?.requestSubmit()
+                }}
                 onChange={(event) => {
                   setFieldError(null)
                   setValues((current) => ({ ...current, [field.key]: event.target.value }))

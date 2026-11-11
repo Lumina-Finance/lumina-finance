@@ -31,6 +31,7 @@ import {
   isClaimSettled,
   matchesConnectionSearch,
   matchesInstitutionSearch,
+  submitsCredential,
 } from '@/pages/settings/components/bank-connections-section/utils'
 
 function bankAccount(overrides: Partial<ConnectionBankAccount>): ConnectionBankAccount {
@@ -113,6 +114,35 @@ const TIDEWATER = [
     signin_needed: true,
   }),
 ]
+
+describe('credential field keys', () => {
+  const press = (
+    key: string,
+    modifiers: Partial<Record<'shiftKey' | 'altKey' | 'ctrlKey' | 'metaKey' | 'isComposing', boolean>> = {},
+  ) =>
+    submitsCredential({
+      key,
+      shiftKey: false,
+      altKey: false,
+      ctrlKey: false,
+      metaKey: false,
+      isComposing: false,
+      ...modifiers,
+    })
+
+  it('connects on a plain Enter, since a token is one line', () => {
+    expect(press('Enter')).toBe(true)
+  })
+
+  it('leaves Enter with a modifier or mid-composition, and every other key, to the field', () => {
+    expect(press('Enter', { shiftKey: true })).toBe(false)
+    expect(press('Enter', { altKey: true })).toBe(false)
+    expect(press('Enter', { ctrlKey: true })).toBe(false)
+    expect(press('Enter', { metaKey: true })).toBe(false)
+    expect(press('Enter', { isComposing: true })).toBe(false)
+    expect(press('a')).toBe(false)
+  })
+})
 
 describe('bank connection status', () => {
   it('reads OK when nothing needs the user', () => {
