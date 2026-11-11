@@ -197,25 +197,24 @@ describe('the backlog notice', () => {
 describe('the accounts whose items the block reads', () => {
   const accounts = [EVERYDAY, SAVINGS, JOINT, SHARED]
 
-  const linked = new Set(['everyday', 'savings', 'joint'])
-
   it('reads every account for a list of every account', () => {
-    expect(getReviewAccountIds(accounts, 'user-1', undefined, linked)).toBeUndefined()
-    expect(getReviewAccountIds(accounts, 'user-1', [], linked)).toBeUndefined()
+    expect(getReviewAccountIds(accounts, 'user-1', undefined, true)).toBeUndefined()
+    expect(getReviewAccountIds(accounts, 'user-1', [], true)).toBeUndefined()
   })
 
   it('reads only the own personal accounts a list is filtered or fixed to', () => {
-    expect(getReviewAccountIds(accounts, 'user-1', ['savings', 'joint', 'shared'], linked)).toEqual(['savings'])
-    expect(getReviewAccountIds(accounts, 'user-1', ['joint'], linked)).toEqual([])
+    expect(getReviewAccountIds(accounts, 'user-1', ['savings', 'joint', 'shared'], true)).toEqual(['savings'])
+    expect(getReviewAccountIds(accounts, 'user-1', ['joint'], true)).toEqual([])
   })
 
-  it('reads only the linked accounts a list is filtered or fixed to', () => {
-    expect(getReviewAccountIds(accounts, 'user-1', ['everyday', 'savings'], new Set(['savings']))).toEqual(['savings'])
+  // Unlinking or disconnecting keeps the account's waiting items, so its own list still shows them
+  it('reads an unlinked account a list is fixed to', () => {
+    expect(getReviewAccountIds(accounts, 'user-1', ['everyday'], true)).toEqual(['everyday'])
   })
 
-  it('reads nothing for a user with no linked account', () => {
-    expect(getReviewAccountIds(accounts, 'user-1', undefined, new Set())).toEqual([])
-    expect(getReviewAccountIds(accounts, 'user-1', ['everyday'], new Set())).toEqual([])
+  it('reads nothing where bank sync is neither offered nor linked', () => {
+    expect(getReviewAccountIds(accounts, 'user-1', undefined, false)).toEqual([])
+    expect(getReviewAccountIds(accounts, 'user-1', ['everyday'], false)).toEqual([])
   })
 })
 
