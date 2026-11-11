@@ -75,11 +75,7 @@ function clampSegments(segments: DateSegments): DateSegments {
  * Applies newly typed digits to a segment, keeping only digits, capping the length, and re-clamping
  * the date so the visible value is always a real calendar date
  */
-export function setSegmentDigits(
-  segments: DateSegments,
-  segment: DateSegmentName,
-  rawValue: string,
-): DateSegments {
+export function setSegmentDigits(segments: DateSegments, segment: DateSegmentName, rawValue: string): DateSegments {
   const digits = rawValue.replace(/\D/g, '').slice(0, SEGMENT_MAX_LENGTH[segment])
 
   return clampSegments({ ...segments, [segment]: digits })
@@ -136,6 +132,20 @@ export function parseIsoDate(value: string): DateSegments {
   if (!match) return EMPTY_SEGMENTS
 
   return { year: match[1], month: match[2], day: match[3] }
+}
+
+/**
+ * Reads a whole date pasted into the field, written year first with dashes, slashes, dots or no
+ * separator, or null for anything else, including a day that doesn't exist. A day-first or month-first
+ * date is left out, since 10/01/2026 reads two ways
+ */
+export function parsePastedDate(text: string): DateSegments | null {
+  // The separator, when there is one, must be the same both times
+  const match = /^(\d{4})(?:([-/.])(\d{1,2})\2(\d{1,2})|(\d{2})(\d{2}))$/.exec(text.trim())
+  if (!match) return null
+
+  const iso = formatIsoDate({ year: match[1], month: match[3] ?? match[5], day: match[4] ?? match[6] })
+  return iso === '' ? null : parseIsoDate(iso)
 }
 
 /**

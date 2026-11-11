@@ -4,6 +4,7 @@ import {
   useImperativeHandle,
   useRef,
   useState,
+  type ClipboardEvent as ReactClipboardEvent,
   type KeyboardEvent as ReactKeyboardEvent,
   type MouseEvent as ReactMouseEvent,
   type FocusEvent as ReactFocusEvent,
@@ -17,6 +18,7 @@ import {
   formatIsoDate,
   isPartlyTyped,
   parseIsoDate,
+  parsePastedDate,
   setSegmentDigits,
   shouldAdvanceSegment,
   stepSegment,
@@ -179,6 +181,20 @@ export default function DateField({
     if (shouldAdvanceSegment(segment, next[segment])) focusRelative(segment, 1)
   }
 
+  /**
+   * Fills every segment from a whole date pasted into any one of them. Other pasted text goes in as
+   * typed digits do
+   */
+  const handleSegmentPaste = (event: ReactClipboardEvent<HTMLInputElement>) => {
+    if (readOnly) return
+    const pasted = parsePastedDate(event.clipboardData.getData('text'))
+    if (!pasted) return
+
+    event.preventDefault()
+    overwriteOnNextDigitRef.current = true
+    commit(pasted)
+  }
+
   const handleSegmentKeyDown = (segment: DateSegmentName, event: ReactKeyboardEvent<HTMLInputElement>) => {
     if (readOnly) return
 
@@ -296,6 +312,7 @@ export default function DateField({
               }}
               onChange={(event) => handleSegmentInput(segment, event.target.value)}
               onKeyDown={(event) => handleSegmentKeyDown(segment, event)}
+              onPaste={handleSegmentPaste}
               className={`app-date-field-segment ${SEGMENT_WIDTH[segment]} ${disabled ? 'cursor-not-allowed' : ''}`}
             />
           </div>
