@@ -56,7 +56,7 @@ function CaptionPart({ children }: { children: ReactNode }) {
 
 const GAP_HINT = {
   label: 'Why the balances differ',
-  text: "Most gaps come from items still waiting for review, or from transactions the bank hasn't posted yet.",
+  text: "The gap could come from items still waiting for review, or from transactions the bank hasn't posted yet.",
 }
 
 type BalancePanelProps = {
