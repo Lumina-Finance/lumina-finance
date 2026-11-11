@@ -289,8 +289,8 @@ export function BankReviewBlock({
       </AnimatePresence>
 
       {/* One list, so a screen reader counts every loaded item, with each row past the first few
-          growing in as the block opens */}
-      <div ref={listRef} id={listId} role="list" onMouseLeave={selection?.onPointerLeaveList}>
+          growing in as the block opens. Room below it keeps the last row's fill off the card's border */}
+      <div ref={listRef} id={listId} role="list" className="pb-2" onMouseLeave={selection?.onPointerLeaveList}>
         {/* A leaving row reads which rows were on screen from here rather than from its own props,
             since those stop updating once it has left the list */}
         <AnimatePresence initial={false} custom={rowsInViewAtClose} onExitComplete={onRowsLeft}>
@@ -370,21 +370,21 @@ export function BankReviewBlock({
                 exit="leave"
                 transition={enterTransition}
               >
-                {/* The divider spans the same width as the hover fill and the ring below it, short of the
-                    card's edges, so the fill never reaches past the line above it */}
+                {/* The divider starts where the block's heading starts, and the hover fill and the ring
+                    below it span the same width, so one edge runs down the whole block and the fill never
+                    reaches past the line above it. The row's text sits 12px inside that edge */}
                 <span
                   aria-hidden
-                  className="pointer-events-none absolute inset-x-2 top-0 h-px sm:inset-x-2.5"
+                  className="pointer-events-none absolute inset-x-4 top-0 h-px sm:inset-x-5"
                   style={{ background: 'var(--app-review-divider)' }}
                 />
 
                 {/* A ring rather than a fill, since the warning tint would take the muted line below
-                    4.5:1 in the dark theme. It frames the content, halfway into
-                    the margin the text keeps from the card's edges, in line with the divider above it */}
+                    4.5:1 in the dark theme. It frames the content in line with the divider above it */}
                 <span
                   data-testid="review-item-ring"
                   aria-hidden
-                  className="pointer-events-none absolute inset-x-2 bottom-0 top-px rounded-lg sm:inset-x-2.5"
+                  className="pointer-events-none absolute inset-x-4 bottom-0 top-px rounded-lg sm:inset-x-5"
                   style={{
                     boxShadow: highlightedId === item.id ? 'inset 0 0 0 2px var(--app-warning-dot)' : 'none',
                     transition: prefersReducedMotion
@@ -397,7 +397,7 @@ export function BankReviewBlock({
                     another button. Raised above it, so a press on the box lands on the box */}
                 {tick && (
                   <span
-                    className="absolute inset-y-0 left-4 z-10 flex items-center sm:left-5"
+                    className="absolute inset-y-0 left-7 z-10 flex items-center sm:left-8"
                     title={isSelectable ? undefined : describeTickLimit(true)}
                   >
                     <Checkbox
@@ -420,10 +420,17 @@ export function BankReviewBlock({
                   onMouseEnter={tick ? () => tick.onPointerEnter(item.id) : undefined}
                   tabIndex={tick ? -1 : undefined}
                   className={`group relative block w-full text-left focus-visible:outline-none ${
-                    selection ? 'pl-12 pr-4 sm:pl-13 sm:pr-5' : 'px-4 sm:px-5'
+                    selection ? 'pl-15 pr-7 sm:pl-16 sm:pr-8' : 'px-7 sm:px-8'
                   } ${tick ? 'select-none' : ''}`}
-                  style={{ background: selectionBackground }}
                 >
+                  {/* A ticked or picked row's fill takes the hover fill's shape, inside the dividers' edge */}
+                  {selectionBackground && (
+                    <span
+                      aria-hidden
+                      className="pointer-events-none absolute inset-x-4 bottom-0 top-px rounded-lg sm:inset-x-5"
+                      style={{ background: selectionBackground }}
+                    />
+                  )}
                   {/* Fills on hover as a transaction row does, easing over the same time. The fill is the wash
                       made for a shaded surface, since the flat hover colour is the review block's own. Keyboard
                       focus keeps the ring in place of the fill, so the ring is measured against the block, as
@@ -431,7 +438,7 @@ export function BankReviewBlock({
                       cleared and the ring marked important to win over it */}
                   <span
                     aria-hidden
-                    className="pointer-events-none absolute inset-x-2 bottom-0 top-px rounded-lg transition-[background-color,box-shadow] motion-reduce:transition-none group-hover:bg-[var(--app-hover-on-surface-soft)] group-focus-visible:bg-transparent! group-focus-visible:ring-2! group-focus-visible:ring-inset group-focus-visible:ring-[var(--app-focus-ring)]! sm:inset-x-2.5"
+                    className="pointer-events-none absolute inset-x-4 bottom-0 top-px rounded-lg transition-[background-color,box-shadow] motion-reduce:transition-none group-hover:bg-[var(--app-hover-on-surface-soft)] group-focus-visible:bg-transparent! group-focus-visible:ring-2! group-focus-visible:ring-inset group-focus-visible:ring-[var(--app-focus-ring)]! sm:inset-x-5"
                   />
                   {content}
                 </button>
