@@ -47,11 +47,11 @@ function renderDialog(connection: BankConnection | undefined): string {
 }
 
 describe('UnlinkModal', () => {
-  it('names the bank account, says the account stops syncing, and offers no choice to disconnect', () => {
+  it('names the bank account, says new bank transactions stop coming in, and offers no choice to disconnect', () => {
     const markup = renderDialog(createConnection())
     expect(markup).toContain('Unlink bank account')
     expect(markup).toContain('Everyday Chequing at Harbour Bank')
-    expect(markup).toContain('Everyday stops syncing.')
+    expect(markup).toContain('New transactions from the bank stop coming into Everyday.')
     expect(markup).not.toContain('role="radio"')
     expect(markup).not.toMatch(/>Disconnect</)
   })

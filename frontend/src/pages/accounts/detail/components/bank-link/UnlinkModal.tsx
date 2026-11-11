@@ -90,9 +90,10 @@ export function UnlinkModal({
     >
       <div className="space-y-2 pb-2">
         <p className="text-sm" style={{ color: 'var(--app-text-muted)' }}>
-          {account.name} stops syncing. Your transactions and items waiting for review stay.
+          New transactions from the bank stop coming into {account.name}. Every transaction already in {account.name}{' '}
+          and every item waiting for review is kept.
         </p>
-        <p className="text-xs" style={{ color: 'var(--app-text-muted)' }}>
+        <p className="text-sm" style={{ color: 'var(--app-text-muted)' }}>
           To disconnect {name} from every account, please open the connection in{' '}
           <button
             type="button"
