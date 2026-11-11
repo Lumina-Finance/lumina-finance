@@ -21,7 +21,7 @@ from fastapi import HTTPException, status
 from sqlalchemy import func, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.models.bank_connection import BankAccountLink
+from app.models.bank_connection import BankAccountLink, BankConnection
 from app.models.bank_sync_job import BankSyncJob, BankSyncJobKind, BankSyncJobStatus
 from app.models.user import User
 from app.schemas.bank_sync import BankLinkResponse, BankSyncState, BankSyncStatusResponse
@@ -105,11 +105,36 @@ async def sync_account_now(db: AsyncSession, user: User, account_id: uuid.UUID) 
         [described] = await describe_links(db, user, [link], now=datetime.now(UTC))
         return described
 
+    await refuse_held_back_sync(db, connection, link_status.sync, now=now)
+    await enqueue_bank_sync_job(db, owner_id=user.id, connection_id=connection.id, kind=BankSyncJobKind.MANUAL, requested_link_ids=[link.id])
+    # The link now reads as requested. That changes none of the user's data, so the data mark an
+    # import's undo compares with stays where it was
+    await mark_user_status_changed(db, user.id)
+    await db.commit()
+    [described] = await describe_links(db, user, [link], now=datetime.now(UTC))
+    return described
+
+
+async def refuse_held_back_sync(db: AsyncSession, connection: BankConnection, sync: BankSyncStatusResponse, *, now: datetime) -> None:
+    """Refuse a request for a sync of a link to start now while anything holds it back, saying why
+
+    Args:
+        db: The owner's session
+        connection: The link's connection, the owner of the request budget a sync spends
+        sync: The link's sync status
+        now: The current time the budget is read at
+
+    Raises:
+        HTTPException 409: An import or a sync already runs on the link, the provider rejected its
+            connection or is no longer installed, its bank account has to be chosen again, or the
+            review pause holds it
+        HTTPException 429: The connection's request budget is spent, saying when a request frees up
+    """
     adapter = adapter_for(connection.provider)
     if adapter is None:
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=PROVIDER_GONE_DETAIL)
     provider = adapter.provider_name
-    refusal = _find_refusal(link_status.sync)
+    refusal = _find_refusal(sync)
     if refusal is not None:
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=refusal.format(provider=provider))
     budget = await read_request_budget(db, connection, now=now)
@@ -119,14 +144,6 @@ async def sync_account_now(db: AsyncSession, user: User, account_id: uuid.UUID) 
             status_code=status.HTTP_429_TOO_MANY_REQUESTS,
             detail=spent.format(limit=budget.limit, provider=provider, when=_describe_wait(budget.available_again_at, now)),
         )
-
-    await enqueue_bank_sync_job(db, owner_id=user.id, connection_id=connection.id, kind=BankSyncJobKind.MANUAL, requested_link_ids=[link.id])
-    # The link now reads as requested. That changes none of the user's data, so the data mark an
-    # import's undo compares with stays where it was
-    await mark_user_status_changed(db, user.id)
-    await db.commit()
-    [described] = await describe_links(db, user, [link], now=datetime.now(UTC))
-    return described
 
 
 def _find_refusal(sync: BankSyncStatusResponse) -> str | None:

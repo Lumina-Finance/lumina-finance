@@ -31,6 +31,7 @@ from app.schemas.bank_sync import (
     DiscoveredBankAccountsResponse,
     DismissCutOffDayRequest,
     DismissHistoryReminderRequest,
+    ImportBankRangeRequest,
     LinkBankAccountRequest,
     ReconnectBankConnectionRequest,
     ReconnectBankConnectionResponse,
@@ -56,6 +57,7 @@ from app.services.bank_sync.links import (
     unlink_account,
 )
 from app.services.bank_sync.pending_items import list_pending_transactions
+from app.services.bank_sync.range_import import import_bank_range
 from app.services.bank_sync.review_decisions import (
     accept_bank_change,
     add_review_item_to_ledger,
@@ -380,6 +382,27 @@ async def sync_bank_link_now(
         The link, with a status that says the sync is requested until a worker starts it, or no longer says its import waits to start
     """
     return await sync_account_now(db, user, account_id)
+
+
+@bank_link_router.post("/range-import", response_model=BankLinkResponse)
+async def import_bank_link_range(
+    account_id: uuid.UUID,
+    request: ImportBankRangeRequest,
+    user: Annotated[User, Depends(get_current_user)],
+    db: Annotated[AsyncSession, Depends(get_db)],
+):
+    """Start importing a date range into one of the user's linked accounts, everything it brings in waiting for review
+
+    Args:
+        account_id: The linked account
+        request: The range's first and last days, and whether items dismissed before come back
+        user: Authenticated owner of the account
+        db: Active database session
+
+    Returns:
+        The link, importing the range
+    """
+    return await import_bank_range(db, user, account_id, request)
 
 
 @bank_link_router.post("/balance-match", response_model=AccountBankStatusResponse)

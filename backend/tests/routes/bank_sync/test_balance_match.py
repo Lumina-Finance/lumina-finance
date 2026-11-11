@@ -189,6 +189,18 @@ async def test_a_gap_opening_after_an_earlier_match_is_offered_again(client):
         pytest.param(125000, {}, {}, id="balances-match"),
         pytest.param(100000, {"balance": None}, {}, id="balance-cant-be-read"),
         pytest.param(100000, {}, {"importing": True}, id="import-running"),
+        pytest.param(
+            100000,
+            {},
+            {
+                "importing": True,
+                "range_first_day": date(2026, 3, 1),
+                "range_last_day": date(2026, 3, 31),
+                "range_next_day": date(2026, 3, 1),
+                "range_restores_dismissed": False,
+            },
+            id="date-range-import-running",
+        ),
         pytest.param(100000, {}, {"last_success_at": None}, id="never-synced"),
         pytest.param(100000, {}, {"state": BankLinkState.CHOOSE_ACCOUNT}, id="choose-account"),
     ],

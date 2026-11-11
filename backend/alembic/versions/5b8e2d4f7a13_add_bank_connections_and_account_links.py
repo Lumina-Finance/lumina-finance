@@ -117,6 +117,11 @@ def upgrade() -> None:
         sa.Column("catchup_requested_start", sa.Date(), nullable=True),
         sa.Column("earliest_booked_date", sa.Date(), nullable=True),
         sa.Column("history_reminder_dismissed", sa.Boolean(), server_default="false", nullable=False),
+        sa.Column("range_first_day", sa.Date(), nullable=True),
+        sa.Column("range_last_day", sa.Date(), nullable=True),
+        sa.Column("range_next_day", sa.Date(), nullable=True),
+        sa.Column("range_restores_dismissed", sa.Boolean(), nullable=True),
+        sa.Column("range_outcome", sa.Text(), nullable=True),
         sa.ForeignKeyConstraint(["owner_id"], ["users.id"], ondelete="CASCADE"),
         sa.ForeignKeyConstraint(["account_id"], ["accounts.id"], ondelete="CASCADE"),
         sa.ForeignKeyConstraint(["connection_id"], ["bank_connections.id"], ondelete="SET NULL"),
@@ -130,6 +135,15 @@ def upgrade() -> None:
         sa.CheckConstraint("(state = 'unlinked') = (unlinked_at IS NOT NULL)", name="ck_bank_account_links_unlinked_at"),
         sa.CheckConstraint("state = 'unlinked' OR connection_id IS NOT NULL", name="ck_bank_account_links_connection"),
         sa.CheckConstraint("retry_count >= 0", name="ck_bank_account_links_retry_count"),
+        sa.CheckConstraint(
+            "(range_first_day IS NULL) = (range_last_day IS NULL) AND (range_first_day IS NULL) = (range_next_day IS NULL) "
+            "AND (range_first_day IS NULL) = (range_restores_dismissed IS NULL)",
+            name="ck_bank_account_links_range",
+        ),
+        sa.CheckConstraint(
+            "range_first_day <= range_last_day AND range_first_day <= range_next_day AND range_next_day <= range_last_day + 1",
+            name="ck_bank_account_links_range_days",
+        ),
     )
     op.create_index(
         "uq_bank_account_links_account_id",

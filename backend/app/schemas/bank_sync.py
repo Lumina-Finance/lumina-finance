@@ -246,8 +246,9 @@ class BankProvidersResponse(BaseModel):
 
 
 class BankImportRangeResponse(BaseModel):
-    """Where an import into one account may start, every date a calendar day in the user's profile timezone"""
+    """Which days an import into one account may cover, every date a calendar day in the user's profile timezone"""
 
+    # The provider's limit and today
     earliest_allowed: date
     latest_allowed: date
 
@@ -300,8 +301,22 @@ class LinkBankAccountRequest(BaseModel):
     connection_id: uuid.UUID
     external_account_id: str
 
-    # A calendar day in the user's profile timezone, inside the account's import range
+    # Calendar days in the user's profile timezone, inside the account's import range. Without an end
+    # date, or with today, the import runs from the start to today. An earlier end date imports the
+    # start through the end date as a date range, and syncing picks up from today, so the days
+    # between them stay as the ledger has them
     start_date: date
+    end_date: date | None = None
+
+
+class ImportBankRangeRequest(BaseModel):
+    """The days a linked account imports from its bank as a date range, both included, in the user's profile timezone"""
+
+    first_day: date
+    last_day: date
+
+    # Whether items dismissed before, dated inside the range, wait for review again
+    restores_dismissed: bool = False
 
 
 class BankAccountLinkResponse(BaseModel):
@@ -333,16 +348,28 @@ class BankImportProgressResponse(BaseModel):
     state: BankImportState
     requested_start: date
 
-    # The windows a fetch of the days from the requested start through today splits into, and how
-    # many of them are stored
+    # The windows a fetch of the days from the requested start through today, or through a date range
+    # import's last day, splits into, and how many of them are stored
     windows_total: int
     windows_done: int
 
-    # Bank transactions received for the account since the import began
+    # Bank transactions received for the account since the import began, or for a date range import
+    # those dated inside it that wait for review
     items_found: int
 
     # The earliest booked date the provider returned, None until one arrives
     earliest_returned_date: date | None
+
+
+class BankRangeImportResponse(BaseModel):
+    """A date range import still running on a link, its days in the user's profile timezone"""
+
+    first_day: date
+    last_day: date
+
+    # The first day not yet stored
+    next_day: date
+    restores_dismissed: bool
 
 
 class BankSyncFailureResponse(BaseModel):
@@ -430,6 +457,12 @@ class BankLinkResponse(BankAccountLinkResponse):
     # The latest day kept though it brought back as many transactions as the provider sends at once,
     # so some of that day's may be missing. None when no day did or the user dismissed it
     cut_off_day: date | None
+
+    # The date range import still running, None when none is
+    range_import: BankRangeImportResponse | None
+
+    # Why the last date range import stopped short or left days out, None when it brought in every day
+    range_outcome: str | None
 
 
 class DismissHistoryReminderRequest(BaseModel):

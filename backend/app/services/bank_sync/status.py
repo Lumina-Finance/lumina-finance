@@ -44,9 +44,11 @@ def shows_import_progress(link: BankAccountLink) -> bool:
     """Return whether a live link shows its import's progress
 
     A link waiting for its bank account to be chosen again doesn't sync, and the catch-up after a
-    reconnect doesn't record its first day, so neither has progress to show
+    reconnect doesn't record its first day, so neither has progress to show. A date range import
+    after a reconnect does
     """
-    return link.importing and link.state == BankLinkState.ACTIVE and link.import_kind != BankImportKind.RECONNECT
+    catching_up = link.import_kind == BankImportKind.RECONNECT and link.range_next_day is None
+    return link.importing and link.state == BankLinkState.ACTIVE and not catching_up
 
 
 async def read_link_statuses(db: AsyncSession, links: Sequence[BankAccountLink], *, now: datetime) -> dict[uuid.UUID, LinkStatus]:

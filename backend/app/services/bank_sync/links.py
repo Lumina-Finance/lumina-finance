@@ -2,17 +2,18 @@
 
 The account's link flow lists a connection's bank accounts for the account, each linkable or
 unavailable with its reason from the one eligibility check, and links one of them from a chosen
-start. Opening the flow asks for a fresh discovery when the last one is over an hour old, so a bank
-added at the provider a few minutes ago appears without waiting for the daily sync. The link
+start, or for a chosen date range. Opening the flow asks for a fresh discovery when the last one is
+over an hour old, so a bank added at the provider a few minutes ago appears without waiting for the
+daily sync. The link
 request checks again everything the list showed, since the list can be stale, and queues the
 link's first import for 2 minutes on, moving a queued one back to 2 minutes after this link, so
 the accounts linked in a row share one import. A job runs it, or the user starts it sooner.
 
 A link waiting in Choose bank account, because the provider now lists its bank account differently,
 goes through the same flow. Choosing moves the link to the new bank account with an import of its
-own from the chosen start. The import range keeps that start after the account's latest ledger
-transaction, since the old bank account's progress and transaction identities can't be assumed to
-carry over. Items the old one left waiting for review stay where they are.
+own from the chosen start, since the old bank account's progress and transaction identities can't
+be assumed to carry over. What the new one sends again under new identities waits for review like
+anything else it brings in. Items the old one left waiting for review stay where they are.
 
 Unlinking ends one account's link and disconnecting ends every link on a connection and deletes it.
 Either clears the accounts' pending bank transactions, since nothing can refresh them any more, and
@@ -64,14 +65,15 @@ from app.services.bank_sync.availability import (
 )
 from app.services.bank_sync.connections import get_own_connection, read_discovering_connections, read_listed_bank_accounts
 from app.services.bank_sync.holds import clear_holds
-from app.services.bank_sync.import_range import read_import_range
+from app.services.bank_sync.import_range import check_import_days, read_import_range
 from app.services.bank_sync.jobs import enqueue_bank_sync_job
 from app.services.bank_sync.pending import replace_pending_transactions
 from app.services.bank_sync.provider_requests import read_request_budget
 from app.services.bank_sync.providers.contract import ProviderAdapter
+from app.services.bank_sync.range_days import forget_range, start_range
 from app.services.bank_sync.review_pause import lock_account_links
 from app.services.cache_state.updates import mark_user_cache_changed, mark_user_status_changed
-from app.utils.dates import format_day, resolve_timezone
+from app.utils.dates import resolve_timezone
 
 # How long a link's import waits for the user's other accounts on the connection to be linked. Each
 # link made meanwhile moves the start to this long after it, and joins the same import, since one
@@ -161,16 +163,17 @@ async def link_bank_account(
 ) -> BankAccountLinkResponse:
     """Link one of the user's accounts to a bank account on one of their connections, and queue its import
 
-    The import starts on the chosen day. That day has to be inside the account's import range. The import
-    runs as a job, so the request returns at once. An account linked before gets a relink import,
-    and one whose link waits in Choose bank account keeps its link, moved to the chosen bank account
+    The import starts on the chosen day and runs to today. With an end date before today it imports
+    the chosen days as a date range instead, and starts syncing from today. Both days have to be
+    inside the account's import range. The import runs as a job, so the request returns at once. An
+    account linked before gets a relink import, and one whose link waits in Choose bank account keeps its link, moved to the chosen bank account
     with a choose-again import
 
     Args:
         db: Active database session
         user: The user linking the account
         account_id: The account to link
-        request: The connection, the bank account it lists and the import's first day
+        request: The connection, the bank account it lists and the import's first and last days
 
     Returns:
         The link
@@ -183,7 +186,7 @@ async def link_bank_account(
         HTTPException 409: The account or the bank account is already linked, or the provider
             rejected the connection
         HTTPException 422: The account is archived, the deployment doesn't enable the provider,
-            the currencies differ or the start is outside the import range
+            the currencies differ, a day is outside the import range or the start is after the end
     """
     require_bank_linking(user.id)
     account = await _get_account_to_link(db, user, account_id, lock=True)
@@ -218,11 +221,8 @@ async def link_bank_account(
 
     today = datetime.now(resolve_timezone(user.tz)).date()
     import_range = await read_import_range(db, account.id, history_months=adapter.history_limit_months, today=today)
-    if not import_range.allows(request.start_date):
-        raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
-            detail=f"Choose a start date from {format_day(import_range.earliest_allowed)} to {format_day(import_range.latest_allowed)}",
-        )
+    end_date = today if request.end_date is None else request.end_date
+    check_import_days(import_range, request.start_date, end_date)
 
     # Locked after the connection, the order a disconnect takes them in, and read again, since an
     # unlink or a discovery that lists the old bank account again may have moved it meanwhile
@@ -251,10 +251,15 @@ async def link_bank_account(
     link.external_account_id = bank_account.external_id
     link.external_account_name = bank_account.name
     link.institution_name = bank_account.institution_name
-    link.import_start = request.start_date
+
+    # A range ending before today is fetched once the import of today is done, and the days between
+    # them stay as the ledger has them, since syncing picks up from today
+    link.import_start = request.start_date if end_date == today else today
+    if end_date < today:
+        start_range(link, request.start_date, end_date, restores_dismissed=False)
 
     # Nothing is known complete yet, so the import fetches from its first day
-    link.checkpoint = request.start_date - timedelta(days=1)
+    link.checkpoint = link.import_start - timedelta(days=1)
 
     # The account is locked, but the bank account is only shared, so another account linking the
     # same bank account can race this one, through this connection or another of the user's. The
@@ -379,10 +384,11 @@ async def disconnect_connection(db: AsyncSession, user: User, connection_id: uui
 
 
 async def _end_links(db: AsyncSession, ended: Sequence[BankAccountLink], *, now: datetime) -> None:
-    """Mark locked links unlinked and clear their accounts' pending bank transactions"""
+    """Mark locked links unlinked, ending any date range import, and clear their accounts' pending bank transactions"""
     for link in ended:
         link.state = BankLinkState.UNLINKED
         link.unlinked_at = now
+        forget_range(link)
         await replace_pending_transactions(db, link.account_id, [])
         await clear_holds(db, link.account_id)
 
@@ -478,6 +484,7 @@ def _restart_for_new_bank_account(link: BankAccountLink) -> None:
     link.history_reminder_dismissed = False
     link.cut_off_day = None
     link.cut_off_day_dismissed = False
+    forget_range(link)
 
 
 def _linked_elsewhere(

@@ -24,7 +24,6 @@ from app.models.bank_pending_transaction import BankPendingTransaction
 from app.models.bank_sync_job import BankSyncJob
 from app.models.bank_transaction import BankTransaction, BankTransactionDisposition
 from app.services.bank_sync import availability, import_range, links
-from app.utils.dates import format_day
 from tests.conftest import TestSession
 from tests.routes.support.bank_sync_helpers import (
     BANK_ACCOUNT_ID,
@@ -142,6 +141,107 @@ async def test_link_of_an_account_unlinked_before_is_a_relink(client):
     assert await _queued_jobs() == [(connection.id, "initial", False, "queued")]
 
 
+async def _link_range(client, headers, account_id, connection_id, start_date: date, end_date: date):
+    """Link an account to the bank account through the route for a date range"""
+    return await client.post(
+        f"/accounts/{account_id}/bank-link",
+        json={
+            "connection_id": str(connection_id),
+            "external_account_id": BANK_ACCOUNT_ID,
+            "start_date": start_date.isoformat(),
+            "end_date": end_date.isoformat(),
+        },
+        headers=headers,
+    )
+
+
+async def _stored_range(account_id: str) -> tuple:
+    """Return the live link's date range import columns and how its last one ended"""
+    async with TestSession() as session:
+        row = await session.execute(
+            select(
+                BankAccountLink.range_first_day,
+                BankAccountLink.range_last_day,
+                BankAccountLink.range_next_day,
+                BankAccountLink.range_restores_dismissed,
+                BankAccountLink.range_outcome,
+            ).where(BankAccountLink.account_id == uuid.UUID(account_id), BankAccountLink.state != BankLinkState.UNLINKED)
+        )
+        return tuple(row.one())
+
+
+async def test_link_with_a_range_ending_before_today_syncs_from_today_and_imports_the_range(client):
+    """Linking for 1 to 31 August starts syncing on 4 October, and imports August as a date range that leaves dismissed items alone"""
+    headers, _, account_id, connection = await _linkable(client)
+
+    linked = await _link_range(client, headers, account_id, connection.id, date(2026, 8, 1), date(2026, 8, 31))
+
+    assert linked.status_code == 201, linked.text
+    assert linked.json()["import_start"] == _TODAY.isoformat()
+    assert await _stored_links() == [
+        (uuid.UUID(account_id), connection.id, BANK_ACCOUNT_ID, "active", "initial", _TODAY, _TODAY - timedelta(days=1))
+    ]
+    assert await _stored_range(account_id) == (date(2026, 8, 1), date(2026, 8, 31), date(2026, 8, 1), False, None)
+    assert await _importing(account_id) is True
+    assert await _queued_jobs() == [(connection.id, "initial", False, "queued")]
+
+
+async def test_link_with_a_range_ending_today_is_an_import_from_its_start(client):
+    """An end date of today is the same import as none, with no date range"""
+    headers, _, account_id, connection = await _linkable(client)
+    start = _TODAY - timedelta(days=20)
+
+    linked = await _link_range(client, headers, account_id, connection.id, start, _TODAY)
+
+    assert linked.status_code == 201, linked.text
+    assert [(first, checkpoint) for *_, first, checkpoint in await _stored_links()] == [(start, start - timedelta(days=1))]
+    assert await _stored_range(account_id) == (None, None, None, None, None)
+
+
+async def test_link_may_start_before_the_latest_ledger_transaction(client):
+    """Everyday's ledger runs to 14 days ago, yet the import may start 40 days ago, since what it brings in waits for review"""
+    headers, user_id, account_id, connection = await _linkable(client)
+    async with TestSession() as session:
+        account = await session.get_one(Account, uuid.UUID(account_id))
+        category = _build_category(user_id)
+        session.add(category)
+        await session.flush()
+        transaction = _build_ledger_transaction(account, category.id)
+        transaction.dt = _TODAY - timedelta(days=14)
+        session.add(transaction)
+        await session.commit()
+    start = _TODAY - timedelta(days=40)
+
+    ranged = await client.get(f"/accounts/{account_id}/bank-link/import-range", params={"provider": "fake"}, headers=headers)
+    linked = await _link(client, headers, account_id, connection.id, start_date=start)
+
+    assert ranged.status_code == 200, ranged.text
+    assert (ranged.json()["earliest_allowed"], ranged.json()["ledger_floor"]) == ("2025-10-01", (_TODAY - timedelta(days=13)).isoformat())
+    assert linked.status_code == 201, linked.text
+    assert linked.json()["import_start"] == start.isoformat()
+
+
+@pytest.mark.parametrize(
+    ("start_date", "end_date", "detail"),
+    [
+        (date(2025, 9, 30), date(2026, 8, 31), "Choose a start date from Oct 1, 2025 to Oct 4, 2026"),
+        (date(2026, 8, 1), date(2026, 10, 5), "Choose an end date from Oct 1, 2025 to Oct 4, 2026"),
+        (date(2026, 8, 31), date(2026, 8, 1), "Choose a start date on or before the end date"),
+    ],
+    ids=["start-before-the-providers-limit", "end-after-today", "start-after-end"],
+)
+async def test_link_with_days_outside_the_range_or_crossed_saves_nothing(client, start_date, end_date, detail):
+    """The provider reaches back to 1 October 2025 and nothing can be fetched after today, 4 October"""
+    headers, _, account_id, connection = await _linkable(client)
+
+    refused = await _link_range(client, headers, account_id, connection.id, start_date, end_date)
+
+    assert refused.status_code == 422, refused.text
+    assert refused.json()["detail"] == detail
+    assert await _stored_links() == []
+    assert await _queued_jobs() == []
+
+
 async def _waiting_to_choose_again(client) -> tuple[dict, str, BankConnection, uuid.UUID, date]:
     """Sign up with Everyday's link to ACT-1 waiting in Choose bank account, its connection now listing ACT-2 instead
 
@@ -192,13 +292,10 @@ async def test_choose_again_moves_the_link_to_the_new_bank_account_from_after_th
     floor = latest + timedelta(days=1)
 
     ranged = await client.get(f"/accounts/{account_id}/bank-link/import-range", params={"provider": "fake"}, headers=headers)
-    too_early = await _link(client, headers, account_id, connection.id, "ACT-2", start_date=latest)
     chosen = await _link(client, headers, account_id, connection.id, "ACT-2", start_date=floor)
 
     assert ranged.status_code == 200, ranged.text
-    assert ranged.json()["earliest_allowed"] == floor.isoformat()
-    assert too_early.status_code == 422, too_early.text
-    assert too_early.json()["detail"] == f"Choose a start date from {format_day(floor)} to {format_day(_TODAY)}"
+    assert ranged.json()["ledger_floor"] == floor.isoformat()
     assert chosen.status_code == 201, chosen.text
     assert (chosen.json()["external_account_id"], chosen.json()["import_start"]) == ("ACT-2", floor.isoformat())
     assert await _stored_links() == [(uuid.UUID(account_id), connection.id, "ACT-2", "active", "choose_again", floor, latest)]

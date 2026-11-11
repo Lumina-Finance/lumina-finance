@@ -9,10 +9,10 @@ import uuid
 from datetime import date, timedelta
 
 import pytest
-from sqlalchemy import func, select
+from sqlalchemy import func, select, update
 
 from app.models.account import Account
-from app.models.bank_connection import BankLinkState
+from app.models.bank_connection import BankAccountLink, BankLinkState
 from tests.conftest import TestSession
 from tests.routes.support.bank_sync_helpers import _build_bank_link, _commit_listed_connection
 from tests.routes.support.lock_helpers import _wait_until_waiting_on
@@ -52,6 +52,29 @@ async def test_a_manual_transaction_dated_before_the_import_start_or_after_today
 
     assert added.status_code == 201, added.text
     assert await _dates_in(ledger.everyday_id) == [day]
+
+
+async def test_a_manual_transaction_inside_a_date_range_import_saves(client):
+    """Everyday imports March as a date range. The bank fetches those days once, so 15 March stays open to manual entries"""
+    ledger = await _ledger(client)
+    await _commit_link(ledger, ledger.everyday_id)
+    async with TestSession() as session:
+        await session.execute(
+            update(BankAccountLink)
+            .where(BankAccountLink.account_id == uuid.UUID(ledger.everyday_id))
+            .values(
+                range_first_day=date(2026, 3, 1),
+                range_last_day=date(2026, 3, 31),
+                range_next_day=date(2026, 3, 1),
+                range_restores_dismissed=False,
+            )
+        )
+        await session.commit()
+
+    added = await _add(client, ledger, ledger.everyday_id, date(2026, 3, 15))
+
+    assert added.status_code == 201, added.text
+    assert await _dates_in(ledger.everyday_id) == [date(2026, 3, 15)]
 
 
 async def test_a_link_waiting_for_its_bank_account_to_be_chosen_again_still_refuses_and_other_accounts_take_any_day(client):

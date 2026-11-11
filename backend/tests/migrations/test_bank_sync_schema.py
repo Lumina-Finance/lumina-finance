@@ -5,7 +5,7 @@ migration left out would still pass there. These tests share one migrated databa
 runs inside a transaction rolled back at its end, so none sees another's rows
 """
 
-from datetime import UTC, datetime
+from datetime import UTC, date, datetime
 from pathlib import Path
 
 import pytest
@@ -161,6 +161,41 @@ async def test_bank_link_same_bank_account_id_for_another_user_is_allowed(sessio
     await _add(session, _build_bank_link(everyday, connection, "ACT-1"))
 
     await _add(session, _build_bank_link(other_everyday, other_connection, "ACT-1"))
+
+
+async def test_bank_link_date_range_is_stored_whole_with_its_next_day_inside_it(session):
+    """A range of 1 June to 31 August is stored with its next day from 1 June to 1 September, and a partial or crossed one is refused"""
+    user = await _owner(session)
+    everyday = _build_account(user.id)
+    connection = _build_bank_connection(user.id)
+    await _add(session, everyday, connection)
+
+    def ranged(external_id: str, first: date | None, last: date | None, next_day: date | None, restores: bool | None) -> BankAccountLink:
+        return _build_bank_link(
+            everyday,
+            connection,
+            external_id,
+            state=BankLinkState.UNLINKED,
+            unlinked_at=datetime(2026, 9, 1, tzinfo=UTC),
+            range_first_day=first,
+            range_last_day=last,
+            range_next_day=next_day,
+            range_restores_dismissed=restores,
+        )
+
+    june, august = date(2026, 6, 1), date(2026, 8, 31)
+    # The closing quote keeps the name from matching the days check's too
+    await _refused(session, ranged("ACT-1", june, august, None, False), 'ck_bank_account_links_range"')
+    await _refused(session, ranged("ACT-2", june, august, june, None), 'ck_bank_account_links_range"')
+    await _refused(session, ranged("ACT-3", august, june, august, False), "ck_bank_account_links_range_days")
+    await _refused(session, ranged("ACT-4", june, august, date(2026, 5, 31), False), "ck_bank_account_links_range_days")
+    await _refused(session, ranged("ACT-5", june, august, date(2026, 9, 2), False), "ck_bank_account_links_range_days")
+    await _add(
+        session,
+        ranged("ACT-6", june, august, june, False),
+        ranged("ACT-7", june, august, date(2026, 9, 1), True),
+        ranged("ACT-8", None, None, None, None),
+    )
 
 
 async def test_bank_connection_deleted_after_unlinking_keeps_the_links_previous_details(session):

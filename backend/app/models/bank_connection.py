@@ -106,6 +106,13 @@ _LIVE_LINK = "state <> 'unlinked'"
 # change reaches a database only through a migration that recreates the helpers
 FRESH_DISCOVERY_AGE = timedelta(hours=1)
 
+# A link's date range import is set or cleared whole
+_RANGE_TOGETHER = (
+    "(range_first_day IS NULL) = (range_last_day IS NULL) AND (range_first_day IS NULL) = (range_next_day IS NULL) "
+    "AND (range_first_day IS NULL) = (range_restores_dismissed IS NULL)"
+)
+_RANGE_DAYS = "range_first_day <= range_last_day AND range_first_day <= range_next_day AND range_next_day <= range_last_day + 1"
+
 
 class BankConnection(Base):
     """One user's credential with a bank data provider
@@ -240,6 +247,9 @@ class BankAccountLink(Base):
         # still feeds a ledger is refused rather than leaving a link with nothing to sync from
         CheckConstraint("state = 'unlinked' OR connection_id IS NOT NULL", name="ck_bank_account_links_connection"),
         CheckConstraint("retry_count >= 0", name="ck_bank_account_links_retry_count"),
+        CheckConstraint(_RANGE_TOGETHER, name="ck_bank_account_links_range"),
+        # The next day runs from the first day to the day after the last, and a null leaves the check passing
+        CheckConstraint(_RANGE_DAYS, name="ck_bank_account_links_range_days"),
         # An account follows at most one bank account at a time
         Index("uq_bank_account_links_account_id", "account_id", unique=True, postgresql_where=text(_LIVE_LINK)),
         # A bank account feeds at most one ledger per user, even when two connections reach it
@@ -339,3 +349,16 @@ class BankAccountLink(Base):
     # its reminder. Only a later day raises it again
     cut_off_day: Mapped[date | None] = mapped_column(Date)
     cut_off_day_dismissed: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False, server_default="false")
+
+    # A date range the user asked to import, its first and last days both included, the next day it
+    # still has to fetch, and whether it brings back items dismissed before. It is fetched once, after
+    # the link's routine sync, and clears once its last day is stored. All four are null while no
+    # range runs
+    range_first_day: Mapped[date | None] = mapped_column(Date)
+    range_last_day: Mapped[date | None] = mapped_column(Date)
+    range_next_day: Mapped[date | None] = mapped_column(Date)
+    range_restores_dismissed: Mapped[bool | None] = mapped_column(Boolean)
+
+    # Why the last date range import stopped short or left days out, as the Bank link section says it.
+    # None when it brought in every day, and while a new one runs
+    range_outcome: Mapped[str | None] = mapped_column(Text)

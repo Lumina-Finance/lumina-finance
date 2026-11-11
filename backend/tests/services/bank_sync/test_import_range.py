@@ -1,8 +1,7 @@
-"""Where a bank import may start
+"""Which days a bank import may cover
 
-A start too early imports bank activity the ledger already holds, and one too late leaves days nothing
-covers, so the range has to follow the ledger floor and the provider's limit exactly, in the user's
-own calendar
+The range runs from the provider's limit through today in the user's own calendar. The ledger floor
+is only a fact beside it, so an import may reach into days the ledger already covers
 """
 
 from datetime import date
@@ -36,11 +35,11 @@ def test_import_range_of_an_empty_account_reaches_back_to_the_providers_limit():
     )
 
 
-def test_import_range_floor_after_the_limit_is_the_earliest_start():
-    """A ledger running to 14 August starts the range on 15 August"""
+def test_import_range_floor_after_the_limit_leaves_the_limit_as_the_earliest_start():
+    """A ledger running to 14 August floors at 15 August, yet the range still starts at the limit, 1 September 2025"""
     imported = _range(date(2026, 9, 23), date(2026, 8, 14))
 
-    assert (imported.ledger_floor, imported.earliest_allowed) == (date(2026, 8, 15), date(2026, 8, 15))
+    assert (imported.ledger_floor, imported.earliest_allowed) == (date(2026, 8, 15), date(2025, 9, 1))
 
 
 def test_import_range_floor_before_the_limit_leaves_the_limit_as_the_earliest_start():
@@ -50,12 +49,21 @@ def test_import_range_floor_before_the_limit_leaves_the_limit_as_the_earliest_st
     assert (imported.ledger_floor, imported.earliest_allowed) == (date(2024, 3, 11), date(2025, 9, 1))
 
 
-def test_import_range_with_a_transaction_dated_today_allows_only_tomorrow():
-    """A transaction on 23 September leaves 24 September as the only start"""
+def test_import_range_with_a_transaction_dated_today_still_allows_every_day_through_today():
+    """A transaction on 23 September floors at 24 September, after today, and the range still runs from the limit to 23 September"""
     imported = _range(date(2026, 9, 23), date(2026, 9, 23))
 
-    assert (imported.earliest_allowed, imported.latest_allowed) == (date(2026, 9, 24), date(2026, 9, 24))
-    assert [imported.allows(day) for day in (date(2026, 9, 23), date(2026, 9, 24), date(2026, 9, 25))] == [False, True, False]
+    assert (imported.ledger_floor, imported.earliest_allowed, imported.latest_allowed) == (
+        date(2026, 9, 24),
+        date(2025, 9, 1),
+        date(2026, 9, 23),
+    )
+    assert [imported.allows(day) for day in (date(2025, 8, 31), date(2025, 9, 1), date(2026, 9, 23), date(2026, 9, 24))] == [
+        False,
+        True,
+        True,
+        False,
+    ]
 
 
 def test_import_range_counts_months_across_a_month_end_and_a_year_end():
@@ -80,7 +88,7 @@ def test_import_range_on_the_first_of_the_month_counts_from_that_month():
 async def test_import_range_reads_the_ledger_on_the_users_own_day(db, frozen_now):
     """At 8 pm on 3 October in Los Angeles, a transaction dated 3 October is in the ledger and one dated 4 October is still future-dated
 
-    So the floor is 4 October, the only start allowed
+    So the floor is 4 October, and the range runs from 1 October 2025 to 3 October
     """
     db.add(Currency(id="CAD", name="Canadian Dollar", symbol="$", minor_unit_exponent=2))
     user = _build_user("range@example.com")
@@ -101,6 +109,6 @@ async def test_import_range_reads_the_ledger_on_the_users_own_day(db, frozen_now
 
     assert (imported.ledger_floor, imported.earliest_allowed, imported.latest_allowed) == (
         date(2026, 10, 4),
-        date(2026, 10, 4),
-        date(2026, 10, 4),
+        date(2025, 10, 1),
+        date(2026, 10, 3),
     )

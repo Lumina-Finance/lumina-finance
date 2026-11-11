@@ -10,7 +10,7 @@ from collections.abc import Sequence
 from datetime import UTC, date, datetime, timedelta
 from zoneinfo import ZoneInfo
 
-from sqlalchemy import func, select
+from sqlalchemy import and_, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.account import Account
@@ -28,6 +28,8 @@ from app.schemas.bank_sync import (
 from app.services.accounts.access import get_own_personal_account, own_personal_account_condition
 from app.services.bank_sync.availability import LINK_NOT_OWN_DETAIL, LIVE_LINK, adapter_for, provider_site_label, read_provider_labels
 from app.services.bank_sync.balance_comparison import compare_bank_balance, describe_balance_match
+from app.services.bank_sync.range_days import describe_range, read_range
+from app.services.bank_sync.review_state import AWAITING_REVIEW
 from app.services.bank_sync.status import read_link_statuses
 from app.services.bank_sync.windows import LinkNeed, plan_window
 from app.utils.dates import resolve_timezone
@@ -128,7 +130,8 @@ async def describe_links(db: AsyncSession, user: User, links: Sequence[BankAccou
     """
     statuses = await read_link_statuses(db, links, now=now)
     importing = [link for link in links if statuses[link.id].import_state is not None]
-    items_found = await _count_items_found(db, importing)
+    items_found = await _count_items_found(db, [link for link in importing if read_range(link) is None])
+    items_found |= await _count_range_items(db, [link for link in importing if read_range(link) is not None])
     timezone = resolve_timezone(user.tz) if importing else None
     names = await read_provider_labels(db, (link.provider for link in links))
 
@@ -161,6 +164,8 @@ async def describe_links(db: AsyncSession, user: User, links: Sequence[BankAccou
                 sync=status.sync,
                 history_reminder=_describe_history_reminder(link),
                 cut_off_day=None if link.cut_off_day_dismissed else link.cut_off_day,
+                range_import=describe_range(link),
+                range_outcome=link.range_outcome,
             )
         )
     return described
@@ -176,12 +181,17 @@ def _describe_history_reminder(link: BankAccountLink) -> BankHistoryReminderResp
 def _describe_import(
     link: BankAccountLink, state: BankImportState, items_found: int, *, now: datetime, timezone: ZoneInfo, max_days: int
 ) -> BankImportProgressResponse:
-    """Return how far a link's import from its import start has got, in windows of the provider's longest fetch"""
-    windows_total, windows_done = _count_windows(link, today=now.astimezone(timezone).date(), timezone=timezone, max_days=max_days)
+    """Return how far a link's import from its import start, or its date range import, has got, in windows of the provider's longest fetch"""
+    running = read_range(link)
+    if running is None:
+        first_day, last_day, stored_through = link.import_start, now.astimezone(timezone).date(), link.checkpoint
+    else:
+        first_day, last_day, stored_through = running.first_day, running.last_day, running.next_day - timedelta(days=1)
+    windows_total, windows_done = _count_windows(link, first_day, last_day, stored_through=stored_through, timezone=timezone, max_days=max_days)
     return BankImportProgressResponse(
         kind=link.import_kind,
         state=state,
-        requested_start=link.import_start,
+        requested_start=first_day,
         windows_total=windows_total,
         windows_done=windows_done,
         items_found=items_found,
@@ -206,18 +216,37 @@ async def _count_items_found(db: AsyncSession, links: Sequence[BankAccountLink])
     return {account_id: count for account_id, count in rows.all()}
 
 
-def _count_windows(link: BankAccountLink, *, today: date, timezone: ZoneInfo, max_days: int) -> tuple[int, int]:
-    """Return how many windows the link's import from its start through today splits into, and how many its checkpoint covers
+async def _count_range_items(db: AsyncSession, links: Sequence[BankAccountLink]) -> dict[uuid.UUID, int]:
+    """Return how many new items wait for review dated inside each link's date range, by account id, leaving out accounts with none
+
+    A range brings back items dismissed before as well as new ones, so it counts what waits rather
+    than what arrived since it began
+    """
+    if not links:
+        return {}
+    in_range = (
+        and_(BankTransaction.account_id == link.account_id, BankTransaction.observed_date.between(link.range_first_day, link.range_last_day))
+        for link in links
+    )
+    rows = await db.execute(
+        select(BankTransaction.account_id, func.count()).where(AWAITING_REVIEW, or_(*in_range)).group_by(BankTransaction.account_id)
+    )
+    return {account_id: count for account_id, count in rows.all()}
+
+
+def _count_windows(
+    link: BankAccountLink, first_day: date, last_day: date, *, stored_through: date, timezone: ZoneInfo, max_days: int
+) -> tuple[int, int]:
+    """Return how many windows an import from its first day through its last splits into, and how many end by the last day stored
 
     The windows are the ones the planner fetches for this link alone. Another link on the same
     connection can shift them, and a failed window is fetched again in halves, so this is a measure
     of progress rather than the requests sent. A start still to come counts as one window
     """
     total = done = 0
-    first_day = link.import_start
-    while first_day <= today:
-        window = plan_window([LinkNeed(link, first_day)], today=today, timezone=timezone, max_days=max_days)
+    while first_day <= last_day:
+        window = plan_window([LinkNeed(link, first_day)], today=last_day, timezone=timezone, max_days=max_days)
         total += 1
-        done += window.last_day <= link.checkpoint
+        done += window.last_day <= stored_through
         first_day = window.last_day + timedelta(days=1)
     return max(total, 1), done
