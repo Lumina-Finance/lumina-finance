@@ -286,8 +286,9 @@ export function ConnectionModal({
           <span className="block">None sent</span>
         ) : (
           <>
+            {/* Says used, since the connection's row beside it counts the requests left */}
             <span className="block tabular-nums">
-              {requestsUsed} of {requestLimit}
+              {requestsUsed} of {requestLimit} used
             </span>
             <span className="mt-1.5 block">
               <RequestBudgetMeter
