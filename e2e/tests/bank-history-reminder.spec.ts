@@ -30,7 +30,7 @@ const SAMPLE_CHEQUING = 'Everyday Chequing'
 const SYNCED_STATUS = /Synced (just now|\d+ minutes? ago)\./
 const LESS_HISTORY = 'Less history than requested'
 const NO_HISTORY = 'No history returned yet'
-const LIMIT_NOTE = 'This is likely a limit on how much history the bank keeps.'
+const LIMIT_NOTE = 'The bank probably keeps no more history.'
 const DISMISS_FAILED_MESSAGE = 'The reminder could not be dismissed. Please try again.'
 
 // Whatever the status reads once the import has ended
@@ -244,7 +244,7 @@ for (const colorScheme of ['light', 'dark'] as const) {
     else await expect(page.locator('html')).not.toHaveClass(/\bdark\b/)
 
     const note = reminderNote(dialog, NO_HISTORY)
-    for (const text of [note.getByText(NO_HISTORY, { exact: true }), note.getByText(/No posted transactions from/)]) {
+    for (const text of [note.getByText(NO_HISTORY, { exact: true }), note.getByText(/hasn't returned any posted transactions from/)]) {
       await expect(text).toBeVisible()
       expect((await faintestText(text)).contrast).toBeGreaterThanOrEqual(4.5)
     }

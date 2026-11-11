@@ -89,7 +89,7 @@ describe('recording the balance match', () => {
 
   it("reads the account's bank link and the link list again after a refusal, leaving the ledger alone", async () => {
     authenticatedFetchMock.mockRejectedValue(
-      new ApiError('The difference has changed. Check the new amount and try again', 409),
+      new ApiError('The difference has changed. Please check the new amount and try again', 409),
     )
 
     const sent = record().catch((error: unknown) => error)

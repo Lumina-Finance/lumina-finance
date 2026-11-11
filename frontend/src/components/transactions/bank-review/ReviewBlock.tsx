@@ -237,7 +237,7 @@ export function BankReviewBlock({
           )}
         </AnimatePresence>
         <p className="basis-full pb-3 pt-1 text-xs" style={{ color: 'var(--app-text-muted)' }}>
-          From your bank, and left out of every balance until you act on them.
+          Bank items stay out of every balance until you add them to your ledger.
         </p>
       </div>
 

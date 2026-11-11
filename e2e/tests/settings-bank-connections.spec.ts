@@ -41,7 +41,7 @@ const SAMPLE_CHEQUING = 'Everyday Chequing'
 const SAMPLE_VISA = 'Rewards Visa'
 const NOT_SET_UP = "Bank sync isn't set up on this server yet."
 const PROVIDER_GONE =
-  "This provider is no longer available on this server, so this connection doesn't sync. You can disconnect it to remove it, and its accounts keep everything already imported."
+  "This provider is no longer available on this server, so this connection doesn't sync. Disconnecting keeps everything already imported."
 
 // Where a connection is claimed, and the list read
 const CONNECTIONS_URL = `${API_BASE_URL}/bank-sync/connections`
@@ -254,7 +254,7 @@ test("shows a used setup token's refusal on the token field and adds no connecti
   await token.fill(scenario.setupToken)
   await dialog.getByRole('button', { name: 'Connect' }).click()
 
-  await expect(dialog.getByRole('alert')).toHaveText('This setup token has already been used. Create a new one in SimpleFIN Bridge')
+  await expect(dialog.getByRole('alert')).toHaveText('This setup token has already been used. Please create a new one in SimpleFIN Bridge')
   await expect(token).toHaveAttribute('aria-invalid', 'true')
   await dialog.getByRole('button', { name: 'Cancel' }).click()
   await expect(section.getByText('No connections yet.')).toBeVisible()
@@ -289,7 +289,7 @@ test('draws each field a provider lists, checks each against its own limit and s
   await expect(userToken).toHaveAccessibleDescription('Fill this in')
   await expect(appToken).toHaveAttribute('aria-invalid', 'true')
   await expect(appToken).toHaveAccessibleDescription(
-    'That app ID token is too long. Copy only the app ID token from SimpleFIN Bridge and try again',
+    'That app ID token is too long. Please copy only the app ID token from SimpleFIN Bridge and try again',
   )
   await expect(dialog.getByRole('button', { name: 'Connect' })).toHaveAttribute('aria-disabled', 'true')
   await userToken.fill('user-1')
@@ -324,7 +324,7 @@ test("shows that SimpleFIN Bridge couldn't be reached beside the form's actions"
   await token.fill(scenario.setupToken)
   await dialog.getByRole('button', { name: 'Connect' }).click()
 
-  await expect(dialog.getByRole('alert')).toHaveText("SimpleFIN Bridge couldn't be reached. Try again in a few minutes")
+  await expect(dialog.getByRole('alert')).toHaveText("SimpleFIN Bridge couldn't be reached. Please try again in a few minutes")
   await expect(token).not.toHaveAttribute('aria-invalid')
 })
 
@@ -770,7 +770,7 @@ test('words when a spent request budget frees up anew as minutes pass with the c
   const section = await openBankConnections(page, user)
   const dialog = await openConnection(page, section, 'Joint banks')
   const trigger = dialog.getByRole('button', { name: 'About requests, 24 hours' })
-  const note = dialog.locator('.app-tooltip-panel').filter({ hasText: /^Lumina Finance makes up to/ })
+  const note = dialog.locator('.app-tooltip-panel').filter({ hasText: /requests a day per connection/ })
 
   // The dialogue grows into place as it opens, and a press aimed at the icon before it has settled
   // lands beside it

@@ -40,11 +40,11 @@ export function describeSyncNowBlock(
   if (link.sync.state === 'syncing' || link.sync.sync_running) return 'A sync is already running'
   switch (link.sync.state) {
     case 'reconnect_needed':
-      return `Reconnect ${link.provider_name} in Settings before syncing`
+      return `Please reconnect ${link.provider_name} in Settings first`
     case 'choose_account':
-      return 'Choose the bank account again before syncing'
+      return 'Please choose the bank account again first'
     case 'paused':
-      return `Syncing is paused until ${REVIEW_RESUME_COUNT} or fewer new items are waiting for review`
+      return `Paused until ${REVIEW_RESUME_COUNT} or fewer items wait for review`
     default:
       break
   }

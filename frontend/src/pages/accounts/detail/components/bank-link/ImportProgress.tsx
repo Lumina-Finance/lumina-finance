@@ -50,7 +50,7 @@ export function ImportProgress({
         />
       </div>
       <p className="text-xs" style={{ color: 'var(--app-text-muted)' }}>
-        Everything found waits for your review. The import always finishes, however many items it finds.
+        Everything found waits for your review.
       </p>
     </div>
   )

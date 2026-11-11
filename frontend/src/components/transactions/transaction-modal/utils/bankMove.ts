@@ -35,5 +35,5 @@ export function getBankMoveRefusal({
   const sourceLink = linksByAccount.get(transaction.account_id)
   if (!sourceLink) return null
 
-  return `Transactions from ${sourceLink.provider_name} can't move out of ${sourceAccount.name} while it's linked`
+  return `Transactions from ${sourceLink.provider_name} stay in ${sourceAccount.name} while the account is linked`
 }

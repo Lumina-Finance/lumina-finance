@@ -76,7 +76,7 @@ test('reminds that some of today\'s transactions may be missing once today alone
 
   const note = reminderNote(dialog, CUT_OFF)
   await expect(note).toContainText(
-    `SimpleFIN returned as many transactions for ${formatDateLabel(todayInTestTimezone())} as it sends at once, so some from that day may be missing.`,
+    `SimpleFIN sent its maximum number of transactions for ${formatDateLabel(todayInTestTimezone())}, so some may be missing. Please check that day's transactions.`,
   )
   await expect(note.getByRole('button', { name: 'Dismiss' })).toBeVisible()
   expect((await readReminders(request, setup.user, setup.accountId)).cut_off_day).toBe(todayInTestTimezone())

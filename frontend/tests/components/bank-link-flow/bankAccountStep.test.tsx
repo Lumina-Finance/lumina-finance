@@ -95,7 +95,9 @@ describe('the bank account step', () => {
     expect(card).toContain('$1,250.00')
     expect(card).toContain('Harbour Bank')
     expect(markup).not.toContain('aria-checked="true"')
-    expect(markup).toContain('Missing a bank account? Add it in SimpleFIN Bridge, or add another connection in')
+    expect(markup).toContain(
+      'Missing a bank account? Please add the bank account in SimpleFIN Bridge, or add another connection in',
+    )
   })
 
   it('marks the list only once a press found no bank account chosen, pointing the first one that can be chosen to the message', () => {
@@ -160,7 +162,9 @@ describe('the bank account step', () => {
   it('warns when the institution differs from the one on the account', () => {
     const markup = renderStep({ accounts: [createBankAccount({ institution_differs: true })] })
 
-    expect(cardFor(markup, 'Everyday Chequing')).toContain('The institution differs from the one on Everyday.')
+    expect(cardFor(markup, 'Everyday Chequing')).toContain(
+      'Not the institution on Everyday. Cards issued through another bank often show this.',
+    )
   })
 
   it('offers a choice of connection only when there is more than one', () => {

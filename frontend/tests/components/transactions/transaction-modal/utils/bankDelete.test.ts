@@ -10,7 +10,7 @@ import { BANK_SOURCE, createAccount, createTransaction } from './fixtures'
 const EVERYDAY = createAccount({ id: 'everyday', name: 'Everyday' })
 const SAVINGS = createAccount({ id: 'savings', name: 'Savings' })
 const LINKS = new Map([[EVERYDAY.id, { provider_name: 'SimpleFIN' }]])
-const DELETE_REFUSAL = 'Imported from SimpleFIN. While Everyday is linked, edit it rather than deleting it'
+const DELETE_REFUSAL = 'Imported from SimpleFIN. Please edit this transaction instead while Everyday is linked'
 
 describe('deleting a bank-imported transaction from its linked account', () => {
   it('refuses the delete, naming the provider it came from and the account', () => {

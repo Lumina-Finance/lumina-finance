@@ -10,7 +10,7 @@ import { BANK_SOURCE, createAccount, createTransaction } from './fixtures'
 const EVERYDAY = createAccount({ id: 'everyday', name: 'Everyday' })
 const SAVINGS = createAccount({ id: 'savings', name: 'Savings' })
 const LINKS = new Map([[EVERYDAY.id, { provider_name: 'SimpleFIN' }]])
-const MOVE_REFUSAL = "Transactions from SimpleFIN can't move out of Everyday while it's linked"
+const MOVE_REFUSAL = 'Transactions from SimpleFIN stay in Everyday while the account is linked'
 
 describe('moving a bank-imported transaction out of its linked account', () => {
   it('refuses the move, naming the account it would leave', () => {

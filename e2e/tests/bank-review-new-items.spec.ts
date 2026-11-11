@@ -341,7 +341,7 @@ test('dismisses only on a second press, by mouse or keyboard, and takes the firs
   const dialog = await openReview(page, COUNTDOWN.description)
   const form = formOf(dialog)
   const decisions = watchDecisions(page)
-  const announcement = dialog.getByRole('status').filter({ hasText: 'Press again to dismiss this item for good.' })
+  const announcement = dialog.getByRole('status').filter({ hasText: 'Please press again to dismiss this item for good.' })
 
   // One press only asks, saying so to a screen reader, and a press elsewhere takes it back
   await expect(form.dismiss).toHaveClass(/app-danger-button/)
@@ -465,7 +465,7 @@ test('keeps the item open and says what went wrong when a decision fails', NEEDS
   await chooseFromDropdown(dialog, 'Merchant', 'Unknown')
   await chooseFromDropdown(dialog, 'Category', 'Groceries')
   await form.add.click()
-  await expect(dialog.getByText("This item was dismissed, so it can't be added to the ledger", { exact: true })).toBeVisible()
+  await expect(dialog.getByText("This item was dismissed, so the item can't be added to your ledger", { exact: true })).toBeVisible()
   await expect(dialog).toBeVisible()
   expect(await countLedgerTransactions(request, user)).toBe(0)
 })

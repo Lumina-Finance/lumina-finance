@@ -50,7 +50,7 @@ const refusals = [
         itemId: 'item-1',
         payload: { category_id: 'groceries', merchant_id: 'merchant-1', dt: '2026-10-04', amount: -1250 },
       }),
-    new ApiError("This item was dismissed, so it can't be added to the ledger", 409),
+    new ApiError("This item was dismissed, so the item can't be added to your ledger", 409),
   ],
   [
     'a dismissal of an item added to the ledger elsewhere',
@@ -60,7 +60,7 @@ const refusals = [
         resolution: 'dismiss',
         accountId: 'account-1',
       }),
-    new ApiError("This item is already in the ledger, so it can't be dismissed", 409),
+    new ApiError("This item is already in your ledger, so the item can't be dismissed", 409),
   ],
   [
     'a bulk add with a category refused for the items',

@@ -198,7 +198,7 @@ test('adds the ticked items to the ledger at their bank amounts once a merchant 
   await expect(merchant).toHaveAttribute('aria-invalid', 'true')
   await expect(category).toHaveAttribute('aria-invalid', 'true')
   await expect(merchant).toBeFocused()
-  await expect(add).toHaveAccessibleDescription('Choose a merchant and a category to add items to your ledger')
+  await expect(add).toHaveAccessibleDescription('Please choose a merchant and a category to add items to your ledger')
   expect(writes).toEqual([])
 
   await chooseFromDropdown(edit, 'Merchant', 'Unknown')
@@ -278,7 +278,7 @@ test('keeps Edit off while a ticked item is missing its amount', NEEDS_BANK_SYNC
 test('dismisses the ticked items together and leaves the ledger as it was', NEEDS_BANK_SYNC, async ({ page, request }) => {
   const { user, everyday } = await start(page, request, [COUNTDOWN, HARBOUR, CAFE])
   const dismiss = page.getByRole('button', { name: 'Dismiss the selected items', exact: true })
-  await expect(dismiss).toHaveAccessibleDescription('Tick a transaction or review item first')
+  await expect(dismiss).toHaveAccessibleDescription('Please tick a transaction or review item first')
 
   await tickItem(page, COUNTDOWN.description)
   await tickItem(page, CAFE.description)

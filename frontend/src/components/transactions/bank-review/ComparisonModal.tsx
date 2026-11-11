@@ -146,7 +146,7 @@ export function BankComparisonModal({ open, item, currency, onClose }: BankCompa
       <div className="space-y-5 pb-2">
         <p className="text-sm" style={{ color: 'var(--app-text-muted)' }}>
           {isRemoval
-            ? `${item.provider_name} no longer reports this transaction. It stays in your ledger unless you remove it.`
+            ? `${item.provider_name} no longer reports this transaction. Nothing changes unless you remove the transaction.`
             : `${item.provider_name} sent new values for a transaction you already approved. Nothing changes unless you accept.`}
         </p>
 
@@ -235,7 +235,7 @@ export function BankComparisonModal({ open, item, currency, onClose }: BankCompa
                   {isKept && (
                     <tr>
                       <td colSpan={3} className="px-4 pb-2.5 text-xs" style={{ color: 'var(--app-text-muted)' }}>
-                        Your own value. Accepting leaves it as it is.
+                        Your own value, kept if you accept.
                       </td>
                     </tr>
                   )}

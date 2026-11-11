@@ -32,7 +32,7 @@ export function connectionName(connection: Pick<BankConnection, 'nickname' | 'pr
  * says so, and Sync now and Reconnect are held back
  */
 export const PROVIDER_UNAVAILABLE_DETAIL =
-  "This provider is no longer available on this server, so this connection doesn't sync. You can disconnect it to remove it, and its accounts keep everything already imported."
+  "This provider is no longer available on this server, so this connection doesn't sync. Disconnecting keeps everything already imported."
 
 /**
  * Names a provider's credential mid-sentence, as in "a new setup token", keeping a leading acronym such as "API key" as it is
@@ -54,5 +54,5 @@ export function countNoun(count: number, singular: string, plural = `${singular}
  */
 export function describeDisconnected(connection: BankConnection, unlinkedCount: number): string {
   const unlinked = unlinkedCount === 0 ? '' : ` ${countNoun(unlinkedCount, 'account')} unlinked.`
-  return `${connectionName(connection)} disconnected.${unlinked} To stop ${providerSiteName(connection)} sharing data at all, revoke Lumina Finance's access there too.`
+  return `${connectionName(connection)} disconnected.${unlinked} Please also revoke Lumina Finance's access in ${providerSiteName(connection)} to stop sharing data.`
 }

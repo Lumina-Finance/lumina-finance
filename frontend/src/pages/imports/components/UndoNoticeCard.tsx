@@ -38,7 +38,7 @@ export function ImportUndoNoticeCard() {
           </h2>
           <p className="mt-1 text-sm leading-5 text-pretty" style={{ color: 'var(--app-text)' }}>
             {hasLinkedAccount
-              ? 'You can undo this import within 24 hours of saving it, until you make another change in the app or a bank sync corrects or removes a transaction.'
+              ? 'You can undo this import within 24 hours, unless you change anything else or a bank sync corrects or removes a transaction first.'
               : "As long as you don't make any other changes in the app, you can undo this import within 24 hours of saving it."}
           </p>
         </div>

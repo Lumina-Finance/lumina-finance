@@ -79,7 +79,7 @@ describe('RangeImportModal', () => {
     )
 
     expect(markup).toMatch(/<button[^>]*aria-disabled="true"[^>]*>Import<\/button>/)
-    expect(markup).toContain('Syncing is paused until 50 or fewer new items are waiting for review')
+    expect(markup).toContain('Paused until 50 or fewer items wait for review')
   })
 })
 
@@ -90,7 +90,7 @@ describe('RestoreDismissedOption', () => {
     expect(markup).toMatch(/role="checkbox" aria-checked="true"/)
     expect(markup).toMatch(new RegExp(`<div role="status">.*${RESTORE_DISMISSED_WARNING.replaceAll('.', '\\.')}`, 's'))
     expect(RESTORE_DISMISSED_WARNING).toBe(
-      "This may change the account's balance in ways that are hard to predict if it was brought up to date with a balance adjustment. Reconcile carefully afterwards.",
+      "Items you bring back may already be counted in a balance adjustment. Please check the account's balance after approving them.",
     )
   })
 

@@ -234,7 +234,7 @@ test('says why a decision failed in the comparison, leaving the item waiting', A
   // reports, then with no answer at all
   let failure: 'refused' | 'no answer' = 'refused'
   await page.route((url) => url.href.startsWith(`${API_BASE_URL}/bank-review/items/`), (route) => failure === 'refused'
-    ? route.fulfill({ status: 409, json: { detail: 'This transaction has a bank removal waiting, so decide that first' } })
+    ? route.fulfill({ status: 409, json: { detail: 'This transaction has a bank removal waiting. Please decide the removal first' } })
     : route.abort())
   await openPage(page, '/transactions')
   const dialog = await openComparison(page, COUNTDOWN, 'Review bank change')
@@ -242,7 +242,7 @@ test('says why a decision failed in the comparison, leaving the item waiting', A
   // A refusal says the server's reason
   await dialog.getByRole('button', { name: 'Accept bank change' }).click()
   const reason = dialog.getByRole('alert')
-  await expect(reason).toHaveText('This transaction has a bank removal waiting, so decide that first')
+  await expect(reason).toHaveText('This transaction has a bank removal waiting. Please decide the removal first')
   await expect(reason).toBeInViewport()
   await expect(dialog.getByRole('button', { name: 'Accept bank change' })).toBeEnabled()
 

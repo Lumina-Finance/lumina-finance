@@ -425,7 +425,7 @@ export function ConnectionModal({
               <p className="mt-1.5 max-w-sm text-sm" style={{ color: 'var(--app-text-muted)' }}>
                 {isUnavailable
                   ? PROVIDER_UNAVAILABLE_DETAIL
-                  : 'Every account on it has stopped syncing. Reconnect it to pick up where it left off.'}
+                  : 'Every linked account has stopped syncing. Please reconnect to pick up where syncing stopped.'}
               </p>
               <DisabledReasonButton
                 type="button"

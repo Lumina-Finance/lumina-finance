@@ -65,7 +65,7 @@ describe('bank link start choices', () => {
         key: AFTER_LATEST_START,
         label: 'After the latest transaction',
         date: '2026-05-15',
-        note: 'Picks up the day after the latest transaction in Everyday',
+        note: "From the day after Everyday's latest transaction",
       },
       { key: '6', label: '6 months', date: '2026-04-01' },
       { key: '12', label: '12 months', date: '2025-10-01' },
@@ -89,11 +89,11 @@ describe('bank link start choices', () => {
 
 describe('days the range refuses as an import start', () => {
   it('says where an import can start for a day before the range', () => {
-    expect(describeStartRefusal(EMPTY_ACCOUNT, '2025-09-30')).toBe('An import can start from Oct 1, 2025')
+    expect(describeStartRefusal(EMPTY_ACCOUNT, '2025-09-30')).toBe('The earliest start is Oct 1, 2025')
   })
 
   it('says the latest start for a day after the range', () => {
-    expect(describeStartRefusal(EMPTY_ACCOUNT, '2026-10-06')).toBe("An import can't start after Oct 5, 2026")
+    expect(describeStartRefusal(EMPTY_ACCOUNT, '2026-10-06')).toBe('The latest start is Oct 5, 2026')
   })
 
   it('gives no reason for either end of the range or a day between', () => {
@@ -105,8 +105,8 @@ describe('days the range refuses as an import start', () => {
 
 describe('days the range refuses as a date range end', () => {
   it('says where an import can start for a day before the range, and the latest end for a day after it', () => {
-    expect(describeEndRefusal(EMPTY_ACCOUNT, '2025-09-30')).toBe('An import can start from Oct 1, 2025')
-    expect(describeEndRefusal(EMPTY_ACCOUNT, '2026-10-06')).toBe("An import can't end after Oct 5, 2026")
+    expect(describeEndRefusal(EMPTY_ACCOUNT, '2025-09-30')).toBe('The earliest start is Oct 1, 2025')
+    expect(describeEndRefusal(EMPTY_ACCOUNT, '2026-10-06')).toBe('The latest end is Oct 5, 2026')
   })
 
   it('gives no reason for either end of the range', () => {

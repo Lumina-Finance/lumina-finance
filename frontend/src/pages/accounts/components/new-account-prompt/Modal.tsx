@@ -231,8 +231,7 @@ export default function NewAccountPromptModal({ open, account, onClose, onExitCo
                   Link a bank account
                 </span>
                 <span className="block text-xs" style={{ color: 'var(--app-text-muted)' }}>
-                  {linkReason ??
-                    "Choose one of the bank accounts on your connections. Transactions arrive from the bank and wait for your review, and the app offers to match the bank's balance whenever the two differ."}
+                  {linkReason ?? 'Transactions arrive from your bank and wait for your review.'}
                 </span>
               </ChoiceCard>
               {/* Outside the card, since a link can't sit inside its button. The card prints the reason,

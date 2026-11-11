@@ -12,7 +12,7 @@ import type { BulkEditFields } from '@/components/transactions/bulk-edit/selecti
 import { countNoun } from '@/utils/bankSync'
 
 /** What an empty selection says on a list that offers items waiting for review too */
-export const NOTHING_TICKED_WITH_REVIEW = 'Tick a transaction or review item first'
+export const NOTHING_TICKED_WITH_REVIEW = 'Please tick a transaction or review item first'
 
 /**
  * Why a row can't be ticked once the selection holds as many as one bulk edit takes. A list that
@@ -38,7 +38,8 @@ export const REVIEW_ITEMS_NEED_THEIR_OWN_AMOUNT = 'Items missing an amount are a
 export const REVIEW_ITEMS_NOT_EXPORTED = "Items waiting for review aren't in your ledger yet"
 
 /** Why the bulk edit can't be applied while items waiting for review are ticked and a merchant or category isn't chosen */
-export const REVIEW_ITEMS_NEED_MERCHANT_AND_CATEGORY = 'Choose a merchant and a category to add items to your ledger'
+export const REVIEW_ITEMS_NEED_MERCHANT_AND_CATEGORY =
+  'Please choose a merchant and a category to add items to your ledger'
 
 /** What Merchant says on its label row once the edit is refused for want of one, as the transaction dialogue's does */
 export const MERCHANT_NEEDED = 'Select a merchant'

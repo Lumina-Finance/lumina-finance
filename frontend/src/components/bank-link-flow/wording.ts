@@ -85,8 +85,7 @@ export function describeConnectFirst(
 ): { message: string; canOpenSettings: boolean } {
   if (connections.some((connection) => connection.status === 'credential_rejected')) {
     return {
-      message:
-        'Your bank connection needs reconnecting before it can link accounts. Reconnect it in Settings, then come back here.',
+      message: 'Your bank connection was rejected. Please reconnect in Settings, then come back to link this account.',
       canOpenSettings: true,
     }
   }
@@ -94,7 +93,7 @@ export function describeConnectFirst(
     return { message: NOTHING_TO_LINK_REASON, canOpenSettings: false }
   return {
     message:
-      'Add a bank connection in Settings first. One connection reaches every bank account you hold with that provider, and each account then chooses one of them here.',
+      'Please add a bank connection in Settings first. One connection covers every bank account you hold with that provider.',
     canOpenSettings: true,
   }
 }

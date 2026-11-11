@@ -11,7 +11,7 @@ import {
 // Static rendering escapes the apostrophe in the reason, so markup is matched against the escaped text
 const RENDERED_REASON = ARCHIVE_BLOCKED_BY_LATER_TRANSACTIONS_REASON.replaceAll("'", '&#x27;')
 
-const LINKED_REASON = 'Unlink it first.'
+const LINKED_REASON = 'This account is linked to SimpleFIN. Please unlink the account before archiving.'
 
 function renderArchiveSection(
   isArchiveBlocked: boolean,
@@ -105,7 +105,7 @@ describe('archive held back by a link', () => {
   it('shows the reason under the switch row and leaves the switch focusable', () => {
     const markup = renderArchiveSection(false, LINKED_REASON)
     expect(markup).toMatch(
-      /<\/label><div[^>]*><div[^>]*><p id="edit-account-archive-blocked-reason"[^>]*>Unlink it first\.<\/p>/,
+      /<\/label><div[^>]*><div[^>]*><p id="edit-account-archive-blocked-reason"[^>]*>This account is linked to SimpleFIN\. Please unlink the account before archiving\.<\/p>/,
     )
     expect(markup).toMatch(/<input[^>]*role="switch"[^>]*aria-disabled="true"/)
     expect(markup).not.toMatch(/<input[^>]*role="switch"[^>]*disabled=""/)

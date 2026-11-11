@@ -35,10 +35,10 @@ const SAMPLE_COFFEE = 'EFTPOS BEAN THERE CAFE'
 const IMPORT_START_DAYS_AGO = 10
 
 const MESSAGE_FROM_TODAY = `SimpleFIN supplies this account's transactions from ${formatToday()} to today`
-const MOVE_REFUSAL = "Transactions from SimpleFIN can't move out of Everyday while it's linked"
-const ARCHIVE_LINKED_REASON = "This account can't be archived while it's linked to SimpleFIN. Unlink it first."
-const DELETE_LINKED_REASON = 'Imported from SimpleFIN. While Everyday is linked, edit it rather than deleting it'
-const BULK_DELETE_LINKED_REASON = "Transactions from SimpleFIN can't be deleted from Everyday while it's linked"
+const MOVE_REFUSAL = 'Transactions from SimpleFIN stay in Everyday while the account is linked'
+const ARCHIVE_LINKED_REASON = 'This account is linked to SimpleFIN. Please unlink the account before archiving.'
+const DELETE_LINKED_REASON = 'Imported from SimpleFIN. Please edit this transaction instead while Everyday is linked'
+const BULK_DELETE_LINKED_REASON = "Transactions from SimpleFIN can't be deleted while Everyday is linked"
 
 // Where the pointer first rests on Delete, measured in from the button's top-left corner, and how far
 // it then moves down to see the reason follow, staying inside the button's 40px height. A move

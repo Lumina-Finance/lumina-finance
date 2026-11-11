@@ -245,7 +245,7 @@ test('shows each kind of item for the accounts the list shows, and only its own 
   const block = reviewBlock(page)
   const rows = block.getByRole('listitem')
   await expect(block.getByText('3', { exact: true })).toBeVisible()
-  await expect(block).toContainText('From your bank, and left out of every balance until you act on them.')
+  await expect(block).toContainText('Bank items stay out of every balance until you add them to your ledger.')
   await expect(rows.nth(0)).toContainText('COUNTDOWN 123Correction')
   await expect(rows.nth(0)).toContainText('Sep 21 · Visa · The bank changed the amount')
   await expect(rows.nth(0)).toContainText(`${MINUS}$23.10`)
@@ -750,7 +750,7 @@ for (const colorScheme of ['light', 'dark'] as const) {
     const texts = [
       block.getByRole('heading', { name: 'Waiting for review' }),
       block.getByText('6', { exact: true }),
-      block.getByText('From your bank, and left out of every balance until you act on them.'),
+      block.getByText('Bank items stay out of every balance until you add them to your ledger.'),
       block.getByText('Paused · 105 new to review in Everyday. Sync resumes at 50 or fewer.'),
       rows.nth(0).getByText('COUNTDOWN 123 WITH A LONGER BANK DESCRIPTION THAN MOST'),
       rows.nth(0).getByText('Correction', { exact: true }),

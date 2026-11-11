@@ -47,7 +47,7 @@ export default function TransactionReviewFooter({
         <ReviewDecisionButton
           label="Dismiss"
           tone="danger"
-          confirm={{ label: 'Yes, dismiss', announcement: 'Press again to dismiss this item for good.' }}
+          confirm={{ label: 'Yes, dismiss', announcement: 'Please press again to dismiss this item for good.' }}
           loading={dismissLoading}
           disabled={isPending}
           onClick={onDismiss}

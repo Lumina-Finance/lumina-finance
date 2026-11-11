@@ -4,8 +4,8 @@ import { formatDateLabel } from '@/utils/date'
 /** What a dismissal the server didn't answer says, while one it refused gives the server's reason */
 export const DISMISS_FAILED_MESSAGE = 'The reminder could not be dismissed. Please try again.'
 
-// Unverified, since a quiet account can simply have had no activity early on, so it says likely
-const HISTORY_LIMIT_NOTE = 'This is likely a limit on how much history the bank keeps.'
+// Unverified, since a quiet account can simply have had no activity early on, so it says probably
+const HISTORY_LIMIT_NOTE = 'The bank probably keeps no more history.'
 
 export type ReminderCopy = { title: string; body: string }
 
@@ -28,7 +28,7 @@ export function describeHistoryReminder(reminder: BankHistoryReminder, providerN
     // bank's history limit does
     return {
       title: 'No history returned yet',
-      body: `No posted transactions from ${requested} have come back from ${providerName} yet. If you used this account since then, some may be missing.`,
+      body: `${providerName} hasn't returned any posted transactions from ${requested} yet. If you used this account since then, please check for missing transactions.`,
     }
   }
   return {
@@ -44,6 +44,6 @@ export function describeHistoryReminder(reminder: BankHistoryReminder, providerN
 export function describeCutOffDay(day: string, providerName: string): ReminderCopy {
   return {
     title: 'Some transactions may be missing',
-    body: `${providerName} returned as many transactions for ${unbrokenDate(day)} as it sends at once, so some from that day may be missing.`,
+    body: `${providerName} sent its maximum number of transactions for ${unbrokenDate(day)}, so some may be missing. Please check that day's transactions.`,
   }
 }

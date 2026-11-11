@@ -92,8 +92,8 @@ export function BankAccountStep({
       {previous && (
         <InfoCallout>
           {mode === 'choose_again'
-            ? `${previous.providerName} now lists ${previous.name} at ${previous.institution} differently. Check the name and balance, then choose the bank account ${account.name} should follow.`
-            : `Previously linked to ${previous.name} at ${previous.institution}. After a reconnect, ${previous.providerName} can list the same bank account differently, so check the name and balance before continuing.`}
+            ? `${previous.providerName} now lists ${previous.name} at ${previous.institution} differently. Please choose the matching bank account below, checking its name and balance.`
+            : `Previously linked to ${previous.name} at ${previous.institution}. ${previous.providerName} may now list the same bank account differently, so please check the name and balance.`}
         </InfoCallout>
       )}
       {connections.length > 1 && (
@@ -164,8 +164,7 @@ export function BankAccountStep({
                 </span>
                 {entry.linkable && entry.institution_differs && (
                   <span className="mt-1 block text-xs" style={{ color: 'var(--app-warning-text)' }}>
-                    The institution differs from the one on {account.name}. That can be normal for a card issued through
-                    another bank.
+                    Not the institution on {account.name}. Cards issued through another bank often show this.
                   </span>
                 )}
               </ChoiceCard>
@@ -175,7 +174,8 @@ export function BankAccountStep({
       )}
       <FieldError message={error} id={LINK_FLOW_FIELD_IDS.bankAccountError} />
       <p className="text-xs" style={{ color: 'var(--app-text-muted)' }}>
-        Missing a bank account? Add it in {providerSiteName(connection)}, or add another connection in{' '}
+        Missing a bank account? Please add the bank account in {providerSiteName(connection)}, or add another connection
+        in{' '}
         <button
           type="button"
           className="app-inline-link font-medium underline underline-offset-2 transition-control"

@@ -134,8 +134,8 @@ export function StartStep({
       </div>
       {uncoveredUntil && range.ledger_floor && (
         <InfoCallout>
-          Nothing covers {formatDateLabel(range.ledger_floor)} to {formatDateLabel(uncoveredUntil)}. Add those days by
-          hand if you need them.
+          {formatDateLabel(range.ledger_floor)} to {formatDateLabel(uncoveredUntil)} won't be imported. Please add any
+          transactions from those days by hand.
         </InfoCallout>
       )}
     </div>

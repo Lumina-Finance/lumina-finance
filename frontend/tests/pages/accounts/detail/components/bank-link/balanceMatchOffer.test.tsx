@@ -92,12 +92,12 @@ describe('the balance match offer', () => {
     {
       waiting: -1350,
       sentences:
-        'Adds a balance adjustment on May 31, 2026. Review the waiting items first if you entered any by hand.',
+        'Adds a balance adjustment on May 31, 2026. If you entered any waiting items by hand, please review those items first.',
     },
     {
       waiting: 2000,
       sentences:
-        'Adds a balance adjustment on May 31, 2026. Review the waiting items first if you entered any by hand.',
+        'Adds a balance adjustment on May 31, 2026. If you entered any waiting items by hand, please review those items first.',
     },
   ])(
     'asks for the waiting items to be reviewed first only while $waiting waits for review',

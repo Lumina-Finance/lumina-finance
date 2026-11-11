@@ -56,7 +56,7 @@ function CaptionPart({ children }: { children: ReactNode }) {
 
 const GAP_HINT = {
   label: 'Why the balances differ',
-  text: "The gap could come from items still waiting for review, or from transactions the bank hasn't posted yet.",
+  text: "Could come from items waiting for review or transactions the bank hasn't posted yet",
 }
 
 type BalancePanelProps = {
@@ -98,7 +98,7 @@ export function BalancePanel({ balance, currency, providerName, footer }: Balanc
             color="var(--app-text-muted)"
             hint={{
               label: 'Why the balance is unavailable',
-              text: `${providerName}'s balance for this account can't be read exactly in ${currency}, so it isn't compared with your ledger.`,
+              text: `${providerName}'s balance can't be read exactly in ${currency}, so no comparison is shown`,
             }}
           />
         ) : (
@@ -126,7 +126,7 @@ export function BalancePanel({ balance, currency, providerName, footer }: Balanc
           <CaptionPart>
             <LabelWithHint
               label="Available balance unavailable"
-              hint={`${providerName}'s available balance for this account can't be read exactly in ${currency}, so it isn't shown. Your ledger isn't affected.`}
+              hint={`${providerName}'s available balance can't be read exactly in ${currency}. Your ledger isn't affected.`}
               hintLabel="Why the available balance is unavailable"
               hintPlacement="top"
             />

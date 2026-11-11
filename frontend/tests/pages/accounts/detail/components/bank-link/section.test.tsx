@@ -102,8 +102,8 @@ const read = {
 const RECONNECT_NOTICE =
   'SimpleFIN Bridge rejected the connection this account uses. Automatic sync is stopped for every account on it until you reconnect it in Settings.'
 const CHOOSE_NOTICE =
-  "SimpleFIN now lists Everyday Chequing differently, so Lumina Finance can't tell whether it's the same account. Choose its bank account again to resume syncing."
-const SIGN_IN_NOTICE = 'Sign in to your bank again in SimpleFIN Bridge.'
+  'SimpleFIN now lists Everyday Chequing differently. Please choose the bank account again to resume syncing.'
+const SIGN_IN_NOTICE = 'Please sign in to your bank again in SimpleFIN Bridge.'
 const STOPPED_REASON = 'SimpleFIN refused the dates asked for. Use Sync now to try again'
 const STOPPED_NOTICE = `${STOPPED_REASON}.`
 const STOPPED_SYNC = createSync({
@@ -112,7 +112,7 @@ const STOPPED_SYNC = createSync({
   last_failure: { at: '2026-10-05T15:50:00Z', reason: STOPPED_REASON },
 })
 const PAUSED_NOTICE =
-  'Sync is paused with 105 new items waiting for review. It resumes on its own once 50 or fewer are left.'
+  'Sync is paused with 105 items waiting for review. Please review items until 50 or fewer are left to resume syncing.'
 const WARNING_NOTICE = '85 new to review. Sync pauses at 100.'
 const NOTICES = [RECONNECT_NOTICE, CHOOSE_NOTICE, SIGN_IN_NOTICE, STOPPED_NOTICE, PAUSED_NOTICE, WARNING_NOTICE]
 
@@ -221,7 +221,7 @@ describe('BankLinkSection', () => {
     const markup = renderSection()
     expect(markup).toContain('Bank link')
     expect(markup).toContain(
-      'Link this account to one of the bank accounts on your connections to bring in its transactions automatically.',
+      'Link a bank account to bring in transactions automatically. Each one waits for your review before reaching a balance.',
     )
     expect(getButton(markup, 'Link bank account')).not.toContain('aria-disabled')
   })
@@ -230,7 +230,7 @@ describe('BankLinkSection', () => {
     read.status = createStatus({ previous_link: createPreviousLink() })
     const markup = renderSection()
     expect(markup).toContain(
-      'Previously linked to Everyday Chequing at Harbour Bank through SimpleFIN, until Sep 20, 2026. Reconnecting fetches what the bank reported since then.',
+      'Previously linked to Everyday Chequing at Harbour Bank through SimpleFIN, until Sep 20, 2026. Reconnecting brings in what the bank reported since.',
     )
     expect(getButton(markup, 'Reconnect bank account')).not.toBe('')
     expect(markup).not.toContain('Link bank account')
@@ -321,13 +321,13 @@ describe('BankLinkSection', () => {
       'less history than it asked for',
       { requested_start: '2026-06-01', earliest_returned: '2026-06-09' },
       'Less history than requested',
-      `SimpleFIN returned transactions from ${unbroken('Jun 9, 2026')}, not ${unbroken('Jun 1, 2026')}. This is likely a limit on how much history the bank keeps.`,
+      `SimpleFIN returned transactions from ${unbroken('Jun 9, 2026')}, not ${unbroken('Jun 1, 2026')}. The bank probably keeps no more history.`,
     ],
     [
       'no history at all',
       { requested_start: '2026-06-01', earliest_returned: null },
       'No history returned yet',
-      `No posted transactions from ${unbroken('Jun 1, 2026')} have come back from SimpleFIN yet. If you used this account since then, some may be missing.`,
+      `SimpleFIN hasn't returned any posted transactions from ${unbroken('Jun 1, 2026')} yet. If you used this account since then, please check for missing transactions.`,
     ],
   ])(
     "reminds of an import or catch-up that returned %s, never blaming the bank's history limit when nothing came back, with a ✕ to dismiss it",
@@ -346,7 +346,7 @@ describe('BankLinkSection', () => {
     const markup = renderSection()
     expect(markup).toContain('>Some transactions may be missing</p>')
     expect(markup).toContain(
-      `>SimpleFIN returned as many transactions for ${unbroken('Oct 3, 2026')} as it sends at once, so some from that day may be missing.</p>`,
+      `>SimpleFIN sent its maximum number of transactions for ${unbroken('Oct 3, 2026')}, so some may be missing. Please check that day&#x27;s transactions.</p>`,
     )
     expect(markup.match(/aria-label="Dismiss"/g)).toHaveLength(1)
     expect(markup).not.toContain('history the bank keeps')
@@ -548,17 +548,17 @@ describe('BankLinkSection', () => {
     [
       'the connection needs reconnecting',
       linkSynced(createSync({ state: 'reconnect_needed' })),
-      'Reconnect SimpleFIN in Settings before syncing',
+      'Please reconnect SimpleFIN in Settings first',
     ],
     [
       'the bank account has to be chosen again',
       linkSynced(createSync({ state: 'choose_account' })),
-      'Choose the bank account again before syncing',
+      'Please choose the bank account again first',
     ],
     [
       'the review pause holds the sync',
       linkSynced(createSync({ state: 'paused', paused: true, waiting_new_count: 105 })),
-      'Syncing is paused until 50 or fewer new items are waiting for review',
+      'Paused until 50 or fewer items wait for review',
     ],
   ])('disables Sync now while %s, saying why', (_, status, reason) => {
     read.status = status
@@ -754,8 +754,7 @@ describe('describeSyncNow', () => {
 })
 
 describe('the import start reminder', () => {
-  const REMINDER =
-    "Syncing starts shortly. Link your other accounts now, and they'll import together using fewer of SimpleFIN's daily requests."
+  const REMINDER = 'Syncing starts shortly. Please link your other accounts now to import them together.'
 
   const waiting = () =>
     createStatus({

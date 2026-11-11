@@ -52,7 +52,7 @@ export function listStartChoices(range: BankImportRange, accountName: string): S
         key: AFTER_LATEST_START,
         label: 'After the latest transaction',
         date: floor,
-        note: `Picks up the day after the latest transaction in ${accountName}`,
+        note: `From the day after ${accountName}'s latest transaction`,
       })
     }
   }
@@ -81,8 +81,8 @@ export function findUncoveredUntil(range: BankImportRange, start: string): strin
  * @param iso - The day, as "YYYY-MM-DD"
  */
 export function describeStartRefusal(range: BankImportRange, iso: string): string | null {
-  if (iso < range.earliest_allowed) return `An import can start from ${formatDateLabel(range.earliest_allowed)}`
-  if (iso > range.latest_allowed) return `An import can't start after ${formatDateLabel(range.latest_allowed)}`
+  if (iso < range.earliest_allowed) return `The earliest start is ${formatDateLabel(range.earliest_allowed)}`
+  if (iso > range.latest_allowed) return `The latest start is ${formatDateLabel(range.latest_allowed)}`
   return null
 }
 
@@ -93,7 +93,7 @@ export function describeStartRefusal(range: BankImportRange, iso: string): strin
  * @param iso - The day, as "YYYY-MM-DD"
  */
 export function describeEndRefusal(range: BankImportRange, iso: string): string | null {
-  if (iso < range.earliest_allowed) return `An import can start from ${formatDateLabel(range.earliest_allowed)}`
-  if (iso > range.latest_allowed) return `An import can't end after ${formatDateLabel(range.latest_allowed)}`
+  if (iso < range.earliest_allowed) return `The earliest start is ${formatDateLabel(range.earliest_allowed)}`
+  if (iso > range.latest_allowed) return `The latest end is ${formatDateLabel(range.latest_allowed)}`
   return null
 }

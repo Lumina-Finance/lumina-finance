@@ -51,10 +51,10 @@ describe('describeDisconnected', () => {
   })
 
   it('names the site to revoke access at, or the provider once it is removed and its site unknown', () => {
-    expect(describeDisconnected(connection(), 0)).toContain('To stop SimpleFIN Bridge sharing data at all')
+    expect(describeDisconnected(connection(), 0)).toContain('access in SimpleFIN Bridge to stop sharing data.')
     const gone = connection({ provider_site: null, provider_available: false })
 
-    expect(describeDisconnected(gone, 0)).toContain('To stop SimpleFIN sharing data at all')
+    expect(describeDisconnected(gone, 0)).toContain('access in SimpleFIN to stop sharing data.')
     expect(describeDisconnected(gone, 0)).not.toContain('null')
   })
 })

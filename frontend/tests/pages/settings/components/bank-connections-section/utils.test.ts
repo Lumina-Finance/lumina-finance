@@ -124,7 +124,7 @@ describe('bank connection status', () => {
 
     expect(describeConnectionStatus(signedOut)).toEqual({ tone: 'stopped', label: 'Bank sign-in needed' })
     expect(describeSignInDetail(signedOut)).toBe(
-      'Sign in to Harbour Bank and Tidewater Credit Union again in SimpleFIN Bridge. The app checks daily.',
+      'Please sign in to Harbour Bank and Tidewater Credit Union again in SimpleFIN Bridge. The app checks again each day.',
     )
   })
 
@@ -161,7 +161,7 @@ describe('bank connection search', () => {
 describe('bank connection confirmations', () => {
   it('counts the bank accounts a new connection reaches', () => {
     expect(describeConnected(connection({ nickname: 'Joint banks', accounts: [...HARBOUR, ...TIDEWATER] }))).toBe(
-      'Joint banks connected with 4 bank accounts. Link each one from the account it belongs to.',
+      "Joint banks connected with 4 bank accounts. Please link each bank account from the matching account's page.",
     )
   })
 
@@ -252,9 +252,7 @@ describe('bank connection requests', () => {
       describeRequestBudget(
         connection({ request_budget: { limit: 20, used: 3, available_again_at: null, held_by_provider: false } }),
       ),
-    ).toBe(
-      'Lumina Finance makes up to 20 requests a day for each connection. Automatic syncs and Sync now share them across every account linked through it.',
-    )
+    ).toBe("20 requests a day per connection, shared by every linked account's syncs.")
   })
 
   it('counts a cap of one in the singular', () => {
@@ -262,7 +260,7 @@ describe('bank connection requests', () => {
       describeRequestBudget(
         connection({ request_budget: { limit: 1, used: 0, available_again_at: null, held_by_provider: false } }),
       ),
-    ).toContain('up to 1 request a day')
+    ).toContain('1 request a day')
   })
 
   it('says when automatic syncs pick up once the requests are spent', () => {
@@ -275,7 +273,7 @@ describe('bank connection requests', () => {
           request_budget: { limit: 20, used: 20, available_again_at: '2026-10-05T16:00:00Z', held_by_provider: false },
         }),
       ),
-    ).toMatch(/ Automatic syncs wait until one frees up in 4 hours\.$/)
+    ).toMatch(/ The next one frees up in 4 hours\.$/)
   })
 })
 
@@ -283,7 +281,7 @@ describe('bank connection institutions', () => {
   it('counts institutions in use against no limit, and says the provider may set its own', () => {
     expect(describeInstitutionAllowance(provider({ institutions_in_use: ['Harbour Bank'] }), 'SimpleFIN')).toEqual({
       value: '1 · no limit',
-      hint: 'Counts each institution with a linked bank account once, across all your SimpleFIN connections. Lumina Finance sets no limit on institutions for SimpleFIN, though SimpleFIN may set limits of its own.',
+      hint: 'Counts each institution with a linked bank account once, across all your SimpleFIN connections. Lumina Finance sets no limit, though SimpleFIN may set one.',
     })
   })
 
@@ -403,7 +401,7 @@ describe('bank connection institution search and mismatches', () => {
     const one = connection({ choose_again_links: [{ account_id: 'travel', external_account_name: 'Old Visa' }] })
 
     expect(describeMismatch(one, accountNameFor)).toBe(
-      "SimpleFIN now lists Old Visa differently, so Lumina Finance can't tell whether it's the same account. Travel won't sync until you choose its bank account again.",
+      "SimpleFIN now lists Old Visa differently. Please choose Travel's bank account again to resume syncing.",
     )
   })
 
@@ -416,7 +414,7 @@ describe('bank connection institution search and mismatches', () => {
     })
 
     expect(describeMismatch(several, accountNameFor)).toBe(
-      "SimpleFIN now lists some bank accounts differently, so Lumina Finance can't tell whether they're the same ones. Their accounts won't sync until you choose each one's bank account again.",
+      "SimpleFIN now lists some bank accounts differently. Please choose each affected account's bank account again to resume syncing.",
     )
   })
 })
@@ -425,14 +423,14 @@ describe('describeCredentialLength', () => {
   it("refuses a pasted value over its field's limit in the field's own words and keeps one at the limit", () => {
     expect(describeCredentialLength(SETUP_TOKEN, 'SimpleFIN Bridge', 'a'.repeat(2048))).toBeNull()
     expect(describeCredentialLength(SETUP_TOKEN, 'SimpleFIN Bridge', 'a'.repeat(2049))).toBe(
-      'That setup token is too long. Copy only the setup token from SimpleFIN Bridge and try again',
+      'That setup token is too long. Please copy only the setup token from SimpleFIN Bridge and try again',
     )
   })
 
   it('keeps a name in capitals as the provider wrote it', () => {
     const field: CredentialField = { key: 'api_key', label: 'API key', placeholder: '', max_length: 4 }
     expect(describeCredentialLength(field, 'Fake Bank Online', 'abcde')).toBe(
-      'That API key is too long. Copy only the API key from Fake Bank Online and try again',
+      'That API key is too long. Please copy only the API key from Fake Bank Online and try again',
     )
   })
 })
@@ -440,7 +438,8 @@ describe('describeCredentialLength', () => {
 describe('getCredentialProblems', () => {
   it('counts a pasted value over its limit as its field’s problem, so a press on Connect is refused', () => {
     expect(getCredentialProblems([SETUP_TOKEN], { [SETUP_TOKEN.key]: 'a'.repeat(2049) }, 'SimpleFIN Bridge')).toEqual({
-      [SETUP_TOKEN.key]: 'That setup token is too long. Copy only the setup token from SimpleFIN Bridge and try again',
+      [SETUP_TOKEN.key]:
+        'That setup token is too long. Please copy only the setup token from SimpleFIN Bridge and try again',
     })
   })
 
@@ -483,9 +482,7 @@ describe('a connection whose provider was removed from the server', () => {
   })
 
   it('says no requests go out rather than counting a cap', () => {
-    expect(describeRequestBudget(gone)).toBe(
-      'Lumina Finance sends this connection no requests while its provider is unavailable.',
-    )
+    expect(describeRequestBudget(gone)).toBe('No requests while the provider is unavailable.')
   })
 })
 
@@ -514,7 +511,7 @@ describe('describeLinkingHeld', () => {
 
   it('gives each faded dropdown the reason its state calls for', () => {
     expect(held({}, { linkingPaused: true })).toBe("Bank sync isn't set up on this server yet.")
-    expect(held({ status: 'credential_rejected' })).toBe('Reconnect this connection to link an account.')
+    expect(held({ status: 'credential_rejected' })).toBe('Please reconnect this connection to link an account.')
     expect(held({}, { overLimit: true, institutionLimit: 2 })).toBe(
       'Linking here would go over your limit of 2 institutions.',
     )

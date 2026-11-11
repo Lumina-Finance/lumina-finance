@@ -92,7 +92,7 @@ describe('a credential sent while offline', () => {
 
 describe('a claim the server refused', () => {
   it('reads the connections again, since an earlier try with the same token may have saved one unseen', async () => {
-    const refusal = 'This setup token has already been used. Create a new one in SimpleFIN Bridge'
+    const refusal = 'This setup token has already been used. Please create a new one in SimpleFIN Bridge'
     queryClient.setQueryData(bankSyncKeys.connections(), [])
     authenticatedFetchMock.mockRejectedValue(new ApiError(refusal, 422, { detail: refusal }))
     const observer = new MutationObserver(queryClient, claimCredentialMutationOptions(queryClient))

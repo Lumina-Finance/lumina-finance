@@ -14,8 +14,8 @@ type BulkDismissConfirmProps = {
 /**
  * Asks before the ticked items waiting for review are dismissed, whatever the size of the selection
  *
- * A dismissed item stays out of the ledger and the bank doesn't bring it back, so the choice is
- * asked once for the whole set
+ * A dismissed item stays out of the ledger and only a date range import brings it back, so the
+ * choice is asked once for the whole set
  */
 export function BulkDismissConfirm({ open, count, error, isDismissing, onConfirm, onCancel }: BulkDismissConfirmProps) {
   return (
@@ -31,8 +31,8 @@ export function BulkDismissConfirm({ open, count, error, isDismissing, onConfirm
       onCancel={onCancel}
     >
       <p className="text-sm leading-6" style={{ color: 'var(--app-text)' }}>
-        {count === 1 ? 'It stays' : 'They stay'} out of your ledger, and the bank won't bring{' '}
-        {count === 1 ? 'it' : 'them'} back.
+        {count === 1 ? 'The item stays' : 'The items stay'} out of your ledger. Only a date range import can bring{' '}
+        {count === 1 ? 'the item' : 'them'} back.
       </p>
     </ModalDeleteConfirm>
   )

@@ -77,7 +77,7 @@ export function BalanceMatchOffer({
         </p>
         <p className="text-sm" style={{ color: 'var(--app-text-muted)' }}>
           Adds a balance adjustment on {formatDateLabel(offer.adjustment_date)}.
-          {offer.waiting_amount !== 0 && ' Review the waiting items first if you entered any by hand.'}
+          {offer.waiting_amount !== 0 && ' If you entered any waiting items by hand, please review those items first.'}
         </p>
       </div>
       <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
@@ -90,7 +90,7 @@ export function BalanceMatchOffer({
             >
               <LabelWithHint
                 label="Adjustment"
-                hint={`${providerName}'s balance minus your ledger's on the day ${providerName} read it, leaving out the items waiting for review, since ${providerName}'s balance already holds them.`}
+                hint={`${providerName}'s balance minus your ledger's, not counting items waiting for review`}
                 hintLabel="How the adjustment is worked out"
                 hintPlacement="top"
               />

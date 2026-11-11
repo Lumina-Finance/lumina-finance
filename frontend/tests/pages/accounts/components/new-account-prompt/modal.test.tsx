@@ -74,7 +74,7 @@ vi.mock('react-router', async (importOriginal) => ({
   useNavigate: () => () => {},
 }))
 
-const LINK_DESCRIPTION = 'Choose one of the bank accounts on your connections.'
+const LINK_DESCRIPTION = 'Transactions arrive from your bank and wait for your review.'
 
 // Static rendering escapes apostrophes, so text is matched against the escaped form
 function escaped(text: string): string {
@@ -149,7 +149,7 @@ describe('NewAccountPromptModal', () => {
     reads.connections = [createConnection({ status: 'credential_rejected' })]
     const link = getRadio(renderPrompt(), 'Link a bank account')
     expect(link).toContain('disabled=""')
-    expect(link).toContain(NOTHING_TO_LINK_REASON)
+    expect(link).toContain(escaped(NOTHING_TO_LINK_REASON))
   })
 
   it("refuses linking while bank sync isn't set up, linking to Settings and keeping it manual with its starting balance", () => {

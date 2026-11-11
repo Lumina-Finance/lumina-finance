@@ -167,7 +167,7 @@ function LinkedView({
         )}
         {link.sync.import_starts_at !== null && (
           <Unfold key="import-start">
-            <ImportStartNotice providerName={link.provider_name} />
+            <ImportStartNotice />
           </Unfold>
         )}
         {!link.provider_available && (
@@ -218,8 +218,8 @@ function LinkedView({
                 </button>
               }
             >
-              {link.provider_name} now lists {link.external_account_name} differently, so Lumina Finance can't tell
-              whether it's the same account. Choose its bank account again to resume syncing.
+              {link.provider_name} now lists {link.external_account_name} differently. Please choose the bank account
+              again to resume syncing.
             </InfoCallout>
           </Unfold>
         )}
@@ -233,15 +233,15 @@ function LinkedView({
         {state === 'bank_signin_needed' && (
           <Unfold key="bank-sign-in">
             <InfoCallout tone="stopped" icon={TriangleAlert}>
-              Sign in to your bank again in {providerSiteName(link)}.
+              Please sign in to your bank again in {providerSiteName(link)}.
             </InfoCallout>
           </Unfold>
         )}
         {paused && (
           <Unfold key="paused">
             <InfoCallout tone="review" icon={PauseCircle}>
-              Sync is paused with {waiting} new items waiting for review. It resumes on its own once{' '}
-              {REVIEW_RESUME_COUNT} or fewer are left.
+              Sync is paused with {waiting} items waiting for review. Please review items until {REVIEW_RESUME_COUNT} or
+              fewer are left to resume syncing.
             </InfoCallout>
           </Unfold>
         )}
@@ -477,8 +477,8 @@ export function BankLinkSection({ account, sectionNumber, autoFocus = false, onF
                 <div className="space-y-3" data-tooltip-bounds>
                   <p className="text-sm" style={{ color: 'var(--app-text-muted)' }}>
                     {previous
-                      ? `Previously linked to ${previous.external_account_name} at ${previous.institution_name} through ${previous.provider_name}, until ${formatDate(new Date(previous.unlinked_at), DATE_FORMATS.monthDayYear, user?.tz)}. Reconnecting fetches what the bank reported since then.`
-                      : 'Link this account to one of the bank accounts on your connections to bring in its transactions automatically. Everything the bank sends waits for your review before it touches a balance.'}
+                      ? `Previously linked to ${previous.external_account_name} at ${previous.institution_name} through ${previous.provider_name}, until ${formatDate(new Date(previous.unlinked_at), DATE_FORMATS.monthDayYear, user?.tz)}. Reconnecting brings in what the bank reported since.`
+                      : 'Link a bank account to bring in transactions automatically. Each one waits for your review before reaching a balance.'}
                   </p>
                   <DisabledReasonButton
                     className="app-primary-button"

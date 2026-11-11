@@ -112,8 +112,10 @@ describe('the start step', () => {
     const before = renderStep({}, CUSTOM_START, { from: '2026-03-01', to: '2026-05-31' })
     const today = renderStep({}, CUSTOM_START, { from: '2026-03-01', to: '2026-10-05' })
 
-    expect(before).toContain('Syncing picks up from today. The days after May 31, 2026 stay as you entered them.')
-    expect(today).not.toContain('Syncing picks up from today')
+    expect(before).toContain(
+      'Days between May 31, 2026 and today won&#x27;t be imported. Syncing carries on from today.',
+    )
+    expect(today).not.toContain('Syncing carries on from today')
   })
 
   it("shows To's message once a press finds it missing", () => {

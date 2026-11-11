@@ -157,7 +157,7 @@ test('keeps the offer when a sync brings an item to review, leaving the item out
   const dialog = await openBankLink(page, setup.accountId, SYNCED_STATUS)
   await expect(fact(dialog, /^Difference/)).toHaveText(`${MINUS}$245.50`)
   await expect(fact(dialog, /^Adjustment/)).toHaveText('+$250.00')
-  await expect(dialog.getByText('Review the waiting items first if you entered any by hand.')).toBeVisible()
+  await expect(dialog.getByText('If you entered any waiting items by hand, please review those items first.')).toBeVisible()
 })
 
 test('shows Record adjustment whole, beside the amount from the width it fits there and on a row of its own on a phone', AT_EVERY_SIZE_NEEDS_BANK_SYNC, async ({ page, request }) => {

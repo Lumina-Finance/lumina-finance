@@ -72,7 +72,8 @@ describe('the holds strip', () => {
     expect(markup).toContain('CARD CHECK gas')
     expect(textOf(markup)).toContain('Oct 3 · Everyday')
     expect(textOf(markup)).toContain('Dec 30, 2025 · Everyday')
-    expect(markup).not.toMatch(/\$|tabular-nums/)
+    // The strip's own explanation says $0.00, so only the rows are checked for an amount
+    expect(markup.slice(markup.indexOf('<ul'))).not.toMatch(/\$|tabular-nums/)
   })
 
   it('leaves the account name out on an account page', () => {

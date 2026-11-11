@@ -62,7 +62,9 @@ describe('UnlinkModal', () => {
     { connection: undefined, name: 'SimpleFIN' },
   ])('says $name is disconnected from every account in Settings, linking there', ({ connection, name }) => {
     expect(renderDialog(connection)).toMatch(
-      new RegExp(`To disconnect ${name} from every account, open it in <button[^>]*>Settings</button>\\.`),
+      new RegExp(
+        `To disconnect ${name} from every account, please open the connection in <button[^>]*>Settings</button>\\.`,
+      ),
     )
   })
 

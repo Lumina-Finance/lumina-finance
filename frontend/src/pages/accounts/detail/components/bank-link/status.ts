@@ -115,9 +115,9 @@ function describeLinkSync(link: BankLink, timeZone: string | undefined): BankSyn
 
   switch (sync.state) {
     case 'reconnect_needed':
-      return label('stopped', 'Reconnect needed', [`Reconnect ${link.provider_name} in Settings`, failure])
+      return label('stopped', 'Reconnect needed', [`Please reconnect ${link.provider_name} in Settings`, failure])
     case 'bank_signin_needed':
-      return label('stopped', 'Bank sign-in needed', ['The app checks daily', failure])
+      return label('stopped', 'Bank sign-in needed', ['The app checks again each day', failure])
     case 'choose_account':
       return label('stopped', 'Choose bank account', [`${link.provider_name} now lists it differently`, failure])
     case 'sync_stopped':
@@ -138,7 +138,7 @@ function describeLinkSync(link: BankLink, timeZone: string | undefined): BankSyn
     }
     case 'import_waiting_on_budget':
       return label('working', importing(link.import!), [
-        `Next part at ${formatAttemptTime(sync.next_attempt_at!, timeZone)}, when the ${link.provider_name} request limit allows another request`,
+        `Next part at ${formatAttemptTime(sync.next_attempt_at!, timeZone)}, once ${link.provider_name} allows another request`,
       ])
     case 'paused':
       return label('review', `Paused · ${waiting} new to review`, [

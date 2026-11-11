@@ -8,7 +8,7 @@ import type { ReviewItemAccount } from '@/components/transactions/bank-review/Re
 import { REVIEW_MOTION } from '@/components/transactions/constants/bankReview'
 import { formatReviewDate } from '@/components/transactions/utils/bankReview'
 
-const EXPLANATION = 'Records of no amount, left out of your ledger and balances'
+const EXPLANATION = '$0.00 records, not in your ledger or balances'
 
 type BankHoldsStripProps = {
   /** The holds in scope, newest first, each of an account the caller can name */
@@ -128,7 +128,7 @@ export function BankHoldsStrip({
                           onClick={() => onDismiss(hold.id)}
                           confirm={{
                             label: 'Yes, dismiss',
-                            announcement: 'Press again to dismiss this hold for good.',
+                            announcement: 'Please press again to dismiss this hold for good.',
                           }}
                           testId="bank-hold-dismiss"
                           fullWidthOnPhone={false}

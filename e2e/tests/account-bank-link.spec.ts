@@ -59,7 +59,7 @@ const LINK_READ_CLOCK_STEP_MS = 100
 
 // What the Bank link section says while the import waits for more links, for SimpleFIN
 const IMPORT_REMINDER =
-  "Syncing starts shortly. Link your other accounts now, and they'll import together using fewer of SimpleFIN's daily requests."
+  'Syncing starts shortly. Please link your other accounts now to import them together.'
 
 // Either side of where a modal stops filling the screen and sits in the middle of it, at a laptop's height
 const WIDEST_FULL_SCREEN_MODAL_SIZE = { width: 1049, height: 800 }
@@ -300,7 +300,7 @@ test('links an account from its page, from choosing the bank account to its impo
   await expect(dialog).toBeHidden()
   await page.getByRole('button', { name: 'Bank sync: Not linked. Open bank link' }).click()
   await expect(linkButton).toBeFocused()
-  await expect(dialog.getByText('Link this account to one of the bank accounts on your connections to bring in its transactions automatically.')).toBeVisible()
+  await expect(dialog.getByText('Link a bank account to bring in transactions automatically. Each one waits for your review before reaching a balance.')).toBeVisible()
   await linkButton.click()
 
   const flow = page.getByRole('dialog', { name: 'Link bank account' })
@@ -567,7 +567,7 @@ test("brings an account sent to settings for its first connection back to its li
   // and the confirmation leaves out where to link them
   await expect(page).toHaveURL(new RegExp(`/accounts/${everyday.id}$`))
   await expect(toast(page, 'SimpleFIN connected with 2 bank accounts.')).toBeVisible()
-  await expect(toast(page, 'SimpleFIN connected')).not.toContainText('Link each one')
+  await expect(toast(page, 'SimpleFIN connected')).not.toContainText('Please link each bank account')
   const flow = page.getByRole('dialog', { name: 'Link bank account' })
   await expect(flow.getByRole('radio', { name: new RegExp(`^${SAMPLE_CHEQUING}`) })).toBeVisible({ timeout: WORKER_RESULT_TIMEOUT_MS })
   await expect(page.getByRole('dialog')).toHaveCount(1)
@@ -610,7 +610,7 @@ test('sends an account with no connection to settings first', NEEDS_BANK_SYNC, a
   const flow = page.getByRole('dialog', { name: 'Link bank account' })
 
   await expect(flow.getByText('Connect a provider first')).toBeVisible()
-  await expect(flow.getByText('Add a bank connection in Settings first.')).toBeVisible()
+  await expect(flow.getByText('Please add a bank connection in Settings first.')).toBeVisible()
   await expectFitsLabel(flow.getByRole('button', { name: 'Open settings' }))
   await flow.getByRole('button', { name: 'Open settings' }).click()
 
@@ -764,7 +764,7 @@ test('unlinks the account alone, then reconnects it with the relink wording', NE
   // Unlinking offers no choice to disconnect the connection, only a line pointing to Settings for it
   const unlink = page.getByRole('dialog', { name: 'Unlink bank account' })
   await expect(unlink.getByText(`${SAMPLE_CHEQUING} at ${SAMPLE_BANK}`)).toBeVisible()
-  await expect(unlink.getByText('To disconnect SimpleFIN from every account, open it in Settings.')).toBeVisible()
+  await expect(unlink.getByText('To disconnect SimpleFIN from every account, please open the connection in Settings.')).toBeVisible()
   await expect(unlink.getByRole('radio')).toHaveCount(0)
   await expectFitsLabel(unlink.getByRole('button', { name: 'Unlink', exact: true }))
   await unlink.getByRole('button', { name: 'Unlink', exact: true }).click()
@@ -775,7 +775,7 @@ test('unlinks the account alone, then reconnects it with the relink wording', NE
   await expect(dialog).toBeHidden()
   await page.getByRole('button', { name: /^Bank sync: / }).click()
   await expect(dialog.getByText(
-    `Previously linked to ${SAMPLE_CHEQUING} at ${SAMPLE_BANK} through SimpleFIN, until ${formatToday()}. Reconnecting fetches what the bank reported since then.`,
+    `Previously linked to ${SAMPLE_CHEQUING} at ${SAMPLE_BANK} through SimpleFIN, until ${formatToday()}. Reconnecting brings in what the bank reported since.`,
   )).toBeVisible()
   await expect(dialog.getByRole('button', { name: 'Reconnect bank account' })).toBeFocused()
 

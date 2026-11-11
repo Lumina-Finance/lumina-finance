@@ -253,7 +253,7 @@ test('compares the bank balance with the ledger at the end of its balance date',
   await page.keyboard.press('Shift+Tab')
   await page.keyboard.press('Tab')
   await expect(why).toBeFocused()
-  const reason = dialog.locator('.app-tooltip-panel').filter({ hasText: 'The gap could come from' })
+  const reason = dialog.locator('.app-tooltip-panel').filter({ hasText: 'Could come from items waiting for review' })
   await expect(reason.locator('..')).toHaveCSS('opacity', '1')
   await expect.poll(() => coversAnyBalance(dialog, reason)).toBe(false)
   await expect.poll(() => readClippingBoxes(reason)).toEqual([])
@@ -282,7 +282,7 @@ test('opens the reason for a gap below the difference where the dialog leaves no
   // Scrolled until the difference is at the top of the dialogue's body
   await difference.evaluate((element) => element.parentElement!.scrollIntoView({ block: 'start', behavior: 'instant' }))
   await dialog.getByRole('button', { name: 'Why the balances differ' }).click()
-  const reason = dialog.locator('.app-tooltip-panel').filter({ hasText: 'The gap could come from' })
+  const reason = dialog.locator('.app-tooltip-panel').filter({ hasText: 'Could come from items waiting for review' })
   await expect(reason.locator('..')).toHaveCSS('opacity', '1')
   expect(await isCovering(reason, difference)).toBe(false)
   await expect.poll(() => readClippingBoxes(reason)).toEqual([])
@@ -326,7 +326,7 @@ for (const { shown, show } of [
     // room above them
     const dialog = await openBalancesThatDiffer(page, request, { width: 390, height: 667 })
     await show(dialog.getByRole('button', { name: 'Why the balances differ' }))
-    const reason = dialog.locator('.app-tooltip-panel').filter({ hasText: 'The gap could come from' })
+    const reason = dialog.locator('.app-tooltip-panel').filter({ hasText: 'Could come from items waiting for review' })
     await expect(reason.locator('..')).toHaveCSS('opacity', '1')
     const [opened, bankBalance] = await readBoxes(page, [reason, fact(dialog, 'SimpleFIN').locator('..')])
     expect(opened.y + opened.height).toBeLessThanOrEqual(bankBalance.y)
@@ -576,7 +576,7 @@ test('stops on a bank asking for its sign-in, saying where to sign in again', NE
 
   await logInViaApi(page, user)
   const dialog = await openBankLink(page, account.id, 'Bank sign-in needed')
-  await expect(dialog.getByText('Sign in to your bank again in SimpleFIN Bridge.', { exact: true })).toBeVisible()
+  await expect(dialog.getByText('Please sign in to your bank again in SimpleFIN Bridge.', { exact: true })).toBeVisible()
 })
 
 test('asks for the bank account again once SimpleFIN lists it differently, opening the choice from the notice', NEEDS_BANK_SYNC, async ({ page, request }) => {

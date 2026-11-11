@@ -159,7 +159,7 @@ describe('describeBankSync for a live link', () => {
         label: 'Reconnect needed',
         tone: 'stopped',
         pulse: false,
-        details: ['Reconnect SimpleFIN in Settings', FAILURE_LINE],
+        details: ['Please reconnect SimpleFIN in Settings', FAILURE_LINE],
       },
     ],
     [
@@ -173,7 +173,12 @@ describe('describeBankSync for a live link', () => {
     [
       'a bank asking the user to sign in again',
       { sync: createSync({ state: 'bank_signin_needed', last_failure: FAILURE }) },
-      { label: 'Bank sign-in needed', tone: 'stopped', pulse: false, details: ['The app checks daily', FAILURE_LINE] },
+      {
+        label: 'Bank sign-in needed',
+        tone: 'stopped',
+        pulse: false,
+        details: ['The app checks again each day', FAILURE_LINE],
+      },
     ],
     [
       'a refused sync, as a failure with its reason and nothing waiting',
@@ -255,7 +260,7 @@ describe('describeBankSync for a live link', () => {
         label: 'Importing · 1 of 2',
         tone: 'working',
         pulse: false,
-        details: ['Next part at 4:30 p.m., when the SimpleFIN request limit allows another request'],
+        details: ['Next part at 4:30 p.m., once SimpleFIN allows another request'],
       },
     ],
     [

@@ -111,7 +111,7 @@ describe('the link flow without a working connection', () => {
   it('sends a user with none to Settings to add one', () => {
     const connectFirst = describeConnectFirst([], createProviders())
     expect(connectFirst.canOpenSettings).toBe(true)
-    expect(connectFirst.message).toContain('Add a bank connection in Settings first.')
+    expect(connectFirst.message).toContain('Please add a bank connection in Settings first.')
   })
 
   it('sends a user whose connection was rejected to Settings to reconnect it, even with no provider taking new connections', () => {
@@ -120,7 +120,7 @@ describe('the link flow without a working connection', () => {
       createProviders(false),
     )
     expect(connectFirst.canOpenSettings).toBe(true)
-    expect(connectFirst.message).toContain('Reconnect it in Settings')
+    expect(connectFirst.message).toContain('Please reconnect in Settings')
   })
 
   it('only closes when no provider takes new connections and there is nothing to reconnect', () => {

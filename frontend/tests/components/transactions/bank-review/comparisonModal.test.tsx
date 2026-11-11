@@ -57,7 +57,7 @@ vi.mock('@/components/modal/TitledPanel', () => ({
 import { BankComparisonModal } from '@/components/transactions/bank-review/ComparisonModal'
 
 const EDITED_NOTE = "You edited this. Accepting replaces your value with the bank's."
-const KEPT_NOTE = 'Your own value. Accepting leaves it as it is.'
+const KEPT_NOTE = 'Your own value, kept if you accept.'
 const FIELDS = ['date', 'amount', 'description'] as const
 const TINT = 'var(--app-warning-soft)'
 
@@ -214,7 +214,7 @@ describe('a removal', () => {
 
     expect(markup).toContain('<p>Removal from SimpleFIN</p><h2>Review bank removal</h2>')
     expect(markup).toContain(
-      'SimpleFIN no longer reports this transaction. It stays in your ledger unless you remove it.',
+      'SimpleFIN no longer reports this transaction. Nothing changes unless you remove the transaction.',
     )
     expect(columnHeadings(markup)).toEqual(['Field', 'In your ledger', 'Bank'])
 

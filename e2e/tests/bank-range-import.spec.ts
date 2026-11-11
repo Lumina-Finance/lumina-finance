@@ -31,7 +31,7 @@ const SYNCED_STATUS = /Synced (just now|\d+ minutes? ago)\./
 const SAMPLE_CHEQUING = 'Everyday Chequing'
 const RESTORE_LABEL = 'Bring back dismissed items'
 const RESTORE_WARNING =
-  "This may change the account's balance in ways that are hard to predict if it was brought up to date with a balance adjustment. Reconcile carefully afterwards."
+  "Items you bring back may already be counted in a balance adjustment. Please check the account's balance after approving them."
 
 // The days the bank reports, counted from today
 const LINK_FROM = daysFromTodayInTestTimezone(-45)
@@ -87,7 +87,7 @@ test('links with a date range ending before today, then imports a range again br
   await expect(dateRange).toBeChecked()
   await typeDate(page, 'From', LINK_FROM)
   await typeDate(page, 'To', LINK_TO)
-  await expect(flow.getByText(`Syncing picks up from today. The days after ${formatDateLabel(LINK_TO)} stay as you entered them.`)).toBeVisible()
+  await expect(flow.getByText(`Days between ${formatDateLabel(LINK_TO)} and today won't be imported. Syncing carries on from today.`)).toBeVisible()
 
   const linked = page.waitForResponse((answer) => answer.url() === `${API_BASE_URL}/accounts/${accountId}/bank-link` && answer.request().method() === 'POST')
   await flow.getByRole('button', { name: 'Link and import' }).click()

@@ -70,7 +70,7 @@ export function RestoreDismissedOption({
             {RESTORE_LABEL}
           </p>
           <p className="text-xs" style={{ color: 'var(--app-text-muted)' }}>
-            Items you dismissed before, dated inside the range, wait for review again
+            Dismissed items in these dates wait for review again
           </p>
         </div>
       </div>
@@ -177,8 +177,8 @@ export function RangeImportModal({
     >
       <div className="space-y-4 pb-2">
         <p className="text-sm" style={{ color: 'var(--app-text-muted)' }}>
-          Everything in these dates waits for your review, and nothing already here comes in twice. Syncing pauses at{' '}
-          {REVIEW_PAUSE_COUNT} waiting items.
+          Everything in these dates waits for your review, without duplicates. Syncing pauses at {REVIEW_PAUSE_COUNT}{' '}
+          waiting items.
         </p>
         {!range && rangeError ? (
           <LoadFailure error={rangeError} subject="Import range" />

@@ -21,7 +21,7 @@ import { formatRelativeFutureTime } from '@/utils/relativeTime'
 export function describeCredentialLength(field: CredentialField, site: string, value: string): string | null {
   const noun = credentialNoun(field.label)
   return value.length > field.max_length
-    ? `That ${noun} is too long. Copy only the ${noun} from ${site} and try again`
+    ? `That ${noun} is too long. Please copy only the ${noun} from ${site} and try again`
     : null
 }
 
@@ -129,7 +129,7 @@ export function describeConnectionStatus(connection: BankConnection): { tone: Sy
 export function describeSignInDetail(connection: BankConnection): string | null {
   const institutions = listSignInInstitutions(connection)
   if (institutions.length === 0) return null
-  return `Sign in to ${joinNames(institutions)} again in ${providerSiteName(connection)}. The app checks daily.`
+  return `Please sign in to ${joinNames(institutions)} again in ${providerSiteName(connection)}. The app checks again each day.`
 }
 
 /**
@@ -179,7 +179,7 @@ export function describeConnected(connection: BankConnection, backToLinkFlow = f
       : `${name} connected. Its bank accounts will appear here shortly.`
   }
   const connected = `${name} connected with ${countNoun(connection.accounts.length, 'bank account')}.`
-  return backToLinkFlow ? connected : `${connected} Link each one from the account it belongs to.`
+  return backToLinkFlow ? connected : `${connected} Please link each bank account from the matching account's page.`
 }
 
 /**
@@ -221,7 +221,7 @@ export function describeInstitutionAllowance(
   if (provider.institution_limit === null) {
     return {
       value: `${inUse} · no limit`,
-      hint: `${counted} Lumina Finance sets no limit on institutions for ${providerName}, though ${providerName} may set limits of its own.`,
+      hint: `${counted} Lumina Finance sets no limit, though ${providerName} may set one.`,
     }
   }
   return { value: `${inUse} of ${provider.institution_limit}`, hint: counted }
@@ -243,10 +243,10 @@ export function countRequestsLeft(connection: BankConnection): { left: number; l
  */
 export function describeRequestBudget(connection: BankConnection): string {
   const { limit, used, available_again_at: availableAgainAt } = connection.request_budget
-  if (limit === null) return 'Lumina Finance sends this connection no requests while its provider is unavailable.'
-  const cap = `Lumina Finance makes up to ${countNoun(limit, 'request')} a day for each connection. Automatic syncs and Sync now share them across every account linked through it.`
+  if (limit === null) return 'No requests while the provider is unavailable.'
+  const cap = `${countNoun(limit, 'request')} a day per connection, shared by every linked account's syncs.`
   if (used < limit || !availableAgainAt) return cap
-  return `${cap} Automatic syncs wait until one frees up ${formatRelativeFutureTime(availableAgainAt)}.`
+  return `${cap} The next one frees up ${formatRelativeFutureTime(availableAgainAt)}.`
 }
 
 type InstitutionGroup = {
@@ -292,7 +292,7 @@ export function groupInstitutions(
 }
 
 /** Why a rejected connection takes no link, shown on its faded Link an account dropdown */
-const RECONNECT_TO_LINK_REASON = 'Reconnect this connection to link an account.'
+const RECONNECT_TO_LINK_REASON = 'Please reconnect this connection to link an account.'
 
 /**
  * Why a bank account's Link an account dropdown is faded, or undefined when it can be used. Every faded
@@ -347,7 +347,7 @@ export function describeMismatch(connection: BankConnection, accountNameFor: Acc
   if (links.length === 1) {
     const [link] = links
     const account = accountNameFor(link.account_id) ?? 'The account'
-    return `${connection.provider_name} now lists ${link.external_account_name} differently, so Lumina Finance can't tell whether it's the same account. ${account} won't sync until you choose its bank account again.`
+    return `${connection.provider_name} now lists ${link.external_account_name} differently. Please choose ${account}'s bank account again to resume syncing.`
   }
-  return `${connection.provider_name} now lists some bank accounts differently, so Lumina Finance can't tell whether they're the same ones. Their accounts won't sync until you choose each one's bank account again.`
+  return `${connection.provider_name} now lists some bank accounts differently. Please choose each affected account's bank account again to resume syncing.`
 }

@@ -340,13 +340,12 @@ export function ConnectModal({
         )}
         {reconnecting ? (
           <WarningCallout>
-            {site} no longer accepts this connection. Create a new {noun} there and paste it below. Linked accounts pick
-            up where they stopped.
+            {site} no longer accepts this connection. Please create a new {noun} in {site} and paste the {noun} below.
           </WarningCallout>
         ) : (
           <p className="text-sm" style={{ color: 'var(--app-text-muted)' }}>
-            One connection reaches every bank account you added in {site}. Connecting links nothing yet: each account
-            then chooses its bank account.
+            One connection covers every bank account you added in {site}. Each account then links to a bank account from
+            the account&apos;s own page.
           </p>
         )}
         {provider && provider.connect_steps.length > 0 && (

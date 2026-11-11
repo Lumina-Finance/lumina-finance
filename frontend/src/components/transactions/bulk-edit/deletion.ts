@@ -58,5 +58,5 @@ export function getBulkDeleteBlockReason(
   const held = selected.find((row) => row.bank_source && linksByAccount.has(row.account_id))
   const accountName = held && accountOf(held.account_id)?.name
   if (!held?.bank_source || !accountName) return undefined
-  return `Transactions from ${held.bank_source.provider_name} can't be deleted from ${accountName} while it's linked`
+  return `Transactions from ${held.bank_source.provider_name} can't be deleted while ${accountName} is linked`
 }
