@@ -114,6 +114,8 @@ export function createLinks(accountIds: string[]): BankLink[] {
     },
     history_reminder: null,
     cut_off_day: null,
+    range_import: null,
+    range_outcome: null,
   }))
 }
 

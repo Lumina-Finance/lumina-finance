@@ -54,6 +54,8 @@ const WAITING_LINK = {
   },
   history_reminder: null,
   cut_off_day: null,
+  range_import: null,
+  range_outcome: null,
 }
 
 describe('the link flow wording', () => {

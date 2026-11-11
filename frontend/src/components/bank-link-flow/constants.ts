@@ -15,16 +15,25 @@ export const NOTHING_TO_LINK_REASON =
 export const BANK_CONNECTIONS_SETTINGS_PATH = '/settings#bank-connections'
 
 /** The fields a press of the flow's action button can find a problem with, in the order the steps draw them */
-export const LINK_FLOW_FIELDS = ['bankAccount', 'startChoice', 'startDate'] as const
+export const LINK_FLOW_FIELDS = ['bankAccount', 'startChoice', 'rangeFrom', 'rangeTo'] as const
 
 /** The id of the control that takes focus for each field, and of the message that describes it */
 export const LINK_FLOW_FIELD_IDS = {
   bankAccount: 'bank-link-bank-account',
   startChoice: 'bank-link-start-choice',
-  startDate: 'bank-link-start-date',
+  rangeFrom: 'bank-link-range-from',
+  rangeTo: 'bank-link-range-to',
   bankAccountError: 'bank-link-bank-account-error',
   startChoiceError: 'bank-link-start-choice-error',
-  startDateError: 'bank-link-start-date-error',
+} as const
+
+/** The fields of the dialogue importing a date range into a linked account, in the order it draws them */
+export const RANGE_IMPORT_FIELDS = ['rangeFrom', 'rangeTo'] as const
+
+/** The id of the control that takes focus for each of its fields */
+export const RANGE_IMPORT_FIELD_IDS = {
+  rangeFrom: 'bank-range-import-from',
+  rangeTo: 'bank-range-import-to',
 } as const
 
 /**
@@ -42,3 +51,20 @@ export const BANK_ACCOUNT_REQUIRED_MESSAGE = 'Choose a bank account'
 export const START_CHOICE_REQUIRED_MESSAGE = 'Choose where to start'
 export const START_DATE_REQUIRED_MESSAGE = 'Enter a start date'
 export const START_DATE_OUT_OF_RANGE_MESSAGE = 'Outside the allowed range.'
+export const RANGE_END_REQUIRED_MESSAGE = 'Enter an end date'
+export const RANGE_CROSSED_MESSAGE = 'Must be on or before the end date'
+
+/**
+ * What bringing back dismissed items risks, said as soon as the option is ticked
+ */
+export const RESTORE_DISMISSED_WARNING =
+  "This may change the account's balance in ways that are hard to predict if it was brought up to date with a balance adjustment. Reconcile carefully afterwards."
+
+/**
+ * What linking for a date range ending before today means for the days after it
+ *
+ * @param lastDay - The range's last day, as a label
+ */
+export function rangeEndsBeforeTodayNote(lastDay: string): string {
+  return `Syncing picks up from today. The days after ${lastDay} stay as you entered them.`
+}

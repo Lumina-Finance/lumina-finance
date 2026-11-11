@@ -259,6 +259,32 @@ export type LinkBankAccountPayload = {
   connection_id: string
   external_account_id: string
   start_date: string
+
+  /**
+   * The last day to import, left out for today. A day before today imports start_date to it as a
+   * date range, and syncing picks up from today
+   */
+  end_date?: string
+}
+
+/** A date range to import into a linked account, both days included, as YYYY-MM-DD */
+export type ImportBankRangePayload = {
+  accountId: string
+  first_day: string
+  last_day: string
+
+  /** Whether items dismissed before, dated inside the range, wait for review again */
+  restores_dismissed: boolean
+}
+
+/** A link's date range import while it runs, its days as YYYY-MM-DD */
+export type BankRangeImport = {
+  first_day: string
+  last_day: string
+
+  /** The first day not fetched yet */
+  next_day: string
+  restores_dismissed: boolean
 }
 
 /**
@@ -438,6 +464,12 @@ export type BankLink = BankAccountLink & {
    * so some of that day's may be missing, as YYYY-MM-DD. Null when no day did or the user dismissed it
    */
   cut_off_day: string | null
+
+  /** The date range import running on the link, null while none runs */
+  range_import: BankRangeImport | null
+
+  /** Why the link's last date range import stopped or left days out, null when it imported every day asked for */
+  range_outcome: string | null
 }
 
 /**

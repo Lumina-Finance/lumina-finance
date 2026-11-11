@@ -200,14 +200,14 @@ describe('saving the query cache', () => {
     expect(isRestoredCacheFor(USER_A)).toBe(true)
   })
 
-  it('restores no copy saved before transaction responses carried their bank source', async () => {
+  it('restores no copy saved before bank links carried their date range import', async () => {
     const saving = loadPage({ [SESSION_KEY]: USER_A })
-    saving.client.setQueryData(['transactions'], [{ id: 'saved-before-bank-source' }])
+    saving.client.setQueryData(['transactions'], [{ id: 'saved-before-date-range-import' }])
     saving.hide()
     const stored = Object.fromEntries(saving.localStorage.items)
     // The shape that was current before. This copy then reads it as saved by
-    stored[QUERY_CACHE_STORAGE_KEY] = stored[QUERY_CACHE_STORAGE_KEY].replace(`"buster":"6:`, `"buster":"5:`)
-    expect(stored[QUERY_CACHE_STORAGE_KEY]).toContain('"buster":"5:')
+    stored[QUERY_CACHE_STORAGE_KEY] = stored[QUERY_CACHE_STORAGE_KEY].replace(`"buster":"7:`, `"buster":"6:`)
+    expect(stored[QUERY_CACHE_STORAGE_KEY]).toContain('"buster":"6:')
 
     const reloaded = loadPage(stored)
     await reloaded.restore()

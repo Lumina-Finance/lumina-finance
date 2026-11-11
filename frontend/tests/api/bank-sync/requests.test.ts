@@ -31,6 +31,7 @@ import {
   fetchPendingBankTransactions,
   fetchReviewBacklogs,
   fetchReviewPage,
+  importBankRange,
   reconnectBankConnection,
 } from '@/api/bank-sync/requests'
 import { REQUEST_TIMEOUT_MS } from '@/api/server'
@@ -88,6 +89,20 @@ describe('bank sync writes', () => {
         external_account_id: 'bank-account-1',
         start_date: '2026-01-01',
       }),
+    })
+  })
+
+  it('imports a date range through the account path, with the dismissed items choice under the name the backend reads', async () => {
+    await importBankRange({
+      accountId: 'account-1',
+      first_day: '2026-06-01',
+      last_day: '2026-08-31',
+      restores_dismissed: true,
+    })
+
+    expect(authenticatedFetchMock).toHaveBeenCalledWith('/accounts/account-1/bank-link/range-import', {
+      method: 'POST',
+      body: JSON.stringify({ first_day: '2026-06-01', last_day: '2026-08-31', restores_dismissed: true }),
     })
   })
 

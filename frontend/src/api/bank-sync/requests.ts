@@ -18,6 +18,7 @@ import type {
   ClaimCredentialPayload,
   DiscoveredBankAccounts,
   EditableBankField,
+  ImportBankRangePayload,
   LinkBankAccountPayload,
   BankHold,
   PendingBankTransaction,
@@ -174,6 +175,14 @@ export function deleteBankLink(accountId: string) {
  */
 export function syncBankLink(accountId: string) {
   return post<BankLink>(`/accounts/${accountId}/bank-link/sync`)
+}
+
+/**
+ * Starts importing a date range into the linked account, fetched after its connection's routine
+ * sync. The server refuses it while a range already runs, and for every reason it refuses Sync now
+ */
+export function importBankRange({ accountId, ...payload }: ImportBankRangePayload) {
+  return post<BankLink>(`/accounts/${accountId}/bank-link/range-import`, payload)
 }
 
 /**

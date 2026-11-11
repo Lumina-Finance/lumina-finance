@@ -15,16 +15,20 @@ type StartChoice = {
   note?: string
 }
 
+// The key of the choice that starts the day after the account's latest transaction
+export const AFTER_LATEST_START = 'after-latest'
+
 /**
  * The start dates offered as choices, newest first, none of them preselected
  *
- * Each begins on the first of its month, counted back from the provider's limit. That limit is itself the
- * first of the month the provider's history reaches. The range never allows a start before the day
- * after the account's latest transaction, so a choice reaching further back is raised to that day and
- * says so. Choices that land on the same day are shown once
+ * Each month choice begins on the first of its month, counted back from the provider's limit. That
+ * limit is itself the first of the month the provider's history reaches. An import may reach into days
+ * the ledger already covers, since everything it brings in waits for review. So the day after the
+ * account's latest transaction is a choice of its own, offered while the range allows it, and not
+ * the earliest start. Choices that land on the same day are shown once, the month choice kept
  *
- * @param range - Where the server allows the import to start
- * @param accountName - The account the import goes into, named in a raised choice's note
+ * @param range - Where the server allows the import to start, with the day after the latest transaction
+ * @param accountName - The account the import goes into, named in the latest transaction choice's note
  */
 export function listStartChoices(range: BankImportRange, accountName: string): StartChoice[] {
   const providerLimit = parseYmd(range.provider_limit_date)
@@ -36,24 +40,24 @@ export function listStartChoices(range: BankImportRange, accountName: string): S
   ]
   const choices: StartChoice[] = []
   for (const count of months) {
-    const reached = formatYmd(addMonths(providerLimit, range.provider_history_months - count))
-    const raised = reached < range.earliest_allowed
-    const date = raised ? range.earliest_allowed : reached
+    const date = formatYmd(addMonths(providerLimit, range.provider_history_months - count))
     if (choices.some((choice) => choice.date === date)) continue
-
-    choices.push(
-      raised
-        ? {
-            key: `${count}`,
-            label: 'After the latest transaction',
-            date,
-            note: `Picks up the day after the latest transaction in ${accountName}`,
-          }
-        : { key: `${count}`, label: `${count} months`, date },
-    )
+    choices.push({ key: `${count}`, label: `${count} months`, date })
   }
 
-  return choices
+  const floor = range.ledger_floor
+  if (floor && floor >= range.earliest_allowed && floor <= range.latest_allowed) {
+    if (!choices.some((choice) => choice.date === floor)) {
+      choices.push({
+        key: AFTER_LATEST_START,
+        label: 'After the latest transaction',
+        date: floor,
+        note: `Picks up the day after the latest transaction in ${accountName}`,
+      })
+    }
+  }
+
+  return choices.sort((first, second) => (first.date < second.date ? 1 : first.date > second.date ? -1 : 0))
 }
 
 /**
@@ -79,5 +83,17 @@ export function findUncoveredUntil(range: BankImportRange, start: string): strin
 export function describeStartRefusal(range: BankImportRange, iso: string): string | null {
   if (iso < range.earliest_allowed) return `An import can start from ${formatDateLabel(range.earliest_allowed)}`
   if (iso > range.latest_allowed) return `An import can't start after ${formatDateLabel(range.latest_allowed)}`
+  return null
+}
+
+/**
+ * Why the range refuses a day as a date range's last day, null for a day it allows
+ *
+ * @param range - Where the server allows the import to reach
+ * @param iso - The day, as "YYYY-MM-DD"
+ */
+export function describeEndRefusal(range: BankImportRange, iso: string): string | null {
+  if (iso < range.earliest_allowed) return `An import can start from ${formatDateLabel(range.earliest_allowed)}`
+  if (iso > range.latest_allowed) return `An import can't end after ${formatDateLabel(range.latest_allowed)}`
   return null
 }

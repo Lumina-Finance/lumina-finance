@@ -72,7 +72,7 @@ type ChoiceCardProps = {
 /**
  * A selectable card in the bank link flow's lists, shown as unavailable when it cannot be chosen
  *
- * Anything passed as extra sits beneath the choice on phones and beside it from sm up
+ * Anything passed as extra sits beneath the choice, inside the card's frame
  */
 export function ChoiceCard({
   selected,
@@ -124,7 +124,7 @@ export function ChoiceCard({
       data-modal-initial-focus={initialFocus ? 'true' : undefined}
       onClick={onSelect}
       onKeyDown={moveWithArrows}
-      className={`flex w-full items-start gap-3 p-3.5 text-left disabled:cursor-not-allowed aria-disabled:cursor-not-allowed ${extra === undefined ? frameClass : 'rounded-xl sm:min-w-0 sm:flex-1'}`}
+      className={`flex w-full items-start gap-3 p-3.5 text-left disabled:cursor-not-allowed aria-disabled:cursor-not-allowed ${extra === undefined ? frameClass : 'rounded-xl'}`}
       style={extra === undefined ? frameStyle : undefined}
     >
       {locked ? (
@@ -156,8 +156,8 @@ export function ChoiceCard({
   if (extra === undefined) return choice
 
   return (
-    // Held at the top, so the choice stays put while the extra grows beneath, as with an error under a field
-    <div className={`sm:flex sm:items-start ${frameClass}`} style={frameStyle}>
+    // The choice stays put while the extra grows beneath it, as with an error under a field
+    <div className={frameClass} style={frameStyle}>
       {choice}
       {extra}
     </div>

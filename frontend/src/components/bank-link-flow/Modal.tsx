@@ -22,8 +22,6 @@ import {
   LINK_FLOW_FIELD_IDS,
   LINK_FLOW_FIELDS,
   START_CHOICE_REQUIRED_MESSAGE,
-  START_DATE_OUT_OF_RANGE_MESSAGE,
-  START_DATE_REQUIRED_MESSAGE,
 } from '@/components/bank-link-flow/constants'
 import { StartStep } from '@/components/bank-link-flow/StartStep'
 import { CUSTOM_START, useStartChoice } from '@/components/bank-link-flow/useStartChoice'
@@ -74,7 +72,7 @@ type BankLinkFlowModalProps = {
 
 /**
  * Links an account to a bank account on one of the user's connections, starting its import from a
- * date the user chooses
+ * date the user chooses, or importing a date range the user chooses
  *
  * Opened from the account, it chooses the bank account first, from a dropdown of connections when
  * there are several. Opened from a bank account in settings, it starts at where history starts.
@@ -142,21 +140,15 @@ export function BankLinkFlowModal({
 
   // What a press of the action button would find missing on the step showing. Each step fixes its own
   // problems, so the button stays whole until a press finds one
-  const startDateProblem =
-    startChoice.choice !== CUSTOM_START
-      ? undefined
-      : !startChoice.customStart
-        ? START_DATE_REQUIRED_MESSAGE
-        : startChoice.outOfRange
-          ? START_DATE_OUT_OF_RANGE_MESSAGE
-          : undefined
+  const custom = startChoice.choice === CUSTOM_START
   const refusal = useRefusedSubmit<LinkFlowField>(
     step === 'account'
       ? { bankAccount: chosenBankAccount?.linkable ? undefined : BANK_ACCOUNT_REQUIRED_MESSAGE }
       : step === 'start'
         ? {
             startChoice: startChoice.choice === null ? START_CHOICE_REQUIRED_MESSAGE : undefined,
-            startDate: startDateProblem,
+            rangeFrom: custom ? startChoice.dateRange.fromProblem : undefined,
+            rangeTo: custom ? startChoice.dateRange.toProblem : undefined,
           }
         : {},
     LINK_FLOW_FIELDS,
@@ -192,6 +184,7 @@ export function BankLinkFlowModal({
         connection_id: connection.id,
         external_account_id: externalAccountId,
         start_date: startChoice.start,
+        ...(startChoice.end ? { end_date: startChoice.end } : {}),
       },
       {
         onSuccess: () => {
@@ -308,7 +301,7 @@ export function BankLinkFlowModal({
                         advertisesHistory={provider?.advertises_history ?? true}
                         startChoice={startChoice}
                         errors={refusal.errors}
-                        onDateBlur={() => refusal.touch('startDate')}
+                        onRangeBlur={refusal.touch}
                         disabled={busy}
                       />
                     ) : (

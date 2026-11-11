@@ -319,7 +319,7 @@ test('links an account from its page, from choosing the bank account to its impo
   await continueButton.click()
 
   await expect(flow.getByText('Choose where history starts')).toBeVisible()
-  await expect(flow.getByText(`${SAMPLE_CHEQUING} brings in transactions from the start you choose through today.`)).toBeVisible()
+  await expect(flow.getByText(`Choose the days ${SAMPLE_CHEQUING} brings in. Each transaction waits for your review.`)).toBeVisible()
   await expect(flow.getByRole('radio', { checked: true })).toHaveCount(0)
   const submit = flow.getByRole('button', { name: 'Link and import' })
   await expect(submit).not.toHaveAttribute('aria-disabled', 'true')
@@ -667,7 +667,7 @@ test('fits the link flow button to the label it shows, easing its width as the l
   expect((await continueButton.boundingBox())!.width).toBeLessThan(submitWidth)
 })
 
-test('keeps the start within the range and never chooses Custom date on its own', NEEDS_BANK_SYNC, async ({ page, request }) => {
+test('opens custom dates at today and keeps From within the range', NEEDS_BANK_SYNC, async ({ page, request }) => {
   const user = await signUpUser(request)
   const [everyday, scenario] = await Promise.all([
     createAccount(request, user, { name: 'Everyday' }),
@@ -681,21 +681,30 @@ test('keeps the start within the range and never chooses Custom date on its own'
   await flow.getByRole('radio', { name: new RegExp(`^${SAMPLE_CHEQUING}`) }).click()
   await flow.getByRole('button', { name: 'Continue' }).click()
 
-  // The step opens with its focus inside and nothing chosen, Custom date included
+  // The step opens with nothing chosen and the custom dates folded away
   await expect(flow.getByText('Choose where history starts')).toBeVisible()
-  const custom = flow.getByRole('radio', { name: /^Custom date/ })
-  await expect(custom).toContainText(`Any day from ${formatDateLabel(firstOfMonthsAgo(12))}`)
+  const custom = flow.getByRole('radio', { name: /^Custom dates/ })
+  const customDates = flow.getByRole('group', { name: 'Custom dates' })
   await expect(flow.getByRole('radio', { checked: true })).toHaveCount(0)
+  await expect(customDates).toHaveCount(0)
 
+  // Choosing them unfolds From, empty, and To, at today, with the days allowed beneath
   const submit = flow.getByRole('button', { name: 'Link and import' })
   await custom.click()
   await expect(custom).toBeChecked()
+  await expect(customDates).toContainText(`Any days from ${formatDateLabel(firstOfMonthsAgo(12))} to today`)
+  const [year, month, day] = todayInTestTimezone().split('-')
+  const to = customDates.getByRole('group', { name: 'To', exact: true })
+  await expect(to.getByRole('textbox', { name: 'Year', exact: true })).toHaveValue(year)
+  await expect(to.getByRole('textbox', { name: 'Month', exact: true })).toHaveValue(month)
+  await expect(to.getByRole('textbox', { name: 'Day', exact: true })).toHaveValue(day)
+  await expect(customDates.getByRole('group', { name: 'From', exact: true }).getByRole('textbox', { name: 'Year', exact: true })).toHaveValue('')
   await expect(submit).not.toHaveAttribute('aria-disabled', 'true')
 
   // A date that is wrong is not called out while it is typed, only once focus leaves it
   // The field's own message, not the faded button's tooltip that gives the same reason
   const rangeMessage = flow.getByRole('alert').filter({ hasText: 'Outside the allowed range.' })
-  await typeDate(page, 'Start date', '2020-01-01')
+  await typeDate(page, 'From', '2020-01-01')
   await expect(rangeMessage).toBeHidden()
   await expect(submit).not.toHaveAttribute('aria-disabled', 'true')
   await flow.getByText('Choose where history starts').click()
@@ -707,10 +716,18 @@ test('keeps the start within the range and never chooses Custom date on its own'
   await expect(submit).toHaveAttribute('aria-disabled', 'true')
   await expect(rangeMessage).toBeVisible()
 
-  await typeDate(page, 'Start date', firstOfMonthsAgo(2))
+  await typeDate(page, 'From', firstOfMonthsAgo(2))
   await expect(rangeMessage).toBeHidden()
   await expect(submit).toBeEnabled()
   await expect(submit).not.toHaveAttribute('aria-disabled', 'true')
+
+  // A To left at today asks for no end, so syncing carries on from it
+  const linked = page.waitForResponse((answer) => answer.url() === `${API_BASE_URL}/accounts/${everyday.id}/bank-link` && answer.request().method() === 'POST')
+  await submit.click()
+  const link = await linked
+  expect(link.status()).toBe(201)
+  expect(link.request().postDataJSON()).toEqual(expect.objectContaining({ start_date: firstOfMonthsAgo(2) }))
+  expect(link.request().postDataJSON()).not.toHaveProperty('end_date')
 })
 
 test('unlinks the account alone, then reconnects it with the relink wording', NEEDS_BANK_SYNC, async ({ page, request }) => {
