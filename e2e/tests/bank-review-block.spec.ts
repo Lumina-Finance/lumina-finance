@@ -577,7 +577,7 @@ test("goes from a ledger row's Needs review marker to its item, loading the page
 
   // The ring stays clear of the card's edges and of the text it frames
   const [blockBox, ringBox, textBox, amountBox] = await Promise.all(
-    [block, ring, item.getByTestId('review-item-text'), item.getByTestId('review-item-amount')].map(async (part) => (await part.boundingBox())!),
+    [block, ring, item.getByTestId('review-item-name'), item.getByTestId('review-item-amount')].map(async (part) => (await part.boundingBox())!),
   )
   expect(ringBox.x).toBeGreaterThanOrEqual(blockBox.x + 8)
   expect(ringBox.x + ringBox.width).toBeLessThanOrEqual(blockBox.x + blockBox.width - 8)
@@ -735,11 +735,15 @@ for (const colorScheme of ['light', 'dark'] as const) {
       expect(blockBox.y + blockBox.height).toBeLessThanOrEqual(transactionBox.y)
       expect(await page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth)).toBe(true)
 
-      // Each amount sits beside its text rather than over it, a long description wrapping instead
+      // Each name runs the row's width, its label beside it, and each amount sits below the name and
+      // beside the details rather than over either, a long description wrapping instead
       for (const row of await rows.all()) {
-        const [text, amount] = [await row.getByTestId('review-item-text').boundingBox(), await row.getByTestId('review-item-amount').boundingBox()]
-        expect(amount!.x).toBeGreaterThanOrEqual(text!.x + text!.width)
-        expect(amount!.x + amount!.width).toBeLessThanOrEqual(blockBox.x + blockBox.width)
+        const [name, details, amount] = await Promise.all(
+          ['review-item-name', 'review-item-details', 'review-item-amount'].map(async (id) => (await row.getByTestId(id).boundingBox())!),
+        )
+        expect(amount.y).toBeGreaterThanOrEqual(name.y + name.height)
+        expect(amount.x).toBeGreaterThanOrEqual(details.x + details.width)
+        expect(amount.x + amount.width).toBeLessThanOrEqual(blockBox.x + blockBox.width)
       }
       // The caret ends the header's first row, a button at least 24px each way with no words to read
       const toggleBox = (await toggle.boundingBox())!

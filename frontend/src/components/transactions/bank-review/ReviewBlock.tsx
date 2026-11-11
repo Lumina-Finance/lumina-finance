@@ -317,25 +317,36 @@ export function BankReviewBlock({
                   : undefined
 
             const content = (
-              <div className="flex items-center gap-3 py-2.5">
-                <div data-testid="review-item-text" className="min-w-0 flex-1">
-                  {/* The label runs inline after the text, so a wrapped description keeps it beside its last word */}
-                  <p className="break-words text-sm font-medium" style={{ color: 'var(--app-text)' }}>
-                    {item.bank.description}
-                    <span
-                      className="ml-2 inline-block whitespace-nowrap rounded-full border px-1.5 py-0.5 align-[1px] text-xs font-medium leading-none"
-                      style={{ borderColor: 'var(--app-review-border)', color: 'var(--app-warning-text)' }}
-                    >
-                      {REVIEW_KIND_LABELS[item.kind]}
-                    </span>
-                  </p>
-                  <p className="mt-0.5 text-xs" style={{ color: 'var(--app-text-muted)' }}>
-                    <DetailPhrases phrases={details} />
-                  </p>
-                </div>
+              // The name runs the row's full width, so its label fits beside it wherever the line has room.
+              // The amount sits on the details line, level with its first line of text
+              <div className="grid grid-cols-[minmax(0,1fr)_auto] items-baseline gap-x-3 py-2.5">
+                {/* The label runs inline after the text, so a wrapped description keeps it beside its last word */}
+                <p
+                  data-testid="review-item-name"
+                  className="col-span-2 break-words text-sm font-medium"
+                  style={{ color: 'var(--app-text)' }}
+                >
+                  {item.bank.description}
+                  {/* An 8px space rather than a margin before the label, since a line break drops a space, so a
+                      label wrapped onto its own line starts at the text's edge */}
+                  <span className="text-[0px] [word-spacing:0.5rem]"> </span>
+                  <span
+                    className="inline-block whitespace-nowrap rounded-full border px-1.5 py-0.5 align-[1px] text-xs font-medium leading-none"
+                    style={{ borderColor: 'var(--app-review-border)', color: 'var(--app-warning-text)' }}
+                  >
+                    {REVIEW_KIND_LABELS[item.kind]}
+                  </span>
+                </p>
+                <p
+                  data-testid="review-item-details"
+                  className="mt-0.5 text-xs"
+                  style={{ color: 'var(--app-text-muted)' }}
+                >
+                  <DetailPhrases phrases={details} />
+                </p>
                 <span
                   data-testid="review-item-amount"
-                  className="shrink-0 font-financial text-sm font-medium tabular-nums"
+                  className="font-financial text-sm font-medium tabular-nums"
                   style={{
                     color:
                       amount.sign > 0

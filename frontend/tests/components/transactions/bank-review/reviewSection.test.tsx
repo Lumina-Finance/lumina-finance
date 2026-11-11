@@ -103,7 +103,7 @@ describe('the block for every account', () => {
     expect(markup).toContain('Waiting for review')
     expect(markup).toMatch(/>3<\/span>/)
     expect(markup).toContain('Bank items stay out of every balance until you add them to your ledger.')
-    expect(markup).toMatch(/COUNTDOWN 123<span[^>]*>Correction<\/span>/)
+    expect(markup).toMatch(/COUNTDOWN 123<span[^>]*> <\/span><span[^>]*>Correction<\/span>/)
     expect(textOf(markup)).toContain('Sep 21 · Visa · The bank changed the amount')
     expect(textOf(markup)).toContain('Sep 21 · Everyday · Needs merchant and category')
     expect(markup).toContain(`${MINUS}$23.10`)

@@ -132,9 +132,8 @@ const NEEDS_PHRASE = 'Needs merchant and category'
  * takes, and whether the row is wide enough to hold that phrase on one line at all
  */
 async function readNeedsPhraseLines(page: Page, description: string) {
-  const text = page.getByTestId('review-item-text').filter({ hasText: description })
-  return text.evaluate((column, phrase) => {
-    const line = [...column.querySelectorAll('p')].find((part) => part.textContent?.includes(phrase))!
+  const details = page.getByRole('listitem').filter({ hasText: description }).getByTestId('review-item-details')
+  return details.evaluate((line, phrase) => {
     const walker = document.createTreeWalker(line, NodeFilter.SHOW_TEXT)
     let node = walker.nextNode()
     while (node && !node.textContent?.includes(phrase)) node = walker.nextNode()
