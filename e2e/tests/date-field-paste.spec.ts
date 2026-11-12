@@ -43,4 +43,8 @@ test('fills every part of the date from a whole date pasted into any part, and i
 
   await paste(day, '2026-02-30')
   expect(await date()).toBe('2026-02-09')
+
+  // The suite's browser runs in en-CA, which writes its numeric dates month before day
+  await paste(year, '10/01/2026')
+  expect(await date()).toBe('2026-10-01')
 })

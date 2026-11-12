@@ -182,8 +182,8 @@ export default function DateField({
   }
 
   /**
-   * Fills every segment from a whole date pasted into any one of them. Other pasted text goes in as
-   * typed digits do
+   * Fills every segment from a whole date pasted into any one of them, a year-last one read in the
+   * browser's own date order. Other pasted text goes in as typed digits do
    */
   const handleSegmentPaste = (event: ReactClipboardEvent<HTMLInputElement>) => {
     if (readOnly) return

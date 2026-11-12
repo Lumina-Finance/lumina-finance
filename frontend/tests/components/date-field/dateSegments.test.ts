@@ -96,10 +96,18 @@ describe('reading a whole pasted date', () => {
     expect(parsePastedDate('20261001')).toEqual(october)
   })
 
+  it('reads a year-last date in the order the locale writes its own dates', () => {
+    expect(parsePastedDate('10/01/2026', 'en-US')).toEqual({ year: '2026', month: '10', day: '01' })
+    expect(parsePastedDate('10/01/2026', 'en-CA')).toEqual({ year: '2026', month: '10', day: '01' })
+    expect(parsePastedDate('10/01/2026', 'en-GB')).toEqual({ year: '2026', month: '01', day: '10' })
+    expect(parsePastedDate('9.2.2026', 'de-DE')).toEqual({ year: '2026', month: '02', day: '09' })
+  })
+
   it('reads nothing from a day that does not exist or text that is not a whole date', () => {
     expect(parsePastedDate('2026-02-30')).toBeNull()
     expect(parsePastedDate('2026-13-01')).toBeNull()
-    expect(parsePastedDate('10/01/2026')).toBeNull()
+    expect(parsePastedDate('25/12/2026', 'en-US')).toBeNull()
+    expect(parsePastedDate('10/01-2026', 'en-GB')).toBeNull()
     expect(parsePastedDate('12')).toBeNull()
     expect(parsePastedDate('2026-1001')).toBeNull()
   })
