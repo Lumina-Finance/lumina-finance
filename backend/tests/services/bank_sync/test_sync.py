@@ -423,6 +423,9 @@ async def test_job_keeps_records_and_moves_checkpoints_only_for_bank_accounts_th
     """
     names = ("ACT-everyday", "ACT-savings", "ACT-card", "ACT-travel")
     links = [await _link(connection, name, **_synced_through_yesterday()) for name in names]
+    async with TestSession() as session:
+        session.add_all([_build_external_account(connection, name) for name in names])
+        await session.commit()
     provider.outcomes = [
         FetchResult(
             accounts=(
@@ -442,6 +445,7 @@ async def test_job_keeps_records_and_moves_checkpoints_only_for_bank_accounts_th
     assert await _bank_transactions(BankTransaction.external_account_id, _BANK_ID) == [("ACT-everyday", "TRN-coffee")]
     assert await _checkpoints(*links) == [_TODAY, date(2026, 10, 3), date(2026, 10, 3), date(2026, 10, 3)]
     assert (len(provider.fetches), len(provider.discoveries)) == (1, 1)
+    assert await _link_states(links[3]) == ["choose_account"]
     assert [(kind, status) for kind, status, *_ in await _jobs()] == [("scheduled", "succeeded"), ("scheduled", "succeeded")]
 
 
@@ -805,7 +809,7 @@ _REFUSED = "Fake Bank refused the dates asked for. Use Sync now to try again"
 async def test_job_syncs_the_bank_accounts_it_brought_back_whole_and_stops_the_others_the_provider_refused(
     connection, provider, frozen_now, day_later
 ):
-    """At 1 pm Everyday comes back whole, while Savings has an error of its own and Travel didn't come back
+    """At 1 pm Everyday comes back whole, while Savings and Travel each have an error of their own
 
     Everyday reads as synced now and next syncs tomorrow. Savings and Travel keep yesterday's last
     sync and show that the provider refused the dates, and nothing is queued for them. They sync
@@ -816,7 +820,8 @@ async def test_job_syncs_the_bank_accounts_it_brought_back_whole_and_stops_the_o
     ]
     provider.outcomes = [
         FetchResult(
-            accounts=(_bank_account("ACT-everyday"), _bank_account("ACT-savings")), account_errors={"ACT-savings": _reported_a_problem()}
+            accounts=tuple(_bank_account(name) for name in ("ACT-everyday", "ACT-savings", "ACT-travel")),
+            account_errors={"ACT-savings": _reported_a_problem(), "ACT-travel": _reported_a_problem()},
         )
     ]
     await _seed_job(connection, BankSyncJobKind.SCHEDULED)
@@ -947,7 +952,7 @@ async def test_job_asks_for_no_later_half_for_a_link_the_provider_refused_the_ea
     The earlier half is 45 days, so the link stops there, and the later half isn't asked for
     """
     link = await _link(connection, "ACT-1", import_start=date(2026, 1, 1), checkpoint=date(2025, 12, 31))
-    provider.outcomes = [_cut_off("ACT-1"), FetchResult(account_errors={"ACT-1": _reported_a_problem()})]
+    provider.outcomes = [_cut_off("ACT-1"), _refused_for("ACT-1")]
     await _seed_job(connection, BankSyncJobKind.INITIAL)
 
     await _run_jobs_until_none_is_due()
@@ -1806,7 +1811,11 @@ async def test_job_stopped_by_its_time_limit_keeps_the_success_a_link_already_re
     everyday = await _link(connection, "ACT-everyday", import_start=date(2026, 1, 1), checkpoint=date(2025, 12, 31))
     savings = await _link(connection, "ACT-savings", import_start=date(2026, 1, 1), checkpoint=date(2025, 12, 31))
     provider = _HeldProvider(held=(3,))
-    provider.outcomes = [_cut_off("ACT-everyday", "ACT-savings"), _returned("ACT-everyday"), _returned("ACT-everyday")]
+    provider.outcomes = [
+        _cut_off("ACT-everyday", "ACT-savings"),
+        _refused_for("ACT-savings", whole=("ACT-everyday",)),
+        _returned("ACT-everyday"),
+    ]
     use_adapter(monkeypatch, provider)
     await _seed_job(connection, BankSyncJobKind.INITIAL)
 
@@ -1830,7 +1839,7 @@ async def test_job_the_worker_stops_on_an_error_fails_each_link_once(connection,
         connection, "ACT-card", import_start=date(2026, 1, 1), checkpoint=date(2025, 12, 31), retry_count=3, next_attempt_at=frozen_now
     )
     everyday = await _link(connection, "ACT-everyday", **_synced_through_yesterday())
-    refused = FetchResult(account_errors={"ACT-card": _reported_a_problem()})
+    refused = _refused_for("ACT-card")
     provider.outcomes = [refused, refused, RuntimeError("Unexpected bank data")]
     await _seed_job(connection, BankSyncJobKind.RETRY)
 
@@ -2240,6 +2249,60 @@ async def test_job_whose_fetch_leaves_out_a_linked_bank_account_lists_the_bank_a
 
     assert (len(provider.fetches), len(provider.discoveries)) == (1, 1)
     assert await _link_states(everyday, savings) == ["choose_account", "active"]
+
+
+async def test_job_whose_first_import_window_leaves_out_a_moved_bank_account_spends_one_request_before_the_listing(connection, provider):
+    """Everyday's first import window is 90 days and its bank account moved, so the response leaves it out
+
+    The job asks for no shorter windows and records no failure. The next job lists the bank accounts
+    first, finds no Everyday and leaves it waiting for a bank account to be chosen
+    """
+    everyday = await _link(connection, "ACT-everyday", import_start=date(2026, 1, 1), checkpoint=date(2025, 12, 31))
+    async with TestSession() as session:
+        session.add(_build_external_account(connection, "ACT-everyday"))
+        await session.commit()
+    provider.outcomes = [FetchResult(), _returned("ACT-other")]
+    await _seed_job(connection, BankSyncJobKind.INITIAL)
+
+    assert await run_jobs(1) == 1
+
+    assert _fetched(provider) == [_window(date(2026, 1, 1), date(2026, 3, 31), ["ACT-everyday"])]
+    assert len(provider.discoveries) == 0
+    assert [(reason, retries) for _, _, reason, retries, _ in await _attempts(everyday)] == [(None, 0)]
+    assert (await _link_states(everyday), await _checkpoints(everyday)) == (["active"], [date(2025, 12, 31)])
+    assert [discover for *_, discover in await _queued_jobs()] == [True]
+
+    await _run_jobs_until_none_is_due()
+
+    assert (len(provider.discoveries), len(provider.fetches)) == (1, 1)
+    assert await _link_states(everyday) == ["choose_account"]
+
+
+async def test_job_asks_for_the_shorter_windows_of_a_bank_account_the_listing_still_shows_but_the_fetch_leaves_out(connection, provider):
+    """Everyday's 90-day first import window leaves its bank account out, and the next job's listing still shows it
+
+    The first job asks once and passes Everyday on. The next lists the bank accounts and finds it,
+    then asks for the 90 days and gets it left out again, so it takes the two 45-day halves instead of
+    waiting for another listing
+    """
+    link = await _link(connection, "ACT-1", import_start=date(2026, 1, 1), checkpoint=date(2025, 12, 31))
+    async with TestSession() as session:
+        session.add(_build_external_account(connection, "ACT-1"))
+        await session.commit()
+    provider.outcomes = [FetchResult(), _returned("ACT-1"), FetchResult(), _returned("ACT-1"), _returned("ACT-1")]
+    await _seed_job(connection, BankSyncJobKind.INITIAL)
+
+    assert await run_jobs(2) == 2
+
+    assert _fetched(provider) == [
+        _window(date(2026, 1, 1), date(2026, 3, 31)),
+        _window(date(2026, 1, 1), date(2026, 3, 31)),
+        _window(date(2026, 1, 1), date(2026, 2, 14)),
+        _window(date(2026, 2, 15), date(2026, 3, 31)),
+    ]
+    assert len(provider.discoveries) == 1
+    assert await _link_states(link) == ["active"]
+    assert await _checkpoints(link) == [date(2026, 3, 31)]
 
 
 async def test_job_retrying_a_bank_account_the_fetch_keeps_leaving_out_does_not_list_the_bank_accounts_again(connection, provider, frozen_now):

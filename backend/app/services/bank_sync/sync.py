@@ -28,8 +28,12 @@ range carries on from its next day
 A bank account a fetch lists in a currency other than its account's isn't brought back whole, since
 its amounts would be read at the wrong precision, and one it leaves out altogether isn't either.
 The job queues the next one to list the bank accounts first. That moves its link to Choose bank
-account when the listing agrees. A job that listed them itself queues no
-listing, so a provider whose listing and fetch disagree can't spend request after request, and nor
+account when the listing agrees. A link whose bank account the fetch leaves out for the first time
+since it last succeeded takes no shorter windows in that job, since a bank account that moved and a
+bank that refuses a long range look the same. It records no failure and moves no checkpoint, leaves
+the rest of the job and is planned again by the next one after the listing. If the listing still
+shows the bank account, the next miss is a refusal like any other and gets the shorter windows. A
+job that listed them itself queues no listing, so a provider whose listing and fetch disagree can't spend request after request, and nor
 does a job that ends on a rejected credential, since it can't list anything
 
 Each attempt is recorded on the links it was for, as the retries module describes: a link brought
@@ -289,7 +293,9 @@ class _JobRun:
         # The links a part of this job didn't bring back whole, left out of the rest of it
         self.failed: set[uuid.UUID] = set()
 
-        # Those among them the provider refused even a short window for, which no later part of the job asks for
+        # Those among them that no later part of the job asks for: the provider refused even a short
+        # window for them, or a response left their bank account out before the bank accounts were
+        # listed, which leaves them to the next job
         self.stopped: set[uuid.UUID] = set()
 
         # The links the user asked to sync now, due whatever their next attempt. Those this job ends
@@ -537,6 +543,9 @@ class _JobRun:
         The contract has no paging, so a response that may have been cut short is set aside and its days
         fetched again in halves, down to a single day. That day is kept however long, and the links it
         brought back whole remind the user that some of that day's transactions may be missing.
+        A link whose bank account the response leaves out, in a job that hasn't listed the bank
+        accounts, is asked for no shorter window: it waits for the next job, which lists them first.
+        A bank account left out or refused after a listing is asked for in halves like any refusal.
         Parts are written as they come back, earliest first, so those fetched before the budget ran
         out or a request failed keep their progress
 
@@ -591,13 +600,25 @@ class _JobRun:
                     failure = _failure_of(result, link.external_account_id, login)
 
                     # A bank account the response leaves out, with no sign-in at its bank to explain
-                    # it, may have vanished at the provider, which only a listing shows. Only the
+                    # it, may have moved at the provider, which only a listing shows. Only the
                     # first miss after a success asks for one, so a bank account the provider keeps
                     # failing for doesn't double the requests each retry spends
                     left_out = all(listed.external_id != link.external_account_id for listed in result.accounts)
-                    if left_out and login not in result.login_errors and link.last_failure_reason is None:
+                    first_miss = left_out and login not in result.login_errors and link.last_failure_reason is None
+                    if first_miss:
                         self.relist = not self.listed
                     if _is_refusal(result, link.external_account_id, failure):
+                        # A response looks the same for a bank account that moved and a bank that
+                        # refuses the dates, so before the bank accounts are listed the link takes
+                        # no shorter window and no failure. It leaves the rest of the job and
+                        # passes to the next, which lists first and then plans it again. A listing
+                        # without it moves the link to Choose bank account, and one that still
+                        # shows it leaves the next miss to the shorter windows below
+                        if first_miss and not self.listed:
+                            self.failed.add(link.id)
+                            self.stopped.add(link.id)
+                            continue
+
                         # Asked again for a shorter window, first half then second, for the links
                         # refused. Where the window is already short, the link stops with the reason
                         if part.days > REFUSED_WINDOW_RETRY_DAYS:
